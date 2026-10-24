@@ -1,28 +1,61 @@
 {
-  "date": "2026-10-25",
-  "question": "Why is Obscura 0.2.5 lighter than us on the same 25-pool crawl (199 MB vs 297 MB peak RSS)?",
-  "relationship_verdict": "NOT a fork. Obscura is its own codebase (obscura-* crate family on deno_core 0.350 -> v8 137.3.0). diting cites obscura#NNN issues as ported fixes (the 'steal mechanisms not protocol' doctrine, #276); the engines share no code lineage. We retired deno_core (own diting_runtime + snapshot container), they still ride it.",
-  "facts": {
-    "v8_version": { "aginxbrowser": "=150.4.0 (pinned directly)", "obscura": "137.3.0 (via deno_core 0.350)" },
-    "isolation_model": "BOTH isolate-per-page (ours: Vm::from_snapshot per navigation; theirs: deno_core JsRuntime::new per page) — the shape is the same",
-    "snapshot_blob_bytes": { "aginxbrowser_DITING_SNAPSHOT_bin": 4621260, "obscura_main_0.1.0_OBSCURA_SNAPSHOT_bin": 1677628, "note": "ours is 2.75x — the 300015 fingerprint surface (17k-line bootstrap, 701-name global_surface, canvas face, interface sweep) bakes a much larger object graph" }
+ "date": "2026-10-25",
+ "question": "Why is Obscura 0.2.5 lighter than us on the same 25-pool crawl (199 MB vs 297 MB peak RSS)?",
+ "relationship_verdict": "NOT a fork. Obscura is its own codebase (obscura-* crate family on deno_core 0.350 -> v8 137.3.0). diting cites obscura#NNN issues as ported fixes (the 'steal mechanisms not protocol' doctrine, #276); the engines share no code lineage. We retired deno_core (own diting_runtime + snapshot container), they still ride it.",
+ "facts": {
+  "v8_version": {
+   "aginxbrowser": "=150.4.0 (pinned directly)",
+   "obscura": "137.3.0 (via deno_core 0.350)"
   },
-  "measurement_per_isolate_aginxbrowser": {
-    "method": "release binary, 25 sessions each navigating a trivial data: URL (near-zero page content), ps RSS on the server pid",
-    "base_rss_kb": 25424,
-    "after_5": 64864,
-    "after_10": 101008,
-    "after_25": 209264,
-    "marginal_per_isolate_kb": 7353,
-    "after_all_closed_kb": 151072,
-    "reading": "~7.4 MB per empty-page realm. 25 concurrent = ~185 MB of pure JS-realm baseline; the 4.6 MB snapshot deserialized per isolate is the dominant term. Crawl peak 297 MB = base 25 + 25x7.4 + DOM/layout/net per page. Closing sessions returns only part (209 -> 151 MB; V8 page retention)."
+  "isolation_model": "BOTH isolate-per-page (ours: Vm::from_snapshot per navigation; theirs: deno_core JsRuntime::new per page) — the shape is the same",
+  "snapshot_blob_bytes": {
+   "aginxbrowser_DITING_SNAPSHOT_bin": 4621260,
+   "obscura_main_0.1.0_OBSCURA_SNAPSHOT_bin": 1677628,
+   "note": "ours is 2.75x — the 300015 fingerprint surface (17k-line bootstrap, 701-name global_surface, canvas face, interface sweep) bakes a much larger object graph"
+  }
+ },
+ "measurement_per_isolate_aginxbrowser": {
+  "method": "release binary, 25 sessions each navigating a trivial data: URL (near-zero page content), ps RSS on the server pid",
+  "base_rss_kb": 25424,
+  "after_5": 64864,
+  "after_10": 101008,
+  "after_25": 209264,
+  "marginal_per_isolate_kb": 7353,
+  "after_all_closed_kb": 151072,
+  "reading": "~7.4 MB per empty-page realm. 25 concurrent = ~185 MB of pure JS-realm baseline; the 4.6 MB snapshot deserialized per isolate is the dominant term. Crawl peak 297 MB = base 25 + 25x7.4 + DOM/layout/net per page. Closing sessions returns only part (209 -> 151 MB; V8 page retention)."
+ },
+ "obscura_arithmetic": "same multiplier (25 targets = 25 JsRuntimes), smaller per-unit: ~1.68 MB snapshot + deno_core 0.350 / V8 137 baseline. 199 MB observed is consistent with per-isolate in the ~3-4 MB class. Not directly measured (no CDP driver at hand) — hedged.",
+ "tradeoff_and_options": [
+  "The fat snapshot IS the 300015 armor (xhs shield reads the window surface; the 701 names exist because walls checked for them). Slimming it trades fingerprint coverage for memory.",
+  "Two-tier snapshot: slim core baked, surface expansion applied post-restore only on fingerprint-sensitive hosts (needs a lazy-expansion mechanism; ~ms per flagged page).",
+  "Realm recycling per session (reuse isolate across navigations) would cut concurrent isolates but breaks the fresh-realm-per-page hygiene that the current model (and the busy_frozen/rebuild semantics) is built on — not recommended casually.",
+  "Heap knobs (--max-semi-space-size etc.) do NOT touch the snapshot baseline — the 2026-10-22 v8flags experiment already showed ~no peak movement.",
+  "Idle shrink: after-close retention (209->151 MB) suggests a MemoryReducer/background-reclaim pass could return tens of MB on session churn."
+ ],
+ "followup_2026_10_25_heap_decomposition": {
+  "probe": "AGINXBROWSER_REALM_HEAP_STATS (now a shipped forensics knob): Vm::heap_statistics at [A post-restore]/[B post-init], Vm::drop and Page::drop counts, actor-task end",
+  "per_realm_v8_heap_bytes": {
+   "A_post_restore_used": 5018568,
+   "B_post_init_used": 5467344,
+   "B_post_init_total_committed": 6619136,
+   "deterministic": "identical across all 25+ realms"
   },
-  "obscura_arithmetic": "same multiplier (25 targets = 25 JsRuntimes), smaller per-unit: ~1.68 MB snapshot + deno_core 0.350 / V8 137 baseline. 199 MB observed is consistent with per-isolate in the ~3-4 MB class. Not directly measured (no CDP driver at hand) — hedged.",
-  "tradeoff_and_options": [
-    "The fat snapshot IS the 300015 armor (xhs shield reads the window surface; the 701 names exist because walls checked for them). Slimming it trades fingerprint coverage for memory.",
-    "Two-tier snapshot: slim core baked, surface expansion applied post-restore only on fingerprint-sensitive hosts (needs a lazy-expansion mechanism; ~ms per flagged page).",
-    "Realm recycling per session (reuse isolate across navigations) would cut concurrent isolates but breaks the fresh-realm-per-page hygiene that the current model (and the busy_frozen/rebuild semantics) is built on — not recommended casually.",
-    "Heap knobs (--max-semi-space-size etc.) do NOT touch the snapshot baseline — the 2026-10-22 v8flags experiment already showed ~no peak movement.",
-    "Idle shrink: after-close retention (209->151 MB) suggests a MemoryReducer/background-reclaim pass could return tens of MB on session churn."
+  "fingerprint_surface_share": {
+   "method": "throwaway build with global_surface.js+canvas_face.js skipped from SNAPSHOT_SCRIPTS",
+   "A_post_restore_used_without_surface": 4186920,
+   "surface_cost_bytes_per_realm": 831648,
+   "verdict": "LAZY-SURFACE REJECTED: the P2/P3 surface is 0.83MB/realm (16% of the 5.2MB heap) — max 21MB over 25 realms, not worth descriptor-fidelity risk. The snapshot mass is the ENGINE'S OWN JS standard library (17k-line bootstrap + family), i.e. capability, not decoration."
+  },
+  "close_path_verdict": "CLEAN — 25/25 actor tasks ended, 25/25 diting Pages dropped, 51/51 Vms dropped; SerializedDropRuntime and malloc_zone_pressure_relief both work. (An earlier 'zero drops at close' reading was an artifact of benching a stale server instance on the same port.)",
+  "post_close_residual": {
+   "immediate": "RSS ~151MB (vs 25MB base) — looks like a leak, is not",
+   "after_12s_idle": "RSS 56.9MB; vmmap App-Specific Tag 16 (V8) resident 91.4MB -> 0K",
+   "cause": "V8 memory pool (flag --memory-pool, default on) retains freed isolate heap pages for --memory-pool-timeout=8s to make isolate churn fast, then releases automatically",
+   "deployment_knob": "AGINXBROWSER_V8_FLAGS=--no-memory-pool trades churn speed for immediate return (existing engine knob; no code change needed)"
+  },
+  "remaining_honest_levers": [
+   "committed-vs-used slack ~1.1MB/realm (6.6 total vs 5.5 used) — heap growing-factor experiments could trim ~25MB at 25-realm peak",
+   "per-realm cost is dominated by the engine's JS stdlib mass; per-context-in-shared-isolate would slash it but is the rejected isolation-model change"
   ]
+ }
 }

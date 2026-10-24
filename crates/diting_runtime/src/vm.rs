@@ -552,6 +552,14 @@ impl Default for Vm {
 impl Drop for Vm {
     fn drop(&mut self) {
         crate::foreground::deregister(self.fg_key);
+        // #276 memory forensics: prove realms die with their sessions —
+        // the registry length is the live-isolate count.
+        if std::env::var("AGINXBROWSER_REALM_HEAP_STATS")
+            .map(|v| v != "0" && !v.is_empty())
+            .unwrap_or(false)
+        {
+            eprintln!("isolate dropped key={:x} registry_len={}", self.fg_key, crate::foreground::registry_len());
+        }
     }
 }
 
@@ -916,6 +924,14 @@ impl Vm {
     /// re-delivers whatever parked — this pair is the closed loop.
     pub fn revive(&mut self) {
         self.isolate.cancel_terminate_execution();
+    }
+
+    /// Heap statistics snapshot for this realm (env-gated memory
+    /// forensics, #276 memory work): the embedder reads used/total right
+    /// after snapshot restore and after realm init to decompose the
+    /// per-isolate cost. Zero cost when the knob is off — one struct copy.
+    pub fn heap_statistics(&mut self) -> v8::HeapStatistics {
+        self.isolate.get_heap_statistics()
     }
 
     /// Cross-thread terminate/cancel handle (the watchdog family's face —

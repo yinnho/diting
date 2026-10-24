@@ -315,6 +315,19 @@ pub struct EmulatedMedia {
     pub media: Option<Option<String>>,
 }
 
+/// #276 memory forensics: prove which layer holds a closed session's
+/// realm alive. Gated by AGINXBROWSER_REALM_HEAP_STATS.
+impl Drop for Page {
+    fn drop(&mut self) {
+        if std::env::var("AGINXBROWSER_REALM_HEAP_STATS")
+            .map(|v| v != "0" && !v.is_empty())
+            .unwrap_or(false)
+        {
+            eprintln!("diting Page dropped url={}", self.url_string());
+        }
+    }
+}
+
 pub struct Page {
     pub id: String,
     /// Upstream frame-realm identifier: one Page can host sub-frame realms

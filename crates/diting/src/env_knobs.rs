@@ -309,3 +309,12 @@ mod tests {
         );
     }
 }
+
+/// `AGINXBROWSER_REALM_HEAP_STATS`: log each realm's V8 heap statistics at
+/// two points (post snapshot restore, post realm init) so the per-isolate
+/// memory cost can be decomposed (#276 memory work). Off by default.
+pub fn realm_heap_stats() -> bool {
+    std::env::var("AGINXBROWSER_REALM_HEAP_STATS")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+}

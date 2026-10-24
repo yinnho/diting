@@ -267,6 +267,17 @@ impl JsRuntime {
             });
             Vm::from_snapshot(SNAPSHOT).expect("our snapshot container revives")
         };
+        // #276 memory forensics: point A — the heap as the snapshot restore
+        // left it, before any init script runs.
+        if crate::env_knobs::realm_heap_stats() {
+            let h = runtime.heap_statistics();
+            tracing::info!(
+                "realm heap [A post-restore]: used {} total {} physical {}",
+                h.used_heap_size(),
+                h.total_heap_size(),
+                h.total_physical_size()
+            );
+        }
 
         // 10d law: the ops land INSIDE the Deno.core.ops namespace object the
         // snapshot baked (bootstrap.js captured it as `const _OPS` — object
@@ -306,6 +317,18 @@ impl JsRuntime {
             }
         }
 
+        // #276 memory forensics: point B — after ops install, init script,
+        // natives mint; this is the per-realm steady baseline a page starts
+        // from.
+        if crate::env_knobs::realm_heap_stats() {
+            let h = runtime.heap_statistics();
+            tracing::info!(
+                "realm heap [B post-init]: used {} total {} physical {}",
+                h.used_heap_size(),
+                h.total_heap_size(),
+                h.total_physical_size()
+            );
+        }
         let isolate_handle = runtime.isolate_handle();
         let heap_limit_state = std::sync::Arc::new(HeapLimitState::default());
         install_heap_limit_guard(&mut runtime, isolate_handle.clone(), heap_limit_state.clone());

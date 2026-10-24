@@ -41,6 +41,11 @@ pub(crate) struct ForegroundEntry {
 
 static REGISTRY: OnceLock<Mutex<HashMap<usize, Arc<ForegroundEntry>>>> = OnceLock::new();
 
+/// Live-isolate count (memory forensics knob readers).
+pub fn registry_len() -> usize {
+    registry().lock().map(|r| r.len()).unwrap_or(0)
+}
+
 fn registry() -> &'static Mutex<HashMap<usize, Arc<ForegroundEntry>>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
