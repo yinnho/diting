@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-25",
+  "question": "Why is Obscura 0.2.5 lighter than us on the same 25-pool crawl (199 MB vs 297 MB peak RSS)?",
+  "relationship_verdict": "NOT a fork. Obscura is its own codebase (obscura-* crate family on deno_core 0.350 -> v8 137.3.0). diting cites obscura#NNN issues as ported fixes (the 'steal mechanisms not protocol' doctrine, #276); the engines share no code lineage. We retired deno_core (own diting_runtime + snapshot container), they still ride it.",
+  "facts": {
+    "v8_version": { "aginxbrowser": "=150.4.0 (pinned directly)", "obscura": "137.3.0 (via deno_core 0.350)" },
+    "isolation_model": "BOTH isolate-per-page (ours: Vm::from_snapshot per navigation; theirs: deno_core JsRuntime::new per page) — the shape is the same",
+    "snapshot_blob_bytes": { "aginxbrowser_DITING_SNAPSHOT_bin": 4621260, "obscura_main_0.1.0_OBSCURA_SNAPSHOT_bin": 1677628, "note": "ours is 2.75x — the 300015 fingerprint surface (17k-line bootstrap, 701-name global_surface, canvas face, interface sweep) bakes a much larger object graph" }
+  },
+  "measurement_per_isolate_aginxbrowser": {
+    "method": "release binary, 25 sessions each navigating a trivial data: URL (near-zero page content), ps RSS on the server pid",
+    "base_rss_kb": 25424,
+    "after_5": 64864,
+    "after_10": 101008,
+    "after_25": 209264,
+    "marginal_per_isolate_kb": 7353,
+    "after_all_closed_kb": 151072,
+    "reading": "~7.4 MB per empty-page realm. 25 concurrent = ~185 MB of pure JS-realm baseline; the 4.6 MB snapshot deserialized per isolate is the dominant term. Crawl peak 297 MB = base 25 + 25x7.4 + DOM/layout/net per page. Closing sessions returns only part (209 -> 151 MB; V8 page retention)."
+  },
+  "obscura_arithmetic": "same multiplier (25 targets = 25 JsRuntimes), smaller per-unit: ~1.68 MB snapshot + deno_core 0.350 / V8 137 baseline. 199 MB observed is consistent with per-isolate in the ~3-4 MB class. Not directly measured (no CDP driver at hand) — hedged.",
+  "tradeoff_and_options": [
+    "The fat snapshot IS the 300015 armor (xhs shield reads the window surface; the 701 names exist because walls checked for them). Slimming it trades fingerprint coverage for memory.",
+    "Two-tier snapshot: slim core baked, surface expansion applied post-restore only on fingerprint-sensitive hosts (needs a lazy-expansion mechanism; ~ms per flagged page).",
+    "Realm recycling per session (reuse isolate across navigations) would cut concurrent isolates but breaks the fresh-realm-per-page hygiene that the current model (and the busy_frozen/rebuild semantics) is built on — not recommended casually.",
+    "Heap knobs (--max-semi-space-size etc.) do NOT touch the snapshot baseline — the 2026-10-22 v8flags experiment already showed ~no peak movement.",
+    "Idle shrink: after-close retention (209->151 MB) suggests a MemoryReducer/background-reclaim pass could return tens of MB on session churn."
+  ]
+}
