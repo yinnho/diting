@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-25",
+  "tz": "Asia/Shanghai",
+  "machine": "macOS 27.0.1 arm64 (same Mac as the 2026-10-19 debug run and the 2026-10-21 peer crawl)",
+  "purpose": "P3-9: release-profile rerun of the tip micro-bench, plus Lightpanda 1.0.1 / Obscura 0.2.5 on tip-shaped metrics (#276).",
+  "aginxbrowser": {
+    "version": "0.6.2",
+    "commit": "51c0337",
+    "profile": "cargo build --release --features stealth,screenshot",
+    "face": "/health reports stealth=true, tls=chrome145, UA Chrome/145 (the coherent pair)",
+    "cold_start_first_health_ms": 38.4,
+    "warm_health_median_ms_n3": 0.308,
+    "fetch_shortset_median_ms": 791.0,
+    "fetch_shortset_ok": "5/5",
+    "peak_rss_mib": 44,
+    "session_snapshot": { "create_ms": 1.0, "navigate_ms": 1219.3, "snapshot_ms": 2.7 }
+  },
+  "peers": {
+    "lightpanda": {
+      "version": "1.0.1",
+      "binary": "official release lightpanda-aarch64-macos (kept in tmp/, gitignored)",
+      "serve_cold_connect_ms": 85.7,
+      "cli_fetch_per_url_ms": [3140, 5726, 8657, 7080, 2022],
+      "shape": "one process per URL: spawn + page load + --dump html. Same per-invocation shape as the curl/Chrome columns of the 2026-10-19 matrix, NOT a warm-API comparison."
+    },
+    "obscura": {
+      "version": "0.2.5",
+      "binary": "official release obscura-aarch64-macos.tar.gz (kept in tmp/, gitignored)",
+      "serve_cold_connect_ms": 31.3,
+      "cli_fetch_per_url_ms": [1647, 30012, 30012, 4738, 4009],
+      "shape": "one process per URL: spawn + page load + --dump markdown. Two of five URLs hit the 30s class in this window (rc=1)."
+    }
+  },
+  "network": "Asia/Shanghai egress, high variance this evening: 30-second-class stalls landed on different engines and different URLs within the same minutes (aginx: rust-lang.org 38.7s; curl: python.org 30.5s; Obscura: two 30s timeouts). Per-URL walls are receipts, not stable p50s; medians and the all-ok count carry the signal.",
+  "shortset_urls": [
+    "https://example.com",
+    "https://www.rust-lang.org/",
+    "https://www.python.org/",
+    "https://nodejs.org/en",
+    "https://doc.rust-lang.org/book/title-page.html"
+  ],
+  "not_run_this_round": ["Chrome --dump-dom baseline", "session snapshot for peers (no equivalent CLI face)"],
+  "script": "run.py (this directory)",
+  "prior_runs": {
+    "debug_tip_20261019": "../scoreboard-20261019/",
+    "amiibo_crawl_20261021": "../peer-crawl-20261021/"
+  }
+}

@@ -1,0 +1,44 @@
+{
+ "metric": "fetch_shortset_markdown",
+ "profile": "release",
+ "rows": [
+  {
+   "url": "https://example.com",
+   "ms": 858.4,
+   "tier": "http",
+   "chars": 156,
+   "ok": true
+  },
+  {
+   "url": "https://www.rust-lang.org/",
+   "ms": 38668.9,
+   "tier": "http",
+   "chars": 4916,
+   "ok": true
+  },
+  {
+   "url": "https://www.python.org/",
+   "ms": 275.3,
+   "tier": "http",
+   "chars": 8053,
+   "ok": true
+  },
+  {
+   "url": "https://nodejs.org/en",
+   "ms": 630.1,
+   "tier": "http",
+   "chars": 4929,
+   "ok": true
+  },
+  {
+   "url": "https://doc.rust-lang.org/book/title-page.html",
+   "ms": 791.0,
+   "tier": "http",
+   "chars": 1573,
+   "ok": true
+  }
+ ],
+ "median_ms": 791.0,
+ "ok": 5,
+ "peak_rss_kb": 45120
+}

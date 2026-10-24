@@ -6,6 +6,8 @@
 > Binary: local `target/debug` (`cargo build --features stealth` + `AGINXBROWSER_BUILD_COMMIT`) — **not** Homebrew cellar, **not** `--release`  
 > Raw receipts: [`bench/scoreboard-20261019/`](../bench/scoreboard-20261019/) · [`INDEX.json`](../bench/scoreboard-20261019/INDEX.json)
 
+> **Release rerun 2026-10-25 (P3-9):** the same tip micro-bench on a `--release --features stealth,screenshot` binary, **plus Lightpanda 1.0.1 / Obscura 0.2.5 on tip-shaped metrics** — see [the release section](#release-rerun-2026-10-25-p3-9) and [`bench/scoreboard-20261025/`](../bench/scoreboard-20261025/). The tables below stay the 2026-10-19 debug snapshot.
+
 This page is a **tip micro-bench** with committed receipts. It complements the historical 20-page harness in [`bench/README.md`](../bench/README.md) (2026-08-28 / 2026-09-29) and the wire-level [Stealth/TLS comparison](stealth-tls-comparison.md). Absolute milliseconds on a debug build are **not** marketing release numbers.
 
 ---
@@ -35,7 +37,7 @@ This page is a **tip micro-bench** with committed receipts. It complements the h
 
 ### Limits (read this)
 
-- **Debug profile.** Numbers are from `cargo build --features stealth` (unoptimized). A `--release` binary will be faster; we did not invent release timings.
+- **Debug profile.** Numbers are from `cargo build --features stealth` (unoptimized). The 2026-10-25 release rerun measures the release binary; the tables below stay debug-profile history.
 - **Network included.** Wall times include Asia/Shanghai egress RTT. Compare columns on this machine, not against someone else's laptop.
 - **No invented peer timings.** Lightpanda / Obscura cells on this page stay **not run**. A separate Amiibo crawl on 2026-10-21 measured those two engines on this machine: [peer-crawl-20261021.md](peer-crawl-20261021.md). It does not fill the cells below.
 - **No merchant / authenticated production APIs** in this bench.
@@ -118,18 +120,34 @@ Navigate ≫ snapshot: once the document is loaded, building actionable refs is 
 
 ---
 
-## Matrix D — Peers (not run)
+## Matrix D — Peers (run 2026-10-25, tip-shaped)
 
-| Engine | Status | Pointer |
-|--------|--------|---------|
-| Lightpanda | **not run** | [GitHub releases](https://github.com/lightpanda-io/browser/releases) · [lightpanda.io](https://lightpanda.io) |
-| Obscura | **not run** | Used via [agent-browser](https://github.com/vercel-labs/agent-browser) CDP (`--engine obscura`); no standalone binary on this Mac |
-
-We publish **our** timings + methodology so peers can be filled in later on the same machine without rewriting the page.
-
-A later crawl, different workload (Amiibo, pool 25, release binary): [peer-crawl-20261021.md](peer-crawl-20261021.md).
+First same-machine run of Lightpanda and Obscura against the tip metrics — see the [release section](#release-rerun-2026-10-25-p3-9) for numbers, shape notes, and receipts. Their Amiibo crawl numbers (different workload) stay in [peer-crawl-20261021.md](peer-crawl-20261021.md).
 
 Related: [agent-browser engine guide](agent-browser-engine.md) · [Stealth/TLS comparison](stealth-tls-comparison.md) · historical [bench/README.md](../bench/README.md).
+
+---
+
+## Release rerun 2026-10-25 (P3-9)
+
+Binary `target/release/aginxbrowser`, `--release --features stealth,screenshot`, version 0.6.2, `/health` commit `51c0337` — stealth **true**, TLS `chrome145`, UA Chrome/145 (the coherent fleet face). Same Mac, same five-URL shortset, cache off. Receipts: [`bench/scoreboard-20261025/`](../bench/scoreboard-20261025/) · [`INDEX.json`](../bench/scoreboard-20261025/INDEX.json) · script [`run.py`](../bench/scoreboard-20261025/run.py).
+
+| Metric | debug 2026-10-19 | **release 2026-10-25** |
+|--------|------------------|------------------------|
+| Cold start → first `/health` | 2025 ms | **38 ms** |
+| Warm `/health` median (n=3) | 0.47 ms | **0.31 ms** |
+| `/fetch` shortset median | 2179 ms (5/5 ok) | **791 ms** (5/5 ok) |
+| Peak RSS during shortset | 58.3 MB | **44 MB** |
+| Session snapshot: create / navigate / snapshot | 8.6 / 2635 / 6.2 ms | **1.0 / 1219 / 2.7 ms** |
+
+Peers, first tip-shaped run on this machine (per-invocation CLI `fetch` — spawn + page + dump, the same shape as the curl/Chrome columns, **not** warm-API comparable; aginx rows above are warm-server HTTP):
+
+| Engine | serve cold-connect | CLI fetch per URL (shortset order) | Receipt |
+|--------|--------------------|-------------------------------------|---------|
+| Lightpanda 1.0.1 | 86 ms | 3140 · 5726 · 8657 · 7080 · 2022 ms | [`lightpanda-fetch-shortset.summary.json`](../bench/scoreboard-20261025/lightpanda-fetch-shortset.summary.json) |
+| Obscura 0.2.5 | 31 ms | 1647 · 30012* · 30012* · 4738 · 4009 ms (*30s class, rc=1) | [`obscura-fetch-shortset.summary.json`](../bench/scoreboard-20261025/obscura-fetch-shortset.summary.json) |
+
+**Network caveat, stated plainly:** Asia/Shanghai egress had 30-second-class stalls this evening, and they landed on different engines and different URLs within the same minutes (aginx: rust-lang.org 38.7 s in an otherwise 275–858 ms set; curl: python.org 30.5 s; Obscura: two 30 s timeouts). Per-URL walls in the receipts are receipts, not stable p50s — medians and the ok-count carry the signal.
 
 ---
 
@@ -151,3 +169,4 @@ Related: [agent-browser engine guide](agent-browser-engine.md) · [Stealth/TLS c
 |------|--------|------|
 | 2026-10-19 | `0c302d9` binary | First public tip scoreboard receipts |
 | 2026-10-21 | pointer only | Amiibo crawl receipt linked; matrices on this page unchanged |
+| 2026-10-25 | `51c0337` | P3-9 release rerun + Lightpanda/Obscura tip run; matrices above stay the 10-19 debug snapshot |

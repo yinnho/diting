@@ -35,9 +35,9 @@
 
 ### 限制（必读）
 
-- **Debug profile。** 数字来自未优化的 stealth debug 构建；未编造 `--release` 成绩。
+- **Debug profile。** 数字来自未优化的 stealth debug 构建。2026-10-25 的 [release 重跑](#release-重跑-2026-10-25p3-9)已量出 `--release` 成绩（另含 Lightpanda / Obscura 首次 tip 口径）；下表保持 debug 快照。
 - **含网络。** 墙钟含 Asia/Shanghai 出口 RTT；只在同机列之间比。
-- **不编竞品数字。** 本页的 Lightpanda / Obscura 格子保持 **未跑**。2026-10-21 另有一次 Amiibo 爬取，在这台机器上量了这两个引擎：[peer-crawl-20261021.zh-CN.md](peer-crawl-20261021.zh-CN.md)。它不填下面的格子。
+- **不编竞品数字。** Lightpanda / Obscura 的 tip 口径首跑在 2026-10-25 完成（见 [release 重跑一节](#release-重跑-2026-10-25p3-9)）；2026-10-21 的 Amiibo 爬取是另一种工作负载：[peer-crawl-20261021.zh-CN.md](peer-crawl-20261021.zh-CN.md)。
 - **不含商户 / 登录生产 API。**
 - **短集 ≠ 全量 harness。** 5 个 URL 来自 [`bench/pages.txt`](../bench/pages.txt)。
 
@@ -119,6 +119,27 @@ navigate 与 snapshot 分开计时（首次用 `create(url)` 的探测把导航�
 
 后来另一次爬取，工作负载不同（Amiibo，25 路，release 二进制）：[peer-crawl-20261021.zh-CN.md](peer-crawl-20261021.zh-CN.md)。
 
+## Release 重跑 2026-10-25（P3-9）
+
+二进制 `target/release/aginxbrowser`，`--release --features stealth,screenshot`，版本 0.6.2，`/health` commit `51c0337`——stealth **开**、TLS `chrome145`、UA Chrome/145（舰队一致配对）。同一台机器、同一 5-URL 短集、缓存关。回执：[`bench/scoreboard-20261025/`](../bench/scoreboard-20261025/) · [`INDEX.json`](../bench/scoreboard-20261025/INDEX.json) · 脚本 [`run.py`](../bench/scoreboard-20261025/run.py)。
+
+| 指标 | debug 2026-10-19 | **release 2026-10-25** |
+|------|------------------|------------------------|
+| 冷启动 → 首个 `/health` | 2025 ms | **38 ms** |
+| 暖 `/health` 中位（n=3） | 0.47 ms | **0.31 ms** |
+| `/fetch` 短集中位 | 2179 ms（5/5 ok） | **791 ms**（5/5 ok） |
+| 短集期间峰值 RSS | 58.3 MB | **44 MB** |
+| 会话快照：create / navigate / snapshot | 8.6 / 2635 / 6.2 ms | **1.0 / 1219 / 2.7 ms** |
+
+竞品首次 tip 口径（每 URL 一次 CLI `fetch` 调用 = 进程启动 + 页面 + dump，与 curl/Chrome 列同形，**不是**暖 API 对比；上表 aginx 是暖服务 HTTP）：
+
+| 引擎 | serve 冷连接 | CLI fetch 逐 URL（短集顺序） | 回执 |
+|------|--------------|------------------------------|-------|
+| Lightpanda 1.0.1 | 86 ms | 3140 · 5726 · 8657 · 7080 · 2022 ms | [`lightpanda-fetch-shortset.summary.json`](../bench/scoreboard-20261025/lightpanda-fetch-shortset.summary.json) |
+| Obscura 0.2.5 | 31 ms | 1647 · 30012* · 30012* · 4738 · 4009 ms（*为 30 秒级，rc=1） | [`obscura-fetch-shortset.summary.json`](../bench/scoreboard-20261025/obscura-fetch-shortset.summary.json) |
+
+**网络声明：** 当晚 Asia/Shanghai 出现有 30 秒级停滞，且几分钟内落在不同引擎的不同 URL 上（aginx：rust-lang.org 38.7 s，其余 275–858 ms；curl：python.org 30.5 s；Obscura：两次 30 s 超时）。逐 URL 墙钟是回执不是稳定 p50，中位数与成功率才是信号。
+
 相关：[agent-browser 适配说明](agent-browser-engine.zh-CN.md) · [Stealth/TLS 对比](stealth-tls-comparison.zh-CN.md) · 历史 [bench/README.md](../bench/README.md)。
 
 ---
@@ -141,3 +162,4 @@ navigate 与 snapshot 分开计时（首次用 `create(url)` 的探测把导航�
 |------|--------|------|
 | 2026-10-19 | 二进制 `0c302d9` | 首份公开 tip 记分板回执 |
 | 2026-10-21 | 仅指针 | 链到 Amiibo 爬取回执；本页矩阵未改 |
+| 2026-10-25 | `51c0337` | P3-9 release 重跑 + Lightpanda/Obscura tip 首跑；上表保持 10-19 debug 快照 |
