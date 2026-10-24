@@ -98,6 +98,10 @@ scenario). The server is started fresh per run with
 `AGINXBROWSER_CACHE_TTL_SECS=0` so repeat fetches aren't served from cache;
 one example.com warmup fetch primes the V8 snapshot and is excluded.
 
+## Amiibo crawl rerun at tip (2026-10-25)
+
+Same crawl, same machine, AFTER the optimization campaign (float wrap series, on-demand layout, memory slimming, timer perf): **62–66 s → 34 s** and **416 MB → 297 MB** peak RSS vs the last recorded pair (0.6.2 / `2426b37`); vs 0.6.0 / `3dd366b` it is 88 s → 34 s. Against the peers' 2026-10-21 receipts (same binaries, different evening) tip aginx takes the wall-time lead for the first time (34 s vs Lightpanda 59–68 s, Obscura 54.8 s); Obscura keeps the memory lead (199 MB). Receipts + comparison table: [`peer-crawl-20261025/`](peer-crawl-20261025/).
+
 ## Amiibo peer crawl (2026-10-21)
 
 Separate from the 20-page harness above. Pool of 25 over the 940-page Amiibo demo, release binary `0.6.0` / `3dd366b`, same machine as Lightpanda 1.0.1 and Obscura 0.2.5. Writeup: [`docs/peer-crawl-20261021.md`](../docs/peer-crawl-20261021.md) · [中文](../docs/peer-crawl-20261021.zh-CN.md) · [评测](../docs/从零浏览器评测-20261022.md). Raw JSON: [`peer-crawl-20261021/`](peer-crawl-20261021/). A later `0.6.2` / `2426b37` pair, 65.827s and 62.349s, is in [`peer-crawl-20261022/`](peer-crawl-20261022/). The Aginx client is [`peer-crawl/crawl_http.py`](peer-crawl/crawl_http.py). Their AWS figures are cited there as their claim.
