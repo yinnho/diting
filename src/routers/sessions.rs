@@ -812,6 +812,39 @@ pub(crate) struct FlowRunBody {
 /// `status:failed` + the failing step, reason, and a diagnostic screenshot
 /// (the session stays alive for manual takeover).
 pub(crate) async fn flow_run_handler(Json(body): Json<FlowRunBody>) -> Result<impl IntoResponse, AppError> {
+    // DupHub branch (D18 批次3)：名字不在本地、在 hub 目录 → 走市场。
+    // 付费流：purchase 门（hub 402 余额不足时结构化上抛——agent 读到
+    // 后走 topup→二维码→轮询的充值闭环）；免费流也拉内存执行（统一
+    // 路径、不落盘）。内联 flow 文档与本地 workflow/ 保持免费路径。
+    if body.flow.is_none() {
+        if let Some(name) = body.name.as_deref() {
+            let local = flow::workflow_dir().join(name).join("flow.json").is_file();
+            if !local {
+                match crate::activation::price(name).await {
+                    Ok(Some(_price)) => {
+                        let loaded = crate::activation::purchase_and_fetch(name, _price)
+                            .await
+                            .map_err(|e| AppError::BadRequest(e.to_string()))?;
+                        let mut doc = loaded.doc.clone();
+                        if let (Some(ms), Some(obj)) = (body.max_steps, doc.as_object_mut()) {
+                            obj.insert("max_steps".into(), serde_json::json!(ms));
+                        }
+                        let vars = body
+                            .vars
+                            .and_then(|v| v.as_object().cloned())
+                            .unwrap_or_default();
+                        // 票据随执行存续（内存态）；解释器 step 边界自检。
+                        let receipt =
+                            flow::run_flow_global_checked(&doc, &vars, body.session_id.clone(), loaded.ticket)
+                                .await;
+                        return Ok((StatusCode::OK, Json(receipt)));
+                    }
+                    Ok(None) => {} // not in the catalog — fall through to the local error
+                    Err(e) => return Err(AppError::BadRequest(format!("duphub: {e}"))),
+                }
+            }
+        }
+    }
     let mut doc =
         flow::resolve_flow_doc(body.flow, body.name.as_deref()).map_err(AppError::BadRequest)?;
     // Caller budget wins over the document's own max_steps — one read path
@@ -1441,9 +1474,10 @@ pub(crate) async fn session_qr_handler(
         return Err(AppError::NotFound("no QR code on the page right now".into()));
     };
     let bytes = {
-        use base64::Engine as _;
-        base64::engine::general_purpose::STANDARD
-            .decode(b64)
+            {
+                use base64::Engine as _;
+                base64::engine::general_purpose::STANDARD.decode(b64)
+            }
             .map_err(|e| AppError::Internal(format!("QR decode: {e}")))?
     };
     Ok((
@@ -1460,4 +1494,161 @@ pub(crate) async fn session_qr_handler(
 /// `GET /session/:id/qr/live` — the self-refreshing scan page (`web/qr-live.html`).
 pub(crate) async fn session_qr_live_handler() -> axum::response::Html<&'static str> {
     axum::response::Html(include_str!("../../web/qr-live.html"))
+}
+
+
+// ---- DupHub activation (pay-per-run) ----
+
+#[derive(Deserialize)]
+pub(crate) struct ActivationBody {
+    /// hub api key（oc_ 前缀；码=钱包=身份）。
+    pub code: String,
+    /// 私有 hub 部署地址（缺省 duphub.com / DITING_DUPHUB_URL）。
+    #[serde(default)]
+    pub hub_url: Option<String>,
+}
+
+/// 激活：连通验证（quota 探针）+ 本地 0600 持久化。一次性；充值不改码。
+pub(crate) async fn activation_activate_handler(
+    Json(body): Json<ActivationBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let resp = crate::activation::activate(&body.code, body.hub_url)
+        .await
+        .map_err(AppError::BadRequest)?;
+    Ok((StatusCode::OK, Json(resp)))
+}
+
+/// 余额（未激活报错带激活指引）。
+pub(crate) async fn activation_quota_handler() -> Result<impl IntoResponse, AppError> {
+    crate::activation::quota()
+        .await
+        .map(|v| (StatusCode::OK, Json(v)))
+        .map_err(|e| AppError::BadRequest(e.to_string()))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct FlowPublishBody {
+    pub name: String,
+    pub flow: serde_json::Value,
+    /// Catalog price in cents per run (0 = free listing).
+    pub price_cents: i64,
+}
+
+/// Publish a user-authored flow to the hub catalog (review queue;
+/// 70/30 split pays the author's code on every run by others).
+pub(crate) async fn flow_publish_handler(
+    Json(body): Json<FlowPublishBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let resp = crate::activation::publish(&body.name, &body.flow, body.price_cents)
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    Ok((StatusCode::OK, Json(resp)))
+}
+
+
+// ---- DupHub 充值（agent 端下单 → /open qr 上屏 → 主人扫码） ----
+
+#[derive(Deserialize)]
+pub(crate) struct TopupBody {
+    pub amount_cents: i64,
+}
+
+/// 充值下单：返回订单号 + 二维码 SVG + 过期时刻。agent 拿 qr_svg 调
+/// POST /open（qr 面板模板）上屏，然后轮询 /activation/order。
+pub(crate) async fn activation_topup_handler(
+    Json(body): Json<TopupBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let resp = crate::activation::topup(body.amount_cents)
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    Ok((StatusCode::OK, Json(resp)))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct OrderBody {
+    pub order_id: String,
+}
+
+/// 订单轮询：pending → 主人还没扫；paid → agent 继续；expired → 重下。
+pub(crate) async fn activation_order_handler(
+    Json(body): Json<OrderBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let resp = crate::activation::order_status(&body.order_id)
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    Ok((StatusCode::OK, Json(resp)))
+}
+// ---- DupHub panel-template 进货（D18 批次3c） ----
+
+/// 从 hub 拉一个 kind=panel-template 工件，写进盘上层
+/// （/var/lib/diting/templates，同名覆盖内置——热修通道即进货通道）。
+/// 工件树 = registry 条目 + HTML 文件；registry.json 若随包携带则
+/// 合并进本地注册表（同名覆盖）。
+pub(crate) async fn panel_template_install_handler(
+    Json(body): Json<OrderBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let name = body.order_id; // 复用字段：name（避免新结构体）
+    let a = crate::activation::load()
+        .ok_or_else(|| AppError::BadRequest("activate a hub api key first".into()))?;
+    let base = a.hub_url.trim_end_matches('/');
+    // manifest → files
+    let manifest: serde_json::Value = reqwest::Client::new()
+        .get(format!("{base}/api/price?name={name}"))
+        .bearer_auth(&a.code)
+        .send()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("duphub: {e}")))?
+        .json()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("duphub: {e}")))?;
+    let _ = manifest; // price check only (existence); the pull itself:
+    let man: serde_json::Value = reqwest::Client::new()
+        .get(format!("{base}/api/templates/{name}/dup/manifest"))
+        .bearer_auth(&a.code)
+        .send()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("duphub: {e}")))?
+        .json()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("duphub: {e}")))?;
+    let files = man
+        .get("files")
+        .and_then(|f| f.as_object())
+        .ok_or_else(|| AppError::BadRequest("manifest missing files".into()))?;
+    let dest_root = crate::tmpl::dir();
+    std::fs::create_dir_all(&dest_root).map_err(|e| AppError::BadRequest(e.to_string()))?;
+    let mut written = Vec::new();
+    for path in files.keys() {
+        if path.contains("..") || path.starts_with('/') {
+            continue; // traversal 拒
+        }
+        let resp = reqwest::Client::new()
+            .get(format!("{base}/api/templates/{name}/dup/file/{path}"))
+            .bearer_auth(&a.code)
+            .send()
+            .await
+            .map_err(|e| AppError::BadRequest(format!("duphub: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(AppError::BadRequest(format!("file {path} fetch failed")));
+        }
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        let dest = dest_root.join(path);
+        if let Some(p) = dest.parent() {
+            std::fs::create_dir_all(p).map_err(|e| AppError::BadRequest(e.to_string()))?;
+        }
+        std::fs::write(&dest, &bytes).map_err(|e| AppError::BadRequest(e.to_string()))?;
+        written.push(path.clone());
+    }
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "installed": name,
+            "files": written,
+            "dir": dest_root.display().to_string(),
+            "note": "盘上层覆盖内置；registry 条目随包合并——同名覆盖，立即生效",
+        })),
+    ))
 }
