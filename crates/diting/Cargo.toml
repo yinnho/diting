@@ -183,7 +183,7 @@ ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 # glyphs are touched). Already in the tree via fontique/parley.
 memmap2 = "0.9"
 # CSPRNG for getRandomValues / randomUUID (replaces Math.random).
-getrandom = "0.2"
+getrandom = "0.4"
 
 # --- stealth client (TLS fingerprint spoofing) ---
 # Pin exact versions: wreq/wreq-util are pre-release rc crates whose API shifts
