@@ -64,8 +64,7 @@ Agent 用浏览器要的是五件事：**看得见、读得懂、找得到、操
 刚冒出来的「agent 浏览器」大多是**无状态、无指纹**的一���性渲染引擎——抓公开页很轻，碰上 Cloudflare 或要登录的站就死。Diting 走相反的路：
 
 - **🔐 真实 TLS 指纹** — stealth 模式用 BoringSSL 复刻 Chrome / Firefox / Safari / Edge 的 TLS 握手（JA3 预设名如 `chrome145`、`firefox133`——不是只改 UA），可按请求切换。舰队默认 User-Agent 与 TLS 形状是同一对：**Chrome/145**（`chrome145` 预设），UA 与 ClientHello 按构造一致——刻意停在 145：部分站点边缘对 UA 大版本非单调分流（146–153 会被打进 SIT 环），而 wreq-util 预设止于 149，145 是唯一有真预设背书的产线大版本。Cloudflare Turnstile 挑战页自动等 `cf_clearance`。无指纹引擎碰反爬就是 403，我们穿过去。
-- **证据页：** 公开 Stealth/TLS 对比（JA4 / Akamai H2，对照 curl 与 Chrome；Kitesurf/Lightpanda 标待测并引用官方说法）— [`docs/stealth-tls-comparison.zh-CN.md`](docs/stealth-tls-comparison.zh-CN.md) · [English](docs/stealth-tls-comparison.md) · 回执 [`bench/stealth-tls-20261019/`](bench/stealth-tls-20261019/)
-- **记分板：** tip 微基准（冷启动、`/fetch` 短集、session snapshot）对照 curl/Chrome；Lightpanda/Obscura **未跑** — [`docs/scoreboard.zh-CN.md`](docs/scoreboard.zh-CN.md) · [English](docs/scoreboard.md) · 回执 [`bench/scoreboard-20261019/`](bench/scoreboard-20261019/)
+- **记分板：** tip 微基准（冷启动、`/fetch` 短集、session snapshot）对照 curl/Chrome；Lightpanda/Obscura **未跑**
 - **🤝 有状态交互 Session** — 登录态可注入可导出（`session_create(cookies=...)` ↔ `session_cookies`），跨翻页、跨多步流程不断；`persistent: true` 连闲置过期和服务重启都能扛过去，同一个 session_id 复活时还带着登录态。一次性引擎抓完即弃，做不了「登录 → 操作 → 再操作」。
 
 > 参照：Cloudflare 的 Kitesurf 明确不做真实 TLS 指纹协商、不做持久认证会话——反爬与登录正是 Diting 的地盘。
@@ -312,7 +311,7 @@ cargo build --release --features stealth,screenshot
 
 依赖：Rust 1.78+，首次编译自动下载 V8 静态库（需网络）。启用 stealth 需额外 `go`、`cmake`、C++ 编译器。启用 screenshot 自带 CJK 字体子集（GB2312 + 常用符号）——正确渲染中文无需服务器装任何字体。
 
-若网络对 rusty_v8 CDN 黑洞（下载 v8 卡住零进度），预填 `~/.cache/rusty_v8`（从可达的镜像/主机取对应版本的 `librusty_v8.a.gz` 解压到位）即可跳过下载。v8 钉版与升级流程（快照重烘、生成的指纹面脚本、验收清单）见 [`docs/rusty-v8-pin-playbook.md`](docs/rusty-v8-pin-playbook.md)。
+若网络对 rusty_v8 CDN 黑洞（下载 v8 卡住零进度），预填 `~/.cache/rusty_v8`（从可达的镜像/主机取对应版本的 `librusty_v8.a.gz` 解压到位）即可跳过下载。
 
 ## 运行时环境变量
 
@@ -351,8 +350,8 @@ cargo build --release --features stealth,screenshot
 
 **完整 API 参考** → [`docs/API.md`](docs/API.md)
 
-**Agent / 多引擎（HTTP snapshot + shim）** → [`docs/agent-browser-engine.zh-CN.md`](docs/agent-browser-engine.zh-CN.md) · shim `scripts/aginx-agent`（仅 HTTP——MCP/CDP 面已退役）
-**安全审计说明** → [`docs/skills-sh-audit.md`](docs/skills-sh-audit.md) — 为什么 skills.sh 上显示 Critical Risk，每条告警对应的真实产品功能
+**Agent / 多引擎** → shim `scripts/aginx-agent`（仅 HTTP——MCP/CDP 面已退役）
+
 
 包含：
 - 全部 HTTP 端点（`/fetch`、`/search`、`/screenshot`、`/video`、`/pdf`、`/download`、`/render_markdown`、`/v1/scrape`、`/flow/run`、`/doctor`、session 端点族）

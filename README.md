@@ -64,8 +64,8 @@ An agent needs five things from a browser: **see, read, find, act, remember.** O
 Most new "agent browsers" are stateless, fingerprint-less one-shot renderers — fine for public pages, dead on arrival against Cloudflare or login flows. Diting goes the opposite way:
 
 - **🔐 Real TLS fingerprints** — stealth mode replicates Chrome / Firefox / Safari / Edge TLS handshakes via BoringSSL (JA3 preset names such as `chrome145`, `firefox133` — not just a UA string), switchable per request. The fleet User-Agent and the default TLS shape are one coherent pair: **Chrome/145** over the `chrome145` preset — UA and ClientHello agree by construction (deliberately 145: some edges route UA majors non-monotonically and wreq-util presets stop at 149; 145 is the only production-routed major a real preset backs). Cloudflare Turnstile challenges wait automatically for `cf_clearance`. Fingerprint-less engines eat 403s — we get through.
-- **Evidence:** public Stealth/TLS comparison (JA4 / Akamai H2 vs curl & Chrome, Kitesurf/Lightpanda cited not-run) — [`docs/stealth-tls-comparison.md`](docs/stealth-tls-comparison.md) · [中文](docs/stealth-tls-comparison.zh-CN.md) · receipts [`bench/stealth-tls-20261019/`](bench/stealth-tls-20261019/)
-- **Scoreboard:** tip micro-bench (cold start, `/fetch` shortset, session snapshot) vs curl/Chrome; Lightpanda/Obscura **not run** — [`docs/scoreboard.md`](docs/scoreboard.md) · [中文](docs/scoreboard.zh-CN.md) · receipts [`bench/scoreboard-20261019/`](bench/scoreboard-20261019/)
+- **Evidence:** public Stealth/TLS comparison (JA4 / Akamai H2 vs curl & Chrome, Kitesurf/Lightpanda cited not-run)
+- **Scoreboard:** tip micro-bench (cold start, `/fetch` shortset, session snapshot) vs curl/Chrome; Lightpanda/Obscura **not run**
 - **🤝 Stateful interactive sessions** — login state injectable and exportable (`session_create(cookies=...)` ↔ `session_cookies`), surviving pagination and multi-step flows; `persistent: true` even survives idle eviction and server restarts — the same session id comes back logged in. One-shot engines throw state away.
 
 > Reference point: Cloudflare's Kitesurf explicitly ships neither real TLS-fingerprint negotiation nor persistent auth sessions — anti-bot and login territory is exactly where Diting plays.
@@ -313,7 +313,7 @@ cargo build --release --features stealth,screenshot
 
 Requirements: Rust 1.78+; the V8 static library downloads automatically on first build. The stealth feature additionally needs `go`, `cmake`, and a C++ compiler. The screenshot feature ships with a bundled CJK font subset (GB2312 + common symbols) — no system fonts required for correct Chinese rendering.
 
-If your network can't reach the rusty_v8 CDN (build hangs with zero progress after "downloading v8"), pre-fill `~/.cache/rusty_v8` with the `librusty_v8.a.gz` for your version (fetch it from any reachable mirror/host and gunzip into place) and the build script skips the download. The v8 pin/upgrade playbook (snapshot re-bake, generated fingerprint-surface scripts, acceptance checklist) lives at [`docs/rusty-v8-pin-playbook.md`](docs/rusty-v8-pin-playbook.md).
+If your network can't reach the rusty_v8 CDN (build hangs with zero progress after "downloading v8"), pre-fill `~/.cache/rusty_v8` with the `librusty_v8.a.gz` for your version (fetch it from any reachable mirror/host and gunzip into place) and the build script skips the download.
 
 ## Runtime Environment Variables
 
@@ -356,8 +356,8 @@ If your network can't reach the rusty_v8 CDN (build hangs with zero progress aft
 
 **Full API reference** → [`docs/API.md`](docs/API.md)
 
-**Agent / multi-engine (HTTP snapshot + shim)** → [`docs/agent-browser-engine.md`](docs/agent-browser-engine.md) · shim `scripts/aginx-agent` (HTTP only — the MCP/CDP faces are retired)
-**Security audit notes** → [`docs/skills-sh-audit.md`](docs/skills-sh-audit.md) — why skills.sh shows "Critical Risk", and which real product feature each warning corresponds to
+**Agent / multi-engine** → shim `scripts/aginx-agent` (HTTP only — the MCP/CDP faces are retired)
+
 
 Covers:
 - All HTTP endpoints (`/fetch`, `/search`, `/screenshot`, `/video`, `/pdf`, `/download`, `/render_markdown`, `/v1/scrape`, `/flow/run`, `/doctor`, the session endpoints)

@@ -145,7 +145,7 @@ curl -sS -X POST $BASE/fetch -H "Content-Type: application/json" -d '{
 # 6. GET  $BASE/session/$ID/snapshot                       -> post-login
 # 7. POST $BASE/session/$ID/close
 # Shim with agent-browser-like verbs: ./scripts/aginx-agent open|snapshot|click|fill
-# Multi-engine / agent-browser notes: docs/agent-browser-engine.md
+# Multi-engine / agent-browser: HTTP shim scripts/aginx-agent
 ```
 
 ## Why diting
