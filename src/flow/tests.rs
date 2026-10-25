@@ -950,3 +950,81 @@ async fn run_flow_receipt_carries_elapsed_and_step_timings() {
     let sid = receipt["session_id"].as_str().unwrap().to_string();
     assert!(mgr.close_and_wait(&sid).await);
 }
+
+// D18 flow packaging: `recipes/<name>.js` bundled in the flow package
+// resolves in the preload step when the builtin registry has no such name
+// (the public build's registry is empty), and the error names the bundling
+// contract when it is missing.
+
+#[test]
+fn resolve_flow_doc_bundles_recipes_from_disk() {
+    use std::fs;
+    let _guard = crate::test_support::workflow_dir_env_guard();
+    let dir = std::env::temp_dir().join(format!(
+        "diting-flow-bundled-{}",
+        std::thread::current().name().unwrap_or("t").replace("::", "-")
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    std::env::set_var("DITING_WORKFLOW_DIR", &dir);
+    fs::create_dir_all(dir.join("my-own").join("recipes")).unwrap();
+    fs::write(
+        dir.join("my-own").join("flow.json"),
+        r#"{"steps":[{"op":"preload","args":{"recipes":["site-shield"]}}]}"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.join("my-own").join("recipes").join("site-shield.js"),
+        "window.__shield=1",
+    )
+    .unwrap();
+    // A non-.js companion must not become a recipe.
+    fs::write(
+        dir.join("my-own").join("recipes").join("README.md"),
+        "notes",
+    )
+    .unwrap();
+
+    let doc = resolve_flow_doc(None, Some("my-own")).unwrap();
+    let src = doc["__bundled_recipes"]["site-shield"].as_str().unwrap();
+    assert_eq!(src, "window.__shield=1");
+    assert!(doc["__bundled_recipes"].get("README").is_none());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn preload_step_resolves_bundled_recipe() {
+    let flow = json!({
+        "create": { "url": "about:blank" },
+        "__bundled_recipes": { "site-shield": "window.__shield=1" },
+        "steps": [
+            { "op": "preload", "args": { "recipes": ["site-shield"] } },
+            { "op": "navigate", "args": { "url": "about:blank" } },
+        ]
+    });
+    let mut mgr = SessionManager::new();
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+#[tokio::test]
+async fn preload_step_missing_recipe_names_the_contract() {
+    let flow = json!({
+        "create": { "url": "about:blank" },
+        "steps": [
+            { "op": "preload", "args": { "recipes": ["no-such-shield"] } },
+        ]
+    });
+    let mut mgr = SessionManager::new();
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "failed", "receipt: {receipt}");
+    let reason = receipt["reason"].as_str().unwrap_or_default();
+    assert!(reason.contains("no-such-shield"), "reason: {reason}");
+    assert!(
+        reason.contains("recipes/no-such-shield.js"),
+        "reason should name the bundling path: {reason}"
+    );
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}

@@ -318,13 +318,51 @@ pub fn resolve_flow_doc(flow: Option<Value>, name: Option<&str>) -> Result<Value
     }
     let path = workflow_dir().join(name).join("flow.json");
     if let Ok(text) = std::fs::read_to_string(&path) {
-        return serde_json::from_str(&text).map_err(|e| format!("workflow {name:?} is not valid JSON: {e}"));
+        let mut doc: Value = serde_json::from_str(&text)
+            .map_err(|e| format!("workflow {name:?} is not valid JSON: {e}"))?;
+        // Flow-bundled recipes: `recipes/<name>.js` siblings join the run
+        // (the preload step resolves them when the builtin registry has no
+        // such name). Local disk is the user's own package — reading it is
+        // the same trust level as reading flow.json itself.
+        let bundled = load_bundled_recipes(&workflow_dir().join(name).join("recipes"));
+        if !bundled.is_empty() {
+            if let Some(obj) = doc.as_object_mut() {
+                obj.insert("__bundled_recipes".into(), Value::Object(bundled));
+            }
+        }
+        return Ok(doc);
     }
     Err(format!(
         "workflow {name:?} not found at {} (available: {})",
         path.display(),
         available_workflows().join(", ")
     ))
+}
+
+/// Read a flow package's `recipes/` directory into the bundled-recipe map
+/// (`<file stem> → source`). Missing dir → empty map; non-.js entries are
+/// ignored so a stray README doesn't become a recipe.
+fn load_bundled_recipes(dir: &std::path::Path) -> Map<String, Value> {
+    let mut map = Map::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return map;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("js") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !is_workflow_name(stem) {
+            continue;
+        }
+        if let Ok(src) = std::fs::read_to_string(&path) {
+            map.insert(stem.to_string(), Value::String(src));
+        }
+    }
+    map
 }
 
 // ---------------------------------------------------------------------------
@@ -467,6 +505,7 @@ async fn exec_step(
     sid: &str,
     op: &str,
     a: &Value,
+    bundled: &Map<String, Value>,
 ) -> Result<Value, String> {
     use SessionCommand as C;
     match op {
@@ -637,12 +676,25 @@ async fn exec_step(
                 }
             }
             for name in &names {
-                match crate::session::preload_recipes::resolve(name) {
-                    Some(src) => scripts.push(src.to_string()),
-                    None => {
-                        return Err(format!("unknown preload recipe '{name}'"));
-                    }
-                }
+                let src = match crate::session::preload_recipes::resolve(name) {
+                    Some(src) => src.to_string(),
+                    // Flow-bundled recipe (D18 flow packaging): the flow
+                    // package carries `recipes/<name>.js` — planted into the
+                    // document at load time (market pull: in-memory only;
+                    // local disk: read from the workflow dir). Builtin
+                    // registry wins so a private deployment can override a
+                    // bundled body.
+                    None => match bundled.get(name).and_then(|v| v.as_str()) {
+                        Some(src) => src.to_string(),
+                        None => {
+                            return Err(format!(
+                                "unknown preload recipe '{name}' (not built-in and not bundled \
+                                 in this flow package — add recipes/{name}.js next to flow.json)"
+                            ))
+                        }
+                    },
+                };
+                scripts.push(src);
             }
             if let Some(arr) = a.get("scripts").and_then(|v| v.as_array()) {
                 for s in arr.iter().filter_map(|s| s.as_str()) {
@@ -1280,6 +1332,17 @@ async fn run_flow_inner(
     let mut saved = Map::new();
     let mut last_url = Value::Null;
 
+    // Flow-bundled recipes (D18 flow packaging): `recipes/<name>.js` riding
+    // the flow document — planted at load time (market pull keeps them
+    // in-memory with the same lifetime as the flow body; local disk reads
+    // the workflow dir). Extracted once here so every preload step resolves
+    // against the same map.
+    let bundled: Map<String, Value> = flow
+        .get("__bundled_recipes")
+        .and_then(|v| v.as_object())
+        .cloned()
+        .unwrap_or_default();
+
     // The pc walk: a linear flow still runs 0..len in order; a branch step
     // moves the pc (forward or back). `executed` counts actual step
     // executions — a loop body re-runs, so this is not "steps visited" — and
@@ -1414,7 +1477,7 @@ async fn run_flow_inner(
                     .await
                 }
             };
-            exec_step(&mut mgr, &sid, &op, &args).await
+            exec_step(&mut mgr, &sid, &op, &args, &bundled).await
         };
         let result = match result {
             Ok(v) => v,

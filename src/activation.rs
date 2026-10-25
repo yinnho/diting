@@ -211,8 +211,9 @@ pub async fn purchase_and_fetch(flow_name: &str, price_cents: i64) -> Result<Loa
         .cloned()
         .collect::<Vec<_>>();
     let mut flow_text: Option<String> = None;
+    let mut bundled = serde_json::Map::new();
     for path in files {
-        if path != "flow.json" {
+        if path != "flow.json" && recipe_stem(&path).is_none() {
             continue; // 伴随件（flow.md/template.json）不进执行面
         }
         let resp = client()
@@ -236,7 +237,14 @@ pub async fn purchase_and_fetch(flow_name: &str, price_cents: i64) -> Result<Loa
             .bytes()
             .await
             .map_err(|e| HubError::Network(e.to_string()))?;
-        flow_text = Some(String::from_utf8_lossy(&bytes).to_string());
+        let text = String::from_utf8_lossy(&bytes).to_string();
+        if path == "flow.json" {
+            flow_text = Some(text);
+        } else if let Some(stem) = recipe_stem(&path) {
+            // 配方依赖随 flow 包进内存（D18 flow 打包）：与 flow 同生命周期，
+            // 不落盘；preload 步骤在内置注册表查无时从这里解析。
+            bundled.insert(stem, serde_json::Value::String(text));
+        }
     }
     let text = flow_text.ok_or_else(|| HubError::Network("flow package has no flow.json".into()))?;
     let mut doc: serde_json::Value = serde_json::from_str(&text)
@@ -245,6 +253,9 @@ pub async fn purchase_and_fetch(flow_name: &str, price_cents: i64) -> Result<Loa
     let duphub_id = format!("{flow_name}@diting");
     if let Some(obj) = doc.as_object_mut() {
         obj.insert("duphub_id".into(), serde_json::json!(duphub_id));
+        if !bundled.is_empty() {
+            obj.insert("__bundled_recipes".into(), serde_json::Value::Object(bundled));
+        }
     }
     let ticket = format!("{duphub_id}:live");
     Ok(LoadedFlow {
@@ -252,6 +263,21 @@ pub async fn purchase_and_fetch(flow_name: &str, price_cents: i64) -> Result<Loa
         duphub_id,
         ticket,
     })
+}
+
+/// `recipes/<stem>.js` → Some(stem)：flow 包内的配方依赖路径。
+/// stem 走与 flow 名相同的字符白名单（小写/数字/横线）。
+fn recipe_stem(path: &str) -> Option<String> {
+    let rest = path.strip_prefix("recipes/")?;
+    let stem = rest.strip_suffix(".js")?;
+    if stem.is_empty()
+        || !stem
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return None;
+    }
+    Some(stem.to_string())
 }
 
 /// 充值下单：返回二维码（agent 经 /open 的 qr 面板展示给主人）。
