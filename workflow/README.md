@@ -14,8 +14,23 @@
 workflow/
 ├── <flow-name>/
 │   ├── flow.json      # flow 文档（steps + vars + wait/expect）
-│   └── flow.md        # 可选：给人看的说明
+│   ├── flow.md        # 可选：给人看的说明
+│   └── recipes/       # 可选：flow 包内配方（站点前置脚本）
+│       └── <name>.js  #   与 flow 的 preload 步骤里 recipes:["<name>"] 对应
 ```
+
+## 配方打包（flow 包内 recipes/）
+
+公开引擎的内置配方注册表是空的（资产分离：引擎通用，站点配方不进内核）。flow 依赖的
+站点前置脚本（挡注入、签名包装等）**跟随 flow 包走**：
+
+- `preload` 步骤的解析顺序：**内置注册表 → 包内 `recipes/<名>.js` → 报错**
+  （报错文案点名缺失的文件路径）。
+- 本地部署：把 `.js` 放进 `workflow/<flow-name>/recipes/` 即可，丢进去即生效，不用重编。
+- DupHub 市场拉取：`recipes/` 随 manifest 一起拉进**内存**（与 flow 同生命周期，不落盘
+  ——和付费 flow 一个纪律）。
+- 私有部署想全机共享配方时，仍可用 `POST /session/:id/preload`（内置注册表）或直接传
+  `scripts` 数组；内置注册表优先于包内配方，方便运营覆盖。
 
 ## 使用
 

@@ -1032,7 +1032,7 @@ curl -sS -X POST http://127.0.0.1:8089/session/$SID/close
 - 失败即中止，回执带 `status:"failed"`、`failed_step`、`reason`、页面 `url`、视口 `screenshot`（base64）、已 `save` 的产出——**会话保持存活**（回执里有 `session_id`），可手动接管排查。
 - `vars` 里没声明的占位符替换直接快速失败（会话都还没建）。
 
-仓里 `workflow/` 自带三个样例（`xcom-profile` / `juejin-post` / `zhihu-answer`），各配 `flow.md` 说明自身——包括故意装着失败的知乎样例（403 墙 + 组合配方）。名字只许小写字母/数字/连字符单个路径段，别的进不了文件系统。丢一个目录进去就是部署，不用重编。
+`name=` 寻址 `workflow/<name>/flow.json`（公开仓的 `workflow/` 只带 README——样例与运营流走私有部署；名字只许小写字母/数字/连字符单个路径段，别的进不了文件系统）。丢一个目录进去就是部署，不用重编；flow 依赖的站点配方放 `workflow/<name>/recipes/<名>.js`，`preload` 步骤在内置注册表查无时从包内解析（市场拉取的流则随包进内存），详见 `workflow/README.md`。
 
 ---
 

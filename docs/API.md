@@ -1022,19 +1022,24 @@ curl -sS -X POST http://127.0.0.1:8089/session/s_42/preload \
 
 **Response:** `{"count": N}`
 
-#### Builtin recipes (opt-in only, #84)
+#### Recipe resolution: builtin registry (empty) → flow-bundled `recipes/`
 
-Platform signing / logout-fuse policy lives in **`workflow/`** (delivery unit = engine + flow), not in the engine's default navigation path. Host auto-mount on `*.xiaohongshu.com` / `*.xhslink.com` was removed 2026-10-12.
+Asset separation (2026-10-25): the engine ships **no recipe bodies** — the builtin registry answers `None` for every name and the platform scripts (xhs/x/taobao shields) moved out of the public tree with `workflow/`. Recipes now ride the **flow package**: a flow that needs one bundles it as `recipes/<name>.js` next to `flow.json` (the private mirror distributes them; DupHub pulls deliver `recipes/` into memory with the same never-to-disk lifetime as the flow itself).
 
-The engine still ships the maintained `xhs-sign` source for explicit callers:
+- Flow `preload` step resolution order: **builtin registry → the flow package's `recipes/<name>.js` → error** (the error names the missing file path).
+- The HTTP endpoint below has no flow context, so it resolves the **builtin registry only** — paste the source via `scripts` instead, or run it through the flow that bundles it.
+- Private deployments that maintain their own registry patch `session::preload_recipes` and keep the same contract (builtin wins over bundled, so an operator override is possible).
 
-| Recipe | How to mount | What it does |
+The well-known recipe names, as bundled by the flows that consume them:
+
+| Recipe | Bundled by | What it does |
 |------|------|------|
-| `xhs-sign` (alias `xhs`) | `POST /session/{id}/preload` `{"recipe":"xhs-sign"}`, or flow step `{"op":"preload","args":{"recipe":"xhs-sign"}}`, or paste JS via flow `preload`/`eval` | xhs signing wrapper: swallows the page's own `x-s`/`x-t` (computed in-engine, rejected 406 by the server) and re-signs both at send time via the page's own `_webmsxyw`; fuses `/sso/logout` (unsigned-API 406s misread as session death) with a synthetic 200; mounts itself as the fetch/XHR natives before the inline jsvmp can capture them |
-| `xhs-qrcode` | flow / HTTP `preload` `{"recipes":["xhs-sign","xhs-qrcode"]}` (used by `xhs-login`) | vendored qrcode-generator for scannable SVG QR — keeps ~20KB out of `flow.json` |
-| `x-p256` | flow / HTTP `preload` `{"recipes":["x-p256","x-bearer","x-auth-ctx"],"apply_now":true}` (`x-reply` / `x-follow`) | shared in-page P-256 for X write headers; `apply_now` evals on the current document when attaching to a live session |
-| `x-bearer` | flow `preload` `{"recipe":"x-bearer","apply_now":true}` (all five x-* flows); HTTP `{"recipe":"x-bearer","apply_now":true}` or in `recipes:[]` | shared bearer probe — installs `abxProbeBearer` (12h `localStorage` cache / scrape from live `main.*.js`) |
-| `x-auth-ctx` | flow / HTTP `preload` `{"recipes":["x-p256","x-bearer","x-auth-ctx"],"apply_now":true}` (`x-reply` / `x-follow`) | shared txid ctx + session bind — installs `abxEnsureAuthCtx` + `abxB64keep` / `abxDerEncode` / `abxAuthHeaders` / `abxTxidGen` |
+| `xhs-sign` (alias `xhs`) | `xhs-post` / `xhs-login` (`recipes/xhs-sign.js`) | xhs signing wrapper: swallows the page's own `x-s`/`x-t` (computed in-engine, rejected 406 by the server) and re-signs both at send time via the page's own `_webmsxyw`; fuses `/sso/logout` (unsigned-API 406s misread as session death) with a synthetic 200; mounts itself as the fetch/XHR natives before the inline jsvmp can capture them |
+| `xhs-qrcode` | `xhs-login` (`recipes/xhs-qrcode.js`) | vendored qrcode-generator for scannable SVG QR — keeps ~20KB out of `flow.json` |
+| `x-p256` | `x-reply` / `x-follow` (`recipes/x-p256.js`) | shared in-page P-256 for X write headers; `apply_now` evals on the current document when attaching to a live session |
+| `x-bearer` | all five x-* flows (`recipes/x-bearer.js`) | shared bearer probe — installs `abxProbeBearer` (12h `localStorage` cache / scrape from live `main.*.js`) |
+| `x-auth-ctx` | `x-reply` / `x-follow` (`recipes/x-auth-ctx.js`) | shared txid ctx + session bind — installs `abxEnsureAuthCtx` + `abxB64keep` / `abxDerEncode` / `abxAuthHeaders` / `abxTxidGen` |
+| `taobao-block-everyhelp` / `taobao-block-qn-header` | taobao/tmall publish chain (`recipes/*.js`) | document-start shields for the taobao v2 publish form |
 
 Observability counters live on `window` for post-hoc checks via `eval`: `__xs_installed` (mounted), `__xs_swallowed` (page signatures swallowed), `__xs_signed` (fresh signatures issued), `__xs_fuse` (logout attempts defused).
 
