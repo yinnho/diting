@@ -1,1 +1,0 @@
-{"net":{"http_server_properties":{"servers":[{"alternative_service":[{"advertised_alpns":["h3"],"expiration":"13436933346656965","port":443,"protocol_str":"quic"}],"anonymization":["FAAAAA8AAABodHRwczovL3BlZXQud3MA",false,0],"server":"https://tls.peet.ws","supports_spdy":true}],"version":5},"network_qualities":{"CAISABiAgICA+P////8B":"4G"}}}
