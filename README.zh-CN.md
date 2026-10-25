@@ -17,9 +17,9 @@
 
 一个二进制，零依赖，启动即服务。**HTTP API 就是全部接口**——任何有 HTTP 客户端的语言，拿来就能用。
 
-<video src="https://github.com/yinnho/diting/releases/download/v0.5.3/diting-vs-competitors-2026-09.mp4" controls muted width="720"></video>
+<video src="https://github.com/yinnho/diting/releases/download/v0.7.0/diting-vs-competitors-2026-09.mp4" controls muted width="720"></video>
 
-*历史片段，素材来自 [v0.5.3](https://github.com/yinnho/diting/releases/tag/v0.5.3) 发布资产（当前产品版本为 [v0.6.0](https://github.com/yinnho/diting/releases/tag/v0.6.0)）。与同类产品的实测对比（2026-09）：出文本快 7.6 倍、内存省约 10 倍，现场翻页验证。*
+*历史片段，素材来自 [v0.7.0](https://github.com/yinnho/diting/releases/tag/v0.7.0) 发布资产（当前版本为 [v0.7.0](https://github.com/yinnho/diting/releases/tag/v0.7.0)）。与同类产品的实测对比（2026-09）：出文本快 7.6 倍、内存省约 10 倍，现场翻页验证。*
 
 *下面这些真实页面，都是 Diting 的 diting 引擎渲染的（无 Chromium）——Wikipedia、本仓库、Rust 官网。想亲自截图？[看这里](docs/API.md#screenshot)*
 
@@ -27,7 +27,7 @@
 
 ## 为什么 Agent 需要专属浏览器
 
-同一批 20 个页面、同一网络环境下对着 headless Chrome 实测（[bench](bench/README.md)，2026-08-28）：出可用文本**快 7.6 倍**（p50 532 ms vs 4 053 ms），**内存省约 10 倍**（整个进程 227 MB vs Chrome 每页 ~2.1 GB），Chrome `--dump-dom` 40 次加载 5 次连 DOM 都没出来，我们 0 次硬失败。v0.5.21（2026-09-29）弱网日复测仍保住倍率——p50 5.4×，整轮 468 MB vs 每页 1.75 GB——两份 raw TSV 都在仓库里（那是历史测量；当前产品版本是 [v0.6.0](https://github.com/yinnho/diting/releases/tag/v0.6.0)）。Agent 的总成本 = 浏览器效率 × 模型效率，这是浏览器那一半。
+同一批 20 个页面、同一网络环境下对着 headless Chrome 实测（[bench](bench/README.md)，2026-08-28）：出可用文本**快 7.6 倍**（p50 532 ms vs 4 053 ms），**内存省约 10 倍**（整个进程 227 MB vs Chrome 每页 ~2.1 GB），Chrome `--dump-dom` 40 次加载 5 次连 DOM 都没出来，我们 0 次硬失败。v0.5.21（2026-09-29）弱网日复测仍保住倍率——p50 5.4×，整轮 468 MB vs 每页 1.75 GB——两份 raw TSV 都在仓库里（那是历史测量；当前产品版本是 [v0.7.0](https://github.com/yinnho/diting/releases/tag/v0.7.0)）。Agent 的总成本 = 浏览器效率 × 模型效率，这是浏览器那一半。
 
 现有的"浏览器自动化"方案都是为人或为一次性抓取设计的，不是为 Agent：
 
@@ -57,7 +57,7 @@
 
 Agent 用浏览器要的是五件事：**看得见、读得懂、找得到、操得了、记得住。** 一个二进制全包，systemd 守护，零依赖启动即服务。
 
-**核心优势：不依赖 Chromium。** Diting 内联了完整的浏览器引擎（V8 + Rust HTTP 栈 + 自有的 diting CSS/布局/绘制渲染引擎，以 Blitz/Stylo/Taffy 谱系为参照实现）。从 **v0.6.0** 起 JS 事件循环落在自有的 `diting_runtime` crate（`deno_core` 已退役）。不需要 Puppeteer、不需要 Chrome、不需要 Docker。一个 Rust 二进制挂 systemd，就是 agent 的浏览器基础设施。
+**核心优势：不依赖 Chromium。** Diting 内联了完整的浏览器引擎（V8 + Rust HTTP 栈 + 自有的 diting CSS/布局/绘制渲染引擎，以 Blitz/Stylo/Taffy 谱系为参照实现）。从 **v0.7.0** 起 JS 事件循环落在自有的 `diting_runtime` crate（`deno_core` 已退役）。不需要 Puppeteer、不需要 Chrome、不需要 Docker。一个 Rust 二进制挂 systemd，就是 agent 的浏览器基础设施。
 
 ## 两件事：无状态渲染器干不了
 
@@ -155,10 +155,10 @@ npx skills add yinnho/diting
 
 ```text
 把 diting 装成你的 web 访问层：
-1. 装 v0.6.0 到本机并确认健康：
+1. 装 v0.7.0 到本机并确认健康：
    # 首选——当前 release 二进制（install.sh 自动选平台）：
    curl -fsSL https://browser.aginx.net/install.sh -o install.sh && less install.sh && bash install.sh
-   # 可选 Homebrew（tap 已跟到 v0.6.0；装完仍用 `diting --version` 核对）：
+   # 可选 Homebrew（tap 已跟到 v0.7.0；装完仍用 `diting --version` 核对）：
    #   brew trust yinnho/diting && brew install yinnho/diting/diting
    diting doctor   # 然后启动：diting（监听 0.0.0.0:8089）
    curl http://127.0.0.1:8089/health
@@ -172,8 +172,8 @@ npx skills add yinnho/diting
 自己部署：
 
 ```bash
-# 当前 release v0.6.0 预编译二进制（平台识别 + sha256 校验 + 镜像回退）
-# macOS / Linux / Windows（git-bash）。资产：https://github.com/yinnho/diting/releases/tag/v0.6.0
+# 当前 release v0.7.0 预编译二进制（平台识别 + sha256 校验 + 镜像回退）
+# macOS / Linux / Windows（git-bash）。资产：https://github.com/yinnho/diting/releases/tag/v0.7.0
 # 稳妥起见：下载 -> 看一眼 -> 再跑（不要盲跑网络脚本）
 curl -fsSL https://browser.aginx.net/install.sh -o install.sh
 less install.sh && bash install.sh
@@ -182,7 +182,7 @@ less install.sh && bash install.sh
 # GitHub 慢/被墙？DITING_GH_PROXY=https://ghfast.top/ bash install.sh
 diting doctor   # 特性 + 字体 + 出口自检
 
-# 可选：Homebrew（7+ 需先 trust）。tap 已在 v0.6.0——
+# 可选：Homebrew（7+ 需先 trust）。tap 已在 v0.7.0——
 # 装完 / 升级后仍用 `diting --version` 核对。
 # brew trust yinnho/diting
 # brew install yinnho/diting/diting

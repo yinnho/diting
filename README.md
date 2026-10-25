@@ -17,9 +17,9 @@ A browser built for agents from the first line of code — not a human browser b
 
 One binary, zero dependencies, instant service. The HTTP API is the whole interface — agents plug in and go.
 
-<video src="https://github.com/yinnho/diting/releases/download/v0.5.3/lightpanda-star-story.mp4" controls muted width="720"></video>
+<video src="https://github.com/yinnho/diting/releases/download/v0.7.0/diting-vs-competitors.mp4" controls muted width="720"></video>
 
-*Historical clip from the [v0.5.3](https://github.com/yinnho/diting/releases/tag/v0.5.3) release assets (current product is [v0.6.0](https://github.com/yinnho/diting/releases/tag/v0.6.0)). The star that got our attention: Pierre Tachoire, co-founder of [Lightpanda](https://lightpanda.com) — the headless browser our [bench](bench/README.md) measures against — starred the repo. 90 seconds on why that mattered to us.*
+*Historical clip from the [v0.7.0](https://github.com/yinnho/diting/releases/tag/v0.7.0) release assets (current release is [v0.7.0](https://github.com/yinnho/diting/releases/tag/v0.7.0)). The star that got our attention: Pierre Tachoire, co-founder of [Lightpanda](https://lightpanda.com) — the headless browser our [bench](bench/README.md) measures against — starred the repo. 90 seconds on why that mattered to us.*
 
 *Real pages rendered by Diting's diting engine (no Chromium) — Wikipedia, this repo, Rust. [Screenshot it yourself →](docs/API.md#screenshot)*
 
@@ -27,7 +27,7 @@ One binary, zero dependencies, instant service. The HTTP API is the whole interf
 
 ## Why Agents Need Their Own Browser
 
-Measured against headless Chrome on the same 20 pages, same network ([bench](bench/README.md), 2026-08-28): **7.6× faster** to agent-usable text (p50 532 ms vs 4 053 ms), **~10× less memory** (227 MB for the whole process vs ~2.1 GB per Chrome page), and 0 hard failures where Chrome's `--dump-dom` produced no DOM on 5 of 40 loads. Re-run on v0.5.21 (2026-09-29) on a degraded-network day held the ratio — 5.4× p50, 468 MB whole-run vs 1.75 GB per page — both raw TSVs are committed (those runs are historical; the current release is [v0.6.0](https://github.com/yinnho/diting/releases/tag/v0.6.0)). An agent's total cost is browser efficiency × model efficiency — this is the browser half.
+Measured against headless Chrome on the same 20 pages, same network ([bench](bench/README.md), 2026-08-28): **7.6× faster** to agent-usable text (p50 532 ms vs 4 053 ms), **~10× less memory** (227 MB for the whole process vs ~2.1 GB per Chrome page), and 0 hard failures where Chrome's `--dump-dom` produced no DOM on 5 of 40 loads. Re-run on v0.5.21 (2026-09-29) on a degraded-network day held the ratio — 5.4× p50, 468 MB whole-run vs 1.75 GB per page — both raw TSVs are in the bench directory (those runs are historical; the current release is [v0.7.0](https://github.com/yinnho/diting/releases/tag/v0.7.0)). An agent's total cost is browser efficiency × model efficiency — this is the browser half.
 
 Existing "browser automation" was built for humans or for one-shot scraping — not for agents:
 
@@ -57,7 +57,7 @@ Same-tier engines, not the tools in the table above. Cells are capabilities, not
 
 An agent needs five things from a browser: **see, read, find, act, remember.** One binary covers them all — systemd-friendly, zero dependencies.
 
-**Core advantage: no Chromium.** Diting inlines a full browser engine (V8 + Rust HTTP stack + the diting CSS/layout/paint rendering engine, with the Blitz/Stylo/Taffy lineage as its reference implementation). From **v0.6.0** the JS event loop lives in the owned `diting_runtime` crate (`deno_core` retired). No Puppeteer, no Chrome, no Docker. One Rust binary under systemd is your agent browsing infrastructure.
+**Core advantage: no Chromium.** Diting inlines a full browser engine (V8 + Rust HTTP stack + the diting CSS/layout/paint rendering engine, with the Blitz/Stylo/Taffy lineage as its reference implementation). From v0.6.0 the JS event loop lives in the owned `diting_runtime` crate (`deno_core` retired). No Puppeteer, no Chrome, no Docker. One Rust binary under systemd is your agent browsing infrastructure.
 
 ## Two Things Stateless Renderers Can't Do
 
@@ -157,10 +157,10 @@ npx skills add yinnho/diting
 
 ```text
 Set up diting as your web access layer:
-1. Install v0.6.0 locally and verify it is healthy:
+1. Install v0.7.0 locally and verify it is healthy:
    # Preferred — current release binary (install.sh picks the platform):
    curl -fsSL https://browser.aginx.net/install.sh -o install.sh && less install.sh && bash install.sh
-   # Optional Homebrew (tap tracks v0.6.0; still verify with `diting --version`):
+   # Optional Homebrew (tap tracks v0.7.0; still verify with `diting --version`):
    #   brew trust yinnho/diting && brew install yinnho/diting/diting
    diting doctor   # then start: diting (listens on 0.0.0.0:8089)
    curl http://127.0.0.1:8089/health
@@ -174,8 +174,8 @@ Set up diting as your web access layer:
 Self-hosting:
 
 ```bash
-# Prebuilt binary for current release v0.6.0 (platform detect + sha256 + mirror fallback)
-# macOS / Linux / Windows (git-bash). Assets: https://github.com/yinnho/diting/releases/tag/v0.6.0
+# Prebuilt binary for current release v0.7.0 (platform detect + sha256 + mirror fallback)
+# macOS / Linux / Windows (git-bash). Assets: https://github.com/yinnho/diting/releases/tag/v0.7.0
 # Cautious: download -> inspect -> run (never blind-run network scripts)
 curl -fsSL https://browser.aginx.net/install.sh -o install.sh
 less install.sh && bash install.sh
@@ -184,7 +184,7 @@ less install.sh && bash install.sh
 # GitHub slow/blocked? DITING_GH_PROXY=https://ghfast.top/ bash install.sh
 diting doctor   # features + fonts + egress self-check
 
-# Optional: Homebrew (7+ needs the trust line first). Tap is at v0.6.0 —
+# Optional: Homebrew (7+ needs the trust line first). Tap is at v0.7.0 —
 # still verify with `diting --version` after install / upgrade.
 # brew trust yinnho/diting
 # brew install yinnho/diting/diting

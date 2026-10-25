@@ -12,7 +12,7 @@ Re-run after 30+ fix batches, on a day when the network was visibly worse
 Chrome never resolved the challenge inside its 90 s cap — and several CDNs
 were slow). Both engines inflated together; the ratio is the finding.
 
-20 pages × 2 rounds × 4 scenarios. Raw: [`results/run-darwin-2026-09-29.tsv`](results/).
+20 pages × 2 rounds × 4 scenarios. Raw TSVs live outside the public tree.
 
 | scenario | p50 | p95 | mean output chars | ≈tokens | notes |
 |---|---|---|---|---|---|
