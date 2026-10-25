@@ -71,3 +71,11 @@ pub use snapshot::{SIDECAR_VERSION, SnapshotError};
 pub use vm::{
     AsyncOpOutcome, LoopActivity, LoopError, Triplet, Vm, create_snapshot, spawn_async_op,
 };
+
+/// Live-isolate count (the foreground registry's length) — the realm
+/// init-shrink gate: skipping the post-init GC under big pools (crawl
+/// shape) is the measured trade (#276: 25-way Amiibo crawl paid +7.7s
+/// CPU / +28s wall for −27MB; few-session deployments get it free).
+pub fn live_isolates() -> usize {
+    foreground::registry_len()
+}

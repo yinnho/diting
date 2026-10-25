@@ -3,6 +3,7 @@
 # (the optimization campaign — float series, on-demand layout, memory
 # slimming, timer perf — landed AFTER the last recorded crawl pair).
 set -e
+set +e
 R=/Users/sophiehe/Documents/aginx/aginxbrowser
 PORT=18033
 BIN=$R/target/release/aginxbrowser
@@ -18,7 +19,7 @@ run_one () {
       $BIN > $OUT/server-$tag.log 2>&1 &
   local srv=$!
   sleep 1
-  curl -sS -m 5 http://127.0.0.1:$PORT/health > $OUT/health-$tag.json
+  curl -sS -m 5 --retry 3 http://127.0.0.1:$PORT/health > $OUT/health-$tag.json
   python3 $R/bench/peer-crawl/sample.py $srv $OUT/crawl-$tag.sample.json &
   local sampler=$!
   local t0=$(python3 -c 'import time; print(time.time())')
@@ -40,5 +41,5 @@ print(json.dumps({"tag": tag, "pages": crawl.get("pages"), "known": crawl.get("k
 PY
 }
 
-run_one c
+run_one e
 

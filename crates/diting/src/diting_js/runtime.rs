@@ -326,7 +326,12 @@ impl JsRuntime {
 
         // #276: post-init shrink — the knob trades ~2ms per realm build
         // for ~1.4MB physical per realm (see Vm::shrink_heap).
-        if crate::env_knobs::realm_shrink() {
+        // Concurrency gate (#276): under big pools (crawl shape, 25 ways)
+        // the per-navigation GC measured ~8ms CPU with lock contention —
+        // +28s wall on the 940-page crawl for −27MB. Few-session
+        // deployments (the parked-console shape, where it's free) still
+        // shrink.
+        if crate::env_knobs::realm_shrink() && diting_runtime::live_isolates() <= 8 {
             let t0 = std::time::Instant::now();
             runtime.shrink_heap();
             if crate::env_knobs::realm_heap_stats() {

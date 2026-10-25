@@ -64,6 +64,11 @@
    "design": "session actor's pump arm: after 5 consecutive quiet 200ms slices (~1s parked), full-GC the realm; any command resets the clock. Same AGINXBROWSER_REALM_SHRINK knob, now DEFAULT ON (user call: 2ms is free).",
    "demo": "single session on a data: page churning ~5MB garbage per 160ms for 10s, then parked. knob OFF: RSS climbs to 105MB and STICKS at 105MB for 15+ s of idle. knob ON (default): churn peak ~68MB, within ~1s of idle RSS drops to 47MB and stays — ~58MB reclaimed per parked garbage-heavy session, permanently.",
    "init_shrink_unchanged": "2.07ms per realm build, physical 6.62->5.18MB per realm, 25-realm peak 210.8->194.8MB (-7.6%)"
+  },
+  "crawl_scale_trap_and_gate": {
+   "ungated_default_on": "Amiibo crawl 940/940: wall 62.2s, CPU 22.7s, peak 270MB — vs shrink-off (34.4s / 15.0s / 297MB): the 2ms single-session cost becomes ~8ms CPU per navigation under 25-way concurrency (lock contention), +7.7s CPU amplified to +28s wall for −27MB. CPU delta is engine-side proof, network-independent.",
+   "gate": "init shrink now runs only when live isolates <= 8 (diting_runtime::live_isolates); idle shrink (the parked-session 105→47MB win) stays unconditional — it provably never fires during crawl-style command churn.",
+   "gated_verification": "Amiibo crawl 940/940: CPU 17.5s (back at the 15s baseline class; extra wall 54.9s is tonight's network — CPU is the engine-side signal), peak 300MB (no shrink tax). Single-session garbage demo still lands 46MB flat after idle."
   }
  }
 }
