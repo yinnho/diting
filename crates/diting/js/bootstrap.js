@@ -680,7 +680,7 @@ const _fmtVal = (v, depth, seen) => {
       const items = [];
       let n = 0;
       for (const [k, val] of v) {
-        if (n++ >= _FMT_WIDTH) { items.push("… +" + (v.size - _FMT_WIDTH) + " more"); break; }
+        if (n++ >= _FMT_WIDTH) { items.push("\u2026 +" + (v.size - _FMT_WIDTH) + " more"); break; }
         items.push(_fmtVal(k, depth + 1, seen) + " => " + _fmtVal(val, depth + 1, seen));
       }
       seen.delete(v);
@@ -693,7 +693,7 @@ const _fmtVal = (v, depth, seen) => {
       const items = [];
       let n = 0;
       for (const val of v) {
-        if (n++ >= _FMT_WIDTH) { items.push("… +" + (v.size - _FMT_WIDTH) + " more"); break; }
+        if (n++ >= _FMT_WIDTH) { items.push("\u2026 +" + (v.size - _FMT_WIDTH) + " more"); break; }
         items.push(_fmtVal(val, depth + 1, seen));
       }
       seen.delete(v);
@@ -704,7 +704,7 @@ const _fmtVal = (v, depth, seen) => {
       if (depth >= _FMT_DEPTH) return "Array(" + v.length + ")";
       seen.add(v);
       const items = v.slice(0, _FMT_WIDTH).map(x => _fmtVal(x, depth + 1, seen));
-      if (v.length > _FMT_WIDTH) items.push("… +" + (v.length - _FMT_WIDTH) + " more");
+      if (v.length > _FMT_WIDTH) items.push("\u2026 +" + (v.length - _FMT_WIDTH) + " more");
       seen.delete(v);
       return "[" + items.join(", ") + "]";
     }
@@ -724,7 +724,7 @@ const _fmtVal = (v, depth, seen) => {
       } catch { val = "[Getter threw]"; }
       parts.push(k + ": " + val);
     }
-    if (keys.length > _FMT_KEYS) parts.push("… +" + (keys.length - _FMT_KEYS) + " more");
+    if (keys.length > _FMT_KEYS) parts.push("\u2026 +" + (keys.length - _FMT_KEYS) + " more");
     seen.delete(v);
     return "{" + parts.join(", ") + "}";
   } catch { return String(v); }
@@ -732,7 +732,7 @@ const _fmtVal = (v, depth, seen) => {
 const _consoleFn = (level, args) => {
   try {
     let joined = args.map(a => _fmtVal(a, 0, new WeakSet())).join(" ");
-    if (joined.length > _FMT_MAX) joined = joined.slice(0, _FMT_MAX) + "… (truncated " + (joined.length - _FMT_MAX) + " chars)";
+    if (joined.length > _FMT_MAX) joined = joined.slice(0, _FMT_MAX) + "\u2026 (truncated " + (joined.length - _FMT_MAX) + " chars)";
     _OPS.op_console_msg(level, joined);
   } catch {}
   if (level === "error") {
@@ -3518,7 +3518,7 @@ const _itPushSep = (out, sep) => {
 const _itWordJoiner = (c) => {
   const cp = c.codePointAt(0);
   if (cp >= 0x30 && cp <= 0x39) return true; // ASCII digits join (`2abc` stays lowercase)
-  if (c === '_' || c === "'" || c === '’' || c === ':' || c === '·') return true;
+  if (c === '_' || c === "'" || c === '\u2019' || c === ':' || c === '\u00b7') return true;
   // Han ideographs + kana own their words — they break (`中文abc` caps the a).
   if ((cp >= 0x3040 && cp <= 0x30FF) || (cp >= 0x31F0 && cp <= 0x31FF) ||
       (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF) ||
@@ -10533,7 +10533,7 @@ const _CE_RESERVED = new Set(['annotation-xml', 'color-profile', 'font-face', 'f
 function _isValidCustomElementName(name) {
   if (typeof name !== 'string' || _CE_RESERVED.has(name)) return false;
   // PotentialCustomElementName (approx): lowercase start, a hyphen, no uppercase.
-  return /^[a-z][a-z0-9._·À-￿-]*-[a-z0-9._·À-￿-]*$/.test(name);
+  return /^[a-z][a-z0-9._\u00b7\u00c0-\uffff-]*-[a-z0-9._\u00b7\u00c0-\uffff-]*$/.test(name);
 }
 class CustomElementRegistry {
   constructor() { this._registry = new Map(); this._byCtor = new Map(); this._whenDefinedResolvers = new Map(); this._defining = false;  __hideOwn(this);}
@@ -11593,8 +11593,8 @@ function _xmlDecodeEntities(s) {
       let cp;
       if (body.charCodeAt(1) === 120 || body.charCodeAt(1) === 88) cp = parseInt(body.slice(2), 16);
       else cp = parseInt(body.slice(1), 10);
-      if (!Number.isFinite(cp) || cp < 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return "�";
-      try { return String.fromCodePoint(cp); } catch (e) { return "�"; }
+      if (!Number.isFinite(cp) || cp < 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return "\ufffd";
+      try { return String.fromCodePoint(cp); } catch (e) { return "\ufffd"; }
     }
     if (body === "amp") return "&";
     if (body === "lt") return "<";
@@ -14279,7 +14279,7 @@ function __ditingFormatZoned(date, kind) {
   const bag = {};
   for (const p of dtf.formatToParts(date)) if (p.type !== 'literal') bag[p.type] = p.value;
   // Zone NAME is the one locale-dependent piece of Date.prototype.toString:
-  // zh-Chrome prints "…GMT+0800 (中国标准时间)" while weekday/month stay the
+  // zh-Chrome prints "\u2026GMT+0800 (中国标准时间)" while weekday/month stay the
   // spec's English abbreviations. Chrome resolves it from the UI locale; we
   // take the persona's first language tag (same source as navigator.language).
   const uiLang = (typeof __ditingLangList === 'function' ? __ditingLangList()[0] : 'en-US');

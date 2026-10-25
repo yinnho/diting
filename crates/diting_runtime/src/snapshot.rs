@@ -46,11 +46,56 @@ const V8LEN: usize = std::mem::size_of::<u64>();
 /// SAFETY: the safety contract is with V8, not Rust — entries must stay
 /// valid and stable for the process lifetime. Function pointers into our
 /// own text segment are exactly that.
+/// The snapshot's script sources as UTF-16 static slices — registered by
+/// Register the script-source `OneByteConst` addresses (usize — the
+/// union's raw pointers are not Sync, and this table must be). The
+/// serializer keys external strings by RESOURCE address; a OneByteConst
+/// IS the resource (C++-compatible vtable baked at construction), so the
+/// address is known before any isolate exists — no minting pass needed
+/// (#276 shared-source campaign, the deno_core extension-source law).
+static SCRIPT_CONSTS: std::sync::OnceLock<Vec<usize>> = std::sync::OnceLock::new();
+
+pub(crate) fn register_script_consts(consts: &[&'static v8::OneByteConst]) {
+    let _ = SCRIPT_CONSTS.set(
+        consts
+            .iter()
+            .map(|c| {
+                let ptr: *const v8::OneByteConst = *c;
+                ptr as usize
+            })
+            .collect(),
+    );
+}
+
+/// Leak an `OneByteConst` over a process-static ASCII buffer — the bake
+/// (from leaked buffers) and the restore side (from the generated static
+/// arrays) each mint their own; the blob carries only the INDEX.
+pub fn ascii_const(buffer: &'static [u8]) -> &'static v8::OneByteConst {
+    Box::leak(Box::new(v8::String::create_external_onebyte_const(buffer)))
+}
+
+/// Restore-side registration from the generated static byte arrays.
+/// Idempotent. No isolate is involved — building a OneByteConst is pure
+/// data; the deserializer's vtable dispatch lands on its baked table.
+pub fn ensure_script_consts(buffers: &[&'static [u8]]) {
+    if SCRIPT_CONSTS.get().is_some() {
+        return;
+    }
+    let consts: Vec<&'static v8::OneByteConst> =
+        buffers.iter().map(|b| ascii_const(b)).collect();
+    register_script_consts(&consts);
+}
+
 pub(crate) fn external_references() -> Cow<'static, [v8::ExternalReference]> {
-    vec![v8::ExternalReference {
+    let mut v = vec![v8::ExternalReference {
         function: crate::vm::spawn_callback,
-    }]
-    .into()
+    }];
+    if let Some(srcs) = SCRIPT_CONSTS.get() {
+        v.extend(srcs.iter().map(|a| v8::ExternalReference {
+            pointer: *a as *mut std::ffi::c_void,
+        }));
+    }
+    v.into()
 }
 
 /// The v1 sidecar: version word only.

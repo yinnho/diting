@@ -272,6 +272,12 @@ impl JsRuntime {
                     v8::V8::set_flags_from_string(extra.trim());
                 }
             });
+            // #276 shared-source campaign: restore-side const mint (pure
+            // data — OneByteConst needs no isolate; the build script did
+            // the bake-side twin).
+            diting_runtime::snapshot::ensure_script_consts(
+                crate::diting_js::snapshot_sources::SNAPSHOT_SRC_ASCII,
+            );
             Vm::from_snapshot(SNAPSHOT).expect("our snapshot container revives")
         };
         // #276 memory forensics: point A — the heap as the snapshot restore

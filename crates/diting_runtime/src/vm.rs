@@ -159,7 +159,7 @@ globalThis.__diting_tableCounts = function () {
 /// snapshotting. This crate's tests run in their own binary; when the crate
 /// eventually replaces deno_core inside the diting runtime, this is the
 /// only init left standing.
-fn ensure_v8() {
+pub(crate) fn ensure_v8() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         v8::V8::initialize_platform(crate::foreground::platform());
@@ -449,8 +449,15 @@ fn install_faces(isolate: &mut v8::OwnedIsolate, context: &v8::Global<v8::Contex
 ///
 /// Panics (never returns None silently): a failed bake is a build bug,
 /// and half a snapshot is worse than none.
-pub fn create_snapshot(scripts: &[(&str, &str)]) -> Vec<u8> {
+pub fn create_snapshot(
+    scripts: &[(&str, &str)],
+    consts: &[&'static v8::OneByteConst],
+) -> Vec<u8> {
     ensure_v8();
+    // The serializer keys external strings by RESOURCE address and the
+    // creator's external-references table must exist at construction —
+    // OneByteConst addresses are pure data, so registration is upfront.
+    snapshot::register_script_consts(consts);
     let mut isolate = v8::Isolate::snapshot_creator(Some(snapshot::external_references()), None);
     // Face-identical wiring: the prelude never CALLS the op face at bake
     // time, but the driver slot goes in anyway — if that ever changes,
@@ -477,8 +484,20 @@ pub fn create_snapshot(scripts: &[(&str, &str)]) -> Vec<u8> {
     {
         v8::scope_with_context!(cs, &mut isolate, &context);
         v8::tc_scope!(let tc, cs);
-        for (name, src) in scripts {
-            let s = v8::String::new(tc, src).expect("script source fits");
+        for (i, (name, src)) in scripts.iter().enumerate() {
+            // #276 shared-source campaign: scripts whose source went
+            // through the ASCII OneByteConst path compile from
+            // process-static bytes — the realm heap keeps an
+            // external-string handle instead of the script text. Dirty
+            // sources (non-ASCII in code regions) ride the inline
+            // fallback; their empty const still registers, so the table
+            // index alignment holds on both sides.
+            let external = consts
+                .get(i)
+                .filter(|c| !c.as_str().is_empty())
+                .and_then(|c| v8::String::new_from_onebyte_const(tc, c));
+            let s = external
+                .unwrap_or_else(|| v8::String::new(tc, src).expect("script source fits"));
             match v8::Script::compile(tc, s, None).and_then(|script| script.run(tc)) {
                 Some(_) => {}
                 None if tc.has_terminated() => {

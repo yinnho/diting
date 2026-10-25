@@ -70,5 +70,23 @@
    "gate": "init shrink now runs only when live isolates <= 8 (diting_runtime::live_isolates); idle shrink (the parked-session 105→47MB win) stays unconditional — it provably never fires during crawl-style command churn.",
    "gated_verification": "Amiibo crawl 940/940: CPU 17.5s (back at the 15s baseline class; extra wall 54.9s is tonight's network — CPU is the engine-side signal), peak 300MB (no shrink tax). Single-session garbage demo still lands 46MB flat after idle."
   }
+ },
+ "shared_source_campaign_2026_10_25": {
+  "mechanism": "Obscura steal (h4ckf0r0day/obscura@24a731c6 'share bootstrap source across isolates'): script sources compile from process-static v8::OneByteConst external strings; the snapshot serializer keys external strings by RESOURCE address, and a OneByteConst IS the resource (C++ vtable baked at construction) — so the address registers into the external-references table upfront, the blob carries only the index, and every realm's heap holds a handle instead of the script text.",
+  "port": "build.rs maps comment-region non-ASCII to '?' under a build-time guarantee that stripping comments from original and mapped sources yields IDENTICAL code regions (32/35 scripts externalized, bootstrap included after its 16 code-region literals were escaped to unicode escapes — semantically identical); audio.js/css_register.js/form_validation.js carry non-ASCII in code regions (locale name tables, CJK validation messages) and ride the inline fallback.",
+  "measured": {
+   "A_post_restore_used_bytes": 4091744,
+   "B_post_init_used_bytes": 4142584,
+   "B_post_init_physical_bytes": 4210688,
+   "vs_pre_campaign": {
+    "A": 5018568,
+    "B_used": 5467344,
+    "B_physical": 6619136
+   },
+   "per_realm_rss_marginal": "6.2MB (was 7.4)",
+   "session_pool_25_rss": "180.8MB (was 210.8, -14%)",
+   "crawl_amiibo_940": "peak 275.3MB / wall 60.4s / CPU 17.3s (same-evening network as run e; CPU is the engine-side signal and stays at the 15-17s baseline class)"
+  },
+  "invariance": "diting 1371 + product 593 green — every test builds realms from the new snapshot, so the fingerprint suites (interface sweep, 300015 faces, global surface) all executed externalized sources."
  }
 }

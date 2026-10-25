@@ -3,6 +3,14 @@ pub mod runtime;
 pub mod ops;
 pub mod async_glue;
 pub mod ws;
+
+/// The snapshot's script sources as process-static UTF-16 buffers —
+/// same generated file the build script baked with (#276 memory
+/// campaign). Registered with diting_runtime before the first realm so
+/// restore-side external strings resolve by index into OUR .rodata.
+pub mod snapshot_sources {
+    include!(concat!(env!("OUT_DIR"), "/snapshot_sources_ascii.rs"));
+}
 mod import_map;
 pub mod markdown;
 mod write_stream;

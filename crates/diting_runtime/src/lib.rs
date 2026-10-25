@@ -58,6 +58,8 @@ pub mod modules;
 pub mod op_glue;
 pub mod op_reg;
 pub mod settle;
+pub use v8;
+
 pub mod snapshot;
 pub mod state;
 pub mod vm;
