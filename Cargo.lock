@@ -1197,7 +1197,7 @@ dependencies = [
  "selectors 0.40.0",
  "serde",
  "serde_json",
- "servo_arc",
+ "servo_arc 0.5.0",
  "sha1 0.10.7",
  "sha1 0.11.0",
  "sha2 0.11.1",
@@ -3796,7 +3796,7 @@ dependencies = [
  "phf_codegen 0.13.1",
  "precomputed-hash",
  "rustc-hash 2.1.3",
- "servo_arc",
+ "servo_arc 0.4.3",
  "smallvec",
 ]
 
@@ -3815,7 +3815,7 @@ dependencies = [
  "phf_codegen 0.13.1",
  "precomputed-hash",
  "rustc-hash 2.1.3",
- "servo_arc",
+ "servo_arc 0.4.3",
  "smallvec",
  "to_shmem",
  "to_shmem_derive",
@@ -3933,6 +3933,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "170fb83ab34de17dc69aa7c67482b22218ddb85da56546f9bd6b929e32a05930"
 dependencies = [
  "serde",
+ "stable_deref_trait",
+]
+
+[[package]]
+name = "servo_arc"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4eceb519ec34d8290aaf6e46f435102f2bfa63f22b05a144fb16ab266d3b198"
+dependencies = [
  "stable_deref_trait",
 ]
 
@@ -4294,7 +4303,7 @@ dependencies = [
  "rustc-hash 2.1.3",
  "selectors 0.40.0",
  "serde",
- "servo_arc",
+ "servo_arc 0.4.3",
  "smallbitvec",
  "smallvec",
  "static_assertions",
@@ -4360,7 +4369,7 @@ dependencies = [
  "cssparser",
  "euclid",
  "selectors 0.40.0",
- "servo_arc",
+ "servo_arc 0.4.3",
  "smallbitvec",
  "smallvec",
  "string_cache 0.9.0",
@@ -4401,7 +4410,7 @@ dependencies = [
  "malloc_size_of_derive",
  "selectors 0.40.0",
  "serde",
- "servo_arc",
+ "servo_arc 0.4.3",
  "stylo_atoms",
  "stylo_malloc_size_of",
  "thin-vec",
@@ -4699,7 +4708,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8c81cee0d28327337a94f3f32a1a77c03bbfd926510f3b42956f9d914e7810c"
 dependencies = [
  "cssparser",
- "servo_arc",
+ "servo_arc 0.4.3",
  "smallbitvec",
  "smallvec",
  "string_cache 0.9.0",
