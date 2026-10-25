@@ -1180,3 +1180,44 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
   "use_proxy": true
 }'
 ```
+
+
+## DupHub 市场（v0.7.1）
+
+diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub 的 api key（Keys 页取得的 `oc_...`）——码=钱包=身份。付费流拉进**内存**执行（不落盘；dump 副本过不了运行时自检）。市场免费流与本地 `workflow/` 流照常免费。
+
+### POST /activation/activate
+```json
+{"code": "oc_...", "hub_url": "https://duphub.com"}   // hub_url 可选
+```
+→ `{"balance_cents": 10000}` —— 验证 key（quota 探针）并本地持久化（0600）。一次性；充值不改码。
+
+### POST /activation/quota
+→ `{"balance_cents": 9000}` —— 当前钱包余额。未激活时 400 带激活指引。
+
+### POST /flow/run（市场路径）
+`name` 本地 `workflow/` 没有、市场在售时透明处理：查价 → 付费件购买（余额不足 → 结构化 402 进充值闭环）→ dup 协议拉 flow.json 进内存 → 带运行时票据执行。已购重跑不再付费。
+
+### POST /activation/topup
+```json
+{"amount_cents": 5000}
+```
+→ `{"order_id": "D18...", "qr_svg": "<svg...>", "expires_at": ..., "sandbox": false}` —— 微信 Native 二维码。agent 用 `POST /open`（qr 面板模板：title/subtitle/svg_b64/url 槽位）渲染给主人扫码。
+
+### POST /activation/order
+```json
+{"order_id": "D18..."}
+```
+→ `{"status": "pending|paid|expired", "amount_cents": 5000}` —— 轮询到 paid 后 agent 自主继续。订单 5 分钟过期。
+
+### POST /flow/publish
+```json
+{"name": "my-flow", "flow": {...}, "price_cents": 200}
+```
+→ 上架为 kind=flow（审核队列；定价由平台审后确定）。他人每次购买给你的钱包分账 **70%**。
+
+### POST /panel-template/install
+```json
+{"name": "my-panel"}
+```
+→ 从 hub 拉 kind=panel-template 工件写进盘上层（`/var/lib/diting/templates`）——同名覆盖内置，立即生效。
