@@ -204,14 +204,21 @@ const _dom = (cmd, a1, a2) => {
 };
 
 
-const _nativeFns = new Set();
+// WeakSet (Obscura steal a36ec393): a page deleting an API member
+// (`delete AudioBuffer.prototype.copyToChannel`) must actually release the
+// function — a strong Set pins every marked fn forever. The bound refs
+// keep toString working even after a page replaces WeakSet.prototype
+// methods (the same patch's tamper hardening).
+const _nativeFns = new WeakSet();
+const _nativeFnHas = _nativeFns.has.bind(_nativeFns);
+const _nativeFnAdd = _nativeFns.add.bind(_nativeFns);
 const _origToString = Function.prototype.toString;
 // Method syntax gives the override the native function's shape: name
 // "toString", length 0, non-constructible, and no own `prototype` property
 // (upstream 846ed7d). A plain `function() {}` assignment leaks all four.
 const _functionToString = {
   toString() {
-    if (_nativeFns.has(this)) {
+    if (_nativeFnHas(this)) {
       return `function ${this.name || ''}() { [native code] }`;
     }
     return _origToString.call(this);
@@ -331,7 +338,7 @@ function __lboxProto(C) {
   });
 }
 
-function _markNative(fn) { if (typeof fn === 'function') _nativeFns.add(fn); return fn; }
+function _markNative(fn) { if (typeof fn === 'function') _nativeFnAdd(fn); return fn; }
 // Mark every method AND accessor on a shim prototype as native. Lie
 // detectors (fingerprintjs-style) verify `Function.prototype.toString.call(fn)`
 // reports [native code] for each API they probe — an unmarked shim flips
@@ -348,7 +355,7 @@ function _markNativeProto(proto) {
     if (typeof d.set === 'function') _markNative(d.set);
   }
 }
-_nativeFns.add(_functionToString);
+_nativeFnAdd(_functionToString);
 
 [Error, TypeError, ReferenceError, SyntaxError, RangeError, URIError, EvalError].forEach(E => {
   try {

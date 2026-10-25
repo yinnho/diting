@@ -88,5 +88,10 @@
    "crawl_amiibo_940": "peak 275.3MB / wall 60.4s / CPU 17.3s (same-evening network as run e; CPU is the engine-side signal and stays at the 15-17s baseline class)"
   },
   "invariance": "diting 1371 + product 593 green — every test builds realms from the new snapshot, so the fingerprint suites (interface sweep, 300015 faces, global surface) all executed externalized sources."
+ },
+ "native_mark_weak_2026_10_25": {
+  "mechanism": "Obscura steal a36ec393 ('Release discarded native function source metadata'): the native-mark registry swaps Set -> WeakSet with startup-bound .has/.add references; a page deleting an API member no longer has the function pinned forever by the marking bookkeeping, and toString survives page-level WeakSet.prototype tampering (bound refs).",
+  "impact_class": "LEAK-FIX, not steady-state reduction: registry entries for live functions cost the same; the win appears on long-lived sessions whose pages delete/replace API members (framework patches, sandboxing shims). Steady-state per-realm numbers unchanged by design.",
+  "tests": "native_mark_does_not_retain_deleted_members + native_tostring_survives_weaksset_tampering (ported from the upstream patch's trio, adapted to our harness)."
  }
 }

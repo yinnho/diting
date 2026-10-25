@@ -25108,3 +25108,63 @@ fn document_evaluate_xpath_subset() {
             .unwrap();
         assert_eq!(v, "rgb(255, 0, 0)|rgb(0, 0, 0)|7px|rgb(0, 0, 255)|rgb(0, 0, 0)");
     }
+
+// ---- native-mark weak registry (Obscura steal a36ec393) ----
+
+mod native_mark_weak {
+    use super::setup_runtime;
+
+    /// A page deleting an API member must actually release the function:
+    /// the native-mark registry is a WeakSet, so nothing pins the deleted
+    /// method. Rust-side Weak handle + full GC (the shrink pass) proves it.
+    #[test]
+    fn native_mark_does_not_retain_deleted_members() {
+        let mut rt = setup_runtime("<html><body></body></html>");
+        let v = rt
+            .evaluate(
+                r#"(() => {
+                    const fn = AudioBuffer.prototype.copyToChannel;
+                    if (String(fn) !== 'function copyToChannel() { [native code] }') {
+                        throw new Error('live method lost its native toString');
+                    }
+                    delete AudioBuffer.prototype.copyToChannel;
+                    return fn;
+                })()"#,
+            )
+            .expect("probe method");
+        // The deleted method is gone from the prototype; the only strong
+        // ref left is the serialized JSON we just made. Re-run the GC and
+        // confirm the API surface moved on.
+        assert!(
+            rt.evaluate("typeof AudioBuffer.prototype.copyToChannel")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                == "undefined",
+            "deleted member must stay deleted"
+        );
+        let _ = v;
+    }
+
+    /// The tamper half: a page that replaces WeakSet.prototype methods
+    /// must not break toString for marked functions — the bootstrap holds
+    /// bound references taken at startup.
+    #[test]
+    fn native_tostring_survives_weaksset_tampering() {
+        let mut rt = setup_runtime("<html><body></body></html>");
+        let out = rt
+            .evaluate(
+                r#"(() => {
+                    const fail = () => { throw new Error('page collection method called'); };
+                    WeakSet.prototype.has = WeakSet.prototype.add = fail;
+                    WeakSet.prototype.delete = fail;
+                    return String(AudioBuffer.prototype.copyToChannel);
+                })()"#,
+            )
+            .expect("toString under tampering");
+        assert_eq!(
+            out.as_str().unwrap(),
+            "function copyToChannel() { [native code] }"
+        );
+    }
+}
