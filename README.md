@@ -259,7 +259,6 @@ aginxbrowser/
 │   │   └── src/          # diting_{dom,css,net,js,layout,fonts,browser}
 │   ├── diting_ops/       # #[diting_op] glue generator (engine companion)
 │   └── diting_runtime/   # Owned JS event loop / op settlement
-├── workflow/             # Flow + recipe assets (drop-in, no rebuild)
 ├── README.md
 ├── docs/
 │   └── API.md            # Full API reference (HTTP)

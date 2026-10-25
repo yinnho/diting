@@ -184,22 +184,13 @@ MCP / CDP rows are intentionally absent — those faces do not exist.
 ### 4.1 Workflow assets (deployable data, not crates)
 
 `workflow/<name>/` is the delivery unit for platform policy: flows (`flow.json`)
-and opt-in document-start recipes (`recipe.js` included from
-`src/session/preload_recipes.rs`). The engine stays generic Web/compat — no
-per-host auto-mount, no new platform hardcoding in crates. Edit JS under
-`workflow/`; rebuild only when a recipe body changes.
+and opt-in document-start recipes. The engine stays generic Web/compat — no
+per-host auto-mount, no new platform hardcoding in crates. **The public tree
+ships NO platform flows** (removed 2026-10-25 — engine open, operational
+recipes private); operators deploy their own `workflow/` directories and the
+`/flow/run` mechanism is unchanged.
 
-**Known clones — do not extract yet** (shared eval blobs are intentional;
-wait for a green publish witness before collapsing):
-
-| Cluster | Why it stays duplicated |
-|---------|-------------------------|
-| `taobao-publish` / `tmall-publish` | one fill/submit chain each (merged 2026-10-21 from four per-SKU-mode clones); they differ in publish domain, title/brand shapes and the Tmall gate, so a shared recipe extract would risk a green→red publish |
-| `doudian-upload` per-image eval steps (~35 near-copies) | chunked upload died on #240 face-2; one-step-per-image is the stable shape until a safer compaction lands |
-
-Safe recent extractions (recipes): `xhs-sign`, `xhs-qrcode`, `x-p256`,
-`x-bearer`, `x-auth-ctx`, `taobao-block-everyhelp`, `taobao-block-qn-header`.
-Details and mount shapes: `workflow/README.md`.
+The shipped-clone ledger retired with the flows themselves (2026-10-25).
 
 Vendor *signals* (e.g. `risk_markers`, verdict rule overlays) may live in
 product core so agents can detect walls without loading a flow. Vendor
