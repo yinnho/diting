@@ -1,0 +1,5135 @@
+//! The session module's tests, split from the module root
+//! (ARCHITECTURE.md P2). Indentation is one level deeper than the
+//! original `mod tests` block — moving the lines was out of scope for a
+//! pure move batch.
+    use std::collections::HashMap;
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    use serde_json::Value;
+
+    use super::*;
+    use super::commands::SessionListEntry;
+    use super::interact::{humanized_drag_plan, XorShift64};
+    use super::state::{SnapshotStore, SESSION_COUNTER};
+
+    /// Regression (WorkOS Radar collector frozen 31s; the same bug class the
+    /// upstream engine fixed as v0.2.1 "MCP pumps the page task queue between
+    /// tool calls"): while a session sits idle between commands, its page's
+    /// timers, microtasks and interval callbacks must keep firing like a real
+    /// browser's main thread. Arms a timer, a promise chain and an interval,
+    /// stays idle well past their deadlines with no command in flight, then
+    /// reads the markers back. A session that parks on a blocking recv()
+    /// instead of pumping 200ms slices leaves all three markers unset.
+    #[tokio::test]
+    async fn idle_session_keeps_timers_and_microtasks_firing() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let armed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"(function() {
+                    window.__marks = {timeout: false, micro: false, ticks: 0};
+                    setTimeout(function() { window.__marks.timeout = true; }, 400);
+                    Promise.resolve().then(function() { window.__marks.micro = true; });
+                    setInterval(function() { window.__marks.ticks++; }, 200);
+                    return 'armed';
+                })()"#
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(armed.as_str().unwrap_or(""), "armed");
+
+        // Idle gap: no command sent for well past the 400ms timer deadline.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "JSON.stringify(window.__marks)".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+
+        let json: Value =
+            serde_json::from_str(state.as_str().unwrap_or("null")).unwrap_or(Value::Null);
+        let timeout = json
+            .get("timeout")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let micro = json.get("micro").and_then(|v| v.as_bool()).unwrap_or(false);
+        let ticks = json.get("ticks").and_then(|v| v.as_i64()).unwrap_or(0);
+        // 1.5s idle at a 200ms interval ≈ 7 ticks; 3 is a safe floor that
+        // still proves sustained pumping (one post-command drain gives 0-1).
+        assert!(timeout, "setTimeout must fire during the idle gap");
+        assert!(micro, "promise chain must settle during the idle gap");
+        assert!(
+            ticks >= 3,
+            "interval must keep firing while idle, got {ticks} ticks"
+        );
+    }
+
+    /// File-upload leg (the taobao product-publishing chain's missing piece):
+    /// SetFiles assigns File objects through input.files, value reads back
+    /// Chrome's fakepath string, FormData(form) carries the selection as real
+    /// File entries, and a wrong selector / non-file target reports set:false
+    /// instead of throwing.
+    #[tokio::test]
+    async fn set_files_assigns_selection_and_formdata_reads_it() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let armed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"document.body.innerHTML = '<form id="f"><input type="file" name="up"><input type="text" name="t"></form>'; 'ok'"#.to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(armed.as_str().unwrap_or(""), "ok");
+
+        let specs = vec![
+            serde_json::json!({"name": "a.png", "content_base64": "aGk=", "mime_type": "image/png"}),
+            serde_json::json!({"name": "b.jpg", "content_base64": "Qg=="}),
+        ];
+        let result = mgr
+            .send(&sid, |reply| SessionCommand::SetFiles {
+                selector: Some("input[type=file]".to_string()),
+                files: specs,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            result.get("set").and_then(Value::as_bool),
+            Some(true),
+            "assignment must succeed: {result}"
+        );
+        assert_eq!(result.get("count").and_then(Value::as_i64), Some(2));
+        assert_eq!(
+            result.get("value").and_then(Value::as_str),
+            Some("C:\\fakepath\\a.png")
+        );
+
+        // The selection is live page state: FormData(form) sees real File
+        // entries and the bytes round-trip through the File objects.
+        let check = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"(function() {
+                    var el = document.querySelector('input[type=file]');
+                    var entries = [];
+                    for (var e of new FormData(document.getElementById('f')).entries())
+                        entries.push(e[0] + ':' + (typeof File === 'function' && e[1] instanceof File ? e[1].name + '/' + e[1].size : e[1]));
+                    return entries.join('|') + '#' + el.files.item(1).name + '#' + atob('aGk=');
+                })()"#
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(check.as_str().unwrap_or(""), "up:a.png/2|up:b.jpg/1|t:#b.jpg#hi");
+
+        // Wrong selector and non-file target report set:false, never throw.
+        let miss = mgr
+            .send(&sid, |reply| SessionCommand::SetFiles {
+                selector: Some("input#nope".to_string()),
+                files: vec![serde_json::json!({"name": "x", "content_base64": ""})],
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(miss.get("set").and_then(Value::as_bool), Some(false));
+        assert!(
+            miss.get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .contains("no element"),
+            "miss should name the failure: {miss}"
+        );
+
+        let not_file = mgr
+            .send(&sid, |reply| SessionCommand::SetFiles {
+                selector: Some("input[type=text]".to_string()),
+                files: vec![serde_json::json!({"name": "x", "content_base64": ""})],
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(not_file.get("set").and_then(Value::as_bool), Some(false));
+        assert!(
+            not_file
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .contains("not a file input"),
+            "non-file target should be named: {not_file}"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await, "session thread must ack close");
+    }
+
+    /// #239 — the pending file chooser face. An off-DOM INPUT[type=file]
+    /// whose change listener attaches right before click() (doudian's new
+    /// upload widget shape): no selector can reach the input, but the
+    /// page-side click() arms the chooser and selector-less SetFiles feeds
+    /// that exact element — files land, change fires, and a feed with
+    /// nothing armed names the gap instead of guessing.
+    #[tokio::test]
+    async fn set_files_feeds_the_pending_file_chooser() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(Some("about:blank"), false, vec![], None, None, None, false, false, None);
+
+        // Nothing armed yet: selector-less feed must refuse with the recipe.
+        let none = mgr
+            .send(&sid, |reply| SessionCommand::SetFiles {
+                selector: None,
+                files: vec![serde_json::json!({"name": "x.png", "content_base64": "aGk="})],
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(none.get("set").and_then(Value::as_bool), Some(false), "{none}");
+        assert!(
+            none.get("error").and_then(Value::as_str).unwrap_or("").contains("no pending file chooser"),
+            "should name the gap: {none}"
+        );
+
+        // The widget shape: create the input off-DOM, attach the change
+        // listener, THEN click() — exactly the order a real upload widget
+        // uses inside its own click handler.
+        let armed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"(function() {
+                    var inp = document.createElement('input');
+                    inp.setAttribute('type', 'file');
+                    window.__chooser = { inp: inp, changes: 0, lastNames: [] };
+                    inp.addEventListener('change', function() {
+                        window.__chooser.changes++;
+                        window.__chooser.lastNames = Array.prototype.map.call(inp.files, function(f) { return f.name; });
+                    });
+                    inp.click();
+                    return JSON.stringify({ armed: !!globalThis.__ditingFileChooser,
+                                            inDom: inp.isConnected,
+                                            gen: globalThis.__ditingFileChooser ? globalThis.__ditingFileChooser.gen : 0 });
+                })()"#
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let armed: Value = serde_json::from_str(armed.as_str().unwrap()).unwrap();
+        assert_eq!(armed["armed"], serde_json::json!(true), "click() must arm the chooser: {armed}");
+        assert_eq!(armed["inDom"], serde_json::json!(false), "the whole point: off-DOM input");
+
+        // Selector-less feed goes to the armed input.
+        let fed = mgr
+            .send(&sid, |reply| SessionCommand::SetFiles {
+                selector: None,
+                files: vec![
+                    serde_json::json!({"name": "m02.jpg", "content_base64": "aGk=", "mime_type": "image/jpeg"}),
+                ],
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(fed.get("set").and_then(Value::as_bool), Some(true), "{fed}");
+        assert_eq!(fed.get("mode").and_then(Value::as_str), Some("chooser"));
+        assert_eq!(fed.get("count").and_then(Value::as_i64), Some(1));
+        assert!(fed.get("armed_ms_ago").and_then(Value::as_i64).unwrap_or(-1) >= 0);
+
+        let check = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"JSON.stringify({ changes: window.__chooser.changes, names: window.__chooser.lastNames, value: window.__chooser.inp.value })"#.to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let check: Value = serde_json::from_str(check.as_str().unwrap()).unwrap();
+        assert_eq!(check["changes"], serde_json::json!(1), "widget listener fired: {check}");
+        assert_eq!(check["names"], serde_json::json!(["m02.jpg"]));
+        assert_eq!(check["value"], serde_json::json!("C:\\fakepath\\m02.jpg"));
+
+        // Latest click() wins: a second armed input receives the next feed.
+        let rearmed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"(function() {
+                    var second = document.createElement('input');
+                    second.setAttribute('type', 'file');
+                    window.__second = second;
+                    second.click();
+                    return String(globalThis.__ditingFileChooser.el === second);
+                })()"#
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(rearmed.as_str().unwrap_or("false"), "true", "latest click() must win the chooser");
+
+        let fed2 = mgr
+            .send(&sid, |reply| SessionCommand::SetFiles {
+                selector: None,
+                files: vec![serde_json::json!({"name": "second.png", "content_base64": "eHg="})],
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(fed2.get("set").and_then(Value::as_bool), Some(true), "{fed2}");
+        let check2 = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"JSON.stringify({ secondLen: window.__second.files.length, firstChanges: window.__chooser.changes })"#.to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let check2: Value = serde_json::from_str(check2.as_str().unwrap()).unwrap();
+        assert_eq!(check2["secondLen"], serde_json::json!(1), "feed #2 landed on the latest armed input");
+        assert_eq!(check2["firstChanges"], serde_json::json!(1), "first input untouched by feed #2");
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// Session errors must be machine-readable: an agent has to tell "the
+    /// session is gone — recreate it" from "this step failed — retry it"
+    /// without parsing prose (real-device feedback ①). Also pins the
+    /// acceptance rule from the same report: once an expiry error fires, the
+    /// id stays consistently dead — the next call answers SESSION_NOT_FOUND,
+    /// never a half-alive success.
+    #[tokio::test]
+    async fn session_errors_carry_codes_and_expiry_closes_consistently() {
+        let mut mgr = SessionManager::new();
+
+        // Unknown id: SESSION_NOT_FOUND with the recreate hint.
+        let err = mgr
+            .send("s_missing", |reply| SessionCommand::State {
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_NOT_FOUND");
+        assert_eq!(err.to_value()["hint"], "call session_create to recreate");
+
+        // Command failure inside a LIVE session: COMMAND_FAILED, no recreate
+        // hint, and the session survives (a retry is safe).
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::Click {
+                index: 99_999,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "COMMAND_FAILED");
+        assert!(err.to_value().get("hint").is_none());
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+
+        // Expired: SESSION_EXPIRED + destructive close, then the same id
+        // answers SESSION_NOT_FOUND — the two conclusions agree.
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        mgr.sessions.get_mut(&sid).unwrap().last_active =
+            Instant::now() - Duration::from_secs(3600);
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_EXPIRED");
+        assert_eq!(err.to_value()["hint"], "call session_create to recreate");
+        assert!(
+            !mgr.sessions.contains_key(&sid),
+            "expiry must close the session"
+        );
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_NOT_FOUND");
+    }
+
+    /// GET /sessions identity probe (0.4.1 taobao report problem 7): the Url
+    /// command must answer cheaply with the session's current URL — it is
+    /// fanned out per listing entry, so anything heavier than a read would
+    /// make the listing itself expensive.
+    #[tokio::test]
+    async fn url_command_round_trips_the_current_page() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let url = mgr
+            .send(&sid, |reply| SessionCommand::Url { reply })
+            .await
+            .unwrap();
+        assert_eq!(url, "about:blank");
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// #102: the cookie metadata face answers "what auth state exists"
+    /// without a single credential leaving the server. Attributes land
+    /// (domain/path/flags), values don't — and the payload doesn't even
+    /// carry a `value` key to grow one from.
+    #[tokio::test]
+    async fn cookie_meta_face_reports_attributes_but_never_values() {
+        let mut mgr = SessionManager::new();
+        // Domain-declared entries anchor at their own domain, so injection
+        // works with no start_url — the session sits on about:blank and the
+        // jar still holds the login state.
+        let sid = mgr.create(
+            None,
+            false,
+            vec![
+                "sess=TOPSECRET-VALUE; Domain=meta.example; Path=/; Secure; HttpOnly"
+                    .to_string(),
+            ],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let text = mgr
+            .send(&sid, |reply| SessionCommand::CookieMeta { reply })
+            .await
+            .unwrap();
+        assert!(
+            !text.contains("TOPSECRET"),
+            "cookie values must never leave the jar: {text}"
+        );
+        let val: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let rows = val["cookies"].as_array().expect("cookies array");
+        let sess = rows
+            .iter()
+            .find(|r| r["name"] == "sess")
+            .expect("sess row present");
+        assert_eq!(sess["domain"], "meta.example");
+        assert_eq!(sess["path"], "/");
+        assert_eq!(sess["secure"], true);
+        assert_eq!(sess["httpOnly"], true);
+        assert!(
+            sess.get("value").is_none(),
+            "no value key on the metadata face: {sess}"
+        );
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// #203: the CookieTrace face — the desensitized capture path for the
+    /// merchant's "which response deleted unb/sn" question. One navigation
+    /// to an origin that sets, deletes and JS-writes cookies must surface
+    /// all three as ring rows, source-tagged, URL-joined, value-free.
+    #[tokio::test]
+    async fn cookie_trace_ring_captures_set_delete_and_js_writes() {
+        let _net = crate::server::test_util::net_env_guard();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let mut stream = stream;
+                    let mut buf = [0u8; 1024];
+                    let _ = std::io::Read::read(&mut stream, &mut buf);
+                    let body = "<html><body><script>\
+                        document.cookie = 'jsrow=1; Path=/';\
+                        document.cookie = 'unb=REALTOKEN; Path=/';\
+                        </script>done</body></html>";
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\
+                         Set-Cookie: unb=REALTOKEN; Path=/\r\n\
+                         Set-Cookie: gone=old; Path=/; Max-Age=0\r\n\
+                         Content-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = std::io::Write::write_all(&mut stream, resp.as_bytes());
+                });
+            }
+        });
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(Some(&format!("http://127.0.0.1:{port}/")), false, vec![], None, None, None, false, false, None);
+        let text = mgr
+            .send(&sid, |reply| SessionCommand::CookieTrace { reply })
+            .await
+            .unwrap();
+        let val: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let rows = val["trace"].as_array().expect("trace array");
+
+        // http rows: the document response's set + delete, in order.
+        let http_unb = rows
+            .iter()
+            .find(|r| r["source"] == "http" && r["name"] == "unb")
+            .expect("http set row for unb");
+        assert_eq!(http_unb["deleted"], false);
+        assert!(
+            http_unb["request_url"]
+                .as_str()
+                .unwrap()
+                .starts_with(&format!("http://127.0.0.1:{port}/")),
+            "the row names the response that carried the Set-Cookie: {http_unb}"
+        );
+        let gone = rows
+            .iter()
+            .find(|r| r["name"] == "gone")
+            .expect("delete row for gone");
+        assert_eq!(gone["source"], "http");
+        assert_eq!(gone["deleted"], true);
+
+        // js rows: the page's own document.cookie writes.
+        let jsrow = rows
+            .iter()
+            .find(|r| r["source"] == "js" && r["name"] == "jsrow")
+            .expect("js write row");
+        assert_eq!(jsrow["deleted"], false);
+
+        assert!(
+            !text.contains("REALTOKEN"),
+            "values must never ride the trace face: {text}"
+        );
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// #102: a clean challenges report must say what zero means — absence
+    /// of a wall, not a login verdict. `total: 0` reads as "passed" to a
+    /// caller who can't see the detector's scope.
+    #[tokio::test]
+    async fn challenges_zero_events_carries_absence_note() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let text = mgr
+            .send(&sid, |reply| SessionCommand::Challenges { reply })
+            .await
+            .unwrap();
+        let val: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(val["total"], 0);
+        let note = val["note"].as_str().expect("note on zero events");
+        assert!(
+            note.contains("not a login verdict"),
+            "note must name what zero does NOT mean: {note}"
+        );
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// Regression (obscura #618 class): an eval whose script clicks a submit
+    /// button must leave the session on the form's action URL — the click
+    /// stores a pending JS navigation that the Eval command drains (same
+    /// policy as click_by_index).
+    #[tokio::test]
+    async fn eval_submit_click_navigates_the_session() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[
+            (
+                "GET /form",
+                "<html><body><form method='POST' action='/done'>\
+                 <input name='q' value='hello'>\
+                 <button type='submit' id='go'>Go</button></form></body></html>",
+            ),
+            ("POST /done", "<html><body>submitted ok</body></html>"),
+        ]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/form")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let clicked = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "document.querySelector('#go').click(); 'clicked'".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(clicked.as_str().unwrap_or(""), "clicked");
+
+        let href = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "location.href".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert!(
+            href.as_str().unwrap_or("").ends_with("/done"),
+            "session must follow the submit navigation, got {}",
+            href
+        );
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// Index of the element carrying `id="…"` in a session_state listing —
+    /// the observe half of the interaction contract hands back formatted
+    /// text, so the act-side tests parse their target's index from it.
+    fn state_index_of(state: &str, id: &str) -> usize {
+        let needle = format!("id=\"{}\"", id);
+        for line in state.lines() {
+            if line.contains(&needle) {
+                if let Some(n) = line
+                    .trim_start_matches('[')
+                    .split(']')
+                    .next()
+                    .and_then(|s| s.parse().ok())
+                {
+                    return n;
+                }
+            }
+        }
+        panic!("no indexed element with {} in state:\n{}", needle, state);
+    }
+
+    /// Act-side re-check contract (issue #46): between session_state and
+    /// session_click the page can re-render — the click must re-verify
+    /// visibility/occlusion in the same frame and fail with a structured
+    /// reason instead of dispatching into a dead target. A full-cover overlay
+    /// answers `covered_by` naming the veil; once the veil is gone the same
+    /// click succeeds.
+    #[tokio::test]
+    async fn click_refuses_covered_button_with_structured_reason() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /p",
+            "<html><body><button id='go' onclick=\"window.__hit = 1\">Go</button>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/p")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap();
+        let idx = state_index_of(&state, "go");
+
+        // Drop a z-index overlay over the whole viewport after the snapshot.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "(function(){ var d = document.createElement('div');\
+                     d.id = 'veil';\
+                     d.style.cssText = 'position:absolute;left:0;top:0;width:1600px;height:900px;z-index:9999';\
+                     document.body.appendChild(d); return 'veiled'; })()"
+                .to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Click { index: idx, reply })
+            .await
+            .unwrap();
+        assert!(!resp.clicked, "a covered button must not report clicked");
+        assert_eq!(resp.reason.as_deref(), Some("covered_by"));
+        let covered = resp.covered_by.unwrap_or_default();
+        assert!(
+            covered.contains("veil"),
+            "covered_by must name the element eating the click, got {}",
+            covered
+        );
+
+        // Remove the veil: the identical click now dispatches.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.getElementById('veil').remove(); 'gone'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Click { index: idx, reply })
+            .await
+            .unwrap();
+        assert!(resp.clicked, "uncovered button must click");
+        assert!(resp.reason.is_none(), "success carries no reason");
+        let hit = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__hit === 1 ? 'hit' : 'miss'".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(hit.as_str().unwrap_or(""), "hit");
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// Same contract, disabled/hidden half: a control the page disabled or
+    /// hid after the snapshot answers `disabled` / `not_visible` — never a
+    /// silent success.
+    #[tokio::test]
+    async fn click_refuses_disabled_and_hidden_buttons() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /p",
+            "<html><body><button id='b1'>One</button><button id='b2'>Two</button>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/p")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap();
+        let b1 = state_index_of(&state, "b1");
+        let b2 = state_index_of(&state, "b2");
+
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.getElementById('b1').disabled = true;\
+                     document.getElementById('b2').style.display = 'none';\
+                     'set'"
+                .to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Click { index: b1, reply })
+            .await
+            .unwrap();
+        assert!(!resp.clicked);
+        assert_eq!(resp.reason.as_deref(), Some("disabled"));
+
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Click { index: b2, reply })
+            .await
+            .unwrap();
+        assert!(!resp.clicked);
+        assert_eq!(resp.reason.as_deref(), Some("not_visible"));
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// #204: click-by-index must run the mousedown default action for
+    /// text-entry controls (focus + caret) like the coordinate and touch
+    /// paths do — el.click() alone never focused anything, so focus-gated
+    /// pages (expand-on-focus search boxes, blur validation) diverged by
+    /// which click tool the agent used. Buttons stay unfocused: the
+    /// text-entry-only scoping documented on __diting_focusTextEntry.
+    #[tokio::test]
+    async fn click_by_index_focuses_text_entry_controls() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /p",
+            "<html><body><input id='q' value='abc'>\
+             <div id='log'></div><button id='go'>Go</button>\
+             <script>var L=document.getElementById('log');\
+             document.getElementById('q').addEventListener('focus',\
+             function(){L.textContent+='F,'});</script></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/p")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap();
+        let q = state_index_of(&state, "q");
+        let go = state_index_of(&state, "go");
+
+        // Scope check first, while focus is untouched: a button click runs
+        // no focusing steps.
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Click { index: go, reply })
+            .await
+            .unwrap();
+        assert!(resp.clicked);
+        let after = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "document.activeElement.id || document.activeElement.tagName"
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            after.as_str().unwrap_or(""),
+            "BODY",
+            "button clicks must not move focus (no focus-ring heuristic)"
+        );
+
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Click { index: q, reply })
+            .await
+            .unwrap();
+        assert!(resp.clicked, "input click must dispatch");
+        let verdict = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "JSON.stringify({active: document.activeElement.id,\
+                         focusFired: document.getElementById('log').textContent})"
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(verdict.as_str().unwrap_or("")).unwrap_or_default();
+        assert_eq!(
+            v["active"].as_str().unwrap_or(""),
+            "q",
+            "click-by-index must move focus to the text entry control"
+        );
+        assert_eq!(
+            v["focusFired"].as_str().unwrap_or(""),
+            "F,",
+            "the focus event must have fired"
+        );
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// Input half of the contract: readonly and disabled controls answer
+    /// `filled:false` with a named reason. Hidden inputs are deliberately
+    /// NOT refused — a display:none input paired with a custom widget is a
+    /// legitimate fill target (documented on the guard).
+    #[tokio::test]
+    async fn input_refuses_readonly_and_disabled_fields() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /p",
+            "<html><body><input id='ok' name='q'><input id='dis' name='d' disabled>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/p")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap();
+        let ok = state_index_of(&state, "ok");
+        let dis = state_index_of(&state, "dis");
+
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.getElementById('ok').readOnly = true; 'set'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: ok,
+                text: "hello".to_string(),
+                full_events: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], false, "readonly field must refuse");
+        assert_eq!(resp["reason"], "readonly");
+
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: dis,
+                text: "hello".to_string(),
+                full_events: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], false, "disabled field must refuse");
+        assert_eq!(resp["reason"], "disabled");
+
+        // Lift the readonly flag: the same fill goes through with a readback.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.getElementById('ok').readOnly = false; 'ok'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: ok,
+                text: "hello".to_string(),
+                full_events: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], true);
+        assert_eq!(resp["value"], "hello");
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// #194: text carrying newlines/quotes/backslashes used to break the fill
+    /// script's string literal — the whole IIFE was a SyntaxError and the
+    /// fallback answered a mute `filled:false`. The "type + Enter" payload
+    /// (text ending in \n, the encoding browser86's FieldEditor uses) never
+    /// landed at all. Enter must now type as a real Enter key: a textarea
+    /// keeps the newline in its value, an input stays single-line, and an
+    /// input in a form gets Chrome's implicit submission — gated on the key
+    /// events not being preventDefault'ed.
+    #[tokio::test]
+    async fn input_carries_special_characters_and_enter() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /p",
+            "<html><body><textarea id='ta'></textarea><input id='in'>\
+             <form id='f' action='#'><input id='insub'><input id='swallow'></form>\
+             <input id='plain'>\
+             <script>window.enterKeydowns = 0; window.submitCount = 0; \
+             document.addEventListener('keydown', \
+             function(e){ if (e.key === 'Enter') window.enterKeydowns++; }); \
+             document.getElementById('f').addEventListener('submit', \
+             function(e){ e.preventDefault(); window.submitCount++; }); \
+             document.getElementById('swallow').addEventListener('keydown', \
+             function(e){ if (e.key === 'Enter') e.preventDefault(); });</script>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/p")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap();
+        let ta = state_index_of(&state, "ta");
+        let inp = state_index_of(&state, "in");
+        let insub = state_index_of(&state, "insub");
+        let swallow = state_index_of(&state, "swallow");
+        let plain = state_index_of(&state, "plain");
+
+        // Simple path: every character class that used to break the literal.
+        let tricky = "line1\nline2 \"quoted\" 'single' \\ tail";
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: plain,
+                text: tricky.to_string(),
+                full_events: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], true, "special chars must fill: {resp}");
+        assert_eq!(resp["value"], tricky);
+
+        // Full path on a textarea: the trailing \n types as Enter and the
+        // newline lands in the value (Chrome's default action).
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: ta,
+                text: "hello\n".to_string(),
+                full_events: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], true, "textarea Enter fill: {resp}");
+        assert_eq!(resp["value"], "hello\n");
+
+        // Full path on a single-line input: Enter fires the key but appends
+        // nothing — the value keeps the text without the newline.
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: inp,
+                text: "86浏览器\n".to_string(),
+                full_events: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], true, "input Enter fill: {resp}");
+        assert_eq!(resp["value"], "86浏览器");
+
+        // Enter inside a form runs Chrome's implicit submission (#194): the
+        // keydown/keypress pair wasn't canceled, so requestSubmit fires the
+        // form's submit event (the listener vetoes the navigation itself).
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: insub,
+                text: "query\n".to_string(),
+                full_events: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], true, "form input Enter fill: {resp}");
+        assert_eq!(resp["value"], "query");
+
+        // A preventDefault'ed Enter must NOT submit — the chat-input shape,
+        // where the page swallows the key to send via XHR instead.
+        let resp = mgr
+            .send(&sid, |reply| SessionCommand::Input {
+                index: swallow,
+                text: "hi\n".to_string(),
+                full_events: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp["filled"], true, "swallowed Enter fill: {resp}");
+        assert_eq!(resp["value"], "hi");
+
+        let count = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.submitCount".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(count, 1, "implicit submit fired once; the vetoed Enter stayed unsubmitted");
+
+        let enters = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.enterKeydowns".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(enters, 4, "every Enter dispatched as a real key event");
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    #[tokio::test]
+    async fn viewport_command_pins_viewport_across_navigation() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[
+            (
+                "GET /m",
+                "<html><head><style>@media (max-width:600px){body{color:#010203}}</style>\
+                 </head><body><p>m</p></body></html>",
+            ),
+            (
+                "GET /n",
+                "<html><head><style>@media (max-width:600px){body{color:#010203}}</style>\
+                 </head><body><p>n</p></body></html>",
+            ),
+        ]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/m")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let vp = mgr
+            .send(&sid, |reply| SessionCommand::Viewport {
+                width: Some(375),
+                height: Some(667),
+                mobile: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(vp["width"].as_f64(), Some(375.0));
+        assert_eq!(vp["height"].as_f64(), Some(667.0));
+        assert_eq!(vp["mobile"].as_bool(), Some(true));
+
+        let matches = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "matchMedia('(max-width:600px)').matches && matchMedia('(pointer:coarse)').matches".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(matches, serde_json::json!(true));
+
+        // Omitted dimensions keep the current ones (Chrome's
+        // setDeviceMetricsOverride rule): only the flag moves here.
+        let vp = mgr
+            .send(&sid, |reply| SessionCommand::Viewport {
+                width: None,
+                height: None,
+                mobile: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(vp["width"].as_f64(), Some(375.0));
+        let pointer = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "matchMedia('(pointer:coarse)').matches".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(pointer, serde_json::json!(false));
+
+        // The override must survive a later navigation.
+        mgr.send(&sid, |reply| SessionCommand::Navigate {
+            url: format!("http://127.0.0.1:{port}/n"),
+            reply,
+        })
+        .await
+        .unwrap();
+        let w = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "innerWidth".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(w.as_f64(), Some(375.0));
+
+        // Recorded so replay scripts re-pin the viewport.
+        let exported = mgr
+            .send(&sid, |reply| SessionCommand::Export { reply })
+            .await
+            .unwrap();
+        assert!(
+            exported.contains("\"viewport\""),
+            "export must record the viewport action, got: {exported}"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    #[tokio::test]
+    async fn preload_runs_before_inline_scripts_and_persists_across_navigations() {
+        let _net = crate::server::test_util::net_env_guard();
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // The document-start contract (#96): the preload wraps window.fetch
+        // and plants a marker BEFORE the document's own scripts run — the
+        // inline script below records what it saw. Eval-based patching can
+        // never win this race; only preload can.
+        let r = mgr
+            .send(&sid, |reply| SessionCommand::SetPreload {
+                scripts: vec![
+                    "window.__pre = 'ran'; window.__pre_fetch = window.fetch;".to_string(),
+                ],
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(r["count"].as_u64(), Some(1));
+
+        let html = "<html><body><script>\
+             window.__inline_saw = window.__pre || 'none';\
+             window.__inline_fetch_wrapped = window.__pre_fetch === window.fetch;\
+             </script></body></html>"
+            .to_string();
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html,
+            reply,
+        })
+        .await
+        .unwrap();
+        let saw = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__inline_saw".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(saw.as_str(), Some("ran"));
+        let wrapped = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__inline_fetch_wrapped".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            wrapped.as_bool(),
+            Some(true),
+            "inline script must see the SAME fetch the preload captured"
+        );
+
+        // The group survives a navigation: a second document without any
+        // inline reader still gets the preload (marker present).
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html: "<html><body><p>two</p></body></html>".to_string(),
+            reply,
+        })
+        .await
+        .unwrap();
+        let persisted = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__pre || 'gone'".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(persisted.as_str(), Some("ran"));
+
+        // Clearing works: an empty group leaves the next document untouched.
+        mgr.send(&sid, |reply| SessionCommand::SetPreload {
+            scripts: vec![],
+            reply,
+        })
+        .await
+        .unwrap();
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html: "<html><body><p>three</p></body></html>".to_string(),
+            reply,
+        })
+        .await
+        .unwrap();
+        let cleared = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__pre || 'gone'".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(cleared.as_str(), Some("gone"));
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    #[tokio::test]
+    async fn set_content_loads_local_html_as_a_real_page() {
+        let _net = crate::server::test_util::net_env_guard();
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let html = "<html><head><title>Doc</title></head>\
+             <body><button id=\"b\">hello</button><script>window.__ran=1</script></body></html>"
+            .to_string();
+        let r = mgr
+            .send(&sid, |reply| SessionCommand::SetContent {
+                html: html.clone(),
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(r["bytes"].as_u64(), Some(html.len() as u64));
+        assert_eq!(r["title"].as_str(), Some("Doc"));
+
+        // It is a real page: scripts ran, DOM state is extractable.
+        let ran = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__ran".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(ran.as_i64(), Some(1));
+        let state = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap();
+        assert!(
+            state.contains("hello"),
+            "state must see the DOM, got: {state}"
+        );
+
+        // A later SetContent replaces the page (old DOM gone).
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html: "<html><head><title>Two</title></head><body><p>second</p></body></html>"
+                .to_string(),
+            reply,
+        })
+        .await
+        .unwrap();
+        let title = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "document.title".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(title.as_str(), Some("Two"));
+
+        // Recorded so replay scripts restore the content.
+        let exported = mgr
+            .send(&sid, |reply| SessionCommand::Export { reply })
+            .await
+            .unwrap();
+        assert!(
+            exported.contains("set_content"),
+            "export must record the setContent action, got: {exported}"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// /snapshot returns actionable refs that share the /state element_map.
+    #[tokio::test]
+    async fn snapshot_assigns_refs_usable_like_state_index() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            None,
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html: r#"<html><head><title>Login</title></head><body>
+                <a href="/home">Home</a>
+                <input id="email" type="email" placeholder="Email" />
+                <button id="go">Sign In</button>
+            </body></html>"#
+                .to_string(),
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let snap = mgr
+            .send(&sid, |reply| SessionCommand::Snapshot { reply })
+            .await
+            .unwrap();
+        assert_eq!(snap["title"].as_str(), Some("Login"));
+        let elements = snap["elements"].as_array().expect("elements array");
+        assert!(
+            elements.len() >= 3,
+            "expected link/input/button, got: {snap}"
+        );
+
+        let button = elements
+            .iter()
+            .find(|e| e["role"] == "button" && e["name"] == "Sign In")
+            .unwrap_or_else(|| panic!("Sign In button missing in {snap}"));
+        let rf = button["ref"].as_str().expect("ref string");
+        let idx = button["index"].as_u64().expect("index") as usize;
+        assert_eq!(rf, format!("e{idx}"));
+        assert_eq!(button["tag"].as_str(), Some("button"));
+
+        // Click by the same index the snapshot bound — proves the map was rebuilt.
+        let clicked = mgr
+            .send(&sid, |reply| SessionCommand::Click {
+                index: idx,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert!(clicked.clicked, "click via snapshot index failed: {clicked:?}");
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    // A session created without a url (and one whose initial navigation
+    // fails) must still own a live JS context, like a real browser's blank
+    // tab. Until 2026-09-15 a never-navigated Page kept `js: None` and every
+    // eval silently returned null — only literal `document.title`/`document.
+    // URL` were served from Rust state, so agents saw "the page exists but no
+    // script runs" (the 0.4.1 report's intermittent `result: null`).
+    #[tokio::test]
+    async fn no_url_session_has_a_live_js_context_from_birth() {
+        let _net = crate::server::test_util::net_env_guard();
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(None, false, vec![], None, None, None, false, false, None);
+
+        let two = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1+1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(two.as_i64(), Some(2), "eval must run, got: {two}");
+
+        // Side effects persist — the script really executed.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "window.__born = 42; 0".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        let born = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__born".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(born.as_i64(), Some(42));
+
+        // The exception contract survives: a throw is an Err, not a null.
+        let threw = mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "throw new Error('born-live')".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await;
+        assert!(threw.is_err(), "throw must surface as Err, got: {threw:?}");
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    // Same guarantee when the initial navigation itself fails: Chrome keeps a
+    // working JS context on its error page, so the agent can eval, read the
+    // console entry, and navigate on from the dead URL.
+    #[tokio::test]
+    async fn failed_initial_navigation_still_leaves_a_live_js_context() {
+        let _net = crate::server::test_util::net_env_guard();
+        let mut mgr = SessionManager::new();
+        // Port 1 on loopback: nothing listens, connection refused immediately.
+        let sid = mgr.create(
+            Some("http://127.0.0.1:1/"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let two = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1+1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            two.as_i64(),
+            Some(2),
+            "eval after failed initial nav must run, got: {two}"
+        );
+
+        // And the session stays usable: navigating elsewhere works.
+        let _ = mgr
+            .send(&sid, |reply| SessionCommand::SetContent {
+                html: "<html><body><p id='ok'>landed</p></body></html>".to_string(),
+                reply,
+            })
+            .await
+            .unwrap();
+
+        let landed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "document.getElementById('ok').textContent".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(landed.as_str(), Some("landed"));
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    // #80: a failed navigation must surface through eval/state — a null eval
+    // result answers with the navigation error, real values pass through,
+    // state never degrades to a bare non-string complaint, and the overlay
+    // clears once a later navigation succeeds.
+    #[tokio::test]
+    async fn eval_and_state_report_the_failed_navigation() {
+        let _net = crate::server::test_util::net_env_guard();
+        let mut mgr = SessionManager::new();
+        // Port 1 on loopback: nothing listens, connection refused immediately.
+        let sid = mgr.create(
+            Some("http://127.0.0.1:1/"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // A null result on the fallback page reads as "page broken"; the
+        // navigation failure is the actionable truth.
+        let probed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "document.querySelector('#missing')".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await;
+        let err = probed.unwrap_err().to_string();
+        assert!(
+            err.contains("navigation failed") && err.contains("did not complete"),
+            "null eval must name the failed navigation, got: {err}"
+        );
+
+        // Real values pass through — the fallback page is alive.
+        let href = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "location.href".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(href.as_str(), Some("about:blank"));
+
+        // State may legitimately succeed on the live fallback page, but an
+        // error must name the navigation, not just the stringness complaint.
+        let state = mgr.send(&sid, |reply| SessionCommand::State { reply }).await;
+        match state {
+            Ok(text) => assert!(
+                !text.contains("non-string"),
+                "state must not leak the bare extraction complaint: {text}"
+            ),
+            Err(e) => assert!(
+                e.to_string().contains("navigation failed"),
+                "state error must name the failed navigation, got: {e}"
+            ),
+        }
+
+        // A later successful navigation clears the overlay: null is null again.
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html: "<html><body></body></html>".to_string(),
+            reply,
+        })
+        .await
+        .unwrap();
+        let probed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "document.querySelector('#missing')".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert!(
+            probed.is_null(),
+            "cleared overlay must pass null through, got: {probed}"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    #[tokio::test]
+    async fn clone_carries_login_state_to_a_new_session() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /app",
+            "<html><body><script>localStorage.setItem('user','miccim')</script>\
+             <p>app</p></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let src = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/app")),
+            false,
+            vec!["sid=abc".to_string()],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        mgr.send(&src, |reply| SessionCommand::Viewport {
+            width: Some(375),
+            height: Some(667),
+            mobile: false,
+            reply,
+        })
+        .await
+        .unwrap();
+        mgr.send(&src, |reply| SessionCommand::Dialog {
+            action: "accept".to_string(),
+            prompt_text: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let resp = mgr.clone_session(&src).await.unwrap();
+        assert_eq!(resp["cloned_from"].as_str(), Some(src.as_str()));
+        assert_eq!(resp["viewport"]["width"].as_f64(), Some(375.0));
+        let dup = resp["session_id"].as_str().unwrap().to_string();
+        assert_ne!(dup, src);
+
+        // Login state arrived in the derived session: cookie, storage,
+        // viewport pin, dialog policy.
+        let cookies = mgr
+            .send(&dup, |reply| SessionCommand::Cookies { reply })
+            .await
+            .unwrap();
+        let cookies: Value = serde_json::from_str(&cookies).unwrap();
+        assert!(
+            cookies["cookies"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c.as_str().is_some_and(|s| s.starts_with("sid=abc;"))),
+            "cookie must carry over: {cookies}"
+        );
+
+        let user = mgr
+            .send(&dup, |reply| SessionCommand::Eval {
+                script: "localStorage.getItem('user')".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(user.as_str(), Some("miccim"));
+
+        let w = mgr
+            .send(&dup, |reply| SessionCommand::Eval {
+                script: "innerWidth".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(w.as_f64(), Some(375.0));
+
+        let policy = mgr
+            .send(&dup, |reply| SessionCommand::Dialog {
+                action: "list".to_string(),
+                prompt_text: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let policy: Value = serde_json::from_str(&policy).unwrap();
+        assert_eq!(policy["policy"].as_str(), Some("accept"));
+
+        // The source keeps serving untouched.
+        let still = mgr
+            .send(&src, |reply| SessionCommand::Eval {
+                script: "localStorage.getItem('user')".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(still.as_str(), Some("miccim"));
+
+        assert!(mgr.close_and_wait(&dup).await);
+        assert!(mgr.close_and_wait(&src).await);
+    }
+
+    #[cfg(feature = "screenshot")]
+    #[tokio::test]
+    async fn screenshot_anonymous_flow_text_refreshes_on_style_write() {
+        // #253 / blitz#1174 pin: the inline run inside an anonymous flow
+        // column (block child forces the wrap) snapshots its resolved text
+        // values into the layout leaf. A style write on the container must
+        // rebuild those leaf values — stale anonymous-run styles would
+        // freeze the old color through the damage-cache path.
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /anon",
+            "<html><body style='margin:0'>\
+             <div id='host' style='color:rgb(0,0,255);font-size:40px;width:380px'>\
+             loose words <span>tail</span>\
+             <div style='height:12px;background:rgb(204,204,204)'></div>\
+             </div></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/anon")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        async fn shoot(mgr: &mut SessionManager, sid: &str) -> (usize, usize) {
+            {
+                let shot = mgr
+                    .send(sid, |reply| SessionCommand::Screenshot {
+                        width: Some(400),
+                        height: Some(300),
+                        full_page: false,
+                        selector: None,
+                        selector_all: false,
+                        dpr: None,
+                        reply,
+                    })
+                    .await
+                    .unwrap();
+                let v: serde_json::Value = serde_json::from_str(&shot).expect("screenshot JSON");
+                use base64::{engine::general_purpose::STANDARD, Engine as _};
+                let png = STANDARD
+                    .decode(v["image_base64"].as_str().expect("base64 body"))
+                    .expect("decodable base64");
+                let decoder = png::Decoder::new(std::io::Cursor::new(&png));
+                let mut reader = decoder.read_info().expect("png read_info");
+                let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
+                let info = reader.next_frame(&mut buf).expect("png decode");
+                let px = &buf[..info.buffer_size()];
+                let (mut blue, mut red) = (0usize, 0usize);
+                for y in 0..info.height {
+                    for x in 0..info.width {
+                        let i = ((y * info.width + x) * 4) as usize;
+                        let (r, g, b) = (px[i] as u32, px[i + 1] as u32, px[i + 2] as u32);
+                        if b > 140 && r < 110 && g < 110 {
+                            blue += 1;
+                        }
+                        if r > 140 && b < 110 && g < 110 {
+                            red += 1;
+                        }
+                    }
+                }
+                (red, blue)
+            }
+        }
+
+        let (red0, blue0) = shoot(&mut mgr, &sid).await;
+        assert!(
+            blue0 > 200 && red0 == 0,
+            "baseline: anonymous-run text must be blue (blue={blue0}, red={red0})"
+        );
+
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.getElementById('host').style.color='rgb(255,0,0)'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        let (red1, blue1) = shoot(&mut mgr, &sid).await;
+        assert!(
+            red1 > 200 && blue1 == 0,
+            "after the style write the run must repaint red (red={red1}, blue={blue1}) \
+             — stale anonymous-run values would stay blue (blitz#1174 shape)"
+        );
+
+        // Same damage signature → cached frame must carry the same fresh
+        // pixels, not a stale pre-write capture.
+        let (red2, blue2) = shoot(&mut mgr, &sid).await;
+        assert!(
+            red2 > 200 && blue2 == 0,
+            "cache-hit frame must stay red (red={red2}, blue={blue2})"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    #[cfg(feature = "screenshot")]
+    #[tokio::test]
+    async fn screenshot_captures_current_dom_state() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /shot",
+            "<html><head><style>body{background-color:#336699}</style>\
+             </head><body><h1>before</h1></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/shot")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Mutate the DOM after load — the capture renders page.content(),
+        // so the pixels must reflect the mutation, not the HTTP response.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.querySelector('h1').textContent = 'after'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let shot = mgr
+            .send(&sid, |reply| SessionCommand::Screenshot {
+                width: Some(400),
+                height: Some(300),
+                full_page: false,
+                selector: None,
+                selector_all: false,
+                dpr: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&shot).expect("screenshot JSON");
+        assert_eq!(v["width"].as_f64(), Some(400.0));
+        assert_eq!(v["format"], serde_json::json!("png"));
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        let png = STANDARD
+            .decode(v["image_base64"].as_str().expect("base64 body"))
+            .expect("decodable base64");
+        assert_eq!(&png[0..4], b"\x89PNG", "PNG magic bytes");
+        assert!(
+            png.len() > 1000,
+            "non-trivial image, got {} bytes",
+            png.len()
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// #210: a canvas's 2D buffer lives in the JS realm, so both screenshot
+    /// paths rendered the element box empty — a merchant QR went gray while
+    /// `toDataURL` stayed correct. The canvas bitmaps now ride into the
+    /// layout (live band) and across the re-parse by document order
+    /// (selector/full-page), so a checkerboard canvas must come back with
+    /// both ink colors on either path.
+    #[cfg(feature = "screenshot")]
+    #[tokio::test]
+    async fn screenshot_paints_canvas_pixels_on_both_paths() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /canvas",
+            "<html><body style='margin:0'>\
+             <canvas id='probe' width='120' height='120' style='width:120px;height:120px'></canvas>\
+             <script>\
+             (function(){var x=document.getElementById('probe').getContext('2d');\
+             x.fillStyle='#ffffff';x.fillRect(0,0,120,120);\
+             x.fillStyle='#000000';\
+             for(var i=0;i<4;i++)for(var j=0;j<4;j++)\
+             if((i+j)%2===0)x.fillRect(i*30,j*30,30,30);})();\
+             </script></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/canvas")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Both paths: the no-request default (live band) and the selector
+        // request (re-parsed tree, pixels paired by document order).
+        for (label, selector) in [
+            ("live band", None::<String>),
+            ("selector", Some("#probe".to_string())),
+        ] {
+            let shot = mgr
+                .send(&sid, |reply| SessionCommand::Screenshot {
+                    width: selector.as_ref().map(|_| 200),
+                    height: selector.as_ref().map(|_| 200),
+                    full_page: false,
+                    selector: selector.clone(),
+                    selector_all: false,
+                    dpr: None,
+                    reply,
+                })
+                .await
+                .unwrap();
+            let v: serde_json::Value = serde_json::from_str(&shot).expect("screenshot JSON");
+            use base64::{engine::general_purpose::STANDARD, Engine as _};
+            let png = STANDARD
+                .decode(v["image_base64"].as_str().expect("base64 body"))
+                .expect("decodable base64");
+            let decoder = png::Decoder::new(std::io::Cursor::new(&png));
+            let mut reader = decoder.read_info().expect("png read_info");
+            let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
+            let info = reader.next_frame(&mut buf).expect("png decode");
+            let px = &buf[..info.buffer_size()];
+            let mut dark = 0usize;
+            let mut light = 0usize;
+            for y in 0..info.height {
+                for x in 0..info.width {
+                    let i = ((y * info.width + x) * 4) as usize;
+                    let lum = px[i] as u32 + px[i + 1] as u32 + px[i + 2] as u32;
+                    if lum < 120 {
+                        dark += 1;
+                    } else if lum > 600 {
+                        light += 1;
+                    }
+                }
+            }
+            assert!(
+                dark > 100 && light > 100,
+                "{label}: checkerboard must paint (dark={dark}, light={light})"
+            );
+        }
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// The hosted live page's frame poll is the no-argument screenshot, and
+    /// it must paint the LIVE tree. Dirty form values live in
+    /// NodeData::Element::live_value (mirrored from the JS value setter),
+    /// which a re-parse of serialized HTML cannot see — Chrome's outerHTML
+    /// drops them too. Pinned differentially: count dark text-ink pixels
+    /// inside the input's rect before and after typing. The re-parse path
+    /// renders the value ATTRIBUTE (empty) and leaves the count unchanged.
+    #[cfg(feature = "screenshot")]
+    #[tokio::test]
+    async fn screenshot_default_frame_paints_typed_input_value() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /live",
+            "<html><body style=\"margin:0\">\
+             <input id=q style=\"position:absolute;left:8px;top:8px;width:240px;height:32px\">\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/live")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        async fn ink_in_input(mgr: &mut SessionManager, sid: &str) -> usize {
+            let shot = mgr
+                .send(sid, |reply| SessionCommand::Screenshot {
+                    width: None,
+                    height: None,
+                    full_page: false,
+                    selector: None,
+                    selector_all: false,
+                    dpr: None,
+                    reply,
+                })
+                .await
+                .unwrap();
+            let v: serde_json::Value = serde_json::from_str(&shot).expect("screenshot JSON");
+            use base64::{engine::general_purpose::STANDARD, Engine as _};
+            let png = STANDARD
+                .decode(v["image_base64"].as_str().expect("base64 body"))
+                .expect("png bytes");
+            let img = image::load_from_memory(&png).expect("decode png").to_rgb8();
+            // Dark ink inside the input rect (8,8,240x32) — the box fill and
+            // any border are constant across both shots, so only the typed
+            // text moves the count.
+            img.enumerate_pixels()
+                .filter(|(x, y, p)| {
+                    *x >= 10
+                        && *x < 246
+                        && *y >= 10
+                        && *y < 38
+                        && p.0[0] < 100
+                        && p.0[1] < 100
+                        && p.0[2] < 100
+                })
+                .count()
+        }
+
+        let before = ink_in_input(&mut mgr, &sid).await;
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "document.getElementById('q').value = 'typed hello world'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        let after = ink_in_input(&mut mgr, &sid).await;
+
+        assert!(
+            after > before + 40,
+            "typed value must paint inside the input box (ink {before} → {after})"
+        );
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// A red instant page (/a.html) and a blue page (/b.html) whose
+    /// response sleeps 2s — the navigate to B is provably still in flight
+    /// when a mid-load command arrives (#193). Gated with its only caller
+    /// (the mid-frame test needs the layout engine).
+    #[cfg(feature = "screenshot")]
+    fn spawn_slow_nav_server() -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                // Per-connection threads: the 2s sleep on /b.html must not
+                // queue the fixture's other responses behind it.
+                std::thread::spawn(move || {
+                    let mut stream = stream;
+                    let mut buf = [0u8; 1024];
+                    let _ = std::io::Read::read(&mut stream, &mut buf);
+                    let req = String::from_utf8_lossy(&buf);
+                    let slow = req.contains("GET /b.html");
+                    if slow {
+                        std::thread::sleep(Duration::from_millis(2000));
+                    }
+                    let body = if slow {
+                        "<html><head><title>blue</title></head><body style=\"margin:0\">\
+                         <div style=\"width:200px;height:200px;background:#0000ff\"></div>\
+                         </body></html>"
+                    } else {
+                        "<html><head><title>red</title></head><body style=\"margin:0\">\
+                         <div style=\"width:200px;height:200px;background:#ff0000\"></div>\
+                         </body></html>"
+                    };
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = std::io::Write::write_all(&mut stream, resp.as_bytes());
+                });
+            }
+        });
+        port
+    }
+
+    /// #193: while a navigation owns the page, the session loop must keep
+    /// answering the command channel — a default-shape screenshot poll is
+    /// served the pre-navigation frame (Chrome keeps the old frame until
+    /// the new document commits; a poll that hangs behind the load reads
+    /// as a frozen browser), and every other command parks in FIFO and
+    /// replays after the load lands, in arrival order.
+    #[cfg(feature = "screenshot")]
+    #[tokio::test]
+    async fn navigate_in_flight_serves_old_frame_and_defers_other_commands() {
+        let _net = crate::server::test_util::net_env_guard();
+        let port = spawn_slow_nav_server();
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/a.html")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Fill the band cache with the red frame (the default-shape poll).
+        let red = mgr
+            .send(&sid, |reply| SessionCommand::Screenshot {
+                width: None,
+                height: None,
+                full_page: false,
+                selector: None,
+                selector_all: false,
+                dpr: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let pixels = |shot: &str| -> String {
+            serde_json::from_str::<Value>(shot).unwrap()["image_base64"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+        // Navigate WITHOUT awaiting: fire the command on the session's
+        // channel directly (send() is &mut self; the oneshot is ours to
+        // hold). Same enqueue pattern the viewport pin uses.
+        let (nav_tx, nav_rx) = tokio::sync::oneshot::channel();
+        mgr.sessions
+            .get(&sid)
+            .unwrap()
+            .cmd_tx
+            .send(SessionCommand::Navigate {
+                url: format!("http://127.0.0.1:{port}/b.html"),
+                reply: nav_tx,
+            })
+            .expect("session channel alive");
+
+        // Mid-load: an eval parks; the default-shape poll must NOT — the
+        // old frame answers in milliseconds, not behind the 2s load.
+        let (eval_tx, eval_rx) = tokio::sync::oneshot::channel();
+        mgr.sessions
+            .get(&sid)
+            .unwrap()
+            .cmd_tx
+            .send(SessionCommand::Eval {
+                script: "document.title".to_string(),
+                timeout_ms: None,
+                reply: eval_tx,
+            })
+            .expect("session channel alive");
+
+        let t0 = Instant::now();
+        let mid = mgr
+            .send(&sid, |reply| SessionCommand::Screenshot {
+                width: None,
+                height: None,
+                full_page: false,
+                selector: None,
+                selector_all: false,
+                dpr: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert!(
+            t0.elapsed() < Duration::from_millis(1200),
+            "mid-load poll must be served from the pre-navigation frame, not queued \
+             behind the load (took {}ms)",
+            t0.elapsed().as_millis()
+        );
+        assert_eq!(
+            pixels(&mid),
+            pixels(&red),
+            "mid-load poll returns the old (red) frame's PNG"
+        );
+
+        // The load lands; the parked eval replays against the NEW page.
+        nav_rx
+            .await
+            .expect("navigate reply")
+            .expect("slow navigation succeeds");
+        let title = eval_rx
+            .await
+            .expect("eval reply")
+            .expect("deferred eval runs after the load");
+        assert_eq!(title, Value::String("blue".into()));
+
+        // Post-load: the poll rasterizes the blue page (no stale cache).
+        let blue = mgr
+            .send(&sid, |reply| SessionCommand::Screenshot {
+                width: None,
+                height: None,
+                full_page: false,
+                selector: None,
+                selector_all: false,
+                dpr: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_ne!(
+            pixels(&blue),
+            pixels(&red),
+            "the new page must not be served the old frame"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// #195: the #193 test above holds the navigation in the NETWORK wait,
+    /// where the in-arm biased select can still poll the channel. This one
+    /// holds it inside parse-time synchronous JS — the V8 call never
+    /// returns to Rust, the actor loop cannot poll anything, and the
+    /// default-shape poll must be answered on the SENDER side from the
+    /// published pre-navigation frame (the issue's fixture: a 3s head busy
+    /// loop, poll waited 2.75s behind the script).
+    #[cfg(feature = "screenshot")]
+    #[tokio::test]
+    async fn sync_js_hold_still_serves_default_screenshot_polls() {
+        let _net = crate::server::test_util::net_env_guard();
+        // /a.html renders instantly; /c.html is network-instant but its
+        // head script busy-loops 2.5s — the hold is JS execution, not
+        // transport.
+        let (port, _hits) = crate::server::test_util::recording_server(&[
+            (
+                "GET /a.html",
+                "<html><head><title>red</title></head><body style=\"margin:0\">\
+                 <div style=\"width:200px;height:200px;background:#ff0000\"></div>\
+                 </body></html>",
+            ),
+            (
+                "GET /c.html",
+                "<html><head><script>var t=Date.now();while(Date.now()-t<2500);</script>\
+                 <title>held</title></head><body style=\"margin:0\">\
+                 <div style=\"width:200px;height:200px;background:#00ff00\"></div>\
+                 </body></html>",
+            ),
+        ]);
+
+        // This test drives the production path end to end: send_screenshot
+        // answers through the GLOBAL SESSIONS manager, so the session lives
+        // there (not a test-local SessionManager::new()).
+        let sid = {
+            let mut mgr = SESSIONS.lock().await;
+            mgr.evict_expired();
+            mgr.create(
+                Some(&format!("http://127.0.0.1:{port}/a.html")),
+                false,
+                vec![],
+                None,
+                None,
+                None,
+                false,
+                false,
+                None,
+            )
+        };
+
+        // Prime the band cache with the red frame.
+        let red = send_command(&sid, |reply| SessionCommand::Screenshot {
+                width: None,
+                height: None,
+                full_page: false,
+                selector: None,
+                selector_all: false,
+                dpr: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let png = |shot: &str| -> String {
+            serde_json::from_str::<Value>(shot).unwrap()["image_base64"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let red_url = format!("http://127.0.0.1:{port}/a.html");
+        assert_eq!(
+            serde_json::from_str::<Value>(&red).unwrap()["url"],
+            Value::String(red_url.clone()),
+            "the primed frame belongs to /a.html"
+        );
+
+        // Fire the navigate without awaiting (same enqueue pattern as the
+        // #193 test above, through the global manager's channel).
+        let (nav_tx, nav_rx) = tokio::sync::oneshot::channel();
+        {
+            let mgr = SESSIONS.lock().await;
+            mgr.sessions
+                .get(&sid)
+                .unwrap()
+                .cmd_tx
+                .send(SessionCommand::Navigate {
+                    url: format!("http://127.0.0.1:{port}/c.html"),
+                    reply: nav_tx,
+                })
+                .expect("session channel alive");
+
+            // Wait until the navigation is in flight (pre-navigation state
+            // published), so the poll below is deterministic — not a race
+            // with the navigate command still queued. The lock is dropped
+            // each iteration so nothing else contends on it.
+            let shared = std::sync::Arc::clone(&mgr.sessions.get(&sid).unwrap().nav_frame);
+            drop(mgr);
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while !shared.in_flight.load(std::sync::atomic::Ordering::Acquire) {
+                assert!(
+                    Instant::now() < deadline,
+                    "navigation never went in flight"
+                );
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }
+
+        // The busy loop now holds the V8 thread (~2.4s of it left). The
+        // poll must answer from the sender-side snapshot in milliseconds,
+        // not queue behind the script.
+        let t0 = Instant::now();
+        let mid = super::send_screenshot(&sid, None, None, false, None, false, None)
+            .await
+            .unwrap();
+        assert!(
+            t0.elapsed() < Duration::from_millis(800),
+            "mid-hold poll must be answered sender-side, not queued behind \
+             the busy-loop script (took {}ms)",
+            t0.elapsed().as_millis()
+        );
+        let mid_v: Value = serde_json::from_str(&mid).expect("screenshot JSON");
+        assert_eq!(png(&mid), png(&red), "mid-hold poll serves the old frame");
+        assert_eq!(
+            mid_v["url"],
+            Value::String(red_url),
+            "the served frame is the pre-navigation page's"
+        );
+
+        // The busy loop finishes; the load lands; in_flight drops and the
+        // next poll goes through the channel and paints the held page.
+        nav_rx
+            .await
+            .expect("navigate reply")
+            .expect("busy-loop page still loads");
+        let after = send_screenshot(&sid, None, None, false, None, false, None)
+            .await
+            .unwrap();
+        let after_v: Value = serde_json::from_str(&after).expect("screenshot JSON");
+        assert_eq!(
+            after_v["url"],
+            Value::String(format!("http://127.0.0.1:{port}/c.html")),
+            "post-landing poll reflects the new page"
+        );
+        assert_ne!(
+            png(&after),
+            png(&red),
+            "the landed page must not be served the old frame"
+        );
+
+        assert!(SESSIONS.lock().await.close_and_wait(&sid).await);
+    }
+
+    /// The async-content case straight from real usage: a page whose cards
+    /// arrive via setTimeout can't be probed with a bare eval (racy), so the
+    /// agent sleeps blindly. Wait polls with the event loop driven in
+    /// between, so the timer actually fires and the selector matches.
+    #[tokio::test]
+    async fn wait_selector_matches_async_inserted_element() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /wait",
+            "<html><body><div id=\"root\"></div><script>\
+             setTimeout(function() { \
+               document.getElementById('root').innerHTML = \
+                 '<div class=\"card\">Plan A</div><div class=\"card\">Plan B</div>'; \
+             }, 600); \
+             setTimeout(function() { window.__ready = true; }, 1200); \
+             </script></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/wait")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Elapsed must cover the 600ms timer — proof the loop was driven,
+        // not just polled.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Wait {
+                selector: Some(".card".to_string()),
+                predicate: None,
+                timeout_ms: 8_000,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).expect("wait JSON");
+        assert_eq!(v["matched"], serde_json::json!(true));
+        assert_eq!(v["detail"]["tag"], serde_json::json!("DIV"));
+        assert!(
+            v["detail"]["text"]
+                .as_str()
+                .unwrap_or("")
+                .contains("Plan A"),
+            "detail carries the matched element's text"
+        );
+
+        // Predicate form against a later timer.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Wait {
+                selector: None,
+                predicate: Some("window.__ready === true".to_string()),
+                timeout_ms: 8_000,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).expect("wait JSON");
+        assert_eq!(v["matched"], serde_json::json!(true));
+
+        // Timeout path: never-matching selector errors with the selector named.
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::Wait {
+                selector: Some(".never".to_string()),
+                predicate: None,
+                timeout_ms: 300,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("timeout") && err.to_string().contains(".never"),
+            "timeout error names the selector, got: {err}"
+        );
+
+        // Exactly one of selector/predicate.
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::Wait {
+                selector: Some("a".to_string()),
+                predicate: Some("true".to_string()),
+                timeout_ms: 1_000,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("exactly one"), "got: {err}");
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// The failure mode from real usage: a session idled out and the login
+    /// state in localStorage was gone. Export from session A, restore into
+    /// session B — keys/values with quotes and CJK must survive the trip.
+    #[tokio::test]
+    async fn storage_exports_and_restores_across_sessions() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /store",
+            "<html><body>store</body></html>",
+        )]);
+        let url = format!("http://127.0.0.1:{port}/store");
+
+        let mut mgr = SessionManager::new();
+        let a = mgr.create(
+            Some(&url),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        mgr.send(&a, |reply| SessionCommand::Eval {
+            script: "localStorage.setItem('token','abc\"123'); \
+                     localStorage.setItem('user','小张'); \
+                     sessionStorage.setItem('cart','2 items'); 'ok'"
+                .to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let exported = mgr
+            .send(&a, |reply| SessionCommand::Storage { reply })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&exported).expect("storage JSON");
+        assert_eq!(v["local_storage"]["token"], serde_json::json!("abc\"123"));
+        assert_eq!(v["local_storage"]["user"], serde_json::json!("小张"));
+        assert_eq!(v["session_storage"]["cart"], serde_json::json!("2 items"));
+        assert!(mgr.close_and_wait(&a).await);
+
+        // Fresh session on the same origin, restored from A's snapshot.
+        let b = mgr.create(
+            Some(&url),
+            false,
+            vec![],
+            Some(v),
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let token = mgr
+            .send(&b, |reply| SessionCommand::Eval {
+                script: "localStorage.getItem('token') + '|' + localStorage.getItem('user') \
+                         + '|' + sessionStorage.getItem('cart')"
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            token.as_str().unwrap_or(""),
+            "abc\"123|小张|2 items",
+            "restored storage must carry quotes and CJK verbatim"
+        );
+        assert!(mgr.close_and_wait(&b).await);
+    }
+
+    /// ttl_secs widens (or narrows) a session's idle budget; the default
+    /// stays at the 8-minute reaper.
+    #[tokio::test]
+    async fn ttl_secs_overrides_the_idle_budget() {
+        let mut mgr = SessionManager::new();
+        let long = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            Some(3600),
+            None,
+            false,
+            false,
+            None,
+        );
+        let short = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            Some(60),
+            None,
+            false,
+            false,
+            None,
+        );
+        let def = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let entries = mgr.list();
+        let by_id = |list: &[SessionListEntry], id: &str| {
+            list.iter()
+                .find(|e| e.session_id == id)
+                .unwrap_or_else(|| panic!("{id} missing"))
+                .expires_in_secs
+                .expect("non-keepalive session carries a countdown")
+        };
+        assert!(
+            by_id(&entries, &long) > 3500,
+            "hour-long TTL, got {}",
+            by_id(&entries, &long)
+        );
+        assert!(
+            by_id(&entries, &short) <= 60,
+            "60s TTL, got {}",
+            by_id(&entries, &short)
+        );
+        assert!(
+            by_id(&entries, &def) <= 480,
+            "default stays at 8 minutes, got {}",
+            by_id(&entries, &def)
+        );
+
+        // Clamp: out-of-range asks land on the rails.
+        let clamped = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            Some(999_999),
+            None,
+            false,
+            false,
+            None,
+        );
+        let entries = mgr.list();
+        assert!(by_id(&entries, &clamped) <= 3600, "clamp at one hour");
+
+        for id in [long, short, def, clamped] {
+            assert!(mgr.close_and_wait(&id).await);
+        }
+    }
+
+    /// Feedback ⑤: session_create {width,height,mobile} pins the viewport at
+    /// session birth — the first page already renders under the override, so
+    /// the very first probe (and a later navigation) sees it without a
+    /// separate session_viewport call.
+    #[tokio::test]
+    async fn create_pins_viewport_before_first_command() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[
+            (
+                "GET /m",
+                "<html><head><style>@media (max-width:600px){body{color:#010203}}</style>\
+                 </head><body><p>m</p></body></html>",
+            ),
+            ("GET /n", "<html><body>n</body></html>"),
+        ]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/m")),
+            false,
+            vec![],
+            None,
+            None,
+            Some((Some(375), Some(667), true)),
+            false,
+            false,
+            None,
+        );
+
+        // First command the caller sends is a probe — the queued pin must
+        // have been applied ahead of it (FIFO on the command channel). The
+        // probe echoes current metrics without moving the mobile flag.
+        let vp = mgr
+            .send(&sid, |reply| SessionCommand::Viewport {
+                width: None,
+                height: None,
+                mobile: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            vp["width"].as_f64(),
+            Some(375.0),
+            "pin applied before first command"
+        );
+        assert_eq!(vp["mobile"].as_bool(), Some(true));
+
+        let matches = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script:
+                    "innerWidth + 'x' + innerHeight + '|' + matchMedia('(pointer:coarse)').matches"
+                        .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(matches, serde_json::json!("375x667|true"));
+
+        // The pin is a real override: it rides through a navigation too.
+        mgr.send(&sid, |reply| SessionCommand::Navigate {
+            url: format!("http://127.0.0.1:{port}/n"),
+            reply,
+        })
+        .await
+        .unwrap();
+        let after = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "innerWidth".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(after, serde_json::json!(375));
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// Feedback ③: keepalive sessions skip the idle reaper — backdate the
+    /// clock past any TTL and they still answer, expires_in_secs() goes
+    /// quiet, and list() flags them.
+    #[tokio::test]
+    async fn keepalive_sessions_never_expire() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /ka",
+            "<html><body>ka</body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/ka")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            true,
+            false,
+            None,
+        );
+
+        {
+            let s = mgr.sessions.get_mut(&sid).expect("session");
+            s.last_active = std::time::Instant::now() - std::time::Duration::from_secs(99_999);
+        }
+
+        assert!(
+            mgr.expires_in_secs(&sid).is_none(),
+            "keepalive has no countdown"
+        );
+        let entry = mgr
+            .list()
+            .into_iter()
+            .find(|e| e.session_id == sid)
+            .expect("listed");
+        assert!(entry.keepalive, "list() flags keepalive");
+        assert!(
+            !mgr.sessions.get(&sid).expect("session").is_expired(),
+            "past any TTL, keepalive still lives"
+        );
+
+        let v = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1 + 1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(v, serde_json::json!(2));
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    type SharedSnapshots = std::sync::Arc<std::sync::Mutex<HashMap<String, (String, i64)>>>;
+
+    /// A manager whose snapshots live in a shared map: two managers holding
+    /// the same Arc simulate a process restart (the sqlite backend behind
+    /// SessionManager::new is exercised by store.rs's own tests).
+    fn manager_on(shared: SharedSnapshots) -> SessionManager {
+        SessionManager {
+            sessions: HashMap::new(),
+            snapshots: SnapshotStore::Memory(shared),
+            dormant: HashMap::new(),
+        }
+    }
+
+    /// Feedback ③: a persistent session's login state survives eviction and
+    /// a full manager restart — the same session_id comes back with the
+    /// cookie, the injected storage and the viewport pin, no re-login.
+    #[tokio::test]
+    async fn persistent_session_revives_by_the_same_id_across_managers() {
+        let _net = crate::server::test_util::net_env_guard();
+        // Plain page: no script of its own, so anything found after the
+        // revival can only have come from the snapshot.
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /app",
+            "<html><body><p>app</p></body></html>",
+        )]);
+        let url = format!("http://127.0.0.1:{port}/app");
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+
+        let mut mgr = manager_on(shared.clone());
+        let sid = mgr.create(
+            Some(&url),
+            false,
+            vec!["sid=abc".to_string()],
+            None,
+            None,
+            Some((Some(375), Some(667), false)),
+            false,
+            true,
+            None,
+        );
+        // The mutation is what the snapshot must capture — the page never
+        // sets this key, so only injection can restore it.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "localStorage.setItem('user','miccim'); 'ok'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        assert!(
+            shared.lock().unwrap().contains_key(&sid),
+            "a successful command must refresh the snapshot"
+        );
+
+        // "Restart": a brand-new manager over the same snapshot store.
+        let mut mgr2 = manager_on(shared.clone());
+        let user = mgr2
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "localStorage.getItem('user')".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(user.as_str(), Some("miccim"));
+
+        let cookies = mgr2
+            .send(&sid, |reply| SessionCommand::Cookies { reply })
+            .await
+            .unwrap();
+        let cookies: Value = serde_json::from_str(&cookies).unwrap();
+        assert!(
+            cookies["cookies"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c.as_str().is_some_and(|s| s.starts_with("sid=abc;"))),
+            "cookie must survive the restart: {cookies}"
+        );
+
+        let w = mgr2
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "innerWidth".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(w.as_f64(), Some(375.0));
+
+        assert!(mgr2.close_and_wait(&sid).await);
+        assert!(
+            !mgr2.sessions.contains_key(&sid),
+            "close removed the revived session"
+        );
+        assert!(
+            !shared.lock().unwrap().contains_key(&sid),
+            "explicit close on the revived session drops the snapshot"
+        );
+        assert!(
+            mgr.sessions.contains_key(&sid),
+            "the pre-restart manager is unaffected by the other manager's close"
+        );
+    }
+
+    /// Feedback ③: an idle-expired persistent session revives instead of
+    /// erroring; a plain session still gets the structured Expired error.
+    #[tokio::test]
+    async fn expired_persistent_session_revives_instead_of_erroring() {
+        let _net = crate::server::test_util::net_env_guard();
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let mut mgr = manager_on(shared);
+
+        let p = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            true,
+            None,
+        );
+        mgr.send(&p, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        {
+            let s = mgr.sessions.get_mut(&p).expect("session");
+            s.last_active = std::time::Instant::now() - std::time::Duration::from_secs(481);
+        }
+        let v = mgr
+            .send(&p, |reply| SessionCommand::Eval {
+                script: "2 + 1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!(3),
+            "expired persistent session revives"
+        );
+        assert!(
+            mgr.sessions.contains_key(&p),
+            "revived session is live again"
+        );
+
+        // Control: a plain session expires with the structured error.
+        let plain = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        mgr.send(&plain, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        {
+            let s = mgr.sessions.get_mut(&plain).expect("session");
+            s.last_active = std::time::Instant::now() - std::time::Duration::from_secs(481);
+        }
+        let err = mgr
+            .send(&plain, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_EXPIRED");
+
+        mgr.close_inner(&p, true);
+        mgr.close_inner(&plain, true);
+    }
+
+    /// #88: an upgrade must not cost live sessions. A keepalive
+    /// (non-persistent) session and a plain ttl one both flush to their
+    /// snapshots at shutdown; a brand-new manager over the same store
+    /// restores both under their own ids with the login cookie intact.
+    #[tokio::test]
+    async fn shutdown_flush_and_startup_restore_revive_every_live_session() {
+        let _net = crate::server::test_util::net_env_guard();
+        // Plain page: no script of its own, so the cookie can only come
+        // back through the flushed snapshot.
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /app",
+            "<html><body><p>app</p></body></html>",
+        )]);
+        let url = format!("http://127.0.0.1:{port}/app");
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+
+        let mut mgr = manager_on(shared.clone());
+        let hold = mgr.create(
+            Some(&url),
+            false,
+            vec!["hold=1".to_string()],
+            None,
+            None,
+            None,
+            /* keepalive */ true,
+            /* persistent */ false,
+            None,
+        );
+        let ttl = mgr.create(
+            Some(&url),
+            false,
+            vec!["sid=abc".to_string()],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        for sid in [&hold, &ttl] {
+            mgr.send(sid, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        }
+
+        // Shutdown flush: BOTH sessions land in the store — the keepalive
+        // one is #88's hole (non-persistent sessions never snapshotted).
+        assert_eq!(mgr.flush_for_shutdown().await, 2);
+        for sid in [&hold, &ttl] {
+            assert!(shared.lock().unwrap().contains_key(sid), "{sid} flushed");
+        }
+        // The snapshot says what the session was — a plain ttl session must
+        // not revive immortal.
+        let snap: Value = {
+            let m = shared.lock().unwrap();
+            serde_json::from_str(&m[&ttl].0).unwrap()
+        };
+        assert_eq!(snap["persistent"], serde_json::json!(false));
+
+        // "Restart": brand-new manager, eager restore before first use.
+        // hosted-incident 10-14: restore registers dormant shells, not live
+        // threads — flags round-trip through the shell and the ids list
+        // under their old names, but no page JS runs at boot.
+        let mut mgr2 = manager_on(shared.clone());
+        assert_eq!(mgr2.restore_all(), 2);
+        let listed: Vec<SessionListEntry> = mgr2.list();
+        for sid in [&hold, &ttl] {
+            assert!(
+                listed.iter().any(|e| &e.session_id == sid),
+                "{sid} restored under its own id"
+            );
+        }
+        {
+            let d = mgr2.dormant.get(&hold).expect("dormant shell");
+            assert!(d.keepalive && !d.persistent, "restored flags round-trip");
+            assert!(mgr2.sessions.is_empty(), "boot must not run page JS");
+        }
+
+        // Login state survived the restart for the keepalive session — the
+        // Cookies command is a working touch: it promotes the shell through
+        // the normal revive path first.
+        let cookies = mgr2
+            .send(&hold, |reply| SessionCommand::Cookies { reply })
+            .await
+            .unwrap();
+        let cookies: Value = serde_json::from_str(&cookies).unwrap();
+        assert!(
+            cookies["cookies"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c.as_str().is_some_and(|s| s.starts_with("hold=1;"))),
+            "cookie must survive the restart: {cookies}"
+        );
+        assert!(
+            mgr2.sessions.contains_key(&hold) && !mgr2.dormant.contains_key(&hold),
+            "the working command promoted the shell"
+        );
+
+        // Session threads are real OS threads — both managers' copies close.
+        assert!(mgr2.close_and_wait(&hold).await);
+        assert!(mgr2.close_and_wait(&ttl).await);
+        assert!(mgr.close_and_wait(&hold).await);
+        assert!(mgr.close_and_wait(&ttl).await);
+    }
+
+    /// #88 companion: the shutdown flush is a restart bridge, not a request
+    /// for immortality. A restored non-persistent session that idle-expires
+    /// takes its snapshot with it — on access (send) and in the eviction
+    /// sweep — so touching the id later is NotFound, not a zombie revival
+    /// with stale login cookies.
+    ///
+    /// DITING_RESTORE_SESSIONS=0 skips eager restore_all; snapshots
+    /// stay on disk for lazy revive-on-first-touch (parallel dogfood ports).
+    // RESTORE_SESSIONS_ENV_LOCK is a std Mutex held across the awaits below —
+    // that is the point of the guard (env knobs are process-global, so the
+    // window must span the whole restore). Single test, no contention.
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test]
+    async fn restore_sessions_env_off_skips_eager_restore() {
+        let _net = crate::server::test_util::net_env_guard();
+        let _env = crate::session::manager::RESTORE_SESSIONS_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("DITING_RESTORE_SESSIONS", "0");
+
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let mut mgr = manager_on(shared.clone());
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec!["x=1".to_string()],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        assert_eq!(mgr.flush_for_shutdown().await, 1);
+        assert!(shared.lock().unwrap().contains_key(&sid));
+
+        let mut mgr2 = manager_on(shared.clone());
+        assert_eq!(mgr2.restore_all(), 0, "eager restore must be off");
+        assert!(
+            mgr2.list().is_empty(),
+            "no sessions revived eagerly"
+        );
+        assert!(
+            shared.lock().unwrap().contains_key(&sid),
+            "snapshot must remain for lazy touch"
+        );
+
+        std::env::remove_var("DITING_RESTORE_SESSIONS");
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// hosted-incident 10-14: boot restore registers DORMANT shells — no
+    /// page JS at startup, a read-only probe answers Dormant without waking
+    /// the shell, and the first working command promotes it through the
+    /// normal revive path with login state intact.
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test]
+    async fn boot_restore_registers_dormant_shells_until_first_working_command() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /app",
+            "<html><body><p>app</p></body></html>",
+        )]);
+        let url = format!("http://127.0.0.1:{port}/app");
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+
+        let mut mgr = manager_on(shared.clone());
+        let sid = mgr.create(
+            Some(&url),
+            false,
+            // Anonymous sessions share one process-wide jar (the
+            // single-profile model) — pick a name no other test uses, or
+            // the meta-face test's own `sess` row lookup finds this one.
+            vec!["dormant_probe=42".to_string()],
+            None,
+            None,
+            None,
+            /* keepalive */ true,
+            /* persistent */ true,
+            None,
+        );
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        // "Restart": the snapshot registers a shell, not a live thread.
+        let mut mgr2 = manager_on(shared.clone());
+        assert_eq!(mgr2.restore_all(), 1);
+        assert!(mgr2.sessions.is_empty(), "boot spawns no page JS");
+        let listed = mgr2.list();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].session_id, sid);
+        assert!(listed[0].dormant, "listing marks the shell dormant");
+        assert_eq!(
+            listed[0].url.as_deref(),
+            Some(url.as_str()),
+            "shell carries its snapshot URL"
+        );
+
+        // Read-only probe: Dormant, and the shell survives being looked at.
+        assert!(matches!(
+            mgr2.send_readonly(&sid, |reply| SessionCommand::Url { reply }).await,
+            Err(SessionError::Dormant(_))
+        ));
+        assert!(mgr2.dormant.contains_key(&sid), "probe must not wake it");
+
+        // One working command promotes; login state came through.
+        let cookies = mgr2
+            .send(&sid, |reply| SessionCommand::Cookies { reply })
+            .await
+            .unwrap();
+        let cookies: Value = serde_json::from_str(&cookies).unwrap();
+        assert!(
+            cookies["cookies"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c.as_str().is_some_and(|s| s.starts_with("dormant_probe=42;"))),
+            "cookie must survive dormancy: {cookies}"
+        );
+        assert!(mgr2.dormant.is_empty(), "shell promoted");
+        assert!(mgr2.sessions.contains_key(&sid));
+
+        assert!(mgr2.close_and_wait(&sid).await);
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// hosted-incident 10-14, P0: read-only probes (screenshot/state/url)
+    /// must not renew the idle TTL — a live preview left polling overnight
+    /// must not immortalize a session it never drives.
+    #[tokio::test]
+    async fn readonly_probes_do_not_renew_the_idle_clock() {
+        let _net = crate::server::test_util::net_env_guard();
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let mut mgr = manager_on(shared.clone());
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            /* ttl_secs */ Some(60),
+            None,
+            false,
+            false,
+            None,
+        );
+        // Burn 50s of the 60s TTL without sleeping.
+        mgr.sessions.get_mut(&sid).unwrap().last_active =
+            Instant::now() - Duration::from_secs(50);
+        assert!(mgr.expires_in_secs(&sid).unwrap() <= 11);
+
+        mgr.send_readonly(&sid, |reply| SessionCommand::Url { reply })
+            .await
+            .unwrap();
+        assert!(
+            mgr.expires_in_secs(&sid).unwrap() <= 11,
+            "read-only probe must not reset the idle clock"
+        );
+
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        assert!(
+            mgr.expires_in_secs(&sid).unwrap() >= 59,
+            "working commands still renew"
+        );
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+#[tokio::test]
+    async fn restored_non_persistent_sessions_do_not_zombie_revive() {
+        let _net = crate::server::test_util::net_env_guard();
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let mut mgr = manager_on(shared.clone());
+
+        let a = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let b = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        for sid in [&a, &b] {
+            mgr.send(sid, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        }
+        assert_eq!(mgr.flush_for_shutdown().await, 2);
+
+        let mut mgr2 = manager_on(shared.clone());
+        assert_eq!(mgr2.restore_all(), 2);
+        // Both restored shells idle-expire (ttl family, no keepalive). Since
+        // the dormant-shell rework they live in `dormant`, not `sessions`.
+        for sid in [&a, &b] {
+            let s = mgr2.dormant.get_mut(sid).expect("restored");
+            s.last_active = Instant::now() - Duration::from_secs(481);
+        }
+
+        // On access: Expired, snapshot gone, and the next touch is NotFound.
+        let err = mgr2
+            .send(&a, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_EXPIRED");
+        assert!(
+            !shared.lock().unwrap().contains_key(&a),
+            "expiry drops the restart bridge"
+        );
+        let err = mgr2
+            .send(&a, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_NOT_FOUND", "no zombie revival");
+
+        // In the sweep: same contract.
+        mgr2.evict_expired();
+        assert!(
+            !shared.lock().unwrap().contains_key(&b),
+            "eviction drops the restart bridge"
+        );
+        assert!(!mgr2.sessions.contains_key(&b));
+        let err = mgr2
+            .send(&b, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "SESSION_NOT_FOUND");
+
+        assert!(mgr.close_and_wait(&a).await);
+        assert!(mgr.close_and_wait(&b).await);
+    }
+
+    /// An explicit close drops the snapshot (done means done); an idle
+    /// eviction keeps it (that is the revive path).
+    #[tokio::test]
+    async fn close_drops_the_snapshot_but_idle_eviction_keeps_it() {
+        let _net = crate::server::test_util::net_env_guard();
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let mut mgr = manager_on(shared.clone());
+
+        let a = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            true,
+            None,
+        );
+        mgr.send(&a, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        assert!(shared.lock().unwrap().contains_key(&a));
+        assert!(mgr.close_and_wait(&a).await);
+        assert!(
+            !shared.lock().unwrap().contains_key(&a),
+            "explicit close drops the snapshot"
+        );
+
+        let b = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            true,
+            None,
+        );
+        mgr.send(&b, |reply| SessionCommand::Eval {
+            script: "1".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+        {
+            let s = mgr.sessions.get_mut(&b).expect("session");
+            s.last_active = std::time::Instant::now() - std::time::Duration::from_secs(481);
+        }
+        mgr.evict_expired();
+        assert!(
+            shared.lock().unwrap().contains_key(&b),
+            "idle eviction must keep the snapshot"
+        );
+        let v = mgr
+            .send(&b, |reply| SessionCommand::Eval {
+                script: "40 + 2".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!(42),
+            "evicted persistent session revives"
+        );
+        mgr.close_inner(&b, true);
+    }
+
+    /// A fresh process must not allocate a session id that a surviving
+    /// snapshot still owns.
+    #[tokio::test]
+    async fn create_skips_ids_owned_by_snapshots() {
+        let shared: SharedSnapshots = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let next = format!("s_{}", SESSION_COUNTER.load(Ordering::Relaxed));
+        shared
+            .lock()
+            .unwrap()
+            .insert(next.clone(), (r#"{"version":1}"#.to_string(), 0));
+        let mut mgr = manager_on(shared);
+        let id = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        assert_ne!(id, next, "create must skip ids owned by a snapshot");
+        mgr.close_inner(&id, true);
+    }
+
+    /// Feedback ⑨: a throwing eval is an EVAL_ERROR with the error name,
+    /// message, throw position and first stack frame — not a silent null.
+    /// A rejected promise surfaces the same way.
+    #[tokio::test]
+    async fn eval_exceptions_carry_name_position_and_stack() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /err",
+            "<html><body>err</body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/err")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1 + 1; throw new TypeError('boom at runtime')".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "EVAL_ERROR");
+        let text = err.to_string();
+        assert!(text.contains("TypeError: boom at runtime"), "got: {text}");
+        assert!(
+            text.contains("(line 1, col"),
+            "throw position in message, got: {text}"
+        );
+        assert!(
+            text.contains("<anonymous>:1:14"),
+            "first stack frame carries the throw site, got: {text}"
+        );
+
+        // The session survives a failed eval and still evaluates fine.
+        let ok = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "2 + 2".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(ok, serde_json::json!(4));
+
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "Promise.reject(new Error('async boom'))".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "EVAL_ERROR");
+        assert!(
+            err.to_string().contains("Error: async boom"),
+            "got: {}",
+            err
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// session_click_xy / session_drag synthesize the real mouse chain at
+    /// viewport coordinates: elementFromPoint hit-testing picks the pad (not
+    /// body), a drag delivers every interpolated mousemove so mousemove-driven
+    /// widgets see the pointer travel, and click_count 2 adds dblclick.
+    #[tokio::test]
+    async fn click_xy_and_drag_fire_mouse_chain() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /mousepad",
+            "<html><body style=\"margin:0\">\
+             <div id=\"pad\" style=\"position:absolute;left:10px;top:10px;width:200px;height:200px;\"></div>\
+             <script>\
+             var log = [];\
+             var pad = document.getElementById('pad');\
+             pad.addEventListener('mousedown', function(e){ log.push('down@'+e.clientX+','+e.clientY+' on '+e.target.id); });\
+             document.addEventListener('mousemove', function(e){ log.push('move@'+Math.round(e.clientX)+','+Math.round(e.clientY)); });\
+             document.addEventListener('mouseup', function(e){ log.push('up@'+e.clientX+','+e.clientY); });\
+             document.addEventListener('click', function(e){ log.push('click@'+e.clientX+','+e.clientY); });\
+             document.addEventListener('dblclick', function(e){ log.push('dblclick@'+e.clientX+','+e.clientY); });\
+             window.__log = log;\
+             </script>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/mousepad")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        async fn read_log(mgr: &mut SessionManager, sid: &str) -> Vec<String> {
+            let out = mgr
+                .send(sid, |reply| SessionCommand::Eval {
+                    script: "JSON.stringify(window.__log)".to_string(),
+                    timeout_ms: None,
+                    reply,
+                })
+                .await
+                .unwrap();
+            let raw = out.as_str().unwrap_or("[]");
+            serde_json::from_str::<Vec<String>>(raw).expect("log array")
+        }
+
+        // Single click at (50,50) — inside the pad. The chain lands on the
+        // hit element: mousedown with the coordinates, mouseup, then click.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::ClickXY {
+                x: 50.0,
+                y: 50.0,
+                button: "left".to_string(),
+                click_count: 1,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("click_xy JSON");
+        assert_eq!(v["x"], 50.0);
+        assert_eq!(v["y"], 50.0);
+
+        let log = read_log(&mut mgr, &sid).await;
+        assert!(
+            log.iter().any(|e| e == "down@50,50 on pad"),
+            "mousedown hits the pad, got {log:?}"
+        );
+        assert!(log.iter().any(|e| e == "up@50,50"), "mouseup, got {log:?}");
+        assert!(log.iter().any(|e| e == "click@50,50"), "click, got {log:?}");
+        assert!(
+            !log.iter().any(|e| e.starts_with("dblclick")),
+            "single click must not dblclick, got {log:?}"
+        );
+
+        // click_count 2 adds the dblclick synthesis Chrome does.
+        mgr.send(&sid, |reply| SessionCommand::ClickXY {
+            x: 50.0,
+            y: 50.0,
+            button: "left".to_string(),
+            click_count: 2,
+            reply,
+        })
+        .await
+        .unwrap();
+        let log = read_log(&mut mgr, &sid).await;
+        assert!(
+            log.iter().any(|e| e == "dblclick@50,50"),
+            "dblclick after count 2, got {log:?}"
+        );
+
+        // Drag across the pad: 1 press, N interpolated moves ending at the
+        // release point, 1 release. The moves are what mousemove-driven
+        // widgets (map markers) track. humanize:false pins the exact linear
+        // interpolation; the humanized path has its own test below.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Drag {
+                from_x: 60.0,
+                from_y: 60.0,
+                to_x: 150.0,
+                to_y: 90.0,
+                steps: 10,
+                delay_ms: 0,
+                humanize: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("drag JSON");
+        assert_eq!(v["steps"], 10);
+        assert_eq!(v["humanized"], false);
+
+        let log = read_log(&mut mgr, &sid).await;
+        let downs = log.iter().filter(|e| e.starts_with("down@60,60")).count();
+        assert_eq!(downs, 1, "one press, got {log:?}");
+        let moves: Vec<&String> = log.iter().filter(|e| e.starts_with("move@")).collect();
+        assert_eq!(
+            moves.len(),
+            10,
+            "every interpolated move delivered, got {log:?}"
+        );
+        assert_eq!(moves[0].as_str(), "move@69,63", "first step interpolated");
+        assert_eq!(
+            moves.last().map(|m| m.as_str()),
+            Some("move@150,90"),
+            "last move lands on the release point, got {log:?}"
+        );
+        assert!(
+            log.iter().any(|e| e == "up@150,90"),
+            "release at the destination, got {log:?}"
+        );
+
+        // Both actions join the replay log.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Export { reply })
+            .await
+            .unwrap();
+        assert!(out.contains("\"click_xy\""), "click_xy recorded, got {out}");
+        assert!(out.contains("\"drag\""), "drag recorded, got {out}");
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// #95: a coordinate click must reach the button inside a CLOSED shadow
+    /// root — the xhs publish-button shape. Chrome's hit test pierces closed
+    /// roots (elementFromPoint returns the composed target, which is why a
+    /// human can press it in a real browser), so the engine's walk must too
+    /// — while `host.shadowRoot` keeps reading null from page JS.
+    #[tokio::test]
+    async fn click_xy_pierces_closed_shadow_dom() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /closed",
+            "<html><body style=\"margin:0\">\
+             <xhs-btn id=\"host\" style=\"position:absolute;left:10px;top:10px;width:100px;height:20px;\"></xhs-btn>\
+             <script>\
+             var host = document.getElementById('host');\
+             var root = host.attachShadow({mode:'closed'});\
+             root.innerHTML = '<button id=\"inner\" style=\"width:100px;height:20px\">publish</button>';\
+             root.getElementById('inner').addEventListener('click', function(e){\
+                 window.__hit = e.target.id;\
+             });\
+             window.__hit = 'none';\
+             </script>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/closed")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // elementFromPoint at the host's center names the shadow-inner
+        // button; the closed root stays invisible to page JS and the light
+        // DOM stays empty.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "JSON.stringify({\
+                    hit: document.elementFromPoint(60, 20).id,\
+                    closed: document.getElementById('host').shadowRoot === null,\
+                    light: document.getElementById('host').querySelector('button') === null\
+                 })"
+                .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+        assert_eq!(v["hit"], "inner", "elementFromPoint must pierce the closed root");
+        assert_eq!(v["closed"], true, "shadowRoot must stay null for a closed root");
+        assert_eq!(v["light"], true, "the button must live in shadow, not light DOM");
+
+        // The coordinate click path delivers the whole chain to the button.
+        mgr.send(&sid, |reply| SessionCommand::ClickXY {
+            x: 60.0,
+            y: 20.0,
+            button: "left".to_string(),
+            click_count: 1,
+            reply,
+        })
+        .await
+        .unwrap();
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "window.__hit".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            out, serde_json::json!("inner"),
+            "the closed-shadow button must receive the click"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// The humanized drag path (the default): eased velocity, perpendicular
+    /// wobble off the straight line, and a landing exactly on the release
+    /// point — one decimal place in the page log so sub-pixel shape is
+    /// visible.
+    #[tokio::test]
+    async fn humanized_drag_lands_exact_and_wobbles() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /mousepad",
+            "<html><body style=\"margin:0\">\
+             <div id=\"pad\" style=\"position:absolute;left:10px;top:10px;width:300px;height:300px;\"></div>\
+             <script>\
+             var log = [];\
+             var pad = document.getElementById('pad');\
+             pad.addEventListener('mousedown', function(e){ log.push('down@'+e.clientX+','+e.clientY+' on '+e.target.id); });\
+             document.addEventListener('mousemove', function(e){ log.push('move@'+Math.round(e.clientX*10)/10+','+Math.round(e.clientY*10)/10); });\
+             document.addEventListener('mouseup', function(e){ log.push('up@'+Math.round(e.clientX*10)/10+','+Math.round(e.clientY*10)/10); });\
+             window.__log = log;\
+             </script>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/mousepad")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        async fn read_log(mgr: &mut SessionManager, sid: &str) -> Vec<String> {
+            let out = mgr
+                .send(sid, |reply| SessionCommand::Eval {
+                    script: "JSON.stringify(window.__log)".to_string(),
+                    timeout_ms: None,
+                    reply,
+                })
+                .await
+                .unwrap();
+            let raw = out.as_str().unwrap_or("[]");
+            serde_json::from_str::<Vec<String>>(raw).expect("log array")
+        }
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Drag {
+                from_x: 60.0,
+                from_y: 60.0,
+                to_x: 150.0,
+                to_y: 90.0,
+                steps: 24,
+                delay_ms: 0,
+                humanize: true,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("drag JSON");
+        assert_eq!(v["humanized"], true);
+        assert_eq!(v["steps"], 24);
+
+        let log = read_log(&mut mgr, &sid).await;
+        assert!(
+            log.iter().any(|e| e == "down@60,60 on pad"),
+            "press at the start point, got {log:?}"
+        );
+        assert!(
+            log.iter().any(|e| e == "up@150,90"),
+            "release at the destination, got {log:?}"
+        );
+
+        let parse_move = |e: &String| -> Option<(f64, f64)> {
+            let rest = e.strip_prefix("move@")?;
+            let (x, y) = rest.split_once(',')?;
+            Some((x.parse().ok()?, y.parse().ok()?))
+        };
+        let moves: Vec<(f64, f64)> = log.iter().filter_map(parse_move).collect();
+        assert!(
+            (24..=26).contains(&moves.len()),
+            "24 glide moves (+2 when the overshoot correction engages), got {}",
+            moves.len()
+        );
+
+        // Minimum-jerk starts with near-zero velocity: the first move must
+        // hug the start point (linear 1/24 would already be at x≈63.75).
+        assert!(
+            moves[0].0 < 62.0,
+            "eased slow start, first move at {:?}, all: {moves:?}",
+            moves[0]
+        );
+
+        // Wobble: at least one move deviates from the start→to line by more
+        // than 0.3px (the envelope guarantees ≥0.7·amp ≥ 0.56px mid-drag).
+        let dev = |p: (f64, f64)| {
+            (90.0 * (p.1 - 60.0) - 30.0 * (p.0 - 60.0)) / 94.868
+        };
+        let max_dev = moves.iter().map(|p| dev(*p).abs()).fold(0.0, f64::max);
+        assert!(
+            max_dev > 0.3,
+            "perpendicular wobble visible off the straight line, max {max_dev:.3}px"
+        );
+
+        // Landing: the final move sits on the release point (wobble envelope
+        // and easing both die at t=1; overshoot corrects back).
+        let last = *moves.last().unwrap();
+        assert!(
+            (last.0 - 150.0).abs() < 0.05 && (last.1 - 90.0).abs() < 0.05,
+            "final move lands exactly on the release point, got {last:?}"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// The generator itself, seeded: count bounds, exact landing, grip pause
+    /// before the first move, settle pause in the plan, jittered timing, and
+    /// the wobble never exceeding its amplitude budget.
+    #[test]
+    fn humanized_drag_plan_is_bounded_and_lands_exact() {
+        let mut rng = XorShift64(42);
+        let (fx, fy, tx, ty) = (60.0f64, 60.0f64, 250.0f64, 60.0f64);
+        let plan = humanized_drag_plan(fx, fy, tx, ty, 24, 18, &mut rng);
+
+        assert!(
+            plan.points.len() == 24 || plan.points.len() == 26,
+            "24 glide points (+2 overshoot correction), got {}",
+            plan.points.len()
+        );
+        let last = plan.points.last().unwrap();
+        assert!(
+            (last.x - tx).abs() < 1e-9 && (last.y - ty).abs() < 1e-9,
+            "final point is exactly the release point"
+        );
+
+        // Grip pause after mousedown, settle pause before mouseup.
+        assert!(
+            plan.points[0].delay_ms >= 3 * 18,
+            "first move waits out the grip pause, got {}",
+            plan.points[0].delay_ms
+        );
+        assert!(
+            plan.settle_ms >= 5 * 18,
+            "settle pause present, got {}",
+            plan.settle_ms
+        );
+
+        // Timing jitter: delays vary, none runs away, none below the
+        // 0.55×mean floor (except the first, which is the grip pause).
+        let delays: std::collections::HashSet<u64> =
+            plan.points.iter().map(|p| p.delay_ms).collect();
+        assert!(delays.len() > 1, "per-step timing jittered, {delays:?}");
+        for p in &plan.points[1..] {
+            assert!(
+                (9..=120).contains(&p.delay_ms),
+                "delay within mean±hesitation budget, got {}",
+                p.delay_ms
+            );
+        }
+
+        // Geometry: progress stays within [start, target+overshoot cap]; the
+        // only backward motion allowed is the small overshoot pull-back
+        // (≤ 6px overshoot ⇒ ≤ 3.6px per corrective step).
+        let dx = tx - fx;
+        let dist = dx.hypot(ty - fy);
+        let mut prev_along = -1.0f64;
+        for p in &plan.points {
+            let along = ((p.x - fx) * dx + (p.y - fy) * (ty - fy)) / dist;
+            assert!(
+                along >= prev_along - dist * 0.05 && along <= dist + 8.0,
+                "progress stays within [start, target+overshoot cap], got {along}"
+            );
+            prev_along = along;
+            let wobble = (90.0 * (p.y - fy) - (ty - fy) * (p.x - fx)) / dist;
+            assert!(
+                wobble.abs() <= 2.6,
+                "wobble within amplitude budget, got {wobble}"
+            );
+        }
+    }
+
+    /// Page console output lands in the session ring: messages from the
+    /// page's own script and from a later eval both show up, with levels
+    /// intact, and the second read doesn't duplicate (queue drained).
+    #[tokio::test]
+    async fn console_ring_captures_page_and_eval_output() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /console",
+            "<html><body><script>\
+             console.log('boot ok'); \
+             console.warn('legacy api'); \
+             console.error('load failed: x'); \
+             </script></body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/console")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Output produced by an agent-driven eval joins the same ring.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "console.error('eval-time boom'); 'done'".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Console {
+                filter: ConsoleFilter::default(),
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("console JSON");
+        let msgs = v["messages"].as_array().expect("messages array");
+        let texts: Vec<&str> = msgs.iter().filter_map(|m| m["text"].as_str()).collect();
+        assert!(
+            texts.contains(&"boot ok"),
+            "log from page script, got {texts:?}"
+        );
+        assert!(texts.contains(&"legacy api"), "warn level, got {texts:?}");
+        assert!(
+            texts.contains(&"load failed: x") && texts.contains(&"eval-time boom"),
+            "errors from page and eval, got {texts:?}"
+        );
+        let err_levels: Vec<&str> = msgs
+            .iter()
+            .filter(|m| m["text"].as_str().unwrap_or("").contains("load failed"))
+            .filter_map(|m| m["level"].as_str())
+            .collect();
+        assert_eq!(err_levels, vec!["error"]);
+
+        // Reads are non-destructive on the ring: the repeat read still
+        // carries everything (agents re-read / diff by ts_ms as needed).
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Console {
+                filter: ConsoleFilter::default(),
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("console JSON 2");
+        assert_eq!(
+            v["messages"].as_array().map(Vec::len),
+            Some(msgs.len()),
+            "ring must be stable across reads"
+        );
+
+        // Filters: level narrows (2 errors here), limit keeps the most
+        // recent match, total/matched report both sides of the funnel.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Console {
+                filter: ConsoleFilter {
+                    level: Some("error".into()),
+                    limit: Some(1),
+                    ..Default::default()
+                },
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("filtered JSON");
+        let filtered = v["messages"].as_array().expect("filtered array");
+        assert_eq!(v["total"].as_u64(), Some(4), "ring size, not filter size");
+        assert_eq!(v["matched"].as_u64(), Some(2), "errors in ring");
+        assert_eq!(filtered.len(), 1, "limit keeps the most recent");
+        assert_eq!(filtered[0]["text"].as_str(), Some("eval-time boom"));
+        assert_eq!(filtered[0]["level"].as_str(), Some("error"));
+
+        // Every entry carries the page URL it was logged on, so
+        // url_contains can slice a multi-page session.
+        let port_str = port.to_string();
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Console {
+                filter: ConsoleFilter {
+                    url_contains: Some(port_str.clone()),
+                    ..Default::default()
+                },
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("url-filtered JSON");
+        assert_eq!(v["matched"].as_u64(), Some(4), "all logged on this page");
+        for m in v["messages"].as_array().unwrap() {
+            assert!(
+                m["url"].as_str().unwrap_or("").contains(&port_str),
+                "entry url stamped at log time: {m}"
+            );
+        }
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Console {
+                filter: ConsoleFilter {
+                    url_contains: Some("no-such-page.example".to_string()),
+                    since_ts: Some(u64::MAX / 2),
+                    ..Default::default()
+                },
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("empty-filter JSON");
+        assert_eq!(v["matched"].as_u64(), Some(0), "non-matching filters");
+        assert_eq!(
+            v["messages"].as_array().map(Vec::len),
+            Some(0),
+            "empty result is an empty array, not an error"
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// Dialogs never block: default policy auto-dismisses (confirm false,
+    /// prompt null) while every call is logged at level "dialog"; the
+    /// session_dialog command flips the policy and prompt_text, and the
+    /// next dialog answers accordingly.
+    #[tokio::test]
+    async fn dialog_policy_answers_and_logs() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /dialogs",
+            "<html><body>dialogs</body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/dialogs")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Default policy: auto-dismiss. confirm → false, prompt → null.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "[String(confirm('delete it?')), String(prompt('your name'))].join('|')"
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(out, "false|null", "dismiss is the default policy");
+
+        // The three calls are observable in the ring via session_console.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Console {
+                filter: ConsoleFilter {
+                    level: Some("dialog".into()),
+                    ..Default::default()
+                },
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("dialog ring JSON");
+        let dialogs = v["messages"].as_array().expect("dialog entries");
+        assert_eq!(dialogs.len(), 2, "confirm + prompt logged");
+        assert!(dialogs.iter().all(|m| m["level"] == "dialog"));
+        let payloads: Vec<Value> = dialogs
+            .iter()
+            .map(|m| serde_json::from_str(m["text"].as_str().unwrap_or("")).unwrap())
+            .collect();
+        assert_eq!(
+            payloads[0]["dialog"], "confirm",
+            "kind tagged: {payloads:?}"
+        );
+        assert_eq!(payloads[0]["message"], "delete it?");
+        assert_eq!(payloads[0]["answer"], false, "dismissed");
+        assert_eq!(payloads[1]["dialog"], "prompt");
+        assert_eq!(payloads[1]["value"], Value::Null);
+
+        // Flip to accept with prompt text; the next dialogs answer on-policy.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Dialog {
+                action: "accept".into(),
+                prompt_text: Some("ada".into()),
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("policy JSON");
+        assert_eq!(v["policy"], "accept");
+        assert_eq!(v["prompt_text"], "ada");
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "[String(confirm('sure?')), String(prompt('your name')), String(prompt('fallback'))].join('|')"
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(out, "true|ada|ada", "accept + prompt_text applied");
+
+        // list() reports the policy and the accumulated dialog history.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Dialog {
+                action: "list".into(),
+                prompt_text: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("list JSON");
+        assert_eq!(v["policy"], "accept");
+        assert_eq!(
+            v["dialogs"].as_array().map(Vec::len),
+            Some(5),
+            "2 + 3 logged"
+        );
+
+        // Back to dismiss: prompts answer null again.
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Dialog {
+                action: "dismiss".into(),
+                prompt_text: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("dismiss JSON");
+        assert_eq!(v["policy"], "dismiss");
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "String(confirm('again?'))".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(out, "false", "policy flip is not sticky");
+
+        // Unknown actions are errors, not silent no-ops.
+        let err = mgr
+            .send(&sid, |reply| SessionCommand::Dialog {
+                action: "sudo".into(),
+                prompt_text: None,
+                reply,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("unknown dialog action"));
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
+    /// list() reports every live session with an expiry budget, most recently
+    /// active first, and drops to empty once sessions close.
+    #[tokio::test]
+    async fn list_reports_live_sessions_and_goes_empty_after_close() {
+        let mut mgr = SessionManager::new();
+        let a = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let b = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let entries = mgr.list();
+        assert_eq!(entries.len(), 2);
+        let ids: Vec<&str> = entries.iter().map(|e| e.session_id.as_str()).collect();
+        assert!(ids.contains(&a.as_str()) && ids.contains(&b.as_str()));
+        assert!(
+            entries[0].idle_secs <= entries[1].idle_secs,
+            "most recent first"
+        );
+        for e in &entries {
+            assert!(
+                e.expires_in_secs.expect("countdown") <= 480,
+                "expiry budget caps at the 8 min timeout"
+            );
+        }
+
+        assert!(mgr.close_and_wait(&a).await);
+        assert!(mgr.close_and_wait(&b).await);
+        assert!(mgr.list().is_empty());
+    }
+
+    /// A recorded session replays as a bash+curl script: every action type
+    /// becomes a POST against $BASE, and single quotes in payloads survive
+    /// shell quoting (the '\'' idiom) instead of terminating the argument.
+    #[test]
+    fn replay_bash_renders_all_actions_and_quotes_singles() {
+        let jsonl = [
+            r#"{"action":"create","url":"https://example.com/","use_proxy":false,"cookies":["sid=it's"]}"#,
+            r#"{"action":"navigate","url":"https://example.com/page","ok":true}"#,
+            r#"{"action":"click","index":3,"ok":true}"#,
+            r#"{"action":"input","index":1,"text":"it's a test","ok":true}"#,
+            r#"{"action":"scroll","direction":"down","amount":3}"#,
+            r#"{"action":"eval","script":"document.querySelector('#q').value"}"#,
+        ]
+        .join("\n");
+
+        let script = replay_bash(&jsonl, "http://127.0.0.1:8089");
+        assert!(script.starts_with("#!/usr/bin/env bash"));
+        assert!(script.contains(r#"BASE="${DITING_URL:-http://127.0.0.1:8089}""#));
+        assert!(script.contains("POST session/create"));
+        assert!(script.contains(r#"POST "session/$SID/navigate""#));
+        assert!(script.contains(r#"POST "session/$SID/click""#));
+        assert!(script.contains(r#"POST "session/$SID/input""#));
+        assert!(script.contains(r#"POST "session/$SID/scroll""#));
+        assert!(script.contains(r#"POST "session/$SID/eval""#));
+        assert!(
+            script.contains(r#"POST "session/$SID/state" '{}'"#),
+            "ends by printing final state"
+        );
+        // Single-quote escaping: it's → 'it'\''s — an unescaped quote would
+        // terminate the argument and execute the rest as shell.
+        assert!(script.contains(r#""sid=it'\''s"]"#));
+        assert!(script.contains(r#""text":"it'\''s a test""#));
+        // Command substitution appears exactly once — capturing SID from the
+        // create call. Payloads are plain single-quoted strings, never
+        // $(...)-wrapped (that would execute JSON as shell).
+        assert_eq!(script.matches("$(").count(), 1);
+    }
+
+    /// Actions before a create record (or a log with no create at all) must
+    /// not emit $SID-referencing POSTs — the script would die on an unbound
+    /// variable under set -eu.
+    #[test]
+    fn replay_bash_without_create_skips_sid_actions() {
+        let jsonl = r#"{"action":"navigate","url":"https://example.com/","ok":true}"#;
+        let script = replay_bash(jsonl, "http://127.0.0.1:8089");
+        assert!(
+            !script.contains("$SID"),
+            "no SID may be referenced without a create"
+        );
+    }
+
+    /// A live session records what it did: create params + one entry per
+    /// navigate/scroll/eval command, exportable as JSONL. Reads (State,
+    /// Cookies) stay out of the log — replaying them is meaningless.
+    #[tokio::test]
+    async fn session_records_actions_and_exports_jsonl() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec!["k=v".to_string()],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let _ = mgr
+            .send(&sid, |reply| SessionCommand::State { reply })
+            .await
+            .unwrap(); // read: not recorded
+        let _ = mgr
+            .send(&sid, |reply| SessionCommand::Scroll {
+                direction: ScrollDirection::Down,
+                amount: 2,
+                reply,
+            })
+            .await
+            .unwrap();
+        let _ = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1 + 1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let jsonl = mgr
+            .send(&sid, |reply| SessionCommand::Export { reply })
+            .await
+            .unwrap();
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+
+        let actions: Vec<Value> = jsonl
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(actions.len(), 3, "create + scroll + eval, state excluded");
+
+        assert_eq!(actions[0]["action"], "create");
+        assert_eq!(actions[0]["url"], "about:blank");
+        assert_eq!(actions[0]["cookies"][0], "k=v");
+        assert_eq!(actions[0]["use_proxy"], false);
+
+        assert_eq!(actions[1]["action"], "scroll");
+        assert_eq!(actions[1]["direction"], "down");
+        assert_eq!(actions[1]["amount"], 2);
+
+        assert_eq!(actions[2]["action"], "eval");
+        assert_eq!(actions[2]["script"], "1 + 1");
+
+        // The exported log must render through replay_bash without losing
+        // actions (create present → SID-bound POSTs emitted).
+        let script = replay_bash(&jsonl, "http://127.0.0.1:8089");
+        assert!(script.contains("POST session/create"));
+        assert!(script.contains(r#"POST "session/$SID/scroll""#));
+        assert!(script.contains(r#"POST "session/$SID/eval""#));
+    }
+
+    /// (#116) A hung script-initiated fetch is invisible in the request log
+    /// (entries land at completion) — the tmall publish report's "still
+    /// executing?" question. The Network command must surface it as
+    /// `in_flight` while the transport hangs, with url/method/age.
+    #[tokio::test]
+    async fn network_lists_hung_scripted_fetch_in_flight() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /watch",
+            "<html><body></body></html>",
+        )]);
+
+        // Accept the TCP connection, never answer — the fetch hangs until
+        // its 30s read timeout, far beyond this test.
+        let hang = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let hang_port = hang.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let mut parked = Vec::new();
+            for s in hang.incoming() {
+                match s {
+                    Ok(s) => parked.push(s),
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/watch")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Fire-and-forget: the expression's completion value must be a
+        // non-thenable so the eval returns synchronously (#114 wrapper).
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: format!(
+                "(function(){{ fetch('http://127.0.0.1:{hang_port}/hang').catch(function(){{}}); return 'fired'; }})()"
+            ),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        // The async op dispatches on the first loop turn after the eval —
+        // poll the Network command briefly rather than assuming ordering.
+        let mut listed = None;
+        for _ in 0..40 {
+            let text = mgr
+                .send(&sid, |reply| SessionCommand::Network {
+                    media_only: false,
+                    include_bodies: false,
+                    include_headers: false,
+                    url_contains: None,
+                    body_max_chars: 0,
+                    reply,
+                })
+                .await
+                .unwrap();
+            let val: Value = serde_json::from_str(&text).unwrap();
+            if let Some(rows) = val["in_flight"].as_array() {
+                if let Some(row) = rows
+                    .iter()
+                    .find(|r| r["url"].as_str().unwrap_or("").contains("/hang"))
+                {
+                    listed = Some(row.clone());
+                    break;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let row = listed.expect("hung fetch must surface in in_flight within ~2s");
+        assert_eq!(row["method"], "GET");
+        assert!(
+            row["age_ms"].as_u64().unwrap_or(u64::MAX) < 10_000,
+            "age must be wall-clock sane: {row}"
+        );
+        // Young in-flight is "slow, still waiting", not hung — the flag
+        // only flips past every engine-side timeout (see actor tests).
+        assert_eq!(row["hung"], false, "fresh entry must not read as hung: {row}");
+    }
+
+    /// (#84 observability) The sync-XHR driver's give-up must leave a
+    /// terminal row: recv_timeout abandons the still-running worker, whose
+    /// eventual failure replay dies with the thread — without a driver-side
+    /// row the request vanishes from in_flight with no trace (the ghost the
+    /// fe-static hang chased). The timeout is knob-shrunk so CI doesn't
+    /// wait two minutes.
+    #[tokio::test]
+    async fn network_keeps_a_row_when_the_sync_xhr_driver_gives_up() {
+        let _net = crate::server::test_util::net_env_guard();
+        struct TimeoutRestore(Option<std::ffi::OsString>);
+        impl Drop for TimeoutRestore {
+            fn drop(&mut self) {
+                match self.0.take() {
+                    Some(v) => std::env::set_var("DITING_SYNC_XHR_TIMEOUT_MS", v),
+                    None => std::env::remove_var("DITING_SYNC_XHR_TIMEOUT_MS"),
+                }
+            }
+        }
+        let saved = std::env::var_os("DITING_SYNC_XHR_TIMEOUT_MS");
+        std::env::set_var("DITING_SYNC_XHR_TIMEOUT_MS", "300");
+        let _restore = TimeoutRestore(saved);
+
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /watch",
+            "<html><body></body></html>",
+        )]);
+        // Accept the TCP connection, never answer — the sync XHR's walk
+        // hangs far past the 300ms driver horizon.
+        let hang = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let hang_port = hang.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let mut parked = Vec::new();
+            for s in hang.incoming() {
+                match s {
+                    Ok(s) => parked.push(s),
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/watch")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Synchronous XHR: the op blocks until the driver gives up at the
+        // knob horizon and throws — exactly the abandonment path under test.
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: format!(
+                "(function(){{ try {{ var x = new XMLHttpRequest(); x.open('GET', 'http://127.0.0.1:{hang_port}/hang', false); x.send(); }} catch(e) {{}} return 'done'; }})()"
+            ),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        let text = mgr
+            .send(&sid, |reply| SessionCommand::Network {
+                media_only: false,
+                include_bodies: false,
+                include_headers: false,
+                url_contains: None,
+                body_max_chars: 0,
+                reply,
+            })
+            .await
+            .unwrap();
+        let val: Value = serde_json::from_str(&text).unwrap();
+        let row = val["requests"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .find(|r| r["url"].as_str().unwrap_or("").contains("/hang"))
+            .expect("the abandoned sync XHR keeps a terminal row");
+        assert_eq!(row["status"], 0, "no servable response: {row}");
+        assert!(
+            row["error"].as_str().unwrap_or("").contains("driver timed out"),
+            "the reason names the abandonment, not a bare transport error: {row}"
+        );
+    }
+
+    /// (#203) A fetch that wandered through redirects stays findable by the
+    /// address it was ISSUED to: the row's `url` is the requested one,
+    /// `final_url` says where it landed, `redirects` carries each hop with
+    /// the 3xx that sent it. The failure twin — a same-origin request the
+    /// server bounces to a foreign origin that never authorizes CORS — keeps
+    /// the same shape on its status-0 row instead of collapsing to only the
+    /// last target (the taobao submit.htm → error.taobao.com report, where
+    /// the submit read as "never issued").
+    #[tokio::test]
+    async fn network_rows_carry_the_redirect_trail() {
+        use std::io::{Read, Write};
+        let _net = crate::server::test_util::net_env_guard();
+
+        // One listener, four routes: the document, a submit that 302s
+        // same-origin to its landing, and a wall that 302s to a second
+        // listener playing the foreign origin.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let foreign = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let foreign_port = foreign.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for mut s in listener.incoming().flatten() {
+                let mut buf = [0u8; 8192];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or("")
+                    .split('?')
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+                let page = "<html><body></body></html>";
+                let resp = match path.as_str() {
+                    "/page" => format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                        page.len(), page
+                    ),
+                    "/submit" => format!(
+                        "HTTP/1.1 302 Found\r\nlocation: http://127.0.0.1:{port}/land\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                    ),
+                    "/land" => "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 9\r\nconnection: close\r\n\r\n{\"ok\":1}\n".to_string(),
+                    "/wall" => format!(
+                        "HTTP/1.1 302 Found\r\nlocation: http://127.0.0.1:{foreign_port}/blocked\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                    ),
+                    _ => "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                        .to_string(),
+                };
+                let _ = s.write_all(resp.as_bytes());
+            }
+        });
+        // The foreign origin answers 200 with no ACAO — the walk follows the
+        // hop, then the terminal CORS check refuses it.
+        std::thread::spawn(move || {
+            for mut s in foreign.incoming().flatten() {
+                let mut buf = [0u8; 8192];
+                let _ = s.read(&mut buf);
+                let _ = s.write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok",
+                );
+            }
+        });
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/page")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        mgr.send(&sid, |reply| SessionCommand::Eval {
+            script: "(function(){ fetch('/submit').then(function(){},function(){}); fetch('/wall').then(function(){},function(){}); return 'fired'; })()".to_string(),
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+
+        // The async ops dispatch a turn after the eval — poll until both
+        // rows land in the request log.
+        let mut submit_row = None;
+        let mut wall_row = None;
+        for _ in 0..40 {
+            let text = mgr
+                .send(&sid, |reply| SessionCommand::Network {
+                    media_only: false,
+                    include_bodies: false,
+                    include_headers: false,
+                    url_contains: None,
+                    body_max_chars: 0,
+                    reply,
+                })
+                .await
+                .unwrap();
+            let val: Value = serde_json::from_str(&text).unwrap();
+            for row in val["requests"].as_array().cloned().unwrap_or_default() {
+                let u = row["url"].as_str().unwrap_or("");
+                if u.ends_with("/submit") {
+                    submit_row = Some(row.clone());
+                }
+                if u.ends_with("/wall") {
+                    wall_row = Some(row.clone());
+                }
+            }
+            if submit_row.is_some() && wall_row.is_some() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let submit = submit_row.expect("followed-redirect row landed in the log");
+        let wall = wall_row.expect("blocked-redirect row landed in the log");
+
+        // Followed: the requested url survives, the landing and the hop ride
+        // along, and the row itself is the 200 of /land.
+        assert_eq!(submit["url"], format!("http://127.0.0.1:{port}/submit"));
+        assert_eq!(submit["final_url"], format!("http://127.0.0.1:{port}/land"));
+        assert_eq!(submit["redirects"][0]["url"], format!("http://127.0.0.1:{port}/land"));
+        assert_eq!(submit["redirects"][0]["status"], 302);
+        assert_eq!(submit["status"], 200);
+
+        // Refused: status 0 with the CORS reason, but the requested url is
+        // still the row's url and the hop list still names where it bounced.
+        assert_eq!(wall["url"], format!("http://127.0.0.1:{port}/wall"));
+        assert_eq!(
+            wall["final_url"],
+            format!("http://127.0.0.1:{foreign_port}/blocked")
+        );
+        assert_eq!(wall["status"], 0);
+        assert!(wall["error"].as_str().unwrap_or("").contains("CORS"));
+        assert_eq!(
+            wall["redirects"][0]["url"],
+            format!("http://127.0.0.1:{foreign_port}/blocked")
+        );
+        assert_eq!(wall["redirects"][0]["status"], 302);
+    }
+
+    /// (#130) Both Network keys are always present — `in_flight: []` and
+    /// `challenges: 0` on a quiet page. An absent field can't be told apart
+    /// from a wrong endpoint or a stale version by the reading agent, which
+    /// is exactly the ambiguity the #119 retester hit ("can't treat a
+    /// missing field as zero or as proof of death").
+    #[tokio::test]
+    async fn network_payload_keeps_in_flight_and_challenges_keys_when_empty() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /quiet",
+            "<html><body>nothing flying</body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/quiet")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let text = mgr
+            .send(&sid, |reply| SessionCommand::Network {
+                media_only: false,
+                include_bodies: false,
+                include_headers: false,
+                url_contains: None,
+                body_max_chars: 0,
+                reply,
+            })
+            .await
+            .unwrap();
+        let val: Value = serde_json::from_str(&text).unwrap();
+        assert!(
+            val["in_flight"].is_array(),
+            "in_flight must be present as an array, got: {val}"
+        );
+        assert!(
+            val["in_flight"].as_array().unwrap().is_empty(),
+            "quiet page must answer zero in flight: {val}"
+        );
+        assert_eq!(
+            val["challenges"], 0,
+            "challenges must be present as a count, got: {val}"
+        );
+    }
+
+    /// The session sniffer: a page-side fetch() of a media URL surfaces in
+    /// the Network command (media filter extracts the playback link), and
+    /// Har returns a parseable HAR 1.2 document whose document entry carries
+    /// its retained text body. Media elements and player iframes the engine
+    /// never fetches surface as DOM candidates (via "dom"); the token-less
+    /// <source> URL dedupes against its token-carrying network twin.
+    #[tokio::test]
+    async fn network_sniffer_and_har_surfaces() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[
+            (
+                "GET /watch",
+                "<html><body>\
+                 <video src='/v/clip.mp4' controls><source src='/v/master.m3u8'></video>\
+                 <iframe src='/embed'></iframe>\
+                 <script>\
+                 fetch('/v/master.m3u8?token=1').then(function(r){return r.text()});\
+                 </script></body></html>",
+            ),
+            ("GET /v/master.m3u8?token=1", "#EXTM3U"),
+        ]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/watch")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // One pump cycle so the page's fetch() settles into the event queue.
+        let _ = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+
+        let media = mgr
+            .send(&sid, |reply| SessionCommand::Network {
+                media_only: true,
+                include_bodies: false,
+                include_headers: false,
+                url_contains: None,
+                body_max_chars: 0,
+                reply,
+            })
+            .await
+            .unwrap();
+        let media: Value = serde_json::from_str(&media).unwrap();
+        let items = media["media"].as_array().unwrap();
+        assert_eq!(
+            items.len(),
+            3,
+            "network m3u8 + dom video + dom iframe (source deduped): {media}"
+        );
+        assert_eq!(items[0]["kind"], "hls");
+        assert_eq!(items[0]["via"], "network");
+        assert!(
+            items[0]["url"]
+                .as_str()
+                .unwrap()
+                .ends_with("/v/master.m3u8?token=1"),
+            "playback link carries its query: {media}"
+        );
+        // Native video src the engine never fetched: a dom candidate.
+        assert_eq!(items[1]["via"], "dom");
+        assert_eq!(items[1]["tag"], "video");
+        assert_eq!(items[1]["kind"], "mp4");
+        assert!(
+            items[1]["url"].as_str().unwrap().ends_with("/v/clip.mp4"),
+            "native video src is a dom candidate: {media}"
+        );
+        // Player iframe: a candidate to navigate into, not a playable URL.
+        assert_eq!(items[2]["via"], "dom");
+        assert_eq!(items[2]["tag"], "iframe");
+        assert_eq!(items[2]["kind"], "iframe");
+        assert!(
+            items[2]["url"].as_str().unwrap().ends_with("/embed"),
+            "player iframe surfaces as a navigation candidate: {media}"
+        );
+
+        let all = mgr
+            .send(&sid, |reply| SessionCommand::Network {
+                media_only: false,
+                include_bodies: false,
+                include_headers: false,
+                url_contains: None,
+                body_max_chars: 0,
+                reply,
+            })
+            .await
+            .unwrap();
+        let all: Value = serde_json::from_str(&all).unwrap();
+        assert!(
+            all["total"].as_u64().unwrap() >= 2,
+            "document + script fetch: {all}"
+        );
+        assert!(
+            all.get("xhr").is_none(),
+            "no xhr array unless include_bodies asks for it: {all}"
+        );
+
+        // include_bodies: the page's own API responses ride along as a
+        // sibling `xhr` array, narrowed by url_contains.
+        let xhrs = mgr
+            .send(&sid, |reply| SessionCommand::Network {
+                media_only: false,
+                include_bodies: true,
+                include_headers: false,
+                url_contains: Some("/v/".to_string()),
+                body_max_chars: 100,
+                reply,
+            })
+            .await
+            .unwrap();
+        let xhrs: Value = serde_json::from_str(&xhrs).unwrap();
+        let arr = xhrs["xhr"].as_array().expect("xhr array");
+        assert_eq!(arr.len(), 1, "the script-initiated fetch only: {xhrs}");
+        assert!(
+            arr[0]["url"]
+                .as_str()
+                .unwrap()
+                .ends_with("/v/master.m3u8?token=1"),
+            "entry carries the request URL: {xhrs}"
+        );
+        assert_eq!(arr[0]["status"], 200);
+        assert_eq!(arr[0]["body"], "#EXTM3U");
+        assert_eq!(arr[0]["body_truncated"], false);
+
+        let har = mgr
+            .send(&sid, |reply| SessionCommand::Har { reply })
+            .await
+            .unwrap();
+        let har: Value = serde_json::from_str(&har).unwrap();
+        assert_eq!(har["log"]["version"], "1.2");
+        let entries = har["log"]["entries"].as_array().unwrap();
+        assert!(entries.len() >= 2, "document + fetch entry: {har}");
+        let doc = entries
+            .iter()
+            .find(|e| e["request"]["url"].as_str().unwrap().ends_with("/watch"))
+            .unwrap();
+        assert_eq!(doc["response"]["status"], 200);
+        assert!(
+            doc["response"]["content"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("master.m3u8"),
+            "document body retained as text"
+        );
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }
+
+    /// #251 tripwire: a bare `cargo test --bin diting` builds diting
+    /// without the screenshot feature, and the whole layout engine is cfg'd
+    /// behind it — pages still load but geometry silently degrades (button
+    /// computes to display:block, body margin 0, rects land mid-viewport),
+    /// which 30+ session tests then fail with misleading assertions. One
+    /// loud failure naming the fix beats 32 cryptic ones (batch246's
+    /// "bare构建32挂" face).
+    // assert!(cfg!(feature)) is deliberate: this is the tripwire itself, not a
+    // constant-condition mistake — it must keep failing on a bare build.
+    #[allow(clippy::assertions_on_constants)]
+    #[test]
+    fn session_geometry_tests_require_the_layout_engine() {
+        assert!(
+            cfg!(feature = "screenshot"),
+            "the diting layout engine is feature-gated; rerun with --features screenshot \
+             (see batch246 / #251 — bare runs fail 30+ geometry tests misleadingly)"
+        );
+    }
+
+    /// #278 on-demand layout at the session boundary: every command end
+    /// releases the memoized layout run (rev-quiet). Two pins: a geometry
+    /// read across two Eval commands rebuilds identical output, and a
+    /// default-path screenshot taken after an intervening Eval still hits
+    /// the band frame cache (#189) instead of repainting — the release
+    /// must not move the damage signature.
+    #[tokio::test]
+    async fn command_boundaries_release_layout_keeping_geometry_and_frames() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some("about:blank"),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let armed = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: r#"document.body.innerHTML = '<div style="width:100px;height:80px;background:#ff0000"></div>'; 'armed'"#
+                    .to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(armed.as_str().unwrap_or(""), "armed");
+
+        // gBCR forces a layout run, which this command's boundary then
+        // releases; the same read in a NEW command must rebuild identically.
+        let probe = "document.querySelector('div').getBoundingClientRect().width + ''";
+        let w1 = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: probe.to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let w2 = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: probe.to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert_eq!(w2, w1, "geometry across a released boundary");
+        assert_eq!(w1.as_str().unwrap_or(""), "100");
+
+        // Frame cache across a command boundary: shot1 paints cold, an
+        // eval that cannot touch pixels releases at its boundary (the
+        // only thing between the two shots), shot2 must hit the cache.
+        let shot = |reply| SessionCommand::Screenshot {
+            width: None,
+            height: None,
+            full_page: false,
+            selector: None,
+            selector_all: false,
+            dpr: None,
+            reply,
+        };
+        let pixels = |resp: &str| {
+            serde_json::from_str::<serde_json::Value>(resp).unwrap()["image_base64"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let shot1 = mgr.send(&sid, shot).await.unwrap();
+        let _ = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "1 + 1".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let shot2 = mgr.send(&sid, shot).await.unwrap();
+        assert_eq!(
+            pixels(&shot2),
+            pixels(&shot1),
+            "release at the Eval boundary must not break the band frame cache hit"
+        );
+
+        assert!(
+            mgr.close_and_wait(&sid).await,
+            "session thread must ack close"
+        );
+    }

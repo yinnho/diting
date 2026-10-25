@@ -1,0 +1,236 @@
+use std::path::PathBuf;
+
+// Snapshot scripts, in load order (table order = execution order). All run
+// in one realm inside the snapshot runtime; each script only declares
+// bindings at top level and touches earlier scripts' bindings at call time.
+const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
+    // 10d host flip: the Deno shell. The retired deno_core snapshot carried
+    // the whole Deno.core object (promise ring, tick, encode/decode); the
+    // only face our scripts ever read is `Deno.core.ops` — bootstrap.js
+    // captures it at line 110 as a top-level const (`const _OPS =
+    // Deno.core.ops`) that every later script shares through the global
+    // lexical environment. The runtime installs the ops INTO that same
+    // object (Vm::install_ops_under), never onto globalThis — op names as
+    // window properties would change the fingerprint face. __diting_init
+    // deletes the `Deno` property per page exactly as before (anti-bot
+    // law: a Deno prop on window is the canonical deno-runtime marker).
+    // Must run FIRST: bootstrap's const capture is the first Deno read.
+    // 10d rejection face: bootstrap.js:10819+ registers its window-event
+    // handlers through Deno.core.set{Unhandled,Handled}PromiseRejectionHandler
+    // at bake time; the PRELUDE's registration functions store the closures
+    // into heap globals (baked, restore-free) where Vm::dispatch_rejections
+    // reads them live each round.
+    ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
+    // Main script: the bootstrap god-file-turned-root.
+    ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // #252 god-file ratchet split: the fetch family moved out of
+    // bootstrap.js wholesale. Its top level only declares bindings; every
+    // helper it references (_docBase, __recordFetchTiming, Headers…) is
+    // touched at call time, by which point bootstrap.js has run. Must
+    // precede xhr.js, whose send() rides __ditingFetchShim.
+    ("webrtc.js", include_str!("js/webrtc.js")),
+    ("location_nav.js", include_str!("js/location_nav.js")),
+    ("list_reflect.js", include_str!("js/list_reflect.js")),
+    ("details_summary.js", include_str!("js/details_summary.js")),
+    ("css_register.js", include_str!("js/css_register.js")),
+    ("css_decl_door.js", include_str!("js/css_decl_door.js")),
+    ("raf.js", include_str!("js/raf.js")),
+    ("computed_size.js", include_str!("js/computed_size.js")),
+    ("form_validation.js", include_str!("js/form_validation.js")),
+    ("fetch.js", include_str!("js/fetch.js")),
+    // Ratchet splits (pure moves): the audio/speechSynthesis faces, the
+    // Worker family, media_source, iframe_realm, range_selection,
+    // indexeddb and crypto_subtle left bootstrap.js wholesale. All only
+    // declare bindings at top level and touch bootstrap helpers at call time.
+    ("audio.js", include_str!("js/audio.js")),
+    ("worker.js", include_str!("js/worker.js")),
+    ("media_source.js", include_str!("js/media_source.js")),
+    ("iframe_realm.js", include_str!("js/iframe_realm.js")),
+    ("range_selection.js", include_str!("js/range_selection.js")),
+    ("indexeddb.js", include_str!("js/indexeddb.js")),
+    // Ratchet split: crypto.subtle / CryptoKey left bootstrap.js wholesale.
+    // Touches _OPS and __diting_clone_hooks only at call time; basic
+    // getRandomValues/randomUUID stay in bootstrap.
+    ("crypto_subtle.js", include_str!("js/crypto_subtle.js")),
+    ("ed25519.js", include_str!("js/ed25519.js")),
+    // #236 absorption split: the XHR family moved out of bootstrap.js
+    // wholesale — consumes the fetch shim closure and the initiator-hint
+    // var fetch.js defined, both at class-definition and at send() time.
+    ("xhr.js", include_str!("js/xhr.js")),
+    // #97 ratchet split: DOMParser wholesale — the XML gates and node
+    // classes it names are bootstrap bindings, touched only at
+    // parseFromString call time.
+    ("domparser.js", include_str!("js/domparser.js")),
+    // #98 ratchet split: the Performance family wholesale.
+    ("performance.js", include_str!("js/performance.js")),
+    // Window-level scalar faces (name/status/origin/closed) — defaults plus
+    // live getters, nothing call-time dependent on earlier scripts.
+    ("window_faces.js", include_str!("js/window_faces.js")),
+    // #291 / #226 splits: message_port and the fetch-settlement registry —
+    // both only touch bootstrap-defined bindings, and only at call time.
+    ("message_port.js", include_str!("js/message_port.js")),
+    ("fetch_probe.js", include_str!("js/fetch_probe.js")),
+    // 300015 P2: the chrome-truth window own-prop surface (generated — see
+    // the file header). Loads after every behavior module, before the
+    // sweeps.
+    ("global_surface.js", include_str!("js/global_surface.js")),
+    ("media_late.js", include_str!("js/media_late.js")),
+    // 300015 P3: Chrome-exact toDataURL/toBlob bytes for blank canvases
+    // (generated — see the file header). Wraps bootstrap's toDataURL; must
+    // load before the sweep so the wrappers get native-marked with the rest.
+    ("canvas_face.js", include_str!("js/canvas_face.js")),
+    // LAST (#236 absorption split): the snapshot-time interface sweeps walk
+    // globalThis to finish every interface (native marks, non-enumerable
+    // globals, enumerable members, WebIDL toStringTag brands) — running last
+    // is the point, so every earlier script's globals get swept.
+    ("interface_sweep.js", include_str!("js/interface_sweep.js")),
+    // Load after the sweep: the CSSOM rule classes, scheduler & friends are minted by
+    // global_surface; adopted_sheets wraps the sheet methods css_rules installs.
+    ("css_rules.js", include_str!("js/css_rules.js")),
+    ("adopted_sheets.js", include_str!("js/adopted_sheets.js")),
+    ("web_api_gaps.js", include_str!("js/web_api_gaps.js")),
+    ("navigation.js", include_str!("js/navigation.js")),
+    ("client_rects.js", include_str!("js/client_rects.js")),
+];
+
+fn main() {
+    for (name, _) in SNAPSHOT_SCRIPTS {
+        println!("cargo:rerun-if-changed=js/{name}");
+    }
+    println!("cargo:rerun-if-changed=build.rs");
+    // Re-embed the commit when HEAD moves (branch switches change .git/HEAD;
+    // same-branch commits move .git/refs/heads/<branch> — cargo watches both
+    // when present). Release CI builds from a fresh checkout either way.
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/refs/heads");
+
+    // Source revision baked into the binary — /health reports it so a caller
+    // can verify doc/tag/binary/source are the same commit without sniffing
+    // anything (0.3.0 tmall report P2). "unknown" for git-less builds.
+    // DITING_BUILD_COMMIT overrides git: the 86quan deploy rsyncs
+    // without .git (by design — the server tree is a build input, not a
+    // checkout), so the deploy step passes the commit explicitly and /health
+    // stops reporting "unknown".
+    let commit = std::env::var("DITING_BUILD_COMMIT")
+        .or_else(|_| std::env::var("AGINXBROWSER_BUILD_COMMIT"))
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| {
+            std::process::Command::new("git")
+                .args(["rev-parse", "--short", "HEAD"])
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        });
+    println!("cargo:rustc-env=DITING_BUILD_COMMIT={commit}");
+
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let snapshot_path = out_dir.join("DITING_SNAPSHOT.bin");
+
+    // 10d: our own snapshot creator (diting_runtime::vm::create_snapshot) —
+    // PRELUDE + raw faces + the script list above, in our [blob][sidecar]
+    // container. Scripts run origin-less: stack frames surface as
+    // "<anonymous>" (300015 brand-leak law; the name rides only panics).
+    // #276 shared-source campaign: scripts whose code region is pure
+    // ASCII compile from process-static OneByteConst bytes (external
+    // strings — the realm heap holds a handle, not the text). Comment
+    // non-ASCII maps to '?': the guarantee below is that stripping
+    // comments from the original and the mapped source yields IDENTICAL
+    // code regions, so runtime behavior is untouched; a script that
+    // fails the check rides the inline fallback (empty const).
+    fn strip_comments_js(src: &str) -> String {
+        // Conservative comment stripper for the equality check only:
+        // block comments, line comments, and string/template/regex
+        // literals passed through verbatim so their contents count as
+        // code. Chars: enough for these files (no regex-literal edge
+        // ambiguity after '/' inside strings — literals are carried
+        // whole, so a // inside a string stays).
+        let b: Vec<char> = src.chars().collect();
+        let mut out = String::new();
+        let mut i = 0;
+        while i < b.len() {
+            let c = b[i];
+            if c == '/' && i + 1 < b.len() && b[i + 1] == '/' {
+                while i < b.len() && b[i] != '\n' {
+                    i += 1;
+                }
+            } else if c == '/' && i + 1 < b.len() && b[i + 1] == '*' {
+                i += 2;
+                while i + 1 < b.len() && !(b[i] == '*' && b[i + 1] == '/') {
+                    i += 1;
+                }
+                i = (i + 2).min(b.len());
+            } else if c == '"' || c == '\'' || c == '`' {
+                let q = c;
+                out.push(q);
+                i += 1;
+                while i < b.len() && b[i] != q {
+                    if b[i] == '\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+            }
+            if i < b.len() {
+                out.push(b[i]);
+            }
+            i += 1;
+        }
+        out
+    }
+
+    let mut generated =
+        String::from("// GENERATED by build.rs — ASCII snapshot script sources.\n// #276 shared-source campaign: do not hand-edit.\npub static SNAPSHOT_SRC_ASCII: &[&[u8]] = &[\n");
+    let mut externalized = 0usize;
+    let mut ascii_sources: Vec<&'static [u8]> = Vec::new();
+    for (name, src) in SNAPSHOT_SCRIPTS {
+        let mapped: String = src
+            .chars()
+            .map(|c| if c.is_ascii() { c } else { '?' })
+            .collect();
+        let ok = mapped.is_ascii()
+            && strip_comments_js(src) == strip_comments_js(&mapped);
+        if ok {
+            externalized += 1;
+        }
+        let bytes: &[u8] = if ok { mapped.as_bytes() } else { b"" };
+        let leaked: &'static [u8] = Box::leak(bytes.to_vec().into_boxed_slice());
+        ascii_sources.push(leaked);
+        generated.push_str(&format!(
+            "    // {name} — {}\n",
+            if ok { format!("{} bytes externalized", leaked.len()) } else { "inline fallback (non-ASCII code region)".to_string() }
+        ));
+        let mut lit = String::from("    b\"");
+        for ch in leaked.iter() {
+            match ch {
+                b'"' => lit.push_str("\\\""),
+                b'\\' => lit.push_str("\\\\"),
+                b'\n' => lit.push_str("\\n"),
+                0x20..=0x7e => lit.push(*ch as char),
+                _ => lit.push_str(&format!("\\x{:02x}", ch)),
+            }
+        }
+        lit.push_str("\",\n");
+        generated.push_str(&lit);
+    }
+    generated.push_str("];\n");
+    std::fs::write(out_dir.join("snapshot_sources_ascii.rs"), generated)
+        .expect("Failed to write snapshot_sources_ascii.rs");
+    println!("cargo:warning=#276 shared-source: {externalized}/{} scripts externalized", SNAPSHOT_SCRIPTS.len());
+
+    let bake_consts: Vec<&'static diting_runtime::v8::OneByteConst> = ascii_sources
+        .iter()
+        .map(|b| diting_runtime::snapshot::ascii_const(b))
+        .collect();
+
+    let output = diting_runtime::vm::create_snapshot(SNAPSHOT_SCRIPTS, &bake_consts);
+
+    std::fs::write(&snapshot_path, &output).expect("Failed to write snapshot");
+    println!(
+        "cargo:rustc-env=DITING_SNAPSHOT_PATH={}",
+        snapshot_path.display()
+    );
+}

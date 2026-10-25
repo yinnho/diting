@@ -1,0 +1,293 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            features: stealth,screenshot
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: stealth,screenshot
+          # Windows stealth bring-up: boring-sys2 ships pregenerated NASM for
+          # win-x86_64, so the build needs cmake + nasm + libclang (bindgen)
+          # — all preinstalled on windows-latest. FIPS/prefix features stay
+          # off. The Build step pins `shell: bash` for every OS: PowerShell
+          # parses `--features stealth,screenshot` as a comma ARRAY and joins
+          # it into two argv items, which cargo rejects.
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: stealth,screenshot
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install fontconfig dev libs (Linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        shell: bash
+        run: cargo build --release --features ${{ matrix.features }} --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          dir=diting-v${GITHUB_REF_NAME#v}-${{ matrix.target }}
+          mkdir "$dir"
+          bin=diting
+          if [ "${{ runner.os }}" = "Windows" ]; then bin=diting.exe; fi
+          cp "target/${{ matrix.target }}/release/$bin" "$dir/"
+          cp README.md docs/install.md "$dir/"
+          # The workflow samples ride along as files — the engine binary
+          # carries no flows inside the exe (browser stays out of business
+          # logic). Repo layout is preserved so the flow.md paths stay
+          # valid, and md_to_args.py + templates/ are caller-side tooling
+          # for wechat-oa-post either way.
+          cp -R workflow "$dir/"
+          cp -R config "$dir/"
+          tar czf "$dir.tar.gz" "$dir"
+          # macOS has shasum (no sha256sum); git-bash has sha256sum — try both.
+          if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "$dir.tar.gz" > "$dir.tar.gz.sha256"
+          else
+            sha256sum "$dir.tar.gz" > "$dir.tar.gz.sha256"
+          fi
+      # Windows has no `timeout(1)` wrapper (timeout.exe is a sleep), and the
+      # default step shell there is PowerShell — start the exe detached,
+      # sample both output streams, then kill it.
+      - name: Smoke run (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $p = Start-Process -FilePath "target/${{ matrix.target }}/release/diting.exe" `
+            -RedirectStandardOutput smoke.out -RedirectStandardError smoke.err -PassThru
+          Start-Sleep -Seconds 10
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          $log = (Get-Content smoke.out -Raw) + (Get-Content smoke.err -Raw)
+          if ($log -notmatch "listening on") { Write-Output "--- smoke output ---"; Write-Output $log; exit 1 }
+          Write-Output (($log -split "`n") | Select-Object -First 1)
+      - name: Upload release assets (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          files: |
+            diting-*.tar.gz
+            diting-*.sha256
+
+  # Intel Macs. No native Intel runners remain, and the v0.2.10 postmortem
+  # is why this asset was dropped: cross-building from the arm64 host bakes
+  # an arm64 V8 snapshot into the x86_64 binary (instant SIGSEGV — build
+  # scripts compile for the HOST, not the target). The fix here: run the
+  # entire toolchain under Rosetta as an x86_64 HOST (rustup default-host),
+  # so build.rs itself is an x86_64 process and the snapshot it embeds
+  # matches the target. Slower (Rosetta), but the smoke step boots the real
+  # artifact — a wrong-arch snapshot dies there, not in a user's terminal.
+  build-intel-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Ensure Rosetta
+        run: arch -x86_64 /usr/bin/true || softwareupdate --install-rosetta --agree-to-license
+      - name: Switch to an x86_64 host toolchain
+        run: |
+          rustup toolchain install stable-x86_64-apple-darwin --force-non-host --profile minimal
+          TC="$HOME/.rustup/toolchains/stable-x86_64-apple-darwin/bin"
+          echo "$TC" >> "$GITHUB_PATH"
+          # Pre-warm the Rosetta translation — rustup's own version probe
+          # timed out on the first x86_64 exec; the real build must not.
+          "$TC/rustc" --version
+          "$TC/cargo" --version --verbose | grep -q 'host: x86_64-apple-darwin'
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: x86_64-apple-darwin-rosetta
+      - name: Build
+        shell: bash
+        run: cargo build --release --features stealth,screenshot --target x86_64-apple-darwin
+      - name: Package
+        shell: bash
+        run: |
+          dir=diting-v${GITHUB_REF_NAME#v}-x86_64-apple-darwin
+          mkdir "$dir"
+          cp "target/x86_64-apple-darwin/release/diting" "$dir/"
+          cp README.md docs/install.md "$dir/"
+          cp -R workflow "$dir/"
+          cp -R config "$dir/"
+          tar czf "$dir.tar.gz" "$dir"
+          shasum -a 256 "$dir.tar.gz" > "$dir.tar.gz.sha256"
+      # Rosetta boot takes longer than native — and the first exec of a fresh
+      # binary pays cold AOT translation of the whole image on top (v0.5.38
+      # smoked 15s with zero output while still translating; v0.5.37 had
+      # squeaked by). A wrong-arch V8 snapshot never survives to a timeout —
+      # it crashes at startup — so a generous window only costs wall-clock.
+      - name: Smoke run
+        shell: bash
+        run: |
+          target/x86_64-apple-darwin/release/diting >/tmp/intel_smoke.log 2>&1 &
+          pid=$!
+          sleep 45
+          kill $pid 2>/dev/null || true
+          grep -q "listening on" /tmp/intel_smoke.log || { echo "--- smoke output ---"; cat /tmp/intel_smoke.log; exit 1; }
+          head -1 /tmp/intel_smoke.log
+      - name: Upload release assets (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          files: |
+            diting-*.tar.gz
+            diting-*.sha256
+
+  # AginxOS pulls this asset on device first-boot: bare static binary +
+  # sha256 (agpkg convention), so NO features — stealth (BoringSSL) and
+  # screenshot stay opt-in. The screenshot-enabled variant for the same
+  # device lives in build-musl-screenshot below.
+  #
+  # v0.2.10 postmortem: build.rs embeds a V8 snapshot of bootstrap.js, and
+  # V8 snapshots are architecture-specific — cross-building on an x86_64
+  # runner baked an x86_64 snapshot into the aarch64 binary (instant
+  # SIGSEGV, zero output, found on a Pixel 5). These jobs now run on native
+  # arm64 runners so the snapshot matches the target, and smoke-run the
+  # actual artifact before it ships. x86_64-apple-darwin was dropped for
+  # the same reason at the time; it is back as build-intel-mac above,
+  # which makes the whole toolchain an x86_64 host under Rosetta so the
+  # snapshot bakes correctly.
+  build-musl:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - name: Install zig
+        run: |
+          curl -fsSL https://ziglang.org/download/0.16.0/zig-aarch64-linux-0.16.0.tar.xz | sudo tar -xJ -C /opt
+          echo "/opt/zig-aarch64-linux-0.16.0" >> "$GITHUB_PATH"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        with:
+          tool: cargo-zigbuild
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: aarch64-unknown-linux-musl-arm64
+      - name: Build
+        run: cargo zigbuild --release --target aarch64-unknown-linux-musl
+        env:
+          # Keep the symbol table so the -debug twin can attribute crashes
+          # (device kernels don't log userspace segfaults); the shipped
+          # binary is stripped from this copy in Package.
+          CARGO_PROFILE_RELEASE_STRIP: "false"
+      - name: Package
+        run: |
+          bin=diting-v${GITHUB_REF_NAME#v}-aarch64-unknown-linux-musl
+          cp target/aarch64-unknown-linux-musl/release/diting "$bin"
+          cp "$bin" "$bin-debug"
+          strip "$bin"
+          shasum -a 256 "$bin" > "$bin.sha256"
+          shasum -a 256 "$bin-debug" > "$bin-debug.sha256"
+          echo "bin=$bin" >> "$GITHUB_ENV"
+      - name: Smoke run
+        run: |
+          timeout 15 "./$bin" > smoke.log 2>&1 || true
+          grep -q "listening on" smoke.log || { echo "--- smoke output ---"; cat smoke.log; exit 1; }
+          head -1 smoke.log
+      - name: Upload actions artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: diting-aarch64-musl
+          path: |
+            diting-*-aarch64-unknown-linux-musl
+            diting-*-aarch64-unknown-linux-musl-debug
+            diting-*-aarch64-unknown-linux-musl.sha256
+            diting-*-aarch64-unknown-linux-musl-debug.sha256
+          retention-days: 7
+      - name: Upload release assets (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          files: |
+            diting-*-aarch64-unknown-linux-musl
+            diting-*-aarch64-unknown-linux-musl-debug
+            diting-*-aarch64-unknown-linux-musl.sha256
+            diting-*-aarch64-unknown-linux-musl-debug.sha256
+
+  # The AginxOS engine build: same aarch64 musl static target and agpkg
+  # shape as build-musl, but WITH `--features screenshot` — the pure diting
+  # render stack (zero blitz since the feature split), so the device gets
+  # rendering without a self-build. fontique's fontconfig-dlopen (in the
+  # screenshot feature) keeps the cross build free of a pkg-config sysroot;
+  # libfontconfig stays optional at runtime, bundled CJK fonts carry the
+  # render (AginxOS-verified on device). workflow_dispatch builds main HEAD
+  # without touching any release (the actions artifact carries the binary).
+  # Same arm64-native + smoke discipline as build-musl (see postmortem there).
+  build-musl-screenshot:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - name: Install zig
+        run: |
+          curl -fsSL https://ziglang.org/download/0.16.0/zig-aarch64-linux-0.16.0.tar.xz | sudo tar -xJ -C /opt
+          echo "/opt/zig-aarch64-linux-0.16.0" >> "$GITHUB_PATH"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        with:
+          tool: cargo-zigbuild
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: aarch64-unknown-linux-musl-screenshot-arm64
+      - name: Build
+        run: cargo zigbuild --release --target aarch64-unknown-linux-musl --features screenshot
+        env:
+          CARGO_PROFILE_RELEASE_STRIP: "false"
+      - name: Package
+        run: |
+          ver=${GITHUB_REF_NAME#v}
+          case "$GITHUB_REF" in
+            refs/tags/*) ;;
+            *) ver="main-$(git rev-parse --short HEAD)" ;;
+          esac
+          bin=diting-$ver-aarch64-unknown-linux-musl-screenshot
+          cp target/aarch64-unknown-linux-musl/release/diting "$bin"
+          cp "$bin" "$bin-debug"
+          strip "$bin"
+          shasum -a 256 "$bin" > "$bin.sha256"
+          shasum -a 256 "$bin-debug" > "$bin-debug.sha256"
+          echo "bin=$bin" >> "$GITHUB_ENV"
+      - name: Smoke run
+        run: |
+          timeout 15 "./$bin" > smoke.log 2>&1 || true
+          grep -q "listening on" smoke.log || { echo "--- smoke output ---"; cat smoke.log; exit 1; }
+          head -1 smoke.log
+      - name: Upload actions artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: diting-aarch64-musl-screenshot
+          path: |
+            diting-*-aarch64-unknown-linux-musl-screenshot
+            diting-*-aarch64-unknown-linux-musl-screenshot-debug
+            diting-*-aarch64-unknown-linux-musl-screenshot.sha256
+            diting-*-aarch64-unknown-linux-musl-screenshot-debug.sha256
+          retention-days: 7
+      - name: Upload release assets (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          files: |
+            diting-*-aarch64-unknown-linux-musl-screenshot
+            diting-*-aarch64-unknown-linux-musl-screenshot-debug
+            diting-*-aarch64-unknown-linux-musl-screenshot.sha256
+            diting-*-aarch64-unknown-linux-musl-screenshot-debug.sha256

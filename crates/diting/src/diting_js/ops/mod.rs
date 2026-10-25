@@ -1,0 +1,4764 @@
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::io::Write as _;
+use std::rc::Rc;
+use std::sync::Arc;
+
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use crate::diting_dom::{AttachShadowError, DomTree, NodeData, NodeId, ShadowRootMode};
+use crate::diting_net::{CookieJar, HttpClient};
+use url::Url;
+
+/// CDP Fetch-domain resolution: what a client answers a paused request with.
+/// Produced by the CDP bridge's `Fetch.continueRequest` / `fulfillRequest` /
+/// `failRequest` handlers.
+#[derive(Debug)]
+pub enum InterceptResolution {
+    Continue {
+        url: Option<String>,
+        method: Option<String>,
+        headers: Option<HashMap<String, String>>,
+        body: Option<Vec<u8>>,
+    },
+    Fulfill {
+        status: u16,
+        headers: HashMap<String, String>,
+        body: Vec<u8>,
+    },
+    Fail { reason: String },
+}
+
+/// A paused request surfaced to the interception channel (CDP
+/// `Fetch.requestPaused` shape). The resolver answers with an
+/// `InterceptResolution`. Field readers are the CDP layer, which mints its
+/// own pause ids; ops code only moves the struct through the channel.
+pub struct InterceptedRequest {
+    pub url: String,
+    pub method: String,
+    pub headers: HashMap<String, String>,
+    pub resource_type: String,
+    pub resolver: tokio::sync::oneshot::Sender<InterceptResolution>,
+}
+
+/// How long a paused fetch()/XHR waits for a CDP client's resolution before
+/// falling through to the real request (Continue semantics). The CDP bridge
+/// can only drain pauses between commands — a pause created inside a
+/// dispatch that itself waits on the fetch (Runtime.evaluate of a fetch
+/// expression) is undeliverable until that dispatch ends, so without a
+/// bound such a call would hang forever. Real clients resolve in
+/// milliseconds; the default only shows up on client-less pages. Tests
+/// shorten it via the atomic.
+pub static INTERCEPT_RESOLUTION_TIMEOUT_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(10_000);
+
+/// (epoch, subtree root, viewport w bits, viewport h bits, run) — the
+/// iframe sub-run memo key, see `JsState::iframe_layout_cache`.
+#[cfg(feature = "screenshot")]
+type IframeLayoutCache = std::cell::RefCell<Option<(u64, NodeId, u32, u32, std::rc::Rc<LayoutRun>)>>;
+
+/// One REAL per-request timing sample for the JS `performance` resource
+/// buffer (#126): captured around the actual stylesheet/script fetches in
+/// the navigation pipeline, epoch-stamped so the JS side can convert into
+/// the resource clock (`start - performance.timeOrigin`, clamped ≥0 —
+/// pre-init fetches genuinely complete before timeOrigin). Nothing here
+/// is fabricated; requests we cannot time simply get no record.
+#[derive(Debug, Clone)]
+pub struct ResourceTimingRecord {
+    /// Absolute request URL (the entry's `name`).
+    pub name: String,
+    /// W3C initiatorType: "link" (stylesheet) / "script".
+    pub initiator: &'static str,
+    /// Fetch start as epoch milliseconds (SystemTime), not resource-clock.
+    pub start_epoch_ms: f64,
+    /// Wire duration in ms, measured with a monotonic `Instant`.
+    pub duration_ms: f64,
+    /// HTTP status (0 = the fetch failed before a response).
+    pub status: u16,
+    /// Body byte count (the pipeline stores decoded bodies, so this is
+    /// both encodedBodySize and decodedBodySize).
+    pub body_size: usize,
+    /// Parser/render-blocking posture for `renderBlockingStatus`.
+    pub render_blocking: bool,
+}
+
+/// Blob URL → (bytes, MIME) mirror shared with the module loader.
+pub(crate) type BlobStoreMap = HashMap<String, (Vec<u8>, String)>;
+/// (epoch, layout_rev, root_scroll_x/y, viewport_w/h, scroll_gen) key
+/// with the memoized sticky shifts — see the `sticky_shift_cache` field.
+#[cfg(feature = "screenshot")]
+type StickyShiftCache = Option<(
+    (u64, u64, f32, f32, f32, f32, u64),
+    std::rc::Rc<HashMap<NodeId, [f32; 2]>>,
+)>;
+
+pub struct JsState {
+    pub dom: Option<DomTree>,
+    pub url: String,
+    /// WHATWG canonical name of the document's character encoding (e.g.
+    /// "UTF-8", "EUC-JP"). Backs `document.characterSet` and the URL query
+    /// encoding override for `<a>`/`<area>` hrefs in legacy-charset documents.
+    pub encoding: String,
+    /// MIME type of the main response (lowercased, parameters stripped), e.g.
+    /// "text/plain". Backs `document.contentType`. Empty = the response
+    /// carried no Content-Type (JS falls back to URL sniffing).
+    pub content_type: String,
+    pub title: String,
+    /// URL of the document that initiated this document's navigation. Direct
+    /// automation navigations leave this empty; document-initiated navigations
+    /// set it per the strict-origin-when-cross-origin policy (upstream
+    /// edb1785).
+    pub referrer: String,
+    /// Referrer Policy delivered by the main response's `Referrer-Policy`
+    /// header (last valid comma token). Empty = none delivered; the document
+    /// policy then comes from `<meta name=referrer>` (see
+    /// resolve_referrer_policy_from), falling back to the spec default.
+    pub referrer_policy_header: String,
+    pub blocked_urls: Vec<String>,
+    pub cookie_jar: Option<Arc<CookieJar>>,
+    pub http_client: Option<Arc<HttpClient>>,
+    pub pending_navigation: Option<(String, String, String)>,
+    // Session-history seed (obscura#1105): the JS runtime is rebuilt on every
+    // cross-document navigation, so bootstrap re-seeds its history stack from
+    // these before any page script runs. `history_pos` is this document's
+    // entry index, `history_total` the whole session history length.
+    pub history_pos: i32,
+    pub history_total: i32,
+    // Session-history jump queued by page JS (history.back/forward/go past
+    // this document's boundaries) — an absolute entry index into the page's
+    // real history, consumed by `Page::process_pending_navigation`.
+    pub pending_history_jump: Option<i32>,
+    pub intercept_tx: Option<tokio::sync::mpsc::UnboundedSender<InterceptedRequest>>,
+    pub intercept_enabled: bool,
+    // Queue of (binding_name, payload) calls made by page JS via the
+    // `op_binding_called` op. Drained by the CDP layer after each dispatch
+    // and emitted as `Runtime.bindingCalled` events.
+    pub pending_binding_calls: Vec<(String, String)>,
+    // Queue of (level, message) console calls made by page JS via the
+    // `op_console_msg` op. Drained by the CDP layer after each dispatch and
+    // emitted as `Runtime.consoleAPICalled` events so console output is
+    // visible to Playwright/Puppeteer instead of only the tracing log.
+    pub pending_console_calls: Vec<(String, String, String)>,
+    /// Set when page JS fed `document.write()` — per HTML spec that parse
+    /// produces a fresh document whose `load` fires again (Playwright's
+    /// setContent waits on it). Drained by the CDP layer after the console
+    /// drain so the setContent tag message clears the frame's lifecycle
+    /// state before the new load events land.
+    pub pending_write_nav: std::cell::Cell<bool>,
+    /// Dialog policy applied by `op_dialog` to subsequent window.confirm/
+    /// prompt calls (alert has no answer). Default false = auto-dismiss, so
+    /// dialogs can never block: the thread that would show the dialog is the
+    /// same one running the page script. Flipped via the session_dialog
+    /// command; each dialog is recorded into `pending_console_calls` at
+    /// level "dialog" so session_console shows what the page asked.
+    pub dialog_accept: bool,
+    /// Text returned by window.prompt when a dialog is accepted and this is
+    /// set; unset falls back to the call's default argument (or "").
+    pub dialog_prompt_text: Option<String>,
+    /// The document's input stream for `document.write()`, created on the
+    /// first call. Why the calls share one parser is in `write_stream`.
+    pub(crate) write_stream: std::cell::RefCell<Option<crate::diting_js::write_stream::DocumentWriteStream>>,
+    /// HTML's per-script "already started" flag. This is native page state
+    /// rather than wrapper state, because it must survive moves and clones and
+    /// because fragment parsing can create nodes before a JS wrapper exists.
+    pub(crate) already_started_scripts: RefCell<HashSet<NodeId>>,
+    /// Window-global import-map state shared by parser-discovered scripts,
+    /// dynamically inserted import maps, and the module loader.
+    pub(crate) import_map: Rc<RefCell<crate::diting_js::import_map::ImportMap>>,
+    /// Blob bodies mirrored from JS `URL.createObjectURL` (blob URL →
+    /// bytes + MIME), shared with the module loader so `import("blob:…")`
+    /// and `<script type=module src="blob:…">` resolve URLs no HTTP client
+    /// can fetch. Realm-scoped like the JS-side `__blobObjs`.
+    pub(crate) blob_store: Rc<RefCell<BlobStoreMap>>,
+    /// In-flight dynamic `<script src>` fetches. Dynamic scripts fetch via the
+    /// op-level reqwest client, invisible to the page-level http_client's
+    /// active_requests() counter — without this, the post-script settle loop
+    /// exits at its 500ms deadline while a slow external script is still in
+    /// flight, and the CDP consumer snapshots before the script (and its
+    /// load event) lands (upstream a6bb741).
+    pub(crate) dynamic_script_fetches: std::cell::Cell<u32>,
+    /// Passive on_request/on_response registry owned by the page this realm
+    /// renders. JS fetch()/XHR requests fire it so page-scoped observers see
+    /// script-initiated traffic too (upstream #408). None when the runtime
+    /// has no owning page (bare module-loader runtimes).
+    pub(crate) callbacks: Option<std::sync::Arc<crate::diting_net::CallbackRegistry>>,
+    /// Response bodies retained for script-initiated requests (fetch/XHR),
+    /// keyed `fetch-{N}` — the same id the paired `js_network_events` entry
+    /// carries, so CDP `Network.getResponseBody` resolves. LRU-bounded by
+    /// `response_body_entry_limit` / `response_body_byte_limit`.
+    pub(crate) network_response_bodies: std::collections::HashMap<String, StoredNetworkResponseBody>,
+    pub(crate) network_response_body_order: std::collections::VecDeque<String>,
+    pub(crate) network_response_body_counter: u64,
+    /// Network events recorded for script-initiated requests (fetch/XHR),
+    /// drained into the owning Page's `network_events` by
+    /// `Page::sync_js_network_events` so the CDP layer emits
+    /// requestWillBeSent / responseReceived for them (upstream #406).
+    pub(crate) js_network_events: Vec<JsNetworkEvent>,
+    /// Live page-facing WebSocket sockets (registry + channels, op land
+    /// owned); see `diting_js::ws`.
+    pub(crate) ws_registry: crate::diting_js::ws::WsRegistry,
+    /// Memoized diting-layout run for the live DOM tree, keyed by the
+    /// tree's epoch (see DomTree::epoch): element rects, the paint order,
+    /// and the cascaded ComputedStyle per element. Filled on the first
+    /// `layout_rect` / `paint_order` / `computed_style` op after each
+    /// mutation; backs getBoundingClientRect, elementFromPoint and
+    /// getComputedStyle.
+    #[cfg(feature = "screenshot")] // the layout ops run only in the screenshot-gated pipeline
+    layout_cache: std::cell::RefCell<Option<(u64, LayoutRun)>>,
+    /// Memoized taffy solve for the live DOM tree, keyed by the same epoch
+    /// — the geometry half of a layout run (see `SolvedGeometry`). A
+    /// paint-only style write (transform/opacity, everything a timeline
+    /// seek lands) drops `layout_cache` but keeps this one: the solve
+    /// provably ignores those properties, so the next run re-collects
+    /// against the cached tree instead of re-solving the full page.
+    #[cfg(feature = "screenshot")]
+    geometry_cache:
+        std::cell::RefCell<Option<(u64, crate::diting_layout::SolvedGeometry)>>,
+    /// Memoized layout run for an orphan subtree (a fabricated iframe
+    /// document, obscura #976 family), keyed (epoch, subtree root, viewport
+    /// w/h bits). Kept apart from `layout_cache` on purpose: a sub-run's
+    /// rects answer in the iframe's OWN viewport (the iframe element's
+    /// laid-out size on the host page, defaulting to the 300x150 box the
+    /// fabricated windows publish), never the main page's.
+    #[cfg(feature = "screenshot")]
+    iframe_layout_cache: IframeLayoutCache,
+    /// Full taffy solves this state has run — a test probe, so the
+    /// paint-only path can assert it stays flat across seeks.
+    #[cfg(feature = "screenshot")]
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) solves: std::cell::Cell<u64>,
+    /// Band paints this state has produced — a test probe, so the video
+    /// pump's static-frame reuse can assert held frames skip the paint.
+    #[cfg(feature = "screenshot")]
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) band_paints: std::cell::Cell<u64>,
+    /// External stylesheet bodies fetched at navigation (absolute URL →
+    /// decoded CSS text). Joined into the cascade by [`layout_run_all`]
+    /// and served to the JS side as `document.styleSheets` rule content.
+    pub(crate) ext_sheets: std::cell::RefCell<std::collections::HashMap<String, String>>,
+    /// Real per-request timings backing
+    /// `performance.getEntriesByType('resource')` (#126). Populated by the
+    /// navigation pipeline (stylesheet + script fetches); the JS fetch/XHR
+    /// shims add their own entries locally in the resource clock.
+    pub(crate) resource_timings: std::cell::RefCell<Vec<ResourceTimingRecord>>,
+    /// Viewport the layout pipeline should anchor the initial containing
+    /// block to, published by the JS persona (`__diting_setPersona`) so
+    /// getBoundingClientRect agrees with window.innerWidth/innerHeight.
+    /// Defaults to the bootstrap's pre-persona 1920x1000.
+    #[cfg(feature = "screenshot")]
+    pub(crate) viewport: (f32, f32),
+    /// Emulated media environment pushed via CDP `Emulation.setEmulatedMedia`
+    /// (Playwright's `page.emulateMedia`): the media type + `prefers-*`
+    /// overrides the @media cascade re-parses against — the Rust face of the
+    /// JS `matchMedia` truth tables (two faces, one truth).
+    #[cfg(feature = "screenshot")]
+    pub(crate) media_type: crate::diting_css::CssMediaType,
+    #[cfg(feature = "screenshot")]
+    pub(crate) media_overrides: crate::diting_css::MediaOverrides,
+    /// The root scroller's offset, mirrored from the bootstrap's
+    /// scrollTop/scrollLeft setters (viewport roots only) so the CDP frame
+    /// pump can paint the viewport band without re-serializing the DOM.
+    /// Layout is scroll-blind, so this never feeds the layout cache.
+    #[cfg(feature = "screenshot")]
+    pub(crate) scroll_offset: (f32, f32),
+    /// CSS animation clock in seconds. `None` = static render, which samples
+    /// every animation at its end state (animated SVGs show the finished
+    /// diagram, not the blank t=0 frame). When the video pump drives it, the
+    /// sampler interpolates keyframes at that time. Sampled props are
+    /// paint-only (opacity/transform/stroke-dashoffset), so advancing it only
+    /// drops the paint caches, never the taffy solve (#395).
+    #[cfg(feature = "screenshot")]
+    pub(crate) css_time: Option<f64>,
+    /// Max (delay + duration) over every element's computed `animation`,
+    /// recomputed each layout run. The video pump uses it as the timeline
+    /// extent for CSS-animated pages (no `__timelines` needed).
+    #[cfg(feature = "screenshot")]
+    pub(crate) css_extent: std::cell::Cell<f64>,
+    /// Registered property transitions (CSS transitions batch): the JS
+    /// face snapshots a tracked-property style write and registers one
+    /// entry per (nid, property); a re-trigger on the same pair replaces
+    /// the old entry. Sampled at the exit of compute_styles_timed.
+    #[cfg(feature = "screenshot")]
+    pub(crate) css_transitions:
+        std::cell::RefCell<Vec<crate::diting_css::CssTransition>>,
+    /// Layout invalidation revision: bumped wherever `layout_cache` is
+    /// dropped. The DomTree epoch is a tree-shape stamp — attribute-level
+    /// writes (style/class/attr) clear the cache without allocating nodes,
+    /// so the epoch alone never sees them. Consumers deciding "did layout
+    /// change" from the epoch (the screencast damage signature) must fold
+    /// this rev in, or a style change freezes the cast while layout probes
+    /// report fresh geometry (the AginxOS five-mutation report).
+    #[cfg(feature = "screenshot")]
+    pub(crate) layout_rev: std::cell::Cell<u64>,
+    /// Process-wide generation stamp of this realm (#189). The tree epoch
+    /// and `layout_rev` are per-realm counters that restart at 0 on every
+    /// navigation, so two equally static documents can collide on
+    /// (epoch, rev, scroll, viewport) — and every damage-signature consumer
+    /// (the screencast pump's skip logic, the HTTP /screenshot frame cache)
+    /// would then reuse the previous page's frame. This stamp never
+    /// repeats within a process.
+    #[cfg(feature = "screenshot")]
+    pub(crate) realm_gen: std::cell::Cell<u64>,
+    /// Attribute names referenced by attribute selectors in the last parsed
+    /// rule pool, lowercased (obscura#983). Lets a write to a layout-inert
+    /// attribute skip the layout-cache drop; `None` until the first layout
+    /// run (no caches exist yet, so skipping is free either way).
+    #[cfg(feature = "screenshot")]
+    pub(crate) attr_selector_names:
+        std::cell::RefCell<Option<std::collections::HashSet<String>>>,
+    /// Absolute-URL → fetched image body, filled on demand by the CDP
+    /// viewport capture / screencast pump so band paint renders real rasters
+    /// instead of placeholders (the outerHTML re-render path pre-fetches;
+    /// the live-tree path fills lazily). Bounded entry-wise; every insert
+    /// also invalidates `layout_cache` (placeholder boxes vs real intrinsic
+    /// sizes can reflow).
+    #[cfg(feature = "screenshot")]
+    pub(crate) image_bytes:
+        std::cell::RefCell<HashMap<String, std::sync::Arc<Vec<u8>>>>,
+    /// Insertion order for `image_bytes` (FIFO eviction at the entry cap —
+    /// clearing wholesale would thrash pages with more images than the cap).
+    #[cfg(feature = "screenshot")]
+    pub(crate) image_order: std::cell::RefCell<std::collections::VecDeque<String>>,
+    /// Canvas playback bitmaps (#210), keyed by the canvas element's nid.
+    /// The 2D buffer lives in the JS realm, so the host pushes a snapshot in
+    /// before it renders (`op_canvas_store`); `layout_collect_with_images`
+    /// layers these over the solve's `<img>` map and the replaced-element
+    /// branch paints them like any other bitmap. A store that changes pixels
+    /// goes through `drop_paint_only` — canvas draw is a paint-only
+    /// invalidation (geometry never moves), which also moves `layout_rev` so
+    /// the damage signature lets the screencast/screenshot caches see it.
+    #[cfg(feature = "screenshot")]
+    pub(crate) canvas_images:
+        std::cell::RefCell<HashMap<NodeId, crate::diting_layout::DecodedImage>>,
+    /// Sticky (v2): per-node scroll-dependent shift map ([dx, dy] in
+    /// document space), memoized per (epoch, layout_rev, root scroll,
+    /// viewport, scroll_gen) — scroll and viewport moves don't bump the
+    /// epoch, layout_rev covers attr-level writes the epoch can't see (the
+    /// same pairing as the screencast damage signature), and scroll_gen
+    /// covers element-scroller writes, which bump neither. Cleared
+    /// alongside the layout caches in drop_layout. See `sticky_shifts`.
+    #[cfg(feature = "screenshot")]
+    pub(crate) sticky_shift_cache: std::cell::RefCell<StickyShiftCache>,
+}
+
+/// Source of `JsState::realm_gen` (#189): a fresh stamp per realm, never
+/// reused within a process.
+#[cfg(feature = "screenshot")]
+static REALM_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+impl Default for JsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A script-initiated request as a CDP-shaped network event. Static
+/// navigation subresources go through Page::record_network_event; this is
+/// the parallel channel for script-initiated requests, which run in the V8
+/// op layer and would otherwise never surface as Network events (#406).
+#[cfg_attr(not(test), allow(dead_code))] // tests assert every field; /network endpoint is the pending reader
+#[derive(Debug, Clone)]
+pub struct JsNetworkEvent {
+    /// Matches the `fetch-{N}` id under which the body is stored, so CDP
+    /// Network.getResponseBody resolves for the same request.
+    pub request_id: String,
+    pub url: String,
+    pub method: String,
+    pub status: u16,
+    pub response_headers: HashMap<String, String>,
+    /// The outbound header set of the final hop as the walk shaped it (#97):
+    /// script customs (x-s, x-s-common …) plus the browser-default set the
+    /// engine joined in. Lowercased. Failed rows leave it empty — a failure
+    /// is often blocked before any wire (SSRF/CORS-refused at preflight).
+    pub request_headers: HashMap<String, String>,
+    pub body_size: usize,
+    pub timestamp: f64,
+    /// Why a `status: 0` entry never produced a servable response — SSRF
+    /// block, CORS refusal, transport failure. Chrome DevTools annotates
+    /// failed rows with the reason; without it a page whose API calls all
+    /// die here reads as "never issued a request" (the taobao shop-SPA
+    /// report chased exactly that ghost).
+    pub error: Option<String>,
+    /// Where the request actually landed when redirects carried it (#203);
+    /// equal to `url` when it went straight through. `url` stays the
+    /// REQUESTED address on both success and failure rows so a bounced
+    /// submit can still be found by its original URL.
+    pub final_url: String,
+    /// Hops followed in order, each with the 3xx status (#203).
+    pub redirects: Vec<crate::diting_net::RedirectHop>,
+    /// Request dispatch, unix seconds (#229). `timestamp` is response
+    /// completion (walk return), so the pair reconstructs which request
+    /// left first — completion order alone cannot.
+    pub started: f64,
+}
+
+/// A response body retained for `Network.getResponseBody`. Bodies are
+/// classified with the Chromium DevTools policy (see
+/// `diting_net::decode_devtools_body`): replacement-free text is stored as a
+/// string (`base64_encoded = false`, declared-GBK pages included, matching
+/// Chrome); opaque or undecodable bodies are stored base64.
+#[derive(Debug, Clone)]
+pub struct StoredNetworkResponseBody {
+    pub body: String,
+    pub base64_encoded: bool,
+}
+
+fn response_body_entry_limit() -> usize {
+    std::env::var("DITING_NETWORK_BODY_BUFFER_ENTRIES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(128)
+}
+
+fn response_body_byte_limit() -> usize {
+    std::env::var("DITING_NETWORK_BODY_BUFFER_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(2 * 1024 * 1024)
+}
+
+/// Hard ceiling on a single JS fetch()/XHR response body (upstream #581).
+/// Unlike the two limits above — which bound what is *retained* for CDP —
+/// this one bounds the initial allocation itself: page JS can fetch() any
+/// URL, so a server streaming gigabytes must fail as a network error
+/// instead of OOMing the process (plus the UTF-8 and base64 copies that
+/// follow the raw buffer). Bulk transfer is the streaming download layer's
+/// job, not page fetch(). `0` disables the cap, matching the 0-disables
+/// convention of the two limits above. Shared with the ES module loader
+/// (obscura #849) so page-controlled remote code has one size policy.
+pub(crate) fn fetch_body_byte_limit() -> usize {
+    std::env::var("DITING_FETCH_BODY_LIMIT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .map(|v| if v == 0 { usize::MAX } else { v })
+        .unwrap_or(64 * 1024 * 1024)
+}
+
+impl JsState {
+    /// Drop the memoized layout run and stamp the invalidation revision.
+    /// Every cache-drop site must go through here — a bare cache drop hides
+    /// the invalidation from epoch-keyed consumers like the screencast
+    /// pump's damage signature.
+    #[cfg(feature = "screenshot")]
+    pub(crate) fn drop_layout(&self) {
+        *self.layout_cache.borrow_mut() = None;
+        *self.geometry_cache.borrow_mut() = None;
+        // A style/class write inside a fabricated iframe document doesn't
+        // bump the tree epoch, so the (epoch, root) key can't see it — the
+        // shared drop points are the only reliable invalidation.
+        *self.iframe_layout_cache.borrow_mut() = None;
+        // Sticky shifts key on (epoch, layout_rev, scroll, viewport); the
+        // rev bump below kills the entry either way — clear for tidiness.
+        *self.sticky_shift_cache.borrow_mut() = None;
+        self.layout_rev.set(self.layout_rev.get().wrapping_add(1));
+    }
+
+    /// The paint-only invalidation (#395): a transform/opacity style write
+    /// changes pixels but not geometry — the taffy solve provably ignores
+    /// both (`to_taffy_style` maps only geometry families), so the solve
+    /// cache survives and only the collected half re-runs. `layout_rev`
+    /// still moves: the pixels DID change, and damage-signature consumers
+    /// key on it.
+    #[cfg(feature = "screenshot")]
+    pub(crate) fn drop_paint_only(&self) {
+        *self.layout_cache.borrow_mut() = None;
+        *self.iframe_layout_cache.borrow_mut() = None;
+        self.layout_rev.set(self.layout_rev.get().wrapping_add(1));
+    }
+
+    /// #278 on-demand layout: clear the same caches [`Self::drop_layout`]
+    /// clears, WITHOUT moving the invalidation rev. A release changes no
+    /// pixels — the next solve rebuilds byte-identical output from the
+    /// same DOM and viewport — so damage-signature consumers (the band
+    /// frame cache, #189) must keep hitting across it. Every
+    /// [`Self::drop_layout`] caller is a real content change; this one's
+    /// only caller is the session actor's command boundary.
+    #[cfg(feature = "screenshot")]
+    pub(crate) fn release_layout_quiet(&self) {
+        *self.layout_cache.borrow_mut() = None;
+        *self.geometry_cache.borrow_mut() = None;
+        *self.iframe_layout_cache.borrow_mut() = None;
+        *self.sticky_shift_cache.borrow_mut() = None;
+    }
+
+    pub fn new() -> Self {
+        JsState {
+            dom: None,
+            url: "about:blank".to_string(),
+            encoding: "UTF-8".to_string(),
+            content_type: String::new(),
+            title: String::new(),
+            referrer: String::new(),
+            referrer_policy_header: String::new(),
+            blocked_urls: Vec::new(),
+            cookie_jar: None,
+            http_client: None,
+            pending_navigation: None,
+            history_pos: 0,
+            history_total: 1,
+            pending_history_jump: None,
+            intercept_tx: None,
+            intercept_enabled: false,
+            pending_binding_calls: Vec::new(),
+            pending_console_calls: Vec::new(),
+            pending_write_nav: std::cell::Cell::new(false),
+            dialog_accept: false,
+            dialog_prompt_text: None,
+            write_stream: std::cell::RefCell::new(None),
+            already_started_scripts: RefCell::new(HashSet::new()),
+            import_map: Rc::new(RefCell::new(crate::diting_js::import_map::ImportMap::default())),
+            blob_store: Rc::new(RefCell::new(HashMap::new())),
+            dynamic_script_fetches: std::cell::Cell::new(0),
+            callbacks: None,
+            network_response_bodies: std::collections::HashMap::new(),
+            network_response_body_order: std::collections::VecDeque::new(),
+            network_response_body_counter: 0,
+            js_network_events: Vec::new(),
+            ws_registry: Default::default(),
+            // Memoized diting-layout rects for the live DOM tree, keyed by
+            // the tree's epoch (see DomTree::epoch). Filled on the first
+            // `layout_rect` op after each mutation; backs getBoundingClientRect.
+            #[cfg(feature = "screenshot")]
+            layout_cache: std::cell::RefCell::new(None),
+            #[cfg(feature = "screenshot")]
+            geometry_cache: std::cell::RefCell::new(None),
+            #[cfg(feature = "screenshot")]
+            iframe_layout_cache: std::cell::RefCell::new(None),
+            #[cfg(feature = "screenshot")]
+            solves: std::cell::Cell::new(0),
+            #[cfg(feature = "screenshot")]
+            band_paints: std::cell::Cell::new(0),
+            #[cfg(feature = "screenshot")]
+            viewport: (1920.0, 1000.0),
+            #[cfg(feature = "screenshot")]
+            media_type: crate::diting_css::CssMediaType::Screen,
+            #[cfg(feature = "screenshot")]
+            media_overrides: crate::diting_css::MediaOverrides::default(),
+            #[cfg(feature = "screenshot")]
+            scroll_offset: (0.0, 0.0),
+            #[cfg(feature = "screenshot")]
+            sticky_shift_cache: std::cell::RefCell::new(None),
+            #[cfg(feature = "screenshot")]
+            css_time: None,
+            #[cfg(feature = "screenshot")]
+            css_extent: std::cell::Cell::new(0.0),
+            #[cfg(feature = "screenshot")]
+            css_transitions: std::cell::RefCell::new(Vec::new()),
+            #[cfg(feature = "screenshot")]
+            layout_rev: std::cell::Cell::new(0),
+            #[cfg(feature = "screenshot")]
+            realm_gen: std::cell::Cell::new(REALM_GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed)),
+            #[cfg(feature = "screenshot")]
+            attr_selector_names: std::cell::RefCell::new(None),
+            #[cfg(feature = "screenshot")]
+            image_bytes: std::cell::RefCell::new(HashMap::new()),
+            #[cfg(feature = "screenshot")]
+            image_order: std::cell::RefCell::new(std::collections::VecDeque::new()),
+            #[cfg(feature = "screenshot")]
+            canvas_images: std::cell::RefCell::new(HashMap::new()),
+            // External stylesheet bodies fetched at navigation, keyed by
+            // absolute URL. The layout run joins them with the live <style>
+            // blocks in document order — without this table an author sheet
+            // that arrives over <link> never reaches the cascade, so
+            // getComputedStyle answers initial values and every rect-based
+            // consumer (gBCR, elementFromPoint) sees unstyled geometry.
+            ext_sheets: std::cell::RefCell::new(std::collections::HashMap::new()),
+            resource_timings: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+}
+
+pub type SharedState = Rc<RefCell<JsState>>;
+
+pub(crate) fn node_is_script(dom: &DomTree, node_id: NodeId) -> bool {
+    dom.with_node(node_id, |node| {
+        node.as_element()
+            .map(|name| name.local.as_str().eq_ignore_ascii_case("script"))
+            .unwrap_or(false)
+    })
+    .unwrap_or(false)
+}
+
+fn script_nodes_including_template_contents(dom: &DomTree, root: NodeId) -> Vec<NodeId> {
+    let mut scripts = Vec::new();
+    let mut stack = vec![root];
+    while let Some(node_id) = stack.pop() {
+        if node_is_script(dom, node_id) {
+            scripts.push(node_id);
+        }
+        let template_contents = dom
+            .with_node(node_id, |node| match &node.data {
+                NodeData::Element { template_contents, .. } => *template_contents,
+                _ => None,
+            })
+            .flatten();
+        if let Some(contents) = template_contents {
+            stack.push(contents);
+        }
+        let children = dom.children(node_id);
+        for child in children.into_iter().rev() {
+            stack.push(child);
+        }
+    }
+    scripts
+}
+
+pub(crate) fn mark_script_subtree_started(state: &JsState, root: NodeId) {
+    let Some(dom) = state.dom.as_ref() else {
+        return;
+    };
+    let scripts = script_nodes_including_template_contents(dom, root);
+    state.already_started_scripts.borrow_mut().extend(scripts);
+}
+
+fn propagate_script_start_state(
+    dom: &DomTree,
+    source_root: NodeId,
+    cloned_root: NodeId,
+    started: &RefCell<HashSet<NodeId>>,
+) {
+    let mut pairs = vec![(source_root, cloned_root)];
+    let mut additions = Vec::new();
+    let current = started.borrow();
+    while let Some((source, cloned)) = pairs.pop() {
+        if current.contains(&source) {
+            additions.push(cloned);
+        }
+
+        let source_template = dom
+            .with_node(source, |node| match &node.data {
+                NodeData::Element { template_contents, .. } => *template_contents,
+                _ => None,
+            })
+            .flatten();
+        let cloned_template = dom
+            .with_node(cloned, |node| match &node.data {
+                NodeData::Element { template_contents, .. } => *template_contents,
+                _ => None,
+            })
+            .flatten();
+        if let (Some(source_contents), Some(cloned_contents)) =
+            (source_template, cloned_template)
+        {
+            pairs.push((source_contents, cloned_contents));
+        }
+
+        let source_children = dom.children(source);
+        let cloned_children = dom.children(cloned);
+        for pair in source_children.into_iter().zip(cloned_children).rev() {
+            pairs.push(pair);
+        }
+    }
+    drop(current);
+    started.borrow_mut().extend(additions);
+}
+
+#[diting_op]
+fn op_script_mark_started(state: &OpState, nid: u32) -> bool {
+    let shared = state.borrow::<SharedState>().clone();
+    let state = shared.borrow();
+    let Some(dom) = state.dom.as_ref() else {
+        return false;
+    };
+    let node_id = NodeId::new(nid);
+    if !node_is_script(dom, node_id) {
+        return false;
+    }
+    state.already_started_scripts.borrow_mut().insert(node_id);
+    true
+}
+
+/// Atomically claim an executable script. A false result means the node was
+/// created inert by an HTML-string API or has already been prepared once.
+#[diting_op]
+fn op_script_try_start(state: &OpState, nid: u32) -> bool {
+    let shared = state.borrow::<SharedState>().clone();
+    let state = shared.borrow();
+    let Some(dom) = state.dom.as_ref() else {
+        return false;
+    };
+    let node_id = NodeId::new(nid);
+    if !node_is_script(dom, node_id) {
+        return false;
+    }
+    let newly_started = state.already_started_scripts.borrow_mut().insert(node_id);
+    newly_started
+}
+
+/// Bracket a dynamic `<script src>` fetch so the settle loop can distinguish
+/// "a script is still loading" from ordinary background XHR/fetch activity.
+/// The page-level http_client's active_requests() counter never sees these —
+/// they ride the op-level client cache — so without this bracket the settle
+/// loop's fast path would strand scripts slower than its 500ms budget.
+#[diting_op]
+fn op_dyn_script_fetch_begin(state: &OpState) {
+    let shared = state.borrow::<SharedState>().clone();
+    let state = shared.borrow();
+    state.dynamic_script_fetches.set(state.dynamic_script_fetches.get() + 1);
+}
+
+#[diting_op]
+fn op_dyn_script_fetch_end(state: &OpState) {
+    let shared = state.borrow::<SharedState>().clone();
+    let state = shared.borrow();
+    state.dynamic_script_fetches.set(state.dynamic_script_fetches.get().saturating_sub(1));
+}
+
+/// Mirror a `URL.createObjectURL` registration into the Rust-side blob
+/// table. The JS-side `__blobObjs` map is unreachable from the module
+/// loader (which resolves outside the realm), so `import("blob:…")` and
+/// `<script type=module src="blob:…">` resolve through this mirror.
+#[diting_op]
+fn op_blob_register(
+    state: &OpState,
+    #[string] id: String,
+    #[buffer] bytes: &[u8],
+    #[string] mime: String,
+) {
+    let shared = state.borrow::<SharedState>().clone();
+    shared.borrow().blob_store.borrow_mut().insert(id, (bytes.to_vec(), mime));
+}
+
+/// Drop a mirrored blob registration (`URL.revokeObjectURL`).
+#[diting_op]
+fn op_blob_revoke(state: &OpState, #[string] id: String) {
+    let shared = state.borrow::<SharedState>().clone();
+    shared.borrow().blob_store.borrow_mut().remove(&id);
+}
+
+/// Attach a native shadow root to a host element (`Element.prototype.attachShadow`).
+/// Returns the root's node id, or -2 when the host already has a shadow root
+/// (JS maps that to the spec's NotSupportedError) and -1 for any other failure
+/// (missing DOM, non-element host, bad mode).
+#[diting_op]
+fn op_shadow_attach(state: &OpState, host_nid: u32, #[string] mode: String) -> i32 {
+    let gs = state.borrow::<SharedState>().clone();
+    let gs = gs.borrow();
+    let dom = match &gs.dom {
+        Some(d) => d,
+        None => return -1,
+    };
+    let mode = match mode.as_str() {
+        "open" => ShadowRootMode::Open,
+        "closed" => ShadowRootMode::Closed,
+        _ => return -1,
+    };
+    match dom.attach_shadow_root(NodeId::new(host_nid), mode) {
+        Ok(root) => root.raw() as i32,
+        Err(AttachShadowError::HostAlreadyHasShadowRoot) => -2,
+        Err(_) => -1,
+    }
+}
+
+#[diting_op]
+#[string]
+fn op_dom(state: &OpState, #[string] cmd: String, #[string] arg1: String, #[string] arg2: String) -> String {
+    // Anti-panic boundary: a panic in a DOM op would unwind through deno_core
+    // into V8's FFI frame, where V8_Fatal calls abort(3) and takes the whole
+    // engine (and every CDP client) down. Catch it so one malformed selector or
+    // inconsistent tree node degrades to a null result for that single call.
+    // No per-call clone: on the happy path this is just a landing pad, so the
+    // hot DOM path (querySelector/getAttribute/...) pays nothing measurable.
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+        op_dom_inner(state, cmd, arg1, arg2)
+    }))
+    .unwrap_or_else(|_| {
+        tracing::error!("op_dom panicked; returning null");
+        "null".to_string()
+    })
+}
+
+fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> String {
+    // Title write goes to shared state (the getter reads gs.title), so it must
+    // happen before the immutable borrow below — and before the `gs.dom` early
+    // return, since a document always has a title even with an empty tree.
+    if cmd == "set_document_title" {
+        let gs = state.borrow::<SharedState>().clone();
+        gs.borrow_mut().title = arg1;
+        return "null".into();
+    }
+    // Style/tree writes don't all bump the DomTree epoch (attribute-level
+    // mutations don't allocate nodes), so the memoized layout run must be
+    // dropped explicitly at the write commands — the bootstrap mirrors
+    // this set as _DOM_MUTATION_COMMANDS for its getComputedStyle
+    // snapshot epoch, and both sides see the same op_dom traffic through
+    // the same choke point.
+    #[cfg(feature = "screenshot")]
+    if matches!(
+        cmd.as_str(),
+        "append_child"
+            | "insert_before"
+            | "remove_child"
+            | "set_attribute"
+            | "remove_attribute"
+            | "set_text_content"
+            | "set_inner_html"
+            | "set_live_value"
+            | "set_live_checked" | "set_live_indeterminate"
+            | "set_focused"
+            | "set_selection"
+            | "document_write_reset"
+    ) {
+        let gs = state.borrow::<SharedState>().clone();
+        // Paint-only style write (#395): a timeline seek lands as
+        // set_attribute("style", …) whose changed declarations sit inside
+        // {transform, opacity} — the compositor-only set a real browser
+        // never re-layouts for; the taffy solve ignores them, so it
+        // survives and the next layout run re-collects against the cached
+        // tree (measured 109ms/frame seeks → the paint floor). The diff is
+        // per-property and value-aware (#220): a same-name rewrite of a
+        // solve-feeding property (padding, width, …) must not ride this
+        // path; runs pre-write, so the OLD attribute is still on the node.
+        //
+        // Value-identity short-circuit (#398): a style write whose full
+        // serialized string is byte-identical to what's already on the node
+        // cannot change any computed style, so no cache drops and layout_rev
+        // holds — that flat revision is what the video pump's static-frame
+        // reuse keys on. The DOM write below still happens (observers see
+        // it, exactly as Chrome fires mutation records for a redundant
+        // setAttribute); only the invalidation is skipped, the same way
+        // Chrome's style system dedupes equal declarations.
+        let mut paint_only = false;
+        let mut identity = false;
+        if cmd.as_str() == "set_attribute"
+            && arg2
+                .split_once('\0')
+                .is_some_and(|(name, _)| name.eq_ignore_ascii_case("style"))
+        {
+            let old = arg1
+                .parse::<u32>()
+                .ok()
+                .map(NodeId::new)
+                .and_then(|id| {
+                    gs.borrow()
+                        .dom
+                        .as_ref()
+                        .and_then(|d| d.get_node(id).and_then(|n| n.get_attribute("style").map(|s| s.to_string())))
+                });
+            let new = arg2.split_once('\0').map(|(_, v)| v);
+            identity = old.as_deref() == new;
+            paint_only = !identity && style_write_is_paint_only(old.as_deref(), new);
+        }
+        // Inert attribute writes (obscura#983): tabindex/title/role/
+        // data-*/aria-* change no computed style and no layout input on
+        // their own — a docs theme writing tabindex per heading used to pay
+        // a full re-layout per write. Escape hatch: if any loaded rule's
+        // selector references the name (`[data-x]`, `[aria-expanded]`), the
+        // write still invalidates. Everything layout, pseudo-classes, or
+        // fetch triggers read (class/id/style, width/height/colspan/…,
+        // disabled/checked/href/src/rel) is deliberately NOT in the inert
+        // set. The DOM write below still happens either way.
+        let attr_name = match cmd.as_str() {
+            "set_attribute" => arg2.split_once('\0').map(|(n, _)| n),
+            "remove_attribute" => Some(arg2.as_str()),
+            _ => None,
+        };
+        let inert = attr_name.is_some_and(|n| {
+            let gs = gs.borrow();
+            let skip = attr_write_is_layout_inert(n, gs.attr_selector_names.borrow().as_ref());
+            skip
+        });
+        if !identity && !inert {
+            if paint_only {
+                gs.borrow().drop_paint_only();
+            } else {
+                gs.borrow().drop_layout();
+            }
+        }
+    }
+    // Persona viewport: needs a mutable borrow, so it runs before the main
+    // read-only `gs` alias below (same pattern as set_document_title).
+    #[cfg(feature = "screenshot")]
+    if cmd == "set_viewport" {
+        let gs = state.borrow::<SharedState>().clone();
+        let w = arg1.parse::<f32>().unwrap_or(1920.0);
+        let h = arg2.parse::<f32>().unwrap_or(1000.0);
+        if w.is_finite() && w > 0.0 && h.is_finite() && h > 0.0 {
+            let mut gs = gs.borrow_mut();
+            gs.viewport = (w, h);
+            // Any rects memoized under the old ICB are stale now.
+            gs.drop_layout();
+        }
+        return "ok".into();
+    }
+    // Emulated media environment from CDP `Emulation.setEmulatedMedia`
+    // (Playwright's page.emulateMedia). The bootstrap recomputes its
+    // matchMedia tables first and then pushes the same pairs here, so the
+    // cascade face and the script face flip together; @media arms re-parse
+    // on the next layout run.
+    #[cfg(feature = "screenshot")]
+    if cmd == "set_media_env" {
+        let gs = state.borrow::<SharedState>().clone();
+        let features: Vec<(String, String)> = serde_json::from_str(&arg1).unwrap_or_default();
+        let media_type = if arg2.eq_ignore_ascii_case("print") {
+            crate::diting_css::CssMediaType::Print
+        } else {
+            crate::diting_css::CssMediaType::Screen
+        };
+        {
+            let mut gs = gs.borrow_mut();
+            gs.media_type = media_type;
+            gs.media_overrides.features = features;
+            gs.drop_layout();
+        }
+        return "ok".into();
+    }
+    // Root-scroller offset mirror from the bootstrap (viewport roots only;
+    // element-level scrolling is not mirrored). The bootstrap already clamps
+    // negatives to 0; band paint clamps to the scrollable range itself.
+    #[cfg(feature = "screenshot")]
+    if cmd == "set_scroll_offset" {
+        let gs = state.borrow::<SharedState>().clone();
+        let x = arg1.parse::<f32>().unwrap_or(0.0);
+        let y = arg2.parse::<f32>().unwrap_or(0.0);
+        if x.is_finite() && y.is_finite() {
+            gs.borrow_mut().scroll_offset = (x.max(0.0), y.max(0.0));
+        }
+        return "ok".into();
+    }
+    // CSS animation clock, driven by the video pump. Negative/NaN rejected;
+    // t=0 (the pre-delay state) is a legal sample.
+    #[cfg(feature = "screenshot")]
+    if cmd == "set_css_time" {
+        let gs = state.borrow::<SharedState>().clone();
+        let t = arg1.parse::<f64>().unwrap_or(f64::NAN);
+        if t.is_finite() && t >= 0.0 {
+            let mut gs = gs.borrow_mut();
+            if gs.css_time != Some(t) {
+                gs.css_time = Some(t);
+                gs.drop_paint_only();
+            }
+        }
+        return "ok".into();
+    }
+    // Transition registry (JS face detects the trigger and hands us the
+    // before/after computed values). The a2 slot carries a JSON blob —
+    // _domRaw only forwards two args. start=0 on the video timeline: page
+    // scripts run once during settle, so a registered transition plays from
+    // the pump's t=0. Live screenshots keep css_time=None and the sampler
+    // no-ops (end state stands) — the settled-posture collapse.
+    #[cfg(feature = "screenshot")]
+    if cmd == "add_css_transition" {
+        let gs = state.borrow::<SharedState>().clone();
+        let Some(nid) = arg1.parse::<u32>().ok().map(NodeId::new) else {
+            return "ok".into();
+        };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&arg2) else {
+            return "ok".into();
+        };
+        let Some(prop) = v
+            .get("prop")
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_ascii_lowercase())
+        else {
+            return "ok".into();
+        };
+        let parse_val = |name: &str, s: &str| -> Option<crate::diting_css::TransitionValue> {
+            match name {
+                "opacity" => s
+                    .trim()
+                    .parse::<f32>()
+                    .ok()
+                    .map(|n| crate::diting_css::TransitionValue::Opacity(n.clamp(0.0, 1.0))),
+                "color" | "background-color" => crate::diting_css::parse_color(s).map(|c| {
+                    crate::diting_css::TransitionValue::Color([
+                        c.0 as f32, c.1 as f32, c.2 as f32, c.3 as f32,
+                    ])
+                }),
+                // The computed snapshot is "none" or a `matrix(...)` string;
+                // `none` maps to the identity-side arm of lerp_transform so
+                // none↔matrix transitions still interpolate. A percentage
+                // translate has no used value at snapshot time (the computed
+                // table omits it) and fails to parse — no transition.
+                "transform" => {
+                    let s = s.trim();
+                    if s == "none" || s.is_empty() {
+                        Some(crate::diting_css::TransitionValue::Transform(None))
+                    } else {
+                        crate::diting_css::parse_transform(s)
+                            .map(|t| crate::diting_css::TransitionValue::Transform(Some(t)))
+                    }
+                }
+                _ => None,
+            }
+        };
+        let (Some(from), Some(to)) = (
+            v.get("from")
+                .and_then(|x| x.as_str())
+                .and_then(|s| parse_val(&prop, s)),
+            v.get("to")
+                .and_then(|x| x.as_str())
+                .and_then(|s| parse_val(&prop, s)),
+        ) else {
+            return "ok".into();
+        };
+        let duration = (v.get("duration").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32) / 1000.0;
+        let delay = (v.get("delay").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32) / 1000.0;
+        if !duration.is_finite()
+            || duration < 0.0
+            || !delay.is_finite()
+            || delay < 0.0
+            || duration + delay <= 0.0
+        {
+            return "ok".into();
+        }
+        let easing = v
+            .get("easing")
+            .and_then(|x| x.as_str())
+            .and_then(crate::diting_css::parse_easing_token)
+            .unwrap_or(crate::diting_css::Easing::CubicBezier(0.25, 0.1, 0.25, 1.0));
+        let gs = gs.borrow_mut();
+        let mut list = gs.css_transitions.borrow_mut();
+        // A re-trigger on the same (node, property) replaces the pending
+        // entry; the cap bounds a page that spams writes every frame.
+        list.retain(|tr| !(tr.nid == nid.index() && tr.property == prop));
+        if list.len() >= 256 {
+            list.remove(0);
+        }
+        list.push(crate::diting_css::CssTransition {
+            nid: nid.index(),
+            property: prop,
+            from,
+            to,
+            start: 0.0,
+            duration,
+            delay,
+            easing,
+        });
+        drop(list);
+        gs.drop_paint_only();
+        return "ok".into();
+    }
+    let gs = state.borrow::<SharedState>().clone();
+    let gs = gs.borrow();
+    // The history seed answers without a DOM tree and must survive the
+    // no-dom guard: bootstrap reads these to re-seed its history stack
+    // before any page script runs (obscura#1105).
+    if cmd == "history_pos" {
+        return gs.history_pos.to_string();
+    }
+    if cmd == "history_total" {
+        return gs.history_total.to_string();
+    }
+    let dom = match &gs.dom {
+        Some(d) => d,
+        None => return "null".to_string(),
+    };
+
+    // Node-id args that fail to parse must NOT silently become node 0 (the
+    // document root) — a fake-receiver call like
+    // `Element.prototype.setHTMLUnsafe.call({})` would otherwise wipe the
+    // whole document. Mutating commands no-op on an invalid id.
+    let parse_nid = |s: &str| -> Option<NodeId> { s.parse::<u32>().ok().map(NodeId::new) };
+
+    match cmd.as_str() {
+        "document_node_id" => dom.document().index().to_string(),
+        "document_title" => serde_json::to_string(&gs.title).unwrap_or("\"\"".into()),
+        "document_referrer" => serde_json::to_string(&gs.referrer).unwrap_or("\"\"".into()),
+        "document_url" => serde_json::to_string(&gs.url).unwrap_or("\"\"".into()),
+        // Document referrer policy (Referrer Policy §"Determine request's
+        // Referrer Policy"): header-delivered policy beats every <meta
+        // name=referrer>; "" = no policy (callers apply the spec default).
+        "document_referrer_policy" => {
+            let policy = resolve_referrer_policy_from(&gs, dom);
+            serde_json::to_string(&policy).unwrap_or("\"\"".into())
+        }
+        // Document BASE url (HTML §document-base-url): the document URL with
+        // the first <base href> folded in. This is what relative URL
+        // resolution (anchor/area href, form action, iframe src, fetch) must
+        // resolve against — upstream obscura #658. document.URL and origin
+        // checks stay on the plain "document_url".
+        "document_base_url" => {
+            let base = dom
+                .query_selector("base[href]")
+                .ok()
+                .flatten()
+                .and_then(|nid| {
+                    dom.get_node(nid)
+                        .and_then(|n| n.get_attribute("href").map(|v| v.to_string()))
+                });
+            let folded = base.and_then(|href| {
+                url::Url::parse(&gs.url)
+                    .ok()
+                    .and_then(|doc| doc.join(&href).ok())
+                    .map(|u| u.to_string())
+            });
+            serde_json::to_string(&folded.unwrap_or_else(|| gs.url.clone()))
+                .unwrap_or("\"\"".into())
+        }
+        "document_encoding" => serde_json::to_string(&gs.encoding).unwrap_or("\"UTF-8\"".into()),
+        "document_content_type" => {
+            serde_json::to_string(&gs.content_type).unwrap_or("\"\"".into())
+        }
+        "document_element" => {
+            for cid in dom.children(dom.document()) {
+                if let Some(n) = dom.get_node(cid) {
+                    if n.as_element().map(|name| name.local.as_str() == "html").unwrap_or(false) {
+                        return cid.index().to_string();
+                    }
+                }
+            }
+            "-1".into()
+        }
+        "document_doctype" => {
+            for cid in dom.children(dom.document()) {
+                if let Some(n) = dom.get_node(cid) {
+                    if let crate::diting_dom::NodeData::Doctype { name, public_id, system_id } = &n.data {
+                        return serde_json::json!({
+                            "name": name,
+                            "publicId": public_id,
+                            "systemId": system_id,
+                            "nodeId": cid.index(),
+                        }).to_string();
+                    }
+                }
+            }
+            "null".into()
+        }
+        "get_element_by_id" => {
+            dom.get_element_by_id(&arg1).map(|id| id.index().to_string()).unwrap_or("-1".into())
+        }
+        "query_selector" => {
+            dom.query_selector(&arg1).ok().flatten().map(|id| id.index().to_string()).unwrap_or("-1".into())
+        }
+        "query_selector_all" => {
+            let ids: Vec<i32> = dom.query_selector_all(&arg1).ok()
+                .map(|ids| ids.iter().map(|id| id.index() as i32).collect()).unwrap_or_default();
+            serde_json::to_string(&ids).unwrap_or("[]".into())
+        }
+        "query_selector_scoped" => {
+            let root_nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.query_selector_from(NodeId::new(root_nid), &arg2).ok().flatten()
+                .map(|id| id.index().to_string()).unwrap_or("-1".into())
+        }
+        "query_selector_all_scoped" => {
+            let root_nid = arg1.parse::<u32>().unwrap_or(0);
+            let ids: Vec<i32> = dom.query_selector_all_from(NodeId::new(root_nid), &arg2).ok()
+                .map(|ids| ids.iter().map(|id| id.index() as i32).collect()).unwrap_or_default();
+            serde_json::to_string(&ids).unwrap_or("[]".into())
+        }
+        // Single-element match with `:scope` bound to the element itself
+        // (Element.matches semantics). "0" on a parse error, mirroring how the
+        // query ops return empty results rather than surfacing the error.
+        "matches_selector" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            if dom.matches_selector(NodeId::new(nid), &arg2).unwrap_or(false) { "1".into() } else { "0".into() }
+        }
+        "node_type" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.get_node(NodeId::new(nid)).map(|n| match &n.data {
+                NodeData::Document => "9", NodeData::Element { .. } => "1", NodeData::Text { .. } => "3",
+                NodeData::Comment { .. } => "8", NodeData::Doctype { .. } => "10", NodeData::ProcessingInstruction { .. } => "7",
+            }).unwrap_or("0").into()
+        }
+        "node_name" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let name: String = dom.get_node(NodeId::new(nid)).map(|n| match &n.data {
+                NodeData::Document => "#document".to_string(), NodeData::Element { name, .. } => if name.ns == html5ever::ns!(html) { name.local.as_str().to_ascii_uppercase() } else { name.local.as_str().to_string() },
+                NodeData::Text { .. } => "#text".to_string(), NodeData::Comment { .. } => "#comment".to_string(),
+                NodeData::Doctype { name, .. } => name.clone(), NodeData::ProcessingInstruction { target, .. } => target.clone(),
+            }).unwrap_or_default();
+            serde_json::to_string(&name).unwrap_or("\"\"".into())
+        }
+        "text_content" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            serde_json::to_string(&dom.text_content(NodeId::new(nid))).unwrap_or("\"\"".into())
+        }
+        "parent_node" | "first_child" | "last_child" | "next_sibling" | "prev_sibling" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.get_node(NodeId::new(nid)).and_then(|n| match cmd.as_str() {
+                "parent_node" => n.parent, "first_child" => n.first_child,
+                "last_child" => n.last_child, "next_sibling" => n.next_sibling,
+                "prev_sibling" => n.prev_sibling, _ => None,
+            }).map(|id| id.index().to_string()).unwrap_or("-1".into())
+        }
+        "next_in_subtree" => {
+            let root = NodeId::new(arg1.parse::<u32>().unwrap_or(0));
+            let current = NodeId::new(arg2.parse::<u32>().unwrap_or(0));
+            dom.next_in_subtree(root, current)
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        "next_after_subtree" => {
+            let root = NodeId::new(arg1.parse::<u32>().unwrap_or(0));
+            let current = NodeId::new(arg2.parse::<u32>().unwrap_or(0));
+            dom.next_after_subtree(root, current)
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        "prev_in_subtree" => {
+            let root = NodeId::new(arg1.parse::<u32>().unwrap_or(0));
+            let current = NodeId::new(arg2.parse::<u32>().unwrap_or(0));
+            dom.prev_in_subtree(root, current)
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        // Root of the local tree scope: ordinary parents only, so a shadow
+        // descendant resolves to its ShadowRoot (getRootNode default).
+        "tree_scope_root" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.tree_scope_root(NodeId::new(nid))
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        // Topmost root after crossing ShadowRoot-to-host edges
+        // (getRootNode({ composed: true })).
+        "shadow_including_root" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.shadow_including_root(NodeId::new(nid))
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        // The shadow root a host carries, as "root_index|mode" (or "-1").
+        // The JS shadowRoot getter consults this for roots the parser
+        // attached (declarative shadow DOM) — those never ran attachShadow,
+        // so the wrapper-side cache is cold.
+        "shadow_root_of" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            match dom.shadow_root(NodeId::new(nid)) {
+                Some(root) => {
+                    let mode = match dom.shadow_root_info(root).map(|i| i.mode) {
+                        Some(ShadowRootMode::Closed) => "closed",
+                        _ => "open",
+                    };
+                    format!("{}|{}", root.index(), mode)
+                }
+                None => "-1".into(),
+            }
+        }
+        // Every shadow root in the tree as JSON [[host, root, mode], ...].
+        // #95's hit-test pierce consumes the whole table in one call — the
+        // engine's own registry, so closed roots are indistinguishable from
+        // open ones here and page JS cannot forge entries.
+        "shadow_hosts" => {
+            let mut hosts: Vec<(usize, usize, &str)> = dom
+                .shadow_hosts()
+                .into_iter()
+                .map(|(host, root, mode)| {
+                    let m = if matches!(mode, ShadowRootMode::Closed) {
+                        "closed"
+                    } else {
+                        "open"
+                    };
+                    (host.index(), root.index(), m)
+                })
+                .collect();
+            hosts.sort();
+            serde_json::to_string(&hosts).unwrap_or_else(|_| "[]".to_string())
+        }
+        "assigned_slot" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.assigned_slot(NodeId::new(nid))
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        "assigned_nodes" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            // "null" vs "[]": a slot outside any shadow tree has no
+            // assignment AND no fallback; a slot inside one that nothing is
+            // assigned to serves its fallback children (the JS side reads
+            // the distinction).
+            match dom.assigned_nodes(NodeId::new(nid)) {
+                Some(ids) => serde_json::to_string(
+                    &ids.iter().map(|id| id.index()).collect::<Vec<_>>(),
+                )
+                .unwrap_or("[]".into()),
+                None => "null".into(),
+            }
+        }
+        "child_nodes" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let ids: Vec<i32> = dom.children(NodeId::new(nid)).iter().map(|id| id.index() as i32).collect();
+            serde_json::to_string(&ids).unwrap_or("[]".into())
+        }
+        "tag_name" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let name = dom.get_node(NodeId::new(nid)).and_then(|n| n.as_element().map(|name|
+                // HTML elements read uppercase (Chrome tagName convention);
+                // XML-namespace elements keep their source case.
+                if name.ns == html5ever::ns!(html) { name.local.as_str().to_ascii_uppercase() } else { name.local.as_str().to_string() }
+            )).unwrap_or_default();
+            serde_json::to_string(&name).unwrap_or("\"\"".into())
+        }
+        // True per-node namespace from the tree (parsed SVG children inherit
+        // theirs from the html5ever foreign-content parse; create_element
+        // records what the caller passed). The JS-side namespaceURI getter
+        // reads this — a JS-only heuristic used to report XHTML for every
+        // parsed <path>/<g>/... (#28).
+        "namespace_uri" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let ns = dom
+                .get_node(NodeId::new(nid))
+                .and_then(|n| n.as_element().map(|name| name.ns.as_str().to_string()));
+            serde_json::to_string(&ns).unwrap_or("null".into())
+        }
+        "get_attribute" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let val = dom.get_node(NodeId::new(nid)).and_then(|n| n.get_attribute(&arg2).map(|s| s.to_string()));
+            serde_json::to_string(&val).unwrap_or("null".into())
+        }
+        "attribute_names" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let names: Vec<String> = dom
+                .get_node(NodeId::new(nid))
+                .map(|n| {
+                    n.attrs()
+                        .map(|a| a.iter().map(|x| x.name.local.as_str().to_string()).collect())
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+            serde_json::to_string(&names).unwrap_or("[]".into())
+        }
+        "set_attribute" => {
+            let node_id = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            if let Some((name, value)) = arg2.split_once('\0') {
+                if name == "id" {
+                    let old_id = dom.get_node(node_id).and_then(|n| n.get_attribute("id").map(|s| s.to_string()));
+                    dom.with_node_mut(node_id, |n| n.set_attribute(name, value.to_string()));
+                    dom.update_id_index(node_id, old_id.as_deref(), Some(value));
+                } else {
+                    dom.with_node_mut(node_id, |n| n.set_attribute(name, value.to_string()));
+                }
+                // Any attribute write (id/class/style/attr selectors) can
+                // change this node's subtree, siblings, and ancestor
+                // matches — the incremental matcher re-probes exactly those.
+                dom.note_restyle(node_id);
+            }
+            "true".into()
+        }
+        // The form-control dirty value mirrored from the bootstrap's value
+        // setter (see NodeData::Element::live_value). Not an attribute on
+        // purpose: getAttribute/outerHTML must keep showing the ORIGINAL
+        // value attribute like Chrome, while paint reads this instead.
+        "set_live_value" => {
+            let node_id = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            dom.with_node_mut(node_id, |n| n.set_live_value(arg2.to_string()));
+            "true".into()
+        }
+        // The checkable-input dirty checkedness mirror, same posture as
+        // set_live_value: paint reads it to draw the checkbox/radio widget
+        // state, while getAttribute/outerHTML keep showing only the parsed
+        // `checked` attribute like Chrome.
+        "set_live_checked" | "set_live_indeterminate" => {
+            let node_id = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            dom.with_node_mut(node_id, |n| if cmd == "set_live_checked" { n.set_live_checked(arg2 == "1") } else { n.set_live_indeterminate(arg2 == "1") });
+            "true".into()
+        }
+        // Focus mirror (blitz#839): the bootstrap's focus()/blur() keep the
+        // JS-side __diting_focused global for activeElement, and this op
+        // mirrors the same fact into the tree so :focus/:focus-within/
+        // :focus-visible selectors match on the next style run. arg2 "0"
+        // clears (the JS side passes the node it is blurring; a blur when
+        // some OTHER node holds focus must not steal it away).
+        "set_focused" => {
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
+            if arg2 == "1" {
+                dom.set_focused_node(Some(node_id));
+            } else if dom.focused_node() == Some(node_id) {
+                dom.set_focused_node(None);
+            }
+            "true".into()
+        }
+        // Hover/active mirrors (#152): the interaction layer's hover
+        // transitions and press/release builders keep JS-side markers and
+        // mirror the same facts into the tree so :hover/:active match on
+        // the next style run. Same identity guard as set_focused's clear
+        // arm — a stale blur/clear for a node that no longer holds the
+        // state must not steal it.
+        "set_hover" => {
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
+            if arg2 == "1" {
+                dom.set_hovered_node(Some(node_id));
+            } else if dom.hovered_node() == Some(node_id) {
+                dom.set_hovered_node(None);
+            }
+            "true".into()
+        }
+        "set_active" => {
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
+            if arg2 == "1" {
+                dom.set_active_node(Some(node_id));
+            } else if dom.active_node() == Some(node_id) {
+                dom.set_active_node(None);
+            }
+            "true".into()
+        }
+        // Selection mirror (caret batch): the bootstrap's selection APIs
+        // keep (start, end) in WeakMaps for JS reads; this op mirrors the
+        // same record into the tree so paint can resolve the caret at
+        // collect time. arg2 is "start,end" — the JS numbers verbatim;
+        // paint clamps to the value's char count (UTF-16 vs chars diverge
+        // on astral text, accepted).
+        "set_selection" => {
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
+            let Some((start, end)) = arg2.split_once(',') else {
+                return "false".into();
+            };
+            let (Ok(start), Ok(end)) = (start.trim().parse::<usize>(), end.trim().parse::<usize>())
+            else {
+                return "false".into();
+            };
+            dom.set_selection(Some((node_id, start, end)));
+            "true".into()
+        }
+        "inner_html" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            serde_json::to_string(&dom.inner_html(NodeId::new(nid))).unwrap_or("\"\"".into())
+        }
+        "outer_html" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            serde_json::to_string(&dom.outer_html(NodeId::new(nid))).unwrap_or("\"\"".into())
+        }
+        "append_child" => {
+            let (parent, child) = match (parse_nid(&arg1), parse_nid(&arg2)) {
+                (Some(p), Some(c)) => (p, c),
+                _ => return "false".into(),
+            };
+            dom.append_child(parent, child);
+            "true".into()
+        }
+        "remove_child" => {
+            let child = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            dom.remove_child(child);
+            "true".into()
+        }
+        "insert_before" => {
+            let (new_node, ref_node) = match (parse_nid(&arg1), parse_nid(&arg2)) {
+                (Some(n), Some(r)) => (n, r),
+                _ => return "false".into(),
+            };
+            dom.insert_before(ref_node, new_node);
+            "true".into()
+        }
+        "remove_attribute" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            dom.with_node_mut(nid, |n| {
+                if let NodeData::Element { attrs, .. } = &mut n.data {
+                    attrs.retain(|a| a.name.local.as_str() != arg2.as_str());
+                }
+            });
+            dom.note_restyle(nid);
+            "true".into()
+        }
+        "set_inner_html" => {
+            let target = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            let children = dom.children(target);
+            for child in children {
+                dom.detach(child);
+            }
+            if !arg2.is_empty() {
+                let context_name = dom
+                    .with_node(target, |node| match &node.data {
+                        NodeData::Element { name, .. } => Some(name.clone()),
+                        _ => None,
+                    })
+                    .flatten();
+                let fragment = match context_name {
+                    Some(name) => crate::diting_dom::parse_fragment_with_context(&arg2, name),
+                    None => crate::diting_dom::parse_fragment(&arg2),
+                };
+                let import_root = fragment.fragment_root();
+                dom.import_children_from(target, &fragment, import_root);
+                // innerHTML-created scripts are inert per spec — mark them
+                // started so a later move/clone never executes them.
+                for child in dom.children(target) {
+                    mark_script_subtree_started(&gs, child);
+                }
+            }
+            "true".into()
+        }
+        // document.write() feeds the document's input stream, so the calls
+        // share one parser and one tokenizer state. Returns the nodes that
+        // became complete with this call as [[parent, node], …], parents
+        // before children; a `parent` of 0 means the node belongs at the
+        // insertion point, which the JS caller knows. Nothing is inserted
+        // here: insertion must go through Node.appendChild on the JS side,
+        // which also reports the mutation and runs written scripts.
+        "document_write" => {
+            gs.pending_write_nav.set(true);
+            let mut slot = gs.write_stream.borrow_mut();
+            let stream = slot.get_or_insert_with(crate::diting_js::write_stream::DocumentWriteStream::new);
+            let pairs: Vec<[i32; 2]> = stream
+                .write(&arg2, dom)
+                .iter()
+                .map(|placement| {
+                    [
+                        placement.parent.map_or(0, |id| id.index() as i32),
+                        placement.node.index() as i32,
+                    ]
+                })
+                .collect();
+            serde_json::to_string(&pairs).unwrap_or("[]".into())
+        }
+        // document.open() discards what the input stream holds and starts over.
+        "document_write_reset" => {
+            *gs.write_stream.borrow_mut() = None;
+            "true".into()
+        }
+        "set_text_content" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            dom.with_node_mut(nid, |n| {
+                match &mut n.data {
+                    NodeData::Text { contents } => { *contents = arg2.clone(); }
+                    NodeData::Comment { contents } => { *contents = arg2.clone(); }
+                    NodeData::ProcessingInstruction { data, .. } => { *data = arg2.clone(); }
+                    _ => {}
+                }
+            });
+            "true".into()
+        }
+        "create_document_fragment" => {
+            dom.new_node(NodeData::Document).index().to_string()
+        }
+        "clone_node" => {
+            let nid = match arg1.parse::<u32>() {
+                Ok(n) => n,
+                Err(_) => return "-1".into(),
+            };
+            let source = NodeId::new(nid);
+            match dom.clone_node(source, arg2 == "true") {
+                Some(cloned) => {
+                    propagate_script_start_state(
+                        dom,
+                        source,
+                        cloned,
+                        &gs.already_started_scripts,
+                    );
+                    cloned.index().to_string()
+                }
+                None => "-1".into(),
+            }
+        }
+        "template_contents" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.template_contents(NodeId::new(nid))
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
+        }
+        "create_element" => {
+            // arg2 records a namespace on the node. The HTML path passes the
+            // XHTML namespace explicitly (keeping tag_name/node_name's
+            // uppercase convention); DOMParser's XML tree builder passes the
+            // xmlns-resolved namespace, and an empty string is the null
+            // namespace — what XML semantics require for elements with no
+            // xmlns in scope. Serialization keys off this distinction: HTML
+            // void elements self-close, XML elements always keep their
+            // closing tag and text children.
+            let ns = if arg2 == "http://www.w3.org/1999/xhtml" {
+                html5ever::ns!(html)
+            } else {
+                html5ever::Namespace::from(arg2.as_str())
+            };
+            dom.new_node(NodeData::Element {
+                name: html5ever::QualName::new(None, ns, html5ever::LocalName::from(arg1.as_str())),
+                attrs: vec![], template_contents: None, mathml_annotation_xml_integration_point: false,
+                live_value: None,
+                live_checked: None, live_indeterminate: false,
+            }).index().to_string()
+        }
+        "create_text_node" => {
+            dom.new_node(NodeData::Text { contents: arg1.clone() }).index().to_string()
+        }
+        "create_comment_node" => {
+            dom.new_node(NodeData::Comment { contents: arg1.clone() }).index().to_string()
+        }
+        "create_processing_instruction" => {
+            // arg1 = target, arg2 = data
+            dom.new_node(NodeData::ProcessingInstruction {
+                target: arg1.clone(),
+                data: arg2.clone(),
+            }).index().to_string()
+        }
+        "create_doctype" => {
+            // arg1 = name, arg2 = public_id. system_id stored only in the
+            // JS wrapper since neither current WPT test reads it back from
+            // the underlying tree.
+            dom.new_node(NodeData::Doctype {
+                name: arg1.clone(),
+                public_id: arg2.clone(),
+                system_id: String::new(),
+            }).index().to_string()
+        }
+        "pi_target" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let val = dom.get_node(NodeId::new(nid)).and_then(|n| match &n.data {
+                NodeData::ProcessingInstruction { target, .. } => Some(target.clone()),
+                _ => None,
+            }).unwrap_or_default();
+            serde_json::to_string(&val).unwrap_or("\"\"".into())
+        }
+        "doctype_name" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let val = dom.get_node(NodeId::new(nid)).and_then(|n| match &n.data {
+                NodeData::Doctype { name, .. } => Some(name.clone()),
+                _ => None,
+            }).unwrap_or_default();
+            serde_json::to_string(&val).unwrap_or("\"\"".into())
+        }
+        "doctype_public_id" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let val = dom.get_node(NodeId::new(nid)).and_then(|n| match &n.data {
+                NodeData::Doctype { public_id, .. } => Some(public_id.clone()),
+                _ => None,
+            }).unwrap_or_default();
+            serde_json::to_string(&val).unwrap_or("\"\"".into())
+        }
+        "element_children" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let ids: Vec<i32> = dom.children(NodeId::new(nid)).iter()
+                .filter(|&&id| dom.get_node(id).map(|n| n.is_element()).unwrap_or(false))
+                .map(|id| id.index() as i32).collect();
+            serde_json::to_string(&ids).unwrap_or("[]".into())
+        }
+        "has_child_nodes" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            dom.get_node(NodeId::new(nid)).map(|n| n.first_child.is_some()).unwrap_or(false).to_string()
+        }
+        "contains" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            let other = arg2.parse::<u32>().unwrap_or(0);
+            dom.descendants(NodeId::new(nid)).contains(&NodeId::new(other)).to_string()
+        }
+        // Index of a node among its parent's children. Walks prev siblings in
+        // Rust, avoiding the per-step JS->op round trips a Range comparison
+        // would otherwise make.
+        "node_index" => {
+            let nid = arg1.parse::<u32>().unwrap_or(0);
+            node_child_index(dom, NodeId::new(nid)).to_string()
+        }
+        // Document (preorder) tree order of two nodes: -1 if a precedes b, 1 if
+        // a follows b, 0 if equal. Used by the Range boundary-point algorithms.
+        "compare_order" => {
+            let a = NodeId::new(arg1.parse::<u32>().unwrap_or(0));
+            let b = NodeId::new(arg2.parse::<u32>().unwrap_or(0));
+            compare_node_order(dom, a, b).to_string()
+        }
+        // Root (topmost ancestor) of a node, in one op rather than an O(depth)
+        // walk of parentNode ops from JS.
+        "node_root" => {
+            let mut cur = NodeId::new(arg1.parse::<u32>().unwrap_or(0));
+            while let Some(p) = dom.get_node(cur).and_then(|x| x.parent) {
+                cur = p;
+            }
+            cur.index().to_string()
+        }
+        // External stylesheet bodies (absolute URL → CSS text) fetched at
+        // navigation. document.styleSheets reads this to build real
+        // CSSStyleSheet entries for <link rel=stylesheet> elements — the
+        // fetch itself lives in Page's navigation pipeline, this is the
+        // retention side.
+        "ext_sheets" => {
+            let map = gs.ext_sheets.borrow();
+            let mut obj = serde_json::Map::with_capacity(map.len());
+            for (k, v) in map.iter() {
+                obj.insert(k.clone(), serde_json::Value::String(v.clone()));
+            }
+            serde_json::Value::Object(obj).to_string()
+        }
+        // Real per-request resource timings (#126): epoch-stamped fetch
+        // records from the navigation pipeline. The JS side converts them
+        // into the resource clock and merges with its own fetch/XHR
+        // entries; requests without a real measurement never appear.
+        "resource_timings" => {
+            let list = gs.resource_timings.borrow();
+            serde_json::to_string(
+                &list
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "name": r.name,
+                            "initiatorType": r.initiator,
+                            "start": r.start_epoch_ms,
+                            "duration": r.duration_ms,
+                            "status": r.status,
+                            "bodySize": r.body_size,
+                            "renderBlocking": r.render_blocking,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_string())
+        }
+        // clearResourceTimings(): the buffer spans BOTH faces (Rust-recorded
+        // subresources + JS-recorded fetch/XHR), so the clear crosses too.
+        "resource_timings_clear" => {
+            gs.resource_timings.borrow_mut().clear();
+            "true".to_string()
+        }
+        // Stylesheet body for a link that entered the live document (or
+        // re-href'd inside it) after navigation — fetched by the bootstrap's
+        // dynamic-link loader and parked here so both layout_run_all's
+        // cascade join and document.styleSheets see it. The layout cache
+        // must drop: a new sheet can flip any rule match, which the tree
+        // epoch cannot express (same reasoning as the attribute-write
+        // commands at the top of this dispatcher).
+        "ext_sheet_put" => {
+            gs.ext_sheets.borrow_mut().insert(arg1, arg2);
+            #[cfg(feature = "screenshot")]
+            {
+                gs.drop_layout();
+            }
+            "null".to_string()
+        }
+        // Parse CSS text into rule records for CSSOM: real selector +
+        // declaration text from the same parser the cascade uses, so
+        // sheet.cssRules agrees with what layout actually applies.
+        "parse_css_rules" => {
+            let rules = crate::diting_css::parse_stylesheet(&arg1);
+            let arr: Vec<serde_json::Value> = rules
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "selectorText": r.selector,
+                        "cssText": format!("{}{{{}}}", r.selector, r.declarations),
+                        "declarations": r.declarations,
+                    })
+                })
+                .collect();
+            serde_json::Value::Array(arr).to_string()
+        }
+        "text_rects" | "elem_rects" => text_geom::run(&gs, dom, &cmd, &arg1, &arg2),
+        // Real layout geometry for one element, from the diting_css +
+        // diting_layout pipeline. Memoized per tree epoch; a stale epoch
+        // (any node allocation/free since the last run) re-lays-out. Returns
+        // "[x,y,width,height]" or "null". Gated behind the screenshot
+        // feature because diting_layout pulls taffy/swash; without it the
+        // bootstrap falls back to its synthetic hit-test grid.
+        #[cfg(feature = "screenshot")]
+        "layout_rect" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let rect = gs.layout_cache.borrow().as_ref().and_then(|(e, (m, ..))| {
+                if *e == epoch { m.get(&nid).copied() } else { None }
+            });
+            match rect {
+                // Sticky v1: the border-box rect carries the scroll-dependent
+                // shift so gBCR/offsetTop track the visual position (the
+                // same in-flow + sticky pairing the paint side applies).
+                // Plain elements read a zero entry — bytes unchanged.
+                Some([x, y, w, h]) => {
+                    let sh = *sticky_shifts(&gs, dom).get(&nid).unwrap_or(&[0.0, 0.0]);
+                    format!("[{},{},{},{}]", x + sh[0], y + sh[1], w, h)
+                }
+                None => {
+                    // A valid layout run for this epoch says the element has
+                    // NO box (display:none, detached, or composed-tree-hidden:
+                    // an unslotted light child / a slot element) — Chrome
+                    // answers an all-zero DOMRect there. "null" stays reserved
+                    // for an invalid nid or a failed layout run, the cases
+                    // where bootstrap's synthetic grid is the fallback.
+                    if gs
+                        .layout_cache
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|(e, _)| *e == epoch)
+                    {
+                        "[0,0,0,0]".into()
+                    } else {
+                        "null".into()
+                    }
+                }
+            }
+        }
+        // Elements in paint order (ascending), from the same layout run as
+        // `layout_rect`. Backs elementFromPoint: document order is not paint
+        // order once positioned z-index siblings hoist out of it (obscura
+        // #738). Boxless inline wrappers are absent — the JS side ranks
+        // them with their nearest boxed ancestor.
+        #[cfg(feature = "screenshot")]
+        "paint_order" => {
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let order = gs.layout_cache.borrow().as_ref().and_then(|(e, (_, o, ..))| {
+                if *e == epoch { Some(o.clone()) } else { None }
+            });
+            let order = order.unwrap_or_default();
+            let mut s = String::with_capacity(order.len() * 8 + 2);
+            s.push('[');
+            for (i, id) in order.iter().enumerate() {
+                if i > 0 { s.push(','); }
+                s.push_str(&id.index().to_string());
+            }
+            s.push(']');
+            s
+        }
+        // Per-element LOCAL geometry (blitz #663 family): the pre-map
+        // border box and the element's TOTAL accumulated paint map as
+        // "[x,y,w,h,a,b,c,d,e,f]", or "null" for a boxless element or a
+        // failed run. Backs offsetX/Y inverse mapping and exact-shape hit
+        // testing — the JS side rejects hit points that fall inside the
+        // element's axis-aligned bounding box but outside the true
+        // transformed shape.
+        #[cfg(feature = "screenshot")]
+        "local_geom" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let guard = gs.layout_cache.borrow();
+            let geom = guard.as_ref().and_then(|(e, run)| {
+                if *e == epoch { run.4.get(&nid).copied() } else { None }
+            });
+            drop(guard);
+            match geom {
+                // Sticky v1: shift the border box and prepend the shift onto
+                // the TOTAL map's e/f (T·M — a document-space translate, the
+                // same fold the paint side composes into a bracket), so
+                // offset inverse-mapping and exact-shape hit tests land on
+                // the visual geometry.
+                Some(([x, y, w, h], [a, b, c, d, e, f])) => {
+                    let sh = *sticky_shifts(&gs, dom).get(&nid).unwrap_or(&[0.0, 0.0]);
+                    format!(
+                        "[{},{},{},{},{},{},{},{},{},{}]",
+                        x + sh[0],
+                        y + sh[1],
+                        w,
+                        h,
+                        a,
+                        b,
+                        c,
+                        d,
+                        e + sh[0],
+                        f + sh[1]
+                    )
+                }
+                None => "null".into(),
+            }
+        }
+        // getBoundingClientRect / getClientRects inside a fabricated iframe
+        // document (obscura #976): a sync-created contentDocument is an
+        // orphan Rust DOM subtree the main run's rect map never covers, so
+        // the main-document `layout_rect` answered all zeros. This sub-run
+        // answers in the IFRAME'S OWN viewport (the 300x150 default box the
+        // fabricated _IframeWindow publishes), matching Chrome — which
+        // measures iframe-doc elements against the iframe's viewport with no
+        // coordinate stitching into the host page. arg1 must belong to an
+        // orphan subtree; the walk reaching the document node means a
+        // main-document element was misrouted here (the JS side only calls
+        // this through the iframe-doc marker) and gets "null".
+        #[cfg(feature = "screenshot")]
+        "iframe_layout_rect" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let mut root = nid;
+            while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
+                root = p;
+            }
+            if root == dom.document() {
+                return "null".into();
+            }
+            let (vw, vh) = parse_iframe_viewport(&arg2);
+            let run = iframe_layout_run(&gs, dom, root, vw, vh);
+            match run.0.get(&nid) {
+                Some(&[x, y, w, h]) => format!("[{},{},{},{}]", x, y, w, h),
+                // A fresh run without the nid = boxless element in the iframe
+                // doc (display:none, …) — the same all-zero DOMRect contract
+                // the main-document `layout_rect` serves.
+                None => "[0,0,0,0]".into(),
+            }
+        }
+        // The event-coordinate surface (offsetX/Y inverse mapping, exact
+        // hit shapes) inside a fabricated iframe document — same 10-tuple
+        // wire format as `local_geom`, served from the iframe-subtree run.
+        #[cfg(feature = "screenshot")]
+        "iframe_local_geom" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let mut root = nid;
+            while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
+                root = p;
+            }
+            if root == dom.document() {
+                return "null".into();
+            }
+            let (vw, vh) = parse_iframe_viewport(&arg2);
+            let run = iframe_layout_run(&gs, dom, root, vw, vh);
+            match run.4.get(&nid) {
+                Some(&([x, y, w, h], [a, b, c, d, e, f])) => {
+                    format!("[{},{},{},{},{},{},{},{},{},{}]", x, y, w, h, a, b, c, d, e, f)
+                }
+                None => "null".into(),
+            }
+        }
+        // offsetX/offsetY for a hit at a document-space point (arg2
+        // "docX,docY" — client + scroll) on element arg1 (blitz #663
+        // family): the point inverse-maps through the element's TOTAL
+        // accumulated map into its local space, minus the padding-edge
+        // origin. Singular or non-finite maps answer "null"; the JS side
+        // keeps its constructor defaults there.
+        #[cfg(feature = "screenshot")]
+        "event_offset" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let Some((px, py)) = arg2.split_once(',').and_then(|(xs, ys)| {
+                let x = xs.trim().parse::<f32>().ok()?;
+                let y = ys.trim().parse::<f32>().ok()?;
+                Some((x, y))
+            }) else {
+                return "null".into();
+            };
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let guard = gs.layout_cache.borrow();
+            let Some((_, run)) = guard.as_ref().filter(|(e, _)| *e == epoch) else {
+                return "null".into();
+            };
+            let Some(&([bx, by, _, _], [a, b, c, d, ex, ey])) = run.4.get(&nid) else {
+                return "null".into();
+            };
+            let det = a * d - b * c;
+            if det.abs() < 1e-9 {
+                return "null".into();
+            }
+            let lx = (d * (px - ex) - c * (py - ey)) / det;
+            let ly = (a * (py - ey) - b * (px - ex)) / det;
+            if !lx.is_finite() || !ly.is_finite() {
+                return "null".into();
+            }
+            // Padding edge = border box origin + border + padding on each
+            // axis. Px dominates click targets; percent/calc sides answer
+            // 0 there (v1 boundary — those elements keep working, just
+            // without the sub-box nudge).
+            let edge = |len: &Option<crate::diting_css::Length>| match len {
+                Some(crate::diting_css::Length::Px(v)) => *v,
+                _ => 0.0,
+            };
+            if let Some(style) = run.2.get(&nid) {
+                let ox = lx - bx - edge(&style.border_width.left) - edge(&style.padding.left);
+                let oy = ly - by - edge(&style.border_width.top) - edge(&style.padding.top);
+                format!("[{},{}]", ox, oy)
+            } else {
+                format!("[{},{}]", lx - bx, ly - by)
+            }
+        }
+        // CSSOM scrollWidth/scrollHeight for one element as "[w,h]", from
+        // the same layout run as `layout_rect`: the element's own box
+        // unioned with every laid-out DOM descendant's overflow extent
+        // relative to the element's origin (blitz #444 — scroll ranges that
+        // ignore overflowing content clamp agents out of the bottom of the
+        // page). html/body additionally clamp up to the viewport: Chrome's
+        // scrolling area is never smaller than the window, while its
+        // client* stay the viewport contract. Element boxes carry the
+        // content extent (blocks include their text, abspos kids have their
+        // own rects), so the element-rect walk approximates the CSSOM
+        // scrollable overflow region without per-margin-box geometry.
+        #[cfg(feature = "screenshot")]
+        "scroll_extent" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let guard = gs.layout_cache.borrow();
+            let Some((_, (rects, _, styles, items, _, _, _))) = guard.as_ref().filter(|(e, _)| *e == epoch)
+            else {
+                return "null".into();
+            };
+            let Some(&[ox, oy, ow, oh]) = rects.get(&nid) else { return "null".into() };
+            let is_root = dom
+                .with_node(nid, |n| {
+                    n.as_element().map(|e| {
+                        matches!(
+                            e.local.to_ascii_lowercase().as_str(),
+                            "html" | "body"
+                        )
+                    })
+                })
+                .flatten()
+                .unwrap_or(false);
+            let mut max_w = ow;
+            let mut max_h = oh;
+            let mut stack = dom.children(nid);
+            while let Some(cur) = stack.pop() {
+                // blitz#841: a viewport-fixed box never contributes to any
+                // scroller's overflow — its containing block is the viewport,
+                // so its (possibly transformed) rect must stay out of the
+                // union. The whole subtree skips: everything under it is
+                // pinned with it.
+                if is_viewport_fixed(dom, styles, cur, nid) {
+                    continue;
+                }
+                stack.extend(dom.children(cur));
+                if let Some(&[x, y, w, h]) = rects.get(&cur) {
+                    max_w = max_w.max((x + w - ox).max(0.0));
+                    max_h = max_h.max((y + h - oy).max(0.0));
+                }
+            }
+            if is_root {
+                let (vw, vh) = gs.viewport;
+                max_w = max_w.max(vw);
+                max_h = max_h.max(vh);
+                // The element walk can't see bare text — html/body stretch
+                // to the viewport, so a text-only body's ink never lifts the
+                // union past vh and the page can't scroll past its first
+                // screenful. Fold the Text items' wrap-model extent in (the
+                // same fold `band_frame` applies, so JS scrollHeight and the
+                // pump's clamp agree on the range).
+                let (ink_w, ink_h) = crate::diting_layout::paint::text_ink_extent(items);
+                max_w = max_w.max(ink_w);
+                max_h = max_h.max(ink_h);
+            }
+            // Viewport overflow propagation (blitz#880, css-overflow-3
+            // §3.3): hidden/clip carried by the root element — its own or
+            // handed up by the first body child — makes the viewport itself
+            // unscrollable, so the scrolling area collapses to exactly the
+            // viewport (Chrome: scrollingElement.scrollHeight ==
+            // clientHeight there). Only the root-element query collapses;
+            // body keeps its content extent (its used overflow became
+            // `visible`). Same clamp `band_frame` applies, so the JS range
+            // and the pump's stay in agreement.
+            let is_html = dom
+                .with_node(nid, |n| {
+                    n.as_element()
+                        .map(|e| e.local.to_ascii_lowercase().as_str() == "html")
+                })
+                .flatten()
+                .unwrap_or(false);
+            if is_html {
+                let eff = crate::diting_layout::effective_viewport_overflow(
+                    dom,
+                    styles,
+                    nid,
+                    |id| rects.contains_key(&id),
+                );
+                if matches!(
+                    eff,
+                    crate::diting_css::Overflow::Hidden | crate::diting_css::Overflow::Clip
+                ) {
+                    let (vw, vh) = gs.viewport;
+                    max_w = vw;
+                    max_h = vh;
+                }
+            }
+            format!("[{},{}]", max_w, max_h)
+        }
+        // Sticky v2: gate for the bootstrap's scrollTop/scrollLeft setters —
+        // is this element a real scroll container the shift walk will
+        // honor? "1"/"0"; bare builds answer "null" (falls through to the
+        // catch-all below) and the JS side treats that as not-a-scroller.
+        #[cfg(feature = "screenshot")]
+        "is_scroll_container" => {
+            let Some(nid) = parse_nid(&arg1) else { return "0".into() };
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let guard = gs.layout_cache.borrow();
+            let Some((_, (rects, _, styles, _, _, _, _))) =
+                guard.as_ref().filter(|(e, _)| *e == epoch)
+            else {
+                return "0".into();
+            };
+            if is_element_scroller(dom, rects, styles, nid) {
+                "1".into()
+            } else {
+                "0".into()
+            }
+        }
+        // Sticky v2 write-through: record one element scroller's offset.
+        // arg1 = nid, arg2 = "left\0top"; the JS setter clamped to the
+        // scrollable range before calling. scroll_gen (not the epoch)
+        // invalidates the shift caches, so scrolling never re-lays-out.
+        #[cfg(feature = "screenshot")]
+        "set_node_scroll" => {
+            let Some(nid) = parse_nid(&arg1) else { return "ok".into() };
+            if let Some((x, y)) = arg2.split_once('\0').and_then(|(x, y)| {
+                Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?))
+            }) {
+                if x.is_finite() && y.is_finite() {
+                    dom.set_node_scroll(nid, x, y);
+                }
+            }
+            "ok".into()
+        }
+        // Cascaded computed values for one element as a single JSON object,
+        // from the same style+layout run as layout_rect — the layer
+        // getComputedStyle was missing: only inline styles were consulted,
+        // so values from a <style> block (z-index, position, …) read back
+        // as the initial value (obscura #738's companion trap). Snapshot
+        // shape follows upstream's op_computed_style: one call returns the
+        // whole table, so a style object costs one native round-trip
+        // instead of one per property. Covers the layout-decision
+        // properties the ComputedStyle carries (inline style attr is
+        // folded in by compute_styles); unknown properties stay absent and
+        // the JS caller falls through to its own tables. Used value for
+        // width/height stays the bounding rect's job, so those are
+        // deliberately not in the table.
+        #[cfg(feature = "screenshot")]
+        "computed_style" => {
+            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            // Pseudo-element face (batch 102): arg2 routes to the host's
+            // cascaded ::before/::after styles. The JS wrapper validates the
+            // argument (TypeError for anything not `::name` or a legacy
+            // single-colon form), so anything non-empty reaching here answers
+            // either a pseudo cascade or — for pseudos with no matching rule
+            // and for `::name` forms the engine doesn't model — an
+            // initial-value table, matching Chrome's no-throw posture.
+            let pseudo_kind = match arg2.trim().to_ascii_lowercase().as_str() {
+                "" => 0u8,
+                "::before" | ":before" => 1,
+                "::after" | ":after" => 2,
+                _ => 3,
+            };
+            let cssom_tag = dom
+                .with_node(nid, |n| {
+                    n.as_element().map(|e| e.local.as_str().to_ascii_lowercase())
+                })
+                .flatten();
+            let epoch = dom.epoch();
+            ensure_layout_run(&gs, dom, epoch);
+            let style_and_cb = gs.layout_cache.borrow().as_ref().and_then(|(e, r)| {
+                if *e != epoch {
+                    return None;
+                }
+                let (rects, _, styles, _, _, _, _) = r;
+                let style = styles.get(&nid).cloned();
+                // #242: percentage padding/margin resolves to used px against
+                // the containing block — Chrome's gCS posture. Pseudos share
+                // the host's containing block.
+                let cb = cb_inline_for(dom, rects, styles, nid, 8);
+                style.map(|s| (s, cb))
+            });
+            match style_and_cb {
+                Some((s, cb)) => {
+                    // The pseudo cascade lives on the host's ComputedStyle;
+                    // a pseudo with no rule serializes the initial-value
+                    // table rather than an empty declaration.
+                    let pseudo_style = match pseudo_kind {
+                        1 => s.pseudos.as_ref().and_then(|p| p.before.as_ref()).cloned(),
+                        2 => s.pseudos.as_ref().and_then(|p| p.after.as_ref()).cloned(),
+                        _ => None,
+                    };
+                    let (target, tag) = match pseudo_style {
+                        Some(ps) => (ps, None),
+                        None if pseudo_kind == 0 => (s, cssom_tag),
+                        None => (crate::diting_css::ComputedStyle::default(), None),
+                    };
+                    let mut obj = serde_json::Map::with_capacity(
+                        COMPUTED_STYLE_PROPS.len() + target.custom.len(),
+                    );
+                    for prop in COMPUTED_STYLE_PROPS {
+                        if let Some(v) = computed_style_value(&target, prop, tag.as_deref(), cb) {
+                            obj.insert((*prop).to_string(), serde_json::Value::String(v));
+                        }
+                    }
+                    // Custom properties ride the same snapshot (case-sensitive
+                    // keys — the JS lookup skips its kebab-lowercase step for
+                    // `--` names): getComputedStyle(el).getPropertyValue('--x').
+                    for (k, v) in target.custom.iter() {
+                        obj.insert(k.clone(), serde_json::Value::String(v.clone()));
+                    }
+                    for (k, v) in crate::diting_css::props::missing_initials(&target.custom) {
+                        obj.insert(k, serde_json::Value::String(v));
+                    }
+                    serde_json::Value::Object(obj).to_string()
+                }
+                None => "null".into(),
+            }
+        }
+        #[cfg(not(feature = "screenshot"))]
+        "computed_style" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "layout_rect" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "paint_order" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "scroll_extent" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "local_geom" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "event_offset" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "iframe_layout_rect" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
+        "iframe_local_geom" => "null".into(),
+        _ => "null".into(),
+    }
+}
+
+/// Inline style string as an effective property map (lowercased names,
+/// trimmed values, last declaration wins; colon-less garbage stays raw).
+#[cfg(feature = "screenshot")]
+fn style_property_map(style: &str) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for decl in style.split(';') {
+        let (n, v) = decl.split_once(':').unwrap_or((decl, ""));
+        let n = n.trim().to_ascii_lowercase();
+        if !n.is_empty() {
+            map.insert(n, v.trim().to_string());
+        }
+    }
+    map
+}
+
+/// Is a style-attribute write paint-only — every property whose effective
+/// declaration differs (added, removed, or VALUE-changed) sits inside the
+/// paint-only set {transform, opacity, translate, rotate, scale}? Those
+/// feed no layout input, so the solve survives and only the collect half
+/// re-runs. Anything else (padding, width, …) feeds the solve: a same-name
+/// value rewrite used to pass a name-set diff vacuously and served the
+/// stale solve (#220's two-rounds-different-heights); a missing side gets
+/// the full drop.
+#[cfg(feature = "screenshot")]
+fn style_write_is_paint_only(old: Option<&str>, new: Option<&str>) -> bool {
+    const PAINT_ONLY: [&str; 5] = ["transform", "opacity", "translate", "rotate", "scale"];
+    let (Some(old), Some(new)) = (old, new) else { return false };
+    let old = style_property_map(old);
+    let new = style_property_map(new);
+    old.keys().chain(new.keys())
+        .all(|n| old.get(n) == new.get(n) || PAINT_ONLY.contains(&n.as_str()))
+}
+
+/// Can an attribute write never change computed style or layout on its own?
+/// The inert set is focus/a11y/script hooks (obscura#983); the escape hatch
+/// is the rule pool — a stylesheet selecting on the name (`[data-x]`)
+/// disqualifies it. `None` for the pool means no layout run has happened
+/// yet, so no cache exists to invalidate and skipping is free.
+#[cfg(feature = "screenshot")]
+fn attr_write_is_layout_inert(
+    name: &str,
+    selector_names: Option<&std::collections::HashSet<String>>,
+) -> bool {
+    let n = name.to_ascii_lowercase();
+    let inert = matches!(
+        n.as_str(),
+        "tabindex" | "title" | "role" | "accesskey" | "draggable" | "spellcheck"
+    ) || n.starts_with("data-")
+        || n.starts_with("aria-");
+    inert && !selector_names.is_some_and(|s| s.contains(n.as_str()))
+}
+
+/// One style+layout run over the live tree (see [`JsState::layout_cache`]):
+/// every element's border-box rect, the paint order, the cascaded
+/// ComputedStyle per element, the flat paint-item list in paint order
+/// (band paint's input — computed anyway, so caching it is free), and the
+/// per-element LOCAL geometry pair (pre-map border box + total accumulated
+/// map) backing the event-coordinate surface (`local_geom`/`event_offset`
+/// ops, blitz #663 family).
+#[cfg(feature = "screenshot")]
+type LayoutRun = (
+    HashMap<NodeId, [f32; 4]>,
+    Vec<NodeId>,
+    HashMap<NodeId, crate::diting_css::ComputedStyle>,
+    Vec<crate::diting_layout::PaintItem>,
+    HashMap<NodeId, ([f32; 4], [f32; 6])>,
+    // Sticky subtree item spans (root-scroller v1): (node, start, end) into
+    // the items vec — see layout_collect. Readers pair them with the
+    // scroll-dependent shift map (sticky_shifts).
+    Vec<crate::diting_layout::StickySpan>,
+    // Scroller subtree item spans (sticky v2): same shape, one per real
+    // scroll container, recorded after its Clip and closed before its
+    // PopClip — the read-time shift walk translates the span when the
+    // container's scrollTop/scrollLeft is non-zero.
+    Vec<crate::diting_layout::StickySpan>,
+);
+
+/// Run the full diting style + layout pipeline over the live DOM tree and
+/// return every element's border-box rect, the paint order (see
+/// `layout_dom_with_paint_order_and_images`) and the cascaded ComputedStyle
+/// per element (for the `computed_style` op). Styles are re-collected each
+/// run: attribute-level mutations (style/class writes) don't bump the tree
+/// epoch, so memoizing computed styles alongside the rects would serve
+/// stale geometry.
+#[cfg(feature = "screenshot")]
+fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
+    // Debug knob (DITING_LAYOUT_TRACE=1): phase timings for a full
+    // layout run. The interrupt-sampler evidence on the WeChat article pages
+    // shows multi-second stretches with no V8 stack check — candidates are
+    // the Rust phases below, each re-done from scratch on every epoch bump.
+    let trace = std::env::var("DITING_LAYOUT_TRACE").is_ok();
+    let t0 = std::time::Instant::now();
+    // Same viewport the persona publishes to window.innerWidth/innerHeight,
+    // so geometry agrees with what scripts read off `window` (and the ICB
+    // has a definite size for fixed-box inset resolution — obscura#675).
+    let (viewport_width, viewport_height) = gs.viewport;
+    let mut css = String::new();
+    // Sheets join in DOCUMENT order (a comma query returns exactly that):
+    // an earlier <link> loses equal-specificity ties to a later <style>,
+    // like Chrome's cascade. External sheet bodies come from the
+    // navigation-time fetch table (JsState::ext_sheets); a <link> whose
+    // fetch failed (or was blocked) contributes nothing, matching a
+    // browser that leaves the sheet empty rather than dropping the page's
+    // other styling.
+    if let Ok(els) = dom.query_selector_all("style, link") {
+        for el in els {
+            let meta = dom.with_node(el, |n| {
+                let tag = n.as_element()?.local.to_ascii_lowercase();
+                Some((
+                    tag,
+                    n.get_attribute("rel").map(|v| v.to_ascii_lowercase()),
+                    n.get_attribute("href").map(|v| v.to_string()),
+                ))
+            });
+            let Some((tag, rel, href)) = meta.flatten() else { continue };
+            match &*tag {
+                "style" => {
+                    // A sheet edited through CSSOM (insertRule on style.sheet — how
+                    // CSS-in-JS libraries style) overrides the element's text.
+                    match gs.ext_sheets.borrow().get(&format!("\u{0}style:{}", el.index())).and_then(|v| v.strip_prefix('\u{2}')) {
+                        Some(edited) => css.push_str(edited),
+                        None => css.push_str(&dom.text_content(el)),
+                    }
+                    css.push('\n');
+                }
+                "link" => {
+                    let is_sheet = rel
+                        .as_deref()
+                        .is_some_and(|r| r.split_ascii_whitespace().any(|t| t == "stylesheet"));
+                    if !is_sheet {
+                        continue;
+                    }
+                    let Some(href) = href.filter(|h| !h.is_empty()) else { continue };
+                    let abs = Url::parse(&gs.url)
+                        .ok()
+                        .and_then(|base| base.join(&href).ok())
+                        .map(|u| u.to_string());
+                    let Some(abs) = abs else { continue };
+                    if let Some(body) = gs.ext_sheets.borrow().get(&abs) {
+                        css.push_str(body);
+                        css.push('\n');
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    // Shadow trees are invisible to the document-rooted query above, but
+    // their <style> blocks style shadow content (composed rendering, phase
+    // 2). They join the pool after the light sheets — same global-pool
+    // approximation the rule matcher uses.
+    for text in crate::diting_layout::shadow_style_texts(dom) {
+        css.push_str(&text);
+        css.push('\n');
+    }
+    if let Some(adopted) = gs.ext_sheets.borrow().get("\u{0}adopted") {
+        css.push_str(adopted);
+    }
+    let t_css = t0.elapsed();
+    // Identity of the collected css bytes PLUS everything else that shapes
+    // the parsed rules (media emulation re-filters @media arms with the
+    // bytes unchanged, viewport re-folds vw/vh): unchanged key + tracked
+    // DOM mutations lets the rule match sets sync incrementally instead of
+    // re-matching the whole sheet (#111 — kissy's mount loop re-ran the
+    // 17k-rule match six times in one React commit).
+    let css_key = {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        css.hash(&mut hasher);
+        format!("{:?}|{:?}|{:?}", gs.viewport, gs.media_type, gs.media_overrides).hash(&mut hasher);
+        hasher.finish()
+    };
+    let (mut rules, keyframes, containers) = crate::diting_css::parse_stylesheet_full(
+        &css,
+        (viewport_width, viewport_height),
+        gs.media_type,
+        &gs.media_overrides,
+    );
+    let t_parse = t0.elapsed();
+    let mut styles_map = crate::diting_layout::compute_styles_timed(
+        dom,
+        &rules,
+        &keyframes,
+        gs.css_time,
+        &gs.css_transitions.borrow(),
+        (viewport_width, viewport_height),
+        Some(css_key),
+    );
+    // @container stage (moli#282): conditions answer against ancestor
+    // container geometry, which only exists after a solve — so the arms
+    // cascade in a second gated pass. Pass 1 styled the base rules; probe
+    // boxes come from the cached solve when it is fresh (any previous run's
+    // final geometry is a fine container-size estimate) and from one extra
+    // solve otherwise. Pages without @container skip all of this.
+    let mut styles_bumped = false;
+    if !containers.is_empty() {
+        let base_len = rules.len();
+        let probe_boxes = match gs.geometry_cache.borrow().as_ref() {
+            Some((e, solved)) if *e == dom.epoch() => solved.dom_boxes(),
+            _ => {
+                let fonts_probe = crate::diting_fonts::font_book();
+                let bytes_map = gs.image_bytes.borrow();
+                let network_bytes: Option<&HashMap<String, std::sync::Arc<Vec<u8>>>> =
+                    if bytes_map.is_empty() { None } else { Some(&bytes_map) };
+                let probe = crate::diting_layout::layout_solve(
+                    dom,
+                    &styles_map,
+                    &fonts_probe,
+                    viewport_width,
+                    viewport_height,
+                    network_bytes,
+                    Some(gs.url.as_str()),
+                );
+                probe.dom_boxes()
+            }
+        };
+        let plan = crate::diting_layout::container_plan(
+            dom,
+            &styles_map,
+            &probe_boxes,
+            &containers,
+            base_len,
+        );
+        if !plan.extra_rules.is_empty() {
+            rules.extend(plan.extra_rules);
+            styles_map = crate::diting_layout::compute_styles_gated(
+                dom,
+                &rules,
+                &keyframes,
+                gs.css_time,
+                &gs.css_transitions.borrow(),
+                base_len,
+                &plan.gates,
+                (viewport_width, viewport_height),
+            );
+            styles_bumped = true;
+        }
+    }
+    // Refresh the attribute-selector name pool the write path consults for
+    // inert-attribute invalidation skips (obscura#983). Sits after the
+    // container stage so @container inner rules join the pool too.
+    *gs.attr_selector_names.borrow_mut() =
+        Some(crate::diting_css::collect_selector_attr_names(&rules));
+    let t_styles = t0.elapsed();
+    // Finite animations span delay + duration * iterations. An endless one
+    // can't pin a length on its own, so it contributes nothing unless it is
+    // the only animation — then one full cycle keeps the extent the
+    // single-cycle sampler used to report (a -t pin overrides anyway).
+    // Registered transitions join the extent: a clip must run long enough
+    // to show them finish.
+    let mut css_extent = 0.0f64;
+    let mut endless_cycle = 0.0f64;
+    for a in styles_map.values().filter_map(|cs| cs.animation.as_ref()) {
+        if a.iterations.is_finite() {
+            css_extent = css_extent.max((a.delay + a.duration * a.iterations) as f64);
+        } else {
+            endless_cycle = endless_cycle.max((a.delay + a.duration) as f64);
+        }
+    }
+    for tr in gs.css_transitions.borrow().iter() {
+        css_extent = css_extent.max(tr.start + (tr.delay + tr.duration) as f64);
+    }
+    if css_extent <= 0.0 {
+        css_extent = endless_cycle;
+    }
+    gs.css_extent.set(css_extent);
+    let fonts = crate::diting_fonts::font_book();
+    // Solve-vs-collect split (#395): the taffy solve is cached keyed by the
+    // tree epoch. A paint-only style write (transform/opacity — the choke
+    // point in op_dom_inner) dropped the collected cache but kept this one,
+    // so the run below re-collects against the cached tree. Anything
+    // structural (tree mutation, class change, image bytes landing,
+    // viewport move) drops both caches and re-solves.
+    let epoch = dom.epoch();
+    // A gated container re-cascade changed styles without bumping the epoch:
+    // the cached solve (if any) was built against pass-1 styles, so it must
+    // not be reused — force the fresh solve against the final cascade.
+    let reuse = !styles_bumped
+        && gs
+            .geometry_cache
+            .borrow()
+            .as_ref()
+            .is_some_and(|(e, _)| *e == epoch);
+    let solve_src = if reuse { "cached" } else { "full" };
+    let (rects, items, paint_order, local_geom, sticky_spans, scroller_spans) = if reuse {
+        // Borrow held only across layout_collect, which never touches
+        // JsState — nothing else can interleave on this single thread.
+        let guard = gs.geometry_cache.borrow();
+        let (_, solved) = guard.as_ref().expect("freshness checked above");
+        let canvases = gs.canvas_images.borrow();
+        crate::diting_layout::layout_collect_with_images(
+            dom,
+            &styles_map,
+            &fonts,
+            solved,
+            viewport_width,
+            Some(&canvases),
+        )
+    } else {
+        // The byte table the run resolves http(s) img sources against.
+        // Empty → None keeps the all-placeholder path byte-identical to
+        // before (and lets the caller decide when rasters are worth
+        // fetching).
+        let bytes_map = gs.image_bytes.borrow();
+        let network_bytes: Option<&HashMap<String, std::sync::Arc<Vec<u8>>>> =
+            if bytes_map.is_empty() { None } else { Some(&bytes_map) };
+        let solved = crate::diting_layout::layout_solve(
+            dom,
+            &styles_map,
+            &fonts,
+            viewport_width,
+            viewport_height,
+            network_bytes,
+            Some(gs.url.as_str()),
+        );
+        drop(bytes_map);
+        gs.solves.set(gs.solves.get() + 1);
+        let canvases = gs.canvas_images.borrow();
+        let run = crate::diting_layout::layout_collect_with_images(
+            dom,
+            &styles_map,
+            &fonts,
+            &solved,
+            viewport_width,
+            Some(&canvases),
+        );
+        drop(canvases);
+        *gs.geometry_cache.borrow_mut() = Some((epoch, solved));
+        run
+    };
+    if trace {
+        let t_layout = t0.elapsed();
+        eprintln!(
+            "[layout-trace] total={:?} solve={} css_collect={:?} css_parse={:?} compute_styles={:?} layout={:?} css_bytes={} rects={}",
+            t_layout,
+            solve_src,
+            t_css,
+            t_parse - t_css,
+            t_styles - t_parse,
+            t_layout - t_styles,
+            css.len(),
+            rects.len(),
+        );
+    }
+    (
+        rects.into_iter().map(|(id, r)| (id, [r.x, r.y, r.width, r.height])).collect(),
+        paint_order,
+        styles_map,
+        items,
+        local_geom
+            .into_iter()
+            .map(|(id, (r, m))| {
+                (id, ([r.x, r.y, r.width, r.height], m))
+            })
+            .collect(),
+        sticky_spans,
+        scroller_spans,
+    )
+}
+
+/// Run one layout pass only when the memoized run is stale for the tree's
+/// current epoch; callers then read their slice from the (now fresh) cache.
+///
+/// Freshness must be checked separately from membership: a nid absent from
+/// the rects map is a legitimate miss on a FRESH cache (boxless element —
+/// <head>, display:none, svg children under the svg v1 one-box model).
+/// Treating "absent" as "stale" re-ran the whole page layout per boxless
+/// lookup; on svg-heavy pages (archify artifacts: ~530 boxless svg nodes) a
+/// single elementFromPoint walk re-laid-out the page hundreds of times and
+/// tripped the 10s eval watchdog — surfacing as silent `null` eval results
+/// and dead clicks.
+#[cfg(feature = "screenshot")]
+fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
+    let stale = gs.layout_cache.borrow().as_ref().map(|(e, _)| *e == epoch) != Some(true);
+    if stale {
+        let run = layout_run_all(gs, dom);
+        *gs.layout_cache.borrow_mut() = Some((epoch, run));
+    }
+}
+
+/// Parse the "w,h" viewport the JS side measured for the iframe element on
+/// the host page (arg2 of the iframe layout ops). Anything unparseable or
+/// non-positive falls back to the CSS default replaced box 300x150 — the
+/// same box the fabricated `_IframeWindow` publishes before layout exists.
+#[cfg(feature = "screenshot")]
+fn parse_iframe_viewport(arg2: &str) -> (f32, f32) {
+    let mut it = arg2.split(',');
+    let w = it.next().and_then(|s| s.parse::<f32>().ok());
+    let h = it.next().and_then(|s| s.parse::<f32>().ok());
+    match (w, h) {
+        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => (w, h),
+        _ => (300.0, 150.0),
+    }
+}
+
+/// One style+layout run over an ORPHAN SUBTREE — a fabricated iframe
+/// document (obscura #976 family), memoized per (epoch, root, viewport) in
+/// [`JsState::iframe_layout_cache`]. The sub-run anchors to the iframe
+/// element's laid-out size on the host page (the iframe's own viewport, per
+/// Chrome's gBCR semantics — the JS side passes it through arg2; the 300x150
+/// default box stands when the host layout has no box for the element) and
+/// never touches the main page's layout caches. Inline <style> sheets only
+/// (v1 boundary): external <link> sheets inside a fabricated iframe doc
+/// would need the navigation-time fetch cascade the main document owns.
+#[cfg(feature = "screenshot")]
+fn iframe_layout_run(
+    gs: &JsState,
+    dom: &DomTree,
+    root: NodeId,
+    vw: f32,
+    vh: f32,
+) -> std::rc::Rc<LayoutRun> {
+    let epoch = dom.epoch();
+    let (vwb, vhb) = (vw.to_bits(), vh.to_bits());
+    if let Some(hit) = gs.iframe_layout_cache.borrow().as_ref().and_then(
+        |(e, r, cw, ch, run)| {
+            (*e == epoch && *r == root && *cw == vwb && *ch == vhb)
+                .then(|| std::rc::Rc::clone(run))
+        },
+    ) {
+        return hit;
+    }
+    let mut css = String::new();
+    let mut stack = dom.children(root);
+    while let Some(cur) = stack.pop() {
+        stack.extend(dom.children(cur));
+        let is_style = dom
+            .with_node(cur, |n| {
+                n.as_element().map(|e| *e.local.to_ascii_lowercase() == *"style")
+            })
+            .flatten()
+            .unwrap_or(false);
+        if is_style {
+            css.push_str(&dom.text_content(cur));
+            css.push('\n');
+        }
+    }
+    let (rules, keyframes) = crate::diting_css::parse_stylesheet_timed_with(
+        &css,
+        (vw, vh),
+        gs.media_type,
+        &gs.media_overrides,
+    );
+    let styles_map = crate::diting_layout::compute_styles_timed_within(
+        dom,
+        &rules,
+        &keyframes,
+        None,
+        root,
+        // Transitions are registered against main-document node ids; the
+        // subtree id space here is separate, so the empty slice stands.
+        &[],
+        (vw, vh),
+    );
+    let fonts = crate::diting_fonts::font_book();
+    let solved = crate::diting_layout::layout_solve_rooted(
+        dom,
+        &styles_map,
+        &fonts,
+        vw,
+        vh,
+        None,
+        None,
+        Some(root),
+    );
+    let canvases = gs.canvas_images.borrow();
+    let (rects, items, paint_order, local_geom, sticky_spans, scroller_spans) =
+        crate::diting_layout::layout_collect_with_images(
+            dom,
+            &styles_map,
+            &fonts,
+            &solved,
+            vw,
+            Some(&canvases),
+        );
+    drop(canvases);
+    let run = std::rc::Rc::new((
+        rects
+            .into_iter()
+            .map(|(id, r)| (id, [r.x, r.y, r.width, r.height]))
+            .collect(),
+        paint_order,
+        styles_map,
+        items,
+        local_geom
+            .into_iter()
+            .map(|(id, (r, m))| (id, ([r.x, r.y, r.width, r.height], m)))
+            .collect(),
+        sticky_spans,
+        scroller_spans,
+    ));
+    *gs.iframe_layout_cache.borrow_mut() =
+        Some((epoch, root, vwb, vhb, std::rc::Rc::clone(&run)));
+    run
+}
+
+/// Whether `node` is a position:fixed box whose containing block is the
+/// VIEWPORT — no ancestor between it and `root` carries a transform. CSS
+/// transforms establish a new containing block for fixed descendants, so a
+/// fixed box under a transformed ancestor re-anchors into that subtree and
+/// DOES contribute to its scrollable overflow; only the viewport-anchored
+/// kind is exempt (blitz#841: upstream's viewport became scrollable because
+/// a translated fixed element entered the overflow walk).
+#[cfg(feature = "screenshot")]
+fn is_viewport_fixed(
+    dom: &DomTree,
+    styles: &HashMap<NodeId, crate::diting_css::ComputedStyle>,
+    node: NodeId,
+    root: NodeId,
+) -> bool {
+    if !styles
+        .get(&node)
+        .is_some_and(|st| st.position == Some(crate::diting_css::PositionMode::Fixed))
+    {
+        return false;
+    }
+    let mut cur = dom.get_node(node).and_then(|n| n.parent);
+    while let Some(id) = cur {
+        if id == root {
+            return true;
+        }
+        if styles.get(&id).is_some_and(|st| st.effective_transform().is_some()) {
+            return false;
+        }
+        cur = dom.get_node(id).and_then(|n| n.parent);
+    }
+    true
+}
+
+/// A real element scroll container for sticky v2: boxed, clipping,
+/// scrollable used overflow (hidden IS a scroll container per css-overflow,
+/// clip is not), and not one the viewport owns by propagation — html's
+/// overflow always propagates to the viewport, body's when html is visible
+/// (body_overflow_propagates, the same predicate the clip-emission walk
+/// used, so the walks agree on what the viewport owns). Shared by the
+/// `is_scroll_container` op and the sticky_shifts source filter: what JS
+/// may write and what paint consumes cannot drift apart.
+#[cfg(feature = "screenshot")]
+fn is_element_scroller(
+    dom: &DomTree,
+    rects: &HashMap<NodeId, [f32; 4]>,
+    styles: &HashMap<NodeId, crate::diting_css::ComputedStyle>,
+    id: NodeId,
+) -> bool {
+    if !rects.contains_key(&id) {
+        return false;
+    }
+    let Some(s) = styles.get(&id) else { return false };
+    if !(s.clips_descendants() && s.effective_overflow() != crate::diting_css::Overflow::Clip) {
+        return false;
+    }
+    let tag = dom
+        .with_node(id, |n| {
+            n.as_element().map(|e| e.local.to_ascii_lowercase().to_string())
+        })
+        .flatten();
+    match tag.as_deref() {
+        Some("html") => false,
+        Some("body") => !crate::diting_layout::body_overflow_propagates(
+            dom,
+            styles,
+            id,
+            |x| rects.contains_key(&x),
+        ),
+        _ => true,
+    }
+}
+
+/// The sticky shift map for the CURRENT read (sticky v2): one [dx, dy]
+/// per node inside a shifted subtree — sticky boxes AND element-scroller
+/// contents. A sticky's value is its constraint shift composed over
+/// enclosing sources; a scroller's descendants carry the negated scroll
+/// offset the same way. Constraints are computed HERE, not at layout
+/// time: they depend on the scroll offsets, which are orthogonal to the
+/// layout epoch (scroll-blind layout — the same invariant that lets the
+/// band pump re-blit without re-solving). Memoized per (epoch,
+/// layout_rev, root scroll, viewport, scroll_gen) in
+/// [`JsState::sticky_shift_cache`].
+///
+/// Sources — sticky nodes and scrolled element scrollers — are processed
+/// SHALLOW-FIRST with one composition rule: a source's total is its own
+/// contribution plus whatever shallower sources already wrote onto it
+/// (out[nid] IS the nearest enclosing source's total, because every
+/// shallower subtree write covered this node). Each source then writes
+/// its folded total across its subtree, which composes
+/// sticky-in-scroller, scroller-in-sticky, and a node that is BOTH — its
+/// sticky branch runs first (covers self), its scroller branch bases on
+/// that and rewrites only the descendants, exactly the two nested paint
+/// spans its element records.
+///
+/// Gates (documented Chrome divergences, each degrades to plain relative
+/// or unscrolled paint):
+/// - A source under a position:fixed or transformed ANCESTOR gets no
+///   shift: the fixed subtree has no scroller relation, and a
+///   transformed ancestor brackets its subtree's paint in local coords,
+///   where a uniform document-space translate can't compose from inside
+///   the span. This also gates a transformed element scroller and sticky
+///   inside one (accepted v2 approximation). The source's OWN transform
+///   is fine — its bracket sits inside its span and
+///   apply_sticky_to_items folds the shift into it.
+/// - Sticky scrollport = the nearest element scroller's padding box plus
+///   that scroller's OWN offset (outer scrollers cancel: port and
+///   content ride them together); with none, the root scroller /
+///   viewport (v1). html/body never count as element scrollers — their
+///   overflow propagates to the viewport (css-overflow §3.3;
+///   body_overflow_propagates is the same predicate the clip-emission
+///   walk uses, so the two walks agree on what the viewport owns).
+/// - Containing block = nearest boxed ancestor's border box (Blink uses
+///   margin-box/content-box refinements).
+/// - Boxless sticky (display:contents, inline wrappers) is skipped.
+#[cfg(feature = "screenshot")]
+fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f32; 2]>> {
+    use crate::diting_css::{Length, PositionMode};
+
+    let epoch = dom.epoch();
+    let (sx, sy) = gs.scroll_offset;
+    let (vw, vh) = gs.viewport;
+    // scroll_gen joins the key: element-scroller offsets change WITHOUT an
+    // epoch or layout_rev bump (read-time paint state), so without it a
+    // scrollTop write would keep serving the stale map.
+    let key = (epoch, gs.layout_rev.get(), sx, sy, vw, vh, dom.scroll_gen());
+    if let Some((k, v)) = gs.sticky_shift_cache.borrow().as_ref() {
+        if *k == key {
+            return std::rc::Rc::clone(v);
+        }
+    }
+    ensure_layout_run(gs, dom, epoch);
+    let guard = gs.layout_cache.borrow();
+    let empty = std::rc::Rc::new(HashMap::new());
+    let Some((_, (rects, _, styles, _, _, _, _))) = guard.as_ref().filter(|(e, _)| *e == epoch)
+    else {
+        return empty;
+    };
+
+    // Unified shift sources: (node, is_scroller). Sticky entries are
+    // appended before scroller entries, so at equal depth a node that is
+    // both runs its sticky branch first — the composition order its two
+    // nested paint spans resolve in. NO dedup: dedup would drop the
+    // second entry of a both-node and lose its scroll.
+    let scrolls = dom.scroll_offsets();
+    let mut sources: Vec<(NodeId, bool)> = styles
+        .iter()
+        .filter(|(_, s)| s.position == Some(PositionMode::Sticky))
+        .map(|(n, _)| (*n, false))
+        .filter(|(n, _)| rects.contains_key(n))
+        .collect();
+    sources.extend(
+        scrolls
+            .iter()
+            .filter(|(_n, o)| o[0] != 0.0 || o[1] != 0.0)
+            .map(|(n, _)| (*n, true))
+            .filter(|(n, _)| is_element_scroller(dom, rects, styles, *n)),
+    );
+    sources.sort_by_key(|(n, _)| {
+        let mut d = 0usize;
+        let mut cur = dom.get_node(*n).and_then(|nd| nd.parent);
+        while let Some(p) = cur {
+            d += 1;
+            cur = dom.get_node(p).and_then(|nd| nd.parent);
+        }
+        d
+    });
+
+    let resolve = |l: &Option<Length>, port: f32| {
+        l.as_ref()
+            .map(|l| crate::diting_layout::sticky_inset_px(l, port))
+    };
+    // Border widths count only with a border-style — the clip walk's
+    // side_px rule; the scrollport is the padding box.
+    let side_px = |l: &Option<Length>| match l {
+        Some(Length::Px(v)) => *v,
+        _ => 0.0,
+    };
+
+    let mut out: HashMap<NodeId, [f32; 2]> = HashMap::new();
+    for (nid, scroller_source) in sources {
+        // One ancestor walk, three uses: gate on fixed/transformed (no
+        // shift), first boxed ancestor's border box (the CB), nearest
+        // element scroller (the sticky's scrollport). The gate must see
+        // the WHOLE chain — a transform above the CB still brackets the
+        // paint.
+        let mut gated = false;
+        let mut cb: Option<(NodeId, [f32; 4])> = None;
+        let mut port: Option<([f32; 4], [f32; 2])> = None;
+        let mut cur = dom.get_node(nid).and_then(|nd| nd.parent);
+        while let Some(p) = cur {
+            if let Some(st) = styles.get(&p) {
+                if st.position == Some(PositionMode::Fixed) || st.effective_transform().is_some() {
+                    gated = true;
+                    break;
+                }
+            }
+            if cb.is_none() {
+                // Table-internal stand-in boxes never establish the sticky
+                // containing block: per CSS2.1 the CB of a table row (and
+                // of a cell) is the TABLE, so row groups (thead/tbody/
+                // tfoot — UA-mapped to TableRow, same as tr) and rows are
+                // walked past, not clamped to. Without the skip a sticky
+                // tr clamps to its 30px-tall thead box and never moves.
+                let table_internal = styles
+                    .get(&p)
+                    .and_then(|st| st.display)
+                    == Some(crate::diting_css::Display::TableRow);
+                if !table_internal {
+                    if let Some(&r) = rects.get(&p) {
+                        cb = Some((p, r));
+                    }
+                }
+            }
+            if port.is_none() && is_element_scroller(dom, rects, styles, p) {
+                let [px, py, pw, ph] = rects[&p];
+                let st = &styles[&p];
+                // Padding box = border box inset by border widths, which
+                // apply only with a border-style.
+                let (bt, br, bb, bl) = if st.border_style.is_some() {
+                    (
+                        side_px(&st.border_width.top),
+                        side_px(&st.border_width.right),
+                        side_px(&st.border_width.bottom),
+                        side_px(&st.border_width.left),
+                    )
+                } else {
+                    (0.0, 0.0, 0.0, 0.0)
+                };
+                port = Some((
+                    [
+                        px + bl,
+                        py + bt,
+                        (pw - bl - br).max(0.0),
+                        (ph - bt - bb).max(0.0),
+                    ],
+                    scrolls.get(&p).copied().unwrap_or([0.0, 0.0]),
+                ));
+            }
+            cur = dom.get_node(p).and_then(|nd| nd.parent);
+        }
+        if gated {
+            continue;
+        }
+        // A scroll container's rect in the map is its CLIP box, but a
+        // sticky inside it travels the whole scrollable content — the
+        // clamp range is the subtree union, the same extent scrollHeight
+        // reports. v1 never noticed: at the root the body box already
+        // spans the full document, so union == rect there.
+        if let Some((cb_node, cb_rect)) = cb.as_mut() {
+            if is_element_scroller(dom, rects, styles, *cb_node) {
+                let [bx, by, _, _] = *cb_rect;
+                let mut stack = dom.children(*cb_node);
+                while let Some(c) = stack.pop() {
+                    if let Some(&[rx, ry, rw, rh]) = rects.get(&c) {
+                        cb_rect[2] = cb_rect[2].max(rx + rw - bx);
+                        cb_rect[3] = cb_rect[3].max(ry + rh - by);
+                    }
+                    stack.extend(dom.children(c));
+                }
+            }
+        }
+        // Base = the total already written on this node by shallower
+        // sources; out[nid] is the nearest enclosing source's total
+        // because every shallower subtree write covered this node.
+        let base = out.get(&nid).copied().unwrap_or([0.0, 0.0]);
+        let (own, covers_self) = if scroller_source {
+            // Content translates UP by the scroll offset; the scroller's
+            // own box/border/clip stay fixed (its span opens after its
+            // clip, the map write skips the node itself).
+            let o = scrolls.get(&nid).copied().unwrap_or([0.0, 0.0]);
+            ([-o[0], -o[1]], false)
+        } else {
+            let Some(&[x, y, w, h]) = rects.get(&nid) else { continue };
+            let Some((_, [cx, cy, cw, ch])) = cb else { continue };
+            let st = &styles[&nid];
+            // Port: nearest element scroller (v2) with its OWN offset —
+            // outer scrollers cancel because the port rides them with the
+            // content. No scroller ancestor: the root scroller (v1).
+            // (py + oy) against the UNSCROLLED y is the pinned read: the
+            // port rides every outer source with the content, so only the
+            // port's own scroll distinguishes them.
+            let (dy, dx) = if let Some(([px, py, pw, ph], [ox, oy])) = port {
+                (
+                    crate::diting_layout::sticky_axis_shift(
+                        y,
+                        h,
+                        resolve(&st.top, ph),
+                        resolve(&st.bottom, ph),
+                        py + oy,
+                        ph,
+                        cy,
+                        cy + ch,
+                    ),
+                    crate::diting_layout::sticky_axis_shift(
+                        x,
+                        w,
+                        resolve(&st.left, pw),
+                        resolve(&st.right, pw),
+                        px + ox,
+                        pw,
+                        cx,
+                        cx + cw,
+                    ),
+                )
+            } else {
+                (
+                    crate::diting_layout::sticky_axis_shift(
+                        y,
+                        h,
+                        resolve(&st.top, vh),
+                        resolve(&st.bottom, vh),
+                        sy,
+                        vh,
+                        cy,
+                        cy + ch,
+                    ),
+                    crate::diting_layout::sticky_axis_shift(
+                        x,
+                        w,
+                        resolve(&st.left, vw),
+                        resolve(&st.right, vw),
+                        sx,
+                        vw,
+                        cx,
+                        cx + cw,
+                    ),
+                )
+            };
+            if dx == 0.0 && dy == 0.0 {
+                // Still in flow at this scroll — descendants read no base
+                // shift from us, and this subtree keeps any ancestor total.
+                continue;
+            }
+            ([dx, dy], true)
+        };
+        let total = [own[0] + base[0], own[1] + base[1]];
+        // Write the total over the subtree (self included for a sticky —
+        // its own box moves; excluded for a scroller — only its content
+        // does). Every read point (gBCR, hit testing, band paint) shifts
+        // uniformly; a deeper source later overwrites its own subtree
+        // with its total, which already folded this one via the base
+        // lookup above.
+        let mut stack = if covers_self {
+            vec![nid]
+        } else {
+            dom.children(nid)
+        };
+        while let Some(cur) = stack.pop() {
+            out.insert(cur, total);
+            stack.extend(dom.children(cur));
+        }
+    }
+    drop(guard);
+    let rc = std::rc::Rc::new(out);
+    *gs.sticky_shift_cache.borrow_mut() = Some((key, std::rc::Rc::clone(&rc)));
+    rc
+}
+
+#[cfg(feature = "screenshot")]
+mod band;
+mod css;
+mod encoding;
+mod text_geom;
+mod props;
+mod fetch_gate;
+mod fetch_walk;
+mod canvas;
+mod ecdsa;
+mod ed25519;
+mod node_order;
+
+pub(crate) use fetch_walk::{
+    fetch_url_walk, FetchFailure, FetchNetworkEvent, FetchWalkDeps,
+};
+use node_order::{compare_node_order, node_child_index};
+#[cfg(feature = "screenshot")]
+pub use band::BandFrame;
+#[cfg(feature = "screenshot")]
+pub(crate) use band::{
+    band_frame, band_frame_cut, band_frame_cut_with_text, band_frame_scaled,
+    band_frame_with_text,
+};
+pub(crate) use canvas::{op_canvas_jpeg, op_canvas_png};
+#[cfg(feature = "screenshot")]
+pub(crate) use canvas::{op_canvas_store, op_canvas_text};
+pub(crate) use ecdsa::{
+    op_subtle_ecdh_derive_bits, op_subtle_ecdsa_generate, op_subtle_ecdsa_import_private,
+    op_subtle_ecdsa_import_public, op_subtle_ecdsa_sign, op_subtle_ecdsa_verify,
+};
+pub(crate) use ed25519::{
+    op_subtle_ed25519_check, op_subtle_ed25519_public, op_subtle_ed25519_sign, op_subtle_ed25519_verify,
+};
+mod crypto_secret;
+mod cors;
+mod referrer;
+pub(crate) use referrer::{fetch_referer, last_valid_referrer_token, resolve_referrer_policy_from};
+use referrer::resolve_document_referrer_policy;
+mod fetch_client;
+pub use fetch_client::cached_request_client;
+pub(crate) use fetch_client::select_request_client;
+#[cfg(feature = "screenshot")]
+use cssom_value::{cb_inline_for, computed_style_value};
+mod cssom_value;
+mod image_info;
+use image_info::image_header_dimensions;
+pub use fetch_gate::validate_fetch_url;
+pub(crate) use cors::request_origin;
+pub(crate) use crypto_secret::{
+    crypto_err, op_random_bytes, op_subtle_aes_cbc, op_subtle_aes_ctr, op_subtle_aes_gcm,
+    op_subtle_aes_kw, op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, op_subtle_pbkdf2,
+};
+mod crypto_rsa;
+pub(crate) use crypto_rsa::{
+    op_subtle_rsa_generate, op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private,
+    op_subtle_rsa_import_public, op_subtle_rsa_import_spki, op_subtle_rsa_oaep,
+    op_subtle_rsa_pkcs1v15_sign, op_subtle_rsa_pkcs1v15_verify,
+};
+
+/// The page's text-ink extent alone ((width, height) in CSS px), from the
+/// same memoized layout run every band paint shares. For bare-text bodies —
+/// no element boxes past the stretched html/body — this is the only true
+/// extent; the print pump reads it as its content-height fallback when
+/// scrollHeight sits at the viewport clamp.
+#[cfg(feature = "screenshot")]
+pub(crate) fn text_ink_extent(gs: &JsState) -> Option<(f32, f32)> {
+    let dom = gs.dom.as_ref()?;
+    let epoch = dom.epoch();
+    ensure_layout_run(gs, dom, epoch);
+    let guard = gs.layout_cache.borrow();
+    let (_, (_, _, _, items, _, _, _)) = guard.as_ref().filter(|(e, _)| *e == epoch)?;
+    Some(crate::diting_layout::paint::text_ink_extent(items))
+}
+
+/// Insert a fetched image body into [`JsState::image_bytes`] (FIFO eviction
+/// at the entry cap) and drop `layout_cache`: placeholder boxes and real
+/// intrinsic sizes can reflow differently, so memoized geometry from the
+/// pre-fetch run must not survive the insert.
+#[cfg(feature = "screenshot")]
+pub(crate) fn store_image_bytes(gs: &mut JsState, url: String, bytes: Vec<u8>) {
+    const IMAGE_TABLE_CAP: usize = 64;
+    let mut map = gs.image_bytes.borrow_mut();
+    if map.contains_key(&url) {
+        return;
+    }
+    if map.len() >= IMAGE_TABLE_CAP {
+        if let Some(oldest) = gs.image_order.borrow_mut().pop_front() {
+            map.remove(&oldest);
+        }
+    }
+    map.insert(url.clone(), std::sync::Arc::new(bytes));
+    drop(map);
+    gs.image_order.borrow_mut().push_back(url);
+    gs.drop_layout();
+}
+
+/// The property table the `computed_style` snapshot serializes — every
+/// property [`computed_style_value`] can spell. Order is irrelevant (the
+/// consumer is a JSON object); this list just guarantees the op and the
+/// serializer stay in lockstep.
+#[cfg(feature = "screenshot")]
+const COMPUTED_STYLE_PROPS: &[&str] = &[
+    "position",
+    "z-index",
+    "display",
+    "float",
+    "clear",
+    "content",
+    "box-sizing",
+    "background-clip",
+    "overflow",
+    "overflow-x",
+    "overflow-y",
+    "border-collapse",
+    "table-layout",
+    "vertical-align",
+    "text-decoration",
+    "text-decoration-line",
+    "font-size",
+    "font-weight",
+    "text-align",
+    "text-align-last",
+    "direction",
+    "line-height",
+    "word-spacing",
+    "text-transform",
+    "font-variant-caps",
+    "font-variant",
+    "container-type",
+    "container-name",
+    "white-space",
+    "text-overflow",
+    "line-clamp",
+    "-webkit-line-clamp",
+    "color",
+    "background-color",
+    "box-shadow",
+    "backdrop-filter",
+    "filter",
+    "perspective",
+    "text-shadow",
+    "background-image",
+    "font-family",
+    "padding-top",
+    "padding-right",
+    "padding-bottom",
+    "padding-left",
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+    "margin-top",
+    "margin-right",
+    "margin-bottom",
+    "margin-left",
+    "margin-block-start",
+    "margin-block-end",
+    "margin-inline-start",
+    "margin-inline-end",
+    "padding-block-start",
+    "padding-block-end",
+    "padding-inline-start",
+    "padding-inline-end",
+    "transform-origin",
+    "border-radius",
+    "flex-direction",
+    "flex-wrap",
+    "justify-content",
+    "align-items",
+    "opacity",
+    "zoom",
+    "transform",
+    "animation-name",
+    "animation-duration",
+    "animation-delay",
+    "animation-timing-function",
+    "animation-fill-mode",
+    "animation-iteration-count",
+    "animation-direction",
+    "animation-play-state",
+    "transition-property",
+    "transition-duration",
+    "transition-delay",
+    "transition-timing-function",
+];
+
+
+#[diting_op]
+fn op_console_msg(state: &OpState, #[string] level: &str, #[string] msg: &str) {
+    match level {
+        "warn" => tracing::warn!(target: "diting::console", "{}", msg),
+        "error" => tracing::error!(target: "diting::console", "{}", msg),
+        _ => tracing::info!(target: "diting::console", "{}", msg),
+    }
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    // Queue-time URL: the consumer may drain long after a navigation moved
+    // the page elsewhere, and per-entry URLs make session_console's
+    // url_contains filter truthful.
+    let log_url = gs.url.clone();
+    gs.pending_console_calls
+        .push((level.to_string(), msg.to_string(), log_url));
+}
+
+/// window.alert/confirm/prompt land here from the bootstrap stubs. There is
+/// no UI to attach a dialog to, so blocking is not an option (the thread
+/// that would show the dialog is the same one running the page script);
+/// instead each call is answered from the session-side policy —
+/// `dialog_accept` (default false = dismiss) plus `dialog_prompt_text` for
+/// prompt — and recorded as a level-"dialog" console entry so
+/// session_console shows what the page asked. Returns
+/// `{"accept":bool,"value":string|null}`; value is only meaningful for
+/// prompt, where the JS wrapper falls back to the call's default argument.
+#[diting_op]
+#[string]
+fn op_dialog(state: &OpState, #[string] kind: &str, #[string] message: &str) -> String {
+    let shared = state.borrow::<SharedState>().clone();
+    let mut gs = shared.borrow_mut();
+    let (accept, value) = match kind {
+        "confirm" => (gs.dialog_accept, None),
+        "prompt" => (gs.dialog_accept, gs.dialog_prompt_text.clone()),
+        // alert: nothing to answer, recorded for observability only.
+        _ => (true, None),
+    };
+    let dialog_url = gs.url.clone();
+    let mut payload = serde_json::json!({ "dialog": kind, "message": message });
+    if kind == "confirm" || kind == "prompt" {
+        payload["answer"] = serde_json::Value::Bool(accept);
+        if kind == "prompt" {
+            payload["value"] = value.clone().into();
+        }
+    }
+    gs.pending_console_calls
+        .push(("dialog".to_string(), payload.to_string(), dialog_url));
+    serde_json::json!({ "accept": accept, "value": value }).to_string()
+}
+
+/// Cap on the number of redirect hops op_fetch_url will follow.
+///
+/// The Fetch standard fixes the number at 20: HTTP-redirect fetch returns a
+/// network error as soon as a request's redirect count *reaches* 20, so the
+/// twentieth hop still succeeds and the twenty-first fails.
+/// https://fetch.spec.whatwg.org/#http-redirect-fetch
+///
+/// The reqwest default of 10 does not apply here: redirects are followed by
+/// hand in this file, one hop per loop iteration, so each hop is re-checked
+/// against the SSRF rules (upstream 4b90ec3).
+pub(crate) const FETCH_REDIRECT_LIMIT: usize = 20;
+
+/// RequestCredentials from the Fetch standard: whether cookies may be sent to
+/// (and stored from) a request's URL (upstream b744b9b).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FetchCredentials {
+    Omit,
+    SameOrigin,
+    Include,
+}
+
+impl FetchCredentials {
+    fn parse(value: &str) -> Self {
+        match value {
+            "omit" => Self::Omit,
+            "include" => Self::Include,
+            _ => Self::SameOrigin,
+        }
+    }
+
+    fn allows(self, page_origin: &str, request_url: &str) -> bool {
+        match self {
+            Self::Omit => false,
+            Self::Include => true,
+            Self::SameOrigin => request_origin(request_url)
+                .map(|origin| origin == page_origin)
+                .unwrap_or(false),
+        }
+    }
+}
+
+
+/// OpState-cloned inputs the fetch front half gathers before any network
+/// I/O, shared by both drivers.
+struct FetchRequestInit {
+    cookie_jar: Option<Arc<CookieJar>>,
+    in_flight: Option<Arc<std::sync::atomic::AtomicU32>>,
+    in_flight_list: Option<std::sync::Arc<std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>>>,
+    proxy_url: Option<String>,
+    http_client: Option<Arc<HttpClient>>,
+    callbacks: Option<std::sync::Arc<crate::diting_net::CallbackRegistry>>,
+    document_url: String,
+    intercept_tx: Option<tokio::sync::mpsc::UnboundedSender<InterceptedRequest>>,
+}
+
+/// Shared front half of op_fetch_url and op_fetch_url_sync: the SSRF gate,
+/// the base64-body marker probe, and the OpState clones both drivers hand
+/// to the walk. Returns Err(the exact JSON the op must return) for the two
+/// short-circuits (SSRF reject, setBlockedURLs pattern), each recorded into
+/// the network-event log first.
+fn gather_fetch_parts(
+    state: &OpState,
+    url: &str,
+    method: &str,
+    headers_json: &str,
+    started: f64,
+) -> Result<(FetchRequestInit, bool), String> {
+    if let Ok(parsed_url) = url::Url::parse(url) {
+        if let Err(e) = validate_fetch_url(&parsed_url) {
+            record_failed_fetch(state, &FetchFailure {
+                url: url.to_string(),
+                method: method.to_string(),
+                reason: e.clone(),
+                final_url: url.to_string(),
+                redirects: Vec::new(),
+                started,
+            });
+            return Err(serde_json::json!({
+                "status": 0,
+                "body": "",
+                "url": url,
+                "headers": {},
+                "blocked": true,
+                "error": e,
+            }).to_string());
+        }
+    } else {
+        // Fail closed (#252): an unparseable URL used to skip the gate
+        // entirely — harmless while reqwest re-parsed the same string with
+        // the same url crate, a hole the moment a transport disagrees. The
+        // JS fetch entry throws Chrome's TypeError face before the op call,
+        // so this is the backstop for direct op callers (module loader,
+        // XHR's shared closure).
+        let reason = "invalid URL (failed to parse)".to_string();
+        record_failed_fetch(state, &FetchFailure {
+            url: url.to_string(),
+            method: method.to_string(),
+            reason: reason.clone(),
+            final_url: url.to_string(),
+            redirects: Vec::new(),
+            started,
+        });
+        return Err(serde_json::json!({
+            "status": 0,
+            "body": "",
+            "url": url,
+            "headers": {},
+            "blocked": true,
+            "error": reason,
+        }).to_string());
+    }
+
+    // The JS shim sets this out-of-band header to signal that `body` is
+    // base64-encoded raw bytes (upstream obscura #716). Detected from the
+    // original headers_json, before any interception rewrite, since a
+    // Continue rewrite supplies a plain-text body, never the base64 wire form.
+    let body_is_base64 = serde_json::from_str::<serde_json::Value>(headers_json)
+        .ok()
+        .and_then(|v| {
+            v.get("__diting_body_b64")
+                .and_then(|x| x.as_str())
+                .map(|s| s == "1")
+        })
+        .unwrap_or(false);
+
+    let (init, blocked_pattern) = {
+        let gs = state.borrow::<SharedState>().clone();
+        let gs = gs.borrow_mut();
+        let blocked_pattern = gs
+            .blocked_urls
+            .iter()
+            .find(|p| *p == "*" || url.contains(p.as_str()) || glob_match(p, url))
+            .cloned();
+        tracing::debug!("op_fetch_url: intercept_enabled={}, has_tx={}", gs.intercept_enabled, gs.intercept_tx.is_some());
+        let init = FetchRequestInit {
+            cookie_jar: gs.cookie_jar.clone(),
+            in_flight: gs.http_client.as_ref().map(|c| c.in_flight.clone()),
+            in_flight_list: gs.http_client.as_ref().map(|c| c.in_flight_list.clone()),
+            // #139: thread the configured proxy through to the per-request
+            // reqwest::Client. Without this, op_fetch_url silently bypasses
+            // BrowserContext.proxy_url for every JS fetch() / XHR call.
+            proxy_url: gs.http_client.as_ref().and_then(|c| c.proxy_url().map(|s| s.to_string())),
+            http_client: gs.http_client.clone(),
+            callbacks: gs.callbacks.clone(),
+            document_url: gs.url.clone(),
+            intercept_tx: if gs.intercept_enabled {
+                gs.intercept_tx.clone()
+            } else {
+                None
+            },
+        };
+        (init, blocked_pattern)
+    };
+    // Recorded after the scope closes — record_failed_fetch re-borrows
+    // this state, which cannot nest under the held borrow_mut.
+    if let Some(pattern) = blocked_pattern {
+        record_failed_fetch(
+            state,
+            &FetchFailure {
+                url: url.to_string(),
+                method: method.to_string(),
+                reason: format!("blocked by Network.setBlockedURLs pattern: {pattern}"),
+                final_url: url.to_string(),
+                redirects: Vec::new(),
+                started,
+            },
+        );
+        return Err(serde_json::json!({
+            "status": 0,
+            "body": "",
+            "url": url,
+            "headers": {},
+            "blocked": true,
+        }).to_string());
+    }
+    Ok((init, body_is_base64))
+}
+
+/// Records a successful fetch's body + network event (upstream #406/#360):
+/// keyed `fetch-{N}`, LRU-bounded, so the CDP layer can emit Network events
+/// and resolve getResponseBody for fetch()/XHR traffic. Extracted from the
+/// walk so the sync driver can record after its worker thread returns.
+fn record_fetch_network_event(state: &OpState, ev: &FetchNetworkEvent) -> String {
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    gs.network_response_body_counter += 1;
+    let request_id = format!("fetch-{}", gs.network_response_body_counter);
+    let max_entries = response_body_entry_limit();
+    let max_bytes = response_body_byte_limit();
+    let (stored_body, base64_encoded) = match &ev.stored_text {
+        Some(text) => (text.clone(), false),
+        None => (ev.resp_body_base64.clone(), true),
+    };
+    if max_entries > 0 && max_bytes > 0 && ev.body_size <= max_bytes {
+        gs.network_response_bodies.insert(
+            request_id.clone(),
+            StoredNetworkResponseBody {
+                body: stored_body,
+                base64_encoded,
+            },
+        );
+        gs.network_response_body_order.push_back(request_id.clone());
+        while gs.network_response_body_order.len() > max_entries {
+            if let Some(oldest) = gs.network_response_body_order.pop_front() {
+                gs.network_response_bodies.remove(&oldest);
+            }
+        }
+    }
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64();
+    gs.js_network_events.push(JsNetworkEvent {
+        request_id: request_id.clone(),
+        url: ev.url.clone(),
+        method: ev.method.clone(),
+        status: ev.status,
+        response_headers: ev.response_headers.clone(),
+        request_headers: ev.request_headers.clone(),
+        body_size: ev.body_size,
+        timestamp,
+        error: None,
+        final_url: ev.final_url.clone(),
+        redirects: ev.redirects.clone(),
+        started: ev.started,
+    });
+    const MAX_JS_NETWORK_EVENTS: usize = 4096;
+    if gs.js_network_events.len() > MAX_JS_NETWORK_EVENTS {
+        let overflow = gs.js_network_events.len() - MAX_JS_NETWORK_EVENTS;
+        gs.js_network_events.drain(0..overflow);
+    }
+    request_id
+}
+
+/// Replays the failure events the walk collected into the network-event log
+/// (a sequential walk yields at most one).
+fn replay_fetch_failures(state: &OpState, failures: &[FetchFailure]) {
+    for f in failures {
+        record_failed_fetch(state, f);
+    }
+}
+
+/// #226: mirror of async fetch completions, keyed by the JS shim's per-call
+/// key. A watchdog TerminateExecution landing mid event-loop tick eats op
+/// settlements silently — deno_core pops the completed batch in
+/// `dispatch_event_loop_tick`, the tick (or the microtask carrying the await
+/// continuation) dies, and the phase dispatchers swallow the termination as
+/// `Ok(false)`, so neither side ever learns. The JS side probes this table
+/// from the macrotask-recover hook (which runs on every unwind) and a slow
+/// heartbeat, and settles its outer promise manually via `op_fetch_take`.
+/// Byte-bounded: a lost settlement that is never probed out is exactly the
+/// entry that lingers longest, and bodies can be megabyte configs.
+#[derive(Default)]
+pub(crate) struct FetchSettlements {
+    deque: std::collections::VecDeque<(String, String)>,
+    total_bytes: usize,
+}
+
+const FETCH_SETTLEMENT_MAX_BYTES: usize = 8 * 1024 * 1024;
+const FETCH_SETTLEMENT_MAX_ENTRIES: usize = 64;
+
+impl FetchSettlements {
+    fn push(&mut self, key: String, payload: String) {
+        self.total_bytes += payload.len();
+        self.deque.push_back((key, payload));
+        while self.deque.len() > FETCH_SETTLEMENT_MAX_ENTRIES
+            || self.total_bytes > FETCH_SETTLEMENT_MAX_BYTES
+        {
+            match self.deque.pop_front() {
+                Some((_, p)) => self.total_bytes = self.total_bytes.saturating_sub(p.len()),
+                None => break,
+            }
+        }
+    }
+
+    fn take(&mut self, key: &str) -> Option<String> {
+        let pos = self.deque.iter().rposition(|(k, _)| k == key)?;
+        let (_, payload) = self.deque.remove(pos)?;
+        self.total_bytes = self.total_bytes.saturating_sub(payload.len());
+        Some(payload)
+    }
+}
+
+/// Unix seconds "now" — the one clock every fetch-row stamp shares (#229:
+/// op entry = request dispatch; stamps taken later, after an intercept
+/// wait or gate walk, would misorder HAR rows).
+fn now_unix() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64()
+}
+
+/// Mirror one fetch settlement onto the #226 ring. Every async-op exit —
+/// the walk's success/error AND the pre-walk short-circuits (SSRF /
+/// setBlockedURLs return, intercept Fulfill/Fail, rewrite blocks) — owes
+/// the JS probe a settlement; an exit that skips this turns a
+/// watchdog-eaten completion into a promise that never settles.
+fn push_fetch_settlement(
+    state: &std::rc::Rc<std::cell::RefCell<OpState>>,
+    key: &str,
+    value: String,
+) {
+    if !key.is_empty() {
+        state
+            .borrow_mut()
+            .borrow_mut::<FetchSettlements>()
+            .push(key.to_string(), value);
+    }
+}
+
+/// Probe-and-take one mirrored completion. `""` = not completed (or already
+/// evicted); a payload starting with NUL is a rejection notice, anything else
+/// is the op's JSON result verbatim.
+#[diting_op]
+#[string]
+fn op_fetch_take(state: &mut OpState, #[string] key: String) -> String {
+    state
+        .borrow_mut::<FetchSettlements>()
+        .take(&key)
+        .unwrap_or_default()
+}
+
+/// 10d host flip: the body runs on OUR Vm host — hand-called from
+/// `async_glue::op_fetch_url_impl` (the raw wrapper sees `(promise_id,
+/// user args...)`; the JS async stub owns the promise). The `Rc<RefCell<
+/// OpState>>` face is our own state cell now; the JsErrorBox error face
+/// stays (leaf crate), collapsing to a message string at the glue.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn op_fetch_url_body(
+    state: Rc<RefCell<OpState>>,
+    url: String,
+    method: String,
+    headers_json: String,
+    body: String,
+    origin: String,
+    mode: String,
+    credentials: String,
+    // "policy\0init" — bundled to stay under deno_core's async op arg limit.
+    referrer: String,
+) -> Result<String, deno_error::JsErrorBox> {
+    // deno_core async op codegen caps explicit args; the Referer pair rides one slot
+    // (and, third segment, the #226 settlement key — see FetchSettlements).
+    let mut referrer_segs = referrer.split('\u{0}');
+    let referrer_policy = referrer_segs.next().unwrap_or("").to_string();
+    let referrer_init = referrer_segs.next().unwrap_or("about:client").to_string();
+    let settle_key = referrer_segs.next().unwrap_or("").to_string();
+    // "" = the caller carried no explicit policy (fetch init unset, loaders,
+    // XHR): fall back to the document's own policy (Referrer-Policy header or
+    // <meta name=referrer>), else fetch_referer applies the spec default.
+    let referrer_policy = if referrer_policy.is_empty() {
+        resolve_document_referrer_policy(&state.borrow())
+    } else {
+        referrer_policy
+    };
+    tracing::debug!("op_fetch_url called: {} {} (intercept check pending)", method, url);
+
+    // One entry stamp, every exit's truth (#229): rows stamped later —
+    // after the intercept wait or gate walk — would order behind requests
+    // dispatched after them.
+    let started_unix = now_unix();
+    // Bind first: the `state.borrow()` temporary must drop before the arm
+    // body re-borrows for the settlement push (same nesting rule gather's
+    // own record_failed_fetch follows).
+    let gathered =
+        gather_fetch_parts(&state.borrow(), &url, &method, &headers_json, started_unix);
+    let (init, body_is_base64) = match gathered {
+        Ok(parts) => parts,
+        Err(json) => {
+            // Pre-walk short-circuit (SSRF / blocked pattern): still an
+            // op exit, still owes the probe its settlement (#226 — the
+            // mirror must cover every exit, not just the walk's).
+            push_fetch_settlement(&state, &settle_key, json.clone());
+            return Ok(json);
+        }
+    };
+    let FetchRequestInit {
+        cookie_jar,
+        in_flight,
+        in_flight_list,
+        proxy_url,
+        http_client,
+        callbacks,
+        document_url,
+        intercept_tx,
+    } = init;
+
+    let mut override_url: Option<String> = None;
+    let mut override_method: Option<String> = None;
+    let mut override_headers: Option<HashMap<String, String>> = None;
+    let mut override_body: Option<Vec<u8>> = None;
+    if let Some(tx) = intercept_tx {
+        let mut request_headers_view: HashMap<String, String> =
+            serde_json::from_str(&headers_json).unwrap_or_default();
+        // The base64-body marker is an internal transport signal, never a
+        // request header — the wire path strips it; the paused view must
+        // too, or an intercepting client sees a header Chrome would never
+        // send (#252).
+        request_headers_view.remove("__diting_body_b64");
+        let (resolve_tx, resolve_rx) = tokio::sync::oneshot::channel();
+        let intercepted = InterceptedRequest {
+            url: url.clone(),
+            method: method.clone(),
+            headers: request_headers_view.clone(),
+            resource_type: "Fetch".to_string(),
+            resolver: resolve_tx,
+        };
+        if tx.send(intercepted).is_ok() {
+            // Bounded wait: the bridge drains pauses between commands, so a
+            // resolution normally lands within one command gap. When the
+            // dispatch that triggered the fetch is itself parked on this
+            // future (evaluate of a fetch expression), the resolution cannot
+            // be delivered and the wait must expire instead of hanging the
+            // command forever.
+            let timeout_ms = INTERCEPT_RESOLUTION_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
+            match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), resolve_rx).await {
+                Ok(Ok(InterceptResolution::Fulfill { status, headers: h, body: b })) => {
+                    // Chrome emits network events for fulfilled requests
+                    // too — a fulfilled fetch must not read as "never
+                    // happened" in the network log (#252); Fail already
+                    // replays through record_failed_fetch.
+                    let body_b64 = BASE64.encode(&b);
+                    record_fetch_network_event(&state.borrow(), &FetchNetworkEvent {
+                        url: url.clone(),
+                        method: method.clone(),
+                        status,
+                        response_headers: h.clone(),
+                        request_headers: request_headers_view.clone(),
+                        body_size: b.len(),
+                        stored_text: None,
+                        resp_body_base64: body_b64.clone(),
+                        final_url: url.clone(),
+                        redirects: Vec::new(),
+                        started: started_unix,
+                    });
+                    // Byte-native: the synthetic body rides the same base64
+                    // channel as real network responses (binary payloads
+                    // survive; text is reconstructed on the JS side).
+                    let resp = serde_json::json!({
+                        "status": status,
+                        "bodyBase64": body_b64,
+                        "url": url,
+                        "headers": h,
+                    }).to_string();
+                    push_fetch_settlement(&state, &settle_key, resp.clone());
+                    return Ok(resp);
+                }
+                Ok(Ok(InterceptResolution::Fail { reason })) => {
+                    record_failed_fetch(&state.borrow(), &FetchFailure {
+                        url: url.clone(),
+                        method: method.clone(),
+                        reason: reason.clone(),
+                        final_url: url.clone(),
+                        redirects: Vec::new(),
+                        started: started_unix,
+                    });
+                    let resp = serde_json::json!({
+                        "status": 0,
+                        "body": "",
+                        "url": url,
+                        "headers": {},
+                        "blocked": true,
+                        "error": reason,
+                    }).to_string();
+                    push_fetch_settlement(&state, &settle_key, resp.clone());
+                    return Ok(resp);
+                }
+                Ok(Ok(InterceptResolution::Continue { url: new_url, method: new_method, headers: new_headers, body: new_body })) => {
+                    override_url = new_url;
+                    override_method = new_method;
+                    override_headers = new_headers;
+                    override_body = new_body;
+                }
+                // Client answered nothing in time (or dropped the resolver):
+                // fall through to the real request, i.e. Continue semantics.
+                Ok(Err(_)) | Err(_) => {}
+            }
+        }
+    }
+
+    // Apply interception overrides (shadow the params for the rest of the op).
+    // A Continue rewrite of the URL must pass the same SSRF / private-network
+    // gate as the original request (checked above) and as redirects (checked
+    // below). Without this re-validation a rewrite to an internal address would
+    // bypass validate_fetch_url entirely — and an *unparseable* rewrite must
+    // fail closed (#70): passing the raw string through would hand the request
+    // to the network layer with no validation at all.
+    let url = match override_url {
+        Some(new_url) => {
+            match url::Url::parse(&new_url) {
+                Ok(parsed) => {
+                    if let Err(reason) = validate_fetch_url(&parsed) {
+                        let error = format!("Intercept rewrite to forbidden URL blocked: {}", reason);
+                        record_failed_fetch(&state.borrow(), &FetchFailure {
+                            url: new_url.clone(),
+                            method: method.clone(),
+                            reason: error.clone(),
+                            final_url: new_url.clone(),
+                            redirects: Vec::new(),
+                            started: started_unix,
+                        });
+                        let resp = serde_json::json!({
+                            "status": 0,
+                            "body": "",
+                            "url": new_url,
+                            "blocked": true,
+                            "error": error,
+                        }).to_string();
+                        push_fetch_settlement(&state, &settle_key, resp.clone());
+                        return Ok(resp);
+                    }
+                }
+                Err(_) => {
+                    let error = "Intercept rewrite to unparseable URL blocked".to_string();
+                    record_failed_fetch(&state.borrow(), &FetchFailure {
+                        url: new_url.clone(),
+                        method: method.clone(),
+                        reason: error.clone(),
+                        final_url: new_url.clone(),
+                        redirects: Vec::new(),
+                        started: started_unix,
+                    });
+                    let resp = serde_json::json!({
+                        "status": 0,
+                        "body": "",
+                        "url": new_url,
+                        "blocked": true,
+                        "error": error,
+                    }).to_string();
+                    push_fetch_settlement(&state, &settle_key, resp.clone());
+                    return Ok(resp);
+                }
+            }
+            new_url
+        }
+        None => url,
+    };
+    let method = override_method.unwrap_or(method);
+    // A Continue rewrite supplies raw request bytes (the CDP layer already
+    // decoded the base64 wire form), so the base64 flag applies only to the
+    // original body.
+    let body_bytes: Vec<u8> = match override_body {
+        Some(b) => b,
+        None => {
+            if body_is_base64 {
+                BASE64.decode(&body).unwrap_or_default()
+            } else {
+                body.into_bytes()
+            }
+        }
+    };
+    let headers_json = match override_headers {
+        Some(h) => serde_json::to_string(&h).unwrap_or(headers_json),
+        None => headers_json,
+    };
+
+    let mut custom_headers: std::collections::HashMap<String, String> =
+        serde_json::from_str(&headers_json).unwrap_or_default();
+    // The out-of-band base64 marker must not leak to the wire or into the
+    // preflight Access-Control-Request-Headers list.
+    custom_headers.remove("__diting_body_b64");
+
+    // url::Url::origin() normalizes default ports, so an explicit :443 still
+    // compares same-origin (the old hand-rolled form did not).
+    let initial_request_origin = request_origin(&url).unwrap_or_default();
+    let page_origin = if origin.is_empty() { initial_request_origin } else { origin };
+
+    let mut deps = FetchWalkDeps {
+        url,
+        method,
+        custom_headers,
+        body_bytes,
+        page_origin,
+        mode,
+        credentials: FetchCredentials::parse(&credentials),
+        cookie_jar,
+        in_flight,
+        in_flight_list,
+        http_client,
+        proxy_url,
+        document_url,
+        referrer_policy,
+        referrer_init,
+        callbacks,
+        failures: Vec::new(),
+        // #229: op entry = request dispatch. Stamped before the first hop
+        // goes out so the HAR face can order concurrent requests by start,
+        // not by which response landed first.
+        started_unix,
+    };
+
+    let outcome = match fetch_url_walk(&mut deps).await {
+        Ok(outcome) => outcome,
+        Err(e) => {
+            replay_fetch_failures(&state.borrow(), &deps.failures);
+            push_fetch_settlement(&state, &settle_key, format!("\u{0}{e}"));
+            return Err(e);
+        }
+    };
+    replay_fetch_failures(&state.borrow(), &deps.failures);
+    if let Some(ev) = outcome.network.as_ref() {
+        let request_id = record_fetch_network_event(&state.borrow(), ev);
+        // #224: status rides the line — the doudian post-mortem had 0-byte
+        // completions whose status was unknowable from the log, and
+        // "empty 200" vs "synthesized 0" are different bugs.
+        tracing::debug!(
+            "op_fetch_url completed: {} {} ({} bytes, status {}, network event {})",
+            ev.method,
+            ev.url,
+            ev.body_size,
+            ev.status,
+            request_id,
+        );
+    }
+    if !settle_key.is_empty() {
+        push_fetch_settlement(&state, &settle_key, outcome.json.clone());
+    }
+    Ok(outcome.json)
+}
+
+/// The seven Referrer Policy tokens ("" is the "unset" marker, not a policy).
+const REFERRER_POLICY_TOKENS: [&str; 7] = [
+    "no-referrer",
+    "no-referrer-when-downgrade",
+    "origin",
+    "origin-when-cross-origin",
+    "strict-origin",
+    "strict-origin-when-cross-origin",
+    "unsafe-url",
+];
+
+
+pub(crate) fn glob_match(pattern: &str, url: &str) -> bool {
+    if pattern == "*" {
+        return true;
+    }
+    if let Some(mid) = pattern.strip_prefix('*').and_then(|p| p.strip_suffix('*')) {
+        return url.contains(mid);
+    }
+    if let Some(tail) = pattern.strip_prefix('*') {
+        return url.ends_with(tail);
+    }
+    if let Some(head) = pattern.strip_suffix('*') {
+        return url.starts_with(head);
+    }
+    url == pattern
+}
+
+/// Record a `status: 0` network event for a fetch that never produced a
+/// servable response — SSRF-blocked, URL-blocklisted, CORS-refused, or dead
+/// at the transport layer. The success path records via
+/// `record_fetch_network_event`; without this companion every early exit
+/// vanished from the session /network log, and a page whose API calls all
+/// died here read as "never issued a request" — exactly the ghost the taobao
+/// shop-SPA report chased (punished mtop XHRs are CORS-refused after the
+/// body arrives, so the whole call site went dark).
+fn record_failed_fetch(state: &OpState, f: &FetchFailure) {
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    gs.network_response_body_counter += 1;
+    // Same `fetch-{N}` id space as the success path (no body is stored under
+    // it — there is none to retrieve); keeps ids unique across interleaved
+    // failures and successes.
+    let request_id = format!("fetch-{}", gs.network_response_body_counter);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64();
+    gs.js_network_events.push(JsNetworkEvent {
+        request_id,
+        url: f.url.clone(),
+        method: f.method.clone(),
+        status: 0,
+        response_headers: HashMap::new(),
+        request_headers: HashMap::new(),
+        body_size: 0,
+        timestamp,
+        error: Some(f.reason.clone()),
+        final_url: f.final_url.clone(),
+        redirects: f.redirects.clone(),
+        started: f.started,
+    });
+    const MAX_JS_NETWORK_EVENTS: usize = 4096;
+    if gs.js_network_events.len() > MAX_JS_NETWORK_EVENTS {
+        let overflow = gs.js_network_events.len() - MAX_JS_NETWORK_EVENTS;
+        gs.js_network_events.drain(0..overflow);
+    }
+}
+
+/// The driver's give-up horizon comes from the env knob
+/// `DITING_SYNC_XHR_TIMEOUT_MS` with a 120 000ms default and 50ms
+/// floor — shrinkable so the abandonment row is testable in CI.
+fn sync_xhr_timeout_ms() -> u64 {
+    crate::env_knobs::sync_xhr_timeout_ms()
+}
+
+/// Synchronous twin of op_fetch_url (obscura#908): XHR.open(..., false) +
+/// send() must issue the request and return with status populated, with no
+/// event-loop turn in between. deno_core async ops only resolve when the
+/// embedding pumps the event loop after the eval returns — impossible while
+/// JS holds the thread inside send() — so the shared walk runs on a worker
+/// thread with its own current-thread tokio runtime and this op blocks on
+/// the reply channel.
+///
+/// Two divergences from the async path, both inherent to holding the JS
+/// thread:
+/// - CDP Fetch interception is skipped: a resolution cannot be delivered
+///   while the dispatch that raised the request is parked here (the same
+///   reason the async path's interception wait is bounded).
+/// - The shared reqwest client is touched from a second runtime.
+#[diting_op]
+#[string]
+fn op_fetch_url_sync(
+    state: &OpState,
+    #[string] url: String,
+    #[string] method: String,
+    #[string] headers_json: String,
+    #[string] body: String,
+    #[string] origin: String,
+    #[string] mode: String,
+    #[string] credentials: String,
+) -> Result<String, deno_error::JsErrorBox> {
+    // Same #229 entry stamp as the async driver — gather's short-circuit
+    // rows and the walk's deps both read the dispatch time.
+    let started_unix = now_unix();
+    let (init, body_is_base64) = gather_fetch_parts(state, &url, &method, &headers_json, started_unix)
+        .map_err(deno_error::JsErrorBox::generic)?;
+    let FetchRequestInit {
+        cookie_jar,
+        in_flight,
+        in_flight_list,
+        proxy_url,
+        http_client,
+        callbacks,
+        document_url,
+        ..
+    } = init;
+
+    let body_bytes = if body_is_base64 {
+        BASE64.decode(&body).unwrap_or_default()
+    } else {
+        body.into_bytes()
+    };
+    let mut custom_headers: std::collections::HashMap<String, String> =
+        serde_json::from_str(&headers_json).unwrap_or_default();
+    custom_headers.remove("__diting_body_b64");
+
+    let initial_request_origin = request_origin(&url).unwrap_or_default();
+    let page_origin = if origin.is_empty() { initial_request_origin } else { origin };
+
+    let mut deps = FetchWalkDeps {
+        url,
+        method,
+        custom_headers,
+        body_bytes,
+        page_origin,
+        mode,
+        credentials: FetchCredentials::parse(&credentials),
+        cookie_jar,
+        in_flight,
+        in_flight_list,
+        http_client,
+        proxy_url,
+        document_url,
+        // XHR has no referrerPolicy surface (Fetch-only RequestInit); the
+        // document's own policy (header / <meta name=referrer>) applies.
+        referrer_policy: resolve_document_referrer_policy(state),
+        referrer_init: "about:client".to_string(),
+        callbacks,
+        failures: Vec::new(),
+        // #229: op entry = request dispatch. Stamped before the first hop
+        // goes out so the HAR face can order concurrent requests by start,
+        // not by which response landed first.
+        started_unix,
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    // The driver can give up before the walk does: recv_timeout below fires
+    // while the worker is still mid-walk (multi-hop slow hops outlive it),
+    // and the worker's eventual failure replay then dies with the thread —
+    // the request would vanish from in_flight with no terminal row (#84
+    // observability: hung/failed requests must leave a trace). Captured
+    // here so the abandonment row can be recorded on the timeout branch.
+    let abandon_url = deps.url.clone();
+    let abandon_method = deps.method.clone();
+    let abandon_started = deps.started_unix;
+    let timeout_ms = sync_xhr_timeout_ms();
+    std::thread::Builder::new()
+        .name("sync-xhr".to_string())
+        .spawn(move || {
+            let result = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt.block_on(fetch_url_walk(&mut deps)),
+                Err(e) => Err(deno_error::JsErrorBox::generic(format!(
+                    "sync XHR transport runtime: {}",
+                    e
+                ))),
+            };
+            let failures = deps.failures;
+            let _ = tx.send((result, failures));
+        })
+        .map_err(|e| deno_error::JsErrorBox::generic(format!("sync XHR worker: {}", e)))?;
+
+    let (result, failures) = match rx.recv_timeout(std::time::Duration::from_millis(timeout_ms)) {
+        Ok(pair) => pair,
+        Err(_) => {
+            // #84: the walk may still be running on the worker — its own
+            // failure replay will never be read (the channel's receiver
+            // is gone). Record the abandonment as the request's terminal
+            // state so /network keeps a row for it.
+            record_failed_fetch(
+                state,
+                &FetchFailure {
+                    url: abandon_url.clone(),
+                    method: abandon_method.clone(),
+                    reason: format!(
+                        "synchronous XHR driver timed out after {timeout_ms}ms — \
+                         the worker's late result is not logged"
+                    ),
+                    final_url: abandon_url,
+                    redirects: Vec::new(),
+                    started: abandon_started,
+                },
+            );
+            return Err(deno_error::JsErrorBox::generic(
+                "Synchronous XMLHttpRequest timed out or its worker died",
+            ));
+        }
+    };
+    replay_fetch_failures(state, &failures);
+    let outcome = result?;
+    if let Some(ev) = outcome.network.as_ref() {
+        record_fetch_network_event(state, ev);
+    }
+    Ok(outcome.json)
+}
+
+/// `op_image_info(body_base64)` — the dimensions op backing the Image
+/// shim's `naturalWidth/naturalHeight`. Returns `{"width":w,"height":h}`;
+/// unparsable input yields 0×0 and the JS side keeps its old fallback, so
+/// the load/error contract (#41: transport status decides) is untouched —
+/// this only fills in real numbers when they're available.
+#[diting_op]
+#[string]
+fn op_image_info(#[string] body_base64: String) -> String {
+    let bytes = BASE64.decode(body_base64.as_bytes()).unwrap_or_default();
+    let (w, h) = image_header_dimensions(&bytes).unwrap_or((0, 0));
+    serde_json::json!({ "width": w, "height": h }).to_string()
+}
+
+#[diting_op]
+#[string]
+fn op_get_cookies(state: &OpState) -> String {
+    let gs = state.borrow::<SharedState>().clone();
+    let gs = gs.borrow();
+    let jar = match &gs.cookie_jar {
+        Some(j) => j,
+        None => return String::new(),
+    };
+    let url = match url::Url::parse(&gs.url) {
+        Ok(u) => u,
+        Err(_) => return String::new(),
+    };
+    jar.get_js_visible_cookies(&url)
+}
+
+#[diting_op]
+fn op_set_cookie(state: &OpState, #[string] cookie_str: &str) {
+    let gs = state.borrow::<SharedState>().clone();
+    let gs = gs.borrow();
+    let jar = match &gs.cookie_jar {
+        Some(j) => j,
+        None => return,
+    };
+    let url = match url::Url::parse(&gs.url) {
+        Ok(u) => u,
+        Err(_) => return,
+    };
+    jar.set_cookie_from_js(cookie_str, &url);
+}
+
+// localStorage persistence (obscura#629 class): the bootstrap store is a
+// plain JS map, so logins/flags a page keeps in localStorage died with the
+// process. The store now loads through op_storage_read on first access and
+// flushes (debounced JS-side) through op_storage_write; the authoritative
+// copy lives in this process-global map, mirrored to one JSON file per
+// origin under DITING_STORAGE_DIR (falling back to the cookie store
+// dir). sessionStorage deliberately stays memory-only — per-tab lifetime is
+// the spec'd behavior.
+static LOCAL_STORAGE: std::sync::LazyLock<
+    std::sync::Mutex<HashMap<String, HashMap<String, String>>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+static LOCAL_STORAGE_LOADED: std::sync::LazyLock<std::sync::Mutex<HashSet<String>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(HashSet::new()));
+
+fn storage_file(origin: &str) -> Option<std::path::PathBuf> {
+    if crate::env_knobs::ephemeral() {
+        return None;
+    }
+    let dir = std::env::var("DITING_STORAGE_DIR")
+        .ok()
+        .or_else(|| std::env::var("DITING_COOKIE_STORE_DIR").ok())
+        .or_else(|| crate::env_knobs::app_data_dir().map(|p| p.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| ".".to_string());
+    let mut sanitized = String::with_capacity(origin.len());
+    for c in origin.chars() {
+        if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
+            sanitized.push(c);
+        } else {
+            sanitized.push('_');
+        }
+    }
+    // FNV-1a suffix: sanitized names collide ("a:b" vs "a_b"); the hash does not.
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in origin.as_bytes() {
+        hash ^= u64::from(*b);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    Some(
+        std::path::Path::new(&dir)
+            .join("localStorage")
+            .join(format!("{sanitized}-{:016x}.json", hash)),
+    )
+}
+
+fn storage_load_locked(origin: &str) {
+    let mut loaded = LOCAL_STORAGE_LOADED.lock().unwrap();
+    if !loaded.insert(origin.to_string()) {
+        return;
+    }
+    let Some(path) = storage_file(origin) else {
+        return;
+    };
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let Ok(entries) = serde_json::from_str::<HashMap<String, String>>(&raw) else {
+        return;
+    };
+    LOCAL_STORAGE
+        .lock()
+        .unwrap()
+        .insert(origin.to_string(), entries);
+}
+
+#[diting_op]
+#[string]
+fn op_storage_read(#[string] origin: &str) -> String {
+    storage_load_locked(origin);
+    let map = LOCAL_STORAGE.lock().unwrap();
+    let entries = map.get(origin);
+    serde_json::to_string(&entries.unwrap_or(&HashMap::new())).unwrap_or_else(|_| "{}".to_string())
+}
+
+#[diting_op]
+fn op_storage_write(#[string] origin: &str, #[string] json: &str) {
+    let Ok(entries) = serde_json::from_str::<HashMap<String, String>>(json) else {
+        return;
+    };
+    // Load-first: a write for a never-read origin must not be clobbered by
+    // the on-disk copy when the reader side initializes later.
+    storage_load_locked(origin);
+    LOCAL_STORAGE
+        .lock()
+        .unwrap()
+        .insert(origin.to_string(), entries);
+    let Some(path) = storage_file(origin) else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            // An unwritable store must be loud (obscura#855 item 1 shape):
+            // silently returning here loses every subsequent localStorage
+            // write with zero diagnostics.
+            tracing::warn!(
+                "localStorage persist: create_dir_all({}) failed: {}",
+                parent.display(),
+                e
+            );
+            return;
+        }
+    }
+    let payload = LOCAL_STORAGE
+        .lock()
+        .unwrap()
+        .get(origin)
+        .map(|entries| serde_json::to_string(entries).unwrap_or_else(|_| "{}".to_string()));
+    let Some(payload) = payload else { return };
+    // tmp + rename so a mid-write kill never leaves a truncated store;
+    // 0600 to match the cookie store — this file carries login tokens too
+    // (the xinzao-class session shape).
+    let tmp = path.with_extension("tmp");
+    #[cfg(unix)]
+    let write_ok = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)
+            .and_then(|mut f| f.write_all(payload.as_bytes()))
+            .is_ok()
+    };
+    // Windows has no mode bits; the file lives in the per-user app-data
+    // directory (config::app_data_dir), whose ACLs already scope it to the
+    // user.
+    #[cfg(not(unix))]
+    let write_ok = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&tmp)
+        .and_then(|mut f| f.write_all(payload.as_bytes()))
+        .is_ok();
+    if write_ok {
+        if let Err(e) = std::fs::rename(&tmp, &path) {
+            tracing::warn!("localStorage persist: rename to {} failed: {}", path.display(), e);
+        }
+    } else {
+        tracing::warn!("localStorage persist: write to {} failed", tmp.display());
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn reset_local_storage_for_tests() {
+    LOCAL_STORAGE.lock().unwrap().clear();
+    LOCAL_STORAGE_LOADED.lock().unwrap().clear();
+}
+
+#[diting_op]
+fn op_navigate(state: &OpState, #[string] url: &str, #[string] method: &str, #[string] body: &str) {
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    // Only queue the navigation — do NOT move the realm URL here. The URL is
+    // written on commit (init_js → set_url from the page's committed URL).
+    // Moving it early let synchronous JS between the assignment and the
+    // actual navigation read and write another origin's cookies through
+    // document.cookie, whose ops derive the domain from this URL
+    // (SOP bypass, obscura #940).
+    gs.pending_navigation = Some((url.to_string(), method.to_string(), body.to_string()));
+}
+
+/// Queue a session-history jump (history.back/forward/go across a document
+/// boundary — obscura#1105). `target` is an absolute index into the page's
+/// real session history; the pump (`Page::process_pending_navigation`) moves
+/// the cursor and refetches the entry's document.
+#[diting_op]
+fn op_history_jump_to(state: &OpState, target: i32) {
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    gs.pending_history_jump = Some(target);
+}
+
+/// Free body of `op_sleep` — the hand glue (`diting_js::async_glue`)
+/// calls this directly off our Vm host (10d swap; the #[op2] wrapper died
+/// with the deno host).
+pub(crate) async fn op_sleep_body(millis: u64) {
+    // #230: tokio's timer wheel ticks at 1ms granularity — even a
+    // zero-length sleep parks until the next wheel tick before its
+    // deadline reads as due, taxing every delay-0 round-trip with ~1ms of
+    // pure wheel latency (measured 1154µs/trip while the JS work under it
+    // cost 55ns/item: the macrotask trampoline takes one trip per 64
+    // items, so a 340k-timer fxg boot drained at ~5.7k/s = 59s). A zero
+    // sleep completes at the first drive instead — settlement still rides
+    // the settle queue into the next loop pass, so the task-boundary
+    // discipline (#37/#327 line: never settle on the JS stack) is intact;
+    // it just doesn't wait for a wheel tick to say "due".
+    if millis == 0 {
+        return;
+    }
+    // Reactor-less contexts (plain #[test] isolates): a tokio timer would
+    // panic mid-poll inside v8, which aborts the whole test binary. Resolve
+    // at the next event-loop checkpoint instead — production always runs
+    // under a reactor and never takes this path.
+    if tokio::runtime::Handle::try_current().is_err() {
+        return;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+}
+
+// Records a binding call from page JS. The CDP layer drains this queue
+// after every dispatch and emits one `Runtime.bindingCalled` event per
+// entry, that's how puppeteer's `page.exposeFunction` callbacks fire.
+#[diting_op]
+fn op_binding_called(state: &OpState, #[string] name: &str, #[string] payload: &str) {
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    gs.pending_binding_calls.push((name.to_string(), payload.to_string()));
+    // The CDP layer drains this after every dispatch, but a page can loop
+    // calling an exposed binding many times inside one long evaluate — same
+    // unbounded-queue shape as js_network_events (obscura #705 class).
+    const MAX_PENDING_BINDING_CALLS: usize = 4096;
+    if gs.pending_binding_calls.len() > MAX_PENDING_BINDING_CALLS {
+        let overflow = gs.pending_binding_calls.len() - MAX_PENDING_BINDING_CALLS;
+        gs.pending_binding_calls.drain(0..overflow);
+    }
+}
+
+
+/// Serialize a parsed URL into the WHATWG IDL component shape consumed by the
+/// `URL` class in bootstrap.js. Getters read these fields directly so no op
+/// call happens per property access.
+fn url_components(u: &url::Url) -> serde_json::Value {
+    let port = u.port().map(|p| p.to_string()).unwrap_or_default();
+    let hostname = u.host_str().unwrap_or("").to_string();
+    let host = if hostname.is_empty() {
+        String::new()
+    } else if port.is_empty() {
+        hostname.clone()
+    } else {
+        format!("{hostname}:{port}")
+    };
+    // WHATWG search/hash getters return "" for a null OR empty component.
+    let search = match u.query() {
+        Some(q) if !q.is_empty() => format!("?{q}"),
+        _ => String::new(),
+    };
+    let hash = match u.fragment() {
+        Some(f) if !f.is_empty() => format!("#{f}"),
+        _ => String::new(),
+    };
+    serde_json::json!({
+        "ok": true,
+        "href": u.as_str(),
+        "protocol": format!("{}:", u.scheme()),
+        "username": u.username(),
+        "password": u.password().unwrap_or(""),
+        "host": host,
+        "hostname": hostname,
+        "port": port,
+        "pathname": u.path(),
+        "search": search,
+        "hash": hash,
+        "origin": u.origin().ascii_serialization(),
+    })
+}
+
+/// Parse `href` (optionally resolved against `base`) with the WHATWG-compliant
+/// `url` crate. Returns the component JSON, or `{"ok":false}` when the input is
+/// not a valid URL (the JS side turns that into a TypeError, per spec).
+#[diting_op]
+#[string]
+fn op_url_parse(#[string] href: &str, #[string] base: &str) -> String {
+    // The url crate can panic on a few pathological inputs (internal range
+    // slicing); catch it so a bad URL never aborts the process.
+    std::panic::catch_unwind(|| {
+        let parsed = if base.is_empty() {
+            url::Url::parse(href)
+        } else {
+            url::Url::parse(base).and_then(|b| b.join(href))
+        };
+        match parsed {
+            Ok(u) => url_components(&u).to_string(),
+            Err(_) => "{\"ok\":false}".to_string(),
+        }
+    })
+    .unwrap_or_else(|_| "{\"ok\":false}".to_string())
+}
+
+/// Apply a WHATWG URL setter (`part` = href/protocol/username/password/host/
+/// hostname/port/pathname/search/hash) to `href` and return the new components.
+fn url_set_inner(href: &str, part: &str, value: &str) -> Option<serde_json::Value> {
+    let mut u = url::Url::parse(href).ok()?;
+    match part {
+        "href" => {
+            let nu = url::Url::parse(value).ok()?;
+            return Some(url_components(&nu));
+        }
+        "protocol" => {
+            let _ = u.set_scheme(value.trim_end_matches(':'));
+        }
+        "username" => {
+            let _ = u.set_username(value);
+        }
+        "password" => {
+            let _ = u.set_password(if value.is_empty() { None } else { Some(value) });
+        }
+        "host" => set_host_port(&mut u, value),
+        "hostname" => {
+            if !value.is_empty() {
+                let _ = u.set_host(Some(value));
+            }
+        }
+        "port" => {
+            // WHATWG port state consumes the leading ASCII digits and stops
+            // at the first non-digit, so "8080abc" sets 8080; no digits or a
+            // number above 65535 leaves the port untouched.
+            if value.is_empty() {
+                let _ = u.set_port(None);
+            } else {
+                let digits: String =
+                    value.chars().take_while(|c| c.is_ascii_digit()).collect();
+                if let Ok(p) = digits.parse::<u32>() {
+                    if p <= 65535 {
+                        let _ = u.set_port(Some(p as u16));
+                    }
+                }
+            }
+        }
+        "pathname" => u.set_path(value),
+        "search" => {
+            // Null only when the ORIGINAL value is the empty string; a bare
+            // "?" sets an empty query that still serializes its delimiter
+            // (href ends in "?").
+            let q = value.strip_prefix('?').unwrap_or(value);
+            u.set_query(if value.is_empty() { None } else { Some(q) });
+        }
+        "hash" => {
+            let f = value.strip_prefix('#').unwrap_or(value);
+            u.set_fragment(if value.is_empty() { None } else { Some(f) });
+        }
+        _ => {}
+    }
+    Some(url_components(&u))
+}
+
+#[diting_op]
+#[string]
+fn op_url_set(#[string] href: &str, #[string] part: &str, #[string] value: &str) -> String {
+    // Some url-crate setters panic on pathological inputs (the url-setters WPT
+    // tests exercise these). Catch the unwind and treat it as a no-op setter,
+    // returning the URL unchanged, which matches WHATWG "do nothing on invalid".
+    match std::panic::catch_unwind(|| url_set_inner(href, part, value)) {
+        Ok(Some(v)) => v.to_string(),
+        _ => match url::Url::parse(href) {
+            Ok(u) => url_components(&u).to_string(),
+            Err(_) => "{\"ok\":false}".to_string(),
+        },
+    }
+}
+
+/// Best-effort `host` setter: split `host[:port]` (handling bracketed IPv6) and
+/// apply hostname and port separately, since `url::Url::set_host` rejects a port.
+fn set_host_port(u: &mut url::Url, value: &str) {
+    // IPv6 literals are bracketed; never split inside the brackets.
+    if value.starts_with('[') {
+        if let Some(close) = value.find(']') {
+            let host = &value[..=close];
+            let rest = &value[close + 1..];
+            if u.set_host(Some(host)).is_ok() {
+                if let Some(p) = rest.strip_prefix(':') {
+                    if let Ok(pn) = p.parse::<u16>() {
+                        let _ = u.set_port(Some(pn));
+                    }
+                }
+            }
+            return;
+        }
+    }
+    if let Some(idx) = value.rfind(':') {
+        let (h, p) = (&value[..idx], &value[idx + 1..]);
+        if p.is_empty() || p.chars().all(|c| c.is_ascii_digit()) {
+            if u.set_host(Some(h)).is_ok() {
+                if p.is_empty() {
+                    let _ = u.set_port(None);
+                } else if let Ok(pn) = p.parse::<u16>() {
+                    let _ = u.set_port(Some(pn));
+                }
+            }
+            return;
+        }
+    }
+    let _ = u.set_host(Some(value));
+}
+
+/// Resolve `href` against optional `base` and return only the serialized
+/// absolute URL (no component breakdown). Used by the hot `a.href`/`area.href`
+/// getter, which only needs the resolved string, so it avoids building and
+/// re-parsing the full component JSON. Returns "" when the input is invalid.
+#[diting_op]
+#[string]
+fn op_url_resolve(#[string] href: &str, #[string] base: &str) -> String {
+    std::panic::catch_unwind(|| {
+        let parsed = if base.is_empty() {
+            url::Url::parse(href)
+        } else {
+            url::Url::parse(base).and_then(|b| b.join(href))
+        };
+        parsed.map(|u| u.as_str().to_string()).unwrap_or_default()
+    })
+    .unwrap_or_default()
+}
+
+/// Parse and merge an inline document import map (upstream 34373c3). Returns
+/// "" on success or the parse/merge error message, so the bootstrap caller can
+/// surface it as a script error event without a rejected-op round-trip.
+#[diting_op]
+#[string]
+fn op_add_import_map(
+    state: &OpState,
+    #[string] source: String,
+    #[string] base_url: String,
+) -> String {
+    let shared = state.borrow::<SharedState>().clone();
+    let import_map = shared.borrow().import_map.clone();
+    let parsed = match crate::diting_js::import_map::ImportMap::parse(&source, &base_url) {
+        Ok(map) => map,
+        Err(error) => return error,
+    };
+    let result = match import_map.try_borrow_mut() {
+        Ok(mut current) => {
+            current.merge(parsed);
+            String::new()
+        }
+        Err(_) => "Import map is already borrowed".to_string(),
+    };
+    result
+}
+
+
+/// 批240 / obscura#1100: SVGGeometryElement.getTotalLength() backing. Chrome
+/// measures through SkPathMeasure (circle r=25 → 156.0674, not 2πr), so these
+/// numbers line up with Chrome (conic chord measure for ovals, analytic for
+/// explicit d beziers). Non-geometry nodes / missing geometry read 0.
+/// Anti-panic boundary: the path data comes from the page, and a parser panic
+/// must degrade to 0 (the op_dom posture) rather than unwind through the FFI
+/// frame. Measurement lives in the layout crate, so the no-screenshot build
+/// reads 0 — geometry measurement without the layout engine is meaningless
+/// anyway.
+#[cfg(feature = "screenshot")]
+#[diting_op]
+fn op_svg_path_len(state: &OpState, #[smi] nid: u32) -> f64 {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        svg_measure(state, nid).map(|m| m.total() as f64).unwrap_or(0.0)
+    }))
+    .unwrap_or(0.0)
+}
+
+#[cfg(not(feature = "screenshot"))]
+#[diting_op]
+fn op_svg_path_len(_: &OpState, #[smi] _: u32) -> f64 {
+    0.0
+}
+
+/// getPointAtLength backing — "x\0y" (cheap unambiguous pair; the bootstrap
+/// side splits and wraps it in an SVGPoint). Negative/overlong targets
+/// clamp to the endpoints, Chrome's contract.
+#[cfg(feature = "screenshot")]
+#[diting_op]
+#[string]
+fn op_svg_path_point(state: &OpState, #[smi] nid: u32, target: f64) -> String {
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        svg_measure(state, nid).map(|m| m.point_at(target as f32))
+    }))
+    .unwrap_or(None);
+    match r {
+        Some((x, y)) if x.is_finite() && y.is_finite() => format!("{x}\0{y}"),
+        _ => "0\u{0}0".to_string(),
+    }
+}
+
+#[cfg(not(feature = "screenshot"))]
+#[diting_op]
+#[string]
+fn op_svg_path_point(_: &OpState, #[smi] _: u32, _: f64) -> String {
+    "0\u{0}0".to_string()
+}
+
+#[cfg(feature = "screenshot")]
+fn svg_measure(
+    state: &OpState,
+    nid: u32,
+) -> Option<crate::diting_layout::svg::PathMeasure> {
+    let gs = state.borrow::<SharedState>().clone();
+    let gs = gs.borrow();
+    let dom = match &gs.dom {
+        Some(d) => d,
+        None => return None,
+    };
+    let node = dom.get_node(NodeId::new(nid))?;
+    let tag = match &node.data {
+        crate::diting_dom::NodeData::Element { name, .. } => name.local.as_str(),
+        _ => return None,
+    };
+    crate::diting_layout::svg::build_path_measure(tag, &|a| {
+        node.get_attribute(a).map(|s| s.to_string())
+    })
+}
+
+/// (#78) Sub-ms wall clock for performance.now(). Chrome coarsens the timer
+/// to 100µs (non-crossOriginIsolated) and reports floats; an integral
+/// Date.now()-based value is a timing-entropy tell on the jsvmp environment
+/// scan path. Quantized to 0.1ms steps — epoch-ms times ten stays well under
+/// 2^53, so the f64 rounding is exact (finer quantization would not be).
+#[diting_op]
+fn op_clock_ms() -> f64 {
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64()
+        * 1000.0;
+    (ms * 10.0).round() / 10.0
+}
+
+/// The op table our own host installs (10d flip): every #[diting_op]
+/// wrapper already returns OUR OpDecl, and the four async ops come in as
+/// hand glue from `diting_js::async_glue` (op_fetch_url / op_sleep /
+/// op_ws_open / op_ws_next_message). The list mirrors the retired
+/// build_extension() entry-for-entry; the to_deno adapter and the
+/// Extension wrapper died with the deno host.
+pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
+    let mut decls = vec![
+        css::op_css_supports(),
+        props::op_register_property(),
+        op_dom(),
+        op_clock_ms(),
+        op_svg_path_len(),
+        op_svg_path_point(),
+        op_shadow_attach(),
+        op_console_msg(),
+        op_dialog(),
+        op_script_mark_started(),
+        op_script_try_start(),
+        op_dyn_script_fetch_begin(),
+        op_dyn_script_fetch_end(),
+        op_blob_register(),
+        op_blob_revoke(),
+        op_fetch_take(),
+        op_fetch_url_sync(),
+        op_image_info(),
+        op_canvas_png(),
+        op_canvas_jpeg(),
+        #[cfg(feature = "screenshot")]
+        op_canvas_store(),
+        #[cfg(feature = "screenshot")]
+        op_canvas_text(),
+        op_get_cookies(),
+        op_set_cookie(),
+        op_storage_read(),
+        op_storage_write(),
+        op_navigate(),
+        op_history_jump_to(),
+        op_binding_called(),
+        op_subtle_digest(),
+        op_subtle_hmac(),
+        op_subtle_aes_gcm(),
+        op_subtle_aes_cbc(),
+        op_subtle_aes_ctr(),
+        op_subtle_aes_kw(),
+        op_subtle_rsa_generate(),
+        op_subtle_rsa_import_public(),
+        op_subtle_rsa_import_spki(),
+        op_subtle_rsa_import_private(),
+        op_subtle_rsa_import_pkcs8(),
+        op_subtle_rsa_oaep(),
+        op_subtle_rsa_pkcs1v15_sign(),
+        op_subtle_rsa_pkcs1v15_verify(),
+        op_subtle_pbkdf2(),
+        op_subtle_hkdf(),
+        op_subtle_ecdsa_generate(),
+        op_subtle_ecdsa_import_private(),
+        op_subtle_ecdsa_import_public(),
+        op_subtle_ecdh_derive_bits(),
+        op_subtle_ecdsa_sign(),
+        op_subtle_ecdsa_verify(),
+        op_subtle_ed25519_check(),
+        op_subtle_ed25519_public(),
+        op_subtle_ed25519_sign(),
+        op_subtle_ed25519_verify(),
+        op_random_bytes(),
+        op_url_parse(),
+        op_url_set(),
+        op_url_resolve(),
+        op_add_import_map(),
+        encoding::op_encoding_for_label(),
+        encoding::op_text_decode(),
+        encoding::op_url_encode_query(),
+        crate::diting_js::ws::op_ws_send(),
+        crate::diting_js::ws::op_ws_close(),
+    ];
+    // The async four ride the hand glue (promise stub + OpDriver spawn).
+    decls.extend(crate::diting_js::async_glue::all_decls());
+    decls
+}
+
+#[cfg(test)]
+mod tests;

@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "description": "Verdict URL-rule overlay template. The public tree ships EMPTY (asset separation 2026-10-25): platform login fronts and wall needles are operator business data. Load a private table via DITING_VERDICT_RULES=<path> (then ./config/verdict_rules.json, then this embedded copy). Shape: {\"rules\":[{\"needle\":\"substring matched against the lowercased URL\",\"verdict\":\"challenge|captcha|login|empty|landed|unknown\"}]}.",
+  "rules": []
+}

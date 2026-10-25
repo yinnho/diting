@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-25",
+  "question": "#276 P1-5: is a warm isolate/context pool worth building? (every navigation rebuilds the realm = a fresh Vm::from_snapshot: new isolate from the #277 embedded StartupData + context + ops + init replay + natives mint)",
+  "binary": "target/release/diting, --release --features stealth,screenshot, 0.6.2 / 51c0337+8eaf574",
+  "method": "release binary, data: URL navigations (zero network), same session repeated + fresh sessions, macOS 27.0.1 arm64",
+  "numbers_ms": {
+    "same_session_data_url_navigations": [13.6, 6.9, 6.9, 7.2, 6.8, 7.0, 6.5, 6.8],
+    "fresh_session_first_data_url_navigate": [11.6, 11.0, 10.7, 10.5, 10.7],
+    "session_create": [0.5, 0.4, 0.4, 0.4, 0.3]
+  },
+  "verdict": "NO-BUILD. Realm bring-up is ~7ms (first ~14ms, cross-session ~11ms) — the #277 StartupData embed + cross-isolate reuse already amortized the cost a pool would target. A pool saves <=7ms per navigation against a ~1.2s real navigation (network-dominated) and adds pool-state hygiene risk. Revisit only if realm bring-up grows an order of magnitude.",
+  "p1_4_note": "The custom V8 platform ALSO already exists (diting_runtime/src/foreground.rs: per-isolate foreground registry + waker, installed via v8::new_custom_platform in vm.rs) — deliberately tokio-FREE (waker model) instead of Moli's tokio-affine design; per-page isolate is the standing model this measurement rode on."
+}

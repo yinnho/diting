@@ -1,0 +1,332 @@
+//! Engine-side runtime knobs (environment variables).
+//!
+//! These read the `DITING_*` environment the engine runs under —
+//! proxy routing, V8 stack budget, ephemeral-storage mode, data-dir
+//! location. They lived in the product's `config.rs` before the workspace
+//! split; the engine owns them now (R2 — the engine reads its own knobs),
+//! and the product re-exports them from `config` so call sites are
+//! unchanged.
+
+/// The upstream proxy URL, read once per call site from the environment:
+/// `DITING_PROXY`.
+pub fn proxy_from_env() -> Option<String> {
+    std::env::var("DITING_PROXY")
+        .ok()
+        .filter(|p| !p.is_empty())
+}
+
+/// `DITING_SYNC_XHR_TIMEOUT_MS`: how long the synchronous-XHR op
+/// waits on its worker thread before giving up (default 120 000, floor
+/// 50). A knob so the driver-abandonment network row (#84 observability)
+/// is exercisable in CI — the walk's own per-hop transport timeouts can
+/// outlive a multi-hop sync request, and the timeout must be shrinkable
+/// to test the row without a two-minute test.
+pub fn sync_xhr_timeout_ms() -> u64 {
+    std::env::var("DITING_SYNC_XHR_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|&v| v >= 50)
+        .unwrap_or(120_000)
+}
+
+/// Check if a URL points to a known foreign/blocked domain that requires proxy.
+/// Uses suffix matching: `sub.github.com` matches `github.com`.
+/// Returns `false` if URL parsing fails (safe fallback).
+///
+/// Governs every transport's proxy routing, not just the /fetch endpoint: the
+/// net clients consult this per request when no explicit proxy was configured,
+/// so page/session/CDP navigations reach blocked origins the same way /fetch
+/// and download do.
+pub fn should_auto_proxy(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+
+    // Known foreign domains that are blocked in China.
+    // Suffix match: `raw.githubusercontent.com` matches `githubusercontent.com`.
+    const BLOCKED_DOMAINS: &[&str] = &[
+        "github.com",
+        "githubusercontent.com",
+        "githubassets.com",
+        "github.io",
+        "google.com",
+        "google.co.jp",
+        "googleapis.com",
+        "googleusercontent.com",
+        "wikipedia.org",
+        "stackoverflow.com",
+        "stackexchange.com",
+        "medium.com",
+        "x.com",
+        "twitter.com",
+        "twimg.com",
+        "youtube.com",
+        "reddit.com",
+        "openai.com",
+        "anthropic.com",
+        // Search engines / registries that time out from CN without a proxy
+        // (redfin diting.log 2026-10-12: duckduckgo / huggingface /
+        // github decode/timeout; /search used to miss the auto-proxy path).
+        "duckduckgo.com",
+        "huggingface.co",
+        "arxiv.org",
+        "export.arxiv.org",
+        "pypi.org",
+        "pythonhosted.org",
+        "npms.io",
+        "npmjs.com",
+        "npmjs.org",
+        "rubygems.org",
+        "openalex.org",
+        "developer.mozilla.org",
+        "ycombinator.com",
+        "algolia.com",
+    ];
+
+    for domain in BLOCKED_DOMAINS {
+        if host == *domain || host.ends_with(&format!(".{}", domain)) {
+            return true;
+        }
+    }
+    false
+}
+
+/// First standard proxy env var that is set, as "NAME=value". Used to warn
+/// that the engine ignores these: every engine client pins reqwest/wreq's
+/// implicit env/system proxy matcher off (see `reqwest_builder_no_env_proxy`),
+/// so `DITING_PROXY` is the only knob that routes engine traffic
+/// through a proxy. Without the warning, a shell-level proxy (clash, corp
+/// egress) silently looks "configured" while the engine fetches direct.
+pub fn standard_proxy_env() -> Option<String> {
+    for name in [
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+    ] {
+        if let Ok(v) = std::env::var(name) {
+            if !v.is_empty() {
+                return Some(format!("{name}={v}"));
+            }
+        }
+    }
+    None
+}
+
+/// Deep-stack budget (MB) shared by every thread that hosts a V8 isolate
+/// and by V8's own JS stack ceiling (set once before the first isolate;
+/// see diting_js::runtime). Minified SPA bundles recurse past defaults —
+/// override for constrained hosts via `DITING_JS_STACK_MB` (1..=1024).
+pub fn js_stack_mb() -> usize {
+    std::env::var("DITING_JS_STACK_MB")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|&mb| (1..=1024).contains(&mb))
+        .unwrap_or(32)
+}
+
+/// #224: per-isolate V8 old-space ceiling (MB), applied process-wide via
+/// `--max-old-space-size` before the first isolate. deno_core 0.411
+/// exposes no `max_heap_size` RuntimeOption, so V8's default (~1400MB)
+/// used to stand — and doudian's publish boot crossed it mid-commit (a
+/// 1MB tcc config ×5 rounds + 10MB vendor_init + formily schema is a
+/// legal commerce-SPA heap), at which point the heap guard beheaded the
+/// form init chain. Commerce boots get the headroom; a page that still
+/// climbs the ceiling gets the #224 pressure-GC escalation instead of an
+/// instant kill. 0 = keep V8's default.
+pub fn js_heap_mb() -> usize {
+    std::env::var("DITING_JS_HEAP_MB")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|&mb| mb <= 16_384)
+        .unwrap_or(3_072)
+}
+
+/// Extra V8 flags applied process-wide before the first isolate, verbatim
+/// (`--prof --logfile=/tmp/x.log`). The built-ins above cover the tuned
+/// knobs; this is the escape hatch for engine forensics — #225's wedge
+/// runs in optimized code that ignores interrupt checks, so interrupt-
+/// based samplers can't see it, while `--prof` samples from its own
+/// thread and logs code events from the JIT regardless. V8 itself logs
+/// rejected flags to stderr; unknown flags never abort the other ones.
+pub fn v8_extra_flags() -> String {
+    std::env::var("DITING_V8_FLAGS").unwrap_or_default()
+}
+
+/// #66 busy-storm freeze window (seconds; 0 disables). The watchdog family
+/// only sees single-entry overruns: a burner whose every callback stays
+/// under each budget (settle +500ms, script phase +1s, eval timeout) never
+/// fires one, and an interval/promise driver keeps the loop from ever
+/// reporting idle — so the pump re-enters V8 flat out for the session's
+/// life (measured: 45-48% of a core on a synthetic interval burner, zero
+/// watchdog fires, no RangeError since the recursion is depth-bounded).
+/// The idle pump accounts trailing wall time actually spent inside
+/// `poll_event_loop` (parked-waiting time doesn't count); when a window of
+/// this length shows ≥40% busy, the realm freezes until the next
+/// Navigate/SetContent swaps the document. 40%, not 80: an interval
+/// burner's in-engine duty tops out around 46-60% once per-tick timer
+/// dispatch latency is paid (measured), so a peak-shaped threshold never
+/// fires on the storm it exists for — the honest signal is sustained duty.
+pub fn js_busy_limit_secs() -> u64 {
+    std::env::var("DITING_JS_BUSY_LIMIT_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|&s| s <= 3600)
+        .unwrap_or(30)
+}
+
+/// Test lock for env-var mutations (see the 1f7486c precedent): tests that
+/// flip `DITING_EPHEMERAL` hold this mutex so parallel test threads
+/// don't observe each other's env writes.
+pub static EPHEMERAL_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// #278 on-demand layout: a session at rest owns no live layout tree. The
+/// session actor releases the memoized layout run at every command
+/// boundary — idle RAM is the DOM plus the stamp counters, and the next
+/// geometry read or paint rebuilds the run (rev-quiet, so the band frame
+/// cache's damage signature keeps hitting). `DITING_LAYOUT_RELEASE=0`
+/// restores the old retain-across-commands posture: the emergency revert,
+/// and the A/B baseline for the N-session soak.
+pub fn layout_release() -> bool {
+    !std::env::var("DITING_LAYOUT_RELEASE")
+        .is_ok_and(|v| v.trim() == "0")
+}
+
+/// When set, no credential-bearing state touches the disk: the shared
+/// cookie jar and per-origin localStorage stay memory-only for the life of
+/// the process (the shared jar exists to blunt CAPTCHA rates across
+/// stateless fetches — see server::SHARED_COOKIE_JAR — but every auth
+/// session that flows through it also lands in that file, which is not a
+/// trade every deployment wants to make).
+pub fn ephemeral() -> bool {
+    matches!(
+        std::env::var("DITING_EPHEMERAL")
+            .ok()
+            .as_deref()
+            .map(str::trim)
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("1") | Some("true") | Some("yes") | Some("on")
+    )
+}
+
+/// Default on-disk home for credential-bearing state (the shared cookie
+/// jar, per-origin localStorage). The current working directory was the
+/// original default — which put live login cookies one careless
+/// `git add .` away from a commit — so state now lands in the platform
+/// application-data location instead. `DITING_COOKIE_STORE_DIR` /
+/// `DITING_STORAGE_DIR` still override, and files are written 0600.
+pub fn app_data_dir() -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var_os("HOME").map(|h| {
+            std::path::PathBuf::from(h)
+                .join("Library/Application Support/diting")
+        })
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // %LOCALAPPDATA%\diting. HOME is absent when the server runs
+        // from PowerShell/cmd (only git-bash sets it), and falling back to
+        // the working directory is the exact leak this function exists to
+        // prevent.
+        std::env::var_os("LOCALAPPDATA")
+            .map(|d| std::path::PathBuf::from(d).join("diting"))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
+            if !xdg.is_empty() {
+                return Some(std::path::PathBuf::from(xdg).join("diting"));
+            }
+        }
+        std::env::var_os("HOME")
+            .map(|h| std::path::PathBuf::from(h).join(".local/share/diting"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{app_data_dir, ephemeral, should_auto_proxy};
+
+    // The list gates routing for every navigation now — pin the match shapes.
+    #[test]
+    fn auto_proxy_matches_apex_and_subdomains_only() {
+        assert!(should_auto_proxy("https://en.wikipedia.org/wiki/Rust"));
+        assert!(should_auto_proxy("https://wikipedia.org/"));
+        assert!(should_auto_proxy("https://raw.githubusercontent.com/x/y"));
+        // github's static bundle host — a page whose HTML proxied but whose
+        // JS/CSS went direct arrives scriptless, same as the twimg case.
+        assert!(should_auto_proxy("https://github.githubassets.com/assets/some-bundle.js"));
+        // Twitter's CDN: every x.com page load pulls scripts/images from
+        // abs.twimg.com/pbs.twimg.com — a page whose HTML proxied but whose
+        // CDN assets went direct arrives scriptless.
+        assert!(should_auto_proxy("https://abs.twimg.com/client-web/main.js"));
+        assert!(should_auto_proxy("https://pbs.twimg.com/profile/x.jpg"));
+        assert!(should_auto_proxy("https://html.duckduckgo.com/html/"));
+        assert!(should_auto_proxy("https://huggingface.co/api/models"));
+        assert!(should_auto_proxy("https://api.github.com/search/repositories"));
+        assert!(should_auto_proxy("https://export.arxiv.org/api/query"));
+        assert!(!should_auto_proxy("https://notwikipedia.org/"));
+        assert!(!should_auto_proxy("https://example.com/"));
+        assert!(!should_auto_proxy("not a url"));
+    }
+
+    #[test]
+    fn ephemeral_parses_env_truthiness() {
+        let _env = super::EPHEMERAL_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        std::env::remove_var("DITING_EPHEMERAL");
+        assert!(!ephemeral());
+        for truthy in ["1", "true", "TRUE", "Yes", "on", " 1 "] {
+            std::env::set_var("DITING_EPHEMERAL", truthy);
+            assert!(ephemeral(), "{truthy:?} should enable ephemeral");
+        }
+        for falsy in ["0", "false", "no", "off", ""] {
+            std::env::set_var("DITING_EPHEMERAL", falsy);
+            assert!(!ephemeral(), "{falsy:?} should not enable ephemeral");
+        }
+        std::env::remove_var("DITING_EPHEMERAL");
+        assert!(!ephemeral());
+    }
+
+    #[test]
+    fn app_data_dir_lands_under_platform_location() {
+        if std::env::var_os("HOME").is_none() && std::env::var_os("XDG_DATA_HOME").is_none() {
+            return; // no platform anchor; callers fall back to "."
+        }
+        let dir = app_data_dir().expect("anchor env set");
+        assert!(dir.is_absolute(), "relative: {}", dir.display());
+        assert!(
+            dir.components().any(|c| c.as_os_str() == "diting"),
+            "path: {}",
+            dir.display()
+        );
+    }
+}
+
+/// `DITING_REALM_SHRINK` (default ON, `0` opts out): full-GC each
+/// realm right after init, plus the idle shrink for parked sessions
+/// (#276). Measured: ~2ms per realm build for ~1.4MB physical back per
+/// realm (25-realm concurrent peak −7.6%); the deeper tier was measured
+/// DEAD (critical pressure + double GC buys 33KB more — the live set is
+/// the floor).
+pub fn realm_shrink() -> bool {
+    std::env::var("DITING_REALM_SHRINK")
+        .map(|v| v != "0")
+        .unwrap_or(true)
+}
+
+/// `DITING_REALM_HEAP_STATS`: log each realm's V8 heap statistics at
+/// two points (post snapshot restore, post realm init) so the per-isolate
+/// memory cost can be decomposed (#276 memory work). Off by default.
+pub fn realm_heap_stats() -> bool {
+    std::env::var("DITING_REALM_HEAP_STATS")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+}

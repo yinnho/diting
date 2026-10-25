@@ -1,0 +1,1008 @@
+use axum::{
+    extract::{Json, Query},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::{delete, get, post},
+    Router,
+};
+use serde::{Deserialize, Serialize};
+
+mod account;
+mod auth;
+mod browser;
+mod captcha;
+mod config;
+mod cookie;
+mod curl_import;
+// Panic persistence (aginxos REQ #414): append panics to {data}/crash.log —
+// the device respawned with zero death trace anywhere else.
+mod crash;
+mod docgen;
+mod doctor_cli;
+mod download;
+mod error;
+mod firecrawl_compat;
+mod flow;
+mod har;
+mod page;
+mod panel;
+mod panic_guard;
+// Same gate as its only consumer (panel::on): without screenshot+unix the
+// whole DRM family is unreferenced and dead-code-warns on plain dev builds.
+#[cfg(all(feature = "screenshot", unix))]
+mod panel_drm;
+mod rate;
+mod risk_markers;
+// HTTP route handlers split by surface (ARCHITECTURE.md P2 batch 2):
+// acquisition (fetch/search/click/eval/download), sessions (the stateful
+// actor face + flows + accounts), outputs (screenshot/video/pdf). The
+// re-exports below are exactly the names other modules consume at
+// `crate::` paths.
+mod routers;
+mod render;
+mod release_mem;
+mod robots;
+mod sanitize;
+#[cfg(feature = "screenshot")]
+mod screenshot;
+mod search;
+mod server;
+mod session;
+mod store;
+// Session verdict (决策层 v1): the code-only fact sheet that answers
+// "where did this session land" — challenge/captcha/login/empty/landed/
+// unknown from signals the engine already holds. No evals, no model.
+mod verdict;
+// Timeline video pump (切片层): seek `window.__timelines` frame by frame,
+// paint viewport bands, pipe raw RGBA into ffmpeg — MP4 bytes out.
+#[cfg(feature = "screenshot")]
+mod video;
+// Page pump (切片层): cut the live page into pages — print pagination at
+// block boundaries, or one page per selector match — and package as PDF/PNG.
+#[cfg(feature = "screenshot")]
+mod pages;
+// OOXML containers (容器层): image-based PPTX/DOCX packaging of the page
+// set — stored-ZIP writer, zero new dependencies.
+#[cfg(feature = "screenshot")]
+mod ooxml;
+// Native (editable) PPTX (容器层): element-level DrawingML — text runs,
+// gradient shapes, image parts, with diting as the layout oracle.
+#[cfg(feature = "screenshot")]
+mod pptx_native;
+// The Blitz reference pipeline — cross-check oracle for diting, opt-in via
+// `blitz-reference`. Not compiled in production/device builds.
+#[cfg(feature = "blitz-reference")]
+mod screenshot_reference;
+// Dual-engine cross-check tests (diting vs blitz). Lives in the product crate
+// so the diting engine carries zero product/blitz references (ARCHITECTURE.md
+// §2 rule R2; moved with the workspace split).
+#[cfg(all(test, feature = "blitz-reference"))]
+mod bridge_cross_check;
+// Env-knob test guards shared by this crate's single test binary (see the
+// module docs for why the engine's own guards can't be reused).
+#[cfg(test)]
+mod test_support;
+mod tmpl;
+
+pub use routers::acquisition::{
+    ClickRequest, ClickResponse, EvalRequest, EvalResponse, FetchRequest, FetchResponse,
+    JsExtractConfig, LayoutFacts, OutputFormat, RenderTier, ResourceFact, SearchRequest,
+    SearchResponse, SearchResultItem,
+};
+#[cfg(feature = "screenshot")]
+pub use routers::outputs::{
+    PdfRequest, PdfResponse, ScreenshotRequest, ScreenshotResponse, VideoAudioRequest,
+    VideoNarrationClip, VideoRequest, VideoResponse,
+};
+pub use routers::sessions::SessionCreateRequest;
+
+use routers::acquisition::{
+    click_handler, download_handler, engines_handler, eval_handler, fetch_handler, search_handler,
+    search_engine_rows,
+};
+#[cfg(feature = "screenshot")]
+use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
+use routers::sessions::{
+    account_delete_handler, account_login_handler, account_verify_handler, accounts_handler,
+    flow_install_handler, flow_run_handler, flow_search_handler, import_curl_handler, max_body_bytes, session_challenges_handler, session_click_handler,
+    session_click_xy_handler, session_clone_handler, session_close_handler,
+    session_console_handler, session_cookies_handler, session_cookie_trace_handler,
+    session_create_handler,
+    session_dialog_handler, session_drag_handler, session_qr_handler, session_qr_live_handler, session_eval_handler, session_export_handler,
+    session_har_handler, session_input_handler, session_list_handler, session_navigate_handler,
+    session_network_handler, session_preload_handler, session_screenshot_handler, session_scroll_handler,
+    session_set_files_handler, session_snapshot_handler, session_state_handler, session_storage_handler,
+    session_verdict_handler, session_viewport_handler, session_wait_handler, sessions_handler,
+};
+
+
+use server::do_fetch;
+
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
+
+pub enum AppError {
+    BadRequest(String),
+    Forbidden(String),
+    NotFound(String),
+    Conflict(String),
+    PayloadTooLarge(String),
+    TooManyRequests(String),
+    BadGateway(String),
+    GatewayTimeout(String),
+    ServiceUnavailable(String),
+    Internal(String),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            AppError::PayloadTooLarge(msg) => (StatusCode::PAYLOAD_TOO_LARGE, msg),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
+            AppError::BadGateway(msg) => (StatusCode::BAD_GATEWAY, msg),
+            AppError::GatewayTimeout(msg) => (StatusCode::GATEWAY_TIMEOUT, msg),
+            AppError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg),
+            AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+        };
+        (status, Json(ErrorResponse { error: message })).into_response()
+    }
+}
+
+impl<E: Into<anyhow::Error>> From<E> for AppError {
+    fn from(err: E) -> Self {
+        let e = err.into();
+        let msg = e.to_string();
+        if msg.starts_with("rate limit:") {
+            // Stance gate (crate::rate) must surface as 429, not the generic
+            // catch-all — the status IS part of the message.
+            AppError::TooManyRequests(msg)
+        } else if msg.starts_with("robots.txt ") {
+            // Robots denials from the redirect-hop re-check inside smart_fetch
+            // (#175) travel as anyhow strings; the prefix is the type. Same
+            // Forbidden the pre-fetch gate gives — and matched BEFORE the
+            // connect/dns arms because a DenyAll reason embeds transport
+            // error text ("unreachable (dns ... )") that would otherwise
+            // reclassify a policy answer as a gateway error.
+            AppError::Forbidden(msg)
+        } else if msg.contains("timeout") || msg.contains("timed out") {
+            AppError::GatewayTimeout(msg)
+        } else if msg.contains("resolve") || msg.contains("connect") || msg.contains("dns") {
+            AppError::BadGateway(msg)
+        } else if msg.contains("selector") || msg.contains("parse") {
+            AppError::BadRequest(msg)
+        } else {
+            AppError::Internal(msg)
+        }
+    }
+}
+
+/// Flags that consume the following token as their value — the token after
+/// one of these is never a flag position.
+const VALUE_FLAGS: &[&str] = &["--allow-network", "--font-dir"];
+
+/// First unrecognized flag-shaped argument, if any. `--port` and friends
+/// must refuse instead of silently starting a misconfigured server.
+fn first_unknown_flag(args: &[String]) -> Option<String> {
+    const KNOWN: &[&str] = &[
+        "--allow-file-access",
+        "--allow-private-network",
+        "--panel",
+        "--version",
+        "-V",
+        "--help",
+        "-h",
+    ];
+    let mut skip_next = false;
+    for a in args.iter().skip(1) {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if VALUE_FLAGS.contains(&a.as_str()) {
+            skip_next = true;
+            continue;
+        }
+        if KNOWN.contains(&a.as_str()) {
+            continue;
+        }
+        if a.starts_with('-') && a.len() > 1 {
+            return Some(a.clone());
+        }
+    }
+    None
+}
+
+const CLI_HELP: &str = "\
+diting — agent-owned browser face (HTTP)
+
+USAGE:
+    diting [FLAGS]
+    diting doctor
+
+SUBCOMMAND:
+    doctor                    diagnose this box (env knobs, net, fonts), then exit
+
+FLAGS:
+    --allow-private-network   permit fetches to private/loopback ranges
+    --allow-file-access       permit file:// fetches
+    --allow-network <CIDRS>   comma-separated allowed network ranges
+    --font-dir <DIR>          extra font fallback directory (screenshot builds)
+    --panel                   paint straight to the phone's DRM glass (screenshot builds)
+    --version, -V             print version and exit
+    --help, -h                print this help and exit
+
+Bind address comes from DITING_BIND (default 127.0.0.1:8089; bind
+0.0.0.0:8089 explicitly for LAN/container access and set DITING_TOKEN).
+Run `diting doctor` for the full environment-knob report.";
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Compat bridge (the diting rename, v0.7.0): a deployment full of
+    // DITING_*-era... AGINXBROWSER_*-era env vars keeps working — every
+    // legacy var is mirrored onto its DITING_ twin when the twin is unset,
+    // before any knob reads. Remove after one migration cycle.
+    for (k, v) in std::env::vars_os() {
+        let k = match k.into_string() {
+            Ok(k) => k,
+            Err(_) => continue,
+        };
+        if let Some(rest) = k.strip_prefix("AGINXBROWSER_") {
+            let twin = format!("DITING_{rest}");
+            if std::env::var_os(&twin).is_none() {
+                std::env::set_var(&twin, v);
+            }
+        }
+    }
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| {
+                    tracing_subscriber::EnvFilter::new(
+                        "diting=info,diting::diting_browser::page=warn,diting::diting_net::wreq_client=warn,diting::console=error",
+                    )
+                }),
+        );
+    subscriber.init();
+
+    // Before anything else can die: the crash hook must be in place before
+    // the first engine warmup, not after (device died mid-search with no
+    // trace; REQ #414).
+    crash::install();
+
+    // CLI subcommands exit before the server boots — doctor especially must
+    // not pay the V8 warmup below (self-hosters run it to debug a box that
+    // may not even reach the network).
+    let args: Vec<String> = std::env::args().collect();
+
+    // Metadata flags exit before anything boots — before #98 these were
+    // silently ignored and `diting --version` left a listening engine
+    // behind (found live on port 8089).
+    if args.iter().skip(1).any(|a| a == "--version" || a == "-V") {
+        println!("diting {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
+        println!("{CLI_HELP}");
+        return Ok(());
+    }
+
+    if args.get(1).map(String::as_str) == Some("doctor") {
+        std::process::exit(doctor_cli::run().await);
+    }
+
+    // A typo'd or stale recipe (the historical `--port` never bound anything)
+    // must not start a silently-misconfigured server.
+    if let Some(bad) = first_unknown_flag(&args) {
+        eprintln!("diting: unrecognized argument {bad:?} (see --help)");
+        std::process::exit(2);
+    }
+
+    // UA/TLS coherence (taobao compat report ⑤): DITING_UA overrides
+    // the UA while the stealth transport keeps its default chrome145-shaped
+    // TLS handshake; fleet claim is Chrome/145 — warn when the UA major
+    // disagrees with that claim (WAF tell).
+    #[cfg(feature = "stealth")]
+    if let Ok(ua) = std::env::var("DITING_UA") {
+        diting::diting_net::warn_on_ua_tls_mismatch(&ua, None);
+    }
+
+    // Warm up V8 on the main thread before any session/blocking thread creates
+    // an isolate: the first isolate's JSDispatchTable init is not safe to race
+    // from several threads (upstream obscura #430; construction itself is
+    // serialized inside the runtime).
+    std::mem::drop(diting::diting_js::runtime::JsRuntime::new());
+
+    // Opt-in relaxations, parsed before any mode branches. Both were
+    // previously documented as CLI flags without wiring (only the env vars
+    // worked) — issue #33 and requirements-aginxos P2.
+    if args.contains(&"--allow-file-access".to_string()) {
+        diting::diting_net::client::set_allow_file_access(true);
+        tracing::info!("file:// access enabled (--allow-file-access)");
+    }
+    if args.contains(&"--allow-private-network".to_string()) {
+        diting::diting_net::client::set_allow_private_network(true);
+        tracing::info!("private-network fetch enabled (--allow-private-network)");
+    }
+    if let Some(pos) = args.iter().position(|a| a == "--allow-network") {
+        let spec = args.get(pos + 1).map(|s| s.as_str()).unwrap_or("");
+        diting::diting_net::client::set_allow_network(Some(spec));
+        tracing::info!(
+            "scoped allow-network list set (--allow-network): {} parsed entries",
+            diting::diting_net::client::parse_scoped_cidrs(spec).len()
+        );
+    }
+    // The font supply itself is screenshot-gated (diting_layout renders with
+    // it); a bare server build has no faces to point at.
+    #[cfg(feature = "screenshot")]
+    if let Some(pos) = args.iter().position(|a| a == "--font-dir") {
+        let dir = args.get(pos + 1).map(|s| s.as_str());
+        diting::diting_fonts::set_font_dir(dir);
+        tracing::info!("font dir fallbacks (--font-dir): {:?}", dir.unwrap_or("(none)"));
+    }
+
+    // The phone's glass is this browser's viewport. --panel, or the
+    // marker file the device drops, paints straight to DRM instead of
+    // handing JPEG frames to another process to paste.
+    #[cfg(feature = "screenshot")]
+    if args.iter().any(|a| a == "--panel")
+        || std::path::Path::new("/etc/aginx/panel.on").exists()
+    {
+        panel::start();
+    }
+
+    // #162: opt-in token gate. Validated here — a mis-shaped token is a
+    // hard refusal, never a silently half-open surface.
+    let auth_token = auth::token_from_env().map_err(|e| anyhow::anyhow!(e))?;
+    if auth_token.is_some() {
+        tracing::info!(
+            "auth gate on ({}): every route except /health requires the token",
+            auth::TOKEN_ENV
+        );
+    }
+
+    let app = Router::new()
+        .route("/", get(status_handler))
+        .route("/status", get(status_handler))
+        .route("/health", get(health_handler))
+        .route("/doctor", get(doctor_handler))
+        // Human-takeover live view — embedded so a bare local binary serves it
+        // (the hosted deployment also fronts it via nginx; same file). The
+        // challenge handoff in session punish detection points here.
+        .route("/live", get(live_handler))
+        .route("/live.html", get(live_handler))
+        .route("/open", post(open_handler))
+        .route("/fetch", post(fetch_handler))
+        .route("/click", post(click_handler))
+        .route("/eval", post(eval_handler))
+        .route("/search", post(search_handler))
+        .route("/engines", get(engines_handler))
+        .route("/download", post(download_handler))
+        .route("/v1/scrape", post(firecrawl_compat::scrape_handler))
+        .route("/session/create", post(session_create_handler))
+        // Flow vars legitimately carry base64 images (doudian-upload's
+        // images array — same payload class as /session/:id/files), so the
+        // same raised ceiling applies; axum's 2 MiB default rejected a
+        // 5-image upload run with a bare 413.
+        .route(
+            "/flow/run",
+            post(flow_run_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+        )
+        .route("/flow/install", post(flow_install_handler))
+        .route("/flow/search", get(flow_search_handler))
+        .route("/session/:id/clone", post(session_clone_handler))
+        .route("/import/curl", post(import_curl_handler))
+        .route("/session/list", get(session_list_handler))
+        .route("/session/:id/navigate", post(session_navigate_handler))
+        .route("/session/:id/preload", post(session_preload_handler))
+        .route("/session/:id/state", post(session_state_handler))
+        .route(
+            "/session/:id/snapshot",
+            get(session_snapshot_handler).post(session_snapshot_handler),
+        )
+        .route("/session/:id/cookies", get(session_cookies_handler))
+        .route("/session/:id/cookie_trace", get(session_cookie_trace_handler))
+        .route("/session/:id/storage", get(session_storage_handler))
+        .route("/session/:id/console", get(session_console_handler))
+        .route("/session/:id/dialog", post(session_dialog_handler))
+        .route("/session/:id/export", get(session_export_handler))
+        .route("/session/:id/network", get(session_network_handler))
+        .route("/session/:id/challenges", get(session_challenges_handler))
+        .route("/session/:id/verdict", get(session_verdict_handler))
+        .route("/session/:id/har", get(session_har_handler))
+        .route("/session/:id/click", post(session_click_handler))
+        .route("/session/:id/click_xy", post(session_click_xy_handler))
+        .route("/session/:id/drag", post(session_drag_handler))
+        .route("/session/:id/input", post(session_input_handler))
+        // File content rides in the JSON body as base64 — the axum default
+        // 2 MiB cap would reject real product images outright.
+        .route(
+            "/session/:id/files",
+            post(session_set_files_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+        )
+        .route("/session/:id/scroll", post(session_scroll_handler))
+        .route("/session/:id/viewport", post(session_viewport_handler))
+        .route("/session/:id/screenshot", post(session_screenshot_handler))
+        .route("/session/:id/qr", get(session_qr_handler))
+        .route("/session/:id/qr/live", get(session_qr_live_handler))
+        .route("/session/:id/wait", post(session_wait_handler))
+        .route(
+            "/session/:id/eval",
+            post(session_eval_handler)
+                .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+        )
+        .route("/sessions", get(sessions_handler))
+        .route("/session/:id/close", post(session_close_handler))
+        .route("/accounts", get(accounts_handler))
+        .route("/accounts/:name", delete(account_delete_handler))
+        .route("/account/verify", post(account_verify_handler))
+        .route("/account/login", post(account_login_handler))
+        .route(
+            "/render_markdown",
+            post(routers::render::render_markdown_handler),
+        );
+    #[cfg(feature = "screenshot")]
+    let app = app
+        .route(
+            "/screenshot",
+            post(screenshot_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+        )
+        .route(
+            "/video",
+            post(video_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+        )
+        .route(
+            "/pdf",
+            post(pdf_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+        );
+
+    // #162: the gate layers on AFTER every route above (screenshot routes
+    // included) so it
+    // wraps the whole face; /health stays open inside the middleware.
+    // Unset env = no layer at all — the open-loopback default keeps its
+    // exact behavior (dogfood, install.sh, DSH, carrier untouched).
+    let auth_gate_on = auth_token.is_some();
+    let app = match auth_token {
+        Some(t) => app.layer(axum::middleware::from_fn(move |req, next| {
+            auth::gate(t.clone(), req, next)
+        })),
+        None => app,
+    };
+    // Outermost: a handler panic (auth gate included) answers JSON 500.
+    let app = app.layer(panic_guard::layer());
+
+    // #246: loopback by default — the binary's own dogfood shape (curl
+    // 127.0.0.1:8089) never needs the LAN, and a default 0.0.0.0 with the
+    // opt-in token gate meant every fresh install was an open driving
+    // surface for the whole network until someone remembered the env var.
+    // LAN/container deployments set DITING_BIND explicitly.
+    let bind_addr =
+        std::env::var("DITING_BIND").unwrap_or_else(|_| "127.0.0.1:8089".to_string());
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+
+    // #88: sessions the previous process flushed at ITS shutdown revive
+    // here, under their own ids, before the listener opens — a binary swap
+    // costs no login state, and the first /sessions shows the fleet the
+    // operator left running. (Lazy revival remains the standing fallback:
+    // any snapshot id still revives on first touch.)
+    // Gated by DITING_RESTORE_SESSIONS (0|skip-keepalive|all); parallel
+    // serves must also isolate via DITING_STORE_PATH /
+    // DITING_COOKIE_STORE_DIR so they do not share cache.db snapshots.
+    {
+        let restored = crate::session::SESSIONS.lock().await.restore_all();
+        if restored > 0 {
+            tracing::info!(
+                "restored {restored} session(s) from the previous run — same ids, login state intact"
+            );
+        }
+    }
+
+    tracing::info!("diting listening on {}", listener.local_addr()?);
+    // #162: a non-loopback bind with no token is an open driving surface
+    // for the whole LAN — say so once at startup instead of letting it
+    // look "configured" (obscura#491's env-mismatch precedent).
+    if !auth_gate_on {
+        let addr = listener.local_addr()?;
+        let loopback = addr.ip().is_loopback();
+        if !loopback {
+            tracing::warn!(
+                "HTTP surface has NO auth on {} — any process on this \
+                 machine (and, on this bind, the LAN) can drive logged-in \
+                 sessions; set {} to gate it (#162)",
+                addr,
+                auth::TOKEN_ENV
+            );
+        }
+    }
+
+    // Standard proxy env vars do NOT configure this engine (reqwest/wreq's
+    // implicit env matcher is pinned off on every engine client); make that
+    // visible once at startup instead of letting a shell proxy look
+    // "configured" while fetches go direct (obscura#491).
+    if config::proxy_from_env().is_none() {
+        if let Some(env) = config::standard_proxy_env() {
+            tracing::warn!(
+                "{env} is set but ignored — set DITING_PROXY to route engine traffic through a proxy"
+            );
+        }
+    }
+
+    // Periodically persist the process-global shared cookie jar (stateless
+    // handlers mutate it in place; a crash shouldn't cost returning-client
+    // cookies that keep anti-bot CAPTCHA rates down).
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            tick.tick().await;
+            server::persist_shared_cookies();
+        }
+    });
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    Ok(())
+}
+
+/// #88: upgrades must not cost live sessions. On SIGTERM/SIGINT the live
+/// fleet is flushed to the snapshot/account stores before the server stops
+/// accepting — the replacement binary's startup restores every flushed
+/// session under its own id (see the restore call before the listener
+/// opens). The flush is budgeted: a session stuck mid-command keeps its
+/// last per-command snapshot instead of holding the process past the
+/// supervisor's kill timeout.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    tracing::info!("shutdown signal — flushing live sessions for restart");
+    let flushed = crate::session::SESSIONS.lock().await.flush_for_shutdown().await;
+    tracing::info!(
+        "shutdown flush complete: {flushed} session(s) persisted; a restart restores them under the same ids"
+    );
+    // The 60s shared-jar persist tick may never fire again — close its window.
+    server::persist_shared_cookies();
+}
+
+/// 调用方交 JSON 和模板名。浏览器用自己文件夹里的模板生成 HTML，并交给面板显示。
+/// 失败是结构化的：unknown_template 返 404 并带 known 清单——母体据此走
+/// 「安排模型写一次模板并登记」，不用解析自由文本猜原因。
+async fn open_handler(Json(body): Json<serde_json::Value>) -> impl IntoResponse {
+    let template = body
+        .get("template")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if template.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"ok": false, "error": "missing_template"})),
+        );
+    }
+    let data = body.get("data").cloned().unwrap_or(serde_json::json!({}));
+    match tmpl::open(&template, &data) {
+        Ok(n) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "template": template,
+                "bytes": n,
+            })),
+        ),
+        Err(e) => {
+            let status = match &e {
+                tmpl::OpenError::UnknownTemplate { .. } => StatusCode::NOT_FOUND,
+                _ => StatusCode::BAD_REQUEST,
+            };
+            let mut body = serde_json::json!({
+                "ok": false,
+                "error": e.code(),
+                "why": e.to_string(),
+            });
+            if let tmpl::OpenError::UnknownTemplate { id, known } = &e {
+                body["template"] = serde_json::json!(id);
+                body["known"] = serde_json::json!(known);
+            }
+            (status, Json(body))
+        }
+    }
+}
+
+async fn health_handler() -> impl IntoResponse {
+    Json(health_body())
+}
+
+/// The /health body, split out so tests can assert on it directly.
+///
+/// Beyond liveness this carries the build identity — version, source commit,
+/// the UA browser traffic presents, the default TLS fingerprint — so "which
+/// binary am I talking to and what is it showing sites" is one cheap call
+/// instead of a traffic sniff (the 0.3.0 tmall report hit exactly that gap:
+/// the UA a session carried didn't match the docs and nothing on the box
+/// could say why — it was an imported session keeping the copied request's
+/// own Chrome UA, by design, but /health couldn't answer either way).
+fn health_body() -> serde_json::Value {
+    // The UA the browser paths carry: the DITING_UA override, else the
+    // pinned persona (see BrowserContext's resolution chain — search-engine
+    // transports keep their own defaults).
+    let ua = std::env::var("DITING_UA").unwrap_or_else(|_| {
+        diting::diting_browser::profiles::select_profile()
+            .user_agent
+            .to_string()
+    });
+    #[cfg(feature = "stealth")]
+    let tls = diting::diting_net::DEFAULT_TLS_FINGERPRINT;
+    #[cfg(not(feature = "stealth"))]
+    let tls = "off";
+    serde_json::json!({
+        "status": "ok",
+        "engine": "diting",
+        "version": env!("CARGO_PKG_VERSION"),
+        // Baked by diting's build.rs (single source; its rustc-env never
+        // crosses crate boundaries, so this must ride diting's const).
+        "commit": diting::BUILD_COMMIT,
+        // The JS kernel the UA string only implies (#102): the actual V8
+        // executing scripts, so "which engine is this really" doesn't
+        // depend on the persona a session happened to carry.
+        "v8": diting::diting_js::v8_version(),
+        "ua": ua,
+        "tls": tls,
+        "capabilities": {
+            "screenshot": cfg!(feature = "screenshot"),
+            "stealth": cfg!(feature = "stealth"),
+            "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
+        }
+    })
+}
+
+/// Process start, for the status page's uptime readout.
+static STARTED: std::sync::LazyLock<std::time::Instant> =
+    std::sync::LazyLock::new(std::time::Instant::now);
+
+fn fmt_uptime(d: std::time::Duration) -> String {
+    let secs = d.as_secs();
+    let (days, rest) = (secs / 86400, secs % 86400);
+    let (hours, mins) = (rest / 3600, (rest % 3600) / 60);
+    match (days, hours) {
+        (0, 0) => format!("{mins}m"),
+        (0, _) => format!("{hours}h {mins}m"),
+        _ => format!("{days}d {hours}h {mins}m"),
+    }
+}
+
+/// Human-takeover live view, embedded at compile time — a bare local binary
+/// serves it without nginx (the hosted deployment fronts the same file).
+/// `/session/:id/challenges` punish detection points a human here: clicks,
+/// drags and typing land on the real session page, so a wall (taobao slider
+/// etc.) can be solved in the very session the agent owns.
+async fn live_handler() -> axum::response::Html<&'static str> {
+    axum::response::Html(include_str!("../web/live.html"))
+}
+
+/// Human-facing status page at `/`. Umbrel (and any self-hoster poking the
+/// port) needs a page the browser can open after install; agents keep using
+/// /health and /doctor. Everything is server-rendered — no client JS, no
+/// external assets, works on an offline LAN box.
+async fn status_handler() -> axum::response::Html<String> {
+    let (sessions, uptime) = {
+        let mut mgr = session::SESSIONS.lock().await;
+        mgr.evict_expired();
+        (mgr.session_count(), STARTED.elapsed())
+    };
+    let engine_rows = search_engine_rows().await;
+    let available_n = engine_rows
+        .iter()
+        .filter(|e| e.get("available").and_then(|v| v.as_bool()) == Some(true))
+        .count();
+    let total_n = engine_rows.len();
+    let available_list: String = engine_rows
+        .iter()
+        .filter(|e| e.get("available").and_then(|v| v.as_bool()) == Some(true))
+        .filter_map(|e| e.get("name").and_then(|v| v.as_str()))
+        .take(12)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let version = env!("CARGO_PKG_VERSION");
+    let caps = [
+        ("screenshot", cfg!(feature = "screenshot")),
+        ("stealth", cfg!(feature = "stealth")),
+        (
+            "captcha-solver",
+            std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
+        ),
+    ]
+    .map(|(name, on)| {
+        if on {
+            format!(r#"<span class="cap on">{name}</span>"#)
+        } else {
+            format!(r#"<span class="cap">{name}</span>"#)
+        }
+    })
+    .join("");
+
+    let html = format!(
+        r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>diting</title>
+<style>
+  :root {{ color-scheme: light dark; }}
+  body {{ font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; margin: 0;
+         display: flex; justify-content: center; min-height: 100vh;
+         background: Canvas; color: CanvasText; }}
+  main {{ max-width: 40rem; padding: 3rem 1.5rem 4rem; }}
+  h1 {{ font-size: 1.4rem; margin: 0 0 .25rem; }}
+  p.tag {{ margin: 0 0 2rem; opacity: .7; }}
+  .ok {{ color: #1a7f37; }}
+  dl {{ display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.5rem;
+        margin: 0 0 2rem; }}
+  dt {{ opacity: .7; }}
+  dd {{ margin: 0; font-variant-numeric: tabular-nums; }}
+  .cap {{ display: inline-block; border: 1px solid; border-radius: 1em;
+          padding: .05rem .7rem; margin: 0 .35rem .35rem 0; opacity: .55; }}
+  .cap.on {{ opacity: 1; border-color: #1a7f37; color: #1a7f37; }}
+  table {{ border-collapse: collapse; width: 100%; font: .9rem/1.5 ui-monospace, monospace; }}
+  td {{ padding: .3rem .6rem .3rem 0; vertical-align: top; }}
+  td:first-child {{ opacity: .7; white-space: nowrap; }}
+  footer {{ margin-top: 2.5rem; font-size: .85rem; opacity: .7; }}
+  a {{ color: inherit; }}
+</style>
+</head>
+<body>
+<main>
+  <h1>diting <small style="font-weight:400">v{version}</small></h1>
+  <p class="tag">server-side browser for AI agents &mdash; one Rust binary, no Chromium</p>
+
+  <dl>
+    <dt>status</dt><dd><span class="ok">&#9679; running</span></dd>
+    <dt>uptime</dt><dd>{}</dd>
+    <dt>active sessions</dt><dd>{sessions}</dd>
+    <dt>engine</dt><dd>diting</dd>
+    <dt>search engines</dt><dd>{available_n}/{total_n} available — {available_list}</dd>
+  </dl>
+
+  <p style="margin-bottom:.5rem">capabilities</p>
+  <p style="margin:0 0 2rem">{caps}</p>
+
+  <table>
+    <tr><td>GET&nbsp;&nbsp;/health</td><td>liveness + capabilities (JSON)</td></tr>
+    <tr><td>GET&nbsp;&nbsp;/doctor</td><td>deep self-report, <code>?probe=true</code> for a live fetch</td></tr>
+    <tr><td>GET&nbsp;&nbsp;/engines</td><td>search engines: names, categories, suspension state</td></tr>
+    <tr><td>POST&nbsp;/fetch</td><td>fetch a URL, render JS, return markdown/HTML</td></tr>
+    <tr><td>POST&nbsp;/search</td><td>multi-engine meta-search</td></tr>
+    <tr><td>POST&nbsp;/screenshot</td><td>render a page to PNG (CPU)</td></tr>
+    <tr><td>POST&nbsp;/video</td><td>page timelines &rarr; MP4 (needs ffmpeg)</td></tr>
+    <tr><td>POST&nbsp;/pdf</td><td>page &rarr; paginated PDF / PNGs</td></tr>
+    <tr><td>POST&nbsp;/download</td><td>streaming file download</td></tr>
+    <tr><td>POST&nbsp;/session/:id/&hellip;</td><td>stateful browser session (navigate/click/eval/&hellip;)</td></tr>
+  </table>
+
+  <footer>
+    <a href="https://github.com/yinnho/diting">github.com/yinnho/diting</a>
+    &middot; <a href="https://github.com/yinnho/diting/blob/main/docs/API.md">API reference</a>
+    &middot; Apache-2.0
+  </footer>
+</main>
+</body>
+</html>"#,
+        fmt_uptime(uptime)
+    );
+
+    axum::response::Html(html)
+}
+
+/// Query params for /doctor.
+#[derive(Deserialize)]
+struct DoctorParams {
+    /// `?probe=true` runs a live micro-fetch (proves the fetch pipeline +
+    /// network egress actually work, not just that the binary is up). Off by
+    /// default - a probe spins up a browser and hits the network, so it's
+    /// opt-in (borrowing agent-reach's lesson: "shutil.which() alone is NOT
+    /// proof of health - really execute a lightweight command").
+    #[serde(default)]
+    probe: Option<bool>,
+}
+
+/// Deep capability self-report + optional live probe. Agents should call this
+/// (not /health) when they want to know which features are usable before
+/// relying on them.
+async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse {
+    let capabilities = serde_json::json!({
+        "screenshot": cfg!(feature = "screenshot"),
+        "stealth": cfg!(feature = "stealth"),
+        "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
+        // /video's one external dependency, visible here too (the agent-browser
+        // #2011 lesson: a doctor silent about ffmpeg reads healthy on a box
+        // where every recording dies with EPIPE). Null = not probed.
+        "ffmpeg": doctor_cli::ffmpeg_probe_json(),
+        // The product stance, visible where agents and operators look first.
+        "robots_honored": std::env::var("DITING_HONOR_ROBOTS")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false),
+    });
+
+    // Live engine health, not a static list: an agent deciding between
+    // engines wants to know who is benched by a CAPTCHA right now.
+    let search_engines = search_engine_rows().await;
+
+    let probe = if params.probe.unwrap_or(false) {
+        let probe_url = std::env::var("DITING_DOCTOR_URL")
+            .unwrap_or_else(|_| "https://example.com".to_string());
+        let req = FetchRequest {
+            url: probe_url.clone(),
+            format: OutputFormat::Markdown,
+            selector: None,
+            wait_secs: None,
+            use_proxy: false,
+            cookies: vec![],
+            max_chars: 500,
+            auto_bypass_challenge: true,
+            render_tier: RenderTier::Auto,
+            tls_fingerprint: None,
+            js_extract: None,
+            sanitize: true,
+            capture_xhr: None,
+            layout: false,
+            resources: false,
+        };
+        // do_fetch drives the real fetch pipeline (build_browser -> goto ->
+        // extract) on a local runtime; spawn_blocking because it is !Send and
+        // cannot run inside the tokio runtime.
+        let start = std::time::Instant::now();
+        let result = tokio::task::spawn_blocking(move || do_fetch(req)).await;
+        let latency_ms = start.elapsed().as_millis() as u64;
+        match result {
+            Ok(Ok(resp)) => serde_json::json!({
+                "url": probe_url,
+                "ok": true,
+                "latency_ms": latency_ms,
+                "title": resp.title,
+                "content_chars": resp.content.chars().count(),
+            }),
+            Ok(Err(e)) => serde_json::json!({
+                "url": probe_url,
+                "ok": false,
+                "latency_ms": latency_ms,
+                "error": format!("{:?}", e),
+            }),
+            Err(e) => serde_json::json!({
+                "url": probe_url,
+                "ok": false,
+                "latency_ms": latency_ms,
+                "error": format!("task panicked: {}", e),
+            }),
+        }
+    } else {
+        serde_json::Value::Null
+    };
+
+    let available_engines: Vec<String> = search_engines
+        .iter()
+        .filter_map(|e| {
+            if e.get("available").and_then(|v| v.as_bool()) == Some(true) {
+                e.get("name").and_then(|v| v.as_str()).map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    Json(serde_json::json!({
+        "status": "ok",
+        "engine": "diting",
+        "version": env!("CARGO_PKG_VERSION"),
+        "capabilities": capabilities,
+        "search_engines": search_engines,
+        "available_engines": available_engines,
+        "search_obs": crate::search::search_obs_snapshot(),
+        "endpoints": [
+            "/health", "/doctor", "/engines", "/fetch", "/click", "/eval",
+            "/search", "/download", "/v1/scrape", "/session/create",
+            "/session/list", "/import/curl", "/render_markdown"
+        ],
+        "probe": probe,
+    }))
+}
+
+/// Lazy-initialized TTL read from env (parsed once, then cached). Shared by
+/// the /fetch and /search caches.
+pub(crate) fn cache_ttl_secs() -> u64 {
+    static TTL: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    *TTL.get_or_init(|| {
+        std::env::var("DITING_CACHE_TTL_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(600)
+    })
+}
+
+pub(crate) fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn spawn_blocking<F, R>(f: F) -> tokio::task::JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // #98: unknown flags are named, value flags shield their argument, and
+    // bare "-" (stdin convention) passes through. --version/--help exit
+    // paths are too trivial to pin; the guard logic is where bugs would live.
+    #[test]
+    fn unknown_flag_guard_names_offenders_and_shields_values() {
+        let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(first_unknown_flag(&a(&["diting"])), None);
+        assert_eq!(first_unknown_flag(&a(&["diting", "--panel", "--version"])), None);
+        assert_eq!(
+            first_unknown_flag(&a(&["diting", "--allow-network", "10.0.0.0/8"])),
+            None
+        );
+        assert_eq!(
+            first_unknown_flag(&a(&["diting", "--port", "8089"])),
+            Some("--port".to_string())
+        );
+        assert_eq!(
+            first_unknown_flag(&a(&["diting", "--allow-network", "10.0.0.0/8", "-x"])),
+            Some("-x".to_string())
+        );
+        assert_eq!(first_unknown_flag(&a(&["diting", "-"])), None);
+    }
+
+    // 0.3.0 tmall report P2: /health must answer "which build am I talking
+    // to and what is it presenting" — commit, UA, TLS — in one cheap call,
+    // no network probe.
+    #[test]
+    fn health_body_reports_build_identity_and_fingerprint() {
+        let body = health_body();
+        assert_eq!(body["status"], "ok");
+        assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
+        let commit = body["commit"].as_str().expect("commit present");
+        assert!(
+            !commit.is_empty(),
+            "commit is the git short hash or 'unknown'"
+        );
+        let ua = body["ua"].as_str().expect("ua present");
+        assert!(ua.contains("Chrome/"), "persona UA expected, got: {ua}");
+        // #102: the JS kernel version — engine truth behind the UA string,
+        // V8 reports like "15.0.274.2".
+        let v8 = body["v8"].as_str().expect("v8 version present");
+        assert!(v8.contains('.'), "V8 version expected, got: {v8}");
+        #[cfg(feature = "stealth")]
+        assert_eq!(body["tls"], diting::diting_net::DEFAULT_TLS_FINGERPRINT);
+        #[cfg(not(feature = "stealth"))]
+        assert_eq!(body["tls"], "off");
+    }
+}

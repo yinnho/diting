@@ -1,0 +1,226 @@
+//! JS evaluation surface: the evaluate family (plain + CDP remote-object
+//! protocol), DOM access helpers and object-store release. Split from page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
+use super::*;
+
+impl Page {
+    /// Snapshot every drawn canvas's 2D buffer into the layout bitmap table
+    /// (#210). The pixels live in the JS realm, so a render that runs
+    /// without this call paints canvas boxes empty. Call it before any
+    /// rasterizing band frame; it is cheap on a page with no canvases
+    /// (one guarded evaluate) and marks a paint-only invalidation only
+    /// when pixels actually changed.
+    #[cfg(feature = "screenshot")]
+    pub fn sync_canvas_bitmaps(&mut self) {
+        if self.js.is_none() {
+            return;
+        }
+        self.evaluate_with_timeout(
+            "globalThis.__diting_flush_canvas_bitmaps ? __diting_flush_canvas_bitmaps() : 0",
+            std::time::Duration::from_millis(2000),
+        );
+    }
+
+    /// Document-order canvas snapshots from the last
+    /// [`Self::sync_canvas_bitmaps`] — `(width, height, straight RGBA)`.
+    /// The re-parse screenshot path renders a fresh tree with no JS realm,
+    /// so it pairs these with that tree's canvases by document order.
+    #[cfg(feature = "screenshot")]
+    pub fn canvas_bitmaps_in_order(&self) -> Vec<(u32, u32, std::sync::Arc<Vec<u8>>)> {
+        let Some(js) = &self.js else { return Vec::new() };
+        let ids = match js.with_dom(|dom| dom.query_selector_all("canvas")) {
+            Some(Ok(v)) => v,
+            _ => return Vec::new(),
+        };
+        js.with_state(|st| {
+            let map = st.canvas_images.borrow();
+            ids.iter()
+                .filter_map(|id| map.get(id))
+                .map(|img| (img.width, img.height, std::sync::Arc::clone(&img.rgba)))
+                .collect()
+        })
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))] // snapshot helper exercised by tests; DOM consumers read via evaluate
+    pub fn with_dom<R>(&self, f: impl FnOnce(&DomTree) -> R) -> Option<R> {
+        if let Some(js) = &self.js {
+            return js.with_dom(f);
+        }
+        self.dom.as_ref().map(f)
+    }
+
+
+
+    /// Like [`Self::evaluate`] but bounded by a V8 watchdog so a runaway
+    /// expression cannot hang the process. A non-zero `timeout` of zero falls
+    /// back to the unbounded path.
+    pub fn evaluate_with_timeout(
+        &mut self,
+        expression: &str,
+        timeout: std::time::Duration,
+    ) -> serde_json::Value {
+        self.evaluate_with_timeout_result(expression, timeout)
+            .unwrap_or(serde_json::Value::Null)
+    }
+
+    /// Result-shaped twin of [`Self::evaluate_with_timeout`] (#236): the
+    /// interaction dispatches must be able to tell "the expression returned
+    /// null" from "the watchdog terminated it" — a swallowed error made
+    /// click_xy report success for a dispatch that never reached the page
+    /// (the mouse-down eval died, mouse-up still ran). Errors carry the
+    /// runtime's message; callers decide what to surface.
+    pub fn evaluate_with_timeout_result(
+        &mut self,
+        expression: &str,
+        timeout: std::time::Duration,
+    ) -> Result<serde_json::Value, String> {
+        if let Some(js) = &mut self.js {
+            js.evaluate_with_timeout(expression, timeout).map_err(|e| {
+                let preview: String = expression.chars().take(80).collect();
+                let msg = format!("JS eval error/timeout for '{}': {}", preview, e);
+                tracing::debug!("{}", msg);
+                msg
+            })
+        } else {
+            Ok(self.evaluate(expression))
+        }
+    }
+
+    pub fn evaluate(&mut self, expression: &str) -> serde_json::Value {
+        if let Some(js) = &mut self.js {
+            match js.evaluate(expression) {
+                Ok(val) => val,
+                Err(e) => {
+                    let preview: String = expression.chars().take(80).collect();
+                    tracing::debug!("JS eval error for '{}': {}", preview, e);
+                    serde_json::Value::Null
+                }
+            }
+        } else {
+            match expression.trim() {
+                "document.title" => serde_json::Value::String(self.title.clone()),
+                "document.URL" | "document.location.href" | "window.location.href" => {
+                    serde_json::Value::String(self.url_string())
+                }
+                _ => serde_json::Value::Null,
+            }
+        }
+    }
+
+    pub async fn evaluate_remote(
+        &mut self,
+        expression: &str,
+        return_by_value: bool,
+        await_promise: bool,
+    ) -> crate::diting_js::runtime::RemoteObjectInfo {
+        if let Some(js) = &mut self.js {
+            match js.evaluate_remote(expression, return_by_value, await_promise).await {
+                Ok(info) => info,
+                Err(e) => {
+                    // Bug #24 diagnosis aid: an erroring eval previously surfaced
+                    // as a silent `null` at the HTTP layer (and only a debug log
+                    // here), which is indistinguishable from a JS null return.
+                    // warn! so a wedged/degraded runtime is visible in logs.
+                    let preview: String = expression.chars().take(120).collect();
+                    tracing::warn!("evaluate_remote error for '{}': {}", preview, e);
+                    crate::diting_js::runtime::RemoteObjectInfo {
+                        js_type: "undefined".into(),
+                        subtype: None,
+                        class_name: String::new(),
+                        description: String::new(),
+                        object_id: None,
+                        value: None,
+                    }
+                }
+            }
+        } else {
+            let val = self.evaluate(expression);
+            crate::diting_js::runtime::RemoteObjectInfo {
+                js_type: match &val {
+                    serde_json::Value::String(_) => "string".into(),
+                    serde_json::Value::Number(_) => "number".into(),
+                    serde_json::Value::Bool(_) => "boolean".into(),
+                    _ => "undefined".into(),
+                },
+                subtype: None,
+                class_name: String::new(),
+                description: String::new(),
+                object_id: None,
+                value: Some(val),
+            }
+        }
+    }
+
+    /// Exception-preserving variant of [`evaluate_remote`]: a thrown/rejected
+    /// expression comes back as an `EvalOutcome` exception instead of collapsing
+    /// the throw to `undefined`.
+    pub async fn evaluate_remote_outcome(
+        &mut self,
+        expression: &str,
+        return_by_value: bool,
+        await_promise: bool,
+        await_budget_ms: u64,
+        frame_nid: Option<u32>,
+    ) -> crate::diting_js::runtime::EvalOutcome {
+        if let Some(js) = &mut self.js {
+            match js
+                .evaluate_remote_outcome(
+                    expression,
+                    return_by_value,
+                    await_promise,
+                    await_budget_ms,
+                    frame_nid,
+                )
+                .await
+            {
+                Ok(outcome) => outcome,
+                Err(e) => {
+                    let preview: String = expression.chars().take(120).collect();
+                    tracing::warn!("evaluate_remote error for '{}': {}", preview, e);
+                    // The outcome variant exists to NOT collapse failures into
+                    // a silent undefined (that's the plain variant's job) — a
+                    // watchdog timeout folded to `value: null` here made an
+                    // eval overrun indistinguishable from a genuine null
+                    // return. Surface it as an exception instead.
+                    crate::diting_js::runtime::EvalOutcome {
+                        info: crate::diting_js::runtime::RemoteObjectInfo {
+                            js_type: "undefined".into(),
+                            subtype: None,
+                            class_name: String::new(),
+                            description: String::new(),
+                            object_id: None,
+                            value: None,
+                        },
+                        exception: Some(crate::diting_js::runtime::ExceptionInfo {
+                            text: "Uncaught".into(),
+                            description: e,
+                            class_name: String::new(),
+                            object_id: None,
+                            stack_first: None,
+                            line: None,
+                            col: None,
+                        }),
+                    }
+                }
+            }
+        } else {
+            let val = self.evaluate(expression);
+            crate::diting_js::runtime::EvalOutcome {
+                info: crate::diting_js::runtime::RemoteObjectInfo {
+                    js_type: match &val {
+                        serde_json::Value::String(_) => "string".into(),
+                        serde_json::Value::Number(_) => "number".into(),
+                        serde_json::Value::Bool(_) => "boolean".into(),
+                        _ => "undefined".into(),
+                    },
+                    subtype: None,
+                    class_name: String::new(),
+                    description: String::new(),
+                    object_id: None,
+                    value: Some(val),
+                },
+                exception: None,
+            }
+        }
+    }
+
+}

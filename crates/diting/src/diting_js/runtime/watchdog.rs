@@ -1,0 +1,530 @@
+//! V8 execution watchdogs: the armed-token family behind
+//! [`JsRuntime::arm_watchdog`](super::JsRuntime::arm_watchdog) — the cancel
+//! channel + join handle, the debug stack-dump sampler
+//! (DITING_WATCHDOG_STACK_DUMP=1), the arm/disarm accessors on
+//! JsRuntime, and `spawn_watchdog` for callers holding a bare isolate
+//! handle. Split from the module root (god-file ratchet); #66's
+//! sustained-duty busy accounting lives here too — same family, the
+//! defenses against a realm burning a core.
+use v8::{self, IsolateHandle};
+
+/// Handle to an armed V8 execution watchdog (see [`JsRuntime::arm_watchdog`]).
+/// Holds the cancel channel and the watchdog thread; pass it back to
+/// `disarm_watchdog` to stop the watchdog and learn whether it fired.
+pub struct WatchdogToken {
+    pair: std::sync::Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+    join: Option<std::thread::JoinHandle<()>>,
+    fired: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Set at the top of cancel_and_join, BEFORE the mutex: the post-fire
+    /// grace poll in the watchdog thread reads this, not the mutex flag,
+    /// because the mutex stays in the watchdog thread's hands through the
+    /// grace — polling it would deadlock stop()'s lock for the whole grace.
+    /// "Owner came back" is exactly what the grace wants to detect.
+    resurfaced: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Debug knob (DITING_WATCHDOG_STACK_DUMP=1): a sampler thread that
+    /// requests a stack-dump interrupt every 250ms while this watchdog is
+    /// armed, so the FIRST sample lands mid-spin — long before any terminate
+    /// (and its subsequent recovery scripts) destroys the stack we want.
+    /// `None` when the knob is off.
+    sampler_stop: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+}
+
+/// Debug knob (DITING_WATCHDOG_STACK_DUMP=1): dump the live JS stack of
+/// a synchronous overrun. Two producers share this callback:
+///  - `watchdog_terminate` requests one at fire time (best effort: if the spin
+///    is inside a Rust op, no interrupt can land until the op returns, and a
+///    terminate from another watchdog may have already unwound the stack);
+///  - the per-watchdog sampler requests one every 250ms while armed, so the
+///    first samples land MID-SPIN, which is the trustworthy view.
+///
+/// `data` points at a boxed `u64` request timestamp (ms since epoch) owned by
+/// the requester; null means fire-time (the box would be unowned anyway).
+/// Off by default; strictly an engine-debugging aid.
+fn stack_dump_now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+unsafe extern "C" fn dump_spin_stack(
+    isolate: v8::UnsafeRawIsolatePtr,
+    data: *mut std::ffi::c_void,
+) {
+    let requested_ms = if data.is_null() {
+        None
+    } else {
+        let ms = unsafe { *std::ptr::NonNull::new(data).unwrap().cast::<u64>().as_ptr() };
+        drop(unsafe { Box::from_raw(data as *mut u64) });
+        Some(ms)
+    };
+    let landed_ms = stack_dump_now_ms();
+    let mut isolate = unsafe { v8::Isolate::from_raw_isolate_ptr(isolate) };
+    let terminating = isolate.is_execution_terminating();
+    let tag = match requested_ms {
+        Some(req) => {
+            let lag = landed_ms.saturating_sub(req);
+            format!("sample lag={lag}ms")
+        }
+        None => "fire".to_string(),
+    };
+    eprintln!("[watchdog-stack] {landed_ms} {tag} interrupt landed; terminating={terminating}");
+    v8::scope!(let hs, &mut isolate);
+    // SAFETY: `HandleScope<'i, C>`'s C parameter exists only as PhantomData,
+    // so HandleScope<'i, ()> and HandleScope<'i, Context> share a layout, and
+    // re-borrowing the live HandleScope as the Context-flavored PinScope the
+    // StackTrace API wants is sound. An earlier version entered a synthetic
+    // Context here (Context::new + ContextScope) and capture saw 0 frames;
+    // entering no context at all rules that interplay out.
+    let scope: &v8::PinScope<'_, '_> = unsafe { std::mem::transmute(&*hs) };
+    let Some(trace) = v8::StackTrace::current_stack_trace(scope, 24) else {
+        eprintln!("[watchdog-stack] {landed_ms} no stack available");
+        return;
+    };
+    let count = trace.get_frame_count().min(24);
+    eprintln!("[watchdog-stack] {landed_ms} {count} frames (top first):");
+    for i in 0..count {
+        let Some(frame) = trace.get_frame(scope, i) else { continue };
+        let fn_name = frame
+            .get_function_name(scope)
+            .map(|s| s.to_rust_string_lossy(scope))
+            .unwrap_or_default();
+        let script = frame
+            .get_script_name(scope)
+            .map(|s| s.to_rust_string_lossy(scope))
+            .unwrap_or_default();
+        let fn_name = if fn_name.is_empty() { "<anon>" } else { &fn_name };
+        // Minified bundles are one line, so name+line:col can't tell 54 inline
+        // scripts apart — the V8 script id (compile order) plus a source
+        // prefix can. Prefix only on the top frame to keep samples cheap.
+        let source_tag = if i == 0 {
+            let prefix: String = frame
+                .get_script_source(scope)
+                .map(|s| {
+                    s.to_rust_string_lossy(scope)
+                        .chars()
+                        .take(80)
+                        .map(|c| if c == '\n' { ' ' } else { c })
+                        .collect()
+                })
+                .unwrap_or_default();
+            format!(" id={} src≈[{}]", frame.get_script_id(), prefix)
+        } else {
+            format!(" id={}", frame.get_script_id())
+        };
+        eprintln!(
+            "[watchdog-stack]   #{i} {fn_name} @ {script}:{}:{}{source_tag}",
+            frame.get_line_number(),
+            frame.get_column()
+        );
+    }
+}
+
+/// Shared tail of every watchdog fire path. Honors the debug knob above
+/// (request a stack dump, give the interrupt a moment to land mid-spin)
+/// before terminating. The dump is best-effort: if the spin is inside a Rust
+/// op the interrupt only lands after the op returns, and a normally-finishing
+/// script just dumps wherever the next V8 entry is — harmless either way.
+pub(super) fn watchdog_terminate(handle: &IsolateHandle) {
+    if std::env::var("DITING_WATCHDOG_STACK_DUMP").is_ok() {
+        // Fire-time dumps are the fallback view; the armed sampler (see
+        // spawn_watchdog) is the trustworthy one. 150ms per attempt is plenty
+        // for a V8-visible spin (interrupts land at the next stack check);
+        // an op-bound spin can't be reached at all.
+        handle.request_interrupt(dump_spin_stack, std::ptr::null_mut());
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        handle.request_interrupt(dump_spin_stack, std::ptr::null_mut());
+        std::thread::sleep(std::time::Duration::from_millis(150));
+    }
+    handle.terminate_execution();
+}
+
+/// Arm a V8 termination watchdog directly from an isolate handle, with no
+/// runtime borrow. The CDP dispatcher uses this to bound every command so a
+/// hung page cannot hold the process-wide V8 lock forever. Pair with
+/// [`WatchdogToken::stop`]; if `stop` returns true, clear the termination flag
+/// via [`JsRuntime::cancel_termination`] before reusing the isolate.
+///
+/// `stale` (the runtime's `stale_termination` flag) is set at the instant of
+/// firing — BEFORE `terminate_execution()` — so `run_event_loop`'s poll-boundary
+/// heal can tell a pending termination from V8 internals it cannot observe.
+pub fn spawn_watchdog(
+    handle: IsolateHandle,
+    budget: std::time::Duration,
+    stale: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+) -> WatchdogToken {
+    let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+    let fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // Debug sampler (DITING_WATCHDOG_STACK_DUMP=1): while this watchdog
+    // is armed, poke a stack-dump interrupt every 250ms. For a spin that V8
+    // can see (JS loop, or a loop of op calls), samples land mid-spin —
+    // before terminate_execution and the recovery scripts destroy the
+    // evidence. A lag >>250ms on every sample means the thread was parked
+    // inside a single Rust op — the one fact fire-time dumps can't show.
+    let sampler_stop = if std::env::var("DITING_WATCHDOG_STACK_DUMP").is_ok() {
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let sampler_handle = handle.clone();
+        let sampler_stop = stop.clone();
+        std::thread::spawn(move || {
+            while !sampler_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                let req = Box::into_raw(Box::new(stack_dump_now_ms()));
+                sampler_handle.request_interrupt(dump_spin_stack, req.cast());
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+        });
+        Some(stop)
+    } else {
+        None
+    };
+    let pair_c = pair.clone();
+    let fired_c = fired.clone();
+    let resurfaced = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let resurfaced_c = resurfaced.clone();
+    let join = std::thread::spawn(move || {
+        let (lock, cvar) = &*pair_c;
+        let mut cancelled = lock.lock().unwrap();
+        let deadline = std::time::Instant::now() + budget;
+        loop {
+            // Check first: stop() may have set this (and notified into the void)
+            // before this thread even started, which happens constantly for fast
+            // CDP commands where stop() is called right after spawn. Without this
+            // top check the lost notify means we wait the full budget before
+            // noticing, and stop()'s join() blocks for that whole time.
+            if *cancelled {
+                return;
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                fired_c.store(true, std::sync::atomic::Ordering::SeqCst);
+                if let Some(stale) = stale.as_ref() {
+                    stale.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                watchdog_terminate(&handle);
+                // Post-fire grace: did the shot land? A terminate only takes
+                // effect at a V8 stack check; a TurboFan-optimized loop that
+                // calls a builtin (e.g. Array.prototype.fill) has none —
+                // rusty_v8 #2088, re-hammering every 10ms for 10s still never
+                // lands. The resurface signal is the owner calling stop()/
+                // dropping the token (resurfaced is set before the mutex);
+                // if that never comes, the isolate is spinning forever and
+                // nothing at our layer can reach it. Say so loudly instead
+                // of dying silent — 100ms polls so a normal recovery exits
+                // the grace (and the join) promptly.
+                for _ in 0..30 {
+                    if resurfaced_c.load(std::sync::atomic::Ordering::Relaxed) {
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                eprintln!(
+                    "[watchdog] terminate fired but the isolate never resurfaced within 3s — \
+                     optimized-loop termination hole (rusty_v8 #2088 shape); this thread spins \
+                     forever and cannot be recovered, session is a zombie"
+                );
+                return;
+            }
+            let (guard, _) = cvar.wait_timeout(cancelled, remaining).unwrap();
+            cancelled = guard;
+            if *cancelled {
+                return;
+            }
+        }
+    });
+    WatchdogToken { pair, join: Some(join), fired, resurfaced, sampler_stop }
+}
+
+impl Drop for WatchdogToken {
+    /// Cancellation safety for armed watchdogs. Async callers (the session
+    /// idle pump, settle futures) can be dropped between `arm_watchdog` and
+    /// `disarm_watchdog` — `tokio::select!` preempts the pump the moment a
+    /// command arrives. Without this the orphaned thread later fires
+    /// `terminate_execution()` into whatever runs next and bricks the
+    /// isolate (no `cancel_terminate_execution` ever follows; measured as
+    /// every subsequent eval failing with "Uncaught Error: execution
+    /// terminated"). Dropping the token cancels the thread instead: it
+    /// sleeps in `wait_timeout` while holding the mutex, so once we acquire
+    /// the lock the thread can only wake, see the cancel flag and exit — it
+    /// cannot have terminated in between. The remaining sliver (it fired
+    /// while we were blocked on the lock) is healed by the
+    /// retry-on-terminated path in `evaluate`.
+    fn drop(&mut self) {
+        self.cancel_and_join();
+    }
+}
+
+impl WatchdogToken {
+    /// Stop the watchdog. Returns true if it had already fired (terminated the
+    /// isolate). The caller must then clear the termination flag via
+    /// [`JsRuntime::cancel_termination`] before the next eval.
+    pub fn stop(mut self) -> bool {
+        self.cancel_and_join();
+        self.fired.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Shared cancel path for Drop and stop(): flip the cancel flag, join the
+    /// watchdog thread, then halt the stack-dump sampler. Joining first
+    /// guarantees the sampler stops AFTER the watchdog can no longer fire, so
+    /// its last in-flight request can at worst dump a healthy stack once.
+    fn cancel_and_join(&mut self) {
+        // Before the mutex: the post-fire grace poll in the watchdog thread
+        // reads this flag, and the mutex is in that thread's hands until the
+        // grace ends.
+        self.resurfaced.store(true, std::sync::atomic::Ordering::Relaxed);
+        {
+            let (lock, cvar) = &*self.pair;
+            *lock.lock().unwrap() = true;
+            cvar.notify_one();
+        }
+        if let Some(j) = self.join.take() {
+            let _ = j.join();
+        }
+        if let Some(stop) = self.sampler_stop.take() {
+            stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Whether this watchdog has already terminated the isolate, without
+    /// stopping it. Lets a pump loop poll for termination between slices
+    /// while keeping the token alive for the final `stop()`.
+    pub fn fired(&self) -> bool {
+        self.fired.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+impl super::JsRuntime {
+    /// Headroom added on top of the caller's budget before the V8 watchdog
+    /// may terminate execution. Termination is a scalpel for infinite spins —
+    /// but react-dom 16's `performWorkOnRoot` sets its `executionContext`
+    /// bits with no `finally` to clear them, so a terminate that lands
+    /// mid-render or mid-commit poisons the realm permanently: every later
+    /// scheduler tick throws minified #327 ("Should not already be working")
+    /// and every `setState` dies silently — the Tmall publish page (#100)
+    /// lost all input write-back and button clicks to exactly this. A heavy
+    /// SPA commit legitimately runs for seconds (style + layout per commit
+    /// is engine-side cost Chrome amortizes), so the old +500ms razor killed
+    /// real work on the idle pump's 200ms slices. Five seconds of patience
+    /// still catches any true spin (a spin never finishes regardless of
+    /// budget), and the #66 duty-cycle freeze remains the backstop for
+    /// under-budget burners.
+    pub(crate) const WATCHDOG_HEADROOM_MS: u64 = 5_000;
+
+    /// Watchdog duration for the meta_code half of an eval (#110): 10s floor,
+    /// else the caller's own await budget — the settle half of the same eval
+    /// already waits that long, so a legitimate long synchronous script must
+    /// not be killed earlier than the budget its caller explicitly set.
+    pub(crate) fn eval_watchdog_duration(await_budget_ms: u64) -> std::time::Duration {
+        std::time::Duration::from_millis(await_budget_ms).max(std::time::Duration::from_secs(10))
+    }
+
+    /// Arm a hard wall-clock backstop on synchronous V8 work. A page stuck in a
+    /// synchronous loop or a microtask storm pins the OS thread inside V8, so
+    /// `tokio::time::timeout` (which can only cancel at await points) never
+    /// fires. This spawns a watchdog thread that terminates the isolate once
+    /// `budget` elapses, forcing V8 to throw an uncatchable error and hand
+    /// control back. Always balance with [`Self::disarm_watchdog`].
+    pub fn arm_watchdog(&mut self, budget: std::time::Duration) -> WatchdogToken {
+        spawn_watchdog(
+            self.runtime.isolate_handle(),
+            budget,
+            Some(self.stale_termination.clone()),
+        )
+    }
+
+    /// #224: the pump-family arm (`settle_pending_work`, netidle,
+    /// `run_event_loop_bounded`, `run_event_loop_until_idle`). Same wall as
+    /// [`Self::arm_watchdog`], but the budget grows with this realm's fire
+    /// history: every termination the watchdog already dealt out doubles
+    /// the next pump budget, up to ×128. Doudian's publish boot is the
+    /// counterexample that motivated it: minute-scale synchronous
+    /// schema/form JS (legal commerce work, just 4-10× slower than Chrome
+    /// here) ran into settle 3s+5s / until_idle 200ms+5s walls FIFTEEN
+    /// times in one boot — each fire severed whatever promise chain was
+    /// mid-commit, and the prefill chain never completed (主图 never
+    /// mounted; op deliveries were lost outright). A realm that has
+    /// already been beheaded N times is either slow-and-legitimate (the
+    /// patience saves it) or a spin (the #66 duty freeze catches it —
+    /// a spin burns duty regardless of watchdog budget). NOT applied to
+    /// the eval/module/script watchdogs: those are API contracts with
+    /// caller-visible timeouts, nor to the #66 throttled burst (that
+    /// symmetric fence exists to CONTAIN a burner).
+    pub fn arm_watchdog_pump(&mut self, budget: std::time::Duration) -> WatchdogToken {
+        let mult = self.pump_patience();
+        // Cap the escalated wall at base + 60s. The patience exists for
+        // legitimate slow commits (42s of sustained sync measured on this
+        // page family) — not to stretch a termination-immune wedge. The
+        // first #224 repro pinned the session actor for minutes inside one
+        // optimized microtask (a memmove-shaped loop that ignored a pending
+        // TerminateExecution; V8 optimized code without interrupt checks
+        // doesn't observe termination at all), and at ×128 the settle wall
+        // alone was 256s of that. +60s keeps every escalated wall in the
+        // "survivable, commands drain within a minute" band.
+        let cap = budget + std::time::Duration::from_secs(60);
+        let scaled = budget.saturating_mul(mult).min(cap);
+        if scaled > budget {
+            tracing::debug!("#224 pump watchdog patience ×{mult} (capped at {}ms)",
+                scaled.as_millis());
+        }
+        self.arm_watchdog(scaled)
+    }
+
+    /// The current #224 escalation factor: 1 << min(fires, 7), capped ×128.
+    fn pump_patience(&self) -> u32 {
+        1u32 << self.watchdog_fired_total.get().min(7)
+    }
+
+    /// Stop a watchdog armed by [`Self::arm_watchdog`]. If it had already fired
+    /// (terminated the isolate), clear V8's termination flag so the isolate is
+    /// usable again, and return `true`.
+    pub fn disarm_watchdog(&mut self, token: WatchdogToken) -> bool {
+        let fired = token.stop();
+        if fired {
+            // The heal in run_event_loop owns stale-clearing at poll
+            // boundaries; this swap only covers the flag the watchdog set
+            // between the last poll and this disarm.
+            self.stale_termination
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+            // #227 belt for the race that swap loses: a fire landing
+            // inside the final poll of a pump that then exits on its
+            // elapsed timeout is never re-polled, so no poll boundary
+            // observes the stale flag. Forward the unwind instead — the
+            // next loop entry (≤ one pump slice away) resets any trampoline
+            // bracket the fire leaked.
+            self.termination_unwound
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            self.runtime.revive();
+            self.watchdog_fired_total
+                .set(self.watchdog_fired_total.get() + 1);
+            tracing::warn!(
+                "V8 watchdog fired: terminated a synchronous overrun ({} fires this realm; pump budgets now ×{})",
+                self.watchdog_fired_total.get(),
+                self.pump_patience()
+            );
+        }
+        fired
+    }
+
+    /// `execute_script` that self-heals from a stray V8 termination. A
+    /// watchdog that fired without a paired disarm (the pre-Drop-token
+    /// cancellation race; see [`WatchdogToken`]) leaves the isolate's
+    /// termination flag set, after which *every* execute fails with
+    /// "Uncaught Error: execution terminated" forever. Clear the flag and
+    /// retry once: the caller's expression itself didn't run yet, so one
+    /// clean retry fully masks the hiccup.
+    pub(crate) fn execute_script_retry_terminated(
+        &mut self,
+        name: &'static str,
+        source: String,
+    ) -> Result<v8::Global<v8::Value>, String> {
+        match self.runtime.execute_script(name, &source) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                let msg = e.to_string();
+                if !msg.contains("execution terminated") {
+                    return Err(format!("JS error: {}", msg));
+                }
+                tracing::warn!("cleared stray V8 termination flag before {}", name);
+                self.runtime.revive();
+                self.runtime
+                    .execute_script(name, &source)
+                    .map_err(|e| format!("JS error: {}", e))
+            }
+        }
+    }
+
+    /// #39: run at every `run_event_loop` entry. A terminate_execution
+    /// unwinds the JS stack without running finally blocks, so a trampoline
+    /// bracket open at the fire leaks its depth counter forever and the
+    /// drain chain defers into infinity while looking alive (fxg wedge:
+    /// every later timer/fetch delivery rotted). At loop entry nothing JS
+    /// is executing, so an unwind notification (set by the poll-boundary
+    /// heal) or a stale flag still pending from a fire-while-parked means
+    /// every bracket is leaked — clear the flag and reset the depth before
+    /// this loop's pumps wake the chain.
+    pub(crate) fn heal_termination_at_loop_entry(&mut self) {
+        let unwound = self
+            .termination_unwound
+            .swap(false, std::sync::atomic::Ordering::SeqCst);
+        let stale_entry = self
+            .stale_termination
+            .swap(false, std::sync::atomic::Ordering::SeqCst);
+        if stale_entry {
+            self.runtime.revive();
+        }
+        if unwound || stale_entry {
+            let _ = self.runtime.execute_script(
+                "<mt-recover>",
+                "if (globalThis.__diting_mt_recover_termination) \
+                 globalThis.__diting_mt_recover_termination()",
+            );
+            tracing::warn!("#39: reset macrotask depth after V8 termination");
+        }
+        // #227: the flags above only carry FIRES. A severed chain can
+        // outlive them: the terminate's op-delivery batch evaporated with
+        // the drain's op_sleep continuation AND its sibling 1500ms patrol
+        // (same arm — cf. #226), and a quiet page (self-chained timers
+        // died with the chain) pushes nothing, so the 250ms retire never
+        // fires either — the fxg wedge: armed corpse, 160k backlog, probe
+        // timers rotting while fetches settle fine. The pump is the only
+        // independent witness left: ask the trampoline whether it stalled
+        // and run the recover path. Its depth reset is safe here — nothing
+        // JS is executing, so any positive depth is a leaked bracket.
+        // #240: the timer wheel joined the witness contract. The
+        // doudian-publish wedge (2026-10-09) formed with ZERO watchdog
+        // fires anywhere in the log — timers/interval/rAF dead for the
+        // rest of the session while fetches and eval-await stayed fine,
+        // `_timerArmed` stale + patrol latched and no JS-side push able to
+        // retry the arm. A due-past heap-top is the one wheel state a
+        // healthy realm never shows; the recover path now force-heals it
+        // (idempotent — a merely-behind page pays one redundant arm).
+        // #240 face-2: the fetch ring joined too. A fetch whose op settled
+        // but whose await/.then continuation never ran leaves a stall the
+        // wheel witness cannot see (timers stay alive); the detector names
+        // it, and the dump below rides the warn line so an unattended flow
+        // wedge leaves the ring tail + wheel counters in the log — the
+        // post-mortem previously required a human eval against a dead page.
+        let stalled = self
+            .evaluate(
+                "globalThis.__diting_mt_stalled ? \
+                 (__diting_mt_stalled() || __diting_wheel_stalled() \
+                  || (globalThis.__diting_fetch_stalled && __diting_fetch_stalled())) : false",
+            )
+            .map(|v| v == serde_json::Value::Bool(true))
+            .unwrap_or(false);
+        if stalled {
+            if let Ok(serde_json::Value::String(s)) =
+                self.evaluate("globalThis.__diting_mt_dump ? __diting_mt_dump() : null")
+            {
+                tracing::warn!("#240 stall post-mortem (mt/wheel/fetch ring): {}", s);
+            }
+            let _ = self.runtime.execute_script(
+                "<mt-force-recover>",
+                "if (globalThis.__diting_mt_recover_termination) \
+                 globalThis.__diting_mt_recover_termination()",
+            );
+            tracing::warn!("#227/#240: re-armed stalled macrotask chain / timer wheel");
+        }
+    }
+
+    /// Total isolate terminations so far (see `watchdog_fired_total`).
+    pub fn watchdog_fired_total(&self) -> u64 {
+        self.watchdog_fired_total.get()
+    }
+
+    /// Cumulative wall time spent inside `poll_event_loop` over this realm's
+    /// life (#66 busy accounting — see the field doc). Monotonic; callers
+    /// diff it across a window.
+    pub fn v8_active_ns(&self) -> u64 {
+        self.v8_active_ns.get()
+    }
+
+    /// Queue a console entry from the Rust side (level, message), tagged
+    /// with the current page URL like op_console does. The busy freeze uses
+    /// this so session_console shows why a realm stopped pumping.
+    pub fn push_console_entry(&self, level: &str, msg: &str) {
+        let log_url = self.state.borrow().url.clone();
+        self.state
+            .borrow_mut()
+            .pending_console_calls
+            .push((level.to_string(), msg.to_string(), log_url));
+    }
+}

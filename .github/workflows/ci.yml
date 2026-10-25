@@ -1,0 +1,74 @@
+# Full test suite + feature-combination compile gates on every PR/push.
+# Before this existed, PRs (dependabot included) ran only a 36s scan job —
+# a "green" check carried zero test signal, and a Cargo.toml bump that broke
+# `cargo metadata` resolution would have merged clean (see the wreq dual
+# target-section pin incident, 2026-09).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: cargo test --features screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: test-screenshot
+      - name: Test
+        # --workspace is load-bearing: the repo is a root-package workspace
+        # (crates/diting), and without it cargo tests only the root package,
+        # silently dropping the engine crate's unit tests.
+        run: cargo test --workspace --features screenshot
+
+  check-stealth:
+    # wreq lives behind `stealth` and is exact-pinned (`=`) in TWO target
+    # sections — the only combination that compiles the BoringSSL/btls path
+    # and the one a single-section dependabot bump silently breaks.
+    name: cargo check --features stealth,screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: check-stealth
+      - name: Check
+        # --workspace: same reason as the test job — the engine crate must
+        # compile under the feature combination too, not just the product.
+        run: cargo check --workspace --features stealth,screenshot
+      - name: Redirect-trail and cookie tests under stealth
+        # #231: the redirect observability face (#203) broke on the wreq
+        # transport and survived every gate for weeks — the test existed all
+        # along but only ever ran under screenshot (reqwest path). Run the
+        # redirect + cookie test families on THIS job's stealth build so the
+        # transport-divergence class has a resident tripwire (#234 response
+        # set-cookie gating is the second member). Targeted, not the whole
+        # suite: BoringSSL is already built above and the filters keep the
+        # wall-clock honest. Multiple positional filters are ORed by libtest.
+        run: cargo test --workspace --features stealth,screenshot -- redirect cookie
+
+  layers:
+    # ARCHITECTURE.md §2 R1-R3 as greppable tripwires plus the god-file
+    # ratchet (§6 P2). The compile-time guarantee is the workspace dep
+    # graph; this catches what compiles fine but legislates wrong — core
+    # importing a face, the engine growing a faces dep, a new 2k-line
+    # file. Deliberately dependency-free python so it runs in seconds.
+    name: layering audit (R1-R3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Audit
+        run: python3 scripts/audit_layers.py

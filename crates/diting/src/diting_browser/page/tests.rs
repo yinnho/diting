@@ -1,0 +1,3696 @@
+    use super::*;
+
+    /// Holds PRIVATE_NET_ENV_LOCK for the test's duration and clears
+    /// DITING_ALLOW_PRIVATE_NETWORK on exit so the ambient env never leaks
+    /// into the next test (several diting_net tests assert on the unset
+    /// state). The field is the point: holding the guard is what locks.
+    #[allow(dead_code)]
+    struct NetGuard(std::sync::MutexGuard<'static, ()>);
+    impl Drop for NetGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+        }
+    }
+    fn net_test_guard() -> NetGuard {
+        let guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+        std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+        NetGuard(guard)
+    }
+
+    /// Same discipline for the nav-chain knob: the default-cap exhaustion
+    /// test and the raised-cap test must not interleave their env writes —
+    /// an unguarded "12" leaking into a concurrent navigate() would let the
+    /// exhaustion test sail past the cap it exists to pin.
+    #[allow(dead_code)] // the guard field is never read; holding it is the effect
+    struct NavChainGuard(std::sync::MutexGuard<'static, ()>);
+    impl Drop for NavChainGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("DITING_NAV_CHAIN_LIMIT");
+        }
+    }
+    static NAV_CHAIN_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn nav_chain_guard() -> NavChainGuard {
+        let guard = NAV_CHAIN_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        NavChainGuard(guard)
+    }
+
+    /// #66 busy-limit knob: the freeze test shrinks the window to 2s and
+    /// must restore the unset ambient state so no other test's pump
+    /// accounts against a 2s window.
+    #[allow(dead_code)] // holding the guard is the effect
+    struct BusyLimitGuard(std::sync::MutexGuard<'static, ()>);
+    impl Drop for BusyLimitGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("DITING_JS_BUSY_LIMIT_SECS");
+        }
+    }
+    static BUSY_LIMIT_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn busy_limit_guard(secs: &str) -> BusyLimitGuard {
+        let guard = BUSY_LIMIT_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("DITING_JS_BUSY_LIMIT_SECS", secs);
+        BusyLimitGuard(guard)
+    }
+
+    /// #203 stylesheet budget knob: the commit-hostage test shrinks the
+    /// budget to 300ms and must restore the unset ambient state so other
+    /// navigations don't commit without sheets that merely load slowly.
+    #[allow(dead_code)] // holding the guard is the effect
+    struct SheetBudgetGuard(std::sync::MutexGuard<'static, ()>);
+    impl Drop for SheetBudgetGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("DITING_STYLESHEET_TIMEOUT_MS");
+        }
+    }
+    static SHEET_BUDGET_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn sheet_budget_guard(ms: &str) -> SheetBudgetGuard {
+        let guard = SHEET_BUDGET_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("DITING_STYLESHEET_TIMEOUT_MS", ms);
+        SheetBudgetGuard(guard)
+    }
+
+    /// Multi-path local HTTP server on 127.0.0.1. Bodies are owned Strings so
+    /// a route can embed the port of another server (cross-origin tests).
+    /// Answers up to 64 requests: one navigation may pull the document plus
+    /// stylesheets and scripts. Unmatched paths get a 404.
+    fn local_http_server(routes: Vec<(&'static str, u16, String)>) -> u16 {
+        local_http_server_typed(
+            routes
+                .into_iter()
+                .map(|(p, s, b)| (p, s, "text/html", b))
+                .collect(),
+        )
+    }
+
+    /// `local_http_server` with a per-route Content-Type (batch 2: response
+    /// bodies store text lossy-UTF-8 vs binary base64, so tests need to
+    /// control it).
+    fn local_http_server_typed(routes: Vec<(&'static str, u16, &'static str, String)>) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..64 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let (status, ctype, body) = if path.starts_with("/__echo") {
+                    // Request-echo route: the raw request head back as the
+                    // body, so a test can pin exactly what the transport put
+                    // on the wire (header name/value stringification, group
+                    // survival) without a recording side channel.
+                    let head = String::from_utf8_lossy(&buf[..n]);
+                    let head = head.split("\r\n\r\n").next().unwrap_or("").to_string();
+                    (200u16, "text/plain", head)
+                } else {
+                    routes
+                        .iter()
+                        .find(|(p, _, _, _)| *p == path)
+                        .map(|(_, s, c, b)| (*s, *c, b.clone()))
+                        .unwrap_or((404, "text/html", String::new()))
+                };
+                let response = format!(
+                    "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        port
+    }
+
+    /// `local_http_server_typed` for bodies that are not valid UTF-8 (the
+    /// GBK tests). Byte-exact on the wire.
+    fn local_http_server_bytes(routes: Vec<(&'static str, u16, &'static str, Vec<u8>)>) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..64 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let (status, ctype, body) = routes
+                    .iter()
+                    .find(|(p, _, _, _)| *p == path)
+                    .map(|(_, s, c, b)| (*s, *c, b.clone()))
+                    .unwrap_or((404, "text/html", Vec::new()));
+                let response = format!(
+                    "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(&body);
+                let _ = stream.flush();
+            }
+        });
+        port
+    }
+
+    fn test_page() -> Page {
+        let context = Arc::new(BrowserContext::with_storage_and_network(
+            "test".into(),
+            None,
+            false,
+            None,
+            None,
+            true, // allow_private_network: tests talk to 127.0.0.1
+            None,
+        ));
+        Page::new("page-test".into(), context)
+    }
+
+    // ---- pure functions -------------------------------------------------
+
+    /// #236: the result-shaped eval twin must carry watchdog terminations to
+    /// the caller — click_xy relies on it to report "dispatch incomplete"
+    /// instead of success. (A JS-level `throw` is deliberately NOT an error
+    /// here: wrap_expression folds script exceptions into a null completion
+    /// value, engine-wide CDP semantics — the terminate path is the one the
+    /// interaction chain needs.) The Null-returning wrapper keeps its old
+    /// face (fold to Null).
+    /// #240: a watchdog-stormed realm parked whole pump slices
+    /// (`storm_hot_until`) with zero event-loop work. The wait loop rides
+    /// this pump, so while a flow polled its predicate the page's OWN
+    /// fire-and-forget timers never delivered (doudian's 45s abort timer,
+    /// xhs CAS's post-success navigation) — while the eval-await path pumps
+    /// through resolve_promises_until and never sees the branch, the
+    /// issue's "eval-await alive, fire-then-wait dead" split. A stormed
+    /// slice now runs one bounded 50ms burst like the busy-freeze branch.
+    #[tokio::test(flavor = "current_thread")]
+    async fn storm_backoff_slice_still_delivers_short_timers() {
+        let mut p = test_page();
+        p.navigate("about:blank").await.unwrap();
+        p.evaluate("window.__T = 0; setTimeout(() => { window.__T = 1; }, 10);");
+        // Simulate the watchdog-storm backoff settle_until_idle arms after a
+        // terminated pump; 900ms of wait-loop slices run inside its window.
+        p.storm_hot_until =
+            Some(tokio::time::Instant::now() + std::time::Duration::from_secs(2));
+        for _ in 0..6 {
+            p.pump_event_loop_slice(150).await;
+        }
+        assert_eq!(
+            p.evaluate("window.__T"),
+            serde_json::json!(1.0),
+            "a stormed realm's pump slices must still deliver the page's own short timers"
+        );
+    }
+
+    /// #240: busy_frozen is the sibling of storm_hot_until on the wait-loop
+    /// pump. Throttle (not park) already landed in #203 — this pins that a
+    /// hand-armed freeze still delivers the page's own short timers across
+    /// wait-loop slices, same contract as `storm_backoff_slice_still_delivers_short_timers`.
+    #[tokio::test(flavor = "current_thread")]
+    async fn busy_frozen_slice_still_delivers_short_timers() {
+        let mut p = test_page();
+        p.navigate("about:blank").await.unwrap();
+        p.evaluate("window.__T = 0; setTimeout(() => { window.__T = 1; }, 10);");
+        p.busy_frozen = true;
+        for _ in 0..6 {
+            p.pump_event_loop_slice(150).await;
+        }
+        assert_eq!(
+            p.evaluate("window.__T"),
+            serde_json::json!(1.0),
+            "a busy-frozen realm's pump slices must still deliver the page's own short timers"
+        );
+    }
+
+    /// #240: once #66 tripped, the freeze was sticky until Navigate/SetContent
+    /// rebuilt the realm — a heavy boot left the session at 25% for life even
+    /// after the page cooled (the "realm-rebuild-level storm" face). A cool
+    /// burst (quiet page, V8 active ≪ 50ms budget) must clear the flag without
+    /// a document swap.
+    #[tokio::test(flavor = "current_thread")]
+    async fn busy_frozen_cools_without_realm_rebuild() {
+        let mut p = test_page();
+        p.navigate("about:blank").await.unwrap();
+        // No burner — only a short timer so the burst has something to do,
+        // then the loop goes quiescent. Hand-arm the freeze like a prior
+        // heavy boot would have left it.
+        p.evaluate("window.__T = 0; setTimeout(() => { window.__T = 1; }, 10);");
+        p.busy_frozen = true;
+        for _ in 0..6 {
+            p.pump_event_loop_slice(150).await;
+        }
+        assert!(
+            !p.js_busy_frozen(),
+            "a cooled realm must unfreeze without Navigate/SetContent"
+        );
+        assert_eq!(
+            p.evaluate("window.__T"),
+            serde_json::json!(1.0),
+            "cool-down slices must still deliver the page's short timers"
+        );
+    }
+
+    /// #230: a boot that queues tens of thousands of delay-0 timers must
+    /// drain at pass speed, not at one timer-wheel tick per trampoline
+    /// batch plus an O(n) shift per item. Before the fix tokio's 1ms wheel
+    /// taxed every op_sleep(0) round-trip (measured 1154µs while the JS
+    /// under it cost 55ns/item) and _mtQueue.shift() memmoved the whole
+    /// backing store per item (~110µs/item at idle-pump cadence) — a
+    /// 340k-timer fxg boot drained at ~5.7k/s, so a 100ms probe armed
+    /// mid-storm waited 46-59s. The zero sleep now completes at the first
+    /// drive and the queue consumes under a head cursor: 340k in ~150ms on
+    /// the dev box. This pins the order of magnitude, not an exact number
+    /// — 30k items must fully drain inside 1s of slices (the pre-fix
+    /// shape needed 3s+ here; a healthy build does it in well under
+    /// 100ms even on a loaded runner).
+    #[tokio::test(flavor = "current_thread")]
+    async fn boot_timer_backlog_drains_at_pass_speed() {
+        let mut p = test_page();
+        p.navigate("about:blank").await.unwrap();
+        p.evaluate(concat!(
+            "window.__n = 0;",
+            "for (let i = 0; i < 30000; i++)",
+            "  setTimeout(() => { window.__n++; }, 0);"
+        ));
+        for _ in 0..10 {
+            p.pump_event_loop_slice(100).await;
+        }
+        // V8 hands every JSON number back as f64 — assert on that face
+        // (as_u64() is always None here, serde stores it as f64).
+        assert_eq!(
+            p.evaluate("window.__n").as_f64(),
+            Some(30_000.0),
+            "30k delay-0 timers must fully drain inside 1s of pump slices"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn evaluate_with_timeout_result_carries_termination() {
+        let mut p = test_page();
+        p.navigate("about:blank").await.unwrap();
+        let err = p
+            .evaluate_with_timeout_result(
+                "while (true) {}",
+                std::time::Duration::from_millis(200),
+            )
+            .expect_err("a watchdog termination must surface as Err");
+        assert!(
+            err.contains("timed out"),
+            "the termination must ride along: {err}"
+        );
+        // The legacy wrapper folds the same termination into Null — unchanged.
+        let folded = p.evaluate_with_timeout("1 + 1", std::time::Duration::from_secs(5));
+        assert_eq!(folded, serde_json::json!(2.0), "page must survive the termination");
+    }
+
+    #[test]
+    fn subresource_allowed_policy_matrix() {
+        let http_page = Url::parse("http://example.com/page").ok();
+        let file_page = Url::parse("file:///tmp/x.html").ok();
+        assert!(subresource_allowed(http_page.as_ref(), "https://cdn.example.com/a.js"));
+        assert!(subresource_allowed(http_page.as_ref(), "data:text/javascript,1"));
+        assert!(!subresource_allowed(http_page.as_ref(), "file:///etc/passwd"));
+        assert!(subresource_allowed(file_page.as_ref(), "file:///tmp/sibling.js"));
+        assert!(!subresource_allowed(http_page.as_ref(), "javascript:alert(1)"));
+        assert!(!subresource_allowed(http_page.as_ref(), "not a url"));
+        // No page URL yet (pre-navigation): http(s) is still fine — there is
+        // nothing origin-sensitive to protect yet — but file: stays blocked.
+        assert!(subresource_allowed(None, "https://example.com/a.js"));
+        assert!(!subresource_allowed(None, "file:///etc/passwd"));
+    }
+
+    #[test]
+    fn cross_scheme_to_file_matrix() {
+        assert!(cross_scheme_to_file("http://a.com/", "file:///etc/passwd"));
+        assert!(cross_scheme_to_file("https://a.com/", "FILE:///etc/passwd"));
+        assert!(!cross_scheme_to_file("file:///tmp/a", "file:///tmp/b"));
+        assert!(!cross_scheme_to_file("http://a.com/", "https://b.com/"));
+        // Unparseable source is treated as non-file: block.
+        assert!(cross_scheme_to_file("::not-a-url::", "file:///etc/passwd"));
+    }
+
+    #[test]
+    fn navigation_referrer_matrix() {
+        let same = |a: &str, b: &str| {
+            crate::diting_net::client::HttpClient::navigation_referrer(&Url::parse(a).unwrap(), &Url::parse(b).unwrap())
+        };
+        // Same-origin: full URL, fragment and credentials stripped.
+        assert_eq!(
+            same("http://example.com/a#frag", "http://example.com/b"),
+            "http://example.com/a"
+        );
+        assert_eq!(
+            same("http://user:pw@example.com/a", "http://example.com/b"),
+            "http://example.com/a"
+        );
+        // Cross-origin: origin + '/' only.
+        assert_eq!(
+            same("http://example.com/a/b?c=1", "http://other.com/d"),
+            "http://example.com/"
+        );
+        // Downgrade and non-HTTP schemes: nothing.
+        assert_eq!(same("https://example.com/a", "http://example.com/b"), "");
+        assert_eq!(same("file:///tmp/a", "http://example.com/b"), "");
+    }
+
+    #[test]
+    fn decode_data_uri_variants() {
+        assert_eq!(
+            decode_data_uri("data:text/html,%3Cp%3Ehi%3C/p%3E"),
+            Some(b"<p>hi</p>".to_vec())
+        );
+        assert_eq!(
+            decode_data_uri("data:application/js;base64,d2luZG93LmE9MQ=="),
+            Some(b"window.a=1".to_vec())
+        );
+        // Base64 with embedded whitespace is tolerated.
+        assert_eq!(decode_data_uri("data:;base64,\n aGk="), Some(b"hi".to_vec()));
+        assert_eq!(decode_data_uri("data:no-comma"), None);
+        assert_eq!(decode_data_uri("http://example.com/"), None);
+    }
+
+    #[test]
+    fn escape_for_js_template_literal_blocks_breakouts() {
+        // Exact escaped forms: every breakout character becomes a backslash
+        // escape, so no unescaped ` or ${ can terminate the literal early.
+        assert_eq!(escape_for_js_template_literal("a`b${c}"), "a\\`b\\${c}");
+        assert_eq!(escape_for_js_template_literal("x\u{2028}y\u{2029}"), "x\\u2028y\\u2029");
+        // \n has no dedicated arm; it falls through the generic <0x20 branch.
+        assert_eq!(escape_for_js_template_literal("\0\r\n"), "\\0\\r\\u000a");
+        assert_eq!(escape_for_js_template_literal("plain"), "plain");
+    }
+
+    // ---- history --------------------------------------------------------
+
+    #[test]
+    fn push_history_dedupes_consecutive_and_truncates_forward() {
+        let mut p = test_page();
+        p.push_history("http://a/1".into());
+        p.push_history("http://a/1".into()); // duplicate: ignored
+        assert_eq!(p.history, vec!["http://a/1"]);
+        p.push_history("http://a/2".into());
+        assert_eq!(p.history_index, 1);
+        p.set_history_index(0); // go back
+        p.push_history("http://a/3".into()); // clobbers forward entry
+        assert_eq!(p.history, vec!["http://a/1", "http://a/3"]);
+        assert_eq!(p.history_index, 1);
+        p.set_history_index(99); // out of bounds: no-op
+        assert_eq!(p.history_index, 1);
+    }
+
+    // ---- no-network navigations ------------------------------------------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn about_blank_initializes_realm_and_runs_preload_scripts() {
+        let mut p = test_page();
+        p.set_preload_scripts(vec!["window.__pre = 'yes';".into()]);
+        p.navigate("about:blank").await.unwrap();
+        assert_eq!(p.lifecycle, LifecycleState::Loaded);
+        assert_eq!(p.evaluate("window.__pre"), serde_json::json!("yes"));
+        assert_eq!(p.url_string(), "about:blank");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn data_uri_document_executes_script_and_sets_title() {
+        let mut p = test_page();
+        p.navigate("data:text/html,%3Cscript%3Ewindow.__x%3D'ran'%3C/script%3E%3Ctitle%3ET%3C/title%3E")
+            .await
+            .unwrap();
+        assert_eq!(p.evaluate("window.__x"), serde_json::json!("ran"));
+        assert_eq!(p.title, "T");
+    }
+
+    /// #278: the command-boundary layout release is rev-quiet — a release
+    /// changes no pixels, so the damage signature's rev half must hold
+    /// (the band frame cache keeps hitting across it) — and the next
+    /// geometry read rebuilds byte-identical output from the same DOM.
+    #[cfg(feature = "screenshot")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn release_layout_is_rev_quiet_and_rebuilds_identically() {
+        let mut p = test_page();
+        p.navigate("data:text/html,%3Cdiv%20id%3Dx%20style%3D%22width%3A120px%3Bheight%3A40px%22%3Eword%3C%2Fdiv%3E")
+            .await
+            .unwrap();
+        let probe = "JSON.stringify(document.getElementById('x').getBoundingClientRect())";
+        let first = p.evaluate(probe);
+        let rev = p.layout_rev();
+        p.release_layout();
+        assert_eq!(
+            p.layout_rev(),
+            rev,
+            "release must not move the invalidation rev — no pixels changed"
+        );
+        let second = p.evaluate(probe);
+        assert_eq!(
+            second, first,
+            "geometry rebuilds identically after the release"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn classic_script_cannot_see_later_parser_scripts() {
+        // #120: KISSY-style loaders locate their own <script> by reverse-
+        // scanning document.getElementsByTagName('script'). Chrome runs a
+        // classic script before the parser has inserted any LATER script
+        // elements, so that scan must not see them — with the whole DOM
+        // pre-built, the scan would find a later combo <script> and derive a
+        // wrong loader base. Dynamically inserted scripts are visible the
+        // moment they land, and after the classic phase everything is.
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<script>window.__a = document.getElementsByTagName('script').length;\n\
+             var d = document.createElement('script');\n\
+             d.textContent = 'window.__dyn = document.getElementsByTagName(\"script\").length;';\n\
+             document.head.appendChild(d);\n\
+             window.__aDyn = document.getElementsByTagName('script').length;</script>\n\
+             <script>window.__b = document.getElementsByTagName('script').length;</script>\n\
+             <script></script>".to_string(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        // Script A: only itself (later parser scripts B/C hidden; the dynamic
+        // script lands after the first count).
+        assert_eq!(p.evaluate("window.__a"), serde_json::json!(1.0));
+        assert_eq!(p.evaluate("window.__aDyn"), serde_json::json!(2.0));
+        // Script B: A + dynamic + itself; C still hidden.
+        assert_eq!(p.evaluate("window.__b"), serde_json::json!(3.0));
+        // The dynamic script executes via the pump (race vs. the remaining
+        // classic scripts — Chrome has the same ambiguity for plain
+        // appendChild scripts); the pin is that it ran at all and that its
+        // own tag was visible to it (map-absence rule), not its exact count.
+        assert_eq!(p.evaluate("window.__dyn >= 2"), serde_json::json!(true));
+        assert_eq!(
+            p.evaluate("document.getElementsByTagName('script').length"),
+            serde_json::json!(4.0)
+        );
+        assert_eq!(p.evaluate("document.scripts.length"), serde_json::json!(4.0));
+    }
+
+    /// #120: Chrome's non-standard but load-bearing `zoom` — Tmall-class
+    /// publish UIs size their whole panel in design coordinates and set
+    /// `zoom: viewport/1280` on the wrapper. Every declaration-class size
+    /// (px width/height, the px halves of calc, padding/border/margin,
+    /// insets, font size, replaced-element naturals and presentational-hint
+    /// attrs) renders scaled; percentages resolve against the scaled parent
+    /// box; the factor inherits and nested factors multiply.
+    /// Layout-dependent (#276 P2-8 side-debt): zoom geometry rides the
+        /// screenshot-gated layout stack — meaningless without it.
+        #[cfg(feature = "screenshot")]
+        #[tokio::test(flavor = "current_thread")]
+    async fn css_zoom_scales_geometry_and_inherits() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/z",
+            200,
+            r#"<html><head><style>
+                 #plain { zoom: 0.5; width: 200px; }
+                 #kid { width: 50%; height: 30px; }
+                 #gk { width: 100px; }
+               </style></head><body>
+               <div id="plain"><div id="kid"><div id="gk"></div></div></div>
+               <div style="zoom:0.5"><div style="zoom:2"><div id="net1" style="width:100px"></div></div></div>
+               <div style="zoom:150%"><div id="pct" style="width:100px"></div></div>
+               <img id="im" width="100" height="80" style="zoom:0.5">
+               <span id="s1">x</span>
+               <span style="zoom:2"><span id="s2">x</span></span>
+               </body></html>"#
+                .to_string(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/z")).await.unwrap();
+        let mut w = |sel: &str, prop: &str| {
+            p.evaluate(&format!(
+                "document.querySelector('{sel}').getBoundingClientRect().{prop}"
+            ))
+            .as_f64()
+            .unwrap()
+        };
+        // zoom scales the element's own px width; the computed style carries
+        // the scaled used value like Chrome's resolved width.
+        assert_eq!(w("#plain", "width"), 100.0);
+        // Percentages resolve against the SCALED parent content box
+        // (200×0.5 = 100 → 50%), and the child's own px height scales.
+        assert_eq!(w("#kid", "width"), 50.0);
+        assert_eq!(w("#kid", "height"), 15.0);
+        // The factor inherits: a grandkid with no zoom of its own still
+        // renders at half size.
+        assert_eq!(w("#gk", "width"), 50.0);
+        // Nested factors multiply: 0.5 × 2 = 1.
+        assert_eq!(w("#net1", "width"), 100.0);
+        // Percentage syntax folds to the number form.
+        assert_eq!(w("#pct", "width"), 150.0);
+        // Replaced naturals and presentational-hint attrs scale.
+        assert_eq!(w("#im", "width"), 50.0);
+        assert_eq!(w("#im", "height"), 40.0);
+        // Font size scales with it — the line box of the zoomed span is
+        // ~2× its unscaled sibling.
+        let (h1, h2) = (w("#s1", "height"), w("#s2", "height"));
+        assert!(
+            (h2 / h1 - 2.0).abs() < 0.3,
+            "zoomed line box {h2} should be ~2x unzoomed {h1}"
+        );
+        // And the sheet still reports the authored factor to CSSOM readers.
+        assert_eq!(
+            p.evaluate("getComputedStyle(document.querySelector('#plain')).zoom"),
+            serde_json::json!("0.5")
+        );
+    }
+
+    /// #120: `font-size: 0` text — the whitespace-killing idiom; Fusion's
+    /// `.next-input` sets it and its icon `<i>`s inherit — must measure and
+    /// occupy nothing. rustybuzz shapes size-0 runs at the raw upem scale,
+    /// so a single 'x' measured ~500 px and PUA icon glyphs ~1000+, blowing
+    /// every select arrow's 1px table-cell trick out to 2178 px on the Tmall
+    /// publish page (the form-squeezed-right residual after the zoom fix).
+    #[tokio::test(flavor = "current_thread")]
+    async fn font_size_zero_text_occupies_nothing() {
+        let port = local_http_server(vec![(
+            "/fs0",
+            200,
+            format!(
+                r#"<html><head><style>.ib{{display:inline-block;border:1px solid}}</style></head><body>
+               <span class="ib" id="z" style="font-size:0">x</span>
+               <span class="ib" id="pua" style="font-size:0">{pua}</span>
+               <span class="ib" id="s16" style="font-size:16px">x</span>
+               </body></html>"#,
+                pua = '\u{e63d}'
+            ),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/fs0")).await.unwrap();
+        let mut w = |id: &str| {
+            p.evaluate(&format!(
+                "document.getElementById('{id}').getBoundingClientRect().width"
+            ))
+            .as_f64()
+            .unwrap()
+        };
+        // Zero-size text occupies nothing: the boxes are their 2px borders
+        // alone, not the ~500/~1000px raw design-unit advances.
+        assert_eq!(w("z"), 2.0);
+        assert_eq!(w("pua"), 2.0);
+        // The control: 16px text still measures its glyph.
+        assert!(w("s16") > 4.0);
+    }
+
+    /// #123: a stylesheet that lands AFTER the first layout runs (KISSY
+    /// appends its `<link>` from script and the body arrives a beat later)
+    /// must reach elements that already existed when the poisoned-era run
+    /// measured them — and must survive DOM churn after landing. The tmall
+    /// publish page's whole form collapses to min-content when the
+    /// incremental match cache carries pre-sheet hits forward forever.
+    #[cfg(feature = "screenshot")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn late_stylesheet_applies_to_existing_elements_and_survives_churn() {
+        let _g = net_test_guard();
+        // ~600 nodes so single-subtree churn stamps stay under the mass
+        // gates (4x slots) and the incremental path is the one exercised.
+        let rows = (0..150)
+            .map(|i| format!("<span class=\"late\" id=\"s{i}\">w</span>"))
+            .collect::<Vec<_>>()
+            .join("");
+        let port = local_http_server(vec![
+            (
+                "/p",
+                200,
+                format!(
+                    "<html><head><style>.late{{color:red}}</style></head><body>\
+                     <div id=\"w\">{rows}</div>\
+                     <script>\
+                     var l=document.createElement('link');\
+                     l.rel='stylesheet';l.href='/late.css';\
+                     document.head.appendChild(l);\
+                     </script></body></html>"
+                ),
+            ),
+            // The late sheet: rules that change BOTH cascade and geometry.
+            ("/late.css", 200, ".late{display:inline-block;width:50px}#w{display:flex;flex-direction:column}".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/p")).await.unwrap();
+        // Wait until the sheet's rules are in CSSOM (fetch + parse done).
+        for _ in 0..20 {
+            if p.evaluate("document.styleSheets.length").as_f64() == Some(2.0) {
+                break;
+            }
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_millis(50),
+                p.js.as_mut().unwrap().run_event_loop(),
+            )
+            .await;
+        }
+        assert_eq!(
+            p.evaluate("document.styleSheets.length").as_f64(),
+            Some(2.0),
+            "late sheet must be fetched and parsed into CSSOM"
+        );
+        // The late rules must now apply to elements that predate the sheet.
+        assert_eq!(
+            p.evaluate("getComputedStyle(document.getElementById('s0')).display"),
+            serde_json::json!("inline-block"),
+            "late-sheet cascade must reach pre-existing elements"
+        );
+        assert_eq!(
+            p.evaluate("document.getElementById('s0').getBoundingClientRect().width").as_f64(),
+            Some(50.0),
+            "late-sheet geometry must reach pre-existing elements"
+        );
+        // Churn after landing: move the wrapper out and back (React-style
+        // re-parent). The re-inserted subtree must keep matching the sheet.
+        p.evaluate("var w=document.getElementById('w');var par=w.parentNode;par.removeChild(w);par.appendChild(w)");
+        assert_eq!(
+            p.evaluate("getComputedStyle(document.getElementById('s7')).display"),
+            serde_json::json!("inline-block"),
+            "re-inserted subtree must still match the late sheet"
+        );
+        assert_eq!(
+            p.evaluate("document.getElementById('s7').getBoundingClientRect().width").as_f64(),
+            Some(50.0),
+        );
+        // And a full re-render shape: replace the wrapper's children.
+        p.evaluate(
+            "var w=document.getElementById('w');w.innerHTML=w.innerHTML;",
+        );
+        assert_eq!(
+            p.evaluate("getComputedStyle(document.getElementById('s3')).display"),
+            serde_json::json!("inline-block"),
+            "innerHTML-rebuilt children must match the late sheet"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn navigate_blank_resets_state() {
+        let mut p = test_page();
+        p.title = "stale".into();
+        p.navigate_blank();
+        assert_eq!(p.url_string(), "about:blank");
+        assert_eq!(p.title, "");
+        assert_eq!(p.lifecycle, LifecycleState::Loaded);
+        assert!(p.js.is_none());
+    }
+
+    #[test]
+    fn module_eval_budget_parses_override_and_default() {
+        assert_eq!(super::module_eval_budget_from(None), 10_000);
+        assert_eq!(super::module_eval_budget_from(Some("not-a-number")), 10_000);
+        assert_eq!(super::module_eval_budget_from(Some("30000")), 30_000);
+    }
+
+    #[test]
+    fn env_init_script_reads_file_and_skips_empty() {
+        assert_eq!(super::env_init_script_from(None), None);
+        assert_eq!(super::env_init_script_from(Some("/nonexistent/init.js")), None);
+        let dir = std::env::temp_dir().join("diting_init_script_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("probe.js");
+        std::fs::write(&path, "window.__probed = true;").unwrap();
+        assert_eq!(
+            super::env_init_script_from(Some(path.to_str().unwrap())).as_deref(),
+            Some("window.__probed = true;")
+        );
+        std::fs::write(&path, "   \n").unwrap();
+        assert_eq!(super::env_init_script_from(Some(path.to_str().unwrap())), None);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn signer_gate_source_parses_fields_and_rejects_short_configs() {
+        // Three fields: regex source, signer expression, wait cap (ms).
+        let src = super::signer_gate_source_from(
+            Some("/api/edith/product/publish_render;(window.proxy&&window.proxy._webmsxyw)||null;12000"),
+        )
+        .unwrap();
+        assert!(src.contains(r#"new RegExp("/api/edith/product/publish_render")"#), "{src}");
+        assert!(
+            src.contains(r#"signer:new Function("return (" + "(window.proxy&&window.proxy._webmsxyw)||null" + ");")"#),
+            "{src}"
+        );
+        assert!(src.contains("waitMs:12000"), "{src}");
+        // Non-enumerable defineProperty: the gate global must never show up
+        // in Object.keys even before the enumeration-boundary wrappers run.
+        assert!(src.contains("enumerable:false"), "{src}");
+        // Wait cap defaults; pattern/signer are both required.
+        let dflt = super::signer_gate_source_from(Some("/a;fn()")).unwrap();
+        assert!(dflt.contains("waitMs:12000"));
+        assert!(super::signer_gate_source_from(Some("/a")).is_none());
+        assert!(super::signer_gate_source_from(Some(";fn();100")).is_none());
+        assert!(super::signer_gate_source_from(None).is_none());
+        assert!(super::signer_gate_source_from(Some("   ")).is_none());
+        // A quote inside the signer expression must survive as an escaped
+        // JS string literal, not break out into code.
+        let quoted = super::signer_gate_source_from(Some(r#"/a;window.x==="function""#)).unwrap();
+        assert!(quoted.contains(r#""window.x===\"function\"""#), "{quoted}");
+    }
+
+    // ---- navigation chains over a local server ---------------------------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn js_triggered_navigation_chain_lands_on_final_page() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html><script>location.href = '/b';</script></html>".into()),
+            ("/b", 200, "<html><head><title>B-Landed</title></head><body><script>window.__here = document.URL;</script></body></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/b"));
+        assert_eq!(p.title, "B-Landed");
+        assert!(p.evaluate("window.__here").as_str().unwrap().ends_with("/b"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn chain_hop_sets_same_origin_referrer() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html><script>location.href = '/b';</script></html>".into()),
+            ("/b", 200, "<html><script>window.__ref = document.referrer;</script></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(
+            p.evaluate("window.__ref"),
+            serde_json::json!(format!("http://127.0.0.1:{port}/a"))
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cross_origin_chain_referrer_is_origin_only() {
+        let _g = net_test_guard();
+        // Different ports on 127.0.0.1 are different origins.
+        let port_b = local_http_server(vec![(
+            "/b",
+            200,
+            "<html><script>window.__ref = document.referrer;</script></html>".into(),
+        )]);
+        let port_a = local_http_server(vec![(
+            "/a",
+            200,
+            format!(
+                "<html><script>location.href = 'http://127.0.0.1:{port_b}/b';</script></html>"
+            ),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port_a}/a")).await.unwrap();
+        assert_eq!(
+            p.evaluate("window.__ref"),
+            serde_json::json!(format!("http://127.0.0.1:{port_a}/"))
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn direct_navigation_leaves_referrer_empty() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><script>window.__ref = document.referrer;</script></html>".into(),
+        )]);
+        let mut p = test_page();
+        // An earlier navigation must not leak into the next one's referrer.
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__ref"), serde_json::json!(""));
+    }
+
+    // document.domain: the getter mirrors the origin's host (bilibili's
+    // log-reporter derives its cookie scope from `document.domain.split(".")`
+    // and died on undefined), and the legacy relaxation setter accepts the
+    // same host but rejects foreign values.
+    #[tokio::test(flavor = "current_thread")]
+    async fn document_domain_getter_and_legacy_setter() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><script>window.__d = document.domain; document.domain = '127.0.0.1'; window.__relaxed = document.domain; try { document.domain = 'evil.com'; window.__bad = 'no-throw'; } catch (e) { window.__bad = e.name; }</script></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__d"), serde_json::json!("127.0.0.1"));
+        assert_eq!(p.evaluate("window.__relaxed"), serde_json::json!("127.0.0.1"));
+        assert_eq!(p.evaluate("window.__bad"), serde_json::json!("SecurityError"));
+    }
+
+    // `el.options = x` on a non-select element is an expando in Chrome (the
+    // accessor only exists on HTMLSelectElement). The shared-prototype
+    // getter made it a TypeError instead — bilibili's player binds component
+    // state that way and its whole init died on it.
+    #[tokio::test(flavor = "current_thread")]
+    async fn element_options_assignment_is_expando_off_select() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><body><div id=d></div><select id=s><option>x</option></select><script>const d = document.getElementById('d'); d.options = {a: 1}; window.__d = d.options.a; window.__len = document.getElementById('s').options.length; try { document.getElementById('s').options = {a: 2}; } catch (e) { window.__sel = 'threw'; }</script></body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__d").as_f64().unwrap(), 1.0);
+        // select.options stays the live collection, assignment is a silent no-op.
+        assert_eq!(p.evaluate("window.__len").as_f64().unwrap(), 1.0);
+        assert_eq!(p.evaluate("window.__sel === 'threw'"), serde_json::json!(false));
+        assert_eq!(p.evaluate("document.getElementById('s').options.length").as_f64().unwrap(), 1.0);
+    }
+
+    // MSE surface: capability gate → attach handshake (createObjectURL →
+    // video.src = blob:… → async sourceopen) → SourceBuffer append cycle.
+    // bilibili's dash-only player leaves the player container empty
+    // without `window.MediaSource && isTypeSupported(...)` succeeding.
+    #[tokio::test(flavor = "current_thread")]
+    async fn mse_stub_attach_handshake_and_append_cycle() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><body><script>window.__log = []; if (window.MediaSource && MediaSource.isTypeSupported('video/mp4; codecs=\"avc1.42E01E,mp4a.40.2\"')) { const ms = new MediaSource(); const url = URL.createObjectURL(ms); const v = document.createElement('video'); document.body.appendChild(v); v.src = url; ms.addEventListener('sourceopen', function() { const sb = ms.addSourceBuffer('video/mp4; codecs=\"avc1.42E01E\"'); window.__log.push('open:' + ms.readyState + ':' + ms.sourceBuffers.length); sb.addEventListener('updateend', function() { window.__log.push('appended:' + sb.updating); ms.endOfStream(); window.__log.push('eos:' + ms.readyState); }); sb.appendBuffer(new Uint8Array([1,2,3])); }); } else { window.__log.push('no-mse'); }</script></body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        // The handshake is async (sourceopen on a macrotask) and this page
+        // has no pending network, so nothing will turn the isolate's event
+        // loop after scripts finish — pump it the way wait_for_network_idle
+        // does (50ms bounded slices).
+        for _ in 0..5 {
+            if let Some(js) = p.js.as_mut() {
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_millis(50),
+                    js.run_event_loop(),
+                )
+                .await;
+            }
+        }
+        let log = p.evaluate("window.__log.join('|')").as_str().unwrap().to_string();
+        assert_eq!(log, "open:open:1|appended:false|eos:ended");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mse_ladder_derives_buffered_and_fires_readiness_events() {
+        let _g = net_test_guard();
+        // Hand-built fMP4 mirroring bilibili's muxer: moov with mvex/trex
+        // BEFORE trak (default durations ride the trex — the trun carries
+        // sizes only), tkhd track 1, mdhd timescale 1000, trex default
+        // duration 100; then two moofs (tfdt 0 and 1000, trun count 10
+        // each) → ranges [0,1] then coalesced [0,2]. The ladder must fire
+        // the Chrome readiness events on the element — bilibili's nano
+        // player only mounts from onCanplay.
+        let js = "window.__log = []; window.__events = []; \
+function u32(n){return [n>>>24&255,n>>>16&255,n>>>8&255,n&255];} \
+function box(t){let b=[];for(let i=1;i<arguments.length;i++)b=b.concat(arguments[i]);return [0,0,0,b.length+8].concat(t.split('').map(function(c){return c.charCodeAt(0);}),b);} \
+function fb(){return [0,0,0,0];} \
+const moov = box('moov', box('mvex', box('trex', fb(), u32(1), u32(0), u32(100), u32(0), u32(0))), box('trak', box('tkhd', fb(), u32(0), u32(0), u32(1), u32(0), u32(0)), box('mdia', box('mdhd', fb(), u32(0), u32(0), u32(1000), u32(0))))); \
+const moof0 = box('moof', box('traf', box('tfhd', fb(), u32(1)), box('tfdt', fb(), u32(0)), box('trun', fb(), u32(10)))); \
+const moof1 = box('moof', box('traf', box('tfhd', fb(), u32(1)), box('tfdt', fb(), u32(1000)), box('trun', fb(), u32(10)))); \
+const ms = new MediaSource(); const url = URL.createObjectURL(ms); \
+const v = document.createElement('video'); document.body.appendChild(v); \
+['loadstart','durationchange','loadedmetadata','loadeddata','canplay','canplaythrough','progress'].forEach(function(t){v.addEventListener(t,function(){window.__events.push(t);});}); \
+v.src = url; \
+ms.addEventListener('sourceopen', function(){ \
+  const sb = ms.addSourceBuffer('video/mp4'); \
+  const segs = [moov, moof0, moof1]; let i = 0; \
+  sb.addEventListener('updateend', function(){ \
+    if (sb.buffered.length) window.__log.push('b' + i + ':' + sb.buffered.start(0).toFixed(3) + '-' + sb.buffered.end(0).toFixed(3)); \
+    i++; \
+    if (i < segs.length) { sb.appendBuffer(new Uint8Array(segs[i])); return; } \
+    queueMicrotask(function(){ \
+      ms.duration = 5; \
+      window.__state = 'rs=' + v.readyState + '|nbuf=' + sb.buffered.length + '|' + sb.buffered.start(0).toFixed(3) + '-' + sb.buffered.end(0).toFixed(3) + '|dur=' + v.duration + '|msdur=' + ms.duration + '|net=' + v.networkState + '|HAVE=' + v.HAVE_ENOUGH_DATA + '|seek=' + v.seekable.length + ':' + v.seekable.end(0); \
+      window.__ev = window.__events.join(','); \
+    }); \
+  }); \
+  sb.appendBuffer(new Uint8Array(segs[0])); \
+});";
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            format!("<html><body><script>{js}</script></body></html>"),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        for _ in 0..5 {
+            if let Some(js) = p.js.as_mut() {
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_millis(50),
+                    js.run_event_loop(),
+                )
+                .await;
+            }
+        }
+        let log = p.evaluate("window.__log.join('|')").as_str().unwrap().to_string();
+        assert_eq!(log, "b1:0.000-1.000|b2:0.000-2.000", "buffered ranges from bytes, coalesced");
+        let state = p
+            .evaluate("window.__state || 'unset'")
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            state,
+            "rs=4|nbuf=1|0.000-2.000|dur=5|msdur=5|net=1|HAVE=4|seek=1:5",
+            "readiness/network/duration/seekable all derived"
+        );
+        let ev = p
+            .evaluate("window.__ev || 'unset'")
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            ev,
+            "loadstart,progress,durationchange,loadedmetadata,loadeddata,canplay,canplaythrough,progress,durationchange",
+            "Chrome-shaped readiness ladder on the element"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn sop_blocks_js_navigation_into_file_scheme() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><script>location.href = 'file:///etc/passwd';</script></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        // The chain loop breaks instead of navigating; we stay on /a.
+        assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/a"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn subresource_gate_blocks_file_script_src() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><body><script src=\"file:///tmp/evil.js\"></script><script>window.__pwned = 'inline-ran';</script></body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        // The inline script after the file: src still ran, but nothing could
+        // have been loaded from file: — assert the page survived and no file
+        // fetch shows up in the network log.
+        assert_eq!(p.evaluate("window.__pwned"), serde_json::json!("inline-ran"));
+        assert!(p.network_events.iter().all(|e| !e.url.starts_with("file:")));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn js_chain_over_limit_reports_too_many_redirects() {
+        let _g = net_test_guard();
+        let _chain = nav_chain_guard();
+        // Every /hopN page redirects to /hop{N+1}: an infinite JS chain that
+        // must stop at the default chain limit (10 documents) with
+        // TooManyClientNavigations — and the message must not blame HTTP
+        // redirects (obscura#664: a message pointing at the wrong layer
+        // costs more than none).
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..64 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/hop0")
+                    .to_string();
+                let next = match path.strip_prefix("/hop").and_then(|n| n.parse::<usize>().ok()) {
+                    Some(n) => format!("/hop{}", n + 1),
+                    None => "/hop0".to_string(),
+                };
+                let body = format!("<html><script>location.href = '{next}';</script></html>");
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        let mut p = test_page();
+        let err = p
+            .navigate(&format!("http://127.0.0.1:{port}/hop0"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, PageError::TooManyClientNavigations(10)), "got {err:?}");
+        let msg = err.to_string();
+        assert!(msg.contains("client navigation chain"), "message must name the layer: {msg}");
+        assert!(
+            !msg.starts_with("Too many redirects"),
+            "message must not blame HTTP redirects — the server never 3xx'd: {msg}"
+        );
+        assert!(
+            msg.contains("DITING_NAV_CHAIN_LIMIT"),
+            "message must name the operator remedy: {msg}"
+        );
+    }
+
+    /// obscura#1049 class: a subresource server answering `<script src>`
+    /// with `Content-Disposition: attachment` still serves the bytes as the
+    /// script body — real CDN assets do this (LinkedIn's static.licdn.com),
+    /// and a loader that routes disposition-attachment responses to a
+    /// "download" branch hands the script engine 0 bytes instead. Our
+    /// subresource path never inspects the header (only /download and
+    /// multipart FormData parsing do); this live probe pins that.
+    #[tokio::test(flavor = "current_thread")]
+    async fn subresource_script_with_attachment_disposition_executes() {
+        let _g = net_test_guard();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..8 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let (extra_headers, body) = if path == "/app.js" {
+                    (
+                        "content-type: application/javascript\r\ncontent-disposition: attachment; filename=\"app.js\"\r\n",
+                        "window.__cd = 41;".as_bytes().to_vec(),
+                    )
+                } else {
+                    (
+                        "content-type: text/html\r\n",
+                        r#"<html><body><script src="/app.js"></script></body></html>"#.as_bytes().to_vec(),
+                    )
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\n{extra_headers}content-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(&body);
+                let _ = stream.flush();
+            }
+        });
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/")).await.unwrap();
+        // If the disposition header ever routed the subresource away from the
+        // script engine, this reads null (0-byte body) instead of 41.
+        assert_eq!(p.evaluate("window.__cd"), serde_json::json!(41.0));
+    }
+
+    /// obscura#664 class: the navigation-chain cap counts documents, not
+    /// HTTP redirects, and an operator with a legitimate long chain (SSO
+    /// handover across several providers) must be able to raise it. Env
+    /// knob, in the shape of `DITING_NAV_TIMEOUT_MS`.
+    #[tokio::test(flavor = "current_thread")]
+    async fn nav_chain_limit_env_unblocks_long_chains() {
+        let _g = net_test_guard();
+        let _chain = nav_chain_guard();
+        // Finite chain /hop0 → /hop1 → … → /hop10 (terminal document):
+        // 11 documents total, one past the default cap of 10.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..16 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/hop0")
+                    .to_string();
+                let body = match path.strip_prefix("/hop").and_then(|n| n.parse::<usize>().ok()) {
+                    Some(10) => "<html><body>done</body></html>".to_string(),
+                    Some(n) => {
+                        format!("<html><script>location.href = '/hop{}';</script></html>", n + 1)
+                    }
+                    None => "/hop0".to_string(),
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        std::env::set_var("DITING_NAV_CHAIN_LIMIT", "12");
+        let mut p = test_page();
+        let res = p.navigate(&format!("http://127.0.0.1:{port}/hop0")).await;
+        res.unwrap();
+        assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/hop10"));
+    }
+
+    // ---- wait semantics & network events ---------------------------------
+
+    /// #203 retest shape: a stylesheet whose connection silently dies held
+    /// the whole commit hostage — navigate() stayed parked in "document
+    /// received, not yet committed" until the 30s nav deadline. The per-sheet
+    /// budget must let the document commit without the sheet.
+    #[tokio::test(flavor = "current_thread")]
+    async fn dead_stylesheet_cannot_hold_commit_hostage() {
+        let _g = net_test_guard();
+        let _budget = sheet_budget_guard("300");
+        // A socket that accepts and never answers: the fetch connects, then
+        // waits on headers that never arrive.
+        let stall = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let stall_port = stall.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let mut held: Vec<std::net::TcpStream> = Vec::new();
+            while let Ok((stream, _)) = stall.accept() {
+                held.push(stream); // parked for the test's lifetime
+            }
+        });
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            format!(
+                "<html><head><link rel=\"stylesheet\" href=\"http://127.0.0.1:{stall_port}/s.css\"></head><body>ok</body></html>"
+            ),
+        )]);
+        let mut p = test_page();
+        // Before the budget this returned Err("navigation exceeded …
+        // not yet committed") after the full nav deadline.
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/a"));
+        assert_eq!(p.evaluate("document.body.textContent"), serde_json::json!("ok"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn subresources_recorded_as_network_events() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html><head><link rel=\"stylesheet\" href=\"/s.css\"></head><body><script src=\"/x.js\"></script></body></html>".into()),
+            ("/s.css", 200, "body{color:red}".into()),
+            ("/x.js", 200, "window.__js = 'loaded';".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__js"), serde_json::json!("loaded"));
+        let kinds: Vec<&str> = p.network_events.iter().map(|e| e.resource_type.as_str()).collect();
+        assert!(kinds.contains(&"Document"), "kinds: {kinds:?}");
+        assert!(kinds.contains(&"Stylesheet"), "kinds: {kinds:?}");
+        assert!(kinds.contains(&"Script"), "kinds: {kinds:?}");
+        // #97: wire-fetched rows carry the transport's outbound header set —
+        // the UA/accept defaults the plain client puts on every request.
+        for e in p.network_events.iter() {
+            assert!(
+                e.headers.contains_key("user-agent"),
+                "{:?} row must carry its request headers: {:?}",
+                e.resource_type,
+                e.headers
+            );
+            assert!(
+                e.headers.contains_key("accept"),
+                "{:?} row must carry accept: {:?}",
+                e.resource_type,
+                e.headers
+            );
+        }
+        // request_id is page-id scoped.
+        assert!(p
+            .network_events
+            .iter()
+            .all(|e| e.request_id.starts_with("page-test.")));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn domcontentloaded_wait_returns_after_scripts_execute() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><head><title>DCL</title></head><body><script>window.__ran = 'yes';</script></body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate_with_wait(
+            &format!("http://127.0.0.1:{port}/a"),
+            crate::diting_browser::lifecycle::WaitUntil::DomContentLoaded,
+        )
+        .await
+        .unwrap();
+        // DCL means DOM parsed AND scripts executed.
+        assert_eq!(p.evaluate("window.__ran"), serde_json::json!("yes"));
+        assert_eq!(p.lifecycle, LifecycleState::DomContentLoaded);
+    }
+
+    // ---- body onload forwarding (byte-WAF challenge prerequisite) ----------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn body_onload_attribute_handler_runs_on_window_load() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            // `<body onload="...">` is a Window-level handler per HTML spec;
+            // the load event fires on window, so the content attribute must
+            // be forwarded there or the handler never runs.
+            "<html><head></head><body onload=\"window.__bodyOnloadRan = 'yes'\">x</body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__bodyOnloadRan"), serde_json::json!("yes"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn window_load_paths_all_fire() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><head></head><body><script>\
+             window.__viaListener = 'no';\
+             window.addEventListener('load', function() { window.__viaListener = 'yes'; });\
+             window.onload = function() { window.__viaProperty = 'yes'; };\
+             </script></body></html>"
+                .into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__viaListener"), serde_json::json!("yes"));
+        assert_eq!(p.evaluate("window.__viaProperty"), serde_json::json!("yes"));
+    }
+
+    /// (#37) The load path fires the window.onload property form exactly once
+    /// (the old code called it directly AND the dispatch wrapper fired it
+    /// again), hands it a real Event, and flips readyState to complete first
+    /// like Chrome.
+    #[tokio::test(flavor = "current_thread")]
+    async fn window_onload_property_fires_once_with_event() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/a",
+            200,
+            "<html><head></head><body><script>\
+             window.__n = 0;\
+             window.onload = function(e) {\
+                 window.__n++;\
+                 window.__evt = (e && e.type) || 'none';\
+                 window.__rs = document.readyState;\
+             };\
+             </script></body></html>"
+                .into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("window.__n").as_f64(), Some(1.0),
+            "the property form fires exactly once, not direct-call + dispatch");
+        assert_eq!(p.evaluate("window.__evt"), serde_json::json!("load"),
+            "the handler receives a real load Event, not a bare argument-less call");
+        assert_eq!(p.evaluate("window.__rs"), serde_json::json!("complete"),
+            "readyState is already complete when load fires, like Chrome");
+    }
+
+    /// (#44) Script elements — parser-inserted and dynamically-inserted
+    /// alike — delay the window load event until they execute. A load
+    /// listener registered BY a late dynamic script (proxydetect visual
+    /// suites hang their scheduler on `window.addEventListener("load", …)`
+    /// from inside pd-lib.js) must catch the event; the old order fired load
+    /// straight after the parser phase, before the settle loop let dynamic
+    /// scripts land, so the listener missed the event and the suite never
+    /// started.
+    #[tokio::test(flavor = "current_thread")]
+    async fn load_event_waits_for_dynamically_inserted_scripts() {
+        let _g = net_test_guard();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..8 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let (ctype, body) = if path == "/slow.js" {
+                    // Hold the response well past the parser phase so the
+                    // script is provably still in flight when DCL fires.
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    (
+                        "application/javascript",
+                        "window.__order.push('slow-exec');\
+                         window.addEventListener('load', function() { window.__order.push('late-load'); });"
+                            .to_string(),
+                    )
+                } else {
+                    (
+                        "text/html",
+                        "<html><head></head><body><script>\
+                         window.__order = [];\
+                         window.addEventListener('load', function() { window.__order.push('load'); });\
+                         var s = document.createElement('script');\
+                         s.src = 'http://127.0.0.1:PORT/slow.js';\
+                         document.head.appendChild(s);\
+                         window.__order.push('appended');\
+                         </script></body></html>"
+                            .replace("PORT", &port.to_string()),
+                    )
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(
+            p.evaluate("JSON.stringify(window.__order)"),
+            serde_json::json!("[\"appended\",\"slow-exec\",\"load\",\"late-load\"]"),
+            "load must fire after the dynamic script executes, and the \
+             listener the script registered must catch the event"
+        );
+    }
+
+    /// Byte-WAF JS challenge (juejin.cn class) auto-solves end to end:
+    /// `<body onload="readygo()">` drives a setInterval PoW over the inline
+    /// SHA-256 helpers, sets the `_wafchallengeid` answer cookie, and
+    /// `location.reload()` re-requests with it fast enough to beat the
+    /// Max-Age=1 window. The local server plays the WAF: no cookie ->
+    /// challenge page, valid answer -> real page.
+    #[tokio::test(flavor = "current_thread")]
+    async fn byte_waf_js_challenge_autosolves() {
+        use base64::Engine;
+        use sha2::{Digest, Sha256};
+        let _g = net_test_guard();
+
+        let prefix: Vec<u8> = (0u8..32).collect();
+        let secret = 7u64; // solution lives at i=7
+        let expect: Vec<u8> = {
+            let mut m = prefix.clone();
+            m.extend_from_slice(secret.to_string().as_bytes());
+            Sha256::digest(&m).to_vec()
+        };
+        let cs = serde_json::json!({
+            "v": {
+                "a": base64::engine::general_purpose::STANDARD.encode(&prefix),
+                "b": 1787795373i64,
+                "c": base64::engine::general_purpose::STANDARD.encode(&expect),
+            },
+            "s": base64::engine::general_purpose::STANDARD.encode([9u8; 32]),
+        })
+        .to_string();
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let served_real = false;
+        let challenge_hits = 0u32;
+        let log = std::sync::Arc::new(std::sync::Mutex::new((served_real, challenge_hits)));
+        let log2 = log.clone();
+        let prefix2 = prefix.clone();
+        let expect2 = expect.clone();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut served_real, mut challenge_hits) = *log2.lock().unwrap();
+            while let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 16384];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let cookie_hdr = req
+                    .lines()
+                    .find(|l| l.to_ascii_lowercase().starts_with("cookie:"))
+                    .map(|l| l.to_string())
+                    .unwrap_or_default();
+                let passed = cookie_hdr
+                    .split("_wafchallengeid=")
+                    .nth(1)
+                    .and_then(|v| v.split(';').next())
+                    .map(str::trim)
+                    .and_then(|v| {
+                        base64::engine::general_purpose::STANDARD.decode(v).ok()
+                    })
+                    .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
+                    .and_then(|c| {
+                        c.get("d")
+                            .and_then(|d| d.as_str())
+                            .and_then(|d| {
+                                base64::engine::general_purpose::STANDARD.decode(d).ok()
+                            })
+                            .map(|answer| {
+                                let mut m = prefix2.clone();
+                                m.extend_from_slice(&answer);
+                                Sha256::digest(&m).to_vec() == expect2
+                            })
+                    })
+                    .unwrap_or(false);
+                let body = if passed {
+                    served_real = true;
+                    "<html><head><title>Real Page</title></head><body>unlocked</body></html>".to_string()
+                } else {
+                    challenge_hits += 1;
+                    format!(
+                        "<html><head><title>challenge</title></head><body onload=\"readygo()\">\
+                         <script>window.WAFJS = function(){{}};</script>\
+                         <script>{helpers}</script>\
+                         <script>function readygo(){{var wci=\"_wafchallengeid\",cs=\"{cs}\",c=JSON.parse(atob(cs)),\
+                         prefix=b64tou8a(c.v.a),expect=b64tohex(c.v.c),i=0,\
+                         iid=setInterval(function(){{expect===s256(prefix,\"\"+i)&&\
+                         (c.d=btoa(\"\"+i),clearInterval(iid),\
+                         document.cookie=wci+\"=\"+btoa(JSON.stringify(c))+\"; Max-Age=1\",\
+                         window.location.reload()),i++,i>1e6&&clearInterval(iid)}},1)}}</script>\
+                         Please wait...</body></html>",
+                        helpers = include_str!("../../../tests/waf_sha256_helpers.js"),
+                        cs = base64::engine::general_purpose::STANDARD.encode(cs.as_bytes()),
+                    )
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+                *log2.lock().unwrap() = (served_real, challenge_hits);
+            }
+        });
+
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/")).await.unwrap();
+        // The challenge page must have auto-passed: readygo ran from the body
+        // onload attribute, solved the PoW, and reloaded with the answer.
+        assert_eq!(p.evaluate("document.title"), serde_json::json!("Real Page"));
+        let (served_real, challenge_hits) = *log.lock().unwrap();
+        assert!(served_real, "server never served the real page");
+        assert!(challenge_hits >= 1, "challenge was never issued");
+    }
+
+    
+    // ---- suspend / resume ---------------------------------------------------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn suspend_resume_preserves_dom_and_rebuilds_realm() {
+        let mut p = test_page();
+        p.navigate("data:text/html,%3Cscript%3Ewindow.__mark%3D'old'%3C/script%3E%3Ctitle%3ECarry%3C/title%3E")
+            .await
+            .unwrap();
+        assert_eq!(p.evaluate("window.__mark"), serde_json::json!("old"));
+        p.suspend_js();
+        assert!(!p.has_js());
+        // DOM survives suspension and stays queryable.
+        let title = p
+            .with_dom(|dom| {
+                dom.query_selector("title")
+                    .ok()
+                    .flatten()
+                    .map(|nid| dom.text_content(nid))
+            })
+            .flatten();
+        assert_eq!(title.as_deref(), Some("Carry"));
+        // Static evaluate fallback with no runtime.
+        assert_eq!(p.evaluate("document.title"), serde_json::json!("Carry"));
+        assert_eq!(
+            p.evaluate("window.location.href"),
+            serde_json::json!(p.url_string())
+        );
+        assert_eq!(p.evaluate("1 + 1"), serde_json::Value::Null);
+        // Resume rebuilds the realm: page state (window.__mark) is gone —
+        // init_js never carries the old realm across.
+        p.resume_js();
+        assert!(p.has_js());
+        assert_eq!(p.evaluate("window.__mark"), serde_json::Value::Null);
+        assert_eq!(p.evaluate("document.title"), serde_json::json!("Carry"));
+    }
+
+    // ---- sessionStorage persistence (#678) ---------------------------------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_storage_survives_same_origin_navigation() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html><title>A</title></html>".into()),
+            ("/b", 200, "<html><title>B</title></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a"))
+            .await
+            .unwrap();
+        p.evaluate("sessionStorage.setItem('k', 'v1')");
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('k')"),
+            serde_json::json!("v1")
+        );
+        // Same-origin navigation must preserve sessionStorage (reload-like).
+        p.navigate(&format!("http://127.0.0.1:{port}/b"))
+            .await
+            .unwrap();
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('k')"),
+            serde_json::json!("v1")
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_storage_survives_suspend_resume() {
+        let mut p = test_page();
+        p.navigate("data:text/html,<html><title>S</title></html>")
+            .await
+            .unwrap();
+        p.evaluate("sessionStorage.setItem('foo', 'bar')");
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('foo')"),
+            serde_json::json!("bar")
+        );
+        // A second target's evaluate parks this realm (suspend_js) and later
+        // resumes it via init_js; sessionStorage must survive the round-trip.
+        p.suspend_js();
+        p.resume_js();
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('foo')"),
+            serde_json::json!("bar")
+        );
+    }
+
+    // Console calls logged before a suspension must survive it (obscura#971
+    // same hole): the realm drops, but the client reading the console ring
+    // after a resume still expects everything it hasn't drained yet.
+    #[tokio::test(flavor = "current_thread")]
+    async fn console_calls_survive_suspend_resume() {
+        let mut p = test_page();
+        p.navigate("data:text/html,<html><title>C</title></html>")
+            .await
+            .unwrap();
+        p.evaluate("console.error('pre-suspend')");
+        p.suspend_js();
+        // The realm is gone here — pre-fix, a take at this point returned
+        // empty and the message was destroyed with it.
+        p.resume_js();
+        p.evaluate("console.error('post-resume')");
+        let calls = p.take_pending_console_calls();
+        let msgs: Vec<&str> = calls.iter().map(|(_, m, _)| m.as_str()).collect();
+        assert_eq!(
+            msgs,
+            vec!["pre-suspend", "post-resume"],
+            "suspension buffer merges ahead of the live realm's calls"
+        );
+        assert!(
+            p.take_pending_console_calls().is_empty(),
+            "a take drains both sources"
+        );
+    }
+
+    // Console calls logged by the outgoing document must survive the realm
+    // swap in init_js/navigate_blank the same way suspend_js preserves them —
+    // Chrome keeps per-tab console history across navigations.
+    #[tokio::test(flavor = "current_thread")]
+    async fn console_calls_survive_navigation() {
+        let mut p = test_page();
+        p.navigate("data:text/html,<html><title>one</title></html>")
+            .await
+            .unwrap();
+        p.evaluate("console.error('pre-nav')");
+        // Real navigation path (init_js realm rebuild), not suspend/resume.
+        p.navigate("data:text/html,<html><title>two</title></html>")
+            .await
+            .unwrap();
+        let calls = p.take_pending_console_calls();
+        let msgs: Vec<&str> = calls.iter().map(|(_, m, _)| m.as_str()).collect();
+        assert_eq!(msgs, vec!["pre-nav"], "outgoing document's calls survive");
+        assert!(
+            p.take_pending_console_calls().is_empty(),
+            "navigation buffer drains with the take"
+        );
+    }
+
+    // #99: console arguments render as DevTools-shaped previews, never
+    // "[object Object]" — the tmall report's fileLoader.loadTimeout logged
+    // its options object and collapsed to a useless string, hiding which
+    // resource timed out.
+    #[tokio::test(flavor = "current_thread")]
+    async fn console_objects_render_structured_previews() {
+        let mut p = test_page();
+        p.navigate("data:text/html,<html><body><div id='x' class='a b'></div></body></html>")
+            .await
+            .unwrap();
+        p.evaluate(
+            r#"(() => {
+              const o = {url: 'https://g.alicdn.com/x.js', timeout: 5000, self: null};
+              o.self = o;
+              console.log('loader', o);
+              console.log(document.getElementById('x'));
+              console.log(new Map([[1, 'a']]));
+              console.log(new Array(25).fill(7));
+              console.log(new Error('boom'));
+            })()"#,
+        );
+        let calls = p.take_pending_console_calls();
+        let msgs: Vec<&str> = calls.iter().map(|(_, m, _)| m.as_str()).collect();
+        assert_eq!(msgs.len(), 5, "{msgs:?}");
+        assert!(
+            msgs[0].contains("url: \"https://g.alicdn.com/x.js\""),
+            "{}", msgs[0]
+        );
+        assert!(msgs[0].contains("timeout: 5000"), "{}", msgs[0]);
+        assert!(msgs[0].contains("self: [Circular]"), "{}", msgs[0]);
+        assert!(!msgs[0].contains("[object"), "{}", msgs[0]);
+        assert_eq!(msgs[1], "<div#x.a.b>");
+        assert!(msgs[2].starts_with("Map(1) {1 => \"a\"}"), "{}", msgs[2]);
+        assert!(msgs[3].contains("… +5 more"), "{}", msgs[3]);
+        assert!(msgs[4].contains("boom"), "{}", msgs[4]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_storage_survives_data_url_navigation() {
+        let mut p = test_page();
+        p.navigate("data:text/html,<html><title>one</title></html>")
+            .await
+            .unwrap();
+        p.evaluate("sessionStorage.setItem('ticket', 'abc-123')");
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('ticket')"),
+            serde_json::json!("abc-123")
+        );
+        p.navigate("data:text/html,<html><title>two</title></html>")
+            .await
+            .unwrap();
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('ticket')"),
+            serde_json::json!("abc-123"),
+            "data: URL same-origin (opaque) navigation must preserve sessionStorage"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_storage_cleared_on_cross_origin_navigation() {
+        let _g = net_test_guard();
+        let port_a = local_http_server(vec![("/a", 200, "<html><title>A</title></html>".into())]);
+        let port_b = local_http_server(vec![("/b", 200, "<html><title>B</title></html>".into())]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port_a}/a"))
+            .await
+            .unwrap();
+        p.evaluate("sessionStorage.setItem('k', 'v1')");
+        // Different port = different origin: the old store must be discarded,
+        // matching per-tab-per-origin semantics.
+        p.navigate(&format!("http://127.0.0.1:{port_b}/b"))
+            .await
+            .unwrap();
+        assert_eq!(
+            p.evaluate("sessionStorage.getItem('k')"),
+            serde_json::Value::Null
+        );
+    }
+
+    // ---- batch 1: fork_virtual_url + preload push + nav timeout -----------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn process_pending_navigation_adopts_spa_pushstate_route() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/app",
+            200,
+            "<html><body><script>window.__booted = 1;</script></body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+        // SPA click handler: renders in place, moves the URL via pushState.
+        // (evaluate wraps single expressions only — `return (a; b)` would be
+        // a SyntaxError — so the call and the probe run separately.)
+        p.evaluate("history.pushState(null, '', '/app/settings')");
+        assert_eq!(
+            p.evaluate("globalThis.__virtualUrl"),
+            serde_json::json!(format!("http://127.0.0.1:{port}/app/settings"))
+        );
+        // The session pump has no pending navigation to process, but the page
+        // still routed itself — that counts (fork_virtual_url.rs).
+        assert!(p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/app/settings"));
+        assert!(p.history.last().unwrap().ends_with("/app/settings"));
+        // Idempotent: adopting the same virtual URL again changes nothing.
+        assert!(!p.process_pending_navigation().await.unwrap());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn process_pending_navigation_without_route_returns_false() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/plain",
+            200,
+            "<html><body>no scripts</body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/plain")).await.unwrap();
+        assert!(!p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/plain"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn process_pending_navigation_carries_hop1_referrer() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/sender",
+                200,
+                "<html><body>plain document</body></html>".into(),
+            ),
+            (
+                "/receiver",
+                200,
+                "<html><script>window.__ref = document.referrer;</script></html>".into(),
+            ),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/sender")).await.unwrap();
+        assert!(p.url_string().ends_with("/sender"));
+        // Queue a navigation AFTER navigate() returned, the way a click
+        // handler on a live page does — the inner chain is done, so only the
+        // session pump's process_pending_navigation can pick it up.
+        p.evaluate("setTimeout(() => { location.href = '/receiver'; }, 100)");
+        let _ = p.settle_until_idle(3_000).await;
+        assert!(p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/receiver"));
+        // The page asked for this navigation itself, so unlike direct
+        // automation navigations the first hop carries a referrer.
+        assert_eq!(
+            p.evaluate("window.__ref"),
+            serde_json::json!(format!("http://127.0.0.1:{port}/sender"))
+        );
+    }
+
+    // ---- obscura#1105: window.history reflects the real session history --
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn history_length_and_back_survive_cross_document_navigation() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html><body><script>window.__doc = 'A';</script></body></html>".into()),
+            ("/b", 200, "<html><body><script>window.__doc = 'B';</script></body></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        assert_eq!(p.evaluate("history.length"), serde_json::json!(1.0), "first document");
+        p.navigate(&format!("http://127.0.0.1:{port}/b")).await.unwrap();
+        // The runtime was rebuilt for the second document — the seed must
+        // carry the first entry over (this read used to be 1, and back()
+        // below a silent no-op).
+        assert_eq!(p.evaluate("history.length"), serde_json::json!(2.0));
+        assert_eq!(p.evaluate("window.__doc"), serde_json::json!("B"));
+        p.evaluate("history.back()");
+        assert!(p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/a"));
+        assert_eq!(p.evaluate("window.__doc"), serde_json::json!("A"));
+        assert_eq!(
+            p.evaluate("history.length"),
+            serde_json::json!(2.0),
+            "the back-jump lands on entry 0 of the SAME 2-entry history"
+        );
+        // The jump moved the cursor; it did not append a third entry.
+        assert_eq!(p.history.len(), 2);
+        assert_eq!(p.history_index, 0);
+        // forward() from the landed document re-enters B — the seeded
+        // forward entry jumps too, cursor back to 1, still 2 entries.
+        p.evaluate("history.forward()");
+        assert!(p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/b"));
+        assert_eq!(p.evaluate("window.__doc"), serde_json::json!("B"));
+        assert_eq!(p.history.len(), 2);
+        assert_eq!(p.history_index, 1);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn push_state_stacks_over_the_seed_and_back_stays_virtual() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html><body>A</body></html>".into()),
+            ("/b", 200, "<html><body>B</body></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        p.navigate(&format!("http://127.0.0.1:{port}/b")).await.unwrap();
+        // Same-document entries stack over the seeded cross-document one.
+        p.evaluate("history.pushState({x: 1}, '', '/b?page=2')");
+        assert_eq!(p.evaluate("history.length"), serde_json::json!(3.0));
+        assert_eq!(p.evaluate("history.state"), serde_json::json!({"x": 1}));
+        // back() to the document's OWN entry stays virtual: popstate fires,
+        // no engine jump queued, no navigation runs.
+        p.evaluate("window.__pops = 0");
+        p.evaluate("addEventListener('popstate', () => { window.__pops++; })");
+        p.evaluate("history.back()");
+        assert_eq!(p.evaluate("window.__pops"), serde_json::json!(1.0));
+        assert!(!p.process_pending_navigation().await.unwrap());
+        assert_eq!(p.evaluate("history.state"), serde_json::json!(null));
+        // go(-2) crosses into document A's entry: a real engine jump.
+        p.evaluate("history.go(-2)");
+        assert!(p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/a"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn same_url_renavigation_dedupe_keeps_length_honest() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![("/a", 200, "<html><body>A</body></html>".into())]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a")).await.unwrap();
+        p.evaluate("location.href = '/a'");
+        assert!(p.process_pending_navigation().await.unwrap());
+        assert!(p.url_string().ends_with("/a"));
+        // push_history dedupes consecutive same-URL entries and the seed
+        // honors that (pos stays 0) instead of inventing a phantom back
+        // entry the Rust side does not have.
+        assert_eq!(p.evaluate("history.length"), serde_json::json!(1.0));
+        assert_eq!(p.history.len(), 1);
+        assert_eq!(p.history_index, 0);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn add_preload_script_appends_in_order() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/target",
+            200,
+            "<html><script>window.__pageRan = (window.__order || '') + 'P';</script></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.add_preload_script(
+            "window.__order = (window.__order || '') + '1';".into(),
+        );
+        p.add_preload_script(
+            "window.__order = (window.__order || '') + '2';".into(),
+        );
+        p.navigate(&format!("http://127.0.0.1:{port}/target")).await.unwrap();
+        // Push semantics: both scripts ran, in registration order, before the
+        // page's own script.
+        assert_eq!(p.evaluate("window.__pageRan"), serde_json::json!("12P"));
+    }
+
+    #[test]
+    fn navigation_timeout_field_overrides_env_default() {
+        let mut p = test_page();
+        let env_or_default = std::env::var("DITING_NAV_TIMEOUT_MS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(30_000);
+        assert_eq!(p.navigation_timeout().as_millis() as u64, env_or_default);
+        p.set_navigation_timeout(Some(1_500));
+        assert_eq!(p.navigation_timeout().as_millis() as u64, 1_500);
+        p.set_navigation_timeout(None);
+        assert_eq!(p.navigation_timeout().as_millis() as u64, env_or_default);
+    }
+
+    // ---- batch 2: network callbacks + response bodies ----------------------
+
+    /// Shared recorder for callback tests: on_request/on_response push into
+    /// these from inside the registry's fire path.
+    #[derive(Default)]
+    struct NetLog {
+        requests: std::sync::Mutex<Vec<(String, String)>>, // (resource_type, url)
+        responses: std::sync::Mutex<Vec<(String, String, usize)>>, // (type, url, body len)
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn on_request_and_on_response_fire_for_document_and_subresources() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/page",
+                200,
+                "<html><head><link rel=stylesheet href='/s.css'></head>\
+                 <script src='/j.js'></script></html>"
+                    .to_string(),
+            ),
+            ("/s.css", 200, "body{color:red}".into()),
+            ("/j.js", 200, "window.__j = 1;".into()),
+        ]);
+        let log = Arc::new(NetLog::default());
+        let mut p = test_page();
+        {
+            let log = log.clone();
+            p.on_request(Arc::new(move |info| {
+                log.requests
+                    .lock()
+                    .unwrap()
+                    .push((info.resource_type.as_str().to_string(), info.url.to_string()));
+            }));
+        }
+        {
+            let log = log.clone();
+            p.on_response(Arc::new(move |info, resp| {
+                log.responses.lock().unwrap().push((
+                    info.resource_type.as_str().to_string(),
+                    info.url.to_string(),
+                    resp.body.len(),
+                ));
+            }));
+        }
+        p.navigate(&format!("http://127.0.0.1:{port}/page")).await.unwrap();
+
+        let reqs = log.requests.lock().unwrap();
+        let kinds: Vec<&str> = reqs.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(kinds.contains(&"Document"), "requests: {reqs:?}");
+        assert!(kinds.contains(&"Script"), "requests: {reqs:?}");
+        assert!(kinds.contains(&"Stylesheet"), "requests: {reqs:?}");
+        // The document observer saw the fully-built header set, not an empty
+        // one: our client always sends User-Agent.
+        let resps = log.responses.lock().unwrap();
+        assert!(
+            resps
+                .iter()
+                .any(|(k, _, len)| k == "Document" && *len > 0),
+            "responses: {resps:?}"
+        );
+        assert!(
+            resps.iter().any(|(k, _, _)| k == "Stylesheet"),
+            "responses: {resps:?}"
+        );
+    }
+
+    /// External stylesheets fetched at navigation must reach three places:
+    /// the cascade (getComputedStyle), document.styleSheets' rule lists, and
+    /// the `__diting_css` global. Before the ext_sheets plumbing the fetch
+    /// succeeded but only fed the unused global — computed reads came back
+    /// as initial values and cssRules was an empty stub.
+    #[tokio::test(flavor = "current_thread")]
+    async fn external_stylesheet_applies_and_lists_rules() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/page",
+                200,
+                "<html><head><link rel=\"stylesheet\" href=\"/s.css\"></head>\
+                 <body><div class=\"box\">x</div></body></html>"
+                    .into(),
+            ),
+            (
+                "/s.css",
+                200,
+                ".box{position:absolute;left:10px;background-color:#ff0000}".into(),
+            ),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/page")).await.unwrap();
+
+        // styleSheets lists the loaded sheet with engine-parsed rules.
+        assert_eq!(p.evaluate("document.styleSheets.length").as_f64(), Some(1.0));
+        assert_eq!(
+            p.evaluate("document.styleSheets[0].href"),
+            serde_json::json!(format!("http://127.0.0.1:{port}/s.css"))
+        );
+        let rules = p
+            .evaluate("Array.from(document.styleSheets[0].cssRules, r => r.selectorText)")
+            .as_array()
+            .expect("cssRules array")
+            .clone();
+        assert_eq!(rules, vec![serde_json::json!(".box")]);
+        // The declaration block round-trips through the same parser the
+        // cascade uses, so both readers quote the sheet identically.
+        let decls = p
+            .evaluate(
+                "document.styleSheets[0].cssRules[0].style.getPropertyValue('background-color')",
+            )
+            .as_str()
+            .expect("declaration string")
+            .to_string();
+        assert_eq!(decls, "#ff0000");
+
+        // The cascade sees the external rules too, not just inline <style>.
+        #[cfg(feature = "screenshot")]
+        {
+            let pos = p
+                .evaluate("getComputedStyle(document.querySelector('.box')).position")
+                .as_str()
+                .expect("position string")
+                .to_string();
+            assert_eq!(pos, "absolute");
+            let bg = p
+                .evaluate("getComputedStyle(document.querySelector('.box')).backgroundColor")
+                .as_str()
+                .expect("color string")
+                .to_string();
+            assert!(bg.starts_with("rgb(255"), "backgroundColor: {bg}");
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn viewport_override_drives_media_queries_and_survives_navigation() {
+        let _g = net_test_guard();
+        let page_html = |body: &'static str| {
+            format!(
+                "<html><head><style>\
+                 @media (max-width:600px) {{ body {{ background-color:#010203 }} }}\
+                 </style></head><body>{body}</body></html>"
+            )
+        };
+        let port = local_http_server(vec![
+            ("/a", 200, page_html("x")),
+            ("/b", 200, page_html("y")),
+        ]);
+        let mut p = test_page();
+        p.set_viewport_override(375.0, 667.0, true, Some(2.625));
+        p.navigate(&format!("http://127.0.0.1:{port}/a"))
+            .await
+            .unwrap();
+        // The persona dpr, sampled with no override pinned.
+        p.clear_viewport_override();
+        let persona_dpr = p.evaluate("devicePixelRatio").as_f64().unwrap();
+        p.set_viewport_override(375.0, 667.0, true, Some(2.625));
+
+        // Scripts see the emulated window — inner* and the pinned dpr (CDP
+        // deviceScaleFactor semantics: what scripts report, not the persona's
+        // panel).
+        assert_eq!(p.evaluate("innerWidth").as_f64(), Some(375.0));
+        assert_eq!(p.evaluate("innerHeight").as_f64(), Some(667.0));
+        assert_eq!(p.evaluate("devicePixelRatio").as_f64(), Some(2.625));
+        assert_eq!(
+            p.evaluate("matchMedia('(max-width:600px)').matches"),
+            serde_json::json!(true)
+        );
+        // Mobile flips the pointer/hover persona too — those move together
+        // or the viewport contradicts maxTouchPoints.
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse)').matches"),
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            p.evaluate("matchMedia('(hover:none)').matches"),
+            serde_json::json!(true)
+        );
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(5.0));
+
+        // The layout ICB moved with it: the mobile-only rule applied in
+        // the cascade (a desktop viewport leaves the background initial).
+        let bg = p
+            .evaluate("getComputedStyle(document.body).backgroundColor")
+            .as_str()
+            .expect("color string")
+            .to_string();
+        assert!(bg.starts_with("rgb(1, 2, 3"), "mobile media rule applied, got {bg}");
+
+        // Navigation rebuilds the realm and republishes the persona
+        // viewport; the override has to be replayed on top or the page
+        // silently flips back mid-session.
+        p.navigate(&format!("http://127.0.0.1:{port}/b"))
+            .await
+            .unwrap();
+        assert_eq!(p.evaluate("innerWidth").as_f64(), Some(375.0));
+        assert_eq!(p.evaluate("devicePixelRatio").as_f64(), Some(2.625));
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse)').matches"),
+            serde_json::json!(true)
+        );
+
+        // Clearing returns the persona viewport, desktop answers, and the
+        // persona dpr.
+        p.clear_viewport_override();
+        let w = p.evaluate("innerWidth").as_f64().unwrap();
+        assert!(w > 600.0, "persona viewport restored, got {w}");
+        assert_eq!(p.evaluate("devicePixelRatio").as_f64(), Some(persona_dpr));
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse)').matches"),
+            serde_json::json!(false)
+        );
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(0.0));
+    }
+
+    /// #151 (obscura#1101 absorption): touch emulation swaps the capability
+    /// face only — pointer/hover answers + maxTouchPoints — never the
+    /// viewport, and survives navigation + viewport re-pins.
+    #[tokio::test(flavor = "current_thread")]
+    async fn touch_emulation_swaps_capability_face_and_survives_realm_rebuilds() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/a", 200, "<html></html>".into()),
+            ("/b", 200, "<html></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/a"))
+            .await
+            .unwrap();
+
+        // Desktop baseline.
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(0.0));
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse)').matches"),
+            serde_json::json!(false)
+        );
+
+        // Enable: interaction answers and touch points move; the viewport
+        // and the prefers-* preferences do NOT (narrower than the mobile
+        // table).
+        let before = p.evaluate("innerWidth + 'x' + innerHeight");
+        p.set_touch_emulation(true, 3);
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(3.0));
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse) and (hover:none)').matches"),
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            p.evaluate("matchMedia('(prefers-color-scheme:dark)').matches"),
+            serde_json::json!(false)
+        );
+        assert_eq!(p.evaluate("innerWidth + 'x' + innerHeight"), before);
+
+        // The pin outranks the device class: a viewport re-pin (and its
+        // clear) must not reset the touch points, and disabling falls back
+        // to the class's own story — 0 desktop, 5 under a mobile pin.
+        p.set_viewport_override(375.0, 667.0, false, None);
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(3.0));
+        p.set_touch_emulation(false, 3);
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(0.0));
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse)').matches"),
+            serde_json::json!(false)
+        );
+        p.set_viewport_override(375.0, 667.0, true, None);
+        p.set_touch_emulation(true, 1);
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(1.0));
+        p.set_touch_emulation(false, 1);
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(5.0));
+        p.clear_viewport_override();
+
+        // The pin survives navigation — the realm rebuild replays it, or
+        // the page silently flips back mid-session.
+        p.set_touch_emulation(true, 2);
+        p.navigate(&format!("http://127.0.0.1:{port}/b"))
+            .await
+            .unwrap();
+        assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(2.0));
+        assert_eq!(
+            p.evaluate("matchMedia('(pointer:coarse)').matches"),
+            serde_json::json!(true)
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn off_request_detaches_observer() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![("/x", 200, "<html></html>".into())]);
+        let log = Arc::new(NetLog::default());
+        let mut p = test_page();
+        let id = {
+            let log = log.clone();
+            p.on_request(Arc::new(move |info| {
+                log.requests
+                    .lock()
+                    .unwrap()
+                    .push((info.resource_type.as_str().to_string(), info.url.to_string()));
+            }))
+        };
+        assert!(p.off_request(id));
+        // Double detach is a visible no-op.
+        assert!(!p.off_request(id));
+        p.navigate(&format!("http://127.0.0.1:{port}/x")).await.unwrap();
+        assert!(log.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn document_body_retrievable_and_take_removes() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![(
+            "/doc",
+            200,
+            "<html><head><title>BodyStore</title></head><body>MARKER-42</body></html>".into(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/doc")).await.unwrap();
+        let doc_event = p
+            .network_events
+            .iter()
+            .find(|e| e.resource_type == "Document")
+            .expect("document network event");
+        let rid = doc_event.request_id.clone();
+        let stored = p.get_response_body(&rid).expect("stored document body");
+        assert!(!stored.base64_encoded);
+        assert!(stored.body.contains("MARKER-42"), "{}", stored.body);
+        // take_response_body_raw hands over the bytes and drops the entry.
+        let raw = p.take_response_body_raw(&rid).expect("raw bytes");
+        assert!(String::from_utf8_lossy(&raw).contains("MARKER-42"));
+        assert!(p.get_response_body(&rid).is_none());
+        assert!(p.take_response_body_raw(&rid).is_none());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn alias_response_body_renames_entry() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![("/d", 200, "<html>ALIAS-ME</html>".into())]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/d")).await.unwrap();
+        let rid = p
+            .network_events
+            .iter()
+            .find(|e| e.resource_type == "Document")
+            .unwrap()
+            .request_id
+            .clone();
+        // Chrome's requestId === loaderId convention (upstream #340).
+        p.alias_response_body(&rid, "loader-1");
+        assert!(p.get_response_body("loader-1").is_some());
+        assert!(p.get_response_body(&rid).is_some());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn binary_body_stored_base64_and_take_is_byte_exact() {
+        let _g = net_test_guard();
+        // Non-text Content-Type forces base64 storage; the expectation is the
+        // exact wire bytes (a Rust String holds UTF-8, so chars >= 0x80 are
+        // sent as their multi-byte encodings — take must return those, lossless).
+        let bin: String = vec![0u8, 159, 146, 150, 255, 1, 2]
+            .into_iter()
+            .map(|b| b as char)
+            .collect();
+        let wire_bytes = bin.as_bytes().to_vec();
+        let port = local_http_server_typed(vec![
+            ("/bin", 200, "application/octet-stream", bin),
+            (
+                "/host",
+                200,
+                "text/html",
+                "<html><script src='/bin'></script></html>".into(),
+            ),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/host")).await.unwrap();
+        let rid = p
+            .network_events
+            .iter()
+            .find(|e| e.url.ends_with("/bin"))
+            .expect("script event for binary body")
+            .request_id
+            .clone();
+        let stored = p.get_response_body(&rid).expect("binary body stored");
+        assert!(stored.base64_encoded, "octet-stream must store base64");
+        let raw = p.take_response_body_raw(&rid).expect("raw bytes");
+        assert_eq!(raw, wire_bytes);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn declared_gbk_document_stores_decoded_text() {
+        let _g = net_test_guard();
+        // Chrome 152 raw CDP returns a declared-GBK page as decoded text with
+        // base64Encoded=false (verified 2026-09-02, obscura #791) — the same
+        // policy now governs the store, so getResponseBody hands back 中文.
+        let gbk: Vec<u8> = vec![0xD6, 0xD0, 0xCE, 0xC4, b'-', b't', b'a', b'i', b'l'];
+        let mut headers = std::collections::HashMap::new();
+        headers.insert(
+            "content-type".to_string(),
+            "text/html; charset=gbk".to_string(),
+        );
+        let mut p = test_page();
+        let rid = p.record_network_event_with_body(
+            "http://127.0.0.1:1/gbk",
+            "GET",
+            "Document",
+            200,
+            &headers,
+            &std::collections::HashMap::new(),
+            &gbk,
+        );
+        let stored = p.get_response_body(&rid).expect("gbk body stored");
+        assert!(!stored.base64_encoded, "declared GBK must decode to text");
+        assert_eq!(stored.body, "中文-tail");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn undecodable_text_bodies_still_store_base64() {
+        let _g = net_test_guard();
+        // Opaque bytes under a text-ish MIME (Chrome 152 verified for JSON)
+        // and invalid bytes under a declared UTF-8 label both travel base64.
+        let mut headers = std::collections::HashMap::new();
+        headers.insert(
+            "content-type".to_string(),
+            "application/json".to_string(),
+        );
+        let mut p = test_page();
+        let rid = p.record_network_event_with_body(
+            "http://127.0.0.1:1/badjson",
+            "GET",
+            "XHR",
+            200,
+            &headers,
+            &std::collections::HashMap::new(),
+            &[0xFF],
+        );
+        let stored = p.get_response_body(&rid).expect("json body stored");
+        assert!(stored.base64_encoded, "undecodable JSON must store base64");
+        assert_eq!(p.take_response_body_raw(&rid).unwrap(), vec![0xFF]);
+
+        let mut headers = std::collections::HashMap::new();
+        headers.insert(
+            "content-type".to_string(),
+            "text/plain; charset=utf-8".to_string(),
+        );
+        let rid = p.record_network_event_with_body(
+            "http://127.0.0.1:1/badtxt",
+            "GET",
+            "Document",
+            200,
+            &headers,
+            &std::collections::HashMap::new(),
+            &[b'a', 0xFF, b'b'],
+        );
+        let stored = p.get_response_body(&rid).expect("txt body stored");
+        assert!(stored.base64_encoded, "invalid declared-UTF-8 must store base64");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn charsetless_text_stores_decoded_1252_text() {
+        let _g = net_test_guard();
+        // Chrome 152 verified: text/plain without a charset — and no
+        // Content-Type at all — still return text (windows-1252 is total).
+        let bytes: Vec<u8> = vec![0x81, 0x8D];
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("content-type".to_string(), "text/plain".to_string());
+        let mut p = test_page();
+        let rid = p.record_network_event_with_body(
+            "http://127.0.0.1:1/nocharset",
+            "GET",
+            "Document",
+            200,
+            &headers,
+            &std::collections::HashMap::new(),
+            &bytes,
+        );
+        let stored = p.get_response_body(&rid).expect("plain body stored");
+        assert!(!stored.base64_encoded);
+        assert_eq!(stored.body, "\u{0081}\u{008D}");
+
+        let rid = p.record_network_event_with_body(
+            "http://127.0.0.1:1/noct",
+            "GET",
+            "Document",
+            200,
+            &std::collections::HashMap::new(),
+            &std::collections::HashMap::new(),
+            &bytes,
+        );
+        let stored = p.get_response_body(&rid).expect("noct body stored");
+        assert!(!stored.base64_encoded);
+        assert_eq!(stored.body, "\u{0081}\u{008D}");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn js_fetch_declared_gbk_stores_decoded_text() {
+        let _g = net_test_guard();
+        let gbk: Vec<u8> = vec![0xD6, 0xD0, 0xCE, 0xC4, b'-', b't', b'a', b'i', b'l'];
+        let host = "<html><script>\
+                     fetch('/api').then(r => r.text()).then(t => { window.__got = t; });\
+                     </script></html>"
+            .as_bytes()
+            .to_vec();
+        let port = local_http_server_bytes(vec![
+            ("/app", 200, "text/html", host),
+            ("/api", 200, "text/html; charset=gbk", gbk.clone()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+        assert!(p.evaluate("window.__got").is_string());
+        p.sync_js_network_events();
+        let ev = p
+            .network_events
+            .iter()
+            .find(|e| e.url.ends_with("/api"))
+            .expect("fetch network event after sync");
+        let rid = ev.request_id.clone();
+        let stored = p.get_response_body(&rid).expect("fetch body stored");
+        assert!(!stored.base64_encoded, "declared GBK fetch must decode to text");
+        assert_eq!(stored.body, "中文-tail");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn js_fetch_surfaces_as_network_event_with_body() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/app",
+                200,
+                "<html><script>\
+                 fetch('/api').then(r => r.text()).then(t => { window.__got = t; });\
+                 </script></html>"
+                    .into(),
+            ),
+            ("/api", 200, "{\"v\": 7}".into()),
+        ]);
+        let log = Arc::new(NetLog::default());
+        let mut p = test_page();
+        {
+            let log = log.clone();
+            p.on_response(Arc::new(move |info, resp| {
+                log.responses.lock().unwrap().push((
+                    info.resource_type.as_str().to_string(),
+                    info.url.to_string(),
+                    resp.body.len(),
+                ));
+            }));
+        }
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+        assert_eq!(p.evaluate("window.__got"), serde_json::json!("{\"v\": 7}"));
+
+        // Script-initiated traffic fires the page's observers too…
+        let resps = log.responses.lock().unwrap();
+        assert!(
+            resps.iter().any(|(k, u, _)| k == "Fetch" && u.ends_with("/api")),
+            "responses: {resps:?}"
+        );
+        drop(resps);
+
+        // …and syncs into the page's network events with a fetch-{N} id whose
+        // body resolves through the JS-side store.
+        p.sync_js_network_events();
+        let ev = p
+            .network_events
+            .iter()
+            .find(|e| e.url.ends_with("/api"))
+            .expect("fetch network event after sync");
+        assert_eq!(ev.resource_type, "Fetch");
+        assert!(ev.request_id.starts_with("fetch-"), "{}", ev.request_id);
+        // #97: the Fetch row carries the walk's outbound header set — the
+        // browser defaults scripted requests send (sec-fetch-* the WAFs key
+        // on) plus any customs the page set.
+        assert!(
+            ev.headers.contains_key("accept"),
+            "fetch row request headers: {:?}",
+            ev.headers
+        );
+        assert!(
+            ev.headers.contains_key("sec-fetch-site"),
+            "fetch row request headers: {:?}",
+            ev.headers
+        );
+        let stored = p.get_response_body(&ev.request_id).expect("fetch body");
+        assert!(!stored.base64_encoded);
+        assert_eq!(stored.body, "{\"v\": 7}");
+        // Idempotent drain.
+        p.sync_js_network_events();
+        assert_eq!(
+            p.network_events.iter().filter(|e| e.url.ends_with("/api")).count(),
+            1
+        );
+    }
+
+    /// WebIDL ByteString coercion on the wire: XHR setRequestHeader and
+    /// fetch()'s plain-object headers must stringify numeric values before
+    /// the transport sees them. A raw JSON number in the header map made the
+    /// transport's string-typed deserialization reject the WHOLE header
+    /// group — Content-Type went with it and the platform read the body as
+    /// non-JSON (XHS 2026-10-12 report). The /__echo route returns the raw
+    /// request head, so this pins what actually went on the wire.
+    #[tokio::test(flavor = "current_thread")]
+    async fn numeric_request_headers_stringify_before_the_wire() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/app",
+                200,
+                "<html><script>\
+                 (async () => {\
+                   const x = new XMLHttpRequest();\
+                   x.open('POST', '/__echo?via=xhr');\
+                   x.setRequestHeader('content-type', 'application/json');\
+                   x.setRequestHeader('X-t', 1760000000000);\
+                   const done = new Promise(r => { x.onloadend = r; });\
+                   x.send('{}');\
+                   await done;\
+                   const fr = await fetch('/__echo?via=fetch', {\
+                     method: 'POST',\
+                     headers: { 'content-type': 'application/json', 'X-t2': 1760000000001 },\
+                     body: '{}',\
+                   });\
+                   window.__out = JSON.stringify({\
+                     xhr: x.responseText.toLowerCase(),\
+                     fetch: (await fr.text()).toLowerCase(),\
+                   });\
+                 })();\
+                 </script></html>"
+                    .into(),
+            ),
+            ("/__echo", 200, String::new()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+        let mut out = serde_json::Value::Null;
+        for _ in 0..50 {
+            out = p.evaluate("window.__out");
+            if out.is_string() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let out = out.as_str().unwrap_or("").to_string();
+        assert!(!out.is_empty(), "echo round-trips never settled: {out:?}");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&out).expect("window.__out JSON");
+        let xhr = parsed["xhr"].as_str().unwrap_or_default().to_lowercase();
+        let fetch = parsed["fetch"].as_str().unwrap_or_default().to_lowercase();
+        assert!(
+            xhr.contains("x-t: 1760000000000"),
+            "XHR numeric header must stringify: {xhr}"
+        );
+        assert!(
+            xhr.contains("content-type: application/json"),
+            "XHR header group must survive a numeric sibling: {xhr}"
+        );
+        assert!(
+            fetch.contains("x-t2: 1760000000001"),
+            "fetch numeric header must stringify: {fetch}"
+        );
+        assert!(
+            fetch.contains("content-type: application/json"),
+            "fetch header group must survive a numeric sibling: {fetch}"
+        );
+    }
+
+    /// #101 fixture: routes answer instantly except those whose path
+    /// starts with a `hang` prefix — those are accepted, read, and never
+    /// answered (the "WAF holds the connection open" shape that eats a
+    /// navigation deadline from the inside).
+    fn hanging_http_server(routes: Vec<(&'static str, &'static str)>, hang: Vec<&'static str>) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for conn in listener.incoming() {
+                let Ok(mut stream) = conn else { continue };
+                let (routes, hang) = (routes.clone(), hang.clone());
+                std::thread::spawn(move || {
+                    use std::io::{Read, Write};
+                    let mut buf = [0u8; 4096];
+                    let Ok(n) = stream.read(&mut buf) else { return };
+                    let head = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let path = head
+                        .lines()
+                        .next()
+                        .and_then(|l| l.split_whitespace().nth(1))
+                        .unwrap_or("/")
+                        .to_string();
+                    if hang.iter().any(|h| path.starts_with(h)) {
+                        // Hold the socket open, never answer: the test's
+                        // navigation deadline fires and the aborted future
+                        // drops the connection.
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                        return;
+                    }
+                    let body = routes
+                        .iter()
+                        .find(|(p, _)| path.starts_with(p))
+                        .map(|(_, b)| b.to_string())
+                        .unwrap_or_else(|| "404".into());
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                });
+            }
+        });
+        port
+    }
+
+    /// #102 fixture: paths listed in `redirects` answer 302 with a relative
+    /// `Location` (the shape real sites send); everything else answers 200.
+    /// Thread-per-connection, same skeleton as `hanging_http_server`.
+    fn redirecting_http_server(redirects: Vec<(&'static str, &'static str)>) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for conn in listener.incoming() {
+                let Ok(mut stream) = conn else { continue };
+                let redirects = redirects.clone();
+                std::thread::spawn(move || {
+                    use std::io::{Read, Write};
+                    let mut buf = [0u8; 4096];
+                    let Ok(n) = stream.read(&mut buf) else { return };
+                    let head = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let path = head
+                        .lines()
+                        .next()
+                        .and_then(|l| l.split_whitespace().nth(1))
+                        .unwrap_or("/")
+                        .to_string();
+                    if let Some((_, location)) =
+                        redirects.iter().find(|(p, _)| path.starts_with(p))
+                    {
+                        let resp = format!(
+                            "HTTP/1.1 302 Found\r\nlocation: {}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                            location
+                        );
+                        let _ = stream.write_all(resp.as_bytes());
+                        return;
+                    }
+                    let resp = "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok".to_string();
+                    let _ = stream.write_all(resp.as_bytes());
+                });
+            }
+        });
+        port
+    }
+
+    /// #102: the document fetch's redirect trail survives on the page —
+    /// `redirect_chain[0]` is the URL the navigation asked for, `url` is
+    /// where the document actually came from. A login bounce, a rewritten
+    /// parameter error and a direct landing are only distinguishable from
+    /// that trail — and a direct navigation must not inherit the previous
+    /// document's.
+    #[tokio::test(flavor = "current_thread")]
+    async fn redirect_chain_rides_navigation_and_resets() {
+        let _g = net_test_guard();
+        // Two hops on purpose: /bounce → /hop → /final exercises the whole
+        // trail, not just one leg.
+        let port = redirecting_http_server(vec![("/bounce", "/hop"), ("/hop", "/final")]);
+        let mut p = test_page();
+
+        p.navigate(&format!("http://127.0.0.1:{port}/final")).await.unwrap();
+        assert!(
+            p.redirect_chain.is_empty(),
+            "direct landing must have no trail: {:?}",
+            p.redirect_chain
+        );
+
+        p.navigate(&format!("http://127.0.0.1:{port}/bounce"))
+            .await
+            .unwrap();
+        assert_eq!(
+            p.redirect_chain,
+            vec![
+                format!("http://127.0.0.1:{port}/bounce"),
+                format!("http://127.0.0.1:{port}/hop"),
+            ],
+            "trail in order, [0] = requested URL"
+        );
+        assert!(
+            p.url_string().ends_with("/final"),
+            "landed document is the tail of the chain: {}",
+            p.url_string()
+        );
+    }
+
+    /// #101: a deadline during the document fetch must (a) name the phase
+    /// that died, (b) name the document that is actually live, and (c)
+    /// roll the optimistic url back so /network's url, /state's
+    /// location.href and eval's realm keep describing the same (old) page.
+    /// The reported failure mode was a network face sitting on the new URL
+    /// while eval still read the old document — same page, two truths.
+    #[tokio::test(flavor = "current_thread")]
+    async fn nav_timeout_fetch_in_flight_names_phase_and_rolls_back_url() {
+        let _g = net_test_guard();
+        let port = hanging_http_server(
+            vec![("/ok", "<html><body>old</body></html>")],
+            vec!["/hang"],
+        );
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/ok")).await.unwrap();
+        let epoch_before = p.navigation_epoch;
+        p.set_navigation_timeout(Some(600));
+        let err = p
+            .navigate(&format!("http://127.0.0.1:{port}/hang"))
+            .await
+            .expect_err("a hung fetch must hit the deadline");
+        let msg = err.to_string();
+        assert!(msg.contains("navigation exceeded 600ms deadline"), "{msg}");
+        assert!(msg.contains("document fetch in flight"), "{msg}");
+        assert!(
+            msg.contains(&format!("active document: http://127.0.0.1:{port}/ok")),
+            "{msg}"
+        );
+        assert!(msg.contains("/hang"), "the requested url must be named: {msg}");
+        assert!(
+            msg.contains(&format!("navigation #{}", epoch_before + 1)),
+            "{msg}"
+        );
+        // The failed attempt must not shadow the live document.
+        assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/ok"));
+        assert!(
+            p.realm_epoch < p.navigation_epoch,
+            "the realm must predate the failed attempt"
+        );
+        // And every face agrees: the realm still runs the old document.
+        assert_eq!(p.evaluate("location.pathname"), serde_json::json!("/ok"));
+    }
+
+    /// #101's other phase: the document arrived and committed (init_js
+    /// ran, the realm swapped) but a hanging subresource holds the load
+    /// event past the deadline. The new document IS the live page now —
+    /// the url stays, the phase says committed, and the Document row
+    /// attributes to the generation that fetched it.
+    #[tokio::test(flavor = "current_thread")]
+    async fn nav_timeout_after_commit_keeps_new_document() {
+        let _g = net_test_guard();
+        let doc = "<html><head><script src=\"/hang.js\"></script></head><body>new</body></html>";
+        let port = hanging_http_server(vec![("/doc", doc)], vec!["/hang"]);
+        let mut p = test_page();
+        p.set_navigation_timeout(Some(800));
+        let err = p
+            .navigate(&format!("http://127.0.0.1:{port}/doc"))
+            .await
+            .expect_err("a load blocked on a hung subresource must hit the deadline");
+        let msg = err.to_string();
+        assert!(msg.contains("document committed"), "{msg}");
+        assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/doc"));
+        assert_eq!(p.realm_epoch, p.navigation_epoch);
+        assert_eq!(p.evaluate("location.pathname"), serde_json::json!("/doc"));
+        assert!(
+            p.network_events
+                .iter()
+                .any(|e| e.resource_type == "Document" && e.nav == p.navigation_epoch),
+            "the Document row must attribute to the current generation"
+        );
+    }
+
+    /// #101: rows attribute to the navigation generation that issued them
+    /// — the live attempt's log and the outgoing document's carried log
+    /// are separable by `nav`, script-initiated rows included (drained at
+    /// the top of the next navigation, before the epoch bump, they keep
+    /// the outgoing document's generation).
+    #[tokio::test(flavor = "current_thread")]
+    async fn network_rows_attribute_to_navigation_generation() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/one",
+                200,
+                "<html><script>\
+                 fetch('/api').then(r => r.text()).then(t => { window.__got = t; });\
+                 </script></html>"
+                    .into(),
+            ),
+            ("/api", 200, "7".into()),
+            ("/two", 200, "<html><body>two</body></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/one")).await.unwrap();
+        assert_eq!(p.evaluate("window.__got"), serde_json::json!("7"));
+        let first = p.navigation_epoch;
+
+        p.navigate(&format!("http://127.0.0.1:{port}/two")).await.unwrap();
+        assert_eq!(p.navigation_epoch, first + 1);
+        assert_eq!(p.realm_epoch, p.navigation_epoch);
+        // Every row of the live attempt carries the current generation…
+        assert!(!p.network_events.is_empty());
+        assert!(
+            p.network_events.iter().all(|e| e.nav == p.navigation_epoch),
+            "rows: {:?}",
+            p.network_events
+                .iter()
+                .map(|e| (e.url.as_str(), e.nav))
+                .collect::<Vec<_>>()
+        );
+        // …and the outgoing document's rows — its document fetch and its
+        // script-initiated /api call — carried into the CDP buffer keep
+        // their own generation.
+        assert!(
+            p.carried_network_events
+                .iter()
+                .any(|e| e.url.ends_with("/one") && e.nav == first)
+        );
+        assert!(
+            p.carried_network_events
+                .iter()
+                .any(|e| e.url.ends_with("/api") && e.nav == first),
+            "script rows drained at the next navigation must keep the old generation"
+        );
+    }
+
+    /// Recording origin for #116: serves a canned /app document and echoes
+    /// the /probe request's own head back as the body, logging every
+    /// request head verbatim so a test can assert both WHAT went out on
+    /// the wire and HOW MANY times (the no-double-transport guarantee).
+    /// Stealth-test-only (its sole caller is the #116 stealth-page test);
+    /// cfg'd out alongside it so non-stealth builds see no dead fixture.
+    #[cfg(feature = "stealth")]
+    fn recording_echo_origin() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log_clone = log.clone();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for _ in 0..64 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let head = String::from_utf8_lossy(&buf[..n]).to_string();
+                let path = head
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let body = if path == "/probe" {
+                    // Echo the request head (minus the request line) so the
+                    // caller can assert headers as seen by the origin.
+                    head.lines()
+                        .skip(1)
+                        .take_while(|l| !l.is_empty())
+                        .map(|l| l.to_ascii_lowercase())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                } else {
+                    "<html><script>\
+                     fetch('/probe').then(r => r.text()).then(t => { window.__got = t; });\
+                     </script></html>"
+                        .to_string()
+                };
+                log_clone.lock().unwrap().push(head);
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        (port, log)
+    }
+
+    /// #116 end to end: on a stealth page the JS fetch() hop rides the wreq
+    /// emulation stack — the same handshake the document above it rode.
+    /// The echo body landing in window.__got proves the response resolves
+    /// the promise through the new Buffered path; the recorded head proves
+    /// the request carried the fetch()-shaped Fetch-Metadata trio (the
+    /// plain reqwest main hop sends no sec-fetch-* at all), and exactly
+    /// ONE /probe hit proves the successful stealth hop short-circuits
+    /// plain instead of burning both transports.
+    #[cfg(feature = "stealth")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn stealth_page_script_fetch_rides_wreq_transport() {
+        let _g = net_test_guard();
+        let (port, log) = recording_echo_origin();
+        let context = Arc::new(BrowserContext::with_storage_and_network(
+            "test-stealth".into(),
+            None,
+            true, // stealth → scripted_rides_stealth on the context client
+            None,
+            None,
+            true,
+            None,
+        ));
+        let mut p = Page::new("page-test".into(), context);
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+
+        let got = p
+            .evaluate("window.__got")
+            .as_str()
+            .expect("stealth-hop fetch must resolve the promise")
+            .to_string();
+        assert!(
+            got.contains("sec-fetch-dest: empty") && got.contains("sec-fetch-mode: cors"),
+            "echo body must be the fetch-shaped request head, got: {got}"
+        );
+
+        let log = log.lock().unwrap();
+        let probes: Vec<&String> = log.iter().filter(|h| h.contains(" /probe ")).collect();
+        assert_eq!(probes.len(), 1, "one transport per hop, log: {log:?}");
+        let probe = probes[0].to_ascii_lowercase();
+        assert!(
+            probe.contains("sec-fetch-dest: empty")
+                && probe.contains("sec-fetch-mode: cors")
+                && probe.contains("sec-fetch-site: same-origin"),
+            "the wire must carry the fetch-shaped Fetch-Metadata trio: {probe}"
+        );
+        assert!(
+            !probe.contains("sec-fetch-dest: document"),
+            "the transport's navigation-shaped default must not ride a scripted fetch: {probe}"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn clear_response_bodies_drops_page_and_js_stores() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            (
+                "/app",
+                200,
+                "<html><script>fetch('/a1').then(r => r.text());</script></html>".into(),
+            ),
+            ("/a1", 200, "one".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+        let doc_rid = p
+            .network_events
+            .iter()
+            .find(|e| e.resource_type == "Document")
+            .unwrap()
+            .request_id
+            .clone();
+        assert!(p.get_response_body(&doc_rid).is_some());
+        p.sync_js_network_events();
+        let fetch_rid = p
+            .network_events
+            .iter()
+            .find(|e| e.url.ends_with("/a1"))
+            .unwrap()
+            .request_id
+            .clone();
+        assert!(p.get_response_body(&fetch_rid).is_some());
+
+        p.clear_response_bodies();
+        assert!(p.get_response_body(&doc_rid).is_none());
+        assert!(p.get_response_body(&fetch_rid).is_none());
+    }
+
+    // ---- import maps (upstream 34373c3) ----------------------------------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn parser_import_map_before_first_module_controls_resolution() {
+        let _g = net_test_guard();
+        let port = local_http_server_typed(vec![
+            ("/app/index.html", 200, "text/html",
+             r#"<html><head>
+                <script type="importmap">{"imports":{"ordered":"./before.js"}}</script>
+                <script type="module">
+                    import { value } from "ordered";
+                    globalThis.__parser_import_map_value = value;
+                </script>
+                <script type="importmap">{"imports":{"ordered":"./after.js"}}</script>
+            </head><body></body></html>"#.into()),
+            ("/app/before.js", 200, "application/javascript", "export const value = 'before-first-module';".into()),
+            ("/app/after.js", 200, "application/javascript", "export const value = 'later-map';".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app/index.html")).await.unwrap();
+        assert_eq!(
+            p.evaluate("globalThis.__parser_import_map_value"),
+            serde_json::json!("before-first-module")
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn later_import_map_adds_unrelated_rule_without_rebinding_resolved_rule() {
+        let _g = net_test_guard();
+        let port = local_http_server_typed(vec![
+            ("/app/index.html", 200, "text/html",
+             r#"<html><head>
+                <script type="importmap">{"imports":{"fixed":"./before.js"}}</script>
+                <script type="module">
+                    import { value } from "fixed";
+                    globalThis.__first_map_value = value;
+                </script>
+                <script type="importmap">{"imports":{"fixed":"./after.js","later":"./later.js"}}</script>
+                <script type="module">
+                    import { value as fixed } from "fixed";
+                    import { value as later } from "later";
+                    globalThis.__later_map_values = [fixed, later];
+                </script>
+            </head><body></body></html>"#.into()),
+            ("/app/before.js", 200, "application/javascript", "export const value = 'before-first-module';".into()),
+            ("/app/later.js", 200, "application/javascript", "export const value = 'later-map';".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app/index.html")).await.unwrap();
+        assert_eq!(
+            p.evaluate("globalThis.__first_map_value"),
+            serde_json::json!("before-first-module")
+        );
+        assert_eq!(
+            p.evaluate("globalThis.__later_map_values"),
+            serde_json::json!(["before-first-module", "later-map"])
+        );
+        // after.js must never have been fetched: the second map's rebind of
+        // "fixed" was discarded because the first module already resolved it.
+        let urls: Vec<&str> = p.network_events.iter().map(|e| e.url.as_str()).collect();
+        assert!(!urls.iter().any(|u| u.ends_with("/after.js")), "urls: {urls:?}");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn dynamically_inserted_import_map_controls_later_dynamic_import() {
+        let _g = net_test_guard();
+        let port = local_http_server_typed(vec![
+            ("/app/index.html", 200, "text/html",
+             r#"<html><head></head><body>
+                <script>
+                    const map = document.createElement("script");
+                    map.type = "importmap";
+                    map.textContent = JSON.stringify({imports:{dynamicName:"./later.js"}});
+                    document.head.appendChild(map);
+                    import("dynamicName")
+                        .then(module => globalThis.__dynamic_map_value = module.value)
+                        .catch(error => globalThis.__dynamic_map_value = error.message);
+                </script>
+            </body></html>"#.into()),
+            ("/app/later.js", 200, "application/javascript", "export const value = 'later-map';".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app/index.html")).await.unwrap();
+        assert_eq!(
+            p.evaluate("globalThis.__dynamic_map_value"),
+            serde_json::json!("later-map")
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn later_base_element_does_not_rebase_an_earlier_import_map() {
+        let _g = net_test_guard();
+        let port = local_http_server_typed(vec![
+            ("/app/index.html", 200, "text/html",
+             r#"<html><head>
+                <script type="importmap">{"imports":{"fixed":"./before.js"}}</script>
+                <base href="/assets/">
+                <script type="module">
+                    import { value } from "fixed";
+                    globalThis.__temporal_base_value = value;
+                </script>
+            </head><body></body></html>"#.into()),
+            ("/assets/before.js", 200, "application/javascript", "export const value = 'wrong-base';".into()),
+            ("/app/before.js", 200, "application/javascript", "export const value = 'before-first-module';".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app/index.html")).await.unwrap();
+        assert_eq!(
+            p.evaluate("globalThis.__temporal_base_value"),
+            serde_json::json!("before-first-module")
+        );
+    }
+
+    // ---- script-phase overrun (weixin DCL hang; v0.3.1 report P1-3) -------
+
+    /// Env-knob guard discipline (obscura#853 family) for the script-deadline
+    /// knob: a leaked small deadline would truncate a concurrently running
+    /// navigation's script phase too.
+    #[allow(dead_code)] // the guard field is never read; holding it is the effect
+    struct ScriptDeadlineGuard(std::sync::MutexGuard<'static, ()>);
+    impl Drop for ScriptDeadlineGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("DITING_SCRIPT_DEADLINE_MS");
+        }
+    }
+    static SCRIPT_DEADLINE_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn script_deadline_guard(ms: &str) -> ScriptDeadlineGuard {
+        let guard = SCRIPT_DEADLINE_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("DITING_SCRIPT_DEADLINE_MS", ms);
+        ScriptDeadlineGuard(guard)
+    }
+
+    /// Same discipline for the module-eval budget knob.
+    #[allow(dead_code)] // the guard field is never read; holding it is the effect
+    struct ModuleEvalGuard(std::sync::MutexGuard<'static, ()>);
+    impl Drop for ModuleEvalGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("DITING_MODULE_EVAL_TIMEOUT_MS");
+        }
+    }
+    static MODULE_EVAL_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn module_eval_guard(ms: &str) -> ModuleEvalGuard {
+        let guard = MODULE_EVAL_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("DITING_MODULE_EVAL_TIMEOUT_MS", ms);
+        ModuleEvalGuard(guard)
+    }
+
+    /// Regression (weixin article pages; v0.3.1 Windows report P1-3): when
+    /// the classic script phase overran its deadline, the exec watchdog's
+    /// terminate_execution stayed pending past its phase — the module phase
+    /// no-opped and the `<load-events>` script failed silently, so
+    /// readyState was wedged in "loading" forever and DOMContentLoaded
+    /// never fired. The phase boundary now disarms (and thereby heals) the
+    /// isolate before the load lifecycle runs. Chrome semantics: a killed
+    /// script ends the script, not the document's load lifecycle.
+    #[tokio::test(flavor = "current_thread")]
+    async fn script_phase_overrun_still_fires_load_lifecycle() {
+        let _net = net_test_guard();
+        let _deadline = script_deadline_guard("1500");
+        // Pad the spinner past the 10 KB threshold so the 5s per-script
+        // guard applies — the phase watchdog (deadline + 1s) terminates it
+        // well before that, which is exactly the overrun shape the bug had.
+        let pad = " ".repeat(10_100);
+        let spinner = format!("var pad = '{pad}'; while (true) {{}}");
+        let port = local_http_server_typed(vec![(
+            "/hang.html",
+            200,
+            "text/html",
+            format!(
+                r#"<html><head>
+                    <script>window.__dcl__ = false;
+                        document.addEventListener('DOMContentLoaded', function() {{ window.__dcl__ = true; }});</script>
+                    <script>{spinner}</script>
+                    <script>window.__after_spin__ = true;</script>
+                </head><body>body text</body></html>"#
+            ),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/hang.html")).await.unwrap();
+        assert_eq!(
+            p.evaluate("document.readyState"),
+            serde_json::json!("complete"),
+            "an overrun classic phase must not wedge the load lifecycle"
+        );
+        assert_eq!(p.evaluate("window.__dcl__"), serde_json::json!(true));
+        // The script after the spinner is skipped by design — the deadline
+        // bounds the classic phase. What must survive is the lifecycle.
+        assert_eq!(p.evaluate("window.__after_spin__"), serde_json::Value::Null);
+    }
+
+    /// #79's other half: one HANGING fetch must not kill the classic phase.
+    /// The fetch loop used to collect() all-or-nothing, so the bodies that
+    /// already arrived were discarded, and the exec loop's deadline check
+    /// (shared with fetch) insta-tripped — 15/16 landed bodies plus every
+    /// inline script died with the hanging 16th URL. Now the fetch phase
+    /// keeps what arrived and execution runs on a fresh budget.
+    #[tokio::test(flavor = "current_thread")]
+    async fn fetch_overrun_keeps_arrived_bodies_and_inline_scripts() {
+        let _net = net_test_guard();
+        let _deadline = script_deadline_guard("1000");
+        // Hanging endpoint: accept, read the request, never answer.
+        let hang = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let hang_port = hang.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::Read as _;
+            for _ in 0..2 {
+                let Ok((mut stream, _)) = hang.accept() else { return };
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                std::thread::sleep(std::time::Duration::from_secs(30));
+            }
+        });
+        let port = local_http_server_typed(vec![
+            (
+                "/doc.html",
+                200,
+                "text/html",
+                format!(
+                    r#"<html><head>
+                        <script src="http://127.0.0.1:{hang_port}/hang.js"></script>
+                        <script src="/fast.js"></script>
+                        <script>window.__inline = 41;</script>
+                    </head><body>ok</body></html>"#
+                ),
+            ),
+            (
+                "/fast.js",
+                200,
+                "application/javascript",
+                "window.__fast = 'ran';".to_string(),
+            ),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/doc.html")).await.unwrap();
+        assert_eq!(
+            p.evaluate("window.__fast"),
+            serde_json::json!("ran"),
+            "the arrived fast body must execute, not die with the hanging URL"
+        );
+        assert_eq!(
+            p.evaluate("window.__inline"),
+            serde_json::json!(41.0),
+            "inline scripts need no fetch — they must survive a fetch overrun"
+        );
+        assert_eq!(p.evaluate("document.readyState"), serde_json::json!("complete"));
+    }
+
+    /// The per-script 5s guard's other half: a script killed by ITS OWN
+    /// watchdog (not the phase deadline's) used to leave V8's termination
+    /// flag pending, so every later script on the page died instantly —
+    /// guarded ones logged "killed after 5s" for spins they never ran,
+    /// unguarded ones errored, module evals came back "Uncaught null"
+    /// (weixin article pages: one genuine spinner, 30+ collateral kills).
+    /// The kill site now cancels the termination; the scripts after a killed
+    /// one keep running, exactly like Chrome.
+    #[tokio::test(flavor = "current_thread")]
+    async fn per_script_guard_kill_does_not_poison_later_scripts() {
+        let _net = net_test_guard();
+        // Generous phase deadline so the exec watchdog never fires here —
+        // the ONLY termination in play is the spinner's own 5s guard.
+        let _deadline = script_deadline_guard("20000");
+        let pad = " ".repeat(10_100);
+        let spinner = format!("var pad = '{pad}'; while (true) {{}}");
+        let port = local_http_server_typed(vec![
+            (
+                "/spin.html",
+                200,
+                "text/html",
+                format!(
+                    r#"<html><head>
+                        <script>window.__dcl__ = false;
+                            document.addEventListener('DOMContentLoaded', function() {{ window.__dcl__ = true; }});</script>
+                        <script>{spinner}</script>
+                        <script>window.__after_spin__ = 'ran';</script>
+                        <script src="/late.js"></script>
+                    </head><body>body text</body></html>"#
+                ),
+            ),
+            (
+                "/late.js",
+                200,
+                "application/javascript",
+                "window.__late_external__ = 'ran';".to_string(),
+            ),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/spin.html")).await.unwrap();
+        // The killed spinner ends the spinner — nothing else.
+        assert_eq!(
+            p.evaluate("window.__after_spin__"),
+            serde_json::json!("ran"),
+            "the inline script after a guard-killed one must still run"
+        );
+        assert_eq!(
+            p.evaluate("window.__late_external__"),
+            serde_json::json!("ran"),
+            "the external script after a guard-killed one must still run"
+        );
+        assert_eq!(p.evaluate("document.readyState"), serde_json::json!("complete"));
+        assert_eq!(p.evaluate("window.__dcl__"), serde_json::json!(true));
+    }
+
+    /// Regression (module half of the same weixin hang): a module whose
+    /// top-level spins forever pinned the session thread inside V8 —
+    /// `mod_evaluate` runs the top-level synchronously, the tokio budget
+    /// around it only wraps futures, so neither the module budget nor the
+    /// 30s navigation deadline could ever fire and the HTTP caller got no
+    /// answer at all (>2min, no response). The eval now runs under a V8
+    /// watchdog 250ms past the budget; the killed module ends the module,
+    /// never the page's load lifecycle.
+    #[tokio::test(flavor = "current_thread")]
+    async fn module_top_level_spin_cannot_wedge_navigation() {
+        let _net = net_test_guard();
+        let _budget = module_eval_guard("1000");
+        let port = local_http_server_typed(vec![(
+            "/mod.html",
+            200,
+            "text/html",
+            r#"<html><head>
+                <script>window.__dcl__ = false;
+                    document.addEventListener('DOMContentLoaded', function() { window.__dcl__ = true; });</script>
+                <script type="module">while (true) {}</script>
+            </head><body>body text</body></html>"#
+                .to_string(),
+        )]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/mod.html"))
+            .await
+            .unwrap();
+        assert_eq!(
+            p.evaluate("document.readyState"),
+            serde_json::json!("complete"),
+            "a spinning module top-level must not wedge the load lifecycle"
+        );
+        assert_eq!(p.evaluate("window.__dcl__"), serde_json::json!(true));
+    }
+
+    // Network.setBlockedURLs must reach render-path fetches too (the
+    // obscura 97ff86d / #890 same-hole): the band-image pump shares the
+    // hard-block list the static script/stylesheet loaders already enforce,
+    // so a matched URL never opens a connection. The unblocked sibling in
+    // the same batch is the negative control — it must still arrive.
+    #[cfg(feature = "screenshot")]
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn blocked_urls_stop_band_image_fetches() {
+        let _net = net_test_guard();
+        // A server that records every request path it serves.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+        let recorder = seen.clone();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>"#;
+            for _ in 0..8 {
+                let Ok((mut stream, _)) = listener.accept() else { return };
+                let mut buf = [0u8; 2048];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                recorder.lock().unwrap().push(path);
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: image/svg+xml\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    svg.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(svg);
+                let _ = stream.flush();
+            }
+        });
+
+        let mut p = test_page();
+        p.set_blocked_urls(vec!["*blocked.svg*".to_string()]);
+        p.fetch_band_images(vec![
+            format!("http://127.0.0.1:{port}/blocked.svg"),
+            format!("http://127.0.0.1:{port}/allowed.svg"),
+        ])
+        .await;
+
+        let served = seen.lock().unwrap().clone();
+        assert!(
+            served.iter().all(|path| path == "/allowed.svg"),
+            "a setBlockedURLs match must not open a render-path connection, served: {served:?}"
+        );
+        assert_eq!(
+            served.len(),
+            1,
+            "the unblocked sibling in the batch must still load (negative control)"
+        );
+    }
+
+    /// A bare SVG document navigated as a document: Chrome sizes the root
+    /// svg at 100%x100% of the viewport with no body UA margin. Author
+    /// width/height attributes on the root stay authoritative.
+    #[cfg(feature = "screenshot")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn svg_document_root_fills_viewport() {
+        let _g = net_test_guard();
+        let bare = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#0d1520"/></svg>"##.to_string();
+        let authored = r#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20" viewBox="0 0 512 512"/>"#.to_string();
+        let port = local_http_server_typed(vec![
+            ("/bare.svg", 200, "image/svg+xml", bare),
+            ("/authored.svg", 200, "image/svg+xml", authored),
+        ]);
+        let mut p = test_page();
+        p.set_viewport_override(300.0, 200.0, false, None);
+        p.navigate(&format!("http://127.0.0.1:{port}/bare.svg"))
+            .await
+            .unwrap();
+        // x=0 pins the body UA margin as reset; 300x200 pins the injected
+        // viewport intrinsic (not the 512x512 viewBox, not 300x150).
+        assert_eq!(
+            p.evaluate("document.querySelector('svg').getBoundingClientRect().x").as_f64(),
+            Some(0.0),
+            "body margin must be reset"
+        );
+        assert_eq!(
+            p.evaluate("document.querySelector('svg').getBoundingClientRect().y").as_f64(),
+            Some(0.0)
+        );
+        assert_eq!(
+            p.evaluate("document.querySelector('svg').getBoundingClientRect().width").as_f64(),
+            Some(300.0)
+        );
+        assert_eq!(
+            p.evaluate("document.querySelector('svg').getBoundingClientRect().height").as_f64(),
+            Some(200.0)
+        );
+
+        // Author attrs on the document root win over the injection.
+        p.navigate(&format!("http://127.0.0.1:{port}/authored.svg"))
+            .await
+            .unwrap();
+        assert_eq!(
+            p.evaluate("document.querySelector('svg').getBoundingClientRect().width").as_f64(),
+            Some(40.0)
+        );
+        assert_eq!(
+            p.evaluate("document.querySelector('svg').getBoundingClientRect().height").as_f64(),
+            Some(20.0)
+        );
+    }
+
+    // ---- non-HTML document pipeline (moli#514 class) ---------------------
+
+    #[test]
+    fn text_document_classification() {
+        for mime in [
+            "text/plain",
+            "text/csv",
+            "text/css",
+            "text/javascript",
+            "application/json",
+            "application/javascript",
+            "application/xml",
+            "text/xml",
+            "application/rss+xml",
+            "application/atom+xml",
+            "application/ld+json",
+        ] {
+            assert!(renders_as_text_document(mime), "{mime} must render as text");
+        }
+        for mime in ["text/html", "application/xhtml+xml", "image/svg+xml", "image/png", ""] {
+            assert!(!renders_as_text_document(mime), "{mime} must not render as text");
+        }
+    }
+
+    #[test]
+    fn plain_text_document_wraps_pre_verbatim() {
+        let dom = plain_text_document("a < b && c > d\nsecond line");
+        let pre = dom.query_selector("body > pre").unwrap().expect("pre wrapper");
+        assert_eq!(dom.text_content(pre), "a < b && c > d\nsecond line");
+        assert!(
+            dom.query_selector("b").unwrap().is_none(),
+            "markup-looking text must stay inert"
+        );
+    }
+
+    /// moli#514 同洞: a text/plain response must surface as a `<pre>`
+    /// document with `document.contentType` from the response header — not
+    /// the "text/html" the URL sniffing used to invent.
+    #[tokio::test(flavor = "current_thread")]
+    async fn text_plain_navigation_wraps_pre_and_reports_content_type() {
+        let _g = net_test_guard();
+        let port = local_http_server_typed(vec![
+            (
+                "/log",
+                200,
+                "text/plain; charset=utf-8",
+                "first line <notatag>\nsecond & line".to_string(),
+            ),
+            ("/data", 200, "application/json", "{\"a\": 1}\n{\"b\": 2}".to_string()),
+        ]);
+        let mut p = test_page();
+
+        p.navigate(&format!("http://127.0.0.1:{port}/log")).await.unwrap();
+        assert_eq!(p.evaluate("document.contentType").as_str(), Some("text/plain"));
+        assert_eq!(p.evaluate("document.body.firstElementChild.tagName").as_str(), Some("PRE"));
+        assert_eq!(
+            p.evaluate("document.body.textContent").as_str(),
+            Some("first line <notatag>\nsecond & line"),
+            "source must survive verbatim — newlines and markup chars included"
+        );
+        assert_eq!(p.evaluate("document.querySelector('notatag')").as_str(), None);
+
+        p.navigate(&format!("http://127.0.0.1:{port}/data")).await.unwrap();
+        assert_eq!(p.evaluate("document.contentType").as_str(), Some("application/json"));
+        assert_eq!(p.evaluate("document.body.firstElementChild.tagName").as_str(), Some("PRE"));
+        assert_eq!(p.evaluate("document.body.textContent").as_str(), Some("{\"a\": 1}\n{\"b\": 2}"));
+    }
+
+    /// Regression face: text/html keeps the HTML pipeline — no `<pre>`
+    /// wrapper, and contentType comes from the header, not URL sniffing.
+    #[tokio::test(flavor = "current_thread")]
+    async fn html_response_stays_on_html_pipeline() {
+        let _g = net_test_guard();
+        let port = local_http_server_typed(vec![(
+            "/feed.xml",
+            200,
+            "text/html",
+            "<html><body><p>real html</p></body></html>".to_string(),
+        )]);
+        let mut p = test_page();
+        // The .xml extension used to make contentType report
+        // "application/xml"; the response header wins in Chrome.
+        p.navigate(&format!("http://127.0.0.1:{port}/feed.xml")).await.unwrap();
+        assert_eq!(p.evaluate("document.contentType").as_str(), Some("text/html"));
+        assert_eq!(p.evaluate("document.querySelector('p').textContent").as_str(), Some("real html"));
+        assert_eq!(p.evaluate("document.body.firstElementChild.tagName").as_str(), Some("P"));
+    }
+
+    // ---- #66 busy-storm freeze -------------------------------------------
+
+    /// The under-budget burner (issue #66's shape): depth-bounded mutual
+    /// recursion inside an interval callback whose busy time stays below
+    /// every watchdog budget — settle never fires, no RangeError (bounded
+    /// depth), the loop never idles. Before the fix this pinned the session
+    /// thread for its whole life (measured 45-48% of a core, zero watchdog
+    /// fires). After: the trailing busy window trips the throttle, the pump
+    /// runs bounded 50ms bursts instead of free-running, and a navigation
+    /// unfreezes.
+    #[tokio::test(flavor = "current_thread")]
+    async fn busy_storm_freezes_park_and_navigation_unfreezes() {
+        let _g = busy_limit_guard("2");
+        let mut p = test_page();
+        // 46ms busy per 50ms tick: nominal 92% duty, but in-engine timer
+        // dispatch adds ~30-40ms per tick (measured: a 36/40 burner lands
+        // at ~46% real duty), so this sits ~55-60% actual — safely over the
+        // 40% freeze line with margin on both sides.
+        p.navigate(
+            "data:text/html,%3Cscript%3Evar%20mark%3D0%3Bfunction%20a%28n%29%7Bmark%2B%2B%3Bif%28n%3C%3D0%29return%200%3Breturn%20b%28n-1%29%7Dfunction%20b%28n%29%7Bmark%2B%2B%3Bif%28n%3C%3D0%29return%200%3Breturn%20a%28n-1%29%7DsetInterval%28function%28%29%7Bvar%20t%3DDate.now%28%29%3Bwhile%28Date.now%28%29-t%3C46%29%7Ba%28250%29%7D%7D%2C50%29%3C%2Fscript%3E",
+        )
+        .await
+        .unwrap();
+
+        // Drive the idle pump like the session loop does until the 2s busy
+        // window closes. The burner keeps the loop non-idle, and its real
+        // in-engine duty (~55%) is what the window must catch — nominal
+        // duty is a lie once timer dispatch latency is paid.
+        let t0 = std::time::Instant::now();
+        while !p.js_busy_frozen() && t0.elapsed() < std::time::Duration::from_secs(6) {
+            p.pump_event_loop_slice(200).await;
+        }
+        assert!(p.js_busy_frozen(), "burner must trip the busy freeze");
+        // The freeze is accounting-driven, not termination-driven: no
+        // watchdog ever fired on this realm.
+        assert_eq!(p.js.as_ref().unwrap().watchdog_fired_total(), 0);
+
+        // Frozen realm throttles instead of running free: cumulative active
+        // time grows (forward progress — a parked realm could never finish
+        // module loads, which is how #203's page stuck half-rendered), but
+        // bounded to the 50ms burst of a 300ms slice. Watchdog still armed
+        // inside every burst, and a burner that pins V8 sync would trip it.
+        let active = p.js.as_ref().unwrap().v8_active_ns();
+        p.pump_event_loop_slice(300).await;
+        let gained_throttled = p.js.as_ref().unwrap().v8_active_ns() - active;
+        assert!(
+            gained_throttled > 0,
+            "throttled realm must still make forward progress"
+        );
+        assert!(
+            gained_throttled <= 150_000_000,
+            "throttled burst must stay bounded (≤150ms of a 300ms slice), gained {}ms",
+            gained_throttled / 1_000_000
+        );
+
+        // session_console face: the freeze left an error entry.
+        let entries = p.take_pending_console_calls();
+        assert!(
+            entries
+                .iter()
+                .any(|(level, msg, _)| level == "error" && msg.contains("throttled")),
+            "freeze must explain itself in the console ring, got {:?}",
+            entries
+        );
+
+        // Unfreeze: a document swap rebuilds the realm and clears the flag;
+        // fresh JS runs again.
+        p.navigate("data:text/html,%3Cscript%3Ewindow.__revived%3D1%3C/script%3E")
+            .await
+            .unwrap();
+        assert!(!p.js_busy_frozen());
+        assert_eq!(p.evaluate("window.__revived").as_f64(), Some(1.0));
+    }
+
+    /// False-positive guard: a page parked on a long timer is never idle,
+    /// but its poll-execution time is ~zero — the busy window must not
+    /// freeze it.
+    #[tokio::test(flavor = "current_thread")]
+    async fn parked_timer_page_never_freezes() {
+        let _g = busy_limit_guard("2");
+        let mut p = test_page();
+        p.navigate(
+            "data:text/html,%3Cscript%3Ewindow.__ticked%3D0%3BsetTimeout(function()%7Bwindow.__ticked%3D1%7D%2C10000)%3C/script%3E",
+        )
+        .await
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while t0.elapsed() < std::time::Duration::from_secs(3) {
+            p.pump_event_loop_slice(200).await;
+            assert!(!p.js_busy_frozen(), "a parked 10s timer must never trip the freeze");
+        }
+        // The timer is still pending (not yet fired) and the realm is alive.
+        assert_eq!(p.evaluate("window.__ticked").as_f64(), Some(0.0));
+    }
+
+    /// #100's kill mechanism: the idle pump drives 200ms slices, and the old
+    /// +500ms watchdog headroom terminated any synchronous task running
+    /// longer than ~700ms mid-flight. react-dom 16 sets its executionContext
+    /// bits around render/commit with no finally, so a mid-commit terminate
+    /// poisoned the realm permanently (#327 storm, every setState dead, input
+    /// write-back gone on the Tmall publish page). A legitimate multi-second
+    /// task inside one pump slice must now run to completion — no watchdog
+    /// fire, mark intact. The busy loop is counted, not Date.now()-driven: a
+    /// ~1.2e9-iteration loop runs ~1.2s — well past the old 700ms kill line,
+    /// well under the 5.2s arm, with zero clock reads. Date.now() inside
+    /// timer callbacks has its own intermittent failure (#108) that would
+    /// make this test flake for unrelated reasons.
+    #[tokio::test(flavor = "current_thread")]
+    async fn pump_slice_spares_multi_second_task() {
+        let mut p = test_page();
+        p.navigate(
+            "data:text/html,%3Cscript%3Ewindow.__mark%3D0%3BsetTimeout%28function%28%29%7Bvar%20n%3D0%3Bfor%28var%20i%3D0%3Bi%3C1.2e9%3Bi%2B%2B%29%7Bn%2B%3Di%7Dwindow.__mark%3D1%7D%2C1500%29%3C%2Fscript%3E",
+        )
+        .await
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while t0.elapsed() < std::time::Duration::from_secs(8) {
+            p.pump_event_loop_slice(200).await;
+            if p.evaluate("window.__mark").as_f64() == Some(1.0) {
+                break;
+            }
+        }
+        assert_eq!(
+            p.evaluate("window.__mark").as_f64(),
+            Some(1.0),
+            "a multi-second synchronous task must survive 200ms pump slices"
+        );
+        assert_eq!(
+            p.js.as_ref().unwrap().watchdog_fired_total(),
+            0,
+            "the pump watchdog must not terminate legitimate long tasks (#100)"
+        );
+    }
+
+    /// #252: three latent-intercept debts pinned in one drive — the paused
+    /// view never carries the internal base64-body marker (a header Chrome
+    /// would never send), a Fulfilled fetch records a real network event
+    /// (it used to read as "never happened"), and the fetch entry throws
+    /// Chrome's TypeError face on an unparseable URL (the op gate now fails
+    /// closed as the backstop).
+    #[tokio::test(flavor = "current_thread")]
+    async fn intercept_fulfill_strips_marker_and_records_network_event() {
+        let _g = net_test_guard();
+        let port = local_http_server(vec![
+            ("/app", 200, "<html><body>ok</body></html>".into()),
+        ]);
+        let mut p = test_page();
+        p.navigate(&format!("http://127.0.0.1:{port}/app")).await.unwrap();
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        p.set_fetch_intercept(Some(tx));
+        let target = format!("http://127.0.0.1:{port}/x");
+        let marker_target = target.clone();
+        tokio::spawn(async move {
+            let req = rx.recv().await.expect("pause must arrive");
+            assert!(
+                !req.headers.keys().any(|k| k == "__diting_body_b64"),
+                "the internal base64-body marker must not leak into the paused view: {:?}",
+                req.headers
+            );
+            assert_eq!(req.url, marker_target);
+            let _ = req.resolver.send(crate::diting_js::ops::InterceptResolution::Fulfill {
+                status: 200,
+                headers: [("content-type".to_string(), "text/plain".to_string())]
+                    .into_iter()
+                    .collect(),
+                body: b"fulfilled!".to_vec(),
+            });
+        });
+
+        let info = p
+            .evaluate_remote(
+                &format!(
+                    "fetch('{target}', {{ method: 'POST', body: new Uint8Array([1,2,3]) }}) \
+                     .then(function(r) {{ return r.text().then(function(t) {{ return r.status + ':' + t; }}); }}, \
+                           function(e) {{ return 'ERR:' + e.name; }})"
+                ),
+                true,
+                true,
+            )
+            .await;
+        let out = info.value.and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+        assert_eq!(out, "200:fulfilled!", "the fulfilled body must reach the page");
+
+        p.sync_js_network_events();
+        let fulfilled = p
+            .network_events
+            .iter()
+            .find(|e| e.url.ends_with("/x"))
+            .unwrap_or_else(|| panic!("a fulfilled fetch must record a network event: {:?}", p.network_events.iter().map(|e| &e.url).collect::<Vec<_>>()));
+        assert_eq!(fulfilled.status, 200);
+
+        // Face pin: the fetch entry throws Chrome's TypeError for an
+        // unparseable URL — synchronously, before any op involvement.
+        let face = p
+            .evaluate(
+                "(function(){ try { fetch('http://['); return 'no-throw'; } \
+                 catch (e) { return e.name + '|' + e.message; } })()",
+            )
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        assert_eq!(face, "TypeError|Failed to parse URL from http://[", "Chrome face: {face}");
+    }

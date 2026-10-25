@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diting — The Browser for AI Agents. Headless Browser with a Plain HTTP API, No Chromium.</title>
+<meta name="description" content="Diting is a browser built for AI agents: fetch live pages as markdown, render JS-heavy SPAs, take screenshots, search across 20 engines, and drive interactive login sessions — one Rust binary with built-in V8, no Chromium, every capability a plain HTTP route away.">
+<meta name="keywords" content="browser for AI agents, agent browser, headless browser, HTTP browser API, web scraping API, markdown scraping, screenshot API without Chromium, stealth TLS fingerprint, Cloudflare bypass, anti-bot bypass, AI web automation, V8 server-side rendering, Rust headless browser">
+<meta property="og:title" content="Diting — The Browser for AI Agents">
+<meta property="og:description" content="See the live web and interact with it. Real-time pages, any URL, clickable sessions — a browser for agents, not a search index. One Rust binary, built-in V8, no Chromium.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://browser.aginx.net/">
+<link rel="canonical" href="https://browser.aginx.net/">
+<link rel="icon" type="image/svg+xml" href="/brand/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/brand/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/icon-180.png">
+<meta property="og:image" content="https://browser.aginx.net/brand/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Diting",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Linux, macOS",
+  "description": "Browser built for AI agents: live page fetching, JS rendering, screenshots, aggregated search and interactive sessions in one Rust binary with built-in V8 — no Chromium required.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "url": "https://browser.aginx.net/"
+}
+</script>
+<style>
+:root {
+  --bg: #0a0e14;
+  --bg-soft: #0f1520;
+  --panel: #111a27;
+  --border: #1e2b3d;
+  --text: #dbe4f0;
+  --text-dim: #8aa0b8;
+  --accent: #4dd0ff;
+  --accent-2: #7ee0a3;
+  --warn: #ffb86b;
+  --code-bg: #0b111b;
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- nav ---------- */
+nav {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(10, 14, 20, 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; max-width: 1080px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--text); }
+.brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.nav-links { display: flex; gap: 22px; align-items: center; }
+.nav-links a { color: var(--text-dim); font-size: 14px; }
+.nav-links a:hover { color: var(--text); text-decoration: none; }
+
+/* ---------- hero ---------- */
+.hero { padding: 80px 0 56px; text-align: center; background: radial-gradient(ellipse at 50% -20%, #123a55 0%, transparent 55%); }
+.hero .badge {
+  display: inline-block; padding: 5px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel);
+  color: var(--accent-2); font-size: 13px; letter-spacing: 0.5px;
+}
+.hero h1 { margin: 24px auto 16px; font-size: 46px; font-weight: 800; letter-spacing: -1px; max-width: 800px; line-height: 1.25; }
+.hero h1 .accent { color: var(--accent); }
+.hero .sub { font-size: 19px; color: var(--text-dim); max-width: 660px; margin: 0 auto; }
+.hero .tagline { margin-top: 12px; color: var(--accent-2); font-weight: 600; font-size: 15px; }
+
+/* ---------- install box (head CTA) ---------- */
+.install-box { max-width: 680px; margin: 34px auto 0; text-align: left; }
+.install-label { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; text-align: center; }
+.install-cmd {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13.5px; color: #c9e2ff; overflow-x: auto;
+}
+.install-cmd code { flex: 1; white-space: nowrap; }
+.copy-btn {
+  flex-shrink: 0; cursor: pointer; border: 1px solid var(--border); background: var(--panel);
+  color: var(--accent); font-size: 12.5px; padding: 5px 12px; border-radius: 7px; font-weight: 600;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.copy-btn:hover { border-color: var(--accent); background: #162234; }
+.copy-btn.copied { color: var(--accent-2); border-color: var(--accent-2); }
+.install-hint { margin-top: 10px; font-size: 13px; color: var(--text-dim); text-align: center; }
+
+/* ---------- stats ---------- */
+.stats { display: flex; justify-content: center; gap: 42px; margin-top: 40px; flex-wrap: wrap; }
+.stats div { color: var(--text-dim); font-size: 14px; }
+.stats b { display: block; font-size: 26px; color: var(--text); }
+
+/* ---------- sections ---------- */
+section { padding: 64px 0; }
+section:nth-of-type(even) { background: var(--bg-soft); }
+.section-title { text-align: center; font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+.section-desc { text-align: center; color: var(--text-dim); max-width: 720px; margin: 12px auto 40px; font-size: 16px; }
+
+/* ---------- pain grid ---------- */
+.pain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.pain-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+.pain-card .h { font-weight: 700; margin-bottom: 6px; }
+.pain-card p { color: var(--text-dim); font-size: 14.5px; }
+.pain-card .fix { margin-top: 10px; color: var(--accent-2); font-size: 13.5px; font-weight: 600; }
+
+/* ---------- why browser ---------- */
+.wb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.wb-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+.wb-card h3 { font-size: 17px; margin-bottom: 8px; }
+.wb-card p { color: var(--text-dim); font-size: 14.5px; }
+.perf-row { display: flex; gap: 30px; justify-content: center; margin-top: 36px; flex-wrap: wrap; }
+.perf { text-align: center; }
+.perf b { font-size: 26px; color: var(--accent); display: block; }
+.perf span { color: var(--text-dim); font-size: 13px; }
+.perf-note { text-align: center; color: #5b6f85; font-size: 12.5px; margin-top: 14px; }
+
+/* ---------- capabilities / senses ---------- */
+.senses { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+.sense { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
+.sense .icon { font-size: 28px; }
+.sense h3 { font-size: 16px; margin: 8px 0 6px; }
+.sense p { color: var(--text-dim); font-size: 13.5px; }
+.sense .tag {
+  display: inline-block; margin-top: 10px; font-family: ui-monospace, Menlo, monospace;
+  font-size: 11.5px; color: var(--accent); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 10px; background: var(--code-bg);
+}
+
+/* ---------- security ---------- */
+.secpriv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.sp-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.sp-card h4 { font-size: 15.5px; margin-bottom: 6px; }
+.sp-card p { color: var(--text-dim); font-size: 14px; }
+
+/* ---------- tiers table ---------- */
+.tiers-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.tiers-table th, .tiers-table td { padding: 16px 18px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14.5px; vertical-align: top; }
+.tiers-table th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; }
+.tiers-table tr:last-child td { border-bottom: none; }
+.tier-name { font-weight: 700; white-space: nowrap; }
+.tier-now { color: var(--accent-2); font-weight: 600; }
+
+/* ---------- quickstart steps ---------- */
+.step { max-width: 760px; margin: 0 auto 26px; }
+.step .h { font-weight: 700; margin-bottom: 10px; }
+.step .num {
+  display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center;
+  background: var(--accent); color: #06222f; border-radius: 50%;
+  font-weight: 800; font-size: 13px; margin-right: 8px;
+}
+.step pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 18px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px; line-height: 1.75; color: #c9e2ff;
+}
+.step .c { color: #5b7f95; }
+.step .k { color: var(--accent); }
+
+footer { border-top: 1px solid var(--border); padding: 44px 0 56px; text-align: center; color: var(--text-dim); font-size: 14px; }
+footer .brand { justify-content: center; display: flex; margin-bottom: 12px; }
+footer a { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .hero h1 { font-size: 32px; }
+  .nav-links a:not(:first-child):not(:last-child) { display: none; }
+  .install-cmd { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="dot"></span>Diting</div>
+    <div class="nav-links">
+      <a href="#pain">Pain Points</a>
+      <a href="#why-browser">Why a Browser</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#usecases">Use Cases</a>
+      <a href="#secpriv">Security</a>
+      <a href="#tiers">Tiers</a>
+      <a href="/blog/en.html">Blog</a>
+      <a href="https://github.com/yinnho/diting">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <span class="badge">Built for AI Agents · No Chromium Required</span>
+    <h1>The Browser for Agents.<br><span class="accent">See the live web. Interact with it.</span></h1>
+    <p class="sub">Not a snapshot from a search index — the live page, fetched now. Not read-only — click, fill, screenshot, log in. One Rust binary with built-in V8, no Chromium required.</p>
+    <p class="tagline">Humans have Chrome. Agents have Diting.</p>
+
+    <div class="install-box">
+      <div class="install-label">Install locally, start it, done — the HTTP API is the whole interface</div>
+      <div class="install-cmd">
+        <code id="install-cmd">brew install yinnho/diting/diting &amp;&amp; diting</code>
+        <button class="copy-btn" onclick="copyInstall()" id="copy-btn">Copy</button>
+      </div>
+      <div class="install-hint">Or the prebuilt installer: <a href="https://raw.githubusercontent.com/yinnho/diting/main/install.sh">curl install.sh</a> · <a href="https://www.skills.sh">skills.sh directory</a> · <a href="#quickstart">call HTTP directly</a> · <a href="#tiers">build from source</a></div>
+    </div>
+
+    <div class="stats">
+      <div><b>1</b> Rust binary</div>
+      <div><b>0</b> Chromium dependency</div>
+      <div><b>30+</b> HTTP routes</div>
+      <div><b>~1s</b> per live page fetch</div>
+    </div>
+  </div>
+</header>
+
+<section id="pain" class="pain">
+  <div class="container">
+    <h2 class="section-title">Agents Are Blind on the Web Today</h2>
+    <p class="section-desc">Agents can write code, edit documents, manage projects — but ask one to go look something up on the web and it stumbles. Every general-purpose tool falls short somewhere.</p>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="h">JS-rendered pages come back empty</div>
+        <p>SPAs and data-endpoint pages return skeleton HTML — the content is filled in by JavaScript that plain HTTP never sees.</p>
+        <div class="fix">→ Built-in V8 renders for real + js_extract pulls structured data</div>
+      </div>
+      <div class="pain-card">
+        <div class="h">Cloudflare / anti-bot walls</div>
+        <p>Your server IP gets 403s, or hangs on "Just a moment..." challenge pages. The workflow dies right there.</p>
+        <div class="fix">→ Automatic Turnstile waiting + switchable stealth TLS fingerprints</div>
+      </div>
+      <div class="pain-card">
+        <div class="h">Read-only can't act</div>
+        <p>Fetching pages is not browsing. The moment a flow needs clicks, forms, login or pagination, scrapers are done.</p>
+        <div class="fix">→ Persistent sessions with indexed click/input — browse like a human</div>
+      </div>
+      <div class="pain-card">
+        <div class="h">Search returns stale snapshots</div>
+        <p>Search engines serve indexed results from days ago. Prices, stock levels and statuses have already moved.</p>
+        <div class="fix">→ Fetches the live page as it is now, not an index snapshot</div>
+      </div>
+      <div class="pain-card">
+        <div class="h">Screenshots require Chromium</div>
+        <p>Vision input needs screenshots, but Puppeteer/Playwright drag in all of Chromium — too heavy for most servers.</p>
+        <div class="fix">→ Built-in rendering engine, pure CPU, zero Chromium</div>
+      </div>
+      <div class="pain-card">
+        <div class="h">Raw HTML nobody can read</div>
+        <p>Generic crawlers return raw tag soup. The agent can't use it directly — someone has to clean it first.</p>
+        <div class="fix">→ Returns clean markdown, ready for the agent to consume</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="why-browser" class="why-browser">
+  <div class="container">
+    <h2 class="section-title">A Browser, Not a Search Engine</h2>
+    <p class="section-desc">Search products give you snapshots from their index. A browser gives you the live page. An agent needs the world as it is now — not as a crawler stored it last week.</p>
+    <div class="wb-grid">
+      <div class="wb-card">
+        <h3>⚡ Real-time</h3>
+        <p>Search indexes lag by days. We fetch the <strong>current</strong> page directly — prices, stock, statuses, latest posts. When the world changes, fetch again. Agents shouldn't see yesterday's web.</p>
+      </div>
+      <div class="wb-card">
+        <h3>🌐 Unlimited reach</h3>
+        <p>Search only covers what got indexed. A browser reaches <strong>any URL</strong> — pages behind login, JS-rendered SPAs, paginated dashboards, anything needing a screenshot. Where search can't go, a browser can.</p>
+      </div>
+      <div class="wb-card">
+        <h3>🤝 Interactive</h3>
+        <p>Search reads summaries. A browser logs in, fills forms, submits, paginates, clicks through — operating the page like a person to get results search will never surface.</p>
+      </div>
+    </div>
+    <div class="perf-row">
+      <div class="perf"><b>~1s</b><span>live page fetch (first hit)</span></div>
+      <div class="perf"><b>~100ms</b><span>repeat fetch (cached)</span></div>
+      <div class="perf"><b>~1s</b><span>JS-rendered screenshot</span></div>
+      <div class="perf"><b>~0.3s</b><span>5-engine meta search</span></div>
+      <div class="perf-note">Measured in real use, not lab benchmarks. First hits include V8 cold start; cache hits run on plain HTTP.</div>
+    </div>
+  </div>
+</section>
+
+<section id="capabilities">
+  <div class="container">
+    <h2 class="section-title">Five Things an Agent Wants From a Browser</h2>
+    <p class="section-desc">Today's options were built for debugging (Puppeteer) or are read-only (Firecrawl). Diting was designed around what agents actually need.</p>
+    <div class="senses">
+      <div class="sense">
+        <div class="icon">👁️</div>
+        <h3>See</h3>
+        <p>Our own diting rendering engine (pure CPU, Stylo/Taffy-lineage layout) paints the JS-rendered page to PNG — visual input for agents, no GPU needed.</p>
+        <span class="tag">POST /screenshot</span>
+      </div>
+      <div class="sense">
+        <div class="icon">📖</div>
+        <h3>Read</h3>
+        <p>Pages convert to clean markdown automatically; js_extract pulls structured data out of SPAs. Tiered rendering: static pages on plain HTTP ~100ms, V8 spins up only when JS is required — 10x faster on ~80% of pages.</p>
+        <span class="tag">POST /fetch</span>
+      </div>
+      <div class="sense">
+        <div class="icon">🔎</div>
+        <h3>Find</h3>
+        <p>Concurrent meta-search — Baidu / Bing / Sogou / WeChat / Google for the web, Stack Overflow + GitHub for code, arXiv for papers, your own Meilisearch index for private corpora — merged and deduplicated, with image search returning direct image URLs. Search → read in one step.</p>
+        <span class="tag">POST /search</span>
+      </div>
+      <div class="sense">
+        <div class="icon">🖐️</div>
+        <h3>Act</h3>
+        <p>Persistent browser sessions with indexed interaction — no guessing pixel coordinates; <code>click index:3</code> presses the button. CAPTCHA auto-solve, Cloudflare auto-wait, reusable login state.</p>
+        <span class="tag">POST /session/create</span>
+      </div>
+      <div class="sense">
+        <div class="icon">⚡</div>
+        <h3>Deploy</h3>
+        <p>One binary ~70MB (~104MB with screenshots). No Node, no Chromium, no Docker. Run it under systemd and it's infrastructure.</p>
+        <span class="tag">Plain HTTP API</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="wedge" class="pain">
+  <div class="container">
+    <h2 class="section-title">Where Other Agent Browsers Hit a Wall</h2>
+    <p class="section-desc">Most new "agent browsers" are <strong>stateless, fingerprint-less</strong> one-shot renderers — fine for public pages, useless against Cloudflare or anything requiring login. Diting goes the other way and focuses on the three things they can't do.</p>
+    <div class="wb-grid">
+      <div class="wb-card">
+        <h3>🔐 Real TLS fingerprints</h3>
+        <p>Stealth mode uses BoringSSL to replicate the <strong>complete Chrome145 / Firefox133 / Safari / Edge</strong> TLS handshakes (not just a UA swap), switchable per request; Cloudflare Turnstile challenges wait automatically for <code>cf_clearance</code>. Fingerprint-less engines eat 403s — we get through.</p>
+      </div>
+      <div class="wb-card">
+        <h3>🤝 Stateful long sessions</h3>
+        <p>Persistent sessions (8-minute idle keep-alive), login state <strong>injectable and exportable</strong> (<code>session_create(cookies=...)</code> ↔ <code>session_cookies</code>). Login → paginate → act, unbroken. One-shot engines discard state and can't do multi-step flows.</p>
+      </div>
+      <div class="wb-card">
+        <h3>🔌 Plain HTTP, zero SDK</h3>
+        <p>Every capability is a <strong>plain HTTP route</strong> — curl it from any language, any agent framework, any machine on your network. No protocol client to install, no DevTools to learn, no lock-in. The API is the whole interface.</p>
+      </div>
+    </div>
+    <p class="perf-note">Reference point: Cloudflare's Kitesurf explicitly ships neither real TLS-fingerprint negotiation nor persistent auth sessions — anti-bot and login territory is exactly where Diting plays.</p>
+  </div>
+</section>
+
+<section id="usecases">
+  <div class="container">
+    <h2 class="section-title">What People Do With It</h2>
+    <p class="section-desc">Not demos — real jobs agent browsers are doing today.</p>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="h">Grind through admin consoles</div>
+        <p>AWS, App Store Connect, Google Play — dozens of menu layers per task. Let the agent do the clicking and come back to you only when authorization is needed.</p>
+      </div>
+      <div class="pain-card">
+        <div class="h">Batch actions behind login</div>
+        <p>Add a dozen items to a cart, dig through order history for receipts, check pages that only render while logged in. Inject cookies, operate, export the session for reuse.</p>
+      </div>
+      <div class="pain-card">
+        <div class="h">Get past anti-bot walls</div>
+        <p>Cloudflare protection, Turnstile challenges, TLS fingerprint checks. Stealth mode pushes through instead of retreating at the first 403.</p>
+      </div>
+      <div class="pain-card">
+        <div class="h">The Chinese internet</div>
+        <p>Meta-search across Baidu / Sogou / Sogou WeChat / Bing / Google, with correct rendering of Chinese pages. Not English-web-only.</p>
+      </div>
+      <div class="pain-card">
+        <div class="h">Write scripts on the spot</div>
+        <p>Have the agent read the page, write JS, and eval it — highlight comparison tables, reflow content, filter products by hidden parameters. GreaseMonkey-on-steroids.</p>
+      </div>
+      <div class="pain-card">
+        <div class="h">Multimodal vision input</div>
+        <p>Screenshots as vision input for "look and judge" flows — picking seats, recognizing page layouts, verifying that rendering looks right.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="secpriv" class="secpriv">
+  <div class="container">
+    <h2 class="section-title">Security &amp; Privacy</h2>
+    <p class="section-desc">An agent's browser touches your cookies and your logged-in state. It shouldn't be a black box watching you, and it shouldn't expose your internal network to the agent.</p>
+    <div class="secpriv-grid">
+      <div class="sp-card">
+        <h4>🚫 No cookie / session persistence</h4>
+        <p>Injected cookies and interactive sessions live in memory only, reclaimed after 8 minutes idle — gone when the session ends, nothing written to disk.</p>
+      </div>
+      <div class="sp-card">
+        <h4>🛡️ SSRF + DNS rebinding protection</h4>
+        <p>Non-http(s) schemes blocked, private/loopback IPs rejected, re-validation after every DNS resolution. The agent can't reach your intranet, and DNS rebinding doesn't work either.</p>
+      </div>
+      <div class="sp-card">
+        <h4>🔒 Runs on your machine</h4>
+        <p>Local install, local use — your cookies and sessions never leave the box. Want it locked down? Set <code>DITING_TOKEN</code> and every route requires a bearer token.</p>
+      </div>
+      <div class="sp-card">
+        <h4>👁️ Fully open source</h4>
+        <p>Apache-2.0, transparent and auditable. It runs on your machine — your data never leaves it.</p>
+      </div>
+      <div class="sp-card">
+        <h4>🧩 CAPTCHA auto-solve</h4>
+        <p>CAPTCHA type detection with optional 2captcha solving. Search flows stop dying on verification pages.</p>
+      </div>
+      <div class="sp-card">
+        <h4>☁️ Cloudflare auto-wait</h4>
+        <p>Detects "Just a moment..." challenge pages and waits out cf_clearance automatically, without breaking the agent's flow.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tiers">
+  <div class="container">
+    <h2 class="section-title">Three Ways to Use It</h2>
+    <p class="section-desc">From "one line and you're running" to "private deployment, everything enabled". Check what's live anytime via <a href="https://browser.aginx.net/doctor">/doctor</a>.</p>
+    <table class="tiers-table">
+      <thead>
+        <tr><th>Tier</th><th>Includes</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="tier-name">🆓 Local install<br><span style="font-weight:400;font-size:12px;color:var(--text-dim)">Zero-config, free</span></td>
+          <td>fetch / search / eval / click / session — the full interaction suite over plain HTTP, listening on <code>:8089</code></td>
+          <td class="tier-now">brew install, one binary, no config</td>
+        </tr>
+        <tr>
+          <td class="tier-name">⚡ Advanced<br><span style="font-weight:400;font-size:12px;color:var(--text-dim)">Feature flags</span></td>
+          <td>screenshot rendering / stealth TLS fingerprints / CAPTCHA auto-solve</td>
+          <td class="tier-now">Build with <code>--features stealth,screenshot</code> (check what's compiled in via <code>/doctor</code>)</td>
+        </tr>
+        <tr>
+          <td class="tier-name">🏗 Self-hosted<br><span style="font-weight:400;font-size:12px;color:var(--text-dim)">Open source, private</span></td>
+          <td>Everything + private networks + custom proxies + no rate limits + full compliance control</td>
+          <td class="tier-now">Apache-2.0 open source, single binary under systemd</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="quickstart" class="quickstart">
+  <div class="container">
+    <h2 class="section-title">Connect Your Agent</h2>
+    <p class="section-desc">Plain HTTP, any agent, any language. Install locally and every capability is one POST away.</p>
+
+    <div class="step">
+      <div class="h"><span class="num">1</span> Install and start the server</div>
+      <pre><span class="c"># macOS / Linux via Homebrew (or: curl install.sh from the repo)</span>
+brew install yinnho/diting/diting
+diting &amp;              <span class="c"># listens on 0.0.0.0:8089</span>
+curl -sS http://<span class="k">127.0.0.1:8089/health</span></pre>
+    </div>
+
+    <div class="step">
+      <div class="h"><span class="num">2</span> Call the HTTP API</div>
+      <pre><span class="c"># Fetch a live page -> markdown</span>
+curl -sS -X POST http://<span class="k">127.0.0.1:8089/fetch</span> \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+
+<span class="c"># Search -> merged and deduplicated</span>
+curl -sS -X POST http://<span class="k">127.0.0.1:8089/search</span> \
+  -H "Content-Type: application/json" \
+  -d '{"q":"macbook price","max_results":5}'
+
+<span class="c"># Capability listing (no fetching, instant)</span>
+curl -sS http://<span class="k">127.0.0.1:8089/doctor</span> | jq .</pre>
+    </div>
+
+    <div class="step">
+      <div class="h"><span class="num">3</span> Give your agent the trigger surface</div>
+      <pre><span class="c"># Installs SKILL.md so Claude Code reaches for the API proactively</span>
+<span class="c"># (download, review, then run - never blind-pipe from the network):</span>
+curl -fsSL https://<span class="k">raw.githubusercontent.com/yinnho/diting/main/skill.sh</span> -o skill.sh
+less skill.sh &amp;&amp; bash skill.sh
+
+<span class="c"># Or via the skills.sh directory:</span>
+npx skills add <span class="k">yinnho/diting</span></pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="brand"><span class="dot"></span>Diting</div>
+    <p>The agent internet is taking shape. Agents need to collaborate with each other, access the world, and be accessible in turn.</p>
+    <p>Diting is the "see the world" layer — eyes and hands for every agent.</p>
+    <p style="margin-top:14px;"><a href="https://github.com/yinnho/diting">GitHub</a> · <a href="https://x.com/diting">X</a> · <a href="/blog/en.html">Blog</a> · <a href="https://github.com/yinnho/diting/blob/main/docs/API.md">API docs</a> · <a href="https://github.com/yinnho/diting/blob/main/docs/install.md">Install guide</a> · <a href="https://github.com/yinnho/diting/blob/main/SKILL.md">SKILL.md</a> · <a href="https://raw.githubusercontent.com/yinnho/diting/main/skill.sh">skill.sh</a></p>
+    <p style="margin-top:18px; font-size:13px; color:#5b6f85;">© 2026 OpenCarrier · Apache-2.0 open source</p>
+  </div>
+</footer>
+
+<script>
+function copyInstall() {
+  var cmd = document.getElementById('install-cmd').textContent;
+  var btn = document.getElementById('copy-btn');
+  navigator.clipboard.writeText(cmd).then(function() {
+    btn.textContent = 'Copied';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  }).catch(function() {
+    var ta = document.createElement('textarea');
+    ta.value = cmd; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); btn.textContent = 'Copied'; btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+    } catch(e) {}
+    document.body.removeChild(ta);
+  });
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,955 @@
+#[cfg(feature = "stealth")]
+use std::collections::HashMap;
+#[cfg(feature = "stealth")]
+use std::error::Error;
+#[cfg(feature = "stealth")]
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(feature = "stealth")]
+use std::sync::Arc;
+#[cfg(feature = "stealth")]
+use std::time::Duration;
+
+#[cfg(feature = "stealth")]
+use tokio::sync::RwLock;
+#[cfg(feature = "stealth")]
+use url::Url;
+
+#[cfg(feature = "stealth")]
+use crate::diting_net::cookies::CookieJar;
+#[cfg(feature = "stealth")]
+use crate::diting_net::client::{Response, NetError, ResourceType};
+
+#[cfg(feature = "stealth")]
+pub const STEALTH_USER_AGENT: &str =
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
+
+/// The TLS fingerprint stealth builds present by default. `with_proxy_and_os`
+/// constructs the matching emulation and `/health` reports this string, so
+/// the wire behavior and the reported name cannot drift apart. UNGATED on
+/// purpose (#276 P2-6): the face is single-sourced — account personas, the
+/// UA/TLS coherence warning, and this preset all read the pair below, and
+/// the tripwire test runs in every build.
+pub const DEFAULT_TLS_FINGERPRINT: &str = "chrome145";
+
+/// Map a user-friendly TLS fingerprint name to a wreq-util `Profile`
+/// variant. Accepted values (case-insensitive): "chrome145"/"chrome",
+/// "chrome131", "firefox133"/"firefox", "firefox147", "safari17_5"/"safari",
+/// "safari18", "edge145"/"edge". Returns None for unknown names (caller falls
+/// back to Chrome145). Only meaningful when the `stealth` feature is enabled.
+/// (rc.28→rc.31: this used to return an `Emulation` variant directly; the
+/// flat enum is now `Profile`, and `Emulation` is the profile+platform
+/// builder passed to `ClientBuilder::emulation`.)
+#[cfg(feature = "stealth")]
+pub fn parse_tls_fingerprint(s: &str) -> Option<wreq_util::Profile> {
+    match s.to_ascii_lowercase().as_str() {
+        "chrome145" | "chrome" => Some(wreq_util::Profile::Chrome145),
+        "chrome131" => Some(wreq_util::Profile::Chrome131),
+        "firefox133" | "firefox" => Some(wreq_util::Profile::Firefox133),
+        "firefox147" => Some(wreq_util::Profile::Firefox147),
+        "safari17_5" | "safari" => Some(wreq_util::Profile::Safari17_5),
+        "safari18" => Some(wreq_util::Profile::Safari18),
+        "edge145" | "edge" => Some(wreq_util::Profile::Edge145),
+        _ => None,
+    }
+}
+
+/// Derive the TLS emulation's OS from an advertised User-Agent. The
+/// fingerprint's platform (JA3 is OS-specific) must match the UA the
+/// transport sends — "shape coherence".
+#[cfg(feature = "stealth")]
+pub fn emulation_os_for_ua(ua: &str) -> wreq_util::Platform {
+    if ua.contains("Windows") {
+        wreq_util::Platform::Windows
+    } else if ua.contains("Macintosh") || ua.contains("Mac OS X") {
+        wreq_util::Platform::MacOS
+    } else if ua.contains("Android") {
+        wreq_util::Platform::Android
+    } else if ua.contains("iPhone") || ua.contains("iPad") {
+        wreq_util::Platform::IOS
+    } else {
+        wreq_util::Platform::Linux
+    }
+}
+
+/// Browser family + major version from a User-Agent ("Chrome/152.0.0.0" ->
+/// ("chrome", 152)). Edge is matched before Chrome because an Edge UA embeds
+/// both tokens; Safari's own version hides in `Version/`, not `Safari/`.
+#[cfg(feature = "stealth")]
+pub fn ua_browser_version(ua: &str) -> Option<(&'static str, u32)> {
+    let (family, marker) = if ua.contains("Edg/") {
+        ("edge", "Edg/")
+    } else if ua.contains("Firefox/") {
+        ("firefox", "Firefox/")
+    } else if ua.contains("Chrome/") {
+        ("chrome", "Chrome/")
+    } else if ua.contains("Safari/") {
+        ("safari", "Version/")
+    } else {
+        return None;
+    };
+    let version = ua.split(marker).nth(1)?;
+    let major = version.split('.').next()?.parse().ok()?;
+    Some((family, major))
+}
+
+/// (family, major version) for a TLS fingerprint name ("safari17_5" ->
+/// ("safari", 17)).
+#[cfg(feature = "stealth")]
+fn fingerprint_family_version(name: &str) -> Option<(&'static str, u32)> {
+    let lower = name.to_ascii_lowercase();
+    let digits = lower.find(|c: char| c.is_ascii_digit())?;
+    let family = match &lower[..digits] {
+        "chrome" => "chrome",
+        "firefox" => "firefox",
+        "safari" => "safari",
+        "edge" => "edge",
+        _ => return None,
+    };
+    let major = lower[digits..]
+        .split(['_', '.'])
+        .next()?
+        .parse()
+        .ok()?;
+    Some((family, major))
+}
+
+/// The Chrome major the whole fleet claims in UA strings (and GL / uad /
+/// sec-ch-ua), so UA and ClientHello agree. UNGATED (#276 P2-6): this is
+/// the single source the account-persona coerce and the mismatch warning
+/// read — the days of a mirrored copy in diting/src/account.rs
+/// ended 2026-10-25. Why 145 and not a newer major: wreq-util's presets
+/// stop at 149 and the xhs edge routes UA majors non-monotonically —
+/// 145/154/157/158 reach production, 146–153 and 155/156 are bucketed
+/// into its SIT loop (customer.sit.xiaohongshu.com; 2026-10-17 probe).
+/// 145 is the only production-routed major that a real preset can back.
+/// History: the fleet claimed 154 over a chrome145-shaped handshake from
+/// 2026-10-17 to 2026-10-20 (UA/TLS mismatch, 300015 on publish_render
+/// persisted); the 2026-10-20 restore made the pair coherent.
+pub const CLAIMED_CHROME_MAJOR: u32 = 145;
+
+#[cfg(test)]
+mod face_tripwire {
+    /// #276 P2-6 "face follows": the preset name's numeric tail must equal
+    /// the claimed Chrome major. Bump one without the other and this fails
+    /// in every build (no stealth feature needed) — the mismatch that
+    /// lived in the README and the account mirror for days can't recur.
+    #[test]
+    fn fleet_face_is_one_coherent_pair() {
+        let tail = super::DEFAULT_TLS_FINGERPRINT
+            .strip_prefix("chrome")
+            .expect("default preset is a chromeN name");
+        let major: u32 = tail
+            .parse()
+            .unwrap_or_else(|_| panic!("default preset tail is numeric: {tail}"));
+        assert_eq!(
+            major, super::CLAIMED_CHROME_MAJOR,
+            "TLS preset face and claimed UA major must move together"
+        );
+    }
+}
+
+/// Warn when the effective UA and the browser claim disagree on family or
+/// major version. With an explicit `tls_fingerprint`, coherence means the UA
+/// rides that fingerprint's family+major (operator chose the pair). With the
+/// default handshake, coherence means the fleet claim: Chrome/145 over the
+/// chrome145-shaped preset — "Chrome/152" in the UA over the fleet claim is
+/// the kind of tell WAFs diff (taobao compat report ⑤). Returns true when a
+/// mismatch was logged; `None` fingerprint means the default handshake.
+#[cfg(feature = "stealth")]
+pub fn warn_on_ua_tls_mismatch(ua: &str, tls_fingerprint: Option<&str>) -> bool {
+    let Some((ua_family, ua_major)) = ua_browser_version(ua) else {
+        return false;
+    };
+    let (tls_family, tls_major) = match tls_fingerprint {
+        Some(name) => match fingerprint_family_version(name) {
+            Some(v) => v,
+            None => return false,
+        },
+        None => ("chrome", CLAIMED_CHROME_MAJOR),
+    };
+    if ua_family != tls_family || ua_major != tls_major {
+        tracing::warn!(
+            "fingerprint mismatch: UA advertises {}/{} but the TLS handshake emulates {}/{} — align DITING_UA with the tls_fingerprint (or drop the override)",
+            ua_family,
+            ua_major,
+            tls_family,
+            tls_major
+        );
+        true
+    } else {
+        false
+    }
+}
+
+/// GETs are idempotent, so a connection reset mid-request is safe to retry
+/// once. Some anti-bot frontends RST the first TLS connection from a fresh IP
+/// and only serve the retry.
+#[cfg(feature = "stealth")]
+async fn send_get_with_connection_reset_retry(
+    request: wreq::RequestBuilder,
+    url: &Url,
+) -> Result<wreq::Response, wreq::Error> {
+    let retry = request.try_clone();
+    match request.send().await {
+        Err(error) if error.is_connection_reset() => {
+            let Some(retry) = retry else {
+                return Err(error);
+            };
+            tracing::debug!(%url, "retrying GET after connection reset");
+            retry.send().await
+        }
+        result => result,
+    }
+}
+
+/// wreq twin of the reqwest-side `SsrfGuardResolver` (#247): resolve, then
+/// reject the whole request if ANY resolved address is in the SSRF deny-set.
+/// The stealth path previously carried only `validate_url`'s host-string
+/// check, so a public name resolving to 127.0.0.1 / 169.254.169.254 / an
+/// RFC1918 address sailed through on the transport release builds actually
+/// use — the resolver-level check closes the DNS-rebinding bypass using the
+/// very addresses wreq will dial. Redirect hops re-resolve through here
+/// too (each hop is a fresh connect). The allow flag is read live:
+/// contexts flip it after construction (obscura#793 shape) and the env
+/// release (`DITING_ALLOW_PRIVATE_NETWORK`) ORs in at resolve time.
+#[cfg(feature = "stealth")]
+struct WreqSsrfGuardResolver {
+    allow_flag: Arc<AtomicBool>,
+}
+
+#[cfg(feature = "stealth")]
+impl wreq::dns::Resolve for WreqSsrfGuardResolver {
+    fn resolve(&self, name: wreq::dns::Name) -> wreq::dns::Resolving {
+        let allow = self.allow_flag.load(Ordering::Relaxed)
+            || crate::diting_net::client::env_allows_private_network();
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))
+                .await
+                .map_err(|e| -> Box<dyn Error + Send + Sync> { Box::new(e) })?
+                .collect();
+            if !allow {
+                let mut bad = None;
+                for sa in &addrs {
+                    if crate::diting_net::client::forbidden_after_dns(sa.ip()).await {
+                        bad = Some(sa);
+                        break;
+                    }
+                }
+                if let Some(bad) = bad {
+                    return Err(format!(
+                        "SSRF blocked: '{}' resolves to forbidden address {}{}",
+                        host,
+                        bad.ip(),
+                        crate::diting_net::client::policy::PRIVATE_NETWORK_HINT
+                    )
+                    .into());
+                }
+            }
+            let iter: wreq::dns::Addrs = Box::new(addrs.into_iter());
+            Ok(iter)
+        })
+    }
+}
+
+#[cfg(feature = "stealth")]
+pub struct StealthHttpClient {
+    /// Proxy-configured client. None when no proxy is set.
+    proxied_client: Option<wreq::Client>,
+    /// Proxy client for known-blocked domains, built when no explicit proxy
+    /// was configured but `DITING_PROXY` is set. Same per-domain
+    /// fallback the reqwest transport applies, so stealth document requests
+    /// reach blocked origins too.
+    auto_proxied_client: Option<wreq::Client>,
+    /// Direct-connect client (no proxy). Always present.
+    direct_client: wreq::Client,
+    /// The configured upstream proxy, kept for error reporting only (the
+    /// clients already embed it) — an unreachable proxy must be named in the
+    /// error, not folded into "error sending request" (obscura#491).
+    proxy_url: Option<String>,
+    pub cookie_jar: Arc<CookieJar>,
+    pub extra_headers: RwLock<HashMap<String, String>>,
+    /// Override the emulation's built-in User-Agent. wreq's Chrome emulation
+    /// hardcodes a Linux UA, which clashes with anti-bot heuristics expecting
+    /// the UA to match the TLS fingerprint's advertised platform.
+    pub user_agent: RwLock<String>,
+    pub accept_language: RwLock<String>,
+    /// When true, `validate_url` lets localhost / RFC1918 / link-local hosts
+    /// through on the stealth path too, and the direct client's SSRF resolver
+    /// (#247) passes private resolutions. Shared with that resolver as an
+    /// `Arc<AtomicBool>` — contexts set the flag AFTER construction (the
+    /// obscura#793 shape), so a build-time snapshot inside the wreq client
+    /// would go stale the moment `store` lands. Mirrors the HttpClient field
+    /// of the same name; the env var (`DITING_ALLOW_PRIVATE_NETWORK`)
+    /// is OR'd inside `validate_url` and the resolver itself, so this field
+    /// only carries the per-context flag.
+    pub allow_private_network: Arc<AtomicBool>,
+    /// Whether the bundled tracker blocklist is consulted before any
+    /// request. Stealth documents block trackers as documented, so this
+    /// defaults on — but HttpClient carries the same field and honors the
+    /// same env release (`DITING_BLOCK_TRACKERS=0`), because auditing
+    /// a page's real third-party stack needs stealth TLS with the blocklist
+    /// off (obscura#995: the stealth path used to check unconditionally).
+    pub block_trackers: bool,
+}
+
+#[cfg(feature = "stealth")]
+impl StealthHttpClient {
+    pub fn new(cookie_jar: Arc<CookieJar>) -> Self {
+        Self::with_proxy(cookie_jar, None)
+    }
+
+    /// Build a stealth wreq client with an optional explicit OS override and a
+    /// chosen TLS `emulation` (browser fingerprint). When `os_override` is Some,
+    /// it takes precedence over the UA-derived OS, allowing engines like Google
+    /// to use Android TLS fingerprints for GSA User-Agent requests.
+    ///
+    /// `ssrf_flag` wires the post-DNS SSRF guard (#247): Some(flag) attaches a
+    /// resolver that vets every resolved address against the deny-set before
+    /// wreq dials it. Only the DIRECT client passes a flag — with a proxy the
+    /// target resolves at the proxy, and the proxy host itself is often
+    /// deliberately loopback (socks5://127.0.0.1), which the guard would
+    /// misfire on. The flag is read live at resolve time.
+    fn build_stealth_client_with_os(
+        proxy_url: Option<&str>,
+        os_override: Option<wreq_util::Platform>,
+        emulation: wreq_util::Profile,
+        ssrf_flag: Option<Arc<AtomicBool>>,
+    ) -> wreq::Client {
+        let os = if let Some(os) = os_override {
+            os
+        } else {
+            // The emulation OS must match the advertised User-Agent, otherwise the
+            // TLS/JA3 fingerprint (OS-specific) clashes with the HTTP UA — a strong
+            // anti-bot signal ("shape coherence"). Pages pass the OS derived from
+            // the context's resolved UA explicitly; this env fallback applies only
+            // to callers that construct the client standalone (search engines).
+            emulation_os_for_ua(&std::env::var("DITING_UA").unwrap_or_default())
+        };
+
+        let emulation_opts = wreq_util::Emulation::builder()
+            .profile(emulation)
+            .platform(os)
+            .build();
+
+        // .no_proxy() disables wreq's implicit env/system proxy matcher
+        // (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) — the engine's proxy decision is
+        // the explicit `proxy_url` below, nothing else. Must precede the
+        // .proxy() attach, which no_proxy() would otherwise clear.
+        let mut builder = wreq::Client::builder()
+            .no_proxy()
+            .emulation(emulation_opts)
+            // read_timeout (per-chunk stall, #49), not a total-duration cap:
+            // `.timeout()` kills a large-but-live body (32MB wasm over a slow
+            // CDN) mid-stream at 30s while browsers stream it to completion.
+            // connect_timeout (#310): the read window only starts after the
+            // handshake — without this, an unreachable host parks in SYN_SENT
+            // until the OS gives up on TCP retries (~75s on macOS) with the
+            // in_flight count pinned the whole time. Aligned with the reqwest
+            // side's 10s (fetch_client.rs).
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(30))
+            .redirect(wreq::redirect::Policy::none());
+
+        // #247: the post-DNS SSRF gate on the direct path. Replaces wreq's
+        // default GaiResolver (getaddrinfo) with the same lookup_host shape
+        // the reqwest-side guard uses — DNS is invisible to the TLS/JA3
+        // fingerprint, so the emulation is untouched.
+        if let Some(flag) = ssrf_flag {
+            builder = builder.dns_resolver(Arc::new(WreqSsrfGuardResolver { allow_flag: flag }));
+        }
+
+        // Honor SSL_CERT_FILE / SSL_CERT_DIR (opt-in only): when set, wire a
+        // cert store loaded from those paths, so hosts behind a private/
+        // national CA verify on the stealth path too. Unset (or a failed
+        // build) keeps wreq's bundled default roots — leaving
+        // `tls_cert_store` unset IS the default, so not calling it is
+        // byte-for-byte the old `CertStore::default()` behavior.
+        if crate::diting_net::client::custom_cert_store_requested(
+            std::env::var_os("SSL_CERT_FILE").as_deref(),
+            std::env::var_os("SSL_CERT_DIR").as_deref(),
+        ) {
+            match wreq::tls::trust::CertStore::builder().set_default_paths().build() {
+                Ok(store) => builder = builder.tls_cert_store(store),
+                Err(e) => {
+                    tracing::warn!(
+                        "SSL_CERT_FILE/SSL_CERT_DIR set but cert store failed to build ({}); using default roots",
+                        e
+                    );
+                }
+            }
+        }
+
+        if let Some(proxy) = proxy_url {
+            // Proxy::all intercepts both http and https requests. Proxy::http
+            // only catches plain http, so https sites (the common case) would
+            // bypass the proxy entirely and connect directly — which is why
+            // foreign sites behind a SOCKS5 proxy appeared unreachable. wreq's
+            // SOCKS support (behind the `socks` feature) handles socks5://
+            // URLs through either entry point.
+            match wreq::Proxy::all(proxy) {
+                Ok(p) => builder = builder.proxy(p),
+                Err(e) => tracing::warn!("stealth proxy '{}' ignored: {}", proxy, e),
+            }
+        }
+
+        builder.build().expect("failed to build wreq stealth client")
+    }
+
+    pub fn with_proxy(cookie_jar: Arc<CookieJar>, proxy_url: Option<&str>) -> Self {
+        Self::with_proxy_and_os(cookie_jar, proxy_url, None)
+    }
+
+    /// Build a StealthHttpClient with an explicit OS override for TLS emulation.
+    /// This allows Google engine to use Android TLS fingerprints matching its GSA
+    /// User-Agent, so Google returns server-rendered HTML instead of JS-only pages.
+    pub fn with_proxy_and_os(
+        cookie_jar: Arc<CookieJar>,
+        proxy_url: Option<&str>,
+        os_override: Option<wreq_util::Platform>,
+    ) -> Self {
+        Self::with_proxy_and_emulation(
+            cookie_jar,
+            proxy_url,
+            os_override,
+            parse_tls_fingerprint(DEFAULT_TLS_FINGERPRINT).unwrap_or(wreq_util::Profile::Chrome145),
+        )
+    }
+
+    /// Build a StealthHttpClient with an explicit TLS `emulation` (browser
+    /// fingerprint) and optional OS override. Use this to switch between
+    /// Chrome/Firefox/Safari/Edge fingerprints per request.
+    pub fn with_proxy_and_emulation(
+        cookie_jar: Arc<CookieJar>,
+        proxy_url: Option<&str>,
+        os_override: Option<wreq_util::Platform>,
+        emulation: wreq_util::Profile,
+    ) -> Self {
+        // The shared flag the direct client's SSRF resolver reads live —
+        // same cell `validate_url` consults, so the two doors can never
+        // disagree about what is allowed.
+        let allow_flag = Arc::new(AtomicBool::new(false));
+        let proxied_client =
+            proxy_url.map(|_| Self::build_stealth_client_with_os(proxy_url, os_override, emulation, None));
+        let direct_client =
+            Self::build_stealth_client_with_os(None, os_override, emulation, Some(allow_flag.clone()));
+        let auto_proxied_client = if proxy_url.is_none() {
+            crate::env_knobs::proxy_from_env().map(|p| {
+                Self::build_stealth_client_with_os(Some(&p), os_override, emulation, None)
+            })
+        } else {
+            None
+        };
+
+        StealthHttpClient {
+            proxied_client,
+            auto_proxied_client,
+            direct_client,
+            proxy_url: proxy_url.map(|s| s.to_string()),
+            cookie_jar,
+            extra_headers: RwLock::new(HashMap::new()),
+            user_agent: RwLock::new(
+                std::env::var("DITING_UA").unwrap_or_else(|_| {
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36".to_string()
+                }),
+            ),
+            accept_language: RwLock::new(
+                std::env::var("DITING_ACCEPT_LANGUAGE")
+                    .unwrap_or_else(|_| "zh-CN,zh;q=0.9".to_string()),
+            ),
+            allow_private_network: allow_flag,
+            block_trackers: crate::diting_net::blocklist::block_trackers_from_env(),
+        }
+    }
+
+    /// Pick the client. An explicitly configured proxy applies to the whole
+    /// page (foreign sites), so all requests go through it. Without one,
+    /// requests go direct except known-blocked domains, which ride
+    /// `DITING_PROXY` when set — the same fallback /fetch applies, so a
+    /// stealth session page doesn't hard-fail on an origin /fetch reaches.
+    async fn select_client(&self, url: &Url) -> &wreq::Client {
+        if let Some(p) = &self.proxied_client {
+            return p;
+        }
+        if let Some(p) = &self.auto_proxied_client {
+            if crate::env_knobs::should_auto_proxy(url.as_str()) {
+                return p;
+            }
+        }
+        &self.direct_client
+    }
+
+    pub async fn fetch(&self, url: &Url) -> Result<Response, NetError> {
+        self.fetch_inner(url, None, wreq::Method::GET, None, None, None, true, ResourceType::Document).await
+    }
+
+    /// Navigation fetch (`fetch_document`): like [`fetch`] but carrying the
+    /// referring document, so link-click navigations send the initiator's
+    /// Referer and a `sec-fetch-site` keyed to it instead of the emulation's
+    /// hardcoded `none` (#254).
+    pub async fn fetch_navigation(
+        &self,
+        url: &Url,
+        referrer: Option<&str>,
+    ) -> Result<Response, NetError> {
+        self.fetch_inner(url, referrer, wreq::Method::GET, None, None, None, true, ResourceType::Document)
+            .await
+    }
+
+    /// Subresource GET (band-paint image fetch, 反馈⑫ shape): like [`fetch`]
+    /// but carrying the initiating document as Referer, recomputed per redirect
+    /// hop by the same strict-origin-when-cross-origin trim the plain client's
+    /// subresource path applies. Referer-checking image CDNs reject a bare
+    /// request even with a perfect TLS fingerprint.
+    pub async fn fetch_subresource(
+        &self,
+        url: &Url,
+        referrer: Option<&str>,
+    ) -> Result<Response, NetError> {
+        self.fetch_inner(url, referrer, wreq::Method::GET, None, None, None, true, ResourceType::Image)
+            .await
+    }
+
+    /// Classic `<script src>` on a stealth page. Uses the same `wreq::Client`
+    /// as [`fetch_navigation`], so a same-origin script reuses the document's
+    /// HTTP/2 connection instead of opening a second stack.
+    pub async fn fetch_script(
+        &self,
+        url: &Url,
+        referrer: Option<&str>,
+    ) -> Result<Response, NetError> {
+        self.fetch_inner(
+            url,
+            referrer,
+            wreq::Method::GET,
+            None,
+            None,
+            None,
+            true,
+            ResourceType::Script,
+        )
+        .await
+    }
+
+    /// Non-GET transport for the legacy-TLS fallback (`retry_via_legacy_tls`):
+    /// the escape hatch used to be GET-only, which stranded scripted POSTs on
+    /// CBC-only servers — now a connect-stage POST failure rides here with its
+    /// body and Content-Type. The method name is parsed rather than passed as
+    /// a type so the plain client's reqwest Method never has to unify with
+    /// wreq's. `request_headers` mirrors what the scripted attempt was
+    /// sending (Origin, Referer, Fetch-Metadata, client hints) — Referer-
+    /// checking WAFs 403 the bare shape even after the handshake succeeds —
+    /// and `include_cookies` carries the fetch credentials policy.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn fetch_with_body(
+        &self,
+        url: &Url,
+        referrer: Option<&str>,
+        method: &str,
+        body: Option<&[u8]>,
+        content_type: Option<&str>,
+        request_headers: Option<&HashMap<String, String>>,
+        include_cookies: bool,
+    ) -> Result<Response, NetError> {
+        let method = wreq::Method::from_bytes(method.as_bytes())
+            .map_err(|e| NetError::Network(format!("invalid method {method:?}: {e}")))?;
+        self.fetch_inner(url, referrer, method, body, content_type, request_headers, include_cookies, ResourceType::Fetch)
+            .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn fetch_inner(
+        &self,
+        url: &Url,
+        referrer: Option<&str>,
+        method: wreq::Method,
+        body: Option<&[u8]>,
+        content_type: Option<&str>,
+        request_headers: Option<&HashMap<String, String>>,
+        include_cookies: bool,
+        resource_type: ResourceType,
+    ) -> Result<Response, NetError> {
+        // The stealth path must enforce the same SSRF rules as the reqwest
+        // path — without this, StealthHttpClient could reach loopback/private
+        // addresses that HttpClient rejects. The per-context opt-in rides the
+        // `allow_private_network` field (obscura#793 shape); the env var is
+        // OR'd inside `validate_url`.
+        crate::diting_net::client::validate_url(
+            url,
+            self.allow_private_network.load(Ordering::Relaxed),
+        )?;
+        if url.scheme() == "file" {
+            return crate::diting_net::client::fetch_file_url(url).await;
+        }
+
+        let mut current_url = url.clone();
+
+        if self.block_trackers {
+            if let Some(host) = current_url.host_str() {
+                if crate::diting_net::blocklist::is_blocked(host) {
+                    tracing::debug!("Blocked tracker: {}", current_url);
+                    return Ok(Response {
+                        status: 0,
+                        url: current_url,
+                        headers: HashMap::new(),
+                        body: Vec::new(),
+                        redirected_from: Vec::new(),
+                        redirect_hops: Vec::new(),
+                        request_headers: HashMap::new(),
+                    });
+                }
+            }
+        }
+
+        let mut redirects = Vec::new();
+        // #231: hop targets with status, mirroring the plain walk so the
+        // scripted-fetch face gets the same trail whichever transport served.
+        let mut redirect_hops: Vec<crate::diting_net::RedirectHop> = Vec::new();
+        let mut method = method;
+        let mut body = body;
+        let mut content_type = content_type;
+
+        for _ in 0..20 {
+            let mut req = self
+                .select_client(&current_url)
+                .await
+                .request(method.clone(), current_url.as_str());
+
+            // Override the emulation's hardcoded Linux UA + en-US locale so the
+            // advertised identity is internally consistent (UA platform must
+            // match sec-ch-ua-platform; Chinese sites expect zh-CN).
+            let ua = self.user_agent.read().await.clone();
+            let lang = self.accept_language.read().await.clone();
+            // Emulation (wreq-util Chrome145) bakes Sec-Ch-Ua v=145 into the
+            // profile. Fleet UA is Chrome/145 — override brands to match UA,
+            // same as the plain client path. Leaving the bake-in is a WAF tell
+            // (UA 154 + CH 145), measured on httpbin 2026-10-19.
+            let (sec_ch_ua, platform) = crate::diting_net::client::derive_client_hints(&ua);
+            // Request-local scripted headers (the fetch()/XHR escape hatch)
+            // mirror what the primary reqwest attempt was sending and win
+            // over both the transport defaults and extra_headers, so the
+            // retry is the same request on another stack.
+            let request_local = |name: &str| {
+                request_headers
+                    .iter()
+                    .flat_map(|h| h.keys())
+                    .any(|k| k.eq_ignore_ascii_case(name))
+            };
+            // Owned clone, not a held guard: the guard's block spans
+            // `req.send().await` and `resp.bytes().await` below, and one
+            // request parked on a dead h2 stream would hold the read lock
+            // forever — `scripted_stealth_hop`'s per-hop `set_extra_headers`
+            // write then queues, and tokio RwLock fairness parks every later
+            // reader behind it: one stalled fetch wedges the whole session
+            // (the fxg mcs-beacon shape).
+            let extra = self.extra_headers.read().await.clone();
+            if !request_local("user-agent") {
+                req = req.header("User-Agent", &ua);
+            }
+            // Only set Accept-Language automatically if not overridden in extra_headers.
+            if !request_local("accept-language") && !extra.contains_key("Accept-Language") {
+                req = req.header("Accept-Language", &lang);
+            }
+            // Override Sec-Ch-Ua / Mobile / Platform when not scripted.
+            // Some engines (e.g. Google with GSA UA) set platform to "" in
+            // extra_headers to suppress it — honour that.
+            if !request_local("sec-ch-ua") && !extra.contains_key("Sec-Ch-Ua") {
+                req = req.header("Sec-Ch-Ua", &sec_ch_ua);
+            }
+            if !request_local("sec-ch-ua-mobile")
+                && !extra.contains_key("Sec-Ch-Ua-Mobile")
+            {
+                req = req.header("Sec-Ch-Ua-Mobile", "?0");
+            }
+            if !request_local("sec-ch-ua-platform")
+                && !extra.contains_key("Sec-Ch-Ua-Platform")
+            {
+                req = req.header("Sec-Ch-Ua-Platform", &platform);
+            }
+
+            // Fetch-Metadata per resource class: the emulation bakes the
+            // navigation triple (document/navigate/none) into every request
+            // as transport defaults, so a subresource or scripted fetch that
+            // stays silent still advertises a navigation — a WAF tell
+            // (#254). Scripted request-local triples win on the first hop;
+            // redirect hops fall back to the per-class values, never the
+            // emulation's navigation default. `sec-fetch-site` is keyed per
+            // hop against the original initiator, like the plain client.
+            let metadata = crate::diting_net::client::metadata::metadata_for(resource_type);
+            let scripted_this_hop = |name: &str| redirects.is_empty() && request_local(name);
+            if !scripted_this_hop("sec-fetch-dest") {
+                req = req.header("sec-fetch-dest", metadata.dest);
+            }
+            if !scripted_this_hop("sec-fetch-mode") {
+                req = req.header("sec-fetch-mode", metadata.mode);
+            }
+            if !scripted_this_hop("sec-fetch-site") {
+                let initiator = referrer.and_then(|s| url::Url::parse(s).ok());
+                req = req.header(
+                    "sec-fetch-site",
+                    crate::diting_net::site::sec_fetch_site(initiator.as_ref(), &current_url),
+                );
+            }
+            if crate::diting_net::client::metadata::is_navigation(resource_type) {
+                // Chrome marks navigations with these two; the emulation
+                // ships neither, so a stealth navigation was identifiable
+                // by their absence alone.
+                if !scripted_this_hop("sec-fetch-user") {
+                    req = req.header("sec-fetch-user", "?1");
+                }
+                if !scripted_this_hop("upgrade-insecure-requests") {
+                    req = req.header("upgrade-insecure-requests", "1");
+                }
+            }
+            if !scripted_this_hop("accept") && !extra.contains_key("Accept") {
+                req = req.header("Accept", metadata.default_accept);
+            }
+
+            // Document-initiated subresource requests carry the initiator's
+            // Referer — recomputed per hop (a redirect can change the
+            // same/cross-origin answer); extra_headers overrides it.
+            if let Some(src) = referrer {
+                if !request_local("referer") && !extra.contains_key("Referer") {
+                    if let Ok(source) = url::Url::parse(src) {
+                        let ref_value = crate::diting_net::client::HttpClient::navigation_referrer(
+                            &source,
+                            &current_url,
+                        );
+                        if !ref_value.is_empty() {
+                            req = req.header("Referer", &ref_value);
+                        }
+                    }
+                }
+            }
+
+            // SameSite context per hop against the initiator document
+            // (referrer); a referrer-less stealth hop is a navigation.
+            let (cookie_ctx, cookie_header) = {
+                let initiator = referrer.and_then(|s| url::Url::parse(s).ok());
+                let cross_site = initiator
+                    .as_ref()
+                    .map(|i| !crate::diting_net::site::is_same_site(i, &current_url))
+                    .unwrap_or(false);
+                let ctx = match initiator {
+                    Some(_) => crate::diting_net::cookies::SendContext::subresource(cross_site),
+                    None => crate::diting_net::cookies::SendContext::navigation(
+                        cross_site,
+                        method == wreq::Method::GET || method == wreq::Method::HEAD,
+                    ),
+                };
+                let header = self.cookie_jar.get_cookie_header_for(&current_url, &ctx);
+                (ctx, header)
+            };
+            if include_cookies && !cookie_header.is_empty() {
+                req = req.header("Cookie", &cookie_header);
+            }
+
+            for (k, v) in self.extra_headers.read().await.iter() {
+                if !request_local(k) {
+                    req = req.header(k.as_str(), v.as_str());
+                }
+            }
+            // Request-local headers ride the first hop only: they were
+            // computed for the hop that failed (Origin, Referer,
+            // sec-fetch-site keyed to that origin), and redirect hops are
+            // new requests back on the transport's own defaults.
+            if let Some(headers) = request_headers.filter(|_| redirects.is_empty()) {
+                for (k, v) in headers {
+                    req = req.header(k.as_str(), v.as_str());
+                }
+            }
+
+            // The legacy-TLS fallback rides here with a method and payload;
+            // the plain GET paths pass None for both. Content-Type only on
+            // methods that can carry one — a GET advertising a content-type
+            // is a WAF tell, and the body drops naturally when a 3xx
+            // downgrade sets `body = None` below.
+            if method != wreq::Method::GET && method != wreq::Method::HEAD {
+                if let Some(ct) = content_type {
+                    if !request_local("content-type") {
+                        req = req.header("Content-Type", ct);
+                    }
+                }
+            }
+            if let Some(b) = body {
+                req = req.body(b.to_vec());
+            }
+
+            // Chrome's wire layout (chrome_headers.rs): the preset seeds a
+            // plain HeaderMap with no real Chrome order and no
+            // accept-encoding, and wreq's decompression layer then appends
+            // its own "zstd,gzip,deflate,br" last; navigation/fetch priority
+            // also differs (`u=0, i` is only the top-level document).
+            if !request_local("accept-encoding") && !extra.contains_key("Accept-Encoding") {
+                req = req.header("Accept-Encoding", crate::diting_net::chrome_headers::ACCEPT_ENCODING);
+            }
+            if !request_local("priority") && !extra.contains_key("Priority") {
+                req = req.header("Priority", crate::diting_net::chrome_headers::priority(resource_type));
+            }
+            if method != wreq::Method::GET && method != wreq::Method::HEAD && !request_local("content-length") {
+                req = req.header("Content-Length", body.map(|b| b.len()).unwrap_or(0).to_string());
+            }
+            {
+                let navigation = crate::diting_net::client::metadata::is_navigation(resource_type);
+                let authored = request_headers
+                    .map(|h| crate::diting_net::chrome_headers::has_author_headers(h.keys().map(|k| k.as_str())))
+                    .unwrap_or(false)
+                    || crate::diting_net::chrome_headers::has_author_headers(extra.keys().map(|k| k.as_str()));
+                // `accept: */*` is what the browser itself sends when the page
+                // set nothing, and the page layer mirrors it into
+                // `request_headers`; only a different value is author-set (its
+                // slot in Blink's author-header map is what the list models).
+                let authored_accept = request_headers
+                    .and_then(|h| h.iter().find(|(k, _)| k.eq_ignore_ascii_case("accept")))
+                    .map(|(_, v)| v.trim() != "*/*")
+                    .unwrap_or(false);
+                req = req.orig_headers(crate::diting_net::chrome_headers::header_order(
+                    navigation,
+                    authored,
+                    authored_accept,
+                ));
+            }
+
+            // #97: snapshot the request's header set right before it goes
+            // out — everything this code set on the builder (identity,
+            // cookies, extra/request-local headers, content-type). The
+            // emulation's own transport defaults merge inside wreq's
+            // config layer at send time, so they are not part of the
+            // snapshot; lowercased like `Response.headers`. try_clone
+            // clones the buffered body too — the Vec is cheap next to the
+            // request it rides.
+            let wire_headers: HashMap<String, String> = req
+                .try_clone()
+                .and_then(|b| b.build().ok())
+                .map(|r| {
+                    r.headers()
+                        .iter()
+                        .map(|(k, v)| {
+                            (k.as_str().to_lowercase(), v.to_str().unwrap_or("").to_string())
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // GET/HEAD are idempotent, so the connection-reset retry applies;
+            // any other method sends exactly once (a reset after the request
+            // went out may already have applied server-side).
+            let resp = if matches!(method, wreq::Method::GET | wreq::Method::HEAD) {
+                send_get_with_connection_reset_retry(req, &current_url).await
+            } else {
+                req.send().await
+            };
+            let resp = match resp {
+                Ok(resp) => resp,
+                Err(e) => {
+                    // Mirror the reqwest path: name an unreachable configured
+                    // proxy instead of folding it into "error sending request"
+                    // (obscura#491).
+                    return Err(match (&self.proxy_url, e.is_connect()) {
+                        (Some(proxy), true) => NetError::Network(format!(
+                            "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
+                            proxy, current_url, e
+                        )),
+                        _ => NetError::Network(format!(
+                            "{}: {} (source: {:?})",
+                            current_url,
+                            e,
+                            e.source()
+                        )),
+                    });
+                }
+            };
+
+            let status = resp.status();
+            tracing::info!("stealth fetch {} -> status {}", current_url, status);
+
+            for val in resp.headers().get_all("set-cookie") {
+                if let Ok(s) = val.to_str() {
+                    // #234: the credentials policy gates the response side
+                    // too — an `credentials:'omit'` /
+                    // withCredentials=false scripted fetch must not absorb
+                    // the response's Set-Cookie into the jar. The plain
+                    // reqwest path already dropped these; the stealth walk
+                    // applied them unconditionally, on every redirect hop.
+                    if include_cookies {
+                        self.cookie_jar
+                            .set_cookie_in_context(s, &current_url, &cookie_ctx, "http");
+                    }
+                }
+            }
+
+            let response_headers = crate::diting_net::collect_response_headers(resp.headers());
+
+            if status.is_redirection() {
+                if let Some(location) = resp.headers().get("location") {
+                    let location_str = location.to_str().map_err(|_| {
+                        NetError::Network("Invalid redirect Location".into())
+                    })?;
+                    let next_url = current_url.join(location_str).map_err(|e| {
+                        NetError::Network(format!("Invalid redirect URL: {}", e))
+                    })?;
+                    // A redirect must not be able to bounce the stealth client
+                    // to a forbidden target (e.g. 302 -> http://127.0.0.1/).
+                    crate::diting_net::client::validate_url(
+                        &next_url,
+                        self.allow_private_network.load(Ordering::Relaxed),
+                    )?;
+                    if next_url.scheme() == "file" {
+                        return crate::diting_net::client::fetch_file_url(&next_url).await;
+                    }
+                    redirects.push(current_url.clone());
+                    redirect_hops.push(crate::diting_net::RedirectHop {
+                        url: next_url.to_string(),
+                        status: status.as_u16(),
+                    });
+                    tracing::info!("stealth redirect {} -> {}", current_url, next_url);
+                    current_url = next_url;
+                    // Mirror the plain client (and Chrome): 301/302/303
+                    // rewrite the method to GET and drop body + content-type;
+                    // 307/308 preserve both.
+                    if status == wreq::StatusCode::MOVED_PERMANENTLY
+                        || status == wreq::StatusCode::FOUND
+                        || status == wreq::StatusCode::SEE_OTHER
+                    {
+                        method = wreq::Method::GET;
+                        body = None;
+                        content_type = None;
+                    }
+                    continue;
+                }
+            }
+
+            let body = resp.bytes().await.map_err(|e| {
+                NetError::Network(format!("Failed to read body: {}", e))
+            })?.to_vec();
+
+            return Ok(Response {
+                url: current_url,
+                status: status.as_u16(),
+                headers: response_headers,
+                body,
+                redirected_from: redirects,
+                redirect_hops,
+                request_headers: wire_headers,
+            });
+        }
+
+        Err(NetError::TooManyRedirects(url.to_string()))
+    }
+
+    pub async fn set_extra_headers(&self, headers: HashMap<String, String>) {
+        *self.extra_headers.write().await = headers;
+    }
+
+    pub async fn set_user_agent(&self, ua: &str) {
+        *self.user_agent.write().await = ua.to_string();
+    }
+
+    pub async fn set_accept_language(&self, lang: &str) {
+        *self.accept_language.write().await = lang.to_string();
+    }
+}
+
+#[cfg(all(test, feature = "stealth"))]
+#[cfg(all(test, feature = "stealth"))]
+mod tests;

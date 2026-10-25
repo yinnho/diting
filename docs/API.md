@@ -1,0 +1,1872 @@
+# Diting API Reference
+
+[English](API.md) | [中文](API.zh-CN.md)
+
+> Complete HTTP API reference. One binary, local install, every capability a POST away.
+
+## Quick Start
+
+```bash
+# Build and start
+cargo build --release
+./target/release/diting
+
+# Verify the service
+curl http://127.0.0.1:8089/health
+# → {"status":"ok","engine":"diting","version":"0.3.1","commit":"a1b2c3d",...}
+
+# Fetch a page
+curl -sS -X POST http://127.0.0.1:8089/fetch \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+
+# Create an interactive session
+curl -sS -X POST http://127.0.0.1:8089/session/create \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+```
+
+---
+
+## HTTP API
+
+Listens on `127.0.0.1:8089` by default (loopback-only — the dogfood shape needs nothing wider); override via the `DITING_BIND` environment variable. A non-loopback bind (LAN, container) is explicit operator intent — pair it with `DITING_TOKEN` (#246).
+
+### GET /health
+
+Health check. Also the build-identity call: `version` + `commit` answer "which source is this binary" (compare against the release tag to verify doc/tag/binary/source are the same commit), `v8` is the JS kernel version actually executing scripts (the engine truth behind the UA string — "15.0.274.2" doesn't depend on which persona a session carried), and `ua`/`tls` say what the instance presents to sites — the UA browser traffic carries (`DITING_UA` override, else the pinned persona; imported sessions keep the copied request's own UA by design) and the default TLS fingerprint (`"off"` in non-stealth builds). `commit` is `"unknown"` for git-less builds. When `DITING_TOKEN` is set, this detail requires the token — without it `/health` answers exactly `{"status":"ok"}` (liveness for supervisors/nginx, no build fingerprint to the public, #246).
+
+```bash
+curl http://127.0.0.1:8089/health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "engine": "diting",
+  "version": "0.3.1",
+  "commit": "a1b2c3d",
+  "v8": "15.0.274.2",
+  "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "tls": "chrome145",
+  "capabilities": { "screenshot": true, "stealth": true, "captcha_solver": false, "ffmpeg": { "version": "8.1.1" } }
+}
+```
+
+---
+
+### POST /fetch
+
+Fetch a page and return its content. Supports tiered rendering, automatic Cloudflare bypass, TLS fingerprint switching, and JS data extraction.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL |
+| format | string | | `"markdown"` | Output format: `markdown` / `html` / `text` |
+| selector | string | | `null` | CSS selector; only extract the matching region |
+| wait_secs | u64 | | `null` | Extra seconds to wait after page load (let JS rendering finish) |
+| use_proxy | bool | | `false` | Route through the `DITING_PROXY` proxy. Set `true` for overseas sites |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation: `"name=value"` strings (may carry `; Domain=…; Path=/; Secure` attributes) or cookie objects `{"name","value","domain","path","secure","httpOnly","sameSite"}`. Entries declaring `Domain=` anchor at that domain, so sibling-domain login state (`.taobao.com` / `.tmall.com` style) survives injection instead of being dropped by RFC 6265 domain checks |
+| max_chars | usize | | `50000` | Truncate `content` to this many characters. `0` = unlimited |
+| auto_bypass_challenge | bool | | `true` | Automatically detect and bypass Cloudflare Turnstile challenges |
+| render_tier | string | | `"auto"` | Rendering strategy (see below) |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode), see below |
+| js_extract | object | | `null` | JS data extraction (see below) |
+| sanitize | bool | | `true` | Strip prompt-injection carriers from the text/markdown output (see below) |
+| capture_xhr | string[] | | `null` | Return the page's script-initiated XHR/fetch response bodies as a first-class `xhr` field. Entries are URL substrings; `[]` = every XHR/fetch. Forces the browser tier |
+| layout | bool | | `false` | Cost knob: force one layout pass after the page settles and report page geometry in the `layout` response field. Forces the browser tier (see below) |
+| resources | bool | | `false` | Cost knob: fetch the page's subresource bodies and report per-asset size + decoded pixel dimensions in the `resources` response field. Forces the browser tier (see below) |
+
+**`render_tier` options:**
+
+| Value | Description |
+|----|------|
+| `auto` | Direct HTTP fetch first; automatically fall back to the browser when content is insufficient (**recommended**, default) |
+| `http` | Pure HTTP, no browser. Fastest but cannot capture JS-rendered content |
+| `browser` | Force the full JS browser. Slowest but most reliable. `obscura` is still accepted and is not the name to send |
+
+> **JS-heavy SPA sites** (cls.cn, juejin-class feeds, WeChat articles) render their content client-side: with `auto` the HTTP pass returns a small skeleton and the sufficiency gate usually catches it, but a site that returns a *plausible-looking* stub defeats the heuristic. When you know the target is an SPA, pass `"render_tier":"browser"` explicitly — you skip a wasted HTTP round-trip and get the rendered page directly. The `tier` field in the response tells you which path served a given fetch.
+>
+> **WeChat article text** (`mp.weixin.qq.com`, no explicit `selector`): the article body is server-rendered inside `#js_content` but hidden until WeChat's own JS reveals it, so plain `body` text is just the title/byline shell. `format:"text"`/`"markdown"` reads the `#js_content` container and returns the fuller of the two extractions — the full article comes back even when the reveal script never finishes.
+
+**`tls_fingerprint` options (requires `--features stealth`):**
+
+| Value | Description |
+|----|------|
+| `null` | Default (`chrome145` TLS shape; fleet UA is Chrome/145) |
+| `"chrome145"` | Chrome-family TLS shape (wreq-util Chrome145; not the UA major) |
+| `"firefox133"` | Firefox 133 |
+| `"firefox147"` | Firefox 147 |
+| `"safari17_5"` | Safari 17.5 |
+| `"safari18"` | Safari 18 |
+| `"safari26"` | Safari 26 |
+| `"edge145"` | Edge 145 |
+
+**`js_extract` format:**
+
+```json
+{
+  "expression": "JSON.stringify(window.__INITIAL_STATE__)",
+  "timeout_ms": 5000
+}
+```
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| expression | string | — | JS expression evaluated in the page context |
+| timeout_ms | u64 | `5000` | Timeout waiting for a non-null result (milliseconds) |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL (after redirects) |
+| title | string? | Page title |
+| content | string | Fetched content (markdown/html/text) |
+| truncated | bool | Whether `content` was truncated by `max_chars` |
+| tier | string? | Which path served the page: `"http"` (plain HTTP + conversion, ~100ms) or `"browser"` (V8 render) — present under `render_tier: "auto"` too, so callers can see why a fetch was fast or slow |
+| redirected_from | string[]? | The redirect trail: `redirected_from[0]` is the URL you asked for, `url` is where the content actually came from (absent when no redirect happened) |
+| js_extract_result | any? | JS extraction result (only present when `js_extract` is set) |
+| sanitize_report | object? | What the injection stripper removed (only present when `sanitize` fired — see below) |
+| xhr | object[] | Script-initiated response bodies (only present when `capture_xhr` is set — see below) |
+| media | string[]? | Media asset leads found on the page (img `src`/`currentSrc` + lazyload attributes, srcset first candidate, video/audio sources and posters, `og:image`) — deduped, `data:` URIs dropped, capped. One `/fetch` returns the article and its asset URLs; absent when the page has none |
+| layout | object? | `{"scroll_height", "scroll_width"}` from the forced layout pass (only when `layout:true` — see below) |
+| resources | object[]? | Fetched subresource facts `[{url, bytes, width?, height?}]` (only when `resources:true` — see below) |
+| captcha_event | object? | CAPTCHA event (only present when a CAPTCHA is detected; covers Cloudflare/Google/Baidu challenge pages plus Taobao/Tmall risk-control signals — `punish` redirects, `x5sec`, and MTop `FAIL_SYS_USER_VALIDATE`/`RGV587` replies even when they arrive as HTTP 200) |
+
+**`sanitize` — injection stripping (default on):**
+
+Page text is untrusted input, and a reading tool owes its caller content that doesn't carry instructions aimed at the reader. On `text`/`markdown` output (raw `html` is never touched) three carriers are stripped:
+
+- **Zero-width/steganographic characters** (`​` family) — never legitimate page prose.
+- **Hidden-span text** — the live DOM is probed for elements a human can't see (`opacity:0`, sub-4px font) whose text `innerText` happily carries. Whole-hidden containers (SSR-pending reveals, WeChat `#js_content`) are guarded: when hidden text is more than half the extraction, nothing is removed.
+- **Instruction-shaped lines** — lines matching curated injection phrasings (EN/CN: "ignore previous instructions" class, chat markup like `<|im_start|>`) are dropped whole, because the payload continues past the matched phrase.
+
+Removal is observable, never silent: when anything fires, `sanitize_report` says what — `{"zero_width_removed": 1, "hidden_spans_removed": 1, "patterns_hit": {"ignore_previous_instructions": 1}}`. It's a heuristic, not a firewall; to study the payload itself, pass `"sanitize": false`. The `selector` parameter is the CSS-narrowing half of the story: restrict the extraction to the content region and the chrome's injected noise never enters the text at all.
+
+**`capture_xhr` — the page's own API face:**
+
+Usually the cleanest read of a JS-heavy page isn't the rendered DOM but the JSON APIs the page itself calls. `capture_xhr` returns those response bodies alongside the text:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://spa.example.com/list","capture_xhr":["/api/"],"wait_secs":2}'
+```
+
+Each row is `{"url", "method", "status", "mime", "body", "body_truncated", "request_headers"}`. `request_headers` is the request's outbound header set (lowercased) — the signed customs the page's JS put on the call. Bodies are capped at `min(max_chars, 8000)` chars per entry (at most 20 entries) so a page's API traffic can't flood the context; binary (base64) bodies are skipped. `wait_secs` matters here: the page's fetches need a moment to land in the network log.
+
+**Cost knobs — `layout` / `resources` (default off):**
+
+Expensive work is opt-in. The default `/fetch` never lays the page out (geometry is computed lazily, only when something reads it) and never fetches subresource bodies — you get text plus the `media` URL leads. Two knobs pay for more, each logged server-side so the bill is observable:
+
+- **`layout: true`** — force one layout pass after the page settles and report `{"scroll_height", "scroll_width"}` in the `layout` field. The one-hop answer to "how tall is this page" (scroll-screenshot planning, long-form detection) without opening a session. The pass also warms geometry before `js_extract` runs, so a probe reading `getBoundingClientRect` doesn't spend its timeout window on first-build.
+- **`resources: true`** — fetch the page's subresource bodies through the same client the navigation used (same cookies, UA, stealth TLS; bounded: ≤2 MiB per body, 3s per request) and report `resources: [{url, bytes, width?, height?}]`. Bodies stay out of the response — `media` carries the leads, this says which leads are real and their decoded pixel dimensions (PNG/JPEG/WebP/GIF sniff), e.g. for picking a cover image by size. Failures stay out; only fetched rows appear.
+
+Both need engine machinery the plain-HTTP tier doesn't have, so either one forces the browser tier exactly like `capture_xhr` (with `render_tier:"http"` the fetch errors instead of silently upgrading). Sessions don't take these knobs: a session computes geometry lazily per command — read `getBoundingClientRect` and you've paid for exactly that layout run.
+
+
+**`captcha_event` format:**
+
+| Field | Type | Description |
+|------|------|------|
+| engine | string | Name of the search engine that triggered the CAPTCHA (empty for `/fetch`) |
+| captcha_type | string | `cloudflare_turnstile` / `recaptcha_v2` / `hcaptcha` / `slider` / `unknown` |
+| url | string | URL that triggered the CAPTCHA |
+| detected_at | u64 | Wall-clock time of detection (unix seconds) |
+| hit_count | u32 | Consecutive CAPTCHA hits for this engine — the backoff-ladder step driving the suspension duration (`1` → 5 min, `2` → 10 min, `3` → 30 min, `4+` → 1 h). Always `1` on the `/fetch` path |
+| auto_solve_attempted | bool | Whether auto-solve was attempted |
+| auto_solve_succeeded | bool | Whether auto-solve succeeded |
+
+**Example — basic fetch:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+```
+
+```json
+{
+  "url": "https://example.com/",
+  "title": "Example Domain",
+  "content": "# Example Domain\n\nThis domain is for use in illustrative examples...",
+  "truncated": false,
+  "tier": "http"
+}
+```
+
+The `tier` field reports which strategy served the request: `"http"` (plain HTTP + conversion) or `"browser"` (V8 render) — including under `render_tier: "auto"`, so callers can see why a fetch was fast or slow.
+
+**Example — extract structured data from an SPA:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://spa-site.example.com",
+    "js_extract": {
+      "expression": "JSON.stringify(window.__INITIAL_STATE__)",
+      "timeout_ms": 3000
+    }
+  }'
+```
+
+**Example — extract a specific region (CSS selector):**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://github.com/trending","format":"text","selector":"article","use_proxy":true}'
+```
+
+**Caching**: `/fetch` has an in-process cache (key includes url/format/selector/cookies/use_proxy/max_chars/render_tier/tls_fingerprint/layout/resources); TTL is controlled by `DITING_CACHE_TTL_SECS` (default 600s, `0` disables). Repeat fetches of the same URL hit the cache (~0.01s vs ~1s on first fetch) — a `layout`/`resources` fetch never collides with the cheap posture's cache entry.
+
+**Security**: built-in SSRF protection (blocks non-http(s) schemes and private-network/loopback IPs), DNS rebinding protection, and tracker blocking (stealth mode). An RFC 9309 robots.txt checker ships built in but is off by default (`DITING_HONOR_ROBOTS=1` to opt in).
+
+---
+
+### POST /click
+
+Load a page and click the specified element (`element.click()`), returning the page text after the click.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL |
+| selector | string | ✅ | — | CSS selector |
+| wait_secs | u64 | | `null` | Extra seconds to wait after page load |
+| use_proxy | bool | | `false` | Route through a proxy |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation (`"name=value"` strings or cookie objects, same semantics as `/fetch`) |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode) |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL |
+| selector | string | The selector used |
+| clicked | bool | Whether the click succeeded |
+| text_after | string? | Page text after the click |
+
+**Example:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/click \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","selector":"a"}'
+```
+
+---
+
+### POST /eval
+
+Execute arbitrary JavaScript on the page and return the result. Supports `async`/`Promise`.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL |
+| script | string | ✅ | — | JS expression or async IIFE |
+| wait_secs | u64 | | `null` | Extra seconds to wait after page load |
+| use_proxy | bool | | `false` | Route through a proxy |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation (`"name=value"` strings or cookie objects, same semantics as `/fetch`) |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode) |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL |
+| result | any | JS execution result |
+
+> The `script` parameter of `/eval` supports **async functions**: returned Promises are awaited automatically. Ideal for dynamically rendered React/Vue-style pages — wait for rendering to finish, then extract data.
+
+**Example — async script (wait for dynamic rendering):**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/eval \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url":"https://github.com/trending",
+    "script":"(async()=>{await new Promise(r=>setTimeout(r,4000));return Array.from(document.querySelectorAll(\"article.Box-row\")).slice(0,5).map(a=>a.querySelector(\"h2 a\")?.textContent?.trim())})()",
+    "use_proxy":true
+  }'
+```
+
+---
+
+### POST /search
+
+Native aggregated search with optional automatic content fetching. Agents go from "search" to "read" in one step.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| q | string | ✅ | — | Search query |
+| fetch_top | usize | | `0` | Fetch full page content for the top N results. `0` = snippets only |
+| categories | string | | `"general"` | Search category, comma-separated: `general` / `images` / `news`. `images` returns direct image links |
+| language | string | | `"zh-CN"` | Language |
+| max_results | usize | | `10` | Maximum number of results |
+| max_chars_per | usize | | `4000` | Per-result content truncation in characters. `0` = unlimited |
+| wait_secs | u64 | | `3` | Seconds to wait for JS rendering per page while fetching content |
+| use_proxy | bool | | `false` | Whether to route content fetching through a proxy (overseas sites) |
+| engines | string[] | | `[]` | Restrict to these engine names (e.g. `["baidu"]`). Empty = all engines serving `categories`. Unknown names → 400 with the valid list |
+| time_range | string | | — | Freshness window: `day` / `week` / `month` / `year`. Honored by engines with dated results (bing_news passes a server-side freshness window); others ignore it. Invalid values → 400 |
+
+> Unknown request fields are rejected with a 400 — a typo'd parameter name (`count`, `limit`, `num`) fails loudly instead of being silently ignored.
+
+**Built-in search engines** (`GET /engines` returns this list with live health):
+
+| Engine | Categories | Description |
+|------|------|------|
+| baidu | general | Baidu HTML SERP (browser UA; the old `tn=json` API is wall-dead) |
+| bing | general | Bing HTML parsing |
+| sogou | general | Sogou web search |
+| sogou_wechat | general, news | Sogou WeChat article search |
+| duckduckgo | general | DuckDuckGo HTML (stealth fingerprint) |
+| wikipedia | general | Wikipedia MediaWiki search API (language edition follows `language`; CN-blocked → direct-first/proxy-retry) |
+| bing_news | general, news | Bing News infinite-scroll fragment; `time_range` via server-side freshness window |
+| baidu_images | images | Baidu Images `acjson` JSON |
+| bing_images | images | Bing Images `images/async` |
+| arxiv | academic | arXiv API (full-text matching — academic queries only, not the general pool) |
+| openalex | academic | OpenAlex works API — cross-publisher literature (DOI links, inverted-index abstracts); occasional anonymous 429s degrade to a skipped engine, arXiv still serves the category |
+| huggingface | general, ai | Hugging Face models search |
+| github | general, code | GitHub repository search |
+| stackexchange | general, code | StackExchange API |
+| mdn | code | MDN Web Docs v1 search API (code queries only — CJK fuzzy-match noise keeps it out of the general pool) |
+| npm | general, packages | npm registry |
+| pypi | general, packages | PyPI |
+| rubygems | packages | RubyGems registry (no-offset API — paged client-side; CN-blocked → direct-first/proxy-retry) |
+| hn | general | Hacker News via the Algolia API (story links with points/comment counts; `time_range` maps to a created_at filter; Ask-HN threads fall back to the HN item URL) |
+
+`meilisearch` additionally registers when `DITING_MEILI_URL` + `DITING_MEILI_INDEX` are set (private index). Google search is not included — it requires a proxy and steady CAPTCHA clearance from mainland China; use `duckduckgo`/`bing` instead.
+
+Engines are queried concurrently and results merged with deduplication: identical URLs (after normalization) merge into a single entry, `engines` lists the source engines, and `score` accumulates. `GET /engines` returns every engine's name, categories, and live suspension state — call it to discover valid names for the `engines` filter.
+
+**CAPTCHA progressive backoff**: when an engine triggers a CAPTCHA it pauses automatically, with the pause duration escalating on consecutive hits (default 5 min → 10 min → 30 min → 1 h) and resetting after a successful search. Override the ladder with `DITING_CAPTCHA_BACKOFF_SECS` (comma-separated seconds; a single value is flat). Set `DITING_CAPTCHA_POLICY=demote` to bench the engine for the process lifetime instead of the timed ladder (research loops that would otherwise wait out 300s/3600s walls). Set the `CAPTCHA_SOLVER_API_KEY` environment variable to enable automatic CAPTCHA solving.
+
+**Disabling noisy legs**: `DITING_DISABLE_ENGINES=bing_news,sogou_wechat` (comma names) skips registration. `DITING_BING_NEWS=0` is an alias that drops only `bing_news` — useful on CN boxes where `infinitescrollajax` returns Object-moved on both direct and proxy paths.
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| query | string | Search query |
+| number_of_results | usize | Number of results returned (equals `results.length`) |
+| results | array | Result list |
+| captcha_events | array | List of CAPTCHA events (see `captcha_event` format above — each carries `detected_at` + `hit_count`) |
+| engine_errors | object | Per-engine reason an engine contributed nothing: CAPTCHA suspension (with resume countdown), transient fetch/parse failure, or a task panic. Absent when every eligible engine answered |
+
+**Each entry in `results`:**
+
+| Field | Type | Description |
+|------|------|------|
+| title | string | Title |
+| url | string | Link |
+| snippet | string | Search snippet |
+| engines | string[] | Source engines |
+| score | float | Combined score |
+| content | string? | Page content (only present within the `fetch_top` range) |
+| content_truncated | bool | Whether the content was truncated |
+| fetch_error | string? | Reason content fetching failed |
+| image_url | string? | Direct link to the image binary (downloadable straight to jpg/png with `curl -o`). Only with `categories=images` |
+| source_url | string? | URL of the page hosting the image (provenance/copyright) |
+| width | u32? | Image width (px) |
+| height | u32? | Image height (px) |
+
+> With `categories=images`, the `url` field equals `image_url` (the direct image link, convenient for immediate download); `snippet` is empty. Baidu Images prefers `objURL` (original image, highest quality) and falls back to a CDN-proxied direct link when unavailable.
+
+**Example — search + fetch top 3 pages:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/search \
+  -H "Content-Type: application/json" \
+  -d '{"q":"macbook 价格","fetch_top":3,"max_chars_per":2000}'
+```
+
+**Example — restrict to WeChat articles, today's news only:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/search \
+  -H "Content-Type: application/json" \
+  -d '{"q":"A股 午评","engines":["sogou_wechat","bing_news"],"categories":"news","time_range":"day","fetch_top":2}'
+```
+
+If `engines` names an engine the server doesn't know, the response is a 400 carrying the valid list:
+
+```json
+{"error":"unknown engine \"wechat\"; valid engines: baidu, baidu_images, bing, bing_images, sogou, sogou_wechat, ... (also check GET /engines)"}
+```
+
+**Example — image search (returns direct links, downloadable straight from curl):**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/search \
+  -H "Content-Type: application/json" \
+  -d '{"q":"蔚来ES8 酒红内饰 后排视角","categories":"images","max_results":10}'
+```
+
+```json
+{
+  "query": "蔚来ES8 酒红内饰 后排视角",
+  "number_of_results": 20,
+  "results": [
+    {
+      "title": "蔚来ES8 酒红内饰后排实拍",
+      "url": "https://n.sinaimg.cn/.../img.jpg",
+      "engines": ["baidu_images"],
+      "score": 20.0,
+      "image_url": "https://n.sinaimg.cn/.../img.jpg",
+      "source_url": "https://auto.sina.com.cn/...",
+      "width": 1920,
+      "height": 1080
+    }
+  ]
+}
+
+# Download the image
+curl -sL -o cabin_ref.jpg "<image_url>"
+```
+
+---
+
+### GET /engines
+
+Discover the search-engine vocabulary plus live health. Returns every registered engine with the categories it serves and its current suspension state — call this before using /search's `engines` filter, or to see who is currently benched by a CAPTCHA.
+
+```bash
+curl -sS http://127.0.0.1:8089/engines
+```
+
+```json
+{
+  "engines": [
+    { "name": "baidu", "categories": ["general"], "suspended": false, "captcha_count": 0, "available": true },
+    { "name": "sogou_wechat", "categories": ["general", "news"], "suspended": true,
+      "suspend_remaining_secs": 184, "captcha_count": 1, "available": false }
+  ],
+  "available_engines": ["baidu", "bing", "sogou", "..."],
+  "search_obs": {
+    "engine_dispatch_total": 120,
+    "captcha_suspend_total": 3,
+    "captcha_suspend_share": 0.025,
+    "bing_news_attempt_total": 40,
+    "bing_news_dual_path_fail_total": 38,
+    "bing_news_dual_path_fail_rate": 0.95,
+    "captcha_policy": "suspend",
+    "captcha_backoff_secs": [300, 600, 1800, 3600]
+  }
+}
+```
+
+`suspended: true` means the engine hit a CAPTCHA and is in progressive backoff — `/search` skips it (the response's `engine_errors` says so, with the resume countdown) until the suspension expires. `available` / `available_engines` are the usable set right now. `search_obs` counters track CAPTCHA-suspend share and bing_news dual-path challenge fail rate over the process lifetime (also on `/doctor`).
+
+Body-validation failures on the direct→proxy fetch path are classified as `geo-substitute` / `captcha` / `portal` / `other` in logs and `engine_errors` (no longer a single "body failed validation"). For challenge-class rejects — and for bing_news `infinitescrollajax` — the proxy retry uses a ≤2s budget; a dual-path challenge sentences the host so the next call fails immediately instead of re-paying both legs.
+
+---
+
+### POST /download
+
+Stream a file from a URL to disk. Unlike `/fetch` (which returns page content for reading), `/download` saves the raw bytes — use it for binaries, archives, datasets, documents. The body streams chunk-by-chunk to disk (never buffered in memory), with SHA-256 computed incrementally so integrity is verifiable in one call.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | File URL (`http`/`https` only) |
+| filename | string | | auto | Output filename. Auto resolution: `Content-Disposition` header → URL path tail → `"download"` |
+| resume | bool | | `false` | Continue an interrupted download when a local partial file exists. Server support is probed via `Range: bytes=N-`: `206` appends, `200` restarts |
+| use_proxy | bool | | `false` | Route through proxy (auto-enabled for known blocked domains like github.com) |
+| cookies | string[] \| object[] | | `[]` | Cookies to send (`["name=value", ...]` or cookie objects) for gated downloads |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL after redirects |
+| path | string | Absolute path of the completed file on disk |
+| filename | string | Resolved filename |
+| size_bytes | u64 | Bytes written by this call (append counts only appended portion) |
+| content_type | string? | Response Content-Type |
+| sha256 | string | SHA-256 over the complete file content |
+| resumed | bool | Whether an existing partial file was continued via Range/206 |
+
+**Behavior notes:**
+
+- Files land in `DITING_DOWNLOAD_DIR` (default: current working directory). In-flight data is written to `<filename>.part`, then renamed on success.
+- Same SSRF policy as `/fetch`: loopback / private / link-local targets are rejected unless `DITING_ALLOW_PRIVATE_NETWORK=1` (all-or-nothing) or `DITING_ALLOW_NETWORK=<cidrs>` (scoped allowlist — listed ranges open, cloud-metadata endpoints stay blocked).
+- Redirects are followed (up to 20 hops), each hop re-validated against SSRF.
+- A 30s stall timeout aborts if no bytes arrive (dead connection instead of hang). Hard cap: 4 GB per call.
+- Filenames are sanitized (path traversal stripped, length capped).
+
+**Example — download and verify:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/download \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://github.com/obsidianmd/obsidian-releases/releases/download/v1.5.3/Obsidian-1.5.3-macOS.dmg","resume":true}'
+```
+
+---
+
+### POST /screenshot
+
+Render the page's post-JS DOM into a PNG screenshot (returned as base64). **Requires building with `--features screenshot`** (not included by default; see the build section).
+
+Does not use `/fetch`'s tiered rendering — it always drives the JS browser through full execution, then renders the result with the built-in diting engine (CSS cascade + Taffy box layout + CPU paint, no Chromium). Pass `"engine": "blitz"` to opt into the Blitz reference pipeline for comparison renders — that requires building with `--features blitz-reference` (blitz is not compiled in by default).
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL |
+| width | u32 | | `1280` | Viewport width (CSS px) |
+| height | u32 | | `800` | Viewport height (CSS px; serves as a lower bound when `full_page` is set) |
+| scale | f32 | | `1.0` | Device pixel ratio; higher is sharper but yields larger PNGs |
+| full_page | bool | | `true` | Capture the entire scrollable page (tracks content height, capped at 16000px) |
+| wait_secs | u64 | | `null` | Extra seconds to wait after load (for JS rendering) |
+| selector | string | | `null` | CSS selector; capture the **specified element region** instead of the full page (see below) |
+| selector_all | bool | | `false` | Used with `selector`: skip cropping and return coordinates of **all matches** |
+| use_proxy | bool | | `false` | Route through the `DITING_PROXY` proxy |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation (`"name=value"` strings or cookie objects, same semantics as `/fetch`) |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode) |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL (after redirects) |
+| title | string? | Page title |
+| width | u32 | Actual PNG pixel width rendered (differs from the requested value when `full_page` tracks content height or `selector` crops) |
+| height | u32 | Actual PNG pixel height rendered |
+| image_base64 | string | base64-encoded PNG. Decode with `base64 -d`, or use directly as `data:image/png;base64,...` |
+| format | string | Always `"png"` |
+| selector_rects | object[]? | Present only when the request includes `selector`. One `{x, y, width, height}` per element, in **CSS px with the page's top-left corner as origin** (not viewport coordinates) |
+
+**Selector mode (element-level screenshot + coordinates):**
+
+- `selector` + `selector_all=false` (default): the image is cropped to the border box of the first matching element; `selector_rects` contains exactly one entry (the cropped region).
+- `selector` + `selector_all=true`: the image renders as a normal full page; `selector_rects` returns coordinates for **every match** — the agent can consume just the coordinates without the image.
+- Coordinates come from diting's post-layout Taffy border boxes, accumulated along the layout tree into absolute page coordinates.
+
+> ⚠️ **Inline element limitation**: inline elements containing only text (e.g. `<a>文字</a>`) have no standalone Taffy box — crop mode errors out advising you to pick a block-level ancestor, and `selector_all` mode returns `0x0`. Inline elements containing block-level or replaced content (`<a><img>` etc.) fall back to the union of their descendants' boxes. Selectors targeting **block-level containers** (div/section/li, etc.) yield reliable coordinates.
+
+**Example — screenshot a Baidu search:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/screenshot \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.baidu.com/s?wd=蔚来ES8","full_page":true,"wait_secs":2}' \
+  | jq -r .image_base64 | base64 -d > baidu.png
+```
+
+**Example — crop the first search result + get coordinates of all results:**
+
+```bash
+# Crop just the first .result under #content_left
+curl -sS -X POST http://127.0.0.1:8089/screenshot \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.baidu.com/s?wd=蔚来ES8","selector":"#content_left .result"}' \
+  | jq -r .image_base64 | base64 -d > first-result.png
+
+# Skip the image — just want page coordinates for all 9 results
+curl -sS -X POST http://127.0.0.1:8089/screenshot \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.baidu.com/s?wd=蔚来ES8","selector":"#content_left .result","selector_all":true,"full_page":false,"width":100,"height":100}' \
+  | jq -c '.selector_rects'
+# [{"x":150,"y":2843,"width":608,"height":153}, {"x":150,"y":3016,"width":608,"height":69}, ...]
+```
+
+```json
+{
+  "url": "https://www.baidu.com/s?wd=蔚来ES8",
+  "title": "蔚来ES8_百度搜索",
+  "width": 1280,
+  "height": 800,
+  "image_base64": "iVBORw0KGgo...",
+  "format": "png"
+}
+```
+
+> Screenshots are the agent's "visual input" — CSS rendering on complex sites is approximate (not Chromium pixel-perfect). Sub-resources such as images are not fetched separately (`<img>` may be missing from screenshots); text and layout are reliable.
+
+---
+
+### POST /video
+
+Render a page's animation timelines to an MP4 video (returned as base64). **Requires building with `--features screenshot` and ffmpeg on the server's PATH.**
+
+The page's scripts must expose their timelines in `window.__timelines` — objects with `duration()` and `pause(t)` (a paused GSAP timeline registered there works as-is):
+
+```js
+const tl = gsap.timeline({ paused: true });
+tl.from("#box", { opacity: 0, x: -200, duration: 2, ease: "power2.out" });
+window.__timelines = { main: tl };
+```
+
+Each frame seeks every registered timeline to `t = i/fps` and paints the viewport — the frame values carry no wall clock, so output is deterministic across runs. The full path runs in-process: seek → viewport band paint → raw RGBA piped into ffmpeg → H.264/yuv420p MP4.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL (must populate `window.__timelines`) |
+| fps | f64 | | `24` | Frames per second |
+| width | u32 | | `1280` | Viewport width (CSS px; floored to even — yuv420p) |
+| height | u32 | | `720` | Viewport height (CSS px) |
+| hold_tail_secs | f64 | | `0.5` | Freeze the final timeline state for this many extra seconds |
+| max_duration_secs | f64 | | `120` | Safety cap on timeline + hold tail (longer timelines error instead of encoding) |
+| wait_timelines_ms | u64 | | `10000` | How long to wait for `window.__timelines` to appear |
+| use_proxy | bool | | `false` | Route through the `DITING_PROXY` proxy |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation (same semantics as `/fetch`) |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode) |
+| narration | object[] | | `[]` | Voiceover clips: `{url, start_secs, volume}` — each fetched, delayed to its start time, all mixed into one AAC track. Any TTS output works (mp3/wav/ogg/m4a, probed by content). Fetch failure is an error, never a silent video |
+| audio | object | | `null` | Background music: `{url, volume, fade_out_secs, loop_audio}` — looped to cover the video, volume-scaled, faded out at the tail |
+| subtitles_srt | string | | `null` | Inline SRT text muxed as a soft (toggleable) mov_text track — no libass needed for muxing. Cap 64 KiB |
+| subtitles_language | string | | `null` | ISO language tag for the subtitle track ("eng", "zh") |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL |
+| title | string? | Page title |
+| frames | u32 | Frames written to the encoder |
+| timeline_secs | f64 | Longest registered timeline, seconds |
+| duration_secs | f64 | Total video length = timeline + hold tail |
+| width / height | u32 | Encoded pixel size |
+| video_base64 | string | base64-encoded MP4 (H.264, yuv420p). Decode with `base64 -d`, or use directly as `data:video/mp4;base64,...` |
+| has_audio | bool | Whether an audio track (BGM and/or narration) was muxed in |
+| has_subtitles | bool | Whether a soft subtitle track was muxed in |
+| format | string | Always `"mp4"` |
+
+Audio details: audio URLs are fetched through the page's own HTTP client (http/https only, ≤16 MiB, 8 s timeout, same SSRF gate as subresources). One audio source rides a plain `-af volume/adelay/afade` chain; two or more (e.g. BGM + narration clips) are mixed with `amix=normalize=0` so narration isn't halved for having quiet music under it. With ≥2 audio inputs the subtitle stream is mapped explicitly. Burned-in captions need no engine support — register a second `__timelines` entry that writes caption text/opacity in `pause(t)`, and it seeks along with everything else.
+
+**Example:**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/video \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/anim.html","fps":20,"width":800,"height":450}' \
+  | jq -r .video_base64 | base64 -d > anim.mp4
+```
+
+Errors carry the failure reason verbatim: no `__timelines` before `wait_timelines_ms`, zero timeline duration, the duration cap, ffmpeg missing from PATH, or ffmpeg exiting non-zero (with its stderr tail).
+
+---
+
+### POST /pdf
+
+Cut a rendered page into a set of pages and package as PDF (default), per-page PNGs, or an image-based PPTX/DOCX. **Requires building with `--features screenshot`.**
+
+Two slicing modes, picked by whether `selector` is set:
+
+- **Print** (no `selector`): fixed-height pages over the whole document (default 794×1123, A4 @96dpi), breaking at top-level block boundaries where possible — the break lands on the deepest block bottom that fits, with a half-page floor so pages never collapse to slivers. A remainder shorter than 64px merges into the previous page instead of a near-blank tail.
+- **Slides** (`selector` set): one page per CSS-selector match, sized to that element. Build the deck as plain HTML with one `.slide` div per slide; each match becomes a page at its own height.
+
+Each page is painted as a viewport band off the live tree's layout — same primitive the timeline pump rides, no Chromium. The PDF is image-based: per-page JPEG (`jpeg_quality`) embedded via DCTDecode, one page object per page with its own MediaBox in points (px→pt at 96dpi), so variable-height pages need no normalization. PPTX and DOCX are the same pages re-packaged: PPTX as one slide per page (deck-sized to the largest page, images anchored top-left), DOCX as one page-sized section per page with zero margins — Word sizes every section independently, so each page keeps its exact height. Both containers are written by hand (stored-ZIP, fixed timestamps — byte-deterministic), zero new dependencies.
+
+`format="pptx-native"` is the editable tier: instead of rasterizing pages, each `selector` match is walked element-by-element off the live tree (gBCR + computed style from the same layout cache the band paints ride) and mapped to native DrawingML — text becomes real text runs (`<a:t>` with font family/size/weight/color/alignment), background boxes become shapes (solid fill, `border-radius` → roundRect, CSS gradients → `gradFill` with the angle converted), `<img>` becomes a `p:pic` with the fetched bytes as a media part. Slides mode only: `selector` is required, one slide per match, and the deck is sized to the largest slide. What a text box can't express (per-glyph inline styling, z-index reordering, transforms, borders) degrades by omission — the element still lands as an editable shape. Note: the engine doesn't expand the CSS `background` shorthand into `background-image` yet, so gradient slides must use the `background-image` longhand.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL |
+| format | string | | `"pdf"` | `"pdf"` (base64 PDF), `"png"` (one base64 PNG per page), `"pptx"` (one slide per page), `"pptx-native"` (editable: element-level DrawingML; requires `selector`), or `"docx"` (one page-sized section per page) |
+| width | u32 | | `794` | Page width (CSS px) |
+| height | u32 | | `1123` | Page height (CSS px) — print pagination only; slides size each page to its element |
+| selector | string | | `null` | CSS selector; set → slides mode, unset → print mode |
+| max_pages | usize | | `50` | Safety cap on emitted pages (more pages errors instead of rendering) |
+| jpeg_quality | u8 | | `90` | JPEG quality 1-100 for page embedding in PDF/PPTX/DOCX (PNG format ignores it) |
+| use_proxy | bool | | `false` | Route through the `DITING_PROXY` proxy |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation (same semantics as `/fetch`) |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode) |
+
+**Response fields:**
+
+| Field | Type | Description |
+|------|------|------|
+| url | string | Final URL |
+| title | string? | Page title |
+| pages | usize | Page count |
+| width / height | u32 | Requested page size (slides pages vary in height — each PNG self-describes) |
+| pdf_base64 | string? | base64 PDF (set when `format="pdf"`). Decode with `base64 -d`, or use directly as `data:application/pdf;base64,...` |
+| pages_base64 | string[] | One base64 PNG per page (non-empty when `format="png"`) |
+| pptx_base64 | string? | base64 PPTX, one slide per page (set when `format="pptx"` or `"pptx-native"`) |
+| docx_base64 | string? | base64 DOCX, one page-sized section per page (set when `format="docx"`) |
+| format | string | `"pdf"` / `"png"` / `"pptx"` / `"pptx-native"` / `"docx"` |
+
+**Examples:**
+
+```bash
+# Print mode: paginate an article into A4 pages
+curl -sS -X POST http://127.0.0.1:8089/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/long-article.html"}' \
+  | jq -r .pdf_base64 | base64 -d > article.pdf
+
+# Slides mode: one .slide per page, as PNGs
+curl -sS -X POST http://127.0.0.1:8089/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/deck.html","selector":".slide","format":"png"}' \
+  | jq -r '.pages_base64[0]' | base64 -d > slide-0.png
+
+# Slides mode → PowerPoint deck (HTML .slide divs become real slides)
+curl -sS -X POST http://127.0.0.1:8089/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/deck.html","selector":".slide","format":"pptx"}' \
+  | jq -r .pptx_base64 | base64 -d > deck.pptx
+
+# Slides mode → editable PowerPoint (text runs, shapes, gradients, images)
+curl -sS -X POST http://127.0.0.1:8089/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/deck.html","selector":".slide","format":"pptx-native"}' \
+  | jq -r .pptx_base64 | base64 -d > deck.pptx
+```
+
+Errors carry the reason verbatim: a selector that matches nothing, more pages than `max_pages`, or a document with no content height.
+
+---
+
+### POST /v1/scrape (Firecrawl-compatible)
+
+[Firecrawl](https://github.com/mendableai/firecrawl)-compatible endpoint. Existing Firecrawl clients can migrate by simply changing the base URL.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | ✅ | — | Target URL |
+| formats | string[] | | `["markdown"]` | Output formats: `["markdown"]` / `["html"]` / `["markdown","html"]` |
+| onlyMainContent | bool | | `false` | Main content only (parameter accepted, not yet implemented) |
+| waitFor | u64 | | `null` | Milliseconds to wait for JS rendering |
+| timeout | u32 | | `null` | Timeout in milliseconds (parameter accepted) |
+| actions | object[] | | `[]` | Actions to perform before scraping (see below) |
+| selector | string | | `null` | CSS selector |
+| tls_fingerprint | string | | `null` | TLS fingerprint (stealth mode) |
+
+**`actions` format:**
+
+```json
+[
+  {"type": "click", "selector": "button.accept"},
+  {"type": "wait", "milliseconds": 1000}
+]
+```
+
+| type | Fields | Description |
+|------|------|------|
+| `click` | `selector` | Click an element (anchor links navigate to the target page) |
+| `wait` | `milliseconds` | Wait the given number of milliseconds |
+| `screenshot` | — | Screenshot the rendered page, returned as a base64 data-URI (requires the `screenshot` feature) |
+| `scroll` | — | Scroll the page |
+| `writeText` | `text`, `selector` | Type text into the matching element |
+| `pressKey` | `key` | Press a key (Enter submits the enclosing GET form) |
+
+When any `actions` are present, `/v1/scrape` follows a **single-page session flow**: navigate once → execute actions in order → extract from the final state of that page. All actions operate on the same page. When the request includes a `screenshot` action (or `formats` contains `"screenshot"`), the response's `data.screenshot` carries a `data:image/png;base64,...` screenshot; the field is omitted when the `screenshot` feature is not enabled.
+
+**Response (Firecrawl format; HTTP 200 for both success and failure):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "markdown": "...",
+    "html": "...",
+    "metadata": {
+      "title": "Example Domain",
+      "sourceURL": "https://example.com/",
+      "description": "...",
+      "statusCode": 200
+    }
+  }
+}
+```
+
+---
+
+## Session API (Interactive Browser Sessions)
+
+Persistent browser sessions with indexed interaction. Each session gets its own V8 runtime + page context, and is reclaimed automatically after 8 minutes of inactivity.
+
+Lets AI agents browse the web the way a human does: open a page → inspect state → click/type → collect results.
+
+### POST /session/create
+
+Create an interactive browser session.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| url | string | | `null` | Initial URL (optional); `start_url` is accepted as an alias — creation navigates there before the session id is handed back |
+| use_proxy | bool | | `false` | Route through a proxy |
+| cookies | string[] \| object[] | | `[]` | Cookies injected before navigation (`"name=value",...` or cookie objects) so the session starts already logged in |
+| persistent | bool | | `false` | Persist login state to the server-side store: if the session idles out or the server restarts, the same `session_id` revives logged-in on the next call (`session/{id}/close` drops the snapshot; idle expiry keeps it) |
+| account | string | | `null` | Run as a named login identity (see [Named Accounts](#named-accounts-multi-login)): a private cookie jar seeded from the account record, written back after every action — concurrent logins on different accounts never clobber each other, and none touch the anonymous shared jar. The identity's device persona (own UA + hardware fingerprint) rides every session |
+
+**Response:**
+
+```json
+{"session_id": "s_1", "url": "https://example.com/"}
+```
+
+### POST /import/curl
+
+Turn a DevTools **"Copy as cURL"** command into a logged-in browser session — the credential-transfer path that works on a stock headless engine (no extension, no debug port). The human does the hard part of a login (CAPTCHA, SMS, slider) in their own Chrome, opens DevTools → Network, right-clicks any authenticated request → *Copy* → *Copy as cURL*, and pastes the command here. The engine parses out the Cookie header / `-b` jar, injects it into a fresh session anchored at the copied request's URL — the agent continues from where the human left off, no password or second login. bash, PowerShell and cmd copy flavors all parse.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| curl | string | ✅ | — | The copied cURL command |
+| use_proxy | bool | | `false` | Route the session's traffic through the `DITING_PROXY` proxy |
+| account | string | | `null` | Attach the session to a named account: the imported login lands in the account's private jar and is written back under its name — one import per identity, no clobbering. On first import the copied command's User-Agent becomes the identity's persona (its device UA, reused by every later session) |
+
+**Response:**
+
+```json
+{
+  "session_id": "s_1",
+  "url": "https://example.com/member/home",
+  "host": "example.com",
+  "cookie_count": 12,
+  "method": "GET",
+  "has_body": false,
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/145.0.0.0",
+  "authorization_prefix": "Bearer eyJhbGciOi…",
+  "expires_in_secs": 480,
+  "note": "login state injected; navigate with session tools"
+}
+```
+
+The `session_id` is an ordinary session — drive it with the session API. `authorization_prefix` previews only the first 16 chars (the full header is a credential; the response never echoes whole cookies). `method`/`has_body` report what kind of request was copied. Cookies anchor on the copied request's host; other subdomains of the site may re-authenticate — that is the site's device binding, not a lost credential.
+
+**Tips**: an XHR on the logged-in page usually carries the most complete cookie set (document requests sometimes miss the `httpOnly` API-session pair). `-b FILE` cookie jars are rejected — the server cannot read your disk. Treat a pasted command like a password: it carries the login state verbatim.
+
+### POST /session/{id}/clone
+
+Derive a new session carrying the source's full login state — cookies, `localStorage`/`sessionStorage`, viewport pin, dialog policy, proxy and keepalive flags — with the source left untouched. Use it to snapshot a logged-in state before risky actions, or to run the same login in parallel sessions. The manual `cookies` → `session/create` round-trip this replaces is where a hand-edited cookie string clobbers a working login.
+
+**Response:**
+
+```json
+{"session_id": "s_2", "cloned_from": "s_1", "url": "https://example.com/dashboard", "viewport": {"width": 390, "height": 844, "mobile": true}, "expires_in_secs": 431}
+```
+
+`viewport` is `null` when the source never pinned one.
+
+### GET /session/list
+
+List live sessions — the discovery twin of `/session/create` (reuse an idle session instead of spawning a fresh V8 thread per step). Entries carry idle age and the eviction budget; most recently active first.
+
+**Response:**
+
+```json
+{"count": 1, "sessions": [{"session_id": "s_1", "idle_secs": 19, "expires_in_secs": 460}]}
+```
+
+Sessions are process-global and shared across callers — that's what makes "one instance per machine, every agent shares it" work.
+
+### GET /sessions
+
+The full listing — every live session with its current page URL, so an agent resuming work can find "the session that was on the publish page" without guessing ids. Each entry asks its session thread for the URL with a 250ms budget, so a session pinned mid-eval reports `"url": null` instead of stalling the listing.
+
+**Response:**
+
+```json
+{
+  "count": 2,
+  "sessions": [
+    {"session_id": "s_1", "url": "https://example.com/publish", "idle_secs": 12, "expires_in_secs": 468, "keepalive": false, "persistent": true},
+    {"session_id": "s_2", "url": null, "idle_secs": 3, "expires_in_secs": 477, "keepalive": false, "persistent": false}
+  ]
+}
+```
+
+`expires_in_secs` is absent for `keepalive` sessions (they never auto-evict); `persistent` marks sessions whose login state is snapshotted and revivable. Close entries with `POST /session/{id}/close`. `/session/list` remains the lightweight sibling (id + idle age only, no per-session round-trips).
+
+**Restarts and upgrades** — on SIGTERM/SIGINT every live session (persistent or not) is flushed to the store before the process exits, and the next process revives them under their own ids before it opens its listener: a binary swap costs no login state and no session ids, and `GET /sessions` right after a restart already shows the fleet. Restored sessions keep their original flags — a non-persistent session that then idle-expires takes its restart snapshot with it (a later touch of the id is `SESSION_NOT_FOUND`, not a revival with stale cookies). The flush is budgeted (60s overall, 10s per session): a session stuck mid-command keeps whatever its last per-command snapshot held. An explicit `close` still means done.
+
+**Eager restore gate / store isolation** — parallel dogfood ports that share the default `~/.diting/cache.db` will otherwise revive every leftover session (including `keepalive` SPAs) into the new process and can wedge it. Pin a per-instance database with `DITING_STORE_PATH` or `DITING_COOKIE_STORE_DIR` / `DITING_STORAGE_DIR` (snapshots live in that store). When the store must stay shared, set `DITING_RESTORE_SESSIONS=0` to skip eager restore at serve start (snapshots remain for lazy revive-on-first-touch), or `skip-keepalive` to restore only non-keepalive snapshots. Default remains `all` (#88 upgrade continuity).
+
+### Named Accounts (multi-login)
+
+Anonymous traffic shares one process-global cookie jar — deliberate (repeat-visitor cookies cut CAPTCHA rates) but it makes multi-account work impossible: two logins on one site clobber each other's session cookies, last writer wins. A **named account** is the fix — Chrome-profile semantics: one jar per identity, not a site×account matrix. `taobao-scraper` and `taobao-publisher` are two accounts; each keeps its own cookies and login state, written back to the store after every action, surviving idle eviction and server restarts. Sessions on the *same* account share one live jar (two tabs, one profile); different accounts never touch each other — and none touch the anonymous shared jar, since shared cookie history is itself a risk-control linkage signal.
+
+Attach a session with `account` on `POST /session/create` or `POST /import/curl` (1-64 chars of `[a-zA-Z0-9_-]`). The account is the persistence — account sessions don't need `persistent: true`.
+
+**Per-account device persona** — an identity is one stable *device*, not just one cookie jar. On first use an account draws a persona — a User-Agent from the Windows/macOS Chrome/145 pool plus a hardware seed that drives its `screen`/devicePixelRatio/GPU/canvas fingerprint — remembers both in its record, and reuses them for every later session, restarts included. Jar isolation alone can't stop risk-control linkage: two logins sharing one fingerprint read as "one device with two accounts". `import_curl` seeds the persona from the copied command's real User-Agent (the device the site already saw alongside those cookies). The pool is pinned to Chrome/145 — the fleet claim, same major the `chrome145` TLS preset emulates, so UA and ClientHello agree (single-sourced pair with a coherence tripwire test). The hardware seed itself stays server-side — `GET /accounts` reports only the persona UA (`persona_ua`).
+
+**List accounts:**
+
+```bash
+curl -sS http://127.0.0.1:8089/accounts
+```
+
+```json
+{
+  "count": 2,
+  "accounts": [
+    {"name": "taobao-publisher", "domains": ["taobao.com", "tmall.com"], "cookie_count": 34, "updated_at": 1762934400, "persona_ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36", "verify_url": "https://www.taobao.com/", "verify_predicate": "!!document.querySelector('.user-nick')", "verify_last": {"logged_in": true, "url": "https://www.taobao.com/", "checked_at": 1762934401}},
+    {"name": "taobao-scraper", "domains": ["taobao.com"], "cookie_count": 29, "updated_at": 1762933900, "persona_ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"}
+  ]
+}
+```
+
+Metadata only — cookie values are credentials and never leave the server.
+
+**Check login (teach-once):**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/account/verify \
+  -H 'content-type: application/json' \
+  -d '{"name": "taobao-scraper", "url": "https://www.taobao.com/", "predicate": "!!document.querySelector(\".user-nick\")"}'
+```
+
+```json
+{"name": "taobao-scraper", "logged_in": true, "url": "https://www.taobao.com/", "checked_at": 1762934455, "verify_url": "https://www.taobao.com/"}
+```
+
+The first call teaches the spec — `url` (a page that shows login state) and `predicate` (a JS expression truthy when logged in). It's remembered on the account; later calls can be bare (`{"name": "taobao-scraper"}`) and rerun the spec. The probe runs in a scratch session *as the account* — private jar, same egress — so a verify doubles as a cookie refresh. A probe failure (network, predicate throw) returns an error and is not a logout verdict; the last successful verdict rides in `verify_last`.
+
+**Log an account in (login wizard):**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/account/login \
+  -H 'content-type: application/json' \
+  -d '{"name": "xhs-main", "url": "https://www.xiaohongshu.com/login"}'
+```
+
+```json
+{"name": "xhs-main", "status": "waiting", "needs": ["qr"], "markers": ["qr:login-qrcode-img"],
+ "verdict": "login", "url": "https://www.xiaohongshu.com/login", "session_id": "s_42",
+ "expires_in_secs": 1793,
+ "handoff": "human step (qr) — open /live?session=s_42 ...; when done, re-call account_login with the same arguments (the account's shared jar already holds the finished login)"}
+```
+
+One call opens the login page *as the account* (implicitly created on first use; private jar + persona + recorded egress from the start) and probes the generic gates the page shows — `password` / `sms` / `qr` / `slider` — with `markers` carrying the evidence strings. The three statuses:
+
+- **`logged_in`** — no gate detected and the passed `predicate` fired: the automatic bounce happened, and the verify spec (`url` = the post-login landing URL, `predicate` as given) is stamped. Cookies are already written back (every successful action captures the account jar).
+- **`waiting`** — a human step is outstanding (`needs` non-empty). The session stays open (30 min ttl) for the `/live?session=<id>` handoff or scripted `session_wait`/`session_input`. When the human finishes, **re-call with the same arguments** — the account's shared jar already holds the login, so the second call probes clean, the predicate fires, and verify is stamped. Idempotent by jar semantics, no state machine.
+- **`opened`** — no `predicate` given: page is open, gates reported; drive it with `session_input`/`session_wait` on `session_id` and finish with `account_verify` to stamp the spec.
+
+`use_proxy` seeds a fresh account's egress; an account with an existing record always reuses its recorded egress (one identity, one exit — changing it is a risk-control linkage signal). `timeout_ms` (default 60000, clamped 1000..120000) is the wait budget for the automatic bounce only — it is never spent while a human step is outstanding. The wizard never fills credentials or beats risk control; when a site rejects the environment, `needs`/verdict say so and `import_curl` (human logs in their own Chrome) remains the fallback.
+
+**Delete an account:**
+
+```bash
+curl -sS -X DELETE http://127.0.0.1:8089/accounts/taobao-scraper
+```
+
+`{"deleted": "taobao-scraper"}` — stored record AND live jar. Cookie values are credentials; delete means gone. Unknown names get HTTP 404.
+
+### POST /session/{id}/navigate
+
+Navigate to a new URL.
+
+**Request fields:**
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| url | string | ✅ | Target URL |
+
+**Response:**
+
+```json
+{"url": "https://example.com/page2", "title": "Page 2"}
+```
+
+When the navigation lands on an anti-bot wall (punish page / `_____tmd_____/punish`), a `challenge` field joins the response — risk-control pages answer like ordinary pages, the flag is the machine-readable verdict: `{"url": "https://punish.taobao.com/", "title": "...", "challenge": "punish"}`.
+
+When HTTP redirects happened in flight, `redirected_from` joins the response with the full trail (issue #102): `redirected_from[0]` is the URL you asked for, `url` is where the document actually came from. The trail alone separates a login bounce (`login.example.com` → `example.com/dashboard`), a parameter-error rewrite (`…?err=invalid` destination) and a direct landing — same final URL, three different situations. Absent when the navigation involved no redirect.
+
+When a navigation exceeds its deadline (`DITING_NAV_TIMEOUT_MS`, default 30s), the error names the phase that died instead of a bare timer: `document fetch in flight` / `document received, not yet committed` / `document committed, scripts/settle still running` / `loaded after the deadline raced`, plus the **active document URL** and the navigation generation — `navigation exceeded 30000ms deadline (document fetch in flight; active document: https://old.example/; requested: https://new.example/; navigation #3 — /network rows carry the generation as "nav")`. If the attempt never committed, the session's url rolls back to the document still running, so `navigate`'s failure report, `/state` and `eval` describe the same page (#101).
+
+### POST /session/{id}/preload
+
+Replace the session's document-start preload group (issue #96). Sources run before each new document's own scripts — **including inline `<script>` tags** — which is the only hook that beats pages whose signing layer captures `window.fetch`/XHR natives at HTML-parse time (xhs's inline jsvmp: its API calls go out through references saved at parse time, so any eval-based patch lands too late and the calls fire unsigned/invalid-signed → 406).
+
+**Request fields:**
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| scripts | string[] | ❌ | Full JS sources, in order (default `[]`). Alone, `[]` clears the group |
+| recipe | string | ❌ | Builtin recipe name appended after `scripts` (e.g. `"xhs-sign"`) — opt-in document-start wrapper (#84). Unknown names are an error, not a silent no-op. **Not** auto-mounted by host; platform policy lives in `workflow/`. Kept for back-compat |
+| recipes | string[] | ❌ | Builtin recipe names appended after `recipe` (same resolve path as flow `preload` `recipes:[]`). Final order: `scripts`, then `recipe`, then `recipes[]` |
+| apply_now | bool | ❌ | Also evaluate the same sources on the *current* document (default `false`). Document-start alone only arms the next navigation — set this when attaching a recipe to an already-open page (mirrors flow `preload` `apply_now`) |
+
+Set the group before the session's first navigate (create without `url` → preload → navigate) and it applies to every navigation from then on, `set_content` included.
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/session/s_42/preload \
+-H "Content-Type: application/json" \
+-d '{"scripts":["window.__patched = true; const F = window.fetch; window.fetch = function(u,o){ /* sign/re-record */ return F.call(this,u,o); };"]}'
+
+# → {"count": 1}
+
+# multiple named recipes (HTTP parity with flow preload recipes:[])
+curl -sS -X POST http://127.0.0.1:8089/session/s_42/preload \
+-H "Content-Type: application/json" \
+-d '{"recipes":["x-p256","x-bearer","x-auth-ctx"],"apply_now":true}'
+```
+
+**Response:** `{"count": N}`
+
+#### Builtin recipes (opt-in only, #84)
+
+Platform signing / logout-fuse policy lives in **`workflow/`** (delivery unit = engine + flow), not in the engine's default navigation path. Host auto-mount on `*.xiaohongshu.com` / `*.xhslink.com` was removed 2026-10-12.
+
+The engine still ships the maintained `xhs-sign` source for explicit callers:
+
+| Recipe | How to mount | What it does |
+|------|------|------|
+| `xhs-sign` (alias `xhs`) | `POST /session/{id}/preload` `{"recipe":"xhs-sign"}`, or flow step `{"op":"preload","args":{"recipe":"xhs-sign"}}`, or paste JS via flow `preload`/`eval` | xhs signing wrapper: swallows the page's own `x-s`/`x-t` (computed in-engine, rejected 406 by the server) and re-signs both at send time via the page's own `_webmsxyw`; fuses `/sso/logout` (unsigned-API 406s misread as session death) with a synthetic 200; mounts itself as the fetch/XHR natives before the inline jsvmp can capture them |
+| `xhs-qrcode` | flow / HTTP `preload` `{"recipes":["xhs-sign","xhs-qrcode"]}` (used by `xhs-login`) | vendored qrcode-generator for scannable SVG QR — keeps ~20KB out of `flow.json` |
+| `x-p256` | flow / HTTP `preload` `{"recipes":["x-p256","x-bearer","x-auth-ctx"],"apply_now":true}` (`x-reply` / `x-follow`) | shared in-page P-256 for X write headers; `apply_now` evals on the current document when attaching to a live session |
+| `x-bearer` | flow `preload` `{"recipe":"x-bearer","apply_now":true}` (all five x-* flows); HTTP `{"recipe":"x-bearer","apply_now":true}` or in `recipes:[]` | shared bearer probe — installs `abxProbeBearer` (12h `localStorage` cache / scrape from live `main.*.js`) |
+| `x-auth-ctx` | flow / HTTP `preload` `{"recipes":["x-p256","x-bearer","x-auth-ctx"],"apply_now":true}` (`x-reply` / `x-follow`) | shared txid ctx + session bind — installs `abxEnsureAuthCtx` + `abxB64keep` / `abxDerEncode` / `abxAuthHeaders` / `abxTxidGen` |
+
+Observability counters live on `window` for post-hoc checks via `eval`: `__xs_installed` (mounted), `__xs_swallowed` (page signatures swallowed), `__xs_signed` (fresh signatures issued), `__xs_fuse` (logout attempts defused).
+
+`navigate`'s `preloads` field remains on the wire but stays empty while no host auto-mounts apply (user / recipe= scripts are not listed there). Prefer create-without-`url` → preload → navigate so document-start beats the page's parse-time capture. The former kill switch `DITING_DISABLE_SITE_PRELOAD=1` is obsolete (nothing auto-mounts).
+
+### POST /session/{id}/state
+
+Get the current page state as an indexed list of interactive elements.
+
+**Response format (compact text):**
+
+```
+url=https://example.com/login
+title=Login
+viewport=1280x800
+
+[0] <a href="/home" rect=[24,16,52x19]>Home</a>
+[1] <input type=email placeholder=Email rect=[24,60,232x22] />
+[2] <input type=password placeholder=Password rect=[24,100,232x22] />
+[3] <button id=submit rect=[24,140,88x28]>Sign In</button>
+[4] <a href="/forgot" rect=[120,144,110x19]>Forgot password?</a>
+```
+
+Index numbers `[N]` feed `click` / `input` operations. `rect=[x,y,w,h]` is the element's position relative to the current viewport (y changes with scrolling) — use it to judge whether an element is in view and needs a `scroll` before `click`.
+
+### GET|POST /session/{id}/snapshot
+
+Agent-friendly interactive snapshot (Obscura / Playwright-a11y style): role, name, and actionable `ref=eN` ids. Rebuilds the same element map as `/state`, so refs feed `click` / `input` directly. Prefer this over `/state` when the agent wants structured JSON instead of compact HTML-ish text.
+
+**Query:**
+
+| Field | Default | Description |
+|------|---------|-------------|
+| format | `json` | `json` (structured) or `text` / `a11y` (one line per element: `- role "name" [ref=eN]`) |
+
+**JSON response (default):**
+
+```json
+{
+  "url": "https://example.com/login",
+  "title": "Login",
+  "viewport": {"w": 1280, "h": 800},
+  "elements": [
+    {"ref": "e0", "index": 0, "role": "link", "name": "Home", "tag": "a",
+     "bbox": {"x": 24, "y": 16, "w": 52, "h": 19}, "href": "/home"},
+    {"ref": "e1", "index": 1, "role": "textbox", "name": "Email", "tag": "input",
+     "bbox": {"x": 24, "y": 60, "w": 232, "h": 22}, "type": "email", "placeholder": "Email"},
+    {"ref": "e3", "index": 3, "role": "button", "name": "Sign In", "tag": "button",
+     "bbox": {"x": 24, "y": 140, "w": 88, "h": 28}}
+  ]
+}
+```
+
+`ref` is `e` + `index` for the current snapshot. After navigate / DOM mutation, call `/snapshot` again — stale refs fail like a stale `/state` index (missing map entry or act-side detached/disabled recheck).
+
+```bash
+curl -sS "http://127.0.0.1:8089/session/$SID/snapshot" | jq .
+curl -sS "http://127.0.0.1:8089/session/$SID/snapshot?format=text"
+curl -sS -X POST "http://127.0.0.1:8089/session/$SID/click" \
+  -H 'content-type: application/json' -d '{"ref":"e3"}'
+```
+
+### POST /session/{id}/click
+
+Click an interactive element by index or snapshot `ref`.
+
+
+**Request fields:**
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| index | usize | one of index/ref | Element index (from `/state` or `/snapshot`) |
+| ref | string | one of index/ref | Snapshot ref (`e3`). If both set, they must agree. |
+
+**Response:**
+
+```json
+{"url": "https://example.com/dashboard", "clicked": true, "text_after": "Dashboard …"}
+```
+
+`text_after` is the landed page's text after the click (capped at 2000 chars) — before/after evidence in one response, same contract as `/click`.
+
+### POST /session/{id}/click_xy
+
+Click at page coordinates via the real mouse chain: `pointerdown`/`mousedown` → `pointerup`/`mouseup` → `click`, each hit-tested through `elementFromPoint` at the given viewport position — the shape canvas/map pages and custom widgets listen for. `click_count: 2` also synthesizes `dblclick`.
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| x | number | ✅ | Viewport X in CSS pixels |
+| y | number | ✅ | Viewport Y in CSS pixels |
+| button | string | `"left"` | `left` / `right` / `middle` |
+| click_count | u32 | `1` | Chrome click count: 2 adds `dblclick`, 3+ sets `detail` |
+
+**Response:** `{"url": "...", "x": 120, "y": 120}`
+
+### POST /session/{id}/drag
+
+Press at `from`, glide through `steps` `mousemove` events, release at `to` — drags a marker/canvas selection the way a real pointer would, so move-driven widgets (map markers, drag handles, sliders) track every intermediate position. The trajectory is humanized by default: minimum-jerk easing, perpendicular wobble, jittered per-step timing, a grip pause after press and a settle pause before release, occasional hesitation, and sometimes an overshoot-and-correct for long drags — the shapes anti-bot checks score for. Pass `humanize: false` for the exact linear interpolation.
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| from | object | ✅ | `{"x":…,"y":…}` press point |
+| to | object | ✅ | `{"x":…,"y":…}` release point |
+| steps | u32 | `24` humanized / `10` linear | Move events (clamped 1..200) |
+| delay_ms | u64 | `18` humanized / `30` linear | Mean pause between moves (clamped 0..1000; jittered when humanizing) |
+| humanize | bool | `true` | `false` switches back to exact linear interpolation |
+
+**Response:** `{"url": "...", "from": {"x":120,"y":120}, "to": {"x":300,"y":220}, "steps": 24, "humanized": true}`
+
+### POST /session/{id}/input
+
+Type text into an input field by index. The element is focused first; after writing the value, `input` + `change` events are dispatched (bubbling), so framework-bound forms (Vue/React models, validation listeners) see the text.
+
+**Request fields:**
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| index | usize | one of index/ref | Element index (from `/state` or `/snapshot`) |
+| ref | string | one of index/ref | Snapshot ref (`e3`). If both set, they must agree. |
+| text | string | ✅ | Text to enter — any characters (newlines, quotes, backslashes) ride through as-is |
+| events | string | `"standard"` | `standard` → `input` + `change` after the value lands; `full` → focus, per-character `keydown`/`keypress`/`input`/`keyup` cycles, trailing `change`, then blur — the complete human typing gesture. The tail blur is what commits on forms that save in `onBlur` (React capture-phase blur listeners never saw script-typed text before, #100). In `full` mode a `\n` in the text types as the **Enter key** (`key:'Enter'`, keyCode 13 — the "type + Enter submit" encoding): a textarea keeps the newline in its value, a single-line `<input>` appends nothing; the page's Enter listeners (search bars, chat inputs) fire before the blur, and if the key wasn't canceled the input's form submits implicitly (Chrome's default action — `requestSubmit`, so validation and the form's own `submit` listeners run; a `preventDefault` on the key events or the submit event vetoes it, like Chrome). `\r` is never typed |
+
+**Response:**
+
+```json
+{"filled": true, "tag": "input", "id": "q", "name": "q", "value": "the typed text"}
+```
+
+A refused fill answers `filled:false` with a `reason` naming the branch: `readonly`, `disabled`, `detached`, `no-element` (index no longer maps to a live node — refresh `state`), `wrong-tag` (index points at a non-input element), or `script-error` (the fill script didn't complete — a page handler threw or the watchdog terminated a runaway listener).
+
+### POST /session/{id}/files
+
+Select files on a file input programmatically (Playwright `setInputFiles` semantics). Each file is built from its base64 content and assigned through `input.files`, then `input` + `change` dispatch so framework `onChange` handlers fire. The page's own `FormData(form)`/submit serialization then uploads them as real multipart parts. Selector-addressed because file inputs are routinely hidden — the `/state` index may not include them. The body limit is the same as `/eval` (`DITING_MAX_BODY_BYTES`, default 64 MiB).
+
+**Request fields:**
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| selector | string | ✅ | CSS selector for the file input, e.g. `input[type=file]` |
+| files | array | ✅ | `{name, content_base64, mime_type?, last_modified?}` — one entry per file (multi-select) |
+
+**Response:**
+
+```json
+{"set": true, "selector": "input[type=file]", "count": 2,
+ "value": "C:\\fakepath\\a.png",
+ "files": [{"name": "a.png", "size": 2, "type": "image/png"}, ...]}
+```
+
+`set: false` with an `error` field (no element / not a file input / invalid base64) instead of a throw.
+
+### POST /session/{id}/scroll
+
+Scroll the page.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| direction | string | | `"down"` | `up` or `down` |
+| amount | u32 | | `3` | Number of viewport heights to scroll |
+
+**Response:**
+
+```json
+{"scrolled": true}
+```
+
+### POST /session/{id}/eval
+
+Execute JavaScript within the session.
+
+**Request fields:**
+
+| Field | Type | Required | Default | Description |
+|------|------|------|------|------|
+| script | string | ✅ | — | JS code (async supported) |
+| timeout_ms | u64 | | `5000` | Await budget for the script's promise, clamped 100..120000. Slow page-side work (an upload driven through the page's own fetch) legitimately outlives the default — raise it per call instead of retrying blind |
+
+**Response:**
+
+```json
+{"result": "..."}
+```
+
+**Error semantics:** a script whose promise never settles does **not** come back as `{result: null}` — it's an HTTP 504 with `{"error": "EVAL_TIMEOUT: expression did not settle within 5000ms — the script may still be running; verify side effects before retrying"}`. The message is a warning on purpose: the script may have completed its side effects after the budget expired (a submit that landed, a write that went through), so verify before retrying rather than firing it again. Genuine JS `null` still returns `200 {"result": null}`; a throwing/rejecting script returns `EVAL_ERROR` with name, message, throw position and first stack frame.
+
+**Body limit:** request bodies up to 64 MiB by default (raise with `DITING_MAX_BODY_BYTES`); oversized bodies get a structured `413 {"error": "EVAL_BODY_TOO_LARGE: request body exceeded the 67108864-byte limit ..."}` instead of a bare-text rejection. The same limit covers `/screenshot`, `/video` and `/pdf`.
+
+### POST /session/{id}/close
+
+Close the session and release its resources. For a `persistent` session this also drops the on-disk login snapshot — idle expiry keeps it, an explicit close does not.
+
+**Response:**
+
+```json
+{"ok": true}
+```
+
+### GET /session/{id}/cookies
+
+Export the session's cookies as full Set-Cookie strings (`["name=value; Domain=example.com; Path=/", ...]`, flags and `Expires` included). Use it to persist login state — store it, then pass `cookies` to a future `session_create` to start the session already logged in, no re-login needed. The full form (not bare `name=value` pairs) is what makes cross-subdomain logins survive the round-trip: a `.taobao.com` cookie re-anchors at its own domain on the way back in, where a bare pair would be scoped to whatever page you happen to open. `Expires` rides along too, so a stored snapshot never revives a cookie the server already retired (#203 — risk-control faces like taobao's answer a stale-token replay with `sessionExpired`).
+
+**Response:**
+
+```json
+{"url": "https://example.com/dashboard", "cookies": ["sessionid=abc123; Domain=example.com; Path=/", "csrftoken=xyz; Domain=example.com; Path=/; HttpOnly"]}
+```
+
+**Login-state reuse loop:**
+
+```bash
+# 1. Log in normally in one session (session_create -> input -> click)
+# 2. Export the cookies
+curl -sS http://127.0.0.1:8089/session/$SID/cookies | jq -r .cookies[]
+
+# 3. Next time, create the session with cookies directly — no login required
+curl -sS -X POST http://127.0.0.1:8089/session/create \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/dashboard","cookies":["sessionid=abc123; Domain=example.com; Path=/"]}'
+```
+
+> 🔒 The hosted instance never persists any cookie to disk — cookies live only in session memory and are wiped when the session is reclaimed after 8 minutes idle. Callers hold their own login state (use a throwaway account, not your main one).
+
+**Metadata-only view (`?meta=true`)** — the observability twin of the value-bearing export (issue #102). Answers "what auth state exists" without a single credential leaving the server: which cookies are present, how each is scoped (`domain`/`path`/`secure`/`httpOnly`/`sameSite`), when it dies (`expires`, Unix seconds — `null` = session cookie) and whether it's host-anchored (`hostOnly` = set without a `Domain=` attribute, sent to the exact host only). The payload carries no `value` key at all — values are credentials, and this face is for checking which login landed, not for reusing it.
+
+```bash
+curl -sS "http://127.0.0.1:8089/session/$SID/cookies?meta=true" | jq .
+```
+
+```json
+{"url": "https://example.com/dashboard", "cookies": [{"name": "sessionid", "domain": "example.com", "path": "/", "secure": true, "httpOnly": true, "sameSite": "Lax", "expires": 1761284509, "hostOnly": false}]}
+```
+
+### GET /session/{id}/export
+
+Export the session's recorded action log. Every page-changing command since create — `navigate` / `click` / `input` / `scroll` / `eval` — was recorded in order, in memory only (reads like `state` and `cookies` are not recorded; the log dies with the session).
+
+**Query parameters:**
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| format | string | `bash` | `bash` → a runnable curl script replaying every recorded action against a fresh session; `jsonl` → the raw action log, one JSON object per line; `json` → a flow.json document — the same recording as editable ops (`{op, args}`) with cookies/storage stripped, for replay via [`POST /flow/run`](#post-flowrun) |
+
+**Response (`format=jsonl`):**
+
+```
+{"action":"create","url":"https://example.com/login","use_proxy":false,"cookies":[]}
+{"action":"input","index":1,"text":"user@example.com","ok":true}
+{"action":"click","index":3,"ok":true}
+```
+
+**Response (`format=bash`, the default)** — a self-contained replay script:
+
+```bash
+#!/usr/bin/env bash
+# diting session replay — recorded actions re-run as plain curl.
+# No LLM in the loop: replay costs zero model tokens.
+set -eu
+BASE="${DITING_URL:-http://127.0.0.1:8089}"
+POST() { curl -sS -X POST "$BASE/$1" -H 'Content-Type: application/json' -d "$2"; }
+
+SID=$(POST session/create '{"url":"https://example.com/login","cookies":[],"use_proxy":false}' | sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p')
+[ -n "$SID" ] || { echo "session create failed" >&2; exit 1; }
+POST "session/$SID/input" '{"index":1,"text":"user@example.com"}' > /dev/null
+POST "session/$SID/click" '{"index":3}' > /dev/null
+
+echo '--- final state ---'
+POST "session/$SID/state" '{}'
+echo
+```
+
+Run it anywhere with `curl` (override the target with `DITING_URL`), from cron, in CI, on another machine. What an agent figured out interactively becomes a deterministic, auditable script — re-running it costs **zero model tokens**.
+
+**Response (`format=json`)** — the recording as a flow document:
+
+```json
+{
+  "create": { "url": "https://example.com/login" },
+  "steps": [
+    { "op": "input", "args": { "index": 1, "text": "user@example.com" } },
+    { "op": "click", "args": { "index": 3 } }
+  ]
+}
+```
+
+This is the authoring entry point for flows: drive a session by hand, export as json, then curate (prune probe evals, promote URLs to `{{vars}}`, add `wait` steps and `expect` assertions, mark extraction evals with `save`) and replay via `POST /flow/run`. Cookies and storage are stripped — a flow is a shareable asset. `ok:false` probe actions are dropped. `wait` steps are not part of the recording (the recorder logs actions, not your waiting), so waits are hand-added during curation.
+
+> ⚠️ Treat an exported script like credentials — it embeds any cookies the session was created with.
+>
+> **Index caveat**: `click`/`input` replay the *index* from the original run's `/state` output. If the page's element order changed, an index may land elsewhere. The script is a readable, editable starting point, not a guaranteed selector — fix the index (or swap in a selector of your own) and re-run.
+
+### POST /flow/run
+
+Run a flow — a recorded/edited JSON session script — to completion server-side, zero model tokens in the loop. The engine stays LLM-free: a flow is pure data (`{{var}}` substitution, `wait` predicates, `expect` checks — no LLM calls anywhere).
+
+**Request body:**
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| flow | object | — | Inline flow document (see below) |
+| name | string | — | Or run a named server-side workflow: `workflow/<name>/flow.json` on disk (override the directory with `DITING_WORKFLOW_DIR`). The engine binary carries no flows — the repo's samples and the release tarball ship the `workflow/` directory as files beside the binary. An unknown name errors back with the list of installed workflows — that error is the discovery call |
+| vars | object | `{}` | Values for `{{placeholders}}`; wins over the flow's own `vars` defaults |
+| session_id | string | — | Reuse a live session (e.g. from `POST /import/curl`) instead of creating a fresh one — that's how login state and flows compose |
+
+One of `flow` / `name` is required.
+
+**Flow document:**
+
+```json
+{
+  "vars": { "handle": "diting" },
+  "create": { "url": "https://x.com/{{handle}}", "use_proxy": true },
+  "steps": [
+    { "op": "wait", "args": { "predicate": "document.querySelectorAll('article').length >= 1", "timeout_ms": 20000 } },
+    { "op": "eval", "args": { "script": "JSON.stringify({...})" },
+      "expect": { "selector": "article" }, "save": "profile" }
+  ]
+}
+```
+
+- `vars` — default values for `{{placeholders}}` in `create` and step args; request `vars` override them. Substituting an undeclared var fails fast with a receipt (no session created). A placeholder name may be a dotted path into a saved result or an object var — `{{token.json.access_token}}` walks object keys (and array indices); `args_json` is additionally exposed as an `args` object so steps can reference `{{args.title}}` directly.
+- `create` — passed to `POST /session/create` semantics (url / cookies / use_proxy / viewport / …); skipped entirely when `session_id` is given.
+- `steps[]` — `op` is one of the session verbs: `navigate`, `set_content`, `click`, `click_xy`, `drag`, `input`, `set_files`, `scroll`, `viewport`, `wait`, `eval`, `screenshot`, `state`, `cookies`, `close`, plus the engine-side `http` (below). (`eval` steps accept an optional `timeout_ms`, same clamp as the eval endpoint; `screenshot` steps accept an optional `dpr`, device pixel ratio 1.0–3.0 for Retina-sharp bitmaps). `set_files` takes `selector` + `files` in the same shape as `session_set_files` (`{name, content_base64, mime_type?, last_modified?}`); a recorded export emits names-only skeletons, and replay fails loudly on a spec without `content_base64` instead of silently uploading a 0-byte file — fill content in, or route it through a `{{var}}`. `expect` (optional) gates the step: `url_contains`, `selector`, `text_contains`, `eval_truthy` — all must hold. `save` (optional) stores the step's result under that key in the receipt — and into the substitutable vars, so a later step reads one field off it via `{{name.json.field}}`.
+- `http` steps — an engine-side HTTP request for API-driven flows (WeChat OA publish, any server-to-server endpoint): no page is involved, so CORS never applies and credentials never touch page context or a session network log. Args: `url` (required), `method` (default GET), `timeout_ms` (clamped 1s..120s), and exactly one body form — `json` (value-interpolated: a string that is exactly `{{path}}` embeds the referenced VALUE, so a quote-heavy HTML body splices in as a legal JSON string; partial placeholders stay literal for `body`), `multipart` (array of `{name, filename?, content_type?, content_base64 | text}`), or raw `body` text. Optional `headers` (string values). The step rides the `/fetch` posture: per-domain quota gate, SSRF deny-set, env proxy, a fresh cookie-less client, redirects NOT followed. Result shape `{status, headers, body, json}` — `json` is the parsed body when it parses, else null.
+- On failure the flow aborts at the failing step and the receipt carries `status:"failed"`, `failed_step`, `reason`, the page `url`, a viewport `screenshot` (base64), everything `saved` so far — and the session **stays alive** for manual takeover (`session_id` in the receipt).
+
+**Response (ok):**
+
+```json
+{
+  "status": "ok",
+  "session_id": "s_7",
+  "steps_done": 2,
+  "saved": { "profile": "{\"url\":\"https://x.com/diting\",...}" }
+}
+```
+
+**Response (failed):**
+
+```json
+{
+  "status": "failed",
+  "session_id": "s_8",
+  "failed_step": 0,
+  "reason": "wait timeout: predicate never became truthy within 15000ms",
+  "url": "https://www.zhihu.com/question/603518666",
+  "screenshot": "<base64 png>",
+  "steps_done": 0,
+  "saved": {}
+}
+```
+
+The repo ships three sample flows under `workflow/` (`xcom-profile`, `juejin-post`, `zhihu-answer`) — one runs green logged-out, one green, one fails on a 403 wall on purpose, each with a `flow.md` explaining itself. A workflow `name` is one path segment of lowercase/digits/dashes; anything else is rejected before it touches the filesystem. Drop a directory in to deploy — no rebuild.
+
+### POST /flow/install
+
+Install a third-party flow from a DupHub remote into the server's workflow directory, making it runnable by name via [`POST /flow/run`](#post-flowrun). The wire is the dup protocol's templates scope: `GET {base}/api/templates/{name}/dup/manifest` (`{files: {relative path → sha256}, hash}`) then `GET {base}/api/templates/{name}/dup/file/{path}` (raw bytes, anonymous). The base remote is env-configured (`DITING_DUPHUB_URL`, default `https://duphub.com`) — never a request parameter, so an install can't be aimed at an arbitrary URL.
+
+Install semantics, in order — every failure leaves the filesystem untouched:
+
+1. **name gate** — same as `flow_run`: lowercase/digits/dashes, one path segment
+2. **manifest validation** — non-empty, contains `flow.json`, every path relative with ordinary components only (`..`, leading `/`, backslashes die here), ≤ 64 files
+3. **fetch + verify** — each file's bytes must sha256-match the manifest's promise (≤ 4 MiB a file, ≤ 8 MiB total); a package that fails anywhere is not installed
+4. **flow.json validation** — must parse and carry a `steps` array, before anything is written
+5. **atomic landing** — everything stages in `workflow/.installing-<name>/`, then swaps into `workflow/<name>/`, replacing any previous install
+
+| Body | Type | Default | Notes |
+|---|---|---|---|
+| name | string | — | DupHub template name = the directory it lands in |
+
+**Response:**
+
+```json
+{
+  "name": "xhs-post",
+  "source": "https://duphub.com",
+  "manifest_hash": "…",
+  "files": ["flow.json", "templates/body.html"],
+  "bytes": 4211,
+  "steps": 9,
+  "eval_steps": 4,
+  "installed_at": "workflow/xhs-post",
+  "available_now": true,
+  "disclosure": "third-party flow: its scripts execute with this engine's privileges inside session pages on flow_run — review the steps before running"
+}
+```
+
+`eval_steps` counts steps carrying `args.script` — the disclosure line is the point: a third-party flow's scripts run with this engine's privileges in session pages, so review before `flow_run`. Uploading is the `dup` CLI's job (credentials stay there); this endpoint only ever reads.
+
+### GET /flow/search
+
+Flow discovery — `POST /flow/install` takes a name; this is how you learn the names. Lists flow packages on the configured DupHub (`DITING_DUPHUB_URL`): the market's `kind=agx-flow` filter plus a client-side re-filter, so clones (avatar templates) never surface as installable flows. A hub whose listings predate the kind protocol reports `kind_filter: "unsupported"` rather than guessing.
+
+**Query parameters:**
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| q | string | — | optional substring; the hub's filter over name/description |
+
+**Response:**
+
+```json
+{
+  "hub": "https://duphub.com",
+  "query": "",
+  "total": 2,
+  "flows": [
+    {"name": "xhs-post", "description": "post to xhs", "version": "1.2.0", "downloads": 41}
+  ],
+  "install": "flow_install(<name>)"
+}
+```
+
+
+### GET /session/{id}/network
+
+The session's network request log for the current page — every document, subresource and script-initiated `fetch()`/XHR the page actually issued, one compact row each. This is the sniffer surface.
+
+**Query parameters:**
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| filter | string | — | `media` → only playback/stream requests (HLS `.m3u8`, DASH `.mpd`, `.mp4`, `.flv`, `.ts`, `.webm`, audio), classified by URL suffix or response Content-Type |
+| include_bodies | bool | `false` | Add an `xhr` array: the page's script-initiated (XHR/fetch) responses with their retained text bodies — the page's own API face. Binary (base64) bodies are skipped |
+| include_headers | bool | `false` | Add each request's outbound header set to its row — `headers` on the compact rows, `request_headers` on the `xhr` rows. What the page's JS actually sent (customs like `x-s`/`x-s-common` included), lowercased. Off by default: headers can carry tokens |
+| url_contains | string | — | With `include_bodies`: only body rows whose URL contains this substring |
+| body_max_chars | usize | `4000` | Per-body character cap for `include_bodies` (`0` = unlimited) |
+
+**Response (default):**
+
+```json
+{
+  "url": "https://example.com/watch",
+  "nav": 2,
+  "total": 14,
+  "requests": [
+    {"method":"GET","url":"https://example.com/watch","status":200,"type":"Document","size":51234,"nav":2},
+    {"method":"GET","url":"https://cdn.example/api/resolve","status":200,"type":"Fetch","size":210,"nav":2},
+    {"method":"GET","url":"https://h5api.example.com/rest","status":0,"type":"Fetch","size":0,"nav":1,
+     "error":"CORS error: Origin 'https://example.com' not in Access-Control-Allow-Origin ''"}
+  ]
+}
+```
+
+`nav` is the navigation generation (#101): the top-level value is the current one, and each row carries the generation that issued it — a row with a lower `nav` belongs to an earlier navigation attempt (e.g. a timed-out navigation whose log has not been reset yet), so "which attempt made this request" is a filter, not a guess.
+
+`status: 0` rows are requests that never produced a servable response — SSRF-blocked, URL-blocklisted, CORS-refused, or dead at the transport layer. The `error` field says which, so a page whose API calls all die at a gate no longer reads as "never issued a request".
+
+The response always carries an `in_flight` array (`[]` when quiet) — script-initiated requests dispatched but not yet settled, `{"url", "method", "age_ms"}` per row. Request-log rows land at completion, so a hung fetch (page-internal timeout, WAF holding the connection) is invisible there; `in_flight` is the "still executing?" answer — check it before re-issuing a save that may already be flying. A `challenges` count is always present too (0 = clean) — anti-bot hits answer 200 and hide among successful rows.
+
+**Response (`?filter=media`)** — the playback-link sniffer. Links embedded in page HTML are often decoys; these are the requests the player actually made, so they are what plays:
+
+```json
+{
+  "url": "https://example.com/watch",
+  "media": [
+    {"url":"https://cdn.example/v/master.m3u8?token=1","kind":"hls","status":200,"mime":"application/vnd.apple.mpegurl","type":"Fetch"}
+  ]
+}
+```
+
+**Response (`?include_bodies=true`)** — a sibling `xhr` array joins the default response, one row per script-initiated response with its retained body: `{"url":"https://api.example/items","method":"GET","status":200,"mime":"application/json","body":"{\"items\":[…]}","body_truncated":false,"nav":2}`. The same face `/fetch`'s `capture_xhr` returns statelessly, read live off the session. Rows whose body carries risk-control markers (`FAIL_SYS_USER_VALIDATE`, `RGV587`, `x5secdata`) are tagged `"challenge": "punish"` — those bodies answer 200 like any other API, the tag is what separates them from success.
+
+**Response (`?include_headers=true`)** — every compact row gains a `headers` object (and `xhr` rows a `request_headers` object) holding the request's outbound header set, lowercased — the engine defaults plus whatever the page's JS set (`x-s`, `x-s-common`, signed tokens). `/fetch`'s `capture_xhr` rows always carry `request_headers`. Two honest gaps: `status: 0` failure rows never reached the wire, so their set is `{}`; and a stealth-mode document request snapshots only the headers this code explicitly set on the builder — the emulation's transport-layer defaults merge inside wreq at send time and are not duplicated into the snapshot.
+
+### GET /session/{id}/challenges
+
+One-call risk-control report: did this session hit an anti-bot wall? Taobao/tmall's x5 risk control answers **200** like a normal response — either a redirect onto a punish page (`_____tmd_____/punish`, `punish.taobao.com`) or an MTop API body carrying `FAIL_SYS_USER_VALIDATE` / `RGV587` / `x5secdata`. Detection only — the engine surfaces walls, it does not auto-bypass them.
+
+**Response:**
+
+```json
+{
+  "url": "https://shop.example/item",
+  "total": 1,
+  "events": [
+    {"url":"https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/","method":"GET","status":200,"kind":"punish","via":"body"}
+  ],
+  "account": "taobao-scraper",
+  "handoff": "anti-bot wall detected — hand this session to a human: open the live view (web/live.html), solve the challenge there, then retry the same request in this session"
+}
+```
+
+`via` says how the wall was detected: `"url"` = the navigation/request landed on the punish page, `"body"` = a 200-status API response swallowed the challenge. `account` (which identity got walled — matters when scraper and publisher run as different accounts) and `handoff` are present only when there are hits; a clean session returns `{"url", "total": 0, "events": []}` plus a `note` saying what zero means — no known challenge signatures in this session's traffic, i.e. absence of a wall, **not** a login verdict. The login question is answered elsewhere (`session_verdict` / `account_verify`). The human handoff works because the session keeps its cookies and persona: solving in the live view sets the x5sec cookie, and the retry rides it.
+
+### GET /session/{id}/har
+
+The same traffic as a full **HAR 1.2** document (`application/json`) — opens in Chrome DevTools or any HAR viewer. Retained response bodies are inlined as `content.text` (large/opaque bodies base64, `content.encoding: "base64"`); bodies beyond the retention limits are absent. Timing phases we do not measure are `-1`.
+
+```bash
+curl -sS http://127.0.0.1:8089/session/$SID/har -o page.har
+```
+
+### GET /session/{id}/storage
+
+Snapshot the session's `localStorage` + `sessionStorage` for the current origin — the half of login state that cookies can't carry (many sites keep the session token in web storage). Call it before the session idles out, then feed the snapshot back via `session/create`'s `storage` field to restore the logged-in state in a new session. Account sessions don't need the round-trip: the record's captured storage replays automatically onto the captured origin (an explicit `storage` param wins).
+
+**Response:**
+
+```json
+{"url": "https://example.com", "local_storage": {"token": "eyJ..."}, "session_storage": {}}
+```
+
+### GET /session/{id}/console
+
+The session's recent page console output (`log` / `info` / `warn` / `error`, plus `dialog` entries for auto-answered `alert`/`confirm`/`prompt`) as a ring buffer of the last 500 entries, newest last — captures output from page scripts, clicks, evals and navigations alike. The fastest way to see *why* a page misbehaves: click the button, call this, read the error.
+
+**Query parameters** (all optional, combinable):
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| level | string | — | Only entries at this exact level (e.g. `error`, `dialog`) |
+| since_ts | u64 | — | Only entries at or after this Unix epoch millisecond |
+| url_contains | string | — | Only entries whose page URL contains this substring |
+| limit | usize | — | Keep only the most recent N matches |
+
+**Response:** `{"url": "...", "total": 3, "matched": 1, "messages": [{"ts_ms": 1712, "level": "error", "text": "TypeError: x is not a function", "url": "https://example.com/"}]}` — `total` is the whole ring, `matched` what the filters let through.
+
+### POST /session/{id}/dialog
+
+Inspect or steer how the session answers `window.alert` / `confirm` / `prompt`. Dialogs never block the page — they are answered immediately under the session policy (default: dismiss) and logged to the console ring with `level: "dialog"`.
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| action | string | ✅ | `list` → current policy + every dialog entry seen; `accept` → subsequent dialogs answer OK/true; `dismiss` → answer cancel/false (the default) |
+| prompt_text | string | | What `window.prompt` returns when accepted; persists for the session |
+
+**Response:** `{"policy": "accept", "prompt_text": null, "dialogs": [{"ts_ms": 1712, "level": "dialog", "text": "{\"dialog\":\"alert\",\"message\":\"修改成功\"}"}]}`
+
+### POST /session/{id}/viewport
+
+Set the session's viewport (device emulation). Scripts see `innerWidth`/`innerHeight` move, media queries like `(max-width: 600px)` re-evaluate, and `mobile: true` flips `pointer: coarse` / `hover: none` in `matchMedia` and reports `navigator.maxTouchPoints = 5`. Omitted fields keep their current value; the override survives navigation.
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/viewport \
+  -H "Content-Type: application/json" -d '{"width": 390, "height": 844, "mobile": true}'
+```
+
+**Response:** `{"viewport": {"width": 390, "height": 844, "mobile": true}}`
+
+### POST /session/{id}/screenshot
+
+Screenshot the session's **current DOM state** (mutations from clicks/evals included) as a base64 PNG. Mirrors `POST /screenshot`'s response shape (`image_base64`), so existing consumers work against either. The body is optional — omit it for a viewport-sized capture.
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| width | u32 | current | Render width in CSS pixels |
+| height | u32 | current | Render height in CSS pixels |
+| full_page | bool | `false` | Capture the full scrollable page instead of the viewport |
+| selector | string | — | Capture only that element's box |
+| selector_all | bool | `false` | With `selector`: capture every match instead of the first |
+| dpr | f32 | `1.0` | Device pixel ratio (Retina/HiDPI): rasterize at device resolution — the bitmap comes back `width·dpr × height·dpr` with CSS geometry intact. Clamped to 1.0–3.0. Render-only: page JS still sees `window.devicePixelRatio` 1. The `/live` panel sends the display's real ratio automatically |
+
+**Response:** `{"url": "...", "width": 1280, "height": 800, "image_base64": "iVBOR...", "format": "png"}` — with `dpr: 2`, `width`/`height` are the device-pixel bitmap dims (e.g. 2560×1600)
+
+> **Poll cost (#189):** the no-argument default path (no `width`/`height`/`full_page`/`selector`) paints the live tree's viewport band and caches the frame under a damage signature — realm generation, dom epoch, layout rev, scroll offset, viewport, `dpr`. A repeated poll on an unchanged page returns the cached PNG (base64 cost, milliseconds) instead of re-rasterizing; any DOM mutation, layout change, scroll, viewport resize, navigation, or different `dpr` re-rasterizes. Explicit-size/`full_page`/`selector` requests always render fresh.
+
+### POST /session/{id}/wait
+
+Wait until a CSS selector matches or a JS predicate turns truthy, with a timeout. The page's event loop keeps running while waiting (fetches, timers, promise chains progress), so this replaces blind sleeps for async content: navigate, wait for `.price-card`, then click/read. Exactly one of `selector` / `predicate`.
+
+| Field | Type | Default | Description |
+|------|------|------|------|
+| selector | string | — | CSS selector to wait for (e.g. `.price-card`) |
+| predicate | string | — | JS expression polled until truthy (e.g. `document.querySelectorAll('.card').length >= 3`) |
+| timeout_ms | u64 | `10000` | Give up after this long (max 120000) |
+
+**Response:** `{"matched": true, "elapsed_ms": 743, "detail": {"tag": "div", "text": "..."}}` — on expiry, an error naming the selector/predicate.
+
+### Session Usage Example
+
+```bash
+# 1. Create a session
+SID=$(curl -sS -X POST http://127.0.0.1:8089/session/create \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/login"}' | jq -r .session_id)
+
+# 2. Inspect the page state
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/state
+
+# 3. Enter the username
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/input \
+  -H "Content-Type: application/json" \
+  -d '{"index":1,"text":"user@example.com"}'
+
+# 4. Enter the password
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/input \
+  -H "Content-Type: application/json" \
+  -d '{"index":2,"text":"mypassword"}'
+
+# 5. Click Sign In
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/click \
+  -H "Content-Type: application/json" \
+  -d '{"index":3}'
+
+# 6. Inspect the post-login state
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/state
+
+# 7. Close the session
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/close
+```
+
+---
+
+## robots.txt Checking (opt-in)
+
+Diting fetches on demand — one page when an agent asks, not bulk crawling — and by default does **not** consult `robots.txt` on any path: real-time acquisition is not crawling, and robots.txt is crawler etiquette. The full RFC 9309 checker ships built in and, when the operator opts in with `DITING_HONOR_ROBOTS=1`, applies to every autonomous path — `/fetch`, `/click`, `/eval`, `/screenshot`, `/download`, the `/search` fetch_top body-grab (denied results keep their entry; `fetch_error` carries the reason), and the Firecrawl-compatible `/v1/scrape`. A disallowed URL then returns **HTTP 403** with the matched rule in the error, so the agent can see exactly why:
+
+```json
+{"error": "robots.txt disallows /yinnho/diting/pulse on https://github.com (matched `Disallow: /*/*/pulse`). This instance checks robots.txt (DITING_HONOR_ROBOTS=1); remove it to skip the check."}
+```
+
+Semantics (RFC 9309 subset):
+
+| robots.txt outcome | Result |
+|------|------|
+| Rule disallows the path (longest match wins, ties → Allow; `*`/`$` wildcards honored) | 403 with the matched rule |
+| 404 / 410 | allowed (no rules exist) |
+| body parses to no applicable rules | allowed |
+| other 4xx fetching robots.txt | allowed — the server declines to serve rules to us; RFC 9309 / Google semantics read that as "no rules apply" |
+| 5xx / network failure fetching robots.txt (one retry) | 403 while the server is in trouble, short negative cache (300s) so recovery is quick — treating a failing robots.txt as allow-all is how Lightpanda #3156 got sites hammered |
+| private / loopback host (`127.0.0.1`, RFC1918, `.local`, …) | exempt (operator's own network) |
+
+Scope notes:
+
+- **Interactive sessions are exempt by design.** `/session/{id}/navigate`, `click`, `input`, `scroll` drive a browser the way a person at a keyboard does; robots.txt governs autonomous fetching, not browser interaction.
+- The robots.txt fetch itself uses the honest product User-Agent (`diting/<version> (+https://browser.aginx.net)`) — the name robots.txt group matching keys on is never a borrowed one. If the site's TLS stack is older than the default client can speak (a CBC-only TLS 1.2 server, obscura#769), the fetch takes one final ride on the stealth transport's BoringSSL stack — a different cipher shelf, the same honest name.
+- Policies are cached per host (default 1h; refusals 5min so a dead endpoint doesn't lock the host out for an hour).
+
+**Operator opt-in** (the stance belongs to whoever runs the instance, not to each caller):
+
+```bash
+export DITING_HONOR_ROBOTS=1     # opt in to robots.txt checks
+export DITING_ROBOTS_TTL_SECS=3600  # per-host policy cache TTL
+```
+
+`diting doctor` and `GET /doctor` both report the active stance.
+
+## Rate & Page Budgets (default on)
+
+Diting is a real-time retrieval tool, not a crawler — budgets enforce that on **how much** any caller can fetch:
+
+- **Per-domain rate**: 20 pages/minute per registrable domain (`DITING_DOMAIN_RATE_PER_MIN`). Subdomains share one budget, so rotating `www.` / `api.` / random subdomains doesn't escape. A private/loopback host is exempt (the operator's own network), and a domain's window resets when the minute rolls over.
+- **Per-session page budget**: 200 pages per interactive session (`DITING_SESSION_PAGE_LIMIT`). Every navigation counts, plus clicks that change the page; reads on the current page (state/scroll/eval/typing) are free. An over-budget session refuses further navigations but stays interactive until closed.
+
+Counted surfaces: `/fetch`, `/click`, `/eval`, `/screenshot`, `/download`, the `/search` fetch_top body-grab (an over-budget item keeps its entry; `fetch_error` carries the reason), `/v1/scrape` (both plain and actions paths), and session navigations/clicks. Subresources a page pulls are never counted.
+
+An over-budget request returns **HTTP 429** with the stance in the message:
+
+```json
+{"error": "rate limit: example.com is capped at 20 pages/min — diting does real-time lookups for agents, not site crawling. Slow down, or self-host and tune DITING_DOMAIN_RATE_PER_MIN."}
+```
+
+Attempts count even when the fetch itself fails — a rate limit that only counted successes would be one you escape by hammering 404s.
+
+**Operator tuning** (hosted runs are tighter; your instance is yours):
+
+```bash
+export DITING_DOMAIN_RATE_PER_MIN=20    # pages per domain per minute, 0 disables
+export DITING_SESSION_PAGE_LIMIT=200    # pages per session, 0 disables
+```
+
+---
+
+## Local Store (durable record, default on)
+
+Every successful `fetch` and `search` is persisted to a local SQLite database at `~/.diting/cache.db` (WAL mode, `0600`) — the record that backs the fetch receipts.
+
+- **Pages**: one row per fetched URL — title, extracted content, serving tier, fetch time — deduplicated by normalized URL and FTS5-indexed (Chinese substrings work: CJK text is indexed per character)
+- **Searches**: whole result sets per `(query, categories)` pair
+- **TTL**: pages 30 days, search results 7 days; expired rows are purged lazily on writes
+- **Drift receipts**: every page row stores its `content_hash` plus the previous sample's hash. The `/fetch` response surfaces them as `content_hash` and `changed_since_prev` — the cheapest drift detector for origins serving frozen bodies (a rate-limited 200 that never changes reads as `false` across consecutive samples)
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `DITING_STORE` | on | Set `0` to disable persistence entirely |
+| `DITING_STORE_PATH` | `~/.diting/cache.db` | Database file location (page/search rows **and** session snapshots). Prefer a per-instance path when running parallel serves |
+| `DITING_COOKIE_STORE_DIR` / `DITING_STORAGE_DIR` | (unset) | When set and `STORE_PATH` is unset, the store file is `<dir>/cache.db` — isolates snapshots so `restore_all` cannot revive foreign sessions into a "fresh" instance |
+| `DITING_RESTORE_SESSIONS` | `all` | Eager serve-start restore: `all`/`1`/`on` (default) revive every snapshot; `0`/`off` skip eager restore (lazy on touch); `skip-keepalive` restore only non-keepalive snapshots |
+| `DITING_STORE_TTL_HOURS` | `720` | Page rows time-to-live |
+| `DITING_STORE_SEARCH_TTL_HOURS` | `168` | Search-result rows time-to-live |
+| `DITING_STORE_SCOPE` | `global` | `global` = one shared pool, right for single-user instances; `session` = rows are scoped per session — set this on multi-client deployments |
+
+This is the durable layer; the short-lived in-process `/fetch` cache (`DITING_CACHE_TTL_SECS`) sits in front of it and serves repeat requests of the same URL inside the TTL without re-paying the network.
+
+---
+
+## Automatic CAPTCHA Solving
+
+When a search engine or target site throws up a CAPTCHA, Diting will:
+
+1. **Detect** the CAPTCHA type (Cloudflare Turnstile, reCAPTCHA v2, hCaptcha, slider)
+2. **Report** it via the `captcha_event` field so the caller knows
+3. **Auto-solve** it (if the `CAPTCHA_SOLVER_API_KEY` environment variable is set)
+
+**Configuration:**
+
+```bash
+# Set your 2captcha API key
+export CAPTCHA_SOLVER_API_KEY=your_api_key_here
+
+# Optional: switch the CAPTCHA solving service (default 2captcha)
+export CAPTCHA_SOLVER_SERVICE=2captcha
+```
+
+Once configured, `/fetch` and `/search` automatically submit CAPTCHAs to 2captcha and inject the token — no manual intervention needed.
+
+---
+
+## Document Generation
+
+### POST /render_markdown
+
+Render markdown into a deterministic, self-contained HTML document — the document layer, so agents never write HTML by hand. Fenced code blocks tagged `archify` carry typed zero-coordinate diagram JSON (`sequence` / `workflow` / `architecture` / `dataflow` / `lifecycle`) rendered to inline SVG by the layout engine; Mermaid sources must be translated to archify JSON by the caller.
+
+| Parameter | Type | Required | Default | Description |
+|------|------|------|------|------|
+| markdown | string | ✅ | — | Markdown source. Fenced `archify` blocks become inline-SVG diagrams |
+| theme | string | | `"light"` | Color scheme: `light` / `dark` — baked into the artifact at generation time |
+| preset | string | | `"classic"` | Visual preset: `classic` / `signal-flow` / `blueprint` / `editorial`, orthogonal to `theme` (a bare `theme` alone is accepted too) |
+| quality | string | | `"standard"` | `showcase` runs the delivery-gate composition audit (route crossings, label clearance, rhythm) — it grades the receipt without changing an artifact byte |
+| motion | bool | | `false` | Bake the declarative entrance choreography into the artifact (CSS keyframes, zero scripts) |
+
+**Response**: `{ "html": "<!DOCTYPE html>…", "receipt": { … } }` — the receipt carries the artifact `sha256`, `bytes`, `diagrams` count, the `preset`/`quality`/`motion` settings, and the audit `checks`/`diagnostics` when `showcase` grading ran.
+
+The output is deterministic — same input, same bytes — and the receipt carries the artifact's `sha256` so that's verifiable. Guided-view tabs and the `window.agxViewer` runtime (`focus` / ego views / `route` / `reach`) ship inside the artifact. Diagram vocabulary adapted from archify (MIT, itself based on Cocoon-AI's architecture-diagram-generator).
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/render_markdown \
+  -H "Content-Type: application/json" \
+  -d '{"markdown":"# Hello\\n\\nworld","theme":"dark","quality":"showcase"}'
+```
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|------|------|------|
+| `DITING_TOKEN` | unset | Opt-in auth gate for the whole HTTP surface (#162). Unset = no gate (local dev keeps zero-config access). Set = every route requires the token via `Authorization: Bearer <t>` or `?token=<t>`; the human takeover view carries it too (`/live?session=…&token=…`). `/health` alone answers without a token, but only `{"status":"ok"}` — the build-identity detail (version/commit/UA/TLS/capabilities) needs the token (#246). Value must be 16+ chars of `[A-Za-z0-9_-]` (URL-safe so the header and query forms are the same string) — an invalid shape refuses to boot rather than serve a half-open surface |
+| `DITING_BIND` | `127.0.0.1:8089` | HTTP server listen address |
+| `DITING_STEALTH` | Enabled | `0` disables stealth (for diagnostics) |
+| `DITING_UA` | macOS Chrome/154 persona | Spoofed User-Agent for browser traffic (a pinned persona from the fingerprint pool — see `/health`'s `ua` for what this instance presents; search-engine transports keep their own defaults). Fleet UA is Chrome/154; TLS preset name stays `chrome145` (shape). Startup logs a `fingerprint mismatch` warning when the UA's browser *family* disagrees with the TLS fingerprint family — keep Chrome-family UA with chrome/edge presets |
+| `DITING_ACCEPT_LANGUAGE` | `zh-CN,zh;q=0.9,en;q=0.8` | Accept-Language header |
+| `DITING_CACHE_TTL_SECS` | `600` | `/fetch` cache TTL (seconds); `0` disables |
+| `DITING_DOWNLOAD_DIR` | `.` | Directory where `/download` saves files |
+| `DITING_MAX_BODY_BYTES` | `67108864` (64 MiB) | Max request body for `/eval`-family POST endpoints (`/session/{id}/eval`, `/screenshot`, `/video`, `/pdf`). Oversized bodies get a structured `413 EVAL_BODY_TOO_LARGE` naming the limit |
+| `DITING_WORKFLOW_DIR` | `./workflow` | Where `flow_run(name=…)` looks for `<name>/flow.json` — the engine binary carries no built-in flows, this directory is the whole story; drop a directory in to deploy, no rebuild. `POST /flow/install` lands installed flows here too |
+| `DITING_DUPHUB_URL` | `https://duphub.com` | Base remote for `POST /flow/install` — a private DupHub instance replaces this. Env-only, never a request parameter |
+| `DITING_PROXY` | None | Proxy address (used when `use_proxy:true`, and applied automatically for browser/session navigations to known-blocked domains) |
+| `CAPTCHA_SOLVER_API_KEY` | None | 2captcha API key; enables automatic CAPTCHA solving when set |
+| `CAPTCHA_SOLVER_SERVICE` | `2captcha` | CAPTCHA solving service |
+
+---
+
+## Error Codes
+
+| HTTP Status | Scenario |
+|------------|------|
+| 400 | Invalid CSS selector syntax, URL parse failure |
+| 404 | Element not found |
+| 502 | Target site unreachable (DNS/connection failure) |
+| 504 | Request timed out |
+| 500 | Other internal errors |
+
+---
+
+## Site Scraping Examples
+
+### WeChat Official Account Articles (public, no login required)
+
+Directly fetchable in stealth mode — **no cookies needed**:
+
+```bash
+# Extract title and body with /eval
+curl -sS -X POST http://127.0.0.1:8089/eval -H 'Content-Type: application/json' -d '{
+  "url": "https://mp.weixin.qq.com/s/xxxxx",
+  "script": "({title:document.querySelector(\"#activity-name\")?.textContent?.trim(), body:document.querySelector(\"#js_content\")?.innerText})"
+}'
+
+# Search WeChat articles with /search and auto-fetch content
+curl -sS -X POST http://127.0.0.1:8089/search -H 'Content-Type: application/json' \
+  -d '{"q":"AI人工智能","categories":"news","fetch_top":3,"max_chars_per":2000}'
+```
+
+### Interactive Login (Session API)
+
+```bash
+# Create session → inspect page → input → click → inspect result
+SID=$(curl -sS -X POST http://127.0.0.1:8089/session/create \
+  -d '{"url":"https://example.com/login"}' | jq -r .session_id)
+
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/input \
+  -d '{"index":1,"text":"user@example.com"}'
+
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/click \
+  -d '{"index":3}'
+
+curl -sS -X POST http://127.0.0.1:8089/session/$SID/state
+```
+
+### Cloudflare-Protected Sites
+
+`auto_bypass_challenge` is on by default: "Just a moment..." pages are detected automatically and the tool waits for the `cf_clearance` cookie:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json' -d '{
+  "url": "https://cloudflare-protected-site.com"
+}'
+```
+
+### Extract Structured Data from SPAs
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json' -d '{
+  "url": "https://spa-site.example.com",
+  "js_extract": {
+    "expression": "JSON.stringify(window.__INITIAL_STATE__)",
+    "timeout_ms": 3000
+  }
+}'
+```
+
+### TLS Fingerprint Switching
+
+Some sites check TLS fingerprints; if Chrome gets blocked, try Firefox/Safari instead:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json' -d '{
+  "url": "https://strict-site.com",
+  "tls_fingerprint": "firefox133",
+  "use_proxy": true
+}'
+```

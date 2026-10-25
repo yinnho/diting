@@ -1,0 +1,952 @@
+//! The flow module's tests, split from the module root (ARCHITECTURE.md
+//! P2 god-file ratchet).
+use super::*;
+
+#[test]
+fn recorded_to_flow_maps_strips_and_drops_failures() {
+    let jsonl = [
+        r#"{"action":"create","url":"https://x.com/","use_proxy":true,"cookies":["auth_token=SECRET"]}"#,
+        r#"{"action":"navigate","url":"https://x.com/login","ok":false}"#,
+        r#"{"action":"navigate","url":"https://x.com/home","ok":true}"#,
+        r#"{"action":"click","index":3,"ok":true}"#,
+        r#"{"action":"input","index":2,"text":"hello","ok":false}"#,
+        r#"{"action":"scroll","direction":"down","amount":2}"#,
+        r#"{"action":"eval","script":"1+1"}"#,
+    ]
+    .join("\n");
+    let doc = recorded_to_flow(&jsonl);
+    // Secrets stripped from the create block; url + use_proxy survive.
+    assert_eq!(doc["create"]["url"], "https://x.com/");
+    assert_eq!(doc["create"]["use_proxy"], true);
+    assert!(doc["create"].get("cookies").is_none());
+    let steps = doc["steps"].as_array().unwrap();
+    // ok:false navigate and input dropped, ok:true kept.
+    assert_eq!(steps.len(), 4);
+    assert_eq!(steps[0]["op"], "navigate");
+    assert_eq!(steps[0]["args"]["url"], "https://x.com/home");
+    assert_eq!(steps[1]["op"], "click");
+    assert_eq!(steps[1]["args"]["index"], 3);
+    assert_eq!(steps[2]["op"], "scroll");
+    assert_eq!(steps[3]["op"], "eval");
+}
+
+#[test]
+fn recorded_to_flow_emits_set_files_names_only_skeleton() {
+    let jsonl = r#"{"action":"set_files","selector":"input[type=file]","names":["a.png","b.png"],"ok":true}"#;
+    let doc = recorded_to_flow(jsonl);
+    let step = &doc["steps"][0];
+    assert_eq!(step["op"], "set_files");
+    assert_eq!(step["args"]["selector"], "input[type=file]");
+    // Names carried through; no content_base64 key anywhere — the skeleton
+    // the author fills in during curation.
+    assert_eq!(
+        step["args"]["files"],
+        json!([{ "name": "a.png" }, { "name": "b.png" }])
+    );
+}
+
+#[test]
+fn substitute_handles_whole_embedded_nested_and_errors() {
+    let mut vars = Map::new();
+    vars.insert("q".into(), json!("rust engine"));
+    vars.insert("n".into(), json!(3));
+    // Whole-string replacement keeps type via string splice.
+    assert_eq!(
+        substitute(&json!("{{q}}"), &vars).unwrap(),
+        json!("rust engine")
+    );
+    // Embedded + multiple + non-string vars stringified in place.
+    assert_eq!(
+        substitute(&json!("search {{q}} page={{n}}!"), &vars).unwrap(),
+        json!("search rust engine page=3!")
+    );
+    // Nested objects and arrays are walked. An array element that IS a
+    // whole-leaf placeholder keeps type — [3], not ["3"] — so numeric
+    // args (click index, branch when.value) survive as numbers.
+    assert_eq!(
+        substitute(
+            &json!({ "url": "https://s/?q={{q}}", "meta": ["{{n}}"] }),
+            &vars
+        )
+        .unwrap(),
+        json!({ "url": "https://s/?q=rust engine", "meta": [3] })
+    );
+    // Missing var and unterminated placeholder fail loudly.
+    assert!(substitute(&json!("{{missing}}"), &vars).is_err());
+    assert!(substitute(&json!("{{oops"), &vars).is_err());
+}
+
+#[test]
+fn workflow_name_rejects_traversal() {
+    assert!(is_workflow_name("taobao-seller"));
+    assert!(!is_workflow_name("../etc"));
+    assert!(!is_workflow_name("a/b"));
+    assert!(!is_workflow_name("UPPER"));
+    assert!(!is_workflow_name(""));
+}
+
+#[test]
+fn resolve_flow_doc_requires_source() {
+    // Neither flow nor name.
+    assert!(resolve_flow_doc(None, None).is_err());
+    // Inline without steps.
+    assert!(resolve_flow_doc(Some(json!({ "create": {} })), None).is_err());
+    // Traversal-shaped name rejected before touching the filesystem.
+    assert!(resolve_flow_doc(None, Some("../secrets")).is_err());
+}
+
+/// The repo's `workflow/` samples are deploy-time assets, not baked-ins —
+/// CI still catches a broken sample the moment it lands in the directory.
+/// The public tree ships no platform flows (asset separation
+/// 2026-10-25): the directory is absent, and the validator must accept
+/// that — private deployments re-create it with their own samples.
+#[test]
+fn absent_workflow_directory_is_valid() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("workflow");
+    if !root.is_dir() {
+        return;
+    }
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&root).unwrap() {
+        let entry = entry.unwrap();
+        let name = entry.file_name().into_string().unwrap();
+        if !is_workflow_name(&name) {
+            continue;
+        }
+        let flow_path = entry.path().join("flow.json");
+        if !flow_path.is_file() {
+            continue;
+        }
+        let text = std::fs::read_to_string(&flow_path)
+            .unwrap_or_else(|e| panic!("sample {name:?}: {e}"));
+        let doc: Value = serde_json::from_str(&text)
+            .unwrap_or_else(|e| panic!("sample {name:?} is not valid JSON: {e}"));
+        assert!(
+            doc.get("steps").and_then(|s| s.as_array()).is_some(),
+            "sample {name:?} has no steps array"
+        );
+        checked += 1;
+    }
+    // Zero samples is the public tree's steady state since the asset
+    // separation; private deployments carry their own count.
+    let _ = checked;
+}
+
+#[test]
+fn workflow_dir_lists_and_resolves_disk_flows() {
+    use std::fs;
+    let _guard = crate::test_support::workflow_dir_env_guard();
+    let dir = std::env::temp_dir().join(format!("diting-flow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    std::env::set_var("DITING_WORKFLOW_DIR", &dir);
+    fs::create_dir_all(dir.join("my-own")).unwrap();
+    fs::write(
+        dir.join("my-own").join("flow.json"),
+        r#"{"steps":[{"op":"eval","args":{"script":"1"}}]}"#,
+    )
+    .unwrap();
+
+    let names = available_workflows();
+    assert!(names.contains(&"my-own".to_string()), "disk name missing");
+    assert_eq!(names.iter().filter(|n| n.as_str() == "my-own").count(), 1);
+
+    let own = resolve_flow_doc(None, Some("my-own")).unwrap();
+    assert_eq!(own["steps"][0]["op"], "eval");
+    assert!(resolve_flow_doc(None, Some("zzz-not-installed")).is_err());
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn js_truthy_matches_js_semantics() {
+    assert!(!js_truthy(&json!(0)));
+    assert!(!js_truthy(&json!(0.0)));
+    assert!(!js_truthy(&json!("")));
+    assert!(!js_truthy(&json!(null)));
+    assert!(!js_truthy(&json!(false)));
+    assert!(js_truthy(&json!(1)));
+    assert!(js_truthy(&json!(-1)));
+    assert!(js_truthy(&json!("0")));
+    assert!(js_truthy(&json!([0])));
+    assert!(js_truthy(&json!({})));
+}
+
+/// Whole-leaf type preservation feeding a branch condition (the zhihu
+/// retry shape): `"value": "{{max_tries}}"` must splice the NUMBER, or
+/// at_most errors ("need a numeric value") and equals reads silently
+/// false against an integer counter.
+#[test]
+fn whole_leaf_placeholder_keeps_type_for_conditions() {
+    let mut vars = Map::new();
+    vars.insert("tries".into(), json!(1));
+    vars.insert("max_tries".into(), json!(3));
+    let when = json!({ "var": "tries", "is": "at_most", "value": "{{max_tries}}" });
+    let substituted = substitute(&when, &vars).unwrap();
+    assert_eq!(substituted["value"], json!(3));
+    assert!(eval_condition(&substituted, &vars).unwrap());
+    // equals against a substituted numeric literal holds too.
+    let eq = substitute(
+        &json!({ "var": "tries", "is": "equals", "value": "{{max_tries}}" }),
+        &vars,
+    )
+    .unwrap();
+    assert!(!eval_condition(&eq, &vars).unwrap()); // 1 != 3
+    vars.insert("tries".into(), json!(3));
+    assert!(eval_condition(&eq, &vars).unwrap());
+}
+
+/// Dotted paths walk objects and array indices; a miss anywhere along
+/// the path is the same loud unknown-var error as a missing root.
+#[test]
+fn substitute_walks_dotted_paths() {
+    let mut vars = Map::new();
+    vars.insert(
+        "resp".into(),
+        json!({ "json": { "access_token": "abc123", "scopes": ["snsapi", "base"] } }),
+    );
+    assert_eq!(
+        substitute(&json!("t={{resp.json.access_token}}"), &vars).unwrap(),
+        json!("t=abc123")
+    );
+    // Array index leg.
+    assert_eq!(
+        substitute(&json!("{{resp.json.scopes.1}}"), &vars).unwrap(),
+        json!("base")
+    );
+    // Non-index into an array, deep miss, and missing root all error.
+    assert!(substitute(&json!("{{resp.json.scopes.x}}"), &vars).is_err());
+    assert!(substitute(&json!("{{resp.json.nope}}"), &vars).is_err());
+    assert!(substitute(&json!("{{root.nope}}"), &vars).is_err());
+}
+
+/// json arg interpolation: a whole-leaf placeholder embeds the VALUE
+/// (strings with quotes re-serialize legally, objects embed
+/// structurally), partial placeholders stay literal, and a clean
+/// whole-leaf miss is a loud error.
+#[test]
+fn json_interpolate_replaces_whole_leaves_only() {
+    let mut vars = Map::new();
+    vars.insert("html".into(), json!("He said \"hi\" <b>&</b>"));
+    vars.insert("meta".into(), json!({ "n": 3, "tags": ["a"] }));
+    let out = json_interpolate(
+        &json!({ "title": "{{html}}", "meta": "{{meta}}", "mixed": "x {{html}} y" }),
+        &vars,
+    )
+    .unwrap();
+    assert_eq!(out["title"], json!("He said \"hi\" <b>&</b>"));
+    assert_eq!(out["meta"]["n"], json!(3));
+    assert_eq!(out["meta"]["tags"], json!(["a"]));
+    // Partial placeholder untouched (compose those in `body` instead).
+    assert_eq!(out["mixed"], json!("x {{html}} y"));
+    // Clean whole-leaf miss errors loudly.
+    assert!(json_interpolate(&json!("{{missing}}"), &vars).is_err());
+    // A multi-placeholder string is not a whole leaf — no error.
+    assert_eq!(
+        json_interpolate(&json!("{{html}} {{html}}"), &vars).unwrap(),
+        json!("{{html}} {{html}}")
+    );
+}
+
+/// End-to-end for the engine-side http step against the recording
+/// server: JSON body interpolation (quotes survive), URL chaining off a
+/// saved response's field, and the receipt carrying parsed json.
+#[tokio::test]
+async fn run_flow_http_step_posts_json_and_chains_saved_fields() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, hits) = crate::server::test_util::recording_server(&[
+        ("POST /token", r#"{"access_token":"abc123","expires_in":7200}"#),
+        ("POST /draft", r#"{"media_id":"M1"}"#),
+    ]);
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "http", "args": {
+                "url": format!("http://127.0.0.1:{port}/token"),
+                "method": "POST",
+                "json": { "grant_type": "{{g}}" }
+            }, "save": "t" },
+            { "op": "http", "args": {
+                "url": "http://127.0.0.1:{{port}}/draft?access_token={{t.json.access_token}}",
+                "method": "POST",
+                "json": { "title": "{{args.title}}" }
+            }, "save": "d" },
+        ]
+    });
+    let mut vars = Map::new();
+    vars.insert("g".into(), json!("client_credential"));
+    vars.insert("port".into(), json!(port.to_string()));
+    // args as the JSON-string form — run_flow exposes it as an `args`
+    // object, the same shape the wechat-oa-post flow consumes.
+    vars.insert(
+        "args_json".into(),
+        json!("{\"title\": \"He said \\\"hi\\\" <b>&</b>\"}"),
+    );
+    let receipt = run_flow(&mut mgr, &flow, &vars, None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["saved"]["t"]["json"]["access_token"], "abc123");
+    assert_eq!(receipt["saved"]["d"]["json"]["media_id"], "M1");
+
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+
+    let hits = hits.lock().unwrap();
+    let second = hits.iter().find(|h| h.contains("/draft")).expect("second request recorded");
+    // URL carries the token spliced from step 1's saved response.
+    assert!(second.contains("access_token=abc123"), "hit: {second}");
+    // Hit format is "METHOD path PROTO body" (the recording server
+    // extracts the body past the first header blank line) — the JSON
+    // body stayed legal through interpolation, quotes and all.
+    let body = second.splitn(4, ' ').nth(3).unwrap_or("");
+    let parsed: Value = serde_json::from_str(body).unwrap_or_else(|e| panic!("body {body:?}: {e}"));
+    assert_eq!(parsed["title"], "He said \"hi\" <b>&</b>");
+}
+
+/// The multipart variant: base64 content lands as a well-formed
+/// multipart/form-data body (boundary markers, disposition, filename).
+#[tokio::test]
+async fn run_flow_http_step_multipart_uploads() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, hits) = crate::server::test_util::recording_server(&[(
+        "POST /upload",
+        r#"{"media_id":"THUMB"}"#,
+    )]);
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "http", "args": {
+                "url": format!("http://127.0.0.1:{port}/upload"),
+                "method": "POST",
+                "multipart": [
+                    { "name": "media", "filename": "cover.png",
+                      "content_type": "image/png", "content_base64": "aGVsbG8=" }
+                ]
+            }, "save": "up" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["saved"]["up"]["json"]["media_id"], "THUMB");
+
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+
+    let hits = hits.lock().unwrap();
+    let hit = hits.iter().find(|h| h.contains("/upload")).expect("upload recorded");
+    // The recording server logs "METHOD path PROTO body" — header lines
+    // (the multipart content-type) aren't captured, so the contract is
+    // pinned on the body itself: boundary markers wrap a well-formed part.
+    let body = hit.splitn(4, ' ').nth(3).unwrap_or("");
+    assert!(body.starts_with("--diting-flow-"), "body: {body:?}");
+    assert!(body.contains("Content-Disposition: form-data; name=\"media\"; filename=\"cover.png\""));
+    assert!(body.contains("Content-Type: image/png"));
+    // Decoded part content ("aGVsbG8=" = "hello") and the closing
+    // boundary marker (hex suffix is time-derived).
+    assert!(body.contains("hello"));
+    assert!(body.trim_end().ends_with("--"));
+}
+
+/// An http step referencing a path that no earlier step saved fails at
+/// THAT step with the unknown var named — not a silent literal splice.
+#[tokio::test]
+async fn run_flow_http_step_unknown_json_var_fails_loudly() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "http", "args": {
+                "url": "https://api.example.invalid/x",
+                "json": { "t": "{{never_saved.field}}" }
+            } },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "failed");
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("never_saved.field"), "reason: {reason}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// End-to-end on the no-network path: set_content loads a local page,
+/// eval saves a value, expect selector holds, receipt is ok and the
+/// session survives the run.
+#[tokio::test]
+async fn run_flow_ok_saves_and_keeps_session() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "set_content", "args": { "html": "<html><body><a id='t' href='/next'>hi {{who}}</a></body></html>" } },
+            { "op": "eval", "args": { "script": "document.querySelector('#t').textContent" }, "save": "title" },
+            { "op": "eval", "args": { "script": "window.scrollTo(0, 50)" }, "expect": { "selector": "#t" } },
+        ]
+    });
+    let mut vars = Map::new();
+    vars.insert("who".into(), json!("flow"));
+    let receipt = run_flow(&mut mgr, &flow, &vars, None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["steps_done"], 3);
+    assert_eq!(receipt["saved"]["title"], "hi flow");
+
+    // Session stays alive and queryable.
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    let state = mgr
+        .send(&sid, |reply| SessionCommand::State { reply })
+        .await
+        .unwrap();
+    assert!(state.contains("hi flow"));
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// set_files in a flow: the upload lands on the page's file input and the
+/// File metadata is readable back from JS — the same machinery
+/// session_set_files drives.
+#[tokio::test]
+async fn run_flow_set_files_uploads() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "set_content", "args": { "html": "<html><body><input id='f' type='file'></body></html>" } },
+            { "op": "set_files", "args": {
+                "selector": "#f",
+                "files": [
+                    { "name": "a.txt", "content_base64": "aGVsbG8=" },
+                    { "name": "empty.bin", "content_base64": "" }
+                ]
+            } },
+            { "op": "eval", "args": {
+                "script": "(() => { const fs = document.getElementById('f').files; return [fs.length, fs[0].name, fs[0].size, fs[1].name, fs[1].size].join('|'); })()"
+            }, "save": "files" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["steps_done"], 3);
+    // "hello" is 5 bytes; the deliberate 0-byte clear file is 0.
+    assert_eq!(receipt["saved"]["files"], "2|a.txt|5|empty.bin|0");
+
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// The upload-widget shape (#239): the file input never lands in the DOM —
+/// a script (the widget's own click handler, here played by an eval step)
+/// creates it, attaches the change listener, and calls click(). The flow
+/// feeds it with a selector-LESS set_files step: the pending chooser the
+/// click armed receives the files and the widget's listener runs.
+#[tokio::test]
+async fn run_flow_set_files_feeds_pending_chooser_without_selector() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "set_content", "args": { "html": "<html><body><button id='w'>upload</button></body></html>" } },
+            { "op": "eval", "args": {
+                "script": "(() => { const inp = document.createElement('input'); inp.setAttribute('type','file'); window.__widget = { inp, changes: 0 }; inp.addEventListener('change', () => { window.__widget.changes++; }); document.getElementById('w').addEventListener('click', () => { inp.click(); }); return 'ready'; })()"
+            } },
+            { "op": "eval", "args": {
+                "script": "(() => { document.getElementById('w').click(); return 'widget-clicked'; })()"
+            } },
+            { "op": "set_files", "args": {
+                "files": [ { "name": "m.png", "content_base64": "aGk=", "mime_type": "image/png" } ]
+            }, "save": "fed" },
+            { "op": "eval", "args": {
+                "script": "(() => JSON.stringify({ changes: window.__widget.changes, name: window.__widget.inp.files[0] ? window.__widget.inp.files[0].name : null, connected: window.__widget.inp.isConnected }))()"
+            }, "save": "after" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["saved"]["fed"]["set"], true);
+    assert_eq!(receipt["saved"]["fed"]["mode"], "chooser");
+    let after: Value = serde_json::from_str(receipt["saved"]["after"].as_str().unwrap()).unwrap();
+    assert_eq!(after["changes"], 1, "widget listener ran: {after}");
+    assert_eq!(after["name"], "m.png");
+    assert_eq!(after["connected"], false, "input stayed off-DOM throughout");
+
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// The names-only skeleton a recorded export emits must fail loudly at
+/// the set_files step — not silently upload 0-byte files.
+#[tokio::test]
+async fn run_flow_set_files_names_only_skeleton_fails_loudly() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "set_content", "args": { "html": "<html><body><input id='f' type='file'></body></html>" } },
+            { "op": "set_files", "args": { "selector": "#f", "files": [{ "name": "a.txt" }] } },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "failed");
+    assert_eq!(receipt["failed_step"], 1);
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("content_base64"), "reason: {reason}");
+    assert!(reason.contains("{{var}}"), "reason: {reason}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// A failed expect aborts with the evidence bundle: failing step index,
+/// reason naming the check, saved-so-far preserved.
+#[tokio::test]
+async fn run_flow_failure_receipt() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "set_content", "args": { "html": "<html><body>hello</body></html>" } },
+            { "op": "eval", "args": { "script": "document.body.innerText" }, "save": "seen" },
+            { "op": "eval", "args": { "script": "1" }, "expect": { "text_contains": "definitely-absent" } },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "failed");
+    assert_eq!(receipt["failed_step"], 2);
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("expect text_contains"), "reason: {reason}");
+    assert_eq!(receipt["saved"]["seen"], "hello");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// A passed session_id wins over the flow's create block — login state
+/// rides in from import_curl/persistent sessions, the flow never re-creates.
+#[tokio::test]
+async fn run_flow_reuses_session_id() {
+    let mut mgr = SessionManager::new();
+    let sid = mgr.create(
+        Some("about:blank"),
+        false,
+        vec![],
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+    );
+    let flow = json!({
+        "create": { "url": "https://example.com/" },
+        "steps": [ { "op": "set_content", "args": { "html": "<html><body>x</body></html>" } } ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), Some(sid.clone())).await;
+    assert_eq!(receipt["status"], "ok");
+    assert_eq!(receipt["session_id"], sid);
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// The create block goes through {{var}} substitution too (its url is the
+/// most common placeholder host — found live on x.com, where a raw
+/// {{handle}} navigated literally and the flow died in a login redirect).
+/// A create-block substitution failure fails before any session exists.
+#[tokio::test]
+async fn run_flow_substitutes_create_block() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "vars": { "q": "zz" },
+        "create": { "url": "data:text/plain,hello-{{q}}" },
+        "steps": [
+            { "op": "eval", "args": { "script": "document.body.innerText" }, "save": "seen" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["saved"]["seen"], "hello-zz");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+
+    // Missing var: fails loudly, no session leaked into the manager.
+    let bad = json!({
+        "create": { "url": "data:text/plain,hello-{{missing}}" },
+        "steps": []
+    });
+    let before = mgr.list().len();
+    let r2 = run_flow(&mut mgr, &bad, &Map::new(), None).await;
+    assert_eq!(r2["status"], "failed");
+    let reason = r2["reason"].as_str().unwrap();
+    assert!(
+        reason.contains("create block") && reason.contains("missing"),
+        "reason: {reason}"
+    );
+    assert!(r2["session_id"].is_null());
+    assert_eq!(mgr.list().len(), before);
+}
+
+/// An args-declaring flow rejects unknown args_json keys before any step
+/// runs — the mistyped-key reply-becomes-root-tweet incident, as a
+/// contract. No session is created, the reason names both the unknown
+/// key and the accepted set.
+#[tokio::test]
+async fn run_flow_args_validation_rejects_unknown_keys() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "args": ["text", "reply_to"],
+        "steps": [ { "op": "set_content", "args": { "html": "<html><body>x</body></html>" } } ]
+    });
+    let mut vars = Map::new();
+    vars.insert(
+        "args_json".into(),
+        json!({ "tweet_id": "2098960519113642269", "text": "hi" }),
+    );
+    let before = mgr.list().len();
+    let receipt = run_flow(&mut mgr, &flow, &vars, None).await;
+    assert_eq!(receipt["status"], "failed");
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("tweet_id"), "reason: {reason}");
+    assert!(reason.contains("reply_to"), "reason: {reason}");
+    assert_eq!(receipt["failed_step"], 0);
+    assert_eq!(receipt["steps_done"], 0);
+    assert!(receipt["session_id"].is_null());
+    assert_eq!(mgr.list().len(), before);
+}
+
+/// All-known keys pass and the flow runs; a bad args_json JSON string is
+/// rejected with the parse error rather than splicing into nothing.
+#[tokio::test]
+async fn run_flow_args_validation_allows_known_keys() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "args": ["text", "reply_to"],
+        "vars": { "args_json": { "text": "hi", "reply_to": "" } },
+        "steps": [ { "op": "set_content", "args": { "html": "<html><body>x</body></html>" } } ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+
+    // Non-JSON string as args_json: parse error, pre-session.
+    let before = mgr.list().len();
+    let mut vars = Map::new();
+    vars.insert("args_json".into(), json!("not json at all"));
+    let r2 = run_flow(&mut mgr, &flow, &vars, None).await;
+    assert_eq!(r2["status"], "failed");
+    let reason = r2["reason"].as_str().unwrap();
+    assert!(reason.contains("not valid JSON"), "reason: {reason}");
+    assert!(r2["session_id"].is_null());
+    assert_eq!(mgr.list().len(), before);
+}
+
+/// No args declaration = no validation — flows that don't consume
+/// args_json (recorder exports, the playbook flows) stay untouched.
+#[tokio::test]
+async fn run_flow_args_validation_skips_undeclared_flows() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [ { "op": "set_content", "args": { "html": "<html><body>x</body></html>" } } ]
+    });
+    let mut vars = Map::new();
+    vars.insert("args_json".into(), json!({ "whatever": 1 }));
+    let receipt = run_flow(&mut mgr, &flow, &vars, None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+// ---------------------------------------------------------------------------
+// Branch steps (issue #72) + the verdict step (issue #73)
+// ---------------------------------------------------------------------------
+
+/// All nine operators, the numeric looseness (200 == 200.0 — serde_json's
+/// Value equality is representation-sensitive), dotted var paths, and the
+/// loud errors: unknown var, unknown is, missing/mis-typed value.
+#[test]
+fn eval_condition_operators() {
+    let mut vars = Map::new();
+    vars.insert(
+        "v".into(),
+        json!({ "verdict": "challenge", "status": 403, "console": ["a", "b"], "url": "https://x.com/login" }),
+    );
+    let c = |when: Value| eval_condition(&when, &vars);
+    assert!(c(json!({ "var": "v.verdict", "is": "equals", "value": "challenge" })).unwrap());
+    assert!(!c(json!({ "var": "v.verdict", "is": "not_equals", "value": "challenge" })).unwrap());
+    assert!(c(json!({ "var": "v.verdict", "is": "in", "value": ["landed", "challenge"] })).unwrap());
+    assert!(!c(json!({ "var": "v.verdict", "is": "not_in", "value": ["landed", "challenge"] })).unwrap());
+    assert!(c(json!({ "var": "v.url", "is": "contains", "value": "/login" })).unwrap());
+    assert!(c(json!({ "var": "v.console", "is": "contains", "value": "b" })).unwrap());
+    // Integer fact vs float literal and vice versa — loose numeric equality.
+    assert!(c(json!({ "var": "v.status", "is": "equals", "value": 403.0 })).unwrap());
+    assert!(c(json!({ "var": "v.status", "is": "at_least", "value": 400.0 })).unwrap());
+    assert!(!c(json!({ "var": "v.status", "is": "at_most", "value": 402.5 })).unwrap());
+    assert!(c(json!({ "var": "v.console", "is": "truthy" })).unwrap());
+    assert!(!c(json!({ "var": "v.console", "is": "falsy" })).unwrap());
+    // Loud errors — the flow that silently evaluated false on a typo would
+    // skip its own retry loop.
+    assert!(c(json!({ "var": "v.nope", "is": "truthy" })).is_err());
+    assert!(c(json!({ "var": "v.verdict", "is": "wat" })).is_err());
+    assert!(c(json!({ "var": "v.verdict", "is": "equals" })).is_err());
+    assert!(c(json!({ "var": "v.verdict", "is": "in", "value": "challenge" })).is_err());
+    // string contains needs a string value; array contains with a
+    // non-member is a legitimate false, not an error.
+    assert!(c(json!({ "var": "v.verdict", "is": "contains", "value": 1 })).is_err());
+    assert!(!c(json!({ "var": "v.console", "is": "contains", "value": "z" })).unwrap());
+}
+
+/// Static preflight: id collection, unknown goto, duplicate ids, malformed
+/// when — all caught before any step runs.
+#[test]
+fn validate_control_flow_catches_bad_shapes() {
+    let ok = json!([
+        { "id": "loop", "op": "eval", "args": { "script": "1" } },
+        { "op": "branch", "args": { "when": { "var": "n", "is": "at_most", "value": 2 }, "goto": "loop" } },
+    ]);
+    let ids = validate_control_flow(ok.as_array().unwrap()).unwrap();
+    assert_eq!(ids.get("loop"), Some(&0));
+
+    let bad = json!([ { "op": "branch", "args": { "when": { "var": "n", "is": "truthy" }, "goto": "nowhere" } } ]);
+    let err = validate_control_flow(bad.as_array().unwrap()).unwrap_err();
+    assert!(err.contains("nowhere"), "{err}");
+
+    let dup = json!([
+        { "id": "a", "op": "eval", "args": { "script": "1" } },
+        { "id": "a", "op": "eval", "args": { "script": "1" } },
+    ]);
+    assert!(validate_control_flow(dup.as_array().unwrap())
+        .unwrap_err()
+        .contains("duplicate"));
+
+    let badis = json!([
+        { "id": "a", "op": "eval", "args": { "script": "1" } },
+        { "op": "branch", "args": { "when": { "var": "n", "is": "mystery" }, "goto": "a" } },
+    ]);
+    assert!(validate_control_flow(badis.as_array().unwrap())
+        .unwrap_err()
+        .contains("when.is"));
+
+    let nogoto = json!([ { "op": "branch", "args": { "when": { "var": "n", "is": "truthy" } } } ]);
+    assert!(validate_control_flow(nogoto.as_array().unwrap())
+        .unwrap_err()
+        .contains("goto"));
+}
+
+/// A backward branch loop that converges: eval bumps a counter, branch
+/// re-runs it while n <= 2, falls through at 3. steps_done counts
+/// executions (7), not steps visited (3).
+#[tokio::test]
+async fn run_flow_branch_backward_loop_converges() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "id": "loop", "op": "eval", "args": { "script": "(window.__n = (window.__n || 0) + 1)" }, "save": "n" },
+            { "op": "branch", "args": { "when": { "var": "n", "is": "at_most", "value": 2 }, "goto": "loop" } },
+            { "op": "eval", "args": { "script": "'done:' + window.__n" }, "save": "final" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["steps_done"], 7);
+    assert_eq!(receipt["saved"]["n"].as_f64(), Some(3.0));
+    assert_eq!(receipt["saved"]["final"], "done:3");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// The reserved `steps_done` var bounds loops without page state: a
+/// wall-page navigation resets the JS context (window counters die),
+/// but the executor's counter survives — the zhihu retry-loop shape.
+#[tokio::test]
+async fn run_flow_steps_done_reserved_var_bounds_loops() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "max_steps": 50,
+        "steps": [
+            { "id": "loop", "op": "eval", "args": { "script": "(window.__n = (window.__n || 0) + 1)" }, "save": "n" },
+            { "op": "branch", "args": { "when": { "var": "steps_done", "is": "at_most", "value": 4 }, "goto": "loop" } },
+            { "op": "eval", "args": { "script": "'ok'" }, "save": "out" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    // Loop evals ran 3 times (n=3); the branch went false on the 6th
+    // execution (steps_done=5 > 4); the tail eval is the 7th.
+    assert_eq!(receipt["steps_done"], 7);
+    assert_eq!(receipt["saved"]["n"].as_f64(), Some(3.0));
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// A never-converging loop dies at the budget with a receipt naming the
+/// budget — not an infinite spin.
+#[tokio::test]
+async fn run_flow_branch_budget_exhaustion_fails_with_receipt() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "max_steps": 4,
+        "steps": [
+            { "id": "loop", "op": "eval", "args": { "script": "1" }, "save": "n" },
+            { "op": "branch", "args": { "when": { "var": "n", "is": "truthy" }, "goto": "loop" } },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "failed");
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("budget"), "reason: {reason}");
+    assert_eq!(receipt["steps_done"], 4);
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// Preflight failures reject before any session exists: unknown goto,
+/// duplicate id, unknown when.is — same no-session shape as create-block
+/// and args validation failures.
+#[tokio::test]
+async fn run_flow_branch_preflight_rejects_before_session() {
+    let mut mgr = SessionManager::new();
+    let before = mgr.list().len();
+    for bad in [
+        json!([ { "op": "branch", "args": { "when": { "var": "n", "is": "truthy" }, "goto": "nowhere" } } ]),
+        json!([
+            { "id": "a", "op": "eval", "args": { "script": "1" } },
+            { "id": "a", "op": "eval", "args": { "script": "1" } },
+        ]),
+        json!([
+            { "id": "a", "op": "eval", "args": { "script": "1" } },
+            { "op": "branch", "args": { "when": { "var": "n", "is": "mystery" }, "goto": "a" } },
+        ]),
+    ] {
+        let flow = json!({ "steps": bad });
+        let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+        assert_eq!(receipt["status"], "failed", "receipt: {receipt}");
+        assert!(receipt["session_id"].is_null());
+        assert_eq!(receipt["steps_done"], 0);
+    }
+    assert_eq!(mgr.list().len(), before);
+}
+
+/// A typo'd condition var fails AT the branch step, loudly — not a silent
+/// false that skips the guarded steps.
+#[tokio::test]
+async fn run_flow_branch_unknown_var_fails_at_the_branch() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "branch", "args": { "when": { "var": "never_saved", "is": "truthy" }, "goto": "x" } },
+            { "id": "x", "op": "eval", "args": { "script": "1" } },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "failed");
+    assert_eq!(receipt["failed_step"], 0);
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("never_saved"), "reason: {reason}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// The verdict-then-branch shape (issues #72 + #73 composing): verdict
+/// saves its fact sheet, a forward branch skips the retry steps when the
+/// page is clean. A fresh about:blank session with zero traffic reads
+/// verdict "empty".
+#[tokio::test]
+async fn run_flow_verdict_step_branches_on_the_fact_sheet() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "create": { "url": "about:blank" },
+        "steps": [
+            { "op": "verdict", "save": "v" },
+            { "op": "branch", "args": {
+                "when": { "var": "v.verdict", "is": "equals", "value": "empty" },
+                "goto": "done"
+            } },
+            { "op": "eval", "args": { "script": "'retry-was-run'" }, "save": "wrong" },
+            { "id": "done", "op": "eval", "args": { "script": "'verified'" }, "save": "tail" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(receipt["saved"]["v"]["verdict"], "empty");
+    assert!(receipt["saved"].get("wrong").is_none(), "branch skipped the retry step");
+    assert_eq!(receipt["saved"]["tail"], "verified");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// #238: a flow run against the GLOBAL manager (the HTTP face's path) must
+/// not hold the SESSIONS lock while a wait step is parked. The flow below
+/// waits 3s for a selector that never appears; while it sits in that wait,
+/// an unrelated lock taker has to get through in well under the budget —
+/// the old shape serialized the whole run under one lock, freezing every
+/// endpoint on the instance for the wait's full duration.
+#[tokio::test]
+async fn run_flow_global_releases_sessions_lock_during_wait() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, _hits) = crate::server::test_util::recording_server(&[(
+        "GET /wait.html",
+        "<html><body><div id=never-div></div></body></html>",
+    )]);
+    // This test drives the production path end to end: the session lives in
+    // the GLOBAL manager, not a test-local SessionManager::new().
+    let sid = {
+        let mut mgr = SESSIONS.lock().await;
+        mgr.evict_expired();
+        mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/wait.html")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        )
+    };
+    let flow = json!({
+        "steps": [
+            { "op": "wait", "args": { "selector": "#absent", "timeout_ms": 3000 } }
+        ]
+    });
+    let vars = Map::new();
+    let run = run_flow_global(&flow, &vars, Some(sid.clone()));
+    tokio::pin!(run);
+    // The probe runs while the flow sits in its 3s wait: give the wait
+    // command time to go in flight, then take the lock and time it.
+    let probe = async {
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let t0 = std::time::Instant::now();
+        let _mgr = SESSIONS.lock().await;
+        assert!(
+            t0.elapsed() < std::time::Duration::from_millis(1000),
+            "SESSIONS lock took {:?} mid-wait — held across the wait step? (#238 regression)",
+            t0.elapsed()
+        );
+    };
+    let (receipt, ()) = tokio::join!(run.as_mut(), probe);
+    // The wait itself still fails honestly: timed-out selector, evidence
+    // receipt, session left alive for takeover.
+    assert_eq!(receipt["status"], "failed", "receipt: {receipt}");
+    assert_eq!(receipt["failed_step"], 0);
+    assert_eq!(receipt["session_id"], sid.as_str());
+    let reason = receipt["reason"].as_str().unwrap();
+    assert!(reason.contains("timeout") && reason.contains("#absent"), "reason: {reason}");
+    assert!(SESSIONS.lock().await.close_and_wait(&sid).await);
+}
+
+/// Publish-speed numbers: every receipt (ok or failed) carries the run's wall
+/// clock and a per-step breakdown, so flow throughput is measurable without a
+/// caller-side stopwatch.
+#[tokio::test]
+async fn run_flow_receipt_carries_elapsed_and_step_timings() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, _hits) = crate::server::test_util::recording_server(&[(
+        "GET /a",
+        r#"{"ok":1}"#,
+    )]);
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "http", "id": "first", "args": { "url": format!("http://127.0.0.1:{port}/a") }, "save": "a" },
+            { "op": "http", "args": { "url": format!("http://127.0.0.1:{port}/a") }, "save": "b" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert!(receipt["elapsed_ms"].is_u64(), "receipt: {receipt}");
+    let rows = receipt["timings"].as_array().expect("timings array");
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["id"], "first");
+    assert_eq!(rows[1]["id"], "http");
+    let sum: u64 = rows.iter().map(|r| r["ms"].as_u64().unwrap()).sum();
+    assert!(sum <= receipt["elapsed_ms"].as_u64().unwrap() + 5);
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}

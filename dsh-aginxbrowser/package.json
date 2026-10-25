@@ -1,0 +1,61 @@
+{
+  "name": "dsh-diting",
+  "version": "0.1.1",
+  "description": "diting plugin for DeepSeek Harness: fetch JS-rendered / Cloudflare-protected pages as clean markdown, aggregated web search (Baidu/Sogou/WeChat and 11 more), and indexed interactive sessions (click / type / scroll / eval / screenshot) against a hosted or self-hosted diting engine — no local Chrome. Every session comes with a live view URL so the human can watch the agent browse and take over with the mouse.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./dsh-plugin.json": "./dsh-plugin.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "cordis.patch.yml",
+    "dsh-plugin.json",
+    "README.md"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.1.2-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node test/integration.mjs"
+  },
+  "dependencies": {
+    "schemastery": "^3.18.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.2-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.3"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yinnho/diting.git",
+    "directory": "dsh-diting"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "browser",
+    "agent",
+    "fetch",
+    "search",
+    "scraping"
+  ]
+}

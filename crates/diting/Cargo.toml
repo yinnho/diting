@@ -1,0 +1,222 @@
+[package]
+name = "diting"
+version = "0.7.0"
+edition = "2021"
+description = "The Diting (谛听) browser engine: network → DOM → CSS → layout → paint, V8 runtime, the Page API. Foundation of Diting."
+license = "Apache-2.0"
+repository = "https://github.com/yinnho/diting"
+publish = false
+
+[features]
+default = []
+# The blitz reference pipeline's parley FontContext (diting_fonts::font_ctx
+# and friends). The engine never depends on blitz itself; this only gates the
+# small FontContext surface the product crate's blitz cross-check pipeline
+# consumes — forwarded from the product's `blitz-reference` feature.
+blitz-reference = ["dep:parley"]
+# Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL).
+# Disable for plain reqwest-only builds.
+stealth = ["dep:wreq", "dep:wreq-util"]
+# Screenshot rendering via the diting engine (own CSS+layout+paint
+# stack on the taffy/parley/swash/vello_cpu foundation). Opt-in; renders the
+# JS-rendered DOM (captured by the diting V8 path) to a PNG — no Chromium
+# required, no blitz.
+screenshot = [
+    "dep:anyrender",
+    "dep:anyrender_vello_cpu",
+    "dep:peniko",
+    "dep:png",
+    # JPEG/WebP/GIF decode for diting_layout's ImageCache (batches 6d/7b/7e).
+    # Same `image` crate version blitz-dom decodes with, so RGBA output is
+    # identical (only relevant when blitz-reference is also on). Animated
+    # GIFs take the first frame. `png` is needed by the CDP legacy path,
+    # which re-encodes JPEG captures from the rendered PNG bytes.
+    "dep:image",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    # Taffy does diting's box layout.
+    "dep:taffy",
+    # Real glyph measurement + rasterization for diting_layout text leaves
+    # (render claim batches 3a/3b). Same stack upstream obscura-render builds
+    # on. scale/render are the outline raster features (3b paint).
+    "dep:swash",
+    # parley is consumed ONLY behind `blitz-reference` (diting_fonts'
+    # FontContext + the cross-check fixtures); diting's own text stack is
+    # swash + its own greedy_wrap (batch 72). Kept under `screenshot` for
+    # historical layering — blitz-reference gates on screenshot.
+    "dep:parley",
+    # musl cross builds cannot link fontconfig at build time (no pkg-config
+    # sysroot). dlopen defers libfontconfig to runtime; fontique degrades
+    # gracefully when it is absent (bundled CJK fonts carry the render).
+    "fontique/fontconfig-dlopen",
+]
+
+[dependencies]
+# Taffy 0.15.x (2026-10-12, #270), patched to upstream main 802e497 in the
+# root Cargo.toml for the float tail-segment fix (#300: a float extending
+# past the segment list's last end had that extent dropped, so lines beside
+# it wrapped full-width; see the [patch.crates-io] note). The retired git
+# pin before 0.15.0 tracked blitz main (4142c9d→2d936b77, 2026-10-09) for
+# taffy #1286
+# indefinite percentage flex-basis (falls back to content sizing instead
+# of collapsing to 0, our #241), the #1278-#1284 grid family, and the
+# block-layout vertical-margins rework; 0.15.0 = that rev + #1293/#1242 +
+# the release bump, so the pin is gone. Root-crate blitz-reference still
+# pulls blitz@916fa89 whose own taffy stays a git copy versioned 0.14.0 —
+# a different version, so cargo keeps the copies separate; keep mirroring
+# blitz's feature set (default-features = false, no float_layout) anyway
+# so toggling blitz-reference can't shift diting's layout behavior.
+# taffy_tree is additionally listed because the unified graph already enables
+# it (Cargo.lock shows taffy pulling slotmap) — an explicit no-op.
+# Used by diting_layout box layout and the fork-delta tests (docs/engine/render.md).
+taffy = { version = "0.15", optional = true, default-features = false, features = [
+    "std",
+    "taffy_tree",
+    "flexbox",
+    "flexbox_balance",
+    "grid",
+    "block_layout",
+    "content_size",
+    "calc",
+    "detailed_layout_info",
+    # Probe (#299): taffy's own float placement engine; unused by production
+    # layout until the probe proves it.
+    "float_layout",
+] }
+# Shaped advances + font metrics (batch 3a) and glyph rasterization (3b) for
+# diting_layout text leaves. Same stack upstream obscura-render builds on.
+# default-features=false + explicit std/scale/render: no variations/simd knob
+# we don't use (default set is std+scale+render anyway — pin it explicitly).
+swash = { version = "0.2", optional = true, default-features = false, features = [
+    "std",
+    "scale",
+    "render",
+] }
+# parley provides the FontContext the blitz-reference cross-check fixtures
+# build (diting itself shapes via swash). Mirrors blitz's own declaration
+# (default-features false, std) so the unified graph can't drift blitz's
+# parley behavior when blitz-reference is on.
+parley = { version = "0.11.1", optional = true, default-features = false, features = ["std"] }
+# Runtime-dlopen fontconfig for musl cross builds (see `screenshot` feature).
+fontique = { version = "0.11", optional = true }
+# --- async runtime ---
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+uuid = { version = "1", features = ["v4"] }
+
+# --- serialization ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+# --- tracing ---
+tracing = "0.1"
+
+# --- http client (non-stealth path) ---
+reqwest = { version = "0.12", features = ["cookies", "gzip", "brotli", "deflate", "rustls-tls", "socks", "json", "stream"], default-features = false }
+# Page-facing WebSocket transport: handshake runs over our own TcpStream/TLS
+# stack (client_async validates the 101 upgrade itself); tokio-tungstenite is
+# already in the tree via axum's ws feature.
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect"] }
+http = "1"
+# Same versions the tree already carries (reqwest rustls-tls path) — pinning
+# the same lines keeps the lockfile free of duplicate major versions.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+webpki-roots = "1.0"
+tokio-socks = "0.5"
+encoding_rs = "0.8"
+tempfile = "3"
+url = "2"
+
+# --- html / dom parsing ---
+html5ever = "0.40"
+selectors = "0.40"
+servo_arc = "0.4"
+cssparser = "0.37"
+precomputed-hash = "0.1"
+
+# --- V8 / JS runtime (claimed: diting_runtime, engine = v8 crate) ---
+# Claim step 6 (docs/diting_runtime认领计划_20261017.md): deno_core is
+# gone — the runtime layer (event loop, op settle pipeline, promise ring,
+# snapshot container, foreground platform) is ours. serde_v8 stays as a
+# leaf utility (V8Slice/serde bridging); it reaches the same v8 crate
+# through the deno_v8 facade.
+diting_runtime = { path = "../diting_runtime" }
+# Our op glue generator — replaces #[op2] one op family at a time (claim
+# step 4; docs/diting_runtime认领计划_20261017.md).
+diting_ops = { path = "../diting_ops" }
+# Claim step 1 (docs/diting_runtime认领计划_20261017.md): direct pin on
+# the engine-bindings crate (crates.io "v8"; deno_core's chain renames
+# it deno_v8 -> rusty_v8, same crate underneath). Exact-pinned so engine
+# bumps are our call (fingerprint self-consistency).
+v8 = { version = "=150.4.0", default-features = false }
+deno_error = "0.7"
+base64 = "0.22"
+sha1 = "0.11"
+sha2 = "0.11"
+# WebCrypto (crypto.subtle) secret-key primitives. RustCrypto, pure Rust, no
+# CMake/OpenSSL, unify on the digest 0.10 / cipher 0.4 stack already in tree.
+hmac = "0.13"
+aes = "0.8"
+aes-gcm = "0.10"
+cbc = { version = "0.1", features = ["alloc"] }
+ctr = "0.9"
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
+hkdf = "0.13"
+# ECDSA (P-256/P-384) for crypto.subtle — same RustCrypto family as the
+# secret-key ops, all four crates move in lockstep (0.14 rides ecdsa 0.17 +
+# elliptic-curve 0.14 + rand_core 0.9). `ecdsa` is a direct dep for the
+# hazmat prehash traits; p256/p384 with arithmetic+pkcs8 for key
+# encode/decode. Key generation uses Generate::generate() (ambient OS RNG,
+# enabled by the std→getrandom feature chain).
+ecdsa = { version = "0.17", default-features = false, features = ["digest", "pkcs8", "pem", "std"] }
+p256 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
+p384 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
+# Ed25519 for crypto.subtle: core sign/verify only; DER wrapping is done by hand
+# in the JS shim (fixed 16/12-byte prefixes) and seeds come from op_random_bytes.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+# Memory-mapped system fonts (the 183 MB color-emoji face stays on disk until
+# glyphs are touched). Already in the tree via fontique/parley.
+memmap2 = "0.9"
+# CSPRNG for getRandomValues / randomUUID (replaces Math.random).
+getrandom = "0.2"
+
+# --- stealth client (TLS fingerprint spoofing) ---
+# Pin exact versions: wreq/wreq-util are pre-release rc crates whose API shifts
+# between builds; a caret requirement could pull an incompatible rc and break.
+# prefix-symbols renames BoringSSL exports to avoid clashing with system OpenSSL,
+# but the renaming is only correct on Linux/Android (per wreq's README).
+wreq-util = { version = "=3.0.0-rc.14", optional = true }
+
+# --- render output encoding (screenshot) ---
+anyrender = { version = "0.13", optional = true }
+anyrender_vello_cpu = { version = "0.17", optional = true, features = ["multithreading"] }
+peniko = { version = "0.6", optional = true }
+png = { version = "0.18", optional = true }
+# Same version blitz-dom pins (0.25.x); jpeg/webp/gif are the only features we need.
+image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
+rsa = { version = "0.9.10", features = ["sha1", "sha2"] }
+# sha1 on rsa's digest-0.10 line (our top-level sha1 = "0.11" rides the
+# newer stack; rsa's Oaep needs the same-line type for SHA-1 labels/hashes).
+rsa_sha1 = { package = "sha1", version = "0.10.6" }
+rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+wreq = { version = "=6.0.0-rc.31", optional = true, features = ["prefix-symbols", "socks", "gzip", "brotli", "deflate", "zstd"] }
+
+[target.'cfg(not(any(target_os = "linux", target_os = "android")))'.dependencies]
+wreq = { version = "=6.0.0-rc.31", optional = true, features = ["socks", "gzip", "brotli", "deflate", "zstd"] }
+
+[build-dependencies]
+# 10d host flip: the snapshot is baked by OUR runtime crate (container
+# format + creator), not deno_core's.
+diting_runtime = { path = "../diting_runtime" }
+
+[dev-dependencies]
+# Test-only decode oracle for the hand-rolled canvas PNG encoder (#117):
+# the product never links it in default builds (it stays behind `screenshot`).
+png = "0.18"

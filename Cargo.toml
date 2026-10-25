@@ -1,0 +1,181 @@
+[package]
+# Root package is diting-browser; the BINARY is `diting` ([[bin]] below) —
+# the engine crate owns the bare `diting` name (crates/diting).
+name = "diting-browser"
+version = "0.7.0"
+edition = "2021"
+authors = ["OpenCarrier Team"]
+description = "Pure server-side browser engine with built-in V8. HTTP API for scraping, search, and interactive browsing. No Chromium required."
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/yinnho/diting"
+homepage = "https://browser.aginx.net"
+keywords = ["browser", "http-api", "web-scraping", "headless", "automation"]
+categories = ["web-programming", "network-programming", "command-line-utilities", "development-tools"]
+
+[workspace]
+members = ["crates/diting", "crates/diting_ops", "crates/diting_runtime"]
+resolver = "2"
+
+[features]
+default = []
+# Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL),
+# in the diting engine (crates/diting). Disable for plain reqwest-only builds.
+stealth = ["diting/stealth", "dep:wreq-util"]
+# Screenshot rendering via the diting engine (crates/diting) — own
+# CSS+layout+paint stack, no Chromium required, no blitz. The engine's
+# render deps live in diting; the product face only needs encode/decode
+# (PNG/JPEG re-encode of the engine's rendered bytes).
+screenshot = ["diting/screenshot", "dep:image", "dep:png"]
+# The Blitz reference pipeline (DioxusLabs/blitz, rev-pinned) — the engine
+# diting grew up against and still cross-checks. Purely opt-in: adds the
+# blitz-* crates plus Stylo (~30-40MB and a large compile-time chunk) and
+# enables `engine: "blitz"` on /screenshot plus the dual-engine cross-check
+# tests. Production builds (including the AginxOS device build) stop at
+# `screenshot` and contain zero blitz code.
+blitz-reference = [
+    "screenshot",
+    "diting/blitz-reference",
+    "dep:blitz-dom",
+    "dep:blitz-html",
+    "dep:blitz-paint",
+    "dep:blitz-traits",
+    # Direct stylo handle for the dual-engine computed-style cross-check
+    # tests (diting_css vs Stylo) — must match the version blitz pins.
+    "dep:stylo_alias",
+    # Cross-check fixtures (bridge_cross_check.rs / screenshot_reference.rs)
+    # shape via parley/fontique and raster via anyrender/vello_cpu/peniko
+    # directly.
+    "dep:parley",
+    "dep:fontique",
+    "dep:anyrender",
+    "dep:anyrender_vello_cpu",
+    "dep:peniko",
+]
+
+[dependencies]
+diting = { path = "crates/diting" }
+# The alias is how blitz-dom names upstream stylo; same crate, same version.
+stylo_alias = { version = "0.21", package = "stylo", optional = true }
+# --- async runtime ---
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# --- web framework ---
+axum = "0.7"
+tower-http = { version = "0.6", features = ["cors", "catch-panic"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+uuid = { version = "1", features = ["v4"] }
+
+# --- serialization ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+libc = "0.2"
+
+# --- docgen (render_markdown): markdown event stream + HTML emission ---
+# Parser-only infrastructure (html5ever precedent); diagram vocabulary and
+# layout arithmetic adapted from archify (MIT).
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+
+# --- tracing ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# --- http client (non-stealth path; stealth lives in diting) ---
+reqwest = { version = "0.12", features = ["cookies", "gzip", "brotli", "deflate", "rustls-tls", "socks", "json", "stream"], default-features = false }
+http = "1"
+url = "2"
+urlencoding = "2"
+
+# --- html / dom parsing (product-side convenience wrappers) ---
+scraper = "0.27"
+html2md = "0.2"
+
+base64 = "0.22"
+sha2 = "0.11"
+
+# --- stealth client (TLS fingerprint spoofing) ---
+# wreq itself lives in diting; the product keeps wreq-util (platform
+# emulation presets used by search personas).
+# Pin exact versions: wreq/wreq-util are pre-release rc crates whose API shifts
+# between builds; a caret requirement could pull an incompatible rc and break.
+wreq-util = { version = "=3.0.0-rc.14", optional = true }
+
+# --- blitz reference pipeline (opt-in via `blitz-reference` feature) ---
+# NOT part of `screenshot`: production/device builds stop at diting and
+# compile zero blitz crates. This is the cross-check engine only.
+# Upstream DioxusLabs/blitz, rev-pinned (bump deliberately). The old yinnho/blitz
+# fork existed only for the no-op NetProvider critical-resource fix — merged
+# upstream as DioxusLabs/blitz#636 (2026-08-08), so the fork is retired.
+#
+# WHY 916fa89 (#878, parley 0.11.1) AND NOT main: #878 resolves line-height:
+# normal from font metrics instead of 1.2 × font-size — the upstream mirror of
+# our #16, which the diting side of this batch matches (the cross-check test
+# asserts both engines agree on metrics-derived normal line height, so the two
+# must land together). CAVEAT: parley 0.11.1 still carries the #752 hang
+# (linebender/parley#752 — BreakLines::break_remaining spins forever on CJK
+# nesting like baidu's IME menu; fix 1aba7cac is on parley main but UNRELEASED,
+# and [patch.crates-io] can't take it — workspace version there is still
+# 0.11.0, semver-incompatible with blitz's ^0.11.1 requirement). So the
+# reference engine can still hang on such pages; diting cannot — its layout
+# shapes via swash and breaks via its own greedy_wrap, zero parley. Revisit
+# when parley >0.11.1 ships.
+#
+# crates.io's blitz 0.3.0-beta.1 is a stale snapshot and upstream pins taffy to
+# an unreleased git rev, so blitz-* must come from git. anyrender 0.13 /
+# anyrender_vello_cpu 0.17 are on crates.io and are what blitz consumes here.
+blitz-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "916fa89", optional = true, features = ["default"] }
+blitz-html = { git = "https://github.com/DioxusLabs/blitz", rev = "916fa89", optional = true }
+blitz-paint = { git = "https://github.com/DioxusLabs/blitz", rev = "916fa89", optional = true }
+blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "916fa89", optional = true }
+# parley/fontique/anyrender/peniko: cross-check fixture stack — same
+# declarations diting carries under `screenshot` (see crates/diting/Cargo.toml
+# for the full rationale comments); listed here for bridge_cross_check.rs and
+# screenshot_reference.rs, gated on `blitz-reference`.
+parley = { version = "0.11.1", optional = true, default-features = false, features = ["std"] }
+fontique = { version = "0.11", optional = true }
+anyrender = { version = "0.13", optional = true }
+anyrender_vello_cpu = { version = "0.17", optional = true, features = ["multithreading"] }
+peniko = { version = "0.6", optional = true }
+png = { version = "0.18", optional = true }
+# Same version blitz-dom pins (0.25.x); jpeg/webp/gif are the only features we need.
+image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+
+[[bin]]
+name = "diting"
+path = "src/main.rs"
+
+[dev-dependencies]
+ureq = { version = "2", features = ["json"] }
+# CDP accessibility-domain tests build QualName'd element fixtures by hand
+# (moved with diting_cdp into the product crate; the engine still carries
+# its own copy for its parser tests).
+html5ever = "0.40"
+# auth.rs gate tests drive the axum Router via ServiceExt::oneshot (same
+# version axum 0.7.9 already compiles into the tree).
+tower = { version = "0.5", features = ["util"] }
+
+# Unwinding is REQUIRED: ops wrap their bodies in std::panic::catch_unwind so a
+# panic degrades to an error return instead of unwinding into V8's FFI frame and
+# aborting the process. panic="abort" turns every catchable op panic into a crash.
+# Workspace-wide: applies to every member crate (diting included).
+[profile.release]
+panic = "unwind"
+strip = true
+
+# taffy 0.15.0 (2026-10-12) predates the float tail-segment fix our #300
+# graduation battery pinned: a float placed beside a shorter earlier float
+# (e.g. a 60px left float starting beside a 50px right float's last 10px)
+# had the part of its extent below the segment list's last end silently
+# dropped from the FloatContext, so text lines beside that tail wrapped
+# full-width. main pushed the missing segment in the end-None branch
+# ("add a segment for the part of it below the last segment"); pin main
+# until a release carries it. Only place_floated_box's signature moved
+# (caller-defined id first param — #299's probe passes 0). The blitz git
+# copy of taffy (versioned 0.14.0) is a different source and stays.
+[patch.crates-io]
+taffy = { git = "https://github.com/DioxusLabs/taffy", rev = "802e497b69689e1c93be2d16e9d53a973971bcb2" }

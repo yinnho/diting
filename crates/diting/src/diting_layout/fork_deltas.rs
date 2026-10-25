@@ -1,0 +1,2272 @@
+    use taffy::geometry::Point;
+    use taffy::prelude::*;
+    use taffy::tree::{LayoutInput, LayoutOutput};
+
+    /// Intrinsic (min-content, max-content) inline size of a text-ish leaf.
+    /// The Definite branch itself implements fit-content clamping, the way a
+    /// real text engine would: max(min, min(available, max)).
+    #[derive(Clone, Copy)]
+    struct IntrinsicInlineSize {
+        min: f32,
+        max: f32,
+    }
+
+    /// Natural size of a replaced element (image), width/height.
+    #[derive(Clone, Copy)]
+    struct ReplacedIntrinsicSize {
+        width: f32,
+        height: f32,
+    }
+
+    fn measure_intrinsic(
+        input: LayoutInput,
+        _node: NodeId,
+        context: Option<&mut IntrinsicInlineSize>,
+        _style: &Style,
+    ) -> LayoutOutput {
+        let intrinsic = context.copied().unwrap_or(IntrinsicInlineSize { min: 0.0, max: 0.0 });
+        let width = input.known_dimensions.width.unwrap_or_else(|| match input.available_space.width {
+            AvailableSpace::MinContent => intrinsic.min,
+            AvailableSpace::MaxContent => intrinsic.max,
+            AvailableSpace::Definite(available) => {
+                intrinsic.min.max(available.min(intrinsic.max))
+            }
+        });
+        LayoutOutput::from_outer_size(Size {
+            width,
+            height: input.known_dimensions.height.unwrap_or(10.0),
+        })
+    }
+
+    fn measure_replaced(
+        input: LayoutInput,
+        _node: NodeId,
+        context: Option<&mut ReplacedIntrinsicSize>,
+        _style: &Style,
+    ) -> LayoutOutput {
+        let intrinsic = context.copied().unwrap_or(ReplacedIntrinsicSize { width: 0.0, height: 0.0 });
+        let ratio = intrinsic.width / intrinsic.height;
+        let size = match input.known_dimensions {
+            Size { width: Some(width), height: Some(height) } => Size { width, height },
+            Size { width: Some(width), height: None } => Size { width, height: width / ratio },
+            Size { width: None, height: Some(height) } => Size { width: height * ratio, height },
+            Size { width: None, height: None } => Size { width: intrinsic.width, height: intrinsic.height },
+        };
+        LayoutOutput::from_outer_size(size)
+    }
+
+    fn inline_margins(left_auto: bool, right_auto: bool) -> Rect<LengthPercentageAuto> {
+        Rect {
+            left: if left_auto { auto() } else { zero() },
+            right: if right_auto { auto() } else { zero() },
+            top: zero(),
+            bottom: zero(),
+        }
+    }
+
+    /// Single grid item (fixed 300x200 area) with `aspect_ratio: 2` and an
+    /// image-like measure function returning a natural 100x50.
+    fn layout_replaced_grid_item(item_style: Style, root_style: Style) -> (Point<f32>, Size<f32>) {
+        let mut tree = TaffyTree::new();
+        tree.disable_rounding();
+        let item_style = Style { aspect_ratio: Some(2.0), ..item_style };
+        let item = tree
+            .new_leaf_with_context(item_style, ReplacedIntrinsicSize { width: 100.0, height: 50.0 })
+            .unwrap();
+        let root_style = Style {
+            display: Display::Grid,
+            size: Size { width: length(300.0), height: length(200.0) },
+            grid_template_columns: vec![length(300.0)],
+            grid_template_rows: vec![length(200.0)],
+            ..root_style
+        };
+        let root = tree.new_with_children(root_style, &[item]).unwrap();
+        tree.compute_layout_with_measure(root, Size::MAX_CONTENT, measure_replaced).unwrap();
+        let layout = tree.layout(item).unwrap();
+        (layout.location, layout.size)
+    }
+
+    /// Grid-in-grid: outer 300px fixed track, inner item with `fr(1.0)` track
+    /// holding a text leaf of the given intrinsic size. Returns the inner
+    /// item's resolved width.
+    #[allow(clippy::too_many_arguments)] // grid plumbing — see run_tokens
+    fn layout_nested_grid_item(
+        intrinsic: IntrinsicInlineSize,
+        margin: Rect<LengthPercentageAuto>,
+        justify_self: Option<AlignSelf>,
+        min_width: LengthPercentageAuto,
+        max_width: LengthPercentageAuto,
+        padding: Rect<LengthPercentage>,
+        border: Rect<LengthPercentage>,
+        box_sizing: BoxSizing,
+    ) -> f32 {
+        let mut tree = TaffyTree::new();
+        tree.disable_rounding();
+
+        let text = tree.new_leaf_with_context(Style::default(), intrinsic).unwrap();
+        let item = tree
+            .new_with_children(
+                Style {
+                    display: Display::Grid,
+                    grid_template_columns: vec![fr(1.0)],
+                    margin,
+                    justify_self,
+                    min_size: Size { width: min_width, height: auto() },
+                    max_size: Size { width: max_width, height: auto() },
+                    padding,
+                    border,
+                    box_sizing,
+                    ..Style::default()
+                },
+                &[text],
+            )
+            .unwrap();
+        let root = tree
+            .new_with_children(
+                Style {
+                    display: Display::Grid,
+                    size: Size { width: length(300.0), height: auto() },
+                    grid_template_columns: vec![length(300.0)],
+                    ..Style::default()
+                },
+                &[item],
+            )
+            .unwrap();
+
+        tree.compute_layout_with_measure(root, Size::MAX_CONTENT, measure_intrinsic).unwrap();
+        tree.layout(item).unwrap().size.width
+    }
+
+    fn unconstrained_item_width(
+        intrinsic: IntrinsicInlineSize,
+        margin: Rect<LengthPercentageAuto>,
+        justify_self: Option<AlignSelf>,
+    ) -> f32 {
+        layout_nested_grid_item(
+            intrinsic,
+            margin,
+            justify_self,
+            auto(),
+            auto(),
+            Rect::zero(),
+            Rect::zero(),
+            BoxSizing::BorderBox,
+        )
+    }
+
+    // ── Theme 4: `normal` alignment provenance ─────────────────────────────
+
+    /// upstream fork expects the replaced item at its natural 100x50 (normal
+    /// resolves to start for compressible replaced elements) while the
+    /// ordinary item stretches to 300x150 (normal + aspect-ratio matrix).
+    /// Stock 0.13.0 has no `normal` keyword: the legacy default logic treats
+    /// both alike.
+    #[test]
+    fn grid_normal_alignment_replaced_vs_ordinary_aspect_ratio() {
+        let (_, replaced) = layout_replaced_grid_item(
+            Style { item_is_replaced: true, ..Style::default() },
+            Style::default(),
+        );
+        // 100x50 natural size — upstream absorbed the fork (taffy 2d936b77);
+        // the old lock was stock stretching inline (300) + ratio block (150).
+        assert_eq!(replaced, Size { width: 100.0, height: 50.0 });
+
+        let (_, ordinary) = layout_replaced_grid_item(Style::default(), Style::default());
+        // fork: Size { width: 300.0, height: 150.0 } (agrees)
+        assert_eq!(ordinary, Size { width: 300.0, height: 150.0 });
+    }
+
+    /// The fork's `resolve_item_alignment` matrix (8 cases). Case-by-case
+    /// fork expectations are in the table; divergent stock results are locked
+    /// here. Tuple is (justify_self, align_self, root align_items,
+    /// root justify_items).
+    #[test]
+    fn grid_ordinary_aspect_ratio_alignment_matrix() {
+        // Each entry's Size is the STOCK 0.13.0 result (locked); the comment
+        // above it is the fork's expectation where it differs.
+        type AlignCase =
+            (Option<AlignSelf>, Option<AlignSelf>, AlignItems, AlignItems, Size<f32>);
+        let cases: [AlignCase; 8] = [
+            // fork: 300x150 (agrees) — both normal: inline stretch, block start
+            (None, None, AlignItems::NORMAL, AlignItems::NORMAL, Size { width: 300.0, height: 150.0 }),
+            // fork: 400x200 — explicit block stretch drives ratio-derived width;
+            // stock ignores the block stretch (no normal provenance)
+            (None, Some(AlignSelf::STRETCH), AlignItems::NORMAL, AlignItems::NORMAL, Size { width: 300.0, height: 150.0 }),
+            // fork: 300x150 (agrees)
+            (Some(AlignSelf::STRETCH), None, AlignItems::NORMAL, AlignItems::NORMAL, Size { width: 300.0, height: 150.0 }),
+            // fork: 300x200 — both axes definite, ratio must not overwrite;
+            // stock re-derives height 150 from the ratio anyway
+            (Some(AlignSelf::STRETCH), Some(AlignSelf::STRETCH), AlignItems::NORMAL, AlignItems::NORMAL, Size { width: 300.0, height: 150.0 }),
+            // fork: 300x150 (agrees)
+            (None, Some(AlignSelf::START), AlignItems::NORMAL, AlignItems::NORMAL, Size { width: 300.0, height: 150.0 }),
+            // fork: 400x200 — inline start frees block normal to stretch;
+            // stock collapses to the natural 100x50 instead
+            (Some(AlignSelf::START), None, AlignItems::NORMAL, AlignItems::NORMAL, Size { width: 100.0, height: 50.0 }),
+            // fork: 400x200 — container-level block stretch; stock ignores it
+            (None, None, AlignItems::STRETCH, AlignItems::NORMAL, Size { width: 300.0, height: 150.0 }),
+            // fork: 300x150 (agrees)
+            (None, None, AlignItems::NORMAL, AlignItems::STRETCH, Size { width: 300.0, height: 150.0 }),
+        ];
+        for (justify_self, align_self, align_items, justify_items, expected) in cases {
+            let (_, actual) = layout_replaced_grid_item(
+                Style { justify_self, align_self, ..Style::default() },
+                Style { align_items, justify_items, ..Style::default() },
+            );
+            assert_eq!(actual, expected, "justify={justify_self:?}, align={align_self:?}");
+        }
+    }
+
+    // ── Theme 3: aspect-ratio transfer vs stretch ordering ─────────────────
+
+    /// Replaced item, explicit stretch in one axis, ratio 2.0, natural
+    /// 100x50. Fork expectations: inline-stretch 300x150, block-stretch
+    /// 400x200, both-stretch 300x200, definite inline 120x200, definite
+    /// block 300x80. Stock results locked below.
+    #[test]
+    fn grid_replaced_explicit_stretch_and_definite_sizes() {
+        let base = Style { item_is_replaced: true, ..Style::default() };
+
+        let (_, inline_stretch) =
+            layout_replaced_grid_item(Style { justify_self: Some(AlignSelf::STRETCH), ..base.clone() }, Style::default());
+        // fork: 300x150 (agrees)
+        assert_eq!(inline_stretch, Size { width: 300.0, height: 150.0 });
+
+        let (_, block_stretch) =
+            layout_replaced_grid_item(Style { align_self: Some(AlignSelf::STRETCH), ..base.clone() }, Style::default());
+        // 400x200 — block stretch supplies height, ratio derives width.
+        // Upstream absorbed this (taffy 2d936b77); the old lock was stock
+        // ignoring explicit block stretch for a replaced item.
+        assert_eq!(block_stretch, Size { width: 400.0, height: 200.0 });
+
+        let (_, both_stretch) = layout_replaced_grid_item(
+            Style { justify_self: Some(AlignSelf::STRETCH), align_self: Some(AlignSelf::STRETCH), ..base.clone() },
+            Style::default(),
+        );
+        // fork: 300x200 — both axes definite, ratio never overwrites;
+        // stock re-derives height from the ratio regardless
+        assert_eq!(both_stretch, Size { width: 300.0, height: 150.0 });
+
+        let (_, definite_inline) = layout_replaced_grid_item(
+            Style {
+                size: Size { width: length(120.0), height: Dimension::auto() },
+                align_self: Some(AlignSelf::STRETCH),
+                ..base.clone()
+            },
+            Style::default(),
+        );
+        // fork: 120x200 — definite width + block stretch; stock keeps the
+        // ratio-derived 60 instead of honoring the stretch height
+        assert_eq!(definite_inline, Size { width: 120.0, height: 60.0 });
+
+        let (_, definite_block) = layout_replaced_grid_item(
+            Style {
+                size: Size { width: Dimension::auto(), height: length(80.0) },
+                justify_self: Some(AlignSelf::STRETCH),
+                ..base
+            },
+            Style::default(),
+        );
+        // fork: 300x80 — inline stretch + definite height; stock derives
+        // width 160 from the ratio instead of stretching to 300
+        assert_eq!(definite_block, Size { width: 160.0, height: 80.0 });
+    }
+
+    // ── Theme 5: grid auto-margin fit-content sizing ───────────────────────
+
+    /// Breakable text (min 100 / max 600) in a 300px track. The fork
+    /// fit-contents every auto-margin / non-stretch combination to the 300px
+    /// area. Stock 0.13.0 sizes all seven to the raw 600px max-content —
+    /// auto margins only disable stretch, nothing clamps the inherent
+    /// measurement back to the available area. This is the sharpest single
+    /// demonstration of the fork's fit-content fix.
+    #[test]
+    fn grid_breakable_fit_content_margin_matrix() {
+        let breakable = IntrinsicInlineSize { min: 100.0, max: 600.0 };
+        let cases = [
+            (inline_margins(true, true), None),
+            (inline_margins(true, false), None),
+            (inline_margins(false, true), None),
+            (inline_margins(true, true), Some(AlignSelf::STRETCH)),
+            (inline_margins(false, false), Some(AlignSelf::START)),
+            (inline_margins(false, false), Some(AlignSelf::CENTER)),
+            (inline_margins(false, false), Some(AlignSelf::END)),
+        ];
+        for (margin, justify_self) in cases {
+            // fork: 300.0 in all seven cases
+            assert_eq!(unconstrained_item_width(breakable, margin, justify_self), 600.0);
+        }
+    }
+
+    /// Unbreakable text (min = max = 600) must overflow the 300px track
+    /// rather than being squashed — the min-content floor of fit-content.
+    /// With neither inline margin auto, stretch stays active and yields 300.
+    #[test]
+    fn grid_unbreakable_min_content_floor() {
+        let unbreakable = IntrinsicInlineSize { min: 600.0, max: 600.0 };
+        let cases = [
+            (inline_margins(true, true), None),
+            (inline_margins(true, false), None),
+            (inline_margins(false, true), None),
+            (inline_margins(true, true), Some(AlignSelf::STRETCH)),
+            (inline_margins(false, false), Some(AlignSelf::START)),
+            (inline_margins(false, false), Some(AlignSelf::CENTER)),
+            (inline_margins(false, false), Some(AlignSelf::END)),
+        ];
+        for (margin, justify_self) in cases {
+            assert_eq!(unconstrained_item_width(unbreakable, margin, justify_self), 600.0);
+        }
+        assert_eq!(
+            unconstrained_item_width(unbreakable, inline_margins(false, false), None),
+            300.0,
+            "stretch remains active when neither inline margin is auto"
+        );
+    }
+
+    /// Author min/max clamps and content-box box-sizing edges compose with
+    /// fit-content sizing.
+    #[test]
+    fn grid_fit_content_author_min_max_box_edges() {
+        let breakable = IntrinsicInlineSize { min: 100.0, max: 600.0 };
+        let unbreakable = IntrinsicInlineSize { min: 600.0, max: 600.0 };
+        let auto_margins = inline_margins(true, true);
+
+        let author_min = layout_nested_grid_item(
+            breakable,
+            auto_margins,
+            None,
+            length(350.0),
+            auto(),
+            Rect::zero(),
+            Rect::zero(),
+            BoxSizing::BorderBox,
+        );
+        // fork: 350.0 — fit-content (300) raised to the author minimum;
+        // stock never clamps to the area, so the raw 600 stands
+        assert_eq!(author_min, 600.0);
+
+        let author_max = layout_nested_grid_item(
+            unbreakable,
+            auto_margins,
+            None,
+            auto(),
+            length(250.0),
+            Rect::zero(),
+            Rect::zero(),
+            BoxSizing::BorderBox,
+        );
+        assert_eq!(author_max, 250.0);
+
+        let edges = Rect { left: length(10.0), right: length(10.0), top: zero(), bottom: zero() };
+        let content_box_max = layout_nested_grid_item(
+            unbreakable,
+            auto_margins,
+            None,
+            auto(),
+            length(250.0),
+            edges,
+            edges,
+            BoxSizing::ContentBox,
+        );
+        // fork: 290.0 (250 content + 2*10 padding + 2*10 border)
+        assert_eq!(content_box_max, 290.0);
+    }
+
+    // ── Theme 3 (flex side): final-main-size ratio transfer ────────────────
+
+    /// A flex item with `aspect-ratio: 2` and auto cross size must get its
+    /// cross size from the FINAL resolved main size (Flexbox 9.4), not from
+    /// a pre-flex provisional transfer and not from the measure function.
+    /// The measure here deliberately ignores the ratio (fixed 10px height) so
+    /// the only way to 150px is taffy's own transfer.
+    #[test]
+    fn flex_auto_cross_uses_final_main_ratio_transfer() {
+        #[derive(Clone, Copy)]
+        struct Flat;
+        fn measure_flat(
+            input: LayoutInput,
+            _node: NodeId,
+            _ctx: Option<&mut Flat>,
+            _style: &Style,
+        ) -> LayoutOutput {
+            LayoutOutput::from_outer_size(Size {
+                width: input.known_dimensions.width.unwrap_or(10.0),
+                height: input.known_dimensions.height.unwrap_or(10.0),
+            })
+        }
+
+        let mut tree = TaffyTree::new();
+        tree.disable_rounding();
+        let item = tree
+            .new_leaf_with_context(
+                Style { aspect_ratio: Some(2.0), flex_grow: 1.0, ..Style::default() },
+                Flat,
+            )
+            .unwrap();
+        let root = tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    size: Size { width: length(300.0), height: Dimension::auto() },
+                    ..Style::default()
+                },
+                &[item],
+            )
+            .unwrap();
+        tree.compute_layout_with_measure(root, Size::MAX_CONTENT, measure_flat).unwrap();
+        let size = tree.layout(item).unwrap().size;
+        // fork: width 300 (flex-grow fills), height 150 (ratio transfer from
+        // the final main size). Stock 0.13.0 never transfers: the flat
+        // measure's 10px stands.
+        assert_eq!(size, Size { width: 300.0, height: 10.0 });
+    }
+
+/// Strut on flattened inlines (obscura#722 residual, our side): the union
+/// pass rebuilds a rect from hoisted kids, and that union must grow to the
+/// element's own effective line-height — a smaller-font descendant (or a
+/// replaced-only inline) otherwise reports a box shorter than the line box
+/// Chrome hands out, and click targeting by rect lands short. Structural
+/// assertion: no Chrome oracle, we lock our own contract.
+#[test]
+fn flattened_inline_union_carries_strut_height() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body><p>before <a style="line-height:32px"><span style="font-size:8px">x</span></a> after</p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let rects = crate::diting_layout::layout_dom(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+    );
+
+    let a_id = tree.query_selector_all("a").unwrap()[0];
+    let r = rects.get(&a_id).expect("flattened <a> must own a union rect");
+    assert!(
+        r.height >= 31.0,
+        "own line-height 32px must strut the union; got {r:?}"
+    );
+    assert!(r.height <= 40.0, "strut must not overshoot the line box; got {r:?}");
+    assert!(r.width > 0.0, "text content must give the inline width");
+
+    // Regression guard: a plain text inline keeps a sane line box (no strut
+    // needed — its word leaves already carry the line height).
+    let html2 = r#"<html><body><p>plain <b>bold word</b> tail</p></body></html>"#;
+    let tree2 = parse_html(html2);
+    let styles2 = crate::diting_layout::compute_styles(&tree2, &rules, (1280.0, 720.0));
+    let rects2 = crate::diting_layout::layout_dom(
+        &tree2, &styles2, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+    );
+    let b_id = tree2.query_selector_all("b").unwrap()[0];
+    let rb = rects2.get(&b_id).expect("flattened <b> must own a union rect");
+    let (_, _, lh) = super::font_context(&tree2, b_id, &styles2, &crate::diting_fonts::font_book());
+    assert!(
+        rb.height >= lh - 1.0 && rb.height <= lh + 8.0,
+        "text inline should sit at its line height {lh}; got {rb:?}"
+    );
+}
+
+/// UA sub/super baseline shifts grow the line box, and an inline replaced
+/// atom carries the strut descent so the line can take its descender room
+/// (Chrome oracles from the #420 probe: x<sup>y</sup> at 20px parent → 28,
+/// explicit vertical-align:super → 32, div>img content height 44 while the
+/// img box itself stays 40; a block img takes no strut).
+#[test]
+fn sub_super_grows_line_box_and_strut_keeps_img_honest() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body>
+        <div id="plain" style="font-size:20px">xy</div>
+        <div id="sup" style="font-size:20px">x<sup>y</sup></div>
+        <div id="sub" style="font-size:20px">x<sub>y</sub></div>
+        <div id="explicit" style="font-size:20px"><span style="vertical-align:super">s</span></div>
+        <div id="imgwrap"><img width="40" height="40"></div>
+        <div id="imgblock"><img style="display:block" width="40" height="40"></div>
+    </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let fonts = crate::diting_fonts::font_book();
+    let rects = crate::diting_layout::layout_dom(
+        &tree, &styles, &fonts, 1280.0, 800.0,
+    );
+
+    let h = |sel: &str| -> f32 {
+        let id = tree.query_selector_all(sel).unwrap()[0];
+        rects.get(&id).unwrap_or_else(|| panic!("{sel} must own a rect")).height
+    };
+
+    let plain_h = h("#plain");
+    let plain_id = tree.query_selector_all("#plain").unwrap()[0];
+    let (_, _, lh) = super::font_context(&tree, plain_id, &styles, &crate::diting_fonts::font_book());
+    assert!(
+        (plain_h - lh).abs() <= 1.0,
+        "plain line sits at the strut {lh}; got {plain_h}"
+    );
+
+    // The #16 landing flips these from Chrome-oracle absolutes (28/32, which
+    // the flat-1.2 pitch hit by arithmetic coincidence) to model-relative:
+    // leaf pitch (metrics-derived) + the 8px 0.4×parent lift — the Chromium
+    // CONSTANT is the font-independent part worth pinning.
+    let sup_fs = 20.0 * 0.8333;
+    let sup_h = h("#sup");
+    let want_sup = fonts.normal_line_height(sup_fs, false) + 8.0;
+    assert!(
+        (sup_h - want_sup).abs() <= 1.0,
+        "UA sup line = own metrics pitch + the 0.4×parent lift (8px at 20px, the #420 probe's Chromium constant); got {sup_h} want {want_sup}"
+    );
+
+    let sub_h = h("#sub");
+    let want_sub =
+        fonts.normal_line_height(sup_fs, false) + (0.2 * 20.0 + super::leaf_descent(&fonts, sup_fs, false)).ceil();
+    assert!(
+        (sub_h - want_sub).abs() <= 1.0,
+        "sub drops by 0.2×parent fs plus its own (whole-px) descent; got {sub_h} want {want_sub}"
+    );
+
+    let ex_h = h("#explicit");
+    let want_ex = fonts.normal_line_height(20.0, false) + 8.0;
+    assert!(
+        (ex_h - want_ex).abs() <= 1.0,
+        "explicit super at 20px = own pitch + the same 8px lift; got {ex_h} want {want_ex}"
+    );
+
+    let wrap_h = h("#imgwrap");
+    let want_wrap = 40.0 + super::leaf_descent(&fonts, 16.0, false).ceil();
+    assert!(
+        (wrap_h - want_wrap).abs() <= 0.01,
+        "inline img rides the baseline: the line grows by the whole-px strut descent (Chrome 44); got {wrap_h} want {want_wrap}"
+    );
+    let img_h = {
+        let id = tree.query_selector_all("#imgwrap img").unwrap()[0];
+        rects.get(&id).unwrap_or_else(|| panic!("img must own a rect")).height
+    };
+    assert!(
+        (img_h - 40.0).abs() < 0.01,
+        "the img box itself stays 40 — the strut is line bookkeeping, not img geometry; got {img_h}"
+    );
+
+    let block_h = h("#imgblock");
+    assert!(
+        (block_h - 40.0).abs() <= 0.5,
+        "a block img takes no strut; got {block_h}"
+    );
+}
+
+/// Inline-block is an atomic inline-level box (obscura#750 family). Our CSS
+/// layer used to drop `display: inline-block` entirely (no enum variant, the
+/// declaration fell to `_ => return false`), so every inline list/stack
+/// rendered as a full-width block — and @supports (display:inline-block)
+/// claimed support the cascade then ignored. The atomic box keeps its own
+/// shrink-to-fit width against the parent run, and since 批259 (#166) the
+/// INTERIOR is a real BFC: `li`s are block-level list-items and stack
+/// VERTICALLY (Chrome truth — the pre-#166 flex-row mapping laid them out as
+/// wrapping horizontal rows, a divergence this ledger entry used to pin by
+/// accident). Structural assertions, no Chrome oracle.
+#[test]
+fn inline_block_is_atomic_shrink_to_fit_and_wraps() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let items: String = (0..17).map(|i| format!("<li>ITEM{}</li>", if i % 2 == 0 { "Alef" } else { "BETA" })).collect();
+    let html = format!(
+        r#"<html><body>
+        <div id="wrap" style="width:352px"><ul id="list" style="display:inline-block;margin:0;padding:0">{items}</ul></div>
+        <div id="hug" style="width:352px"><span id="chip" style="display:inline-block">OK</span></div>
+        </body></html>"#
+    );
+    let tree = parse_html(&html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let rects = crate::diting_layout::layout_dom(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+    );
+
+    let list = tree.query_selector_all("#list").unwrap()[0];
+    let rl = rects.get(&list).expect("inline-block keeps its own box");
+    assert!(
+        rl.width <= 353.0,
+        "inline-block must not exceed its containing block (upstream ran ~1000px); got {rl:?}"
+    );
+    assert!(
+        rl.width > 40.0,
+        "shrink-to-fit keeps the widest item's width, not one glyph; got {rl:?}"
+    );
+    let lh = {
+        let (_, _, lh) = super::font_context(&tree, list, &styles, &crate::diting_fonts::font_book());
+        lh
+    };
+    assert!(
+        rl.height >= lh * 15.0,
+        "17 block-level list items stack vertically inside the BFC; got {rl:?}"
+    );
+
+    let chip = tree.query_selector_all("#chip").unwrap()[0];
+    let rc = rects.get(&chip).expect("inline-block span keeps its box");
+    assert!(
+        rc.width < 100.0,
+        "a short inline-block hugs its content instead of filling the block; got {rc:?}"
+    );
+    assert!(
+        rc.height > 0.0 && rc.height < 60.0,
+        "single chip stays one line tall; got {rc:?}"
+    );
+}
+
+/// Unstyled form controls are Chrome-shaped boxes (obscura#807 class). They
+/// used to fall through to the plain-block path and measure full-width × 0 —
+/// an input has no laid-out content, and a zero-height box reads as
+/// "invisible" to every rect-based consumer: Playwright's actionability loop
+/// waits forever on `fill`/`click` against a 0-height input. Now input/
+/// textarea are replaced leaves with per-type natural sizes (CSS/attr width
+/// & height still win per axis), and <button> is an inline-block atom that
+/// shrink-to-fits its label.
+#[test]
+fn unstyled_form_controls_get_default_boxes() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body>
+        <p>a <input id="t"> <input id="c" type="checkbox"></p>
+        <input id="s" type="submit" value="Go go">
+        <textarea id="ta"></textarea>
+        <button id="b">OK</button>
+        <input id="styled" style="width:300px;height:40px">
+        </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let rects = crate::diting_layout::layout_dom(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+    );
+    let rect = |sel: &str| {
+        let id = tree.query_selector_all(sel).unwrap()[0];
+        *rects.get(&id).unwrap_or_else(|| panic!("{sel} must own a box"))
+    };
+
+    let t = rect("#t");
+    assert_eq!(t.width, 177.0, "text input default width; got {t:?}");
+    assert_eq!(t.height, 22.0, "text input default height; got {t:?}");
+
+    let c = rect("#c");
+    assert_eq!(c.width, 13.0, "checkbox default width; got {c:?}");
+    assert_eq!(c.height, 13.0, "checkbox default height; got {c:?}");
+    // Same line, baseline-aligned: a replaced box's baseline is its bottom
+    // margin edge (CSS inline layout; Chrome gives checkbox the same
+    // bottom-edge baseline), so text input and checkbox share a bottom line.
+    assert_eq!(
+        c.y + c.height, t.y + t.height,
+        "inline-level controls share the line on their baseline (bottom edge); got {t:?} vs {c:?}"
+    );
+
+    let s = rect("#s");
+    assert!(
+        (56.0..=72.0).contains(&s.width),
+        "submit input width approximates its value label (5 chars); got {s:?}"
+    );
+    assert_eq!(s.height, 22.0, "button-like input height; got {s:?}");
+
+    let ta = rect("#ta");
+    assert_eq!(ta.width, 177.0, "textarea default width; got {ta:?}");
+    assert_eq!(ta.height, 38.0, "textarea default height (2 rows); got {ta:?}");
+
+    let b_id = tree.query_selector_all("#b").unwrap()[0];
+    let b = rects.get(&b_id).expect("button owns a box");
+    assert!(
+        b.width < 200.0 && b.height > 0.0,
+        "button shrink-to-fits its label instead of filling the block; got {b:?}"
+    );
+    assert_eq!(
+        styles.get(&b_id).and_then(|st| st.display),
+        Some(crate::diting_css::Display::InlineBlock),
+        "computed display for button matches the UA sheet"
+    );
+
+    let styled = rect("#styled");
+    assert_eq!(styled.width, 300.0, "CSS width wins over the default; got {styled:?}");
+    assert_eq!(styled.height, 40.0, "CSS height wins over the default; got {styled:?}");
+}
+
+/// A form control paints the text it shows inside its replaced box (the
+/// live-view dogfood batch): the dirty value (`el.value = x`, mirrored from
+/// the bootstrap's prototype setter into NodeData::Element::live_value) wins
+/// over the parsed default, and an empty text-like control paints its
+/// placeholder in Chrome's gray [117,117,117]. The mirror is deliberately NOT
+/// an attribute — Chrome's `el.value = x` never touches
+/// getAttribute('value')/outerHTML — so this test pins both halves: the paint
+/// run AND the invisibility (a mirror-into-attr implementation would fail the
+/// serialization asserts at the bottom).
+#[test]
+fn form_controls_paint_their_value_run() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body>
+        <input id="dirty" value="default text">
+        <input id="attr" value="attr text">
+        <input id="empty" placeholder="Type here">
+        <input id="go" type="submit" value="Go">
+        <input id="submitdefault" type="submit">
+        <textarea id="ta">ta text</textarea>
+        </body></html>"#;
+    let tree = parse_html(html);
+    // The dirty-value mirror — the bootstrap's value setter does this via the
+    // set_live_value op; the test drives the Rust side directly.
+    let dirty = tree.query_selector_all("#dirty").unwrap()[0];
+    tree.with_node_mut(dirty, |n| n.set_live_value("typed text".into()));
+    let ta = tree.query_selector_all("#ta").unwrap()[0];
+    tree.with_node_mut(ta, |n| n.set_live_value("typed ta".into()));
+
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let run = |want: &str| {
+        items.iter().find_map(|it| match it {
+            PaintItem::Replaced { alt: Some((text, .., color)), .. } if text == want => {
+                Some(*color)
+            }
+            _ => None,
+        })
+    };
+
+    assert!(run("typed text").is_some(), "dirty live_value paints, not the attr default");
+    assert!(run("attr text").is_some(), "parsed value attr paints absent a dirty value");
+    assert!(run("typed ta").is_some(), "textarea dirty value paints over its textContent");
+    assert!(
+        run("default text").is_none(),
+        "the stale value attr must not paint once the dirty value exists"
+    );
+    assert_eq!(
+        run("Type here").expect("placeholder paints on an empty control"),
+        [117, 117, 117, 255],
+        "placeholder paints in Chrome's gray"
+    );
+    assert!(run("Go").is_some(), "submit input labels from its value attr");
+    assert!(run("Submit").is_some(), "value-less submit paints Chrome's default label");
+
+    // The mirror stays out of every DOM surface, like Chrome's dirty value.
+    assert_eq!(
+        tree.with_node(dirty, |n| n.get_attribute("value").map(str::to_string)).flatten(),
+        Some("default text".into()),
+        "getAttribute keeps the ORIGINAL value attribute"
+    );
+    assert!(!tree.outer_html(dirty).contains("typed text"));
+    assert_eq!(tree.text_content(ta), "ta text", "textContent is not the dirty value");
+}
+
+/// A select is a replaced box painting ONE label, not its options as page
+/// text (the form paint batch's select half): the selected option's label
+/// (`label` attr else content, trimmed) wins, else the first option's — the
+/// same precedence the bootstrap's value getter resolves with — and the JS
+/// dirty-value mirror (`_mirrorSelectLabel` → set_live_value) beats both.
+/// An optgroup's options count in document order.
+#[test]
+fn select_paints_one_option_label_not_the_option_list() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body>
+        <select id="plain">
+            <option value="a">Alpha</option>
+            <option value="b" selected>Beta</option>
+        </select>
+        <select id="firstwins">
+            <option>First</option>
+            <option>Second</option>
+        </select>
+        <select id="labeled">
+            <option label="Shown Label">ignored content</option>
+        </select>
+        <select id="grouped">
+            <optgroup><option selected>GroupedSel</option></optgroup>
+            <option>After</option>
+        </select>
+        </body></html>"#;
+    let tree = parse_html(html);
+    let sel = |id: &str| tree.query_selector_all(id).unwrap()[0];
+
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let run = |want: &str| {
+        items.iter().any(|it| matches!(
+            it,
+            PaintItem::Replaced { alt: Some((text, ..)), .. } if text == want
+        ))
+    };
+
+    assert!(run("Beta"), "the selected option's label paints");
+    assert!(!run("Alpha"), "the unselected option must not paint");
+    assert!(run("First"), "no selected attr: the first option is the display");
+    assert!(!run("Second"), "the second option stays hidden without selectedness");
+    assert!(run("Shown Label"), "an option's label attr beats its content");
+    assert!(!run("ignored content"), "the option's own content yields to its label attr");
+    assert!(run("GroupedSel"), "an optgroup's selected option paints");
+    assert!(!run("After"), "the option after the optgroup stays hidden");
+    // Select is now replaced: its options' text must NOT leak as page Text
+    // items (the pre-batch behavior laid every option out as stacked text).
+    assert!(
+        !items.iter().any(|it| matches!(it, PaintItem::Text { text, .. } if text.contains("Alpha"))),
+        "option content must not lay out as page text"
+    );
+
+    // The JS mirror (select.value = x recomputes the label into live_value)
+    // beats the attributes — the test drives the Rust side directly, same
+    // as the value-run test above.
+    tree.with_node_mut(sel("#plain"), |n| n.set_live_value("Typed".into()));
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let run = |want: &str| {
+        items.iter().any(|it| matches!(
+            it,
+            PaintItem::Replaced { alt: Some((text, ..)), .. } if text == want
+        ))
+    };
+    assert!(run("Typed"), "the dirty label mirror paints over the attributes");
+    assert!(!run("Beta"), "the attribute-selected label must not paint once dirtied");
+    assert_eq!(
+        tree.with_node(sel("#plain"), |n| n.get_attribute("value").map(str::to_string)).flatten(),
+        None,
+        "the select itself never gains a value attribute"
+    );
+}
+
+/// Checkable inputs paint as native widgets, not text runs (the form paint
+/// batch's widget half): the replaced item carries a Checkbox/Radio
+/// FormWidget whose checked state is the live_checked mirror (what
+/// `el.checked = x` writes) else the parsed `checked` attribute — the exact
+/// precedence the JS getter resolves with.
+#[test]
+fn checkable_inputs_paint_native_widgets() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::{FormWidget, PaintItem};
+
+    let html = r#"<html><body>
+        <input id="cb-default" type="checkbox">
+        <input id="cb-attr" type="checkbox" checked>
+        <input id="cb-dirty" type="checkbox">
+        <input id="rd-attr" type="radio" name="g" checked>
+        <input id="rd-off" type="radio" name="g">
+        <input id="text" type="text" value="plain">
+        </body></html>"#;
+    let tree = parse_html(html);
+    let sel = |id: &str| tree.query_selector_all(id).unwrap()[0];
+    tree.with_node_mut(sel("#cb-dirty"), |n| n.set_live_checked(true));
+
+    // The walk keys widgets by node, so scan all Replaced items and count
+    // widget states: 4 checkables total — 3 checked (attr ×2 + dirty ×1),
+    // 1 unchecked — and the text input must carry NO widget.
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let mut checkboxes = [0usize; 2]; // [unchecked, checked]
+    let mut radios = [0usize; 2];
+    let mut text_runs = 0usize;
+    for it in &items {
+        match it {
+            PaintItem::Replaced { widget: Some(FormWidget::Checkbox { checked }), .. } => {
+                checkboxes[*checked as usize] += 1;
+            }
+            PaintItem::Replaced { widget: Some(FormWidget::Radio { checked }), .. } => {
+                radios[*checked as usize] += 1;
+            }
+            PaintItem::Replaced { alt: Some((text, ..)), .. } if text == "plain" => {
+                text_runs += 1;
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(checkboxes, [1, 2], "checkboxes: default unchecked, attr+dirty checked");
+    assert_eq!(radios, [1, 1], "radios: one checked via attr, one unchecked");
+    assert_eq!(text_runs, 1, "the text input keeps its plain alt run");
+    // The checkables paint NO alt text — the widget IS the content.
+    assert!(
+        !items.iter().any(|it| matches!(
+            it,
+            PaintItem::Replaced { alt: Some((text, ..)), .. } if text == "on"
+        )),
+        "checkable inputs must not paint a value run"
+    );
+
+    // Flip the dirty checkbox off: the mirror must win over the attribute
+    // precedence in the same re-layout (el.checked = false).
+    tree.with_node_mut(sel("#cb-dirty"), |n| n.set_live_checked(false));
+    tree.with_node_mut(sel("#cb-attr"), |n| n.set_live_checked(false));
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let checked = items.iter().filter(|it| matches!(
+        it,
+        PaintItem::Replaced { widget: Some(FormWidget::Checkbox { checked: true }), .. }
+    )).count();
+    assert_eq!(checked, 0, "live_checked=false beats the parsed checked attribute on both");
+    // And the mirror never surfaces through the DOM, like Chrome.
+    assert!(
+        tree.with_node(sel("#cb-attr"), |n| n.get_attribute("checked").is_some()).unwrap_or(false),
+        "getAttribute keeps the parsed checked attribute"
+    );
+}
+
+/// The text-carrying controls resolve their run-layout kind at collect time
+/// (form paint polish batch): text-like input → Input, button-like → Button,
+/// textarea → Textarea, select → Select — while checkables keep the widget
+/// path (no form), non-controls (img/video) carry nothing, and an authored
+/// background drops only the default shell (fill_placeholder false), not the
+/// run layout.
+#[test]
+fn form_runs_resolve_layout_kind() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::{FormRun, PaintItem};
+
+    let html = r#"<html><body>
+        <input id="text" type="text" value="x">
+        <input id="pass" type="password" value="y">
+        <input id="btn" type="button" value="Go">
+        <input id="styled" type="text" style="background:#eef" value="z">
+        <textarea id="ta">ta</textarea>
+        <select id="s"><option>A</option></select>
+        <input id="cb" type="checkbox">
+        <img id="pic" src="/x.png" alt="alt run">
+        </body></html>"#;
+    let tree = parse_html(html);
+
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    // (run text, form kind, fill) per Replaced item carrying an alt run,
+    // plus the checkbox widget entry, in document order.
+    let mut seen: Vec<(String, Option<FormRun>, bool)> = Vec::new();
+    for it in &items {
+        match it {
+            PaintItem::Replaced { alt: Some((text, ..)), form, fill_placeholder, .. } => {
+                seen.push((text.clone(), *form, *fill_placeholder));
+            }
+            PaintItem::Replaced { widget: Some(_), form, .. } => {
+                assert!(form.is_none(), "a widget control never carries a run layout kind");
+            }
+            _ => {}
+        }
+    }
+    let kind_of = |want: &str| seen.iter().find(|(t, ..)| t == want).and_then(|(_, f, _)| *f);
+    assert_eq!(kind_of("x"), Some(FormRun::Input), "text input");
+    assert_eq!(kind_of("y"), Some(FormRun::Input), "password is a text-like single-line control");
+    assert_eq!(kind_of("Go"), Some(FormRun::Button), "button input");
+    assert_eq!(kind_of("ta"), Some(FormRun::Textarea), "textarea");
+    assert_eq!(kind_of("A"), Some(FormRun::Select), "select paints its one label");
+    assert_eq!(kind_of("z"), Some(FormRun::Input), "an authored background keeps the run layout");
+    assert_eq!(kind_of("alt run"), None, "an img alt run carries no form layout");
+
+    // The default shell only paints while the author styled no background.
+    let fill_of = |want: &str| seen.iter().find(|(t, ..)| t == want).map(|(_, _, f)| *f);
+    assert_eq!(fill_of("x"), Some(true), "unstyled input paints the default shell");
+    assert_eq!(fill_of("z"), Some(false), "authored background drops the default shell");
+}
+
+/// `box-sizing` picks the edge an authored width/height/min/max measures to
+/// (the universal `* { box-sizing: border-box }` reset idiom). taffy sizes
+/// are border-box native, so the engine maps authored px over by padding +
+/// border only in the content-box case. Rects below are taffy layout sizes =
+/// border boxes, which is exactly what gBCR/offsetWidth report.
+#[test]
+fn box_sizing_picks_the_measured_edge() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body>
+        <div id="cb" style="width:100px; height:40px; padding:0 10px; border:2px solid red"></div>
+        <div id="bb" style="box-sizing:border-box; width:100px; height:40px; padding:0 10px; border:2px solid red"></div>
+        <div id="clamped-cb" style="max-width:60px; padding:0 10px; border:2px solid red; height:10px">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div>
+        <div id="clamped-bb" style="box-sizing:border-box; max-width:60px; padding:0 10px; border:2px solid red; height:10px">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div>
+        </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let rects = crate::diting_layout::layout_dom(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+    );
+    let rect = |sel: &str| {
+        let id = tree.query_selector_all(sel).unwrap()[0];
+        *rects.get(&id).unwrap_or_else(|| panic!("{sel} must own a box"))
+    };
+
+    // content-box (the CSS initial): 100px content + 2×10px padding +
+    // 2×2px border = 124 border box; the 4-sided border also grows height.
+    let cb = rect("#cb");
+    assert_eq!(cb.width, 124.0, "content-box width grows by padding + border; got {cb:?}");
+    assert_eq!(cb.height, 44.0, "content-box height grows by the top/bottom border; got {cb:?}");
+
+    // border-box: the authored 100px IS the border box; padding + border
+    // eat into the content area instead.
+    let bb = rect("#bb");
+    assert_eq!(bb.width, 100.0, "border-box width is the authored edge; got {bb:?}");
+    assert_eq!(bb.height, 40.0, "border-box height likewise; got {bb:?}");
+
+    // Clamps follow the same edge: max-width:60px clamps the border box at
+    // 60 + 24 (content-box) vs exactly 60 (border-box).
+    let clamped_cb = rect("#clamped-cb");
+    assert_eq!(clamped_cb.width, 84.0, "content-box max-width measures the content; got {clamped_cb:?}");
+    let clamped_bb = rect("#clamped-bb");
+    assert_eq!(clamped_bb.width, 60.0, "border-box max-width measures the border box; got {clamped_bb:?}");
+}
+
+/// `background-clip: text` (the gradient-text idiom, as real pages ship it
+/// with the -webkit- alias): the clip:text element suppresses its box
+/// gradient — the pre-fix page showed an opaque gradient block COVERING the
+/// text — and re-aims the gradient at the glyphs, where each pixel samples
+/// it at its own position. Without clip:text the box gradient still paints
+/// and the text keeps its solid color.
+#[test]
+fn background_clip_text_moves_gradient_into_glyphs() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body style="margin:0">
+        <h1 id="grad" style="margin:0;width:200px;font-size:40px;background-image:linear-gradient(90deg,red,blue);-webkit-background-clip:text">MMMMM</h1>
+        <h1 id="plain" style="margin:0;width:200px;font-size:40px;background-image:linear-gradient(90deg,red,blue)">MMMMM</h1>
+        </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (rects, items) = crate::diting_layout::layout_dom_with_paint(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        1280.0,
+        800.0,
+    );
+
+    // Exactly one box gradient survives: the plain h1's. The clip:text one
+    // is gone from the box layer.
+    let box_gradients = items
+        .iter()
+        .filter(|it| matches!(it, PaintItem::BgGradient { .. }))
+        .count();
+    assert_eq!(box_gradients, 1, "clip:text must suppress the box gradient; got {box_gradients}");
+
+    // The clipped text carries the fill; the plain text keeps solid ink.
+    // Anchored to each element's rect — no pixel-position guessing.
+    let in_band = |it: &PaintItem, r: &crate::diting_layout::Rect| {
+        matches!(it, PaintItem::Text { y, .. } if *y >= r.y - 5.0 && *y < r.y + r.height)
+    };
+    let grad_rect = *rects.get(&tree.query_selector_all("#grad").unwrap()[0]).unwrap();
+    let plain_rect = *rects.get(&tree.query_selector_all("#plain").unwrap()[0]).unwrap();
+    let clipped = items
+        .iter()
+        .find_map(|it| match it {
+            PaintItem::Text { gradient: Some(g), .. } if in_band(it, &grad_rect) => Some(g.clone()),
+            _ => None,
+        })
+        .expect("clipped h1's text carries the gradient fill");
+    let plain_solid = items
+        .iter()
+        .any(|it| matches!(it, PaintItem::Text { gradient: None, .. }) && in_band(it, &plain_rect));
+    assert!(plain_solid, "unclipped h1 text keeps its solid fill");
+
+    // The fill's area is the clip element's background box and the angle
+    // survives the threading — the gradient the glyphs sample is the one
+    // the box would have painted.
+    let h1 = grad_rect;
+    assert!((clipped.area.x - h1.x).abs() < 1.0, "area x tracks the h1 box: {:?} vs {h1:?}", clipped.area);
+    assert!((clipped.area.width - h1.width).abs() < 1.0, "area width tracks the h1 box");
+    assert!((clipped.css_deg - 90.0).abs() < 0.01, "angle threads through unchanged");
+
+    // Pixel level: the 40px caps span past the h1's horizontal midpoint —
+    // the left half of the ink must sample red, the right half blue.
+    let mut c = crate::diting_layout::paint::Canvas::new_filled(300, 160, [255, 255, 255, 255]);
+    crate::diting_layout::paint::execute(&items, &crate::diting_fonts::font_book(), &mut c);
+    let (mid_x, mid_y) = (h1.x + h1.width / 2.0, h1.y + h1.height / 2.0);
+    let p = |x: usize, y: usize| {
+        let i = (y * c.width + x) * 4;
+        c.data[i..i + 4].try_into().unwrap()
+    };
+    // Scan the first line band for strongly-red and strongly-blue ink.
+    let mut reds = 0usize;
+    let mut blues = 0usize;
+    let mut red_max_x = 0usize;
+    let mut blue_min_x = usize::MAX;
+    for y in 0..(h1.y + h1.height) as usize {
+        for x in 0..300 {
+            let [r, g, b, a] = p(x, y);
+            if a < 64 {
+                continue;
+            }
+            if r > 120 && b < 120 && g < 120 {
+                reds += 1;
+                red_max_x = red_max_x.max(x);
+            } else if b > 120 && r < 120 && g < 120 {
+                blues += 1;
+                blue_min_x = blue_min_x.min(x);
+            }
+        }
+    }
+    assert!(reds > 5 && blues > 5, "both halves must paint through the 40px glyphs (reds={reds} blues={blues})");
+    assert!(
+        red_max_x as f32 <= mid_x + 2.0,
+        "red ink stays left of the gradient midpoint {mid_x}; max red x = {red_max_x}"
+    );
+    assert!(
+        blue_min_x as f32 >= mid_x - 2.0,
+        "blue ink starts right of the midpoint {mid_x}; min blue x = {blue_min_x}"
+    );
+    let _ = mid_y; // midpoint y folded into the band scan above
+}
+
+/// Absolute y of a span's text baseline, through the same metrics model the
+/// layout shift and the paint path both use (fixture font metrics, quantized
+/// parley-style offset).
+#[cfg(test)]
+fn span_baseline_y(
+    r: &super::Rect,
+    fonts: &super::text::FontBook,
+    fs: f32,
+    bold: bool,
+    lh: f32,
+) -> f32 {
+    let m = fonts.metrics(fs, bold).unwrap_or(super::text::ScaledMetrics {
+        ascent: fs,
+        descent: fs * 0.2,
+        line_gap: 0.0,
+    });
+    r.y + super::text::baseline_offset(m.ascent, m.descent, lh)
+}
+
+/// Baseline alignment for a mixed-font run (blitz#750 semantics): taffy
+/// leaves can't report baselines, so run wrappers lay out FLEX_START and the
+/// post-layout pass drops every item of a line by (line max baseline − own
+/// baseline). A 16px word next to a 24px word must end with both baselines
+/// on the same y — before the shift they shared a TOP edge instead.
+/// Structural assertions through the fixture font, no Chrome oracle.
+#[test]
+fn mixed_font_run_aligns_baselines() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body><p><span id="a" style="font-size:16px">A</span> <span id="b" style="font-size:24px">B</span></p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let fonts = crate::diting_fonts::font_book();
+    let rects = crate::diting_layout::layout_dom(&tree, &styles, &fonts, 1280.0, 800.0);
+
+    let a_id = tree.query_selector_all("#a").unwrap()[0];
+    let b_id = tree.query_selector_all("#b").unwrap()[0];
+    let ra = rects.get(&a_id).expect("16px span rect");
+    let rb = rects.get(&b_id).expect("24px span rect");
+    let (fs_a, bold_a, lh_a) = super::font_context(&tree, a_id, &styles, &crate::diting_fonts::font_book());
+    let (fs_b, bold_b, lh_b) = super::font_context(&tree, b_id, &styles, &crate::diting_fonts::font_book());
+
+    let base_a = span_baseline_y(ra, &fonts, fs_a, bold_a, lh_a);
+    let base_b = span_baseline_y(rb, &fonts, fs_b, bold_b, lh_b);
+    assert!(
+        (base_a - base_b).abs() < 0.6,
+        "baselines must be collinear: a={base_a} b={base_b} (ra={ra:?} rb={rb:?})"
+    );
+    assert!(
+        rb.y < ra.y - 1.0,
+        "the larger word must sit HIGHER than the smaller one (shift fired, not top-aligned): ra={ra:?} rb={rb:?}"
+    );
+}
+
+/// The line grouping is per wrapped line, not per run: a wide container
+/// packs the 16px and 24px words onto line one and pushes the tail onto
+/// line two, and each line aligns independently — line one's small word
+/// drops to the big word's baseline, line two (uniform 16px) moves not at
+/// all relative to its own top.
+#[test]
+fn mixed_font_run_aligns_baselines_per_wrapped_line() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body><div style="width:140px"><span id="a" style="font-size:16px">AAAA</span> <span id="b" style="font-size:24px">BBBB</span> <span id="c" style="font-size:16px">CCCC CCCC CCCC</span></div></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let fonts = crate::diting_fonts::font_book();
+    let rects = crate::diting_layout::layout_dom(&tree, &styles, &fonts, 1280.0, 800.0);
+
+    let a_id = tree.query_selector_all("#a").unwrap()[0];
+    let b_id = tree.query_selector_all("#b").unwrap()[0];
+    let c_id = tree.query_selector_all("#c").unwrap()[0];
+    let ra = rects.get(&a_id).expect("span a rect");
+    let rb = rects.get(&b_id).expect("span b rect");
+    let rc = rects.get(&c_id).expect("span c rect");
+    let (fs_a, bold_a, lh_a) = super::font_context(&tree, a_id, &styles, &crate::diting_fonts::font_book());
+    let (fs_b, bold_b, lh_b) = super::font_context(&tree, b_id, &styles, &crate::diting_fonts::font_book());
+    let (fs_c, bold_c, lh_c) = super::font_context(&tree, c_id, &styles, &crate::diting_fonts::font_book());
+
+    let base_a = span_baseline_y(ra, &fonts, fs_a, bold_a, lh_a);
+    let base_b = span_baseline_y(rb, &fonts, fs_b, bold_b, lh_b);
+    assert!(
+        (base_a - base_b).abs() < 0.6,
+        "line one baselines must be collinear: a={base_a} b={base_b}"
+    );
+    assert!(
+        rc.y > ra.y + lh_a * 0.8,
+        "the tail must wrap below line one: ra={ra:?} rc={rc:?} lh={lh_a}"
+    );
+    let base_c = span_baseline_y(rc, &fonts, fs_c, bold_c, lh_c);
+    assert!(
+        base_c > base_a + lh_a * 0.8,
+        "line two's baseline sits a line box below line one's: a={base_a} c={base_c}"
+    );
+}
+
+/// An atomic inline-block joins the line on the baseline of its LAST in-flow
+/// line box (CSS2, blitz#750's inline-block arm) — here a narrow box wraps
+/// its words onto several lines, and the adjacent text baseline must land on
+/// the box's last-line baseline, not its first line or its bottom edge.
+#[test]
+fn inline_block_baseline_is_its_last_line() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body><p><span id="t">text</span> <span id="box" style="display:inline-block;width:36px">AA BB CC</span></p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let fonts = crate::diting_fonts::font_book();
+    let rects = crate::diting_layout::layout_dom(&tree, &styles, &fonts, 1280.0, 800.0);
+
+    let t_id = tree.query_selector_all("#t").unwrap()[0];
+    let box_id = tree.query_selector_all("#box").unwrap()[0];
+    let rt = rects.get(&t_id).expect("text span rect");
+    let rbox = rects.get(&box_id).expect("inline-block rect");
+    let (fs_t, bold_t, lh_t) = super::font_context(&tree, t_id, &styles, &crate::diting_fonts::font_book());
+    let (fs_b, bold_b, lh_b) = super::font_context(&tree, box_id, &styles, &crate::diting_fonts::font_book());
+    assert!(
+        rbox.height > lh_b * 1.5,
+        "the narrow box must wrap onto multiple lines: {rbox:?} lh={lh_b}"
+    );
+
+    let base_t = span_baseline_y(rt, &fonts, fs_t, bold_t, lh_t);
+    // Last line's baseline below the box top: box height − one line box + the
+    // baseline offset inside that line box.
+    let m = fonts.metrics(fs_b, bold_b).unwrap_or(super::text::ScaledMetrics {
+        ascent: fs_b,
+        descent: fs_b * 0.2,
+        line_gap: 0.0,
+    });
+    let box_last_baseline =
+        rbox.y + rbox.height - lh_b + super::text::baseline_offset(m.ascent, m.descent, lh_b);
+    // #243: map height is taffy's UNROUNDED size, span origin is the rounded
+    // walk position — up to ±0.5 subpixel skew rides the approximation; 1.0
+    // still separates from the guarded failure modes (a full line box ≈ 23px).
+    assert!(
+        (base_t - box_last_baseline).abs() < 1.0,
+        "text baseline must sit on the box's last-line baseline: text={base_t} box_last={box_last_baseline} (rt={rt:?} rbox={rbox:?})"
+    );
+}
+
+/// A textless atomic box has no baseline to offer: CSS falls back to its
+/// bottom margin edge, so the neighboring text baseline must land on the
+/// box's BOTTOM, not share its top (the pre-shift FLEX_START behavior).
+#[test]
+fn empty_inline_block_aligns_bottom_edge() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body><p><span id="t">text</span> <span id="box" style="display:inline-block;width:30px;height:40px"></span></p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let fonts = crate::diting_fonts::font_book();
+    let rects = crate::diting_layout::layout_dom(&tree, &styles, &fonts, 1280.0, 800.0);
+
+    let t_id = tree.query_selector_all("#t").unwrap()[0];
+    let box_id = tree.query_selector_all("#box").unwrap()[0];
+    let rt = rects.get(&t_id).expect("text span rect");
+    let rbox = rects.get(&box_id).expect("empty inline-block keeps its box");
+    let (fs_t, bold_t, lh_t) = super::font_context(&tree, t_id, &styles, &crate::diting_fonts::font_book());
+
+    let base_t = span_baseline_y(rt, &fonts, fs_t, bold_t, lh_t);
+    let bottom = rbox.y + rbox.height;
+    assert!(
+        (base_t - bottom).abs() < 0.6,
+        "text baseline must land on the empty box's bottom edge: text={base_t} bottom={bottom} (rt={rt:?} rbox={rbox:?})"
+    );
+}
+
+
+/// Ground truth for the named-area feed (the Vector 2022 page scaffold
+/// shape): a GridTemplateAreas matrix on the container plus
+/// `<name>-start`/`<name>-end` NamedLine placements on the items must lay
+/// each item into its named rectangle — nav in the fixed first column, main
+/// beside it in the minmax(0, 1fr) remainder, footer spanning both columns
+/// below. If stock taffy (the same rev the bridge pins) ever disagrees with
+/// how diting_layout feeds it, this is where the divergence surfaces first.
+#[test]
+fn taffy_named_grid_area_placement() {
+    use taffy::style::{GridPlacement, GridTemplateArea, GridTemplateAreas};
+
+    let area = |name: &str, rs: u16, re: u16, cs: u16, ce: u16| GridTemplateArea {
+        name: name.into(),
+        row_start: rs,
+        row_end: re,
+        column_start: cs,
+        column_end: ce,
+    };
+    // Each axis spans the area's implicit lines: start → `<n>-start`,
+    // end → `<n>-end` (CSS §8; taffy's NamedLineResolver implements the same
+    // convention).
+    let place = |name: &str| Style {
+        grid_row: taffy::geometry::Line {
+            start: GridPlacement::NamedLine(format!("{}-start", name), 1),
+            end: GridPlacement::NamedLine(format!("{}-end", name), 1),
+        },
+        grid_column: taffy::geometry::Line {
+            start: GridPlacement::NamedLine(format!("{}-start", name), 1),
+            end: GridPlacement::NamedLine(format!("{}-end", name), 1),
+        },
+        ..Default::default()
+    };
+
+    let mut tree: TaffyTree<()> = TaffyTree::new();
+    tree.disable_rounding();
+    let nav = tree.new_leaf(place("nav")).unwrap();
+    let main = tree.new_leaf(place("main")).unwrap();
+    let ft = tree.new_leaf(place("ft")).unwrap();
+    let root = tree
+        .new_with_children(
+            Style {
+                display: Display::Grid,
+                size: Size { width: length(320.0), height: auto() },
+                grid_template_columns: vec![length(100.0), minmax(length(0.0), fr(1.0))],
+                grid_template_areas: Some(GridTemplateAreas {
+                    areas: vec![
+                        area("nav", 1, 3, 1, 2),
+                        area("main", 1, 3, 2, 3),
+                        area("ft", 3, 4, 1, 3),
+                    ],
+                    row_count: 3,
+                    column_count: 2,
+                }),
+                ..Default::default()
+            },
+            &[nav, main, ft],
+        )
+        .unwrap();
+    tree.compute_layout(root, Size { width: AvailableSpace::Definite(320.0), height: AvailableSpace::MaxContent }).unwrap();
+
+    let nav_layout = tree.layout(nav).unwrap();
+    let main_layout = tree.layout(main).unwrap();
+    let ft_layout = tree.layout(ft).unwrap();
+    assert_eq!(nav_layout.size.width, 100.0, "nav fills the fixed first column");
+    assert_eq!(main_layout.location.x, 100.0, "main starts at the second column");
+    assert_eq!(main_layout.size.width, 220.0, "main takes the minmax(0, 1fr) remainder");
+    assert_eq!(main_layout.location.y, nav_layout.location.y, "nav and main share the first row");
+    assert_eq!(ft_layout.size.width, 320.0, "footer spans both columns");
+    assert_eq!(ft_layout.location.y, nav_layout.location.y + nav_layout.size.height, "footer below nav");
+}
+
+/// Vector 2022's `.vector-column-start` wears real skin margins (margin-top
+/// 2.85rem, margin-left -0.75rem) inside a fixed 12.25rem first track. The
+/// margin box must still stretch across the track, leaving the content box
+/// WIDER than the track (196 + 12), never zero.
+#[test]
+fn taffy_grid_item_negative_margin_still_stretches() {
+    use taffy::style::{GridPlacement, GridTemplateArea, GridTemplateAreas};
+
+    let place = |name: &str| Style {
+        grid_row: taffy::geometry::Line {
+            start: GridPlacement::NamedLine(format!("{}-start", name), 1),
+            end: GridPlacement::NamedLine(format!("{}-end", name), 1),
+        },
+        grid_column: taffy::geometry::Line {
+            start: GridPlacement::NamedLine(format!("{}-start", name), 1),
+            end: GridPlacement::NamedLine(format!("{}-end", name), 1),
+        },
+        ..Default::default()
+    };
+    let mut tree: TaffyTree<()> = TaffyTree::new();
+    tree.disable_rounding();
+    let toc = tree
+        .new_leaf(Style {
+            margin: taffy::geometry::Rect {
+                top: LengthPercentageAuto::length(45.6),
+                right: LengthPercentageAuto::length(0.0),
+                bottom: LengthPercentageAuto::length(0.0),
+                left: LengthPercentageAuto::length(-12.0),
+            },
+            ..place("columnStart")
+        })
+        .unwrap();
+    let content = tree.new_leaf(place("pageContent")).unwrap();
+    let notice = tree.new_leaf(place("siteNotice")).unwrap();
+    let footer = tree.new_leaf(place("footer")).unwrap();
+    let root = tree
+        .new_with_children(
+            Style {
+                display: Display::Grid,
+                gap: Size { width: length(24.0), height: length(0.0) },
+                size: Size { width: length(1352.0), height: auto() },
+                grid_template_columns: vec![length(196.0), minmax(length(0.0), fr(1.0))],
+                grid_template_rows: vec![min_content(), fr(1.0), min_content()],
+                grid_template_areas: Some(GridTemplateAreas {
+                    areas: vec![
+                        GridTemplateArea { name: "siteNotice".into(), row_start: 1, row_end: 2, column_start: 1, column_end: 3 },
+                        GridTemplateArea { name: "columnStart".into(), row_start: 2, row_end: 3, column_start: 1, column_end: 2 },
+                        GridTemplateArea { name: "pageContent".into(), row_start: 2, row_end: 3, column_start: 2, column_end: 3 },
+                        GridTemplateArea { name: "footer".into(), row_start: 3, row_end: 4, column_start: 1, column_end: 3 },
+                    ],
+                    row_count: 3,
+                    column_count: 2,
+                }),
+                ..Default::default()
+            },
+            &[notice, toc, content, footer],
+        )
+        .unwrap();
+    tree.compute_layout(root, Size { width: AvailableSpace::Definite(1352.0), height: AvailableSpace::MaxContent }).unwrap();
+
+    let toc_l = tree.layout(toc).unwrap();
+    let content_l = tree.layout(content).unwrap();
+    println!("toc: x={} y={} w={} h={}", toc_l.location.x, toc_l.location.y, toc_l.size.width, toc_l.size.height);
+    println!("content: x={} y={} w={} h={}", content_l.location.x, content_l.location.y, content_l.size.width, content_l.size.height);
+    assert_eq!(toc_l.size.width, 208.0, "fixed 196 track minus a -12 margin leaves a 208-wide content box");
+    assert_eq!(toc_l.location.x, -12.0, "negative margin shifts the box out of the track origin");
+    assert_eq!(content_l.size.width, 1132.0, "pageContent takes the fr remainder");
+}
+
+/// CSS sizing keywords on `width` (servo#41512-adjacent pool, servo#38320
+/// face): `min-content`/`max-content`/`fit-content` resolve against the
+/// subtree's intrinsic width via taffy measure passes at build time.
+/// Structural assertions; the intrinsic references come from shrink-to-fit
+/// inline-blocks of the same content (same measure path, so the comparison
+/// isolates the keyword plumbing, not the font metrics).
+#[test]
+fn width_sizing_keywords_resolve_to_intrinsic() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body>
+        <div id="minw" style="width:min-content">AAAA AAAA AAAA</div>
+        <div id="maxw" style="width:max-content">AAAA AAAA AAAA</div>
+        <span id="refword" style="display:inline-block">AAAA</span>
+        <span id="refline" style="display:inline-block">AAAA AAAA AAAA</span>
+        <div id="narrow" style="width:120px"><div id="fitn" style="width:fit-content">AAAA AAAA AAAA</div></div>
+        <div id="wide" style="width:2000px"><div id="fitw" style="width:fit-content">AAAA AAAA AAAA</div></div>
+        <div id="nest" style="width:min-content"><p id="nestp" style="margin:0">AAAA AAAA AAAA</p></div>
+        <div id="fmin" style="display:flex;width:min-content;border:2px solid">
+          <div style="flex:none"><div style="float:left;width:100px"></div><div style="float:left;width:100px"></div></div>
+        </div>
+    </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let rects = crate::diting_layout::layout_dom(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+    );
+    let w = |sel: &str| {
+        let id = tree.query_selector_all(sel).unwrap()[0];
+        rects.get(&id).unwrap_or_else(|| panic!("{sel} must own a rect")).width
+    };
+
+    // min-content = the widest word, measured by the same engine as a
+    // shrink-to-fit inline-block of that word.
+    let (minw, refword) = (w("#minw"), w("#refword"));
+    assert!(
+        (minw - refword).abs() < 1.5,
+        "width:min-content must equal the widest word: {minw} vs word {refword}"
+    );
+    // max-content = the whole unwrapped line.
+    let (maxw, refline) = (w("#maxw"), w("#refline"));
+    assert!(
+        (maxw - refline).abs() < 1.5,
+        "width:max-content must equal the unwrapped line: {maxw} vs line {refline}"
+    );
+    assert!(maxw > minw + 10.0, "fixture text must actually wrap at min-content");
+    // fit-content: clamps to the containing block when narrower than
+    // max-content; passes through when the CB is wider (2000 > viewport).
+    let (fitn, fitw) = (w("#fitn"), w("#fitw"));
+    assert!(
+        (fitn - 120.0).abs() < 1.5,
+        "fit-content must clamp to the 120px containing block; got {fitn}"
+    );
+    assert!(
+        (fitw - maxw).abs() < 1.5,
+        "fit-content under a wider CB must equal max-content: {fitw} vs {maxw}"
+    );
+    // Recursion: the keyword resolves through a block child's contribution.
+    let nest = w("#nest");
+    assert!(
+        (nest - minw).abs() < 1.5,
+        "min-content must propagate through the block child: {nest} vs {minw}"
+    );
+    // The servo#38320 face at container level: flex container with a
+    // min-content width over two 100px floats. Chrome gives 200px of float
+    // contribution (floats never fragment in intrinsic sizing); our float
+    // zones are wrapping flex rows whose taffy min-content is the widest
+    // item, so we land at 100px + borders here — pinned honestly.
+    let fmin = w("#fmin");
+    assert!(
+        (fmin - 104.0).abs() < 1.5,
+        "float-zone min-content currently measures widest-item (100) + 4px borders; got {fmin}"
+    );
+}
+
+/// Inline backgrounds (blitz#340 family): a flattened inline (`<span>` in a
+/// block's run) owns no taffy box, so the boxed-Bg emission never ran for it
+/// and background-color silently vanished — same shape as nicoburns'
+/// diagnosis there. The fix paints per-line bands over the hoisted content
+/// and splices them at the content's first paint item, so the band lands
+/// under the element's own ink (CSS inline paint order).
+#[test]
+fn inline_background_paints_band_under_own_ink() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body><p>aaa <span class="hl">bbb ccc</span> ddd</p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for(
+        "span.hl { background-color: #ff7500; }",
+        (1280.0, 800.0),
+        CssMediaType::Screen,
+    );
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items) = crate::diting_layout::layout_dom_with_paint(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        1280.0,
+        800.0,
+    );
+
+    let bands: Vec<(crate::diting_layout::Rect, f32)> = items
+        .iter()
+        .filter_map(|it| match it {
+            PaintItem::Bg { rect, color, radius } if *color == [0xff, 0x75, 0x00, 0xff] => {
+                Some((*rect, *radius))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        bands.len(),
+        1,
+        "single-line span paints exactly one band; got {bands:?}"
+    );
+    let (band, radius) = bands[0];
+    assert_eq!(radius, 0.0, "flattened inline bands carry no radius");
+
+    // The band covers the span's run, not the surrounding text: it starts
+    // at the run's left edge (not the line's) and stops before the " ddd"
+    // tail word outside the span.
+    let text_x = |needle: &str| {
+        items.iter().find_map(|it| match it {
+            PaintItem::Text { text, x, .. } if text.contains(needle) => Some(*x),
+            _ => None,
+        })
+    };
+    let bbb_x = text_x("bbb").expect("span's run paints");
+    let ddd_x = text_x("ddd").expect("tail word paints");
+    assert!(
+        (band.x - bbb_x).abs() <= 2.0,
+        "band must start at the span's first word, not the line's; band.x={} bbb.x={bbb_x}",
+        band.x
+    );
+    assert!(
+        band.x + band.width <= ddd_x + 1.0,
+        "band must stop at the span's last glyph, not reach the tail; band={band:?} ddd.x={ddd_x}"
+    );
+
+    // Under its own ink: the band precedes every Text item it underlaps.
+    let band_idx = items
+        .iter()
+        .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0xff, 0x75, 0x00, 0xff]))
+        .unwrap();
+    let ink_idx = items
+        .iter()
+        .position(|it| matches!(it, PaintItem::Text { text, .. } if text.contains("bbb")))
+        .unwrap();
+    assert!(
+        band_idx < ink_idx,
+        "band (idx {band_idx}) must precede the span's own text (idx {ink_idx})"
+    );
+}
+
+/// A wrapped inline background splits into one band per line box; the bands
+/// stack vertically without overlap (each line's color stops at the line
+/// box, never bleeding into the next).
+#[test]
+fn inline_background_splits_bands_per_wrapped_line() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body><p style="width:120px">x <span class="hl">one two three four five six seven</span> y</p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for(
+        "span.hl { background-color: #00cc00; }",
+        (1280.0, 800.0),
+        CssMediaType::Screen,
+    );
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items) = crate::diting_layout::layout_dom_with_paint(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        1280.0,
+        800.0,
+    );
+
+    let mut bands: Vec<crate::diting_layout::Rect> = items
+        .iter()
+        .filter_map(|it| match it {
+            PaintItem::Bg { rect, color, .. } if *color == [0x00, 0xcc, 0x00, 0xff] => {
+                Some(*rect)
+            }
+            _ => None,
+        })
+        .collect();
+    bands.sort_by(|a, b| a.y.total_cmp(&b.y));
+    assert!(
+        bands.len() >= 2,
+        "a 7-word span in 120px must wrap to 2+ bands; got {bands:?}"
+    );
+    for w in bands.windows(2) {
+        assert!(
+            w[1].y >= w[0].y + w[0].height - 0.5,
+            "bands must not overlap vertically; {w:?}"
+        );
+    }
+}
+
+/// Nested inline backgrounds stack in CSS inline paint order: the outer
+/// element's band precedes the inner element's band, which precedes the
+/// shared text — outer bg under inner bg under ink.
+#[test]
+fn nested_inline_backgrounds_stack_outer_under_inner() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body><p>pre <span class="outer">a <b class="inner">x</b> d</span> post</p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for(
+        "span.outer { background-color: #0000ff; } b.inner { background-color: #ff0000; }",
+        (1280.0, 800.0),
+        CssMediaType::Screen,
+    );
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items) = crate::diting_layout::layout_dom_with_paint(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        1280.0,
+        800.0,
+    );
+
+    let idx_of = |pred: &dyn Fn(&PaintItem) -> bool| {
+        items.iter().position(pred).expect("expected paint item missing")
+    };
+    let outer_idx = idx_of(&|it| {
+        matches!(it, PaintItem::Bg { color, .. } if *color == [0x00, 0x00, 0xff, 0xff])
+    });
+    let inner_idx = idx_of(&|it| {
+        matches!(it, PaintItem::Bg { color, .. } if *color == [0xff, 0x00, 0x00, 0xff])
+    });
+    let ink_idx = idx_of(&|it| matches!(it, PaintItem::Text { text, .. } if text == "x"));
+    assert!(
+        outer_idx < inner_idx && inner_idx < ink_idx,
+        "paint order must be outer bg ({outer_idx}) < inner bg ({inner_idx}) < ink ({ink_idx})"
+    );
+}
+
+
+/// Per-side width longhands (blitz#837's repro shape): `border: 1px solid;
+/// border-top-width: 0` must erase exactly the top side — the property used
+/// to be unknown here, so the side kept the shorthand's width (Chrome shows
+/// a three-sided outline; we showed four).
+#[test]
+fn per_side_border_width_longhand_zeroes_one_side() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let border_widths = |html: &str| -> [f32; 4] {
+        let tree = parse_html(html);
+        let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+        let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+        let (_, items) = crate::diting_layout::layout_dom_with_paint(
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            1280.0,
+            800.0,
+        );
+        items
+            .iter()
+            .find_map(|it| match it {
+                PaintItem::Border { widths, .. } => Some(*widths),
+                _ => None,
+            })
+            .expect("bordered div must emit a Border item")
+    };
+
+    let four_sided = border_widths(
+        r#"<html><body><div style="width:50px;height:30px;border:1px solid #ff0000">t</div></body></html>"#,
+    );
+    assert_eq!(four_sided, [1.0, 1.0, 1.0, 1.0], "shorthand keeps all sides");
+
+    let three_sided = border_widths(
+        r#"<html><body><div style="width:50px;height:30px;border:1px solid #ff0000;border-top-width:0;border-radius:8px">t</div></body></html>"#,
+    );
+    assert_eq!(
+        three_sided,
+        [0.0, 1.0, 1.0, 1.0],
+        "border-top-width: 0 erases only the top side (CSS order top right bottom left)"
+    );
+}
+
+/// `resolve_img_source` absolutizes against the document base (the
+/// requirements-aginxos P2 residual gap): data: URLs pass through untouched,
+/// an absolute src canonicalizes through `Url::parse` (the same normalizer
+/// the fetchers' `base.join` applies, so lookup keys match on both sides),
+/// and a relative src joins the base. No base — or an unparseable base —
+/// keeps the raw attr, preserving the pre-base pass-through.
+#[test]
+fn resolve_img_source_absolutizes_relative_srcs() {
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::resolve_img_source;
+
+    let tree = parse_html(r#"<html><body><img src="img/dot.png"></body></html>"#);
+    let img = tree.query_selector("img").unwrap().unwrap();
+    assert_eq!(
+        resolve_img_source(&tree, img, 800.0, Some("https://example.com/dir/page.html")).as_deref(),
+        Some("https://example.com/dir/img/dot.png"),
+        "relative src joins the document base"
+    );
+    assert_eq!(
+        resolve_img_source(&tree, img, 800.0, None).as_deref(),
+        Some("img/dot.png"),
+        "no base keeps the raw attr"
+    );
+    assert_eq!(
+        resolve_img_source(&tree, img, 800.0, Some("not a url")).as_deref(),
+        Some("img/dot.png"),
+        "unparseable base behaves like no base"
+    );
+
+    let tree = parse_html(r#"<html><body><img src="data:image/png;base64,AAAA"></body></html>"#);
+    let img = tree.query_selector("img").unwrap().unwrap();
+    assert_eq!(
+        resolve_img_source(&tree, img, 800.0, Some("https://example.com/")).as_deref(),
+        Some("data:image/png;base64,AAAA"),
+        "data: URLs are self-contained"
+    );
+
+    // Url::parse canonicalizes (host lowercase, path case kept).
+    let tree = parse_html(r#"<html><body><img src="https://CDN.example.com/x.PNG"></body></html>"#);
+    let img = tree.query_selector("img").unwrap().unwrap();
+    assert_eq!(
+        resolve_img_source(&tree, img, 800.0, Some("https://example.com/")).as_deref(),
+        Some("https://cdn.example.com/x.PNG"),
+        "absolute src canonicalizes like the fetchers' join"
+    );
+}
+
+/// The end-to-end half of the same fix: a relative `<img src>` must hit the
+/// fetched-byte table's ABSOLUTE key once the base flows in. Before, the
+/// prefetcher fetched `https://…/dot.png` and keyed the table by that URL
+/// while the layout looked up the raw "dot.png" attr — the raster sat in the
+/// table unpainted (gray placeholder) on http and file pages alike.
+#[test]
+fn relative_img_src_hits_absolute_keyed_byte_table() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    // 2×1 PNG, red | blue (the pixel pattern image.rs tests pin).
+    let rgba = vec![200u8, 40, 40, 255, 40, 40, 200, 255];
+    let mut png_bytes = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut png_bytes, 2u32, 1u32);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut writer = enc.write_header().unwrap();
+        writer.write_image_data(&rgba).unwrap();
+    }
+
+    let html = r#"<html><body><img src="dot.png"></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (800.0, 600.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+
+    let mut net: std::collections::HashMap<String, std::sync::Arc<Vec<u8>>> =
+        std::collections::HashMap::new();
+    net.insert(
+        "https://example.com/dir/dot.png".to_string(),
+        std::sync::Arc::new(png_bytes),
+    );
+
+    // No base: the raw "dot.png" key misses the table — placeholder path,
+    // no Image item.
+    let (_, items) = crate::diting_layout::layout_dom_with_paint_and_images(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        800.0,
+        600.0,
+        Some(&net),
+        None,
+    );
+    assert!(
+        !items.iter().any(|it| matches!(it, PaintItem::Image { .. })),
+        "raw src must miss the absolute-keyed table"
+    );
+
+    // With the document URL as base: "dot.png" joins to the table's key and
+    // the raster paints.
+    let (_, items) = crate::diting_layout::layout_dom_with_paint_and_images(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        800.0,
+        600.0,
+        Some(&net),
+        Some("https://example.com/dir/page.html"),
+    );
+    assert!(
+        items.iter().any(|it| matches!(it, PaintItem::Image { .. })),
+        "base-joined src must reach the fetched bytes"
+    );
+}
+
+/// Emoji end-to-end (emoji batch): a text node carrying an emoji runs the
+/// whole stack — layout measure (advance through the fallback face) and
+/// paint (embedded color bitmap strike) — and lands COLORED ink on the
+/// canvas instead of a hollow .notdef. Gated on the host shipping an emoji
+/// font: font-less CI containers keep the graceful pre-emoji posture.
+#[test]
+fn emoji_text_paints_colored_ink_e2e() {
+    if crate::diting_fonts::platform_emoji_font().is_none() {
+        eprintln!("skipping: no platform emoji font on this host");
+        return;
+    }
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body style="margin:0"><p id="t" style="font-size:40px">🚀汉字</p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (400.0, 200.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (rects, items) = crate::diting_layout::layout_dom_with_paint(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        400.0,
+        200.0,
+    );
+
+    // Measure side: the mixed run must advance wider than the CJK alone —
+    // the emoji contributes its own shaped advance through the fallback.
+    let p = *rects.get(&tree.query_selector_all("#t").unwrap()[0]).unwrap();
+    let cjk_only = crate::diting_fonts::font_book().advance_width("汉字", 40.0, false, false, None);
+    assert!(
+        p.width > cjk_only + 20.0,
+        "the emoji must widen the run: {p:?} vs CJK-only {cjk_only}"
+    );
+
+    // Paint side: colored ink from the bitmap strike + dark CJK ink, both
+    // on the same canvas — measure and paint segmented identically.
+    let mut c = crate::diting_layout::paint::Canvas::new_filled(400, 120, [255, 255, 255, 255]);
+    crate::diting_layout::paint::execute(&items, &crate::diting_fonts::font_book(), &mut c);
+    let colored = c
+        .data
+        .chunks_exact(4)
+        .filter(|px| {
+            px[3] > 128
+                && (px[0] as i32 - px[1] as i32).abs().max((px[1] as i32 - px[2] as i32).abs()) > 32
+        })
+        .count();
+    let dark = c
+        .data
+        .chunks_exact(4)
+        .filter(|px| px[3] > 200 && px[0] < 100 && px[1] < 100 && px[2] < 100)
+        .count();
+    assert!(colored > 50, "the emoji must land colored ink (got {colored} px)");
+    assert!(dark > 20, "the CJK half must land dark ink (got {dark} px)");
+}
+
+/// Fallback segments must PEN ACROSS the run (emoji batch follow-up): a
+/// run like "汉字🚀" segments into [primary CJK, fallback emoji], and
+/// `blit_line` used to restart its pen per segment — every segment after
+/// the first painted stacked at the run origin, covering the first glyphs
+/// (measure accumulated correctly, so widths agreed while ink overlapped).
+/// Ink-extent ordering in BOTH directions is the contract: emoji-first
+/// puts the CJK after the emoji, emoji-last puts it before.
+#[test]
+fn fallback_segments_pen_across_the_run_not_stacked_at_origin() {
+    if crate::diting_fonts::platform_emoji_font().is_none() {
+        eprintln!("skipping: no platform emoji font on this host");
+        return;
+    }
+    let fonts = crate::diting_fonts::font_book();
+
+    // Ink classification is only good enough to find the COLORED (fallback
+    // bitmap) bbox — Apple's emoji carry their own dark-gray parts, so
+    // "dark ink" bboxes of a mixed run include emoji pixels. Anchor the
+    // assertions on single-script reference runs instead: the CJK-only run
+    // gives the mono ink end, the emoji-only run gives the emoji ink span.
+    let colored_bbox = |text: &str| -> (usize, usize, usize, usize) {
+        let tile = fonts.rasterize(text, 40.0, false, [0, 0, 0, 255], 48.0, false, None);
+        let mut bb: Option<(usize, usize, usize, usize)> = None;
+        for y in 0..tile.height {
+            for x in 0..tile.width {
+                let i = (y * tile.width + x) * 4;
+                let (r, g, b, a) = (tile.data[i], tile.data[i + 1], tile.data[i + 2], tile.data[i + 3]);
+                if a < 128 {
+                    continue;
+                }
+                let spread = (r as i32 - g as i32)
+                    .abs()
+                    .max((g as i32 - b as i32).abs())
+                    .max((r as i32 - b as i32).abs());
+                if spread <= 32 {
+                    continue;
+                }
+                bb = Some(match bb {
+                    Some((x0, y0, x1, y1)) => (x0.min(x), y0.min(y), x1.max(x), y1.max(y)),
+                    None => (x, y, x, y),
+                });
+            }
+        }
+        bb.unwrap_or_else(|| panic!("no colored ink in {text:?}"))
+    };
+    let mono_end = |text: &str| -> usize {
+        let tile = fonts.rasterize(text, 40.0, false, [0, 0, 0, 255], 48.0, false, None);
+        (0..tile.width)
+            .rev()
+            .find(|&x| (0..tile.height).any(|y| tile.data[(y * tile.width + x) * 4 + 3] > 200))
+            .unwrap_or_else(|| panic!("no mono ink in {text:?}"))
+    };
+
+    // Reference geometry from the single-script runs.
+    let cjk_ink_end = mono_end("汉字") as i64;
+    let emoji = colored_bbox("🚀");
+    let emoji_ink_width = (emoji.2 - emoji.0) as i64;
+
+    // Emoji LAST: the rocket's colored ink must start at/after where the
+    // CJK-only run's ink ended (pre-fix it stacked at the run origin).
+    let combined = colored_bbox("汉字🚀");
+    assert!(
+        combined.0 as i64 >= cjk_ink_end - 1,
+        "emoji-last: emoji ink starts at {} but CJK ink ends at {cjk_ink_end} (stacked at origin?)",
+        combined.0
+    );
+
+    // Emoji FIRST: the mono ink (CJK glyph ink + the emoji's own dark parts)
+    // must extend a full emoji-width past the CJK-only ink end — pre-fix the
+    // CJK stacked over the emoji and the run's total ink never grew.
+    let combined_end = mono_end("🚀汉字") as i64;
+    assert!(
+        combined_end >= cjk_ink_end + emoji_ink_width - 8,
+        "emoji-first: combined ink ends at {combined_end}, expected ≥ CJK end {cjk_ink_end} + emoji width {emoji_ink_width}"
+    );
+}
+
+/// CSS BG3 §5.4 corner-overlap clamp (batch-59): a `border-radius:999px`
+/// pill on a 200x46 box must resolve every radius down by the tightest
+/// edge ratio to h/2 — Chrome's capsule. Pre-fix the raw
+/// 999 reached the per-corner rasterizers and painted a deformed lens
+/// (probe: 644 px differed vs the clamped render).
+#[test]
+fn oversized_border_radius_clamps_to_half_box() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body style="margin:0">
+        <div id="pill" style="margin-top:50px;width:200px;height:46px;border-radius:999px;border:1px solid #000;background:#eeeeee"></div>
+        <div id="clip" style="margin-top:20px;width:200px;height:46px;border-radius:999px;overflow:hidden"><div style="width:10px;height:10px;background:#000"></div></div>
+        </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (400.0, 300.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (rects, items) = crate::diting_layout::layout_dom_with_paint(
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        400.0,
+        300.0,
+    );
+
+    let pill = *rects.get(&tree.query_selector_all("#pill").unwrap()[0]).unwrap();
+    // content-box sizing: the border box is 46 + 2x1px border = 48 tall,
+    // so the capsule radius is 24; the borderless #clip box clamps to 23.
+    let pill_r = pill.height / 2.0;
+    let clamped = |r: f32, want: f32| (r - want).abs() < 0.51;
+
+    let bg_radius = items
+        .iter()
+        .find_map(|it| match it {
+            PaintItem::Bg { rect, radius, .. } if *rect == pill => Some(*radius),
+            _ => None,
+        })
+        .expect("pill paints a Bg fill");
+    assert!(clamped(bg_radius, pill_r), "Bg radius clamps 999 -> h/2 ({pill_r}), got {bg_radius}");
+
+    let border_radii = items
+        .iter()
+        .find_map(|it| match it {
+            PaintItem::Border { rect, radii, .. } if *rect == pill => Some(*radii),
+            _ => None,
+        })
+        .expect("pill paints a Border ring");
+    for (rx, ry) in border_radii {
+        assert!(clamped(rx, pill_r) && clamped(ry, pill_r), "Border corner clamps to ({pill_r}, {pill_r}), got ({rx}, {ry})");
+    }
+
+    // §5.4 invariant on every radii-carrying item: adjacent corners never
+    // sum past their shared edge.
+    for it in &items {
+        let (r, radii) = match it {
+            PaintItem::Border { rect, radii, .. } => (rect, radii),
+            PaintItem::BgCorner { rect, radii, .. } => (rect, radii),
+            PaintItem::BgGradient { rect, radii, .. } => (rect, radii),
+            PaintItem::ClipRounded { rect, radii } => (rect, radii),
+            _ => continue,
+        };
+        assert!(radii[0].0 + radii[1].0 <= r.width + 0.01, "top edge overflow: {it:?}");
+        assert!(radii[3].0 + radii[2].0 <= r.width + 0.01, "bottom edge overflow: {it:?}");
+        assert!(radii[0].1 + radii[3].1 <= r.height + 0.01, "left edge overflow: {it:?}");
+        assert!(radii[1].1 + radii[2].1 <= r.height + 0.01, "right edge overflow: {it:?}");
+    }
+
+    // The ClipRounded path (second resolution site) clamps against the
+    // padding box too.
+    let clip = *rects.get(&tree.query_selector_all("#clip").unwrap()[0]).unwrap();
+    let clip_r = clip.height / 2.0;
+    let clip_radii = items
+        .iter()
+        .find_map(|it| match it {
+            PaintItem::ClipRounded { rect, radii } if *rect == clip => Some(*radii),
+            _ => None,
+        })
+        .expect("overflow:hidden pill emits ClipRounded");
+    for (rx, ry) in clip_radii {
+        assert!(clamped(rx, clip_r) && clamped(ry, clip_r), "ClipRounded corner clamps to ({clip_r}, {clip_r}), got ({rx}, {ry})");
+    }
+
+    // Pixel level: nothing paints above the pill's top edge, and the top
+    // edge row carries the capsule's wide flat segment (the pre-fix lens
+    // only touched a narrow run near the box's midpoint).
+    let mut c = crate::diting_layout::paint::Canvas::new_filled(400, 300, [255, 255, 255, 255]);
+    crate::diting_layout::paint::execute(&items, &crate::diting_fonts::font_book(), &mut c);
+    let ink_at = |x: usize, y: usize| c.data[(y * c.width + x) * 4 + 3] > 0 && c.data[(y * c.width + x) * 4..(y * c.width + x) * 4 + 3] != [255, 255, 255];
+    for y in 0..(pill.y as usize) {
+        for x in 0..400 {
+            assert!(!ink_at(x, y), "stray ink above the pill at ({x}, {y})");
+        }
+    }
+    let top_row_ink = (0..400).filter(|&x| ink_at(x, pill.y as usize)).count();
+    assert!(top_row_ink > 100, "capsule top edge is a wide flat segment, got {top_row_ink} px");
+}
+
+/// `word-spacing` (obscura#934 family) moves the words after a separator:
+/// in the mixed-run path the collapsed " " is its own leaf whose advance
+/// carries the extra spacing, so taffy positions the next word's leaf
+/// further right — by exactly the declared px per separator.
+#[test]
+fn word_spacing_widens_word_gaps_in_mixed_runs() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body>
+        <p style="word-spacing:0px"><b>ab</b> cd</p>
+        <p style="word-spacing:50px"><b>ab</b> cd</p>
+        </body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let words_of = |needle: &str| -> Vec<(f32, f32)> {
+        items.iter().filter_map(|it| match it {
+            PaintItem::Text { text, x, y, .. } if text == needle => Some((*x, *y)),
+            _ => None,
+        }).collect()
+    };
+    let abs = words_of("ab");
+    let cds = words_of("cd");
+    assert_eq!(abs.len(), 2, "both paragraphs paint their 'ab' word leaf");
+    assert_eq!(cds.len(), 2, "both paragraphs paint their 'cd' word leaf");
+    // Paragraph order is document order; pair each 'cd' with the 'ab' on
+    // its line (same y) and diff the gap the space leaf absorbed.
+    let mut gaps = Vec::new();
+    for &(cx, cy) in &cds {
+        if let Some(&(ax, _)) = abs.iter().find(|&&(_, ay)| (ay - cy).abs() < 2.0) {
+            gaps.push(cx - ax);
+        }
+    }
+    assert_eq!(gaps.len(), 2);
+    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let d = gaps[1] - gaps[0];
+    assert!(
+        (d - 50.0).abs() < 1.0,
+        "one separator → the gap grows by exactly the word-spacing, got {d}"
+    );
+}
+
+/// The phrasing-content rest (obscura#936): mark/ins/del/big/s/u/strike/tt/
+/// samp/kbd/dfn/var/cite/bdi/bdo are inline in every UA sheet — they must
+/// join the text run on ONE line, not stack as full-width blocks.
+#[test]
+fn phrasing_content_uas_share_one_text_line() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let html = r#"<html><body><p>a<mark>m</mark><ins>i</ins><del>d</del><big>g</big><u>u</u><s>s</s><strike>k</strike><tt>tt</tt><samp>sa</samp><kbd>kb</kbd><dfn>df</dfn><var>v</var><cite>ci</cite><bdi>b1</bdi><bdo>b2</bdo></p></body></html>"#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let (_, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+    );
+    let ys: Vec<f32> = items.iter().filter_map(|it| match it {
+        PaintItem::Text { text, y, .. } if !text.trim().is_empty() && text.len() <= 2 => Some(*y),
+        _ => None,
+    }).collect();
+    assert!(ys.len() >= 14, "every phrasing tag's token paints, found {}", ys.len());
+    let spread = ys.iter().cloned().fold(f32::MIN, f32::max) - ys.iter().cloned().fold(f32::MAX, f32::min);
+    assert!(
+        spread < 12.0,
+        "all phrasing tokens share one line (baseline tops differ by font size only), y-spread = {spread}"
+    );
+}
+
+/// blitz#888 same gap: `white-space: nowrap` + `text-overflow: ellipsis`.
+/// nowrap keeps the run on one line (measure takes the max-content path);
+/// the ellipsis is a PAINT-time marker — the PaintItem keeps the full text
+/// plus a truncate_at limit, so geometry/selection semantics stay Chrome's.
+/// The marker arms only under the classic trio (overflow non-visible +
+/// nowrap + ellipsis); any leg missing leaves the text clipped, no marker.
+#[test]
+fn nowrap_ellipsis_marks_paint_truncation_and_keeps_full_text() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::PaintItem;
+
+    let probe = |style: &str| {
+        let html = format!(
+            r#"<html><body><div style="width:80px;{style}">alpha beta gamma delta epsilon zeta</div></body></html>"#
+        );
+        let tree = parse_html(&html);
+        let rules = parse_stylesheet_for("", (1280.0, 800.0), CssMediaType::Screen);
+        let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+        let div = tree.query_selector_all("div").unwrap()[0];
+        let (rects, items, _, _, _, _) = crate::diting_layout::layout_dom_with_paint_order_and_images(
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            1280.0,
+            800.0,
+            None,
+            None,
+        );
+        (rects[&div], items)
+    };
+    let text_of = |items: &[PaintItem]| {
+        items
+            .iter()
+            .find_map(|it| match it {
+                PaintItem::Text {
+                    text,
+                    wrap_at,
+                    truncate_at,
+                    ..
+                } if text.contains("alpha") => Some((text.clone(), *wrap_at, *truncate_at)),
+                _ => None,
+            })
+            .expect("the run paints as one text item")
+    };
+
+    // Full trio: one line, full text retained, truncate armed at the content
+    // box width, wrap disabled (wrap_at is infinite — paint never wraps).
+    let (r, items) = probe("overflow:hidden;white-space:nowrap;text-overflow:ellipsis");
+    let (text, wrap_at, truncate_at) = text_of(&items);
+    assert!(wrap_at.is_infinite(), "nowrap never wraps, wrap_at={wrap_at}");
+    assert_eq!(truncate_at, Some(80.0), "marker arms at the content box width");
+    assert!(
+        text.contains("epsilon zeta"),
+        "the item keeps the FULL text — truncation is raster-time ({text:?})"
+    );
+    let nowrap_h = r.height;
+
+    // Same text, wrapping: multiple lines, no marker, finite wrap.
+    let (r, items) = probe("overflow:hidden;text-overflow:ellipsis");
+    let (text, wrap_at, truncate_at) = text_of(&items);
+    assert!(wrap_at.is_finite() && wrap_at <= 81.0);
+    assert_eq!(truncate_at, None, "no marker without nowrap (v1)");
+    assert!(r.height > nowrap_h + 10.0, "wrapping stacks lines ({} vs {})", r.height, nowrap_h);
+    let _ = text;
+
+    // nowrap alone: still one line, still no marker.
+    let (_, items) = probe("overflow:hidden;white-space:nowrap");
+    let (_, wrap_at, truncate_at) = text_of(&items);
+    assert!(wrap_at.is_infinite());
+    assert_eq!(truncate_at, None);
+
+    // nowrap + ellipsis but overflow visible: the marker needs a clipping box.
+    let (_, items) = probe("white-space:nowrap;text-overflow:ellipsis");
+    let (_, _, truncate_at) = text_of(&items);
+    assert_eq!(truncate_at, None, "no marker on a visible-overflow box");
+}
+
+/// taffy#1008's exact shape, transposed to HTML: the containing block for an
+/// absolute box is the PADDING box of the nearest positioned ancestor —
+/// border eats into the anchor. `#outer` (relative, border 2, padding 25)
+/// around a static `#middle` (margin-left 35, padding 30) around the
+/// absolute `#target` (left/top 10). Chrome puts the target at page
+/// (12, 12) = outer border(2) + inset(10); taffy's direct-parent
+/// resolution (its #1008) lands it at (72, 77). The reparent pass fixes
+/// the ancestor choice; this pins the padding-box anchoring half, which
+/// the other reparent tests (no border/padding on the CB) never exercised.
+#[test]
+fn absolute_containing_block_is_padding_box_of_positioned_ancestor() {
+    use crate::diting_css::{parse_stylesheet_for, CssMediaType};
+    use crate::diting_dom::tree_sink::parse_html;
+
+    let html = r#"<html><body>
+        <div id="outer"><div id="spacer"></div><div id="middle"><div id="target"></div></div></div>
+    </body></html>"#;
+    let sheet = r#"
+        body { margin: 0; }
+        #outer { position: relative; padding: 25px; border: 2px solid black; width: 400px; height: 300px; }
+        #spacer { height: 40px; }
+        #middle { margin-left: 35px; padding: 30px; width: 200px; height: 100px; }
+        #target { position: absolute; left: 10px; top: 10px; width: 60px; height: 20px; }
+    "#;
+    let tree = parse_html(html);
+    let rules = parse_stylesheet_for(sheet, (1280.0, 800.0), CssMediaType::Screen);
+    let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
+    let fonts = crate::diting_fonts::font_book();
+    let rects = crate::diting_layout::layout_dom(&tree, &styles, &fonts, 1280.0, 800.0);
+
+    let target_id = tree.query_selector_all("#target").unwrap()[0];
+    let target = rects.get(&target_id).expect("target rect");
+    assert!(
+        (target.x - 12.0).abs() < 0.5 && (target.y - 12.0).abs() < 0.5,
+        "target anchors at outer's PADDING box (border 2 + inset 10 = 12,12), got {target:?}"
+    );
+}

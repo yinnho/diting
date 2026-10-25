@@ -1,0 +1,172 @@
+# Performance / compatibility scoreboard (evidence)
+
+[English](scoreboard.md) | [中文](scoreboard.zh-CN.md)
+
+> Snapshot: **2026-10-19 Asia/Shanghai** · Diting **0.6.0** · `/health` commit **`0c302d9`**  
+> Binary: local `target/debug` (`cargo build --features stealth` + `DITING_BUILD_COMMIT`) — **not** Homebrew cellar, **not** `--release`  
+> Raw receipts: [`bench/scoreboard-20261019/`](../bench/scoreboard-20261019/) · [`INDEX.json`](../bench/scoreboard-20261019/INDEX.json)
+
+> **Release rerun 2026-10-25 (P3-9):** the same tip micro-bench on a `--release --features stealth,screenshot` binary, **plus Lightpanda 1.0.1 / Obscura 0.2.5 on tip-shaped metrics** — see [the release section](#release-rerun-2026-10-25-p3-9) and [`bench/scoreboard-20261025/`](../bench/scoreboard-20261025/). The tables below stay the 2026-10-19 debug snapshot.
+
+This page is a **tip micro-bench** with committed receipts. It complements the historical 20-page harness in [`bench/README.md`](../bench/README.md) (2026-08-28 / 2026-09-29) and the wire-level [Stealth/TLS comparison](stealth-tls-comparison.md). Absolute milliseconds on a debug build are **not** marketing release numbers.
+
+---
+
+## Methodology
+
+### What we measure
+
+| Metric | How | Why |
+|--------|-----|-----|
+| **Cold start → first `/health`** | Spawn server, poll until 200 | Process bring-up cost for agents |
+| **Warm `/health`** | 3 samples after ready | Control-plane overhead |
+| **`POST /fetch` markdown** | `render_tier:"auto"`, `format:"markdown"`, cache TTL 0 | Agent-usable text wall time |
+| **Peak RSS** | `ps` sample during shortset | Memory footprint of one server |
+| **Session snapshot** | `create` → `navigate` → `GET /snapshot` | Interactive agent refs latency |
+| **curl / Chrome headless** | Same machine baselines | Dumb HTTP vs real Chromium |
+
+### Engines
+
+| Engine | Status | Notes |
+|--------|--------|-------|
+| **diting 0.6.0** | **run** | tip `0c302d9`, stealth build, port `18091` |
+| **curl** | **run** | `/usr/bin/curl` / Homebrew curl on macOS |
+| **Chrome 155 headless** | **run** (example.com only) | `--headless=new --dump-dom`, cold profile |
+| **Lightpanda** | **not run** | Binary not installed — [releases](https://github.com/lightpanda-io/browser/releases) |
+| **Obscura** | **not run** | Standalone not installed; framed via [agent-browser](https://github.com/vercel-labs/agent-browser) CDP engines |
+
+### Limits (read this)
+
+- **Debug profile.** Numbers are from `cargo build --features stealth` (unoptimized). The 2026-10-25 release rerun measures the release binary; the tables below stay debug-profile history.
+- **Network included.** Wall times include Asia/Shanghai egress RTT. Compare columns on this machine, not against someone else's laptop.
+- **No invented peer timings.** Lightpanda / Obscura cells on this page stay **not run**. A separate Amiibo crawl on 2026-10-21 measured those two engines on this machine: [peer-crawl-20261021.md](peer-crawl-20261021.md). It does not fill the cells below.
+- **No merchant / authenticated production APIs** in this bench.
+- **Shortset ≠ full harness.** Five URLs from [`bench/pages.txt`](../bench/pages.txt); full 20×2×4 history stays in `bench/README.md`.
+
+### How to reproduce
+
+```bash
+DITING_BUILD_COMMIT=$(git rev-parse --short HEAD) cargo build --features stealth
+DITING_CACHE_TTL_SECS=0 DITING_BIND=127.0.0.1:18091 \
+  DITING_RESTORE_SESSIONS=0 ./target/debug/diting &
+curl -sS http://127.0.0.1:18091/health
+# fetch
+curl -sS -X POST http://127.0.0.1:18091/fetch \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","format":"markdown","max_chars":0,"render_tier":"auto"}'
+# snapshot
+SID=$(curl -sS -X POST http://127.0.0.1:18091/session/create \
+  -H 'Content-Type: application/json' -d '{"viewport":{"width":1280,"height":720}}' | jq -r .session_id)
+curl -sS -X POST http://127.0.0.1:18091/session/$SID/navigate \
+  -H 'Content-Type: application/json' -d '{"url":"https://example.com"}'
+curl -sS http://127.0.0.1:18091/session/$SID/snapshot | jq .
+```
+
+---
+
+## Matrix A — Process & control plane
+
+| Metric | diting | Receipt |
+|--------|--------------|---------|
+| Cold start → first `/health` | **2025 ms** | [`cold-start.summary.json`](../bench/scoreboard-20261019/cold-start.summary.json) |
+| Warm `/health` median (n=3) | **0.47 ms** | [`health-warm.summary.json`](../bench/scoreboard-20261019/health-warm.summary.json) |
+| `/health` commit / stealth / TLS | `0c302d9` / stealth **true** / `chrome145` | same |
+| Peak RSS during shortset fetch | **58.3 MB** | [`aginx-fetch-shortset.summary.json`](../bench/scoreboard-20261019/aginx-fetch-shortset.summary.json) |
+
+---
+
+## Matrix B — Fetch to markdown (shortset)
+
+Same five public URLs, sequential, cache off. aginx uses `POST /fetch` → markdown; curl downloads raw HTML bytes (not markdown).
+
+| URL | aginx ms | aginx tier | chars | curl ms | curl ok |
+|-----|----------|------------|-------|---------|---------|
+| `https://example.com` | **587** | http | 156 | 726 | yes |
+| `https://www.rust-lang.org/` | 2179 | http | 4916 | 4094 | yes |
+| `https://www.python.org/` | 2725 | http | 7762 | 247 | yes |
+| `https://nodejs.org/en` | 8273 | http | 4929 | 30017 | **no** (timeout) |
+| `https://doc.rust-lang.org/book/title-page.html` | 801 | http | 1573 | 779 | yes |
+
+| Aggregate | Value |
+|-----------|-------|
+| aginx median (5/5 ok) | **2179 ms** |
+| curl median (4/5 ok only) | 753 ms |
+| example.com: aginx vs Chrome `--dump-dom` | **587 ms** markdown vs **1617 ms** DOM ([`chrome-example.com.summary.json`](../bench/scoreboard-20261019/chrome-example.com.summary.json)) |
+
+**Reading the numbers**
+
+1. On `example.com`, tip aginx `/fetch` markdown beat both curl HTML and cold Chrome `--dump-dom` on this machine.
+2. curl can be faster on some static origins (python.org here) because it stops at bytes — no HTML→markdown conversion.
+3. curl **timed out** on nodejs.org in this run; aginx still returned markdown (`tier=http`). Reliability is part of the scoreboard, not just p50.
+4. Do **not** compare aginx median (5 ok) to curl median (4 ok) as a pure speed claim — the success sets differ.
+
+---
+
+## Matrix C — Session snapshot (example.com)
+
+Separated navigate vs snapshot (first probe that used `create(url)` folded navigation into the first snapshot; see caveat in `INDEX.json`).
+
+| Step | ms | Notes |
+|------|----|-------|
+| `POST /session/create` (no url) | 8.6 | empty session |
+| `POST …/navigate` → example.com | 2635 | browser session path (not `/fetch` http tier) |
+| `GET …/snapshot` (json) | **6.2** | 1 element: link `Learn more` `[ref=e0]` |
+| `GET …/snapshot?format=text` | 2.1 | a11y-ish text |
+| Warm `GET …/snapshot` | 1.6 | second json call |
+
+Receipt: [`aginx-snapshot-example.com.summary.json`](../bench/scoreboard-20261019/aginx-snapshot-example.com.summary.json).
+
+Navigate ≫ snapshot: once the document is loaded, building actionable refs is milliseconds. `/fetch` http-tier markdown on the same URL stays the fast path for read-only agents.
+
+---
+
+## Matrix D — Peers (run 2026-10-25, tip-shaped)
+
+First same-machine run of Lightpanda and Obscura against the tip metrics — see the [release section](#release-rerun-2026-10-25-p3-9) for numbers, shape notes, and receipts. Their Amiibo crawl numbers (different workload) stay in [peer-crawl-20261021.md](peer-crawl-20261021.md).
+
+Related: [agent-browser engine guide](agent-browser-engine.md) · [Stealth/TLS comparison](stealth-tls-comparison.md) · historical [bench/README.md](../bench/README.md).
+
+---
+
+## Release rerun 2026-10-25 (P3-9)
+
+Binary `target/release/diting`, `--release --features stealth,screenshot`, version 0.6.2, `/health` commit `51c0337` — stealth **true**, TLS `chrome145`, UA Chrome/145 (the coherent fleet face). Same Mac, same five-URL shortset, cache off. Receipts: [`bench/scoreboard-20261025/`](../bench/scoreboard-20261025/) · [`INDEX.json`](../bench/scoreboard-20261025/INDEX.json) · script [`run.py`](../bench/scoreboard-20261025/run.py).
+
+| Metric | debug 2026-10-19 | **release 2026-10-25** |
+|--------|------------------|------------------------|
+| Cold start → first `/health` | 2025 ms | **38 ms** |
+| Warm `/health` median (n=3) | 0.47 ms | **0.31 ms** |
+| `/fetch` shortset median | 2179 ms (5/5 ok) | **791 ms** (5/5 ok) |
+| Peak RSS during shortset | 58.3 MB | **44 MB** |
+| Session snapshot: create / navigate / snapshot | 8.6 / 2635 / 6.2 ms | **1.0 / 1219 / 2.7 ms** |
+
+Peers, first tip-shaped run on this machine (per-invocation CLI `fetch` — spawn + page + dump, the same shape as the curl/Chrome columns, **not** warm-API comparable; aginx rows above are warm-server HTTP):
+
+| Engine | serve cold-connect | CLI fetch per URL (shortset order) | Receipt |
+|--------|--------------------|-------------------------------------|---------|
+| Lightpanda 1.0.1 | 86 ms | 3140 · 5726 · 8657 · 7080 · 2022 ms | [`lightpanda-fetch-shortset.summary.json`](../bench/scoreboard-20261025/lightpanda-fetch-shortset.summary.json) |
+| Obscura 0.2.5 | 31 ms | 1647 · 30012* · 30012* · 4738 · 4009 ms (*30s class, rc=1) | [`obscura-fetch-shortset.summary.json`](../bench/scoreboard-20261025/obscura-fetch-shortset.summary.json) |
+
+**Network caveat, stated plainly:** Asia/Shanghai egress had 30-second-class stalls this evening, and they landed on different engines and different URLs within the same minutes (aginx: rust-lang.org 38.7 s in an otherwise 275–858 ms set; curl: python.org 30.5 s; Obscura: two 30 s timeouts). Per-URL walls in the receipts are receipts, not stable p50s — medians and the ok-count carry the signal.
+
+---
+
+## Compatibility framing (not a synthetic “% score”)
+
+| Capability | Aginx tip | Evidence |
+|------------|-----------|----------|
+| Local HTTP API (no MCP) | yes | [`docs/API.md`](API.md) |
+| Interactive snapshot + `ref=eN` | yes | Matrix C + API `/session/{id}/snapshot` |
+| Stealth TLS presets | yes | [stealth-tls-comparison](stealth-tls-comparison.md) |
+| CDP for agent-browser upstream | retired (HTTP only) | — |
+| Drop-in Chromium replacement | no | intentional — HTTP-first |
+
+---
+
+## Changelog
+
+| Date | Commit | Note |
+|------|--------|------|
+| 2026-10-19 | `0c302d9` binary | First public tip scoreboard receipts |
+| 2026-10-21 | pointer only | Amiibo crawl receipt linked; matrices on this page unchanged |
+| 2026-10-25 | `51c0337` | P3-9 release rerun + Lightpanda/Obscura tip run; matrices above stay the 10-19 debug snapshot |

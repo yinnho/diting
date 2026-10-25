@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "description": "Risk-signal table template — the wall-detection needles are operator business data. Public build ships EMPTY; load a private table via DITING_RISK_SIGNALS=<path>. Path needles match the URL with query/fragment stripped; host and token needles match the full lowercased URL (hosts also match body HTML); body markers match retained bodies; body title markers are HTML-interstitial-only.",
+  "challenge_tag": "",
+  "url_path_needles": [],
+  "url_host_needles": [],
+  "url_token_needles": [],
+  "body_markers": [],
+  "body_title_markers": []
+}

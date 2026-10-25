@@ -1,0 +1,1247 @@
+{
+ "health": {
+  "capabilities": {
+   "captcha_solver": false,
+   "screenshot": true,
+   "stealth": true
+  },
+  "commit": "c40dd36",
+  "engine": "diting",
+  "status": "ok",
+  "tls": "chrome145",
+  "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "v8": "15.0.245.2-rusty",
+  "version": "0.6.2"
+ },
+ "clicked": null,
+ "probe": {
+  "result": "{\"comment_items\":0,\"loading_text\":true,\"note_modal_open\":false,\"text_head\":\"登录后推荐更懂你的笔记\\n可用\\n小红书\\n或\\n微信\\n扫码\\n小红书如何扫码\\n手机号登录\\n+86\\n获取验证码\\n登录\\n我已阅读并同意《用户协议》《隐私政策》《儿童/青少年个人信息保护规则》\\n新用户可直接登录\\n创作中心\\n业务合作\\n发现\\nRED\\n直播\\n发布\\n通知\\n消息\\n登录\\n沪ICP备13030189号 | 营业\"}"
+ },
+ "network": [
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 210720,
+   "status": 200,
+   "type": "Document",
+   "url": "https://www.xiaohongshu.com/explore"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 12231,
+   "status": 200,
+   "type": "Stylesheet",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/vendor.ff19aca8.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 395196,
+   "status": 200,
+   "type": "Stylesheet",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/index.853440bd.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 59828,
+   "status": 200,
+   "type": "Script",
+   "url": "https://as.xiaohongshu.com/api/sec/v1/ds?appId=xhs-pc-web"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 151489,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/as/v1/3e44/public/04b29480233f4def5c875875b6bdc3b1.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 245709,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/as/v1/3e44/public/a9ef723c54cfdb63556bffe75cf06ae7.js?s=sdt_source_init"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 18296,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/bundler-runtime.4f15004d.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 1382483,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/vendor-dynamic.6e584070.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 212126,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/library-polyfill.26cdc0cc.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 92137,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/library-lodash.c2803696.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 1871789,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/vendor.45ae203e.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 2585274,
+   "status": 200,
+   "type": "Script",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/index.a9f61821.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 9410,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/Explore.41b4b38d.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 516,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/8019.6ff0577f.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 199055,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-video-qc.xhscdn.com/fe-platform-file/104101b831udegmhb2q06chlqrg9000000000018ckkuf4.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 1294867,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/Track.3b142728.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 361037,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/9760.adcdb880.js"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 892,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://as.xiaohongshu.com/api/sec/v1/sbtsource"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 59914,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://as.xiaohongshu.com/api/sec/v1/scripting"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 66199,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://as.xiaohongshu.com/api/p/pj"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 160,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/redcaptcha/v2/getconfig"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 770,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://pages.xiaohongshu.com/data/sem_sdk"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 320028,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/395.6ce4f169.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 10205,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/5688.ac0372d9.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 3337,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/799.29b29f18.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 15445,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/1863.449d50b0.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 9447,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/3362.4b0ac9dc.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 162,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/v2/user/me"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 82,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/v1/system/config"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 162,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/v2/user/me"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 162,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/v2/user/me"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 3656,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/NPS.0fee7ba1.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 993,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://pages.xiaohongshu.com/data/xhs_pc_nps"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 7840,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/NPS.d211c3d2.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 11170,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/703.e1d8162e.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 4463,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/6831.6f8e24e2.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 17025,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/6831.30d025c3.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 567,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/5894.49592206.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 4159,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/5894.36d128b6.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 449,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/7604.5e013dad.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 1633,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/7604.4de8516e.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 6009,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/4751.174d4f9a.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 9434,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/4751.6db4fb62.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 4071,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/2067.311213b6.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 58864,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/2935892f0af45bec00a9fcf07e3e57ab/note_pre_post_uhdr/1040g3r8325emsdl9kq705o180kgg93uac374kto!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 62014,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/1edaf49f464fb4aaba3b03d7a368bc9d/notes_pre_post/1040g3k8325dgraa8k6705qb0of952oh8pvopufo!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 14588,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/9a1697829a0f902b4045c73b3ee09010/oss-sg/notes_pre_post/1040g3mo325e6i3a62q105oqtliv653c3hb20e68!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 38210,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/67225a9ec52deb1c37c4a9e2606e20df/1040g2sg3256sokm244e049cenbf7fq4hlb1sfc0!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 55296,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/5cce60034c0c2c6726421bbfdd494d76/1040g00832660eqko5g0g5nrog4l08ilpsb0is80!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 14442,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://www.xiaohongshu.com/web-static/sw.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 117,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/im/redmoji/version"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 1291,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/v1/config"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 61927,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/as/v2/ds/6545c70e73d7e06896b3c574a70b5438.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 119244,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/8d6c6f88351a621cabe123bb1250b614/1040g008325gafj7g4e004a4c91ct6pbfljkk30g!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 45,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/as/v1/3e44/public/bf7d4e32677698655a5cadc581fd09b3.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 7211,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/2067.70eff926.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 7101,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/9220.a92d2dbe.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 7616,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/1392.bc4a79d2.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 4059,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/1392.e704dc24.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 18764,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/6fb51d6fbdee865a7ea3a342de9fc63e/1040g2sg325c2j4jt56005oj991ioc7ohv1sf1to!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 20104,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/4ca857001467c398d1f91d084b7ebfec/spectrum/1040g34o325dgcljt46005ql5b4cks501bqkbato!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 39312,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/29a76e30ccfd55964c1681a2368c4564/notes_pre_post/1040g3k8325h6ui4056d045gd0d5rur7jjgvt020!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 53,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/global/config"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 148813,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/as/v1/f218/a15/public/04b29480233f4def5c875875b6bdc3b1.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 77198,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/d23747a05715203812edcf2f0c237cdf/notes_pre_post/1040g3k0325imqm5kk4005pf2fge19raebbpihg8!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 30116,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/90285efadf3f7fb4d798a56765bc717a/1040g2sg325dhf4ppl6105qg76oigfk000j33f40!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 20826,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/49597dd5726a735ad5f7f44146c155db/1040g2sg325jsr04j56ig5q3sh60naqbjf9r3o8g!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 22188,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/ef2c122e05f09fc9c5e8cc3efe8c90fd/1040g008325l2kb4flg005n8s8l644mtobdkos78!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 21846,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/abc4296c35716afb810dd306f053129f/1040g008325mdv13d50rg5ntnmji08i70jm4dd2g!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 50086,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/f969a4bbc1a9e6ddeaad7735f34b6e2f/1040g2sg325igru3j44fg5qdu29ccmj0rqgrkh58!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 28926,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/85029fa42e06e68b6cdfe82b987840af/spectrum/1040g34o325hbcv8d46105pjc7fk2u77ucsu9t1o!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 395798,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/as/v2/fp/c4a1036f72a59a66faa6f3db3ef2377c.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 40274,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/0edab38db18c229ab3d696dbcfd888bb/1040g008325fn4d3hka6g5qj2erpjv20052ihr6g!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 19352,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/6347bb850793edc7145a3afc9b4f4cd0/notes_pre_post/1040g3k0325ftd0pn50005qkl62okua01ksjlem8!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 58050,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/3232311d31d3fe0cb7fe813c190c2aeb/notes_pre_post/1040g3k0325jp2jhql6005q49f6tq4menu31qlho!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 949939,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/redcaptcha/captcha/eeddec12375cb942e53c6cf32e8a2258.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 51268,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/8aa32bfe5980eef4c03c659189cea72c/notes_pre_post/1040g3k8325ep0fev44bg5pa2c5k1gn1aehs6m4o!nc_n_webp_mw_1"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 82742,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/7324eadae406597a052f33a5a43e73b2/1040g008325pqua2al6005nqi2eg0913v6j4rbmg!nc_n_webp_mw_1"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 15818,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/189f6d7d03a2a5a9912d6e23d612431c/notes_pre_post/1040g3k0325c6b50mka005oik956ocrl5nbdh3i0!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 21550,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/css/async/Login.bdbd8f2a.css"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 15713,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/1884.7f6355c2.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 40720,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-static.xhscdn.com/formula-static/xhs-pc-web/public/resource/js/async/Login.e4afc82b.js"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 55868,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/54a900d3b402f8d760e93bc7b69dbb56/1040g2sg325enljfc4q005q3rc48ms6b0ic0rm78!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 40212,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/f65bd14f61a7bb82d8bc0ddbb57cc220/notes_pre_post/1040g3k0325aqlsl456005qjrog74u600qbrdkk0!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 18334,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/ad3de8c142460d1dccd805f8cbda1f91/1040g2sg325aqp3qv4keg5ohjs8741l2vqql251o!nc_n_webp_mw_1"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://dhjaibcmgocbpegmejfphjhhpaphmkpp/is.js"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://hmeohemhimcjlegdjloglnkfablbneif/inject.bundle.js"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://lenndnnbdichpjlfmfadcjpaenmiflan/inject.bundle.js"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://piejlhcmefdepbgalcongckfomfobokb/worker.js"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://dbichmdlbjdeplpkhcejgkakobjbjalc/content-scripts/xiaohongshu.css"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://keeelahekhhgkpaipdodgjnmgkfcdpde/inject.6070000c.js"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://ddgooekaaihgnbfbgalfiooiicdnmnia/js/js-index.ts.js"
+  },
+  {
+   "error": "net::ERR_FAILED",
+   "method": "GET",
+   "nav": 2,
+   "size": 0,
+   "status": 0,
+   "type": "Fetch",
+   "url": "chrome-extension://beeaddblkeeialcohiolkkoiifhgjooj/manifest.json"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 10458,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/86296f8191203c77cda202f2b6d7e629/1040g2sg325ep7mra50e05ngnumi08uhl5a9nts8!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 18334,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/ad3de8c142460d1dccd805f8cbda1f91/1040g2sg325aqp3qv4keg5ohjs8741l2vqql251o!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 14588,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/9a1697829a0f902b4045c73b3ee09010/oss-sg/notes_pre_post/1040g3mo325e6i3a62q105oqtliv653c3hb20e68!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 55868,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/54a900d3b402f8d760e93bc7b69dbb56/1040g2sg325enljfc4q005q3rc48ms6b0ic0rm78!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 119244,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/8d6c6f88351a621cabe123bb1250b614/1040g008325gafj7g4e004a4c91ct6pbfljkk30g!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 39312,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/29a76e30ccfd55964c1681a2368c4564/notes_pre_post/1040g3k8325h6ui4056d045gd0d5rur7jjgvt020!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 58864,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/2935892f0af45bec00a9fcf07e3e57ab/note_pre_post_uhdr/1040g3r8325emsdl9kq705o180kgg93uac374kto!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 10458,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/86296f8191203c77cda202f2b6d7e629/1040g2sg325ep7mra50e05ngnumi08uhl5a9nts8!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 18764,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/6fb51d6fbdee865a7ea3a342de9fc63e/1040g2sg325c2j4jt56005oj991ioc7ohv1sf1to!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 20104,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/4ca857001467c398d1f91d084b7ebfec/spectrum/1040g34o325dgcljt46005ql5b4cks501bqkbato!nc_n_webp_mw_1"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://apm-fe.xiaohongshu.com/api/data"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://apm-fe.xiaohongshu.com/api/data"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 151063,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-video-qc.xhscdn.com/fe-platform/24efe715cd80441a3571b1202e87c152dbfbc160.json?attname=fe-platform/24efe715cd80441a3571b1202e87c152dbfbc160.json.json"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 148688,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/fcf1a57bf50560c518d0b4cc52caedb6/notes_pre_post/1040g3k0325mdh4uv4q605q2akgpngsnu0pq0508!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 48392,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/d7be7d9bb65d3123661186f924e8899e/notes_pre_post/1040g3k0325jp68tt5g0g492rk62bu5vl6abs7b0!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 19250,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/ced96f7343aab397a4b38703f4b451f0/notes_pre_post/1040g3k0325eqs2ga4c004a7b6m11ci6tof66cig!nc_n_webp_mw_1"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 18550,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/e1e5c1cedaf53b016df1b97ecb841ada/1040g2sg325me9ufk50905ovhor0523m7rujilrg!nc_n_webp_mw_1"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 19250,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://sns-webpic-qc.xhscdn.com/202610251119/ced96f7343aab397a4b38703f4b451f0/notes_pre_post/1040g3k0325eqs2ga4c004a7b6m11ci6tof66cig!nc_n_webp_mw_1"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://apm-fe.xiaohongshu.com/api/data"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 295,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/sns/web/v1/login/qrcode/create"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 41812,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-platform.xhscdn.com/platform/104101l031udehquhiq06chlqrg900000000001asvebiq.png"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://t2.xiaohongshu.com/api/v2/collect"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 41812,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-platform.xhscdn.com/platform/104101l031udehquhiq06chlqrg900000000001asvebiq.png"
+  },
+  {
+   "method": "GET",
+   "nav": 2,
+   "size": 41812,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://fe-platform.xhscdn.com/platform/104101l031udehquhiq06chlqrg900000000001asvebiq.png"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 65,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://as.xiaohongshu.com/api/sec/v1/shield/webprofile"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://apm-fe.xiaohongshu.com/api/data"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 65,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://as.xiaohongshu.com/api/sec/v1/shield/webprofile"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 41,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://apm-fe.xiaohongshu.com/api/data"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  },
+  {
+   "method": "POST",
+   "nav": 2,
+   "size": 229,
+   "status": 200,
+   "type": "Fetch",
+   "url": "https://edith.xiaohongshu.com/api/qrcode/userinfo"
+  }
+ ],
+ "console": []
+}
