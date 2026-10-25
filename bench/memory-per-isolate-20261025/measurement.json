@@ -57,5 +57,13 @@
    "committed-vs-used slack ~1.1MB/realm (6.6 total vs 5.5 used) — heap growing-factor experiments could trim ~25MB at 25-realm peak",
    "per-realm cost is dominated by the engine's JS stdlib mass; per-context-in-shared-isolate would slash it but is the rejected isolation-model change"
   ]
+ },
+ "shrink_batch_2026_10_25": {
+  "tier_dial_verdict": "gzip-style time dial at INIT is DEAD: critical memory pressure + double full GC (tier -9, ~5ms) recovers only 33KB more than one low_memory_notification (tier -1, ~2ms) — the live object set (5.07MB) is the floor; physical after tier-1 (5.18MB) already sits 0.11MB above it.",
+  "idle_shrink": {
+   "design": "session actor's pump arm: after 5 consecutive quiet 200ms slices (~1s parked), full-GC the realm; any command resets the clock. Same AGINXBROWSER_REALM_SHRINK knob, now DEFAULT ON (user call: 2ms is free).",
+   "demo": "single session on a data: page churning ~5MB garbage per 160ms for 10s, then parked. knob OFF: RSS climbs to 105MB and STICKS at 105MB for 15+ s of idle. knob ON (default): churn peak ~68MB, within ~1s of idle RSS drops to 47MB and stays — ~58MB reclaimed per parked garbage-heavy session, permanently.",
+   "init_shrink_unchanged": "2.07ms per realm build, physical 6.62->5.18MB per realm, 25-realm peak 210.8->194.8MB (-7.6%)"
+  }
  }
 }

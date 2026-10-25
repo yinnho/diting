@@ -334,7 +334,7 @@ cargo build --release --features stealth,screenshot
 | `AGINXBROWSER_ROBOTS_TTL_SECS` | `3600` | 每主机 robots.txt 策略缓存 TTL |
 | `AGINXBROWSER_DOMAIN_RATE_PER_MIN` | `20` | 单注册域每分钟页面数上限（子域名共用额度，超限返回 429；`0` 关闭。见「是浏览器，不是爬虫」 |
 | `AGINXBROWSER_SESSION_PAGE_LIMIT` | `200` | 单个交互 session 可走的页面总数上限（换页的点击也计），超限后续导航被拒，当前页仍可操作；`0` 关闭 |
-| `AGINXBROWSER_REALM_SHRINK` | 未设 | realm 建成后立即全量 GC 收缩（#276 实测 ~2ms/realm 换 ~1.4MB 物理内存；25 会话峰值 −7.6%）。默认关——每次导航都重建 realm，墙钟成本骑在页面加载上 |
+| `AGINXBROWSER_REALM_SHRINK` | 开 | realm 内存收缩（#276）：初始化后全量 GC（实测 ~2ms/realm 换 ~1.4MB，25 会话峰值 −7.6%）+ 会话闲置约 1s 后周期性压缩——挂着的重 SPA 页面实测闲置后 105MB → 47MB 持续保持（关闭旋钮时卡在 105MB 不回落）。`0` 关闭 |
 | `AGINXBROWSER_STORE` | 开 | 本地 fetch/搜索缓存；`0`/`false`/`off` 关闭 |
 | `AGINXBROWSER_STORE_PATH` | `~/.aginxbrowser/cache.db` | SQLite 数据库位置（0600 权限创建） |
 | `AGINXBROWSER_STORE_TTL_HOURS` | `720` | 缓存页面 TTL |

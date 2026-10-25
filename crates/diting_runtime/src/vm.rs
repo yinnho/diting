@@ -943,6 +943,7 @@ impl Vm {
         self.isolate.low_memory_notification();
     }
 
+
     /// Cross-thread terminate/cancel handle (the watchdog family's face —
     /// v8-native `IsolateHandle`, same type deno handed out through
     /// `v8_isolate().thread_safe_handle()`).

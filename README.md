@@ -335,7 +335,7 @@ If your network can't reach the rusty_v8 CDN (build hangs with zero progress aft
 | `AGINXBROWSER_ROBOTS_TTL_SECS` | `3600` | Per-host robots.txt policy cache TTL |
 | `AGINXBROWSER_DOMAIN_RATE_PER_MIN` | `20` | Per-registrable-domain page budget per minute (subdomains share one budget); over-budget requests get 429 with the stance message. `0` disables. See "A Browser, Not a Crawler" |
 | `AGINXBROWSER_SESSION_PAGE_LIMIT` | `200` | Total pages one interactive session may walk (navigation-causing clicks count); over-budget navigations are refused, the current page stays interactive. `0` disables |
-| `AGINXBROWSER_REALM_SHRINK` | unset | full-GC each realm right after init (measured: ~2ms per realm build for ~1.4MB physical back; 25-realm concurrent peak −7.6%). Default off — the wall cost rides every navigation's realm rebuild |
+| `AGINXBROWSER_REALM_SHRINK` | on | realm memory shrinking (#276): full GC after init (~2ms/realm for ~1.4MB back, 25-realm peak −7.6%) plus periodic compaction once a session has been idle ~1s — a parked garbage-churning page measured 105MB → 47MB after idle and stays there (with the knob off it sticks at 105MB). `0` opts out |
 | `AGINXBROWSER_STORE` | on | Local fetch/search cache; `0`/`false`/`off` disables |
 | `AGINXBROWSER_STORE_PATH` | `~/.aginxbrowser/cache.db` | SQLite database location (created 0600) |
 | `AGINXBROWSER_STORE_TTL_HOURS` | `720` | Cached page TTL |

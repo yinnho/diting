@@ -179,6 +179,13 @@ fn enter_tokio_context() -> Option<tokio::runtime::EnterGuard<'static>> {
 }
 
 impl JsRuntime {
+    /// #276 idle shrink: full-GC the realm (delegates to Vm::shrink_heap).
+    /// Called by Page at idle command boundaries; see the knob doc.
+    pub fn shrink_heap(&mut self) {
+        self.runtime.shrink_heap();
+    }
+
+
     pub fn new() -> Self {
         Self::with_base_url("about:blank")
     }

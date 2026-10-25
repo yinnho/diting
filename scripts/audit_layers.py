@@ -86,7 +86,7 @@ GOD_FILE_GRANDFATHER = {
     "crates/diting/src/diting_layout/paint.rs": 2753,  # #222 thin blend arms; math lives in paint/blend.rs
     "src/bridge_cross_check.rs": 3766,
     "crates/diting/src/diting_layout/fork_deltas.rs": 2257,
-    "crates/diting/src/diting_js/runtime.rs": 1747,  # + #276 realm-shrink knob block
+    "crates/diting/src/diting_js/runtime.rs": 1754,  # #276 realm-shrink + heap-stat probes + delegator
     "src/docgen/workflow.rs": 1592,
 }
 

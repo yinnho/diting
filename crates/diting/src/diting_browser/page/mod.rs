@@ -512,6 +512,20 @@ pub struct Page {
 }
 
 impl Page {
+    /// #276 idle shrink: full-GC the live realm at an idle command boundary
+    /// (`AGINXBROWSER_REALM_SHRINK`, same knob as the post-init shrink).
+    /// For parked sessions on garbage-heavy pages — a merchant console
+    /// churning for minutes — this returns accumulated garbage to the pool
+    /// without waiting for the next navigation's realm rebuild. Safe here
+    /// by construction: no script is executing (command boundary, pump
+    /// slice done) and the call rides the session thread that owns the
+    /// isolate.
+    pub fn shrink_js_heap(&mut self) {
+        if let Some(js) = self.js.as_mut() {
+            js.shrink_heap();
+        }
+    }
+
     pub fn new(id: String, context: Arc<BrowserContext>) -> Self {
         let http_client = context.http_client.clone();
         // Chromium convention: the main frame's frameId == the targetId.

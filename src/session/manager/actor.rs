@@ -297,6 +297,8 @@ pub(super) fn session_thread(
                 // ~1505ms (measured), which is the "eval takes seconds" class
                 // of report.
                 let mut drain_budget: u64 = 0;
+                // #276: consecutive quiet 200ms pump slices — the idle-shrink clock.
+                let mut idle_slices: u32 = 0;
                 // #193: commands that arrived while a navigation owned the
                 // page (the Navigate arm serves screenshots from the
                 // pre-navigation frame cache and parks everything else
@@ -333,6 +335,18 @@ pub(super) fn session_thread(
                         _ = page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
                             drain_console(&mut page, &mut console_ring);
                             drain_budget = 0;
+                            // #276 idle shrink: once the drain is spent the
+                            // page has had a quiet 200ms slice — five more
+                            // quiet slices (~1s parked) and the accumulated
+                            // garbage goes back via a full GC. Command
+                            // arrivals preempt every slice, so a busy page
+                            // never pays this.
+                            if idle_slices < 5 {
+                                idle_slices += 1;
+                            } else if diting::env_knobs::realm_shrink() {
+                                page.shrink_js_heap();
+                                idle_slices = 0;
+                            }
                             continue;
                         }
                     };
@@ -1166,6 +1180,7 @@ pub(super) fn session_thread(
                         page.inner.release_layout();
                     }
                     drain_budget = 1500;
+                    idle_slices = 0;
                 }
             })
             .await;

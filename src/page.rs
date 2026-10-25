@@ -49,6 +49,11 @@ pub(crate) struct BandFrameCache {
 }
 
 impl Page {
+    /// #276 idle shrink (delegates to diting Page::shrink_js_heap).
+    pub(crate) fn shrink_js_heap(&mut self) {
+        self.inner.shrink_js_heap();
+    }
+
     /// Navigate to URL and wait for load.
     pub async fn goto(&mut self, url: &str) -> Result<(), Error> {
         self.inner
