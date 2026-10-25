@@ -1870,3 +1870,44 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
   "use_proxy": true
 }'
 ```
+
+
+## DupHub Market (v0.7.1)
+
+diting connects to the [duphub.com](https://duphub.com) capability market. The activation code is a hub api key (`oc_...` from the Keys page) — code = wallet = identity. Paid flows are pulled into MEMORY and executed (never written to disk; dumped copies fail a runtime self-check). Free market flows and your local `workflow/` flows run free.
+
+### POST /activation/activate
+```json
+{"code": "oc_...", "hub_url": "https://duphub.com"}   // hub_url optional
+```
+→ `{"balance_cents": 10000}` — validates the key (quota probe) and persists it locally (0600). One-time; recharges keep the same code.
+
+### POST /activation/quota
+→ `{"balance_cents": 9000}` — current wallet balance. 400 with an activation hint when no code is configured.
+
+### POST /flow/run (market path)
+When `name` is absent from local `workflow/` but listed on the market, the run transparently: prices it (`GET /api/price`), purchases it if paid (insufficient balance → structured 402 surfaces the topup loop), pulls `flow.json` via the dup protocol into memory, executes with the runtime ticket. Reruns of an already-purchased flow skip payment.
+
+### POST /activation/topup
+```json
+{"amount_cents": 5000}
+```
+→ `{"order_id": "D18...", "qr_svg": "<svg...>", "expires_at": 1792944508, "sandbox": false}` — a WeChat Native QR. The agent renders `qr_svg` via `POST /open` (the `qr` panel template: title/subtitle/svg_b64/url slots) so the owner can scan and pay.
+
+### POST /activation/order
+```json
+{"order_id": "D18..."}
+```
+→ `{"status": "pending|paid|expired", "amount_cents": 5000}` — poll until `paid`, then continue autonomously. Orders expire after 5 minutes.
+
+### POST /flow/publish
+```json
+{"name": "my-flow", "flow": {...}, "price_cents": 200}
+```
+→ push to the hub as kind=flow (review queue; price is set by the platform after review). Every purchase by others pays **70%** into your wallet.
+
+### POST /panel-template/install
+```json
+{"name": "my-panel"}
+```
+→ pulls a kind=panel-template artifact from the hub into the disk overlay (`/var/lib/diting/templates`) — same-name overrides the built-ins, effective immediately.

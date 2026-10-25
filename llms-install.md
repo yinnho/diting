@@ -50,6 +50,10 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
   -d '{"url":"https://example.com"}'
 ```
 
+## The market (v0.7.1+)
+
+`POST /activation/activate {"code": "oc_..."}` (key from duphub.com Keys page) connects the capability market: `flow/run {"name": ...}` auto-prices and buys hosted flows (paid ones execute in memory), `/activation/quota` checks the wallet, and low balance enters the recharge loop (`/activation/topup` returns a WeChat QR the agent shows the owner). See [docs/API.md](docs/API.md) § DupHub Market.
+
 ## Surfaces
 
 fetch, search, download, screenshot, eval, click, flow replay, and the stateful-session family (create/navigate/state/click/input/scroll/eval/screenshot/export/close). Full reference: [docs/API.md](docs/API.md).

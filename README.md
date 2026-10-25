@@ -218,6 +218,32 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
 # → {"session_id":"s_1","url":"https://example.com/"}
 ```
 
+## The DupHub market: buy capabilities, sell capabilities
+
+From v0.7.1 diting connects to **[duphub.com](https://duphub.com)** — the capability market for agents. The goods are **flows** (multi-step operations: login, publish, order, price-watch…) and **panel templates**; the consumer is the agent, not the human: search, price check, order, purchase, pull, execute — all API actions. The human does exactly one thing: **scan the recharge QR code the agent holds up**.
+
+```bash
+# 1. Activate (one-time; key from duphub.com's Keys page — code = wallet = identity)
+curl -X POST http://127.0.0.1:8089/activation/activate \
+  -H 'Content-Type: application/json' -d '{"code": "oc_YOUR_KEY"}'
+# → {"balance_cents": 10000}
+
+# 2. Run a market flow directly (agent-transparent — absent locally? priced,
+#    purchased, pulled into MEMORY, executed; never touches disk)
+curl -X POST http://127.0.0.1:8089/flow/run \
+  -H 'Content-Type: application/json' -d '{"name": "xhs-post", "vars": {...}}'
+
+# 3. Check balance
+curl -X POST http://127.0.0.1:8089/activation/quota -d '{}'
+# → {"balance_cents": 9000}
+```
+
+- **Paid flows run in memory**: flow.json is pulled, executed, discarded — handing the file to someone else is useless, without a code it cannot run (runtime self-check rejects dumped copies)
+- **Low balance enters the recharge loop automatically**: `POST /activation/topup` returns a QR code → the agent shows it to the owner via `/open` (qr panel template) → owner scans and pays (WeChat) → the agent polls `POST /activation/order` until paid and continues on its own
+- **Sell your own**: `POST /flow/publish` lists your flow (reviewed before sale); every purchase by others pays **70%** into your wallet
+- Free flows on the market pull and run free; your own `workflow/` flows are untouched (free, offline)
+- Self-hosted market: point `DITING_DUPHUB_URL` at your private hub
+
 ## REST Routes
 
 Every capability is plain HTTP — no SDK required. There is no `/openapi.json` (the routes are few enough to list here); full request/response fields for each route are in [docs/API.md](docs/API.md).
@@ -236,7 +262,7 @@ Every capability is plain HTTP — no SDK required. There is no `/openapi.json` 
 | POST | `/video` | Render animation timelines → MP4 (`screenshot` feature) |
 | POST | `/pdf` | Paginate page → PDF/PNG/PPTX/DOCX (`screenshot` feature) |
 | POST | `/v1/scrape` | Firecrawl-compatible scrape (+ `actions`) |
-| POST | `/flow/run` | Run a recorded/edited flow JSON to completion — zero model tokens (`name` runs an installed `workflow/<name>/flow.json`, `flow` is inline, `vars` substitute `{{placeholders}}`, `session_id` composes with imported login state) |
+| POST | `/flow/run` | Run a recorded/edited flow JSON to completion — zero model tokens (`name` runs an installed `workflow/<name>/flow.json`, `flow` is inline, `vars` substitute `{{placeholders}}`, `session_id` composes with imported login state) | — local `workflow/` or the market (`name` auto-prices: free pulls straight, paid buys then runs in memory)
 | POST | `/session/create` | Start an interactive session (cookies/UA carried across calls) |
 | POST | `/import/curl` | Create a logged-in session from a DevTools "Copy as cURL" |
 | GET | `/session/list` | Live sessions |
@@ -335,6 +361,7 @@ If your network can't reach the rusty_v8 CDN (build hangs with zero progress aft
 | `DITING_DOMAIN_RATE_PER_MIN` | `20` | Per-registrable-domain page budget per minute (subdomains share one budget); over-budget requests get 429 with the stance message. `0` disables. See "A Browser, Not a Crawler" |
 | `DITING_SESSION_PAGE_LIMIT` | `200` | Total pages one interactive session may walk (navigation-causing clicks count); over-budget navigations are refused, the current page stays interactive. `0` disables |
 | `DITING_REALM_SHRINK` | on | realm memory shrinking (#276), two faces: periodic compaction once a session has been idle ~1s (unconditional — a parked garbage-churning page measured 105MB → 47MB after idle and stays there; with the knob off it sticks at 105MB), and a post-init full GC that only runs while ≤8 realms are live (under big pools it measured ~8ms CPU per navigation amplified by lock contention — +28s wall on a 940-page crawl for −27MB, not worth it). `0` disables both |
+| `DITING_DUPHUB_URL` | `https://duphub.com` | DupHub market address (override for a private hub) |
 | `DITING_STORE` | on | Local fetch/search cache; `0`/`false`/`off` disables |
 | `DITING_STORE_PATH` | `~/.diting/cache.db` | SQLite database location (created 0600) |
 | `DITING_STORE_TTL_HOURS` | `720` | Cached page TTL |
