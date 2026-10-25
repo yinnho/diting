@@ -32,6 +32,7 @@ pub(crate) use fetch::maybe_bypass_challenge;
 #[cfg(test)]
 pub(crate) use fetch::{media_from_eval, parse_layout_facts};
 #[cfg(feature = "screenshot")]
+#[allow(unused_imports)]
 pub(crate) use fetch::resource_facts;
 #[cfg(feature = "screenshot")]
 pub use outputs::{do_pdf, do_screenshot, do_video};
