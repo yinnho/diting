@@ -1,0 +1,64 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# V8 snapshot / build artifacts
+*.bin
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs / runtime
+*.log
+cookie-store.json
+
+# Local npx skills install artifacts / session state
+.agents/
+.claude/
+skills-lock.json
+
+# Local publisher tooling binary
+mcp-publisher
+
+# Local fetch/search SQLite cache (runtime state, must never rsync to hosted instance)
+cache.db
+cache.db-shm
+cache.db-wal
+
+# Local vendored source trees pulled for reference (e.g. deno_core during musl port)
+vendor/
+
+# Reports/notes/receipts stay local — nothing under docs/ is ever committed
+# (user rule 2026-09-22; extended 2026-10-13: updates to already-tracked docs
+# files stay uncommitted too — 300015 handover commits had to be rebase-dropped)
+docs/**
+
+# localStorage persistence test artifact (runtime state, must never rsync to hosted instance)
+/localStorage/
+
+# User-pulled reference bundles at repo root — never commit
+/TurnstileLogin.bundle.js
+/api.js
+/index.web-*.js
+
+# agent/local scratch (Claude memory imports, etc.) — never committed
+.local/
+
+# working docs & credentials — never committed
+HANDOFF-*.md
+scripts/__pycache__/
+
+# Editor / agent scratch backups next to flows
+*.bak
+*.bak-*
+**/*.bak
+**/*.bak-*
+
+# Local desktop UI experiment (not part of the product tree)
+/desktop.js
+
+# Agent scratch/forensics — runtime state & credentials, never commit (2026-10-16 audit S1)
+/tmp-agent/
