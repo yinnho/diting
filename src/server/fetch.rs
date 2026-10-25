@@ -358,21 +358,7 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // bodies themselves stay out of the response — `media` carries
             // the leads, this says which leads are real and how big.
             let resources = if req.resources {
-                let t0 = std::time::Instant::now();
-                let html = page.content();
-                let url = page.url();
-                let fetched = crate::screenshot::prefetch_render_resources(
-                    &page, &url, &html, 1280.0,
-                )
-                .await;
-                let facts = resource_facts(&fetched);
-                tracing::info!(
-                    "fetch resources forced: {} bodies, {} with dimensions, in {:?}",
-                    facts.len(),
-                    facts.iter().filter(|f| f.width.is_some()).count(),
-                    t0.elapsed()
-                );
-                facts
+                prefetch_resource_facts(&mut page).await
             } else {
                 Vec::new()
             };
@@ -524,6 +510,34 @@ pub(crate) fn parse_layout_facts(v: &serde_json::Value) -> Option<crate::LayoutF
 /// Turn the prefetched bodies into `resources` response rows: size always,
 /// pixel dimensions when the bytes decode (magic sniff, PNG/JPEG/WebP/GIF).
 /// Bodies stay out of the response — the caller has the URLs in `media`.
+/// The `resources:true` body pass, feature-split: with `screenshot` it
+/// prefetches through the bounded machinery the screenshot path uses
+/// (#279); without, the knob answers an empty table (the capability
+/// rides the feature, like /screenshot itself).
+async fn prefetch_resource_facts(page: &mut crate::page::Page) -> Vec<crate::ResourceFact> {
+    #[cfg(feature = "screenshot")]
+    {
+        let t0 = std::time::Instant::now();
+        let html = page.content();
+        let url = page.url();
+        let fetched =
+            crate::screenshot::prefetch_render_resources(page, &url, &html, 1280.0).await;
+        let facts = resource_facts(&fetched);
+        tracing::info!(
+            "fetch resources forced: {} bodies, {} with dimensions, in {:?}",
+            facts.len(),
+            facts.iter().filter(|f| f.width.is_some()).count(),
+            t0.elapsed()
+        );
+        facts
+    }
+    #[cfg(not(feature = "screenshot"))]
+    {
+        Vec::new()
+    }
+}
+
+#[cfg(feature = "screenshot")]
 pub(crate) fn resource_facts(
     fetched: &crate::screenshot::PrefetchedResources,
 ) -> Vec<crate::ResourceFact> {

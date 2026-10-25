@@ -633,7 +633,8 @@ mod search_fallback_tests {
         );
     }
 
-    #[tokio::test]
+    #[cfg(feature = "screenshot")]
+#[tokio::test]
     async fn legit_zero_hits_stands_without_fallback() {
         let registry =
             crate::search::SearchEngineRegistry::with_engines(vec![Arc::new(MockEngine {
@@ -802,6 +803,7 @@ mod cost_knob_tests {
 
     /// Rows report size always, dimensions only when the bytes decode; the
     /// order is the sorted URL, not HashMap roulette.
+    #[cfg(feature = "screenshot")]
     #[test]
     fn resource_facts_dims_and_stable_order() {
         let png = STANDARD.decode(DOT_PNG_B64).unwrap();
