@@ -317,6 +317,20 @@ impl JsRuntime {
             }
         }
 
+        // #276: post-init shrink — the knob trades ~2ms per realm build
+        // for ~1.4MB physical per realm (see Vm::shrink_heap).
+        if crate::env_knobs::realm_shrink() {
+            let t0 = std::time::Instant::now();
+            runtime.shrink_heap();
+            if crate::env_knobs::realm_heap_stats() {
+                let h = runtime.heap_statistics();
+                tracing::info!(
+                    "realm heap [S shrunk]: used {} total {} physical {} shrink_ms {:?}",
+                    h.used_heap_size(), h.total_heap_size(), h.total_physical_size(),
+                    t0.elapsed()
+                );
+            }
+        }
         // #276 memory forensics: point B — after ops install, init script,
         // natives mint; this is the per-realm steady baseline a page starts
         // from.

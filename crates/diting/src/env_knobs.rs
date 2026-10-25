@@ -310,6 +310,16 @@ mod tests {
     }
 }
 
+/// `AGINXBROWSER_REALM_SHRINK`: full-GC each realm right after init
+/// (#276). Measured: ~2ms per realm build, ~1.4MB physical back per realm
+/// (~16MB across a 25-realm pool; concurrent peak −7.6%). Default off —
+/// every navigation rebuilds the realm, so the wall cost rides page loads.
+pub fn realm_shrink() -> bool {
+    std::env::var("AGINXBROWSER_REALM_SHRINK")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+}
+
 /// `AGINXBROWSER_REALM_HEAP_STATS`: log each realm's V8 heap statistics at
 /// two points (post snapshot restore, post realm init) so the per-isolate
 /// memory cost can be decomposed (#276 memory work). Off by default.

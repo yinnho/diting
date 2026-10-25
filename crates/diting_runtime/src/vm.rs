@@ -934,6 +934,15 @@ impl Vm {
         self.isolate.get_heap_statistics()
     }
 
+    /// Full GC with compaction, sized for the post-init shrink
+    /// (`AGINXBROWSER_REALM_SHRINK`, #276): measured on the tip release
+    /// binary it costs ~2ms and returns ~1.4MB per realm (physical
+    /// 6.62→5.18MB), i.e. ~16MB across a 25-realm crawl — trades ~2ms
+    /// per realm build for that, so it ships default-OFF.
+    pub fn shrink_heap(&mut self) {
+        self.isolate.low_memory_notification();
+    }
+
     /// Cross-thread terminate/cancel handle (the watchdog family's face —
     /// v8-native `IsolateHandle`, same type deno handed out through
     /// `v8_isolate().thread_safe_handle()`).
@@ -1883,5 +1892,21 @@ mod tests {
         );
         vm.poll().unwrap();
         assert_eq!(vm.eval_string("globalThis.count").unwrap(), "2");
+    }
+}
+
+#[cfg(test)]
+mod shrink_tests {
+    use super::Vm;
+
+    /// #276: shrink_heap is a full GC — it must not panic and the heap
+    /// statistics must stay sane (used <= total) on a fresh realm.
+    #[test]
+    fn shrink_heap_keeps_a_fresh_realm_consistent() {
+        let mut vm = Vm::new();
+        vm.shrink_heap();
+        let h = vm.heap_statistics();
+        assert!(h.used_heap_size() <= h.total_heap_size());
+        assert!(h.total_heap_size() > 0);
     }
 }
