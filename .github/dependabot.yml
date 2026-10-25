@@ -23,6 +23,9 @@ updates:
       # (#261, #264 declined 2026-10-25).
       - dependency-name: "cbc"
         update-types: ["version-update:semver-major"]
+      # ctr 0.10 rides the same cipher-0.5 redesign as cbc 0.2 (#261 class)
+      - dependency-name: "ctr"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "cssparser"
         update-types: ["version-update:semver-major"]
 
