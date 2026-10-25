@@ -265,7 +265,7 @@ pub(crate) async fn search_hub_from(base: &str, query: &str) -> Result<Value, St
     let mut url = url::Url::parse(&format!("{base}/api/templates"))
         .map_err(|e| format!("hub url: {e}"))?;
     url.query_pairs_mut()
-        .append_pair("kind", "agx-flow")
+        .append_pair("kind", "flow")
         .append_pair("limit", "50");
     let q = query.trim();
     if !q.is_empty() {
@@ -310,7 +310,7 @@ pub(crate) async fn search_hub_from(base: &str, query: &str) -> Result<Value, St
     let flows: Vec<Value> = listing
         .templates
         .iter()
-        .filter(|t| t.kind.as_deref() == Some("agx-flow"))
+        .filter(|t| t.kind.as_deref() == Some("flow"))
         .map(|t| {
             json!({
                 "name": t.name,
@@ -574,9 +574,9 @@ mod tests {
         let listing = json!({
             "templates": [
                 {"name": "demo-post", "description": "post a demo", "latest_version": "1.2.0",
-                 "download_count": 41, "kind": "agx-flow"},
+                 "download_count": 41, "kind": "flow"},
                 {"name": "qr-login", "description": "", "latest_version": "0.1.0",
-                 "download_count": 3, "kind": "agx-flow"},
+                 "download_count": 3, "kind": "flow"},
                 {"name": "chennan-avatar", "description": "a clone, not a flow",
                  "latest_version": "2.0", "download_count": 99, "kind": "clone"},
             ],
@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(receipt["total"], 3);
         assert_eq!(receipt["kind_filter"], json!(null), "supported hub: no degrade note");
         // The ask carried the kind filter even though the client re-filters.
-        assert!(seen.lock().unwrap()[0].contains("kind=agx-flow"));
+        assert!(seen.lock().unwrap()[0].contains("kind=flow"));
     }
 
     #[tokio::test(flavor = "current_thread")]
