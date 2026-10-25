@@ -1,9 +1,0 @@
-{
- "metric": "health_warm_ms_n3",
- "samples": [
-  0.298,
-  0.308,
-  0.346
- ],
- "median": 0.308
-}

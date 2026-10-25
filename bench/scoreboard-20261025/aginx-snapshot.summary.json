@@ -1,7 +1,0 @@
-{
- "metric": "session_snapshot_example_com",
- "create_ms": 1.0,
- "navigate_ms": 1219.3,
- "snapshot_ms": 2.7,
- "snapshot_nodes": 0
-}

@@ -31,10 +31,13 @@ cache.db-wal
 # Local vendored source trees pulled for reference (e.g. deno_core during musl port)
 vendor/
 
-# Reports/notes/receipts stay local — nothing under docs/ is ever committed
-# (user rule 2026-09-22; extended 2026-10-13: updates to already-tracked docs
-# files stay uncommitted too — 300015 handover commits had to be rebase-dropped)
+# Development docs stay local — only user-facing docs are tracked
 docs/**
+!docs/API.md
+!docs/API.zh-CN.md
+!docs/install.md
+!docs/install.zh-CN.md
+!docs/demo.gif
 
 # localStorage persistence test artifact (runtime state, must never rsync to hosted instance)
 /localStorage/
