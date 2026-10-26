@@ -28,9 +28,7 @@ use crate::session::{
 };
 use tokio::sync::oneshot;
 
-/// flow_install — pull a flow package from a DupHub remote into the
 /// workflow directory (issue #143, the ecosystem's consumption side).
-pub mod install;
 mod condition;
 mod resolve;
 
@@ -1026,7 +1024,6 @@ async fn run_flow_inner(
     session_id: Option<String>,
     step_starts: StepStarts,
 ) -> Value {
-    // DupHub runtime self-check (pay-per-run): a flow document carrying a
     // ticket — it stops here instead of executing.
     // 无票据（dump 副本/伪造文档）→ 拒。
     let run_started = std::time::Instant::now();
