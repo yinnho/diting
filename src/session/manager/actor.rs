@@ -488,6 +488,21 @@ pub(super) fn session_thread(
                             })));
                         }
 
+                        SessionCommand::SetOutcome { signatures, reply } => {
+                            let sigs: Vec<_> = serde_json::from_str(&signatures)
+                                .unwrap_or_default();
+                            let n = page.inner.outcome.set(sigs);
+                            let _ = reply.send(Ok(serde_json::json!({ "armed": n })));
+                        }
+
+                        SessionCommand::OutcomeHits { reply } => {
+                            page.inner.sync_js_network_events();
+                            let hits = page.inner.outcome.take_hits();
+                            let _ = reply.send(Ok(serde_json::json!({
+                                "hits": hits,
+                            })));
+                        }
+
                         SessionCommand::SetContent { html, reply } => {
                             // Local bytes on the same load path as a
                             // navigation: base64 data URL (no escaping

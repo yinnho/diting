@@ -5133,3 +5133,123 @@
             "session thread must ack close"
         );
     }
+
+/// D19 outcome observer: a signature-armed session counts success rows from
+/// EVERY path (here: a document navigation), 404s don't count, and the
+/// drain returns each hit once.
+#[tokio::test]
+async fn outcome_observer_counts_document_navigation_hits() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, _hits) = crate::server::test_util::recording_server(&[
+        ("GET /success.htm?primaryId=1", "<html><body>ok</body></html>"),
+        ("GET /fail.htm", "<html><body>no</body></html>"),
+    ]);
+
+    let mut mgr = SessionManager::new();
+    let sid = mgr.create(
+        Some(&format!("http://127.0.0.1:{port}/success.htm?primaryId=1")),
+        false,
+        vec![],
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+    );
+
+    // Arm AFTER create (the executor's order: session exists, then step 0).
+    let armed = mgr
+        .send(&sid, |reply| SessionCommand::SetOutcome {
+            signatures: r#"[{"kind":"url","contains":"success.htm?primaryId="}]"#.into(),
+            reply,
+        })
+        .await
+        .unwrap();
+    assert_eq!(armed["armed"], 1, "one signature armed: {armed}");
+
+    // Navigate onto the success URL (a fresh document row).
+    mgr.send(&sid, |reply| SessionCommand::Navigate {
+        url: format!("http://127.0.0.1:{port}/success.htm?primaryId=2"),
+        reply,
+    })
+    .await
+    .unwrap();
+
+    // A failure-shaped URL must NOT count.
+    mgr.send(&sid, |reply| SessionCommand::Navigate {
+        url: format!("http://127.0.0.1:{port}/fail.htm"),
+        reply,
+    })
+    .await
+    .unwrap();
+
+    let drained = mgr
+        .send(&sid, |reply| SessionCommand::OutcomeHits { reply })
+        .await
+        .unwrap();
+    let hits = drained["hits"].as_array().cloned().unwrap_or_default();
+    assert_eq!(hits.len(), 1, "exactly the success row: {drained}");
+    assert!(
+        hits[0]["url"].as_str().unwrap_or("").contains("primaryId=2"),
+        "hit url: {hits:?}"
+    );
+
+    // Drain is destructive — the second read sees nothing new.
+    let again = mgr
+        .send(&sid, |reply| SessionCommand::OutcomeHits { reply })
+        .await
+        .unwrap();
+    assert_eq!(again["hits"].as_array().map(Vec::len), Some(0));
+
+    assert!(mgr.close_and_wait(&sid).await);
+}
+
+/// Live E2E repro: arm on a data: document, then cross-navigate — the
+/// observer must survive the navigation (the billing funnel cannot depend
+/// on where the work started).
+#[tokio::test]
+async fn outcome_observer_survives_cross_navigation() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, _hits) = crate::server::test_util::recording_server(&[(
+        "GET /success.htm?primaryId=9",
+        "<html><body>ok</body></html>",
+    )]);
+
+    let mut mgr = SessionManager::new();
+    let sid = mgr.create(
+        Some("data:text/plain,start"),
+        false,
+        vec![],
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+    );
+    mgr.send(&sid, |reply| SessionCommand::SetOutcome {
+        signatures: r#"[{"kind":"url","contains":"success.htm?primaryId="}]"#.into(),
+        reply,
+    })
+    .await
+    .unwrap();
+
+    mgr.send(&sid, |reply| SessionCommand::Navigate {
+        url: format!("http://127.0.0.1:{port}/success.htm?primaryId=9"),
+        reply,
+    })
+    .await
+    .unwrap();
+
+    let drained = mgr
+        .send(&sid, |reply| SessionCommand::OutcomeHits { reply })
+        .await
+        .unwrap();
+    assert_eq!(
+        drained["hits"].as_array().map(Vec::len),
+        Some(1),
+        "cross-navigation hit must count: {drained}"
+    );
+    assert!(mgr.close_and_wait(&sid).await);
+}

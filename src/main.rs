@@ -24,6 +24,7 @@ mod download;
 mod error;
 mod firecrawl_compat;
 mod flow;
+mod task;
 mod har;
 mod page;
 mod panel;
@@ -117,6 +118,7 @@ use routers::sessions::{
     session_set_files_handler, session_snapshot_handler, session_state_handler, session_storage_handler,
     session_verdict_handler, session_viewport_handler, session_wait_handler, sessions_handler,
 };
+use crate::task::{task_finish_handler, task_start_handler, task_status_handler};
 
 
 use server::do_fetch;
@@ -408,6 +410,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/panel-template/install", post(panel_template_install_handler))
         .route("/flow/install", post(flow_install_handler))
         .route("/flow/search", get(flow_search_handler))
+        // D19 任务面（成果计费的手动路径；flow_run 市场分支自动 arm）
+        .route("/task/start", post(task_start_handler))
+        .route("/task/finish", post(task_finish_handler))
+        .route("/task/status", get(task_status_handler))
         .route("/session/:id/clone", post(session_clone_handler))
         .route("/import/curl", post(import_curl_handler))
         .route("/session/list", get(session_list_handler))

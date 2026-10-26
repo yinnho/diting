@@ -3,7 +3,6 @@
 //! 对接 hub（aginx-hub）的真端点，不再有自造协议（批次2前的 7 端点草案
 //! 已废弃——DUPHUB.md §八.7 挂账销账）：
 //!   GET  /api/price?name=                    → {price_cents} | 404
-//!   POST /api/templates/{name}/actions/purchase（Bearer api_key）→ 买断
 //!   GET  /api/templates/{name}/dup/manifest  → {files:{path:sha256}, hash}
 //!   GET  /api/templates/{name}/dup/file/{path} → 字节
 //!   GET  /api/quota（Bearer）                 → {balance_cents}
@@ -12,9 +11,9 @@
 //!   POST /api/templates/{name}/dup/push（Bearer, files b64）→ 上架（review 队列）
 //!
 //! 认证 = hub 的 oc_ api_key（DUPHUB.md §五c：码即钱包）。存本地
-//! ~/.diting/activation.json（0600）。agent 的完整闭环：
-//!   查价 →（付费未购：自动用 key 购买；余额不足：topup 出二维码经
-//!   /open qr 模板上屏 → 主人扫码 → 轮询 paid）→ dup 协议拉 flow 进
+//! ~/.diting/activation.json（0600）。agent 的完整闭环（D19 成果计费）：
+//!   查价（目录探测）→ 拉取免费 → 任务 arm（余额不足：topup 出二维码经
+//!   /open qr 模板上屏 → 主人扫码 → 轮询 paid）→ 干活 → settle 按成功数
 //!   内存执行（不落盘）→ 结果回报。
 //! 运行时自检（dump 出的付费流副本在任何地方执行被拒）保留。
 
@@ -178,25 +177,13 @@ pub struct LoadedFlow {
     pub ticket: String,
 }
 
-/// 购买 + 拉取：未购时先 purchase（幂等：409=已购继续；402 余额不足
-/// 原样上抛，agent 拿到结构化错误后走 topup→二维码→轮询）。
-/// 流按 dup 协议 manifest→逐文件拉齐组装；全程内存。
-pub async fn purchase_and_fetch(flow_name: &str, price_cents: i64) -> Result<LoadedFlow, HubError> {
+/// 市场拉取（D19：免费）：按 dup 协议 manifest→逐文件拉齐组装，全程
+/// 内存。计费在任务面（/api/tasks），拉取不再过任何购买门。
+pub async fn market_fetch(flow_name: &str) -> Result<LoadedFlow, HubError> {
     let a = load().ok_or(HubError::NotActivated)?;
-    // 1. purchase（买断制；幂等）。price=0 的免费流跳过——hub 的
-    // purchase 端点对免费件返回 400（"free, no need to purchase"）。
-    if price_cents > 0 {
-        match post_json(
-            &a,
-            &format!("/api/templates/{}/actions/purchase", urlencode(flow_name)),
-            &serde_json::json!({}),
-        )
-        .await
-        {
-            Ok(_) | Err(HubError::Status(409, _)) => {}
-            Err(e) => return Err(e),
-        }
-    }
+    // D19（〇之二.1）：拉取免费——买断 purchase 调用退役。计费在任务
+    // 结算（task arm/settle），price_cents 参数保留为兼容形状（调用方
+    // 已查过价，不再在此消费）。
     // 2. manifest → files
     let manifest = get_json(
         &a,
@@ -363,4 +350,58 @@ fn urlencode(s: &str) -> String {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------------
+// D19 任务面客户端（hub /api/tasks；DUPHUB.md 〇之二：成果计费）
+
+/// arm 一个任务。锚任务带 anchor（hub 取其每次成功价）；裸任务
+/// （Tier-2）anchor 为空时 price_cents 显式传（缺省 0=免费记账）。
+/// 返回 hub 任务行（含 id/state/hold_cents/expires_at）。
+pub async fn task_arm(
+    anchor: &str,
+    session_id: &str,
+    expected_n: u32,
+    price_cents: i64,
+    ttl_s: i64,
+) -> Result<serde_json::Value, HubError> {
+    let a = load().ok_or(HubError::NotActivated)?;
+    let mut body = serde_json::json!({
+        "anchor": anchor,
+        "session_id": session_id,
+        "expected_n": expected_n,
+        "ttl_s": ttl_s,
+    });
+    if anchor.is_empty() {
+        body["price_cents"] = serde_json::json!(price_cents);
+    }
+    post_json(&a, "/api/tasks", &body).await
+}
+
+/// 结算（幂等）：successes 次成功 + 证据包。Tier-1 观察器命中与
+/// Tier-2 agent 申报同门。
+pub async fn task_settle(
+    task_id: i64,
+    successes: u32,
+    evidence: &serde_json::Value,
+) -> Result<serde_json::Value, HubError> {
+    let a = load().ok_or(HubError::NotActivated)?;
+    post_json(
+        &a,
+        &format!("/api/tasks/{task_id}/settle"),
+        &serde_json::json!({ "successes": successes, "evidence": evidence }),
+    )
+    .await
+}
+
+/// 主动放弃（agent 明知失败/主人取消）：冻结全退。
+pub async fn task_refund(task_id: i64) -> Result<serde_json::Value, HubError> {
+    let a = load().ok_or(HubError::NotActivated)?;
+    post_json(&a, &format!("/api/tasks/{task_id}/refund"), &serde_json::json!({})).await
+}
+
+/// 任务行（惰性过期在读端发生）。
+pub async fn task_get(task_id: i64) -> Result<serde_json::Value, HubError> {
+    let a = load().ok_or(HubError::NotActivated)?;
+    get_json(&a, &format!("/api/tasks/{task_id}")).await
 }
