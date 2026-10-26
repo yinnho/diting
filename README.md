@@ -14,7 +14,7 @@ diting  # → HTTP on :8089, everything below is plain REST
 Existing "browser automation" was built for humans or one-shot scraping. Agents need five things at once — **see, read, find, act, remember** — and they need them cheap:
 
 - **7.6× faster** to agent-usable text than headless Chrome (same 20 pages, same network, p50 532 ms vs 4 053 ms)
-- **~10× less memory** — one process for the whole workload, not 2 GB per page
+- **~25 MB cold start, <40 MB in everyday static use** (measured whole-process); even a heavy JS page runs ~150 MB against Chrome's ~2 GB **per page**
 - **Zero hard failures** where Chrome's dump-DOM produced nothing
 
 An agent's total cost is browser efficiency × model efficiency. This is the browser half.
