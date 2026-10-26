@@ -110,12 +110,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyrender"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1755d0ef8e00e87b6b825dfbe5a35d34d3b302e97e80a48e93f9cd361fbada06"
+dependencies = [
+ "kurbo",
+ "peniko",
+ "raw-window-handle",
+ "smallvec",
+]
+
+[[package]]
 name = "anyrender_svg"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9a06a9cab20563ae5b392239db09d42222820fd3706fe483db7d3cb25546c24"
 dependencies = [
- "anyrender",
+ "anyrender 0.13.0",
  "image",
  "kurbo",
  "peniko",
@@ -128,7 +140,7 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fb392bf738b1e50c50fc82824ff3f875f15632717ba732fe68e2fe6e1011e6c"
 dependencies = [
- "anyrender",
+ "anyrender 0.13.0",
  "bytemuck",
  "color",
  "debug_timer 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -336,7 +348,7 @@ version = "0.3.0-beta.2"
 source = "git+https://github.com/DioxusLabs/blitz?rev=916fa89#916fa890fc407c472e6050a0917d0c7d60c06076"
 dependencies = [
  "accesskit",
- "anyrender",
+ "anyrender 0.13.0",
  "app_units",
  "atomic_refcell",
  "bitflags",
@@ -391,7 +403,7 @@ name = "blitz-paint"
 version = "0.3.0-beta.2"
 source = "git+https://github.com/DioxusLabs/blitz?rev=916fa89#916fa890fc407c472e6050a0917d0c7d60c06076"
 dependencies = [
- "anyrender",
+ "anyrender 0.13.0",
  "anyrender_svg",
  "blitz-dom",
  "blitz-traits",
@@ -1161,7 +1173,7 @@ version = "0.7.0"
 dependencies = [
  "aes",
  "aes-gcm",
- "anyrender",
+ "anyrender 0.14.0",
  "anyrender_vello_cpu",
  "base64 0.22.1",
  "cbc",
@@ -1224,7 +1236,7 @@ version = "0.7.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
- "anyrender",
+ "anyrender 0.14.0",
  "anyrender_vello_cpu",
  "async-trait",
  "axum",
