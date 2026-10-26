@@ -1032,7 +1032,7 @@ curl -sS -X POST http://127.0.0.1:8089/session/$SID/close
 - 失败即中止，回执带 `status:"failed"`、`failed_step`、`reason`、页面 `url`、视口 `screenshot`（base64）、已 `save` 的产出——**会话保持存活**（回执里有 `session_id`），可手动接管排查。
 - `vars` 里没声明的占位符替换直接快速失败（会话都还没建）。
 
-`name=` 寻址 `workflow/<name>/flow.json`（公开仓的 `workflow/` 只带 README——样例与运营流走私有部署；名字只许小写字母/数字/连字符单个路径段，别的进不了文件系统）。丢一个目录进去就是部署，不用重编；flow 依赖的站点配方放 `workflow/<name>/recipes/<名>.js`，`preload` 步骤在内置注册表查无时从包内解析（市场拉取的流则随包进内存），详见 `workflow/README.md`。
+`name=` 寻址 `workflow/<name>/flow.json`（公开仓的 `workflow/` 只带 README——样例走私有部署；名字只许小写字母/数字/连字符单个路径段，别的进不了文件系统）。丢一个目录进去就是部署，不用重编；flow 依赖的站点配方放 `workflow/<name>/recipes/<名>.js`，`preload` 步骤在内置注册表查无时从包内解析，详见 `workflow/README.md`。
 
 ---
 
@@ -1182,55 +1182,3 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 ```
 
 
-## DupHub 市场（v0.8.0 · D19 成果计费）
-
-diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub 的 api key（Keys 页取得的 `oc_...`）——码=钱包=身份。**拉取免费，按成功成果计费**（D19）：任务 arm 冻结，会话级成果观察器——对 flow 步骤、手动接管、API 直调一视同仁——命中签名即结算。flow 正文全程 AES-256-GCM 密文（per-flow 密钥随认证 manifest 到达），明文只存在于 diting 进程内；dump 副本也过不了运行时自检。
-
-### POST /activation/auto —— 零接触开通
-无 body。引擎本地生成 key（OS CSPRNG），只把 SHA-256 哈希送 hub 认领（明文永不上线），本地持久化（0600）。→ `{"code": "oc_...", "claimed": "new", "username": "diting-...", "balance_cents": 0}`——code 只回显一次，请让主人备份（码=钱包）。市场路径首次使用未激活时自动 mint；已激活返回 `{"already_activated": true}`。
-
-### POST /activation/activate
-```json
-{"code": "oc_...", "hub_url": "https://duphub.com"}   // hub_url 可选
-```
-→ `{"balance_cents": 10000}` —— 验证导入的已有 key（quota 探针）并本地持久化（0600）。一次性；充值不改码。
-
-### POST /activation/quota
-→ `{"balance_cents": 9000}` —— 当前钱包余额。未激活时 400 带激活指引。
-
-### POST /flow/run（市场路径）
-`name` 本地 `workflow/` 没有、市场在目录时透明处理：拉包进内存（know-how 文件进程内解密）→ 自动 arm 任务（冻结=每次成功价×预期数；余额不足 → 结构化 402 进充值闭环）→ 执行 → 按观察器命中结算，回执带 `task` 块：`{state:"settled"|"refunded", successes, charged_cents, hold_cents, price_cents, balance_cents}`。零命中立即退款。
-
-### POST /task/start —— 手动路径成果计费
-```json
-{"anchor": "taobao-publish", "session_id": "s_1", "expected_n": 1}
-```
-在活会话上 arm 任务（任何干活方式计费相同）。`anchor:""` 且显式 `price_cents` = 未定义站点的 Tier-2 裸任务；签名缺省取锚流的包内签名组。→ hub 任务行（id/hold_cents/expires_at）。
-
-### POST /task/finish —— Tier-2 申报
-```json
-{"task_id": 7, "successes": 2, "session_id": "s_1", "share_evidence": true, "evidence": {"final_url": "https://..."}}
-```
-按申报数结算（观察器命中作旁证）。`share_evidence:true` 才把**白名单**证据（目标 host + 命中）上传反馈管道——必须先征得主人同意；false 只上行最小元数据（引擎版本/时长/结局）。
-
-### GET /task/status?task_id=N[&session_id=...]
-→ 任务行（惰性过期陈旧任务并退冻结）；`pending_hits` 显示未结算的观察器命中。
-
-### POST /activation/topup
-```json
-{"amount_cents": 5000}
-```
-→ `{"order_id": "D18...", "qr_svg": "<svg...>", "expires_at": ..., "sandbox": false}` —— 微信 Native 二维码。agent 用 `POST /open`（qr 面板模板：title/subtitle/svg_b64/url 槽位）渲染给主人扫码。
-
-### POST /activation/order
-```json
-{"order_id": "D18..."}
-```
-→ `{"status": "pending|paid|expired", "amount_cents": 5000}` —— 轮询到 paid 后 agent 自主继续。订单 5 分钟过期。
-
-### POST /panel-template/install
-### POST /panel-template/install
-```json
-{"name": "my-panel"}
-```
-→ 从 hub 拉 kind=panel-template 工件写进盘上层（`/var/lib/diting/templates`）——同名覆盖内置，立即生效。

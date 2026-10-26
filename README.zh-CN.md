@@ -4,7 +4,7 @@
 
 [English](README.md) | 中文
 
-**为 agent 而生的浏览器引擎。** 一个 Rust 二进制，零 Chromium、零 Docker。看、读、搜、操作、记忆——按成果计费，不按席位。
+**为 agent 而生的浏览器引擎。** 一个 Rust 二进制，零 Chromium、零 Docker。看、读、搜、操作、记忆。
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/yinnho/diting)](https://github.com/yinnho/diting/releases/latest)
@@ -39,21 +39,10 @@ Agent 的总成本 = 浏览器效率 × 模型效率。这里是浏览器那一�
 - **有状态会话**——登录态可注入、可导出、跨重启存活。同一个会话 id 回来时还是登录的
 - **分层渲染**——静态页 ~100 ms 直出；只有页面真需要 JS 时才起 V8。每个响应都标明是哪一层服务的
 - **聚合搜索**——7 类 20 引擎（含中文互联网），并发查询、合并去重；命中带章节级摘要
-- **Flow**——agent 摸出来的多步操作沉淀为可重放的 JSON 文档：重跑零模型 token。托管 flow **密文**下发，仅内存执行
+- **Flow**——agent 摸出来的多步操作沉淀为可重放的 JSON 文档：重跑零模型 token
 - **文档生成**——markdown → 确定性 HTML + 图表（同输入同字节）；页面集导出 PDF / PPTX / DOCX
 - **回执文化**——每次 fetch 报告服务层级、重定向链、内容哈希。agent 依据"实际发生了什么"行动
 - **本地记忆**——fetch/搜索缓存（SQLite FTS5），中文子串匹配，读过的不重付网络费
-
-## 按成果付费，不按席位
-
-[duphub.com](https://duphub.com) 能力市场一次 API 调通——无需注册：首次使用自动生成钱包身份。拉取免费，**成功成果才扣一次费**（真正发出去的一条商品，无论用什么方式达成）。flow 正文全程 AES-256-GCM 密文，明文只存在于 diting 进程内。
-
-```bash
-# 零接触开通——什么都不用填，code 只回显一次
-curl -X POST :8089/activation/auto -d '{}'
-# 跑一个托管流；回执自带计费块
-curl -X POST :8089/flow/run -d '{"name":"..."}'
-```
 
 ## 快速开始
 

@@ -1024,7 +1024,7 @@ curl -sS -X POST http://127.0.0.1:8089/session/s_42/preload \
 
 #### Recipe resolution: builtin registry (empty) → flow-bundled `recipes/`
 
-Asset separation (2026-10-25): the engine ships **no recipe bodies** — the builtin registry answers `None` for every name and the platform scripts (xhs/x/taobao shields) moved out of the public tree with `workflow/`. Recipes now ride the **flow package**: a flow that needs one bundles it as `recipes/<name>.js` next to `flow.json` (the private mirror distributes them; DupHub pulls deliver `recipes/` into memory with the same never-to-disk lifetime as the flow itself).
+Asset separation (2026-10-25): the engine ships **no recipe bodies** — the builtin registry answers `None` for every name and the platform scripts (xhs/x/taobao shields) moved out of the public tree with `workflow/`. Recipes now ride the **flow package**: a flow that needs one bundles it as `recipes/<name>.js` next to `flow.json`.
 
 - Flow `preload` step resolution order: **builtin registry → the flow package's `recipes/<name>.js` → error** (the error names the missing file path).
 - The HTTP endpoint below has no flow context, so it resolves the **builtin registry only** — paste the source via `scripts` instead, or run it through the flow that bundles it.
@@ -1395,65 +1395,7 @@ One of `flow` / `name` is required.
 
 The repo ships three sample flows under `workflow/` (`xcom-profile`, `juejin-post`, `zhihu-answer`) — one runs green logged-out, one green, one fails on a 403 wall on purpose, each with a `flow.md` explaining itself. A workflow `name` is one path segment of lowercase/digits/dashes; anything else is rejected before it touches the filesystem. Drop a directory in to deploy — no rebuild.
 
-### POST /flow/install
-
-Install a third-party flow from a DupHub remote into the server's workflow directory, making it runnable by name via [`POST /flow/run`](#post-flowrun). The wire is the dup protocol's templates scope: `GET {base}/api/templates/{name}/dup/manifest` (`{files: {relative path → sha256}, hash}`) then `GET {base}/api/templates/{name}/dup/file/{path}` (raw bytes, anonymous). The base remote is env-configured (`DITING_DUPHUB_URL`, default `https://duphub.com`) — never a request parameter, so an install can't be aimed at an arbitrary URL.
-
-Install semantics, in order — every failure leaves the filesystem untouched:
-
-1. **name gate** — same as `flow_run`: lowercase/digits/dashes, one path segment
-2. **manifest validation** — non-empty, contains `flow.json`, every path relative with ordinary components only (`..`, leading `/`, backslashes die here), ≤ 64 files
-3. **fetch + verify** — each file's bytes must sha256-match the manifest's promise (≤ 4 MiB a file, ≤ 8 MiB total); a package that fails anywhere is not installed
-4. **flow.json validation** — must parse and carry a `steps` array, before anything is written
-5. **atomic landing** — everything stages in `workflow/.installing-<name>/`, then swaps into `workflow/<name>/`, replacing any previous install
-
-| Body | Type | Default | Notes |
-|---|---|---|---|
-| name | string | — | DupHub template name = the directory it lands in |
-
-**Response:**
-
-```json
-{
-  "name": "xhs-post",
-  "source": "https://duphub.com",
-  "manifest_hash": "…",
-  "files": ["flow.json", "templates/body.html"],
-  "bytes": 4211,
-  "steps": 9,
-  "eval_steps": 4,
-  "installed_at": "workflow/xhs-post",
-  "available_now": true,
-  "disclosure": "third-party flow: its scripts execute with this engine's privileges inside session pages on flow_run — review the steps before running"
-}
-```
-
-`eval_steps` counts steps carrying `args.script` — the disclosure line is the point: a third-party flow's scripts run with this engine's privileges in session pages, so review before `flow_run`. Uploading is the `dup` CLI's job (credentials stay there); this endpoint only ever reads.
-
 ### GET /flow/search
-
-Flow discovery — `POST /flow/install` takes a name; this is how you learn the names. Lists flow packages on the configured DupHub (`DITING_DUPHUB_URL`): the market's `kind=agx-flow` filter plus a client-side re-filter, so clones (avatar templates) never surface as installable flows. A hub whose listings predate the kind protocol reports `kind_filter: "unsupported"` rather than guessing.
-
-**Query parameters:**
-
-| Param | Type | Default | Notes |
-|---|---|---|---|
-| q | string | — | optional substring; the hub's filter over name/description |
-
-**Response:**
-
-```json
-{
-  "hub": "https://duphub.com",
-  "query": "",
-  "total": 2,
-  "flows": [
-    {"name": "xhs-post", "description": "post to xhs", "version": "1.2.0", "downloads": 41}
-  ],
-  "install": "flow_install(<name>)"
-}
-```
-
 
 ### GET /session/{id}/network
 
@@ -1789,7 +1731,6 @@ curl -sS -X POST http://127.0.0.1:8089/render_markdown \
 | `DITING_DOWNLOAD_DIR` | `.` | Directory where `/download` saves files |
 | `DITING_MAX_BODY_BYTES` | `67108864` (64 MiB) | Max request body for `/eval`-family POST endpoints (`/session/{id}/eval`, `/screenshot`, `/video`, `/pdf`). Oversized bodies get a structured `413 EVAL_BODY_TOO_LARGE` naming the limit |
 | `DITING_WORKFLOW_DIR` | `./workflow` | Where `flow_run(name=…)` looks for `<name>/flow.json` — the engine binary carries no built-in flows, this directory is the whole story; drop a directory in to deploy, no rebuild. `POST /flow/install` lands installed flows here too |
-| `DITING_DUPHUB_URL` | `https://duphub.com` | Base remote for `POST /flow/install` — a private DupHub instance replaces this. Env-only, never a request parameter |
 | `DITING_PROXY` | None | Proxy address (used when `use_proxy:true`, and applied automatically for browser/session navigations to known-blocked domains) |
 | `CAPTCHA_SOLVER_API_KEY` | None | 2captcha API key; enables automatic CAPTCHA solving when set |
 | `CAPTCHA_SOLVER_SERVICE` | `2captcha` | CAPTCHA solving service |
@@ -1877,55 +1818,3 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 ```
 
 
-## DupHub Market (v0.8.0 · D19 outcome billing)
-
-diting connects to the [duphub.com](https://duphub.com) capability market. The activation code is a hub api key (`oc_...` from the Keys page) — code = wallet = identity. **Pulls are free; billing is per successful outcome** (D19): a task arms a wallet hold, and a session-level outcome observer — seeing flow steps, manual takeover, and raw API calls identically — settles on signature hits. Flow bodies are AES-256-GCM ciphertext at rest and on the wire (per-flow key rides the authenticated manifest); plaintext exists only inside a diting process, and dumped copies fail the runtime self-check anyway.
-
-### POST /activation/auto — zero-touch onboarding
-No body. The engine generates a fresh key locally (OS CSPRNG), claims the identity at the hub by sending ONLY the key's SHA-256 (plaintext never crosses the wire), and persists it (0600). → `{"code": "oc_...", "claimed": "new", "username": "diting-...", "balance_cents": 0}` — the code is shown once; the owner should back it up (code = wallet). The market path auto-mints on first use when no activation exists. Already activated → `{"already_activated": true}`.
-
-### POST /activation/activate
-```json
-{"code": "oc_...", "hub_url": "https://duphub.com"}   // hub_url optional
-```
-→ `{"balance_cents": 10000}` — validates an imported key (quota probe) and persists it locally (0600). One-time; recharges keep the same code.
-
-### POST /activation/quota
-→ `{"balance_cents": 9000}` — current wallet balance. 400 with an activation hint when no code is configured.
-
-### POST /flow/run (market path)
-When `name` is absent from local `workflow/` but listed on the market, the run transparently: pulls the package (decrypting know-how files in memory), arms a task (hold = per-outcome price × expected_n; insufficient balance → structured 402 surfaces the topup loop), executes, then settles by observer hits — the receipt carries a `task` block: `{state: "settled"|"refunded", successes, charged_cents, hold_cents, price_cents, balance_cents}`. Zero hits refund the hold immediately.
-
-### POST /task/start — manual outcome billing
-```json
-{"anchor": "taobao-publish", "session_id": "s_1", "expected_n": 1}
-```
-Arms a task on a live session (any work path bills the same). `anchor:""` with explicit `price_cents` = a Tier-2 bare task on an undefined site. Signatures default to the anchor flow's bundled group. → the hub task row (id/hold_cents/expires_at).
-
-### POST /task/finish — Tier-2 declaration
-```json
-{"task_id": 7, "successes": 2, "session_id": "s_1", "share_evidence": true, "evidence": {"final_url": "https://..."}}
-```
-Settles with the declared count (observer hits ride along as corroboration). `share_evidence:true` uploads the WHITELISTED evidence (final host + hits) to the platform's feedback pipeline — set it only after the owner agrees; false sends minimal metadata only (engine version, duration, outcome).
-
-### GET /task/status?task_id=N[&session_id=...]
-→ the task row (lazily expires stale armed tasks, refunding holds); `pending_hits` shows observer hits not yet settled.
-
-### POST /activation/topup
-```json
-{"amount_cents": 5000}
-```
-→ `{"order_id": "D18...", "qr_svg": "<svg...>", "expires_at": 1792944508, "sandbox": false}` — a WeChat Native QR. The agent renders `qr_svg` via `POST /open` (the `qr` panel template: title/subtitle/svg_b64/url slots) so the owner can scan and pay.
-
-### POST /activation/order
-```json
-{"order_id": "D18..."}
-```
-→ `{"status": "pending|paid|expired", "amount_cents": 5000}` — poll until `paid`, then continue autonomously. Orders expire after 5 minutes.
-
-### POST /panel-template/install
-### POST /panel-template/install
-```json
-{"name": "my-panel"}
-```
-→ pulls a kind=panel-template artifact from the hub into the disk overlay (`/var/lib/diting/templates`) — same-name overrides the built-ins, effective immediately.

@@ -27,10 +27,6 @@ workflow/
 - `preload` 步骤的解析顺序：**内置注册表 → 包内 `recipes/<名>.js` → 报错**
   （报错文案点名缺失的文件路径）。
 - 本地部署：把 `.js` 放进 `workflow/<flow-name>/recipes/` 即可，丢进去即生效，不用重编。
-- DupHub 市场拉取：`recipes/` 随 manifest 一起拉进**内存**（与 flow 同生命周期，不落盘
-  ——和付费 flow 一个纪律）。
-- 私有部署想全机共享配方时，仍可用 `POST /session/:id/preload`（内置注册表）或直接传
-  `scripts` 数组；内置注册表优先于包内配方，方便运营覆盖。
 
 ## 使用
 

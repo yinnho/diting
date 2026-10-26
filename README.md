@@ -1,6 +1,6 @@
 # Diting
 
-**The browser engine built for agents.** One Rust binary, zero Chromium, zero Docker. See, read, find, act, remember — and get billed for outcomes, not licenses.
+**The browser engine built for agents.** One Rust binary, zero Chromium, zero Docker. See, read, find, act, remember.
 
 ```bash
 curl -fsSL https://browser.aginx.net/install.sh | sh
@@ -26,21 +26,10 @@ An agent's total cost is browser efficiency × model efficiency. This is the bro
 - **Stateful sessions** — login state injects, exports, and survives restarts. The same session id comes back logged in
 - **Tiered rendering** — static pages answer in ~100 ms; V8 spins up only when a page actually needs JS. Every response says which tier served it
 - **Meta-search** — 20 engines across 7 categories (including the Chinese web), merged and deduplicated; reads land with section-level snippets
-- **Flows** — a multi-step interaction an agent figured out becomes a replayable JSON document: reruns cost zero model tokens. Hosted flows arrive **encrypted** and run in memory only
+- **Flows** — a multi-step interaction an agent figured out becomes a replayable JSON document: reruns cost zero model tokens
 - **Documents** — deterministic markdown → HTML + diagrams, byte-identical by construction; page sets export to PDF / PPTX / DOCX
 - **Receipts** — every fetch reports its tier, redirect trail, and content hash. Agents act on what actually happened
 - **Local memory** — fetch/search cache (SQLite FTS5) with CJK matching, so re-reads don't re-pay
-
-## Pay per outcome, not per seat
-
-The [duphub.com](https://duphub.com) capability market connects with one API call — no registration: a wallet identity is minted on first use. Pulls are free; **a successful outcome is one charge** (a listing that actually published, however it was achieved). Flow bodies are AES-256-GCM ciphertext at rest and on the wire; plaintext exists only inside a diting process.
-
-```bash
-# zero-touch onboarding — nothing to type, code shown once
-curl -X POST :8089/activation/auto -d '{}'
-# run a hosted flow; the receipt carries the billing block
-curl -X POST :8089/flow/run -d '{"name":"..."}'
-```
 
 ## Quick start
 
