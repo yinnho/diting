@@ -50,7 +50,7 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
   -d '{"url":"https://example.com"}'
 ```
 
-## The market (v0.7.1+)
+## The market (v0.8.0+)
 
 `POST /activation/activate {"code": "oc_..."}` (key from duphub.com Keys page) connects the capability market: pulls are free and `flow/run {"name": ...}` executes hosted flows in memory with **outcome billing** — a task arms a wallet hold, the session-level observer settles per successful outcome (flow-driven, manual takeover, or raw API calls bill identically), zero hits auto-refund; the receipt carries a `task` block. Manual work: `/task/start` → work → `/task/finish {"successes":N,"share_evidence":?}` (set `share_evidence:true` only after the owner agrees). `/activation/quota` checks the wallet; low balance enters the recharge loop (`/activation/topup` returns a WeChat QR the agent shows the owner). See [docs/API.md](docs/API.md) § DupHub Market.
 

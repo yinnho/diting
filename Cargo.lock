@@ -1157,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "diting"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1220,7 +1220,7 @@ dependencies = [
 
 [[package]]
 name = "diting-browser"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "aes-gcm",
  "anyhow",

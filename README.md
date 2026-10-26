@@ -220,7 +220,7 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
 
 ## The DupHub market: pay per outcome, not per flow
 
-From v0.7.1 diting connects to **[duphub.com](https://duphub.com)** — the capability market for agents. The goods are **flows** (multi-step operations: login, publish, order, price-watch…) and **panel templates**; the consumer is the agent, not the human. **Pulls are free; you pay per successful outcome** — a publish that lands is one charge, whether a flow did it, the agent drove the session by hand, or raw session API calls did (the session-level observer sees all paths equally). The human does exactly one thing: **scan the recharge QR code the agent holds up**.
+From v0.8.0 diting connects to **[duphub.com](https://duphub.com)** — the capability market for agents. The goods are **flows** (multi-step operations: login, publish, order, price-watch…) and **panel templates**; the consumer is the agent, not the human. **Pulls are free; you pay per successful outcome** — a publish that lands is one charge, whether a flow did it, the agent drove the session by hand, or raw session API calls did (the session-level observer sees all paths equally). The human does exactly one thing: **scan the recharge QR code the agent holds up**.
 
 ```bash
 # 1. Zero-touch onboarding — nothing to type. A wallet identity is minted

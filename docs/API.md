@@ -1877,7 +1877,7 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 ```
 
 
-## DupHub Market (v0.7.1 · D19 outcome billing)
+## DupHub Market (v0.8.0 · D19 outcome billing)
 
 diting connects to the [duphub.com](https://duphub.com) capability market. The activation code is a hub api key (`oc_...` from the Keys page) — code = wallet = identity. **Pulls are free; billing is per successful outcome** (D19): a task arms a wallet hold, and a session-level outcome observer — seeing flow steps, manual takeover, and raw API calls identically — settles on signature hits. Flow bodies are AES-256-GCM ciphertext at rest and on the wire (per-flow key rides the authenticated manifest); plaintext exists only inside a diting process, and dumped copies fail the runtime self-check anyway.
 

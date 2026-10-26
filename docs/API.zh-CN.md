@@ -1182,7 +1182,7 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 ```
 
 
-## DupHub 市场（v0.7.1 · D19 成果计费）
+## DupHub 市场（v0.8.0 · D19 成果计费）
 
 diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub 的 api key（Keys 页取得的 `oc_...`）——码=钱包=身份。**拉取免费，按成功成果计费**（D19）：任务 arm 冻结，会话级成果观察器——对 flow 步骤、手动接管、API 直调一视同仁——命中签名即结算。flow 正文全程 AES-256-GCM 密文（per-flow 密钥随认证 manifest 到达），明文只存在于 diting 进程内；dump 副本也过不了运行时自检。
 
