@@ -145,6 +145,7 @@ png = { version = "0.18", optional = true }
 image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 
+aes-gcm = "0.10"
 [[bin]]
 name = "diting"
 path = "src/main.rs"

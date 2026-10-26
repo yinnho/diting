@@ -197,6 +197,15 @@ pub async fn market_fetch(flow_name: &str) -> Result<LoadedFlow, HubError> {
         .keys()
         .cloned()
         .collect::<Vec<_>>();
+    // D19 加密分发（〇之二.4）：know-how 文件 AES-256-GCM 密文下发，
+    // per-flow key 随 manifest（激活面）到达，进程内解密——磁盘与网线
+    // 上都没有明文。无 cipher 块的 hub（或匿名错路径）拉到密文时给出
+    // 引导升级的错误而不是解析乱码。
+    let cipher_key = manifest
+        .get("cipher")
+        .and_then(|c| c.get("key_hex"))
+        .and_then(|k| k.as_str())
+        .map(str::to_string);
     let mut flow_text: Option<String> = None;
     let mut bundled = serde_json::Map::new();
     for path in files {
@@ -224,6 +233,19 @@ pub async fn market_fetch(flow_name: &str) -> Result<LoadedFlow, HubError> {
             .bytes()
             .await
             .map_err(|e| HubError::Network(e.to_string()))?;
+        let bytes = if bytes.starts_with(b"DITENC1") {
+            let key = cipher_key.as_deref().ok_or_else(|| {
+                HubError::Status(
+                    409,
+                    "encrypted flow package but no key in manifest — activate diting                      (or upgrade: hub packages are D19-encrypted)"
+                        .into(),
+                )
+            })?;
+            crate::activation_cipher::open(key, flow_name, &bytes)
+                .map_err(|e| HubError::Network(format!("decrypt {path}: {e}")))?
+        } else {
+            bytes.to_vec()
+        };
         let text = String::from_utf8_lossy(&bytes).to_string();
         if path == "flow.json" {
             flow_text = Some(text);

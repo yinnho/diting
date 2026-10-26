@@ -1222,6 +1222,7 @@ dependencies = [
 name = "diting-browser"
 version = "0.7.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "anyrender",
  "anyrender_vello_cpu",
