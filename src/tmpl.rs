@@ -82,8 +82,6 @@ const BUILTIN: &[(&str, &str)] = &[
     ("weather", include_str!("../templates/weather.html")),
     ("reply", include_str!("../templates/reply.html")),
     ("qr", include_str!("../templates/qr.html")),
-    ("findings", include_str!("../templates/findings.html")),
-    ("gzh", include_str!("../templates/gzh.html")),
 ];
 
 pub fn render(template: &str, data: &serde_json::Value) -> Result<String, OpenError> {
@@ -234,7 +232,7 @@ mod tests {
         match err {
             OpenError::UnknownTemplate { id, known } => {
                 assert_eq!(id, "晨报");
-                assert_eq!(known, vec!["weather", "listen", "reply", "qr", "findings", "gzh"]);
+                assert_eq!(known, vec!["weather", "listen", "reply", "qr"]);
             }
             other => panic!("expected UnknownTemplate, got {other:?}"),
         }
@@ -282,13 +280,13 @@ mod tests {
         let bare = std::env::temp_dir().join(format!("diting-tmpl-bare-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&bare);
         std::fs::create_dir_all(&bare).unwrap();
-        for id in ["weather", "reply", "qr", "findings", "gzh"] {
+        for id in ["weather", "reply", "qr"] {
             let html = load_at(&bare, id).unwrap();
             assert!(html.starts_with('<'), "{id}: built-in should be HTML, got {} bytes", html.len());
         }
-        // 内置清单防锈：出厂模板齐、无漂流
+        // 内置清单防锈：三件齐、无漂流
         let ids: Vec<&str> = BUILTIN.iter().map(|(k, _)| *k).collect();
-        assert_eq!(ids, vec!["weather", "reply", "qr", "findings", "gzh"]);
+        assert_eq!(ids, vec!["weather", "reply", "qr"]);
     }
 
     /// 盘上同名赢内置：热修通道语义——scp 一份 weather.html 覆盖内置稿。
