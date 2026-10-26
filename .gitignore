@@ -38,6 +38,9 @@ docs/**
 !docs/install.md
 !docs/install.zh-CN.md
 !docs/demo.gif
+!docs/peer-crawl-20261021.md
+!docs/peer-crawl-20261021.zh-CN.md
+!docs/peer-publish-20261026.md
 
 # localStorage persistence test artifact (runtime state, must never rsync to hosted instance)
 /localStorage/
