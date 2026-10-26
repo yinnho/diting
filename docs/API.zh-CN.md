@@ -86,7 +86,7 @@ curl http://127.0.0.1:8089/health
 |----|------|
 | `auto` | HTTP 直取优先，内容不足时自动回退浏览器（**推荐**，默认） |
 | `http` | 纯 HTTP，不走浏览器。最快但拿不到 JS 渲染内容 |
-| `browser` | 强制走 JS 浏览器。最慢但最可靠。`obscura` 仍能解析，不要再写进调用 |
+| `browser` | 强制走 JS 浏览器。最慢但最可靠 |
 
 **tls_fingerprint 选项（需 `--features stealth`）：**
 

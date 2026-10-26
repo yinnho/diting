@@ -87,7 +87,7 @@ Fetch a page and return its content. Supports tiered rendering, automatic Cloudf
 |----|------|
 | `auto` | Direct HTTP fetch first; automatically fall back to the browser when content is insufficient (**recommended**, default) |
 | `http` | Pure HTTP, no browser. Fastest but cannot capture JS-rendered content |
-| `browser` | Force the full JS browser. Slowest but most reliable. `obscura` is still accepted and is not the name to send |
+| `browser` | Force the full JS browser. Slowest but most reliable |
 
 > **JS-heavy SPA sites** (cls.cn, juejin-class feeds, WeChat articles) render their content client-side: with `auto` the HTTP pass returns a small skeleton and the sufficiency gate usually catches it, but a site that returns a *plausible-looking* stub defeats the heuristic. When you know the target is an SPA, pass `"render_tier":"browser"` explicitly — you skip a wasted HTTP round-trip and get the rendered page directly. The `tier` field in the response tells you which path served a given fetch.
 >
@@ -1667,7 +1667,7 @@ Semantics (RFC 9309 subset):
 Scope notes:
 
 - **Interactive sessions are exempt by design.** `/session/{id}/navigate`, `click`, `input`, `scroll` drive a browser the way a person at a keyboard does; robots.txt governs autonomous fetching, not browser interaction.
-- The robots.txt fetch itself uses the honest product User-Agent (`diting/<version> (+https://browser.aginx.net)`) — the name robots.txt group matching keys on is never a borrowed one. If the site's TLS stack is older than the default client can speak (a CBC-only TLS 1.2 server, obscura#769), the fetch takes one final ride on the stealth transport's BoringSSL stack — a different cipher shelf, the same honest name.
+- The robots.txt fetch itself uses the honest product User-Agent (`diting/<version> (+https://browser.aginx.net)`) — the name robots.txt group matching keys on is never a borrowed one. If the site's TLS stack is older than the default client can speak (a CBC-only TLS 1.2 legacy server), the fetch takes one final ride on the stealth transport's BoringSSL stack — a different cipher shelf, the same honest name.
 - Policies are cached per host (default 1h; refusals 5min so a dead endpoint doesn't lock the host out for an hour).
 
 **Operator opt-in** (the stance belongs to whoever runs the instance, not to each caller):
