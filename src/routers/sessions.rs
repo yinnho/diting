@@ -808,6 +808,53 @@ pub(crate) struct SessionNetworkQuery {
     body_max_chars: Option<usize>,
 }
 
+
+#[derive(Deserialize)]
+pub(crate) struct FlowRunBody {
+    /// Inline flow document ({create?, vars?, steps:[{op, args, expect?, save?}]}).
+    #[serde(default)]
+    flow: Option<serde_json::Value>,
+    /// Or run a server-side workflow/<name>/flow.json asset (unknown name →
+    /// error lists what's installed).
+    #[serde(default)]
+    name: Option<String>,
+    /// Values for {{placeholders}}; wins over the flow's own vars defaults.
+    #[serde(default)]
+    vars: Option<serde_json::Value>,
+    /// Reuse a live session (e.g. from /import/curl) instead of creating a
+    /// fresh one — how login state and flows compose.
+    #[serde(default)]
+    session_id: Option<String>,
+    /// Override the run's step-execution budget (branch loops re-run steps,
+    /// so every revisit counts). Default 1000, clamped 1..=100000; wins over
+    /// any max_steps the flow document declares.
+    #[serde(default)]
+    max_steps: Option<u64>,
+}
+
+/// Run a flow — a recorded/edited JSON session script — to completion with
+/// zero model tokens. Returns the receipt: `status:ok` + `saved` outputs, or
+/// `status:failed` + the failing step, reason, and a diagnostic screenshot
+/// (the session stays alive for manual takeover).
+pub(crate) async fn flow_run_handler(Json(body): Json<FlowRunBody>) -> Result<impl IntoResponse, AppError> {
+    let mut doc =
+        flow::resolve_flow_doc(body.flow, body.name.as_deref()).map_err(AppError::BadRequest)?;
+    // Caller budget wins over the document's own max_steps — one read path
+    // inside run_flow.
+    if let (Some(ms), Some(obj)) = (body.max_steps, doc.as_object_mut()) {
+        obj.insert("max_steps".into(), serde_json::json!(ms));
+    }
+    let vars = body
+        .vars
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default();
+    // #238: the run drives the GLOBAL manager one command at a time (the
+    // #193 send_command shape) — a flow parked in a long wait no longer
+    // holds the SESSIONS lock against every other endpoint.
+    let receipt = flow::run_flow_global(&doc, &vars, body.session_id).await;
+    Ok((StatusCode::OK, Json(receipt)))
+}
+
 /// The session's network request log: `?filter=media` is the playback-link
 /// sniffer; the default returns compact rows for every request, plus an
 /// `xhr` array of background API responses when `include_bodies=true`, and

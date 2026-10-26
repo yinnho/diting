@@ -16,7 +16,6 @@ use crate::diting_browser::lifecycle::LifecycleState;
 mod eval;
 mod navigate;
 mod net;
-pub mod outcome;
 mod scripts;
 mod viewport;
 
@@ -422,10 +421,6 @@ pub struct Page {
     pub history: Vec<String>,
     pub history_index: usize,
     pub network_events: Vec<NetworkEvent>,
-    /// D19 outcome signatures armed on this session (billing observer —
-    /// matched in the `record_network_event` funnel, drained by the
-    /// engine's task layer).
-    pub outcome: outcome::OutcomeObserver,
     /// Events of the outgoing document, carried across the per-navigation
     /// reset of `network_events` (and the JS runtime swap) so the CDP drain
     /// — which only runs after the new document settles — can still emit
@@ -598,7 +593,6 @@ impl Page {
             history: Vec::new(),
             history_index: 0,
             network_events: Vec::new(),
-            outcome: Default::default(),
             carried_network_events: Vec::new(),
             carried_network_url: String::new(),
             navigation_epoch: 0,

@@ -68,3 +68,10 @@ scripts/__pycache__/
 
 # Agent scratch/forensics — runtime state & credentials, never commit (2026-10-16 audit S1)
 /tmp-agent/
+
+# local artifacts — session cookies NEVER commit
+bench/peer-publish-*/
+recordings/
+templates/findings.html
+templates/gzh.html
+web/zcode*

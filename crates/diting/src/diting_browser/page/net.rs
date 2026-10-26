@@ -33,7 +33,6 @@ impl Page {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs_f64();
-        self.outcome.observe(url, status, None);
         self.network_events.push(NetworkEvent {
             request_id: request_id.clone(),
             url: url.to_string(),
@@ -70,9 +69,6 @@ impl Page {
         request_headers: &std::collections::HashMap<String, String>,
         body: &[u8],
     ) -> String {
-        // The body-carrying variant observes BEFORE delegating so resp-kind
-        // signatures can match on the reply shape in the same funnel.
-        self.outcome.observe(url, status, Some(body));
         let request_id = self.record_network_event(
             url,
             method,
@@ -199,12 +195,6 @@ impl Page {
             None => return,
         };
         for ev in events {
-            // JS-issued rows cross the same outcome funnel (D19): a fetch/XHR
-            // the page's own scripts made is often THE success receipt.
-            // Body not carried on the event — url-kind signatures match here;
-            // resp-kind reads the retained body via get_response_body at the
-            // drain site if ever needed (v1: url-kind is the canonical sig).
-            self.outcome.observe(&ev.url, ev.status, None);
             self.network_events.push(NetworkEvent {
                 request_id: ev.request_id,
                 url: ev.url,

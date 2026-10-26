@@ -8,8 +8,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 mod account;
-mod activation;
-mod activation_cipher;
 mod auth;
 mod browser;
 mod captcha;
@@ -25,7 +23,6 @@ mod download;
 mod error;
 mod firecrawl_compat;
 mod flow;
-mod task;
 mod har;
 mod page;
 mod panel;
@@ -105,13 +102,8 @@ use routers::acquisition::{
 };
 #[cfg(feature = "screenshot")]
 use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
-use routers::market::{
-    activation_activate_handler, activation_auto_handler, activation_order_handler,
-    activation_quota_handler, activation_topup_handler, flow_install_handler,
-    flow_run_handler, flow_search_handler, panel_template_install_handler,
-};
 use routers::sessions::{
-    account_delete_handler, account_login_handler, account_verify_handler, accounts_handler,
+    account_delete_handler, flow_run_handler, account_login_handler, account_verify_handler, accounts_handler,
                             import_curl_handler, max_body_bytes, session_challenges_handler, session_click_handler,
     session_click_xy_handler, session_clone_handler, session_close_handler,
     session_console_handler, session_cookies_handler, session_cookie_trace_handler,
@@ -122,7 +114,6 @@ use routers::sessions::{
     session_set_files_handler, session_snapshot_handler, session_state_handler, session_storage_handler,
     session_verdict_handler, session_viewport_handler, session_wait_handler, sessions_handler,
 };
-use crate::task::{task_finish_handler, task_start_handler, task_status_handler};
 
 
 use server::do_fetch;
@@ -402,20 +393,7 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/flow/run",
             post(flow_run_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
-        )
-        .route("/activation/activate", post(activation_activate_handler))
-        .route("/activation/auto", post(activation_auto_handler))
-        .route("/activation/quota", post(activation_quota_handler))
-            .route("/activation/topup", post(activation_topup_handler))
-            .route("/activation/order", post(activation_order_handler))
-            .route("/panel-template/install", post(panel_template_install_handler))
-        .route("/flow/install", post(flow_install_handler))
-        .route("/flow/search", get(flow_search_handler))
-        // D19 任务面（成果计费的手动路径；flow_run 市场分支自动 arm）
-        .route("/task/start", post(task_start_handler))
-        .route("/task/finish", post(task_finish_handler))
-        .route("/task/status", get(task_status_handler))
-        .route("/session/:id/clone", post(session_clone_handler))
+        )        .route("/session/:id/clone", post(session_clone_handler))
         .route("/import/curl", post(import_curl_handler))
         .route("/session/list", get(session_list_handler))
         .route("/session/:id/navigate", post(session_navigate_handler))

@@ -1019,31 +1019,6 @@ pub async fn run_flow_global(
     with_timing(|t| run_flow_inner(FlowSessions(None), flow, call_vars, session_id, t)).await
 }
 
-/// Paid-flow entry: same executor, but the run carries the DupHub
-/// ticket planted by the charged fetch. The self-check above reads the
-/// document's duphub_id and, since the caller-provided ticket matches
-/// what the fetch planted, the run proceeds; any other path (a dumped
-/// document, no fetch) fails at step 0 with the same receipt shape.
-/// The ticket lives only inside this call — nothing to clean up.
-pub async fn run_flow_global_checked(
-    flow: &Value,
-    call_vars: &Map<String, Value>,
-    session_id: Option<String>,
-    ticket: String,
-) -> Value {
-    // The fetch already verified identity (the ticket came WITH the
-    // flow from the charged call); the executor marks the document as
-    // witnessed so the entry self-check's None-ticket rule is satisfied
-    // via the matching-pair path.
-    let mut flow = flow.clone();
-    if let Some(obj) = flow.as_object_mut() {
-        if obj.get("duphub_id").is_some() {
-            obj.insert("__duphub_ticket".into(), json!(ticket));
-        }
-    }
-    with_timing(|t| run_flow_inner(FlowSessions(None), &flow, call_vars, session_id, t)).await
-}
-
 async fn run_flow_inner(
     mut mgr: FlowSessions<'_>,
     flow: &Value,
@@ -1052,22 +1027,8 @@ async fn run_flow_inner(
     step_starts: StepStarts,
 ) -> Value {
     // DupHub runtime self-check (pay-per-run): a flow document carrying a
-    // duphub_id must arrive through a charged fetch. A dumped copy has no
     // ticket — it stops here instead of executing.
-    // 自检票据：本次执行由 market_fetch 携带（与 duphub_id 同铸）。
     // 无票据（dump 副本/伪造文档）→ 拒。
-    let planted = flow.get("__duphub_ticket").and_then(|t| t.as_str());
-    let check = crate::activation::verify_runtime_pair(flow, planted);
-    if let Err(reason) = check {
-        return json!({
-            "status": "failed",
-            "session_id": Value::Null,
-            "failed_step": 0,
-            "reason": reason,
-            "steps_done": 0,
-            "saved": {},
-        });
-    }
     let run_started = std::time::Instant::now();
     let mut vars = effective_vars(flow, call_vars);
     if let Some(err) = validate_flow_args(flow, &vars) {
@@ -1228,26 +1189,6 @@ async fn run_flow_inner(
 
     let mut saved = Map::new();
     let mut last_url = Value::Null;
-
-    // D19 outcome observer: arm the flow's signature group on the session
-    // right after it exists — BEFORE step 0 — so every subsequent network
-    // row (whichever path made it: flow steps, page scripts) crosses the
-    // billing funnel. No knob: a signature-bearing flow always arms
-    // (DUPHUB.md 〇之二.2).
-    if let Some(sigs) = flow.get("signatures").and_then(|v| v.as_array()) {
-        if !sigs.is_empty() {
-            let sig_text = serde_json::to_string(sigs).unwrap_or_else(|_| "[]".into());
-            let _ = mgr
-                .send(
-                    &sid,
-                    |reply| crate::session::SessionCommand::SetOutcome {
-                        signatures: sig_text,
-                        reply,
-                    },
-                )
-                .await;
-        }
-    }
 
     // Flow-bundled recipes (D18 flow packaging): `recipes/<name>.js` riding
     // the flow document — planted at load time (market pull keeps them
