@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 mod account;
 mod activation;
+mod activation_cipher;
 mod auth;
 mod browser;
 mod captcha;
