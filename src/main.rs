@@ -107,7 +107,7 @@ use routers::acquisition::{
 use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
 use routers::sessions::{
     account_delete_handler, account_login_handler, account_verify_handler, accounts_handler,
-    flow_install_handler, flow_run_handler, flow_search_handler,
+    activation_auto_handler, flow_install_handler, flow_run_handler, flow_search_handler,
                             activation_activate_handler, activation_order_handler, activation_quota_handler,
                             activation_topup_handler, panel_template_install_handler, import_curl_handler, max_body_bytes, session_challenges_handler, session_click_handler,
     session_click_xy_handler, session_clone_handler, session_close_handler,
@@ -401,6 +401,7 @@ async fn main() -> anyhow::Result<()> {
             post(flow_run_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
         )
         .route("/activation/activate", post(activation_activate_handler))
+        .route("/activation/auto", post(activation_auto_handler))
         .route("/activation/quota", post(activation_quota_handler))
             .route("/activation/topup", post(activation_topup_handler))
             .route("/activation/order", post(activation_order_handler))

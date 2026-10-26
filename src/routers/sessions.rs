@@ -821,6 +821,11 @@ pub(crate) async fn flow_run_handler(Json(body): Json<FlowRunBody>) -> Result<im
         if let Some(name) = body.name.as_deref() {
             let local = flow::workflow_dir().join(name).join("flow.json").is_file();
             if !local {
+                // D19 零接触：没激活就先 mint 一个钱包身份（装完即用，
+                // 第一个人类动作仍是充值扫码）。
+                if crate::activation::load().is_none() {
+                    let _ = crate::activation::ensure_activated().await;
+                }
                 match crate::activation::price(name).await {
                     Ok(Some(hub_price)) => {
                         let loaded = crate::activation::market_fetch(name)
@@ -1543,6 +1548,23 @@ pub(crate) async fn activation_activate_handler(
     Json(body): Json<ActivationBody>,
 ) -> Result<impl IntoResponse, AppError> {
     let resp = crate::activation::activate(&body.code, body.hub_url)
+        .await
+        .map_err(AppError::BadRequest)?;
+    Ok((StatusCode::OK, Json(resp)))
+}
+
+/// 零接触开通（D19）：本地生成 key→hub 认领→持久化。返回码只在本次
+/// 回执出现一次（agent 转告主人备份）。
+pub(crate) async fn activation_auto_handler() -> Result<impl IntoResponse, AppError> {
+    if let Some(v) = crate::activation::load() {
+        // 已激活：幂等返回现状（码不再回显——它已在盘上）。
+        let _ = v;
+        return Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({"already_activated": true})),
+        ));
+    }
+    let resp = crate::activation::provision(None)
         .await
         .map_err(AppError::BadRequest)?;
     Ok((StatusCode::OK, Json(resp)))

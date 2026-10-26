@@ -1881,11 +1881,14 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 
 diting connects to the [duphub.com](https://duphub.com) capability market. The activation code is a hub api key (`oc_...` from the Keys page) — code = wallet = identity. **Pulls are free; billing is per successful outcome** (D19): a task arms a wallet hold, and a session-level outcome observer — seeing flow steps, manual takeover, and raw API calls identically — settles on signature hits. Flow bodies are AES-256-GCM ciphertext at rest and on the wire (per-flow key rides the authenticated manifest); plaintext exists only inside a diting process, and dumped copies fail the runtime self-check anyway.
 
+### POST /activation/auto — zero-touch onboarding
+No body. The engine generates a fresh key locally (OS CSPRNG), claims the identity at the hub by sending ONLY the key's SHA-256 (plaintext never crosses the wire), and persists it (0600). → `{"code": "oc_...", "claimed": "new", "username": "diting-...", "balance_cents": 0}` — the code is shown once; the owner should back it up (code = wallet). The market path auto-mints on first use when no activation exists. Already activated → `{"already_activated": true}`.
+
 ### POST /activation/activate
 ```json
 {"code": "oc_...", "hub_url": "https://duphub.com"}   // hub_url optional
 ```
-→ `{"balance_cents": 10000}` — validates the key (quota probe) and persists it locally (0600). One-time; recharges keep the same code.
+→ `{"balance_cents": 10000}` — validates an imported key (quota probe) and persists it locally (0600). One-time; recharges keep the same code.
 
 ### POST /activation/quota
 → `{"balance_cents": 9000}` — current wallet balance. 400 with an activation hint when no code is configured.

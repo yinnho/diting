@@ -1186,11 +1186,14 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 
 diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub 的 api key（Keys 页取得的 `oc_...`）——码=钱包=身份。**拉取免费，按成功成果计费**（D19）：任务 arm 冻结，会话级成果观察器——对 flow 步骤、手动接管、API 直调一视同仁——命中签名即结算。flow 正文全程 AES-256-GCM 密文（per-flow 密钥随认证 manifest 到达），明文只存在于 diting 进程内；dump 副本也过不了运行时自检。
 
+### POST /activation/auto —— 零接触开通
+无 body。引擎本地生成 key（OS CSPRNG），只把 SHA-256 哈希送 hub 认领（明文永不上线），本地持久化（0600）。→ `{"code": "oc_...", "claimed": "new", "username": "diting-...", "balance_cents": 0}`——code 只回显一次，请让主人备份（码=钱包）。市场路径首次使用未激活时自动 mint；已激活返回 `{"already_activated": true}`。
+
 ### POST /activation/activate
 ```json
 {"code": "oc_...", "hub_url": "https://duphub.com"}   // hub_url 可选
 ```
-→ `{"balance_cents": 10000}` —— 验证 key（quota 探针）并本地持久化（0600）。一次性；充值不改码。
+→ `{"balance_cents": 10000}` —— 验证导入的已有 key（quota 探针）并本地持久化（0600）。一次性；充值不改码。
 
 ### POST /activation/quota
 → `{"balance_cents": 9000}` —— 当前钱包余额。未激活时 400 带激活指引。

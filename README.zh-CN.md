@@ -116,10 +116,12 @@ Diting 干的是**实时获取信息**：agent 带着问题来，读几页，拿
 diting 从 v0.7.1 起接入 **[duphub.com](https://duphub.com)**——agent 的能力市场。市场的商品是 **flow**（多步操作流：登录、发布、下单、比价……）和**面板模板**；消费者是 agent，不是人。**拉取免费，按成功成果扣费**——发布成功一次扣一次，无论这件事是 flow 跑出来的、agent 手动接管会话点出来的、还是 session API 直接拼出来的（会话级观察器对所有达成方式一视同仁）。人只做一件事——**扫 agent 屏幕上弹出的充值二维码**。
 
 ```bash
-# ① 激活（一次性；key 从 duphub.com 的 Keys 页取得——码=钱包=身份）
-curl -X POST http://127.0.0.1:8089/activation/activate \
-  -H 'Content-Type: application/json' -d '{"code": "oc_你的key"}'
-# → {"balance_cents": 10000}
+# ① 零接触开通——什么都不用填。首次用市场自动生成钱包身份，
+#    也可显式开通（code 只回显这一次，请让主人备份——码=钱包，
+#    丢了码=丢了余额）：
+curl -X POST http://127.0.0.1:8089/activation/auto -d '{}'
+# → {"code": "oc_...", "claimed": "new", "balance_cents": 0}
+#（从 duphub.com Keys 页导入的已有 key 仍走 /activation/activate）
 
 # ② 直接跑市场里的流（本地没有就拉进内存执行——密文传输密文存储、
 #    进程内解密、不落盘；任务自动 arm，回执带计费块）

@@ -91,7 +91,7 @@ curl http://127.0.0.1:8089/health
 | Screenshot as visual input | `BASE/screenshot` | `url`, `full_page`, `wait_secs`, `selector`(crop / element rects) |
 | Multi-step interaction (login/form/paginate) | `BASE/session/create` → `BASE/session/{id}/snapshot` → `/click` `/input` by `ref` → … → `/close` | prefer `ref=eN` from `/snapshot` (same map as `/state` index `[N]`) |
 | Reuse a logged-in session | `session/create{cookies:[...]}` + `GET BASE/session/{id}/cookies` export | `cookies` array round-trips |
-| Run a marketplace flow | `BASE/flow/run` {"name":...} | absent locally → free pull from duphub into memory (auto task-arms); activate first: `BASE/activation/activate {"code":"oc_..."}` |
+| Run a marketplace flow | `BASE/flow/run` {"name":...} | absent locally → free pull from duphub into memory (auto task-arms). No activation yet? A wallet identity is auto-minted on first market touch (`POST /activation/auto` also works standalone) — show the returned `code` to the owner ONCE to back up (code = wallet; losing it loses the balance). Imported keys still use `BASE/activation/activate {"code":"oc_..."}` |
 | Check market balance | `BASE/activation/quota` | balance_cents |
 | Recharge (show owner the QR) | `BASE/activation/topup` {"amount_cents":N} → render `qr_svg` via `BASE/open` (qr template) → poll `BASE/activation/order` | agent continues when status=paid |
 | Manual work on a live session, billed by outcome | `BASE/task/start` {"anchor","session_id","expected_n"?} → work the session (any path) → `BASE/task/finish` {"task_id","successes",N,"session_id","share_evidence"?} | outcome billing sees flow/manual/API identically; zero hits → auto refund; `share_evidence:true` only after the OWNER agrees (ask first!) |

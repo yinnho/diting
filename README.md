@@ -223,10 +223,12 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
 From v0.7.1 diting connects to **[duphub.com](https://duphub.com)** — the capability market for agents. The goods are **flows** (multi-step operations: login, publish, order, price-watch…) and **panel templates**; the consumer is the agent, not the human. **Pulls are free; you pay per successful outcome** — a publish that lands is one charge, whether a flow did it, the agent drove the session by hand, or raw session API calls did (the session-level observer sees all paths equally). The human does exactly one thing: **scan the recharge QR code the agent holds up**.
 
 ```bash
-# 1. Activate (one-time; key from duphub.com's Keys page — code = wallet = identity)
-curl -X POST http://127.0.0.1:8089/activation/activate \
-  -H 'Content-Type: application/json' -d '{"code": "oc_YOUR_KEY"}'
-# → {"balance_cents": 10000}
+# 1. Zero-touch onboarding — nothing to type. A wallet identity is minted
+#    on first market use, or explicitly (the code is shown ONCE; back it up —
+#    code = wallet, losing it loses the balance):
+curl -X POST http://127.0.0.1:8089/activation/auto -d '{}'
+# → {"code": "oc_...", "claimed": "new", "balance_cents": 0}
+# (imported keys from duphub.com's Keys page still work: /activation/activate)
 
 # 2. Run a market flow (absent locally? pulled into MEMORY — encrypted in
 #    transit and at rest, decrypted in-process, never touches disk — and a
