@@ -111,9 +111,9 @@ Diting 干的是**实时获取信息**：agent 带着问题来，读几页，拿
 - **托管实例（browser.aginx.net）限额更紧。** 所有用户共用一个出口 IP，让站点对这个 IP 保持好感是服务的一部分。想要不一样的数字，自己部署。
 - 想批量爬站？请用爬虫工具。这里不是，以后也不会是。
 
-## DupHub 市场：买能力，卖能力
+## DupHub 市场：按成果计费，不按流收费
 
-diting 从 v0.7.1 起接入 **[duphub.com](https://duphub.com)**——agent 的能力市场。市场的商品是 **flow**（多步操作流：登录、发布、下单、比价……）和**面板模板**；消费者是 agent，不是人：搜索、查价、下单、购买、拉取、执行全链路 API 动作，人只做一件事——**扫 agent 屏幕上弹出的充值二维码**。
+diting 从 v0.7.1 起接入 **[duphub.com](https://duphub.com)**——agent 的能力市场。市场的商品是 **flow**（多步操作流：登录、发布、下单、比价……）和**面板模板**；消费者是 agent，不是人。**拉取免费，按成功成果扣费**——发布成功一次扣一次，无论这件事是 flow 跑出来的、agent 手动接管会话点出来的、还是 session API 直接拼出来的（会话级观察器对所有达成方式一视同仁）。人只做一件事——**扫 agent 屏幕上弹出的充值二维码**。
 
 ```bash
 # ① 激活（一次性；key 从 duphub.com 的 Keys 页取得——码=钱包=身份）
@@ -121,20 +121,24 @@ curl -X POST http://127.0.0.1:8089/activation/activate \
   -H 'Content-Type: application/json' -d '{"code": "oc_你的key"}'
 # → {"balance_cents": 10000}
 
-# ② 直接跑市场里的流（agent 无感——本地没有就去市场查价→购买→拉进内存执行，不落盘）
+# ② 直接跑市场里的流（本地没有就拉进内存执行——密文传输密文存储、
+#    进程内解密、不落盘；任务自动 arm，回执带计费块）
 curl -X POST http://127.0.0.1:8089/flow/run \
   -H 'Content-Type: application/json' -d '{"name": "xhs-post", "vars": {...}}'
+# receipt.task: {state:"settled", charged_cents:100, balance_cents:9900, ...}
 
-# ③ 查余额
-curl -X POST http://127.0.0.1:8089/activation/quota -d '{}'
-# → {"balance_cents": 9000}
+# ③ 手动干活同样计费：在活会话上 arm 任务，干完申报成功数
+curl -X POST http://127.0.0.1:8089/task/start \
+  -H 'Content-Type: application/json' -d '{"anchor":"taobao-publish","session_id":"s_1"}'
+curl -X POST http://127.0.0.1:8089/task/finish \
+  -H 'Content-Type: application/json' -d '{"task_id":7,"successes":1,"session_id":"s_1","share_evidence":true,"evidence":{"final_url":"..."}}'
 ```
 
-- **付费流内存执行**：flow.json 从市场拉进内存跑完即弃，不落盘——转发文件给别人没有用，没有码执行不了（运行时自检拒 dump 副本）
+- **计费=成果**：签名未命中自动退冻结；N 次成功结算 N×每次成功价（封顶冻结额）
+- **know-how 全程加密**：flow 正文 AES-256-GCM 密文落盘、密文上网，per-flow 密钥随认证 manifest 到达——明文只存在于 diting 进程内
 - **余额不足自动进充值闭环**：`POST /activation/topup` 返回二维码 → agent 调 `/open`（qr 面板模板）把码展示给主人 → 主人扫码微信支付 → agent 轮询 `POST /activation/order` 到 paid 自主继续
-- **你也能卖**：`POST /flow/publish` 把自己磨合好的流上架（先审后卖），每次被购买自动分账 **70%** 进你的钱包
-- **市场里的免费流**照常免费拉取执行；`workflow/` 里自己的流完全不受影响（免费、离线）
-- 企业自建市场：`DITING_DUPHUB_URL` 指向私有 hub
+- **任务结局回流平台**（能力闭环）：结局喂平台的修复/孵化/需求三队列；证据只在主人同意（`share_evidence`）后以白名单字段出机。被采纳的反馈有一次性别奖励
+- `workflow/` 里自己的流完全不受影响（免费、离线）；企业自建市场：`DITING_DUPHUB_URL` 指向私有 hub
 
 ## 适合做什么
 

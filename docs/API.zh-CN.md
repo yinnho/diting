@@ -1182,9 +1182,9 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 ```
 
 
-## DupHub 市场（v0.7.1）
+## DupHub 市场（v0.7.1 · D19 成果计费）
 
-diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub 的 api key（Keys 页取得的 `oc_...`）——码=钱包=身份。付费流拉进**内存**执行（不落盘；dump 副本过不了运行时自检）。市场免费流与本地 `workflow/` 流照常免费。
+diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub 的 api key（Keys 页取得的 `oc_...`）——码=钱包=身份。**拉取免费，按成功成果计费**（D19）：任务 arm 冻结，会话级成果观察器——对 flow 步骤、手动接管、API 直调一视同仁——命中签名即结算。flow 正文全程 AES-256-GCM 密文（per-flow 密钥随认证 manifest 到达），明文只存在于 diting 进程内；dump 副本也过不了运行时自检。
 
 ### POST /activation/activate
 ```json
@@ -1196,7 +1196,22 @@ diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub �
 → `{"balance_cents": 9000}` —— 当前钱包余额。未激活时 400 带激活指引。
 
 ### POST /flow/run（市场路径）
-`name` 本地 `workflow/` 没有、市场在售时透明处理：查价 → 付费件购买（余额不足 → 结构化 402 进充值闭环）→ dup 协议拉 flow.json 进内存 → 带运行时票据执行。已购重跑不再付费。
+`name` 本地 `workflow/` 没有、市场在目录时透明处理：拉包进内存（know-how 文件进程内解密）→ 自动 arm 任务（冻结=每次成功价×预期数；余额不足 → 结构化 402 进充值闭环）→ 执行 → 按观察器命中结算，回执带 `task` 块：`{state:"settled"|"refunded", successes, charged_cents, hold_cents, price_cents, balance_cents}`。零命中立即退款。
+
+### POST /task/start —— 手动路径成果计费
+```json
+{"anchor": "taobao-publish", "session_id": "s_1", "expected_n": 1}
+```
+在活会话上 arm 任务（任何干活方式计费相同）。`anchor:""` 且显式 `price_cents` = 未定义站点的 Tier-2 裸任务；签名缺省取锚流的包内签名组。→ hub 任务行（id/hold_cents/expires_at）。
+
+### POST /task/finish —— Tier-2 申报
+```json
+{"task_id": 7, "successes": 2, "session_id": "s_1", "share_evidence": true, "evidence": {"final_url": "https://..."}}
+```
+按申报数结算（观察器命中作旁证）。`share_evidence:true` 才把**白名单**证据（目标 host + 命中）上传反馈管道——必须先征得主人同意；false 只上行最小元数据（引擎版本/时长/结局）。
+
+### GET /task/status?task_id=N[&session_id=...]
+→ 任务行（惰性过期陈旧任务并退冻结）；`pending_hits` 显示未结算的观察器命中。
 
 ### POST /activation/topup
 ```json
@@ -1210,12 +1225,7 @@ diting 接入 [duphub.com](https://duphub.com) 能力市场。激活码即 hub �
 ```
 → `{"status": "pending|paid|expired", "amount_cents": 5000}` —— 轮询到 paid 后 agent 自主继续。订单 5 分钟过期。
 
-### POST /flow/publish
-```json
-{"name": "my-flow", "flow": {...}, "price_cents": 200}
-```
-→ 上架为 kind=flow（审核队列；定价由平台审后确定）。他人每次购买给你的钱包分账 **70%**。
-
+### POST /panel-template/install
 ### POST /panel-template/install
 ```json
 {"name": "my-panel"}

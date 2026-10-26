@@ -1556,24 +1556,6 @@ pub(crate) async fn activation_quota_handler() -> Result<impl IntoResponse, AppE
         .map_err(|e| AppError::BadRequest(e.to_string()))
 }
 
-#[derive(Deserialize)]
-pub(crate) struct FlowPublishBody {
-    pub name: String,
-    pub flow: serde_json::Value,
-    /// Catalog price in cents per run (0 = free listing).
-    pub price_cents: i64,
-}
-
-/// Publish a user-authored flow to the hub catalog (review queue;
-/// 70/30 split pays the author's code on every run by others).
-pub(crate) async fn flow_publish_handler(
-    Json(body): Json<FlowPublishBody>,
-) -> Result<impl IntoResponse, AppError> {
-    let resp = crate::activation::publish(&body.name, &body.flow, body.price_cents)
-        .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
-    Ok((StatusCode::OK, Json(resp)))
-}
 
 
 // ---- DupHub 充值（agent 端下单 → /open qr 上屏 → 主人扫码） ----

@@ -1877,9 +1877,9 @@ curl -sS -X POST http://127.0.0.1:8089/fetch -H 'Content-Type: application/json'
 ```
 
 
-## DupHub Market (v0.7.1)
+## DupHub Market (v0.7.1 · D19 outcome billing)
 
-diting connects to the [duphub.com](https://duphub.com) capability market. The activation code is a hub api key (`oc_...` from the Keys page) — code = wallet = identity. Paid flows are pulled into MEMORY and executed (never written to disk; dumped copies fail a runtime self-check). Free market flows and your local `workflow/` flows run free.
+diting connects to the [duphub.com](https://duphub.com) capability market. The activation code is a hub api key (`oc_...` from the Keys page) — code = wallet = identity. **Pulls are free; billing is per successful outcome** (D19): a task arms a wallet hold, and a session-level outcome observer — seeing flow steps, manual takeover, and raw API calls identically — settles on signature hits. Flow bodies are AES-256-GCM ciphertext at rest and on the wire (per-flow key rides the authenticated manifest); plaintext exists only inside a diting process, and dumped copies fail the runtime self-check anyway.
 
 ### POST /activation/activate
 ```json
@@ -1891,7 +1891,22 @@ diting connects to the [duphub.com](https://duphub.com) capability market. The a
 → `{"balance_cents": 9000}` — current wallet balance. 400 with an activation hint when no code is configured.
 
 ### POST /flow/run (market path)
-When `name` is absent from local `workflow/` but listed on the market, the run transparently: prices it (`GET /api/price`), purchases it if paid (insufficient balance → structured 402 surfaces the topup loop), pulls `flow.json` via the dup protocol into memory, executes with the runtime ticket. Reruns of an already-purchased flow skip payment.
+When `name` is absent from local `workflow/` but listed on the market, the run transparently: pulls the package (decrypting know-how files in memory), arms a task (hold = per-outcome price × expected_n; insufficient balance → structured 402 surfaces the topup loop), executes, then settles by observer hits — the receipt carries a `task` block: `{state: "settled"|"refunded", successes, charged_cents, hold_cents, price_cents, balance_cents}`. Zero hits refund the hold immediately.
+
+### POST /task/start — manual outcome billing
+```json
+{"anchor": "taobao-publish", "session_id": "s_1", "expected_n": 1}
+```
+Arms a task on a live session (any work path bills the same). `anchor:""` with explicit `price_cents` = a Tier-2 bare task on an undefined site. Signatures default to the anchor flow's bundled group. → the hub task row (id/hold_cents/expires_at).
+
+### POST /task/finish — Tier-2 declaration
+```json
+{"task_id": 7, "successes": 2, "session_id": "s_1", "share_evidence": true, "evidence": {"final_url": "https://..."}}
+```
+Settles with the declared count (observer hits ride along as corroboration). `share_evidence:true` uploads the WHITELISTED evidence (final host + hits) to the platform's feedback pipeline — set it only after the owner agrees; false sends minimal metadata only (engine version, duration, outcome).
+
+### GET /task/status?task_id=N[&session_id=...]
+→ the task row (lazily expires stale armed tasks, refunding holds); `pending_hits` shows observer hits not yet settled.
 
 ### POST /activation/topup
 ```json
@@ -1905,12 +1920,7 @@ When `name` is absent from local `workflow/` but listed on the market, the run t
 ```
 → `{"status": "pending|paid|expired", "amount_cents": 5000}` — poll until `paid`, then continue autonomously. Orders expire after 5 minutes.
 
-### POST /flow/publish
-```json
-{"name": "my-flow", "flow": {...}, "price_cents": 200}
-```
-→ push to the hub as kind=flow (review queue; price is set by the platform after review). Every purchase by others pays **70%** into your wallet.
-
+### POST /panel-template/install
 ### POST /panel-template/install
 ```json
 {"name": "my-panel"}

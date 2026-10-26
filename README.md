@@ -218,9 +218,9 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
 # → {"session_id":"s_1","url":"https://example.com/"}
 ```
 
-## The DupHub market: buy capabilities, sell capabilities
+## The DupHub market: pay per outcome, not per flow
 
-From v0.7.1 diting connects to **[duphub.com](https://duphub.com)** — the capability market for agents. The goods are **flows** (multi-step operations: login, publish, order, price-watch…) and **panel templates**; the consumer is the agent, not the human: search, price check, order, purchase, pull, execute — all API actions. The human does exactly one thing: **scan the recharge QR code the agent holds up**.
+From v0.7.1 diting connects to **[duphub.com](https://duphub.com)** — the capability market for agents. The goods are **flows** (multi-step operations: login, publish, order, price-watch…) and **panel templates**; the consumer is the agent, not the human. **Pulls are free; you pay per successful outcome** — a publish that lands is one charge, whether a flow did it, the agent drove the session by hand, or raw session API calls did (the session-level observer sees all paths equally). The human does exactly one thing: **scan the recharge QR code the agent holds up**.
 
 ```bash
 # 1. Activate (one-time; key from duphub.com's Keys page — code = wallet = identity)
@@ -228,21 +228,26 @@ curl -X POST http://127.0.0.1:8089/activation/activate \
   -H 'Content-Type: application/json' -d '{"code": "oc_YOUR_KEY"}'
 # → {"balance_cents": 10000}
 
-# 2. Run a market flow directly (agent-transparent — absent locally? priced,
-#    purchased, pulled into MEMORY, executed; never touches disk)
+# 2. Run a market flow (absent locally? pulled into MEMORY — encrypted in
+#    transit and at rest, decrypted in-process, never touches disk — and a
+#    task arms automatically; the receipt carries the billing block)
 curl -X POST http://127.0.0.1:8089/flow/run \
   -H 'Content-Type: application/json' -d '{"name": "xhs-post", "vars": {...}}'
+# receipt.task: {state:"settled", charged_cents:100, balance_cents:9900, ...}
 
-# 3. Check balance
-curl -X POST http://127.0.0.1:8089/activation/quota -d '{}'
-# → {"balance_cents": 9000}
+# 3. Manual work bills the same: arm a task on a live session, work it,
+#    finish with the success count
+curl -X POST http://127.0.0.1:8089/task/start \
+  -H 'Content-Type: application/json' -d '{"anchor":"taobao-publish","session_id":"s_1"}'
+curl -X POST http://127.0.0.1:8089/task/finish \
+  -H 'Content-Type: application/json' -d '{"task_id":7,"successes":1,"session_id":"s_1","share_evidence":true,"evidence":{"final_url":"..."} }'
 ```
 
-- **Paid flows run in memory**: flow.json is pulled, executed, discarded — handing the file to someone else is useless, without a code it cannot run (runtime self-check rejects dumped copies)
+- **Billing equals outcomes**: no signature hit → the hold is refunded automatically; N successes settle N× the per-outcome price (capped at the hold)
+- **Know-how is encrypted end-to-end**: flow bodies are AES-256-GCM ciphertext at rest and on the wire; the per-flow key rides the authenticated manifest — plaintext exists only inside a diting process
 - **Low balance enters the recharge loop automatically**: `POST /activation/topup` returns a QR code → the agent shows it to the owner via `/open` (qr panel template) → owner scans and pays (WeChat) → the agent polls `POST /activation/order` until paid and continues on its own
-- **Sell your own**: `POST /flow/publish` lists your flow (reviewed before sale); every purchase by others pays **70%** into your wallet
-- Free flows on the market pull and run free; your own `workflow/` flows are untouched (free, offline)
-- Self-hosted market: point `DITING_DUPHUB_URL` at your private hub
+- **Your task outcomes flow back** (the capability loop): outcomes feed the platform's repair/incubation/demand queues; evidence uploads only when the owner says yes (`share_evidence`) and only whitelisted fields leave the machine. Adopted feedback earns a one-off reward
+- Your own `workflow/` flows are untouched (free, offline); self-hosted market: point `DITING_DUPHUB_URL` at your private hub
 
 ## REST Routes
 

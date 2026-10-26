@@ -91,10 +91,11 @@ curl http://127.0.0.1:8089/health
 | Screenshot as visual input | `BASE/screenshot` | `url`, `full_page`, `wait_secs`, `selector`(crop / element rects) |
 | Multi-step interaction (login/form/paginate) | `BASE/session/create` → `BASE/session/{id}/snapshot` → `/click` `/input` by `ref` → … → `/close` | prefer `ref=eN` from `/snapshot` (same map as `/state` index `[N]`) |
 | Reuse a logged-in session | `session/create{cookies:[...]}` + `GET BASE/session/{id}/cookies` export | `cookies` array round-trips |
-| Buy/run a marketplace flow | `BASE/flow/run` {"name":...} | absent locally → auto price+buy from duphub; activate first: `BASE/activation/activate {"code":"oc_..."}` |
+| Run a marketplace flow | `BASE/flow/run` {"name":...} | absent locally → free pull from duphub into memory (auto task-arms); activate first: `BASE/activation/activate {"code":"oc_..."}` |
 | Check market balance | `BASE/activation/quota` | balance_cents |
 | Recharge (show owner the QR) | `BASE/activation/topup` {"amount_cents":N} → render `qr_svg` via `BASE/open` (qr template) → poll `BASE/activation/order` | agent continues when status=paid |
-| Publish own flow to the market | `BASE/flow/publish` {"name","flow","price_cents"} | reviewed before sale; 70% of every purchase lands in your wallet |
+| Manual work on a live session, billed by outcome | `BASE/task/start` {"anchor","session_id","expected_n"?} → work the session (any path) → `BASE/task/finish` {"task_id","successes",N,"session_id","share_evidence"?} | outcome billing sees flow/manual/API identically; zero hits → auto refund; `share_evidence:true` only after the OWNER agrees (ask first!) |
+| Check a task's billing state | `GET BASE/task/status?task_id=N` | receipt's `task` block also carries it after every market flow run |
 | Human logs in, agent takes over | `BASE/import/curl` -> session_id carries the login | paste DevTools "Copy as cURL" |
 | Run a recorded interaction again (zero tokens) | `BASE/flow/run` | `name` (installed workflow) or `flow` (inline doc), `vars`, `session_id` |
 | A task you'll repeat: turn it into a flow | `GET BASE/session/{id}/export{format:"json"}` -> curate -> `flow/run` | prune probes, `{{var}}` the URLs, hand-add `wait`s |
