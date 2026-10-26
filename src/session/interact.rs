@@ -1302,7 +1302,22 @@ pub(super) fn set_files_by_selector(page: &mut Page, selector: Option<&str>, fil
         }}
         var bytes = new Uint8Array(bin.length);
         for (var j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-        var opts = {{ type: s.mime_type || 'application/octet-stream' }};
+        // MIME: explicit > extension-derived > octet-stream. Upload sites
+        // gate on file.type prefixes (image/*…), and "octet-stream for a
+        // .png" gets rejected as readily as an empty type — derive from the
+        // extension like every browser's file picker does (moli fix(upload)
+        // class, 2026-10-25).
+        var extMime = {{
+            jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif',
+            webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', ico:'image/x-icon',
+            avif:'image/avif', heic:'image/heic',
+            pdf:'application/pdf', json:'application/json', txt:'text/plain',
+            csv:'text/csv', html:'text/html', xml:'application/xml', zip:'application/zip',
+            mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime',
+            mp3:'audio/mpeg', wav:'audio/wav', m4a:'audio/mp4'
+        }};
+        var ext = String(s.name || '').split('.').pop().toLowerCase();
+        var opts = {{ type: s.mime_type || extMime[ext] || 'application/octet-stream' }};
         if (s.last_modified != null) opts.lastModified = Number(s.last_modified);
         out.push(new File([bytes], String(s.name || 'blob'), opts));
     }}

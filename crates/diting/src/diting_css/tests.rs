@@ -3413,3 +3413,27 @@ fn mix_blend_mode_does_not_inherit() {
     let child = cascade_element("p", &tree, p, &[], Some(&parent), None, DEFAULT_ROOT_FONT_SIZE, (1280.0, 720.0));
     assert_eq!(child.mix_blend_mode, None, "mix-blend-mode is non-inherited");
 }
+
+#[test]
+fn ua_link_color_default_blue_for_href_anchors() {
+    let color_of = |html: &str| {
+        let tree = diting_dom::tree_sink::parse_html(html);
+        let id = tree.query_selector("a").unwrap().unwrap();
+        cascade_element("a", &tree, id, &[], None, None, DEFAULT_ROOT_FONT_SIZE, (1280.0, 720.0))
+            .color
+    };
+    // href → Chromium -webkit-link blue; bare anchor stays unstyled.
+    assert_eq!(color_of(r#"<body><a href="https://x">l</a></body>"#), Some(Color(0, 0, 238, 255)));
+    assert_eq!(color_of("<body><a>n</a></body>"), None);
+    // Author color wins over the UA default.
+    let tree =
+        diting_dom::tree_sink::parse_html(r#"<body><a href="https://x" style="color:green">l</a></body>"#);
+    let id = tree.query_selector("a").unwrap().unwrap();
+    let inline: Option<String> =
+        tree.with_node(id, |n| n.get_attribute("style").map(str::to_string)).flatten();
+    assert_eq!(
+        cascade_element("a", &tree, id, &[], None, inline.as_deref(), DEFAULT_ROOT_FONT_SIZE, (1280.0, 720.0))
+            .color,
+        Some(Color(0, 128, 0, 255))
+    );
+}

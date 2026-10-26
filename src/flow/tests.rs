@@ -1060,3 +1060,38 @@ async fn run_flow_arms_outcome_observer_and_counts_hits() {
     );
     assert!(mgr.close_and_wait(&sid).await);
 }
+
+// Engine-side MIME derivation (moli fix(upload) class): explicit
+// mime_type wins, a known extension derives the type, unknown extensions
+// fall to octet-stream — never an empty type and never octet-stream for
+// an image.
+#[tokio::test]
+async fn run_flow_set_files_derives_mime_from_extension() {
+    let mut mgr = SessionManager::new();
+    let flow = json!({
+        "steps": [
+            { "op": "set_content", "args": { "html": "<html><body><input id='f' type='file' multiple></body></html>" } },
+            { "op": "set_files", "args": {
+                "selector": "#f",
+                "files": [
+                    { "name": "shot.png", "content_base64": "aGVsbG8=" },
+                    { "name": "pic.jpeg", "content_base64": "aGVsbG8=" },
+                    { "name": "weird.xyz", "content_base64": "aGVsbG8=" },
+                    { "name": "explicit.bin", "content_base64": "aGVsbG8=", "mime_type": "application/x-own" }
+                ]
+            } },
+            { "op": "eval", "args": {
+                "script": "(() => { const fs = document.getElementById('f').files; return [0,1,2,3].map(i => fs[i].type).join('|'); })()"
+            }, "save": "types" },
+        ]
+    });
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    assert_eq!(
+        receipt["saved"]["types"],
+        "image/png|image/jpeg|application/octet-stream|application/x-own",
+        "receipt: {receipt}"
+    );
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    assert!(mgr.close_and_wait(&sid).await);
+}

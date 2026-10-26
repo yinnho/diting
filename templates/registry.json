@@ -21,6 +21,24 @@
       "note": "没有专用结果模板时的正文页。"
     },
     {
+      "id": "findings",
+      "file": "findings.html",
+      "title": "检索成果",
+      "matches": ["公众号", "微信", "搜狗", "检索"],
+      "slots": ["question", "via", "count", "read", "body"],
+      "panel": "1080x2340",
+      "note": "检索成果页。body 是 markdown，点开时在模板里画成正文。"
+    },
+    {
+      "id": "gzh",
+      "file": "gzh.html",
+      "title": "公众号文章",
+      "matches": ["公众号文章", "成稿", "gzh"],
+      "slots": ["title", "account", "author", "date", "body"],
+      "panel": "1080x2340",
+      "note": "公众号成稿页。body 是 markdown，点开时在模板里画成正文。"
+    },
+    {
       "id": "qr",
       "file": "qr.html",
       "title": "扫码",

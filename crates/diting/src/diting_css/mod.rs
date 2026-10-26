@@ -6216,14 +6216,22 @@ pub fn cascade_element(
     }
     // UA decorations ride the same slot. The link rule is `a:-webkit-any-link`
     // upstream — an <a> without href is a named anchor and stays plain.
+    let linked_anchor = tag == "a"
+        && tree
+            .with_node(node_id, |n| n.get_attribute("href").is_some())
+            .unwrap_or(false);
     if let Some(d) = ua_text_decoration(tag) {
-        let hrefless_anchor = tag == "a"
-            && !tree
-                .with_node(node_id, |n| n.get_attribute("href").is_some())
-                .unwrap_or(false);
-        if !hrefless_anchor {
+        if !(tag == "a" && !linked_anchor) {
             style.text_decoration_line = Some(d);
         }
+    }
+    // UA link color (Chromium html.css `a:-webkit-any-link { color:
+    // -webkit-link }` = rgb(0,0,238)). Same href gate as the underline;
+    // author declarations below override. :visited purple stays untracked —
+    // we keep no per-link visit history, and upstream limits :visited
+    // styling to this same property anyway.
+    if linked_anchor {
+        style.color = Some(Color(0, 0, 238, 255));
     }
     // UA baseline shifts (Chromium html.css: `sub { vertical-align: sub }`,
     // `sup { vertical-align: super }`); font-size: smaller already rides the

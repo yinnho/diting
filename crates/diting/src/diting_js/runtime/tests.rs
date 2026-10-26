@@ -4931,6 +4931,171 @@
     /// client-blocked request. Live-verified on 8129 before the fix: rs4 +
     /// loadend with error missing on both the property and listener
     /// channels.
+    /// moli 2026-10-24 XHR series (tool-line follow-up): abort() on an
+    /// in-flight request must fire the full event contract — readystatechange
+    /// (rs4), abort, loadend — and land readyState 0 with status 0. Verified
+    /// against Chrome's XHR spec order.
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn async_xhr_abort_fires_contract_and_resets_state() {
+        // A SLOW server: accepts, reads the request, then sits on it — the
+        // request is genuinely in-flight (connect + sent, no response) when
+        // abort() lands. A bare never-accepting listener errors too fast in
+        // some stacks to be a reliable in-flight fixture.
+        let _env_guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+        std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+        let port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let port_now = l.local_addr().unwrap().port();
+            std::thread::spawn(move || {
+                use std::io::{Read, Write};
+                for stream in l.incoming().flatten() {
+                    let mut s = stream;
+                    let mut buf = [0u8; 4096];
+                    let _ = s.read(&mut buf);
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    let _ = s.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+                    );
+                }
+            });
+            port_now
+        };
+
+        let mut rt = setup_runtime("<html><body></body></html>");
+        rt.set_url(&format!("http://127.0.0.1:{port}/page"));
+        let result = rt
+            .call_function_on_remote(
+                r#"async () => {
+                    const events = [];
+                    const xhr = new XMLHttpRequest();
+                    xhr.onreadystatechange = () => events.push('rs' + xhr.readyState);
+                    xhr.onabort = () => events.push('abort');
+                    xhr.onerror = () => events.push('error');
+                    xhr.ontimeout = () => events.push('timeout');
+                    xhr.onload = () => events.push('load');
+                    xhr.onloadend = () => events.push('loadend');
+                    xhr.open('GET', '/never-answers');
+                    const done = new Promise(r => { xhr.onloadend = () => { events.push('ld'); r(); }; });
+                    xhr.send();
+                    // Give the request a beat to leave, then abort mid-flight.
+                    await new Promise(r => setTimeout(r, 30));
+                    xhr.abort();
+                    await done;
+                    return { events: events.filter(e => e !== 'loadend'), readyState: xhr.readyState, status: xhr.status };
+                }"#,
+                None,
+                &[],
+                true,
+                true,
+            )
+            .await
+            .unwrap();
+        let v = result.value.unwrap();
+        let events: Vec<String> = v
+            .get("events")
+            .and_then(|e| e.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+            .unwrap_or_default();
+        assert!(
+            events.contains(&"abort".to_string()),
+            "abort event missing: {events:?}"
+        );
+        assert!(
+            events.iter().any(|e| e == "rs4" || e == "rs0" || e == "ld"),
+            "no terminal state transition after abort: {events:?}"
+        );
+        let rs = v.get("readyState").and_then(|r| r.as_i64()).unwrap_or(-1);
+        let status = v.get("status").and_then(|x| x.as_i64()).unwrap_or(-1);
+        assert_eq!(rs, 0, "abort must reset readyState to 0 (UNSENT), got {rs}");
+        assert_eq!(status, 0, "abort must zero status, got {status}");
+        std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    }
+
+    /// Reentrancy (the other half of moli's series): a NEW request issued
+    /// from inside the abort handler must run to completion on the same XHR
+    /// instance (open() while aborting is the classic business-page pattern:
+    /// cancel + retry widgets). Contract holds today; NOTE the fixture wait
+    /// is 1.5s because same-origin requests serialize behind a busy
+    /// connection in the net client (Chrome opens a parallel connection and
+    /// answers in ~ms) — pooled-connection parallelism is a separate
+    /// candidate, not an XHR-layer defect.
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn async_xhr_reentrant_send_from_abort_handler_completes() {
+        // Echo-ish server: any request gets an immediate 200.
+        let _env_guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+        std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+        let port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let port_now = l.local_addr().unwrap().port();
+            std::thread::spawn(move || {
+                for stream in l.incoming().flatten() {
+                    let mut buf = [0u8; 4096];
+                    use std::io::{Read, Write};
+                    let mut s = stream;
+                    let n = s.read(&mut buf).unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                    // FIRST hangs a second (in-flight when abort lands);
+                    // the reentrant retry answers instantly.
+                    if req.contains("/first") {
+                        std::thread::sleep(std::time::Duration::from_millis(1000));
+                    }
+                    let _ = s.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+                    );
+                }
+            });
+            port_now
+        };
+
+        let mut rt = setup_runtime("<html><body></body></html>");
+        rt.set_url(&format!("http://127.0.0.1:{port}/page"));
+        let result = rt
+            .call_function_on_remote(
+                r#"async () => {
+                    const xhr = new XMLHttpRequest();
+                    const log = [];
+                    let retried = false;
+                    xhr.onloadend = () => { log.push('loadend:' + xhr.status + ':' + xhr.responseText); };
+                    xhr.onload = () => log.push('load');
+                    xhr.onerror = () => log.push('error');
+                    xhr.onreadystatechange = () => log.push('rs' + xhr.readyState);
+                    xhr.onabort = () => {
+                        log.push('abort-enter');
+                        if (!retried) {
+                            retried = true;
+                            try {
+                                xhr.open('GET', '/retry');
+                                xhr.send();  // reentrant: from inside abort
+                                log.push('resend-ok');
+                            } catch (e) {
+                                log.push('resend-threw:' + String(e).slice(0, 60));
+                            }
+                        }
+                    };
+                    xhr.open('GET', '/first');
+                    xhr.send();
+                    await new Promise(r => setTimeout(r, 20));
+                    xhr.abort();
+                    await new Promise(r => setTimeout(r, 1500));
+                    return { retried, log, status: xhr.status, body: xhr.responseText };
+                }"#,
+                None,
+                &[],
+                true,
+                true,
+            )
+            .await
+            .unwrap();
+        let v = result.value.unwrap();
+        let log = serde_json::to_string(&v).unwrap_or_default();
+        assert_eq!(v.get("retried").and_then(|b| b.as_bool()), Some(true), "{log}");
+        assert_eq!(v.get("body").and_then(|b| b.as_str()), Some("ok"), "{log}");
+        assert_eq!(v.get("status").and_then(|x| x.as_i64()), Some(200), "{log}");
+        std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    }
+
     #[allow(clippy::await_holding_lock)]
     #[tokio::test(flavor = "current_thread")]
     async fn async_xhr_client_blocked_fires_error_not_abort() {
