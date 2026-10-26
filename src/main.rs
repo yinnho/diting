@@ -105,11 +105,14 @@ use routers::acquisition::{
 };
 #[cfg(feature = "screenshot")]
 use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
+use routers::market::{
+    activation_activate_handler, activation_auto_handler, activation_order_handler,
+    activation_quota_handler, activation_topup_handler, flow_install_handler,
+    flow_run_handler, flow_search_handler, panel_template_install_handler,
+};
 use routers::sessions::{
     account_delete_handler, account_login_handler, account_verify_handler, accounts_handler,
-    activation_auto_handler, flow_install_handler, flow_run_handler, flow_search_handler,
-                            activation_activate_handler, activation_order_handler, activation_quota_handler,
-                            activation_topup_handler, panel_template_install_handler, import_curl_handler, max_body_bytes, session_challenges_handler, session_click_handler,
+                            import_curl_handler, max_body_bytes, session_challenges_handler, session_click_handler,
     session_click_xy_handler, session_clone_handler, session_close_handler,
     session_console_handler, session_cookies_handler, session_cookie_trace_handler,
     session_create_handler,

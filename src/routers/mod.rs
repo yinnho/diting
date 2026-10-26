@@ -6,3 +6,4 @@ pub(crate) mod render;
 pub(crate) mod sessions;
 #[cfg(feature = "screenshot")]
 pub(crate) mod outputs;
+pub mod market;
