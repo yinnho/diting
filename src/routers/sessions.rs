@@ -812,17 +812,18 @@ pub(crate) struct FlowRunBody {
 /// `status:failed` + the failing step, reason, and a diagnostic screenshot
 /// (the session stays alive for manual takeover).
 pub(crate) async fn flow_run_handler(Json(body): Json<FlowRunBody>) -> Result<impl IntoResponse, AppError> {
-    // DupHub branch (D18 批次3)：名字不在本地、在 hub 目录 → 走市场。
-    // 付费流：purchase 门（hub 402 余额不足时结构化上抛——agent 读到
-    // 后走 topup→二维码→轮询的充值闭环）；免费流也拉内存执行（统一
-    // 路径、不落盘）。内联 flow 文档与本地 workflow/ 保持免费路径。
+    // DupHub branch (D18 批次3 → D19 成果计费)：名字不在本地、在 hub
+    // 目录 → 拉取免费（内存执行、不落盘），自动 arm 任务——观察器随
+    // flow 签名强制装上（与达成方式无关），跑完按命中数结算/退款，
+    // receipt 带 `task` 字段（agent 对主人汇报"本次成果计费 ¥X"）。
+    // 余额不足 arm 是结构化 402（topup→二维码→轮询充值闭环）。
     if body.flow.is_none() {
         if let Some(name) = body.name.as_deref() {
             let local = flow::workflow_dir().join(name).join("flow.json").is_file();
             if !local {
                 match crate::activation::price(name).await {
-                    Ok(Some(_price)) => {
-                        let loaded = crate::activation::purchase_and_fetch(name, _price)
+                    Ok(Some(hub_price)) => {
+                        let loaded = crate::activation::market_fetch(name)
                             .await
                             .map_err(|e| AppError::BadRequest(e.to_string()))?;
                         let mut doc = loaded.doc.clone();
@@ -833,10 +834,39 @@ pub(crate) async fn flow_run_handler(Json(body): Json<FlowRunBody>) -> Result<im
                             .vars
                             .and_then(|v| v.as_object().cloned())
                             .unwrap_or_default();
+                        // D19：任务 arm（失败不拦执行——本地回执可见错误，
+                        // 签名照装；hub 侧 TTL 是未结算任务的兜底）。
+                        let signatures = crate::task::flow_signatures(&doc);
+                        let armed = crate::task::arm(name, "", 1, hub_price, &signatures).await;
+                        let mut arm_err = None;
+                        let task_row = match &armed {
+                            Ok(t) => Some(t.clone()),
+                            Err(e) => {
+                                arm_err = Some(e.clone());
+                                None
+                            }
+                        };
                         // 票据随执行存续（内存态）；解释器 step 边界自检。
-                        let receipt =
+                        let mut receipt =
                             flow::run_flow_global_checked(&doc, &vars, body.session_id.clone(), loaded.ticket)
                                 .await;
+                        if let (Some(task), Some(sid)) = (
+                            &task_row,
+                            receipt.get("session_id").and_then(|v| v.as_str()),
+                        ) {
+                            let settled = crate::task::settle_run(task, sid, name).await;
+                            if let Some(obj) = receipt.as_object_mut() {
+                                obj.insert("task".into(), settled);
+                            }
+                        }
+                        if let Some(e) = arm_err {
+                            if let Some(obj) = receipt.as_object_mut() {
+                                obj.insert(
+                                    "task".into(),
+                                    serde_json::json!({"error": e}),
+                                );
+                            }
+                        }
                         return Ok((StatusCode::OK, Json(receipt)));
                     }
                     Ok(None) => {} // not in the catalog — fall through to the local error

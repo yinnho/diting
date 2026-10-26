@@ -1028,3 +1028,35 @@ async fn preload_step_missing_recipe_names_the_contract() {
     let sid = receipt["session_id"].as_str().unwrap().to_string();
     assert!(mgr.close_and_wait(&sid).await);
 }
+
+// D19: a signature-bearing flow arms the observer inside the executor —
+// the run's own navigation counts, whichever step made it.
+#[tokio::test]
+async fn run_flow_arms_outcome_observer_and_counts_hits() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, _hits) = crate::server::test_util::recording_server(&[(
+        "GET /success.htm?primaryId=42",
+        "<html><body>ok</body></html>",
+    )]);
+    let flow = json!({
+        "create": { "url": "data:text/plain,d19" },
+        "signatures": [ { "kind": "url", "contains": "success.htm?primaryId=" } ],
+        "steps": [
+            { "op": "navigate", "args": { "url": format!("http://127.0.0.1:{port}/success.htm?primaryId=42") } },
+        ]
+    });
+    let mut mgr = SessionManager::new();
+    let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
+    assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
+    let sid = receipt["session_id"].as_str().unwrap().to_string();
+    let drained = mgr
+        .send(&sid, |reply| SessionCommand::OutcomeHits { reply })
+        .await
+        .unwrap();
+    assert_eq!(
+        drained["hits"].as_array().map(Vec::len),
+        Some(1),
+        "executor must arm before step 0: {drained}"
+    );
+    assert!(mgr.close_and_wait(&sid).await);
+}

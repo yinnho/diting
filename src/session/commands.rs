@@ -79,6 +79,19 @@ pub enum SessionCommand {
         scripts: Vec<String>,
         reply: oneshot::Sender<Result<Value, String>>,
     },
+    /// D19 outcome observer: arm the session's success-signature group
+    /// (JSON array text — the page layer owns the typed shape). Matched in
+    /// the network-record funnel for EVERY execution path; drained via
+    /// `OutcomeHits`. Reply: `{"armed": N}`.
+    SetOutcome {
+        signatures: String,
+        reply: oneshot::Sender<Result<Value, String>>,
+    },
+    /// Drain the outcome observer's recorded hits (engine layer settles
+    /// billing against them). Reply: `{"hits": [{sig,url,at},…]}`.
+    OutcomeHits {
+        reply: oneshot::Sender<Result<Value, String>>,
+    },
     /// The session's current page URL — the cheap identity probe behind
     /// GET /sessions (State is a full indexed page walk, too heavy to
     /// fan out per listing entry).
