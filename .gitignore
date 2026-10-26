@@ -40,10 +40,6 @@ docs/**
 !docs/demo.gif
 !docs/peer-crawl-20261021.md
 !docs/peer-crawl-20261021.zh-CN.md
-!docs/peer-publish-20261026.md
-!docs/agent-browser-eval-20261026.md
-!docs/ecommerce-agent-publish-20261026.md
-!docs/gzh-agent-publish-20261026.md
 
 # localStorage persistence test artifact (runtime state, must never rsync to hosted instance)
 /localStorage/
