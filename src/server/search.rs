@@ -124,6 +124,37 @@ pub(crate) async fn do_search_with_registry(
         return Ok(cached);
     }
 
+    // Step 0.5: persistent-layer hit. The SQLite `searches` table has been
+    // landing rows since v0.3 with no reader — after a restart the process
+    // cache starts empty and every repeat query re-paid the network. A
+    // fresh row here rebuilds the response (re-truncated to this caller's
+    // max_results); fetch_top still runs below — bodies were never stored.
+    if req.fetch_top == 0 {
+        if let Some((results_json, _ts)) =
+            crate::store::lookup_search(crate::store::REST_OWNER, &req.q, &req.categories)
+        {
+            if let Ok(mut items) =
+                serde_json::from_str::<Vec<crate::routers::acquisition::SearchResultItem>>(&results_json)
+            {
+                items.truncate(req.max_results);
+                if !items.is_empty() {
+                    tracing::debug!("do_search: persistent-layer hit ({} items)", items.len());
+                    let n = items.len();
+                    let resp = SearchResponse {
+                        query: req.q,
+                        number_of_results: n,
+                        results: items,
+                        captcha_events: Vec::new(),
+                        engine_errors: std::collections::BTreeMap::new(),
+                        fallback_engines: None,
+                    };
+                    search_cache_put(&cache_key, &resp);
+                    return Ok(resp);
+                }
+            }
+        }
+    }
+
     // Step 1: native search via built-in engines.
     let params = crate::search::SearchParams {
         language: req.language.clone(),

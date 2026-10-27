@@ -397,6 +397,26 @@ impl Store {
         }
     }
 
+    /// Read a stored search back: `(results_json, searched_at)` when a
+    /// fresh (TTL-valid) row exists for this owner/query/category triple.
+    /// The write side has been landing rows since v0.3; this read makes
+    /// them a persistence layer instead of write-only telemetry.
+    fn lookup_search(
+        &self,
+        owner: &str,
+        query: &str,
+        categories: &str,
+    ) -> Option<(String, i64)> {
+        self.conn
+            .query_row(
+                "SELECT results_json, searched_at FROM searches
+                 WHERE owner=?1 AND query=?2 AND categories=?3 AND expires_at > ?4",
+                params![owner, query, categories, now()],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .ok()
+    }
+
     /// Drop expired rows (FTS first — contentless index has no row of its own
     /// to cascade). Throttled so the write path pays this at most every 10 min.
     fn purge_expired(&self) {
@@ -673,6 +693,13 @@ pub fn record_search(owner: &str, query: &str, categories: &str, resp: &crate::S
         );
         Ok(())
     });
+}
+
+/// Read a stored search back (TTL-valid rows only). `None` when the store
+/// is disabled or nothing fresh exists. Raw JSON rides along; the caller
+/// re-truncates to its own max_results.
+pub fn lookup_search(owner: &str, query: &str, categories: &str) -> Option<(String, i64)> {
+    with_store(|st| Ok(st.lookup_search(&norm_owner(owner), query, categories))).ok().flatten()
 }
 
 /// Best-effort snapshot persistence — a failed write degrades the session to

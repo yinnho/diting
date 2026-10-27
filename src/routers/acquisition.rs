@@ -311,7 +311,7 @@ fn default_wait_secs_search() -> u64 {
     3
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchResultItem {
     pub title: String,
     pub url: String,
