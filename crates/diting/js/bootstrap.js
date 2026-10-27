@@ -1904,31 +1904,50 @@ function __prepareInsertedScript(script) {
             // Set-Cookie on a cross-origin JSONP GET; with "same-origin" the
             // Set-Cookie is dropped and the refresh loops on TOKEN_EMPTY
             // forever, leaving decorated shop pages empty).
-            _OPS.op_dyn_script_fetch_begin();
-            try {
-              // #126: one real sample per dynamic script load.
-              const _rtT0 = globalThis.performance ? performance.now() : 0;
-              const raw = await _OPS.op_fetch_url(fullUrl, "GET", "{}", "", pageOrigin, "no-cors", "include", "\u0000about:client");
-              const parsed = JSON.parse(raw);
-              __recordFetchTiming(_rtT0, fullUrl, 'script', parsed);
-              if (!(parsed.status >= 200 && parsed.status <= 299)) {
-                // status 0 means the op refused before any wire traffic —
-                // the reason rides parsed.error (SSRF/pattern block) or
-                // parsed.corsError (post-response CORS gate). Dropping it
-                // printed a bare "HTTP 0" that read like a server-side
-                // failure (the taobao eg.js chase). The final URL rides
-                // parsed.url for the redirect-shaped refusals — a chain
-                // that ends somewhere other than the src is half the
-                // diagnosis.
-                const why = parsed.error || parsed.corsError;
-                let msg = 'HTTP ' + (parsed.status || 0) + (why ? ': ' + why : '');
-                const fin = parsed.final_url || parsed.url;
-                if (fin && fin !== fullUrl) msg += ' -> ' + fin;
-                throw new Error(msg);
+            // Lazy-chunk resilience (10-27 复盘: 抖店 UserLimit
+            // ChunkLoadError 53414 — a transient network miss on one chunk
+            // killed the whole publish flow until a manual refresh). One
+            // automatic retry for NETWORK-shaped failures only: 5xx and
+            // status-0 fetch errors. 4xx means the resource genuinely
+            // isn't there, and policy refusals (SSRF/pattern) must not be
+            // re-dialled — those fail identically and instantly.
+            const fetchOnce = async () => {
+              _OPS.op_dyn_script_fetch_begin();
+              try {
+                // #126: one real sample per dynamic script load.
+                const _rtT0 = globalThis.performance ? performance.now() : 0;
+                const raw = await _OPS.op_fetch_url(fullUrl, "GET", "{}", "", pageOrigin, "no-cors", "include", "\u0000about:client");
+                const parsed = JSON.parse(raw);
+                __recordFetchTiming(_rtT0, fullUrl, 'script', parsed);
+                if (!(parsed.status >= 200 && parsed.status <= 299)) {
+                  // status 0 means the op refused before any wire traffic —
+                  // the reason rides parsed.error (SSRF/pattern block) or
+                  // parsed.corsError (post-response CORS gate). Dropping it
+                  // printed a bare "HTTP 0" that read like a server-side
+                  // failure (the taobao eg.js chase). The final URL rides
+                  // parsed.url for the redirect-shaped refusals — a chain
+                  // that ends somewhere other than the src is half the
+                  // diagnosis.
+                  const why = parsed.error || parsed.corsError;
+                  let msg = 'HTTP ' + (parsed.status || 0) + (why ? ': ' + why : '');
+                  const fin = parsed.final_url || parsed.url;
+                  if (fin && fin !== fullUrl) msg += ' -> ' + fin;
+                  const err = new Error(msg);
+                  err.__retryable = parsed.status === 0 || (parsed.status >= 500 && parsed.status <= 599);
+                  throw err;
+                }
+                return parsed.body;
+              } finally {
+                _OPS.op_dyn_script_fetch_end();
               }
-              body = parsed.body;
-            } finally {
-              _OPS.op_dyn_script_fetch_end();
+            };
+            try {
+              body = await fetchOnce();
+            } catch (e1) {
+              if (!e1 || !e1.__retryable) throw e1;
+              globalThis.__dynScriptRetries = (globalThis.__dynScriptRetries || 0) + 1;
+              await new Promise(r => setTimeout(r, 75));
+              body = await fetchOnce();
             }
           }
           if (body) {

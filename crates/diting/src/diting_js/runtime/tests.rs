@@ -25447,3 +25447,76 @@ fn location_parts_memo_absorbs_repeated_reads() {
     // memoized href stay well under the re-parse regime.
     assert!(v.get("sinkLen").and_then(|n| n.as_i64()).unwrap_or(0) > 0);
 }
+
+/// Lazy-chunk resilience (10-27 复盘): a transient network-shaped failure on
+/// a dynamic script (status 0 / 5xx) retries once and succeeds; a 404 does
+/// NOT retry (the resource genuinely isn't there — the retry counter stays
+/// flat and the error still fires).
+#[tokio::test(flavor = "current_thread")]
+async fn dynamic_script_retries_once_on_network_failure_not_on_404() {
+    let _guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+    let (port, hits) = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port_now = l.local_addr().unwrap().port();
+        let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let h2 = hits.clone();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for stream in l.incoming().flatten() {
+                let mut s = stream;
+                let mut buf = [0u8; 2048];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let count = h2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let (head, body) = if req.starts_with("GET /flaky") {
+                    if count == 0 {
+                        // First hit: connection-shaped failure — close mid-head.
+                        let _ = s.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        continue;
+                    }
+                    ("HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: 28\r\nConnection: close\r\n\r\n",
+                     "window.__flakyLoaded = true;")
+                } else {
+                    // /gone → 404 every time.
+                    ("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", "")
+                };
+                let _ = s.write_all(format!("{}{}", head, body).as_bytes());
+            }
+        });
+        (port_now, hits)
+    };
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url(&format!("http://127.0.0.1:{port}/page"));
+    rt.evaluate("globalThis.__lastErrs2=[]; const _e2=console.error; console.error=function(){ (globalThis.__lastErrs2=globalThis.__lastErrs2||[]).push(Array.from(arguments).map(String).join(' ').slice(0,90)); _e2.apply(console,arguments); };").unwrap();
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                globalThis.__dynScriptRetries = 0;
+                // flaky: 500 then 200 → retry saves it.
+                const a = document.createElement('script');
+                a.src = '/flaky.js';
+                document.body.appendChild(a);
+                const aDone = new Promise(r => { a.onload = r; a.onerror = () => r('err'); });
+                await aDone;
+                // gone: 404 → no retry, error fires.
+                const b = document.createElement('script');
+                b.src = '/gone.js';
+                document.body.appendChild(b);
+                const bDone = new Promise(r => { b.onload = () => r('load'); b.onerror = () => r('err'); });
+                const bEv = await bDone;
+                await new Promise(r => setTimeout(r, 50));
+                return { flaky: window.__flakyLoaded === true, retries: globalThis.__dynScriptRetries, goneEv: bEv};
+            }"#,
+            None, &[],
+            true, true,
+        )
+        .await
+        .unwrap();
+    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    let v = serde_json::to_value(&result.value).unwrap_or_default();
+    assert_eq!(v.get("flaky").and_then(|b| b.as_bool()), Some(true), "retry must save the flaky chunk: {v:?}");
+    assert_eq!(v.get("retries").and_then(|n| n.as_i64()), Some(1), "exactly one retry: {v:?}");
+    assert_eq!(v.get("goneEv").and_then(|s| s.as_str()), Some("err"), "404 errors without retry: {v:?}");
+}
