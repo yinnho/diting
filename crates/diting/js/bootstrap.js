@@ -7360,17 +7360,33 @@ globalThis.__virtualUrl = null;
 function __currentUrl() {
   return globalThis.__virtualUrl || _domParse("document_url") || "about:blank";
 }
+// Parsed-URL memo for the Location part getters (10-27 复盘: heavy pages
+// read location.origin/protocol/host thousands of times; each read used to
+// pay a fresh `new URL(this.href)` AND — via __currentUrl — a document_url
+// op round-trip, so the parts re-parsed a URL that hadn't changed). The
+// memo keys on the href string itself: navigation swaps the string, the
+// entry rolls. Part setters are absent on Location (assign-only API), so
+// the parsed snapshot can't go stale within one href.
+let __locMemoKey = null, __locMemoURL = null;
+function __locParts() {
+  const href = __currentUrl();
+  if (href !== __locMemoKey) {
+    try { __locMemoURL = new URL(href); } catch (e) { __locMemoURL = null; }
+    __locMemoKey = href;
+  }
+  return __locMemoURL;
+}
 globalThis.location = {
   get href() { return __currentUrl(); },
   set href(url) { var r = _resolveUrl(url); globalThis.__virtualUrl = r; _OPS.op_navigate(r, 'GET', ''); },
-  get origin() { try { return new URL(this.href).origin; } catch { return ""; } },
-  get protocol() { try { return new URL(this.href).protocol; } catch { return ""; } },
-  get host() { try { return new URL(this.href).host; } catch { return ""; } },
-  get hostname() { try { return new URL(this.href).hostname; } catch { return ""; } },
-  get pathname() { try { return new URL(this.href).pathname; } catch { return "/"; } },
-  get search() { try { return new URL(this.href).search; } catch { return ""; } },
-  get hash() { try { return new URL(this.href).hash; } catch { return ""; } },
-  get port() { try { return new URL(this.href).port; } catch { return ""; } },
+  get origin() { var u = __locParts(); return u ? u.origin : ""; },
+  get protocol() { var u = __locParts(); return u ? u.protocol : ""; },
+  get host() { var u = __locParts(); return u ? u.host : ""; },
+  get hostname() { var u = __locParts(); return u ? u.hostname : ""; },
+  get pathname() { var u = __locParts(); return u ? u.pathname : "/"; },
+  get search() { var u = __locParts(); return u ? u.search : ""; },
+  get hash() { var u = __locParts(); return u ? u.hash : ""; },
+  get port() { var u = __locParts(); return u ? u.port : ""; },
   get fragmentDirective() { return __diting_fragmentDirective; },
   toString() { return this.href; },
   assign(url) { var r = _resolveUrl(url); globalThis.__virtualUrl = r; _OPS.op_navigate(r, 'GET', ''); },
