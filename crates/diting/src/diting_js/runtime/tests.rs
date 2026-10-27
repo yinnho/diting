@@ -25333,3 +25333,57 @@ mod native_mark_weak {
         );
     }
 }
+
+/// The empty-insert-then-src idiom (createElement → appendChild → el.src =
+/// url): the report from the 10-27 upload run — the most common dynamic
+/// loader shape silently no-op'd because insertion consumed the start slot
+/// on an empty script.
+#[tokio::test(flavor = "current_thread")]
+async fn dynamic_script_src_after_empty_insert_executes() {
+    let _guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+    let port = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port_now = l.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for stream in l.incoming().flatten() {
+                let mut s = stream;
+                let mut buf = [0u8; 2048];
+                let _ = s.read(&mut buf);
+                let _ = s.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: 30\r\nConnection: close\r\n\r\nwindow.__lateSrc = 'did-load';",
+                );
+            }
+        });
+        port_now
+    };
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate("globalThis.__lastErrs=[]; const _ce=console.error; console.error=function(){ (globalThis.__lastErrs=globalThis.__lastErrs||[]).push(Array.from(arguments).map(String).join(' ')); _ce.apply(console,arguments); };").unwrap();
+    rt.set_url(&format!("http://127.0.0.1:{port}/page"));
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                const s = document.createElement('script');
+                document.body.appendChild(s);      // empty insert — no slot consumed
+                const done = new Promise(r => { s.onload = r; s.onerror = () => r('err'); });
+                s.src = '/late.js';               // src AFTER insert arms the loader
+                const ev = await done;            // load must fire once fetched
+                await new Promise(r => setTimeout(r, 50));
+                return { loaded: window.__lateSrc === 'did-load', ev: String(ev), src: s.src.slice(0, 40)};
+                return { loaded: window.__lateSrc === 'did-load', src: s.src.slice(0, 40) };
+            }"#,
+            None, &[],
+            true, true,
+        )
+        .await
+        .unwrap();
+    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    let v = serde_json::to_value(&result.value).unwrap_or_default();
+    assert_eq!(
+        v.get("loaded").and_then(|b| b.as_bool()),
+        Some(true),
+        "late-src script must execute: {v:?}"
+    );
+}

@@ -1818,11 +1818,12 @@ globalThis.__diting_setActiveTree = function (prevEl, nextEl) {
 };
 
 function __prepareInsertedScript(script) {
-  if (!_OPS.op_script_try_start(script._nid)) return;
   const scriptType = (script.getAttribute('type') || '').trim().toLowerCase();
   const isModule = scriptType === 'module';
   const isImportMap = scriptType === 'importmap';
   if (isImportMap) {
+    // Import maps consume their start slot even when they contribute
+    // nothing (the error path still counts as "ran").
     // Upstream 34373c3: a dynamically inserted import map registers at its
     // insertion point, using the live document base URL. External import
     // maps are not supported (matching this engine's module pipeline).
@@ -1851,9 +1852,22 @@ function __prepareInsertedScript(script) {
   if (scriptType && !isModule && scriptType !== 'text/javascript' && scriptType !== 'application/javascript') {
     return;
   }
+  if (isImportMap) {
+    if (!_OPS.op_script_try_start(script._nid)) return;
+  }
   const src = script.getAttribute('src');
   const code = src ? "" : script.textContent;
-  if (!src && !code) return;
+  if (!src && !code) {
+    // An EMPTY script consumes no start slot: HTML's preparation runs when
+    // the script becomes "ready" (src set or text present), not at
+    // insertion. The engine used to consume `already-started` here, so
+    // createElement → appendChild (empty) → el.src = url never loaded —
+    // the most common dynamic-loading idiom (webpack/jsonp loaders,
+    // 抖店 chunk injection) silently no-op'd. Leaving the slot lets the
+    // src setter below re-enter preparation.
+    return;
+  }
+  if (!_OPS.op_script_try_start(script._nid)) return;
   const prevNid = globalThis.__currentScriptNid;
   if (src) {
     const fullUrl = src.startsWith('http') || src.startsWith('data:')
@@ -4843,6 +4857,15 @@ class Element extends Node {
   }
   set src(v) {
     this.setAttribute("src", v);
+    if (this.localName === 'script') {
+      // A connected script gaining its src NOW becomes ready — preparation
+      // runs at that moment (the empty-insert path above left the start
+      // slot untouched for exactly this arrival).
+      if (v && this.isConnected) {
+        try { __prepareInsertedScript(this); } catch (e) {}
+      }
+      return;
+    }
     if (this.localName === 'iframe' && v && v !== 'about:blank') {
       this._loadIframeSrc(v);
     }
