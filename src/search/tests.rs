@@ -9,6 +9,8 @@ use super::dual_path::{
 };
 use super::validate::looks_like_bing_news_url;
 use super::*;
+use super::merge_results_with_time;
+use crate::search::baidu::baidu_gpc_window;
 
 // ---- normalize_url ----
 
@@ -400,4 +402,33 @@ fn merge_rescaled_consensus_beats_verbosity() {
         merged[0].title
     );
     assert_eq!(merged[0].engines.len(), 2);
+}
+
+// ---- time_range batch ----
+
+#[test]
+fn time_tilt_demotes_unfiltered_engines_only() {
+    // Same-score hit from a native-filter engine vs a tail engine under a
+    // time-scoped query: the filtered one outranks.
+    let results = vec![
+        raw("Tail hit", "https://example.com/tail", "wikipedia", 1.0),
+        raw("Fresh hit", "https://example.com/fresh", "baidu", 1.0),
+    ];
+    let merged = merge_results_with_time(results, 10, Some(crate::search::SearchTimeRange::Week));
+    assert_eq!(merged[0].title, "Fresh hit");
+    // No time_range → no tilt, original order by score stable.
+    let results = vec![
+        raw("Tail", "https://example.com/tail", "wikipedia", 1.0),
+        raw("Baidu", "https://example.com/fresh", "baidu", 0.9),
+    ];
+    let merged = merge_results_with_time(results, 10, None);
+    assert_eq!(merged[0].title, "Tail");
+}
+
+#[test]
+fn baidu_gpc_window_shape() {
+    let gpc = baidu_gpc_window(Some(crate::search::SearchTimeRange::Day)).unwrap();
+    assert!(gpc.starts_with("&gpc=stf%3D"), "gpc prefix: {gpc}");
+    assert!(gpc.contains("stftype%3D1"), "stftype: {gpc}");
+    assert!(baidu_gpc_window(None).is_none());
 }

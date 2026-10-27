@@ -523,8 +523,10 @@ pub async fn native_search(
         }
     }
 
-    // Merge and dedup.
-    let merged = merge_results(all_results, max_results);
+    // Merge and dedup. time_range rides along so engines without native
+    // date filtering (most of the tail: wikipedia, npm, arxiv...) contribute
+    // — demoted — instead of silently ignoring the caller's date intent.
+    let merged = merge_results_with_time(all_results, max_results, params.time_range);
     (merged, total_count, captcha_events, engine_errors)
 }
 
@@ -613,6 +615,39 @@ fn normalize_url(raw: &str) -> String {
     // case — many sites serve case-sensitive paths, and folding them here
     // merged distinct documents into one dedup key.
     url.to_string()
+}
+
+/// Engines that apply the caller's time_range natively (SERP-level date
+/// filtering). Their results keep full score under a time-scoped query.
+fn engine_supports_time_range(name: &str) -> bool {
+    matches!(
+        name,
+        "baidu" | "bing" | "sogou" | "duckduckgo" | "bing_news" | "hn"
+    )
+}
+
+/// merge_results with a time-range tilt: hits from engines that already
+/// filtered server-side keep their score; hits from engines that cannot
+/// (wikipedia/npm/arxiv...) are demoted by a fixed factor — present if
+/// genuinely relevant, but not competing head-to-head with time-scoped hits.
+fn merge_results_with_time(
+    results: Vec<RawSearchResult>,
+    max_results: usize,
+    time_range: Option<SearchTimeRange>,
+) -> Vec<SearchResultItem> {
+    let Some(_tr) = time_range else {
+        return merge_results(results, max_results);
+    };
+    let tilted: Vec<RawSearchResult> = results
+        .into_iter()
+        .map(|mut r| {
+            if !engine_supports_time_range(&r.engine) {
+                r.score *= 0.5;
+            }
+            r
+        })
+        .collect();
+    merge_results(tilted, max_results)
 }
 
 /// Merge raw results from all engines: dedup by normalized URL, combine engine

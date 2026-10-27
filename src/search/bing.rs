@@ -37,11 +37,22 @@ impl SearchEngine for BingEngine {
         // error (redirect policy is "none" for CAPTCHA detection). Using the
         // China endpoint directly avoids the redirect entirely.
         let offset = (params.pageno.saturating_sub(1)) * 10;
+        // qft interval: Bing 的日期窗（天数）。date filter 在国际 Bing 是
+        // filters=ex1，cn.bing 接受轻量 qft 形式；两者都不响应时结果
+        // 不变（只是没过滤），无害。
+        let qft = match params.time_range {
+            Some(crate::search::SearchTimeRange::Day) => "&qft=interval%3d%221%22",
+            Some(crate::search::SearchTimeRange::Week) => "&qft=interval%3d%227%22",
+            Some(crate::search::SearchTimeRange::Month) => "&qft=interval%3d%2230%22",
+            Some(crate::search::SearchTimeRange::Year) => "&qft=interval%3d%22365%22",
+            None => "",
+        };
         let url = format!(
-            "https://cn.bing.com/search?q={}&count=10&offset={}&setlang={}",
+            "https://cn.bing.com/search?q={}&count=10&offset={}&setlang={}{}",
             urlencoding::encode(query),
             offset,
             urlencoding::encode(&params.language),
+            qft,
         );
 
         let html = super::plain_fetch(&self.client, &url).await?;

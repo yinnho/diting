@@ -39,10 +39,18 @@ impl SearchEngine for SogouEngine {
         query: &str,
         params: SearchParams,
     ) -> Result<Vec<RawSearchResult>, SearchEngineError> {
+        // tsn: 搜狗的时效筛选项（1=一天 2=一周 3=一月）。
+        let tsn = match params.time_range {
+            Some(crate::search::SearchTimeRange::Day) => "&tsn=1",
+            Some(crate::search::SearchTimeRange::Week) => "&tsn=2",
+            Some(crate::search::SearchTimeRange::Month) => "&tsn=3",
+            _ => "",
+        };
         let url = format!(
-            "https://www.sogou.com/web?query={}&page={}&ie=utf8",
+            "https://www.sogou.com/web?query={}&page={}&ie=utf8{}",
             urlencoding::encode(query),
             params.pageno,
+            tsn,
         );
 
         let resp = self.client.get(&url)

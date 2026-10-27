@@ -133,10 +133,21 @@ impl SearchEngine for DuckDuckGoEngine {
         params: SearchParams,
     ) -> Result<Vec<RawSearchResult>, SearchEngineError> {
         let page = params.pageno.max(1);
+        // df: d/w/m/y date filter (time_range was accepted on the wire but
+        // silently dropped by every engine except bing_news/hn — a week-
+        // scoped query returned year-old hits with no hint why).
+        let df = match params.time_range {
+            Some(crate::search::SearchTimeRange::Day) => "&df=d",
+            Some(crate::search::SearchTimeRange::Week) => "&df=w",
+            Some(crate::search::SearchTimeRange::Month) => "&df=m",
+            Some(crate::search::SearchTimeRange::Year) => "&df=y",
+            None => "",
+        };
         let url = format!(
-            "https://html.duckduckgo.com/html/?q={}&page={}",
+            "https://html.duckduckgo.com/html/?q={}&page={}{}",
             urlencoding::encode(query),
             page,
+            df,
         );
 
         let body = self.fetch_results_html(&url).await?;

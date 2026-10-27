@@ -64,10 +64,14 @@ impl SearchEngine for BaiduEngine {
         params: SearchParams,
     ) -> Result<Vec<RawSearchResult>, SearchEngineError> {
         let offset = (params.pageno.saturating_sub(1)) * 10;
+        // gpc=stf:<start_ms>.<now_ms>|stftype:1 — 百度的自定义时间窗
+        // （stf= 时间过滤，毫秒 epoch；stftype=1 表示定界区间）。
+        let gpc = baidu_gpc_window(params.time_range);
         let url = format!(
-            "https://www.baidu.com/s?wd={}&rn=10&pn={}&ie=utf-8",
+            "https://www.baidu.com/s?wd={}&rn=10&pn={}&ie=utf-8{}",
             urlencoding::encode(query),
             offset,
+            gpc.as_deref().unwrap_or(""),
         );
 
         let html;
@@ -273,6 +277,28 @@ fn repair_json_escapes(s: &str) -> String {
         i += ch.len_utf8();
     }
     out
+}
+
+
+/// Baidu's `gpc` time-window parameter for the API's time_range vocabulary.
+/// URL-encoded by the caller's format! via urlencoding on the whole value —
+/// here we return the pre-encoded form the SERP expects.
+pub(crate) fn baidu_gpc_window(tr: Option<crate::search::SearchTimeRange>) -> Option<String> {
+    let days = match tr? {
+        crate::search::SearchTimeRange::Day => 1,
+        crate::search::SearchTimeRange::Week => 7,
+        crate::search::SearchTimeRange::Month => 30,
+        crate::search::SearchTimeRange::Year => 365,
+    };
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let start_ms = now_ms.saturating_sub(days as u64 * 86_400_000);
+    Some(format!(
+        "&gpc={}",
+        urlencoding::encode(&format!("stf={start_ms}.{now_ms}|stftype=1"))
+    ))
 }
 
 #[cfg(test)]
