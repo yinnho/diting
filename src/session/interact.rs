@@ -80,9 +80,35 @@ pub(super) fn merge_dom_candidates(media: &mut Vec<Value>, dom_json: &str) {
 /// JSON array of element descriptors.
 const STATE_SCRIPT: &str = r#"
 (function() {
-    var interactive = Array.prototype.slice.call(document.querySelectorAll(
-        'a, button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]'
-    ));
+    // Shadow-aware collection (ego-lite's a11y-tree lesson): querySelectorAll
+    // never crosses shadow boundaries, so component-library sites (new e-com
+    // backends, web components) surfaced none of their in-shadow controls to
+    // ref=eN — only blind click_xy could reach them. Walk recursively: same
+    // selector per root, then descend into every open shadowRoot. Closed
+    // roots are unreachable from JS by design; the engine-side tree already
+    // serves those through coordinate paths.
+    var SELECTOR = 'a, button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
+    function collectIn(root, out, seen) {
+        var found = root.querySelectorAll(SELECTOR);
+        for (var i = 0; i < found.length; i++) {
+            if (!seen.has(found[i])) { out.push(found[i]); seen.add(found[i]); }
+        }
+        // Hosts carrying a shadow root: also count the host itself (it can
+        // carry role/tabindex) and descend.
+        var all = root.querySelectorAll('*');
+        for (var j = 0; j < all.length; j++) {
+            var sr = all[j].shadowRoot;
+            if (sr) {
+                if (!seen.has(all[j]) && all[j].matches(SELECTOR)) { out.push(all[j]); seen.add(all[j]); }
+                collectIn(sr, out, seen);
+            }
+        }
+    }
+    var interactive = [];
+    (function() {
+        var seen = new Set();
+        collectIn(document, interactive, seen);
+    })();
     // Elements with a JS-bound click listener (jQuery .click(), addEventListener)
     // are invisible to the selector above — a div-classed login button leaves the
     // agent with no indexed way to click it. The engine's own event registry

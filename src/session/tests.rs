@@ -5135,3 +5135,70 @@
     }
 
 
+
+/// Shadow-aware snapshot (ego-lite's a11y lesson): a control living inside an
+/// OPEN shadow root must surface in /state and stay clickable by index —
+/// before, querySelectorAll never crossed the boundary and the element was
+/// invisible to ref-based operation.
+#[tokio::test]
+async fn state_snapshot_reaches_into_open_shadow_dom() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (port, _hits) = crate::server::test_util::recording_server(&[(
+        "GET /s",
+        r#"<html><body>
+        <div id="host"></div>
+        <button id="outside">Outside</button>
+        <script>
+          const host = document.getElementById('host');
+          const sr = host.attachShadow({mode:'open'});
+          sr.innerHTML = '<div><button id="inside">Deep Button</button><input placeholder="shadow field"></div>';
+        </script></body></html>"#,
+    )]);
+    let mut mgr = SessionManager::new();
+    let sid = mgr.create(
+        Some(&format!("http://127.0.0.1:{port}/s")),
+        false, vec![], None, None, None, false, false, None,
+    );
+    let state = mgr
+        .send(&sid, |reply| SessionCommand::State { reply })
+        .await
+        .unwrap();
+
+    let mut has_deep = false;
+    let mut deep_index = None;
+    for (idx, line) in state.lines().enumerate() {
+        if line.contains("Deep Button") {
+            has_deep = true;
+            // index is the bracketed [N] prefix
+            if let Some(open) = line.find('[') {
+                if let Some(close) = line[open..].find(']') {
+                    let n: usize = line[open + 1..open + close].parse().unwrap_or(0);
+                    deep_index = Some(n);
+                }
+            }
+        }
+    }
+    assert!(has_deep, "in-shadow button must surface in state:\n{state}");
+    let idx = deep_index.expect("index parsed");
+
+    // Click by that index actually reaches the shadow button.
+    mgr.send(&sid, |reply| SessionCommand::Eval {
+        script: "document.getElementById('host').shadowRoot.getElementById('inside').addEventListener('click', function(){ window.__deepClicked = true; })".into(),
+        timeout_ms: None, reply,
+    }).await.unwrap();
+    let resp = mgr
+        .send(&sid, |reply| SessionCommand::Click { index: idx, reply })
+        .await
+        .unwrap();
+    assert!(resp.clicked, "click by shadow index: {resp:?}");
+    let clicked = mgr
+        .send(&sid, |reply| SessionCommand::Eval {
+            script: "String(window.__deepClicked === true)".into(),
+            timeout_ms: None, reply,
+        })
+        .await
+        .unwrap();
+    assert_eq!(clicked.as_str(), Some("true"), "listener in shadow root fired");
+
+    assert!(mgr.close_and_wait(&sid).await);
+}
