@@ -52,6 +52,7 @@ impl Default for PagePumpOptions {
 /// One painted page: raw RGBA at `width`×`height`, cut from `origin_y` in
 /// document space.
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct PageImage {
     pub rgba: Vec<u8>,
     pub width: u32,
@@ -120,6 +121,19 @@ pub async fn render_page_set(
     page: &mut Page,
     opts: &PagePumpOptions,
 ) -> Result<PageSet, PageError> {
+    render_page_set_with(page, opts, None).await
+}
+
+/// [`render_page_set`] with a per-page completion hook: called with the
+/// finished `PageImage` right after its band paints, BEFORE the next band
+/// starts. The output pipeline uses this to hand the rgba off to a
+/// blocking-pool encoder while the V8 thread paints the next page —
+/// render and encode overlap instead of running back to back.
+pub async fn render_page_set_with(
+    page: &mut Page,
+    opts: &PagePumpOptions,
+    mut on_page: Option<&mut dyn FnMut(PageImage)>,
+) -> Result<PageSet, PageError> {
     let (w, page_h) = opts.page_size;
 
     // Probe band: forces a layout run and reports every img the tree is
@@ -156,12 +170,16 @@ pub async fn render_page_set(
         }
         .ok_or(PageError::NoLiveDocument)?;
         text_ops.push(frame.text_ops);
-        pages.push(PageImage {
+        let img = PageImage {
             rgba: frame.rgba,
             width: frame.width,
             height: frame.height,
             origin_y: band.y,
-        });
+        };
+        if let Some(cb) = on_page.as_mut() {
+            cb(img.clone());
+        }
+        pages.push(img);
     }
     Ok(PageSet { pages, text_ops, content_size })
 }

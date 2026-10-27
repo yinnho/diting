@@ -309,7 +309,35 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
                 max_pages: req.max_pages,
                 collect_text: format == "pdf",
             };
-            let set = crate::pages::render_page_set(&mut page.inner, &opts).await?;
+            // Pipeline the JPEG branch: each band hands its rgba to a
+            // blocking-pool encoder the moment it paints, while the V8
+            // thread starts the next band — render and encode overlap
+            // instead of running back to back. Handles collect at the end
+            // (join order = page order). PNG keeps the simple post pass.
+            // The hook and the post-join both live in this async block —
+            // a plain Rc<RefCell<Vec>> avoids Send bounds a raw pointer or
+            // Arc<Mutex> would force (spawn_blocking gets only the rgba).
+            #[allow(clippy::rc_buffer)]
+            let handles: std::rc::Rc<std::cell::RefCell<
+                Vec<tokio::task::JoinHandle<Result<(u32, u32, Vec<u8>), String>>>,
+            >> = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let set = if format != "png" {
+                let hh = handles.clone();
+                let quality = req.jpeg_quality;
+                let mut on_page = move |img: crate::pages::PageImage| {
+                    let (w, h, rgba) = (img.width, img.height, img.rgba);
+                    hh.borrow_mut().push(rt.spawn_blocking(move || {
+                        crate::pages::jpeg_of(w, h, &rgba, quality).map(|j| (w, h, j))
+                    }));
+                };
+                crate::pages::render_page_set_with(&mut page.inner, &opts, Some(&mut on_page))
+                    .await?
+            } else {
+                crate::pages::render_page_set(&mut page.inner, &opts).await?
+            };
+            // JoinHandle isn't Clone; take the vec out of the cell instead — the
+            // render finished, nobody else holds a borrow.
+            let encode_handles = handles.borrow_mut().drain(..).collect::<Vec<_>>();
             tracing::debug!(
                 "page set: {} pages, content {}x{}, break origins {:?}",
                 set.pages.len(),
@@ -339,34 +367,15 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
                     pngs.push(base64_png(&png));
                 }
             } else {
-                // Per-page encodes are independent — fan them out across
-                // the blocking pool instead of a serial loop. A 30-page
-                // deck at ~80ms/page paid 2.4s of pure encode wall time;
-                // on 10 cores this collapses to the slowest single page.
-                let quality = req.jpeg_quality;
-                let dims: Vec<(u32, u32)> = set
-                    .pages
-                    .iter()
-                    .map(|p| (p.width, p.height))
-                    .collect();
-                let bands: Vec<(u32, u32, Vec<u8>)> = set
-                    .pages
-                    .iter()
-                    .map(|p| (p.width, p.height, p.rgba.clone()))
-                    .collect();
-                let encoded = rt.spawn_blocking(move || {
-                    bands
-                        .into_iter()
-                        .zip(dims)
-                        .map(|((w, h, rgba), _)| {
-                            crate::pages::jpeg_of(w, h, &rgba, quality).map(|j| (w, h, j))
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .await
-                .map_err(|e| anyhow::anyhow!("encode fan-out panicked: {e}"))?
-                .map_err(anyhow::Error::msg)?;
-                jpegs = encoded;
+                // The pipeline encodes started per-page DURING the render
+                // (see the on_page hook above); join them in page order.
+                for h in encode_handles {
+                    let encoded = h
+                        .await
+                        .map_err(|e| anyhow::anyhow!("encode panicked: {e}"))?
+                        .map_err(anyhow::Error::msg)?;
+                    jpegs.push(encoded);
+                }
             }
             let refs: Vec<(u32, u32, &[u8])> = jpegs
                 .iter()
