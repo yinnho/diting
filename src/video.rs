@@ -679,18 +679,35 @@ pub async fn render_timeline_video(
         String::from_utf8_lossy(&buf).into_owned()
     });
 
-    let mut written: u32 = 0;
-    let mut send = |rgba: Vec<u8>, frame: u32| -> Result<(), VideoError> {
-        if rgba.len() != expect {
-            return Err(VideoError::FrameSizeMismatch { expect, got: rgba.len(), frame });
+    // Overlapped pump: frames must be PAINTED in order (seek_and_paint
+    // mutates shared page state — layout rev, CSS clock, reuse cache), but
+    // the stdin write of a completed frame is independent. A writer thread
+    // owns the pipe while the V8 thread seeks/paints the next frame, so an
+    // x264-side backpressure stall (its encode queue filling) parks the
+    // writer instead of stalling the whole pump. Bounded channel keeps the
+    // memory at a few in-flight frames.
+    enum FrameMsg {
+        Frame(Vec<u8>),
+        Eof,
+    }
+    let (tx, rx) = std::sync::mpsc::sync_channel::<FrameMsg>(3);
+    let writer = std::thread::spawn(move || -> Result<(), VideoError> {
+        let mut stdin = stdin;
+        let mut rx = rx;
+        while let Ok(FrameMsg::Frame(rgba)) = rx.recv() {
+            if rgba.len() != expect {
+                return Err(VideoError::FrameSizeMismatch { expect, got: rgba.len(), frame: 0 });
+            }
+            if let Err(e) = stdin.write_all(&rgba).and_then(|_| stdin.flush()) {
+                return Err(VideoError::FfmpegFailed(format!("stdin write: {e}")));
+            }
         }
-        stdin
-            .write_all(&rgba)
-            .and_then(|_| stdin.flush())
-            .map_err(|e| VideoError::FfmpegFailed(format!("stdin write: {e}")))
-    };
+        Ok(())
+    });
+
+    let mut written: u32 = 0;
     let t_send = Instant::now();
-    send(first, 0)?;
+    tx.send(FrameMsg::Frame(first)).map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
     phases.write += t_send.elapsed();
     written += 1;
     let pump_wall = Instant::now();
@@ -701,13 +718,14 @@ pub async fn render_timeline_video(
             hardsub.burn(&mut rgba, w, h, t, fonts);
         }
         let t_send = Instant::now();
-        send(rgba, i)?;
+        tx.send(FrameMsg::Frame(rgba)).map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
         phases.write += t_send.elapsed();
         written += 1;
     }
-    // Closing stdin is ffmpeg's end-of-stream signal; the MP4 trailer lands
-    // in the temp file after that.
-    drop(stdin);
+    // Closing the channel drops the writer's stdin — ffmpeg's end-of-stream
+    // signal; the MP4 trailer lands in the temp file after that.
+    drop(tx);
+    writer.join().map_err(|_| VideoError::FfmpegFailed("writer panicked".into()))??;
     let status = child.wait().map_err(|e| VideoError::FfmpegFailed(e.to_string()))?;
     let mp4 = std::fs::read(&out_path).unwrap_or_default();
     let _ = std::fs::remove_file(&out_path);
