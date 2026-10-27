@@ -165,6 +165,12 @@ struct EngineSuspendState {
     resume_at: Option<std::time::Instant>,
     /// Consecutive CAPTCHA count. Reset on success or expiry.
     captcha_count: u32,
+    /// Consecutive transient failures (network/parse). Three in a row
+    /// cools the engine for a short window — softer than the CAPTCHA
+    /// ladder because transients are usually the network's fault, not
+    /// the engine's, but a persistently dead route shouldn't be
+    /// re-dialled on every query for its full 15s timeout.
+    transient_streak: u32,
 }
 
 pub struct SearchEngineRegistry {
@@ -248,6 +254,7 @@ impl SearchEngineRegistry {
         let s = state.entry(name.to_string()).or_insert(EngineSuspendState {
             resume_at: None,
             captcha_count: 0,
+            transient_streak: 0,
         });
         s.captcha_count += 1;
         let duration = captcha_suspend_duration(s.captcha_count, base_suspend);
@@ -263,6 +270,33 @@ impl SearchEngineRegistry {
             name, duration, s.captcha_count, policy
         );
         s.captcha_count
+    }
+
+    /// Record a transient failure; returns true when this strike landed
+    /// the engine in a 90s cooldown. The streak resets on any success.
+    async fn record_transient(&self, name: &str) -> bool {
+        let mut state = self.state.write().await;
+        let s = state.entry(name.to_string()).or_insert(EngineSuspendState {
+            resume_at: None,
+            captcha_count: 0,
+            transient_streak: 0,
+        });
+        s.transient_streak += 1;
+        if s.transient_streak >= 3 {
+            s.resume_at = Some(std::time::Instant::now() + Duration::from_secs(90));
+            s.transient_streak = 0;
+            tracing::warn!("search: engine {} cooled down 90s (3 consecutive transients)", name);
+            true
+        } else {
+            false
+        }
+    }
+
+    async fn reset_transient_streak(&self, name: &str) {
+        let mut state = self.state.write().await;
+        if let Some(s) = state.get_mut(name) {
+            s.transient_streak = 0;
+        }
     }
 
     /// Reset CAPTCHA count for an engine after a successful search.
@@ -487,6 +521,7 @@ pub async fn native_search(
                 total_count += results.len();
                 all_results.extend(results);
                 registry.reset_captcha_count(&name).await;
+                registry.reset_transient_streak(&name).await;
             }
             Ok(Ok((name, Err(SearchEngineError::Captcha { url, captcha_type })))) => {
                 let base_suspend = registry
@@ -512,22 +547,35 @@ pub async fn native_search(
             }
             Ok(Ok((name, Err(SearchEngineError::Transient(msg))))) => {
                 tracing::warn!("search: engine {} transient error: {}", name, msg);
-                engine_errors.insert(name, format!("transient: {msg}"));
+                let cooled = registry.record_transient(&name).await;
+                engine_errors.insert(name, if cooled {
+                    format!("transient: {msg} — 3 in a row, engine cooling down for 90s")
+                } else {
+                    format!("transient: {msg}")
+                });
             }
             Ok(Ok((name, Err(SearchEngineError::Suspended)))) => {
-                let remaining = {
+                let (remaining, streak_zero) = {
                     let state = registry.state.read().await;
                     state
                         .get(&name)
-                        .and_then(|s| s.resume_at)
-                        .map(|t| t.saturating_duration_since(std::time::Instant::now()).as_secs())
-                        .unwrap_or(0)
+                        .map(|s| (
+                            s.resume_at
+                                .map(|t| t.saturating_duration_since(std::time::Instant::now()).as_secs())
+                                .unwrap_or(0),
+                            s.transient_streak == 0,
+                        ))
+                        .unwrap_or((0, true))
                 };
                 tracing::debug!("search: engine {} skipped (suspended)", name);
-                engine_errors.insert(
-                    name,
-                    format!("skipped: CAPTCHA suspension, resumes in {remaining}s"),
-                );
+                // A zeroed streak at suspension time is the transient-cooldown
+                // path (the strike counter resets as it lands); a nonzero one
+                // is the CAPTCHA ladder.
+                engine_errors.insert(name, if streak_zero {
+                    format!("skipped: cooling down after repeated transient failures, resumes in {remaining}s")
+                } else {
+                    format!("skipped: CAPTCHA suspension, resumes in {remaining}s")
+                });
             }
             // Deadline hit while this engine was still in flight. MUST
             // precede the JoinError arm or it never fires (Elapsed is just

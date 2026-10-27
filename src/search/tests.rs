@@ -432,3 +432,32 @@ fn baidu_gpc_window_shape() {
     assert!(gpc.contains("stftype%3D1"), "stftype: {gpc}");
     assert!(baidu_gpc_window(None).is_none());
 }
+
+// ---- batch 5: transient soft cooldown ----
+
+/// Three consecutive transients cool an engine 90s; success resets the
+/// streak. Driven through the registry's own state machine.
+#[tokio::test]
+async fn transient_streak_cools_after_three() {
+    let registry = SearchEngineRegistry::with_engines(vec![]);
+    // Two strikes: no cooldown yet.
+    assert!(!registry.record_transient("flaky").await);
+    assert!(!registry.record_transient("flaky").await);
+    // Third lands the cooldown.
+    assert!(registry.record_transient("flaky").await, "third strike must cool");
+    // The suspended path now reports it (resume_at set).
+    {
+        let st = registry.state.read().await;
+        let s = st.get("flaky").expect("state exists");
+        assert!(s.resume_at.is_some(), "cooldown armed");
+    }
+    // A success on a different engine doesn't touch it; success on the same
+    // engine resets the streak (cooldown resume_at stays until expiry —
+    // reset_transient_streak only clears the counter).
+    registry.reset_transient_streak("flaky").await;
+    {
+        let st = registry.state.read().await;
+        let s = st.get("flaky").expect("state exists");
+        assert_eq!(s.transient_streak, 0, "streak reset on success");
+    }
+}
