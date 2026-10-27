@@ -22,15 +22,38 @@ use anyhow::Result;
 pub fn do_screenshot(req: ScreenshotRequest) -> Result<ScreenshotResponse> {
     run_on_local_runtime(move |_rt| {
         Box::pin(async move {
-            crate::rate::check_domain(&req.url).map_err(anyhow::Error::msg)?;
-            let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
-            inject_cookies(&browser, &req.cookies, &req.url);
+            // Literal-HTML mode: the bytes ride the request, nothing crosses
+            // the wire — the robots/rate gates are URL-fetch contracts and
+            // don't apply. The HTML is base64-encoded into a data: URL so
+            // page.goto's existing data: branch (decoder + content-type)
+            // feeds the very same load path a fetched document takes.
+            let (target, html_mode) = match req.html.as_deref() {
+                Some(h) if !h.trim().is_empty() => {
+                    use base64::Engine;
+                    (
+                        format!(
+                            "data:text/html;charset=utf-8;base64,{}",
+                            base64::engine::general_purpose::STANDARD.encode(h)
+                        ),
+                        true,
+                    )
+                }
+                _ => (req.url.clone(), false),
+            };
+            if !html_mode {
+                crate::rate::check_domain(&req.url).map_err(anyhow::Error::msg)?;
+            }
+            let browser =
+                build_browser(req.use_proxy, &target, req.tls_fingerprint.as_deref())?;
+            if !html_mode {
+                inject_cookies(&browser, &req.cookies, &req.url);
+            }
             let mut page = browser.new_page().await?;
             // Pin the viewport before navigation (same as /video and /pdf):
             // JS-time layout (media queries) — and a bare SVG document's
             // root intrinsic — must agree with the requested render size.
             page.set_viewport_override(req.width as f32, req.height as f32, false, None);
-            page.goto(&req.url).await?;
+            page.goto(&target).await?;
 
             if let Some(wait) = req.wait_secs {
                 page.settle(wait * 1000).await;

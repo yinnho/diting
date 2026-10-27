@@ -14,6 +14,16 @@ use crate::{spawn_blocking, AppError};
 #[cfg(feature = "screenshot")]
 #[derive(Debug, Deserialize, Clone)]
 pub struct ScreenshotRequest {
+    /// Render literal HTML bytes instead of fetching `url` (the cover/
+    /// card path: an agent authors the markup, the engine paints it).
+    /// Takes precedence over `url`; local bytes, so the robots/rate gates
+    /// don't apply. Downstream (viewport, wait, selector, dpr) identical.
+    #[serde(default)]
+    pub html: Option<String>,
+    /// Page URL to render. Optional when `html` carries the document
+    /// (default ""); otherwise required in practice — an empty url with no
+    /// html is a 4xx from the fetch itself.
+    #[serde(default)]
     pub url: String,
     /// Viewport width in CSS pixels. Default 1280.
     #[serde(default = "default_screenshot_width")]
@@ -357,17 +367,25 @@ pub struct ScreenshotResponse {
 pub(crate) async fn screenshot_handler(
     Json(req): Json<ScreenshotRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    robots::assert_allowed(&req.url)
-        .await
-        .map_err(AppError::Forbidden)?;
+    // Literal-HTML renders never touch the network — the robots contract
+    // (autonomous fetching of a URL) can't apply and the data: URL would
+    // trip the scheme gate anyway.
+    let html_mode = req.html.as_deref().is_some_and(|h| !h.trim().is_empty());
+    if !html_mode {
+        robots::assert_allowed(&req.url)
+            .await
+            .map_err(AppError::Forbidden)?;
+    }
     // V8 (deno_core) holds !Send state, so drive the whole capture on a
     // current-thread runtime on a blocking thread — same pattern as do_eval.
     let resp = spawn_blocking(move || server::do_screenshot(req)).await??;
-    // Redirect hops (#175): the render followed redirects itself; the
-    // effective URL (resp.url) must clear the same gate the requested one did.
-    robots::assert_allowed(&resp.url)
-        .await
-        .map_err(AppError::Forbidden)?;
+    if !html_mode {
+        // Redirect hops (#175): the render followed redirects itself; the
+        // effective URL (resp.url) must clear the same gate the requested one did.
+        robots::assert_allowed(&resp.url)
+            .await
+            .map_err(AppError::Forbidden)?;
+    }
     Ok((StatusCode::OK, Json(resp)))
 }
 
@@ -436,5 +454,35 @@ mod tests {
         assert_eq!(r.jpeg_quality, 90);
         assert!(!r.use_proxy);
         assert!(r.cookies.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod screenshot_html_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn screenshot_html_mode_renders_literal_markup() {
+        let req: ScreenshotRequest = serde_json::from_str(r#"{
+            "html": "<html><body style='margin:0;background:#123'><div style='font:32px sans-serif;color:#fff;padding:40px'>封面测试</div></body></html>",
+            "width": 512, "height": 256, "full_page": false
+        }"#).unwrap();
+        let resp = crate::server::do_screenshot(req).expect("screenshot");
+        assert!(resp.image_base64.len() > 1000, "real PNG payload");
+        assert_eq!(resp.width, 512);
+        assert_eq!(resp.height, 256);
+    }
+
+    #[tokio::test]
+    async fn screenshot_html_mode_skips_url_contract() {
+        // A url that would fail the domain-rate gate is present but unused —
+        // html takes precedence and nothing about the URL is fetched.
+        let req: ScreenshotRequest = serde_json::from_str(r#"{
+            "html": "<html><body>ok</body></html>",
+            "url": "https://definitely-not-fetched.example/",
+            "width": 200, "height": 100, "full_page": false
+        }"#).unwrap();
+        let resp = crate::server::do_screenshot(req).expect("html mode ignores url");
+        assert!(resp.image_base64.len() > 500);
     }
 }
