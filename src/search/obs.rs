@@ -14,6 +14,9 @@ pub(crate) struct SearchObs {
     pub(crate) captcha_suspend_total: AtomicU64,
     pub(crate) bing_news_attempt_total: AtomicU64,
     pub(crate) bing_news_dual_path_fail_total: AtomicU64,
+    /// Engines still in flight when the overall search deadline passed —
+    /// the /search p99's silent tail made visible.
+    pub(crate) engine_deadline_miss_total: AtomicU64,
 }
 
 pub(crate) static SEARCH_OBS: SearchObs = SearchObs {
@@ -21,6 +24,7 @@ pub(crate) static SEARCH_OBS: SearchObs = SearchObs {
     captcha_suspend_total: AtomicU64::new(0),
     bing_news_attempt_total: AtomicU64::new(0),
     bing_news_dual_path_fail_total: AtomicU64::new(0),
+    engine_deadline_miss_total: AtomicU64::new(0),
 };
 
 pub(crate) fn obs_inc(counter: &AtomicU64) {
@@ -49,6 +53,12 @@ pub fn search_obs_snapshot() -> serde_json::Value {
         "captcha_suspend_share": captcha_share,
         "bing_news_attempt_total": bn_attempts,
         "bing_news_dual_path_fail_total": bn_dual,
+        "engine_deadline_miss_total": SEARCH_OBS.engine_deadline_miss_total.load(Ordering::Relaxed),
+        "deadline_miss_share": if dispatch == 0 {
+            0.0
+        } else {
+            SEARCH_OBS.engine_deadline_miss_total.load(Ordering::Relaxed) as f64 / dispatch as f64
+        },
         "bing_news_dual_path_fail_rate": bn_dual_rate,
         "captcha_policy": match captcha_policy() {
             CaptchaPolicy::Suspend => "suspend",

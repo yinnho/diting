@@ -456,9 +456,22 @@ pub async fn native_search(
     let mut engine_errors: std::collections::BTreeMap<String, String> =
         std::collections::BTreeMap::new();
 
+    // Overall deadline: a hung engine must not hold the whole /search.
+    // Engines carry their own client timeouts (~15s), but the merge waited
+    // for EVERY handle — one slow proxy route pinned the response. We
+    // collect until the deadline (env-tunable), then return with what
+    // arrived; late engines surface as `slow` in engine_errors so the
+    // response explains its own shape.
+    let deadline = {
+        let secs = std::env::var("DITING_SEARCH_DEADLINE_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(9);
+        tokio::time::Instant::now() + Duration::from_secs(secs.max(1))
+    };
     for (handle_name, handle) in handles {
-        match handle.await {
-            Ok((name, Ok(mut results))) => {
+        match tokio::time::timeout_at(deadline, handle).await {
+            Ok(Ok((name, Ok(mut results)))) => {
                 // Rescale this engine's batch to (0,1]: engines score
                 // `total - i` (position), so a 50-hit engine and a 5-hit
                 // engine previously merged on utterly different scales —
@@ -475,7 +488,7 @@ pub async fn native_search(
                 all_results.extend(results);
                 registry.reset_captcha_count(&name).await;
             }
-            Ok((name, Err(SearchEngineError::Captcha { url, captcha_type }))) => {
+            Ok(Ok((name, Err(SearchEngineError::Captcha { url, captcha_type })))) => {
                 let base_suspend = registry
                     .engines
                     .iter()
@@ -497,11 +510,11 @@ pub async fn native_search(
                     "CAPTCHA hit — engine suspended, other engines still serve results".into(),
                 );
             }
-            Ok((name, Err(SearchEngineError::Transient(msg)))) => {
+            Ok(Ok((name, Err(SearchEngineError::Transient(msg))))) => {
                 tracing::warn!("search: engine {} transient error: {}", name, msg);
                 engine_errors.insert(name, format!("transient: {msg}"));
             }
-            Ok((name, Err(SearchEngineError::Suspended))) => {
+            Ok(Ok((name, Err(SearchEngineError::Suspended)))) => {
                 let remaining = {
                     let state = registry.state.read().await;
                     state
@@ -516,7 +529,22 @@ pub async fn native_search(
                     format!("skipped: CAPTCHA suspension, resumes in {remaining}s"),
                 );
             }
+            // Deadline hit while this engine was still in flight. MUST
+            // precede the JoinError arm or it never fires (Elapsed is just
+            // another Err to the bare arm).
+            Err(_elapsed) => {
+                tracing::warn!("search: engine {} missed the overall deadline", handle_name);
+                obs_inc(&SEARCH_OBS.engine_deadline_miss_total);
+                engine_errors.insert(
+                    handle_name,
+                    "slow: exceeded the overall search deadline — results returned without this engine".into(),
+                );
+            }
             Err(e) => {
+                tracing::error!("search: engine task panicked: {}", e);
+                engine_errors.insert(handle_name, format!("engine task panicked: {e}"));
+            }
+            Ok(Err(e)) => {
                 tracing::error!("search: engine task panicked: {}", e);
                 engine_errors.insert(handle_name, format!("engine task panicked: {e}"));
             }
