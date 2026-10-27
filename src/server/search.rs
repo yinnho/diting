@@ -134,7 +134,7 @@ pub(crate) async fn do_search_with_registry(
             crate::store::lookup_search(crate::store::REST_OWNER, &req.q, &req.categories)
         {
             if let Ok(mut items) =
-                serde_json::from_str::<Vec<crate::routers::acquisition::SearchResultItem>>(&results_json)
+                serde_json::from_str::<Vec<crate::SearchResultItem>>(&results_json)
             {
                 items.truncate(req.max_results);
                 if !items.is_empty() {
