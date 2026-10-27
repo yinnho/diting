@@ -74,3 +74,4 @@ recordings/
 templates/findings.html
 templates/gzh.html
 web/zcode*
+!docs/gzh-skill-20261027.md
