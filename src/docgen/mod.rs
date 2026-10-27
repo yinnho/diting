@@ -10,6 +10,7 @@
 //! this module owns the zero-coordinate contract and the deterministic
 //! emission.
 
+pub mod cover;
 pub mod architecture;
 pub mod checks;
 pub mod dataflow;

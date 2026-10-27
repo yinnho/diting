@@ -440,10 +440,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/:name", delete(account_delete_handler))
         .route("/account/verify", post(account_verify_handler))
         .route("/account/login", post(account_login_handler))
-        .route(
-            "/render_markdown",
-            post(routers::render::render_markdown_handler),
-        );
+        .route("/render", post(routers::render::render_handler))
+        .route("/render_markdown", post(routers::render::render_markdown_handler));
     #[cfg(feature = "screenshot")]
     let app = app
         .route(
