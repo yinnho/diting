@@ -461,3 +461,16 @@ async fn transient_streak_cools_after_three() {
         assert_eq!(s.transient_streak, 0, "streak reset on success");
     }
 }
+
+/// Probation lifecycle: lands with the third strike, merges at half weight,
+/// ends on the first clean success.
+#[tokio::test]
+async fn probation_lands_and_clears() {
+    let registry = SearchEngineRegistry::with_engines(vec![]);
+    assert!(!registry.record_transient("flaky").await, "first strike");
+    assert!(!registry.record_transient("flaky").await, "second strike");
+    assert!(registry.record_transient("flaky").await, "third strike cools");
+    assert!(registry.on_probation("flaky").await, "probation armed after cooldown");
+    registry.reset_transient_streak("flaky").await; // a clean success
+    assert!(!registry.on_probation("flaky").await, "clean success ends probation");
+}

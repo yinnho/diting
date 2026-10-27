@@ -378,6 +378,8 @@ pub(crate) async fn search_engine_rows() -> Vec<serde_json::Value> {
                 "suspended": e.suspended,
                 "suspend_remaining_secs": if e.suspended { Some(e.suspend_remaining_secs) } else { None },
                 "captcha_count": e.captcha_count,
+                "transient_streak": e.transient_streak,
+                "on_probation": e.on_probation,
                 "available": e.available,
             })
         })

@@ -171,6 +171,11 @@ struct EngineSuspendState {
     /// the engine's, but a persistently dead route shouldn't be
     /// re-dialled on every query for its full 15s timeout.
     transient_streak: u32,
+    /// On probation after a transient cooldown: participating again, but
+    /// its hits merge at a discount until the first clean success — a
+    /// flaky engine's barely-parsable answers shouldn't outrank steady
+    /// ones until it proves itself.
+    on_probation: bool,
 }
 
 pub struct SearchEngineRegistry {
@@ -255,6 +260,7 @@ impl SearchEngineRegistry {
             resume_at: None,
             captcha_count: 0,
             transient_streak: 0,
+            on_probation: false,
         });
         s.captcha_count += 1;
         let duration = captcha_suspend_duration(s.captcha_count, base_suspend);
@@ -280,11 +286,13 @@ impl SearchEngineRegistry {
             resume_at: None,
             captcha_count: 0,
             transient_streak: 0,
+            on_probation: false,
         });
         s.transient_streak += 1;
         if s.transient_streak >= 3 {
             s.resume_at = Some(std::time::Instant::now() + Duration::from_secs(90));
             s.transient_streak = 0;
+            s.on_probation = true;
             tracing::warn!("search: engine {} cooled down 90s (3 consecutive transients)", name);
             true
         } else {
@@ -296,7 +304,17 @@ impl SearchEngineRegistry {
         let mut state = self.state.write().await;
         if let Some(s) = state.get_mut(name) {
             s.transient_streak = 0;
+            s.on_probation = false; // clean success ends probation
         }
+    }
+
+    /// Whether this engine's hits should merge at a discount right now.
+    async fn on_probation(&self, name: &str) -> bool {
+        self.state
+            .read()
+            .await
+            .get(name)
+            .is_some_and(|s| s.on_probation)
     }
 
     /// Reset CAPTCHA count for an engine after a successful search.
@@ -359,19 +377,22 @@ impl SearchEngineRegistry {
             .iter()
             .map(|e| {
                 let name = e.name();
-                let (suspended, remaining, count) = match state.get(name) {
+                let (suspended, remaining, count, streak) = match state.get(name) {
                     Some(s) => match s.resume_at {
-                        Some(t) if t > now => (true, (t - now).as_secs(), s.captcha_count),
-                        _ => (false, 0, s.captcha_count),
+                        Some(t) if t > now => (true, (t - now).as_secs(), s.captcha_count, s.transient_streak),
+                        _ => (false, 0, s.captcha_count, s.transient_streak),
                     },
-                    None => (false, 0, 0),
+                    None => (false, 0, 0, 0),
                 };
+                let probation = state.get(name).is_some_and(|s| s.on_probation);
                 EngineHealth {
                     name: name.to_string(),
                     categories: e.categories().iter().map(|c| c.to_string()).collect(),
                     suspended,
                     suspend_remaining_secs: remaining,
                     captcha_count: count,
+                    transient_streak: streak,
+                    on_probation: probation,
                     available: !suspended,
                 }
             })
@@ -386,6 +407,12 @@ pub struct EngineHealth {
     pub suspended: bool,
     pub suspend_remaining_secs: u64,
     pub captcha_count: u32,
+    /// Current consecutive transient failures (resets on success; 3 lands
+    /// a 90s cooldown). An engine at 2 is one bad hop from being benched.
+    pub transient_streak: u32,
+    /// Post-cooldown discount state (merges at half weight until one
+    /// clean success).
+    pub on_probation: bool,
     /// `!suspended` — the set callers can actually use right now.
     pub available: bool,
 }
@@ -513,9 +540,16 @@ pub async fn native_search(
                 // engine's top hit is 1.0 and cross-engine consensus sums
                 // fairly.
                 let max = results.iter().map(|r| r.score).fold(f64::NEG_INFINITY, f64::max);
+                let probation = registry.on_probation(&name).await;
                 if max > 0.0 {
                     for r in results.iter_mut() {
                         r.score = (r.score / max).clamp(0.0, 1.0);
+                        if probation {
+                            // Post-cooldown probation: the engine just proved
+                            // flaky three times in a row — its hits stay in
+                            // the merge at half weight until one clean answer.
+                            r.score *= 0.5;
+                        }
                     }
                 }
                 total_count += results.len();
