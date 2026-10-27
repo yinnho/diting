@@ -287,7 +287,7 @@ pub(crate) async fn do_search_with_registry(
         }
     }
 
-    let resp = SearchResponse {
+    let mut resp = SearchResponse {
         query: req.q,
         // Post-merge, post-truncate count: equals results.len(). The old
         // pre-merge raw total drifted (19 vs 20 between identical queries)
@@ -299,6 +299,25 @@ pub(crate) async fn do_search_with_registry(
         engine_errors,
         fallback_engines,
     };
+    // Section-locate hits against cached page samples: a snippet prefixed
+    // `[§ heading]` tells the agent WHERE on the page the match landed —
+    // the store already holds the markdown (fetch's default format), so
+    // this is one indexed lookup per top item. Items without a cached
+    // sample keep their engine snippet unchanged.
+    {
+        let terms: Vec<&str> = resp.query.split_whitespace().collect();
+        for item in resp.results.iter_mut().take(10) {
+            if item.image_url.is_some() || item.snippet.starts_with("[§ ") {
+                continue;
+            }
+            if let Some(section) = crate::store::section_for_hit(&item.url, &terms) {
+                if !section.is_empty() {
+                    item.snippet = format!("[§ {section}] {}", item.snippet);
+                }
+            }
+        }
+    }
+
     // Cache successes and clean zeros only. A walled answer (0 results +
     // engine errors) is transient by nature — caching it for the full TTL
     // would keep serving the wall after it lifts (v0.3.2 Windows report:

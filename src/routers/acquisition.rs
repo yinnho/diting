@@ -168,7 +168,7 @@ pub struct EvalRequest {
     pub tls_fingerprint: Option<String>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct FetchResponse {
     pub url: String,
     pub title: Option<String>,
@@ -233,14 +233,14 @@ pub struct FetchResponse {
 }
 
 /// Geometry facts reported by the `layout:true` forced pass.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct LayoutFacts {
     pub scroll_height: i64,
     pub scroll_width: i64,
 }
 
 /// One fetched subresource from the `resources:true` pass.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct ResourceFact {
     pub url: String,
     /// Body size in bytes.

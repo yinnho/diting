@@ -474,3 +474,25 @@ async fn probation_lands_and_clears() {
     registry.reset_transient_streak("flaky").await; // a clean success
     assert!(!registry.on_probation("flaky").await, "clean success ends probation");
 }
+
+/// The section locator: a stored markdown sample + a query term → the
+/// nearest preceding ATX heading. Writes through the global store with a
+/// unique URL (the row is TTL-cleaned).
+#[test]
+fn section_for_hit_finds_nearest_heading() {
+    let uniq = format!("https://example.com/sec-test-{}", std::process::id());
+    let mut resp = crate::FetchResponse::default();
+    resp.url = uniq.clone();
+    resp.title = Some("T".into());
+    resp.content = "# Rust Book\n\nintro text\n\n## References and Borrowing\n\nborrows the value without taking ownership.\n".into();
+    resp.tier = Some("http");
+    let _ = crate::store::record_fetch(crate::store::REST_OWNER, &resp);
+    let hit = crate::store::section_for_hit(&uniq, &["borrows"]);
+    assert_eq!(
+        hit.as_deref(),
+        Some("References and Borrowing"),
+        "nearest heading above the term, got: {hit:?}"
+    );
+    // Unknown URL → None.
+    assert!(crate::store::section_for_hit("https://example.com/nope", &["borrows"]).is_none());
+}

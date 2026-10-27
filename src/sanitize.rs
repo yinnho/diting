@@ -24,11 +24,11 @@
 //! `sanitize: false`. Color-camouflaged text (white-on-white) needs
 //! background resolution and is deliberately out of scope for v1.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// What the stripper did, surfaced as `sanitize_report` on the fetch
 /// response so removal is observable, never silent.
-#[derive(Debug, Default, Clone, PartialEq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SanitizeReport {
     /// Zero-width/steganographic characters removed.
     pub zero_width_removed: usize,

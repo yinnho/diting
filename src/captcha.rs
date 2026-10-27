@@ -5,10 +5,10 @@
 //! 2. Execution layer — auto-solve via external service (2captcha etc.)
 //! 3. Human layer — report CAPTCHA events in API response so caller can escalate
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Type of CAPTCHA encountered.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptchaType {
     CloudflareTurnstile,
@@ -19,8 +19,14 @@ pub enum CaptchaType {
     Unknown,
 }
 
+impl Default for CaptchaType {
+    fn default() -> Self {
+        CaptchaType::Unknown
+    }
+}
+
 /// A CAPTCHA event reported in an API response.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CaptchaEvent {
     /// Engine name ("baidu", "google", etc.). Empty for /fetch.
     pub engine: String,
