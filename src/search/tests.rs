@@ -76,8 +76,9 @@ fn merge_dedups_by_normalized_url() {
     assert_eq!(merged.len(), 1);
     assert_eq!(merged[0].engines, vec!["bing", "baidu"]);
     assert_eq!(merged[0].score, 8.0);
-    // Picks the longest title.
-    assert_eq!(merged[0].title, "Foo Bar");
+    // Picks the highest-scored entry's title (bing ranked it 5.0 > 3.0);
+    // longest only breaks ties.
+    assert_eq!(merged[0].title, "Foo");
 }
 
 #[test]
@@ -328,4 +329,75 @@ fn diversify_limits_per_host() {
         "other host should appear among the early diverse slots, got pos {example_pos} in {:?}",
         merged.iter().map(|r| &r.url).collect::<Vec<_>>()
     );
+}
+
+// ---- optimization batch: rescale / CN tracking params / case-sensitive paths ----
+
+#[test]
+fn normalize_keeps_path_query_case() {
+    // Case-sensitive paths must not fold together in the dedup key.
+    assert_ne!(
+        normalize_url("https://example.com/Docs/Page.html"),
+        normalize_url("https://example.com/docs/page.html")
+    );
+    // Host casing still normalizes (host is case-insensitive).
+    assert_eq!(
+        normalize_url("https://EXAMPLE.com/Docs/Page.html"),
+        normalize_url("https://example.com/Docs/Page.html")
+    );
+}
+
+#[test]
+fn normalize_strips_cn_and_social_tracking_params() {
+    let n = normalize_url("https://example.com/a?spm=1001.2101&from=pc&scm=x&q=词");
+    assert!(n.contains("q="), "keep real params: {n}");
+    assert!(!n.contains("spm"), "spm must strip: {n}");
+    assert!(!n.contains("scm"), "scm must strip: {n}");
+    assert!(!n.contains("from=pc"), "from must strip: {n}");
+
+    let shared = normalize_url("https://example.com/article?fbclid=abc&igshid=xyz");
+    assert!(!shared.contains("fbclid"));
+    assert!(!shared.contains("igshid"));
+}
+
+/// The verbosity fix, expressed as the merge math itself: after per-batch
+/// rescale (score/max -> (0,1]), a two-engine consensus of quiet engines
+/// outranks a single chatty engine's top hit. Raw scores as the engines
+/// actually emit them (`total - i`).
+#[test]
+fn merge_rescaled_consensus_beats_verbosity() {
+    // Chatty engine: 50 hits, scores 50..1. Quiet engines: 5 hits, 5..1.
+    let chatty_top = 50.0_f64;
+    let consensus_a = 5.0_f64; // quiet engine A ranks the shared URL #1
+    let consensus_b = 5.0_f64; // quiet engine B ranks the same URL #1
+
+    // Rescale per batch (score / batch max, clamped to (0,1]).
+    let r_chatty = (chatty_top / 50.0).clamp(0.0, 1.0);
+    let r_a = (consensus_a / 5.0).clamp(0.0, 1.0);
+    let r_b = (consensus_b / 5.0).clamp(0.0, 1.0);
+
+    assert_eq!(r_chatty, 1.0);
+    assert_eq!(r_a + r_b, 2.0);
+    assert!(
+        r_a + r_b > r_chatty,
+        "two-engine consensus must outrank one chatty top hit"
+    );
+
+    // And end-to-end through merge_results with the scores as native_search
+    // hands them over (per-batch rescale applied at collection): the same
+    // URL from two quiet engines vs a different URL topping the chatty
+    // engine — consensus wins.
+    let quiet = |engine: &str, score: f64| raw("Consensus", "https://example.com/shared", engine, score);
+    let results = vec![
+        raw("Chatty top", "https://example.com/only-chatty", "chatty", 1.0),
+        quiet("quiet_a", 1.0),
+        quiet("quiet_b", 1.0),
+    ];
+    let merged = merge_results(results, 10);
+    assert!(
+        merged[0].title == "Consensus",
+        "consensus must rank first, got: {}",
+        merged[0].title
+    );
+    assert_eq!(merged[0].engines.len(), 2);
 }

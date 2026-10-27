@@ -458,7 +458,19 @@ pub async fn native_search(
 
     for (handle_name, handle) in handles {
         match handle.await {
-            Ok((name, Ok(results))) => {
+            Ok((name, Ok(mut results))) => {
+                // Rescale this engine's batch to (0,1]: engines score
+                // `total - i` (position), so a 50-hit engine and a 5-hit
+                // engine previously merged on utterly different scales —
+                // verbosity decided consensus weight. After rescale, every
+                // engine's top hit is 1.0 and cross-engine consensus sums
+                // fairly.
+                let max = results.iter().map(|r| r.score).fold(f64::NEG_INFINITY, f64::max);
+                if max > 0.0 {
+                    for r in results.iter_mut() {
+                        r.score = (r.score / max).clamp(0.0, 1.0);
+                    }
+                }
                 total_count += results.len();
                 all_results.extend(results);
                 registry.reset_captcha_count(&name).await;
@@ -547,8 +559,17 @@ fn normalize_url(raw: &str) -> String {
         }
     }
 
-    // Strip tracking parameters.
-    let tracking_params = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
+    // Strip tracking parameters. utm_* plus the CN-SEO brigade Baidu/Sogou
+    // hang off result links (spm/scm/from/sid/tn and friends) and the
+    // social share set — without these, one article syndicated with
+    // different promo tags dedups as N results.
+    let tracking_params = [
+        "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+        // CN engines' promo/session params
+        "spm", "scm", "from", "sid", "tn", "srcid", "qq-pf-to",
+        // social share trackers
+        "fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref_src", "share_token",
+    ];
     if url.query().is_some() {
         let mut pairs: Vec<(String, String)> = url
             .query_pairs()
@@ -588,7 +609,10 @@ fn normalize_url(raw: &str) -> String {
         }
     }
 
-    url.to_string().to_lowercase()
+    // Lowercase scheme+host only (done above); path and query keep their
+    // case — many sites serve case-sensitive paths, and folding them here
+    // merged distinct documents into one dedup key.
+    url.to_string()
 }
 
 /// Merge raw results from all engines: dedup by normalized URL, combine engine
@@ -614,15 +638,24 @@ fn merge_results(results: Vec<RawSearchResult>, max_results: usize) -> Vec<Searc
             let mut js_extract_result = None;
             let mut image: Option<ImageResult> = None;
 
+            // The group's representative title/url/snippet come from its
+            // highest-scored entry (the engine that ranked it best); the
+            // longest text wins only on a tie. Longest-first favored
+            // boilerplate-heavy titles ("X_Y_【官网】Z - Z") over the
+            // relevant one.
+            let mut pick = &group[0];
+            for r in &group {
+                if r.score > pick.score || (r.score == pick.score && r.title.len() > pick.title.len()) {
+                    pick = r;
+                }
+            }
+            best_title = pick.title.clone();
+            best_url = pick.url.clone();
             for r in &group {
                 if !engines.contains(&r.engine) {
                     engines.push(r.engine.clone());
                 }
                 total_score += r.score;
-                if r.title.len() > best_title.len() {
-                    best_title = r.title.clone();
-                    best_url = r.url.clone();
-                }
                 if r.snippet.len() > best_snippet.len() {
                     best_snippet = r.snippet.clone();
                 }
