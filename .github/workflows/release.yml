@@ -223,7 +223,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "false"
       - name: Package
         run: |
-          bin=diting-v${GITHUB_REF_NAME#v}-aarch64-unknown-linux-musl
+          bin=diting-${GITHUB_REF_NAME#v}-aarch64-unknown-linux-musl
           cp target/aarch64-unknown-linux-musl/release/diting "$bin"
           cp "$bin" "$bin-debug"
           strip "$bin"
