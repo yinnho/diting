@@ -25814,3 +25814,51 @@ fn cssom_sheets_identity_list_and_adoption() {
     assert_eq!(v["bad"], "TypeError");
     assert_eq!(v["leak"], serde_json::json!([]), "helpers must stay lexical consts");
 }
+
+/// pointer_touch.js ratchet split (JS-SURFACE-PLAN step 3): PointerEvent,
+/// pointer capture, Touch, TouchEvent left bootstrap.js. The capture
+/// registry's __diting_* globals must register themselves in the hide list
+/// (the list was built before this file loads), or they would show on window.
+#[test]
+fn pointer_touch_family_capture_and_hidden_registry() {
+    let mut rt = setup_runtime("<html><body><div id='h'></div></body></html>");
+    let out = rt
+        .evaluate(
+            r#"
+        (function () {
+            var h = document.getElementById('h');
+            var pe = new PointerEvent('pointerdown', {pointerId: 7});
+            var te = new TouchEvent('touchstart', {touches: [new Touch({identifier: 3, clientX: 5})]});
+            var seen = [];
+            h.addEventListener('gotpointercapture', function (e) { seen.push('got' + e.pointerId); });
+            h.addEventListener('lostpointercapture', function (e) { seen.push('lost' + e.pointerId); });
+            var before = h.hasPointerCapture(7);
+            h.setPointerCapture(7);
+            var during = h.hasPointerCapture(7);
+            var forId = globalThis.__diting_pointerCaptureFor(7) === h;
+            globalThis.__diting_pointerCaptureRelease(7);
+            var hide = globalThis.__diting_hide_list;
+            return JSON.stringify({
+                pe: [pe.pointerId, pe.pointerType, pe.isPrimary, pe instanceof MouseEvent],
+                te: [te.touches.length, te.touches[0].identifier, te.touches[0].clientX, te instanceof UIEvent],
+                before: before, during: during, forId: forId,
+                after: h.hasPointerCapture(7), seen: seen,
+                nat: Element.prototype.setPointerCapture.toString().indexOf('[native code]') >= 0,
+                hidden: ['__diting_ptrCaps','__diting_pointerCaptureFor','__diting_pointerCaptureRelease']
+                          .every(function (n) { return hide.indexOf(n) >= 0; }),
+            });
+        })()
+        "#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["pe"], serde_json::json!([7, "", false, true]), "{v}");
+    assert_eq!(v["te"], serde_json::json!([1, 3, 5, true]));
+    assert_eq!(v["before"], false);
+    assert_eq!(v["during"], true);
+    assert_eq!(v["forId"], true);
+    assert_eq!(v["after"], false);
+    assert_eq!(v["seen"], serde_json::json!(["got7", "lost7"]));
+    assert_eq!(v["nat"], true);
+    assert_eq!(v["hidden"], true);
+}

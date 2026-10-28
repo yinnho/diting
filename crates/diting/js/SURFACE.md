@@ -30,6 +30,7 @@
 | storage.js | Storage 全家（localStorage/sessionStorage Proxy、StorageEvent）+ document.cookie 访问门 __cookieGate（2026-10-29 棘轮搬出）；cookie 读写本体仍在 bootstrap 的 document 字面量里 |
 | worker.js | Worker（含 blob URL Worker） |
 | client_rects.js / computed_size.js | 几何查询 |
+| pointer_touch.js | PointerEvent、指针捕获注册表（interact.rs 的会话/CDP 鼠标链经 __diting_pointerCaptureFor 改道）、Touch、TouchEvent（2026-10-29 棘轮搬出，紧随 cssom_sheets 加载） |
 | css_*.js | CSSOM（decl/rules/register/adopted sheets） |
 | cssom_sheets.js | StyleSheet/CSSStyleSheet、document.styleSheets 背后（外链体缓存/元素 sheet 恒等/StyleSheetList）、Document.adoptedStyleSheets（2026-10-29 棘轮搬出，紧随 bootstrap 加载） |
 | audio.js / canvas_face.js / crypto_subtle.js / image_info.js | 媒体与加密面 |
@@ -44,7 +45,7 @@
 | document 只读赋值 | native | （session E2E） | 同上 |
 | Storage 全家 | shim | storage_family_proxy_semantics_and_gate | 2026-10-29 自 bootstrap 搬出（纯搬移）；加载期 native 标记随迁 |
 | CSSOM sheet 对象 | shim | cssom_sheets_identity_list_and_adoption | 2026-10-29 自 bootstrap 搬出（纯搬移）；helper 改词法 const |
-| 指针捕获 setPointerCapture | shim | drag_follows_pointer_capture_slider | 2026-10-28 修（滑块拖不动根因） |
+| 指针捕获 setPointerCapture | shim | drag_follows_pointer_capture_slider, pointer_touch_family_capture_and_hidden_registry | 2026-10-28 修（滑块拖不动根因） |
 
 ## 竞品缺口日志
 

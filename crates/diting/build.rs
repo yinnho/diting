@@ -26,6 +26,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Ratchet split (JS-SURFACE-PLAN step 3): CSSOM sheet objects. Must stay
     // first after bootstrap — global_surface and the sweep walk CSSStyleSheet.
     ("cssom_sheets.js", include_str!("js/cssom_sheets.js")),
+    // Ratchet split (JS-SURFACE-PLAN step 3): PointerEvent/pointer capture/Touch.
+    ("pointer_touch.js", include_str!("js/pointer_touch.js")),
     // #252 god-file ratchet split: the fetch family moved out of
     // bootstrap.js wholesale. Its top level only declares bindings; every
     // helper it references (_docBase, __recordFetchTiming, Headers…) is
