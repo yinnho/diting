@@ -1,7 +1,7 @@
 # diting — browser engine for AI agents, in a container.
 # Fetches the static release binary instead of compiling V8 in-image:
 # the engine ships as musl (arm64) / gnu (amd64) builds, so a build is a
-# download. arm64 uses the musl static binary (runs on any arm64 base);
+# download. arm64 uses the musl static screenshot build (the image ships fontconfig + CJK, so the render stack works);
 # amd64 uses the gnu build on glibc.
 FROM debian:bookworm-slim
 ARG DITING_VERSION=0.8.3
@@ -10,7 +10,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates wget xz-utils fontconfig fonts-noto-cjk \
  && rm -rf /var/lib/apt/lists/* \
  && case "${TARGETARCH}" in \
-      arm64) ASSET="diting-${DITING_VERSION}-aarch64-unknown-linux-musl" ;; \
+      arm64) ASSET="diting-${DITING_VERSION}-aarch64-unknown-linux-musl-screenshot" ;; \
       amd64) ASSET="diting-v${DITING_VERSION}-x86_64-unknown-linux-gnu.tar.gz" ;; \
       *) echo "unsupported arch ${TARGETARCH}" && exit 1 ;; \
     esac \
