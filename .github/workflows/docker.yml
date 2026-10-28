@@ -16,9 +16,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Resolve version (tag push uses the tag; manual run uses the latest tag)
         id: ver
+        # ls-remote over the network — describe needs the tag as a HEAD
+        # ancestor and the shallow checkout has no history to walk.
         run: |
-          git fetch --quiet --tags
-          echo "version=$(git describe --tags --abbrev=0 | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+          ver=$(git ls-remote --tags origin 'v*' | awk -F/ '{print $NF}' | grep -v '\^{}' | sort -V | tail -1 | sed 's/^v//')
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
       - name: Log in to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
         with:
