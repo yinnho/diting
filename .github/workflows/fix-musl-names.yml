@@ -1,0 +1,32 @@
+# One-off: rename v0.8.3's v-prefixed bare musl assets to the no-v
+# convention (matches v0.8.2 and the -screenshot assets). Downloads the
+# four v-named assets, deletes them, re-uploads with corrected names and
+# regenerated checksums. Delete this workflow after the run.
+name: fix-musl-names
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -eux
+          curl -sSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_amd64.tar.gz
+          tar xzf gh.tar.gz
+          sudo cp gh_2.63.2_linux_amd64/bin/gh /usr/local/bin/gh
+          export GH_TOKEN="${{ github.token }}"
+          rel="repos/yinnho/diting/releases/tags/v0.8.3"
+          for suffix in "" "-debug"; do
+            old="diting-v0.8.3-aarch64-unknown-linux-musl${suffix}"
+            new="diting-0.8.3-aarch64-unknown-linux-musl${suffix}"
+            url=$(gh api "$rel" --jq ".assets[] | select(.name == \"$old\") | .url")
+            dl=$(gh api "$rel" --jq ".assets[] | select(.name == \"$old\") | .browser_download_url")
+            id=$(gh api "$rel" --jq ".assets[] | select(.name == \"$old\") | .id")
+            gh release download v0.8.3 -R yinnho/diting -p "$old" --clobber
+            gh api -X DELETE "repos/yinnho/diting/releases/assets/$id"
+            mv "$old" "$new"
+            sha256sum "$new" > "$new.sha256"
+            gh release upload v0.8.3 -R yinnho/diting "$new" "$new.sha256" --clobber
+          done
+          gh api "$rel" --jq '.assets[] | select(.name | contains("musl")) | .name'
