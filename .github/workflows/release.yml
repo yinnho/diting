@@ -81,10 +81,24 @@ jobs:
           $log = (Get-Content smoke.out -Raw) + (Get-Content smoke.err -Raw)
           if ($log -notmatch "listening on") { Write-Output "--- smoke output ---"; Write-Output $log; exit 1 }
           Write-Output (($log -split "`n") | Select-Object -First 1)
+      # The release body is the annotated tag's message — softprops with
+      # only `files` creates the release bare (v0.8.3 shipped with an
+      # empty notes page until it was edited by hand). Every matrix leg
+      # writes the same body, so the last write is idempotent.
+      - name: Release notes from the tag annotation
+        if: startsWith(github.ref, 'refs/tags/')
+        id: tag_notes
+        run: |
+          {
+            echo "body<<DITING_TAG_EOF"
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            echo "DITING_TAG_EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Upload release assets (tag pushes only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          body: ${{ steps.tag_notes.outputs.body }}
           files: |
             diting-*.tar.gz
             diting-*.sha256
@@ -143,10 +157,24 @@ jobs:
           kill $pid 2>/dev/null || true
           grep -q "listening on" /tmp/intel_smoke.log || { echo "--- smoke output ---"; cat /tmp/intel_smoke.log; exit 1; }
           head -1 /tmp/intel_smoke.log
+      # The release body is the annotated tag's message — softprops with
+      # only `files` creates the release bare (v0.8.3 shipped with an
+      # empty notes page until it was edited by hand). Every matrix leg
+      # writes the same body, so the last write is idempotent.
+      - name: Release notes from the tag annotation
+        if: startsWith(github.ref, 'refs/tags/')
+        id: tag_notes
+        run: |
+          {
+            echo "body<<DITING_TAG_EOF"
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            echo "DITING_TAG_EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Upload release assets (tag pushes only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          body: ${{ steps.tag_notes.outputs.body }}
           files: |
             diting-*.tar.gz
             diting-*.sha256
@@ -213,10 +241,24 @@ jobs:
             diting-*-aarch64-unknown-linux-musl.sha256
             diting-*-aarch64-unknown-linux-musl-debug.sha256
           retention-days: 7
+      # The release body is the annotated tag's message — softprops with
+      # only `files` creates the release bare (v0.8.3 shipped with an
+      # empty notes page until it was edited by hand). Every matrix leg
+      # writes the same body, so the last write is idempotent.
+      - name: Release notes from the tag annotation
+        if: startsWith(github.ref, 'refs/tags/')
+        id: tag_notes
+        run: |
+          {
+            echo "body<<DITING_TAG_EOF"
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            echo "DITING_TAG_EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Upload release assets (tag pushes only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          body: ${{ steps.tag_notes.outputs.body }}
           files: |
             diting-*-aarch64-unknown-linux-musl
             diting-*-aarch64-unknown-linux-musl-debug
@@ -282,10 +324,24 @@ jobs:
             diting-*-aarch64-unknown-linux-musl-screenshot.sha256
             diting-*-aarch64-unknown-linux-musl-screenshot-debug.sha256
           retention-days: 7
+      # The release body is the annotated tag's message — softprops with
+      # only `files` creates the release bare (v0.8.3 shipped with an
+      # empty notes page until it was edited by hand). Every matrix leg
+      # writes the same body, so the last write is idempotent.
+      - name: Release notes from the tag annotation
+        if: startsWith(github.ref, 'refs/tags/')
+        id: tag_notes
+        run: |
+          {
+            echo "body<<DITING_TAG_EOF"
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            echo "DITING_TAG_EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Upload release assets (tag pushes only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          body: ${{ steps.tag_notes.outputs.body }}
           files: |
             diting-*-aarch64-unknown-linux-musl-screenshot
             diting-*-aarch64-unknown-linux-musl-screenshot-debug
