@@ -47,7 +47,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          dir=diting-v${GITHUB_REF_NAME#v}-${{ matrix.target }}
+          dir=diting-${GITHUB_REF_NAME#v}-${{ matrix.target }}
           mkdir "$dir"
           bin=diting
           if [ "${{ runner.os }}" = "Windows" ]; then bin=diting.exe; fi
@@ -137,7 +137,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          dir=diting-v${GITHUB_REF_NAME#v}-x86_64-apple-darwin
+          dir=diting-${GITHUB_REF_NAME#v}-x86_64-apple-darwin
           mkdir "$dir"
           cp "target/x86_64-apple-darwin/release/diting" "$dir/"
           cp README.md docs/install.md "$dir/"

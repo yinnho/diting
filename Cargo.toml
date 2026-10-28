@@ -19,8 +19,8 @@ categories = ["web-programming", "network-programming", "command-line-utilities"
 # The aarch64 musl asset is a bare static binary (agpkg shape) — different
 # name pattern (no v) and no archive.
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/diting-v{ version }-{ target }{ archive-suffix }"
-bin-dir = "diting-v{ version }-{ target }/{ bin }{ binary-ext }"
+pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }{ archive-suffix }"
+bin-dir = "diting-{ version }-{ target }/{ bin }{ binary-ext }"
 
 [package.metadata.binstall.aarch64-unknown-linux-musl]
 pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }"

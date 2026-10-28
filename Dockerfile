@@ -11,7 +11,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && case "${TARGETARCH}" in \
       arm64) ASSET="diting-${DITING_VERSION}-aarch64-unknown-linux-musl-screenshot" ;; \
-      amd64) ASSET="diting-v${DITING_VERSION}-x86_64-unknown-linux-gnu.tar.gz" ;; \
+      amd64) ASSET="diting-${DITING_VERSION}-x86_64-unknown-linux-gnu.tar.gz" ;; \
       *) echo "unsupported arch ${TARGETARCH}" && exit 1 ;; \
     esac \
  && if [ "${TARGETARCH}" = "arm64" ]; then \
@@ -20,8 +20,8 @@ RUN apt-get update \
     else \
         wget -q "https://github.com/yinnho/diting/releases/download/v${DITING_VERSION}/${ASSET}" \
         && tar xzf "${ASSET}" \
-        && mv "diting-v${DITING_VERSION}-x86_64-unknown-linux-gnu/diting" /usr/local/bin/diting \
-        && rm -rf "${ASSET}" "diting-v${DITING_VERSION}-x86_64-unknown-linux-gnu"; \
+        && mv "diting-${DITING_VERSION}-x86_64-unknown-linux-gnu/diting" /usr/local/bin/diting \
+        && rm -rf "${ASSET}" "diting-${DITING_VERSION}-x86_64-unknown-linux-gnu"; \
     fi \
  && chmod +x /usr/local/bin/diting
 
