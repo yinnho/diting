@@ -488,6 +488,9 @@ globalThis.__diting_enterDefault = globalThis.__diting_enterDefault || function(
 // coordinates translated into the deepest frame's own viewport (iframe-doc
 // gBCR is iframe-local, no stitching — obscura #976 sub-run semantics).
 globalThis.__diting_hitTarget = globalThis.__diting_hitTarget || function(x, y) {
+  // Non-finite coordinates (a CDP event missing x/y) are no hit: the public
+  // elementFromPoint throws on them like Chrome, the input chain must not.
+  if (!isFinite(x) || !isFinite(y)) return null;
   var doc = document, ox = 0, oy = 0, el = null;
   for (var depth = 0; depth < 8; depth++) {
     el = (doc && doc.elementFromPoint) ? doc.elementFromPoint(x - ox, y - oy) : null;

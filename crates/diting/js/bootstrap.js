@@ -15792,12 +15792,25 @@ if (typeof Document !== 'undefined' && !Document.prototype.elementFromPoint) {
     }
     return out;
   }
+  // WebIDL `double` arguments: Chrome throws on missing or non-finite
+  // coordinates instead of answering null (JS-SURFACE-PLAN step 5 probe).
+  function __ditingPointArgs(name, n, x, y) {
+    if (n < 2) {
+      throw new TypeError("Failed to execute '" + name + "' on 'Document': 2 arguments required, but only " + n + " present.");
+    }
+    x = Number(x); y = Number(y);
+    if (!isFinite(x) || !isFinite(y)) {
+      throw new TypeError("Failed to execute '" + name + "' on 'Document': The provided double value is non-finite.");
+    }
+  }
   Document.prototype.elementFromPoint = function(x, y) {
+    __ditingPointArgs('elementFromPoint', arguments.length, x, y);
     var cands = __ditingHitCandidates.call(this, x, y);
     if (cands === null) return null;
     return cands.length ? cands[0] : (this.body || this.documentElement || null);
   };
   Document.prototype.elementsFromPoint = function(x, y) {
+    __ditingPointArgs('elementsFromPoint', arguments.length, x, y);
     var cands = __ditingHitCandidates.call(this, x, y);
     if (cands === null) return [];
     if (!cands.length) {

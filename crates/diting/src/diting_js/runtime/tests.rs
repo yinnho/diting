@@ -25862,3 +25862,59 @@ fn pointer_touch_family_capture_and_hidden_registry() {
     assert_eq!(v["nat"], true);
     assert_eq!(v["hidden"], true);
 }
+
+/// JS-SURFACE-PLAN step 5 (Blitz #1304 cross-check): the hit-test cold path.
+/// Before any explicit layout read, elementFromPoint must already answer
+/// from on-demand layout, skip display:none / template / head / detached
+/// nodes, and — WebIDL `double` — throw TypeError (not answer null) on a
+/// missing or non-finite coordinate, exactly like Chrome.
+#[test]
+fn hit_test_cold_path_and_webidl_double_args() {
+    let mut rt = setup_runtime(
+        "<html><head><title>t</title><style>#hid{display:none}</style></head><body>\
+         <div id='a' style='width:100px;height:50px'>A</div>\
+         <div id='hid'><span id='inner'>x</span></div>\
+         <template id='tp'><b id='tb'>t</b></template></body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"
+        (function () {
+            function msg(f) { try { f(); return 'no-throw'; } catch (e) { return e.constructor.name + ': ' + e.message; } }
+            var d = document.createElement('div'); document.body.appendChild(d); d.remove();
+            var stack = document.elementsFromPoint(5, 5);
+            return JSON.stringify({
+                far: document.elementFromPoint(5000, 5000),
+                negative: document.elementFromPoint(-1, -1),
+                skipped: stack.some(function (e) {
+                    return ['hid', 'inner', 'tp', 'tb'].indexOf(e.id) >= 0 ||
+                           ['HEAD', 'TITLE', 'STYLE'].indexOf(e.tagName) >= 0 || e === d;
+                }),
+                endsHtml: stack.length ? stack[stack.length - 1].tagName : null,
+                nan: msg(function () { document.elementFromPoint(NaN, 1); }),
+                inf: msg(function () { document.elementsFromPoint(1, Infinity); }),
+                arity: msg(function () { document.elementFromPoint(1); }),
+                ok: msg(function () { document.elementFromPoint('5', '5'); }),
+            });
+        })()
+        "#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert!(v["far"].is_null() && v["negative"].is_null(), "{v}");
+    assert_eq!(v["skipped"], false, "{v}");
+    assert_eq!(v["endsHtml"], "HTML");
+    assert_eq!(
+        v["nan"],
+        "TypeError: Failed to execute 'elementFromPoint' on 'Document': The provided double value is non-finite."
+    );
+    assert_eq!(
+        v["inf"],
+        "TypeError: Failed to execute 'elementsFromPoint' on 'Document': The provided double value is non-finite."
+    );
+    assert_eq!(
+        v["arity"],
+        "TypeError: Failed to execute 'elementFromPoint' on 'Document': 2 arguments required, but only 1 present."
+    );
+    assert_eq!(v["ok"], "no-throw", "numeric strings coerce like Chrome");
+}

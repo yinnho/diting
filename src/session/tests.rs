@@ -3755,6 +3755,64 @@
         assert!(mgr.close_and_wait(&sid).await);
     }
 
+    /// Blitz #1304 cross-check (JS-SURFACE-PLAN step 5, SURFACE.md gap log):
+    /// blitz panicked hit-testing nodes that had no computed styles yet — a
+    /// pointer event landing on a document before its first resolve. Our
+    /// hit test is JS (elementFromPoint over layout rects) with layout
+    /// resolved on demand, so the analogue is: drive the real mouse chain
+    /// at a blank session and at freshly set content BEFORE any state /
+    /// screenshot read has forced a layout. Neither may fail, and the press
+    /// must land on the element a human would hit, not fall through.
+    #[tokio::test]
+    async fn mouse_chain_before_first_layout_does_not_fault() {
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(None, false, vec![], None, None, None, false, false, None);
+
+        // Blank session, never laid out: a click and a drag are inert, not errors.
+        mgr.send(&sid, |reply| SessionCommand::ClickXY {
+            x: 5.0, y: 5.0, button: "left".to_string(), click_count: 1, reply,
+        })
+        .await
+        .unwrap();
+        mgr.send(&sid, |reply| SessionCommand::Drag {
+            from_x: 5.0, from_y: 5.0, to_x: 90.0, to_y: 40.0,
+            steps: 4, delay_ms: 0, humanize: false, reply,
+        })
+        .await
+        .unwrap();
+
+        // Fresh content, input immediately (no layout-forcing read in between).
+        mgr.send(&sid, |reply| SessionCommand::SetContent {
+            html: "<html><body style=\"margin:0\">\
+                   <button id=\"b\" style=\"position:absolute;left:10px;top:10px;width:80px;height:30px\">go</button>\
+                   <div id=\"gone\" style=\"display:none\"><button id=\"gb\">x</button></div>\
+                   <script>window.__hits = [];\
+                   document.getElementById('b').addEventListener('click', function(){ __hits.push('b'); });\
+                   document.getElementById('gb').addEventListener('click', function(){ __hits.push('gb'); });\
+                   </script></body></html>".to_string(),
+            reply,
+        })
+        .await
+        .unwrap();
+        mgr.send(&sid, |reply| SessionCommand::ClickXY {
+            x: 50.0, y: 25.0, button: "left".to_string(), click_count: 1, reply,
+        })
+        .await
+        .unwrap();
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "JSON.stringify(window.__hits)".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let out = out.to_string();
+        assert!(out.contains("b") && !out.contains("gb"), "press must land on the visible button only, got {out}");
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
     /// Slider CAPTCHAs grab the pointer on pointerdown
     /// (setPointerCapture) and track pointermove on the handle itself.
     /// Before the capture API existed the pointerdown handler threw on the
