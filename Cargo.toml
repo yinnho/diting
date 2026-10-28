@@ -13,6 +13,20 @@ homepage = "https://browser.aginx.net"
 keywords = ["browser", "http-api", "web-scraping", "headless", "automation"]
 categories = ["web-programming", "network-programming", "command-line-utilities", "development-tools"]
 
+# cargo-binstall: `cargo binstall diting-browser` grabs the GitHub release
+# binary (with stealth+Screenshot features) instead of compiling V8 locally.
+# Tar assets: diting-v{version}-{target}.tar.gz holding diting-v{version}-{target}/diting(.exe).
+# The aarch64 musl asset is a bare static binary (agpkg shape) — different
+# name pattern (no v) and no archive.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/diting-v{ version }-{ target }{ archive-suffix }"
+bin-dir = "diting-v{ version }-{ target }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.aarch64-unknown-linux-musl]
+pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }"
+bin-dir = "{ bin }{ binary-ext }"
+archive-format = "raw"
+
 [workspace]
 members = ["crates/diting", "crates/diting_ops", "crates/diting_runtime"]
 resolver = "2"
