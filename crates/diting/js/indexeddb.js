@@ -231,8 +231,15 @@ function _idbStore(name, keyPath, autoIncrement) {
     const req = _idbNewRequest(st, tx);
     const keys = _idbSortedKeys(st, query, direction);
     let idx = keys.length ? 0 : -1;
+    // Chrome: between continue()/advance() and the next onsuccess delivery
+    // the cursor is "currently being iterated" — a second call throws
+    // InvalidStateError instead of silently double-stepping (Moli hit the
+    // same gap 2026-10-28; a stray double-continue used to eat the rest of
+    // the iteration here).
+    let iterating = false;
     function fire() {
       Promise.resolve().then(() => {
+        iterating = false;
         req.readyState = 'done';
         if (idx < 0 || idx >= keys.length) {
           req.result = null;
@@ -245,8 +252,15 @@ function _idbStore(name, keyPath, autoIncrement) {
             direction: direction || 'next',
             source: st,
             get value() { return st._data.get(k); },
-            continue() { idx += 1; fire(); },
-            advance(n) { idx += n; fire(); },
+            continue() {
+              if (iterating) throw _idbErr('InvalidStateError', "Failed to execute 'continue' on 'IDBCursor': The cursor is currently being iterated.");
+              iterating = true; idx += 1; fire();
+            },
+            advance(n) {
+              if (iterating) throw _idbErr('InvalidStateError', "Failed to execute 'advance' on 'IDBCursor': The cursor is currently being iterated.");
+              if (!(n > 0)) throw new TypeError("Failed to execute 'advance' on 'IDBCursor': The count parameter must be greater than 0.");
+              iterating = true; idx += n; fire();
+            },
             update(v) { return _idbReqTx(tx, () => { st._data.set(k, v); return k; }, st); },
             delete() { return _idbReqTx(tx, () => { st._data.delete(k); return undefined; }, st); },
           }, IDBCursorWithValue.prototype);
@@ -446,25 +460,33 @@ globalThis.IDBFactory = IDBFactory;
 // Prototype members forward to the receiver's own prop; calling one on a
 // non-instance throws Illegal invocation, as Chrome does.
 function _idbProtoOps(iface, names) {
-  for (const m of names) {
+  // Entries are `name` or `[name, arity]` — the variadic forwarder would
+  // report .length 0 on every prototype method, and libraries feature-detect
+  // by arity (Moli's 2026-10-28 argument-count pass). Arity follows WebIDL:
+  // required-argument counts per the Chrome shape.
+  for (const entry of names) {
+    const m = Array.isArray(entry) ? entry[0] : entry;
+    const arity = Array.isArray(entry) ? entry[1] : 0;
     if (m in iface.prototype) continue;
+    const fwd = function (...a) {
+      if (!Object.prototype.hasOwnProperty.call(this, m)) {
+        throw new TypeError('Illegal invocation');
+      }
+      return this[m].apply(this, a);
+    };
+    Object.defineProperty(fwd, 'length', { value: arity });
     Object.defineProperty(iface.prototype, m, {
       writable: true, enumerable: true, configurable: true,
-      value: function (...a) {
-        if (!Object.prototype.hasOwnProperty.call(this, m)) {
-          throw new TypeError('Illegal invocation');
-        }
-        return this[m].apply(this, a);
-      },
+      value: fwd,
     });
   }
 }
-_idbProtoOps(IDBFactory, ['open', 'deleteDatabase', 'databases', 'cmp']);
-_idbProtoOps(IDBDatabase, ['createObjectStore', 'deleteObjectStore', 'transaction', 'close', 'addEventListener', 'removeEventListener']);
-_idbProtoOps(IDBTransaction, ['abort', 'commit', 'objectStore', 'addEventListener', 'removeEventListener']);
-_idbProtoOps(IDBObjectStore, ['put', 'add', 'get', 'getKey', 'getAll', 'getAllKeys', 'count', 'delete', 'clear', 'openCursor', 'openKeyCursor', 'index', 'createIndex', 'deleteIndex']);
-_idbProtoOps(IDBIndex, ['get', 'getKey', 'getAll', 'getAllKeys', 'count', 'openCursor', 'openKeyCursor']);
-_idbProtoOps(IDBCursor, ['advance', 'continue', 'continuePrimaryKey', 'update', 'delete']);
+_idbProtoOps(IDBFactory, [['open', 1], ['deleteDatabase', 1], ['databases', 0], ['cmp', 2]]);
+_idbProtoOps(IDBDatabase, [['createObjectStore', 1], ['deleteObjectStore', 1], ['transaction', 1], ['close', 0], 'addEventListener', 'removeEventListener']);
+_idbProtoOps(IDBTransaction, [['abort', 0], ['commit', 0], ['objectStore', 1], 'addEventListener', 'removeEventListener']);
+_idbProtoOps(IDBObjectStore, [['put', 1], ['add', 1], ['get', 1], ['getKey', 1], ['getAll', 1], ['getAllKeys', 1], ['count', 0], ['delete', 1], ['clear', 0], ['openCursor', 1], ['openKeyCursor', 1], ['index', 1], ['createIndex', 2], ['deleteIndex', 1]]);
+_idbProtoOps(IDBIndex, [['get', 1], ['getKey', 1], ['getAll', 1], ['getAllKeys', 1], ['count', 0], ['openCursor', 1], ['openKeyCursor', 1]]);
+_idbProtoOps(IDBCursor, [['advance', 1], ['continue', 0], ['continuePrimaryKey', 2], ['update', 1], ['delete', 0]]);
 // Range instances inherit IDBKeyRange.prototype while keeping the existing
 // per-factory closed/open semantics verbatim.
 function _idbRangeShape(r) { Object.setPrototypeOf(r, IDBKeyRange.prototype); return r; }
@@ -477,6 +499,7 @@ _markNative(IDBKeyRange.upperBound); _markNative(IDBKeyRange.bound);
 globalThis.IDBKeyRange = IDBKeyRange;
 globalThis.indexedDB = {
   open(name, version) {
+    if (name === undefined || name === null) throw new TypeError("Failed to execute 'open' on 'IDBFactory': 1 argument required, but only 0 present.");
     if (version !== undefined && version !== null && (!Number.isInteger(version) || version < 1)) {
       throw new TypeError('The version provided (' + version + ') is not a positive integer');
     }

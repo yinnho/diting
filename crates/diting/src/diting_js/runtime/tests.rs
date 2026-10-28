@@ -22955,6 +22955,70 @@ async fn idb_proto_ops_forward_and_gate_idb() {
     assert_eq!(v["fwd"]["shape"], serde_json::json!(true), "proto put/get must forward to the store's own ops");
 }
 
+/// Cursor iteration guard + Chrome arity (competitor gap sweep 2026-10-28:
+/// Moli shipped the same fixes the same day). Between continue()/advance()
+/// and the next onsuccess delivery the cursor is "currently being iterated"
+/// — a second call must throw InvalidStateError instead of silently
+/// double-stepping (which used to eat the rest of the iteration); advance(0)
+/// is a TypeError; prototype methods report WebIDL required-arg counts, not
+/// the forwarder's 0; open() without a name is a TypeError.
+#[tokio::test(flavor = "current_thread")]
+async fn idb_cursor_guard_and_arity_follow_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate("localStorage.removeItem('__diting_idb__cursor-guard')").unwrap();
+    rt.evaluate(r#"
+        (function () {
+          const out = {};
+          out.arity = {
+            open: IDBFactory.prototype.open.length,
+            put: IDBObjectStore.prototype.put.length,
+            createIndex: IDBObjectStore.prototype.createIndex.length,
+            advance: IDBCursor.prototype.advance.length,
+            cont: IDBCursor.prototype.continue.length,
+            cmp: IDBFactory.prototype.cmp.length,
+          };
+          try { indexedDB.open(); out.openNoArgs = 'accepted'; } catch (e) { out.openNoArgs = e.name; }
+          const r = indexedDB.open('cursor-guard', 1);
+          r.onupgradeneeded = function (e) { e.target.result.createObjectStore('s'); };
+          r.onsuccess = function (e) {
+            const db = e.target.result;
+            const tx = db.transaction('s', 'readwrite');
+            const st = tx.objectStore('s');
+            for (let i = 0; i < 3; i++) st.put(i, 'k' + i);
+            tx.oncomplete = function () {
+              const cur = db.transaction('s', 'readonly').objectStore('s').openCursor();
+              const steps = [];
+              cur.onsuccess = function (ev) {
+                const c = ev.target.result;
+                if (!c) { out.steps = steps; globalThis.__out = JSON.stringify(out); return; }
+                steps.push(c.key);
+                c.continue();
+                if (steps.length === 1) {
+                  // second continue before the delivery: InvalidStateError
+                  try { c.continue(); out.secondContinue = 'no-throw'; } catch (err) { out.secondContinue = err.name; }
+                  try { c.advance(1); out.advanceWhileIterating = 'no-throw'; } catch (err) { out.advanceWhileIterating = err.name; }
+                }
+              };
+            };
+          };
+        })();
+    "#).unwrap();
+    let _ = rt.run_event_loop_bounded(300).await;
+    let out = rt.evaluate("globalThis.__out").unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["arity"], serde_json::json!({
+        "open": 1, "put": 1, "createIndex": 2, "advance": 1, "cont": 0, "cmp": 2
+    }), "WebIDL required-arg counts on the prototype forwarders");
+    assert_eq!(v["openNoArgs"], serde_json::json!("TypeError"), "open() needs a name");
+    assert_eq!(v["secondContinue"], serde_json::json!("InvalidStateError"), "double-continue throws");
+    assert_eq!(v["advanceWhileIterating"], serde_json::json!("InvalidStateError"), "advance while iterating throws");
+    assert_eq!(
+        v["steps"],
+        serde_json::json!(["k0", "k1", "k2"]),
+        "the rejected double-continue must not eat the remaining iteration"
+    );
+}
+
 /// #203: WebIDL operations are writable data properties on the prototype.
 /// The 抖店 secsdk monkey-patches navigator.sendBeacon (createAspectByPath)
 /// and the getter-only accessors #117 installed turned that strict-mode
