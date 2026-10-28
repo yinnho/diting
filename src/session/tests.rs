@@ -3755,6 +3755,112 @@
         assert!(mgr.close_and_wait(&sid).await);
     }
 
+    /// Slider CAPTCHAs grab the pointer on pointerdown
+    /// (setPointerCapture) and track pointermove on the handle itself.
+    /// Before the capture API existed the pointerdown handler threw on the
+    /// missing method and the drag died at the press; with capture honored,
+    /// moves keep landing on the handle even though it has translated
+    /// along the track, and pointerup releases (lostpointercapture fires).
+    #[tokio::test]
+    async fn drag_follows_pointer_capture_slider() {
+        let _net = crate::server::test_util::net_env_guard();
+        let (port, _hits) = crate::server::test_util::recording_server(&[(
+            "GET /slider",
+            "<html><body style=\"margin:0\">\
+             <div id=\"track\" style=\"position:absolute;left:20px;top:20px;width:320px;height:40px;background:#eee\">\
+               <div id=\"handle\" style=\"position:absolute;left:0;top:0;width:44px;height:40px;background:#4a7\"></div>\
+             </div>\
+             <script>\
+             var handle = document.getElementById('handle');\
+             var startX = 0, moved = 0, events = [];\
+             handle.addEventListener('pointerdown', function(e){\
+                 handle.setPointerCapture(e.pointerId);\
+                 startX = e.clientX;\
+                 events.push('down');\
+             });\
+             handle.addEventListener('pointermove', function(e){\
+                 if (!handle.hasPointerCapture(e.pointerId)) return;\
+                 moved = Math.max(0, Math.min(276, e.clientX - startX));\
+                 handle.style.transform = 'translateX(' + moved + 'px)';\
+                 events.push('move:' + Math.round(moved));\
+             });\
+             handle.addEventListener('lostpointercapture', function(){ events.push('lost'); });\
+             handle.addEventListener('pointerup', function(e){\
+                 handle.releasePointerCapture(e.pointerId);\
+                 events.push('up:' + Math.round(moved));\
+             });\
+             window.__events = events;\
+             </script>\
+             </body></html>",
+        )]);
+
+        let mut mgr = SessionManager::new();
+        let sid = mgr.create(
+            Some(&format!("http://127.0.0.1:{port}/slider")),
+            false,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Drag {
+                from_x: 42.0,
+                from_y: 40.0,
+                to_x: 292.0,
+                to_y: 40.0,
+                steps: 10,
+                delay_ms: 0,
+                humanize: false,
+                reply,
+            })
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out).expect("drag JSON");
+
+        let out = mgr
+            .send(&sid, |reply| SessionCommand::Eval {
+                script: "JSON.stringify({e: window.__events, t: document.getElementById('handle').style.transform})".to_string(),
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .unwrap();
+        let state: Value = serde_json::from_str(out.as_str().unwrap()).expect("slider state");
+        let events = state["e"].as_array().expect("events");
+        assert!(
+            events.iter().any(|e| e == "down"),
+            "press registered (capture call did not throw), got {events:?}"
+        );
+        // The handle translated away from the pointer's start, so only
+        // capture-retargeted moves reach it — hit-testing alone would have
+        // lost it after the first few steps.
+        let moves = events
+            .iter()
+            .filter(|e| e.as_str().unwrap_or("").starts_with("move:"))
+            .count();
+        assert!(moves >= 9, "handle saw the travel, got {events:?}");
+        assert!(
+            events.iter().any(|e| e.as_str().unwrap_or("").starts_with("up:2")),
+            "released at the far end, got {events:?}"
+        );
+        assert!(
+            events.iter().any(|e| e == "lost"),
+            "capture released (lostpointercapture), got {events:?}"
+        );
+        assert!(
+            state["t"].as_str().unwrap_or("").contains("250"),
+            "handle traveled the full drag distance, got {}",
+            state["t"]
+        );
+
+        assert!(mgr.close_and_wait(&sid).await);
+    }
+
     /// #95: a coordinate click must reach the button inside a CLOSED shadow
     /// root — the xhs publish-button shape. Chrome's hit test pierces closed
     /// roots (elementFromPoint returns the composed target, which is why a

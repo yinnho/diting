@@ -819,7 +819,8 @@ pub(crate) fn mouse_move_js(x: f64, y: f64, buttons: u64, modifiers: u64) -> Str
     let (alt_key, ctrl_key, meta_key, shift_key) = modifier_flags(modifiers);
     format!(
         "(function() {{\
-            var hit = globalThis.__diting_hitTarget ? globalThis.__diting_hitTarget({x},{y}) : null;\
+            var cap = globalThis.__diting_pointerCaptureFor ? globalThis.__diting_pointerCaptureFor(1) : null;\
+            var hit = cap ? {{el:cap, x:{x}, y:{y}}} : (globalThis.__diting_hitTarget ? globalThis.__diting_hitTarget({x},{y}) : null);\
             var target = (hit && hit.el) || document.body;\
             if (!target) return;\
             var ex = hit ? hit.x : {x}, ey = hit ? hit.y : {y};\
@@ -847,7 +848,8 @@ pub(crate) fn mouse_up_js(
     let (alt_key, ctrl_key, meta_key, shift_key) = modifier_flags(modifiers);
     format!(
         "(function() {{\
-            var hit = globalThis.__diting_hitTarget ? globalThis.__diting_hitTarget({x},{y}) : null;\
+            var cap = globalThis.__diting_pointerCaptureFor ? globalThis.__diting_pointerCaptureFor(1) : null;\
+            var hit = cap ? {{el:cap, x:{x}, y:{y}}} : (globalThis.__diting_hitTarget ? globalThis.__diting_hitTarget({x},{y}) : null);\
             var target = (hit && hit.el) || globalThis.__diting_click_target || document.activeElement || document.body;\
             if (!target) return;\
             var ex = hit ? hit.x : {x}, ey = hit ? hit.y : {y};\
@@ -875,6 +877,7 @@ pub(crate) fn mouse_up_js(
                     clickTarget.dispatchEvent(dbl);\
                 }}\
             }});\
+            if (cap && globalThis.__diting_pointerCaptureRelease) globalThis.__diting_pointerCaptureRelease(1);\
         }})()",
         x = x, y = y, button_code = button_code,
         click_count = click_count, alt_key = alt_key, ctrl_key = ctrl_key,
