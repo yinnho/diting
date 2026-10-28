@@ -18,13 +18,13 @@ jobs:
         id: ver
         run: echo "version=$(git describe --tags --abbrev=0 | sed 's/^v//')" >> "$GITHUB_OUTPUT"
       - name: Log in to GHCR
-        uses: docker/login-action@5e57cd1186654e7a3d7d51e87a2ec557a50f3892
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
-        uses: docker/build-push-action@1a16263e66d0aea49f95cb4f393c5e29d3c76edd # v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
