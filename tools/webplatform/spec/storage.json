@@ -1,0 +1,610 @@
+{
+ "includes": [],
+ "names": {
+  "Storage": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface Storage {\n  readonly attribute unsigned long length;\n  DOMString? key(unsigned long index);\n  getter DOMString? getItem(DOMString key);\n  setter undefined setItem(DOMString key, DOMString value);\n  deleter undefined removeItem(DOMString key);\n  undefined clear();\n};",
+   "href": "https://html.spec.whatwg.org/multipage/webstorage.html#storage-2",
+   "inheritance": null,
+   "members": [
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storage-length",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "length",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "unsigned long",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "index",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storage-key",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "key",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "key",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "getItem",
+     "special": "getter",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "key",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "value",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "setItem",
+     "special": "setter",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "key",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "removeItem",
+     "special": "deleter",
+     "type": "operation"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storage-clear",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "clear",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "Storage",
+   "partial": false,
+   "type": "interface"
+  },
+  "StorageEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface StorageEvent : Event {\n  constructor(DOMString type, optional StorageEventInit eventInitDict = {});\n\n  readonly attribute DOMString? key;\n  readonly attribute DOMString? oldValue;\n  readonly attribute DOMString? newValue;\n  readonly attribute USVString url;\n  readonly attribute Storage? storageArea;\n\n  undefined initStorageEvent(DOMString type, optional boolean bubbles = false, optional boolean cancelable = false, optional DOMString? key = null, optional DOMString? oldValue = null, optional DOMString? newValue = null, optional USVString url = \"\", optional Storage? storageArea = null);\n};",
+   "href": "https://html.spec.whatwg.org/multipage/webstorage.html#storageevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "StorageEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "eventInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storageevent-key",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "key",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storageevent-oldvalue",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "oldValue",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storageevent-newvalue",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "newValue",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storageevent-url",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "url",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storageevent-storagearea",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "Storage",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "storageArea",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "boolean",
+        "value": false
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "boolean",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "bubbles",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "boolean",
+        "value": false
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "boolean",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "cancelable",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "key",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "oldValue",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "newValue",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "string",
+        "value": ""
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "USVString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "url",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "Storage",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "storageArea",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/webstorage.html#dom-storageevent-initstorageevent",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "initStorageEvent",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "StorageEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "StorageEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary StorageEventInit : EventInit {\n  DOMString? key = null;\n  DOMString? oldValue = null;\n  DOMString? newValue = null;\n  USVString url = \"\";\n  Storage? storageArea = null;\n};",
+   "href": "https://html.spec.whatwg.org/multipage/webstorage.html#storageeventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "null"
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "key",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "null"
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "oldValue",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "null"
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "newValue",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "string",
+      "value": ""
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "url",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "null"
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "Storage",
+      "nullable": true,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "storageArea",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "StorageEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "Storage": "https://html.spec.whatwg.org/multipage/",
+  "StorageEvent": "https://html.spec.whatwg.org/multipage/",
+  "StorageEventInit": "https://html.spec.whatwg.org/multipage/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

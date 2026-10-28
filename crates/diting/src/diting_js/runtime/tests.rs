@@ -25918,3 +25918,71 @@ fn hit_test_cold_path_and_webidl_double_args() {
     );
     assert_eq!(v["ok"], "no-throw", "numeric strings coerce like Chrome");
 }
+
+/// JS-PLATFORM-ARCH M2: Storage/StorageEvent are IDL-generated modules
+/// (platform/gen/storage.gen.js + platform/storage.impl.js). This runs the
+/// SAME probe that produced chrome/chrome-storage-truth.json in real Chrome
+/// and demands the engine's answer match, probe by probe.
+///
+/// Allowed differences, each with its reason:
+///  - keys.order / gopn / forin: Chrome returns its internal hash order for
+///    stored items (the spec leaves it implementation-defined); compared as
+///    sets, and forin additionally pins the PROTOTYPE member order.
+///  - ev.ownkeys / ev.areaBadType: the legacy Event base class keeps its state
+///    as own instance props, Chrome as an internal slot - an Event-family
+///    gap that is out of this slice (tracked in SURFACE.md).
+#[test]
+fn storage_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/storage-probe.js");
+    let engine: serde_json::Value = serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/chrome-storage-truth.json"
+    ))
+    .unwrap();
+    let truth = &truth["result"];
+    let as_set = |v: &serde_json::Value| -> std::collections::BTreeSet<String> {
+        v.as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect()
+    };
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        let got = &engine[k];
+        match k.as_str() {
+            "ev.ownkeys" | "ev.areaBadType" => continue,
+            "keys.order" | "gopn" => {
+                if as_set(got) != as_set(want) {
+                    bad.push(format!("{k}: {got} != {want}"));
+                }
+            }
+            "forin" => {
+                // items: set-equal; prototype members: exact Chrome order
+                let split = |v: &serde_json::Value| {
+                    let all: Vec<String> = v.as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
+                    let members = ["length", "clear", "getItem", "key", "removeItem", "setItem"];
+                    let items: std::collections::BTreeSet<String> = all.iter().filter(|x| !members.contains(&x.as_str())).cloned().collect();
+                    let proto: Vec<String> = all.iter().filter(|x| members.contains(&x.as_str())).cloned().collect();
+                    (items, proto)
+                };
+                if split(got) != split(want) {
+                    bad.push(format!("{k}: {got} != {want}"));
+                }
+            }
+            _ => {
+                if got != want {
+                    bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// The generated modules register their expected shape (constructor arity,
+/// @@toStringTag, per-member descriptor flags, accessor/method form, native
+/// look); __platform.verify() checks the live objects against it.
+#[test]
+fn platform_generated_descriptors_conform() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate("JSON.stringify(__platform.verify())").unwrap();
+    assert_eq!(out.as_str().unwrap(), "[]", "descriptor violations: {out}");
+}

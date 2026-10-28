@@ -15,6 +15,11 @@ regenerate `global_surface.js` / `canvas_face.js`.) Design context:
 | `gen/gen_canvas_face.py` | → `crates/diting/js/canvas_face.js` |
 | `gen/gen_gl_tables.py` | HISTORICAL one-shot (spliced GL tables into bootstrap.js once); not run by the gate |
 | `capture/chrome154_face_capture.py` | re-shoots GL / blank-canvas / audio / UA-data truth from a portable Chrome on CDP 9223 |
+| `extract_spec.py` | pulls pinned-webref IDL slices into `spec/*.json` |
+| `gen/gen_iface.py` | IDL slice -> `crates/diting/js/platform/gen/*.gen.js` (module skeleton + descriptor expectations) |
+| `bundle.py` | `platform/core.js` + modules -> `crates/diting/js/platform_bundle.js` (topological order, layer rules) |
+| `analyze/` | static dependency analysis + module-contract check + ratchet baseline |
+| `chrome/storage-probe.js` + `capture/chrome_storage_capture.py` | behavior probe run in real Chrome -> `chrome-storage-truth.json`; the SAME probe runs in the engine (test `storage_matches_chrome_truth`) |
 | `check_fresh.sh` | the gate: truth unchanged vs manifest, generated files equal generator output |
 
 ## Commands

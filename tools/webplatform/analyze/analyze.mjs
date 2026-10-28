@@ -166,6 +166,88 @@ function collectProtoMutations(ast) {
   return out;
 }
 
+// ---- module contract check (JS-PLATFORM-ARCH sec 3.3/3.5) --------------------
+// Every file under crates/diting/js/platform/ (except core.js) is a module whose
+// body runs as function (exports, require, P). Verified against its `//!`
+// manifest: (1) every FREE identifier is an ES builtin or declared as
+// `legacy:Name`; a name used while the body runs must be in requires-load;
+// (2) require('x') only for declared module deps; (3) no direct writes to
+// globalThis/window/self (use P.expose / P.exposeValue); (4) P.expose* names
+// are listed in `exposes`.
+import vm from 'node:vm';
+const ES_BUILTINS = new Set(vm.runInNewContext('Object.getOwnPropertyNames(globalThis)'));
+
+function checkModules() {
+  const dir = path.join(JS_DIR, 'platform');
+  const out = [];
+  const stack = [dir];
+  const files = [];
+  while (stack.length) {
+    const d = stack.pop();
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) stack.push(f); else if (e.name.endsWith('.js') && e.name !== 'core.js') files.push(f);
+    }
+  }
+  const mods = [];
+  for (const f of files.sort()) {
+    const src = fs.readFileSync(f, 'utf8');
+    const man = {};
+    const lines = src.split('\n');
+    let i = 0;
+    for (; i < lines.length && lines[i].startsWith('//!'); i++) {
+      const m = /^\/\/!\s*([a-z-]+):\s*(.*)$/.exec(lines[i]);
+      if (m) man[m[1]] = m[2].trim();
+    }
+    const list = (k) => (man[k] || '').split(',').map((x) => x.trim()).filter((x) => x && x !== '-');
+    const rel = path.relative(ROOT, f);
+    const M = { file: rel, name: man.module, load: list('requires-load'), call: list('requires-call'), exposes: list('exposes') };
+    const body = lines.slice(i).join('\n');
+    const wrapped = '(function (exports, require, P) {\n"use strict";\n' + body + '\n})();';
+    const ast = acorn.parse(wrapped, { ecmaVersion: 'latest', sourceType: 'script', locations: true, ranges: true });
+    const parents = parentMap(ast);
+    const sm = eslintScope.analyze(ast, { ecmaVersion: 2024, sourceType: 'script', ignoreEval: true });
+    const lineOf = (n) => n.loc.start.line - 2 + i; // map back to the file
+    const declLegacy = new Set([...M.load, ...M.call].filter((x) => x.startsWith('legacy:')).map((x) => x.slice(7)));
+    const declLoad = new Set(M.load.filter((x) => x.startsWith('legacy:')).map((x) => x.slice(7)));
+    for (const r of sm.globalScope.through) {
+      const n = r.identifier.name;
+      if (ES_BUILTINS.has(n)) continue;
+      if (!declLegacy.has(n)) { out.push({ module: M.name, file: rel, line: lineOf(r.identifier), kind: 'undeclared-free-variable', name: n }); continue; }
+      if (referenceIsLoadTime(r, parents) && !declLoad.has(n)) {
+        out.push({ module: M.name, file: rel, line: lineOf(r.identifier), kind: 'load-time-use-declared-call-only', name: n });
+      }
+    }
+    // require('x') / P.expose*('X', ...) literals, global writes
+    const depMods = new Set([...M.load, ...M.call].filter((x) => !x.startsWith('legacy:')));
+    (function walk(node) {
+      if (!node || typeof node.type !== 'string') return;
+      if (node.type === 'CallExpression') {
+        const c = node.callee;
+        if (c.type === 'Identifier' && c.name === 'require' && node.arguments[0] && node.arguments[0].type === 'Literal'
+            && !depMods.has(String(node.arguments[0].value))) {
+          out.push({ module: M.name, file: rel, line: lineOf(node), kind: 'require-not-declared', name: String(node.arguments[0].value) });
+        }
+        if (c.type === 'MemberExpression' && c.object.type === 'Identifier' && c.object.name === 'P'
+            && ['expose', 'exposeValue'].includes(c.property.name) && node.arguments[0] && node.arguments[0].type === 'Literal'
+            && !M.exposes.includes(String(node.arguments[0].value))) {
+          out.push({ module: M.name, file: rel, line: lineOf(node), kind: 'expose-not-listed', name: String(node.arguments[0].value) });
+        }
+      }
+      for (const k of Object.keys(node)) {
+        if (k === 'loc') continue;
+        const v = node[k];
+        if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v);
+      }
+    })(ast);
+    for (const w of collectGlobalWrites(ast, parents)) {
+      out.push({ module: M.name, file: rel, line: w.line - 2 + i, kind: 'direct-global-write', name: w.name });
+    }
+    mods.push(M);
+  }
+  return { modules: mods.map((m) => m.name), moduleInfo: mods, violations: out };
+}
+
 // ---- main analysis ---------------------------------------------------------
 const order = loadOrder();
 const files = {};
@@ -206,6 +288,8 @@ for (const f of order) {
   files[f] = { lines: src.split('\n').length, decl, implicit, writes, refs, tdz, protoMut: collectProtoMutations(ast) };
 }
 
+const modCheck0 = (() => { const r = checkModules(); return { modules: r.moduleInfo, violations: r.violations, names: r.modules }; })();
+const fileIdx_ = Object.fromEntries(order.map((f, i) => [f, i]));
 // provider index: name -> [{file, idx, how, load}]
 const providers = new Map();
 const add = (name, file, idx, how, extra = {}) => {
@@ -218,6 +302,12 @@ order.forEach((f, idx) => {
   F.implicit.forEach((d) => add(d.name, f, idx, 'implicit-global', { line: d.line }));
   F.writes.filter((w) => w.load).forEach((w) => add(w.name, f, idx, 'global-prop', { line: w.line }));
 });
+// Platform modules install their `exposes` names onto globalThis (via P.expose*):
+// they are providers located at the bundle script's position in the load order.
+{
+  const bi = fileIdx_[ 'platform_bundle.js' ];
+  if (bi !== undefined) for (const m of modCheck0.modules) for (const n of m.exposes) add(n, 'platform_bundle.js', bi, 'module-expose');
+}
 // Names assigned onto globalThis only inside functions (call time): late providers
 const lateWriters = new Map();
 order.forEach((f, idx) => files[f].writes.filter((w) => !w.load).forEach((w) => {
@@ -237,7 +327,8 @@ for (const f of order) {
   }
   for (const [k, c] of by) { const [t, pf] = k.split('|'); crossProto.push({ file: f, target: t, provider: pf, count: c }); }
 }
-const report = { crossProto, order, files: {}, totals: {}, violations: [], external: {}, hubs: {}, leaks: [] };
+const modCheck = { modules: modCheck0.names, violations: modCheck0.violations };
+const report = { modules: modCheck.modules, moduleViolations: modCheck.violations, crossProto, order, files: {}, totals: {}, violations: [], external: {}, hubs: {}, leaks: [] };
 const fileIdx = Object.fromEntries(order.map((f, i) => [f, i]));
 const hubCount = new Map();
 let loadEdges = 0, callEdges = 0;
@@ -305,6 +396,8 @@ report.totals = {
   externalNames: Object.keys(report.external).length,
   crossFileProtoMutations: crossProto.reduce((a, c) => a + c.count, 0),
   crossFileProtoMutationTargets: crossProto.length,
+  platformModules: modCheck.modules.length,
+  moduleContractViolations: modCheck.violations.length,
 };
 
 // ---- outputs ---------------------------------------------------------------
@@ -319,7 +412,7 @@ function markdown() {
   L.push(`| 顶层绑定数 | ${T.topLevelBindings} |`, `| 跨文件·加载期依赖（文件×名字） | ${T.crossFileLoadTimeNames} |`);
   L.push(`| 跨文件·调用期依赖（文件×名字） | ${T.crossFileCallTimeNames} |`, `| 无任何跨文件加载期依赖的文件 | ${T.filesWithNoCrossFileLoadReq} / ${T.files} |`);
   L.push(`| **加载序违规**（加载期引用较晚文件的绑定） | ${T.forwardLoadRefs} |`, `| **同文件 TDZ** | ${T.sameFileTdz} |`);
-  L.push(`| hide list 泄漏候选（bootstrap 之后的 \`_\`/diting 函数声明或 var） | ${T.hideListLeakCandidates} |`, `| 无提供者的外部名 | ${T.externalNames} |`, `| **跨文件原型改写**（点数 / 文件×目标对） | ${T.crossFileProtoMutations} / ${T.crossFileProtoMutationTargets} |`, '');
+  L.push(`| hide list 泄漏候选（bootstrap 之后的 \`_\`/diting 函数声明或 var） | ${T.hideListLeakCandidates} |`, `| 无提供者的外部名 | ${T.externalNames} |`, `| **跨文件原型改写**（点数 / 文件×目标对） | ${T.crossFileProtoMutations} / ${T.crossFileProtoMutationTargets} |`, `| 平台模块数 / **模块契约违规** | ${T.platformModules} / ${T.moduleContractViolations} |`, '');
   L.push('## 枢纽绑定（被最多引用点依赖）', '', '| 名字 | 引用点数 |', '|---|---|');
   for (const [n, c] of Object.entries(report.hubs)) L.push(`| \`${n}\` | ${c} |`);
   L.push('', '## 每文件', '', '| 文件 | 行 | 顶层绑定 | 全局属性写 | 加载期依赖（来源文件:名字数） | 调用期依赖文件数 |', '|---|---|---|---|---|---|');
@@ -365,7 +458,9 @@ if (arg('--check')) {
   for (const k of ['forwardLoadRefs', 'sameFileTdz', 'hideListLeakCandidates', 'crossFileLoadTimeNames', 'crossFileProtoMutations']) {
     if (report.totals[k] > base[k]) bad.push(`${k}: ${report.totals[k]} > baseline ${base[k]}`);
   }
-  if (bad.length) { console.error('FAIL dependency ratchet:\n  ' + bad.join('\n  ')); report.violations.slice(0, 20).forEach((v) => console.error('  ', JSON.stringify(v))); process.exit(1); }
+  if (report.moduleViolations.length) bad.push('module contract violations: ' + report.moduleViolations.length);
+  if (bad.length) { report.moduleViolations.forEach((v) => console.error('  ', JSON.stringify(v)));
+    console.error('FAIL dependency ratchet:\n  ' + bad.join('\n  ')); report.violations.slice(0, 20).forEach((v) => console.error('  ', JSON.stringify(v))); process.exit(1); }
   console.log('dependency ratchet OK', JSON.stringify(report.totals));
 } else if (!arg('--json') && !arg('--md') && !arg('--write-baseline')) {
   console.log(JSON.stringify(report.totals, null, 1));

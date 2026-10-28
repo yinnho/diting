@@ -1,0 +1,406 @@
+{
+ "_meta": {
+  "chrome": "Google Chrome 156.0.8078.48",
+  "date": "2026-10-29",
+  "origin": "http://127.0.0.1 (ephemeral)",
+  "probe": "chrome/storage-probe.js"
+ },
+ "result": {
+  "Storage()": "THROW TypeError: Illegal constructor",
+  "arity.getItem": "THROW TypeError: Failed to execute 'getItem' on 'Storage': 1 argument required, but only 0 present.",
+  "arity.key": "THROW TypeError: Failed to execute 'key' on 'Storage': 1 argument required, but only 0 present.",
+  "arity.removeItem": "THROW TypeError: Failed to execute 'removeItem' on 'Storage': 1 argument required, but only 0 present.",
+  "arity.setItem": "THROW TypeError: Failed to execute 'setItem' on 'Storage': 2 arguments required, but only 1 present.",
+  "assign.length": [
+   "number",
+   null,
+   [
+    "setItem"
+   ]
+  ],
+  "assign.method": [
+   "string",
+   null,
+   0,
+   [
+    "setItem"
+   ]
+  ],
+  "assign.new": [
+   "1",
+   "string",
+   "1",
+   1
+  ],
+  "conv.setItem": [
+   "obj",
+   1
+  ],
+  "conv.undef": [
+   "null",
+   2
+  ],
+  "define.accessor": true,
+  "define.data": [
+   "x",
+   {
+    "c": true,
+    "e": true,
+    "t": "string",
+    "w": true
+   }
+  ],
+  "define.method": [
+   true,
+   "string",
+   null
+  ],
+  "delete": [
+   true,
+   null,
+   2,
+   true,
+   true,
+   "function"
+  ],
+  "ev.areaBadType": 1,
+  "ev.arity": "THROW TypeError: Failed to construct 'StorageEvent': 1 argument required, but only 0 present.",
+  "ev.badarea": "THROW TypeError: Failed to construct 'StorageEvent': Failed to read the 'storageArea' property from 'StorageEventInit': Failed to convert value to 'Storage'.",
+  "ev.badinit": "THROW TypeError: Failed to construct 'StorageEvent': The provided value is not of type 'StorageEventInit'.",
+  "ev.call": "THROW TypeError: Failed to construct 'StorageEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+  "ev.conv": [
+   "5",
+   null,
+   null,
+   "7"
+  ],
+  "ev.illegal": "THROW TypeError: Illegal invocation",
+  "ev.init": [
+   "k",
+   "o",
+   "n",
+   "http://x/",
+   true,
+   true
+  ],
+  "ev.initArity": "THROW TypeError: Failed to execute 'initStorageEvent' on 'StorageEvent': 1 argument required, but only 0 present.",
+  "ev.initStorageEvent": [
+   "storage",
+   true,
+   false,
+   "k",
+   "o",
+   "n",
+   "u",
+   true,
+   1
+  ],
+  "ev.new": [
+   "storage",
+   null,
+   null,
+   null,
+   "",
+   null,
+   false,
+   false
+  ],
+  "ev.nullinit": [
+   null,
+   ""
+  ],
+  "ev.ownkeys": [
+   "isTrusted"
+  ],
+  "ev.readonly": "k",
+  "ev.tag": [
+   "[object StorageEvent]",
+   true
+  ],
+  "forin": [
+   "c",
+   "a",
+   "b",
+   "length",
+   "clear",
+   "getItem",
+   "key",
+   "removeItem",
+   "setItem"
+  ],
+  "freeze": [
+   true,
+   false
+  ],
+  "gopd.item": {
+   "c": true,
+   "e": true,
+   "t": "string",
+   "w": true
+  },
+  "gopd.method": null,
+  "gopn": [
+   "c",
+   "a",
+   "b"
+  ],
+  "hasOwn": [
+   true,
+   false,
+   false
+  ],
+  "iface.Storage": {
+   "ctor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "Storage",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "len": 0,
+   "name": "Storage",
+   "own": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "proto": {
+    "c": false,
+    "e": false,
+    "t": "object",
+    "w": false
+   },
+   "tag": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "w": false
+   }
+  },
+  "iface.StorageEvent": {
+   "ctorInherits": true,
+   "inherits": true,
+   "len": 1,
+   "name": "StorageEvent",
+   "own": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "proto": {
+    "c": false,
+    "e": false,
+    "t": "object",
+    "w": false
+   },
+   "tag": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "w": false
+   }
+  },
+  "illegal.clear": "THROW TypeError: Illegal invocation",
+  "illegal.getItem": "THROW TypeError: Illegal invocation",
+  "illegal.length": "THROW TypeError: Illegal invocation",
+  "in": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "key.conv": [
+   "1",
+   "undefined",
+   null,
+   null,
+   "1",
+   "1"
+  ],
+  "keys.order": [
+   "c",
+   "a",
+   "b"
+  ],
+  "new Storage()": "THROW TypeError: Failed to construct 'Storage': Illegal constructor",
+  "order.Storage": [
+   "length",
+   "clear",
+   "getItem",
+   "key",
+   "removeItem",
+   "setItem",
+   "constructor"
+  ],
+  "order.StorageEvent": [
+   "key",
+   "oldValue",
+   "newValue",
+   "url",
+   "storageArea",
+   "initStorageEvent",
+   "constructor"
+  ],
+  "proto.Storage": {
+   "clear": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "clear",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "Storage",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "getItem": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "getItem",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "key": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "key",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "length": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get length",
+     "nat": true
+    },
+    "s": null
+   },
+   "removeItem": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "removeItem",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "setItem": {
+    "c": true,
+    "e": true,
+    "len": 2,
+    "name": "setItem",
+    "nat": true,
+    "t": "function",
+    "w": true
+   }
+  },
+  "proto.StorageEvent": {
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 1,
+    "name": "StorageEvent",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "initStorageEvent": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "initStorageEvent",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "key": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get key",
+     "nat": true
+    },
+    "s": null
+   },
+   "newValue": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get newValue",
+     "nat": true
+    },
+    "s": null
+   },
+   "oldValue": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get oldValue",
+     "nat": true
+    },
+    "s": null
+   },
+   "storageArea": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get storageArea",
+     "nat": true
+    },
+    "s": null
+   },
+   "url": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get url",
+     "nat": true
+    },
+    "s": null
+   }
+  },
+  "proto.shadow": [
+   "function",
+   "T",
+   [
+    "toString"
+   ]
+  ],
+  "same.obj": [
+   true,
+   true
+  ],
+  "sym.setItem": "THROW TypeError: Failed to execute 'setItem' on 'Storage': Cannot convert a Symbol value to a string",
+  "symbol.prop": [
+   5,
+   0,
+   1
+  ],
+  "tag": [
+   "[object Storage]",
+   "[object Storage]",
+   true,
+   true
+  ]
+ }
+}

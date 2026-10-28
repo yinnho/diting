@@ -2062,7 +2062,7 @@ P StereoPannerNode :: constructor
 P Storage :: clear,constructor,getItem,key,length,removeItem,setItem
 P StorageBucket :: constructor
 P StorageBucketManager :: constructor
-P StorageEvent :: constructor,initStorageEvent
+P StorageEvent :: constructor,initStorageEvent,key,newValue,oldValue,storageArea,url
 P StorageManager :: constructor
 S String :: fromCharCode,fromCodePoint,raw
 P String :: anchor,at,big,blink,bold,charAt,charCodeAt,codePointAt,concat,constructor,endsWith,fixed,fontcolor,fontsize,includes,indexOf,isWellFormed,italics,lastIndexOf,length,link,localeCompare,match,matchAll,normalize,padEnd,padStart,repeat,replace,replaceAll,search,slice,small,split,startsWith,strike,sub,substr,substring,sup,toLocaleLowerCase,toLocaleUpperCase,toLowerCase,toString,toUpperCase,toWellFormed,trim,trimEnd,trimLeft,trimRight,trimStart,valueOf

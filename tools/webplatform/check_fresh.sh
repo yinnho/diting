@@ -12,6 +12,8 @@ sha() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$@"; else sha2
 if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_globals_surface.py
   python3 $WP/gen/gen_canvas_face.py
+  python3 $WP/gen/gen_iface.py $WP/spec/storage.json crates/diting/js/platform/gen/storage.gen.js gen/storage
+  python3 $WP/bundle.py
   (cd $WP/chrome && sha *.json > MANIFEST.sha256)
   echo "updated"; exit 0
 fi
@@ -28,5 +30,12 @@ for f in global_surface.js canvas_face.js; do
     echo "FAIL: crates/diting/js/$f is stale vs its generator" >&2; fail=1
   fi
 done
-[ "$fail" = 0 ] && echo "webplatform generated files fresh (2 artifacts, $(ls $WP/chrome/*.json | wc -l | tr -d ' ') truth files)"
+# 3. IDL-generated module skeletons, then the module bundle built from them
+python3 $WP/gen/gen_iface.py $WP/spec/storage.json "$tmp/storage.gen.js" gen/storage >/dev/null
+diff -q "$tmp/storage.gen.js" crates/diting/js/platform/gen/storage.gen.js >/dev/null \
+  || { echo "FAIL: crates/diting/js/platform/gen/storage.gen.js is stale vs gen_iface.py" >&2; fail=1; }
+python3 $WP/bundle.py "$tmp/platform_bundle.js" >/dev/null
+diff -q "$tmp/platform_bundle.js" crates/diting/js/platform_bundle.js >/dev/null \
+  || { echo "FAIL: crates/diting/js/platform_bundle.js is stale vs bundle.py" >&2; fail=1; }
+[ "$fail" = 0 ] && echo "webplatform generated files fresh (4 artifacts, $(ls $WP/chrome/*.json | wc -l | tr -d ' ') truth files)"
 exit $fail
