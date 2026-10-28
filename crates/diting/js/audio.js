@@ -84,7 +84,7 @@ _markNativeProto(AudioBuffer.prototype);
 // after the definitions exist, otherwise snapshot creation crashes on
 // `undefined.prototype`.
 //
-// (300015 P4) Chrome 155 audio surface (tmp-agent/chrome-audio-truth.json):
+// (300015 P4) Chrome 155 audio surface (tools/webplatform/chrome/chrome-audio-truth.json):
 // every attribute is a prototype accessor in Chrome's own order, instances
 // carry ZERO own properties (state/sampleRate/destination live in a WeakMap
 // bag), the event methods are INHERITED from EventTarget (chain:

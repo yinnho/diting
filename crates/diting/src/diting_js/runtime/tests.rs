@@ -1468,7 +1468,7 @@
     /// plumbing and legacy globals are gone, and the generated surface
     /// (global_surface.js) lands interface/method/object faces with
     /// Chrome's own descriptor shapes. Truth captured via CDP —
-    /// tmp-agent/fp-winkeys-diff.json, fp-chrome-shapes.json.
+    /// tools/webplatform/chrome/fp-winkeys-diff.json, fp-chrome-shapes.json.
     #[test]
     fn window_own_prop_face_p2() {
         let mut rt = setup_runtime("<html><body>x</body></html>");
@@ -1536,7 +1536,7 @@
     /// getter + [[Replaceable]] setter that really stores (name/dpr/self/...,
     /// name/status coerce via ToString), getter-only NON-configurable
     /// (document/top/window), and webkitRTCPeerConnection as a
-    /// non-enumerable writable value. Truth: tmp-agent/chrome-windesc-truth-1015.json.
+    /// non-enumerable writable value. Truth: tools/webplatform/chrome/chrome-windesc-truth-1015.json.
     #[test]
     fn window_descriptor_face_p5() {
         let mut rt = setup_runtime("<html><body>x</body></html>");
@@ -1782,7 +1782,7 @@
     /// ① a DRAWN canvas through toDataURL('image/jpeg') must return real
     /// baseline-JPEG bytes (FF D8 … FF D9) under a jpeg prefix — the engine
     /// used to return PNG bytes there, a one-line detect; ② the audio class
-    /// surface must match Chrome 155 (tmp-agent/chrome-audio-truth.json):
+    /// surface must match Chrome 155 (tools/webplatform/chrome/chrome-audio-truth.json):
     /// prototype member lists in Chrome's order with constructor LAST,
     /// accessor kind per member, ZERO own props on instances, born
     /// 'suspended', resume/suspend on AudioContext + OfflineAudioContext but

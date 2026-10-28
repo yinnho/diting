@@ -1,0 +1,7 @@
+{
+  "_src": "真 Chrome 155.0.8059.41 headless=new CDP 采集（2026-10-15 夜，端口9337）",
+  "_canvas": "g1 用 800x600 canvas、g2 用 1024x768 canvas 建 context，宽高列反映各自 canvas",
+  "_note": "drawingBufferFormat=32856=0x8058(GL_RGBA8)。bootstrap.js 已手改对；tmp-agent/gen-gl-tables.py 里仍是错值 0x8018，再跑生成器会把错值灌回去",
+  "g1": [800, 600, "srgb", "srgb", 32856],
+  "g2": [1024, 768, "srgb", "srgb", 32856]
+}

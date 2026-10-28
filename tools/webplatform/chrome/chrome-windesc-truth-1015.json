@@ -1,0 +1,196 @@
+{
+ "desc": {
+  "caches": null,
+  "crossOriginIsolated": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "crypto": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "customElements": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "devicePixelRatio": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "document": {
+   "e": true,
+   "c": false,
+   "g": true,
+   "s": false
+  },
+  "frameElement": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "frames": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "history": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "indexedDB": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "localStorage": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "length": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "name": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "navigator": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "onerror": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "opener": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "parent": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "performance": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "screen": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "screenLeft": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "screenTop": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "screenX": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "screenY": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "self": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "sessionStorage": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "speechSynthesis": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": false
+  },
+  "status": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "top": {
+   "e": true,
+   "c": false,
+   "g": true,
+   "s": false
+  },
+  "visualViewport": {
+   "e": true,
+   "c": true,
+   "g": true,
+   "s": true
+  },
+  "window": {
+   "e": true,
+   "c": false,
+   "g": true,
+   "s": false
+  },
+  "webkitRTCPeerConnection": {
+   "e": false,
+   "w": true,
+   "c": true,
+   "g": false,
+   "s": false
+  }
+ },
+ "assign": {
+  "name": "stored:before",
+  "navigator": "object",
+  "opener": "2",
+  "dpr": 3,
+  "status": "st",
+  "crypto": "object",
+  "topAssign": "ok,val=object",
+  "docAssign": "ok,val=object"
+ }
+}

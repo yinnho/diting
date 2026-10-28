@@ -31,6 +31,18 @@ jobs:
         # silently dropping the engine crate's unit tests.
         run: cargo test --workspace --features screenshot
 
+  webplatform-fresh:
+    # JS-PLATFORM-ARCH M0: generated JS must equal what the checked-in
+    # generators emit from the checked-in Chrome truth (and the truth files
+    # must not drift silently). Seconds, no Rust toolchain.
+    name: webplatform generated files fresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Freshness gate
+        run: tools/webplatform/check_fresh.sh
+
   check-stealth:
     # wreq lives behind `stealth` and is exact-pinned (`=`) in TWO target
     # sections — the only combination that compiles the BoringSSL/btls path
