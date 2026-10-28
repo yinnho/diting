@@ -14,6 +14,13 @@
 有意改表面：`UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot` 重生夹具并在下表登一行。
 注：`__` 前缀内部名已被 `__diting_hide_list` 从页面可见面隐去，不进快照。
 
+## WebIDL 差集（全量表）
+
+`SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
+2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
+成员级已核 196 接口、163 个有缺口、合计 2631 成员——补齐路线图的输入。已确认的真缺口样例：
+`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor、`Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
+
 ## 文件清单
 
 | 文件 | 职责 |

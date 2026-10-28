@@ -25642,3 +25642,70 @@ fn js_surface_snapshot_matches_fixture() {
         );
     }
 }
+
+/// Step-2 tooling (docs/JS-SURFACE-PLAN): probes which standard members
+/// (webref IDL, pre-flattened by the caller into `SURFACE_STD_MEMBERS`
+/// json: {iface:[member..]}) an INSTANCE of each interface lacks, via `in`.
+/// Instance probing matters: event/request shims keep members on the object,
+/// not the prototype. Writes {iface: {"probe": how, "missing":[..]}} to
+/// `SURFACE_STD_OUT`. Ignored: a report generator, not a gate.
+#[test]
+#[ignore]
+fn js_surface_webidl_member_probe() {
+    let src = std::env::var("SURFACE_STD_MEMBERS").expect("SURFACE_STD_MEMBERS");
+    let outp = std::env::var("SURFACE_STD_OUT").expect("SURFACE_STD_OUT");
+    let std_json = std::fs::read_to_string(src).unwrap();
+    let mut rt = setup_runtime("<html><body><div id='d'></div><input id='i'><img id='im'><form id='f'></form><canvas id='c'></canvas><video id='v'></video><a id='a'></a><select id='s'></select><textarea id='t'></textarea><button id='b'></button><iframe id='fr'></iframe><script id='sc'></script><link id='lk'><template id='tp'></template></body></html>");
+    let code = format!(
+        r#"(function(){{
+        var STD = {std_json};
+        var tags = {{HTMLInputElement:'input',HTMLImageElement:'img',HTMLFormElement:'form',HTMLCanvasElement:'canvas',
+          HTMLVideoElement:'video',HTMLAudioElement:'audio',HTMLAnchorElement:'a',HTMLSelectElement:'select',
+          HTMLTextAreaElement:'textarea',HTMLButtonElement:'button',HTMLIFrameElement:'iframe',HTMLScriptElement:'script',
+          HTMLLinkElement:'link',HTMLTemplateElement:'template',HTMLDivElement:'div',HTMLSpanElement:'span',HTMLElement:'div',
+          HTMLTableElement:'table',HTMLLabelElement:'label',HTMLOptionElement:'option',HTMLStyleElement:'style',
+          HTMLBodyElement:'body',HTMLHeadElement:'head',HTMLParagraphElement:'p',HTMLUListElement:'ul',HTMLLIElement:'li',
+          HTMLMetaElement:'meta',HTMLBaseElement:'base',HTMLDialogElement:'dialog',HTMLDetailsElement:'details',
+          HTMLSlotElement:'slot',HTMLObjectElement:'object',HTMLEmbedElement:'embed',HTMLSourceElement:'source',
+          HTMLTrackElement:'track',HTMLMapElement:'map',HTMLAreaElement:'area',HTMLFieldSetElement:'fieldset',
+          HTMLOutputElement:'output',HTMLProgressElement:'progress',HTMLMeterElement:'meter',HTMLTimeElement:'time',
+          HTMLDListElement:'dl',HTMLDataElement:'data',HTMLDirectoryElement:'dir',HTMLFontElement:'font',HTMLFrameElement:'frame',
+          HTMLFrameSetElement:'frameset',HTMLMarqueeElement:'marquee',HTMLMenuElement:'menu',HTMLModElement:'ins',
+          HTMLParamElement:'param',HTMLPictureElement:'picture',HTMLQuoteElement:'q',HTMLTitleElement:'title',
+          HTMLOListElement:'ol',HTMLHeadingElement:'h1',HTMLHRElement:'hr',HTMLBRElement:'br',HTMLPreElement:'pre',
+          HTMLLegendElement:'legend',HTMLOptGroupElement:'optgroup',HTMLDataListElement:'datalist',
+          HTMLTableRowElement:'tr',HTMLTableCellElement:'td',HTMLTableColElement:'col',HTMLTableCaptionElement:'caption',
+          HTMLTableSectionElement:'tbody',HTMLUnknownElement:'foo-bar-x'}};
+        var res = {{}};
+        Object.keys(STD).forEach(function(n){{
+            var C = globalThis[n]; if (typeof C !== 'function') return;
+            var inst = null, how = 'none';
+            try {{
+                if (tags[n]) {{ inst = document.createElement(tags[n]); how = 'createElement'; }}
+                else if (n === 'Document') {{ inst = document; how = 'document'; }}
+                else if (n === 'Window') {{ inst = globalThis; how = 'globalThis'; }}
+                else if (n === 'Navigator') {{ inst = navigator; how = 'navigator'; }}
+                else if (n === 'Element' || n === 'Node') {{ inst = document.createElement('div'); how = 'createElement'; }}
+                else if (n === 'Text') {{ inst = document.createTextNode('x'); how = 'createTextNode'; }}
+                else if (n === 'Event') {{ inst = new Event('x'); how = 'new'; }}
+                else if (n === 'Request') {{ inst = new Request('http://x.test/'); how = 'new'; }}
+                else if (n === 'Response') {{ inst = new Response(''); how = 'new'; }}
+                else if (n === 'File') {{ inst = new File(['a'], 'a.txt'); how = 'new'; }}
+                else if (n === 'Blob') {{ inst = new Blob(['a']); how = 'new'; }}
+                else if (n === 'URL') {{ inst = new URL('http://x.test/'); how = 'new'; }}
+                else {{
+                    try {{ inst = new C(); how = 'new'; }} catch (e1) {{
+                        try {{ inst = new C('x'); how = 'new'; }} catch (e2) {{ inst = new C('x', {{}}); how = 'new'; }}
+                    }}
+                }}
+            }} catch (e) {{}}
+            if (!inst) {{ if (C.prototype) {{ inst = C.prototype; how = 'proto'; }} else return; }}
+            var miss = STD[n].filter(function(m){{ try {{ return !(m in inst); }} catch (e) {{ return true; }} }});
+            res[n] = {{probe: how, total: STD[n].length, missing: miss}};
+        }});
+        return JSON.stringify(res);
+    }})()"#
+    );
+    let out = rt.evaluate(&code).unwrap();
+    std::fs::write(outp, out.as_str().unwrap()).unwrap();
+}
