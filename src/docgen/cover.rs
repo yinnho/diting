@@ -17,6 +17,8 @@ pub struct CoverInput<'a> {
     pub title: &'a str,
     pub subtitle: Option<&'a str>,
     pub footer: Option<&'a str>,
+    /// card kind only: bullet/quote lines rendered as stacked rows.
+    pub body: Option<&'a [String]>,
     /// `square` (default) or `wide`.
     pub size: &'a str,
     /// Draw the 2.35:1 crop guide over a square layout (square only).
@@ -29,6 +31,7 @@ pub fn dimensions(size: &str) -> Option<(u32, u32)> {
     match size {
         "square" | "" => Some((1024, 1024)),
         "wide" => Some((1080, 460)),
+        "vertical" => Some((1080, 1920)),
         _ => None,
     }
 }
@@ -52,21 +55,36 @@ fn square_safe_band() -> (f64, f64) {
 /// Render the cover as a self-contained HTML document (system font stack;
 /// the engine's bundled CJK font paints it at screenshot time).
 pub fn render_cover(input: &CoverInput) -> String {
-    let CoverInput { title, subtitle, footer, size, show_crop, theme } = input;
+    // Every field is Copy — destructure through the reference so the
+    // bindings are values, not &Option<...>.
+    let CoverInput { title, subtitle, footer, body, size, show_crop, theme } = *input;
     let (w, h) = dimensions(size).unwrap_or((1024, 1024));
     let square = w == 1024 && h == 1024;
+    let vertical = w == 1080 && h == 1920;
 
     // Wide IS the crop — no guides, text fills the canvas.
     // Square: text lives in the center safe band; the two flanks carry the
     // palette (visible in the square upload, gone in the feed crop).
-    let (text_block, flank, crop_overlay) = if square {
+    let (text_block, flank, crop_overlay) = if vertical {
+        (
+            format!(
+                "<div style='position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 120px;box-sizing:border-box;text-align:center'>{}</div>",
+                inner_text(title, body, subtitle, footer, theme).replace("font-size:64px", "font-size:88px")
+            ),
+            format!(
+                "<div style='position:absolute;left:-80px;top:240px;font-size:900px;line-height:1;color:{};opacity:.08;font-weight:800;user-select:none'>」</div>",
+                theme.ink
+            ),
+            String::new(),
+        )
+    } else if square {
         let (top, bottom) = square_safe_band();
         let band_css = format!(
             "position:absolute;left:0;right:0;top:{top:.0}px;height:{:.0}px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 72px;box-sizing:border-box",
             bottom - top
         );
         (
-            format!("<div style=\"{band_css}\">{}</div>", inner_text(title, subtitle.as_deref(), footer.as_deref(), theme)),
+            format!("<div style=\"{band_css}\">{}</div>", inner_text(title, body, subtitle, footer, theme)),
             // Flank texture: a quiet oversized glyph of the palette, one per
             // side, clipped by overflow — cover art without an image asset.
             format!(
@@ -74,7 +92,7 @@ pub fn render_cover(input: &CoverInput) -> String {
                  <div style='position:absolute;right:-60px;bottom:120px;font-size:480px;line-height:1;color:{};opacity:.10;font-weight:800;user-select:none'>」</div>",
                 theme.ink, theme.edge_label
             ),
-            if *show_crop {
+            if show_crop {
                 format!(
                     "<div style='position:absolute;left:0;right:0;top:{top:.0}px;height:{:.0}px;border:3px dashed {};box-sizing:border-box;pointer-events:none'></div>\
                      <div style='position:absolute;left:16px;top:{top:.0}px;font:22px sans-serif;color:{};background:{};padding:2px 10px'>2.35:1 crop — keep text inside</div>",
@@ -88,7 +106,7 @@ pub fn render_cover(input: &CoverInput) -> String {
         (
             format!(
                 "<div style='position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 88px;box-sizing:border-box'>{}</div>",
-                inner_text(title, subtitle.as_deref(), footer.as_deref(), theme)
+                inner_text(title, body, subtitle, footer, theme)
             ),
             format!(
                 "<div style='position:absolute;right:40px;top:-70px;font-size:380px;line-height:1;color:{};opacity:.12;font-weight:800;user-select:none'>」</div>",
@@ -110,8 +128,14 @@ pub fn render_cover(input: &CoverInput) -> String {
     )
 }
 
-/// Title + subtitle + footer, text-left on wide / centered on square.
-fn inner_text(title: &str, subtitle: Option<&str>, footer: Option<&str>, theme: &Theme) -> String {
+/// Title + body rows (card kind) + subtitle + footer.
+fn inner_text(
+    title: &str,
+    body: Option<&[String]>,
+    subtitle: Option<&str>,
+    footer: Option<&str>,
+    theme: &Theme,
+) -> String {
     let mut out = String::new();
     // 900/64 for square fill; wide is shorter so the title sizes up.
     out.push_str(&format!(
@@ -119,6 +143,20 @@ fn inner_text(title: &str, subtitle: Option<&str>, footer: Option<&str>, theme: 
         theme.ink,
         esc(title)
     ));
+    if let Some(rows) = body {
+        // Card rows: each line carries an accent spine on its left edge —
+        // knowledge-card rhythm, readable at thumbnail size. border-left,
+        // not an empty flex child: a zero-content flex div paints nothing
+        // in the engine's flex layout.
+        for row in rows {
+            out.push_str(&format!(
+                "<div style='margin-top:22px;border-left:10px solid {};border-radius:5px;padding-left:18px;font-size:34px;line-height:1.45;color:{};text-align:left'>{}</div>",
+                theme.edge_label,
+                theme.page_fg,
+                esc(row)
+            ));
+        }
+    }
     if let Some(sub) = subtitle {
         out.push_str(&format!(
             "<div style='margin-top:18px;font-size:30px;line-height:1.5;color:{}'>{}</div>",
@@ -148,6 +186,7 @@ mod tests {
             title: "越用越快的浏览器",
             subtitle: Some("技能沉淀叙事"),
             footer: Some("diting"),
+            body: None,
             size: "square",
             show_crop: false,
             theme: &LIGHT,
@@ -164,6 +203,7 @@ mod tests {
             title: "t",
             subtitle: None,
             footer: None,
+            body: None,
             size: "square",
             show_crop: true,
             theme: &LIGHT,
@@ -173,6 +213,7 @@ mod tests {
             title: "t",
             subtitle: None,
             footer: None,
+            body: None,
             size: "wide",
             show_crop: true, // ignored: wide IS the crop
             theme: &LIGHT,
@@ -187,6 +228,7 @@ mod tests {
             title: "<script>alert(1)</script>",
             subtitle: None,
             footer: None,
+            body: None,
             size: "square",
             show_crop: false,
             theme: &LIGHT,
@@ -196,10 +238,59 @@ mod tests {
     }
 
     #[test]
+    fn card_rows_render_with_accent_ticks() {
+        let rows = vec!["第一条要点".to_string(), "second point".to_string()];
+        let html = render_cover(&CoverInput {
+            title: "知识卡",
+            subtitle: None,
+            footer: None,
+            body: Some(&rows),
+            size: "square",
+            show_crop: false,
+            theme: &LIGHT,
+        });
+        assert!(html.contains("第一条要点") && html.contains("second point"));
+        // One accent spine per row.
+        assert_eq!(html.matches("border-left:10px solid").count(), 2);
+        // Rows escape like every other text slot.
+        let evil = vec!["<b>x</b>".to_string()];
+        let html = render_cover(&CoverInput {
+            title: "t",
+            subtitle: None,
+            footer: None,
+            body: Some(&evil),
+            size: "square",
+            show_crop: false,
+            theme: &LIGHT,
+        });
+        assert!(html.contains("&lt;b&gt;"), "row escaped");
+    }
+
+    #[test]
+    fn title_kind_is_vertical() {
+        let html = render_cover(&CoverInput {
+            title: "竖版标题",
+            subtitle: Some("副题"),
+            footer: None,
+            body: None,
+            size: "vertical",
+            show_crop: false,
+            theme: &LIGHT,
+        });
+        assert!(html.contains("width:1080px") && html.contains("height:1920px"));
+        // Vertical title card centers at the bigger display size.
+        assert!(html.contains("text-align:center"));
+        assert!(html.contains("font-size:88px"), "vertical title scales up");
+        // No crop guide machinery on the vertical canvas.
+        assert!(!html.contains("2.35:1 crop"));
+    }
+
+    #[test]
     fn dimensions_reject_unknown() {
         assert_eq!(dimensions("square"), Some((1024, 1024)));
         assert_eq!(dimensions(""), Some((1024, 1024)));
         assert_eq!(dimensions("wide"), Some((1080, 460)));
+        assert_eq!(dimensions("vertical"), Some((1080, 1920)));
         assert_eq!(dimensions("huge"), None);
     }
 }

@@ -632,11 +632,32 @@ curl -sS -X POST http://127.0.0.1:8089/screenshot \
   | jq -r .image_base64 | base64 -d > cover.png
 ```
 
-`/render` today carries `kind:"cover"` with `size:"square"` (1024x1024,
-text inside the band WeChat's 2.35:1 center-crop keeps) or `size:"wide"`
-(1080x460, the crop pre-applied); `show_crop:true` overlays the dashed
-crop guide so an agent can verify its title survives the feed before
-shipping.
+**The one-call card** — `kind:"card"` adds stacked content rows (each with
+an accent spine on its left edge) to the square layout:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8089/render \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"card","title":"谛听速记","body":["一次安装，全程浏览器内","五引擎聚合搜索","出图出视频一条链"],"footer":"diting"}' \
+  > card.json
+# then the same /screenshot {html} call as above (jq forwards width/height)
+```
+
+`/render` carries three layout kinds, all sharing the same parameter set:
+
+| kind | default size | canvas | built for |
+|------|--------------|--------|-----------|
+| `cover` | `square` | 1024×1024 / `wide` 1080×460 | WeChat 封面 — text inside the band the 2.35:1 center-crop keeps; `show_crop:true` overlays the dashed crop guide so an agent can verify its title survives the feed |
+| `card` | `square` | 1024×1024 | knowledge cards — `body` lines render as accent-spined rows |
+| `title` | `vertical` | 1080×1920 | vertical-video opening frames — big centered display title |
+
+Parameters: `title` (required), `body` (card rows), `subtitle`, `footer`,
+`size` (per-kind default; `square`/`wide`/`vertical`), `show_crop`
+(square only), `theme` (`light`/`dark`), `preset` (`classic`/
+`signal-flow`/`blueprint`/`editorial`). The response returns `width`/
+`height` next to the `html` — pipe all three into `/screenshot` and keep
+`full_page:false` so decorative overflow can't stretch the canvas past
+the declared size.
 
 **The one-call video** — a pure-CSS animation needs no timeline
 registration; `/video` measures the stylesheet's animation extent and seeks

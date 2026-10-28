@@ -95,6 +95,8 @@ curl http://127.0.0.1:8089/health
 | Run a recorded interaction again (zero tokens) | `BASE/flow/run` | `name` (installed workflow) or `flow` (inline doc), `vars`, `session_id` |
 | A task you'll repeat: turn it into a flow | `GET BASE/session/{id}/export{format:"json"}` -> curate -> `flow/run` | prune probes, `{{var}}` the URLs, hand-add `wait`s |
 | Markdown → HTML artifact | `BASE/render_markdown` | `markdown`, `theme`, `preset`, `quality`, `motion` |
+| Text → image (cover/card/title) | `BASE/render` → `BASE/screenshot` | `kind`,`title`,`body`(card rows),`theme`; pipe `{html,width,height}` + `full_page:false` into `/screenshot` |
+| HTML/CSS animation → video | `BASE/video` | `html` (CSS keyframes or `__timelines`), `fps`, `hold_tail_secs` — same frame every seek, no wall clock |
 | Firecrawl-compatible clients | `BASE/v1/scrape` | `actions` runs a single-page session flow |
 
 ## Flows (record once, replay free)
