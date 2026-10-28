@@ -7,6 +7,13 @@
 > 状态：native（引擎原生）/ shim（JS 层实现）/ partial（有坑，注明）/
 > missing。测试锚点写测试函数名。
 
+## 表面快照门
+
+`runtime/surface_snapshot.txt` 冻结 `getOwnPropertyNames(globalThis)` + 每个构造器的静态/原型成员；
+测试 `js_surface_snapshot_matches_fixture` 逐行比对，漂移即红（NEW=泄漏嫌疑，GONE=兼容破坏）。
+有意改表面：`UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot` 重生夹具并在下表登一行。
+注：`__` 前缀内部名已被 `__diting_hide_list` 从页面可见面隐去，不进快照。
+
 ## 文件清单
 
 | 文件 | 职责 |

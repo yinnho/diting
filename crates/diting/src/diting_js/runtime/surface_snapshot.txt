@@ -1,0 +1,2319 @@
+[globals] 1260
+G AbortController
+G AbortSignal
+G AbsoluteOrientationSensor
+G AbstractRange
+G Accelerometer
+G AggregateError
+G AnalyserNode
+G Animation
+G AnimationEffect
+G AnimationEvent
+G AnimationPlaybackEvent
+G AnimationTimeline
+G AnimationTrigger
+G Array
+G ArrayBuffer
+G AsyncDisposableStack
+G Atomics
+G Attr
+G Audio
+G AudioBuffer
+G AudioBufferSourceNode
+G AudioContext
+G AudioData
+G AudioDecoder
+G AudioDestinationNode
+G AudioEncoder
+G AudioListener
+G AudioNode
+G AudioParam
+G AudioParamMap
+G AudioPlaybackStats
+G AudioProcessingEvent
+G AudioScheduledSourceNode
+G AudioSinkInfo
+G AudioWorklet
+G AudioWorkletNode
+G AuthenticatorAssertionResponse
+G AuthenticatorAttestationResponse
+G AuthenticatorResponse
+G BackgroundFetchManager
+G BackgroundFetchRecord
+G BackgroundFetchRegistration
+G BarProp
+G BarcodeDetector
+G BaseAudioContext
+G BatteryManager
+G BeforeInstallPromptEvent
+G BeforeUnloadEvent
+G BigInt
+G BigInt64Array
+G BigUint64Array
+G BiquadFilterNode
+G Blob
+G BlobEvent
+G Bluetooth
+G BluetoothCharacteristicProperties
+G BluetoothDevice
+G BluetoothRemoteGATTCharacteristic
+G BluetoothRemoteGATTDescriptor
+G BluetoothRemoteGATTServer
+G BluetoothRemoteGATTService
+G BluetoothUUID
+G Boolean
+G BroadcastChannel
+G BrowserCaptureMediaStreamTrack
+G ByteLengthQueuingStrategy
+G CDATASection
+G CSPViolationReportBody
+G CSS
+G CSSAnimation
+G CSSConditionRule
+G CSSContainerRule
+G CSSCounterStyleRule
+G CSSFontFaceRule
+G CSSFontFeatureValuesRule
+G CSSFontPaletteValuesRule
+G CSSFunctionDeclarations
+G CSSFunctionDescriptors
+G CSSFunctionRule
+G CSSGroupingRule
+G CSSImageValue
+G CSSImportRule
+G CSSKeyframeRule
+G CSSKeyframesRule
+G CSSKeywordValue
+G CSSLayerBlockRule
+G CSSLayerStatementRule
+G CSSMarginRule
+G CSSMathClamp
+G CSSMathInvert
+G CSSMathMax
+G CSSMathMin
+G CSSMathNegate
+G CSSMathProduct
+G CSSMathSum
+G CSSMathValue
+G CSSMatrixComponent
+G CSSMediaRule
+G CSSNamespaceRule
+G CSSNestedDeclarations
+G CSSNumericArray
+G CSSNumericValue
+G CSSPageRule
+G CSSPerspective
+G CSSPositionTryDescriptors
+G CSSPositionTryRule
+G CSSPositionValue
+G CSSPropertyRule
+G CSSPseudoElement
+G CSSRotate
+G CSSRule
+G CSSRuleList
+G CSSScale
+G CSSScopeRule
+G CSSSkew
+G CSSSkewX
+G CSSSkewY
+G CSSStartingStyleRule
+G CSSStyleDeclaration
+G CSSStyleRule
+G CSSStyleSheet
+G CSSStyleValue
+G CSSSupportsRule
+G CSSTransformComponent
+G CSSTransformValue
+G CSSTransition
+G CSSTranslate
+G CSSUnitValue
+G CSSUnparsedValue
+G CSSVariableReferenceValue
+G CSSViewTransitionRule
+G Cache
+G CacheStorage
+G CanvasCaptureMediaStreamTrack
+G CanvasGradient
+G CanvasPattern
+G CanvasRenderingContext2D
+G CaptureController
+G CaretPosition
+G ChannelMergerNode
+G ChannelSplitterNode
+G ChapterInformation
+G CharacterBoundsUpdateEvent
+G CharacterData
+G Clipboard
+G ClipboardChangeEvent
+G ClipboardEvent
+G ClipboardItem
+G CloseEvent
+G CloseWatcher
+G CommandEvent
+G Comment
+G CompositionEvent
+G CompressionStream
+G ConstantSourceNode
+G ContentVisibilityAutoStateChangeEvent
+G ConvolverNode
+G CookieChangeEvent
+G CookieStore
+G CookieStoreManager
+G CountQueuingStrategy
+G CrashReportContext
+G CreateMonitor
+G Credential
+G CredentialsContainer
+G CropTarget
+G Crypto
+G CryptoKey
+G CustomElementRegistry
+G CustomEvent
+G CustomStateSet
+G DOMError
+G DOMException
+G DOMImplementation
+G DOMMatrix
+G DOMMatrixReadOnly
+G DOMParser
+G DOMPoint
+G DOMPointReadOnly
+G DOMQuad
+G DOMRect
+G DOMRectList
+G DOMRectReadOnly
+G DOMStringList
+G DOMStringMap
+G DOMTokenList
+G DataTransfer
+G DataTransferItem
+G DataTransferItemList
+G DataView
+G Date
+G DecompressionStream
+G DelayNode
+G DelegatedInkTrailPresenter
+G DeviceMotionEvent
+G DeviceMotionEventAcceleration
+G DeviceMotionEventRotationRate
+G DeviceOrientationEvent
+G DevicePosture
+G DigitalCredential
+G DisposableStack
+G Document
+G DocumentFragment
+G DocumentPictureInPicture
+G DocumentPictureInPictureEvent
+G DocumentTimeline
+G DocumentType
+G DragEvent
+G DynamicsCompressorNode
+G EditContext
+G Element
+G ElementInternals
+G EncodedAudioChunk
+G EncodedVideoChunk
+G Error
+G ErrorEvent
+G EvalError
+G Event
+G EventCounts
+G EventSource
+G EventTarget
+G External
+G EyeDropper
+G FeaturePolicy
+G FederatedCredential
+G Fence
+G FencedFrameConfig
+G FetchLaterResult
+G File
+G FileList
+G FileReader
+G FileSystemDirectoryHandle
+G FileSystemFileHandle
+G FileSystemHandle
+G FileSystemObserver
+G FileSystemWritableFileStream
+G FinalizationRegistry
+G Float16Array
+G Float32Array
+G Float64Array
+G FocusEvent
+G FontData
+G FontFace
+G FontFaceSet
+G FontFaceSetLoadEvent
+G FormData
+G FormDataEvent
+G FragmentDirective
+G Function
+G GPU
+G GPUAdapter
+G GPUAdapterInfo
+G GPUBindGroup
+G GPUBindGroupLayout
+G GPUBuffer
+G GPUBufferUsage
+G GPUCanvasContext
+G GPUColorWrite
+G GPUCommandBuffer
+G GPUCommandEncoder
+G GPUCompilationInfo
+G GPUCompilationMessage
+G GPUComputePassEncoder
+G GPUComputePipeline
+G GPUDevice
+G GPUDeviceLostInfo
+G GPUError
+G GPUExternalTexture
+G GPUInternalError
+G GPUMapMode
+G GPUOutOfMemoryError
+G GPUPipelineError
+G GPUPipelineLayout
+G GPUQuerySet
+G GPUQueue
+G GPURenderBundle
+G GPURenderBundleEncoder
+G GPURenderPassEncoder
+G GPURenderPipeline
+G GPUSampler
+G GPUShaderModule
+G GPUShaderStage
+G GPUSupportedFeatures
+G GPUSupportedLimits
+G GPUTexture
+G GPUTextureUsage
+G GPUTextureView
+G GPUUncapturedErrorEvent
+G GPUValidationError
+G GainNode
+G Gamepad
+G GamepadButton
+G GamepadEvent
+G GamepadHapticActuator
+G Geolocation
+G GeolocationCoordinates
+G GeolocationPosition
+G GeolocationPositionError
+G GravitySensor
+G Gyroscope
+G HID
+G HIDConnectionEvent
+G HIDDevice
+G HIDInputReportEvent
+G HTMLAllCollection
+G HTMLAnchorElement
+G HTMLAreaElement
+G HTMLAudioElement
+G HTMLBRElement
+G HTMLBaseElement
+G HTMLBodyElement
+G HTMLButtonElement
+G HTMLCameraElement
+G HTMLCanvasElement
+G HTMLCollection
+G HTMLDListElement
+G HTMLDataElement
+G HTMLDataListElement
+G HTMLDetailsElement
+G HTMLDialogElement
+G HTMLDirectoryElement
+G HTMLDivElement
+G HTMLDocument
+G HTMLElement
+G HTMLEmbedElement
+G HTMLFencedFrameElement
+G HTMLFieldSetElement
+G HTMLFontElement
+G HTMLFormControlsCollection
+G HTMLFormElement
+G HTMLFrameElement
+G HTMLFrameSetElement
+G HTMLGeolocationElement
+G HTMLHRElement
+G HTMLHeadElement
+G HTMLHeadingElement
+G HTMLHtmlElement
+G HTMLIFrameElement
+G HTMLImageElement
+G HTMLInputElement
+G HTMLLIElement
+G HTMLLabelElement
+G HTMLLegendElement
+G HTMLLinkElement
+G HTMLMapElement
+G HTMLMarqueeElement
+G HTMLMediaElement
+G HTMLMenuElement
+G HTMLMetaElement
+G HTMLMeterElement
+G HTMLMicrophoneElement
+G HTMLModElement
+G HTMLOListElement
+G HTMLObjectElement
+G HTMLOptGroupElement
+G HTMLOptionElement
+G HTMLOptionsCollection
+G HTMLOutputElement
+G HTMLParagraphElement
+G HTMLParamElement
+G HTMLPictureElement
+G HTMLPreElement
+G HTMLProgressElement
+G HTMLQuoteElement
+G HTMLScriptElement
+G HTMLSelectElement
+G HTMLSelectedContentElement
+G HTMLSlotElement
+G HTMLSourceElement
+G HTMLSpanElement
+G HTMLStyleElement
+G HTMLTableCaptionElement
+G HTMLTableCellElement
+G HTMLTableColElement
+G HTMLTableElement
+G HTMLTableRowElement
+G HTMLTableSectionElement
+G HTMLTemplateElement
+G HTMLTextAreaElement
+G HTMLTimeElement
+G HTMLTitleElement
+G HTMLTrackElement
+G HTMLUListElement
+G HTMLUnknownElement
+G HTMLUserMediaElement
+G HTMLVideoElement
+G HashChangeEvent
+G Headers
+G Highlight
+G HighlightRegistry
+G History
+G IDBCursor
+G IDBCursorWithValue
+G IDBDatabase
+G IDBFactory
+G IDBIndex
+G IDBKeyRange
+G IDBObjectStore
+G IDBOpenDBRequest
+G IDBRecord
+G IDBRequest
+G IDBTransaction
+G IDBVersionChangeEvent
+G IIRFilterNode
+G IdentityCredential
+G IdentityCredentialError
+G IdentityProvider
+G IdleDeadline
+G IdleDetector
+G Image
+G ImageBitmap
+G ImageBitmapRenderingContext
+G ImageCapture
+G ImageData
+G ImageDecoder
+G ImageTrack
+G ImageTrackList
+G Infinity
+G Ink
+G InputDeviceCapabilities
+G InputDeviceInfo
+G InputEvent
+G Int16Array
+G Int32Array
+G Int8Array
+G IntegrityViolationReportBody
+G InteractionContentfulPaint
+G InterestEvent
+G IntersectionObserver
+G IntersectionObserverEntry
+G Intl
+G Iterator
+G JSON
+G Keyboard
+G KeyboardEvent
+G KeyboardLayoutMap
+G KeyframeEffect
+G LanguageDetector
+G LanguageModel
+G LargestContentfulPaint
+G LaunchParams
+G LaunchQueue
+G LayoutShift
+G LayoutShiftAttribution
+G LinearAccelerationSensor
+G Location
+G Lock
+G LockManager
+G MIDIAccess
+G MIDIConnectionEvent
+G MIDIInput
+G MIDIInputMap
+G MIDIMessageEvent
+G MIDIOutput
+G MIDIOutputMap
+G MIDIPort
+G Map
+G Math
+G MathMLElement
+G MediaCapabilities
+G MediaDeviceInfo
+G MediaDevices
+G MediaElementAudioSourceNode
+G MediaEncryptedEvent
+G MediaError
+G MediaKeyMessageEvent
+G MediaKeySession
+G MediaKeyStatusMap
+G MediaKeySystemAccess
+G MediaKeys
+G MediaList
+G MediaMetadata
+G MediaQueryList
+G MediaQueryListEvent
+G MediaRecorder
+G MediaSession
+G MediaSource
+G MediaSourceHandle
+G MediaStream
+G MediaStreamAudioDestinationNode
+G MediaStreamAudioSourceNode
+G MediaStreamEvent
+G MediaStreamTrack
+G MediaStreamTrackAudioStats
+G MediaStreamTrackEvent
+G MediaStreamTrackGenerator
+G MediaStreamTrackProcessor
+G MediaStreamTrackVideoStats
+G MessageChannel
+G MessageEvent
+G MessagePort
+G MimeType
+G MimeTypeArray
+G MouseEvent
+G MutationObserver
+G MutationRecord
+G NaN
+G NamedNodeMap
+G NavigateEvent
+G Navigation
+G NavigationActivation
+G NavigationCurrentEntryChangeEvent
+G NavigationDestination
+G NavigationHistoryEntry
+G NavigationPrecommitController
+G NavigationPreloadManager
+G NavigationTransition
+G Navigator
+G NavigatorLogin
+G NavigatorManagedData
+G NavigatorUAData
+G NetworkInformation
+G Node
+G NodeFilter
+G NodeIterator
+G NodeList
+G NodeRange
+G NotRestoredReasonDetails
+G NotRestoredReasons
+G Notification
+G Number
+G OTPCredential
+G Object
+G Observable
+G OfflineAudioCompletionEvent
+G OfflineAudioContext
+G OffscreenCanvas
+G OffscreenCanvasRenderingContext2D
+G OpaqueRange
+G Option
+G OrientationSensor
+G Origin
+G OscillatorNode
+G OverconstrainedError
+G PageRevealEvent
+G PageSwapEvent
+G PageTransitionEvent
+G PannerNode
+G PasswordCredential
+G Path2D
+G PaymentAddress
+G PaymentManager
+G PaymentMethodChangeEvent
+G PaymentRequest
+G PaymentRequestUpdateEvent
+G PaymentResponse
+G Performance
+G PerformanceElementTiming
+G PerformanceEntry
+G PerformanceEventTiming
+G PerformanceLongAnimationFrameTiming
+G PerformanceLongTaskTiming
+G PerformanceMark
+G PerformanceMeasure
+G PerformanceNavigation
+G PerformanceNavigationTiming
+G PerformanceObserver
+G PerformanceObserverEntryList
+G PerformancePaintTiming
+G PerformanceResourceTiming
+G PerformanceScriptTiming
+G PerformanceServerTiming
+G PerformanceSoftNavigation
+G PerformanceTiming
+G PerformanceTimingConfidence
+G PeriodicSyncManager
+G PeriodicWave
+G PermissionStatus
+G Permissions
+G PermissionsPolicy
+G PictureInPictureEvent
+G PictureInPictureWindow
+G Plugin
+G PluginArray
+G PointerEvent
+G PopStateEvent
+G Presentation
+G PresentationAvailability
+G PresentationConnection
+G PresentationConnectionAvailableEvent
+G PresentationConnectionCloseEvent
+G PresentationConnectionList
+G PresentationReceiver
+G PresentationRequest
+G PressureObserver
+G PressureRecord
+G ProcessingInstruction
+G Profiler
+G ProgressEvent
+G Promise
+G PromiseRejectionEvent
+G ProtectedAudience
+G Proxy
+G PublicKeyCredential
+G PushManager
+G PushSubscription
+G PushSubscriptionOptions
+G QuotaExceededError
+G RTCCertificate
+G RTCDTMFSender
+G RTCDTMFToneChangeEvent
+G RTCDataChannel
+G RTCDataChannelEvent
+G RTCDtlsTransport
+G RTCEncodedAudioFrame
+G RTCEncodedVideoFrame
+G RTCError
+G RTCErrorEvent
+G RTCIceCandidate
+G RTCIceTransport
+G RTCPeerConnection
+G RTCPeerConnectionIceErrorEvent
+G RTCPeerConnectionIceEvent
+G RTCRtpReceiver
+G RTCRtpScriptTransform
+G RTCRtpSender
+G RTCRtpTransceiver
+G RTCSctpTransport
+G RTCSessionDescription
+G RTCStatsReport
+G RTCTrackEvent
+G RadioNodeList
+G Range
+G RangeError
+G ReadableByteStreamController
+G ReadableStream
+G ReadableStreamBYOBReader
+G ReadableStreamBYOBRequest
+G ReadableStreamDefaultController
+G ReadableStreamDefaultReader
+G ReferenceError
+G Reflect
+G RegExp
+G RelativeOrientationSensor
+G RemotePlayback
+G ReportBody
+G ReportingObserver
+G Request
+G ResizeObserver
+G ResizeObserverEntry
+G ResizeObserverSize
+G Response
+G RestrictionTarget
+G SVGAElement
+G SVGAngle
+G SVGAnimateElement
+G SVGAnimateMotionElement
+G SVGAnimateTransformElement
+G SVGAnimatedAngle
+G SVGAnimatedBoolean
+G SVGAnimatedEnumeration
+G SVGAnimatedInteger
+G SVGAnimatedLength
+G SVGAnimatedLengthList
+G SVGAnimatedNumber
+G SVGAnimatedNumberList
+G SVGAnimatedPreserveAspectRatio
+G SVGAnimatedRect
+G SVGAnimatedString
+G SVGAnimatedTransformList
+G SVGAnimationElement
+G SVGCircleElement
+G SVGClipPathElement
+G SVGComponentTransferFunctionElement
+G SVGDefsElement
+G SVGDescElement
+G SVGElement
+G SVGEllipseElement
+G SVGFEBlendElement
+G SVGFEColorMatrixElement
+G SVGFEComponentTransferElement
+G SVGFECompositeElement
+G SVGFEConvolveMatrixElement
+G SVGFEDiffuseLightingElement
+G SVGFEDisplacementMapElement
+G SVGFEDistantLightElement
+G SVGFEDropShadowElement
+G SVGFEFloodElement
+G SVGFEFuncAElement
+G SVGFEFuncBElement
+G SVGFEFuncGElement
+G SVGFEFuncRElement
+G SVGFEGaussianBlurElement
+G SVGFEImageElement
+G SVGFEMergeElement
+G SVGFEMergeNodeElement
+G SVGFEMorphologyElement
+G SVGFEOffsetElement
+G SVGFEPointLightElement
+G SVGFESpecularLightingElement
+G SVGFESpotLightElement
+G SVGFETileElement
+G SVGFETurbulenceElement
+G SVGFilterElement
+G SVGForeignObjectElement
+G SVGGElement
+G SVGGeometryElement
+G SVGGradientElement
+G SVGGraphicsElement
+G SVGImageElement
+G SVGLength
+G SVGLengthList
+G SVGLineElement
+G SVGLinearGradientElement
+G SVGMPathElement
+G SVGMarkerElement
+G SVGMaskElement
+G SVGMatrix
+G SVGMetadataElement
+G SVGNumber
+G SVGNumberList
+G SVGPathElement
+G SVGPatternElement
+G SVGPoint
+G SVGPointList
+G SVGPolygonElement
+G SVGPolylineElement
+G SVGPreserveAspectRatio
+G SVGRadialGradientElement
+G SVGRect
+G SVGRectElement
+G SVGSVGElement
+G SVGScriptElement
+G SVGSetElement
+G SVGStopElement
+G SVGStringList
+G SVGStyleElement
+G SVGSwitchElement
+G SVGSymbolElement
+G SVGTSpanElement
+G SVGTextContentElement
+G SVGTextElement
+G SVGTextPathElement
+G SVGTextPositioningElement
+G SVGTitleElement
+G SVGTransform
+G SVGTransformList
+G SVGUnitTypes
+G SVGUseElement
+G SVGViewElement
+G Sanitizer
+G Scheduler
+G Scheduling
+G Screen
+G ScreenDetailed
+G ScreenDetails
+G ScreenOrientation
+G ScriptProcessorNode
+G ScrollTimeline
+G SecurityPolicyViolationEvent
+G Selection
+G Sensor
+G SensorErrorEvent
+G Serial
+G SerialPort
+G ServiceWorker
+G ServiceWorkerContainer
+G ServiceWorkerRegistration
+G Set
+G ShadowRoot
+G SharedWorker
+G SnapEvent
+G SourceBuffer
+G SourceBufferList
+G SpeechGrammar
+G SpeechGrammarList
+G SpeechRecognition
+G SpeechRecognitionErrorEvent
+G SpeechRecognitionEvent
+G SpeechRecognitionPhrase
+G SpeechSynthesis
+G SpeechSynthesisErrorEvent
+G SpeechSynthesisEvent
+G SpeechSynthesisUtterance
+G SpeechSynthesisVoice
+G StaticRange
+G StereoPannerNode
+G Storage
+G StorageBucket
+G StorageBucketManager
+G StorageEvent
+G StorageManager
+G String
+G StylePropertyMap
+G StylePropertyMapReadOnly
+G StyleSheet
+G StyleSheetList
+G SubmitEvent
+G Subscriber
+G SubtleCrypto
+G Summarizer
+G SuppressedError
+G Symbol
+G SyncManager
+G SyntaxError
+G TaskAttributionTiming
+G TaskController
+G TaskPriorityChangeEvent
+G TaskSignal
+G Temporal
+G Text
+G TextDecoder
+G TextDecoderStream
+G TextEncoder
+G TextEncoderStream
+G TextEvent
+G TextFormat
+G TextFormatUpdateEvent
+G TextMetrics
+G TextTrack
+G TextTrackCue
+G TextTrackCueList
+G TextTrackList
+G TextUpdateEvent
+G TimeRanges
+G TimelineTrigger
+G TimelineTriggerRange
+G TimelineTriggerRangeList
+G ToggleEvent
+G Touch
+G TouchEvent
+G TouchList
+G TrackEvent
+G TransformStream
+G TransformStreamDefaultController
+G TransitionEvent
+G Translator
+G TreeWalker
+G TrustedHTML
+G TrustedScript
+G TrustedScriptURL
+G TrustedTypePolicy
+G TrustedTypePolicyFactory
+G TypeError
+G UIEvent
+G URIError
+G URL
+G URLPattern
+G URLSearchParams
+G USB
+G USBAlternateInterface
+G USBConfiguration
+G USBConnectionEvent
+G USBDevice
+G USBEndpoint
+G USBInTransferResult
+G USBInterface
+G USBIsochronousInTransferPacket
+G USBIsochronousInTransferResult
+G USBIsochronousOutTransferPacket
+G USBIsochronousOutTransferResult
+G USBOutTransferResult
+G Uint16Array
+G Uint32Array
+G Uint8Array
+G Uint8ClampedArray
+G UserActivation
+G VTTCue
+G ValidityState
+G VideoColorSpace
+G VideoDecoder
+G VideoEncoder
+G VideoFrame
+G VideoPlaybackQuality
+G ViewTimeline
+G ViewTransition
+G ViewTransitionTypeSet
+G Viewport
+G VirtualKeyboard
+G VirtualKeyboardGeometryChangeEvent
+G VisibilityStateEntry
+G VisualViewport
+G WGSLLanguageFeatures
+G WakeLock
+G WakeLockSentinel
+G WaveShaperNode
+G WeakMap
+G WeakRef
+G WeakSet
+G WebAssembly
+G WebGL2RenderingContext
+G WebGLActiveInfo
+G WebGLBuffer
+G WebGLContextEvent
+G WebGLFramebuffer
+G WebGLObject
+G WebGLProgram
+G WebGLQuery
+G WebGLRenderbuffer
+G WebGLRenderingContext
+G WebGLSampler
+G WebGLShader
+G WebGLShaderPrecisionFormat
+G WebGLSync
+G WebGLTexture
+G WebGLTransformFeedback
+G WebGLUniformLocation
+G WebGLVertexArrayObject
+G WebKitCSSMatrix
+G WebKitMutationObserver
+G WebSocket
+G WebSocketError
+G WebSocketStream
+G WebTransport
+G WebTransportBidirectionalStream
+G WebTransportDatagramDuplexStream
+G WebTransportError
+G WheelEvent
+G Window
+G WindowControlsOverlay
+G WindowControlsOverlayGeometryChangeEvent
+G Worker
+G Worklet
+G WritableStream
+G WritableStreamDefaultController
+G WritableStreamDefaultWriter
+G XMLDocument
+G XMLHttpRequest
+G XMLHttpRequestEventTarget
+G XMLHttpRequestUpload
+G XMLSerializer
+G XPathEvaluator
+G XPathExpression
+G XPathResult
+G XRAnchor
+G XRAnchorSet
+G XRBoundedReferenceSpace
+G XRCPUDepthInformation
+G XRCamera
+G XRCompositionLayer
+G XRCubeLayer
+G XRCylinderLayer
+G XRDOMOverlayState
+G XRDepthInformation
+G XREquirectLayer
+G XRFrame
+G XRHand
+G XRHitTestResult
+G XRHitTestSource
+G XRInputSource
+G XRInputSourceArray
+G XRInputSourceEvent
+G XRInputSourcesChangeEvent
+G XRJointPose
+G XRJointSpace
+G XRLayer
+G XRLayerEvent
+G XRLightEstimate
+G XRLightProbe
+G XRPlane
+G XRPlaneSet
+G XRPose
+G XRProjectionLayer
+G XRQuadLayer
+G XRRay
+G XRReferenceSpace
+G XRReferenceSpaceEvent
+G XRRenderState
+G XRRigidTransform
+G XRSession
+G XRSessionEvent
+G XRSpace
+G XRSubImage
+G XRSystem
+G XRTransientInputHitTestResult
+G XRTransientInputHitTestSource
+G XRView
+G XRViewerPose
+G XRViewport
+G XRVisibilityMaskChangeEvent
+G XRWebGLBinding
+G XRWebGLDepthInformation
+G XRWebGLLayer
+G XRWebGLSubImage
+G XSLTProcessor
+G alert
+G atob
+G b64urlToBytes
+G blur
+G btoa
+G bytesToB64url
+G caches
+G cancelAnimationFrame
+G cancelIdleCallback
+G captureEvents
+G checkKeyUsages
+G checkUsageStrings
+G checkUsages
+G chrome
+G clearInterval
+G clearTimeout
+G clientInformation
+G close
+G closed
+G confirm
+G console
+G cookieStore
+G crashReport
+G createImageBitmap
+G credentialless
+G crossOriginIsolated
+G crypto
+G customElements
+G decodeURI
+G decodeURIComponent
+G devicePixelRatio
+G document
+G documentPictureInPicture
+G ecMaterial
+G ecUsagesFor
+G ecdsaUnflat
+G encodeURI
+G encodeURIComponent
+G escape
+G eval
+G event
+G external
+G fence
+G fetch
+G fetchLater
+G find
+G focus
+G frameElement
+G frames
+G getComputedStyle
+G getScreenDetails
+G getSelection
+G globalThis
+G history
+G indexedDB
+G innerHeight
+G innerWidth
+G isFinite
+G isNaN
+G isSecureContext
+G jwkMemberBytes
+G jwkRequire
+G jwkValidateCommon
+G keyAlgorithmFor
+G keyBytes
+G launchQueue
+G length
+G localStorage
+G location
+G locationbar
+G makeKey
+G matchMedia
+G menubar
+G moveBy
+G moveTo
+G name
+G navigation
+G navigator
+G normalizeAlgo
+G normalizeHash
+G offscreenBuffering
+G onabort
+G onafterprint
+G onanimationcancel
+G onanimationend
+G onanimationiteration
+G onanimationstart
+G onappinstalled
+G onauxclick
+G onbeforeinput
+G onbeforeinstallprompt
+G onbeforematch
+G onbeforeprint
+G onbeforetoggle
+G onbeforeunload
+G onbeforexrselect
+G onblur
+G oncancel
+G oncanplay
+G oncanplaythrough
+G onchange
+G onclick
+G onclose
+G oncommand
+G oncontentvisibilityautostatechange
+G oncontextlost
+G oncontextmenu
+G oncontextrestored
+G oncuechange
+G ondblclick
+G ondevicemotion
+G ondeviceorientation
+G ondeviceorientationabsolute
+G ondrag
+G ondragend
+G ondragenter
+G ondragleave
+G ondragover
+G ondragstart
+G ondrop
+G ondurationchange
+G onemptied
+G onended
+G onerror
+G onfocus
+G onformdata
+G ongamepadconnected
+G ongamepaddisconnected
+G ongotpointercapture
+G onhashchange
+G oninput
+G oninvalid
+G onkeydown
+G onkeypress
+G onkeyup
+G onlanguagechange
+G onload
+G onloadeddata
+G onloadedmetadata
+G onloadstart
+G onlostpointercapture
+G onmessage
+G onmessageerror
+G onmousedown
+G onmouseenter
+G onmouseleave
+G onmousemove
+G onmouseout
+G onmouseover
+G onmouseup
+G onmousewheel
+G onoffline
+G ononline
+G onpagehide
+G onpagereveal
+G onpageshow
+G onpageswap
+G onpause
+G onplay
+G onplaying
+G onpointercancel
+G onpointerdown
+G onpointerenter
+G onpointerleave
+G onpointermove
+G onpointerout
+G onpointerover
+G onpointerrawupdate
+G onpointerup
+G onpopstate
+G onprogress
+G onratechange
+G onrejectionhandled
+G onreset
+G onresize
+G onscroll
+G onscrollend
+G onscrollsnapchange
+G onscrollsnapchanging
+G onsearch
+G onsecuritypolicyviolation
+G onseeked
+G onseeking
+G onselect
+G onselectionchange
+G onselectstart
+G onslotchange
+G onstalled
+G onstorage
+G onsubmit
+G onsuspend
+G ontimeupdate
+G ontoggle
+G ontransitioncancel
+G ontransitionend
+G ontransitionrun
+G ontransitionstart
+G onunhandledrejection
+G onunload
+G onvolumechange
+G onwaiting
+G onwebkitanimationend
+G onwebkitanimationiteration
+G onwebkitanimationstart
+G onwebkittransitionend
+G onwheel
+G open
+G opener
+G origin
+G originAgentCluster
+G outerHeight
+G outerWidth
+G pageXOffset
+G pageYOffset
+G parent
+G parseFloat
+G parseInt
+G performance
+G personalbar
+G postMessage
+G print
+G prompt
+G queryLocalFonts
+G queueMicrotask
+G releaseEvents
+G reportError
+G requestAnimationFrame
+G requestIdleCallback
+G requestResize
+G requireEcdsaUsages
+G requireHashParam
+G resizeBy
+G resizeTo
+G rsaFace
+G rsaGenerateKey
+G rsaImportKey
+G rsaMaterial
+G rsaUnflat
+G runOp
+G scheduler
+G screen
+G screenLeft
+G screenTop
+G screenX
+G screenY
+G scroll
+G scrollBy
+G scrollTo
+G scrollX
+G scrollY
+G scrollbars
+G self
+G sessionStorage
+G setInterval
+G setTimeout
+G showDirectoryPicker
+G showOpenFilePicker
+G showSaveFilePicker
+G speechSynthesis
+G status
+G statusbar
+G stop
+G structuredClone
+G styleMedia
+G subtleCipher
+G toolbar
+G top
+G trustedTypes
+G undefined
+G unescape
+G viewport
+G visualViewport
+G webkitCancelAnimationFrame
+G webkitMediaStream
+G webkitRTCPeerConnection
+G webkitRequestAnimationFrame
+G webkitRequestFileSystem
+G webkitResolveLocalFileSystemURL
+G webkitSpeechGrammar
+G webkitSpeechGrammarList
+G webkitSpeechRecognition
+G webkitSpeechRecognitionError
+G webkitSpeechRecognitionEvent
+G webkitURL
+G window
+P AbortController :: abort,constructor
+S AbortSignal :: abort,any,timeout
+P AbortSignal :: _signalAbort,aborted,constructor,onabort,reason,throwIfAborted
+P AbsoluteOrientationSensor :: constructor
+P AbstractRange :: constructor
+P Accelerometer :: constructor
+P AggregateError :: constructor,message,name
+P AnalyserNode :: constructor
+P Animation :: constructor
+P AnimationEffect :: constructor
+P AnimationEvent :: constructor
+P AnimationPlaybackEvent :: constructor
+P AnimationTimeline :: constructor
+P AnimationTrigger :: constructor
+S Array :: from,fromAsync,isArray,of
+P Array :: at,concat,constructor,copyWithin,entries,every,fill,filter,find,findIndex,findLast,findLastIndex,flat,flatMap,forEach,includes,indexOf,join,keys,lastIndexOf,length,map,pop,push,reduce,reduceRight,reverse,shift,slice,some,sort,splice,toLocaleString,toReversed,toSorted,toSpliced,toString,unshift,values,with
+S ArrayBuffer :: isView
+P ArrayBuffer :: byteLength,constructor,detached,maxByteLength,resizable,resize,slice,transfer,transferToFixedLength
+P AsyncDisposableStack :: adopt,constructor,defer,disposeAsync,disposed,move,use
+P Attr :: constructor,nodeName,nodeType,nodeValue
+P Audio :: addEventListener,constructor,load,pause,play,removeEventListener
+P AudioBuffer :: constructor,copyFromChannel,copyToChannel,duration,getChannelData,length,numberOfChannels,sampleRate
+P AudioBufferSourceNode :: constructor
+P AudioContext :: baseLatency,close,constructor,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,onerror,outputLatency,playbackStats,resume,suspend
+P AudioData :: constructor
+P AudioDecoder :: constructor
+P AudioDestinationNode :: constructor
+P AudioEncoder :: constructor
+P AudioListener :: constructor
+P AudioNode :: connect,constructor,disconnect
+P AudioParam :: constructor
+P AudioParamMap :: constructor
+P AudioPlaybackStats :: constructor
+P AudioProcessingEvent :: constructor
+P AudioScheduledSourceNode :: constructor
+P AudioSinkInfo :: constructor,type
+P AudioWorklet :: constructor
+P AudioWorkletNode :: constructor
+P AuthenticatorAssertionResponse :: constructor
+P AuthenticatorAttestationResponse :: constructor
+P AuthenticatorResponse :: constructor
+P BackgroundFetchManager :: constructor
+P BackgroundFetchRecord :: constructor
+P BackgroundFetchRegistration :: constructor
+P BarProp :: constructor
+P BarcodeDetector :: constructor
+P BaseAudioContext :: constructor,createAnalyser,createBiquadFilter,createBuffer,createBufferSource,createChannelMerger,createChannelSplitter,createConstantSource,createConvolver,createDelay,createDynamicsCompressor,createGain,createIIRFilter,createOscillator,createPanner,createPeriodicWave,createScriptProcessor,createStereoPanner,createWaveShaper,currentTime,decodeAudioData,destination,listener,onstatechange,renderQuantumSize,sampleRate,state
+P BatteryManager :: addEventListener,charging,chargingTime,constructor,dischargingTime,dispatchEvent,level,removeEventListener
+P BeforeInstallPromptEvent :: constructor
+P BeforeUnloadEvent :: constructor
+S BigInt :: asIntN,asUintN
+P BigInt :: constructor,toLocaleString,toString,valueOf
+S BigInt64Array :: BYTES_PER_ELEMENT
+P BigInt64Array :: BYTES_PER_ELEMENT,constructor
+S BigUint64Array :: BYTES_PER_ELEMENT
+P BigUint64Array :: BYTES_PER_ELEMENT,constructor
+P BiquadFilterNode :: constructor
+P Blob :: arrayBuffer,bytes,constructor,slice,stream,text
+P BlobEvent :: constructor
+P Bluetooth :: constructor
+P BluetoothCharacteristicProperties :: constructor
+P BluetoothDevice :: constructor
+P BluetoothRemoteGATTCharacteristic :: constructor
+P BluetoothRemoteGATTDescriptor :: constructor
+P BluetoothRemoteGATTServer :: constructor
+P BluetoothRemoteGATTService :: constructor
+P BluetoothUUID :: constructor
+P Boolean :: constructor,toString,valueOf
+P BroadcastChannel :: _fire,addEventListener,close,constructor,dispatchEvent,name,onmessage,onmessageerror,postMessage,removeEventListener
+P BrowserCaptureMediaStreamTrack :: constructor
+P ByteLengthQueuingStrategy :: constructor
+P CDATASection :: cloneNode,constructor,nodeName,nodeType,nodeValue
+P CSPViolationReportBody :: constructor
+P CSSAnimation :: constructor
+P CSSConditionRule :: constructor
+P CSSContainerRule :: conditionText,constructor,containerName,containerQuery
+P CSSCounterStyleRule :: constructor,name,style
+P CSSFontFaceRule :: constructor,style
+P CSSFontFeatureValuesRule :: constructor
+P CSSFontPaletteValuesRule :: constructor,name
+P CSSFunctionDeclarations :: constructor
+P CSSFunctionDescriptors :: constructor
+P CSSFunctionRule :: constructor
+P CSSGroupingRule :: constructor,cssRules,deleteRule,insertRule
+P CSSImageValue :: constructor
+P CSSImportRule :: constructor,href,layerName,media,styleSheet
+P CSSKeyframeRule :: constructor,keyText,style
+P CSSKeyframesRule :: appendRule,constructor,cssRules,deleteRule,findRule,name
+P CSSKeywordValue :: constructor
+P CSSLayerBlockRule :: constructor,name
+P CSSLayerStatementRule :: constructor,nameList
+P CSSMarginRule :: constructor
+P CSSMathClamp :: constructor
+P CSSMathInvert :: constructor
+P CSSMathMax :: constructor
+P CSSMathMin :: constructor
+P CSSMathNegate :: constructor
+P CSSMathProduct :: constructor
+P CSSMathSum :: constructor
+P CSSMathValue :: constructor
+P CSSMatrixComponent :: constructor
+P CSSMediaRule :: conditionText,constructor,media
+P CSSNamespaceRule :: constructor,namespaceURI,prefix
+P CSSNestedDeclarations :: constructor
+P CSSNumericArray :: constructor
+P CSSNumericValue :: constructor
+P CSSPageRule :: constructor,selectorText,style
+P CSSPerspective :: constructor
+P CSSPositionTryDescriptors :: constructor
+P CSSPositionTryRule :: constructor
+P CSSPositionValue :: constructor
+P CSSPropertyRule :: constructor,inherits,initialValue,name,style,syntax
+P CSSPseudoElement :: constructor
+P CSSRotate :: constructor
+S CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE
+P CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE,constructor,cssText,parentRule,parentStyleSheet,type
+P CSSRuleList :: constructor
+P CSSScale :: constructor
+P CSSScopeRule :: conditionText,constructor
+P CSSSkew :: constructor
+P CSSSkewX :: constructor
+P CSSSkewY :: constructor
+P CSSStartingStyleRule :: constructor
+P CSSStyleDeclaration :: _pull,_push,constructor,cssText,getPropertyPriority,getPropertyValue,item,length,removeProperty,setProperty
+P CSSStyleRule :: constructor,cssRules,deleteRule,insertRule,selectorText,style
+P CSSStyleSheet :: _cssomChanged,addRule,constructor,deleteRule,insertRule,removeRule,replace,replaceSync,rules
+P CSSStyleValue :: constructor
+P CSSSupportsRule :: conditionText,constructor
+P CSSTransformComponent :: constructor
+P CSSTransformValue :: constructor
+P CSSTransition :: constructor
+P CSSTranslate :: constructor
+P CSSUnitValue :: constructor
+P CSSUnparsedValue :: constructor
+P CSSVariableReferenceValue :: constructor
+P CSSViewTransitionRule :: constructor
+P Cache :: constructor
+P CacheStorage :: constructor
+P CanvasCaptureMediaStreamTrack :: constructor
+P CanvasGradient :: constructor
+P CanvasPattern :: constructor
+P CanvasRenderingContext2D :: constructor
+P CaptureController :: constructor
+P CaretPosition :: constructor
+P ChannelMergerNode :: constructor
+P ChannelSplitterNode :: constructor
+P ChapterInformation :: constructor
+P CharacterBoundsUpdateEvent :: constructor
+P CharacterData :: after,appendData,before,constructor,data,deleteData,insertData,length,remove,replaceData,replaceWith,substringData
+P Clipboard :: constructor
+P ClipboardChangeEvent :: constructor
+P ClipboardEvent :: constructor
+P ClipboardItem :: constructor
+P CloseEvent :: constructor
+P CloseWatcher :: constructor
+P CommandEvent :: constructor
+P Comment :: cloneNode,constructor,nodeName,nodeType
+P CompositionEvent :: constructor,initCompositionEvent
+P CompressionStream :: constructor
+P ConstantSourceNode :: constructor
+P ContentVisibilityAutoStateChangeEvent :: constructor,skipped
+P ConvolverNode :: constructor
+P CookieChangeEvent :: constructor
+P CookieStore :: constructor
+P CookieStoreManager :: constructor
+P CountQueuingStrategy :: constructor
+P CrashReportContext :: constructor
+P CreateMonitor :: constructor
+P Credential :: constructor
+P CredentialsContainer :: constructor
+S CropTarget :: fromElement
+P CropTarget :: constructor
+P Crypto :: constructor
+P CryptoKey :: constructor
+P CustomElementRegistry :: _defineInner,_upgradeElement,constructor,define,get,getName,upgrade,whenDefined
+P CustomEvent :: constructor,initCustomEvent
+P CustomStateSet :: add,clear,constructor,delete,entries,forEach,has,keys,size,values
+P DOMError :: constructor
+S DOMException :: ABORT_ERR,DATA_CLONE_ERR,DOMSTRING_SIZE_ERR,HIERARCHY_REQUEST_ERR,INDEX_SIZE_ERR,INUSE_ATTRIBUTE_ERR,INVALID_ACCESS_ERR,INVALID_CHARACTER_ERR,INVALID_MODIFICATION_ERR,INVALID_NODE_TYPE_ERR,INVALID_STATE_ERR,NAMESPACE_ERR,NETWORK_ERR,NOT_FOUND_ERR,NOT_SUPPORTED_ERR,NO_DATA_ALLOWED_ERR,NO_MODIFICATION_ALLOWED_ERR,QUOTA_EXCEEDED_ERR,SECURITY_ERR,SYNTAX_ERR,TIMEOUT_ERR,TYPE_MISMATCH_ERR,URL_MISMATCH_ERR,VALIDATION_ERR,WRONG_DOCUMENT_ERR
+P DOMException :: ABORT_ERR,DATA_CLONE_ERR,DOMSTRING_SIZE_ERR,HIERARCHY_REQUEST_ERR,INDEX_SIZE_ERR,INUSE_ATTRIBUTE_ERR,INVALID_ACCESS_ERR,INVALID_CHARACTER_ERR,INVALID_MODIFICATION_ERR,INVALID_NODE_TYPE_ERR,INVALID_STATE_ERR,NAMESPACE_ERR,NETWORK_ERR,NOT_FOUND_ERR,NOT_SUPPORTED_ERR,NO_DATA_ALLOWED_ERR,NO_MODIFICATION_ALLOWED_ERR,QUOTA_EXCEEDED_ERR,SECURITY_ERR,SYNTAX_ERR,TIMEOUT_ERR,TYPE_MISMATCH_ERR,URL_MISMATCH_ERR,VALIDATION_ERR,WRONG_DOCUMENT_ERR,code,constructor
+P DOMImplementation :: constructor
+S DOMMatrix :: fromFloat32Array,fromFloat64Array,fromMatrix
+P DOMMatrix :: constructor,inverse,multiply,rotate,scale,transformPoint,translate
+P DOMMatrixReadOnly :: constructor
+P DOMParser :: constructor,parseFromString
+S DOMPoint :: fromPoint
+P DOMPoint :: constructor
+P DOMPointReadOnly :: constructor
+P DOMQuad :: constructor
+S DOMRect :: fromRect
+P DOMRect :: constructor,toJSON
+P DOMRectList :: constructor
+P DOMRectReadOnly :: constructor
+P DOMStringList :: constructor
+P DOMStringMap :: constructor
+P DOMTokenList :: _tokens,_write,add,constructor,contains,entries,forEach,item,keys,length,remove,replace,supports,toString,toggle,value,values
+P DataTransfer :: constructor,dropEffect,effectAllowed,files,items,setDragImage,types
+P DataTransferItem :: constructor
+P DataTransferItemList :: constructor
+P DataView :: buffer,byteLength,byteOffset,constructor,getBigInt64,getBigUint64,getFloat16,getFloat32,getFloat64,getInt16,getInt32,getInt8,getUint16,getUint32,getUint8,setBigInt64,setBigUint64,setFloat16,setFloat32,setFloat64,setInt16,setInt32,setInt8,setUint16,setUint32,setUint8
+S Date :: UTC,now,parse
+P Date :: constructor,getDate,getDay,getFullYear,getHours,getMilliseconds,getMinutes,getMonth,getSeconds,getTime,getTimezoneOffset,getUTCDate,getUTCDay,getUTCFullYear,getUTCHours,getUTCMilliseconds,getUTCMinutes,getUTCMonth,getUTCSeconds,getYear,setDate,setFullYear,setHours,setMilliseconds,setMinutes,setMonth,setSeconds,setTime,setUTCDate,setUTCFullYear,setUTCHours,setUTCMilliseconds,setUTCMinutes,setUTCMonth,setUTCSeconds,setYear,toDateString,toGMTString,toISOString,toJSON,toLocaleDateString,toLocaleString,toLocaleTimeString,toString,toTemporalInstant,toTimeString,toUTCString,valueOf
+P DecompressionStream :: constructor
+P DelayNode :: constructor
+P DelegatedInkTrailPresenter :: constructor
+P DeviceMotionEvent :: constructor
+P DeviceMotionEventAcceleration :: constructor
+P DeviceMotionEventRotationRate :: constructor
+P DeviceOrientationEvent :: constructor
+P DevicePosture :: constructor
+P DigitalCredential :: constructor
+P DisposableStack :: adopt,constructor,defer,dispose,disposed,move,use
+S Document :: parseHTMLUnsafe
+P Document :: URL,activeElement,addEventListener,adoptNode,adoptedStyleSheets,all,append,body,characterSet,charset,childElementCount,children,cloneNode,close,compatMode,constructor,contentType,cookie,createAttribute,createAttributeNS,createCDATASection,createComment,createDocumentFragment,createElement,createElementNS,createEvent,createNodeIterator,createProcessingInstruction,createRange,createTextNode,createTreeWalker,currentScript,defaultView,dir,dispatchEvent,doctype,documentElement,documentURI,domain,elementFromPoint,elementsFromPoint,evaluate,execCommand,exitPictureInPicture,firstElementChild,fonts,forms,getAnimations,getElementById,getElementsByClassName,getElementsByName,getElementsByTagName,getElementsByTagNameNS,getSelection,hasFocus,hasStorageAccess,head,hidden,images,implementation,importNode,inputEncoding,lastElementChild,links,location,nodeName,nodeType,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforeinput,onbeforematch,onbeforetoggle,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragexit,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onfocusin,onfocusout,onformdata,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontouchcancel,ontouchend,ontouchmove,ontouchstart,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwheel,open,ownerDocument,pictureInPictureElement,pictureInPictureEnabled,prepend,queryCommandEnabled,queryCommandIndeterm,queryCommandState,queryCommandSupported,queryCommandValue,querySelector,querySelectorAll,readyState,referrer,referrerPolicy,removeEventListener,replaceChildren,requestStorageAccess,scripts,scrollingElement,startViewTransition,styleSheets,title,visibilityState,write,writeln
+P DocumentFragment :: append,children,cloneNode,constructor,firstElementChild,getElementById,innerHTML,lastElementChild,nodeName,nodeType,prepend,querySelector,querySelectorAll,replaceChildren
+P DocumentPictureInPicture :: constructor
+P DocumentPictureInPictureEvent :: constructor
+P DocumentTimeline :: constructor
+P DocumentType :: constructor,name,nodeName,nodeType,nodeValue,ownerDocument,publicId,systemId
+P DragEvent :: constructor
+P DynamicsCompressorNode :: constructor
+P EditContext :: constructor
+P Element :: _checkPopoverValidity,_dialogClose,_ditingExtent,_ditingScrollExtent,_elemScrollMax,_elemScrollMirror,_fireScroll,_inputType,_isNativeScrollContainer,_isViewportRoot,_loadIframeSrc,_navigateSubmit,_popoverAttrValue,_popoverRemoveAttr,_popoverTypeMaybeChanged,_resolveInlineHandler,_rootScrollMax,_rootScroller,_stepBy,accessKey,action,add,addEventListener,after,animate,append,ariaAtomic,ariaAutoComplete,ariaBrailleLabel,ariaBrailleRoleDescription,ariaBusy,ariaChecked,ariaColCount,ariaColIndex,ariaColIndexText,ariaColSpan,ariaCurrent,ariaDescription,ariaDisabled,ariaExpanded,ariaHasPopup,ariaHidden,ariaInvalid,ariaKeyShortcuts,ariaLabel,ariaLevel,ariaLive,ariaModal,ariaMultiLine,ariaMultiSelectable,ariaOrientation,ariaPlaceholder,ariaPosInSet,ariaPressed,ariaReadOnly,ariaRelevant,ariaRequired,ariaRoleDescription,ariaRowCount,ariaRowIndex,ariaRowIndexText,ariaRowSpan,ariaSelected,ariaSetSize,ariaSort,ariaValueMax,ariaValueMin,ariaValueNow,ariaValueText,assignedSlots,attachInternals,attachShadow,attributes,autofocus,before,blur,caption,cellIndex,cells,checkVisibility,checked,childElementCount,children,classList,className,click,clientHeight,clientWidth,close,closedBy,closest,cols,constructor,content,contentDocument,contentWindow,control,createCaption,createTBody,createTFoot,createTHead,dataset,deleteCaption,deleteCell,deleteRow,deleteTFoot,deleteTHead,dir,disabled,dispatchEvent,files,firstElementChild,focus,form,getAnimations,getAttribute,getAttributeNS,getAttributeNames,getAttributeNode,getAttributeNodeNS,getBoundingClientRect,getClientRects,getElementsByClassName,getElementsByTagName,getElementsByTagNameNS,getHTML,hasAttribute,hasAttributes,hasPointerCapture,hash,hidden,hidePopover,host,hostname,href,htmlFor,id,indeterminate,innerHTML,innerText,insertAdjacentElement,insertAdjacentHTML,insertAdjacentText,insertCell,insertRow,isConnected,labels,lang,lastElementChild,localName,matches,max,maxLength,method,min,minLength,multiple,name,namespaceURI,nextElementSibling,offsetHeight,offsetLeft,offsetParent,offsetTop,offsetWidth,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforeinput,onbeforematch,onbeforetoggle,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragexit,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onfocusin,onfocusout,onformdata,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontouchcancel,ontouchend,ontouchmove,ontouchstart,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwheel,open,options,origin,outerHTML,password,pathname,placeholder,popover,port,prepend,previousElementSibling,protocol,querySelector,querySelectorAll,rel,relList,releasePointerCapture,remove,removeAttribute,removeAttributeNS,removeAttributeNode,removeEventListener,replaceChildren,replaceWith,requestClose,requestSubmit,reset,returnValue,rev,role,rowIndex,rows,sandbox,scheme,scroll,scrollBy,scrollHeight,scrollIntoView,scrollLeft,scrollTo,scrollTop,scrollWidth,search,sectionRowIndex,select,selected,selectedIndex,selectedOptions,selectionDirection,selectionEnd,selectionStart,setAttribute,setAttributeNS,setAttributeNode,setAttributeNodeNS,setHTMLUnsafe,setPointerCapture,setRangeText,setSelectionRange,shadowRoot,sheet,show,showModal,showPopover,size,sizes,slot,src,srcdoc,step,stepDown,stepUp,style,submit,tBodies,tFoot,tHead,tabIndex,tagName,title,toggleAttribute,togglePopover,type,username,value,valueAsDate,valueAsNumber,viewBox,wrap
+P ElementInternals :: checkValidity,constructor,form,labels,reportValidity,setFormValue,setValidity,shadowRoot,states,validationMessage,validity,willValidate
+P EncodedAudioChunk :: constructor
+P EncodedVideoChunk :: constructor
+S Error :: captureStackTrace,isError,stackTraceLimit
+P Error :: constructor,message,name,toString
+P ErrorEvent :: constructor
+P EvalError :: constructor,message,name
+P Event :: composedPath,constructor,initEvent,isTrusted,preventDefault,srcElement,stopImmediatePropagation,stopPropagation
+P EventCounts :: constructor,entries,forEach,get,has,keys,size,values
+S EventSource :: CLOSED,CONNECTING,OPEN
+P EventSource :: addEventListener,close,constructor,dispatchEvent,onerror,onmessage,onopen,readyState,removeEventListener,url,withCredentials
+P EventTarget :: addEventListener,constructor,dispatchEvent,removeEventListener,when
+P External :: constructor
+P EyeDropper :: constructor,open
+P FeaturePolicy :: constructor
+P FederatedCredential :: constructor
+P Fence :: constructor
+P FencedFrameConfig :: constructor
+P FetchLaterResult :: constructor
+P File :: constructor
+P FileList :: constructor
+S FileReader :: DONE,EMPTY,LOADING
+P FileReader :: DONE,EMPTY,LOADING,_fire,_read,abort,addEventListener,constructor,dispatchEvent,error,onabort,onerror,onload,onloadend,onloadstart,onprogress,readAsArrayBuffer,readAsBinaryString,readAsDataURL,readAsText,readyState,removeEventListener,result
+P FileSystemDirectoryHandle :: constructor
+P FileSystemFileHandle :: constructor
+P FileSystemHandle :: constructor
+P FileSystemObserver :: constructor
+P FileSystemWritableFileStream :: constructor
+P FinalizationRegistry :: constructor,register,unregister
+S Float16Array :: BYTES_PER_ELEMENT
+P Float16Array :: BYTES_PER_ELEMENT,constructor
+S Float32Array :: BYTES_PER_ELEMENT
+P Float32Array :: BYTES_PER_ELEMENT,constructor
+S Float64Array :: BYTES_PER_ELEMENT
+P Float64Array :: BYTES_PER_ELEMENT,constructor
+P FocusEvent :: constructor
+P FontData :: constructor
+P FontFace :: constructor,display,family,featureSettings,load,loaded,source,status,stretch,style,unicodeRange,variant,weight
+P FontFaceSet :: constructor
+P FontFaceSetLoadEvent :: constructor
+P FormData :: append,constructor,delete,entries,forEach,get,getAll,has,keys,set,values
+P FormDataEvent :: constructor
+P FragmentDirective :: constructor
+P GPU :: constructor,getPreferredCanvasFormat,requestAdapter
+P GPUAdapter :: constructor,requestAdapterInfo,requestDevice
+P GPUAdapterInfo :: constructor
+P GPUBindGroup :: constructor
+P GPUBindGroupLayout :: constructor
+P GPUBuffer :: constructor
+P GPUCanvasContext :: constructor
+P GPUCommandBuffer :: constructor
+P GPUCommandEncoder :: constructor
+P GPUCompilationInfo :: constructor
+P GPUCompilationMessage :: constructor
+P GPUComputePassEncoder :: constructor
+P GPUComputePipeline :: constructor
+P GPUDevice :: constructor
+P GPUDeviceLostInfo :: constructor
+P GPUError :: constructor
+P GPUExternalTexture :: constructor
+P GPUInternalError :: constructor
+P GPUOutOfMemoryError :: constructor
+P GPUPipelineError :: constructor
+P GPUPipelineLayout :: constructor
+P GPUQuerySet :: constructor
+P GPUQueue :: constructor
+P GPURenderBundle :: constructor
+P GPURenderBundleEncoder :: constructor
+P GPURenderPassEncoder :: constructor
+P GPURenderPipeline :: constructor
+P GPUSampler :: constructor
+P GPUShaderModule :: constructor
+P GPUSupportedFeatures :: constructor
+P GPUSupportedLimits :: constructor
+P GPUTexture :: constructor
+P GPUTextureView :: constructor
+P GPUUncapturedErrorEvent :: constructor
+P GPUValidationError :: constructor
+P GainNode :: constructor
+P Gamepad :: constructor
+P GamepadButton :: constructor
+P GamepadEvent :: constructor
+P GamepadHapticActuator :: constructor
+P Geolocation :: constructor
+P GeolocationCoordinates :: accuracy,altitude,altitudeAccuracy,constructor,heading,latitude,longitude,speed
+P GeolocationPosition :: constructor,coords,timestamp
+P GeolocationPositionError :: constructor
+P GravitySensor :: constructor
+P Gyroscope :: constructor
+P HID :: constructor
+P HIDConnectionEvent :: constructor
+P HIDDevice :: constructor
+P HIDInputReportEvent :: constructor
+P HTMLAllCollection :: constructor,item,length,namedItem
+P HTMLAnchorElement :: constructor,hash,host,hostname,href,name,origin,password,pathname,port,protocol,rel,relList,rev,search,text,type,username
+P HTMLAreaElement :: constructor
+P HTMLAudioElement :: constructor
+P HTMLBRElement :: constructor
+P HTMLBaseElement :: constructor
+P HTMLBodyElement :: aLink,background,bgColor,constructor,link,onafterprint,onbeforeprint,onbeforeunload,onblur,onerror,onfocus,ongamepadconnected,ongamepaddisconnected,onhashchange,onlanguagechange,onload,onmessage,onmessageerror,onoffline,ononline,onpagehide,onpageshow,onpopstate,onrejectionhandled,onresize,onscroll,onstorage,onunhandledrejection,onunload,text,vLink
+P HTMLButtonElement :: checkValidity,constructor,disabled,form,formNoValidate,name,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
+P HTMLCameraElement :: constructor
+P HTMLCanvasElement :: constructor,getContext,height,toBlob,toDataURL,width
+S HTMLCollection :: _from
+P HTMLCollection :: constructor,item,namedItem
+P HTMLDListElement :: constructor
+P HTMLDataElement :: constructor
+P HTMLDataListElement :: constructor
+P HTMLDetailsElement :: constructor,name,open
+P HTMLDialogElement :: closedBy,constructor,open,returnValue
+P HTMLDirectoryElement :: constructor
+P HTMLDivElement :: align,constructor
+P HTMLDocument :: constructor
+P HTMLElement :: constructor
+P HTMLEmbedElement :: constructor
+P HTMLFencedFrameElement :: constructor
+P HTMLFieldSetElement :: constructor,disabled,form,name,type
+P HTMLFontElement :: constructor
+P HTMLFormControlsCollection :: constructor
+P HTMLFormElement :: checkValidity,constructor,elements,length,noValidate,reportValidity,reset
+P HTMLFrameElement :: constructor
+P HTMLFrameSetElement :: constructor
+P HTMLGeolocationElement :: constructor
+P HTMLHRElement :: constructor
+P HTMLHeadElement :: constructor
+P HTMLHeadingElement :: align,constructor
+P HTMLHtmlElement :: constructor
+P HTMLIFrameElement :: constructor,contentDocument,contentWindow,sandbox,src,srcdoc
+P HTMLImageElement :: constructor,sizes,src
+P HTMLInputElement :: checkValidity,checked,constructor,disabled,files,form,formNoValidate,indeterminate,max,maxLength,min,minLength,multiple,name,placeholder,reportValidity,setCustomValidity,size,step,type,validationMessage,validity,value,valueAsDate,valueAsNumber,willValidate
+P HTMLLIElement :: constructor,type,value
+P HTMLLabelElement :: constructor,form,htmlFor
+P HTMLLegendElement :: constructor
+P HTMLLinkElement :: constructor,disabled,rel,relList,rev,sheet,sizes
+P HTMLMapElement :: constructor
+P HTMLMarqueeElement :: constructor
+P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_METADATA,HAVE_NOTHING,NETWORK_EMPTY,NETWORK_IDLE,NETWORK_LOADING,NETWORK_NO_SOURCE,buffered,canPlayType,constructor,currentTime,duration,ended,load,networkState,pause,paused,play,playbackRate,played,readyState,seekable,seeking
+P HTMLMenuElement :: constructor
+P HTMLMetaElement :: constructor,content,scheme
+P HTMLMeterElement :: constructor
+P HTMLMicrophoneElement :: constructor
+P HTMLModElement :: constructor
+P HTMLOListElement :: compact,constructor,reversed,start,type
+P HTMLObjectElement :: constructor
+P HTMLOptGroupElement :: constructor
+P HTMLOptionElement :: constructor,disabled,form,selected,text,value
+P HTMLOptionsCollection :: constructor
+P HTMLOutputElement :: constructor
+P HTMLParagraphElement :: align,constructor
+P HTMLParamElement :: constructor
+P HTMLPictureElement :: constructor
+P HTMLPreElement :: constructor
+P HTMLProgressElement :: constructor,max,value
+P HTMLQuoteElement :: constructor
+P HTMLScriptElement :: constructor,text
+P HTMLSelectElement :: checkValidity,constructor,disabled,form,multiple,name,options,reportValidity,selectedIndex,selectedOptions,setCustomValidity,type,validationMessage,validity,value,willValidate
+P HTMLSelectedContentElement :: constructor
+P HTMLSlotElement :: assignedElements,assignedNodes,constructor
+P HTMLSourceElement :: constructor
+P HTMLSpanElement :: constructor
+P HTMLStyleElement :: constructor,sheet
+P HTMLTableCaptionElement :: constructor
+P HTMLTableCellElement :: abbr,align,axis,bgColor,cellIndex,ch,chOff,colSpan,constructor,headers,height,noWrap,rowSpan,scope,vAlign,width
+P HTMLTableColElement :: align,ch,chOff,constructor,span,vAlign,width
+P HTMLTableElement :: align,bgColor,border,caption,cellPadding,cellSpacing,constructor,frame,rows,rules,summary,tBodies,tFoot,tHead,width
+P HTMLTableRowElement :: align,bgColor,cells,ch,chOff,constructor,rowIndex,sectionRowIndex,vAlign
+P HTMLTableSectionElement :: align,ch,chOff,constructor,vAlign
+P HTMLTemplateElement :: constructor
+P HTMLTextAreaElement :: checkValidity,cols,constructor,disabled,form,maxLength,minLength,name,placeholder,reportValidity,rows,setCustomValidity,type,validationMessage,validity,value,willValidate,wrap
+P HTMLTimeElement :: constructor
+P HTMLTitleElement :: constructor
+P HTMLTrackElement :: constructor
+P HTMLUListElement :: compact,constructor,type
+P HTMLUnknownElement :: constructor
+P HTMLUserMediaElement :: constructor
+P HTMLVideoElement :: constructor,disablePictureInPicture,onenterpictureinpicture,onleavepictureinpicture,requestPictureInPicture
+P HashChangeEvent :: constructor
+P Headers :: append,constructor,delete,entries,forEach,get,has,keys,set,values
+P Highlight :: constructor
+P HighlightRegistry :: constructor
+P History :: constructor
+P IDBCursor :: advance,constructor,continue,continuePrimaryKey,delete,update
+P IDBCursorWithValue :: constructor
+P IDBDatabase :: addEventListener,close,constructor,createObjectStore,deleteObjectStore,removeEventListener,transaction
+P IDBFactory :: cmp,constructor,databases,deleteDatabase,open
+P IDBIndex :: constructor,count,get,getAll,getAllKeys,getKey,openCursor,openKeyCursor
+S IDBKeyRange :: bound,lowerBound,only,upperBound
+P IDBKeyRange :: constructor
+P IDBObjectStore :: add,clear,constructor,count,createIndex,delete,deleteIndex,get,getAll,getAllKeys,getKey,index,openCursor,openKeyCursor,put
+P IDBOpenDBRequest :: constructor
+P IDBRecord :: constructor
+P IDBRequest :: constructor
+P IDBTransaction :: abort,addEventListener,commit,constructor,objectStore,removeEventListener
+P IDBVersionChangeEvent :: constructor
+P IIRFilterNode :: constructor,getFrequencyResponse
+P IdentityCredential :: constructor
+P IdentityCredentialError :: constructor
+P IdentityProvider :: constructor
+P IdleDeadline :: constructor
+P IdleDetector :: constructor
+P Image :: constructor,sizes,src
+P ImageBitmap :: close,constructor
+P ImageBitmapRenderingContext :: constructor
+P ImageCapture :: constructor
+P ImageData :: constructor
+P ImageDecoder :: constructor
+P ImageTrack :: constructor
+P ImageTrackList :: constructor
+P Ink :: constructor
+P InputDeviceCapabilities :: constructor
+P InputDeviceInfo :: constructor
+P InputEvent :: constructor
+S Int16Array :: BYTES_PER_ELEMENT
+P Int16Array :: BYTES_PER_ELEMENT,constructor
+S Int32Array :: BYTES_PER_ELEMENT
+P Int32Array :: BYTES_PER_ELEMENT,constructor
+S Int8Array :: BYTES_PER_ELEMENT
+P Int8Array :: BYTES_PER_ELEMENT,constructor
+P IntegrityViolationReportBody :: constructor
+P InteractionContentfulPaint :: constructor
+P InterestEvent :: constructor
+P IntersectionObserver :: _fireFor,constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
+P IntersectionObserverEntry :: constructor
+S Iterator :: concat,from
+P Iterator :: constructor,drop,every,filter,find,flatMap,forEach,map,reduce,some,take,toArray
+P Keyboard :: constructor,getLayoutMap,lock,unlock
+P KeyboardEvent :: constructor,initKeyboardEvent
+P KeyboardLayoutMap :: constructor
+P KeyframeEffect :: constructor
+P LanguageDetector :: constructor
+P LanguageModel :: constructor
+P LargestContentfulPaint :: constructor
+P LaunchParams :: constructor
+P LaunchQueue :: constructor,setConsumer,setTargetURL
+P LayoutShift :: constructor
+P LayoutShiftAttribution :: constructor
+P LinearAccelerationSensor :: constructor
+P Location :: constructor
+P Lock :: constructor
+P LockManager :: constructor
+P MIDIAccess :: constructor
+P MIDIConnectionEvent :: constructor
+P MIDIInput :: constructor
+P MIDIInputMap :: constructor
+P MIDIMessageEvent :: constructor
+P MIDIOutput :: constructor
+P MIDIOutputMap :: constructor
+P MIDIPort :: constructor
+S Map :: groupBy
+P Map :: clear,constructor,delete,entries,forEach,get,getOrInsert,getOrInsertComputed,has,keys,set,size,values
+P MathMLElement :: constructor
+P MediaCapabilities :: constructor
+P MediaDeviceInfo :: constructor,deviceId,groupId,kind,label,toJSON
+P MediaDevices :: constructor
+P MediaElementAudioSourceNode :: constructor
+P MediaEncryptedEvent :: constructor
+P MediaError :: constructor
+P MediaKeyMessageEvent :: constructor
+P MediaKeySession :: constructor
+P MediaKeyStatusMap :: constructor
+P MediaKeySystemAccess :: constructor
+P MediaKeys :: constructor
+P MediaList :: constructor
+P MediaMetadata :: album,artist,artwork,constructor,title
+P MediaQueryList :: addEventListener,addListener,constructor,dispatchEvent,removeEventListener,removeListener
+P MediaQueryListEvent :: constructor
+S MediaRecorder :: isTypeSupported
+P MediaRecorder :: constructor
+P MediaSession :: constructor
+S MediaSource :: isTypeSupported
+P MediaSource :: _afterAppend,_attachToElement,_unionBuffered,addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,readyState,removeSourceBuffer,setLiveSeekableRange
+P MediaSourceHandle :: constructor
+P MediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
+P MediaStreamAudioDestinationNode :: constructor
+P MediaStreamAudioSourceNode :: constructor
+P MediaStreamEvent :: constructor
+P MediaStreamTrack :: clone,constructor,stop
+P MediaStreamTrackAudioStats :: constructor
+P MediaStreamTrackEvent :: constructor
+P MediaStreamTrackGenerator :: constructor
+P MediaStreamTrackProcessor :: constructor
+P MediaStreamTrackVideoStats :: constructor
+P MessageChannel :: constructor
+P MessageEvent :: constructor
+P MessagePort :: _armEntry,_dispatch,_enqueue,_fire,_recoverStalled,addEventListener,close,constructor,onmessage,onmessageerror,postMessage,removeEventListener,start
+P MimeType :: constructor,description,enabledPlugin,suffixes,type
+P MimeTypeArray :: constructor,item,length,namedItem
+P MouseEvent :: constructor,initMouseEvent,pageX,pageY,x,y
+P MutationObserver :: constructor,disconnect,observe,takeRecords
+P MutationRecord :: constructor
+P NamedNodeMap :: constructor
+P NavigateEvent :: constructor
+P Navigation :: constructor
+P NavigationActivation :: constructor
+P NavigationCurrentEntryChangeEvent :: constructor
+P NavigationDestination :: constructor
+P NavigationHistoryEntry :: constructor
+P NavigationPrecommitController :: constructor
+P NavigationPreloadManager :: constructor
+P NavigationTransition :: constructor
+P Navigator :: adAuctionComponents,appCodeName,appName,appVersion,bluetooth,canLoadAdAuctionFencedFrame,canShare,clearAppBadge,clearOriginJoinedAdInterestGroups,clipboard,connection,constructor,cookieEnabled,cpuPerformance,createAuctionNonce,credentials,deprecatedReplaceInURN,deprecatedRunAdAuctionEnforcesKAnonymity,deprecatedURNToURL,deviceMemory,devicePosture,doNotTrack,geolocation,getBattery,getGamepads,getInstalledRelatedApps,getInterestGroupAdAuctionData,getUserMedia,gpu,hardwareConcurrency,hid,ink,javaEnabled,joinAdInterestGroup,keyboard,language,languages,leaveAdInterestGroup,locks,login,managed,maxTouchPoints,mediaCapabilities,mediaDevices,mediaSession,mimeTypes,onLine,pdfViewerEnabled,permissions,platform,plugins,presentation,product,productSub,protectedAudience,registerProtocolHandler,requestMIDIAccess,requestMediaKeySystemAccess,runAdAuction,scheduling,sendBeacon,serial,serviceWorker,setAppBadge,share,storage,storageBuckets,unregisterProtocolHandler,updateAdInterestGroups,usb,userActivation,userAgent,userAgentData,vendor,vendorSub,vibrate,virtualKeyboard,wakeLock,webdriver,webkitGetUserMedia,webkitPersistentStorage,webkitTemporaryStorage,windowControlsOverlay,xr
+P NavigatorLogin :: constructor
+P NavigatorManagedData :: constructor
+P NavigatorUAData :: brands,constructor,getHighEntropyValues,mobile,platform,toJSON
+P NetworkInformation :: constructor,downlink,effectiveType,onchange,rtt,saveData
+S Node :: ATTRIBUTE_NODE,CDATA_SECTION_NODE,COMMENT_NODE,DOCUMENT_FRAGMENT_NODE,DOCUMENT_NODE,DOCUMENT_POSITION_CONTAINED_BY,DOCUMENT_POSITION_CONTAINS,DOCUMENT_POSITION_DISCONNECTED,DOCUMENT_POSITION_FOLLOWING,DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC,DOCUMENT_POSITION_PRECEDING,DOCUMENT_TYPE_NODE,ELEMENT_NODE,ENTITY_NODE,ENTITY_REFERENCE_NODE,NOTATION_NODE,PROCESSING_INSTRUCTION_NODE,TEXT_NODE
+P Node :: ATTRIBUTE_NODE,CDATA_SECTION_NODE,COMMENT_NODE,DOCUMENT_FRAGMENT_NODE,DOCUMENT_NODE,DOCUMENT_POSITION_CONTAINED_BY,DOCUMENT_POSITION_CONTAINS,DOCUMENT_POSITION_DISCONNECTED,DOCUMENT_POSITION_FOLLOWING,DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC,DOCUMENT_POSITION_PRECEDING,DOCUMENT_TYPE_NODE,ELEMENT_NODE,ENTITY_NODE,ENTITY_REFERENCE_NODE,NOTATION_NODE,PROCESSING_INSTRUCTION_NODE,TEXT_NODE,addEventListener,appendChild,baseURI,childNodes,cloneNode,compareDocumentPosition,constructor,contains,dispatchEvent,firstChild,getRootNode,hasChildNodes,insertBefore,isConnected,isDefaultNamespace,isEqualNode,isSameNode,lastChild,lookupNamespaceURI,lookupPrefix,nextSibling,nodeName,nodeType,nodeValue,normalize,ownerDocument,parentElement,parentNode,previousSibling,removeChild,removeEventListener,replaceChild,textContent
+P NodeIterator :: constructor
+P NodeList :: constructor,entries,forEach,item,keys,values
+P NodeRange :: constructor
+P NotRestoredReasonDetails :: constructor
+P NotRestoredReasons :: constructor
+S Notification :: maxActions,permission,requestPermission
+P Notification :: constructor,image
+S Number :: EPSILON,MAX_SAFE_INTEGER,MAX_VALUE,MIN_SAFE_INTEGER,MIN_VALUE,NEGATIVE_INFINITY,NaN,POSITIVE_INFINITY,isFinite,isInteger,isNaN,isSafeInteger,parseFloat,parseInt
+P Number :: constructor,toExponential,toFixed,toLocaleString,toPrecision,toString,valueOf
+P OTPCredential :: constructor
+S Object :: assign,create,defineProperties,defineProperty,entries,freeze,fromEntries,getOwnPropertyDescriptor,getOwnPropertyDescriptors,getOwnPropertyNames,getOwnPropertySymbols,getPrototypeOf,groupBy,hasOwn,is,isExtensible,isFrozen,isSealed,keys,preventExtensions,seal,setPrototypeOf,values
+P Object :: __defineGetter__,__defineSetter__,__lookupGetter__,__lookupSetter__,__proto__,constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf
+P Observable :: constructor
+P OfflineAudioCompletionEvent :: constructor
+P OfflineAudioContext :: constructor,length,oncomplete,resume,startRendering,suspend
+P OffscreenCanvas :: constructor,convertToBlob,getContext,transferToImageBitmap
+P OffscreenCanvasRenderingContext2D :: constructor
+P OpaqueRange :: constructor
+P Option :: constructor
+P OrientationSensor :: constructor
+P Origin :: constructor
+P OscillatorNode :: constructor
+P OverconstrainedError :: constructor
+P PageRevealEvent :: constructor
+P PageSwapEvent :: constructor
+P PageTransitionEvent :: constructor
+P PannerNode :: constructor
+P PasswordCredential :: constructor,iconURL,id,name,password,type
+P Path2D :: _ellipse,_svg,_svgArc,addPath,arc,arcTo,bezierCurveTo,closePath,constructor,ellipse,lineTo,moveTo,quadraticCurveTo,rect
+P PaymentAddress :: constructor
+P PaymentManager :: constructor
+P PaymentMethodChangeEvent :: constructor
+P PaymentRequest :: constructor
+P PaymentRequestUpdateEvent :: constructor
+P PaymentResponse :: constructor
+P Performance :: constructor
+P PerformanceElementTiming :: constructor
+P PerformanceEntry :: constructor,detail,duration,entryType,name,startTime,toJSON
+P PerformanceEventTiming :: constructor
+P PerformanceLongAnimationFrameTiming :: constructor
+P PerformanceLongTaskTiming :: constructor
+P PerformanceMark :: constructor
+P PerformanceMeasure :: constructor
+P PerformanceNavigation :: constructor
+P PerformanceNavigationTiming :: constructor
+S PerformanceObserver :: supportedEntryTypes
+P PerformanceObserver :: constructor,disconnect,observe,takeRecords
+P PerformanceObserverEntryList :: constructor,getEntries,getEntriesByName,getEntriesByType
+P PerformancePaintTiming :: constructor
+P PerformanceResourceTiming :: constructor,decodedBodySize,deliveryType,encodedBodySize,initiatorType,nextHopProtocol,renderBlockingStatus,responseStatus,secureConnectionStart,toJSON,transferSize
+P PerformanceScriptTiming :: constructor
+P PerformanceServerTiming :: constructor,description,serverTimingName
+P PerformanceSoftNavigation :: constructor
+P PerformanceTiming :: constructor
+P PerformanceTimingConfidence :: constructor
+P PeriodicSyncManager :: constructor
+P PeriodicWave :: constructor
+P PermissionStatus :: constructor
+P Permissions :: constructor
+P PermissionsPolicy :: constructor
+P PictureInPictureEvent :: constructor
+P PictureInPictureWindow :: constructor
+P Plugin :: constructor,description,filename,item,length,name,namedItem
+P PluginArray :: constructor,item,length,namedItem,refresh
+P PointerEvent :: constructor
+P PopStateEvent :: constructor
+P Presentation :: constructor
+P PresentationAvailability :: constructor
+P PresentationConnection :: constructor
+P PresentationConnectionAvailableEvent :: constructor
+P PresentationConnectionCloseEvent :: constructor
+P PresentationConnectionList :: constructor
+P PresentationReceiver :: constructor
+P PresentationRequest :: constructor
+P PressureObserver :: constructor
+P PressureRecord :: constructor
+P ProcessingInstruction :: cloneNode,constructor,nodeName,nodeType,nodeValue,target
+P Profiler :: constructor
+P ProgressEvent :: constructor
+S Promise :: all,allSettled,any,race,reject,resolve,try,withResolvers
+P Promise :: catch,constructor,finally,then
+P PromiseRejectionEvent :: constructor
+P ProtectedAudience :: constructor
+S Proxy :: revocable
+P PublicKeyCredential :: constructor
+P PushManager :: constructor
+P PushSubscription :: constructor
+P PushSubscriptionOptions :: applicationServerKey,constructor,userVisibleOnly
+P QuotaExceededError :: constructor
+P RTCCertificate :: constructor
+P RTCDTMFSender :: constructor
+P RTCDTMFToneChangeEvent :: constructor
+P RTCDataChannel :: close,constructor,label,readyState,send
+P RTCDataChannelEvent :: constructor
+P RTCDtlsTransport :: constructor,state
+P RTCEncodedAudioFrame :: constructor,data,timestamp
+P RTCEncodedVideoFrame :: constructor
+P RTCError :: constructor
+P RTCErrorEvent :: constructor
+P RTCIceCandidate :: constructor
+P RTCIceTransport :: constructor
+P RTCPeerConnection :: __emitCand,__mkOfferSdp,__setGather,addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
+P RTCPeerConnectionIceErrorEvent :: address,constructor,port,url
+P RTCPeerConnectionIceEvent :: constructor
+P RTCRtpReceiver :: constructor
+P RTCRtpScriptTransform :: constructor
+P RTCRtpSender :: constructor
+P RTCRtpTransceiver :: constructor,direction,mid,stop
+P RTCSctpTransport :: constructor,maxMessageSize,state
+P RTCSessionDescription :: constructor
+P RTCStatsReport :: constructor,forEach,get,has,size
+P RTCTrackEvent :: constructor
+P RadioNodeList :: constructor
+S Range :: END_TO_END,END_TO_START,START_TO_END,START_TO_START
+P Range :: END_TO_END,END_TO_START,START_TO_END,START_TO_START,cloneContents,cloneRange,collapse,collapsed,commonAncestorContainer,compareBoundaryPoints,comparePoint,constructor,createContextualFragment,deleteContents,detach,endContainer,endOffset,extractContents,getBoundingClientRect,getClientRects,insertNode,intersectsNode,isPointInRange,selectNode,selectNodeContents,setEnd,setEndAfter,setEndBefore,setStart,setStartAfter,setStartBefore,startContainer,startOffset,surroundContents,toString
+P RangeError :: constructor,message,name
+P ReadableByteStreamController :: constructor
+P ReadableStream :: cancel,constructor,getReader,locked,pipeThrough,pipeTo,tee,values
+P ReadableStreamBYOBReader :: constructor
+P ReadableStreamBYOBRequest :: constructor
+P ReadableStreamDefaultController :: close,constructor,desiredSize,enqueue,error
+P ReadableStreamDefaultReader :: cancel,constructor,read,releaseLock
+P ReferenceError :: constructor,message,name
+S RegExp :: $&,$',$+,$1,$2,$3,$4,$5,$6,$7,$8,$9,$_,$`,escape,input,lastMatch,lastParen,leftContext,rightContext
+P RegExp :: compile,constructor,dotAll,exec,flags,global,hasIndices,ignoreCase,multiline,source,sticky,test,toString,unicode,unicodeSets
+P RelativeOrientationSensor :: constructor
+P RemotePlayback :: constructor
+P ReportBody :: constructor
+P ReportingObserver :: constructor
+P Request :: arrayBuffer,blob,clone,constructor,formData,json,text
+P ResizeObserver :: _fireFor,constructor,disconnect,observe,takeRecords,unobserve
+P ResizeObserverEntry :: constructor
+P ResizeObserverSize :: constructor
+S Response :: error,json,redirect
+P Response :: arrayBuffer,blob,body,bodyUsed,clone,constructor,formData,json,text
+P RestrictionTarget :: constructor
+P SVGAElement :: constructor
+P SVGAngle :: constructor
+P SVGAnimateElement :: constructor
+P SVGAnimateMotionElement :: constructor
+P SVGAnimateTransformElement :: constructor
+P SVGAnimatedAngle :: constructor
+P SVGAnimatedBoolean :: constructor
+P SVGAnimatedEnumeration :: constructor
+P SVGAnimatedInteger :: constructor
+P SVGAnimatedLength :: constructor
+P SVGAnimatedLengthList :: constructor
+P SVGAnimatedNumber :: constructor
+P SVGAnimatedNumberList :: constructor
+P SVGAnimatedPreserveAspectRatio :: constructor
+P SVGAnimatedRect :: constructor
+P SVGAnimatedString :: constructor
+P SVGAnimatedTransformList :: constructor
+P SVGAnimationElement :: constructor
+P SVGCircleElement :: constructor
+P SVGClipPathElement :: constructor
+P SVGComponentTransferFunctionElement :: constructor
+P SVGDefsElement :: constructor
+P SVGDescElement :: constructor
+P SVGElement :: constructor
+P SVGEllipseElement :: constructor
+P SVGFEBlendElement :: constructor
+P SVGFEColorMatrixElement :: constructor
+P SVGFEComponentTransferElement :: constructor
+P SVGFECompositeElement :: constructor
+P SVGFEConvolveMatrixElement :: constructor
+P SVGFEDiffuseLightingElement :: constructor
+P SVGFEDisplacementMapElement :: constructor
+P SVGFEDistantLightElement :: constructor
+P SVGFEDropShadowElement :: constructor
+P SVGFEFloodElement :: constructor
+P SVGFEFuncAElement :: constructor
+P SVGFEFuncBElement :: constructor
+P SVGFEFuncGElement :: constructor
+P SVGFEFuncRElement :: constructor
+P SVGFEGaussianBlurElement :: constructor
+P SVGFEImageElement :: constructor
+P SVGFEMergeElement :: constructor
+P SVGFEMergeNodeElement :: constructor
+P SVGFEMorphologyElement :: constructor
+P SVGFEOffsetElement :: constructor
+P SVGFEPointLightElement :: constructor
+P SVGFESpecularLightingElement :: constructor
+P SVGFESpotLightElement :: constructor
+P SVGFETileElement :: constructor
+P SVGFETurbulenceElement :: constructor
+P SVGFilterElement :: constructor
+P SVGForeignObjectElement :: constructor
+P SVGGElement :: constructor
+P SVGGeometryElement :: constructor,getPointAtLength,getTotalLength
+P SVGGradientElement :: constructor
+P SVGGraphicsElement :: constructor,getBBox,getCTM,getScreenCTM
+P SVGImageElement :: constructor
+P SVGLength :: constructor
+P SVGLengthList :: constructor
+P SVGLineElement :: constructor
+P SVGLinearGradientElement :: constructor
+P SVGMPathElement :: constructor
+P SVGMarkerElement :: constructor
+P SVGMaskElement :: constructor
+P SVGMatrix :: constructor
+P SVGMetadataElement :: constructor
+P SVGNumber :: constructor
+P SVGNumberList :: constructor
+P SVGPathElement :: constructor
+P SVGPatternElement :: constructor
+P SVGPoint :: constructor,matrixTransform
+P SVGPointList :: constructor
+P SVGPolygonElement :: constructor
+P SVGPolylineElement :: constructor
+P SVGPreserveAspectRatio :: constructor
+P SVGRadialGradientElement :: constructor
+P SVGRect :: constructor
+P SVGRectElement :: constructor
+P SVGSVGElement :: constructor
+P SVGScriptElement :: constructor
+P SVGSetElement :: constructor
+P SVGStopElement :: constructor
+P SVGStringList :: constructor
+P SVGStyleElement :: constructor
+P SVGSwitchElement :: constructor
+P SVGSymbolElement :: constructor
+P SVGTSpanElement :: constructor
+P SVGTextContentElement :: constructor,getComputedTextLength,getExtentOfChar,getSubStringLength
+P SVGTextElement :: constructor
+P SVGTextPathElement :: constructor
+P SVGTextPositioningElement :: constructor
+P SVGTitleElement :: constructor
+P SVGTransform :: constructor
+P SVGTransformList :: constructor
+P SVGUnitTypes :: constructor
+P SVGUseElement :: constructor
+P SVGViewElement :: constructor
+P Sanitizer :: constructor
+P Scheduler :: constructor
+P Scheduling :: constructor,isInputPending
+P Screen :: availHeight,availLeft,availTop,availWidth,colorDepth,constructor,height,isExtended,onchange,orientation,pixelDepth,width
+P ScreenDetailed :: constructor
+P ScreenDetails :: constructor
+P ScreenOrientation :: constructor
+P ScriptProcessorNode :: constructor
+P ScrollTimeline :: constructor
+P SecurityPolicyViolationEvent :: constructor
+P Selection :: _anchor,_focus,_inDoc,_setRange,addRange,anchorNode,anchorOffset,collapse,collapseToEnd,collapseToStart,constructor,containsNode,deleteFromDocument,empty,extend,focusNode,focusOffset,getRangeAt,isCollapsed,modify,rangeCount,removeAllRanges,removeRange,selectAllChildren,setBaseAndExtent,setPosition,toString,type
+P Sensor :: constructor
+P SensorErrorEvent :: constructor
+P Serial :: constructor
+P SerialPort :: constructor
+P ServiceWorker :: constructor
+P ServiceWorkerContainer :: constructor,getRegistrations,register
+P ServiceWorkerRegistration :: constructor
+P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersection,isDisjointFrom,isSubsetOf,isSupersetOf,keys,size,symmetricDifference,union,values
+P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,cloneNode,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
+P SharedWorker :: constructor
+P SnapEvent :: constructor
+P SourceBuffer :: _applyAppend,abort,appendBuffer,buffered,changeType,constructor,remove
+P SourceBufferList :: constructor
+P SpeechGrammar :: constructor
+P SpeechGrammarList :: constructor
+P SpeechRecognition :: constructor
+P SpeechRecognitionErrorEvent :: constructor
+P SpeechRecognitionEvent :: constructor
+P SpeechRecognitionPhrase :: constructor
+P SpeechSynthesis :: constructor
+P SpeechSynthesisErrorEvent :: constructor
+P SpeechSynthesisEvent :: constructor
+P SpeechSynthesisUtterance :: constructor
+P SpeechSynthesisVoice :: constructor
+P StaticRange :: collapsed,constructor,endContainer,endOffset,startContainer,startOffset
+P StereoPannerNode :: constructor
+P Storage :: clear,constructor,getItem,key,length,removeItem,setItem
+P StorageBucket :: constructor
+P StorageBucketManager :: constructor
+P StorageEvent :: constructor,initStorageEvent
+P StorageManager :: constructor
+S String :: fromCharCode,fromCodePoint,raw
+P String :: anchor,at,big,blink,bold,charAt,charCodeAt,codePointAt,concat,constructor,endsWith,fixed,fontcolor,fontsize,includes,indexOf,isWellFormed,italics,lastIndexOf,length,link,localeCompare,match,matchAll,normalize,padEnd,padStart,repeat,replace,replaceAll,search,slice,small,split,startsWith,strike,sub,substr,substring,sup,toLocaleLowerCase,toLocaleUpperCase,toLowerCase,toString,toUpperCase,toWellFormed,trim,trimEnd,trimLeft,trimRight,trimStart,valueOf
+P StylePropertyMap :: constructor
+P StylePropertyMapReadOnly :: constructor
+P StyleSheet :: constructor,disabled,href,media,ownerNode,parentStyleSheet,title,type
+P StyleSheetList :: constructor
+P SubmitEvent :: constructor
+P Subscriber :: constructor
+P SubtleCrypto :: constructor
+P Summarizer :: constructor
+P SuppressedError :: constructor,message,name
+S Symbol :: asyncDispose,asyncIterator,dispose,for,hasInstance,isConcatSpreadable,iterator,keyFor,match,matchAll,replace,search,species,split,toPrimitive,toStringTag,unscopables
+P Symbol :: constructor,description,toString,valueOf
+P SyncManager :: constructor
+P SyntaxError :: constructor,message,name
+P TaskAttributionTiming :: constructor
+P TaskController :: constructor
+P TaskPriorityChangeEvent :: constructor
+P TaskSignal :: constructor
+P Text :: cloneNode,constructor,nodeName,nodeType,splitText,wholeText
+P TextDecoder :: constructor,decode
+P TextDecoderStream :: constructor
+P TextEncoder :: constructor,encode,encodeInto,encoding
+P TextEncoderStream :: constructor,encoding
+P TextEvent :: constructor
+P TextFormat :: constructor
+P TextFormatUpdateEvent :: constructor
+P TextMetrics :: constructor
+P TextTrack :: constructor
+P TextTrackCue :: constructor,endTime,id,pauseOnExit,startTime,track
+P TextTrackCueList :: constructor
+P TextTrackList :: constructor
+P TextUpdateEvent :: constructor
+P TimeRanges :: constructor
+P TimelineTrigger :: constructor
+P TimelineTriggerRange :: constructor
+P TimelineTriggerRangeList :: constructor
+P ToggleEvent :: constructor
+P Touch :: constructor
+P TouchEvent :: constructor
+P TouchList :: constructor
+P TrackEvent :: constructor
+P TransformStream :: constructor
+P TransformStreamDefaultController :: constructor
+P TransitionEvent :: constructor
+P Translator :: constructor
+P TreeWalker :: constructor,firstChild,lastChild,nextNode,nextSibling,parentNode,previousNode,previousSibling
+P TrustedHTML :: constructor
+P TrustedScript :: constructor
+P TrustedScriptURL :: constructor
+P TrustedTypePolicy :: constructor
+P TrustedTypePolicyFactory :: constructor
+P TypeError :: constructor,message,name
+P UIEvent :: constructor,initUIEvent
+P URIError :: constructor,message,name
+S URL :: __diting,canParse,createObjectURL,parse,revokeObjectURL
+P URL :: _refreshSP,_set,_updateSearch,constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username
+P URLPattern :: constructor,exec,test
+P URLSearchParams :: _decode,_notify,_parseString,_setFromString,append,constructor,delete,entries,forEach,get,getAll,has,keys,set,size,sort,toString,values
+P USB :: constructor
+P USBAlternateInterface :: constructor
+P USBConfiguration :: constructor
+P USBConnectionEvent :: constructor
+P USBDevice :: constructor
+P USBEndpoint :: constructor
+P USBInTransferResult :: constructor
+P USBInterface :: constructor
+P USBIsochronousInTransferPacket :: constructor
+P USBIsochronousInTransferResult :: constructor
+P USBIsochronousOutTransferPacket :: constructor
+P USBIsochronousOutTransferResult :: constructor
+P USBOutTransferResult :: constructor
+S Uint16Array :: BYTES_PER_ELEMENT
+P Uint16Array :: BYTES_PER_ELEMENT,constructor
+S Uint32Array :: BYTES_PER_ELEMENT
+P Uint32Array :: BYTES_PER_ELEMENT,constructor
+S Uint8Array :: BYTES_PER_ELEMENT,fromBase64,fromHex
+P Uint8Array :: BYTES_PER_ELEMENT,constructor,setFromBase64,setFromHex,toBase64,toHex
+S Uint8ClampedArray :: BYTES_PER_ELEMENT
+P Uint8ClampedArray :: BYTES_PER_ELEMENT,constructor
+P UserActivation :: constructor,hasBeenActive,isActive
+P VTTCue :: constructor
+P ValidityState :: badInput,constructor,customError,patternMismatch,rangeOverflow,rangeUnderflow,stepMismatch,tooLong,tooShort,typeMismatch,valid,valueMissing
+P VideoColorSpace :: constructor
+P VideoDecoder :: constructor
+P VideoEncoder :: constructor
+P VideoFrame :: close,constructor,duration,format,timestamp
+P VideoPlaybackQuality :: constructor,corruptedVideoFrames,creationTime,droppedVideoFrames,totalVideoFrames
+P ViewTimeline :: constructor
+P ViewTransition :: constructor,finished,ready,skipTransition,updateCallbackDone
+P ViewTransitionTypeSet :: constructor
+P Viewport :: constructor
+P VirtualKeyboard :: constructor
+P VirtualKeyboardGeometryChangeEvent :: constructor
+P VisibilityStateEntry :: constructor
+P VisualViewport :: addEventListener,constructor,height,offsetLeft,offsetTop,pageLeft,pageTop,removeEventListener,scale,width
+P WGSLLanguageFeatures :: constructor
+P WakeLock :: constructor
+P WakeLockSentinel :: constructor
+P WaveShaperNode :: constructor
+P WeakMap :: constructor,delete,get,getOrInsert,getOrInsertComputed,has,set
+P WeakRef :: constructor,deref
+P WeakSet :: add,constructor,delete,has
+P WebGL2RenderingContext :: ACTIVE_ATTRIBUTES,ACTIVE_TEXTURE,ACTIVE_UNIFORMS,ACTIVE_UNIFORM_BLOCKS,ALIASED_LINE_WIDTH_RANGE,ALIASED_POINT_SIZE_RANGE,ALPHA,ALPHA_BITS,ALREADY_SIGNALED,ALWAYS,ANY_SAMPLES_PASSED,ANY_SAMPLES_PASSED_CONSERVATIVE,ARRAY_BUFFER,ARRAY_BUFFER_BINDING,ATTACHED_SHADERS,BACK,BLEND,BLEND_COLOR,BLEND_DST_ALPHA,BLEND_DST_RGB,BLEND_EQUATION,BLEND_EQUATION_ALPHA,BLEND_EQUATION_RGB,BLEND_SRC_ALPHA,BLEND_SRC_RGB,BLUE_BITS,BOOL,BOOL_VEC2,BOOL_VEC3,BOOL_VEC4,BROWSER_DEFAULT_WEBGL,BUFFER_SIZE,BUFFER_USAGE,BYTE,CCW,CLAMP_TO_EDGE,COLOR,COLOR_ATTACHMENT0,COLOR_ATTACHMENT1,COLOR_ATTACHMENT10,COLOR_ATTACHMENT11,COLOR_ATTACHMENT12,COLOR_ATTACHMENT13,COLOR_ATTACHMENT14,COLOR_ATTACHMENT15,COLOR_ATTACHMENT2,COLOR_ATTACHMENT3,COLOR_ATTACHMENT4,COLOR_ATTACHMENT5,COLOR_ATTACHMENT6,COLOR_ATTACHMENT7,COLOR_ATTACHMENT8,COLOR_ATTACHMENT9,COLOR_BUFFER_BIT,COLOR_CLEAR_VALUE,COLOR_WRITEMASK,COMPARE_REF_TO_TEXTURE,COMPILE_STATUS,COMPRESSED_TEXTURE_FORMATS,CONDITION_SATISFIED,CONSTANT_ALPHA,CONSTANT_COLOR,CONTEXT_LOST_WEBGL,COPY_READ_BUFFER,COPY_READ_BUFFER_BINDING,COPY_WRITE_BUFFER,COPY_WRITE_BUFFER_BINDING,CULL_FACE,CULL_FACE_MODE,CURRENT_PROGRAM,CURRENT_QUERY,CURRENT_VERTEX_ATTRIB,CW,DECR,DECR_WRAP,DELETE_STATUS,DEPTH,DEPTH24_STENCIL8,DEPTH32F_STENCIL8,DEPTH_ATTACHMENT,DEPTH_BITS,DEPTH_BUFFER_BIT,DEPTH_CLEAR_VALUE,DEPTH_COMPONENT,DEPTH_COMPONENT16,DEPTH_COMPONENT24,DEPTH_COMPONENT32F,DEPTH_FUNC,DEPTH_RANGE,DEPTH_STENCIL,DEPTH_STENCIL_ATTACHMENT,DEPTH_TEST,DEPTH_WRITEMASK,DITHER,DONT_CARE,DRAW_BUFFER0,DRAW_BUFFER1,DRAW_BUFFER10,DRAW_BUFFER11,DRAW_BUFFER12,DRAW_BUFFER13,DRAW_BUFFER14,DRAW_BUFFER15,DRAW_BUFFER2,DRAW_BUFFER3,DRAW_BUFFER4,DRAW_BUFFER5,DRAW_BUFFER6,DRAW_BUFFER7,DRAW_BUFFER8,DRAW_BUFFER9,DRAW_FRAMEBUFFER,DRAW_FRAMEBUFFER_BINDING,DST_ALPHA,DST_COLOR,DYNAMIC_COPY,DYNAMIC_DRAW,DYNAMIC_READ,ELEMENT_ARRAY_BUFFER,ELEMENT_ARRAY_BUFFER_BINDING,EQUAL,FASTEST,FLOAT,FLOAT_32_UNSIGNED_INT_24_8_REV,FLOAT_MAT2,FLOAT_MAT2x3,FLOAT_MAT2x4,FLOAT_MAT3,FLOAT_MAT3x2,FLOAT_MAT3x4,FLOAT_MAT4,FLOAT_MAT4x2,FLOAT_MAT4x3,FLOAT_VEC2,FLOAT_VEC3,FLOAT_VEC4,FRAGMENT_SHADER,FRAGMENT_SHADER_DERIVATIVE_HINT,FRAMEBUFFER,FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE,FRAMEBUFFER_ATTACHMENT_BLUE_SIZE,FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING,FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE,FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE,FRAMEBUFFER_ATTACHMENT_GREEN_SIZE,FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,FRAMEBUFFER_ATTACHMENT_RED_SIZE,FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE,FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE,FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER,FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL,FRAMEBUFFER_BINDING,FRAMEBUFFER_COMPLETE,FRAMEBUFFER_DEFAULT,FRAMEBUFFER_INCOMPLETE_ATTACHMENT,FRAMEBUFFER_INCOMPLETE_DIMENSIONS,FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT,FRAMEBUFFER_INCOMPLETE_MULTISAMPLE,FRAMEBUFFER_UNSUPPORTED,FRONT,FRONT_AND_BACK,FRONT_FACE,FUNC_ADD,FUNC_REVERSE_SUBTRACT,FUNC_SUBTRACT,GENERATE_MIPMAP_HINT,GEQUAL,GREATER,GREEN_BITS,HALF_FLOAT,HIGH_FLOAT,HIGH_INT,IMPLEMENTATION_COLOR_READ_FORMAT,IMPLEMENTATION_COLOR_READ_TYPE,INCR,INCR_WRAP,INT,INTERLEAVED_ATTRIBS,INT_2_10_10_10_REV,INT_SAMPLER_2D,INT_SAMPLER_2D_ARRAY,INT_SAMPLER_3D,INT_SAMPLER_CUBE,INT_VEC2,INT_VEC3,INT_VEC4,INVALID_ENUM,INVALID_FRAMEBUFFER_OPERATION,INVALID_INDEX,INVALID_OPERATION,INVALID_VALUE,INVERT,KEEP,LEQUAL,LESS,LINEAR,LINEAR_MIPMAP_LINEAR,LINEAR_MIPMAP_NEAREST,LINES,LINE_LOOP,LINE_STRIP,LINE_WIDTH,LINK_STATUS,LOW_FLOAT,LOW_INT,LUMINANCE,LUMINANCE_ALPHA,MAX,MAX_3D_TEXTURE_SIZE,MAX_ARRAY_TEXTURE_LAYERS,MAX_CLIENT_WAIT_TIMEOUT_WEBGL,MAX_COLOR_ATTACHMENTS,MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS,MAX_COMBINED_TEXTURE_IMAGE_UNITS,MAX_COMBINED_UNIFORM_BLOCKS,MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS,MAX_CUBE_MAP_TEXTURE_SIZE,MAX_DRAW_BUFFERS,MAX_ELEMENTS_INDICES,MAX_ELEMENTS_VERTICES,MAX_ELEMENT_INDEX,MAX_FRAGMENT_INPUT_COMPONENTS,MAX_FRAGMENT_UNIFORM_BLOCKS,MAX_FRAGMENT_UNIFORM_COMPONENTS,MAX_FRAGMENT_UNIFORM_VECTORS,MAX_PROGRAM_TEXEL_OFFSET,MAX_RENDERBUFFER_SIZE,MAX_SAMPLES,MAX_SERVER_WAIT_TIMEOUT,MAX_TEXTURE_IMAGE_UNITS,MAX_TEXTURE_LOD_BIAS,MAX_TEXTURE_SIZE,MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS,MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS,MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS,MAX_UNIFORM_BLOCK_SIZE,MAX_UNIFORM_BUFFER_BINDINGS,MAX_VARYING_COMPONENTS,MAX_VARYING_VECTORS,MAX_VERTEX_ATTRIBS,MAX_VERTEX_OUTPUT_COMPONENTS,MAX_VERTEX_TEXTURE_IMAGE_UNITS,MAX_VERTEX_UNIFORM_BLOCKS,MAX_VERTEX_UNIFORM_COMPONENTS,MAX_VERTEX_UNIFORM_VECTORS,MAX_VIEWPORT_DIMS,MEDIUM_FLOAT,MEDIUM_INT,MIN,MIN_PROGRAM_TEXEL_OFFSET,MIRRORED_REPEAT,NEAREST,NEAREST_MIPMAP_LINEAR,NEAREST_MIPMAP_NEAREST,NEVER,NICEST,NONE,NOTEQUAL,NO_ERROR,OBJECT_TYPE,ONE,ONE_MINUS_CONSTANT_ALPHA,ONE_MINUS_CONSTANT_COLOR,ONE_MINUS_DST_ALPHA,ONE_MINUS_DST_COLOR,ONE_MINUS_SRC_ALPHA,ONE_MINUS_SRC_COLOR,OUT_OF_MEMORY,PACK_ALIGNMENT,PACK_ROW_LENGTH,PACK_SKIP_PIXELS,PACK_SKIP_ROWS,PIXEL_PACK_BUFFER,PIXEL_PACK_BUFFER_BINDING,PIXEL_UNPACK_BUFFER,PIXEL_UNPACK_BUFFER_BINDING,POINTS,POLYGON_OFFSET_FACTOR,POLYGON_OFFSET_FILL,POLYGON_OFFSET_UNITS,QUERY_RESULT,QUERY_RESULT_AVAILABLE,R11F_G11F_B10F,R16F,R16I,R16UI,R32F,R32I,R32UI,R8,R8I,R8UI,R8_SNORM,RASTERIZER_DISCARD,READ_BUFFER,READ_FRAMEBUFFER,READ_FRAMEBUFFER_BINDING,RED,RED_BITS,RED_INTEGER,RENDERBUFFER,RENDERBUFFER_ALPHA_SIZE,RENDERBUFFER_BINDING,RENDERBUFFER_BLUE_SIZE,RENDERBUFFER_DEPTH_SIZE,RENDERBUFFER_GREEN_SIZE,RENDERBUFFER_HEIGHT,RENDERBUFFER_INTERNAL_FORMAT,RENDERBUFFER_RED_SIZE,RENDERBUFFER_SAMPLES,RENDERBUFFER_STENCIL_SIZE,RENDERBUFFER_WIDTH,RENDERER,REPEAT,REPLACE,RG,RG16F,RG16I,RG16UI,RG32F,RG32I,RG32UI,RG8,RG8I,RG8UI,RG8_SNORM,RGB,RGB10_A2,RGB10_A2UI,RGB16F,RGB16I,RGB16UI,RGB32F,RGB32I,RGB32UI,RGB565,RGB5_A1,RGB8,RGB8I,RGB8UI,RGB8_SNORM,RGB9_E5,RGBA,RGBA16F,RGBA16I,RGBA16UI,RGBA32F,RGBA32I,RGBA32UI,RGBA4,RGBA8,RGBA8I,RGBA8UI,RGBA8_SNORM,RGBA_INTEGER,RGB_INTEGER,RG_INTEGER,SAMPLER_2D,SAMPLER_2D_ARRAY,SAMPLER_2D_ARRAY_SHADOW,SAMPLER_2D_SHADOW,SAMPLER_3D,SAMPLER_BINDING,SAMPLER_CUBE,SAMPLER_CUBE_SHADOW,SAMPLES,SAMPLE_ALPHA_TO_COVERAGE,SAMPLE_BUFFERS,SAMPLE_COVERAGE,SAMPLE_COVERAGE_INVERT,SAMPLE_COVERAGE_VALUE,SCISSOR_BOX,SCISSOR_TEST,SEPARATE_ATTRIBS,SHADER_TYPE,SHADING_LANGUAGE_VERSION,SHORT,SIGNALED,SIGNED_NORMALIZED,SRC_ALPHA,SRC_ALPHA_SATURATE,SRC_COLOR,SRGB,SRGB8,SRGB8_ALPHA8,STATIC_COPY,STATIC_DRAW,STATIC_READ,STENCIL,STENCIL_ATTACHMENT,STENCIL_BACK_FAIL,STENCIL_BACK_FUNC,STENCIL_BACK_PASS_DEPTH_FAIL,STENCIL_BACK_PASS_DEPTH_PASS,STENCIL_BACK_REF,STENCIL_BACK_VALUE_MASK,STENCIL_BACK_WRITEMASK,STENCIL_BITS,STENCIL_BUFFER_BIT,STENCIL_CLEAR_VALUE,STENCIL_FAIL,STENCIL_FUNC,STENCIL_INDEX8,STENCIL_PASS_DEPTH_FAIL,STENCIL_PASS_DEPTH_PASS,STENCIL_REF,STENCIL_TEST,STENCIL_VALUE_MASK,STENCIL_WRITEMASK,STREAM_COPY,STREAM_DRAW,STREAM_READ,SUBPIXEL_BITS,SYNC_CONDITION,SYNC_FENCE,SYNC_FLAGS,SYNC_FLUSH_COMMANDS_BIT,SYNC_GPU_COMMANDS_COMPLETE,SYNC_STATUS,TEXTURE,TEXTURE0,TEXTURE1,TEXTURE10,TEXTURE11,TEXTURE12,TEXTURE13,TEXTURE14,TEXTURE15,TEXTURE16,TEXTURE17,TEXTURE18,TEXTURE19,TEXTURE2,TEXTURE20,TEXTURE21,TEXTURE22,TEXTURE23,TEXTURE24,TEXTURE25,TEXTURE26,TEXTURE27,TEXTURE28,TEXTURE29,TEXTURE3,TEXTURE30,TEXTURE31,TEXTURE4,TEXTURE5,TEXTURE6,TEXTURE7,TEXTURE8,TEXTURE9,TEXTURE_2D,TEXTURE_2D_ARRAY,TEXTURE_3D,TEXTURE_BASE_LEVEL,TEXTURE_BINDING_2D,TEXTURE_BINDING_2D_ARRAY,TEXTURE_BINDING_3D,TEXTURE_BINDING_CUBE_MAP,TEXTURE_COMPARE_FUNC,TEXTURE_COMPARE_MODE,TEXTURE_CUBE_MAP,TEXTURE_CUBE_MAP_NEGATIVE_X,TEXTURE_CUBE_MAP_NEGATIVE_Y,TEXTURE_CUBE_MAP_NEGATIVE_Z,TEXTURE_CUBE_MAP_POSITIVE_X,TEXTURE_CUBE_MAP_POSITIVE_Y,TEXTURE_CUBE_MAP_POSITIVE_Z,TEXTURE_IMMUTABLE_FORMAT,TEXTURE_IMMUTABLE_LEVELS,TEXTURE_MAG_FILTER,TEXTURE_MAX_LEVEL,TEXTURE_MAX_LOD,TEXTURE_MIN_FILTER,TEXTURE_MIN_LOD,TEXTURE_WRAP_R,TEXTURE_WRAP_S,TEXTURE_WRAP_T,TIMEOUT_EXPIRED,TIMEOUT_IGNORED,TRANSFORM_FEEDBACK,TRANSFORM_FEEDBACK_ACTIVE,TRANSFORM_FEEDBACK_BINDING,TRANSFORM_FEEDBACK_BUFFER,TRANSFORM_FEEDBACK_BUFFER_BINDING,TRANSFORM_FEEDBACK_BUFFER_MODE,TRANSFORM_FEEDBACK_BUFFER_SIZE,TRANSFORM_FEEDBACK_BUFFER_START,TRANSFORM_FEEDBACK_PAUSED,TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,TRANSFORM_FEEDBACK_VARYINGS,TRIANGLES,TRIANGLE_FAN,TRIANGLE_STRIP,UNIFORM_ARRAY_STRIDE,UNIFORM_BLOCK_ACTIVE_UNIFORMS,UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES,UNIFORM_BLOCK_BINDING,UNIFORM_BLOCK_DATA_SIZE,UNIFORM_BLOCK_INDEX,UNIFORM_BLOCK_REFERENCED_BY_FRAGMENT_SHADER,UNIFORM_BLOCK_REFERENCED_BY_VERTEX_SHADER,UNIFORM_BUFFER,UNIFORM_BUFFER_BINDING,UNIFORM_BUFFER_OFFSET_ALIGNMENT,UNIFORM_BUFFER_SIZE,UNIFORM_BUFFER_START,UNIFORM_IS_ROW_MAJOR,UNIFORM_MATRIX_STRIDE,UNIFORM_OFFSET,UNIFORM_SIZE,UNIFORM_TYPE,UNPACK_ALIGNMENT,UNPACK_COLORSPACE_CONVERSION_WEBGL,UNPACK_FLIP_Y_WEBGL,UNPACK_IMAGE_HEIGHT,UNPACK_PREMULTIPLY_ALPHA_WEBGL,UNPACK_ROW_LENGTH,UNPACK_SKIP_IMAGES,UNPACK_SKIP_PIXELS,UNPACK_SKIP_ROWS,UNSIGNALED,UNSIGNED_BYTE,UNSIGNED_INT,UNSIGNED_INT_10F_11F_11F_REV,UNSIGNED_INT_24_8,UNSIGNED_INT_2_10_10_10_REV,UNSIGNED_INT_5_9_9_9_REV,UNSIGNED_INT_SAMPLER_2D,UNSIGNED_INT_SAMPLER_2D_ARRAY,UNSIGNED_INT_SAMPLER_3D,UNSIGNED_INT_SAMPLER_CUBE,UNSIGNED_INT_VEC2,UNSIGNED_INT_VEC3,UNSIGNED_INT_VEC4,UNSIGNED_NORMALIZED,UNSIGNED_SHORT,UNSIGNED_SHORT_4_4_4_4,UNSIGNED_SHORT_5_5_5_1,UNSIGNED_SHORT_5_6_5,VALIDATE_STATUS,VENDOR,VERSION,VERTEX_ARRAY_BINDING,VERTEX_ATTRIB_ARRAY_BUFFER_BINDING,VERTEX_ATTRIB_ARRAY_DIVISOR,VERTEX_ATTRIB_ARRAY_ENABLED,VERTEX_ATTRIB_ARRAY_INTEGER,VERTEX_ATTRIB_ARRAY_NORMALIZED,VERTEX_ATTRIB_ARRAY_POINTER,VERTEX_ATTRIB_ARRAY_SIZE,VERTEX_ATTRIB_ARRAY_STRIDE,VERTEX_ATTRIB_ARRAY_TYPE,VERTEX_SHADER,VIEWPORT,WAIT_FAILED,ZERO,activeTexture,attachShader,beginQuery,beginTransformFeedback,bindAttribLocation,bindBuffer,bindBufferBase,bindBufferRange,bindFramebuffer,bindRenderbuffer,bindSampler,bindTexture,bindTransformFeedback,bindVertexArray,blendColor,blendEquation,blendEquationSeparate,blendFunc,blendFuncSeparate,blitFramebuffer,bufferData,bufferSubData,canvas,checkFramebufferStatus,clear,clearBufferfi,clearBufferfv,clearBufferiv,clearBufferuiv,clearColor,clearDepth,clearStencil,clientWaitSync,colorMask,compileShader,compressedTexImage2D,compressedTexImage3D,compressedTexSubImage2D,compressedTexSubImage3D,constructor,copyBufferSubData,copyTexImage2D,copyTexSubImage2D,copyTexSubImage3D,createBuffer,createFramebuffer,createProgram,createQuery,createRenderbuffer,createSampler,createShader,createTexture,createTransformFeedback,createVertexArray,cullFace,deleteBuffer,deleteFramebuffer,deleteProgram,deleteQuery,deleteRenderbuffer,deleteSampler,deleteShader,deleteSync,deleteTexture,deleteTransformFeedback,deleteVertexArray,depthFunc,depthMask,depthRange,detachShader,disable,disableVertexAttribArray,drawArrays,drawArraysInstanced,drawBuffers,drawElements,drawElementsInstanced,drawRangeElements,drawingBufferColorSpace,drawingBufferFormat,drawingBufferHeight,drawingBufferStorage,drawingBufferWidth,enable,enableVertexAttribArray,endQuery,endTransformFeedback,fenceSync,finish,flush,framebufferRenderbuffer,framebufferTexture2D,framebufferTextureLayer,frontFace,generateMipmap,getActiveAttrib,getActiveUniform,getActiveUniformBlockName,getActiveUniformBlockParameter,getActiveUniforms,getAttachedShaders,getAttribLocation,getBufferParameter,getBufferSubData,getContextAttributes,getError,getExtension,getFragDataLocation,getFramebufferAttachmentParameter,getIndexedParameter,getInternalformatParameter,getParameter,getProgramInfoLog,getProgramParameter,getQuery,getQueryParameter,getRenderbufferParameter,getSamplerParameter,getShaderInfoLog,getShaderParameter,getShaderPrecisionFormat,getShaderSource,getSupportedExtensions,getSyncParameter,getTexParameter,getTransformFeedbackVarying,getUniform,getUniformBlockIndex,getUniformIndices,getUniformLocation,getVertexAttrib,getVertexAttribOffset,hint,invalidateFramebuffer,invalidateSubFramebuffer,isBuffer,isContextLost,isEnabled,isFramebuffer,isProgram,isQuery,isRenderbuffer,isSampler,isShader,isSync,isTexture,isTransformFeedback,isVertexArray,lineWidth,linkProgram,pauseTransformFeedback,pixelStorei,polygonOffset,readBuffer,readPixels,renderbufferStorage,renderbufferStorageMultisample,resumeTransformFeedback,sampleCoverage,samplerParameterf,samplerParameteri,scissor,shaderSource,stencilFunc,stencilFuncSeparate,stencilMask,stencilMaskSeparate,stencilOp,stencilOpSeparate,texImage2D,texImage3D,texParameterf,texParameteri,texStorage2D,texStorage3D,texSubImage2D,texSubImage3D,transformFeedbackVaryings,uniform1f,uniform1fv,uniform1i,uniform1iv,uniform1ui,uniform1uiv,uniform2f,uniform2fv,uniform2i,uniform2iv,uniform2ui,uniform2uiv,uniform3f,uniform3fv,uniform3i,uniform3iv,uniform3ui,uniform3uiv,uniform4f,uniform4fv,uniform4i,uniform4iv,uniform4ui,uniform4uiv,uniformBlockBinding,uniformMatrix2fv,uniformMatrix2x3fv,uniformMatrix2x4fv,uniformMatrix3fv,uniformMatrix3x2fv,uniformMatrix3x4fv,uniformMatrix4fv,uniformMatrix4x2fv,uniformMatrix4x3fv,unpackColorSpace,useProgram,validateProgram,vertexAttrib1f,vertexAttrib1fv,vertexAttrib2f,vertexAttrib2fv,vertexAttrib3f,vertexAttrib3fv,vertexAttrib4f,vertexAttrib4fv,vertexAttribDivisor,vertexAttribI4i,vertexAttribI4iv,vertexAttribI4ui,vertexAttribI4uiv,vertexAttribIPointer,vertexAttribPointer,viewport,waitSync
+P WebGLActiveInfo :: constructor
+P WebGLBuffer :: constructor
+P WebGLContextEvent :: constructor
+P WebGLFramebuffer :: constructor
+P WebGLObject :: constructor
+P WebGLProgram :: constructor
+P WebGLQuery :: constructor
+P WebGLRenderbuffer :: constructor
+P WebGLRenderingContext :: ACTIVE_ATTRIBUTES,ACTIVE_TEXTURE,ACTIVE_UNIFORMS,ALIASED_LINE_WIDTH_RANGE,ALIASED_POINT_SIZE_RANGE,ALPHA,ALPHA_BITS,ALWAYS,ARRAY_BUFFER,ARRAY_BUFFER_BINDING,ATTACHED_SHADERS,BACK,BLEND,BLEND_COLOR,BLEND_DST_ALPHA,BLEND_DST_RGB,BLEND_EQUATION,BLEND_EQUATION_ALPHA,BLEND_EQUATION_RGB,BLEND_SRC_ALPHA,BLEND_SRC_RGB,BLUE_BITS,BOOL,BOOL_VEC2,BOOL_VEC3,BOOL_VEC4,BROWSER_DEFAULT_WEBGL,BUFFER_SIZE,BUFFER_USAGE,BYTE,CCW,CLAMP_TO_EDGE,COLOR_ATTACHMENT0,COLOR_BUFFER_BIT,COLOR_CLEAR_VALUE,COLOR_WRITEMASK,COMPILE_STATUS,COMPRESSED_TEXTURE_FORMATS,CONSTANT_ALPHA,CONSTANT_COLOR,CONTEXT_LOST_WEBGL,CULL_FACE,CULL_FACE_MODE,CURRENT_PROGRAM,CURRENT_VERTEX_ATTRIB,CW,DECR,DECR_WRAP,DELETE_STATUS,DEPTH_ATTACHMENT,DEPTH_BITS,DEPTH_BUFFER_BIT,DEPTH_CLEAR_VALUE,DEPTH_COMPONENT,DEPTH_COMPONENT16,DEPTH_FUNC,DEPTH_RANGE,DEPTH_STENCIL,DEPTH_STENCIL_ATTACHMENT,DEPTH_TEST,DEPTH_WRITEMASK,DITHER,DONT_CARE,DST_ALPHA,DST_COLOR,DYNAMIC_DRAW,ELEMENT_ARRAY_BUFFER,ELEMENT_ARRAY_BUFFER_BINDING,EQUAL,FASTEST,FLOAT,FLOAT_MAT2,FLOAT_MAT3,FLOAT_MAT4,FLOAT_VEC2,FLOAT_VEC3,FLOAT_VEC4,FRAGMENT_SHADER,FRAMEBUFFER,FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE,FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL,FRAMEBUFFER_BINDING,FRAMEBUFFER_COMPLETE,FRAMEBUFFER_INCOMPLETE_ATTACHMENT,FRAMEBUFFER_INCOMPLETE_DIMENSIONS,FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT,FRAMEBUFFER_UNSUPPORTED,FRONT,FRONT_AND_BACK,FRONT_FACE,FUNC_ADD,FUNC_REVERSE_SUBTRACT,FUNC_SUBTRACT,GENERATE_MIPMAP_HINT,GEQUAL,GREATER,GREEN_BITS,HIGH_FLOAT,HIGH_INT,IMPLEMENTATION_COLOR_READ_FORMAT,IMPLEMENTATION_COLOR_READ_TYPE,INCR,INCR_WRAP,INT,INT_VEC2,INT_VEC3,INT_VEC4,INVALID_ENUM,INVALID_FRAMEBUFFER_OPERATION,INVALID_OPERATION,INVALID_VALUE,INVERT,KEEP,LEQUAL,LESS,LINEAR,LINEAR_MIPMAP_LINEAR,LINEAR_MIPMAP_NEAREST,LINES,LINE_LOOP,LINE_STRIP,LINE_WIDTH,LINK_STATUS,LOW_FLOAT,LOW_INT,LUMINANCE,LUMINANCE_ALPHA,MAX_COMBINED_TEXTURE_IMAGE_UNITS,MAX_CUBE_MAP_TEXTURE_SIZE,MAX_FRAGMENT_UNIFORM_VECTORS,MAX_RENDERBUFFER_SIZE,MAX_TEXTURE_IMAGE_UNITS,MAX_TEXTURE_SIZE,MAX_VARYING_VECTORS,MAX_VERTEX_ATTRIBS,MAX_VERTEX_TEXTURE_IMAGE_UNITS,MAX_VERTEX_UNIFORM_VECTORS,MAX_VIEWPORT_DIMS,MEDIUM_FLOAT,MEDIUM_INT,MIRRORED_REPEAT,NEAREST,NEAREST_MIPMAP_LINEAR,NEAREST_MIPMAP_NEAREST,NEVER,NICEST,NONE,NOTEQUAL,NO_ERROR,ONE,ONE_MINUS_CONSTANT_ALPHA,ONE_MINUS_CONSTANT_COLOR,ONE_MINUS_DST_ALPHA,ONE_MINUS_DST_COLOR,ONE_MINUS_SRC_ALPHA,ONE_MINUS_SRC_COLOR,OUT_OF_MEMORY,PACK_ALIGNMENT,POINTS,POLYGON_OFFSET_FACTOR,POLYGON_OFFSET_FILL,POLYGON_OFFSET_UNITS,RED_BITS,RENDERBUFFER,RENDERBUFFER_ALPHA_SIZE,RENDERBUFFER_BINDING,RENDERBUFFER_BLUE_SIZE,RENDERBUFFER_DEPTH_SIZE,RENDERBUFFER_GREEN_SIZE,RENDERBUFFER_HEIGHT,RENDERBUFFER_INTERNAL_FORMAT,RENDERBUFFER_RED_SIZE,RENDERBUFFER_STENCIL_SIZE,RENDERBUFFER_WIDTH,RENDERER,REPEAT,REPLACE,RGB,RGB565,RGB5_A1,RGB8,RGBA,RGBA4,RGBA8,SAMPLER_2D,SAMPLER_CUBE,SAMPLES,SAMPLE_ALPHA_TO_COVERAGE,SAMPLE_BUFFERS,SAMPLE_COVERAGE,SAMPLE_COVERAGE_INVERT,SAMPLE_COVERAGE_VALUE,SCISSOR_BOX,SCISSOR_TEST,SHADER_TYPE,SHADING_LANGUAGE_VERSION,SHORT,SRC_ALPHA,SRC_ALPHA_SATURATE,SRC_COLOR,STATIC_DRAW,STENCIL_ATTACHMENT,STENCIL_BACK_FAIL,STENCIL_BACK_FUNC,STENCIL_BACK_PASS_DEPTH_FAIL,STENCIL_BACK_PASS_DEPTH_PASS,STENCIL_BACK_REF,STENCIL_BACK_VALUE_MASK,STENCIL_BACK_WRITEMASK,STENCIL_BITS,STENCIL_BUFFER_BIT,STENCIL_CLEAR_VALUE,STENCIL_FAIL,STENCIL_FUNC,STENCIL_INDEX8,STENCIL_PASS_DEPTH_FAIL,STENCIL_PASS_DEPTH_PASS,STENCIL_REF,STENCIL_TEST,STENCIL_VALUE_MASK,STENCIL_WRITEMASK,STREAM_DRAW,SUBPIXEL_BITS,TEXTURE,TEXTURE0,TEXTURE1,TEXTURE10,TEXTURE11,TEXTURE12,TEXTURE13,TEXTURE14,TEXTURE15,TEXTURE16,TEXTURE17,TEXTURE18,TEXTURE19,TEXTURE2,TEXTURE20,TEXTURE21,TEXTURE22,TEXTURE23,TEXTURE24,TEXTURE25,TEXTURE26,TEXTURE27,TEXTURE28,TEXTURE29,TEXTURE3,TEXTURE30,TEXTURE31,TEXTURE4,TEXTURE5,TEXTURE6,TEXTURE7,TEXTURE8,TEXTURE9,TEXTURE_2D,TEXTURE_BINDING_2D,TEXTURE_BINDING_CUBE_MAP,TEXTURE_CUBE_MAP,TEXTURE_CUBE_MAP_NEGATIVE_X,TEXTURE_CUBE_MAP_NEGATIVE_Y,TEXTURE_CUBE_MAP_NEGATIVE_Z,TEXTURE_CUBE_MAP_POSITIVE_X,TEXTURE_CUBE_MAP_POSITIVE_Y,TEXTURE_CUBE_MAP_POSITIVE_Z,TEXTURE_MAG_FILTER,TEXTURE_MIN_FILTER,TEXTURE_WRAP_S,TEXTURE_WRAP_T,TRIANGLES,TRIANGLE_FAN,TRIANGLE_STRIP,UNPACK_ALIGNMENT,UNPACK_COLORSPACE_CONVERSION_WEBGL,UNPACK_FLIP_Y_WEBGL,UNPACK_PREMULTIPLY_ALPHA_WEBGL,UNSIGNED_BYTE,UNSIGNED_INT,UNSIGNED_SHORT,UNSIGNED_SHORT_4_4_4_4,UNSIGNED_SHORT_5_5_5_1,UNSIGNED_SHORT_5_6_5,VALIDATE_STATUS,VENDOR,VERSION,VERTEX_ATTRIB_ARRAY_BUFFER_BINDING,VERTEX_ATTRIB_ARRAY_ENABLED,VERTEX_ATTRIB_ARRAY_NORMALIZED,VERTEX_ATTRIB_ARRAY_POINTER,VERTEX_ATTRIB_ARRAY_SIZE,VERTEX_ATTRIB_ARRAY_STRIDE,VERTEX_ATTRIB_ARRAY_TYPE,VERTEX_SHADER,VIEWPORT,ZERO,activeTexture,attachShader,bindAttribLocation,bindBuffer,bindFramebuffer,bindRenderbuffer,bindTexture,blendColor,blendEquation,blendEquationSeparate,blendFunc,blendFuncSeparate,bufferData,bufferSubData,canvas,checkFramebufferStatus,clear,clearColor,clearDepth,clearStencil,colorMask,compileShader,compressedTexImage2D,compressedTexSubImage2D,constructor,copyTexImage2D,copyTexSubImage2D,createBuffer,createFramebuffer,createProgram,createRenderbuffer,createShader,createTexture,cullFace,deleteBuffer,deleteFramebuffer,deleteProgram,deleteRenderbuffer,deleteShader,deleteTexture,depthFunc,depthMask,depthRange,detachShader,disable,disableVertexAttribArray,drawArrays,drawElements,drawingBufferColorSpace,drawingBufferFormat,drawingBufferHeight,drawingBufferStorage,drawingBufferWidth,enable,enableVertexAttribArray,finish,flush,framebufferRenderbuffer,framebufferTexture2D,frontFace,generateMipmap,getActiveAttrib,getActiveUniform,getAttachedShaders,getAttribLocation,getBufferParameter,getContextAttributes,getError,getExtension,getFramebufferAttachmentParameter,getParameter,getProgramInfoLog,getProgramParameter,getRenderbufferParameter,getShaderInfoLog,getShaderParameter,getShaderPrecisionFormat,getShaderSource,getSupportedExtensions,getTexParameter,getUniform,getUniformLocation,getVertexAttrib,getVertexAttribOffset,hint,isBuffer,isContextLost,isEnabled,isFramebuffer,isProgram,isRenderbuffer,isShader,isTexture,lineWidth,linkProgram,pixelStorei,polygonOffset,readPixels,renderbufferStorage,sampleCoverage,scissor,shaderSource,stencilFunc,stencilFuncSeparate,stencilMask,stencilMaskSeparate,stencilOp,stencilOpSeparate,texImage2D,texParameterf,texParameteri,texSubImage2D,uniform1f,uniform1fv,uniform1i,uniform1iv,uniform2f,uniform2fv,uniform2i,uniform2iv,uniform3f,uniform3fv,uniform3i,uniform3iv,uniform4f,uniform4fv,uniform4i,uniform4iv,uniformMatrix2fv,uniformMatrix3fv,uniformMatrix4fv,unpackColorSpace,useProgram,validateProgram,vertexAttrib1f,vertexAttrib1fv,vertexAttrib2f,vertexAttrib2fv,vertexAttrib3f,vertexAttrib3fv,vertexAttrib4f,vertexAttrib4fv,vertexAttribPointer,viewport
+P WebGLSampler :: constructor
+P WebGLShader :: constructor
+P WebGLShaderPrecisionFormat :: constructor
+P WebGLSync :: constructor
+P WebGLTexture :: constructor
+P WebGLTransformFeedback :: constructor
+P WebGLUniformLocation :: constructor
+P WebGLVertexArrayObject :: constructor
+P WebKitCSSMatrix :: constructor
+P WebKitMutationObserver :: constructor,disconnect,observe,takeRecords
+S WebSocket :: CLOSED,CLOSING,CONNECTING,OPEN
+P WebSocket :: _emit,_fail,_finish,_fireCloseEvent,_pump,addEventListener,binaryType,bufferedAmount,close,constructor,dispatchEvent,extensions,onclose,onerror,onmessage,onopen,protocol,readyState,removeEventListener,send,url
+P WebSocketError :: constructor
+P WebSocketStream :: close,constructor
+P WebTransport :: close,closed,congestionControl,constructor,createBidirectionalStream,createUnidirectionalStream,datagrams,ready
+P WebTransportBidirectionalStream :: constructor
+P WebTransportDatagramDuplexStream :: constructor
+P WebTransportError :: constructor
+P WheelEvent :: constructor
+P Window :: constructor
+P WindowControlsOverlay :: constructor
+P WindowControlsOverlayGeometryChangeEvent :: constructor
+P Worker :: addEventListener,constructor,postMessage,removeEventListener,terminate
+P Worklet :: constructor
+P WritableStream :: abort,close,constructor,getWriter,locked
+P WritableStreamDefaultController :: constructor,error
+P WritableStreamDefaultWriter :: constructor
+P XMLDocument :: constructor
+S XMLHttpRequest :: DONE,HEADERS_RECEIVED,LOADING,OPENED,UNSENT
+P XMLHttpRequest :: _fireEvent,_setReadyState,abort,addEventListener,constructor,dispatchEvent,getAllResponseHeaders,getResponseHeader,open,overrideMimeType,removeEventListener,send,setRequestHeader
+P XMLHttpRequestEventTarget :: addEventListener,constructor,dispatchEvent,removeEventListener
+P XMLHttpRequestUpload :: constructor
+P XMLSerializer :: constructor,serializeToString
+P XPathEvaluator :: constructor
+P XPathExpression :: constructor
+S XPathResult :: ANY_TYPE,ANY_UNORDERED_NODE_TYPE,BOOLEAN_TYPE,FIRST_ORDERED_NODE_TYPE,NUMBER_TYPE,ORDERED_NODE_ITERATOR_TYPE,ORDERED_NODE_SNAPSHOT_TYPE,STRING_TYPE,UNORDERED_NODE_ITERATOR_TYPE,UNORDERED_NODE_SNAPSHOT_TYPE
+P XPathResult :: ANY_TYPE,ANY_UNORDERED_NODE_TYPE,BOOLEAN_TYPE,FIRST_ORDERED_NODE_TYPE,NUMBER_TYPE,ORDERED_NODE_ITERATOR_TYPE,ORDERED_NODE_SNAPSHOT_TYPE,STRING_TYPE,UNORDERED_NODE_ITERATOR_TYPE,UNORDERED_NODE_SNAPSHOT_TYPE,booleanValue,constructor,invalidIteratorState,iterateNext,numberValue,resultType,singleNodeValue,snapshotItem,snapshotLength,stringValue
+P XRAnchor :: constructor
+P XRAnchorSet :: constructor
+P XRBoundedReferenceSpace :: constructor
+P XRCPUDepthInformation :: constructor
+P XRCamera :: constructor
+P XRCompositionLayer :: constructor
+P XRCubeLayer :: constructor
+P XRCylinderLayer :: constructor
+P XRDOMOverlayState :: constructor
+P XRDepthInformation :: constructor
+P XREquirectLayer :: constructor
+P XRFrame :: constructor
+P XRHand :: constructor
+P XRHitTestResult :: constructor
+P XRHitTestSource :: constructor
+P XRInputSource :: constructor
+P XRInputSourceArray :: constructor
+P XRInputSourceEvent :: constructor
+P XRInputSourcesChangeEvent :: constructor
+P XRJointPose :: constructor
+P XRJointSpace :: constructor
+P XRLayer :: constructor
+P XRLayerEvent :: constructor
+P XRLightEstimate :: constructor
+P XRLightProbe :: constructor
+P XRPlane :: constructor
+P XRPlaneSet :: constructor
+P XRPose :: constructor
+P XRProjectionLayer :: constructor
+P XRQuadLayer :: constructor
+P XRRay :: constructor
+P XRReferenceSpace :: constructor
+P XRReferenceSpaceEvent :: constructor
+P XRRenderState :: constructor
+P XRRigidTransform :: constructor
+P XRSession :: constructor
+P XRSessionEvent :: constructor
+P XRSpace :: constructor
+P XRSubImage :: constructor
+P XRSystem :: constructor
+P XRTransientInputHitTestResult :: constructor
+P XRTransientInputHitTestSource :: constructor
+P XRView :: constructor
+P XRViewerPose :: constructor
+P XRViewport :: constructor
+P XRVisibilityMaskChangeEvent :: constructor
+P XRWebGLBinding :: constructor
+P XRWebGLDepthInformation :: constructor
+P XRWebGLLayer :: constructor
+P XRWebGLSubImage :: constructor
+P XSLTProcessor :: constructor
+P alert :: constructor
+P b64urlToBytes :: constructor
+P blur :: constructor
+P bytesToB64url :: constructor
+P cancelIdleCallback :: constructor
+P checkKeyUsages :: constructor
+P checkUsageStrings :: constructor
+P checkUsages :: constructor
+P close :: constructor
+P confirm :: constructor
+P createImageBitmap :: constructor
+P ecMaterial :: constructor
+P ecUsagesFor :: constructor
+P ecdsaUnflat :: constructor
+P fetch :: constructor
+P focus :: constructor
+P getSelection :: constructor
+P jwkMemberBytes :: constructor
+P jwkRequire :: constructor
+P jwkValidateCommon :: constructor
+P keyAlgorithmFor :: constructor
+P keyBytes :: constructor
+P makeKey :: constructor
+P matchMedia :: constructor
+P normalizeAlgo :: constructor
+P normalizeHash :: constructor
+P open :: constructor
+P postMessage :: constructor
+P print :: constructor
+P prompt :: constructor
+P requestIdleCallback :: constructor
+P requireEcdsaUsages :: constructor
+P requireHashParam :: constructor
+P rsaFace :: constructor
+P rsaGenerateKey :: constructor
+P rsaImportKey :: constructor
+P rsaMaterial :: constructor
+P rsaUnflat :: constructor
+P runOp :: constructor
+P scroll :: constructor
+P scrollBy :: constructor
+P scrollTo :: constructor
+P stop :: constructor
+P subtleCipher :: constructor
+P webkitMediaStream :: constructor
+P webkitRTCPeerConnection :: __emitCand,__mkOfferSdp,__setGather,addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
+P webkitSpeechGrammar :: constructor
+P webkitSpeechGrammarList :: constructor
+P webkitSpeechRecognition :: constructor
+P webkitSpeechRecognitionError :: constructor
+P webkitSpeechRecognitionEvent :: constructor
+P webkitURL :: constructor

@@ -25584,3 +25584,61 @@ async fn dynamic_script_retries_once_on_network_failure_not_on_404() {
     assert_eq!(v.get("retries").and_then(|n| n.as_i64()), Some(1), "exactly one retry: {v:?}");
     assert_eq!(v.get("goneEv").and_then(|s| s.as_str()), Some("err"), "404 errors without retry: {v:?}");
 }
+
+/// Surface snapshot gate (docs/JS-SURFACE-PLAN step 1). The page-visible Web
+/// platform IS bootstrap.js, so `Object.getOwnPropertyNames(globalThis)` plus
+/// every constructor's prototype/static members is simultaneously the
+/// fingerprint surface (a leaked global is an anti-bot tell), the compat
+/// surface (an API vanishing must page us before a field report does) and
+/// the anchor SURFACE.md is checked against. Any drift fails with a diff;
+/// an intentional change regenerates the fixture:
+///   UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot
+#[test]
+fn js_surface_snapshot_matches_fixture() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"
+        (function () {
+            var lines = [];
+            var g = Object.getOwnPropertyNames(globalThis).sort();
+            lines.push('[globals] ' + g.length);
+            g.forEach(function (n) { lines.push('G ' + n); });
+            g.forEach(function (n) {
+                var v;
+                try { v = globalThis[n]; } catch (e) { return; }
+                if (typeof v !== 'function') return;
+                var st = Object.getOwnPropertyNames(v).filter(function (k) {
+                    return k !== 'length' && k !== 'name' && k !== 'prototype'
+                        && k !== 'arguments' && k !== 'caller';
+                }).sort();
+                if (st.length) lines.push('S ' + n + ' :: ' + st.join(','));
+                var p = v.prototype;
+                if (p && typeof p === 'object') {
+                    var pn = Object.getOwnPropertyNames(p).sort();
+                    lines.push('P ' + n + ' :: ' + pn.join(','));
+                }
+            });
+            return lines.join('\n');
+        })()
+        "#,
+        )
+        .unwrap();
+    let actual = out.as_str().unwrap().to_string() + "\n";
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/diting_js/runtime/surface_snapshot.txt");
+    if std::env::var_os("UPDATE_SURFACE_SNAPSHOT").is_some() {
+        std::fs::write(path, &actual).unwrap();
+        return;
+    }
+    let expected = std::fs::read_to_string(path)
+        .expect("surface_snapshot.txt missing — run with UPDATE_SURFACE_SNAPSHOT=1");
+    if actual != expected {
+        let a: std::collections::BTreeSet<&str> = actual.lines().collect();
+        let e: std::collections::BTreeSet<&str> = expected.lines().collect();
+        let added: Vec<&&str> = a.difference(&e).take(40).collect();
+        let gone: Vec<&&str> = e.difference(&a).take(40).collect();
+        panic!(
+            "JS surface drifted from surface_snapshot.txt.\n  NEW (leak? or intentional):\n{added:#?}\n  GONE (compat break?):\n{gone:#?}\nIf intentional: UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot, then log it in js/SURFACE.md"
+        );
+    }
+}
