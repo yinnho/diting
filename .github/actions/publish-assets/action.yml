@@ -1,0 +1,32 @@
+name: publish-assets
+description: Assert asset-name isomorphism, then (tag pushes only) upload with the tag annotation as the release body.
+inputs:
+  files:
+    description: newline-separated globs handed to action-gh-release
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Asset names are isomorphic
+      shell: bash
+      run: bash scripts/check_release_assets.sh
+    # The release body is the annotated tag's message — softprops with only
+    # `files` creates the release bare (v0.8.3 shipped with an empty notes
+    # page until it was edited by hand). Every leg writes the same body, so
+    # the last write is idempotent.
+    - name: Release notes from the tag annotation
+      if: startsWith(github.ref, 'refs/tags/')
+      id: tag_notes
+      shell: bash
+      run: |
+        {
+          echo "body<<DITING_TAG_EOF"
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+          echo "DITING_TAG_EOF"
+        } >> "$GITHUB_OUTPUT"
+    - name: Upload release assets (tag pushes only)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+      with:
+        body: ${{ steps.tag_notes.outputs.body }}
+        files: ${{ inputs.files }}
