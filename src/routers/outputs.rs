@@ -260,6 +260,13 @@ pub struct PdfResponse {
 #[cfg(feature = "screenshot")]
 #[derive(Debug, Deserialize, Clone)]
 pub struct VideoRequest {
+    /// Render literal HTML instead of fetching `url` (the deterministic
+    /// media pipeline's video half: an agent authors the animated page,
+    /// the engine seeks its CSS clock or timelines frame by frame).
+    /// Local bytes — the robots/rate gates don't apply.
+    #[serde(default)]
+    pub html: Option<String>,
+    #[serde(default)]
     pub url: String,
     /// Frames per second. Default 24.
     #[serde(default = "default_video_fps")]
@@ -394,14 +401,21 @@ pub(crate) async fn screenshot_handler(
 /// /screenshot — V8 is !Send.
 #[cfg(feature = "screenshot")]
 pub(crate) async fn video_handler(Json(req): Json<VideoRequest>) -> Result<impl IntoResponse, AppError> {
-    robots::assert_allowed(&req.url)
-        .await
-        .map_err(AppError::Forbidden)?;
+    // Literal-HTML renders never touch the network — same exemption as
+    // /screenshot's html mode.
+    let html_mode = req.html.as_deref().is_some_and(|h| !h.trim().is_empty());
+    if !html_mode {
+        robots::assert_allowed(&req.url)
+            .await
+            .map_err(AppError::Forbidden)?;
+    }
     let resp = spawn_blocking(move || server::do_video(req)).await??;
-    // Redirect hops (#175) — see screenshot_handler.
-    robots::assert_allowed(&resp.url)
-        .await
-        .map_err(AppError::Forbidden)?;
+    if !html_mode {
+        // Redirect hops (#175) — see screenshot_handler.
+        robots::assert_allowed(&resp.url)
+            .await
+            .map_err(AppError::Forbidden)?;
+    }
     Ok((StatusCode::OK, Json(resp)))
 }
 
@@ -484,5 +498,28 @@ mod screenshot_html_tests {
         }"#).unwrap();
         let resp = crate::server::do_screenshot(req).expect("html mode ignores url");
         assert!(resp.image_base64.len() > 500);
+    }
+}
+
+#[cfg(test)]
+mod video_html_tests {
+    use super::*;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn video_html_mode_encodes_css_animation() {
+        // Pure-CSS animation, no __timelines registration — the pump's
+        // css_animation_extent branch owns the length. ffmpeg required.
+        if !std::process::Command::new("ffmpeg").arg("-version").output().is_ok() {
+            return; // no ffmpeg on this host; CI carries it
+        }
+        let req: VideoRequest = serde_json::from_str(r#"{
+            "html": "<!doctype html><html><head><style>@keyframes slide{from{margin-left:0}to{margin-left:400px}}.box{width:100px;height:60px;background:#4a7;animation:slide 0.5s forwards}</style></head><body><div class=box></div></body></html>",
+            "fps": 10, "width": 320, "height": 180, "hold_tail_secs": 0.2
+        }"#).unwrap();
+        let resp = crate::server::do_video(req).expect("video html mode");
+        assert!(resp.timeline_secs >= 0.4, "css extent measured: {}", resp.timeline_secs);
+        assert!(resp.duration_secs > resp.timeline_secs, "hold tail added");
+        assert!(!resp.video_base64.is_empty());
+        assert_eq!(resp.format, "mp4");
     }
 }

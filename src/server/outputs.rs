@@ -191,14 +191,32 @@ fn base64_png(bytes: &[u8]) -> String {
 pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
     run_on_local_runtime(move |_rt| {
         Box::pin(async move {
-            crate::rate::check_domain(&req.url).map_err(anyhow::Error::msg)?;
-            let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
-            inject_cookies(&browser, &req.cookies, &req.url);
+            // Literal-HTML mode (the deterministic media pipeline): bytes ride
+            // the request, nothing crosses the wire — same data:-URL load
+            // path /screenshot's html mode uses.
+            let html_mode = req.html.as_deref().is_some_and(|h| !h.trim().is_empty());
+            let target = if html_mode {
+                use base64::Engine;
+                format!(
+                    "data:text/html;charset=utf-8;base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(req.html.as_deref().unwrap_or(""))
+                )
+            } else {
+                req.url.clone()
+            };
+            if !html_mode {
+                crate::rate::check_domain(&req.url).map_err(anyhow::Error::msg)?;
+            }
+            let browser =
+                build_browser(req.use_proxy, &target, req.tls_fingerprint.as_deref())?;
+            if !html_mode {
+                inject_cookies(&browser, &req.cookies, &req.url);
+            }
             let mut page = browser.new_page().await?;
             // Pin the viewport so JS-time layout (media queries) and the band
             // paint below agree on the requested size.
             page.set_viewport_override(req.width as f32, req.height as f32, false, None);
-            page.goto(&req.url).await?;
+            page.goto(&target).await?;
 
             let opts = crate::video::TimelineVideoOptions {
                 fps: req.fps,

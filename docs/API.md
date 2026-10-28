@@ -600,11 +600,83 @@ curl -sS -X POST http://127.0.0.1:8089/screenshot \
 
 ---
 
+## The Deterministic Media Pipeline
+
+Three endpoints turn authored HTML into fixed media — an agent writes markup
+(or asks `/render` / `/render_markdown` to write it), the engine paints
+every pixel itself. No ML, no wall clock: the same input produces the same
+bytes, and the receipt makes that checkable.
+
+```
+        +-------------+   html    +---------------+  base64 PNG
+text -->|   /render   |---------->|  /screenshot  |--------------> image
+       | (layout fam.)|           |  {html: ...}  |
+       +-------------+            +---------------+
+markdown --> /render_markdown --> html --+---------> /screenshot (still/cover frame)
+                                         +---------> /video      (animated MP4)
+```
+
+**The one-call cover**:
+
+```bash
+# 1. the layout (title rides the WeChat-safe band; themes: classic /
+#    signal-flow / blueprint / editorial x light / dark)
+curl -sS -X POST http://127.0.0.1:8089/render \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"cover","title":"你的 AI 越用越快","subtitle":"技能沉淀叙事","theme":"dark"}' \
+  > cover.json
+# 2. the paint — literal HTML in, PNG out; no URL, no robots, no network
+curl -sS -X POST http://127.0.0.1:8089/screenshot \
+  -H "Content-Type: application/json" \
+  -d "$(jq '{html:.html,width:.width,height:.height,full_page:false}' cover.json)" \
+  | jq -r .image_base64 | base64 -d > cover.png
+```
+
+`/render` today carries `kind:"cover"` with `size:"square"` (1024x1024,
+text inside the band WeChat's 2.35:1 center-crop keeps) or `size:"wide"`
+(1080x460, the crop pre-applied); `show_crop:true` overlays the dashed
+crop guide so an agent can verify its title survives the feed before
+shipping.
+
+**The one-call video** — a pure-CSS animation needs no timeline
+registration; `/video` measures the stylesheet's animation extent and seeks
+a virtual CSS clock frame by frame (`animation-fill-mode: forwards` holds
+the end state through the hold tail):
+
+```bash
+cat > anim.json <<'EOF'
+{"html": "<!doctype html><html><head><style>@keyframes slide{from{margin-left:0}to{margin-left:600px}}.box{width:120px;height:80px;background:#4a7;animation:slide 3s forwards}</style></head><body><div class=box></div></body></html>",
+ "fps": 12, "width": 640, "height": 480, "hold_tail_secs": 1}
+EOF
+curl -sS -X POST http://127.0.0.1:8089/video \
+  -H "Content-Type: application/json" -d @anim.json \
+  | jq -r .video_base64 | base64 -d > anim.mp4
+```
+
+**Writing an HTML video page** — the contract in five rules:
+
+1. Animate with **CSS `@keyframes`** (the engine drives a virtual clock
+   over them) or register GSAP-style timelines in `window.__timelines`
+   (`{duration(): number, pause(t): void}`) when you need JS orchestration.
+2. Declare durations in the stylesheet or via `duration()` — the longest
+   one **is** the video length; add `hold_tail_secs` to freeze the end.
+3. `animation-fill-mode: forwards` (or the timeline's end state) so the
+   tail holds instead of snapping back.
+4. Everything is seeked — code that reads real time (`Date.now`,
+   `requestAnimationFrame` counters) will not track frames. Drive layout
+   from the animation values themselves.
+5. Static frames are free: a seek whose writes land identical pixels reuses
+   the last frame — held tails cost encode time, not paint time.
+
+---
+
 ### POST /video
 
 Render a page's animation timelines to an MP4 video (returned as base64). **Requires building with `--features screenshot` and ffmpeg on the server's PATH.**
 
-The page's scripts must expose their timelines in `window.__timelines` — objects with `duration()` and `pause(t)` (a paused GSAP timeline registered there works as-is):
+Two page shapes drive the pump, both first-class:
+
+- **JS timelines** — the page's scripts expose them in `window.__timelines`, objects with `duration()` and `pause(t)` (a paused GSAP timeline registered there works as-is):
 
 ```js
 const tl = gsap.timeline({ paused: true });
