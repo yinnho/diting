@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Resolve version (tag push uses the tag; manual run uses the latest tag)
+        id: ver
+        run: echo "version=$(git describe --tags --abbrev=0 | sed 's/^v//')" >> "$GITHUB_OUTPUT"
       - name: Log in to GHCR
         uses: docker/login-action@5e57cd1186654e7a3d7d51e87a2ec557a50f3892
         with:
@@ -28,6 +31,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:${{ steps.ver.outputs.version }}
           build-args: |
-            DITING_VERSION=${GITHUB_REF_NAME#v}
+            DITING_VERSION=${{ steps.ver.outputs.version }}
