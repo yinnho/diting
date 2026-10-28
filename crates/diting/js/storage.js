@@ -7,8 +7,9 @@
 // The Storage native marks used to ride bootstrap's big _markNative list;
 // they live here now because that list runs at bootstrap load time, before
 // Storage exists.
-// __cookieGate is a const (not a function declaration): a declaration would
-// mint a window property after bootstrap's __diting_hide_list was built.
+// __cookieGate is a const rather than a function declaration, so it mints no
+// window property at all (interface_sweep.js's final refresh would also have
+// hidden it, since this file loads before the sweep).
 
 // document.cookie access gate: origins with no cookie jar (about:blank
 // initial documents, data:) throw SecurityError in Chrome on BOTH read and

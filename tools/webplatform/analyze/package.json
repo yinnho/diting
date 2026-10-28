@@ -1,0 +1,11 @@
+{
+  "name": "webplatform-analyze",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Static dependency analysis of crates/diting/js (JS-PLATFORM-ARCH M1). Read-only.",
+  "type": "module",
+  "dependencies": {
+    "acorn": "8.14.0",
+    "eslint-scope": "8.2.0"
+  }
+}

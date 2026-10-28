@@ -1,0 +1,8 @@
+{
+ "note": "ratchet: these totals may only go DOWN (violations/leaks must stay at 0 or below). Regenerate with --write-baseline after a deliberate improvement.",
+ "forwardLoadRefs": 1,
+ "sameFileTdz": 0,
+ "hideListLeakCandidates": 0,
+ "crossFileLoadTimeNames": 47,
+ "crossFileProtoMutations": 16
+}

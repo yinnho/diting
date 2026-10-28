@@ -4,9 +4,9 @@
 // (interact.rs: __diting_pointerCaptureFor / ...Release), Touch, TouchEvent.
 // Loads right after cssom_sheets, before global_surface and the sweep, so
 // the classes sit where they always did for every later script. The three
-// __diting_* globals used to be swept into bootstrap's __diting_hide_list
-// at its end; this file runs after that list was built, so it registers
-// them itself.
+// __diting_* globals are registered into __diting_hide_list explicitly below
+// (redundant with interface_sweep.js's final refresh, which also covers files
+// loading before the sweep; kept so the intent is local).
 
 // A weak `PointerEvent extends Event` used to squat on this name earlier in
 // the bootstrap, which kept the real class below dead behind its

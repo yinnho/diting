@@ -75,3 +75,6 @@ templates/findings.html
 templates/gzh.html
 web/zcode*
 !docs/gzh-skill-20261027.md
+
+# JS platform dependency analyzer deps (package-lock.json is committed)
+/tools/webplatform/analyze/node_modules/

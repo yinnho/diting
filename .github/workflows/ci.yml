@@ -43,6 +43,22 @@ jobs:
       - name: Freshness gate
         run: tools/webplatform/check_fresh.sh
 
+  webplatform-deps:
+    # JS-PLATFORM-ARCH M1: static dependency ratchet over the snapshot scripts
+    # (load-time forward refs, TDZ, late-minted internal names, cross-file
+    # load-time / prototype coupling may only go DOWN vs baseline.json).
+    name: JS platform dependency ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install analyzer deps (pinned, lockfile committed)
+        working-directory: tools/webplatform/analyze
+        run: npm ci --no-audit --no-fund
+      - name: Ratchet
+        working-directory: tools/webplatform/analyze
+        run: node analyze.mjs --check baseline.json
+
   check-stealth:
     # wreq lives behind `stealth` and is exact-pinned (`=`) in TWO target
     # sections — the only combination that compiles the BoringSSL/btls path
