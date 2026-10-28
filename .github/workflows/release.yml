@@ -61,6 +61,8 @@ jobs:
           cp -R workflow "$dir/"
           cp -R config "$dir/"
           tar czf "$dir.tar.gz" "$dir"
+          # winget requires a zip (no tar.gz installers) — same contents.
+          if command -v zip >/dev/null 2>&1; then zip -qr "$dir.zip" "$dir"; fi
           # macOS has shasum (no sha256sum); git-bash has sha256sum — try both.
           if command -v shasum >/dev/null 2>&1; then
             shasum -a 256 "$dir.tar.gz" > "$dir.tar.gz.sha256"
@@ -142,6 +144,8 @@ jobs:
           cp -R workflow "$dir/"
           cp -R config "$dir/"
           tar czf "$dir.tar.gz" "$dir"
+          # winget requires a zip (no tar.gz installers) — same contents.
+          if command -v zip >/dev/null 2>&1; then zip -qr "$dir.zip" "$dir"; fi
           shasum -a 256 "$dir.tar.gz" > "$dir.tar.gz.sha256"
       # Rosetta boot takes longer than native — and the first exec of a fresh
       # binary pays cold AOT translation of the whole image on top (v0.5.38
