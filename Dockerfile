@@ -7,7 +7,7 @@ FROM debian:bookworm-slim
 ARG DITING_VERSION=0.8.3
 ARG TARGETARCH
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates xz-utils fontconfig fonts-noto-cjk \
+ && apt-get install -y --no-install-recommends ca-certificates wget xz-utils fontconfig fonts-noto-cjk \
  && rm -rf /var/lib/apt/lists/* \
  && case "${TARGETARCH}" in \
       arm64) ASSET="diting-${DITING_VERSION}-aarch64-unknown-linux-musl" ;; \
