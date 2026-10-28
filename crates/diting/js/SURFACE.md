@@ -27,6 +27,7 @@
 |---|---|
 | bootstrap.js | 根装配 + 大部分 API 族（指针捕获、PointerEvent/Touch、hover 链、elementFromPoint、cookie、credentials…） |
 | indexeddb.js | IndexedDB 全家（open/upgrade 语义、cursor、proto 转发、arity） |
+| storage.js | Storage 全家（localStorage/sessionStorage Proxy、StorageEvent）+ document.cookie 访问门 __cookieGate（2026-10-29 棘轮搬出）；cookie 读写本体仍在 bootstrap 的 document 字面量里 |
 | worker.js | Worker（含 blob URL Worker） |
 | client_rects.js / computed_size.js | 几何查询 |
 | css_*.js | CSSOM（decl/rules/register/adopted sheets） |
@@ -40,6 +41,7 @@
 | blob URL | native | （session E2E） | 真 UUID + 同步 XHR 可读；fake 随机串是死代码 |
 | summary→details 激活 | native | （session E2E） | Obscura 10-27 修的坑我们已有 |
 | document 只读赋值 | native | （session E2E） | 同上 |
+| Storage 全家 | shim | storage_family_proxy_semantics_and_gate | 2026-10-29 自 bootstrap 搬出（纯搬移）；加载期 native 标记随迁 |
 | 指针捕获 setPointerCapture | shim | drag_follows_pointer_capture_slider | 2026-10-28 修（滑块拖不动根因） |
 
 ## 竞品缺口日志

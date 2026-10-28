@@ -25709,3 +25709,54 @@ fn js_surface_webidl_member_probe() {
     let out = rt.evaluate(&code).unwrap();
     std::fs::write(outp, out.as_str().unwrap()).unwrap();
 }
+
+/// storage.js ratchet split (JS-SURFACE-PLAN step 3): the Storage family left
+/// bootstrap.js wholesale. Pins the pieces a pure move could silently break —
+/// Proxy named-property semantics, load-time native marks (they moved with
+/// the family because bootstrap's _markNative list runs before Storage
+/// exists), StorageEvent, and the cookie gate's lexical-const form (a
+/// function declaration would mint a `__cookieGate` window property).
+#[test]
+fn storage_family_proxy_semantics_and_gate() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"
+        (function () {
+            var s = sessionStorage;
+            s.clear();
+            s.a = '1'; s.setItem('b', 2);
+            var ev = new StorageEvent('storage', {key: 'k', newValue: 'v', storageArea: s});
+            var init = document.createEvent('storageevent');
+            return JSON.stringify({
+                len: s.length, a: s.getItem('a'), b: s.b, has: 'a' in s,
+                keys: Object.keys(s), key0: s.key(0),
+                del: (delete s.a, s.length),
+                nat: Storage.prototype.getItem.toString(),
+                ctor: Storage.toString(),
+                ev: [ev.key, ev.newValue, ev.oldValue, ev.storageArea === s, ev instanceof Event],
+                created: init instanceof StorageEvent,
+                brand: Object.prototype.toString.call(s),
+                gateLeak: Object.getOwnPropertyNames(globalThis).indexOf('__cookieGate'),
+                pers: typeof localStorage.getItem,
+            });
+        })()
+        "#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["len"], 2);
+    assert_eq!(v["a"], "1");
+    assert_eq!(v["b"], "2");
+    assert_eq!(v["has"], true);
+    assert_eq!(v["keys"], serde_json::json!(["a", "b"]));
+    assert_eq!(v["key0"], "a");
+    assert_eq!(v["del"], 1);
+    assert!(v["nat"].as_str().unwrap().contains("[native code]"), "marks must ride with the move: {v}");
+    assert!(v["ctor"].as_str().unwrap().contains("[native code]"), "{v}");
+    assert_eq!(v["ev"], serde_json::json!(["k", "v", null, true, true]));
+    assert_eq!(v["created"], true);
+    assert_eq!(v["brand"], "[object Storage]");
+    assert_eq!(v["gateLeak"], -1, "__cookieGate must stay a lexical const");
+    assert_eq!(v["pers"], "function");
+}

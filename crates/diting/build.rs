@@ -48,6 +48,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("iframe_realm.js", include_str!("js/iframe_realm.js")),
     ("range_selection.js", include_str!("js/range_selection.js")),
     ("indexeddb.js", include_str!("js/indexeddb.js")),
+    // Ratchet split (JS-SURFACE-PLAN step 3): cookie gate + Storage family.
+    ("storage.js", include_str!("js/storage.js")),
     // Ratchet split: crypto.subtle / CryptoKey left bootstrap.js wholesale.
     // Touches _OPS and __diting_clone_hooks only at call time; basic
     // getRandomValues/randomUUID stay in bootstrap.
