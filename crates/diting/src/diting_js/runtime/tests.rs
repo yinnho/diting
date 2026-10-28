@@ -25986,3 +25986,27 @@ fn platform_generated_descriptors_conform() {
     let out = rt.evaluate("JSON.stringify(__platform.verify())").unwrap();
     assert_eq!(out.as_str().unwrap(), "[]", "descriptor violations: {out}");
 }
+
+/// JS-PLATFORM-ARCH sec 13: errors thrown by platform-generated APIs must be
+/// Chrome-shaped under reflection - stack header = the UNDECORATED message,
+/// e.message = "<prefix>: <message>", ZERO shim frames above the caller, and
+/// the same own-property shape ({message, stack}; stack an accessor). The same
+/// probe produced chrome/chrome-error-truth.json in real Chrome 156.
+#[test]
+fn platform_errors_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/error-probe.js");
+    let engine: serde_json::Value = serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/chrome-error-truth.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth["result"].as_object().unwrap() {
+        let got = &engine[k];
+        if got != want {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{} error shape(s) differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+}

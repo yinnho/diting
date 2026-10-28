@@ -43,24 +43,23 @@ def is_nullable(t):
     return bool(t.get("nullable"))
 
 
-def conv_expr(t, v, ctx_js, argno=None, what="arg"):
+def conv_expr(t, v, ctx_js, argno=None, what="arg", fn="__f"):
     """JS expression converting value expression `v` per IDL type `t`.
     ctx_js is a JS expression for the 'Failed to ...' prefix."""
     n = tname(t)
     nullable = is_nullable(t)
     if n in ("DOMString", "USVString"):
-        c = "conv.%s(%s, %s)" % (n, v, ctx_js)
+        c = "conv.%s(%s, %s, %s)" % (n, v, ctx_js, fn)
     elif n == "unsigned long":
-        c = "conv.unsignedLong(%s, %s)" % (v, ctx_js)
+        c = "conv.unsignedLong(%s, %s, %s)" % (v, ctx_js, fn)
     elif n == "boolean":
         c = "conv.boolean(%s)" % v
     elif n in N and N[n]["type"] == "interface":
         # interface type: brand check against that interface's slots
         if what == "dict":
-            msg = "%s + \": Failed to read the '\" + FIELD + \"' property from '\" + DICT + \"': Failed to convert value to '%s'.\"" % (ctx_js, n)
+            c = "(is%s(%s) ? %s : P.fail(%s, \"Failed to convert value to '%s'.\", %s + \": Failed to read the '\" + FIELD + \"' property from '\" + DICT + \"'\"))" % (n, v, v, fn, n, ctx_js)
         else:
-            msg = "%s + \": parameter %d is not of type '%s'.\"" % (ctx_js, argno, n)
-        c = "(is%s(%s) ? %s : (function () { throw new TypeError(%s); })())" % (n, v, v, msg)
+            c = "(is%s(%s) ? %s : P.fail(%s, \"parameter %d is not of type '%s'.\", %s))" % (n, v, v, fn, argno, n, ctx_js)
     else:
         raise SystemExit("gen_iface v0: unsupported IDL type %r" % (n,))
     if nullable:
@@ -127,17 +126,17 @@ for name, iface in N.items():
     # ---------------------------------------------------------------- backing
     if not cons and specials:
         exports.append("create" + name)
-        W("function %s() { throw new TypeError(new.target ? \"Failed to construct '%s': Illegal constructor\" : 'Illegal constructor'); }" % (name, name))
+        W("function %s() { P.fail(%s, 'Illegal constructor', new.target ? \"Failed to construct '%s'\" : ''); }" % (name, name, name))
         W("const proto%s = P.iface(%s, '%s', 0);" % (name, name, name))
         for a in attrs:
-            codes[a["name"]] = "P.getter(proto%s, '%s', function () { const b = slots%s.get(this); if (b === undefined) P.illegal(); return b.%s; });" % (name, a["name"], name, a["name"])
+            codes[a["name"]] = "P.getter(proto%s, '%s', function __f() { const b = slots%s.get(this); if (b === undefined) P.illegal(__f); return b.%s; });" % (name, a["name"], name, a["name"])
             expect.append({"iface": name, "kind": "getter", "name": a["name"], "length": 0})
         for o in ops:
             params = o["arguments"]
             required = sum(1 for p in params if not p.get("optional") and not p.get("variadic"))
             ctx = "\"Failed to execute '%s' on '%s'\"" % (o["name"], name)
-            body = ["const b = slots%s.get(this); if (b === undefined) P.illegal();" % name]
-            body.append("const ctx = %s; P.args(ctx, arguments.length, %d);" % (ctx, required))
+            body = ["const b = slots%s.get(this); if (b === undefined) P.illegal(__f);" % name]
+            body.append("const ctx = %s; P.args(ctx, arguments.length, %d, __f);" % (ctx, required))
             call_args = []
             for i, p in enumerate(params):
                 v = "arguments[%d]" % i
@@ -149,7 +148,7 @@ for name, iface in N.items():
                 body.append(call + ";")
             else:
                 body.append("return %s;" % call)
-            codes[o["name"]] = "P.method(proto%s, '%s', %d, function %s() { %s });" % (name, o["name"], required, o["name"], " ".join(body))
+            codes[o["name"]] = "P.method(proto%s, '%s', %d, function __f() { %s });" % (name, o["name"], required, " ".join(body))
             expect.append({"iface": name, "kind": "method", "name": o["name"], "length": required})
         flush_members(name)
         # named property semantics (Chrome truth): a name found on the
@@ -158,18 +157,18 @@ for name, iface in N.items():
         getter_op = next(m["name"] for m in specials if m["special"] == "getter")
         setter_op = next(m["name"] for m in specials if m["special"] == "setter")
         deleter_op = next(m["name"] for m in specials if m["special"] == "deleter")
-        setter_ctx = "\"Failed to set the '\" + String(p) + \"' property on '%s'\"" % name
+        setter_ctx = "\"Failed to set a named property '\" + String(p) + \"' on '%s'\"" % name
         W("""function create%(n)s(backing) {
   const target = Object.create(proto%(n)s);
   const named = (p) => typeof p === 'string' && !(p in target);
   const proxy = new Proxy(target, {
-    get(t, p, r) { if (named(p)) { const v = backing.%(g)s(p); if (v !== null) return v; } return Reflect.get(t, p, r); },
-    set(t, p, v, r) {
-      if (named(p)) { backing.%(s)s(p, conv.DOMString(v, %(sctx)s)); return true; }
+    get: function __t(t, p, r) { if (named(p)) { const v = backing.%(g)s(p); if (v !== null) return v; } return Reflect.get(t, p, r); },
+    set: function __t(t, p, v, r) {
+      if (named(p)) { backing.%(s)s(p, conv.DOMString(v, %(sctx)s, __t)); return true; }
       return Reflect.set(t, p, v, r);
     },
-    defineProperty(t, p, d) {
-      if (named(p) && !('get' in d) && !('set' in d)) { backing.%(s)s(p, conv.DOMString(d.value, %(sctx)s)); return true; }
+    defineProperty: function __t(t, p, d) {
+      if (named(p) && !('get' in d) && !('set' in d)) { backing.%(s)s(p, conv.DOMString(d.value, %(sctx)s, __t)); return true; }
       return Reflect.defineProperty(t, p, d);
     },
     deleteProperty(t, p) { if (named(p)) { backing.%(d)s(p); return true; } return Reflect.deleteProperty(t, p); },
@@ -198,24 +197,24 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
         c = cons[0]
         req = sum(1 for p in c["arguments"] if not p.get("optional") and not p.get("variadic"))
         W("function %s(type) {" % name)
-        W("  if (!new.target) throw new TypeError(\"Failed to construct '%s': Please use the 'new' operator, this DOM object constructor cannot be called as a function.\");" % name)
+        W("  if (!new.target) P.fail(%s, \"Please use the 'new' operator, this DOM object constructor cannot be called as a function.\", \"Failed to construct '%s'\");" % (name, name))
         W("  const ctx = \"Failed to construct '%s'\";" % name)
-        W("  P.args(ctx, arguments.length, %d);" % req)
-        W("  const t = conv.DOMString(type, ctx);")
+        W("  P.args(ctx, arguments.length, %d, %s);" % (req, name))
+        W("  const t = conv.DOMString(type, ctx, %s);" % name)
         W("  const init = arguments[1];")
-        W("  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') throw new TypeError(ctx + \": The provided value is not of type '%s'.\");" % dict_name)
+        W("  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(%s, \"The provided value is not of type '%s'.\", ctx);" % (name, dict_name))
         W("  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);")
         W("  const s = {};")
         W("  const DICT = '%s';" % dict_name)
         for f in fields:
             W("  { const FIELD = '%s'; const raw = (init === undefined || init === null) ? undefined : init.%s; s.%s = (raw === undefined) ? %s : %s; }" % (
-                f["name"], f["name"], f["name"], js_default(f.get("default")), conv_expr(f["idlType"], "raw", "ctx", what="dict")))
+                f["name"], f["name"], f["name"], js_default(f.get("default")), conv_expr(f["idlType"], "raw", "ctx", what="dict", fn=name)))
         W("  slots%s.set(self, s);" % name)
         W("  return self;")
         W("}")
         W("const proto%s = P.iface(%s, '%s', %d, Event);" % (name, name, name, req))
         for a in attrs:
-            codes[a["name"]] = "P.getter(proto%s, '%s', function () { const s = slots%s.get(this); if (s === undefined) P.illegal(); return s.%s; });" % (name, a["name"], name, a["name"])
+            codes[a["name"]] = "P.getter(proto%s, '%s', function __f() { const s = slots%s.get(this); if (s === undefined) P.illegal(__f); return s.%s; });" % (name, a["name"], name, a["name"])
             expect.append({"iface": name, "kind": "getter", "name": a["name"], "length": 0})
         for o in ops:
             params = o["arguments"]
@@ -223,8 +222,8 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
             if not (o["name"].startswith("init") and [p["name"] for p in params[:3]] == ["type", "bubbles", "cancelable"]):
                 raise SystemExit("gen_iface v0: unsupported operation %s.%s" % (name, o["name"]))
             ctx = "\"Failed to execute '%s' on '%s'\"" % (o["name"], name)
-            body = ["const s = slots%s.get(this); if (s === undefined) P.illegal();" % name,
-                    "const ctx = %s; P.args(ctx, arguments.length, %d);" % (ctx, required)]
+            body = ["const s = slots%s.get(this); if (s === undefined) P.illegal(__f);" % name,
+                    "const ctx = %s; P.args(ctx, arguments.length, %d, __f);" % (ctx, required)]
             for i, p in enumerate(params):
                 v = "(arguments.length > %d ? arguments[%d] : undefined)" % (i, i)
                 dflt = js_default(p.get("default"))
@@ -236,7 +235,7 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
             body.append("this.initEvent(a0, a1, a2);")
             for i, p in enumerate(params[3:], start=3):
                 body.append("s.%s = a%d;" % (p["name"], i))
-            codes[o["name"]] = "P.method(proto%s, '%s', %d, function %s() { %s });" % (name, o["name"], required, o["name"], " ".join(body))
+            codes[o["name"]] = "P.method(proto%s, '%s', %d, function __f() { %s });" % (name, o["name"], required, " ".join(body))
             expect.append({"iface": name, "kind": "method", "name": o["name"], "length": required})
         flush_members(name)
         W("P.expose('%s', %s);" % (name, name))

@@ -13,26 +13,26 @@ const conv = P.conv;
 // ---- Storage (generated from tools/webplatform/spec/storage.json) ----
 const slotsStorage = new WeakMap();
 function isStorage(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsStorage.has(v); }
-function Storage() { throw new TypeError(new.target ? "Failed to construct 'Storage': Illegal constructor" : 'Illegal constructor'); }
+function Storage() { P.fail(Storage, 'Illegal constructor', new.target ? "Failed to construct 'Storage'" : ''); }
 const protoStorage = P.iface(Storage, 'Storage', 0);
-P.getter(protoStorage, 'length', function () { const b = slotsStorage.get(this); if (b === undefined) P.illegal(); return b.length; });
-P.method(protoStorage, 'clear', 0, function clear() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(); const ctx = "Failed to execute 'clear' on 'Storage'"; P.args(ctx, arguments.length, 0); b.clear(); });
-P.method(protoStorage, 'getItem', 1, function getItem() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(); const ctx = "Failed to execute 'getItem' on 'Storage'"; P.args(ctx, arguments.length, 1); const a0 = conv.DOMString(arguments[0], ctx); return b.getItem(a0); });
-P.method(protoStorage, 'key', 1, function key() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(); const ctx = "Failed to execute 'key' on 'Storage'"; P.args(ctx, arguments.length, 1); const a0 = conv.unsignedLong(arguments[0], ctx); return b.key(a0); });
-P.method(protoStorage, 'removeItem', 1, function removeItem() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(); const ctx = "Failed to execute 'removeItem' on 'Storage'"; P.args(ctx, arguments.length, 1); const a0 = conv.DOMString(arguments[0], ctx); b.removeItem(a0); });
-P.method(protoStorage, 'setItem', 2, function setItem() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(); const ctx = "Failed to execute 'setItem' on 'Storage'"; P.args(ctx, arguments.length, 2); const a0 = conv.DOMString(arguments[0], ctx); const a1 = conv.DOMString(arguments[1], ctx); b.setItem(a0, a1); });
+P.getter(protoStorage, 'length', function __f() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(__f); return b.length; });
+P.method(protoStorage, 'clear', 0, function __f() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(__f); const ctx = "Failed to execute 'clear' on 'Storage'"; P.args(ctx, arguments.length, 0, __f); b.clear(); });
+P.method(protoStorage, 'getItem', 1, function __f() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(__f); const ctx = "Failed to execute 'getItem' on 'Storage'"; P.args(ctx, arguments.length, 1, __f); const a0 = conv.DOMString(arguments[0], ctx, __f); return b.getItem(a0); });
+P.method(protoStorage, 'key', 1, function __f() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(__f); const ctx = "Failed to execute 'key' on 'Storage'"; P.args(ctx, arguments.length, 1, __f); const a0 = conv.unsignedLong(arguments[0], ctx, __f); return b.key(a0); });
+P.method(protoStorage, 'removeItem', 1, function __f() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(__f); const ctx = "Failed to execute 'removeItem' on 'Storage'"; P.args(ctx, arguments.length, 1, __f); const a0 = conv.DOMString(arguments[0], ctx, __f); b.removeItem(a0); });
+P.method(protoStorage, 'setItem', 2, function __f() { const b = slotsStorage.get(this); if (b === undefined) P.illegal(__f); const ctx = "Failed to execute 'setItem' on 'Storage'"; P.args(ctx, arguments.length, 2, __f); const a0 = conv.DOMString(arguments[0], ctx, __f); const a1 = conv.DOMString(arguments[1], ctx, __f); b.setItem(a0, a1); });
 P.seal(Storage);
 function createStorage(backing) {
   const target = Object.create(protoStorage);
   const named = (p) => typeof p === 'string' && !(p in target);
   const proxy = new Proxy(target, {
-    get(t, p, r) { if (named(p)) { const v = backing.getItem(p); if (v !== null) return v; } return Reflect.get(t, p, r); },
-    set(t, p, v, r) {
-      if (named(p)) { backing.setItem(p, conv.DOMString(v, "Failed to set the '" + String(p) + "' property on 'Storage'")); return true; }
+    get: function __t(t, p, r) { if (named(p)) { const v = backing.getItem(p); if (v !== null) return v; } return Reflect.get(t, p, r); },
+    set: function __t(t, p, v, r) {
+      if (named(p)) { backing.setItem(p, conv.DOMString(v, "Failed to set a named property '" + String(p) + "' on 'Storage'", __t)); return true; }
       return Reflect.set(t, p, v, r);
     },
-    defineProperty(t, p, d) {
-      if (named(p) && !('get' in d) && !('set' in d)) { backing.setItem(p, conv.DOMString(d.value, "Failed to set the '" + String(p) + "' property on 'Storage'")); return true; }
+    defineProperty: function __t(t, p, d) {
+      if (named(p) && !('get' in d) && !('set' in d)) { backing.setItem(p, conv.DOMString(d.value, "Failed to set a named property '" + String(p) + "' on 'Storage'", __t)); return true; }
       return Reflect.defineProperty(t, p, d);
     },
     deleteProperty(t, p) { if (named(p)) { backing.removeItem(p); return true; } return Reflect.deleteProperty(t, p); },
@@ -56,30 +56,30 @@ P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "leng
 const slotsStorageEvent = new WeakMap();
 function isStorageEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsStorageEvent.has(v); }
 function StorageEvent(type) {
-  if (!new.target) throw new TypeError("Failed to construct 'StorageEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+  if (!new.target) P.fail(StorageEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'StorageEvent'");
   const ctx = "Failed to construct 'StorageEvent'";
-  P.args(ctx, arguments.length, 1);
-  const t = conv.DOMString(type, ctx);
+  P.args(ctx, arguments.length, 1, StorageEvent);
+  const t = conv.DOMString(type, ctx, StorageEvent);
   const init = arguments[1];
-  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') throw new TypeError(ctx + ": The provided value is not of type 'StorageEventInit'.");
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(StorageEvent, "The provided value is not of type 'StorageEventInit'.", ctx);
   const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
   const s = {};
   const DICT = 'StorageEventInit';
-  { const FIELD = 'key'; const raw = (init === undefined || init === null) ? undefined : init.key; s.key = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx)); }
-  { const FIELD = 'newValue'; const raw = (init === undefined || init === null) ? undefined : init.newValue; s.newValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx)); }
-  { const FIELD = 'oldValue'; const raw = (init === undefined || init === null) ? undefined : init.oldValue; s.oldValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx)); }
-  { const FIELD = 'storageArea'; const raw = (init === undefined || init === null) ? undefined : init.storageArea; s.storageArea = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : (isStorage(raw) ? raw : (function () { throw new TypeError(ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "': Failed to convert value to 'Storage'."); })())); }
-  { const FIELD = 'url'; const raw = (init === undefined || init === null) ? undefined : init.url; s.url = (raw === undefined) ? "" : conv.USVString(raw, ctx); }
+  { const FIELD = 'key'; const raw = (init === undefined || init === null) ? undefined : init.key; s.key = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
+  { const FIELD = 'newValue'; const raw = (init === undefined || init === null) ? undefined : init.newValue; s.newValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
+  { const FIELD = 'oldValue'; const raw = (init === undefined || init === null) ? undefined : init.oldValue; s.oldValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
+  { const FIELD = 'storageArea'; const raw = (init === undefined || init === null) ? undefined : init.storageArea; s.storageArea = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : (isStorage(raw) ? raw : P.fail(StorageEvent, "Failed to convert value to 'Storage'.", ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'"))); }
+  { const FIELD = 'url'; const raw = (init === undefined || init === null) ? undefined : init.url; s.url = (raw === undefined) ? "" : conv.USVString(raw, ctx, StorageEvent); }
   slotsStorageEvent.set(self, s);
   return self;
 }
 const protoStorageEvent = P.iface(StorageEvent, 'StorageEvent', 1, Event);
-P.getter(protoStorageEvent, 'key', function () { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(); return s.key; });
-P.getter(protoStorageEvent, 'oldValue', function () { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(); return s.oldValue; });
-P.getter(protoStorageEvent, 'newValue', function () { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(); return s.newValue; });
-P.getter(protoStorageEvent, 'url', function () { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(); return s.url; });
-P.getter(protoStorageEvent, 'storageArea', function () { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(); return s.storageArea; });
-P.method(protoStorageEvent, 'initStorageEvent', 1, function initStorageEvent() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(); const ctx = "Failed to execute 'initStorageEvent' on 'StorageEvent'"; P.args(ctx, arguments.length, 1); const a0 = conv.DOMString((arguments.length > 0 ? arguments[0] : undefined), ctx); const a1 = ((arguments.length > 1 ? arguments[1] : undefined) === undefined) ? false : conv.boolean((arguments.length > 1 ? arguments[1] : undefined)); const a2 = ((arguments.length > 2 ? arguments[2] : undefined) === undefined) ? false : conv.boolean((arguments.length > 2 ? arguments[2] : undefined)); const a3 = ((arguments.length > 3 ? arguments[3] : undefined) === undefined) ? null : (((arguments.length > 3 ? arguments[3] : undefined) === null || (arguments.length > 3 ? arguments[3] : undefined) === undefined) ? null : conv.DOMString((arguments.length > 3 ? arguments[3] : undefined), ctx)); const a4 = ((arguments.length > 4 ? arguments[4] : undefined) === undefined) ? null : (((arguments.length > 4 ? arguments[4] : undefined) === null || (arguments.length > 4 ? arguments[4] : undefined) === undefined) ? null : conv.DOMString((arguments.length > 4 ? arguments[4] : undefined), ctx)); const a5 = ((arguments.length > 5 ? arguments[5] : undefined) === undefined) ? null : (((arguments.length > 5 ? arguments[5] : undefined) === null || (arguments.length > 5 ? arguments[5] : undefined) === undefined) ? null : conv.DOMString((arguments.length > 5 ? arguments[5] : undefined), ctx)); const a6 = ((arguments.length > 6 ? arguments[6] : undefined) === undefined) ? "" : conv.USVString((arguments.length > 6 ? arguments[6] : undefined), ctx); const a7 = ((arguments.length > 7 ? arguments[7] : undefined) === undefined) ? null : (((arguments.length > 7 ? arguments[7] : undefined) === null || (arguments.length > 7 ? arguments[7] : undefined) === undefined) ? null : (isStorage((arguments.length > 7 ? arguments[7] : undefined)) ? (arguments.length > 7 ? arguments[7] : undefined) : (function () { throw new TypeError(ctx + ": parameter 8 is not of type 'Storage'."); })())); this.initEvent(a0, a1, a2); s.key = a3; s.oldValue = a4; s.newValue = a5; s.url = a6; s.storageArea = a7; });
+P.getter(protoStorageEvent, 'key', function __f() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(__f); return s.key; });
+P.getter(protoStorageEvent, 'oldValue', function __f() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(__f); return s.oldValue; });
+P.getter(protoStorageEvent, 'newValue', function __f() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(__f); return s.newValue; });
+P.getter(protoStorageEvent, 'url', function __f() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(__f); return s.url; });
+P.getter(protoStorageEvent, 'storageArea', function __f() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(__f); return s.storageArea; });
+P.method(protoStorageEvent, 'initStorageEvent', 1, function __f() { const s = slotsStorageEvent.get(this); if (s === undefined) P.illegal(__f); const ctx = "Failed to execute 'initStorageEvent' on 'StorageEvent'"; P.args(ctx, arguments.length, 1, __f); const a0 = conv.DOMString((arguments.length > 0 ? arguments[0] : undefined), ctx, __f); const a1 = ((arguments.length > 1 ? arguments[1] : undefined) === undefined) ? false : conv.boolean((arguments.length > 1 ? arguments[1] : undefined)); const a2 = ((arguments.length > 2 ? arguments[2] : undefined) === undefined) ? false : conv.boolean((arguments.length > 2 ? arguments[2] : undefined)); const a3 = ((arguments.length > 3 ? arguments[3] : undefined) === undefined) ? null : (((arguments.length > 3 ? arguments[3] : undefined) === null || (arguments.length > 3 ? arguments[3] : undefined) === undefined) ? null : conv.DOMString((arguments.length > 3 ? arguments[3] : undefined), ctx, __f)); const a4 = ((arguments.length > 4 ? arguments[4] : undefined) === undefined) ? null : (((arguments.length > 4 ? arguments[4] : undefined) === null || (arguments.length > 4 ? arguments[4] : undefined) === undefined) ? null : conv.DOMString((arguments.length > 4 ? arguments[4] : undefined), ctx, __f)); const a5 = ((arguments.length > 5 ? arguments[5] : undefined) === undefined) ? null : (((arguments.length > 5 ? arguments[5] : undefined) === null || (arguments.length > 5 ? arguments[5] : undefined) === undefined) ? null : conv.DOMString((arguments.length > 5 ? arguments[5] : undefined), ctx, __f)); const a6 = ((arguments.length > 6 ? arguments[6] : undefined) === undefined) ? "" : conv.USVString((arguments.length > 6 ? arguments[6] : undefined), ctx, __f); const a7 = ((arguments.length > 7 ? arguments[7] : undefined) === undefined) ? null : (((arguments.length > 7 ? arguments[7] : undefined) === null || (arguments.length > 7 ? arguments[7] : undefined) === undefined) ? null : (isStorage((arguments.length > 7 ? arguments[7] : undefined)) ? (arguments.length > 7 ? arguments[7] : undefined) : P.fail(__f, "parameter 8 is not of type 'Storage'.", ctx))); this.initEvent(a0, a1, a2); s.key = a3; s.oldValue = a4; s.newValue = a5; s.url = a6; s.storageArea = a7; });
 P.seal(StorageEvent);
 P.expose('StorageEvent', StorageEvent);
 exports.StorageEvent = StorageEvent;

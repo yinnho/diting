@@ -27,32 +27,49 @@ const __platform = (function () {
     }
   }
 
+  // ---- errors: ONE construction path so every API throws Chrome-shaped errors.
+  // Chrome facts (chrome/chrome-error-truth.json): the stack's first line carries the
+  // UNDECORATED message, e.message carries "<prefix>: <message>", no shim frames
+  // sit above the caller. Error.captureStackTrace(e, fn) drops everything up to
+  // and including `fn` (the API function being executed); the header is computed
+  // at capture time, so message is decorated AFTER the capture. A decorated
+  // message is an enumerable data prop (Blink sets it afterwards); an undecorated
+  // one keeps V8's non-enumerable shape.
+  function fail(fn, message, prefix) {
+    const e = new TypeError(message);
+    Error.captureStackTrace(e, fn);
+    // prefix: null/undefined = leave V8's message as constructed; '' = decorate with an
+    // empty prefix (Chrome still re-sets message, so it turns enumerable: Storage()
+    // called without new); non-empty = "<prefix>: <message>".
+    if (prefix !== null && prefix !== undefined) {
+      Object.defineProperty(e, 'message', { value: prefix ? prefix + ': ' + message : message, writable: true, enumerable: true, configurable: true });
+    }
+    throw e;
+  }
+  function args(prefix, got, need, fn) {
+    if (got < need) fail(fn, need + ' argument' + (need === 1 ? '' : 's') + ' required, but only ' + got + ' present.', prefix);
+  }
+  function illegal(fn) { fail(fn, 'Illegal invocation'); }
+
   // ---- WebIDL conversions (Chrome message shapes) ----
   const conv = {
-    DOMString(v, ctx) {
-      if (typeof v === 'symbol') throw new TypeError(ctx + ': Cannot convert a Symbol value to a string');
+    DOMString(v, prefix, fn) {
+      if (typeof v === 'symbol') fail(fn, 'Cannot convert a Symbol value to a string', prefix);
       return String(v);
     },
-    USVString(v, ctx) {
-      const s = conv.DOMString(v, ctx);
+    USVString(v, prefix, fn) {
+      const s = conv.DOMString(v, prefix, fn);
       return typeof s.toWellFormed === 'function' ? s.toWellFormed() : s;
     },
     boolean(v) { return !!v; },
-    unsignedLong(v, ctx) {
-      if (typeof v === 'symbol') throw new TypeError(ctx + ': Cannot convert a Symbol value to a number');
+    unsignedLong(v, prefix, fn) {
+      if (typeof v === 'symbol') fail(fn, 'Cannot convert a Symbol value to a number', prefix);
       const n = Number(v);
       if (!isFinite(n)) return 0;
       const t = Math.trunc(n);
       return ((t % 4294967296) + 4294967296) % 4294967296;
     },
   };
-
-  function args(ctx, got, need) {
-    if (got < need) {
-      throw new TypeError(ctx + ': ' + need + ' argument' + (need === 1 ? '' : 's') + ' required, but only ' + got + ' present.');
-    }
-  }
-  function illegal() { throw new TypeError('Illegal invocation'); }
 
   // ---- shape helpers: one place decides descriptors and nativeness ----
   function setFn(fn, name, length) {
@@ -120,6 +137,6 @@ const __platform = (function () {
     return bad;
   }
 
-  const P = { define, boot, conv, args, illegal, iface, seal, method, getter, expose, exposeValue, expect, verify };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, expose, exposeValue, expect, verify };
   return P;
 })();

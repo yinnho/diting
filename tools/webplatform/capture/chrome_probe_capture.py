@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Run chrome/storage-probe.js in real headless Chrome (needs an http origin:
 localStorage is unavailable on opaque origins) and store the result as truth.
-usage: chrome_storage_capture.py   -> tools/webplatform/chrome/chrome-storage-truth.json
+usage: chrome_storage_capture.py [probe.js out.json]
+  default: chrome/storage-probe.js -> chrome/chrome-storage-truth.json
 """
 import json, os, re, subprocess, sys, tempfile, threading, http.server, socketserver, datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CH = os.path.join(HERE, "..", "chrome")
 CHROME = os.environ.get("CHROME_BIN", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-probe = open(os.path.join(CH, "storage-probe.js")).read()
+PROBE = sys.argv[1] if len(sys.argv) > 1 else "storage-probe.js"
+OUTN = sys.argv[2] if len(sys.argv) > 2 else "chrome-storage-truth.json"
+probe = open(os.path.join(CH, PROBE)).read()
 html = ("<!doctype html><html><body><pre id=o></pre><script>"
         "var __r; try { __r = (function(){ return (\n" + probe + "\n); })(); } catch (e) { __r = 'PROBE-ERROR ' + e + ' @ ' + (e.stack||''); }"
         "document.getElementById('o').textContent = __r;"
@@ -32,6 +35,6 @@ try:
     res = json.loads(raw)
 except Exception:
     sys.exit('probe did not yield JSON; got: ' + repr(raw[:300]) + '\nDOM head: ' + repr(out[:300]))
-json.dump({"_meta": {"chrome": ver, "date": datetime.date.today().isoformat(), "probe": "chrome/storage-probe.js", "origin": "http://127.0.0.1 (ephemeral)"}, "result": res},
-          open(os.path.join(CH, "chrome-storage-truth.json"), "w"), indent=1, sort_keys=True, ensure_ascii=False)
+json.dump({"_meta": {"chrome": ver, "date": datetime.date.today().isoformat(), "probe": "chrome/" + PROBE, "origin": "http://127.0.0.1 (ephemeral)"}, "result": res},
+          open(os.path.join(CH, OUTN), "w"), indent=1, sort_keys=True, ensure_ascii=False)
 print("captured", len(res), "probes;", ver)

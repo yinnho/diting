@@ -1,0 +1,248 @@
+{
+ "_meta": {
+  "chrome": "Google Chrome 156.0.8078.48",
+  "date": "2026-10-29",
+  "origin": "http://127.0.0.1 (ephemeral)",
+  "probe": "chrome/error-probe.js"
+ },
+ "result": {
+  "arity.getItem": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: 1 argument required, but only 0 present.",
+   "message": "Failed to execute 'getItem' on 'Storage': 1 argument required, but only 0 present.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "arity.key": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: 1 argument required, but only 0 present.",
+   "message": "Failed to execute 'key' on 'Storage': 1 argument required, but only 0 present.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "arity.setItem": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: 2 arguments required, but only 1 present.",
+   "message": "Failed to execute 'setItem' on 'Storage': 2 arguments required, but only 1 present.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "call.Storage": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Illegal constructor",
+   "message": "Illegal constructor",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.arity": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: 1 argument required, but only 0 present.",
+   "message": "Failed to construct 'StorageEvent': 1 argument required, but only 0 present.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.badarea": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Failed to convert value to 'Storage'.",
+   "message": "Failed to construct 'StorageEvent': Failed to read the 'storageArea' property from 'StorageEventInit': Failed to convert value to 'Storage'.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.badinit": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: The provided value is not of type 'StorageEventInit'.",
+   "message": "Failed to construct 'StorageEvent': The provided value is not of type 'StorageEventInit'.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.call": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+   "message": "Failed to construct 'StorageEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.illegal": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Illegal invocation",
+   "message": "Illegal invocation",
+   "shape": {
+    "message": "data:w-c",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.initArity": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: 1 argument required, but only 0 present.",
+   "message": "Failed to execute 'initStorageEvent' on 'StorageEvent': 1 argument required, but only 0 present.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "ev.initBadArea": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: parameter 8 is not of type 'Storage'.",
+   "message": "Failed to execute 'initStorageEvent' on 'StorageEvent': parameter 8 is not of type 'Storage'.",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "illegal.clear": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Illegal invocation",
+   "message": "Illegal invocation",
+   "shape": {
+    "message": "data:w-c",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "illegal.getItem": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Illegal invocation",
+   "message": "Illegal invocation",
+   "shape": {
+    "message": "data:w-c",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "illegal.length": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Illegal invocation",
+   "message": "Illegal invocation",
+   "shape": {
+    "message": "data:w-c",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "new.Storage": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Illegal constructor",
+   "message": "Failed to construct 'Storage': Illegal constructor",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "set.symbolValue": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Cannot convert a Symbol value to a string",
+   "message": "Failed to set a named property 'foo' on 'Storage': Cannot convert a Symbol value to a string",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  },
+  "sym.setItem": {
+   "ctor": "TypeError",
+   "framesAbove": 1,
+   "header": "TypeError: Cannot convert a Symbol value to a string",
+   "message": "Failed to execute 'setItem' on 'Storage': Cannot convert a Symbol value to a string",
+   "shape": {
+    "message": "data:wec",
+    "own": [
+     "message",
+     "stack"
+    ],
+    "stack": "accessor:--c"
+   }
+  }
+ }
+}
