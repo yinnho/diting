@@ -25760,3 +25760,57 @@ fn storage_family_proxy_semantics_and_gate() {
     assert_eq!(v["gateLeak"], -1, "__cookieGate must stay a lexical const");
     assert_eq!(v["pers"], "function");
 }
+
+/// cssom_sheets.js ratchet split (JS-SURFACE-PLAN step 3): StyleSheet /
+/// CSSStyleSheet, the document.styleSheets backing and adoptedStyleSheets
+/// left bootstrap.js. Pins the inheritance surgery, per-element sheet
+/// identity, StyleSheetList shape, and that the lexical-const helpers did
+/// not mint window properties.
+#[test]
+fn cssom_sheets_identity_list_and_adoption() {
+    let mut rt = setup_runtime("<html><head><style id='s'>a{color:red}b{margin:0}</style></head><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"
+        (function () {
+            var el = document.getElementById('s');
+            var sh = el.sheet;
+            var list = document.styleSheets;
+            var ctorThrows = false;
+            try { new StyleSheet(); } catch (e) { ctorThrows = e instanceof TypeError; }
+            var c = new CSSStyleSheet();
+            var detached = document.createElement('style').sheet;
+            document.adoptedStyleSheets = [c];
+            var bad = null;
+            try { document.adoptedStyleSheets = [{}]; } catch (e) { bad = e.constructor.name; }
+            var names = Object.getOwnPropertyNames(globalThis);
+            return JSON.stringify({
+                same: el.sheet === sh, owner: sh.ownerNode === el, rules: sh.cssRules.length,
+                listLen: list.length, listItem: list.item(0) === sh, listIdx: list[0] === sh,
+                notArray: typeof list.push, ctorThrows: ctorThrows,
+                inherit: c instanceof StyleSheet && c instanceof CSSStyleSheet,
+                type: sh.type, detached: detached, adopted: document.adoptedStyleSheets.length,
+                bad: bad,
+                leak: ['_sheetList','_elementSheet','_sheetFromCssText','_extSheetBodies','_parseSheetRules']
+                        .filter(function (n) { return names.indexOf(n) >= 0; }),
+            });
+        })()
+        "#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["same"], true, "{v}");
+    assert_eq!(v["owner"], true);
+    assert_eq!(v["rules"], 2);
+    assert_eq!(v["listLen"], 1);
+    assert_eq!(v["listItem"], true);
+    assert_eq!(v["listIdx"], true);
+    assert_eq!(v["notArray"], "undefined");
+    assert_eq!(v["ctorThrows"], true);
+    assert_eq!(v["inherit"], true);
+    assert_eq!(v["type"], "text/css");
+    assert!(v["detached"].is_null());
+    assert_eq!(v["adopted"], 1);
+    assert_eq!(v["bad"], "TypeError");
+    assert_eq!(v["leak"], serde_json::json!([]), "helpers must stay lexical consts");
+}

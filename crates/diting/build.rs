@@ -23,6 +23,9 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // Ratchet split (JS-SURFACE-PLAN step 3): CSSOM sheet objects. Must stay
+    // first after bootstrap — global_surface and the sweep walk CSSStyleSheet.
+    ("cssom_sheets.js", include_str!("js/cssom_sheets.js")),
     // #252 god-file ratchet split: the fetch family moved out of
     // bootstrap.js wholesale. Its top level only declares bindings; every
     // helper it references (_docBase, __recordFetchTiming, Headers…) is
