@@ -2,7 +2,7 @@
 # Root package is diting-browser; the BINARY is `diting` ([[bin]] below) —
 # the engine crate owns the bare `diting` name (crates/diting).
 name = "diting-browser"
-version = "0.8.2"
+version = "0.8.3"
 edition = "2021"
 authors = ["OpenCarrier Team"]
 description = "Pure server-side browser engine with built-in V8. HTTP API for scraping, search, and interactive browsing. No Chromium required."
