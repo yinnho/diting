@@ -39,16 +39,16 @@ pub const DEFAULT_TLS_FINGERPRINT: &str = crate::chrome_target::TLS_PROFILE_NAME
 /// flat enum is now `Profile`, and `Emulation` is the profile+platform
 /// builder passed to `ClientBuilder::emulation`.)
 #[cfg(feature = "stealth")]
-pub fn parse_tls_fingerprint(s: &str) -> Option<wreq_util::Profile> {
+pub fn parse_tls_fingerprint(s: &str) -> Option<diting_profiles::Profile> {
     match s.to_ascii_lowercase().as_str() {
         "chrome" => Some(crate::chrome_target::target_tls_profile()),
-        "chrome145" => Some(wreq_util::Profile::Chrome145),
-        "chrome131" => Some(wreq_util::Profile::Chrome131),
-        "firefox133" | "firefox" => Some(wreq_util::Profile::Firefox133),
-        "firefox147" => Some(wreq_util::Profile::Firefox147),
-        "safari17_5" | "safari" => Some(wreq_util::Profile::Safari17_5),
-        "safari18" => Some(wreq_util::Profile::Safari18),
-        "edge145" | "edge" => Some(wreq_util::Profile::Edge145),
+        "chrome145" => Some(diting_profiles::Profile::Chrome145),
+        "chrome131" => Some(diting_profiles::Profile::Chrome131),
+        "firefox133" | "firefox" => Some(diting_profiles::Profile::Firefox133),
+        "firefox147" => Some(diting_profiles::Profile::Firefox147),
+        "safari17_5" | "safari" => Some(diting_profiles::Profile::Safari17_5),
+        "safari18" => Some(diting_profiles::Profile::Safari18),
+        "edge145" | "edge" => Some(diting_profiles::Profile::Edge145),
         _ => None,
     }
 }
@@ -57,17 +57,17 @@ pub fn parse_tls_fingerprint(s: &str) -> Option<wreq_util::Profile> {
 /// fingerprint's platform (JA3 is OS-specific) must match the UA the
 /// transport sends — "shape coherence".
 #[cfg(feature = "stealth")]
-pub fn emulation_os_for_ua(ua: &str) -> wreq_util::Platform {
+pub fn emulation_os_for_ua(ua: &str) -> diting_profiles::Platform {
     if ua.contains("Windows") {
-        wreq_util::Platform::Windows
+        diting_profiles::Platform::Windows
     } else if ua.contains("Macintosh") || ua.contains("Mac OS X") {
-        wreq_util::Platform::MacOS
+        diting_profiles::Platform::MacOS
     } else if ua.contains("Android") {
-        wreq_util::Platform::Android
+        diting_profiles::Platform::Android
     } else if ua.contains("iPhone") || ua.contains("iPad") {
-        wreq_util::Platform::IOS
+        diting_profiles::Platform::IOS
     } else {
-        wreq_util::Platform::Linux
+        diting_profiles::Platform::Linux
     }
 }
 
@@ -136,12 +136,12 @@ pub const CLAIMED_CHROME_MAJOR: u32 = crate::chrome_target::CHROME_MAJOR;
 /// H2 fingerprints do. The preset is built by wreq-util; this corrects it on the way in
 /// (wreq's `Emulation`/`Http2Options` fields are public) so no dependency fork is needed.
 /// Chromium-family presets only; Firefox/Safari keep their own values.
-pub(crate) fn apply_chromium_h2_corrections(profile: wreq_util::Profile, mut e: wreq::Emulation) -> wreq::Emulation {
+pub(crate) fn apply_chromium_h2_corrections(profile: diting_profiles::Profile, mut e: diting_wire::Emulation) -> diting_wire::Emulation {
     let name = format!("{profile:?}");
     if name.starts_with("Chrome") || name.starts_with("Edge") || name.starts_with("Opera") {
         if let Some(h2) = e.http2_options.as_mut() {
             h2.headers_stream_dependency =
-                Some(wreq::http2::StreamDependency::new(wreq::http2::StreamId::zero(), CHROMIUM_HEADERS_PRIORITY_VALUE, true));
+                Some(diting_wire::http2::StreamDependency::new(diting_wire::http2::StreamId::zero(), CHROMIUM_HEADERS_PRIORITY_VALUE, true));
         }
     }
     e
@@ -210,9 +210,9 @@ pub fn warn_on_ua_tls_mismatch(ua: &str, tls_fingerprint: Option<&str>) -> bool 
 /// and only serve the retry.
 #[cfg(feature = "stealth")]
 async fn send_get_with_connection_reset_retry(
-    request: wreq::RequestBuilder,
+    request: diting_wire::RequestBuilder,
     url: &Url,
-) -> Result<wreq::Response, wreq::Error> {
+) -> Result<diting_wire::Response, diting_wire::Error> {
     let retry = request.try_clone();
     match request.send().await {
         Err(error) if error.is_connection_reset() => {
@@ -242,8 +242,8 @@ struct WreqSsrfGuardResolver {
 }
 
 #[cfg(feature = "stealth")]
-impl wreq::dns::Resolve for WreqSsrfGuardResolver {
-    fn resolve(&self, name: wreq::dns::Name) -> wreq::dns::Resolving {
+impl diting_wire::dns::Resolve for WreqSsrfGuardResolver {
+    fn resolve(&self, name: diting_wire::dns::Name) -> diting_wire::dns::Resolving {
         let allow = self.allow_flag.load(Ordering::Relaxed)
             || crate::diting_net::client::env_allows_private_network();
         let host = name.as_str().to_string();
@@ -270,7 +270,7 @@ impl wreq::dns::Resolve for WreqSsrfGuardResolver {
                     .into());
                 }
             }
-            let iter: wreq::dns::Addrs = Box::new(addrs.into_iter());
+            let iter: diting_wire::dns::Addrs = Box::new(addrs.into_iter());
             Ok(iter)
         })
     }
@@ -279,14 +279,14 @@ impl wreq::dns::Resolve for WreqSsrfGuardResolver {
 #[cfg(feature = "stealth")]
 pub struct StealthHttpClient {
     /// Proxy-configured client. None when no proxy is set.
-    proxied_client: Option<wreq::Client>,
+    proxied_client: Option<diting_wire::Client>,
     /// Proxy client for known-blocked domains, built when no explicit proxy
     /// was configured but `DITING_PROXY` is set. Same per-domain
     /// fallback the reqwest transport applies, so stealth document requests
     /// reach blocked origins too.
-    auto_proxied_client: Option<wreq::Client>,
+    auto_proxied_client: Option<diting_wire::Client>,
     /// Direct-connect client (no proxy). Always present.
-    direct_client: wreq::Client,
+    direct_client: diting_wire::Client,
     /// The configured upstream proxy, kept for error reporting only (the
     /// clients already embed it) — an unreachable proxy must be named in the
     /// error, not folded into "error sending request" (obscura#491).
@@ -336,10 +336,10 @@ impl StealthHttpClient {
     /// misfire on. The flag is read live at resolve time.
     fn build_stealth_client_with_os(
         proxy_url: Option<&str>,
-        os_override: Option<wreq_util::Platform>,
-        emulation: wreq_util::Profile,
+        os_override: Option<diting_profiles::Platform>,
+        emulation: diting_profiles::Profile,
         ssrf_flag: Option<Arc<AtomicBool>>,
-    ) -> wreq::Client {
+    ) -> diting_wire::Client {
         let os = if let Some(os) = os_override {
             os
         } else {
@@ -353,8 +353,8 @@ impl StealthHttpClient {
 
         let emulation_opts = apply_chromium_h2_corrections(
             emulation,
-            wreq::IntoEmulation::into_emulation(
-                wreq_util::Emulation::builder().profile(emulation).platform(os).build(),
+            diting_wire::IntoEmulation::into_emulation(
+                diting_profiles::Emulation::builder().profile(emulation).platform(os).build(),
             ),
         );
 
@@ -362,7 +362,7 @@ impl StealthHttpClient {
         // (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) — the engine's proxy decision is
         // the explicit `proxy_url` below, nothing else. Must precede the
         // .proxy() attach, which no_proxy() would otherwise clear.
-        let mut builder = wreq::Client::builder()
+        let mut builder = diting_wire::Client::builder()
             .no_proxy()
             .emulation(emulation_opts)
             // read_timeout (per-chunk stall, #49), not a total-duration cap:
@@ -375,7 +375,7 @@ impl StealthHttpClient {
             // side's 10s (fetch_client.rs).
             .connect_timeout(Duration::from_secs(10))
             .read_timeout(Duration::from_secs(30))
-            .redirect(wreq::redirect::Policy::none());
+            .redirect(diting_wire::redirect::Policy::none());
 
         // #247: the post-DNS SSRF gate on the direct path. Replaces wreq's
         // default GaiResolver (getaddrinfo) with the same lookup_host shape
@@ -395,7 +395,7 @@ impl StealthHttpClient {
             std::env::var_os("SSL_CERT_FILE").as_deref(),
             std::env::var_os("SSL_CERT_DIR").as_deref(),
         ) {
-            match wreq::tls::trust::CertStore::builder().set_default_paths().build() {
+            match diting_wire::tls::trust::CertStore::builder().set_default_paths().build() {
                 Ok(store) => builder = builder.tls_cert_store(store),
                 Err(e) => {
                     tracing::warn!(
@@ -413,7 +413,7 @@ impl StealthHttpClient {
             // foreign sites behind a SOCKS5 proxy appeared unreachable. wreq's
             // SOCKS support (behind the `socks` feature) handles socks5://
             // URLs through either entry point.
-            match wreq::Proxy::all(proxy) {
+            match diting_wire::Proxy::all(proxy) {
                 Ok(p) => builder = builder.proxy(p),
                 Err(e) => tracing::warn!("stealth proxy '{}' ignored: {}", proxy, e),
             }
@@ -432,7 +432,7 @@ impl StealthHttpClient {
     pub fn with_proxy_and_os(
         cookie_jar: Arc<CookieJar>,
         proxy_url: Option<&str>,
-        os_override: Option<wreq_util::Platform>,
+        os_override: Option<diting_profiles::Platform>,
     ) -> Self {
         Self::with_proxy_and_emulation(
             cookie_jar,
@@ -448,8 +448,8 @@ impl StealthHttpClient {
     pub fn with_proxy_and_emulation(
         cookie_jar: Arc<CookieJar>,
         proxy_url: Option<&str>,
-        os_override: Option<wreq_util::Platform>,
-        emulation: wreq_util::Profile,
+        os_override: Option<diting_profiles::Platform>,
+        emulation: diting_profiles::Profile,
     ) -> Self {
         // The shared flag the direct client's SSRF resolver reads live —
         // same cell `validate_url` consults, so the two doors can never
@@ -491,7 +491,7 @@ impl StealthHttpClient {
     /// requests go direct except known-blocked domains, which ride
     /// `DITING_PROXY` when set — the same fallback /fetch applies, so a
     /// stealth session page doesn't hard-fail on an origin /fetch reaches.
-    async fn select_client(&self, url: &Url) -> &wreq::Client {
+    async fn select_client(&self, url: &Url) -> &diting_wire::Client {
         if let Some(p) = &self.proxied_client {
             return p;
         }
@@ -504,7 +504,7 @@ impl StealthHttpClient {
     }
 
     pub async fn fetch(&self, url: &Url) -> Result<Response, NetError> {
-        self.fetch_inner(url, None, wreq::Method::GET, None, None, None, true, ResourceType::Document).await
+        self.fetch_inner(url, None, diting_wire::Method::GET, None, None, None, true, ResourceType::Document).await
     }
 
     /// Navigation fetch (`fetch_document`): like [`fetch`] but carrying the
@@ -516,7 +516,7 @@ impl StealthHttpClient {
         url: &Url,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
-        self.fetch_inner(url, referrer, wreq::Method::GET, None, None, None, true, ResourceType::Document)
+        self.fetch_inner(url, referrer, diting_wire::Method::GET, None, None, None, true, ResourceType::Document)
             .await
     }
 
@@ -530,11 +530,11 @@ impl StealthHttpClient {
         url: &Url,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
-        self.fetch_inner(url, referrer, wreq::Method::GET, None, None, None, true, ResourceType::Image)
+        self.fetch_inner(url, referrer, diting_wire::Method::GET, None, None, None, true, ResourceType::Image)
             .await
     }
 
-    /// Classic `<script src>` on a stealth page. Uses the same `wreq::Client`
+    /// Classic `<script src>` on a stealth page. Uses the same `diting_wire::Client`
     /// as [`fetch_navigation`], so a same-origin script reuses the document's
     /// HTTP/2 connection instead of opening a second stack.
     pub async fn fetch_script(
@@ -545,7 +545,7 @@ impl StealthHttpClient {
         self.fetch_inner(
             url,
             referrer,
-            wreq::Method::GET,
+            diting_wire::Method::GET,
             None,
             None,
             None,
@@ -575,7 +575,7 @@ impl StealthHttpClient {
         request_headers: Option<&HashMap<String, String>>,
         include_cookies: bool,
     ) -> Result<Response, NetError> {
-        let method = wreq::Method::from_bytes(method.as_bytes())
+        let method = diting_wire::Method::from_bytes(method.as_bytes())
             .map_err(|e| NetError::Network(format!("invalid method {method:?}: {e}")))?;
         self.fetch_inner(url, referrer, method, body, content_type, request_headers, include_cookies, ResourceType::Fetch)
             .await
@@ -586,7 +586,7 @@ impl StealthHttpClient {
         &self,
         url: &Url,
         referrer: Option<&str>,
-        method: wreq::Method,
+        method: diting_wire::Method,
         body: Option<&[u8]>,
         content_type: Option<&str>,
         request_headers: Option<&HashMap<String, String>>,
@@ -758,7 +758,7 @@ impl StealthHttpClient {
                     Some(_) => crate::diting_net::cookies::SendContext::subresource(cross_site),
                     None => crate::diting_net::cookies::SendContext::navigation(
                         cross_site,
-                        method == wreq::Method::GET || method == wreq::Method::HEAD,
+                        method == diting_wire::Method::GET || method == diting_wire::Method::HEAD,
                     ),
                 };
                 let header = self.cookie_jar.get_cookie_header_for(&current_url, &ctx);
@@ -788,7 +788,7 @@ impl StealthHttpClient {
             // methods that can carry one — a GET advertising a content-type
             // is a WAF tell, and the body drops naturally when a 3xx
             // downgrade sets `body = None` below.
-            if method != wreq::Method::GET && method != wreq::Method::HEAD {
+            if method != diting_wire::Method::GET && method != diting_wire::Method::HEAD {
                 if let Some(ct) = content_type {
                     if !request_local("content-type") {
                         req = req.header("Content-Type", ct);
@@ -810,7 +810,7 @@ impl StealthHttpClient {
             if !request_local("priority") && !extra.contains_key("Priority") {
                 req = req.header("Priority", crate::diting_net::chrome_headers::priority(resource_type));
             }
-            if method != wreq::Method::GET && method != wreq::Method::HEAD && !request_local("content-length") {
+            if method != diting_wire::Method::GET && method != diting_wire::Method::HEAD && !request_local("content-length") {
                 req = req.header("Content-Length", body.map(|b| b.len()).unwrap_or(0).to_string());
             }
             {
@@ -858,7 +858,7 @@ impl StealthHttpClient {
             // GET/HEAD are idempotent, so the connection-reset retry applies;
             // any other method sends exactly once (a reset after the request
             // went out may already have applied server-side).
-            let resp = if matches!(method, wreq::Method::GET | wreq::Method::HEAD) {
+            let resp = if matches!(method, diting_wire::Method::GET | diting_wire::Method::HEAD) {
                 send_get_with_connection_reset_retry(req, &current_url).await
             } else {
                 req.send().await
@@ -931,11 +931,11 @@ impl StealthHttpClient {
                     // Mirror the plain client (and Chrome): 301/302/303
                     // rewrite the method to GET and drop body + content-type;
                     // 307/308 preserve both.
-                    if status == wreq::StatusCode::MOVED_PERMANENTLY
-                        || status == wreq::StatusCode::FOUND
-                        || status == wreq::StatusCode::SEE_OTHER
+                    if status == diting_wire::StatusCode::MOVED_PERMANENTLY
+                        || status == diting_wire::StatusCode::FOUND
+                        || status == diting_wire::StatusCode::SEE_OTHER
                     {
-                        method = wreq::Method::GET;
+                        method = diting_wire::Method::GET;
                         body = None;
                         content_type = None;
                     }

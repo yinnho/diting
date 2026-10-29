@@ -24,7 +24,7 @@
 
 #![cfg(feature = "stealth")]
 
-use wreq::header::OrigHeaderMap;
+use diting_wire::header::OrigHeaderMap;
 
 use crate::diting_net::client::ResourceType;
 

@@ -28,14 +28,15 @@ bin-dir = "{ bin }{ binary-ext }"
 archive-format = "raw"
 
 [workspace]
-members = ["crates/diting", "crates/diting_ops", "crates/diting_runtime"]
+members = ["crates/diting", "crates/diting_ops", "crates/diting_runtime",
+           "crates/diting_wire", "crates/diting_wire_proto", "crates/diting_wire_rt", "crates/diting_profiles"]
 resolver = "2"
 
 [features]
 default = []
 # Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL),
 # in the diting engine (crates/diting). Disable for plain reqwest-only builds.
-stealth = ["diting/stealth", "dep:wreq-util"]
+stealth = ["diting/stealth", "dep:diting_profiles"]
 # Screenshot rendering via the diting engine (crates/diting) — own
 # CSS+layout+paint stack, no Chromium required, no blitz. The engine's
 # render deps live in diting; the product face only needs encode/decode
@@ -112,11 +113,10 @@ base64 = "0.22"
 sha2 = "0.11"
 
 # --- stealth client (TLS fingerprint spoofing) ---
-# wreq itself lives in diting; the product keeps wreq-util (platform
-# emulation presets used by search personas).
-# Pin exact versions: wreq/wreq-util are pre-release rc crates whose API shifts
-# between builds; a caret requirement could pull an incompatible rc and break.
-wreq-util = { version = "=3.0.0-rc.14", optional = true }
+# The browser-fidelity HTTP stack is OUR code now (crates/diting_wire*, diting_profiles;
+# vendored from wreq 6.0.0-rc.31 family, see crates/VENDORED.md). The product keeps the
+# platform emulation presets used by search personas.
+diting_profiles = { path = "crates/diting_profiles", optional = true }
 
 # --- blitz reference pipeline (opt-in via `blitz-reference` feature) ---
 # NOT part of `screenshot`: production/device builds stop at diting and

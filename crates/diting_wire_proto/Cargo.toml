@@ -1,0 +1,83 @@
+[package]
+publish = false
+description = "diting browser-fidelity HTTP stack (diting_wire_proto); vendored from wreq-proto 0.2.6 (Apache-2.0, 0x676e67) and maintained here"
+build = false
+edition = "2021"
+rust-version = "1.85"
+name = "diting_wire_proto"
+version = "0.2.6"
+authors = [
+    "0x676e67 <gngppz@gmail.com>",
+    "Sean McArthur <sean@seanmonstar.com>",
+]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+license = "Apache-2.0"
+resolver = "3"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+default = []
+full = []
+tracing = []
+
+[lib]
+name = "diting_wire_proto"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies.bytes]
+version = "1.11.1"
+
+[dependencies.futures-channel]
+version = "0.3.32"
+
+[dependencies.futures-util]
+version = "0.3.32"
+default-features = false
+
+[dependencies.http]
+version = "1.4.0"
+
+[dependencies.http-body]
+version = "1.0.1"
+
+[dependencies.http2]
+version = "0.5.20"
+features = ["unstable"]
+
+[dependencies.httparse]
+version = "1.10.1"
+
+[dependencies.pin-project-lite]
+version = "0.2.17"
+
+[dependencies.smallvec]
+version = "1.15.1"
+features = [
+    "const_generics",
+    "const_new",
+]
+
+[dependencies.tokio]
+version = "1.53.1"
+default-features = false
+
+[dependencies.tokio-util]
+version = "0.7.18"
+default-features = false
+
+[dependencies.want]
+version = "0.3.1"
+

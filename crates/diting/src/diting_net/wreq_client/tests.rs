@@ -14,7 +14,7 @@
     #[tokio::test]
     #[allow(clippy::await_holding_lock)] // env guard spans the resolve, as everywhere else
     async fn wreq_ssrf_guard_resolver_blocks_loopback_resolution() {
-        use wreq::dns::Resolve as _;
+        use diting_wire::dns::Resolve as _;
 
         let _guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
         std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
@@ -24,7 +24,7 @@
         };
         assert!(
             guarded
-                .resolve(wreq::dns::Name::new("localhost".into()))
+                .resolve(diting_wire::dns::Name::new("localhost".into()))
                 .await
                 .is_err(),
             "localhost must be rejected by the guarded resolver"
@@ -35,7 +35,7 @@
         };
         assert!(
             permissive
-                .resolve(wreq::dns::Name::new("localhost".into()))
+                .resolve(diting_wire::dns::Name::new("localhost".into()))
                 .await
                 .is_ok(),
             "the live flag must pass localhost through"
@@ -747,38 +747,38 @@
     #[test]
     fn chromium_presets_get_the_real_headers_priority_weight() {
         use super::{apply_chromium_h2_corrections, CHROMIUM_HEADERS_PRIORITY_VALUE};
-        let build = |p: wreq_util::Profile| {
-            wreq::IntoEmulation::into_emulation(
-                wreq_util::Emulation::builder().profile(p).platform(wreq_util::Platform::MacOS).build(),
+        let build = |p: diting_profiles::Profile| {
+            diting_wire::IntoEmulation::into_emulation(
+                diting_profiles::Emulation::builder().profile(p).platform(diting_profiles::Platform::MacOS).build(),
             )
         };
-        let expect = wreq::http2::StreamDependency::new(
-            wreq::http2::StreamId::zero(),
+        let expect = diting_wire::http2::StreamDependency::new(
+            diting_wire::http2::StreamId::zero(),
             CHROMIUM_HEADERS_PRIORITY_VALUE,
             true,
         );
         // before: the upstream value really is the stale one (guards against a silent upstream change)
-        let raw = build(wreq_util::Profile::Chrome145);
+        let raw = build(diting_profiles::Profile::Chrome145);
         assert_ne!(
             format!("{:?}", raw.http2_options.as_ref().unwrap().headers_stream_dependency),
             format!("{:?}", Some(&expect)),
             "wreq-util now ships the correct weight - this correction can be dropped"
         );
         // after: Chrome and Edge get 256; Firefox/Safari are left alone
-        let fixed = apply_chromium_h2_corrections(wreq_util::Profile::Chrome145, build(wreq_util::Profile::Chrome145));
+        let fixed = apply_chromium_h2_corrections(diting_profiles::Profile::Chrome145, build(diting_profiles::Profile::Chrome145));
         assert_eq!(
             format!("{:?}", fixed.http2_options.unwrap().headers_stream_dependency),
             format!("{:?}", Some(expect.clone()))
         );
-        let edge = apply_chromium_h2_corrections(wreq_util::Profile::Edge145, build(wreq_util::Profile::Edge145));
+        let edge = apply_chromium_h2_corrections(diting_profiles::Profile::Edge145, build(diting_profiles::Profile::Edge145));
         assert_eq!(
             format!("{:?}", edge.http2_options.unwrap().headers_stream_dependency),
             format!("{:?}", Some(expect))
         );
-        let ff_before = format!("{:?}", build(wreq_util::Profile::Firefox133).http2_options);
+        let ff_before = format!("{:?}", build(diting_profiles::Profile::Firefox133).http2_options);
         let ff_after = format!(
             "{:?}",
-            apply_chromium_h2_corrections(wreq_util::Profile::Firefox133, build(wreq_util::Profile::Firefox133)).http2_options
+            apply_chromium_h2_corrections(diting_profiles::Profile::Firefox133, build(diting_profiles::Profile::Firefox133)).http2_options
         );
         assert_eq!(ff_before, ff_after, "non-Chromium presets must be untouched");
     }

@@ -13,5 +13,11 @@ individual adaptations with `upstream <commit>` or `upstream #<issue>` comments
 that refer to the corresponding Obscura commits and issues. Those portions have
 since been modified, extended and, in part, replaced.
 
+The browser-fidelity HTTP stack (crates/diting_wire, diting_wire_proto, diting_wire_rt and
+diting_profiles) was taken from the wreq family of crates by 0x676e67 and contributors
+(https://github.com/0x676e67/wreq; wreq 6.0.0-rc.31, wreq-proto 0.2.6, wreq-rt 0.2.2-rc.4,
+wreq-util 3.0.0-rc.14), licensed under the Apache License, Version 2.0, and has since been
+modified and is maintained here. See crates/VENDORED.md.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.

@@ -1,0 +1,68 @@
+[package]
+publish = false
+description = "diting browser-fidelity HTTP stack (diting_profiles); vendored from wreq-util 3.0.0-rc.14 (Apache-2.0, 0x676e67) and maintained here"
+build = false
+edition = "2024"
+rust-version = "1.85"
+name = "diting_profiles"
+version = "3.0.0-rc.14"
+authors = ["0x676e67 <gngppz@gmail.com>"]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+license = "Apache-2.0"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+compio-rt = []
+default = [
+    "emulation",
+]
+emulation = [
+    "dep:typed-builder",
+    "dep:brotli",
+    "dep:flate2",
+    "dep:zstd",
+]
+emulation-compression = []
+emulation-serde = []
+tokio-rt = [
+    "diting_wire/tokio-rt",
+]
+tower-delay = []
+
+[lib]
+name = "diting_profiles"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies.brotli]
+version = "8.0.2"
+optional = true
+
+[dependencies.flate2]
+version = "1.1.9"
+optional = true
+
+[dependencies.typed-builder]
+version = "0.23.2"
+optional = true
+
+[dependencies.diting_wire]
+path = "../diting_wire"
+default-features = false
+
+[dependencies.zstd]
+version = "0.13.3"
+optional = true
+

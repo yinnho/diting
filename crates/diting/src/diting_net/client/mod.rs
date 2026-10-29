@@ -818,7 +818,7 @@ impl HttpClient {
                     .tls_fingerprint
                     .as_deref()
                     .and_then(crate::diting_net::parse_tls_fingerprint)
-                    .unwrap_or(wreq_util::Profile::Chrome145);
+                    .unwrap_or(diting_profiles::Profile::Chrome145);
                 let os = crate::diting_net::emulation_os_for_ua(
                     &self.user_agent.read().await.clone(),
                 );

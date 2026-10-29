@@ -138,7 +138,7 @@ fn emit_chrome_target() {
          /// The wreq-util preset for the target major. A preset the TLS library lacks is a\n\
          /// COMPILE error here - the TLS layer cannot silently fall behind the target.\n\
          #[cfg(feature = \"stealth\")]\n\
-         pub fn target_tls_profile() -> wreq_util::Profile {{ wreq_util::Profile::Chrome{major} }}\n",
+         pub fn target_tls_profile() -> diting_profiles::Profile {{ diting_profiles::Profile::Chrome{major} }}\n",
         os = get("platform"),
         arch = get("arch"),
     );

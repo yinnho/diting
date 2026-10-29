@@ -16,7 +16,7 @@ default = []
 blitz-reference = ["dep:parley"]
 # Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL).
 # Disable for plain reqwest-only builds.
-stealth = ["dep:wreq", "dep:wreq-util"]
+stealth = ["dep:diting_wire", "dep:diting_profiles"]
 # Screenshot rendering via the diting engine (own CSS+layout+paint
 # stack on the taffy/parley/swash/vello_cpu foundation). Opt-in; renders the
 # JS-rendered DOM (captured by the diting V8 path) to a PNG — no Chromium
@@ -186,11 +186,11 @@ memmap2 = "0.9"
 getrandom = "0.2"
 
 # --- stealth client (TLS fingerprint spoofing) ---
-# Pin exact versions: wreq/wreq-util are pre-release rc crates whose API shifts
-# between builds; a caret requirement could pull an incompatible rc and break.
+# The browser-fidelity HTTP stack lives in this repository (vendored from the wreq
+# family, see crates/VENDORED.md) - no external pre-release pins to track.
 # prefix-symbols renames BoringSSL exports to avoid clashing with system OpenSSL,
-# but the renaming is only correct on Linux/Android (per wreq's README).
-wreq-util = { version = "=3.0.0-rc.14", optional = true }
+# but the renaming is only correct on Linux/Android (per the wreq README it came from).
+diting_profiles = { path = "../diting_profiles", optional = true }
 
 # --- render output encoding (screenshot) ---
 anyrender = { version = "0.13", optional = true }
@@ -206,10 +206,10 @@ rsa_sha1 = { package = "sha1", version = "0.10.6" }
 rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-wreq = { version = "=6.0.0-rc.31", optional = true, features = ["prefix-symbols", "socks", "gzip", "brotli", "deflate", "zstd"] }
+diting_wire = { path = "../diting_wire", optional = true, features = ["prefix-symbols", "socks", "gzip", "brotli", "deflate", "zstd"] }
 
 [target.'cfg(not(any(target_os = "linux", target_os = "android")))'.dependencies]
-wreq = { version = "=6.0.0-rc.31", optional = true, features = ["socks", "gzip", "brotli", "deflate", "zstd"] }
+diting_wire = { path = "../diting_wire", optional = true, features = ["socks", "gzip", "brotli", "deflate", "zstd"] }
 
 [build-dependencies]
 # 10d host flip: the snapshot is baked by OUR runtime crate (container

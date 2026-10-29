@@ -1,0 +1,174 @@
+[package]
+publish = false
+description = "diting browser-fidelity HTTP stack (diting_wire); vendored from wreq 6.0.0-rc.31 (Apache-2.0, 0x676e67) and maintained here"
+build = false
+edition = "2024"
+rust-version = "1.85"
+name = "diting_wire"
+version = "6.0.0-rc.31"
+authors = ["0x676e67 <gngppz@gmail.com>"]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+license = "Apache-2.0"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+brotli = [
+    "dep:tower-http",
+    "tower-http?/decompression-br",
+]
+charset = []
+compio-rt = []
+cookies = []
+default = [
+    "webpki-roots",
+    "tokio-rt",
+]
+deflate = [
+    "dep:tower-http",
+    "tower-http?/decompression-deflate",
+]
+form = []
+gzip = [
+    "dep:tower-http",
+    "tower-http?/decompression-gzip",
+]
+hickory-dns = []
+json = []
+multipart = []
+parking_lot = []
+prefix-symbols = [
+    "btls/prefix-symbols",
+]
+query = []
+socks = [
+    "dep:tokio-socks",
+]
+stream = []
+system-proxy = []
+tokio-rt = [
+    "tokio/rt",
+    "tokio/net",
+    "tokio/fs",
+    "diting_wire_rt/tokio-rt",
+]
+tracing = []
+webpki-roots = [
+    "dep:webpki-root-certs",
+]
+ws = []
+zstd = [
+    "dep:tower-http",
+    "tower-http?/decompression-zstd",
+]
+
+[lib]
+name = "diting_wire"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies.btls]
+version = "0.5.6"
+
+[dependencies.btls-sys]
+version = "0.5.6"
+
+[dependencies.bytes]
+version = "1.11.1"
+
+[dependencies.futures-util]
+version = "0.3.33"
+default-features = false
+
+[dependencies.http]
+version = "1.4.0"
+
+[dependencies.http-body]
+version = "1.0.1"
+
+[dependencies.http-body-util]
+version = "0.1.4"
+
+[dependencies.http2]
+version = "0.5.17"
+
+[dependencies.httparse]
+version = "1.10.1"
+
+[dependencies.ipnet]
+version = "2.12.0"
+
+[dependencies.lru]
+version = "0.18.0"
+
+[dependencies.percent-encoding]
+version = "2.3.2"
+
+[dependencies.pin-project-lite]
+version = "0.2.17"
+
+[dependencies.socket2]
+version = "0.6.3"
+features = ["all"]
+
+[dependencies.tokio]
+version = "1.52.3"
+default-features = false
+
+[dependencies.tokio-btls]
+version = "0.5.6"
+
+[dependencies.tokio-socks]
+version = "0.5.2"
+optional = true
+
+[dependencies.tower]
+version = "0.5.3"
+features = [
+    "timeout",
+    "util",
+    "retry",
+]
+default-features = false
+
+[dependencies.tower-http]
+version = "0.6.8"
+optional = true
+default-features = false
+
+[dependencies.url]
+version = "2.5.8"
+
+[dependencies.webpki-root-certs]
+version = "1.0.7"
+optional = true
+
+[dependencies.diting_wire_proto]
+path = "../diting_wire_proto"
+default-features = false
+
+[dependencies.diting_wire_rt]
+path = "../diting_wire_rt"
+default-features = false
+
+[target."cfg(unix)".dependencies.libc]
+version = "0.2.186"
+
+[profile.bench]
+codegen-units = 1
+incremental = false
+
+[profile.release]
+codegen-units = 1
+incremental = false
