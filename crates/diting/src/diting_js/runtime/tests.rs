@@ -26010,3 +26010,45 @@ fn platform_errors_match_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} error shape(s) differ from Chrome:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// Chrome-version coherence (docs: CHROME-COHERENCE-AUDIT): the full version the engine
+/// claims through userAgentData must be a build Google actually published. The old table
+/// extrapolated builds ("145.0.6509.41" - build 6509 is Chrome 127's), a tell any detector
+/// can check against the public version database.
+#[tokio::test(flavor = "current_thread")]
+async fn ua_data_full_version_is_a_real_chrome_build() {
+    let real: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/cft-builds.json"
+    ))
+    .unwrap();
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                var h = await navigator.userAgentData.getHighEntropyValues(['uaFullVersion', 'fullVersionList']);
+                return JSON.stringify({ ua: h.uaFullVersion, list: h.fullVersionList });
+            }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let mut claims = vec![v["ua"].as_str().unwrap().to_string()];
+    for b in v["list"].as_array().unwrap() {
+        let ver = b["version"].as_str().unwrap();
+        if !ver.ends_with(".0.0.0") {
+            claims.push(ver.to_string());
+        }
+    }
+    for full in claims {
+        let mut parts = full.splitn(3, '.');
+        let major = parts.next().unwrap().to_string();
+        parts.next();
+        let build = parts.next().unwrap().to_string();
+        let ok = real["builds"][&major].as_array().map(|a| a.iter().any(|b| b.as_str() == Some(build.as_str()))).unwrap_or(false);
+        assert!(ok, "claimed {full} was never published by Google");
+    }
+}

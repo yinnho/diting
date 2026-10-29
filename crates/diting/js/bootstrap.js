@@ -7609,12 +7609,20 @@ function __ditingBrandList(maj) {
   for (let i = 0; i < 3; i++) out[o[i]] = list[i];
   return out;
 }
-// Plausible stable build.patch numbers per shipped major, extrapolated from
-// the ~155/milestone build cadence. 154/155 are the measured real pairs
-// (154.0.8037.98 / 155.0.8059.82); older majors keep the historic .41
-// estimate. Used ONLY by fullVersionList/uaFullVersion — the reduced UA
-// itself stays x.0.0.0.
-const __DITING_FULL_BUILD = { "143": "6200.41", "144": "6355.41", "145": "6509.41", "146": "6664.41", "154": "8037.98", "155": "8059.82" };
+// Real build.patch per Chrome major, taken from Google's Chrome for Testing known-good
+// list (tools/webplatform/chrome/cft-builds.json; tools/webplatform/check_versions.py
+// fails CI if an entry is not a published version). A claimed full version that never
+// shipped (e.g. 145.0.6509.41: build 6509 is Chrome 127's) is a fingerprint tell, so
+// this table must NEVER be extrapolated. Used ONLY by fullVersionList/uaFullVersion —
+// the reduced UA itself stays x.0.0.0.
+const __DITING_FULL_BUILD = { "130": "6723.116", "131": "6778.264", "132": "6834.159", "133": "6943.141", "134": "6998.165", "135": "7049.114", "136": "7103.113", "137": "7151.119", "138": "7204.183", "139": "7258.154", "140": "7339.207", "141": "7390.122", "142": "7444.175", "143": "7499.192", "144": "7559.133", "145": "7632.117", "146": "7680.165", "147": "7727.117", "148": "7778.178", "149": "7827.155", "150": "7871.124", "151": "7922.138", "152": "7977.82", "153": "8010.52", "154": "8037.92", "155": "8059.84", "156": "8078.73", "157": "8103.15", "158": "8127.2", "159": "8129.0" };
+
+function __ditingNearestBuild(maj) {
+  let best = null, bestD = Infinity;
+  for (const k in __DITING_FULL_BUILD) { const d = Math.abs(Number(k) - maj); if (d < bestD) { bestD = d; best = __DITING_FULL_BUILD[k]; } }
+  return best;
+}
+
 
 // ---- Font-presence metrics -------------------------------------------------
 // Font-probe fingerprinters (Castle's fonts collector, fingerprintjs,
@@ -8327,7 +8335,9 @@ class NavigatorUAData {
     // Apple M3 + architecture "x86" was a three-machines-in-one tell.
     const dev = _getFp();
     const maj = __ditingChromeMajorFromUA();
-    const build = __DITING_FULL_BUILD[maj] || String(6509 + (Number(maj) - 145) * 155) + ".41";
+    // Majors outside the table are unsupported personas: reuse the nearest known major
+    // instead of extrapolating a build that never shipped.
+    const build = __DITING_FULL_BUILD[maj] || __ditingNearestBuild(Number(maj));
     const full = __ditingBrandList(Number(maj)).map(function (b) {
       return { brand: b.brand, version: b.brand === "Chromium" || b.brand === "Google Chrome" ? maj + ".0." + build : b.version + ".0.0.0" };
     });
