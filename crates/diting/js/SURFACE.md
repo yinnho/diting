@@ -95,3 +95,13 @@ bootstrap.js 里的 JS 版已删除（−34 行）。探针 36 项对 Chrome 145
 声明层扩展：`Def/Val`（数值/字符串槽）、`consts`、可选 `factory`、`error_like`；全部接口共用一张表（`native/mod.rs::IFACES`）。
 回归修复：JS structuredClone 的 Error 分支会对副本赋 `name`（原生 DOMException 是只读访问器）——钩子查找提前到 Error 分支之前，
 新增 `native_clone.js` 统一登记原生接口的克隆钩子（几何 + DOMException）；测试 test_structured_clone_of_native_dom_exception_and_geometry（变异验证过）。
+
+## 实验：V8 私有槽作 EventTarget 监听器存储（2026-10-29，已拆除，结论留档）
+
+在任意对象上用 `v8::Private`（`for_api` 具名符号）存「事件类型→函数数组」：
+- 烤进快照、恢复后监听器仍能触发——普通对象、**全局对象**、遗留 JS 类实例（未经原生构造函数创建）三种都过；
+- 恢复后新增监听器并入同一表；`for_api` 符号身份跨快照保持；
+- 页面反射不可见（`Reflect.ownKeys`/`getOwnPropertySymbols` 都为空）；冻结对象上也能挂监听器（Chrome 同）；
+- 代价：粗实现 291ns/次派发（3 监听器），JS WeakMap 版 29ns；主要是每次重建键字符串，正式实现要缓存键。
+设计含义：EventTarget 原生化**不需要**内部字段/原生构造函数创建的对象——遗留节点、window 照样能用私有槽，迁移可渐进。
+未验证：监听器抛异常时的 TryCatch 上报、嵌套派发、中途增删监听器的快照语义（正式实现里用探针覆盖）。
