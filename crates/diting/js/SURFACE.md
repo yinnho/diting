@@ -18,8 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→**142 接口**、
-2631→**2471 成员**；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→**1043**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -35,6 +34,8 @@
 | platform/storage.impl.js | 手写：Storage 的 backing 行为（惰性加载、防抖写盘、opaque origin 仅内存） |
 | platform/gen/geometry.gen.js | **生成件**：几何七件套的 IDL 骨架（gen_iface.py value 策略：类/描述符/安装序/statics 全生成，行为全部走 B.* 委托） |
 | platform/geometry.impl.js | 手写：几何族行为（m_{CR} 存储、CSS transform-list 解析、WebKitCSSMatrix 旧脸接线 ready()） |
+| platform/gen/htmlelement.gen.js | **生成件**：HTMLElement/Element 通用成员层（gen_iface.py patch-common 策略：按 Chrome truth 自有属性序发射搬位/反射/委托/staged，生成期对账断言） |
+| platform/htmlelement.impl.js | 手写：非均匀成员语义（contentEditable/popover/nonce 内槽/outerText/outerHTML 报文/classList 转发/hasAttributeNS 等） |
 | worker.js | Worker（含 blob URL Worker） |
 | client_rects.js / computed_size.js | 几何查询 |
 | pointer_touch.js | PointerEvent、指针捕获注册表（interact.rs 的会话/CDP 鼠标链经 __diting_pointerCaptureFor 改道）、Touch、TouchEvent（2026-10-29 棘轮搬出，紧随 cssom_sheets 加载） |
@@ -52,6 +53,7 @@
 | document 只读赋值 | native | （session E2E） | 同上 |
 | elementFromPoint 冷路径/double 参数 | shim | hit_test_cold_path_and_webidl_double_args, mouse_chain_before_first_layout_does_not_fault | 2026-10-29 对照 blitz#1304 |
 | Storage / StorageEvent | **IDL 生成** | storage_matches_chrome_truth（53 探针对 Chrome 156 真值）, platform_generated_descriptors_conform, platform_errors_match_chrome_truth（17 个报错形状对 Chrome）, storage_family_proxy_semantics_and_gate | 2026-10-29 M2 竖切：旧 storage.js 删除；行为对齐 Chrome（名字在原型链上则仍为普通属性；StorageEvent 属性改原型访问器）；已知差异：枚举序（实现定义）、Event 基类实例自有属性（Event 族缺口） |
+| HTMLElement/Element 通用成员层（on* 搬位+反射器+读写升级） | **truth 生成**（patch-common：DATA 表+P.reflector 唯一运行时） | htmlelement_members_match_chrome_truth_except_known_gaps（54 探针对 Chrome 145 真值，51 全等+2 已档缺口+staged 滤表） | 2026-10-29 M4 刀2：详见文末 |
 | 几何族 DOMPoint/Rect/Quad/Matrix*+WebKitCSSMatrix | **IDL 生成** | geometry_stack_matches_chrome_truth_except_known_geometry_gaps（156 探针对 Chrome 145 真值，155 全等+1 已档 ulp 缺口） | 2026-10-29 M4 刀1：bootstrap 玩具删除；shape 全生成+行为全委托；WebKitCSSMatrix=旧厂函数共 DOMMatrix.prototype；缺口=rotate 非 90° 整数倍角的 Blink SIMD sincos 末位 ulp（见测试注释） |
 | CSSOM sheet 对象 | shim | cssom_sheets_identity_list_and_adoption | 2026-10-29 自 bootstrap 搬出（纯搬移）；helper 改词法 const |
 | 指针捕获 setPointerCapture | shim | drag_follows_pointer_capture_slider, pointer_touch_family_capture_and_hidden_registry | 2026-10-28 修（滑块拖不动根因） |
@@ -300,3 +302,57 @@ Math.sin **逐位相同**（专项实捕验证），故此缺口是 C++ 库末�
 155 等；夹具面 diff=几何族换血（WebKitCSSMatrix constructor 壳→全脸）；
 check_fresh 4 生成件全鲜；analyze 棘轮过（moduleContractViolations=0）。
 SURFACE-WEBIDL.md 差集表已随刀刷新：几何六件出表，缺口 163→142 接口、2631→2471 成员。
+
+## M4 刀2：HTMLElement/Element 通用成员层（2026-10-29）
+
+一刀两层收口：**成员搬位 + 反射生成化**。真值=`chrome/htmlelement-truth-145.json`
+（54 键实捕 Chrome 145：HT/EL order+kinds、on.levels、反射语义全键、fn.length）。
+
+**生成线推进**（回应「别手写规则」）：均匀反射从手写规则变为 **DATA 表 +
+唯一运行时**——`P.reflector(proto, name, spec)`（core.js，五个 kind：
+string/presence/truefalse/string-known/known-fallback）+ gen_iface.py 新
+**patch-common 策略**：读 truth 的 HT.order **按 Chrome 自有属性序逐名发射**
+（constructor 在 139 位重坐、onpointerrawupdate 垫尾），每名四选一：
+搬位（seat：Element.prototype 描述符整体迁 HT/SVG 并删源）、反射安装、
+impl 委托（非均匀语义）、staged 注释。生成器内置断言：表与 truth 的
+fn.length/on.levels/HT.order 全对账，未入账成员即 build fail。
+
+**搬位**：98 个 on* Element.prototype→HTMLElement.prototype（+SVGElement
+按规范共享子集 dataset/style/tabIndex/focus/blur）+ 16 个真成员
+（title/lang/dir/hidden/accessKey/offset 五件/innerText/popover/dataset/
+autofocus/tabIndex/style/attachInternals/blur/click/focus/popover 三方法）；
+Element 留 8 个 on*（beforecopy/cut/paste、fullscreen×2、search、
+webkitfullscreen×2）；Document.prototype 补齐 110 个 on*；
+**删 7 个引擎多出**（ondragexit/onfocusin/onfocusout/ontouch×4——
+Chrome 145 任何层都不持有）；搬迁原生函数 arity 对齐 truth（focus
+1→0、togglePopover 1→0）。
+
+**新装**：HT 13 个反射器（draggable true/false 写串、autocapitalize
+known-fallback 'sentences'、enterKeyHint/inputMode 大写直写 attr、
+writingSuggestions 等）+ nonce 内槽不反射 + contentEditable 大小写不敏感
+（'TRUE'→attr 'true'）+ outerText 替换语义 + attachInternals 精确报文；
+EL：hasAttributeNS/scrollIntoViewIfNeeded/webkitMatchesSelector/
+clientLeft/clientTop/currentCSSZoom/prefix/assignedSlot/elementTiming/
+7×aria*Elements；classList/outerHTML 只读→读写升级（原 getter 保留，
+setter 走 impl：classList=转发 className、outerHTML 无父抛
+NoModificationAllowedError 精确报文）。
+
+**staged（账面在册，后续家族刀）**：attributeStyleMap、computedStyleMap
+（Typed OM 族）、part（DOMTokenList）、requestFullscreen×3 + requestPointerLock
+（fullscreen 族）、moveBefore、ariaNotify。
+
+验收：tests **1435/0**（新回归=htmlelement 探针测试，54 键 51 全等）；
+夹具面 diff=五条原型行（Document/Element 换 on* 集、HTMLElement 裸→141、
+Option/SVGElement 继承层）；check_fresh 4 生成件全鲜；analyze 棘轮过
+（moduleContractViolations=0）。SURFACE-WEBIDL 差集表随刀刷新：
+缺口 2471→**1043 成员**（-58%），行均缺口 66→约 7——大头已是 9 个
+staged 名的重复出现；已档缺口=hasAttributeNS.cases（引擎属性存储丢
+namespaceURI，跨层 DOM-core 债）+ fn.length 两项 staged。
+
+教训：①`cargo build -p diting` 不重链根包 bin——js 改动要
+`cargo build --bin diting` 才进 `target/debug/diting`（坑④复发，浪费
+一轮差分）。②diting serve 无 --port，绑址走 `DITING_BIND=127.0.0.1:18199`。
+③探针分析脚本剥 `DOC.` 前缀要 4 字符——3 字符剥出假零（.URL 类），
+on.levels 的 startswith("DOC") 同病（值形如 "HT+SVG+DOC"），须
+split("+") 含判。④spec 直觉再输一次：accessKeyLabel 在真 Chrome 145
+不存在（Blink 未实现），truth 定谳。

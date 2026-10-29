@@ -115,6 +115,51 @@ const __platform = (function () {
     setFn(fn, name, length);
     Object.defineProperty(ctor, name, { value: fn, writable: true, enumerable: true, configurable: true });
   }
+  // Reflected IDL attribute, installed on a (possibly pre-existing native)
+  // prototype. spec is DATA (generated per member from the truth table):
+  //   attr      content attribute name (already lowercase)
+  //   kind      string | boolean-presence | boolean-truefalse |
+  //             string-known (getter: known-lowercase else default/'') |
+  //             known-fallback (getter: known else fallback)
+  //   known     keyword list (lowercase), for the string-known kinds
+  //   default   getter default when the attribute is absent ('' unless set)
+  //   fallback  getter answer for a present-but-invalid value
+  // Chrome facts pinned by htmlelement-truth-145.json: setters write the
+  // value AS GIVEN (dir 'RTL' keeps 'RTL'), getters normalize; presence
+  // booleans setAttribute(name,'') on truthy and remove on falsy;
+  // draggable writes literal 'true'/'false'; nonce does not reflect at all.
+  function reflector(proto, name, spec) {
+    const attr = spec.attr, kind = spec.kind;
+    const known = spec.known || null;
+    const dflt = 'default' in spec ? spec.default : '';
+    const get = function () {
+      const el = this;
+      const v = el.getAttribute(attr);
+      if (kind === 'string') return v === null ? dflt : String(v);
+      if (kind === 'boolean-presence') return el.hasAttribute(attr);
+      if (kind === 'boolean-truefalse') return v === 'true';
+      if (kind === 'string-known' || kind === 'known-fallback') {
+        if (v === null) return dflt;
+        const low = String(v).toLowerCase();
+        if (known && known.indexOf(low) >= 0) return low;
+        return kind === 'known-fallback' ? spec.fallback : dflt;
+      }
+      return undefined;
+    };
+    const set = function (v) {
+      const el = this;
+      if (kind === 'string') { el.setAttribute(attr, v === undefined || v === null ? '' : String(v)); return; }
+      if (kind === 'boolean-presence') { if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return; }
+      if (kind === 'boolean-truefalse') { el.setAttribute(attr, v ? 'true' : 'false'); return; }
+      // keyword kinds: Chrome writes the value AS GIVEN; invalid keywords
+      // still land in the attribute (truth set.autocapitalize.bad /
+      // set.enterKeyHint 'GO' -> attr 'GO') — only translate no-ops invalid.
+      el.setAttribute(attr, v === undefined || v === null ? '' : String(v));
+    };
+    setFn(get, 'get ' + name, 0);
+    setFn(set, 'set ' + name, 1);
+    Object.defineProperty(proto, name, { get, set, enumerable: true, configurable: true });
+  }
   // Globals. expose(): interface objects. exposeValue(): instance globals that
   // the legacy surface installed with plain assignment (enumerable data).
   function expose(name, ctor) {
@@ -164,7 +209,7 @@ const __platform = (function () {
     return bad;
   }
 
-  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, expose, exposeValue, expect, verify };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify };
   return P;
 })();
 
@@ -1313,6 +1358,431 @@ P.expose('DOMRect', DOMRect);
 P.expect({"length": 0, "members": [{"kind": "accessor", "length": 0, "name": "x"}, {"kind": "accessor", "length": 0, "name": "y"}, {"kind": "accessor", "length": 0, "name": "width"}, {"kind": "accessor", "length": 0, "name": "height"}], "name": "DOMRect", "statics": [{"kind": "static", "length": 0, "name": "fromRect"}]});
 
 if (B.ready) B.ready();
+});
+
+// ---- module htmlelement (L2) ----
+__platform.define("htmlelement", function (exports, require, P) {
+"use strict";
+// HTMLElement/Element behavior only; the member SHAPE (placement, order,
+// descriptor kinds, arity) is generated from the Chrome truth overlay in
+// gen/htmlelement.gen.js, and uniform attribute reflection is DATA there
+// (P.reflector). This module owns the NON-uniform semantics; every fact
+// below that could be misremembered is pinned by a key in
+// tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
+// Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
+
+// ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
+// property 'abc' -> getAttribute('nonce') === null). Chrome hides the
+// attribute value once the element is connected; that nuance is staged.
+const nonceSlots = new WeakMap();
+
+// ---- popover shown-state: no invoker/layout machinery yet - toggle flips
+// a per-element flag (first call on a plain div returns true, truth
+// togglePopover.plain); show/hide are Chrome's no-ops (truth
+// showPopover.plain === #undefined on a non-popover element).
+const popoverShown = new WeakSet();
+
+const GET = {
+  translate(el) { return el.getAttribute('translate') === 'no' ? false : true; },
+  spellcheck(el) {
+    const v = el.getAttribute('spellcheck');
+    return v === 'true' ? true : v === 'false' ? false : true; // invalid attr -> default true (truth spellcheck.attr.invalid)
+  },
+  popover(el) {
+    const v = el.getAttribute('popover');
+    if (v === null) return null;
+    if (v === '') return 'auto';
+    const low = v.toLowerCase();
+    return low === 'auto' || low === 'manual' ? low : 'manual';
+  },
+  nonce(el) { return nonceSlots.get(el) || ''; },
+  contentEditable(el) {
+    const v = el.getAttribute('contenteditable');
+    if (v === null) return 'inherit';
+    const low = v.toLowerCase();
+    return low === 'true' || low === 'false' || low === 'plaintext-only' ? low : 'inherit';
+  },
+  isContentEditable(el) {
+    const v = el.getAttribute('contenteditable');
+    if (v === null) return false;
+    const low = v.toLowerCase();
+    return low === 'true' || low === 'plaintext-only';
+  },
+  outerText(el) { return el.innerText; },
+  editContext() { return null; },
+};
+
+const SET = {
+  translate(el, v) {
+    // limited {,'yes','no'}: invalid values are a NO-OP (truth
+    // set.translate.bad leaves the attribute unset); valid values are
+    // written AS GIVEN.
+    const s = v === undefined || v === null ? '' : String(v);
+    if (s === '' || s.toLowerCase() === 'yes' || s.toLowerCase() === 'no') el.setAttribute('translate', s);
+  },
+  spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
+  popover(el, v) {
+    if (v === null) { el.removeAttribute('popover'); return; }
+    el.setAttribute('popover', v === undefined ? '' : String(v));
+  },
+  nonce(el, v) { nonceSlots.set(el, v === undefined || v === null ? '' : String(v)); },
+  contentEditable(el, v) {
+    const s = v === undefined || v === null ? '' : String(v);
+    const low = s.toLowerCase();
+    if (low === 'true' || low === 'false' || low === 'plaintext-only') { el.setAttribute('contenteditable', low); return; }
+    if (low === 'inherit') { el.removeAttribute('contenteditable'); return; }
+    throw new DOMException("Failed to set the 'contentEditable' property on 'HTMLElement': The value provided ('" +
+      s + "') is not one of 'true', 'false', 'plaintext-only', or 'inherit'.", 'SyntaxError');
+  },
+  outerText(el, v) {
+    // Chrome replaces the element with a text node (truth set.outerText:
+    // parentNode is null afterwards); parentless is a silent no-op.
+    const parent = el.parentNode;
+    if (!parent) return;
+    parent.replaceChild(document.createTextNode(String(v)), el);
+  },
+  editContext() { /* swallow */ },
+  classList(el, v) { el.className = v === undefined || v === null ? '' : String(v); },
+  outerHTML(el, v) {
+    // Chrome replaces the node via fragment parsing; the pinned case is the
+    // parentless throw (truth outerHTML.set, exact message).
+    const parent = el.parentNode;
+    if (!parent) throw new DOMException("Failed to set the 'outerHTML' property on 'Element': This element has no parent node.", 'NoModificationAllowedError');
+    el.insertAdjacentHTML('beforebegin', String(v));
+    el.remove();
+  },
+  // aria*Elements: nullable IDREF reflection with no element machinery -
+  // the setter accepts and swallows (shape rw per EL.kinds).
+  ariaSwallow() { /* swallow */ },
+};
+
+const CALL = {
+  attachInternals() {
+    throw new DOMException("Failed to execute 'attachInternals' on 'HTMLElement': Unable to attach ElementInternals to non-custom elements.", 'NotSupportedError');
+  },
+  showPopover() { return undefined; },
+  hidePopover() { return undefined; },
+  togglePopover(el) {
+    if (popoverShown.has(el)) { popoverShown.delete(el); return false; }
+    popoverShown.add(el);
+    return true;
+  },
+  hasAttributeNS(el, ctx, args) {
+    return el.getAttributeNS(args[0], args[1]) !== null;
+  },
+  scrollIntoViewIfNeeded(el) { el.scrollIntoView(); return undefined; },
+  webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
+};
+
+exports.get = function (name, el) {
+  const f = GET[name];
+  if (!f) throw new Error('htmlelement impl: no getter ' + name);
+  return f(el);
+};
+exports.set = function (name, el, v) {
+  const f = SET[name] || (/^aria\w+Elements?$/.test(name) ? SET.ariaSwallow : null);
+  if (!f) throw new Error('htmlelement impl: no setter ' + name);
+  f(el, v);
+};
+exports.call = function (name, el, ctx, args) {
+  const f = CALL[name];
+  if (!f) throw new Error('htmlelement impl: no operation ' + name);
+  return f(el, ctx, args);
+};
+});
+
+// ---- module gen/htmlelement (L2) ----
+__platform.define("gen/htmlelement", function (exports, require, P) {
+"use strict";
+// M4 knife 2: Chrome 145's HTMLElement/Element common-member layer.
+// Chrome owns 102 on* + 38 members on HTMLElement.prototype, 8 on* on
+// Element.prototype, all 110 on* on Document.prototype; the engine
+// bootstrap had 98 on* on Element.prototype and HTMLElement.prototype
+// bare. Members are seated in Chrome's own order; uniform reflection
+// is DATA (P.reflector); non-uniform semantics delegate to the
+// htmlelement impl module. Staged (later knives, SURFACE.md ledger):
+// ariaNotify, attributeStyleMap, computedStyleMap, moveBefore, part, requestFullscreen, requestPointerLock, webkitRequestFullScreen, webkitRequestFullscreen.
+const B = require('htmlelement');
+const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;
+const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;
+
+// ---- on* accessors: bootstrap _defineOnHandler semantics (store
+// __onHandlers per instance; inline content-attribute fallback for
+// element faces). installOn is idempotent; seat() additionally
+// RELOCATES a descriptor the bootstrap put on Element.prototype -
+// Chrome owns it on HTMLElement (+SVGElement for the shared set) -
+// deleting it from Element.prototype in the same step.
+function installOn(P, name, fallback) {
+  if (Object.prototype.hasOwnProperty.call(P, name)) return;
+  const get = function () {
+    const store = this.__onHandlers;
+    if (store && Object.prototype.hasOwnProperty.call(store, name)) return store[name];
+    if (fallback && typeof this._resolveInlineHandler === 'function') return this._resolveInlineHandler(name);
+    return null;
+  };
+  const set = function (fn) {
+    if (typeof fn !== 'function') fn = null;
+    const store = this.__onHandlers || (this.__onHandlers = {});
+    store[name] = fn;
+  };
+  Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });
+  Object.defineProperty(get, 'length', { value: 0, configurable: true });
+  Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true });
+  Object.defineProperty(set, 'length', { value: 1, configurable: true });
+  _markNative(get); _markNative(set);
+  Object.defineProperty(P, name, { configurable: true, enumerable: true, get: get, set: set });
+}
+function seat(name, install) {
+  const d = Object.getOwnPropertyDescriptor(EL, name);
+  if (d) {
+    Object.defineProperty(HT, name, d);
+    if (SVG && SVG_SHARE.indexOf(name) >= 0 && !Object.prototype.hasOwnProperty.call(SVG, name)) Object.defineProperty(SVG, name, d);
+    delete EL[name];
+  } else if (install && !Object.prototype.hasOwnProperty.call(HT, name)) install();
+}
+function seatOn(name) {
+  const d = Object.getOwnPropertyDescriptor(EL, name);
+  if (d) { Object.defineProperty(HT, name, d); delete EL[name]; }
+  else installOn(HT, name, true);
+}
+const SVG_SHARE = ["dataset", "style", "tabIndex", "focus", "blur"];
+function uprw(name, setter) {
+  Object.defineProperty(setter, 'name', { value: 'set ' + name, configurable: true });
+  Object.defineProperty(setter, 'length', { value: 1, configurable: true });
+  _markNative(setter);
+  const d = Object.getOwnPropertyDescriptor(EL, name);
+  if (d && d.get && !d.set && !Object.prototype.hasOwnProperty.call(d, 'value')) {
+    Object.defineProperty(EL, name, { get: d.get, set: setter, enumerable: true, configurable: true });
+  }
+}
+
+// ---- HTMLElement.prototype, installed in Chrome's own order (HT.order):
+// the emitted sequence IS the own-property order; `constructor` is
+// re-seated at Chrome's position (139th of 141).
+seat('title', function () { P.reflector(HT, 'title', {"attr": "title", "kind": "string"}); });
+seat('lang', function () { P.reflector(HT, 'lang', {"attr": "lang", "kind": "string"}); });
+seat('translate', function () { P.accessor(HT, 'translate', function __f() { return B.get('translate', this); }, function __f(v) { B.set('translate', this, v); }); });
+seat('dir', function () { P.reflector(HT, 'dir', {"attr": "dir", "default": "", "kind": "string-known", "known": ["", "ltr", "rtl", "auto"]}); });
+seat('hidden', function () { P.reflector(HT, 'hidden', {"attr": "hidden", "kind": "boolean-presence"}); });
+seat('inert', function () { P.reflector(HT, 'inert', {"attr": "inert", "kind": "boolean-presence"}); });
+seat('accessKey', function () { P.reflector(HT, 'accessKey', {"attr": "accesskey", "kind": "string"}); });
+seat('draggable', function () { P.reflector(HT, 'draggable', {"attr": "draggable", "kind": "boolean-truefalse"}); });
+seat('spellcheck', function () { P.accessor(HT, 'spellcheck', function __f() { return B.get('spellcheck', this); }, function __f(v) { B.set('spellcheck', this, v); }); });
+seat('autocapitalize', function () { P.reflector(HT, 'autocapitalize', {"attr": "autocapitalize", "default": "", "fallback": "sentences", "kind": "known-fallback", "known": ["none", "sentences", "words", "characters"]}); });
+seat('editContext', function () { P.accessor(HT, 'editContext', function __f() { return B.get('editContext', this); }, function __f(v) { B.set('editContext', this, v); }); });
+seat('contentEditable', function () { P.accessor(HT, 'contentEditable', function __f() { return B.get('contentEditable', this); }, function __f(v) { B.set('contentEditable', this, v); }); });
+seat('enterKeyHint', function () { P.reflector(HT, 'enterKeyHint', {"attr": "enterkeyhint", "default": "", "kind": "string-known", "known": ["enter", "done", "go", "next", "previous", "search", "send"]}); });
+seat('isContentEditable', function () { P.getter(HT, 'isContentEditable', function __f() { return B.get('isContentEditable', this); }); });
+seat('inputMode', function () { P.reflector(HT, 'inputMode', {"attr": "inputmode", "default": "", "kind": "string-known", "known": ["none", "text", "tel", "url", "email", "numeric", "decimal", "search"]}); });
+seat('virtualKeyboardPolicy', function () { P.reflector(HT, 'virtualKeyboardPolicy', {"attr": "virtualkeyboardpolicy", "default": "", "kind": "string-known", "known": ["auto", "manual"]}); });
+seat('offsetParent', null);
+seat('offsetTop', null);
+seat('offsetLeft', null);
+seat('offsetWidth', null);
+seat('offsetHeight', null);
+seat('popover', function () { P.accessor(HT, 'popover', function __f() { return B.get('popover', this); }, function __f(v) { B.set('popover', this, v); }); });
+seat('innerText', null);
+seat('outerText', function () { P.accessor(HT, 'outerText', function __f() { return B.get('outerText', this); }, function __f(v) { B.set('outerText', this, v); }); });
+seat('writingSuggestions', function () { P.reflector(HT, 'writingSuggestions', {"attr": "writingsuggestions", "default": "true", "fallback": "true", "kind": "known-fallback", "known": ["true", "false"]}); });
+seatOn('onabort');
+seatOn('onbeforeinput');
+seatOn('onbeforematch');
+seatOn('onbeforetoggle');
+seatOn('onblur');
+seatOn('oncancel');
+seatOn('oncanplay');
+seatOn('oncanplaythrough');
+seatOn('onchange');
+seatOn('onclick');
+seatOn('onclose');
+seatOn('oncommand');
+seatOn('oncontentvisibilityautostatechange');
+seatOn('oncontextlost');
+seatOn('oncontextmenu');
+seatOn('oncontextrestored');
+seatOn('oncuechange');
+seatOn('ondblclick');
+seatOn('ondrag');
+seatOn('ondragend');
+seatOn('ondragenter');
+seatOn('ondragleave');
+seatOn('ondragover');
+seatOn('ondragstart');
+seatOn('ondrop');
+seatOn('ondurationchange');
+seatOn('onemptied');
+seatOn('onended');
+seatOn('onerror');
+seatOn('onfocus');
+seatOn('onformdata');
+seatOn('oninput');
+seatOn('oninvalid');
+seatOn('onkeydown');
+seatOn('onkeypress');
+seatOn('onkeyup');
+seatOn('onload');
+seatOn('onloadeddata');
+seatOn('onloadedmetadata');
+seatOn('onloadstart');
+seatOn('onmousedown');
+seatOn('onmouseenter');
+seatOn('onmouseleave');
+seatOn('onmousemove');
+seatOn('onmouseout');
+seatOn('onmouseover');
+seatOn('onmouseup');
+seatOn('onmousewheel');
+seatOn('onpause');
+seatOn('onplay');
+seatOn('onplaying');
+seatOn('onprogress');
+seatOn('onratechange');
+seatOn('onreset');
+seatOn('onresize');
+seatOn('onscroll');
+seatOn('onscrollend');
+seatOn('onsecuritypolicyviolation');
+seatOn('onseeked');
+seatOn('onseeking');
+seatOn('onselect');
+seatOn('onslotchange');
+seatOn('onstalled');
+seatOn('onsubmit');
+seatOn('onsuspend');
+seatOn('ontimeupdate');
+seatOn('ontoggle');
+seatOn('onvolumechange');
+seatOn('onwaiting');
+seatOn('onwebkitanimationend');
+seatOn('onwebkitanimationiteration');
+seatOn('onwebkitanimationstart');
+seatOn('onwebkittransitionend');
+seatOn('onwheel');
+seatOn('onauxclick');
+seatOn('ongotpointercapture');
+seatOn('onlostpointercapture');
+seatOn('onpointerdown');
+seatOn('onpointermove');
+seatOn('onpointerup');
+seatOn('onpointercancel');
+seatOn('onpointerover');
+seatOn('onpointerout');
+seatOn('onpointerenter');
+seatOn('onpointerleave');
+seatOn('onselectstart');
+seatOn('onselectionchange');
+seatOn('onanimationcancel');
+seatOn('onanimationend');
+seatOn('onanimationiteration');
+seatOn('onanimationstart');
+seatOn('ontransitionrun');
+seatOn('ontransitionstart');
+seatOn('ontransitionend');
+seatOn('ontransitioncancel');
+seatOn('onbeforexrselect');
+seatOn('oncopy');
+seatOn('oncut');
+seatOn('onpaste');
+seat('dataset', null);
+seat('nonce', function () { P.accessor(HT, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); }); });
+seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "kind": "boolean-presence"}); });
+seat('tabIndex', null);
+seat('style', null);
+// staged (SURFACE.md): attributeStyleMap - Typed OM (attributeStyleMap family knife)
+seat('attachInternals', function () { P.method(HT, 'attachInternals', 0, function __f() { const ctx = "Failed to execute 'attachInternals' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('attachInternals', this, ctx, arguments); }); });
+seat('blur', null);
+seat('click', null);
+seat('focus', null);
+seat('hidePopover', function () { P.method(HT, 'hidePopover', 0, function __f() { const ctx = "Failed to execute 'hidePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('hidePopover', this, ctx, arguments); }); });
+seat('showPopover', function () { P.method(HT, 'showPopover', 0, function __f() { const ctx = "Failed to execute 'showPopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('showPopover', this, ctx, arguments); }); });
+seat('togglePopover', function () { P.method(HT, 'togglePopover', 0, function __f() { const ctx = "Failed to execute 'togglePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('togglePopover', this, ctx, arguments); }); });
+seatOn('onscrollsnapchange');
+seatOn('onscrollsnapchanging');
+delete HT.constructor;
+Object.defineProperty(HT, 'constructor', { value: HTMLElement, writable: true, enumerable: false, configurable: true });
+seatOn('onpointerrawupdate');
+
+// ---- arity alignment for relocated natives (truth fn.length: the
+// engine declared optional args Chrome doesn't count)
+function fixArity(name, len) {
+  const d = Object.getOwnPropertyDescriptor(HT, name);
+  if (d && typeof d.value === 'function' && d.value.length !== len) { try { Object.defineProperty(d.value, 'length', { value: len, configurable: true }); } catch (e) {} }
+}
+fixArity('attachInternals', 0);
+fixArity('blur', 0);
+fixArity('click', 0);
+fixArity('focus', 0);
+fixArity('showPopover', 0);
+fixArity('togglePopover', 0);
+
+// ---- Element.prototype additions (Chrome EL.order order; the engine
+// still carries staged per-element faces here, so the contract is a
+// SUBSET check until those families land).
+if (!Object.prototype.hasOwnProperty.call(EL, 'prefix')) P.getter(EL, 'prefix', function __f() { return null; });
+// staged (SURFACE.md): part - DOMTokenList face
+if (!Object.prototype.hasOwnProperty.call(EL, 'assignedSlot')) P.getter(EL, 'assignedSlot', function __f() { return null; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'clientTop')) P.getter(EL, 'clientTop', function __f() { return 0; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'clientLeft')) P.getter(EL, 'clientLeft', function __f() { return 0; });
+installOn(EL, 'onbeforecopy', false);
+installOn(EL, 'onbeforecut', false);
+installOn(EL, 'onbeforepaste', false);
+installOn(EL, 'onsearch', false);
+if (!Object.prototype.hasOwnProperty.call(EL, 'elementTiming')) P.reflector(EL, 'elementTiming', {"attr": "elementtiming", "kind": "string"});
+installOn(EL, 'onfullscreenchange', false);
+installOn(EL, 'onfullscreenerror', false);
+installOn(EL, 'onwebkitfullscreenchange', false);
+installOn(EL, 'onwebkitfullscreenerror', false);
+// staged (SURFACE.md): computedStyleMap - Typed OM
+if (!Object.prototype.hasOwnProperty.call(EL, 'hasAttributeNS')) P.method(EL, 'hasAttributeNS', 2, function __f() { const ctx = "Failed to execute 'hasAttributeNS' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('hasAttributeNS', this, ctx, arguments); });
+// staged (SURFACE.md): moveBefore - moveBefore (later knife)
+// staged (SURFACE.md): requestFullscreen - fullscreen family
+// staged (SURFACE.md): requestPointerLock - pointer lock
+if (!Object.prototype.hasOwnProperty.call(EL, 'scrollIntoViewIfNeeded')) P.method(EL, 'scrollIntoViewIfNeeded', 0, function __f() { const ctx = "Failed to execute 'scrollIntoViewIfNeeded' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('scrollIntoViewIfNeeded', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitMatchesSelector')) P.method(EL, 'webkitMatchesSelector', 1, function __f() { const ctx = "Failed to execute 'webkitMatchesSelector' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('webkitMatchesSelector', this, ctx, arguments); });
+// staged (SURFACE.md): webkitRequestFullScreen - fullscreen family
+// staged (SURFACE.md): webkitRequestFullscreen - fullscreen family
+if (!Object.prototype.hasOwnProperty.call(EL, 'currentCSSZoom')) P.getter(EL, 'currentCSSZoom', function __f() { return 1; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActiveDescendantElement')) P.accessor(EL, 'ariaActiveDescendantElement', function __f() { return null; }, function __f(v) { B.set('ariaActiveDescendantElement', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaControlsElements')) P.accessor(EL, 'ariaControlsElements', function __f() { return null; }, function __f(v) { B.set('ariaControlsElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDescribedByElements')) P.accessor(EL, 'ariaDescribedByElements', function __f() { return null; }, function __f(v) { B.set('ariaDescribedByElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDetailsElements')) P.accessor(EL, 'ariaDetailsElements', function __f() { return null; }, function __f(v) { B.set('ariaDetailsElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaErrorMessageElements')) P.accessor(EL, 'ariaErrorMessageElements', function __f() { return null; }, function __f(v) { B.set('ariaErrorMessageElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaFlowToElements')) P.accessor(EL, 'ariaFlowToElements', function __f() { return null; }, function __f(v) { B.set('ariaFlowToElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaLabelledByElements')) P.accessor(EL, 'ariaLabelledByElements', function __f() { return null; }, function __f(v) { B.set('ariaLabelledByElements', this, v); });
+// staged (SURFACE.md): ariaNotify - ariaNotify
+
+// ---- read-only faces Chrome ships read-write (setter via impl)
+uprw('classList', function __f(v) { B.set('classList', this, v); });
+uprw('outerHTML', function __f(v) { B.set('outerHTML', this, v); });
+
+// ---- engine on* extras Chrome 145 owns on no level (on.levels)
+if (Object.prototype.hasOwnProperty.call(EL, 'ondragexit')) delete EL['ondragexit'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ondragexit')) delete DOC['ondragexit'];
+if (Object.prototype.hasOwnProperty.call(EL, 'onfocusin')) delete EL['onfocusin'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'onfocusin')) delete DOC['onfocusin'];
+if (Object.prototype.hasOwnProperty.call(EL, 'onfocusout')) delete EL['onfocusout'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'onfocusout')) delete DOC['onfocusout'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchcancel')) delete EL['ontouchcancel'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchcancel')) delete DOC['ontouchcancel'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchend')) delete EL['ontouchend'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchend')) delete DOC['ontouchend'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchmove')) delete EL['ontouchmove'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchmove')) delete DOC['ontouchmove'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchstart')) delete EL['ontouchstart'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchstart')) delete DOC['ontouchstart'];
+
+// ---- Document.prototype: Chrome owns all 110 on* here; the engine's
+// 98 were bootstrap-installed - add whatever is missing (no inline
+// fallback on the document face, matching the bootstrap's choice).
+for (const n of ["onabort", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "onauxclick", "onbeforecopy", "onbeforecut", "onbeforeinput", "onbeforematch", "onbeforepaste", "onbeforetoggle", "onbeforexrselect", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncopy", "oncuechange", "oncut", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "onfullscreenchange", "onfullscreenerror", "ongotpointercapture", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onlostpointercapture", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpaste", "onpause", "onplay", "onplaying", "onpointercancel", "onpointerdown", "onpointerenter", "onpointerleave", "onpointermove", "onpointerout", "onpointerover", "onpointerrawupdate", "onpointerup", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onscrollsnapchange", "onscrollsnapchanging", "onsearch", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onselectionchange", "onselectstart", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "ontransitioncancel", "ontransitionend", "ontransitionrun", "ontransitionstart", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkitfullscreenchange", "onwebkitfullscreenerror", "onwebkittransitionend", "onwheel"]) installOn(DOC, n, false);
+
+// ---- SVGElement.prototype: GlobalEventHandlers + the
+// HTMLOrSVGOrMath/inline-style mixin faces (dataset/style/tabIndex/
+// focus/blur arrive via seat()'s SVG_SHARE copy; nonce installs here).
+if (SVG) {
+  for (const n of ["onabort", "onbeforeinput", "onbeforematch", "onbeforetoggle", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncuechange", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpause", "onplay", "onplaying", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkittransitionend", "onwheel", "onauxclick", "ongotpointercapture", "onlostpointercapture", "onpointerdown", "onpointermove", "onpointerup", "onpointercancel", "onpointerover", "onpointerout", "onpointerenter", "onpointerleave", "onselectstart", "onselectionchange", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "ontransitionrun", "ontransitionstart", "ontransitionend", "ontransitioncancel", "onbeforexrselect", "oncopy", "oncut", "onpaste", "onscrollsnapchange", "onscrollsnapchanging", "onpointerrawupdate"]) installOn(SVG, n, true);
+  if (!Object.prototype.hasOwnProperty.call(SVG, 'nonce')) P.accessor(SVG, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); });
+}
 });
 
 // ---- module gen/storage (L2) ----

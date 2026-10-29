@@ -26286,3 +26286,107 @@ fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 2: the HTMLElement/Element common-member layer. Chrome 145 owns
+/// 102 on* + 38 members on HTMLElement.prototype, 8 on* on Element.prototype,
+/// all 110 on* on Document.prototype; the engine bootstrap had 98 on* on
+/// Element.prototype and a bare HTMLElement.prototype. The patch module
+/// (gen/htmlelement.gen.js, generated from htmlelement-truth-145.json in
+/// Chrome's own property order) relocates misplaced descriptors, installs the
+/// missing members (uniform reflection = DATA via P.reflector; non-uniform
+/// semantics in htmlelement.impl.js) and deletes engine on* extras Chrome
+/// owns on no level. This test diffs the live engine against the same truth
+/// file, key by key.
+///
+/// STAGED members are later family knives (SURFACE.md ledger) and are
+/// filtered out of the order/kinds comparisons. KNOWN_HTML_GAPS is a
+/// ratchet: an entry that starts matching must be removed.
+///
+/// - fn.length: moveBefore/requestFullscreen report 'none' — staged families
+///   (fullscreen + moveBefore), everything else in the dict must match.
+/// - hasAttributeNS.cases: the engine's attribute storage drops
+///   namespaceURI (setAttributeNS(xlink,'href') stores no namespace), so
+///   null-namespace lookups match by local name. Cross-layer DOM-core gap.
+#[test]
+fn htmlelement_members_match_chrome_truth_except_known_gaps() {
+    const STAGED: &[&str] = &[
+        "attributeStyleMap", "part", "computedStyleMap", "moveBefore",
+        "requestFullscreen", "webkitRequestFullScreen", "webkitRequestFullscreen",
+        "requestPointerLock", "ariaNotify",
+    ];
+    const KNOWN_HTML_GAPS: &[&str] = &["fn.length", "hasAttributeNS.cases"];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/htmlelement-probe.js");
+    let engine: serde_json::Value =
+        serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/htmlelement-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        let got = &engine[k];
+        match k.as_str() {
+            // HTMLElement own order IS the contract: Chrome's sequence minus
+            // the staged names, byte for byte.
+            "HT.order" => {
+                let w: Vec<&str> = want.as_array().unwrap().iter().map(|v| v.as_str().unwrap())
+                    .filter(|n| !STAGED.contains(n)).collect();
+                let g: Vec<&str> = got.as_array().unwrap().iter().map(|v| v.as_str().unwrap())
+                    .filter(|n| !STAGED.contains(n)).collect();
+                if g != w {
+                    let extra: Vec<&str> = g.iter().filter(|n| !w.contains(n)).copied().collect();
+                    let miss: Vec<&str> = w.iter().filter(|n| !g.contains(n)).copied().collect();
+                    let fd = g.iter().zip(w.iter()).position(|(a, b)| a != b);
+                    bad.push(format!("HT.order: len {}/{} extra {extra:?} missing {miss:?} first-divergence {fd:?} (engine {:?}, chrome {:?})",
+                        g.len(), w.len(),
+                        fd.map(|i| g[i]).unwrap_or(""),
+                        fd.map(|i| w[i]).unwrap_or("")));
+                }
+                continue;
+            }
+            "HT.kinds" => {
+                for (n, kwant) in want.as_object().unwrap() {
+                    if STAGED.contains(&n.as_str()) { continue; }
+                    let kgot = &got[n];
+                    if kgot != kwant {
+                        bad.push(format!("HT.kinds.{n}: engine {kgot} chrome {kwant}"));
+                    }
+                }
+                continue;
+            }
+            // Element still carries the staged per-element faces (later
+            // family knives move them), so EL is a SUBSET contract: every
+            // non-staged Chrome member must be own with the same kind.
+            "EL.order" => {
+                let g: Vec<&str> = got.as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+                for n in want.as_array().unwrap() {
+                    let n = n.as_str().unwrap();
+                    if !STAGED.contains(&n) && !g.contains(&n) {
+                        bad.push(format!("EL.order: missing {n}"));
+                    }
+                }
+                continue;
+            }
+            "EL.kinds" => {
+                for (n, kwant) in want.as_object().unwrap() {
+                    if STAGED.contains(&n.as_str()) { continue; }
+                    let kgot = &got[n];
+                    if kgot != kwant {
+                        bad.push(format!("EL.kinds.{n}: engine {kgot} chrome {kwant}"));
+                    }
+                }
+                continue;
+            }
+            _ => {}
+        }
+        let known = KNOWN_HTML_GAPS.contains(&k.as_str());
+        if got != want && !known {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+        if got == want && known {
+            bad.push(format!("{k}: now matches Chrome - remove it from KNOWN_HTML_GAPS"));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

@@ -112,6 +112,51 @@ const __platform = (function () {
     setFn(fn, name, length);
     Object.defineProperty(ctor, name, { value: fn, writable: true, enumerable: true, configurable: true });
   }
+  // Reflected IDL attribute, installed on a (possibly pre-existing native)
+  // prototype. spec is DATA (generated per member from the truth table):
+  //   attr      content attribute name (already lowercase)
+  //   kind      string | boolean-presence | boolean-truefalse |
+  //             string-known (getter: known-lowercase else default/'') |
+  //             known-fallback (getter: known else fallback)
+  //   known     keyword list (lowercase), for the string-known kinds
+  //   default   getter default when the attribute is absent ('' unless set)
+  //   fallback  getter answer for a present-but-invalid value
+  // Chrome facts pinned by htmlelement-truth-145.json: setters write the
+  // value AS GIVEN (dir 'RTL' keeps 'RTL'), getters normalize; presence
+  // booleans setAttribute(name,'') on truthy and remove on falsy;
+  // draggable writes literal 'true'/'false'; nonce does not reflect at all.
+  function reflector(proto, name, spec) {
+    const attr = spec.attr, kind = spec.kind;
+    const known = spec.known || null;
+    const dflt = 'default' in spec ? spec.default : '';
+    const get = function () {
+      const el = this;
+      const v = el.getAttribute(attr);
+      if (kind === 'string') return v === null ? dflt : String(v);
+      if (kind === 'boolean-presence') return el.hasAttribute(attr);
+      if (kind === 'boolean-truefalse') return v === 'true';
+      if (kind === 'string-known' || kind === 'known-fallback') {
+        if (v === null) return dflt;
+        const low = String(v).toLowerCase();
+        if (known && known.indexOf(low) >= 0) return low;
+        return kind === 'known-fallback' ? spec.fallback : dflt;
+      }
+      return undefined;
+    };
+    const set = function (v) {
+      const el = this;
+      if (kind === 'string') { el.setAttribute(attr, v === undefined || v === null ? '' : String(v)); return; }
+      if (kind === 'boolean-presence') { if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return; }
+      if (kind === 'boolean-truefalse') { el.setAttribute(attr, v ? 'true' : 'false'); return; }
+      // keyword kinds: Chrome writes the value AS GIVEN; invalid keywords
+      // still land in the attribute (truth set.autocapitalize.bad /
+      // set.enterKeyHint 'GO' -> attr 'GO') — only translate no-ops invalid.
+      el.setAttribute(attr, v === undefined || v === null ? '' : String(v));
+    };
+    setFn(get, 'get ' + name, 0);
+    setFn(set, 'set ' + name, 1);
+    Object.defineProperty(proto, name, { get, set, enumerable: true, configurable: true });
+  }
   // Globals. expose(): interface objects. exposeValue(): instance globals that
   // the legacy surface installed with plain assignment (enumerable data).
   function expose(name, ctor) {
@@ -161,6 +206,6 @@ const __platform = (function () {
     return bad;
   }
 
-  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, expose, exposeValue, expect, verify };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify };
   return P;
 })();
