@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→**575**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→**478**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -512,3 +512,89 @@ ratchet 过（模块契约零违）。差集表 652→**575**（-77，恰=预测
 118→115）。下一刀顺位：HTMLInputElement 23 / HTMLObjectElement 21 /
 HTMLIFrameElement 16（元素家族续刀）或 Animation 19 / Notification 14
 （真家族）。
+
+## M4 刀6：HTML 反射类元素族——指纹实测出表（2026-10-30）
+
+27 个元素接口（Anchor/Area/Base/BR/DList/Directory/Embed/Font/Form/Frame/
+HR/IFrame/Legend/Link/Menu/Meta/Mod/OptGroup/Param/Pre/Quote/Script/Source/
+Style/TableCaption/Time/Title）约 97 个缺口名，绝大多数是纯属性反射。这刀
+不再手写每接口的表，而是**把反射语义当作实测量**：
+
+- **行为指纹探针** `htmlreflect-probe.js`（真 Chrome 145 实捕，266KB 真值
+  `htmlreflect-truth-145.json`）：对每个 rw 成员记默认读值、11 种赋值（含
+  null/undefined/越界/浮点）后的回读与**创建出的内容属性名**（getAttributeNames
+  差分，属性名是实测不是猜）、15 种原始 setAttribute 值后的回读、枚举成员的
+  关键字词表扫描；另有 DOMTokenList 的 `supports()` 实测、实例路由
+  （`createElement(tag) instanceof Iface`）、刀2 字符串转换键。页面 URL 归一为
+  `#B`、origin 为 `#O`，使 Chrome 临时服务器与测试页（example.com/test）同形。
+- **镜像分类器** `reflect_classify.py`：Python 镜像 core.js 的
+  `P.reflector` 规则，逐种候选 kind 试跑，**只有复现指纹全部面**的才接受；
+  都不复现的返回 None，进 impl 表或 STAGED，绝不猜 kind。结果：string 97 /
+  boolean-presence 30 / enum 24 / url 17 / tokenlist 10 / string-nte 6 /
+  unsigned-long 6 / crossorigin 4 / unsigned-long-dim 2 / long 1 /
+  boolean-truefalse 1。生成器与 core.js 漂移时 gen 当场失败。
+- **P.reflector 新 kind**（core.js）：`enum`（实测 map/missing/invalid/empty，
+  旧 string-known/known-fallback 折成它）、`string-nte`（LegacyNullToEmptyString）、
+  `unsigned-long-dim`/`long`、`nullRemoves` 开关；`string` 修正为 DOMString 转换
+  （`null`→`'null'`，Symbol 抛 Chrome 原文 TypeError），`crossorigin` 未知值读
+  `'anonymous'`（刀5 误写 null）、set(null/undefined) 移除属性。
+- **patch-reflect 生成策略**：Chrome 自有序逐成员出「**安装或委托**」——引擎链
+  上已有的成员（href/src/hash…引擎把它们通用地放在 Element.prototype）在接口层
+  装同名访问器两腿转调（归属归 Chrome，语义不动；刀5 src 的教训制度化）；
+  委托的字符串 setter 在接口边界先做 WebIDL 转换（`iframe.src = 5` 之前直接把
+  引擎装载器打崩）；接口自身 own 的天真 setter 用 `wrapSet` 原位升级；
+  FORCE 表收「按标签门控/存 expando/返回原始属性」的链上错误实现。
+  账：reflect 135 / tokenlist 9 / impl 14 / const 2 / delegate 21 / left 10 /
+  staged 7。
+- **结构性修复**：15 个标签（area/base/dl/dir/embed/font/frame/menu/ins+del/
+  param/blockquote+q/source/time/title）在引擎里 `createElement` 出来是**裸
+  HTMLElement**，`el instanceof HTMLSourceElement` 为 false（Chrome true）——
+  接口只是 global_surface 的抛异常桩。新模块 `htmlifaces` 用引擎自己的
+  `_htmlInterface`（`_tagInterfaces` 路由+hasInstance 兜底）在 global_surface
+  之前拥有这 14 个接口（Performance 式移交，THROW 表 SKIP）。
+- **DOMTokenList 总用实测 supported 集**：引擎链上 Anchor/Area 的 relList
+  没带集合（`supports()` 抛 TypeError，Chrome 不抛：noopener/noreferrer/
+  opener），Link 的集合与实测不符；tokenAccessor 现在统一走 impl 缓存列表+
+  实测集合+PutForwards setter。
+- **刀2/刀5 已落地件的纠偏**（回归行抓获）：`translate` 是 boolean（写
+  `'yes'/'no'`，刀2 把 `set.translate.bad` 读成 no-op 是读错了）；
+  `contentEditable` 空属性读 `'true'` 且报错值是 `String(v)`；`autocapitalize`
+  空串读 `''`、`off`→`none`；`preload` 空串读 `'auto'`；`crossOrigin` 未知值
+  `'anonymous'`；video.width/height 是普通 unsigned long（刀5 误作维度类）；
+  `img.longDesc/lowsrc` 是 URL；`img.border` null→`''`；`img.sizes` 引擎 getter
+  读 undefined（刀5 只补了 setter）→整件替换；`img.referrerPolicy` 只认 5 关键字；
+  媒体 `volume`/`defaultPlaybackRate`/`srcObject` 补 double 非有限 TypeError、
+  [0,16] 区间、类型检查（`2.14748e+9` 的 %g 格式报错）；维度解析补
+  `'9px'→9`/`'-3'→0`/溢出→0。
+- **两条旧测试按实测 Chrome 修订**：`iframe.srcdoc = null` 写 `'null'`（旧测试
+  按「可空」读成移除属性，错）；a/area 的 `relList.supports('preload')` 返回
+  false 不抛（旧测试断言抛，错）。
+- **新鲜度门扩容**：`check_fresh.sh` 现把 patch-common/media/reflect 三个生成件
+  也纳入「生成件 vs 生成器」比对（4→7 件）；`MANIFEST.sha256` 补登记之前漏
+  登的 6 个真值文件（含刀4/刀5）。
+
+**KNOWN 入账**（测试 `htmlreflect_members_match_chrome_truth` 的棘轮，转绿即强制
+摘除）：a/area `protocol` 无 href 时 Chrome 读 `':'`（URL 分解族）；HTMLElement
+`editContext/innerText/outerText/style`；`Form.elements` 默认集合；媒体
+`buffered/played/seekable`（TimeRanges）与 `currentTime/playbackRate`（double
+转换+NotSupportedError 区间）；`Script.innerText` undefined（Trusted Types 联合）；
+title/lang/accessKey 的 Symbol 赋值（刀2 搬位的原生 setter 不抛）；
+`offsetHeight/Width` 默认值仅带布局的服务进程里有差，单测运行时一致。
+STAGED（Chrome 145 实验/试用/旗标，不装）：interestForElement×2、
+IFrame.featurePolicy/privateToken/adAuctionHeaders/browsingTopics/
+sharedStorageWritable。
+
+**坑**（三新）：①**探针页 URL 差异**：Chrome 临时服务器端口每次不同，第一版
+src 的「差异」全是端口噪声——指纹必须归一化页面 URL/origin 才可比；②
+**zsh 不对 `$var` 分词**：`for g in "..."; do cmd $g` 的参数被当成一个词，gen
+报 IndexError，用显式逐条命令；③**raw 字符串里的 `\"`**：生成器里嵌 JS 引号
+时 raw 与非 raw 三引号的转义层数不同，写错则 gen 语法错但旧输出仍在，易误判
+「已生成」——生成后必看 stdout 的 wrote 行。
+
+验收：指纹对拍 31 接口 22 项已入账差异外全等（instance routing/tokens/extra
+全等）；tests **1439/0**（新增 htmlreflect_members_match_chrome_truth，修订
+两条旧测试）；快照漂移恰 27 个原型行已重生成；check_fresh 7 件鲜（26 真值
+全登记）；analyze ratchet 零违（平台模块 9→12）。差集表 575→**478**（-97，恰=
+27 接口缺口名合计；行 115→89，仅余 IFrame.privateToken 为旗标特性）。下一刀
+顺位：表单关联元素族（Input 23/Object 21/Output 7/FieldSet 7/Button 6/Select 6/
+TextArea 6：约束验证 API+状态）或真家族（Animation 19/Notification 14）。

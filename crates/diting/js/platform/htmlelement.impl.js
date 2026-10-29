@@ -50,13 +50,14 @@ const GET = {
     const v = el.getAttribute('contenteditable');
     if (v === null) return 'inherit';
     const low = v.toLowerCase();
+    if (low === '') return 'true'; // empty attribute = the true state (htmlreflect-truth vocab[''])
     return low === 'true' || low === 'false' || low === 'plaintext-only' ? low : 'inherit';
   },
   isContentEditable(el) {
     const v = el.getAttribute('contenteditable');
     if (v === null) return false;
     const low = v.toLowerCase();
-    return low === 'true' || low === 'plaintext-only';
+    return low === '' || low === 'true' || low === 'plaintext-only';
   },
   outerText(el) { return el.innerText; },
   editContext() { return null; },
@@ -70,20 +71,20 @@ const GET = {
 
 const SET = {
   translate(el, v) {
-    // limited {,'yes','no'}: invalid values are a NO-OP (truth
-    // set.translate.bad leaves the attribute unset); valid values are
-    // written AS GIVEN.
-    const s = v === undefined || v === null ? '' : String(v);
-    if (s === '' || s.toLowerCase() === 'yes' || s.toLowerCase() === 'no') el.setAttribute('translate', s);
+    // boolean IDL attribute over the enumerated content attribute: ToBoolean
+    // of ANY value, written 'yes'/'no' (htmlreflect-truth translate.set.*:
+    // 'maybe'/5/true -> 'yes'; ''/null/undefined/false -> 'no'). The knife-2
+    // reading ("invalid values are a no-op") misread set.translate.bad.
+    el.setAttribute('translate', v ? 'yes' : 'no');
   },
   spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
   popover(el, v) {
     if (v === null) { el.removeAttribute('popover'); return; }
     el.setAttribute('popover', v === undefined ? '' : String(v));
   },
-  nonce(el, v) { nonceSlots.set(el, v === undefined || v === null ? '' : String(v)); },
+  nonce(el, v) { nonceSlots.set(el, P.conv.DOMString(v, "Failed to set the 'nonce' property on 'HTMLElement'", SET.nonce)); },
   contentEditable(el, v) {
-    const s = v === undefined || v === null ? '' : String(v);
+    const s = P.conv.DOMString(v, "Failed to set the 'contentEditable' property on 'HTMLElement'", SET.contentEditable);
     const low = s.toLowerCase();
     if (low === 'true' || low === 'false' || low === 'plaintext-only') { el.setAttribute('contenteditable', low); return; }
     if (low === 'inherit') { el.removeAttribute('contenteditable'); return; }

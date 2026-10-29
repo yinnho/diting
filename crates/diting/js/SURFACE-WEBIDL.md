@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 115 个；缺口成员合计 575。
+已核 196 个接口；有缺口 89 个；缺口成员合计 478。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -32,22 +32,17 @@
 | HTMLObjectElement | createElement | 21/390 | align, archive, border, checkValidity, code, codeBase, codeType, data, declare, getSVGDocument, height, hspace, reportValidity, setCustomValidity, standby, useMap, validationMessage, validity, vspace, width, willValidate |
 | Animation | new | 19/28 | cancel, commitStyles, currentTime, effect, finish, finished, id, pause, pending, persist, play, playState, playbackRate, ready, replaceState, reverse, startTime, timeline, updatePlaybackRate |
 | ClipboardChangeEvent | new | 18/24 | bubbles, cancelBubble, cancelable, composed, composedPath, currentTarget, defaultPrevented, eventPhase, initEvent, isTrusted, preventDefault, returnValue, srcElement, stopImmediatePropagation, stopPropagation, target, timeStamp, type |
-| HTMLIFrameElement | createElement | 16/388 | align, allow, allowFullscreen, credentialless, csp, frameBorder, getSVGDocument, height, loading, longDesc, marginHeight, marginWidth, privateToken, referrerPolicy, scrolling, width |
 | PointerEvent | new | 16/65 | altitudeAngle, azimuthAngle, getCoalescedEvents, getModifierState, getPredictedEvents, layerX, layerY, movementX, movementY, persistentDeviceId, sourceCapabilities, tangentialPressure, tiltX, tiltY, twist, which |
 | RTCIceCandidate | new | 16/17 | address, component, foundation, port, priority, protocol, relatedAddress, relatedPort, relayProtocol, sdpMLineIndex, sdpMid, tcpType, toJSON, type, url, usernameFragment |
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
 | Notification | new | 14/26 | actions, badge, body, close, data, dir, icon, lang, renotify, requireInteraction, silent, tag, timestamp, title |
 | HTMLMarqueeElement | createElement | 13/377 | behavior, bgColor, direction, height, hspace, loop, scrollAmount, scrollDelay, start, stop, trueSpeed, vspace, width |
-| HTMLLinkElement | createElement | 12/384 | as, blocking, charset, crossOrigin, fetchPriority, hreflang, imageSizes, imageSrcset, integrity, media, referrerPolicy, target |
 | EditContext | new | 11/20 | attachedElements, characterBounds, characterBoundsRangeStart, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
-| HTMLScriptElement | createElement | 10/378 | async, blocking, charset, crossOrigin, defer, event, fetchPriority, integrity, noModule, referrerPolicy |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
 | URLPattern | new | 9/11 | hasRegExpGroups, hash, hostname, password, pathname, port, protocol, search, username |
 | Accelerometer | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
 | GravitySensor | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
 | Gyroscope | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
-| HTMLAnchorElement | createElement | 8/390 | charset, coords, download, hreflang, ping, referrerPolicy, shape, target |
-| HTMLAreaElement | createElement | 8/387 | alt, coords, download, noHref, ping, referrerPolicy, shape, target |
 | IntersectionObserverEntry | new | 8/8 | boundingClientRect, intersectionRatio, intersectionRect, isIntersecting, isVisible, rootBounds, target, time |
 | LinearAccelerationSensor | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
 | SpeechRecognition | new | 8/26 | abort, continuous, grammars, interimResults, lang, maxAlternatives, start, stop |
@@ -61,18 +56,13 @@
 | ViewTimeline | new | 7/8 | axis, currentTime, duration, endOffset, source, startOffset, subject |
 | WheelEvent | new | 7/58 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
 | HTMLButtonElement | createElement | 6/385 | formAction, formEnctype, formMethod, formTarget, popoverTargetAction, popoverTargetElement |
-| HTMLFrameElement | createElement | 6/374 | frameBorder, longDesc, marginHeight, marginWidth, noResize, scrolling |
 | HTMLSelectElement | createElement | 6/388 | autocomplete, item, length, namedItem, required, showPicker |
 | HTMLTextAreaElement | createElement | 6/394 | autocomplete, defaultValue, dirName, readOnly, required, textLength |
 | HTMLTrackElement | createElement | 6/375 | default, kind, label, readyState, srclang, track |
 | KeyboardEvent | new | 6/44 | charCode, getModifierState, isComposing, keyCode, sourceCapabilities, which |
-| HTMLFormElement | createElement | 5/382 | acceptCharset, autocomplete, encoding, enctype, target |
 | InputEvent | new | 5/32 | dataTransfer, getTargetRanges, isComposing, sourceCapabilities, which |
 | VideoColorSpace | new | 5/5 | fullRange, matrix, primaries, toJSON, transfer |
 | WebTransportError | new | 5/30 | code, message, name, source, streamErrorCode |
-| HTMLEmbedElement | createElement | 4/371 | align, getSVGDocument, height, width |
-| HTMLHRElement | createElement | 4/369 | align, color, noShade, width |
-| HTMLSourceElement | createElement | 4/371 | height, media, srcset, width |
 | HTMLTemplateElement | createElement | 4/372 | shadowRootClonable, shadowRootDelegatesFocus, shadowRootMode, shadowRootSerializable |
 | ScrollTimeline | new | 4/5 | axis, currentTime, duration, source |
 | TextFormat | new | 4/4 | rangeEnd, rangeStart, underlineStyle, underlineThickness |
@@ -97,10 +87,6 @@
 | DocumentTimeline | new | 2/3 | currentTime, duration |
 | FocusEvent | new | 2/28 | sourceCapabilities, which |
 | HTMLCanvasElement | createElement | 2/371 | captureStream, transferControlToOffscreen |
-| HTMLFontElement | createElement | 2/367 | color, face |
-| HTMLMetaElement | createElement | 2/369 | httpEquiv, media |
-| HTMLModElement | createElement | 2/366 | cite, dateTime |
-| HTMLStyleElement | createElement | 2/369 | blocking, media |
 | HashChangeEvent | new | 2/24 | newURL, oldURL |
 | Highlight | new | 2/2 | priority, type |
 | TouchEvent | new | 2/35 | sourceCapabilities, which |
@@ -111,22 +97,10 @@
 | ClipboardEvent | new | 1/23 | clipboardData |
 | DocumentFragment | new | 1/62 | childElementCount |
 | File | new | 1/11 | webkitRelativePath |
-| HTMLBRElement | createElement | 1/365 | clear |
-| HTMLBaseElement | createElement | 1/366 | target |
-| HTMLDListElement | createElement | 1/365 | compact |
-| HTMLDirectoryElement | createElement | 1/365 | compact |
-| HTMLLegendElement | createElement | 1/366 | align |
+| HTMLIFrameElement | createElement | 1/388 | privateToken |
 | HTMLMapElement | createElement | 1/366 | areas |
-| HTMLMenuElement | createElement | 1/365 | compact |
-| HTMLOptGroupElement | createElement | 1/366 | label |
-| HTMLParamElement | createElement | 1/368 | valueType |
-| HTMLPreElement | createElement | 1/365 | width |
 | HTMLProgressElement | createElement | 1/368 | position |
-| HTMLQuoteElement | createElement | 1/365 | cite |
 | HTMLSlotElement | createElement | 1/368 | assign |
-| HTMLTableCaptionElement | createElement | 1/365 | align |
-| HTMLTimeElement | createElement | 1/365 | dateTime |
-| HTMLTitleElement | createElement | 1/365 | text |
 | Headers | new | 1/6 | getSetCookie |
 | ImageData | new | 1/5 | colorSpace |
 | InputDeviceCapabilities | new | 1/2 | firesTouchEvents |

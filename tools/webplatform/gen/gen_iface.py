@@ -81,6 +81,29 @@ _tj = json.load(open(_truth_path)) if os.path.exists(_truth_path) else {}
 # truth (probe_run output) is the result at top level.
 TRUTH = _tj["result"] if "result" in _tj else _tj
 N = spec["names"]
+
+
+def _load_measured():
+    """chrome/htmlreflect-truth-145.json classified through reflect_classify
+    (the mirror of core.js P.reflector). Lazy: only strategies that reflect
+    attributes need it."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import reflect_classify as RC
+    return RC, RC.load_truth()
+
+
+def measured_spec(iface, name):
+    """The measured P.reflector spec for iface.member, or None when the
+    fingerprint is missing / no reflector kind reproduces it."""
+    RC, HRT = _load_measured()
+    fp = HRT["fp"].get(iface, {}).get(name)
+    if fp is None:
+        return None
+    sp, _why = RC.classify(fp, HRT["kinds"][iface][name])
+    if sp is not None and sp["kind"] != "tokenlist":
+        sp = dict(sp, iface=iface)
+        return sp
+    return None
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 rel_spec = os.path.relpath(spec_path, ROOT)
 
@@ -207,6 +230,15 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
         "virtualKeyboardPolicy": ("virtualkeyboardpolicy", "string-known", ["auto", "manual"], "", None),
         "writingSuggestions": ("writingsuggestions", "known-fallback", ["true", "false"], "true", "true"),
     }
+    # every HTMLElement-level reflector's kind is MEASURED (htmlreflect-probe
+    # fingerprints; reflect_classify mirror) - the hand tuples above stay only
+    # as the member list and the fallback for anything the fingerprint cannot
+    # classify. Measured wins: it fixed null/undefined conversion, the empty
+    # autocapitalize state, and case/keyword tables.
+    for _k in list(REFLECT):
+        _m = measured_spec("HTMLElement", _k)
+        if _m is not None:
+            REFLECT[_k] = _m
     REFLECT_EL = {"elementTiming": ("elementtiming", "string", None, None, None)}
     IMPL_ACCESSOR_HT = ["translate", "spellcheck", "popover", "nonce",
                         "contentEditable", "outerText", "editContext"]
@@ -332,14 +364,17 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
         elif k in on_ht:
             PW("seatOn('%s');" % k)
         elif k in REFLECT:
-            attr, kind, known, dflt, fallback = REFLECT[k]
-            spec = {"attr": attr, "kind": kind}
-            if known is not None:
-                spec["known"] = known
-            if dflt is not None:
-                spec["default"] = dflt
-            if fallback is not None:
-                spec["fallback"] = fallback
+            if isinstance(REFLECT[k], dict):
+                spec = REFLECT[k]
+            else:
+                attr, kind, known, dflt, fallback = REFLECT[k]
+                spec = {"attr": attr, "kind": kind}
+                if known is not None:
+                    spec["known"] = known
+                if dflt is not None:
+                    spec["default"] = dflt
+                if fallback is not None:
+                    spec["fallback"] = fallback
             # seat() relocates when the bootstrap owns the member on
             # Element.prototype, installs the reflector otherwise; the
             # closure keeps re-runs on a drifted engine idempotent.
@@ -482,6 +517,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-media":
         "IMG": {
             "alt": ("alt", "string", None, None, None),
             "srcset": ("srcset", "string", None, None, None),
+            "sizes": ("sizes", "string", None, None, None),
             "crossOrigin": ("crossorigin", "crossorigin", None, None, None),
             "useMap": ("usemap", "string", None, None, None),
             "isMap": ("ismap", "boolean-presence", None, None, None),
@@ -538,7 +574,25 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-media":
     # the VID on* pair are DATA props -> installOn accessors (delete first:
     # installOn is own-check-guarded).
     RO_STRIP = {"MED": ["duration"]}
-    RW_ADD_ATTR = {"IMG": {"sizes": "sizes"}}
+    RW_ADD_ATTR = {}
+    # engine descriptors that are WRONG (not just absent) and are replaced
+    # wholesale by the measured reflector: img.sizes was a getter that read
+    # undefined (knife 5 only bolted a setter on; the fingerprint caught it)
+    REPLACE = {"IMG": ["sizes"]}
+    # every reflector kind below is MEASURED (htmlreflect-truth-145.json via
+    # reflect_classify); the hand tuples are the member list + fallback. This
+    # corrected knife 5's guesses: video.width/height are plain unsigned long
+    # (not the dimension variant), img.longDesc/lowsrc are URLs, img.border is
+    # null->'' , crossOrigin's unknown value is 'anonymous', referrerPolicy
+    # knows five keywords on <img>, preload's empty state is 'auto'.
+    _FULL = {"MED": "HTMLMediaElement", "VID": "HTMLVideoElement", "IMG": "HTMLImageElement"}
+    for _tag in REFLECT:
+        for _n in list(REFLECT[_tag]):
+            _m = measured_spec(_FULL[_tag], _n)
+            if _m is not None:
+                REFLECT[_tag][_n] = _m
+    REFLECT["IMG"]["longDesc"] = measured_spec("HTMLImageElement", "longDesc") or REFLECT["IMG"]["longDesc"]
+    REFLECT["IMG"]["lowsrc"] = measured_spec("HTMLImageElement", "lowsrc") or REFLECT["IMG"]["lowsrc"]
     # src (media) / name (image): Chrome owns them on the interface, the
     # engine on Element.prototype - and its src setter is LOAD-BEARING
     # (MSE blob attach, script preparation, iframe loads; the getter already
@@ -620,15 +674,21 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-media":
             if k == "constructor":
                 continue  # reseat moves it to Chrome's position
             if k in REFLECT[tag]:
-                attr, kind, known, dflt, fallback = REFLECT[tag][k]
-                spec = {"attr": attr, "kind": kind}
-                if known is not None:
-                    spec["known"] = known
-                if dflt is not None:
-                    spec["default"] = dflt
-                if fallback is not None:
-                    spec["fallback"] = fallback
-                PW("if (!has(%s, '%s')) P.reflector(%s, '%s', %s);" % (tag, k, tag, k, json.dumps(spec, sort_keys=True)))
+                if isinstance(REFLECT[tag][k], dict):
+                    spec = REFLECT[tag][k]
+                else:
+                    attr, kind, known, dflt, fallback = REFLECT[tag][k]
+                    spec = {"attr": attr, "kind": kind}
+                    if known is not None:
+                        spec["known"] = known
+                    if dflt is not None:
+                        spec["default"] = dflt
+                    if fallback is not None:
+                        spec["fallback"] = fallback
+                if k in REPLACE.get(tag, []):
+                    PW("delete %s['%s']; P.reflector(%s, '%s', %s);" % (tag, k, tag, k, json.dumps(spec, sort_keys=True)))
+                else:
+                    PW("if (!has(%s, '%s')) P.reflector(%s, '%s', %s);" % (tag, k, tag, k, json.dumps(spec, sort_keys=True)))
             elif k in CONST_GETTER[tag]:
                 PW("if (!has(%s, '%s')) P.getter(%s, '%s', function __f() { return %s; });" % (tag, k, tag, k, CONST_GETTER[tag][k]))
             elif k in IMPL_GETTER[tag]:
@@ -676,6 +736,266 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-media":
     ]
     open(out_path, "w").write("\n".join(pheader + po) + "\n")
     print("wrote", os.path.relpath(out_path, ROOT), len(po), "lines")
+    sys.exit(0)
+
+# --------------------------------------------------------------------------
+# strategy "patch-reflect": HTML reflected-attribute element family (M4 knife 6)
+# --------------------------------------------------------------------------
+if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import reflect_classify as RC
+    HR = TRUTH  # argv[4] is chrome/htmlreflect-truth-145.json for this strategy
+    SCOPE = [i for i in HR["order"] if i not in
+             ("HTMLElement", "HTMLImageElement", "HTMLVideoElement", "HTMLMediaElement")]
+    # members the family intentionally does not (yet) install, with the reason
+    # (the ledger SURFACE.md prints): experimental/flagged in Chrome 145, or
+    # needing machinery the engine does not have.
+    STAGED = {
+        ("HTMLAnchorElement", "interestForElement"): "experimental (Interest Invokers), not Chrome-released",
+        ("HTMLAreaElement", "interestForElement"): "experimental (Interest Invokers), not Chrome-released",
+        ("HTMLIFrameElement", "featurePolicy"): "deprecated Feature Policy object; no engine machinery",
+        ("HTMLIFrameElement", "privateToken"): "Private State Token flag; not Chrome-released",
+        ("HTMLIFrameElement", "adAuctionHeaders"): "Protected Audience flag; not Chrome-released",
+        ("HTMLIFrameElement", "browsingTopics"): "Topics API origin trial; not Chrome-released",
+        ("HTMLIFrameElement", "sharedStorageWritable"): "Shared Storage origin trial; not Chrome-released",
+    }
+    # members that exist as engine-owned behavior on the instance chain with no
+    # uniform reflection (fallback-base URLs, stateful hyperlink parts): the
+    # family seats a same-name accessor on the interface that forwards both
+    # legs to the chain owner. If nothing on the chain owns them they are
+    # reported at gen time and must be moved to STAGED or an impl table.
+    DELEGATE_ONLY = {
+        ("HTMLFormElement", "action"),
+    }
+    # engine-owned members that are WRONG for this tag (the chain owner is
+    # gated to other tags and reads undefined, stores an expando instead of
+    # the attribute, or returns the raw attribute where Chrome normalizes):
+    # installed from the measured table / impl instead of delegated. Found by
+    # the fingerprint diff against the engine, never by guesswork.
+    FORCE = {
+        ("HTMLFontElement", "size"), ("HTMLHRElement", "size"), ("HTMLSourceElement", "sizes"),
+        ("HTMLFormElement", "rel"), ("HTMLScriptElement", "htmlFor"), ("HTMLParamElement", "value"),
+        ("HTMLFormElement", "method"), ("HTMLBaseElement", "href"), ("HTMLStyleElement", "disabled"),
+        ("HTMLTitleElement", "text"), ("HTMLFrameElement", "contentDocument"), ("HTMLFrameElement", "contentWindow"),
+    }
+    # constant read-only getters (value is a JS literal)
+    CONST_GETTER = {
+        ("HTMLFrameElement", "contentDocument"): "null",
+        ("HTMLFrameElement", "contentWindow"): "null",
+    }
+    # impl-delegated accessors/getters/methods (B.get/B.set/B.call by name)
+    IMPL_GETTER = {("HTMLLegendElement", "form")}
+    IMPL_ACCESSOR = {("HTMLScriptElement", "async"), ("HTMLTitleElement", "text"),
+                     ("HTMLStyleElement", "disabled"), ("HTMLScriptElement", "text"),
+                     ("HTMLScriptElement", "innerText"), ("HTMLScriptElement", "textContent"),
+                     ("HTMLBaseElement", "href")}
+    IMPL_METHOD = {("HTMLEmbedElement", "getSVGDocument"): 0, ("HTMLIFrameElement", "getSVGDocument"): 0,
+                   ("HTMLAnchorElement", "toString"): 0, ("HTMLAreaElement", "toString"): 0,
+                   ("HTMLFormElement", "requestSubmit"): 0, ("HTMLFormElement", "submit"): 0}
+    # engine members that already exist in-place and are not touched
+    LEAVE = {("HTMLFormElement", n) for n in ("checkValidity", "reportValidity", "reset", "elements", "length")} \
+          | {("HTMLIFrameElement", n) for n in ("contentDocument", "contentWindow")} \
+          | {("HTMLLinkElement", "sheet"), ("HTMLStyleElement", "sheet"), ("HTMLAnchorElement", "origin")}
+    # script text legs are Trusted-Types unions; engine owns text/innerText/textContent
+    # semantics elsewhere, so those delegate when present
+    DELEGATE_ONLY |= {("HTMLAnchorElement", n) for n in ("hash", "host", "hostname", "password",
+                      "pathname", "port", "protocol", "search", "username", "text")}
+    DELEGATE_ONLY |= {("HTMLAreaElement", n) for n in ("hash", "host", "hostname", "password",
+                      "pathname", "port", "protocol", "search", "username", "origin")}
+    TOKEN_SUPPORTED = {}   # "Iface.member" -> measured supports() set (list) or None when it throws
+    for key, res in HR.get("tokens", {}).items():
+        if any(isinstance(v, str) and v.startswith("THROW") for v in res.values()):
+            TOKEN_SUPPORTED[key] = None
+        else:
+            TOKEN_SUPPORTED[key] = sorted(t for t, v in res.items() if v is True)
+
+    var_of = {}
+    po = []
+    PW = po.append
+    PW("function has(proto, n) { return Object.prototype.hasOwnProperty.call(proto, n); }")
+    PW("// ancestor below Object.prototype that already owns `n`: its semantics are")
+    PW("// engine-owned (and may be load-bearing - MSE blob attach, script")
+    PW("// preparation, hyperlink decomposition), so the interface level seats a")
+    PW("// same-name accessor forwarding BOTH legs instead of shadowing it with a")
+    PW("// naive reflector. Ownership becomes Chrome-true, behavior is untouched.")
+    PW("function chainDesc(proto, n) {")
+    PW("  for (let o = Object.getPrototypeOf(proto); o && o !== Object.prototype; o = Object.getPrototypeOf(o)) {")
+    PW("    const d = Object.getOwnPropertyDescriptor(o, n);")
+    PW("    if (d) return d;")
+    PW("  }")
+    PW("  return null;")
+    PW("}")
+    PW("// cv: WebIDL conversion applied at the interface boundary BEFORE the engine")
+    PW("// setter sees the value ('str' DOMString, 'nte' null-to-empty DOMString) -")
+    PW("// iframe.src = 5 used to reach the engine's loader as a number and crash it.")
+    PW("function delegate(proto, n, cv) {")
+    PW("  const d = chainDesc(proto, n);")
+    PW("  if (!d || !(d.get || d.set)) return false;")
+    PW("  const pre = \"Failed to set the '\" + n + \"' property on '\" + (proto.constructor && proto.constructor.name) + \"'\";")
+    PW("  if (d.set) {")
+    PW("    P.accessor(proto, n, function __f() { return d.get.call(this); }, function __f(v) {")
+    PW("      d.set.call(this, cv === 'str' ? P.conv.DOMString(v, pre, __f) : cv === 'nte' ? (v === null ? '' : P.conv.DOMString(v, pre, __f)) : v);")
+    PW("    });")
+    PW("  } else P.getter(proto, n, function __f() { return d.get.call(this); });")
+    PW("  return true;")
+    PW("}")
+    PW("// An interface-level own member whose engine setter skips WebIDL conversion")
+    PW("// (iframe.src, meta.content, a.text): keep the engine getter and the engine")
+    PW("// setter's side effects, convert at the boundary first.")
+    PW("function wrapSet(proto, n, cv) {")
+    PW("  const d = Object.getOwnPropertyDescriptor(proto, n);")
+    PW("  if (!d || !d.set || !d.configurable) return;")
+    PW("  const pre = \"Failed to set the '\" + n + \"' property on '\" + (proto.constructor && proto.constructor.name) + \"'\";")
+    PW("  const eset = d.set;")
+    PW("  P.accessor(proto, n, d.get, function __f(v) {")
+    PW("    eset.call(this, cv === 'nte' ? (v === null ? '' : P.conv.DOMString(v, pre, __f)) : P.conv.DOMString(v, pre, __f));")
+    PW("  });")
+    PW("}")
+    PW("// DOMTokenList members are [PutForwards=value]. The list object is the")
+    PW("// htmlreflect impl's cached one built with the MEASURED supports() set")
+    PW("// (the engine chain's lists carried none - or a Link-only table - so")
+    PW("// supports() threw or lied); the setter forwards the DOMString to the")
+    PW("// content attribute.")
+    PW("function tokenAccessor(proto, n, attr, supported) {")
+    PW("  const pre = \"Failed to set the '\" + n + \"' property on '\" + (proto.constructor && proto.constructor.name) + \"'\";")
+    PW("  P.accessor(proto, n, function __f() { return B.tokens(this, attr, supported); },")
+    PW("    function __f(v) { this.setAttribute(attr, P.conv.DOMString(v, pre, __f)); });")
+    PW("}")
+    PW("function delegateFn(proto, n, len) {")
+    PW("  const d = chainDesc(proto, n);")
+    PW("  if (!d || typeof d.value !== 'function') return false;")
+    PW("  const f = d.value;")
+    PW("  P.method(proto, n, len, function __f() { return f.apply(this, arguments); });")
+    PW("  return true;")
+    PW("}")
+    PW("function reseat(proto, order) {")
+    PW("  for (const n of order) {")
+    PW("    const d = Object.getOwnPropertyDescriptor(proto, n);")
+    PW("    if (d && d.configurable) { delete proto[n]; Object.defineProperty(proto, n, d); }")
+    PW("  }")
+    PW("}")
+
+    unaccounted = []
+    delegated_expect = []
+    ledger = {"reflect": 0, "delegate": 0, "impl": 0, "const": 0, "tokenlist": 0, "staged": [], "left": 0}
+    for iface in SCOPE:
+        short = iface[4:-7]
+        v = "P_" + short
+        var_of[iface] = v
+        order = HR["order"][iface]
+        kinds = HR["kinds"][iface]
+        fps = HR["fp"][iface]
+        PW("")
+        PW("// ---- %s.prototype (Chrome own order, %d names)" % (iface, len(order)))
+        PW("if (%s) {" % v)
+        for m in order:
+            if m == "constructor":
+                continue
+            key = (iface, m)
+            k = kinds[m]
+            if key in STAGED:
+                ledger["staged"].append((iface, m, STAGED[key]))
+                PW("  // staged: %s - %s" % (m, STAGED[key]))
+                continue
+            if key in LEAVE:
+                ledger["left"] += 1
+                continue
+            if key in CONST_GETTER:
+                ledger["const"] += 1
+                dl = "" if key in FORCE else " && !delegate(%s, '%s')" % (v, m)
+                PW("  if (!has(%s, '%s')%s) P.getter(%s, '%s', function __f() { return %s; });" % (v, m, dl, v, m, CONST_GETTER[key]))
+                continue
+            if key in IMPL_GETTER:
+                ledger["impl"] += 1
+                dl = "" if key in FORCE else " && !delegate(%s, '%s')" % (v, m)
+                PW("  if (!has(%s, '%s')%s) P.getter(%s, '%s', function __f() { return B.get('%s', this); });" % (v, m, dl, v, m, m))
+                continue
+            if key in IMPL_ACCESSOR:
+                ledger["impl"] += 1
+                dl = "" if key in FORCE else " && !delegate(%s, '%s'%s)" % (v, m, "" if m in ("textContent", "innerText") else ", 'str'")
+                PW("  if (!has(%s, '%s')%s) P.accessor(%s, '%s', function __f() { return B.get('%s', this); }, function __f(x) { B.set('%s', this, x); });%s" % (
+                    v, m, dl, v, m, m, m, (" else wrapSet(%s, '%s', 'str');" % (v, m)) if m == "text" else ""))
+                continue
+            if k == "function":
+                if key in IMPL_METHOD:
+                    ln = IMPL_METHOD[key]
+                    if HR["fnlen"][iface].get(m) != ln:
+                        raise SystemExit("patch-reflect: fn.length mismatch for %s.%s" % (iface, m))
+                    ctx = "\"Failed to execute '%s' on '%s'\"" % (m, iface)
+                    ledger["impl"] += 1
+                    PW("  if (!has(%s, '%s') && !delegateFn(%s, '%s', %d)) P.method(%s, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.call('%s', this, ctx, arguments); });" % (v, m, v, m, ln, v, m, ln, ctx, ln, m))
+                else:
+                    unaccounted.append((iface, m, "method"))
+                continue
+            if k != "rw" and k != "ro":
+                unaccounted.append((iface, m, k))
+                continue
+            if key in DELEGATE_ONLY:
+                ledger["delegate"] += 1
+                delegated_expect.append(key)
+                PW("  if (!has(%s, '%s')) delegate(%s, '%s'%s);%s" % (v, m, v, m, ", 'str'" if m == "text" else "",
+                   (" else wrapSet(%s, '%s', 'str');" % (v, m)) if m == "text" else ""))
+                continue
+            fp = fps.get(m)
+            if k == "ro":
+                # read-only: delegate when the chain owns it; otherwise it needs a table entry
+                PW("  if (!has(%s, '%s')) delegate(%s, '%s');" % (v, m, v, m))
+                ledger["delegate"] += 1
+                delegated_expect.append(key)
+                continue
+            spec, why = RC.classify(fp, k)
+            if spec is None:
+                unaccounted.append((iface, m, "unclassified:" + why))
+                continue
+            if spec["kind"] == "tokenlist":
+                tk = "%s.%s" % (iface, m)
+                sup = TOKEN_SUPPORTED.get(tk)
+                ledger["tokenlist"] += 1
+                PW("  { const _o = Object.getOwnPropertyDescriptor(%s, '%s'); if (!_o || _o.configurable) tokenAccessor(%s, '%s', '%s', %s); }" % (v, m, v, m, spec["attr"], json.dumps(sup)))
+                continue
+            spec["iface"] = iface
+            ledger["reflect"] += 1
+            cv = {"string": "str", "url": "str", "enum": "str", "string-nte": "nte"}.get(spec["kind"])
+            dl = "" if key in FORCE else (" && !delegate(%s, '%s'%s)" % (v, m, (", '%s'" % cv) if cv else ""))
+            PW("  if (!has(%s, '%s')%s) P.reflector(%s, '%s', %s);" % (v, m, dl, v, m, json.dumps(spec, sort_keys=True)))
+            if cv and key not in FORCE:
+                PW("  else wrapSet(%s, '%s', '%s');" % (v, m, cv))
+        PW("  reseat(%s, %s);" % (v, json.dumps([n for n in order if (iface, n) not in STAGED])))
+        PW("}")
+
+    if unaccounted:
+        for u in unaccounted:
+            print("patch-reflect: UNACCOUNTED %s.%s (%s)" % u, file=sys.stderr)
+        raise SystemExit("patch-reflect: %d member(s) need a table entry (CONST/IMPL/STAGED/DELEGATE_ONLY)" % len(unaccounted))
+
+    # prototypes come off globalThis: the 14 module-owned interfaces (htmlifaces)
+    # and the bootstrap-owned ones are both plain global properties by now, so
+    # no per-interface legacy declaration is needed
+    head_vars = ["const G = globalThis;"] + [
+        "const P_%s = typeof G.%s === 'function' ? G.%s.prototype : null;" % (i[4:-7], i, i) for i in SCOPE]
+    pheader = [
+        "//! GENERATED by tools/webplatform/gen/gen_iface.py (patch-reflect strategy) from chrome/htmlreflect-truth-145.json (Chrome 145) - do not edit",
+        "//! module: %s" % module,
+        "//! layer: L2",
+        "//! exposes: -",
+        "//! requires-load: htmlreflect, htmlifaces, legacy:_markNative",
+        "//! requires-call: legacy:_markNative",
+        "",
+        "// M4 knife 6: HTML reflected-attribute element family. Every reflected",
+        "// member's KIND was MEASURED: htmlreflect-probe.js fingerprints each",
+        "// member in real Chrome (default read, reads after 11 property sets,",
+        "// the created attribute, reads after 15 raw attribute values, keyword",
+        "// vocabulary sweeps), and reflect_classify.py accepts a reflector kind",
+        "// only if its mirror of core.js P.reflector reproduces EVERY facet.",
+        "// Install-or-delegate: a member the engine chain already owns is",
+        "// re-seated on the Chrome-true interface forwarding both legs.",
+        "// Ledger: reflect=%d tokenlist=%d impl=%d const=%d delegate=%d left=%d staged=%d" % (
+            ledger["reflect"], ledger["tokenlist"], ledger["impl"], ledger["const"],
+            ledger["delegate"], ledger["left"], len(ledger["staged"])),
+        "const B = require('htmlreflect');",
+    ] + head_vars + [""]
+    open(out_path, "w").write("\n".join(pheader + po) + "\n")
+    print("wrote", os.path.relpath(out_path, ROOT), len(po), "lines; ledger", {k: (v if not isinstance(v, list) else len(v)) for k, v in ledger.items()})
     sys.exit(0)
 
 for name in _seen_order:

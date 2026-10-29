@@ -2,7 +2,7 @@
 //! layer: L2
 //! exposes: VideoPlaybackQuality
 //! requires-load: -
-//! requires-call: legacy:DOMException, legacy:DOMTokenList, legacy:MediaStream, legacy:RemotePlayback, legacy:TextTrack, legacy:TextTrackList
+//! requires-call: legacy:DOMException, legacy:DOMTokenList, legacy:MediaStream, legacy:RemotePlayback, legacy:TextTrack, legacy:TextTrackList, legacy:MediaSourceHandle
 
 // HTMLMediaElement/HTMLVideoElement/HTMLImageElement behavior only (M4
 // knife 5); the member SHAPE (placement, own order, descriptor kinds,
@@ -72,7 +72,7 @@ const GET = {
   },
   controlsList(el) {
     const s = st(el);
-    if (!s.controlsList) s.controlsList = new DOMTokenList(el, 'controlslist');
+    if (!s.controlsList) s.controlsList = new DOMTokenList(el, 'controlslist', ['nodownload', 'nofullscreen', 'noremoteplayback']); // supports() set measured in htmlreflect-truth tokens
     return s.controlsList;
   },
   // truth img.defaults/img.complete.appended: a sourceless image reports
@@ -81,23 +81,63 @@ const GET = {
   complete() { return true; },
 };
 
+// WebIDL `double` (not unrestricted): ToNumber, then non-finite is a
+// TypeError with Chrome's wording (htmlreflect-truth extra: volume/
+// playbackRate NaN/Infinity/'ABC'/undefined all throw it).
+// Chrome prints doubles in error text with 6 significant digits and a
+// short exponent (WTF number formatting): 2147483648 -> '2.14748e+9',
+// 0.5 -> '0.5', 5 -> '5' (htmlreflect-truth volume.set.big).
+function fmtNum(n) {
+  const t = n.toPrecision(6);
+  if (t.indexOf('e') >= 0) return t.replace(/\.?0+e/, 'e');
+  return t.indexOf('.') < 0 ? t : t.replace(/\.?0+$/, '');
+}
+function toDouble(v, name) {
+  if (typeof v === 'symbol') {
+    P.fail(toDouble, 'Cannot convert a Symbol value to a number', "Failed to set the '" + name + "' property on 'HTMLMediaElement'");
+  }
+  const n = Number(v);
+  if (!isFinite(n)) {
+    P.fail(toDouble, 'The provided double value is non-finite.', "Failed to set the '" + name + "' property on 'HTMLMediaElement'");
+  }
+  return n;
+}
+
 const SET = {
   volume(el, v) {
-    // truth med.vol.clamp: exact IndexSizeError wording, the offending value
-    // stringified as a number ('5', 'NaN'); med.vol.set: numeric strings
-    // convert (volume '0.25' -> 0.25).
-    const n = Number(v);
-    if (isNaN(n) || n < 0 || n > 1) {
-      throw new DOMException("Failed to set the 'volume' property on 'HTMLMediaElement': The volume provided (" + n + ") is outside the range [0, 1].", 'IndexSizeError');
+    // truth med.vol.clamp: exact IndexSizeError wording; med.vol.set:
+    // numeric strings convert (volume '0.25' -> 0.25); null/''/true convert
+    // through ToNumber (0/0/1) like any double.
+    const n = toDouble(v, 'volume');
+    if (n < 0 || n > 1) {
+      throw new DOMException("Failed to set the 'volume' property on 'HTMLMediaElement': The volume provided (" + fmtNum(n) + ") is outside the range [0, 1].", 'IndexSizeError');
     }
     st(el).volume = n;
   },
   muted(el, v) { st(el).muted = !!v; },
   preservesPitch(el, v) { st(el).preservesPitch = !!v; },
-  defaultPlaybackRate(el, v) { st(el).defaultPlaybackRate = Number(v); },
+  defaultPlaybackRate(el, v) {
+    // dpr probe: 0..16 inclusive land, everything else (negative, 17, 100,
+    // 2147483647) is silently ignored and the old value stays.
+    const n = toDouble(v, 'defaultPlaybackRate');
+    if (n >= 0 && n <= 16) st(el).defaultPlaybackRate = n;
+  },
   mediaKeys(el, v) { st(el).mediaKeys = v === undefined ? null : v; },
-  srcObject(el, v) { st(el).srcObject = v === undefined || v === null ? null : v; },
-  controlsList(el, v) { el.setAttribute('controlslist', v === undefined || v === null ? '' : String(v)); },
+  srcObject(el, v) {
+    // IDL union (MediaSourceHandle or MediaStream)?: null/undefined clear,
+    // anything else must be one of the two interfaces (so.js: 'x' and {} both
+    // throw the same TypeError, Blob included).
+    if (v === null || v === undefined) { st(el).srcObject = null; return; }
+    const okStream = typeof MediaStream === 'function' && v instanceof MediaStream;
+    const okHandle = typeof MediaSourceHandle === 'function' && v instanceof MediaSourceHandle;
+    if (!okStream && !okHandle) {
+      P.fail(SET.srcObject, "The provided value is not of type '(MediaSourceHandle or MediaStream)'.", "Failed to set the 'srcObject' property on 'HTMLMediaElement'");
+    }
+    st(el).srcObject = v;
+  },
+  // [PutForwards=value]: assignment forwards to the token list's value, a
+  // plain DOMString write (null -> 'null', undefined -> 'undefined')
+  controlsList(el, v) { el.setAttribute('controlslist', P.conv.DOMString(v, "Failed to set the 'controlsList' property on 'HTMLMediaElement'", SET.controlsList)); },
 };
 
 const CALL = {

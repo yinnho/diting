@@ -113,70 +113,130 @@ const __platform = (function () {
     Object.defineProperty(ctor, name, { value: fn, writable: true, enumerable: true, configurable: true });
   }
   // Reflected IDL attribute, installed on a (possibly pre-existing native)
-  // prototype. spec is DATA (generated per member from the truth table):
+  // prototype. spec is DATA (generated per member from measured Chrome
+  // fingerprints - chrome/htmlreflect-truth-145.json - or the earlier knives'
+  // truth tables):
   //   attr      content attribute name (already lowercase)
-  //   kind      string | boolean-presence | boolean-truefalse |
-  //             string-known (getter: known-lowercase else default/'') |
-  //             known-fallback (getter: known else fallback) |
-  //             unsigned-long (dimension reflect: ToUint both ways, truth
-  //               vid.wh/img.wh - set 'abc' -> 0 and attribute '0') |
-  //             crossorigin (getter: null | 'anonymous' (attr '' too) |
-  //               'use-credentials' | null on unknown - truth med.cross) |
-  //             url (getter: absent -> default; else resolve against the
-  //               document base - truth vid.poster: '' resolves to the page)
-  //   known     keyword list (lowercase), for the string-known kinds
-  //   default   getter default when the attribute is absent ('' unless set)
-  //   fallback  getter answer for a present-but-invalid value
-  // Chrome facts pinned by htmlelement-truth-145.json: setters write the
-  // value AS GIVEN (dir 'RTL' keeps 'RTL'), getters normalize; presence
-  // booleans setAttribute(name,'') on truthy and remove on falsy;
-  // draggable writes literal 'true'/'false'; nonce does not reflect at all.
+  //   iface     interface name for setter error prefixes (default: the
+  //             prototype's constructor name)
+  //   kind      string | string-nte (LegacyNullToEmptyString) |
+  //             boolean-presence | boolean-truefalse |
+  //             enum (measured: map/missing/invalid/empty) |
+  //             string-known / known-fallback (legacy spellings of enum) |
+  //             unsigned-long (parse digits-prefix, > 2^31-1 -> 0; set
+  //               ToUint32, > 2^31-1 -> 0) |
+  //             unsigned-long-dim (as above but the GETTER accepts up to
+  //               2^32-1: width/height of img/video) |
+  //             long (signed; out of int32 -> 0; set ToInt32) |
+  //             crossorigin (nullable enum: absent null, 'use-credentials',
+  //               every other present value 'anonymous'; set null/undefined
+  //               removes the attribute) |
+  //             url (absent -> default, else resolved against the document
+  //               base; '' resolves to the base itself)
+  //   known / default / fallback   legacy enum spellings
+  //   nullRemoves   null/undefined set REMOVES the attribute (enum/string)
+  //   map / missing / invalid / empty   measured enum (ASCII-lowercased
+  //               attribute value -> map entry; '' -> empty when given;
+  //               anything else -> invalid; no attribute -> missing)
+  // Every setter converts through `conv` so Symbols throw Chrome's
+  // "Failed to set the 'x' property on 'I': Cannot convert a Symbol value
+  // to a string" TypeError; DOMString conversion is String(v) - null reads
+  // back 'null', undefined 'undefined' (htmlreflect-truth-145 extra.*).
+  const HTML_WS_INT = /^[\t\n\f\r ]*([+-]?)([0-9]+)/;
+  function parseIntAttr(v) {
+    const m = HTML_WS_INT.exec(v);
+    return m === null ? null : Number((m[1] === '-' ? '-' : '') + m[2]) + 0;
+  }
+  function asciiLower(v) { return v.replace(/[A-Z]/g, function (c) { return c.toLowerCase(); }); }
+  function toInt32(n) {
+    if (!isFinite(n)) return 0;
+    const t = ((Math.trunc(n) % 4294967296) + 4294967296) % 4294967296;
+    return t > 2147483647 ? t - 4294967296 : t;
+  }
   function reflector(proto, name, spec) {
     const attr = spec.attr, kind = spec.kind;
     const known = spec.known || null;
     const dflt = 'default' in spec ? spec.default : '';
+    const iface = spec.iface || (proto.constructor && proto.constructor.name) || '';
+    const prefix = "Failed to set the '" + name + "' property on '" + iface + "'";
+    // enum tables: legacy spellings fold into the measured form
+    let emap = null, emissing = dflt, einvalid = dflt, eempty;
+    if (kind === 'enum') {
+      emap = spec.map; emissing = spec.missing; einvalid = spec.invalid;
+      if ('empty' in spec) eempty = spec.empty;
+    } else if (kind === 'string-known' || kind === 'known-fallback') {
+      emap = {};
+      for (const k of (known || [])) emap[k] = k;
+      if (kind === 'known-fallback') einvalid = spec.fallback;
+      if ('empty' in spec) eempty = spec.empty;
+    }
     const get = function () {
       const el = this;
       const v = el.getAttribute(attr);
-      if (kind === 'string') return v === null ? dflt : String(v);
-      if (kind === 'boolean-presence') return el.hasAttribute(attr);
-      if (kind === 'boolean-truefalse') return v === 'true';
-      if (kind === 'string-known' || kind === 'known-fallback') {
-        if (v === null) return dflt;
-        const low = String(v).toLowerCase();
-        if (known && known.indexOf(low) >= 0) return low;
-        return kind === 'known-fallback' ? spec.fallback : dflt;
-      }
-      if (kind === 'unsigned-long') {
-        if (v === null) return 0;
-        const n = Number(v);
-        if (!isFinite(n)) return 0;
-        return ((Math.trunc(n) % 4294967296) + 4294967296) % 4294967296;
-      }
-      if (kind === 'crossorigin') {
-        if (v === null) return null;
-        const low = String(v).toLowerCase();
-        return low === '' || low === 'anonymous' ? 'anonymous'
-          : low === 'use-credentials' ? 'use-credentials' : null;
-      }
-      if (kind === 'url') {
-        if (v === null) return dflt;
-        const base = (typeof document !== 'undefined' && document && document.baseURI)
-          || (typeof location !== 'undefined' ? location.href : undefined);
-        try { return new URL(v, base).href; } catch (e) { return String(v); }
+      switch (kind) {
+        case 'string': case 'string-nte': return v === null ? dflt : String(v);
+        case 'boolean-presence': return el.hasAttribute(attr);
+        case 'boolean-truefalse': return v === 'true';
+        case 'enum': case 'string-known': case 'known-fallback': {
+          if (v === null) return emissing;
+          const low = asciiLower(String(v));
+          if (low === '' && eempty !== undefined) return eempty;
+          return Object.prototype.hasOwnProperty.call(emap, low) ? emap[low] : einvalid;
+        }
+        case 'unsigned-long': case 'unsigned-long-dim': {
+          if (v === null) return 0;
+          const n = parseIntAttr(String(v));
+          const max = kind === 'unsigned-long' ? 2147483647 : 4294967295;
+          return n === null || n < 0 || n > max ? 0 : n;
+        }
+        case 'long': {
+          if (v === null) return 0;
+          const n = parseIntAttr(String(v));
+          return n === null || n < -2147483648 || n > 2147483647 ? 0 : n;
+        }
+        case 'crossorigin': {
+          if (v === null) return null;
+          return asciiLower(String(v)) === 'use-credentials' ? 'use-credentials' : 'anonymous';
+        }
+        case 'url': {
+          if (v === null) return dflt;
+          const base = (typeof document !== 'undefined' && document && document.baseURI)
+            || (typeof location !== 'undefined' ? location.href : undefined);
+          try { return new URL(v, base).href; } catch (e) { return String(v); }
+        }
       }
       return undefined;
     };
     const set = function (v) {
       const el = this;
-      if (kind === 'string') { el.setAttribute(attr, v === undefined || v === null ? '' : String(v)); return; }
-      if (kind === 'boolean-presence') { if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return; }
-      if (kind === 'boolean-truefalse') { el.setAttribute(attr, v ? 'true' : 'false'); return; }
-      if (kind === 'unsigned-long') { el.setAttribute(attr, String(conv.unsignedLong(v, 'set ' + name, set))); return; }
-      // keyword kinds: Chrome writes the value AS GIVEN; invalid keywords
-      // still land in the attribute (truth set.autocapitalize.bad /
-      // set.enterKeyHint 'GO' -> attr 'GO') — only translate no-ops invalid.
-      el.setAttribute(attr, v === undefined || v === null ? '' : String(v));
+      switch (kind) {
+        case 'boolean-presence': if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return;
+        case 'boolean-truefalse': el.setAttribute(attr, v ? 'true' : 'false'); return;
+        case 'unsigned-long': case 'unsigned-long-dim': {
+          const u = conv.unsignedLong(v, prefix, set);
+          el.setAttribute(attr, String(u > 2147483647 ? 0 : u));
+          return;
+        }
+        case 'long': {
+          if (typeof v === 'symbol') fail(set, 'Cannot convert a Symbol value to a number', prefix);
+          el.setAttribute(attr, String(toInt32(Number(v))));
+          return;
+        }
+        case 'crossorigin':
+          if (v === null || v === undefined) { el.removeAttribute(attr); return; }
+          el.setAttribute(attr, conv.DOMString(v, prefix, set));
+          return;
+        case 'string-nte':
+          el.setAttribute(attr, v === null ? '' : conv.DOMString(v, prefix, set));
+          return;
+        default:
+          // string / url / every enum spelling: the value lands AS GIVEN
+          // (Chrome writes the attribute verbatim, getters normalize).
+          // nullRemoves: the interface's setter treats null/undefined as
+          // "no value" (script.referrerPolicy) instead of the strings.
+          if (spec.nullRemoves && (v === null || v === undefined)) { el.removeAttribute(attr); return; }
+          el.setAttribute(attr, conv.DOMString(v, prefix, set));
+      }
     };
     setFn(get, 'get ' + name, 0);
     setFn(set, 'set ' + name, 1);

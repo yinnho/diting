@@ -12962,8 +12962,10 @@
     }
 
     /// DOMTokenList.supports() must answer for the lists the spec gives
-    /// supported tokens (<link> relList, iframe sandbox) and throw for the
-    /// rest (classList, a/area relList). Resource loaders feature-probe via
+    /// supported tokens (<link> relList, iframe sandbox, and a/area/form
+    /// relList = noopener/noreferrer/opener - measured in Chrome 145,
+    /// htmlreflect-truth tokens: supports('preload') is false there, NOT a
+    /// throw) and throw for the rest (classList, link.sizes). Resource loaders feature-probe via
     /// relList.supports("preload") — an unguarded throw there aborts the
     /// whole load chain (2captcha's turnstile loader died exactly this way).
     #[tokio::test(flavor = "current_thread")]
@@ -12981,7 +12983,7 @@
                     out.linkPreload = link.relList.supports("preload");
                     out.linkModulepreload = link.relList.supports("modulepreload");
                     out.linkNonsense = link.relList.supports("nonsense");
-                    try { anchor.relList.supports("preload"); out.anchorThrows = false; }
+                    try { out.anchorPreload = anchor.relList.supports("preload"); out.anchorNoopener = anchor.relList.supports("noopener"); out.anchorThrows = false; }
                     catch (e) { out.anchorThrows = e instanceof TypeError; }
                     out.sandboxScripts = frame.sandbox.supports("allow-scripts");
                     out.sandboxBogus = frame.sandbox.supports("allow-bogus");
@@ -12997,7 +12999,7 @@
         assert_eq!(
             result.value.unwrap(),
             serde_json::json!(
-                r#"{"linkPreload":true,"linkModulepreload":true,"linkNonsense":false,"anchorThrows":true,"sandboxScripts":true,"sandboxBogus":false,"classThrows":true}"#
+                r#"{"linkPreload":true,"linkModulepreload":true,"linkNonsense":false,"anchorPreload":false,"anchorNoopener":true,"anchorThrows":false,"sandboxScripts":true,"sandboxBogus":false,"classThrows":true}"#
             ),
             "supported-token sets must match the spec/Chrome shape per element kind"
         );
@@ -17668,8 +17670,11 @@
     }
 
     /// #268 second path: `iframe.srcdoc = …` (IDL property, connected
-    /// element) navigates the frame to the inline document, and null
-    /// removes the attribute (nullable reflected string).
+    /// element) navigates the frame to the inline document. `srcdoc` is a
+    /// NON-nullable DOMString: `= null` writes the string 'null' (measured in
+    /// real Chrome 145, htmlreflect-truth IFrame.srcdoc set.null; the earlier
+    /// "null removes the attribute" reading of it as nullable was wrong) and
+    /// removing the attribute is what reflects as ''.
     #[tokio::test(flavor = "current_thread")]
     async fn test_iframe_srcdoc_property_setter_navigates() {
         let mut rt = setup_runtime("<html><body></body></html>");
@@ -17684,14 +17689,18 @@
                 reflected: f.srcdoc.indexOf('P-42') !== -1,
             };
             f.srcdoc = null;
-            return { first, removedAfterNull: !f.hasAttribute('srcdoc'), reflectedEmpty: f.srcdoc === '' };
+            const nullAttr = f.getAttribute('srcdoc');
+            const nullRead = f.srcdoc;
+            f.removeAttribute('srcdoc');
+            return { first, nullAttr, nullRead, reflectedEmpty: f.srcdoc === '' };
         }"##;
         let result = rt.call_function_on_remote(script, None, &[], true, true).await.unwrap();
         let v = result.value.unwrap();
         assert!(v["first"]["body"].as_str().unwrap_or("").contains("P-42"), "srcdoc property setter must navigate: {v}");
         assert_eq!(v["first"]["ran"], serde_json::json!(7), "srcdoc scripts must run via the property path too: {v}");
         assert_eq!(v["first"]["reflected"], serde_json::json!(true), "srcdoc getter reflects the attribute: {v}");
-        assert_eq!(v["removedAfterNull"], serde_json::json!(true), "srcdoc = null removes the attribute: {v}");
+        assert_eq!(v["nullAttr"], serde_json::json!("null"), "srcdoc = null writes the string 'null' (DOMString): {v}");
+        assert_eq!(v["nullRead"], serde_json::json!("null"), "srcdoc reads back 'null': {v}");
         assert_eq!(v["reflectedEmpty"], serde_json::json!(true), "absent srcdoc reflects as '': {v}");
     }
 
@@ -26620,4 +26629,197 @@ async fn htmlmedia_members_match_chrome_truth() {
         }
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 knife 6: the HTML reflected-attribute element family
+/// (htmlreflect-probe.js). For 27 element interfaces — plus HTMLElement/
+/// HTMLImageElement/HTMLVideoElement/HTMLMediaElement as regression rows for
+/// the reflectors knives 2 and 5 landed — the probe records a BEHAVIOR
+/// FINGERPRINT per read-write member in real Chrome 145 (default read; reads
+/// after 11 property sets; the content attribute the set created; reads after
+/// 15 raw setAttribute values; a keyword-vocabulary sweep for normalizing
+/// members) and the test diffs the engine's fingerprint against it member by
+/// member, plus own-name presence, own ORDER of the names both sides have,
+/// DOMTokenList supports() sets, instance routing (createElement(tag)
+/// instanceof its interface) and the knife-2 string-conversion extras.
+///
+/// Reflector kinds are MEASURED, not remembered: gen/htmlreflect.gen.js is
+/// generated from this same truth through tools/webplatform/gen/
+/// reflect_classify.py (a mirror of core.js P.reflector that accepts a kind
+/// only if it reproduces every facet). The fingerprint caught latent
+/// deviations in knife 2/5 reflectors (null/undefined DOMString conversion,
+/// translate's yes/no, preload's empty state, crossOrigin's unknown value,
+/// img.longDesc being a URL, unsigned-long edge parsing, the 14 interfaces
+/// whose createElement instances were bare HTMLElement).
+///
+/// KNOWN ratchets (not this family; each entry that starts matching must be
+/// removed — the test fails on a stale entry):
+/// - protocol (a/area): URL decomposition of an href-less anchor (':' vs '').
+/// - HTMLElement editContext/innerText/outerText/style: EditContext and
+///   CSSOM families (offsetHeight/offsetWidth differ only in the layout-backed
+///   served engine, not in this unit runtime).
+/// - Form.elements: HTMLFormControlsCollection default.
+/// - Media buffered/played/seekable (TimeRanges), currentTime/playbackRate
+///   (double conversion + NotSupportedError range): media state family.
+/// - Script.innerText undefined: Trusted Types union conversion.
+/// - extra *.sym: relocated native string setters do not throw on Symbol.
+#[tokio::test(flavor = "current_thread")]
+async fn htmlreflect_members_match_chrome_truth() {
+    const KNOWN_FP: &[&str] = &[
+        "HTMLAnchorElement.protocol",
+        "HTMLAreaElement.protocol",
+        "HTMLElement.editContext",
+        "HTMLElement.innerText",
+        "HTMLElement.outerText",
+        "HTMLElement.style",
+        "HTMLFormElement.elements",
+        "HTMLMediaElement.buffered",
+        "HTMLMediaElement.currentTime",
+        "HTMLMediaElement.played",
+        "HTMLMediaElement.playbackRate",
+        "HTMLMediaElement.seekable",
+        "HTMLScriptElement.innerText",
+    ];
+    // names Chrome 145 owns that the family deliberately does not install
+    // (experimental / origin-trial / flagged; SURFACE.md ledger)
+    const KNOWN_MISSING: &[&str] = &[
+        "HTMLAnchorElement.interestForElement",
+        "HTMLAreaElement.interestForElement",
+        "HTMLIFrameElement.featurePolicy",
+        "HTMLIFrameElement.privateToken",
+        "HTMLIFrameElement.adAuctionHeaders",
+        "HTMLIFrameElement.browsingTopics",
+        "HTMLIFrameElement.sharedStorageWritable",
+    ];
+    // bootstrap {value} constants are non-configurable and cannot be
+    // re-seated (knife 5); strip them from the order comparison
+    const IMMOVABLE: &[&str] = &[
+        "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE",
+        "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA",
+    ];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/htmlreflect-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/htmlreflect-truth-145.json"
+    ))
+    .unwrap();
+
+    let mut bad: Vec<String> = Vec::new();
+    let names = |v: &serde_json::Value| -> Vec<String> {
+        v.as_array()
+            .map(|a| a.iter().map(|n| n.as_str().unwrap().to_string()).collect())
+            .unwrap_or_default()
+    };
+    let mut stale_known: Vec<&str> = Vec::new();
+    let mut seen_fp_diff: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_missing: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for (iface, t_order) in truth["order"].as_object().unwrap() {
+        let t_names = names(t_order);
+        let e_names = names(&engine["order"][iface]);
+        if e_names.is_empty() {
+            bad.push(format!("{iface}: interface missing in engine"));
+            continue;
+        }
+        // 1. presence
+        for n in &t_names {
+            if !e_names.contains(n) {
+                let key = format!("{iface}.{n}");
+                if KNOWN_MISSING.contains(&key.as_str()) {
+                    seen_missing.insert(key);
+                } else {
+                    bad.push(format!("{key}: Chrome owns it, engine does not"));
+                }
+            }
+        }
+        // 2. order of the names both sides own
+        let strip = |v: &Vec<String>, other: &Vec<String>| -> Vec<String> {
+            v.iter()
+                .filter(|n| other.contains(n) && !IMMOVABLE.contains(&n.as_str()))
+                .cloned()
+                .collect()
+        };
+        let (to, eo) = (strip(&t_names, &e_names), strip(&e_names, &t_names));
+        if to != eo {
+            bad.push(format!("{iface}: own order differs\n   engine {eo:?}\n   chrome {to:?}"));
+        }
+        // 3. fingerprints
+        for (m, t_fp) in truth["fp"][iface].as_object().unwrap() {
+            let e_fp = &engine["fp"][iface][m];
+            if e_fp.is_null() {
+                continue; // absence already reported above
+            }
+            let key = format!("{iface}.{m}");
+            if t_fp != e_fp {
+                seen_fp_diff.insert(key.clone());
+                if !KNOWN_FP.contains(&key.as_str()) {
+                    // name the first differing facet
+                    let mut facet = String::from("?");
+                    for g in ["def", "attr"] {
+                        if t_fp[g] != e_fp[g] {
+                            facet = format!("{g}: chrome {} engine {}", t_fp[g], e_fp[g]);
+                        }
+                    }
+                    for g in ["set", "fromAttr"] {
+                        if let Some(o) = t_fp[g].as_object() {
+                            for (k, tv) in o {
+                                if &e_fp[g][k] != tv && facet == "?" {
+                                    facet = format!("{g}[{k}]: chrome {tv} engine {}", e_fp[g][k]);
+                                }
+                            }
+                        }
+                    }
+                    if facet == "?" && t_fp["vocab"] != e_fp["vocab"] {
+                        facet = "vocab".to_string();
+                    }
+                    bad.push(format!("{key}: fingerprint differs ({facet})"));
+                }
+            }
+        }
+    }
+    for k in KNOWN_FP {
+        if !seen_fp_diff.contains(*k) {
+            stale_known.push(k);
+        }
+    }
+    for k in KNOWN_MISSING {
+        if !seen_missing.contains(*k) {
+            stale_known.push(k);
+        }
+    }
+    for k in stale_known {
+        bad.push(format!("{k}: now matches Chrome - remove it from the KNOWN list"));
+    }
+
+    // 4. supports() sets of every DOMTokenList member
+    if truth["tokens"] != engine["tokens"] {
+        bad.push(format!("tokens (supports()) differ:\n   engine {}\n   chrome {}", engine["tokens"], truth["tokens"]));
+    }
+    // 5. instance routing
+    if truth["routing"] != engine["routing"] {
+        for (k, tv) in truth["routing"].as_object().unwrap() {
+            if &engine["routing"][k] != tv {
+                bad.push(format!("routing {k}: engine {} chrome {tv}", engine["routing"][k]));
+            }
+        }
+    }
+    // 6. knife-2 string conversions (title/lang/accessKey): everything but
+    //    the Symbol edge, which the relocated native setters do not throw on
+    for (k, tv) in truth["extra"].as_object().unwrap() {
+        for (case, want) in tv.as_object().unwrap() {
+            if case == "sym" {
+                continue;
+            }
+            if &engine["extra"][k][case] != want {
+                bad.push(format!("extra {k}.{case}: engine {} chrome {want}", engine["extra"][k][case]));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} divergence(s):\n{}", bad.len(), bad.join("\n"));
 }

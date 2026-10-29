@@ -116,70 +116,130 @@ const __platform = (function () {
     Object.defineProperty(ctor, name, { value: fn, writable: true, enumerable: true, configurable: true });
   }
   // Reflected IDL attribute, installed on a (possibly pre-existing native)
-  // prototype. spec is DATA (generated per member from the truth table):
+  // prototype. spec is DATA (generated per member from measured Chrome
+  // fingerprints - chrome/htmlreflect-truth-145.json - or the earlier knives'
+  // truth tables):
   //   attr      content attribute name (already lowercase)
-  //   kind      string | boolean-presence | boolean-truefalse |
-  //             string-known (getter: known-lowercase else default/'') |
-  //             known-fallback (getter: known else fallback) |
-  //             unsigned-long (dimension reflect: ToUint both ways, truth
-  //               vid.wh/img.wh - set 'abc' -> 0 and attribute '0') |
-  //             crossorigin (getter: null | 'anonymous' (attr '' too) |
-  //               'use-credentials' | null on unknown - truth med.cross) |
-  //             url (getter: absent -> default; else resolve against the
-  //               document base - truth vid.poster: '' resolves to the page)
-  //   known     keyword list (lowercase), for the string-known kinds
-  //   default   getter default when the attribute is absent ('' unless set)
-  //   fallback  getter answer for a present-but-invalid value
-  // Chrome facts pinned by htmlelement-truth-145.json: setters write the
-  // value AS GIVEN (dir 'RTL' keeps 'RTL'), getters normalize; presence
-  // booleans setAttribute(name,'') on truthy and remove on falsy;
-  // draggable writes literal 'true'/'false'; nonce does not reflect at all.
+  //   iface     interface name for setter error prefixes (default: the
+  //             prototype's constructor name)
+  //   kind      string | string-nte (LegacyNullToEmptyString) |
+  //             boolean-presence | boolean-truefalse |
+  //             enum (measured: map/missing/invalid/empty) |
+  //             string-known / known-fallback (legacy spellings of enum) |
+  //             unsigned-long (parse digits-prefix, > 2^31-1 -> 0; set
+  //               ToUint32, > 2^31-1 -> 0) |
+  //             unsigned-long-dim (as above but the GETTER accepts up to
+  //               2^32-1: width/height of img/video) |
+  //             long (signed; out of int32 -> 0; set ToInt32) |
+  //             crossorigin (nullable enum: absent null, 'use-credentials',
+  //               every other present value 'anonymous'; set null/undefined
+  //               removes the attribute) |
+  //             url (absent -> default, else resolved against the document
+  //               base; '' resolves to the base itself)
+  //   known / default / fallback   legacy enum spellings
+  //   nullRemoves   null/undefined set REMOVES the attribute (enum/string)
+  //   map / missing / invalid / empty   measured enum (ASCII-lowercased
+  //               attribute value -> map entry; '' -> empty when given;
+  //               anything else -> invalid; no attribute -> missing)
+  // Every setter converts through `conv` so Symbols throw Chrome's
+  // "Failed to set the 'x' property on 'I': Cannot convert a Symbol value
+  // to a string" TypeError; DOMString conversion is String(v) - null reads
+  // back 'null', undefined 'undefined' (htmlreflect-truth-145 extra.*).
+  const HTML_WS_INT = /^[\t\n\f\r ]*([+-]?)([0-9]+)/;
+  function parseIntAttr(v) {
+    const m = HTML_WS_INT.exec(v);
+    return m === null ? null : Number((m[1] === '-' ? '-' : '') + m[2]) + 0;
+  }
+  function asciiLower(v) { return v.replace(/[A-Z]/g, function (c) { return c.toLowerCase(); }); }
+  function toInt32(n) {
+    if (!isFinite(n)) return 0;
+    const t = ((Math.trunc(n) % 4294967296) + 4294967296) % 4294967296;
+    return t > 2147483647 ? t - 4294967296 : t;
+  }
   function reflector(proto, name, spec) {
     const attr = spec.attr, kind = spec.kind;
     const known = spec.known || null;
     const dflt = 'default' in spec ? spec.default : '';
+    const iface = spec.iface || (proto.constructor && proto.constructor.name) || '';
+    const prefix = "Failed to set the '" + name + "' property on '" + iface + "'";
+    // enum tables: legacy spellings fold into the measured form
+    let emap = null, emissing = dflt, einvalid = dflt, eempty;
+    if (kind === 'enum') {
+      emap = spec.map; emissing = spec.missing; einvalid = spec.invalid;
+      if ('empty' in spec) eempty = spec.empty;
+    } else if (kind === 'string-known' || kind === 'known-fallback') {
+      emap = {};
+      for (const k of (known || [])) emap[k] = k;
+      if (kind === 'known-fallback') einvalid = spec.fallback;
+      if ('empty' in spec) eempty = spec.empty;
+    }
     const get = function () {
       const el = this;
       const v = el.getAttribute(attr);
-      if (kind === 'string') return v === null ? dflt : String(v);
-      if (kind === 'boolean-presence') return el.hasAttribute(attr);
-      if (kind === 'boolean-truefalse') return v === 'true';
-      if (kind === 'string-known' || kind === 'known-fallback') {
-        if (v === null) return dflt;
-        const low = String(v).toLowerCase();
-        if (known && known.indexOf(low) >= 0) return low;
-        return kind === 'known-fallback' ? spec.fallback : dflt;
-      }
-      if (kind === 'unsigned-long') {
-        if (v === null) return 0;
-        const n = Number(v);
-        if (!isFinite(n)) return 0;
-        return ((Math.trunc(n) % 4294967296) + 4294967296) % 4294967296;
-      }
-      if (kind === 'crossorigin') {
-        if (v === null) return null;
-        const low = String(v).toLowerCase();
-        return low === '' || low === 'anonymous' ? 'anonymous'
-          : low === 'use-credentials' ? 'use-credentials' : null;
-      }
-      if (kind === 'url') {
-        if (v === null) return dflt;
-        const base = (typeof document !== 'undefined' && document && document.baseURI)
-          || (typeof location !== 'undefined' ? location.href : undefined);
-        try { return new URL(v, base).href; } catch (e) { return String(v); }
+      switch (kind) {
+        case 'string': case 'string-nte': return v === null ? dflt : String(v);
+        case 'boolean-presence': return el.hasAttribute(attr);
+        case 'boolean-truefalse': return v === 'true';
+        case 'enum': case 'string-known': case 'known-fallback': {
+          if (v === null) return emissing;
+          const low = asciiLower(String(v));
+          if (low === '' && eempty !== undefined) return eempty;
+          return Object.prototype.hasOwnProperty.call(emap, low) ? emap[low] : einvalid;
+        }
+        case 'unsigned-long': case 'unsigned-long-dim': {
+          if (v === null) return 0;
+          const n = parseIntAttr(String(v));
+          const max = kind === 'unsigned-long' ? 2147483647 : 4294967295;
+          return n === null || n < 0 || n > max ? 0 : n;
+        }
+        case 'long': {
+          if (v === null) return 0;
+          const n = parseIntAttr(String(v));
+          return n === null || n < -2147483648 || n > 2147483647 ? 0 : n;
+        }
+        case 'crossorigin': {
+          if (v === null) return null;
+          return asciiLower(String(v)) === 'use-credentials' ? 'use-credentials' : 'anonymous';
+        }
+        case 'url': {
+          if (v === null) return dflt;
+          const base = (typeof document !== 'undefined' && document && document.baseURI)
+            || (typeof location !== 'undefined' ? location.href : undefined);
+          try { return new URL(v, base).href; } catch (e) { return String(v); }
+        }
       }
       return undefined;
     };
     const set = function (v) {
       const el = this;
-      if (kind === 'string') { el.setAttribute(attr, v === undefined || v === null ? '' : String(v)); return; }
-      if (kind === 'boolean-presence') { if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return; }
-      if (kind === 'boolean-truefalse') { el.setAttribute(attr, v ? 'true' : 'false'); return; }
-      if (kind === 'unsigned-long') { el.setAttribute(attr, String(conv.unsignedLong(v, 'set ' + name, set))); return; }
-      // keyword kinds: Chrome writes the value AS GIVEN; invalid keywords
-      // still land in the attribute (truth set.autocapitalize.bad /
-      // set.enterKeyHint 'GO' -> attr 'GO') — only translate no-ops invalid.
-      el.setAttribute(attr, v === undefined || v === null ? '' : String(v));
+      switch (kind) {
+        case 'boolean-presence': if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return;
+        case 'boolean-truefalse': el.setAttribute(attr, v ? 'true' : 'false'); return;
+        case 'unsigned-long': case 'unsigned-long-dim': {
+          const u = conv.unsignedLong(v, prefix, set);
+          el.setAttribute(attr, String(u > 2147483647 ? 0 : u));
+          return;
+        }
+        case 'long': {
+          if (typeof v === 'symbol') fail(set, 'Cannot convert a Symbol value to a number', prefix);
+          el.setAttribute(attr, String(toInt32(Number(v))));
+          return;
+        }
+        case 'crossorigin':
+          if (v === null || v === undefined) { el.removeAttribute(attr); return; }
+          el.setAttribute(attr, conv.DOMString(v, prefix, set));
+          return;
+        case 'string-nte':
+          el.setAttribute(attr, v === null ? '' : conv.DOMString(v, prefix, set));
+          return;
+        default:
+          // string / url / every enum spelling: the value lands AS GIVEN
+          // (Chrome writes the attribute verbatim, getters normalize).
+          // nullRemoves: the interface's setter treats null/undefined as
+          // "no value" (script.referrerPolicy) instead of the strings.
+          if (spec.nullRemoves && (v === null || v === undefined)) { el.removeAttribute(attr); return; }
+          el.setAttribute(attr, conv.DOMString(v, prefix, set));
+      }
     };
     setFn(get, 'get ' + name, 0);
     setFn(set, 'set ' + name, 1);
@@ -1562,13 +1622,14 @@ const GET = {
     const v = el.getAttribute('contenteditable');
     if (v === null) return 'inherit';
     const low = v.toLowerCase();
+    if (low === '') return 'true'; // empty attribute = the true state (htmlreflect-truth vocab[''])
     return low === 'true' || low === 'false' || low === 'plaintext-only' ? low : 'inherit';
   },
   isContentEditable(el) {
     const v = el.getAttribute('contenteditable');
     if (v === null) return false;
     const low = v.toLowerCase();
-    return low === 'true' || low === 'plaintext-only';
+    return low === '' || low === 'true' || low === 'plaintext-only';
   },
   outerText(el) { return el.innerText; },
   editContext() { return null; },
@@ -1582,20 +1643,20 @@ const GET = {
 
 const SET = {
   translate(el, v) {
-    // limited {,'yes','no'}: invalid values are a NO-OP (truth
-    // set.translate.bad leaves the attribute unset); valid values are
-    // written AS GIVEN.
-    const s = v === undefined || v === null ? '' : String(v);
-    if (s === '' || s.toLowerCase() === 'yes' || s.toLowerCase() === 'no') el.setAttribute('translate', s);
+    // boolean IDL attribute over the enumerated content attribute: ToBoolean
+    // of ANY value, written 'yes'/'no' (htmlreflect-truth translate.set.*:
+    // 'maybe'/5/true -> 'yes'; ''/null/undefined/false -> 'no'). The knife-2
+    // reading ("invalid values are a no-op") misread set.translate.bad.
+    el.setAttribute('translate', v ? 'yes' : 'no');
   },
   spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
   popover(el, v) {
     if (v === null) { el.removeAttribute('popover'); return; }
     el.setAttribute('popover', v === undefined ? '' : String(v));
   },
-  nonce(el, v) { nonceSlots.set(el, v === undefined || v === null ? '' : String(v)); },
+  nonce(el, v) { nonceSlots.set(el, P.conv.DOMString(v, "Failed to set the 'nonce' property on 'HTMLElement'", SET.nonce)); },
   contentEditable(el, v) {
-    const s = v === undefined || v === null ? '' : String(v);
+    const s = P.conv.DOMString(v, "Failed to set the 'contentEditable' property on 'HTMLElement'", SET.contentEditable);
     const low = s.toLowerCase();
     if (low === 'true' || low === 'false' || low === 'plaintext-only') { el.setAttribute('contenteditable', low); return; }
     if (low === 'inherit') { el.removeAttribute('contenteditable'); return; }
@@ -1756,22 +1817,22 @@ function uprw(name, setter) {
 // ---- HTMLElement.prototype, installed in Chrome's own order (HT.order):
 // the emitted sequence IS the own-property order; `constructor` is
 // re-seated at Chrome's position (139th of 141).
-seat('title', function () { P.reflector(HT, 'title', {"attr": "title", "kind": "string"}); });
-seat('lang', function () { P.reflector(HT, 'lang', {"attr": "lang", "kind": "string"}); });
+seat('title', function () { P.reflector(HT, 'title', {"attr": "title", "iface": "HTMLElement", "kind": "string"}); });
+seat('lang', function () { P.reflector(HT, 'lang', {"attr": "lang", "iface": "HTMLElement", "kind": "string"}); });
 seat('translate', function () { P.accessor(HT, 'translate', function __f() { return B.get('translate', this); }, function __f(v) { B.set('translate', this, v); }); });
-seat('dir', function () { P.reflector(HT, 'dir', {"attr": "dir", "default": "", "kind": "string-known", "known": ["", "ltr", "rtl", "auto"]}); });
-seat('hidden', function () { P.reflector(HT, 'hidden', {"attr": "hidden", "kind": "boolean-presence"}); });
-seat('inert', function () { P.reflector(HT, 'inert', {"attr": "inert", "kind": "boolean-presence"}); });
-seat('accessKey', function () { P.reflector(HT, 'accessKey', {"attr": "accesskey", "kind": "string"}); });
-seat('draggable', function () { P.reflector(HT, 'draggable', {"attr": "draggable", "kind": "boolean-truefalse"}); });
+seat('dir', function () { P.reflector(HT, 'dir', {"attr": "dir", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"auto": "auto", "ltr": "ltr", "rtl": "rtl"}, "missing": ""}); });
+seat('hidden', function () { P.reflector(HT, 'hidden', {"attr": "hidden", "iface": "HTMLElement", "kind": "boolean-presence"}); });
+seat('inert', function () { P.reflector(HT, 'inert', {"attr": "inert", "iface": "HTMLElement", "kind": "boolean-presence"}); });
+seat('accessKey', function () { P.reflector(HT, 'accessKey', {"attr": "accesskey", "iface": "HTMLElement", "kind": "string"}); });
+seat('draggable', function () { P.reflector(HT, 'draggable', {"attr": "draggable", "iface": "HTMLElement", "kind": "boolean-truefalse"}); });
 seat('spellcheck', function () { P.accessor(HT, 'spellcheck', function __f() { return B.get('spellcheck', this); }, function __f(v) { B.set('spellcheck', this, v); }); });
-seat('autocapitalize', function () { P.reflector(HT, 'autocapitalize', {"attr": "autocapitalize", "default": "", "fallback": "sentences", "kind": "known-fallback", "known": ["none", "sentences", "words", "characters"]}); });
+seat('autocapitalize', function () { P.reflector(HT, 'autocapitalize', {"attr": "autocapitalize", "empty": "", "iface": "HTMLElement", "invalid": "sentences", "kind": "enum", "map": {"characters": "characters", "none": "none", "off": "none", "words": "words"}, "missing": ""}); });
 seat('editContext', function () { P.accessor(HT, 'editContext', function __f() { return B.get('editContext', this); }, function __f(v) { B.set('editContext', this, v); }); });
 seat('contentEditable', function () { P.accessor(HT, 'contentEditable', function __f() { return B.get('contentEditable', this); }, function __f(v) { B.set('contentEditable', this, v); }); });
-seat('enterKeyHint', function () { P.reflector(HT, 'enterKeyHint', {"attr": "enterkeyhint", "default": "", "kind": "string-known", "known": ["enter", "done", "go", "next", "previous", "search", "send"]}); });
+seat('enterKeyHint', function () { P.reflector(HT, 'enterKeyHint', {"attr": "enterkeyhint", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"done": "done", "enter": "enter", "go": "go", "next": "next", "previous": "previous", "search": "search", "send": "send"}, "missing": ""}); });
 seat('isContentEditable', function () { P.getter(HT, 'isContentEditable', function __f() { return B.get('isContentEditable', this); }); });
-seat('inputMode', function () { P.reflector(HT, 'inputMode', {"attr": "inputmode", "default": "", "kind": "string-known", "known": ["none", "text", "tel", "url", "email", "numeric", "decimal", "search"]}); });
-seat('virtualKeyboardPolicy', function () { P.reflector(HT, 'virtualKeyboardPolicy', {"attr": "virtualkeyboardpolicy", "default": "", "kind": "string-known", "known": ["auto", "manual"]}); });
+seat('inputMode', function () { P.reflector(HT, 'inputMode', {"attr": "inputmode", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"decimal": "decimal", "email": "email", "none": "none", "numeric": "numeric", "search": "search", "tel": "tel", "text": "text", "url": "url"}, "missing": ""}); });
+seat('virtualKeyboardPolicy', function () { P.reflector(HT, 'virtualKeyboardPolicy', {"attr": "virtualkeyboardpolicy", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"auto": "auto", "manual": "manual"}, "missing": ""}); });
 seat('offsetParent', null);
 seat('offsetTop', null);
 seat('offsetLeft', null);
@@ -1780,7 +1841,7 @@ seat('offsetHeight', null);
 seat('popover', function () { P.accessor(HT, 'popover', function __f() { return B.get('popover', this); }, function __f(v) { B.set('popover', this, v); }); });
 seat('innerText', null);
 seat('outerText', function () { P.accessor(HT, 'outerText', function __f() { return B.get('outerText', this); }, function __f(v) { B.set('outerText', this, v); }); });
-seat('writingSuggestions', function () { P.reflector(HT, 'writingSuggestions', {"attr": "writingsuggestions", "default": "true", "fallback": "true", "kind": "known-fallback", "known": ["true", "false"]}); });
+seat('writingSuggestions', function () { P.reflector(HT, 'writingSuggestions', {"attr": "writingsuggestions", "iface": "HTMLElement", "invalid": "true", "kind": "enum", "map": {"false": "false"}, "missing": "true"}); });
 seatOn('onabort');
 seatOn('onbeforeinput');
 seatOn('onbeforematch');
@@ -1882,7 +1943,7 @@ seatOn('oncut');
 seatOn('onpaste');
 seat('dataset', null);
 seat('nonce', function () { P.accessor(HT, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); }); });
-seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "kind": "boolean-presence"}); });
+seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "iface": "HTMLElement", "kind": "boolean-presence"}); });
 seat('tabIndex', null);
 seat('style', null);
 seat('attributeStyleMap', function () { P.getter(HT, 'attributeStyleMap', function __f() { return B.get('attributeStyleMap', this); }); });
@@ -2057,7 +2118,7 @@ const GET = {
   },
   controlsList(el) {
     const s = st(el);
-    if (!s.controlsList) s.controlsList = new DOMTokenList(el, 'controlslist');
+    if (!s.controlsList) s.controlsList = new DOMTokenList(el, 'controlslist', ['nodownload', 'nofullscreen', 'noremoteplayback']); // supports() set measured in htmlreflect-truth tokens
     return s.controlsList;
   },
   // truth img.defaults/img.complete.appended: a sourceless image reports
@@ -2066,23 +2127,63 @@ const GET = {
   complete() { return true; },
 };
 
+// WebIDL `double` (not unrestricted): ToNumber, then non-finite is a
+// TypeError with Chrome's wording (htmlreflect-truth extra: volume/
+// playbackRate NaN/Infinity/'ABC'/undefined all throw it).
+// Chrome prints doubles in error text with 6 significant digits and a
+// short exponent (WTF number formatting): 2147483648 -> '2.14748e+9',
+// 0.5 -> '0.5', 5 -> '5' (htmlreflect-truth volume.set.big).
+function fmtNum(n) {
+  const t = n.toPrecision(6);
+  if (t.indexOf('e') >= 0) return t.replace(/\.?0+e/, 'e');
+  return t.indexOf('.') < 0 ? t : t.replace(/\.?0+$/, '');
+}
+function toDouble(v, name) {
+  if (typeof v === 'symbol') {
+    P.fail(toDouble, 'Cannot convert a Symbol value to a number', "Failed to set the '" + name + "' property on 'HTMLMediaElement'");
+  }
+  const n = Number(v);
+  if (!isFinite(n)) {
+    P.fail(toDouble, 'The provided double value is non-finite.', "Failed to set the '" + name + "' property on 'HTMLMediaElement'");
+  }
+  return n;
+}
+
 const SET = {
   volume(el, v) {
-    // truth med.vol.clamp: exact IndexSizeError wording, the offending value
-    // stringified as a number ('5', 'NaN'); med.vol.set: numeric strings
-    // convert (volume '0.25' -> 0.25).
-    const n = Number(v);
-    if (isNaN(n) || n < 0 || n > 1) {
-      throw new DOMException("Failed to set the 'volume' property on 'HTMLMediaElement': The volume provided (" + n + ") is outside the range [0, 1].", 'IndexSizeError');
+    // truth med.vol.clamp: exact IndexSizeError wording; med.vol.set:
+    // numeric strings convert (volume '0.25' -> 0.25); null/''/true convert
+    // through ToNumber (0/0/1) like any double.
+    const n = toDouble(v, 'volume');
+    if (n < 0 || n > 1) {
+      throw new DOMException("Failed to set the 'volume' property on 'HTMLMediaElement': The volume provided (" + fmtNum(n) + ") is outside the range [0, 1].", 'IndexSizeError');
     }
     st(el).volume = n;
   },
   muted(el, v) { st(el).muted = !!v; },
   preservesPitch(el, v) { st(el).preservesPitch = !!v; },
-  defaultPlaybackRate(el, v) { st(el).defaultPlaybackRate = Number(v); },
+  defaultPlaybackRate(el, v) {
+    // dpr probe: 0..16 inclusive land, everything else (negative, 17, 100,
+    // 2147483647) is silently ignored and the old value stays.
+    const n = toDouble(v, 'defaultPlaybackRate');
+    if (n >= 0 && n <= 16) st(el).defaultPlaybackRate = n;
+  },
   mediaKeys(el, v) { st(el).mediaKeys = v === undefined ? null : v; },
-  srcObject(el, v) { st(el).srcObject = v === undefined || v === null ? null : v; },
-  controlsList(el, v) { el.setAttribute('controlslist', v === undefined || v === null ? '' : String(v)); },
+  srcObject(el, v) {
+    // IDL union (MediaSourceHandle or MediaStream)?: null/undefined clear,
+    // anything else must be one of the two interfaces (so.js: 'x' and {} both
+    // throw the same TypeError, Blob included).
+    if (v === null || v === undefined) { st(el).srcObject = null; return; }
+    const okStream = typeof MediaStream === 'function' && v instanceof MediaStream;
+    const okHandle = typeof MediaSourceHandle === 'function' && v instanceof MediaSourceHandle;
+    if (!okStream && !okHandle) {
+      P.fail(SET.srcObject, "The provided value is not of type '(MediaSourceHandle or MediaStream)'.", "Failed to set the 'srcObject' property on 'HTMLMediaElement'");
+    }
+    st(el).srcObject = v;
+  },
+  // [PutForwards=value]: assignment forwards to the token list's value, a
+  // plain DOMString write (null -> 'null', undefined -> 'undefined')
+  controlsList(el, v) { el.setAttribute('controlslist', P.conv.DOMString(v, "Failed to set the 'controlsList' property on 'HTMLMediaElement'", SET.controlsList)); },
 };
 
 const CALL = {
@@ -2205,9 +2306,9 @@ function reseat(P, order) {
 if (!has(MED, 'error')) P.getter(MED, 'error', function __f() { return null; });
 if (!has(MED, 'src')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, 'src'); if (_d && _d.get && _d.set) P.accessor(MED, 'src', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }
 if (!has(MED, 'currentSrc')) P.getter(MED, 'currentSrc', function __f() { return ''; });
-if (!has(MED, 'crossOrigin')) P.reflector(MED, 'crossOrigin', {"attr": "crossorigin", "kind": "crossorigin"});
+if (!has(MED, 'crossOrigin')) P.reflector(MED, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLMediaElement", "kind": "crossorigin"});
 // networkState: engine-owned, kept (reseat relocates)
-if (!has(MED, 'preload')) P.reflector(MED, 'preload', {"attr": "preload", "default": "metadata", "fallback": "metadata", "kind": "known-fallback", "known": ["none", "metadata", "auto"]});
+if (!has(MED, 'preload')) P.reflector(MED, 'preload', {"attr": "preload", "empty": "auto", "iface": "HTMLMediaElement", "invalid": "metadata", "kind": "enum", "map": {"auto": "auto", "none": "none"}, "missing": "metadata"});
 // buffered: engine-owned, kept (reseat relocates)
 // readyState: engine-owned, kept (reseat relocates)
 // seeking: engine-owned, kept (reseat relocates)
@@ -2219,14 +2320,14 @@ if (!has(MED, 'defaultPlaybackRate')) P.accessor(MED, 'defaultPlaybackRate', fun
 // played: engine-owned, kept (reseat relocates)
 // seekable: engine-owned, kept (reseat relocates)
 // ended: engine-owned, kept (reseat relocates)
-if (!has(MED, 'autoplay')) P.reflector(MED, 'autoplay', {"attr": "autoplay", "kind": "boolean-presence"});
-if (!has(MED, 'loop')) P.reflector(MED, 'loop', {"attr": "loop", "kind": "boolean-presence"});
+if (!has(MED, 'autoplay')) P.reflector(MED, 'autoplay', {"attr": "autoplay", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
+if (!has(MED, 'loop')) P.reflector(MED, 'loop', {"attr": "loop", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'preservesPitch')) P.accessor(MED, 'preservesPitch', function __f() { return B.get('preservesPitch', this); }, function __f(v) { B.set('preservesPitch', this, v); });
-if (!has(MED, 'controls')) P.reflector(MED, 'controls', {"attr": "controls", "kind": "boolean-presence"});
+if (!has(MED, 'controls')) P.reflector(MED, 'controls', {"attr": "controls", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'controlsList')) P.accessor(MED, 'controlsList', function __f() { return B.get('controlsList', this); }, function __f(v) { B.set('controlsList', this, v); });
 if (!has(MED, 'volume')) P.accessor(MED, 'volume', function __f() { return B.get('volume', this); }, function __f(v) { B.set('volume', this, v); });
 if (!has(MED, 'muted')) P.accessor(MED, 'muted', function __f() { return B.get('muted', this); }, function __f(v) { B.set('muted', this, v); });
-if (!has(MED, 'defaultMuted')) P.reflector(MED, 'defaultMuted', {"attr": "muted", "kind": "boolean-presence"});
+if (!has(MED, 'defaultMuted')) P.reflector(MED, 'defaultMuted', {"attr": "muted", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'textTracks')) P.getter(MED, 'textTracks', function __f() { return B.get('textTracks', this); });
 if (!has(MED, 'webkitAudioDecodedByteCount')) P.getter(MED, 'webkitAudioDecodedByteCount', function __f() { return 0; });
 if (!has(MED, 'webkitVideoDecodedByteCount')) P.getter(MED, 'webkitVideoDecodedByteCount', function __f() { return 0; });
@@ -2250,7 +2351,7 @@ if (!has(MED, 'captureStream')) P.method(MED, 'captureStream', 0, function __f()
 // play: engine-owned, kept (reseat relocates)
 if (!has(MED, 'sinkId')) P.getter(MED, 'sinkId', function __f() { return ''; });
 if (!has(MED, 'remote')) P.getter(MED, 'remote', function __f() { return B.get('remote', this); });
-if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "kind": "boolean-presence"});
+if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'setSinkId')) P.method(MED, 'setSinkId', 1, function __f() { const ctx = "Failed to execute 'setSinkId' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setSinkId', this, ctx, arguments); });
 if (!has(MED, 'mediaKeys')) P.getter(MED, 'mediaKeys', function __f() { return B.get('mediaKeys', this); });
 if (!has(MED, 'setMediaKeys')) P.method(MED, 'setMediaKeys', 1, function __f() { const ctx = "Failed to execute 'setMediaKeys' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setMediaKeys', this, ctx, arguments); });
@@ -2258,17 +2359,17 @@ reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "prelo
 
 // ---- HTMLVideoElement.prototype (Chrome own order VID.order; installs guarded,
 // kind fixes applied, reseat() walk last)
-if (!has(VID, 'width')) P.reflector(VID, 'width', {"attr": "width", "kind": "unsigned-long"});
-if (!has(VID, 'height')) P.reflector(VID, 'height', {"attr": "height", "kind": "unsigned-long"});
+if (!has(VID, 'width')) P.reflector(VID, 'width', {"attr": "width", "iface": "HTMLVideoElement", "kind": "unsigned-long"});
+if (!has(VID, 'height')) P.reflector(VID, 'height', {"attr": "height", "iface": "HTMLVideoElement", "kind": "unsigned-long"});
 if (!has(VID, 'videoWidth')) P.getter(VID, 'videoWidth', function __f() { return 0; });
 if (!has(VID, 'videoHeight')) P.getter(VID, 'videoHeight', function __f() { return 0; });
-if (!has(VID, 'poster')) P.reflector(VID, 'poster', {"attr": "poster", "kind": "url"});
+if (!has(VID, 'poster')) P.reflector(VID, 'poster', {"attr": "poster", "iface": "HTMLVideoElement", "kind": "url"});
 if (!has(VID, 'webkitDecodedFrameCount')) P.getter(VID, 'webkitDecodedFrameCount', function __f() { return 0; });
 if (!has(VID, 'webkitDroppedFrameCount')) P.getter(VID, 'webkitDroppedFrameCount', function __f() { return 0; });
-if (!has(VID, 'playsInline')) P.reflector(VID, 'playsInline', {"attr": "playsinline", "kind": "boolean-presence"});
+if (!has(VID, 'playsInline')) P.reflector(VID, 'playsInline', {"attr": "playsinline", "iface": "HTMLVideoElement", "kind": "boolean-presence"});
 delete VID['onenterpictureinpicture']; installOn(VID, 'onenterpictureinpicture', true);
 delete VID['onleavepictureinpicture']; installOn(VID, 'onleavepictureinpicture', true);
-if (!has(VID, 'disablePictureInPicture')) P.reflector(VID, 'disablePictureInPicture', {"attr": "disablepictureinpicture", "kind": "boolean-presence"});
+if (!has(VID, 'disablePictureInPicture')) P.reflector(VID, 'disablePictureInPicture', {"attr": "disablepictureinpicture", "iface": "HTMLVideoElement", "kind": "boolean-presence"});
 if (!has(VID, 'cancelVideoFrameCallback')) P.method(VID, 'cancelVideoFrameCallback', 1, function __f() { const ctx = "Failed to execute 'cancelVideoFrameCallback' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('cancelVideoFrameCallback', this, ctx, arguments); });
 if (!has(VID, 'getVideoPlaybackQuality')) P.method(VID, 'getVideoPlaybackQuality', 0, function __f() { const ctx = "Failed to execute 'getVideoPlaybackQuality' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getVideoPlaybackQuality', this, ctx, arguments); });
 if (!has(VID, 'requestPictureInPicture')) P.method(VID, 'requestPictureInPicture', 0, function __f() { const ctx = "Failed to execute 'requestPictureInPicture' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPictureInPicture', this, ctx, arguments); });
@@ -2277,37 +2378,709 @@ reseat(VID, ["width", "height", "videoWidth", "videoHeight", "poster", "webkitDe
 
 // ---- HTMLImageElement.prototype (Chrome own order IMG.order; installs guarded,
 // kind fixes applied, reseat() walk last)
-if (!has(IMG, 'alt')) P.reflector(IMG, 'alt', {"attr": "alt", "kind": "string"});
+if (!has(IMG, 'alt')) P.reflector(IMG, 'alt', {"attr": "alt", "iface": "HTMLImageElement", "kind": "string"});
 // src: engine-owned, kept (reseat relocates)
-if (!has(IMG, 'srcset')) P.reflector(IMG, 'srcset', {"attr": "srcset", "kind": "string"});
-(function () { const d = Object.getOwnPropertyDescriptor(IMG, 'sizes'); if (d && d.get && !d.set) { const set = function (v) { this.setAttribute('sizes', v === undefined || v === null ? '' : String(v)); }; Object.defineProperty(set, 'name', { value: 'set sizes', configurable: true }); Object.defineProperty(set, 'length', { value: 1, configurable: true }); _markNative(set); Object.defineProperty(IMG, 'sizes', { get: d.get, set: set, enumerable: true, configurable: true }); } })();
-if (!has(IMG, 'crossOrigin')) P.reflector(IMG, 'crossOrigin', {"attr": "crossorigin", "kind": "crossorigin"});
-if (!has(IMG, 'useMap')) P.reflector(IMG, 'useMap', {"attr": "usemap", "kind": "string"});
-if (!has(IMG, 'isMap')) P.reflector(IMG, 'isMap', {"attr": "ismap", "kind": "boolean-presence"});
-if (!has(IMG, 'width')) P.reflector(IMG, 'width', {"attr": "width", "kind": "unsigned-long"});
-if (!has(IMG, 'height')) P.reflector(IMG, 'height', {"attr": "height", "kind": "unsigned-long"});
+if (!has(IMG, 'srcset')) P.reflector(IMG, 'srcset', {"attr": "srcset", "iface": "HTMLImageElement", "kind": "string"});
+delete IMG['sizes']; P.reflector(IMG, 'sizes', {"attr": "sizes", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'crossOrigin')) P.reflector(IMG, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLImageElement", "kind": "crossorigin"});
+if (!has(IMG, 'useMap')) P.reflector(IMG, 'useMap', {"attr": "usemap", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'isMap')) P.reflector(IMG, 'isMap', {"attr": "ismap", "iface": "HTMLImageElement", "kind": "boolean-presence"});
+if (!has(IMG, 'width')) P.reflector(IMG, 'width', {"attr": "width", "iface": "HTMLImageElement", "kind": "unsigned-long-dim"});
+if (!has(IMG, 'height')) P.reflector(IMG, 'height', {"attr": "height", "iface": "HTMLImageElement", "kind": "unsigned-long-dim"});
 if (!has(IMG, 'naturalWidth')) P.getter(IMG, 'naturalWidth', function __f() { return 0; });
 if (!has(IMG, 'naturalHeight')) P.getter(IMG, 'naturalHeight', function __f() { return 0; });
 if (!has(IMG, 'complete')) P.getter(IMG, 'complete', function __f() { return B.get('complete', this); });
 if (!has(IMG, 'currentSrc')) P.getter(IMG, 'currentSrc', function __f() { return ''; });
-if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "default": "", "kind": "string-known", "known": ["", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"]});
-if (!has(IMG, 'decoding')) P.reflector(IMG, 'decoding', {"attr": "decoding", "default": "auto", "fallback": "auto", "kind": "known-fallback", "known": ["sync", "async", "auto"]});
-if (!has(IMG, 'fetchPriority')) P.reflector(IMG, 'fetchPriority', {"attr": "fetchpriority", "default": "auto", "kind": "string-known", "known": ["auto", "high", "low"]});
-if (!has(IMG, 'loading')) P.reflector(IMG, 'loading', {"attr": "loading", "default": "auto", "fallback": "auto", "kind": "known-fallback", "known": ["eager", "lazy"]});
+if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLImageElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+if (!has(IMG, 'decoding')) P.reflector(IMG, 'decoding', {"attr": "decoding", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"async": "async", "sync": "sync"}, "missing": "auto"});
+if (!has(IMG, 'fetchPriority')) P.reflector(IMG, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
+if (!has(IMG, 'loading')) P.reflector(IMG, 'loading', {"attr": "loading", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"eager": "eager", "lazy": "lazy"}, "missing": "auto"});
 if (!has(IMG, 'name')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, 'name'); if (_d && _d.get && _d.set) P.accessor(IMG, 'name', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }
-if (!has(IMG, 'lowsrc')) P.reflector(IMG, 'lowsrc', {"attr": "lowsrc", "kind": "string"});
-if (!has(IMG, 'align')) P.reflector(IMG, 'align', {"attr": "align", "kind": "string"});
-if (!has(IMG, 'hspace')) P.reflector(IMG, 'hspace', {"attr": "hspace", "kind": "unsigned-long"});
-if (!has(IMG, 'vspace')) P.reflector(IMG, 'vspace', {"attr": "vspace", "kind": "unsigned-long"});
-if (!has(IMG, 'longDesc')) P.reflector(IMG, 'longDesc', {"attr": "longdesc", "kind": "string"});
-if (!has(IMG, 'border')) P.reflector(IMG, 'border', {"attr": "border", "kind": "string"});
+if (!has(IMG, 'lowsrc')) P.reflector(IMG, 'lowsrc', {"attr": "lowsrc", "iface": "HTMLImageElement", "kind": "url"});
+if (!has(IMG, 'align')) P.reflector(IMG, 'align', {"attr": "align", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'hspace')) P.reflector(IMG, 'hspace', {"attr": "hspace", "iface": "HTMLImageElement", "kind": "unsigned-long"});
+if (!has(IMG, 'vspace')) P.reflector(IMG, 'vspace', {"attr": "vspace", "iface": "HTMLImageElement", "kind": "unsigned-long"});
+if (!has(IMG, 'longDesc')) P.reflector(IMG, 'longDesc', {"attr": "longdesc", "iface": "HTMLImageElement", "kind": "url"});
+if (!has(IMG, 'border')) P.reflector(IMG, 'border', {"attr": "border", "iface": "HTMLImageElement", "kind": "string-nte"});
 if (!has(IMG, 'x')) P.getter(IMG, 'x', function __f() { return 0; });
 if (!has(IMG, 'y')) P.getter(IMG, 'y', function __f() { return 0; });
 if (!has(IMG, 'decode')) P.method(IMG, 'decode', 0, function __f() { const ctx = "Failed to execute 'decode' on 'HTMLImageElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('decode', this, ctx, arguments); });
-if (!has(IMG, 'browsingTopics')) P.reflector(IMG, 'browsingTopics', {"attr": "browsingtopics", "kind": "boolean-presence"});
-if (!has(IMG, 'attributionSrc')) P.reflector(IMG, 'attributionSrc', {"attr": "attributionsrc", "kind": "string"});
-if (!has(IMG, 'sharedStorageWritable')) P.reflector(IMG, 'sharedStorageWritable', {"attr": "sharedstoragewritable", "kind": "boolean-presence"});
+if (!has(IMG, 'browsingTopics')) P.reflector(IMG, 'browsingTopics', {"attr": "browsingtopics", "iface": "HTMLImageElement", "kind": "boolean-presence"});
+if (!has(IMG, 'attributionSrc')) P.reflector(IMG, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'sharedStorageWritable')) P.reflector(IMG, 'sharedStorageWritable', {"attr": "sharedstoragewritable", "iface": "HTMLImageElement", "kind": "boolean-presence"});
 reseat(IMG, ["alt", "src", "srcset", "sizes", "crossOrigin", "useMap", "isMap", "width", "height", "naturalWidth", "naturalHeight", "complete", "currentSrc", "referrerPolicy", "decoding", "fetchPriority", "loading", "name", "lowsrc", "align", "hspace", "vspace", "longDesc", "border", "x", "y", "decode", "constructor", "browsingTopics", "attributionSrc", "sharedStorageWritable"]);
+});
+
+// ---- module htmlifaces (L2) ----
+__platform.define("htmlifaces", function (exports, require, P) {
+"use strict";
+// Element interfaces the engine used to know only as global_surface
+// ctor-throw stubs (M4 knife 6). Their tags created plain HTMLElement
+// instances, so `document.createElement('source') instanceof HTMLSourceElement`
+// was false (Chrome: true) - a type test real players and frameworks make.
+// The platform now owns the interface objects BEFORE global_surface runs (its
+// THROW loop SKIPs names already present - the Performance/StylePropertyMap
+// handover pattern), built with the bootstrap's own _htmlInterface mechanism
+// so tag routing (_tagInterfaces) and the Symbol.hasInstance second opinion
+// behave exactly like HTMLAnchorElement/HTMLLinkElement. Members arrive from
+// gen/htmlreflect.gen.js; tags per the HTML spec's element-interface table.
+const DEFS = {
+  HTMLAreaElement: ['area'],
+  HTMLBaseElement: ['base'],
+  HTMLDListElement: ['dl'],
+  HTMLDirectoryElement: ['dir'],
+  HTMLEmbedElement: ['embed'],
+  HTMLFontElement: ['font'],
+  HTMLFrameElement: ['frame'],
+  HTMLMenuElement: ['menu'],
+  HTMLModElement: ['ins', 'del'],
+  HTMLParamElement: ['param'],
+  HTMLQuoteElement: ['blockquote', 'q'],
+  HTMLSourceElement: ['source'],
+  HTMLTimeElement: ['time'],
+  HTMLTitleElement: ['title'],
+};
+
+for (const name of Object.keys(DEFS)) {
+  if (typeof globalThis[name] === 'function') continue; // a legacy script already owns it
+  P.expose(name, _htmlInterface(name, DEFS[name]));
+}
+});
+
+// ---- module htmlreflect (L2) ----
+__platform.define("htmlreflect", function (exports, require, P) {
+"use strict";
+// Behavior legs for the HTML reflected-attribute element family (M4 knife 6).
+// The member SHAPE and every uniformly reflected member is generated into
+// gen/htmlreflect.gen.js from MEASURED Chrome fingerprints
+// (chrome/htmlreflect-truth-145.json); this module owns only what is not a
+// plain reflection: cached DOMTokenList faces, script.async's force-async
+// flag, and the few stateful accessors / constant answers.
+
+// ---- DOMTokenList faces (relList / blocking / sandbox ...): one cached
+// list per (element, content attribute); `supported` is the MEASURED
+// supports() set (null => supports() throws, as Chrome's sizes does).
+const tokenCache = new WeakMap();
+exports.tokens = function (el, attr, supported) {
+  let m = tokenCache.get(el);
+  if (!m) { m = new Map(); tokenCache.set(el, m); }
+  let t = m.get(attr);
+  if (!t) { t = new DOMTokenList(el, attr, supported === null ? undefined : supported); m.set(attr, t); }
+  return t;
+};
+
+// ---- script.async: the "force async" flag. createElement('script') starts
+// force-async (getter reads true with no attribute); parser-created scripts
+// do not (their getter follows the attribute); any set clears the flag and
+// then reflects the boolean attribute. Parser scripts are recognized by the
+// document-order registry scripts.rs injects.
+const asyncCleared = new WeakSet();
+function parserCreated(el) {
+  const idx = globalThis.__parserScriptIdx;
+  return !!(idx && el._nid !== undefined && el._nid !== null && idx.has(el._nid));
+}
+
+const nodeText = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+
+const GET = {
+  async(el) { return el.hasAttribute('async') || (!asyncCleared.has(el) && !parserCreated(el)); },
+  // <title>.text / <script>.text: child text content
+  text(el) { return nodeText.get.call(el); },
+  textContent(el) { return nodeText.get.call(el); },
+  innerText(el) { return nodeText.get.call(el); },
+  // Chrome: the sheet's disabled flag; an unattached <style> has no sheet and reads false
+  disabled(el) { return el.sheet ? !!el.sheet.disabled : false; },
+  // <base href>: with no attribute the getter answers the document's
+  // fallback base URL (document.URL); with one it resolves against that
+  // fallback base - not against the base element's own effect (truth Base.href def).
+  href(el) {
+    const raw = el.getAttribute('href');
+    if (raw === null) return document.URL;
+    try { return new URL(raw, document.URL).href; } catch (e) { return String(raw); }
+  },
+  // legend.form: the form owner of a parent fieldset, else null
+  form(el) {
+    const p = el.parentNode;
+    return p && p.localName === 'fieldset' ? (p.form || null) : null;
+  },
+};
+
+const SET = {
+  async(el, v) {
+    asyncCleared.add(el);
+    if (v) el.setAttribute('async', ''); else el.removeAttribute('async');
+  },
+  // DOMString conversion: null reads back 'null' (truth Title.text/Script.text)
+  text(el, v) { nodeText.set.call(el, P.conv.DOMString(v, "Failed to set the 'text' property on '" + el.constructor.name + "'", SET.text)); },
+  textContent(el, v) { nodeText.set.call(el, v === null ? '' : String(v)); },
+  innerText(el, v) { nodeText.set.call(el, String(v)); },
+  href(el, v) { el.setAttribute('href', P.conv.DOMString(v, "Failed to set the 'href' property on 'HTMLBaseElement'", SET.href)); },
+  disabled(el, v) { if (el.sheet) el.sheet.disabled = !!v; },
+};
+
+const CALL = {
+  // Chrome answers null unless the embedded content is an SVG document
+  getSVGDocument() { return null; },
+  toString(el) { return el.href; },
+  // fallbacks only (the engine chain owns submit/requestSubmit; the
+  // generated seat delegates to it first)
+  submit() { return undefined; },
+  requestSubmit() { return undefined; },
+};
+
+exports.get = function (name, el) {
+  const f = GET[name];
+  if (!f) throw new Error('htmlreflect impl: no getter ' + name);
+  return f(el);
+};
+exports.set = function (name, el, v) {
+  const f = SET[name];
+  if (!f) throw new Error('htmlreflect impl: no setter ' + name);
+  f(el, v);
+};
+exports.call = function (name, el, ctx, args) {
+  const f = CALL[name];
+  if (!f) throw new Error('htmlreflect impl: no operation ' + name);
+  return f(el, ctx, args);
+};
+});
+
+// ---- module gen/htmlreflect (L2) ----
+__platform.define("gen/htmlreflect", function (exports, require, P) {
+"use strict";
+// M4 knife 6: HTML reflected-attribute element family. Every reflected
+// member's KIND was MEASURED: htmlreflect-probe.js fingerprints each
+// member in real Chrome (default read, reads after 11 property sets,
+// the created attribute, reads after 15 raw attribute values, keyword
+// vocabulary sweeps), and reflect_classify.py accepts a reflector kind
+// only if its mirror of core.js P.reflector reproduces EVERY facet.
+// Install-or-delegate: a member the engine chain already owns is
+// re-seated on the Chrome-true interface forwarding both legs.
+// Ledger: reflect=135 tokenlist=9 impl=14 const=2 delegate=21 left=10 staged=7
+const B = require('htmlreflect');
+const G = globalThis;
+const P_Anchor = typeof G.HTMLAnchorElement === 'function' ? G.HTMLAnchorElement.prototype : null;
+const P_Area = typeof G.HTMLAreaElement === 'function' ? G.HTMLAreaElement.prototype : null;
+const P_BR = typeof G.HTMLBRElement === 'function' ? G.HTMLBRElement.prototype : null;
+const P_Base = typeof G.HTMLBaseElement === 'function' ? G.HTMLBaseElement.prototype : null;
+const P_DList = typeof G.HTMLDListElement === 'function' ? G.HTMLDListElement.prototype : null;
+const P_Directory = typeof G.HTMLDirectoryElement === 'function' ? G.HTMLDirectoryElement.prototype : null;
+const P_Embed = typeof G.HTMLEmbedElement === 'function' ? G.HTMLEmbedElement.prototype : null;
+const P_Font = typeof G.HTMLFontElement === 'function' ? G.HTMLFontElement.prototype : null;
+const P_Form = typeof G.HTMLFormElement === 'function' ? G.HTMLFormElement.prototype : null;
+const P_Frame = typeof G.HTMLFrameElement === 'function' ? G.HTMLFrameElement.prototype : null;
+const P_HR = typeof G.HTMLHRElement === 'function' ? G.HTMLHRElement.prototype : null;
+const P_IFrame = typeof G.HTMLIFrameElement === 'function' ? G.HTMLIFrameElement.prototype : null;
+const P_Legend = typeof G.HTMLLegendElement === 'function' ? G.HTMLLegendElement.prototype : null;
+const P_Link = typeof G.HTMLLinkElement === 'function' ? G.HTMLLinkElement.prototype : null;
+const P_Menu = typeof G.HTMLMenuElement === 'function' ? G.HTMLMenuElement.prototype : null;
+const P_Meta = typeof G.HTMLMetaElement === 'function' ? G.HTMLMetaElement.prototype : null;
+const P_Mod = typeof G.HTMLModElement === 'function' ? G.HTMLModElement.prototype : null;
+const P_OptGroup = typeof G.HTMLOptGroupElement === 'function' ? G.HTMLOptGroupElement.prototype : null;
+const P_Param = typeof G.HTMLParamElement === 'function' ? G.HTMLParamElement.prototype : null;
+const P_Pre = typeof G.HTMLPreElement === 'function' ? G.HTMLPreElement.prototype : null;
+const P_Quote = typeof G.HTMLQuoteElement === 'function' ? G.HTMLQuoteElement.prototype : null;
+const P_Script = typeof G.HTMLScriptElement === 'function' ? G.HTMLScriptElement.prototype : null;
+const P_Source = typeof G.HTMLSourceElement === 'function' ? G.HTMLSourceElement.prototype : null;
+const P_Style = typeof G.HTMLStyleElement === 'function' ? G.HTMLStyleElement.prototype : null;
+const P_TableCaption = typeof G.HTMLTableCaptionElement === 'function' ? G.HTMLTableCaptionElement.prototype : null;
+const P_Time = typeof G.HTMLTimeElement === 'function' ? G.HTMLTimeElement.prototype : null;
+const P_Title = typeof G.HTMLTitleElement === 'function' ? G.HTMLTitleElement.prototype : null;
+
+function has(proto, n) { return Object.prototype.hasOwnProperty.call(proto, n); }
+// ancestor below Object.prototype that already owns `n`: its semantics are
+// engine-owned (and may be load-bearing - MSE blob attach, script
+// preparation, hyperlink decomposition), so the interface level seats a
+// same-name accessor forwarding BOTH legs instead of shadowing it with a
+// naive reflector. Ownership becomes Chrome-true, behavior is untouched.
+function chainDesc(proto, n) {
+  for (let o = Object.getPrototypeOf(proto); o && o !== Object.prototype; o = Object.getPrototypeOf(o)) {
+    const d = Object.getOwnPropertyDescriptor(o, n);
+    if (d) return d;
+  }
+  return null;
+}
+// cv: WebIDL conversion applied at the interface boundary BEFORE the engine
+// setter sees the value ('str' DOMString, 'nte' null-to-empty DOMString) -
+// iframe.src = 5 used to reach the engine's loader as a number and crash it.
+function delegate(proto, n, cv) {
+  const d = chainDesc(proto, n);
+  if (!d || !(d.get || d.set)) return false;
+  const pre = "Failed to set the '" + n + "' property on '" + (proto.constructor && proto.constructor.name) + "'";
+  if (d.set) {
+    P.accessor(proto, n, function __f() { return d.get.call(this); }, function __f(v) {
+      d.set.call(this, cv === 'str' ? P.conv.DOMString(v, pre, __f) : cv === 'nte' ? (v === null ? '' : P.conv.DOMString(v, pre, __f)) : v);
+    });
+  } else P.getter(proto, n, function __f() { return d.get.call(this); });
+  return true;
+}
+// An interface-level own member whose engine setter skips WebIDL conversion
+// (iframe.src, meta.content, a.text): keep the engine getter and the engine
+// setter's side effects, convert at the boundary first.
+function wrapSet(proto, n, cv) {
+  const d = Object.getOwnPropertyDescriptor(proto, n);
+  if (!d || !d.set || !d.configurable) return;
+  const pre = "Failed to set the '" + n + "' property on '" + (proto.constructor && proto.constructor.name) + "'";
+  const eset = d.set;
+  P.accessor(proto, n, d.get, function __f(v) {
+    eset.call(this, cv === 'nte' ? (v === null ? '' : P.conv.DOMString(v, pre, __f)) : P.conv.DOMString(v, pre, __f));
+  });
+}
+// DOMTokenList members are [PutForwards=value]. The list object is the
+// htmlreflect impl's cached one built with the MEASURED supports() set
+// (the engine chain's lists carried none - or a Link-only table - so
+// supports() threw or lied); the setter forwards the DOMString to the
+// content attribute.
+function tokenAccessor(proto, n, attr, supported) {
+  const pre = "Failed to set the '" + n + "' property on '" + (proto.constructor && proto.constructor.name) + "'";
+  P.accessor(proto, n, function __f() { return B.tokens(this, attr, supported); },
+    function __f(v) { this.setAttribute(attr, P.conv.DOMString(v, pre, __f)); });
+}
+function delegateFn(proto, n, len) {
+  const d = chainDesc(proto, n);
+  if (!d || typeof d.value !== 'function') return false;
+  const f = d.value;
+  P.method(proto, n, len, function __f() { return f.apply(this, arguments); });
+  return true;
+}
+function reseat(proto, order) {
+  for (const n of order) {
+    const d = Object.getOwnPropertyDescriptor(proto, n);
+    if (d && d.configurable) { delete proto[n]; Object.defineProperty(proto, n, d); }
+  }
+}
+
+// ---- HTMLAnchorElement.prototype (Chrome own order, 30 names)
+if (P_Anchor) {
+  if (!has(P_Anchor, 'target') && !delegate(P_Anchor, 'target', 'str')) P.reflector(P_Anchor, 'target', {"attr": "target", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'target', 'str');
+  if (!has(P_Anchor, 'download') && !delegate(P_Anchor, 'download', 'str')) P.reflector(P_Anchor, 'download', {"attr": "download", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'download', 'str');
+  if (!has(P_Anchor, 'ping') && !delegate(P_Anchor, 'ping', 'str')) P.reflector(P_Anchor, 'ping', {"attr": "ping", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'ping', 'str');
+  if (!has(P_Anchor, 'rel') && !delegate(P_Anchor, 'rel', 'str')) P.reflector(P_Anchor, 'rel', {"attr": "rel", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'rel', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Anchor, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Anchor, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
+  if (!has(P_Anchor, 'hreflang') && !delegate(P_Anchor, 'hreflang', 'str')) P.reflector(P_Anchor, 'hreflang', {"attr": "hreflang", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'hreflang', 'str');
+  if (!has(P_Anchor, 'type') && !delegate(P_Anchor, 'type', 'str')) P.reflector(P_Anchor, 'type', {"attr": "type", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'type', 'str');
+  if (!has(P_Anchor, 'referrerPolicy') && !delegate(P_Anchor, 'referrerPolicy', 'str')) P.reflector(P_Anchor, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAnchorElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  else wrapSet(P_Anchor, 'referrerPolicy', 'str');
+  if (!has(P_Anchor, 'text')) delegate(P_Anchor, 'text', 'str'); else wrapSet(P_Anchor, 'text', 'str');
+  if (!has(P_Anchor, 'coords') && !delegate(P_Anchor, 'coords', 'str')) P.reflector(P_Anchor, 'coords', {"attr": "coords", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'coords', 'str');
+  if (!has(P_Anchor, 'charset') && !delegate(P_Anchor, 'charset', 'str')) P.reflector(P_Anchor, 'charset', {"attr": "charset", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'charset', 'str');
+  if (!has(P_Anchor, 'name') && !delegate(P_Anchor, 'name', 'str')) P.reflector(P_Anchor, 'name', {"attr": "name", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'name', 'str');
+  if (!has(P_Anchor, 'rev') && !delegate(P_Anchor, 'rev', 'str')) P.reflector(P_Anchor, 'rev', {"attr": "rev", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'rev', 'str');
+  if (!has(P_Anchor, 'shape') && !delegate(P_Anchor, 'shape', 'str')) P.reflector(P_Anchor, 'shape', {"attr": "shape", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'shape', 'str');
+  if (!has(P_Anchor, 'protocol')) delegate(P_Anchor, 'protocol');
+  if (!has(P_Anchor, 'username')) delegate(P_Anchor, 'username');
+  if (!has(P_Anchor, 'password')) delegate(P_Anchor, 'password');
+  if (!has(P_Anchor, 'host')) delegate(P_Anchor, 'host');
+  if (!has(P_Anchor, 'hostname')) delegate(P_Anchor, 'hostname');
+  if (!has(P_Anchor, 'port')) delegate(P_Anchor, 'port');
+  if (!has(P_Anchor, 'pathname')) delegate(P_Anchor, 'pathname');
+  if (!has(P_Anchor, 'search')) delegate(P_Anchor, 'search');
+  if (!has(P_Anchor, 'hash')) delegate(P_Anchor, 'hash');
+  if (!has(P_Anchor, 'href') && !delegate(P_Anchor, 'href', 'str')) P.reflector(P_Anchor, 'href', {"attr": "href", "iface": "HTMLAnchorElement", "kind": "url"});
+  else wrapSet(P_Anchor, 'href', 'str');
+  if (!has(P_Anchor, 'toString') && !delegateFn(P_Anchor, 'toString', 0)) P.method(P_Anchor, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAnchorElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('toString', this, ctx, arguments); });
+  // staged: interestForElement - experimental (Interest Invokers), not Chrome-released
+  if (!has(P_Anchor, 'hrefTranslate') && !delegate(P_Anchor, 'hrefTranslate', 'str')) P.reflector(P_Anchor, 'hrefTranslate', {"attr": "hreftranslate", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'hrefTranslate', 'str');
+  if (!has(P_Anchor, 'attributionSrc') && !delegate(P_Anchor, 'attributionSrc', 'str')) P.reflector(P_Anchor, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'attributionSrc', 'str');
+  reseat(P_Anchor, ["target", "download", "ping", "rel", "relList", "hreflang", "type", "referrerPolicy", "text", "coords", "charset", "name", "rev", "shape", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash", "href", "toString", "constructor", "hrefTranslate", "attributionSrc"]);
+}
+
+// ---- HTMLAreaElement.prototype (Chrome own order, 25 names)
+if (P_Area) {
+  if (!has(P_Area, 'alt') && !delegate(P_Area, 'alt', 'str')) P.reflector(P_Area, 'alt', {"attr": "alt", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'alt', 'str');
+  if (!has(P_Area, 'coords') && !delegate(P_Area, 'coords', 'str')) P.reflector(P_Area, 'coords', {"attr": "coords", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'coords', 'str');
+  if (!has(P_Area, 'download') && !delegate(P_Area, 'download', 'str')) P.reflector(P_Area, 'download', {"attr": "download", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'download', 'str');
+  if (!has(P_Area, 'shape') && !delegate(P_Area, 'shape', 'str')) P.reflector(P_Area, 'shape', {"attr": "shape", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'shape', 'str');
+  if (!has(P_Area, 'target') && !delegate(P_Area, 'target', 'str')) P.reflector(P_Area, 'target', {"attr": "target", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'target', 'str');
+  if (!has(P_Area, 'ping') && !delegate(P_Area, 'ping', 'str')) P.reflector(P_Area, 'ping', {"attr": "ping", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'ping', 'str');
+  if (!has(P_Area, 'rel') && !delegate(P_Area, 'rel', 'str')) P.reflector(P_Area, 'rel', {"attr": "rel", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'rel', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Area, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Area, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
+  if (!has(P_Area, 'referrerPolicy') && !delegate(P_Area, 'referrerPolicy', 'str')) P.reflector(P_Area, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAreaElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  else wrapSet(P_Area, 'referrerPolicy', 'str');
+  if (!has(P_Area, 'noHref') && !delegate(P_Area, 'noHref')) P.reflector(P_Area, 'noHref', {"attr": "nohref", "iface": "HTMLAreaElement", "kind": "boolean-presence"});
+  if (!has(P_Area, 'origin')) delegate(P_Area, 'origin');
+  if (!has(P_Area, 'protocol')) delegate(P_Area, 'protocol');
+  if (!has(P_Area, 'username')) delegate(P_Area, 'username');
+  if (!has(P_Area, 'password')) delegate(P_Area, 'password');
+  if (!has(P_Area, 'host')) delegate(P_Area, 'host');
+  if (!has(P_Area, 'hostname')) delegate(P_Area, 'hostname');
+  if (!has(P_Area, 'port')) delegate(P_Area, 'port');
+  if (!has(P_Area, 'pathname')) delegate(P_Area, 'pathname');
+  if (!has(P_Area, 'search')) delegate(P_Area, 'search');
+  if (!has(P_Area, 'hash')) delegate(P_Area, 'hash');
+  if (!has(P_Area, 'href') && !delegate(P_Area, 'href', 'str')) P.reflector(P_Area, 'href', {"attr": "href", "iface": "HTMLAreaElement", "kind": "url"});
+  else wrapSet(P_Area, 'href', 'str');
+  if (!has(P_Area, 'toString') && !delegateFn(P_Area, 'toString', 0)) P.method(P_Area, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAreaElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('toString', this, ctx, arguments); });
+  // staged: interestForElement - experimental (Interest Invokers), not Chrome-released
+  if (!has(P_Area, 'attributionSrc') && !delegate(P_Area, 'attributionSrc', 'str')) P.reflector(P_Area, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'attributionSrc', 'str');
+  reseat(P_Area, ["alt", "coords", "download", "shape", "target", "ping", "rel", "relList", "referrerPolicy", "noHref", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash", "href", "toString", "constructor", "attributionSrc"]);
+}
+
+// ---- HTMLBRElement.prototype (Chrome own order, 2 names)
+if (P_BR) {
+  if (!has(P_BR, 'clear') && !delegate(P_BR, 'clear', 'str')) P.reflector(P_BR, 'clear', {"attr": "clear", "iface": "HTMLBRElement", "kind": "string"});
+  else wrapSet(P_BR, 'clear', 'str');
+  reseat(P_BR, ["clear", "constructor"]);
+}
+
+// ---- HTMLBaseElement.prototype (Chrome own order, 3 names)
+if (P_Base) {
+  if (!has(P_Base, 'href')) P.accessor(P_Base, 'href', function __f() { return B.get('href', this); }, function __f(x) { B.set('href', this, x); });
+  if (!has(P_Base, 'target') && !delegate(P_Base, 'target', 'str')) P.reflector(P_Base, 'target', {"attr": "target", "iface": "HTMLBaseElement", "kind": "string"});
+  else wrapSet(P_Base, 'target', 'str');
+  reseat(P_Base, ["href", "target", "constructor"]);
+}
+
+// ---- HTMLDListElement.prototype (Chrome own order, 2 names)
+if (P_DList) {
+  if (!has(P_DList, 'compact') && !delegate(P_DList, 'compact')) P.reflector(P_DList, 'compact', {"attr": "compact", "iface": "HTMLDListElement", "kind": "boolean-presence"});
+  reseat(P_DList, ["compact", "constructor"]);
+}
+
+// ---- HTMLDirectoryElement.prototype (Chrome own order, 2 names)
+if (P_Directory) {
+  if (!has(P_Directory, 'compact') && !delegate(P_Directory, 'compact')) P.reflector(P_Directory, 'compact', {"attr": "compact", "iface": "HTMLDirectoryElement", "kind": "boolean-presence"});
+  reseat(P_Directory, ["compact", "constructor"]);
+}
+
+// ---- HTMLEmbedElement.prototype (Chrome own order, 8 names)
+if (P_Embed) {
+  if (!has(P_Embed, 'src') && !delegate(P_Embed, 'src', 'str')) P.reflector(P_Embed, 'src', {"attr": "src", "iface": "HTMLEmbedElement", "kind": "url"});
+  else wrapSet(P_Embed, 'src', 'str');
+  if (!has(P_Embed, 'type') && !delegate(P_Embed, 'type', 'str')) P.reflector(P_Embed, 'type', {"attr": "type", "iface": "HTMLEmbedElement", "kind": "string"});
+  else wrapSet(P_Embed, 'type', 'str');
+  if (!has(P_Embed, 'width') && !delegate(P_Embed, 'width', 'str')) P.reflector(P_Embed, 'width', {"attr": "width", "iface": "HTMLEmbedElement", "kind": "string"});
+  else wrapSet(P_Embed, 'width', 'str');
+  if (!has(P_Embed, 'height') && !delegate(P_Embed, 'height', 'str')) P.reflector(P_Embed, 'height', {"attr": "height", "iface": "HTMLEmbedElement", "kind": "string"});
+  else wrapSet(P_Embed, 'height', 'str');
+  if (!has(P_Embed, 'align') && !delegate(P_Embed, 'align', 'str')) P.reflector(P_Embed, 'align', {"attr": "align", "iface": "HTMLEmbedElement", "kind": "string"});
+  else wrapSet(P_Embed, 'align', 'str');
+  if (!has(P_Embed, 'name') && !delegate(P_Embed, 'name', 'str')) P.reflector(P_Embed, 'name', {"attr": "name", "iface": "HTMLEmbedElement", "kind": "string"});
+  else wrapSet(P_Embed, 'name', 'str');
+  if (!has(P_Embed, 'getSVGDocument') && !delegateFn(P_Embed, 'getSVGDocument', 0)) P.method(P_Embed, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLEmbedElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getSVGDocument', this, ctx, arguments); });
+  reseat(P_Embed, ["src", "type", "width", "height", "align", "name", "getSVGDocument", "constructor"]);
+}
+
+// ---- HTMLFontElement.prototype (Chrome own order, 4 names)
+if (P_Font) {
+  if (!has(P_Font, 'color') && !delegate(P_Font, 'color', 'nte')) P.reflector(P_Font, 'color', {"attr": "color", "iface": "HTMLFontElement", "kind": "string-nte"});
+  else wrapSet(P_Font, 'color', 'nte');
+  if (!has(P_Font, 'face') && !delegate(P_Font, 'face', 'str')) P.reflector(P_Font, 'face', {"attr": "face", "iface": "HTMLFontElement", "kind": "string"});
+  else wrapSet(P_Font, 'face', 'str');
+  if (!has(P_Font, 'size')) P.reflector(P_Font, 'size', {"attr": "size", "iface": "HTMLFontElement", "kind": "string"});
+  reseat(P_Font, ["color", "face", "size", "constructor"]);
+}
+
+// ---- HTMLFormElement.prototype (Chrome own order, 19 names)
+if (P_Form) {
+  if (!has(P_Form, 'acceptCharset') && !delegate(P_Form, 'acceptCharset', 'str')) P.reflector(P_Form, 'acceptCharset', {"attr": "accept-charset", "iface": "HTMLFormElement", "kind": "string"});
+  else wrapSet(P_Form, 'acceptCharset', 'str');
+  if (!has(P_Form, 'action')) delegate(P_Form, 'action');
+  if (!has(P_Form, 'autocomplete') && !delegate(P_Form, 'autocomplete', 'str')) P.reflector(P_Form, 'autocomplete', {"attr": "autocomplete", "iface": "HTMLFormElement", "invalid": "on", "kind": "enum", "map": {"off": "off"}, "missing": "on"});
+  else wrapSet(P_Form, 'autocomplete', 'str');
+  if (!has(P_Form, 'enctype') && !delegate(P_Form, 'enctype', 'str')) P.reflector(P_Form, 'enctype', {"attr": "enctype", "iface": "HTMLFormElement", "invalid": "application/x-www-form-urlencoded", "kind": "enum", "map": {"multipart/form-data": "multipart/form-data", "text/plain": "text/plain"}, "missing": "application/x-www-form-urlencoded"});
+  else wrapSet(P_Form, 'enctype', 'str');
+  if (!has(P_Form, 'encoding') && !delegate(P_Form, 'encoding', 'str')) P.reflector(P_Form, 'encoding', {"attr": "enctype", "iface": "HTMLFormElement", "invalid": "application/x-www-form-urlencoded", "kind": "enum", "map": {"multipart/form-data": "multipart/form-data", "text/plain": "text/plain"}, "missing": "application/x-www-form-urlencoded"});
+  else wrapSet(P_Form, 'encoding', 'str');
+  if (!has(P_Form, 'method')) P.reflector(P_Form, 'method', {"attr": "method", "iface": "HTMLFormElement", "invalid": "get", "kind": "enum", "map": {"dialog": "dialog", "post": "post"}, "missing": "get"});
+  if (!has(P_Form, 'name') && !delegate(P_Form, 'name', 'str')) P.reflector(P_Form, 'name', {"attr": "name", "iface": "HTMLFormElement", "kind": "string"});
+  else wrapSet(P_Form, 'name', 'str');
+  if (!has(P_Form, 'noValidate') && !delegate(P_Form, 'noValidate')) P.reflector(P_Form, 'noValidate', {"attr": "novalidate", "iface": "HTMLFormElement", "kind": "boolean-presence"});
+  if (!has(P_Form, 'target') && !delegate(P_Form, 'target', 'str')) P.reflector(P_Form, 'target', {"attr": "target", "iface": "HTMLFormElement", "kind": "string"});
+  else wrapSet(P_Form, 'target', 'str');
+  if (!has(P_Form, 'rel')) P.reflector(P_Form, 'rel', {"attr": "rel", "iface": "HTMLFormElement", "kind": "string"});
+  { const _o = Object.getOwnPropertyDescriptor(P_Form, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Form, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
+  if (!has(P_Form, 'requestSubmit') && !delegateFn(P_Form, 'requestSubmit', 0)) P.method(P_Form, 'requestSubmit', 0, function __f() { const ctx = "Failed to execute 'requestSubmit' on 'HTMLFormElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestSubmit', this, ctx, arguments); });
+  if (!has(P_Form, 'submit') && !delegateFn(P_Form, 'submit', 0)) P.method(P_Form, 'submit', 0, function __f() { const ctx = "Failed to execute 'submit' on 'HTMLFormElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('submit', this, ctx, arguments); });
+  reseat(P_Form, ["acceptCharset", "action", "autocomplete", "enctype", "encoding", "method", "name", "noValidate", "target", "rel", "relList", "elements", "length", "checkValidity", "reportValidity", "requestSubmit", "reset", "submit", "constructor"]);
+}
+
+// ---- HTMLFrameElement.prototype (Chrome own order, 11 names)
+if (P_Frame) {
+  if (!has(P_Frame, 'name') && !delegate(P_Frame, 'name', 'str')) P.reflector(P_Frame, 'name', {"attr": "name", "iface": "HTMLFrameElement", "kind": "string"});
+  else wrapSet(P_Frame, 'name', 'str');
+  if (!has(P_Frame, 'scrolling') && !delegate(P_Frame, 'scrolling', 'str')) P.reflector(P_Frame, 'scrolling', {"attr": "scrolling", "iface": "HTMLFrameElement", "kind": "string"});
+  else wrapSet(P_Frame, 'scrolling', 'str');
+  if (!has(P_Frame, 'src') && !delegate(P_Frame, 'src', 'str')) P.reflector(P_Frame, 'src', {"attr": "src", "iface": "HTMLFrameElement", "kind": "url"});
+  else wrapSet(P_Frame, 'src', 'str');
+  if (!has(P_Frame, 'frameBorder') && !delegate(P_Frame, 'frameBorder', 'str')) P.reflector(P_Frame, 'frameBorder', {"attr": "frameborder", "iface": "HTMLFrameElement", "kind": "string"});
+  else wrapSet(P_Frame, 'frameBorder', 'str');
+  if (!has(P_Frame, 'longDesc') && !delegate(P_Frame, 'longDesc', 'str')) P.reflector(P_Frame, 'longDesc', {"attr": "longdesc", "iface": "HTMLFrameElement", "kind": "url"});
+  else wrapSet(P_Frame, 'longDesc', 'str');
+  if (!has(P_Frame, 'noResize') && !delegate(P_Frame, 'noResize')) P.reflector(P_Frame, 'noResize', {"attr": "noresize", "iface": "HTMLFrameElement", "kind": "boolean-presence"});
+  if (!has(P_Frame, 'contentDocument')) P.getter(P_Frame, 'contentDocument', function __f() { return null; });
+  if (!has(P_Frame, 'contentWindow')) P.getter(P_Frame, 'contentWindow', function __f() { return null; });
+  if (!has(P_Frame, 'marginHeight') && !delegate(P_Frame, 'marginHeight', 'nte')) P.reflector(P_Frame, 'marginHeight', {"attr": "marginheight", "iface": "HTMLFrameElement", "kind": "string-nte"});
+  else wrapSet(P_Frame, 'marginHeight', 'nte');
+  if (!has(P_Frame, 'marginWidth') && !delegate(P_Frame, 'marginWidth', 'nte')) P.reflector(P_Frame, 'marginWidth', {"attr": "marginwidth", "iface": "HTMLFrameElement", "kind": "string-nte"});
+  else wrapSet(P_Frame, 'marginWidth', 'nte');
+  reseat(P_Frame, ["name", "scrolling", "src", "frameBorder", "longDesc", "noResize", "contentDocument", "contentWindow", "marginHeight", "marginWidth", "constructor"]);
+}
+
+// ---- HTMLHRElement.prototype (Chrome own order, 6 names)
+if (P_HR) {
+  if (!has(P_HR, 'align') && !delegate(P_HR, 'align', 'str')) P.reflector(P_HR, 'align', {"attr": "align", "iface": "HTMLHRElement", "kind": "string"});
+  else wrapSet(P_HR, 'align', 'str');
+  if (!has(P_HR, 'color') && !delegate(P_HR, 'color', 'str')) P.reflector(P_HR, 'color', {"attr": "color", "iface": "HTMLHRElement", "kind": "string"});
+  else wrapSet(P_HR, 'color', 'str');
+  if (!has(P_HR, 'noShade') && !delegate(P_HR, 'noShade')) P.reflector(P_HR, 'noShade', {"attr": "noshade", "iface": "HTMLHRElement", "kind": "boolean-presence"});
+  if (!has(P_HR, 'size')) P.reflector(P_HR, 'size', {"attr": "size", "iface": "HTMLHRElement", "kind": "string"});
+  if (!has(P_HR, 'width') && !delegate(P_HR, 'width', 'str')) P.reflector(P_HR, 'width', {"attr": "width", "iface": "HTMLHRElement", "kind": "string"});
+  else wrapSet(P_HR, 'width', 'str');
+  reseat(P_HR, ["align", "color", "noShade", "size", "width", "constructor"]);
+}
+
+// ---- HTMLIFrameElement.prototype (Chrome own order, 28 names)
+if (P_IFrame) {
+  if (!has(P_IFrame, 'src') && !delegate(P_IFrame, 'src', 'str')) P.reflector(P_IFrame, 'src', {"attr": "src", "iface": "HTMLIFrameElement", "kind": "url"});
+  else wrapSet(P_IFrame, 'src', 'str');
+  if (!has(P_IFrame, 'srcdoc') && !delegate(P_IFrame, 'srcdoc', 'str')) P.reflector(P_IFrame, 'srcdoc', {"attr": "srcdoc", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'srcdoc', 'str');
+  if (!has(P_IFrame, 'name') && !delegate(P_IFrame, 'name', 'str')) P.reflector(P_IFrame, 'name', {"attr": "name", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'name', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_IFrame, 'sandbox'); if (!_o || _o.configurable) tokenAccessor(P_IFrame, 'sandbox', 'sandbox', ["allow-downloads", "allow-forms", "allow-modals", "allow-popups", "allow-same-origin", "allow-scripts"]); }
+  if (!has(P_IFrame, 'allowFullscreen') && !delegate(P_IFrame, 'allowFullscreen')) P.reflector(P_IFrame, 'allowFullscreen', {"attr": "allowfullscreen", "iface": "HTMLIFrameElement", "kind": "boolean-presence"});
+  if (!has(P_IFrame, 'width') && !delegate(P_IFrame, 'width', 'str')) P.reflector(P_IFrame, 'width', {"attr": "width", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'width', 'str');
+  if (!has(P_IFrame, 'height') && !delegate(P_IFrame, 'height', 'str')) P.reflector(P_IFrame, 'height', {"attr": "height", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'height', 'str');
+  if (!has(P_IFrame, 'referrerPolicy') && !delegate(P_IFrame, 'referrerPolicy', 'str')) P.reflector(P_IFrame, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLIFrameElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  else wrapSet(P_IFrame, 'referrerPolicy', 'str');
+  if (!has(P_IFrame, 'csp') && !delegate(P_IFrame, 'csp', 'str')) P.reflector(P_IFrame, 'csp', {"attr": "csp", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'csp', 'str');
+  if (!has(P_IFrame, 'allow') && !delegate(P_IFrame, 'allow', 'str')) P.reflector(P_IFrame, 'allow', {"attr": "allow", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'allow', 'str');
+  // staged: featurePolicy - deprecated Feature Policy object; no engine machinery
+  if (!has(P_IFrame, 'loading') && !delegate(P_IFrame, 'loading', 'str')) P.reflector(P_IFrame, 'loading', {"attr": "loading", "iface": "HTMLIFrameElement", "invalid": "auto", "kind": "enum", "map": {"eager": "eager", "lazy": "lazy"}, "missing": "auto"});
+  else wrapSet(P_IFrame, 'loading', 'str');
+  if (!has(P_IFrame, 'align') && !delegate(P_IFrame, 'align', 'str')) P.reflector(P_IFrame, 'align', {"attr": "align", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'align', 'str');
+  if (!has(P_IFrame, 'scrolling') && !delegate(P_IFrame, 'scrolling', 'str')) P.reflector(P_IFrame, 'scrolling', {"attr": "scrolling", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'scrolling', 'str');
+  if (!has(P_IFrame, 'frameBorder') && !delegate(P_IFrame, 'frameBorder', 'str')) P.reflector(P_IFrame, 'frameBorder', {"attr": "frameborder", "iface": "HTMLIFrameElement", "kind": "string"});
+  else wrapSet(P_IFrame, 'frameBorder', 'str');
+  if (!has(P_IFrame, 'longDesc') && !delegate(P_IFrame, 'longDesc', 'str')) P.reflector(P_IFrame, 'longDesc', {"attr": "longdesc", "iface": "HTMLIFrameElement", "kind": "url"});
+  else wrapSet(P_IFrame, 'longDesc', 'str');
+  if (!has(P_IFrame, 'marginHeight') && !delegate(P_IFrame, 'marginHeight', 'nte')) P.reflector(P_IFrame, 'marginHeight', {"attr": "marginheight", "iface": "HTMLIFrameElement", "kind": "string-nte"});
+  else wrapSet(P_IFrame, 'marginHeight', 'nte');
+  if (!has(P_IFrame, 'marginWidth') && !delegate(P_IFrame, 'marginWidth', 'nte')) P.reflector(P_IFrame, 'marginWidth', {"attr": "marginwidth", "iface": "HTMLIFrameElement", "kind": "string-nte"});
+  else wrapSet(P_IFrame, 'marginWidth', 'nte');
+  if (!has(P_IFrame, 'getSVGDocument') && !delegateFn(P_IFrame, 'getSVGDocument', 0)) P.method(P_IFrame, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLIFrameElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getSVGDocument', this, ctx, arguments); });
+  if (!has(P_IFrame, 'credentialless') && !delegate(P_IFrame, 'credentialless')) P.reflector(P_IFrame, 'credentialless', {"attr": "credentialless", "iface": "HTMLIFrameElement", "kind": "boolean-presence"});
+  if (!has(P_IFrame, 'allowPaymentRequest') && !delegate(P_IFrame, 'allowPaymentRequest')) P.reflector(P_IFrame, 'allowPaymentRequest', {"attr": "allowpaymentrequest", "iface": "HTMLIFrameElement", "kind": "boolean-presence"});
+  // staged: privateToken - Private State Token flag; not Chrome-released
+  // staged: browsingTopics - Topics API origin trial; not Chrome-released
+  // staged: adAuctionHeaders - Protected Audience flag; not Chrome-released
+  // staged: sharedStorageWritable - Shared Storage origin trial; not Chrome-released
+  reseat(P_IFrame, ["src", "srcdoc", "name", "sandbox", "allowFullscreen", "width", "height", "contentDocument", "contentWindow", "referrerPolicy", "csp", "allow", "loading", "align", "scrolling", "frameBorder", "longDesc", "marginHeight", "marginWidth", "getSVGDocument", "credentialless", "allowPaymentRequest", "constructor"]);
+}
+
+// ---- HTMLLegendElement.prototype (Chrome own order, 3 names)
+if (P_Legend) {
+  if (!has(P_Legend, 'form') && !delegate(P_Legend, 'form')) P.getter(P_Legend, 'form', function __f() { return B.get('form', this); });
+  if (!has(P_Legend, 'align') && !delegate(P_Legend, 'align', 'str')) P.reflector(P_Legend, 'align', {"attr": "align", "iface": "HTMLLegendElement", "kind": "string"});
+  else wrapSet(P_Legend, 'align', 'str');
+  reseat(P_Legend, ["form", "align", "constructor"]);
+}
+
+// ---- HTMLLinkElement.prototype (Chrome own order, 21 names)
+if (P_Link) {
+  if (!has(P_Link, 'disabled') && !delegate(P_Link, 'disabled')) P.reflector(P_Link, 'disabled', {"attr": "disabled", "iface": "HTMLLinkElement", "kind": "boolean-presence"});
+  if (!has(P_Link, 'href') && !delegate(P_Link, 'href', 'str')) P.reflector(P_Link, 'href', {"attr": "href", "iface": "HTMLLinkElement", "kind": "url"});
+  else wrapSet(P_Link, 'href', 'str');
+  if (!has(P_Link, 'crossOrigin') && !delegate(P_Link, 'crossOrigin')) P.reflector(P_Link, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLLinkElement", "kind": "crossorigin"});
+  if (!has(P_Link, 'rel') && !delegate(P_Link, 'rel', 'str')) P.reflector(P_Link, 'rel', {"attr": "rel", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'rel', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Link, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Link, 'relList', 'rel', ["alternate", "canonical", "compression-dictionary", "dns-prefetch", "icon", "manifest", "modulepreload", "next", "preconnect", "prefetch", "preload", "stylesheet"]); }
+  if (!has(P_Link, 'media') && !delegate(P_Link, 'media', 'str')) P.reflector(P_Link, 'media', {"attr": "media", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'media', 'str');
+  if (!has(P_Link, 'hreflang') && !delegate(P_Link, 'hreflang', 'str')) P.reflector(P_Link, 'hreflang', {"attr": "hreflang", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'hreflang', 'str');
+  if (!has(P_Link, 'type') && !delegate(P_Link, 'type', 'str')) P.reflector(P_Link, 'type', {"attr": "type", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'type', 'str');
+  if (!has(P_Link, 'as') && !delegate(P_Link, 'as', 'str')) P.reflector(P_Link, 'as', {"attr": "as", "iface": "HTMLLinkElement", "invalid": "", "kind": "enum", "map": {"fetch": "fetch", "font": "font", "image": "image", "script": "script", "style": "style", "track": "track"}, "missing": ""});
+  else wrapSet(P_Link, 'as', 'str');
+  if (!has(P_Link, 'referrerPolicy') && !delegate(P_Link, 'referrerPolicy', 'str')) P.reflector(P_Link, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLLinkElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  else wrapSet(P_Link, 'referrerPolicy', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Link, 'sizes'); if (!_o || _o.configurable) tokenAccessor(P_Link, 'sizes', 'sizes', null); }
+  if (!has(P_Link, 'fetchPriority') && !delegate(P_Link, 'fetchPriority', 'str')) P.reflector(P_Link, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLLinkElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
+  else wrapSet(P_Link, 'fetchPriority', 'str');
+  if (!has(P_Link, 'imageSrcset') && !delegate(P_Link, 'imageSrcset', 'str')) P.reflector(P_Link, 'imageSrcset', {"attr": "imagesrcset", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'imageSrcset', 'str');
+  if (!has(P_Link, 'imageSizes') && !delegate(P_Link, 'imageSizes', 'str')) P.reflector(P_Link, 'imageSizes', {"attr": "imagesizes", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'imageSizes', 'str');
+  if (!has(P_Link, 'charset') && !delegate(P_Link, 'charset', 'str')) P.reflector(P_Link, 'charset', {"attr": "charset", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'charset', 'str');
+  if (!has(P_Link, 'rev') && !delegate(P_Link, 'rev', 'str')) P.reflector(P_Link, 'rev', {"attr": "rev", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'rev', 'str');
+  if (!has(P_Link, 'target') && !delegate(P_Link, 'target', 'str')) P.reflector(P_Link, 'target', {"attr": "target", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'target', 'str');
+  if (!has(P_Link, 'integrity') && !delegate(P_Link, 'integrity', 'str')) P.reflector(P_Link, 'integrity', {"attr": "integrity", "iface": "HTMLLinkElement", "kind": "string"});
+  else wrapSet(P_Link, 'integrity', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Link, 'blocking'); if (!_o || _o.configurable) tokenAccessor(P_Link, 'blocking', 'blocking', []); }
+  reseat(P_Link, ["disabled", "href", "crossOrigin", "rel", "relList", "media", "hreflang", "type", "as", "referrerPolicy", "sizes", "fetchPriority", "imageSrcset", "imageSizes", "charset", "rev", "target", "sheet", "integrity", "blocking", "constructor"]);
+}
+
+// ---- HTMLMenuElement.prototype (Chrome own order, 2 names)
+if (P_Menu) {
+  if (!has(P_Menu, 'compact') && !delegate(P_Menu, 'compact')) P.reflector(P_Menu, 'compact', {"attr": "compact", "iface": "HTMLMenuElement", "kind": "boolean-presence"});
+  reseat(P_Menu, ["compact", "constructor"]);
+}
+
+// ---- HTMLMetaElement.prototype (Chrome own order, 6 names)
+if (P_Meta) {
+  if (!has(P_Meta, 'name') && !delegate(P_Meta, 'name', 'str')) P.reflector(P_Meta, 'name', {"attr": "name", "iface": "HTMLMetaElement", "kind": "string"});
+  else wrapSet(P_Meta, 'name', 'str');
+  if (!has(P_Meta, 'httpEquiv') && !delegate(P_Meta, 'httpEquiv', 'str')) P.reflector(P_Meta, 'httpEquiv', {"attr": "http-equiv", "iface": "HTMLMetaElement", "kind": "string"});
+  else wrapSet(P_Meta, 'httpEquiv', 'str');
+  if (!has(P_Meta, 'content') && !delegate(P_Meta, 'content', 'str')) P.reflector(P_Meta, 'content', {"attr": "content", "iface": "HTMLMetaElement", "kind": "string"});
+  else wrapSet(P_Meta, 'content', 'str');
+  if (!has(P_Meta, 'media') && !delegate(P_Meta, 'media', 'str')) P.reflector(P_Meta, 'media', {"attr": "media", "iface": "HTMLMetaElement", "kind": "string"});
+  else wrapSet(P_Meta, 'media', 'str');
+  if (!has(P_Meta, 'scheme') && !delegate(P_Meta, 'scheme', 'str')) P.reflector(P_Meta, 'scheme', {"attr": "scheme", "iface": "HTMLMetaElement", "kind": "string"});
+  else wrapSet(P_Meta, 'scheme', 'str');
+  reseat(P_Meta, ["name", "httpEquiv", "content", "media", "scheme", "constructor"]);
+}
+
+// ---- HTMLModElement.prototype (Chrome own order, 3 names)
+if (P_Mod) {
+  if (!has(P_Mod, 'cite') && !delegate(P_Mod, 'cite', 'str')) P.reflector(P_Mod, 'cite', {"attr": "cite", "iface": "HTMLModElement", "kind": "url"});
+  else wrapSet(P_Mod, 'cite', 'str');
+  if (!has(P_Mod, 'dateTime') && !delegate(P_Mod, 'dateTime', 'str')) P.reflector(P_Mod, 'dateTime', {"attr": "datetime", "iface": "HTMLModElement", "kind": "string"});
+  else wrapSet(P_Mod, 'dateTime', 'str');
+  reseat(P_Mod, ["cite", "dateTime", "constructor"]);
+}
+
+// ---- HTMLOptGroupElement.prototype (Chrome own order, 3 names)
+if (P_OptGroup) {
+  if (!has(P_OptGroup, 'disabled') && !delegate(P_OptGroup, 'disabled')) P.reflector(P_OptGroup, 'disabled', {"attr": "disabled", "iface": "HTMLOptGroupElement", "kind": "boolean-presence"});
+  if (!has(P_OptGroup, 'label') && !delegate(P_OptGroup, 'label', 'str')) P.reflector(P_OptGroup, 'label', {"attr": "label", "iface": "HTMLOptGroupElement", "kind": "string"});
+  else wrapSet(P_OptGroup, 'label', 'str');
+  reseat(P_OptGroup, ["disabled", "label", "constructor"]);
+}
+
+// ---- HTMLParamElement.prototype (Chrome own order, 5 names)
+if (P_Param) {
+  if (!has(P_Param, 'name') && !delegate(P_Param, 'name', 'str')) P.reflector(P_Param, 'name', {"attr": "name", "iface": "HTMLParamElement", "kind": "string"});
+  else wrapSet(P_Param, 'name', 'str');
+  if (!has(P_Param, 'value')) P.reflector(P_Param, 'value', {"attr": "value", "iface": "HTMLParamElement", "kind": "string"});
+  if (!has(P_Param, 'type') && !delegate(P_Param, 'type', 'str')) P.reflector(P_Param, 'type', {"attr": "type", "iface": "HTMLParamElement", "kind": "string"});
+  else wrapSet(P_Param, 'type', 'str');
+  if (!has(P_Param, 'valueType') && !delegate(P_Param, 'valueType', 'str')) P.reflector(P_Param, 'valueType', {"attr": "valuetype", "iface": "HTMLParamElement", "kind": "string"});
+  else wrapSet(P_Param, 'valueType', 'str');
+  reseat(P_Param, ["name", "value", "type", "valueType", "constructor"]);
+}
+
+// ---- HTMLPreElement.prototype (Chrome own order, 2 names)
+if (P_Pre) {
+  if (!has(P_Pre, 'width') && !delegate(P_Pre, 'width')) P.reflector(P_Pre, 'width', {"attr": "width", "iface": "HTMLPreElement", "kind": "long"});
+  reseat(P_Pre, ["width", "constructor"]);
+}
+
+// ---- HTMLQuoteElement.prototype (Chrome own order, 2 names)
+if (P_Quote) {
+  if (!has(P_Quote, 'cite') && !delegate(P_Quote, 'cite', 'str')) P.reflector(P_Quote, 'cite', {"attr": "cite", "iface": "HTMLQuoteElement", "kind": "url"});
+  else wrapSet(P_Quote, 'cite', 'str');
+  reseat(P_Quote, ["cite", "constructor"]);
+}
+
+// ---- HTMLScriptElement.prototype (Chrome own order, 18 names)
+if (P_Script) {
+  if (!has(P_Script, 'src') && !delegate(P_Script, 'src', 'str')) P.reflector(P_Script, 'src', {"attr": "src", "iface": "HTMLScriptElement", "kind": "url"});
+  else wrapSet(P_Script, 'src', 'str');
+  if (!has(P_Script, 'type') && !delegate(P_Script, 'type', 'str')) P.reflector(P_Script, 'type', {"attr": "type", "iface": "HTMLScriptElement", "kind": "string"});
+  else wrapSet(P_Script, 'type', 'str');
+  if (!has(P_Script, 'noModule') && !delegate(P_Script, 'noModule')) P.reflector(P_Script, 'noModule', {"attr": "nomodule", "iface": "HTMLScriptElement", "kind": "boolean-presence"});
+  if (!has(P_Script, 'charset') && !delegate(P_Script, 'charset', 'str')) P.reflector(P_Script, 'charset', {"attr": "charset", "iface": "HTMLScriptElement", "kind": "string"});
+  else wrapSet(P_Script, 'charset', 'str');
+  if (!has(P_Script, 'async') && !delegate(P_Script, 'async', 'str')) P.accessor(P_Script, 'async', function __f() { return B.get('async', this); }, function __f(x) { B.set('async', this, x); });
+  if (!has(P_Script, 'defer') && !delegate(P_Script, 'defer')) P.reflector(P_Script, 'defer', {"attr": "defer", "iface": "HTMLScriptElement", "kind": "boolean-presence"});
+  if (!has(P_Script, 'crossOrigin') && !delegate(P_Script, 'crossOrigin')) P.reflector(P_Script, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLScriptElement", "kind": "crossorigin"});
+  if (!has(P_Script, 'text') && !delegate(P_Script, 'text', 'str')) P.accessor(P_Script, 'text', function __f() { return B.get('text', this); }, function __f(x) { B.set('text', this, x); }); else wrapSet(P_Script, 'text', 'str');
+  if (!has(P_Script, 'referrerPolicy') && !delegate(P_Script, 'referrerPolicy', 'str')) P.reflector(P_Script, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLScriptElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": "", "nullRemoves": true});
+  else wrapSet(P_Script, 'referrerPolicy', 'str');
+  if (!has(P_Script, 'fetchPriority') && !delegate(P_Script, 'fetchPriority', 'str')) P.reflector(P_Script, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLScriptElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
+  else wrapSet(P_Script, 'fetchPriority', 'str');
+  if (!has(P_Script, 'event') && !delegate(P_Script, 'event', 'str')) P.reflector(P_Script, 'event', {"attr": "event", "iface": "HTMLScriptElement", "kind": "string"});
+  else wrapSet(P_Script, 'event', 'str');
+  if (!has(P_Script, 'htmlFor')) P.reflector(P_Script, 'htmlFor', {"attr": "for", "iface": "HTMLScriptElement", "kind": "string"});
+  if (!has(P_Script, 'integrity') && !delegate(P_Script, 'integrity', 'str')) P.reflector(P_Script, 'integrity', {"attr": "integrity", "iface": "HTMLScriptElement", "kind": "string"});
+  else wrapSet(P_Script, 'integrity', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Script, 'blocking'); if (!_o || _o.configurable) tokenAccessor(P_Script, 'blocking', 'blocking', []); }
+  if (!has(P_Script, 'textContent') && !delegate(P_Script, 'textContent')) P.accessor(P_Script, 'textContent', function __f() { return B.get('textContent', this); }, function __f(x) { B.set('textContent', this, x); });
+  if (!has(P_Script, 'innerText') && !delegate(P_Script, 'innerText')) P.accessor(P_Script, 'innerText', function __f() { return B.get('innerText', this); }, function __f(x) { B.set('innerText', this, x); });
+  if (!has(P_Script, 'attributionSrc') && !delegate(P_Script, 'attributionSrc', 'str')) P.reflector(P_Script, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLScriptElement", "kind": "string"});
+  else wrapSet(P_Script, 'attributionSrc', 'str');
+  reseat(P_Script, ["src", "type", "noModule", "charset", "async", "defer", "crossOrigin", "text", "referrerPolicy", "fetchPriority", "event", "htmlFor", "integrity", "blocking", "textContent", "innerText", "constructor", "attributionSrc"]);
+}
+
+// ---- HTMLSourceElement.prototype (Chrome own order, 8 names)
+if (P_Source) {
+  if (!has(P_Source, 'src') && !delegate(P_Source, 'src', 'str')) P.reflector(P_Source, 'src', {"attr": "src", "iface": "HTMLSourceElement", "kind": "url"});
+  else wrapSet(P_Source, 'src', 'str');
+  if (!has(P_Source, 'type') && !delegate(P_Source, 'type', 'str')) P.reflector(P_Source, 'type', {"attr": "type", "iface": "HTMLSourceElement", "kind": "string"});
+  else wrapSet(P_Source, 'type', 'str');
+  if (!has(P_Source, 'srcset') && !delegate(P_Source, 'srcset', 'str')) P.reflector(P_Source, 'srcset', {"attr": "srcset", "iface": "HTMLSourceElement", "kind": "string"});
+  else wrapSet(P_Source, 'srcset', 'str');
+  if (!has(P_Source, 'sizes')) P.reflector(P_Source, 'sizes', {"attr": "sizes", "iface": "HTMLSourceElement", "kind": "string"});
+  if (!has(P_Source, 'media') && !delegate(P_Source, 'media', 'str')) P.reflector(P_Source, 'media', {"attr": "media", "iface": "HTMLSourceElement", "kind": "string"});
+  else wrapSet(P_Source, 'media', 'str');
+  if (!has(P_Source, 'width') && !delegate(P_Source, 'width')) P.reflector(P_Source, 'width', {"attr": "width", "iface": "HTMLSourceElement", "kind": "unsigned-long"});
+  if (!has(P_Source, 'height') && !delegate(P_Source, 'height')) P.reflector(P_Source, 'height', {"attr": "height", "iface": "HTMLSourceElement", "kind": "unsigned-long"});
+  reseat(P_Source, ["src", "type", "srcset", "sizes", "media", "width", "height", "constructor"]);
+}
+
+// ---- HTMLStyleElement.prototype (Chrome own order, 6 names)
+if (P_Style) {
+  if (!has(P_Style, 'disabled')) P.accessor(P_Style, 'disabled', function __f() { return B.get('disabled', this); }, function __f(x) { B.set('disabled', this, x); });
+  if (!has(P_Style, 'media') && !delegate(P_Style, 'media', 'str')) P.reflector(P_Style, 'media', {"attr": "media", "iface": "HTMLStyleElement", "kind": "string"});
+  else wrapSet(P_Style, 'media', 'str');
+  if (!has(P_Style, 'type') && !delegate(P_Style, 'type', 'str')) P.reflector(P_Style, 'type', {"attr": "type", "iface": "HTMLStyleElement", "kind": "string"});
+  else wrapSet(P_Style, 'type', 'str');
+  { const _o = Object.getOwnPropertyDescriptor(P_Style, 'blocking'); if (!_o || _o.configurable) tokenAccessor(P_Style, 'blocking', 'blocking', []); }
+  reseat(P_Style, ["disabled", "media", "type", "sheet", "blocking", "constructor"]);
+}
+
+// ---- HTMLTableCaptionElement.prototype (Chrome own order, 2 names)
+if (P_TableCaption) {
+  if (!has(P_TableCaption, 'align') && !delegate(P_TableCaption, 'align', 'str')) P.reflector(P_TableCaption, 'align', {"attr": "align", "iface": "HTMLTableCaptionElement", "kind": "string"});
+  else wrapSet(P_TableCaption, 'align', 'str');
+  reseat(P_TableCaption, ["align", "constructor"]);
+}
+
+// ---- HTMLTimeElement.prototype (Chrome own order, 2 names)
+if (P_Time) {
+  if (!has(P_Time, 'dateTime') && !delegate(P_Time, 'dateTime', 'str')) P.reflector(P_Time, 'dateTime', {"attr": "datetime", "iface": "HTMLTimeElement", "kind": "string"});
+  else wrapSet(P_Time, 'dateTime', 'str');
+  reseat(P_Time, ["dateTime", "constructor"]);
+}
+
+// ---- HTMLTitleElement.prototype (Chrome own order, 2 names)
+if (P_Title) {
+  if (!has(P_Title, 'text')) P.accessor(P_Title, 'text', function __f() { return B.get('text', this); }, function __f(x) { B.set('text', this, x); }); else wrapSet(P_Title, 'text', 'str');
+  reseat(P_Title, ["text", "constructor"]);
+}
 });
 
 // ---- module gen/storage (L2) ----

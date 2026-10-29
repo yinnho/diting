@@ -58,9 +58,9 @@ function reseat(P, order) {
 if (!has(MED, 'error')) P.getter(MED, 'error', function __f() { return null; });
 if (!has(MED, 'src')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, 'src'); if (_d && _d.get && _d.set) P.accessor(MED, 'src', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }
 if (!has(MED, 'currentSrc')) P.getter(MED, 'currentSrc', function __f() { return ''; });
-if (!has(MED, 'crossOrigin')) P.reflector(MED, 'crossOrigin', {"attr": "crossorigin", "kind": "crossorigin"});
+if (!has(MED, 'crossOrigin')) P.reflector(MED, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLMediaElement", "kind": "crossorigin"});
 // networkState: engine-owned, kept (reseat relocates)
-if (!has(MED, 'preload')) P.reflector(MED, 'preload', {"attr": "preload", "default": "metadata", "fallback": "metadata", "kind": "known-fallback", "known": ["none", "metadata", "auto"]});
+if (!has(MED, 'preload')) P.reflector(MED, 'preload', {"attr": "preload", "empty": "auto", "iface": "HTMLMediaElement", "invalid": "metadata", "kind": "enum", "map": {"auto": "auto", "none": "none"}, "missing": "metadata"});
 // buffered: engine-owned, kept (reseat relocates)
 // readyState: engine-owned, kept (reseat relocates)
 // seeking: engine-owned, kept (reseat relocates)
@@ -72,14 +72,14 @@ if (!has(MED, 'defaultPlaybackRate')) P.accessor(MED, 'defaultPlaybackRate', fun
 // played: engine-owned, kept (reseat relocates)
 // seekable: engine-owned, kept (reseat relocates)
 // ended: engine-owned, kept (reseat relocates)
-if (!has(MED, 'autoplay')) P.reflector(MED, 'autoplay', {"attr": "autoplay", "kind": "boolean-presence"});
-if (!has(MED, 'loop')) P.reflector(MED, 'loop', {"attr": "loop", "kind": "boolean-presence"});
+if (!has(MED, 'autoplay')) P.reflector(MED, 'autoplay', {"attr": "autoplay", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
+if (!has(MED, 'loop')) P.reflector(MED, 'loop', {"attr": "loop", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'preservesPitch')) P.accessor(MED, 'preservesPitch', function __f() { return B.get('preservesPitch', this); }, function __f(v) { B.set('preservesPitch', this, v); });
-if (!has(MED, 'controls')) P.reflector(MED, 'controls', {"attr": "controls", "kind": "boolean-presence"});
+if (!has(MED, 'controls')) P.reflector(MED, 'controls', {"attr": "controls", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'controlsList')) P.accessor(MED, 'controlsList', function __f() { return B.get('controlsList', this); }, function __f(v) { B.set('controlsList', this, v); });
 if (!has(MED, 'volume')) P.accessor(MED, 'volume', function __f() { return B.get('volume', this); }, function __f(v) { B.set('volume', this, v); });
 if (!has(MED, 'muted')) P.accessor(MED, 'muted', function __f() { return B.get('muted', this); }, function __f(v) { B.set('muted', this, v); });
-if (!has(MED, 'defaultMuted')) P.reflector(MED, 'defaultMuted', {"attr": "muted", "kind": "boolean-presence"});
+if (!has(MED, 'defaultMuted')) P.reflector(MED, 'defaultMuted', {"attr": "muted", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'textTracks')) P.getter(MED, 'textTracks', function __f() { return B.get('textTracks', this); });
 if (!has(MED, 'webkitAudioDecodedByteCount')) P.getter(MED, 'webkitAudioDecodedByteCount', function __f() { return 0; });
 if (!has(MED, 'webkitVideoDecodedByteCount')) P.getter(MED, 'webkitVideoDecodedByteCount', function __f() { return 0; });
@@ -103,7 +103,7 @@ if (!has(MED, 'captureStream')) P.method(MED, 'captureStream', 0, function __f()
 // play: engine-owned, kept (reseat relocates)
 if (!has(MED, 'sinkId')) P.getter(MED, 'sinkId', function __f() { return ''; });
 if (!has(MED, 'remote')) P.getter(MED, 'remote', function __f() { return B.get('remote', this); });
-if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "kind": "boolean-presence"});
+if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'setSinkId')) P.method(MED, 'setSinkId', 1, function __f() { const ctx = "Failed to execute 'setSinkId' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setSinkId', this, ctx, arguments); });
 if (!has(MED, 'mediaKeys')) P.getter(MED, 'mediaKeys', function __f() { return B.get('mediaKeys', this); });
 if (!has(MED, 'setMediaKeys')) P.method(MED, 'setMediaKeys', 1, function __f() { const ctx = "Failed to execute 'setMediaKeys' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setMediaKeys', this, ctx, arguments); });
@@ -111,17 +111,17 @@ reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "prelo
 
 // ---- HTMLVideoElement.prototype (Chrome own order VID.order; installs guarded,
 // kind fixes applied, reseat() walk last)
-if (!has(VID, 'width')) P.reflector(VID, 'width', {"attr": "width", "kind": "unsigned-long"});
-if (!has(VID, 'height')) P.reflector(VID, 'height', {"attr": "height", "kind": "unsigned-long"});
+if (!has(VID, 'width')) P.reflector(VID, 'width', {"attr": "width", "iface": "HTMLVideoElement", "kind": "unsigned-long"});
+if (!has(VID, 'height')) P.reflector(VID, 'height', {"attr": "height", "iface": "HTMLVideoElement", "kind": "unsigned-long"});
 if (!has(VID, 'videoWidth')) P.getter(VID, 'videoWidth', function __f() { return 0; });
 if (!has(VID, 'videoHeight')) P.getter(VID, 'videoHeight', function __f() { return 0; });
-if (!has(VID, 'poster')) P.reflector(VID, 'poster', {"attr": "poster", "kind": "url"});
+if (!has(VID, 'poster')) P.reflector(VID, 'poster', {"attr": "poster", "iface": "HTMLVideoElement", "kind": "url"});
 if (!has(VID, 'webkitDecodedFrameCount')) P.getter(VID, 'webkitDecodedFrameCount', function __f() { return 0; });
 if (!has(VID, 'webkitDroppedFrameCount')) P.getter(VID, 'webkitDroppedFrameCount', function __f() { return 0; });
-if (!has(VID, 'playsInline')) P.reflector(VID, 'playsInline', {"attr": "playsinline", "kind": "boolean-presence"});
+if (!has(VID, 'playsInline')) P.reflector(VID, 'playsInline', {"attr": "playsinline", "iface": "HTMLVideoElement", "kind": "boolean-presence"});
 delete VID['onenterpictureinpicture']; installOn(VID, 'onenterpictureinpicture', true);
 delete VID['onleavepictureinpicture']; installOn(VID, 'onleavepictureinpicture', true);
-if (!has(VID, 'disablePictureInPicture')) P.reflector(VID, 'disablePictureInPicture', {"attr": "disablepictureinpicture", "kind": "boolean-presence"});
+if (!has(VID, 'disablePictureInPicture')) P.reflector(VID, 'disablePictureInPicture', {"attr": "disablepictureinpicture", "iface": "HTMLVideoElement", "kind": "boolean-presence"});
 if (!has(VID, 'cancelVideoFrameCallback')) P.method(VID, 'cancelVideoFrameCallback', 1, function __f() { const ctx = "Failed to execute 'cancelVideoFrameCallback' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('cancelVideoFrameCallback', this, ctx, arguments); });
 if (!has(VID, 'getVideoPlaybackQuality')) P.method(VID, 'getVideoPlaybackQuality', 0, function __f() { const ctx = "Failed to execute 'getVideoPlaybackQuality' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getVideoPlaybackQuality', this, ctx, arguments); });
 if (!has(VID, 'requestPictureInPicture')) P.method(VID, 'requestPictureInPicture', 0, function __f() { const ctx = "Failed to execute 'requestPictureInPicture' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPictureInPicture', this, ctx, arguments); });
@@ -130,35 +130,35 @@ reseat(VID, ["width", "height", "videoWidth", "videoHeight", "poster", "webkitDe
 
 // ---- HTMLImageElement.prototype (Chrome own order IMG.order; installs guarded,
 // kind fixes applied, reseat() walk last)
-if (!has(IMG, 'alt')) P.reflector(IMG, 'alt', {"attr": "alt", "kind": "string"});
+if (!has(IMG, 'alt')) P.reflector(IMG, 'alt', {"attr": "alt", "iface": "HTMLImageElement", "kind": "string"});
 // src: engine-owned, kept (reseat relocates)
-if (!has(IMG, 'srcset')) P.reflector(IMG, 'srcset', {"attr": "srcset", "kind": "string"});
-(function () { const d = Object.getOwnPropertyDescriptor(IMG, 'sizes'); if (d && d.get && !d.set) { const set = function (v) { this.setAttribute('sizes', v === undefined || v === null ? '' : String(v)); }; Object.defineProperty(set, 'name', { value: 'set sizes', configurable: true }); Object.defineProperty(set, 'length', { value: 1, configurable: true }); _markNative(set); Object.defineProperty(IMG, 'sizes', { get: d.get, set: set, enumerable: true, configurable: true }); } })();
-if (!has(IMG, 'crossOrigin')) P.reflector(IMG, 'crossOrigin', {"attr": "crossorigin", "kind": "crossorigin"});
-if (!has(IMG, 'useMap')) P.reflector(IMG, 'useMap', {"attr": "usemap", "kind": "string"});
-if (!has(IMG, 'isMap')) P.reflector(IMG, 'isMap', {"attr": "ismap", "kind": "boolean-presence"});
-if (!has(IMG, 'width')) P.reflector(IMG, 'width', {"attr": "width", "kind": "unsigned-long"});
-if (!has(IMG, 'height')) P.reflector(IMG, 'height', {"attr": "height", "kind": "unsigned-long"});
+if (!has(IMG, 'srcset')) P.reflector(IMG, 'srcset', {"attr": "srcset", "iface": "HTMLImageElement", "kind": "string"});
+delete IMG['sizes']; P.reflector(IMG, 'sizes', {"attr": "sizes", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'crossOrigin')) P.reflector(IMG, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLImageElement", "kind": "crossorigin"});
+if (!has(IMG, 'useMap')) P.reflector(IMG, 'useMap', {"attr": "usemap", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'isMap')) P.reflector(IMG, 'isMap', {"attr": "ismap", "iface": "HTMLImageElement", "kind": "boolean-presence"});
+if (!has(IMG, 'width')) P.reflector(IMG, 'width', {"attr": "width", "iface": "HTMLImageElement", "kind": "unsigned-long-dim"});
+if (!has(IMG, 'height')) P.reflector(IMG, 'height', {"attr": "height", "iface": "HTMLImageElement", "kind": "unsigned-long-dim"});
 if (!has(IMG, 'naturalWidth')) P.getter(IMG, 'naturalWidth', function __f() { return 0; });
 if (!has(IMG, 'naturalHeight')) P.getter(IMG, 'naturalHeight', function __f() { return 0; });
 if (!has(IMG, 'complete')) P.getter(IMG, 'complete', function __f() { return B.get('complete', this); });
 if (!has(IMG, 'currentSrc')) P.getter(IMG, 'currentSrc', function __f() { return ''; });
-if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "default": "", "kind": "string-known", "known": ["", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"]});
-if (!has(IMG, 'decoding')) P.reflector(IMG, 'decoding', {"attr": "decoding", "default": "auto", "fallback": "auto", "kind": "known-fallback", "known": ["sync", "async", "auto"]});
-if (!has(IMG, 'fetchPriority')) P.reflector(IMG, 'fetchPriority', {"attr": "fetchpriority", "default": "auto", "kind": "string-known", "known": ["auto", "high", "low"]});
-if (!has(IMG, 'loading')) P.reflector(IMG, 'loading', {"attr": "loading", "default": "auto", "fallback": "auto", "kind": "known-fallback", "known": ["eager", "lazy"]});
+if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLImageElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+if (!has(IMG, 'decoding')) P.reflector(IMG, 'decoding', {"attr": "decoding", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"async": "async", "sync": "sync"}, "missing": "auto"});
+if (!has(IMG, 'fetchPriority')) P.reflector(IMG, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
+if (!has(IMG, 'loading')) P.reflector(IMG, 'loading', {"attr": "loading", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"eager": "eager", "lazy": "lazy"}, "missing": "auto"});
 if (!has(IMG, 'name')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, 'name'); if (_d && _d.get && _d.set) P.accessor(IMG, 'name', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }
-if (!has(IMG, 'lowsrc')) P.reflector(IMG, 'lowsrc', {"attr": "lowsrc", "kind": "string"});
-if (!has(IMG, 'align')) P.reflector(IMG, 'align', {"attr": "align", "kind": "string"});
-if (!has(IMG, 'hspace')) P.reflector(IMG, 'hspace', {"attr": "hspace", "kind": "unsigned-long"});
-if (!has(IMG, 'vspace')) P.reflector(IMG, 'vspace', {"attr": "vspace", "kind": "unsigned-long"});
-if (!has(IMG, 'longDesc')) P.reflector(IMG, 'longDesc', {"attr": "longdesc", "kind": "string"});
-if (!has(IMG, 'border')) P.reflector(IMG, 'border', {"attr": "border", "kind": "string"});
+if (!has(IMG, 'lowsrc')) P.reflector(IMG, 'lowsrc', {"attr": "lowsrc", "iface": "HTMLImageElement", "kind": "url"});
+if (!has(IMG, 'align')) P.reflector(IMG, 'align', {"attr": "align", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'hspace')) P.reflector(IMG, 'hspace', {"attr": "hspace", "iface": "HTMLImageElement", "kind": "unsigned-long"});
+if (!has(IMG, 'vspace')) P.reflector(IMG, 'vspace', {"attr": "vspace", "iface": "HTMLImageElement", "kind": "unsigned-long"});
+if (!has(IMG, 'longDesc')) P.reflector(IMG, 'longDesc', {"attr": "longdesc", "iface": "HTMLImageElement", "kind": "url"});
+if (!has(IMG, 'border')) P.reflector(IMG, 'border', {"attr": "border", "iface": "HTMLImageElement", "kind": "string-nte"});
 if (!has(IMG, 'x')) P.getter(IMG, 'x', function __f() { return 0; });
 if (!has(IMG, 'y')) P.getter(IMG, 'y', function __f() { return 0; });
 if (!has(IMG, 'decode')) P.method(IMG, 'decode', 0, function __f() { const ctx = "Failed to execute 'decode' on 'HTMLImageElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('decode', this, ctx, arguments); });
-if (!has(IMG, 'browsingTopics')) P.reflector(IMG, 'browsingTopics', {"attr": "browsingtopics", "kind": "boolean-presence"});
-if (!has(IMG, 'attributionSrc')) P.reflector(IMG, 'attributionSrc', {"attr": "attributionsrc", "kind": "string"});
-if (!has(IMG, 'sharedStorageWritable')) P.reflector(IMG, 'sharedStorageWritable', {"attr": "sharedstoragewritable", "kind": "boolean-presence"});
+if (!has(IMG, 'browsingTopics')) P.reflector(IMG, 'browsingTopics', {"attr": "browsingtopics", "iface": "HTMLImageElement", "kind": "boolean-presence"});
+if (!has(IMG, 'attributionSrc')) P.reflector(IMG, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLImageElement", "kind": "string"});
+if (!has(IMG, 'sharedStorageWritable')) P.reflector(IMG, 'sharedStorageWritable', {"attr": "sharedstoragewritable", "iface": "HTMLImageElement", "kind": "boolean-presence"});
 reseat(IMG, ["alt", "src", "srcset", "sizes", "crossOrigin", "useMap", "isMap", "width", "height", "naturalWidth", "naturalHeight", "complete", "currentSrc", "referrerPolicy", "decoding", "fetchPriority", "loading", "name", "lowsrc", "align", "hspace", "vspace", "longDesc", "border", "x", "y", "decode", "constructor", "browsingTopics", "attributionSrc", "sharedStorageWritable"]);
 
