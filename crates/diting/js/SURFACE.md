@@ -87,3 +87,11 @@ Rust 测试 `test_request_and_response_keep_binary_bodies_intact` / `test_text_d
 external_references 恒为 5 条，与接口数无关。DOMRect*/DOMPoint* 四个接口，探针 63 项：裸 V8（快照恢复/新建）全一致，
 完整引擎 62/63（缺 `DOMPointReadOnly.matrixTransform`，待 DOMMatrix 原生化）。跨族品牌（DOMRect getter 作用于 DOMPoint）
 走 family 标签拒绝，变异验证过。structuredClone：原生实例由 `client_rects.js` 的 `__diting_clone_hooks` 重建（按 @@toStringTag）。
+
+## M3 步骤1：DOMException 原生化（2026-10-29）
+
+`native/exceptions.rs`：描述符声明（字符串槽 message/name，`code` 由 name 派生，25 个遗留常量同时挂构造函数与原型，原型链接 Error.prototype）。
+bootstrap.js 里的 JS 版已删除（−34 行）。探针 36 项对 Chrome 145：裸 V8（快照恢复/新建）与完整引擎全一致；Event 族探针 31→38/71。
+声明层扩展：`Def/Val`（数值/字符串槽）、`consts`、可选 `factory`、`error_like`；全部接口共用一张表（`native/mod.rs::IFACES`）。
+回归修复：JS structuredClone 的 Error 分支会对副本赋 `name`（原生 DOMException 是只读访问器）——钩子查找提前到 Error 分支之前，
+新增 `native_clone.js` 统一登记原生接口的克隆钩子（几何 + DOMException）；测试 test_structured_clone_of_native_dom_exception_and_geometry（变异验证过）。

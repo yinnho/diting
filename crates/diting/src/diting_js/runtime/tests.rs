@@ -13983,6 +13983,18 @@
         assert_eq!(result.value.unwrap(), serde_json::json!(true));
     }
 
+    // Native DOMException keeps name/message in slots (accessors, no setters):
+    // structuredClone must rebuild it via the clone hook, not assign onto a copy.
+    #[test]
+    fn test_structured_clone_of_native_dom_exception_and_geometry() {
+        let mut rt = setup_runtime("<html><body></body></html>");
+        let r = rt.evaluate(
+            "(function(){ var e = new DOMException('m','AbortError'); var c = structuredClone({e:e, r:new DOMRect(1,2,3,4), p:new DOMPoint(5,6,7,8)}); \
+              return [c.e.name, c.e.message, c.e.code, c.e !== e, c.e instanceof DOMException, c.r.right, c.p.w, Object.getOwnPropertyNames(c.e).length].join(','); })()"
+        ).unwrap();
+        assert_eq!(r.as_str().unwrap(), "AbortError,m,20,true,true,4,8,0");
+    }
+
     #[test]
     fn test_document_doctype() {
         let mut rt = setup_runtime("<!DOCTYPE html><html><body></body></html>");

@@ -18,7 +18,18 @@
 //!    table (append-only, order is load-bearing).
 
 pub(crate) mod declare;
+pub(crate) mod exceptions;
 pub(crate) mod geometry;
+
+/// The one interface table. `parent` fields index into THIS slice; order
+/// is install order (a parent precedes its children).
+pub(crate) static IFACES: declare::Table = &[
+    &geometry::RECT_RO,   // 0
+    &geometry::RECT,      // 1
+    &geometry::POINT_RO,  // 2
+    &geometry::POINT,     // 3
+    &exceptions::DOM_EXCEPTION, // 4
+];
 
 /// Native callbacks that must be registered as external references.
 pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
@@ -28,5 +39,5 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
 /// Install every native interface onto the context's global. Runs inside
 /// `install_faces`, so the bake and a fresh VM see the identical object.
 pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: v8::Local<v8::Object>) {
-    declare::install(scope, global, geometry::IFACES);
+    declare::install(scope, global, IFACES);
 }

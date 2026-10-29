@@ -1,0 +1,491 @@
+{
+ "assign": [
+  "AbortError",
+  "m",
+  20
+ ],
+ "assign.strict": "THROW TypeError: Cannot set property name of  which has only a getter",
+ "call": "THROW TypeError: Failed to construct 'DOMException': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "captureStackTrace": [
+  "string",
+  [
+   "stack"
+  ]
+ ],
+ "cause.like": [
+  5,
+  [
+   "cause"
+  ]
+ ],
+ "consts": [
+  20,
+  20,
+  {
+   "c": false,
+   "e": true,
+   "t": "number",
+   "v": 20,
+   "w": false
+  },
+  {
+   "c": false,
+   "e": true,
+   "t": "number",
+   "v": 20,
+   "w": false
+  },
+  25,
+  16,
+  2
+ ],
+ "consts.assign": 20,
+ "ctor.args": [
+  "AbortError",
+  "m",
+  20,
+  "AbortError: m",
+  true,
+  "[object DOMException]"
+ ],
+ "ctor.noargs": [
+  "Error",
+  "",
+  0,
+  "Error"
+ ],
+ "ctor.one": [
+  "Error",
+  "only",
+  0
+ ],
+ "defineProp": [
+  "Own",
+  [
+   "name"
+  ]
+ ],
+ "freeze": [
+  "AbortError",
+  true
+ ],
+ "global.desc": {
+  "c": true,
+  "e": false,
+  "len": 0,
+  "name": "DOMException",
+  "nat": true,
+  "t": "function",
+  "w": true
+ },
+ "illegal.message": "THROW TypeError: Illegal invocation",
+ "illegal.name": "THROW TypeError: Illegal invocation",
+ "illegal.proto": "THROW TypeError: Illegal invocation",
+ "instanceof": [
+  true,
+  true,
+  true,
+  true
+ ],
+ "json": "{}",
+ "keys.forin": [
+  "code",
+  "name",
+  "message",
+  "INDEX_SIZE_ERR",
+  "DOMSTRING_SIZE_ERR",
+  "HIERARCHY_REQUEST_ERR",
+  "WRONG_DOCUMENT_ERR",
+  "INVALID_CHARACTER_ERR",
+  "NO_DATA_ALLOWED_ERR",
+  "NO_MODIFICATION_ALLOWED_ERR",
+  "NOT_FOUND_ERR",
+  "NOT_SUPPORTED_ERR",
+  "INUSE_ATTRIBUTE_ERR",
+  "INVALID_STATE_ERR",
+  "SYNTAX_ERR",
+  "INVALID_MODIFICATION_ERR",
+  "NAMESPACE_ERR",
+  "INVALID_ACCESS_ERR",
+  "VALIDATION_ERR",
+  "TYPE_MISMATCH_ERR",
+  "SECURITY_ERR",
+  "NETWORK_ERR",
+  "ABORT_ERR",
+  "URL_MISMATCH_ERR",
+  "QUOTA_EXCEEDED_ERR",
+  "TIMEOUT_ERR",
+  "INVALID_NODE_TYPE_ERR",
+  "DATA_CLONE_ERR"
+ ],
+ "legacyCodes": [
+  1,
+  11,
+  25,
+  20,
+  23,
+  8,
+  22,
+  12
+ ],
+ "msgConv": "o",
+ "msgConv.null": [
+  "null",
+  "null"
+ ],
+ "msgConv.num": [
+  "12",
+  "34"
+ ],
+ "msgConv.undef": [
+  "",
+  "Error"
+ ],
+ "ownkeys": [],
+ "reflect.construct": [
+  1,
+  true,
+  "undefined"
+ ],
+ "shape": {
+  "ctorParent": "Function",
+  "len": 0,
+  "members": {
+   "ABORT_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 20,
+    "w": false
+   },
+   "DATA_CLONE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 25,
+    "w": false
+   },
+   "DOMSTRING_SIZE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 2,
+    "w": false
+   },
+   "HIERARCHY_REQUEST_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 3,
+    "w": false
+   },
+   "INDEX_SIZE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 1,
+    "w": false
+   },
+   "INUSE_ATTRIBUTE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 10,
+    "w": false
+   },
+   "INVALID_ACCESS_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 15,
+    "w": false
+   },
+   "INVALID_CHARACTER_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 5,
+    "w": false
+   },
+   "INVALID_MODIFICATION_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 13,
+    "w": false
+   },
+   "INVALID_NODE_TYPE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 24,
+    "w": false
+   },
+   "INVALID_STATE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 11,
+    "w": false
+   },
+   "NAMESPACE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 14,
+    "w": false
+   },
+   "NETWORK_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 19,
+    "w": false
+   },
+   "NOT_FOUND_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 8,
+    "w": false
+   },
+   "NOT_SUPPORTED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 9,
+    "w": false
+   },
+   "NO_DATA_ALLOWED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 6,
+    "w": false
+   },
+   "NO_MODIFICATION_ALLOWED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 7,
+    "w": false
+   },
+   "QUOTA_EXCEEDED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 22,
+    "w": false
+   },
+   "SECURITY_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 18,
+    "w": false
+   },
+   "SYNTAX_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 12,
+    "w": false
+   },
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "DOMException",
+    "w": false
+   },
+   "TIMEOUT_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 23,
+    "w": false
+   },
+   "TYPE_MISMATCH_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 17,
+    "w": false
+   },
+   "URL_MISMATCH_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 21,
+    "w": false
+   },
+   "VALIDATION_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 16,
+    "w": false
+   },
+   "WRONG_DOCUMENT_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 4,
+    "w": false
+   },
+   "code": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get code",
+     "nat": true
+    },
+    "s": null
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "DOMException",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "message": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get message",
+     "nat": true
+    },
+    "s": null
+   },
+   "name": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get name",
+     "nat": true
+    },
+    "s": null
+   }
+  },
+  "name": "DOMException",
+  "order": [
+   "code",
+   "name",
+   "message",
+   "INDEX_SIZE_ERR",
+   "DOMSTRING_SIZE_ERR",
+   "HIERARCHY_REQUEST_ERR",
+   "WRONG_DOCUMENT_ERR",
+   "INVALID_CHARACTER_ERR",
+   "NO_DATA_ALLOWED_ERR",
+   "NO_MODIFICATION_ALLOWED_ERR",
+   "NOT_FOUND_ERR",
+   "NOT_SUPPORTED_ERR",
+   "INUSE_ATTRIBUTE_ERR",
+   "INVALID_STATE_ERR",
+   "SYNTAX_ERR",
+   "INVALID_MODIFICATION_ERR",
+   "NAMESPACE_ERR",
+   "INVALID_ACCESS_ERR",
+   "VALIDATION_ERR",
+   "TYPE_MISMATCH_ERR",
+   "SECURITY_ERR",
+   "NETWORK_ERR",
+   "ABORT_ERR",
+   "URL_MISMATCH_ERR",
+   "QUOTA_EXCEEDED_ERR",
+   "TIMEOUT_ERR",
+   "INVALID_NODE_TYPE_ERR",
+   "DATA_CLONE_ERR",
+   "constructor"
+  ],
+  "own": [
+   "ABORT_ERR",
+   "DATA_CLONE_ERR",
+   "DOMSTRING_SIZE_ERR",
+   "HIERARCHY_REQUEST_ERR",
+   "INDEX_SIZE_ERR",
+   "INUSE_ATTRIBUTE_ERR",
+   "INVALID_ACCESS_ERR",
+   "INVALID_CHARACTER_ERR",
+   "INVALID_MODIFICATION_ERR",
+   "INVALID_NODE_TYPE_ERR",
+   "INVALID_STATE_ERR",
+   "NAMESPACE_ERR",
+   "NETWORK_ERR",
+   "NOT_FOUND_ERR",
+   "NOT_SUPPORTED_ERR",
+   "NO_DATA_ALLOWED_ERR",
+   "NO_MODIFICATION_ALLOWED_ERR",
+   "QUOTA_EXCEEDED_ERR",
+   "SECURITY_ERR",
+   "SYNTAX_ERR",
+   "TIMEOUT_ERR",
+   "TYPE_MISMATCH_ERR",
+   "URL_MISMATCH_ERR",
+   "VALIDATION_ERR",
+   "WRONG_DOCUMENT_ERR",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parentIsErrorProto": true,
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  }
+ },
+ "stack": [
+  "undefined",
+  false
+ ],
+ "subclass": [
+  "OperationError",
+  "sub",
+  0,
+  1,
+  true,
+  true,
+  "[object DOMException]",
+  "E"
+ ],
+ "subclass.ownkeys": [
+  "extra"
+ ],
+ "sym": "THROW TypeError: Failed to construct 'DOMException': Cannot convert a Symbol value to a string",
+ "sym.name": "THROW TypeError: Failed to construct 'DOMException': Cannot convert a Symbol value to a string",
+ "tag": [
+  {
+   "c": true,
+   "e": false,
+   "t": "string",
+   "v": "DOMException",
+   "w": false
+  },
+  "[object DOMException]"
+ ],
+ "throwcatch": [
+  "DataCloneError",
+  25,
+  true
+ ],
+ "toString": [
+  "AbortError: boom",
+  "AbortError: boom",
+  "AbortError",
+  "Error: only msg"
+ ],
+ "unknownName": [
+  "Nope",
+  0
+ ]
+}

@@ -15,17 +15,27 @@ static ISOLATE_LOCK: Mutex<()> = Mutex::new(());
 
 const PROBE: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-probe.js");
 const TRUTH: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-truth-145.json");
+const DEX_PROBE: &str = include_str!("../../../tools/webplatform/chrome/domexception-probe.js");
+const DEX_TRUTH: &str = include_str!("../../../tools/webplatform/chrome/domexception-truth-145.json");
 
 /// Probes a bare isolate cannot answer (no structuredClone, etc.).
 const ALLOWED_BARE: &[&str] = &["structuredClone"];
 
 fn run_probe(vm: &mut Vm) -> BTreeMap<String, serde_json::Value> {
-    let out = vm.eval_string(PROBE).expect("probe runs");
+    run(vm, PROBE)
+}
+
+fn run(vm: &mut Vm, probe: &str) -> BTreeMap<String, serde_json::Value> {
+    let out = vm.eval_string(probe).expect("probe runs");
     serde_json::from_str(&out).expect("probe returns JSON")
 }
 
 fn diff(got: &BTreeMap<String, serde_json::Value>) -> Vec<String> {
-    let mut truth: BTreeMap<String, serde_json::Value> = serde_json::from_str(TRUTH).unwrap();
+    diff_against(got, TRUTH)
+}
+
+fn diff_against(got: &BTreeMap<String, serde_json::Value>, truth_json: &str) -> Vec<String> {
+    let mut truth: BTreeMap<String, serde_json::Value> = serde_json::from_str(truth_json).unwrap();
     // Known gap: DOMPointReadOnly.matrixTransform needs DOMMatrix (not native yet).
     if let Some(shape) = truth.get_mut("shape.PointRO") {
         shape["members"].as_object_mut().unwrap().remove("matrixTransform");
@@ -59,6 +69,20 @@ fn native_dom_rect_matches_chrome_in_fresh_vm() {
     let mut vm = Vm::new();
     let bad = diff(&run_probe(&mut vm));
     assert!(bad.is_empty(), "{} probes differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// DOMException (exception interface: Error-chained prototype, string slots,
+/// legacy constants) - snapshot-restored and fresh, vs Chrome 145.
+#[test]
+fn native_dom_exception_matches_chrome() {
+    let _g = ISOLATE_LOCK.lock().unwrap();
+    let blob: &'static [u8] = Box::leak(create_snapshot(&[], &[]).into());
+    for label in ["snapshot-restored", "fresh"] {
+        // One isolate at a time (V8 requires reverse-order drops).
+        let mut vm = if label == "fresh" { Vm::new() } else { Vm::from_snapshot(blob).unwrap() };
+        let bad = diff_against(&run(&mut vm, DEX_PROBE), DEX_TRUTH);
+        assert!(bad.is_empty(), "[{label}] {} DOMException probes differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+    }
 }
 
 /// Pilot measurements (run with `--ignored --nocapture`): snapshot size,

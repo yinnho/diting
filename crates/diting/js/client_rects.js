@@ -87,24 +87,3 @@
     return rect(x0, y0, x1 - x0, y1 - y0);
   });
 })();
-
-// Native geometry interfaces (crates/diting_runtime/src/native) are not
-// JS-visible objects, so the JS structuredClone cannot copy their state:
-// register a rebuild hook per interface (the same __diting_clone_hooks
-// mechanism CryptoKey uses; keyed by @@toStringTag). Constructors are
-// captured now so a page overwriting the global cannot redirect the clone.
-(() => {
-  const hooks = (globalThis.__diting_clone_hooks = globalThis.__diting_clone_hooks || {});
-  const reg = (name, slots) => {
-    const C = globalThis[name];
-    if (typeof C !== 'function') return;
-    hooks[name] = function (src, seen) {
-      if (seen && seen.has(src)) return seen.get(src);
-      const copy = new C(...slots.map((k) => src[k]));
-      if (seen) seen.set(src, copy);
-      return copy;
-    };
-  };
-  for (const n of ['DOMRect', 'DOMRectReadOnly']) reg(n, ['x', 'y', 'width', 'height']);
-  for (const n of ['DOMPoint', 'DOMPointReadOnly']) reg(n, ['x', 'y', 'z', 'w']);
-})();

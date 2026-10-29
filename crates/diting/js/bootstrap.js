@@ -10753,42 +10753,8 @@ globalThis.PerformanceObserver = class {
   static get supportedEntryTypes() { return ['mark', 'measure', 'navigation', 'paint']; }
 };
 
-globalThis.DOMException = (function () {
-  const NAME_TO_CODE = {
-    IndexSizeError: 1, HierarchyRequestError: 3, WrongDocumentError: 4,
-    InvalidCharacterError: 5, NoModificationAllowedError: 7, NotFoundError: 8,
-    NotSupportedError: 9, InUseAttributeError: 10, InvalidStateError: 11,
-    SyntaxError: 12, InvalidModificationError: 13, NamespaceError: 14,
-    InvalidAccessError: 15, TypeMismatchError: 17, SecurityError: 18,
-    NetworkError: 19, AbortError: 20, URLMismatchError: 21,
-    QuotaExceededError: 22, TimeoutError: 23, InvalidNodeTypeError: 24,
-    DataCloneError: 25,
-  };
-  class DOMException extends Error {
-    constructor(message = "", name = "Error") {
-      super(message);
-      this.name = name;
-      this.message = String(message);
-    }
-    get code() { return NAME_TO_CODE[this.name] || 0; }
-  }
-  const CONSTS = {
-    INDEX_SIZE_ERR: 1, DOMSTRING_SIZE_ERR: 2, HIERARCHY_REQUEST_ERR: 3,
-    WRONG_DOCUMENT_ERR: 4, INVALID_CHARACTER_ERR: 5, NO_DATA_ALLOWED_ERR: 6,
-    NO_MODIFICATION_ALLOWED_ERR: 7, NOT_FOUND_ERR: 8, NOT_SUPPORTED_ERR: 9,
-    INUSE_ATTRIBUTE_ERR: 10, INVALID_STATE_ERR: 11, SYNTAX_ERR: 12,
-    INVALID_MODIFICATION_ERR: 13, NAMESPACE_ERR: 14, INVALID_ACCESS_ERR: 15,
-    VALIDATION_ERR: 16, TYPE_MISMATCH_ERR: 17, SECURITY_ERR: 18,
-    NETWORK_ERR: 19, ABORT_ERR: 20, URL_MISMATCH_ERR: 21,
-    QUOTA_EXCEEDED_ERR: 22, TIMEOUT_ERR: 23, INVALID_NODE_TYPE_ERR: 24,
-    DATA_CLONE_ERR: 25,
-  };
-  for (const k in CONSTS) {
-    Object.defineProperty(DOMException, k, { value: CONSTS[k], enumerable: true });
-    Object.defineProperty(DOMException.prototype, k, { value: CONSTS[k], enumerable: true });
-  }
-  return DOMException;
-})();
+// DOMException is a native interface (crates/diting_runtime/src/native/exceptions.rs),
+// installed with the faces before this script runs.
 globalThis.Event = class Event {
   // WebIDL: type is a required argument and is coerced to a string — Chrome
   // throws "1 argument required, but only 0 present." and `new Event(123).type`
@@ -11958,6 +11924,13 @@ function _structuredClone(value, seen) {
     for (const v of value) s.add(_structuredClone(v, seen));
     return s;
   }
+  // Platform objects (consulted BEFORE the generic Error path: a native DOMException is an Error by prototype but keeps its state in slots) that carry internal slots opt into cloning via a hook
+  // (CryptoKey re-registers its key material so the clone stays usable by
+  // crypto.subtle). Anything else with a registered hook takes that path.
+  if (typeof value[Symbol.toStringTag] === "string" && globalThis.__diting_clone_hooks) {
+    const hook = globalThis.__diting_clone_hooks[value[Symbol.toStringTag]];
+    if (typeof hook === "function") return hook(value, seen);
+  }
   if (value instanceof Error) {
     const Ctor = value.constructor || Error;
     const e = new Ctor(value.message);
@@ -11968,13 +11941,6 @@ function _structuredClone(value, seen) {
     if (value.stack) e.stack = value.stack;
     if (value.cause !== undefined) e.cause = _structuredClone(value.cause, seen);
     return e;
-  }
-  // Platform objects that carry internal slots opt into cloning via a hook
-  // (CryptoKey re-registers its key material so the clone stays usable by
-  // crypto.subtle). Anything else with a registered hook takes that path.
-  if (typeof value[Symbol.toStringTag] === "string" && globalThis.__diting_clone_hooks) {
-    const hook = globalThis.__diting_clone_hooks[value[Symbol.toStringTag]];
-    if (typeof hook === "function") return hook(value, seen);
   }
   // Plain objects clone onto Object.prototype (like Chrome), not the source's
   // prototype. Define each property instead of assigning it: a source with an

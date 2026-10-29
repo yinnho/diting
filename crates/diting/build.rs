@@ -103,6 +103,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("web_api_gaps.js", include_str!("js/web_api_gaps.js")),
     ("navigation.js", include_str!("js/navigation.js")),
     ("client_rects.js", include_str!("js/client_rects.js")),
+    // Clone hooks for native (Rust-backed) interfaces; needs the natives (installed with the faces).
+    ("native_clone.js", include_str!("js/native_clone.js")),
 ];
 
 /// Read `chrome-target.toml` (a flat key = value subset of TOML) and emit
