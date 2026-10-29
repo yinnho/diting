@@ -1,8 +1,8 @@
 //! module: htmlelement
 //! layer: L2
 //! exposes: -
-//! requires-load: -
-//! requires-call: legacy:DOMException, legacy:_markNative, legacy:document
+//! requires-load: stylemap
+//! requires-call: legacy:DOMException, legacy:_markNative, legacy:document, legacy:DOMTokenList
 
 // HTMLElement/Element behavior only; the member SHAPE (placement, order,
 // descriptor kinds, arity) is generated from the Chrome truth overlay in
@@ -11,6 +11,10 @@
 // below that could be misremembered is pinned by a key in
 // tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
 // Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
+// Knife-4 staged-family behavior (part/attributeStyleMap/computedStyleMap/
+// fullscreen trio/pointer lock/moveBefore/ariaNotify) is pinned by
+// element-staged-truth-145.json and diffed by
+// element_staged_members_match_chrome_truth.
 
 // ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
 // property 'abc' -> getAttribute('nonce') === null). Chrome hides the
@@ -22,6 +26,11 @@ const nonceSlots = new WeakMap();
 // togglePopover.plain); show/hide are Chrome's no-ops (truth
 // showPopover.plain === #undefined on a non-popover element).
 const popoverShown = new WeakSet();
+
+// ---- staged-family state (knife 4): part DOMTokenList is cached per
+// element (truth part.same); the Typed OM maps cache in stylemap.
+const partCache = new WeakMap();
+const SM = require('stylemap');
 
 const GET = {
   translate(el) { return el.getAttribute('translate') === 'no' ? false : true; },
@@ -51,6 +60,12 @@ const GET = {
   },
   outerText(el) { return el.innerText; },
   editContext() { return null; },
+  part(el) {
+    let p = partCache.get(el);
+    if (!p) { p = new DOMTokenList(el, 'part'); partCache.set(el, p); }
+    return p;
+  },
+  attributeStyleMap(el) { return SM.forElement(el); },
 };
 
 const SET = {
@@ -95,6 +110,7 @@ const SET = {
   // aria*Elements: nullable IDREF reflection with no element machinery -
   // the setter accepts and swallows (shape rw per EL.kinds).
   ariaSwallow() { /* swallow */ },
+  part(el, v) { el.setAttribute('part', v === undefined || v === null ? '' : String(v)); },
 };
 
 const CALL = {
@@ -113,6 +129,31 @@ const CALL = {
   },
   scrollIntoViewIfNeeded(el) { el.scrollIntoView(); return undefined; },
   webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
+
+  // ---- staged families (knife 4; every message pinned by
+  // element-staged-truth-145.json mb.*/rfs.*/rpl.* keys)
+  computedStyleMap(el) { return SM.computedFor(el); },
+  moveBefore(el, ctx, args) {
+    const node = args[0];
+    if (node === null || node === undefined || typeof node !== 'object' || typeof node.nodeType !== 'number') {
+      throw new TypeError(ctx + ": parameter 1 is not of type 'Node'.");
+    }
+    if (node.parentNode !== el) {
+      throw new DOMException(ctx + ': State-preserving atomic move cannot be performed on nodes participating in an invalid hierarchy.', 'HierarchyRequestError');
+    }
+    const ref = args[1];
+    if (ref !== null && ref !== undefined && ref.parentNode !== el) {
+      throw new DOMException(ctx + ': The node before which the new node is to be inserted is not a child of this node.', 'NotFoundError');
+    }
+    return el.insertBefore(node, ref === undefined ? null : ref);
+  },
+  requestFullscreen() { return Promise.reject(new TypeError('Permissions check failed')); },
+  webkitRequestFullScreen() { return undefined; },
+  webkitRequestFullscreen() { return undefined; },
+  requestPointerLock() {
+    return Promise.reject(new DOMException('The root document of this element is not valid for pointer lock.', 'WrongDocumentError'));
+  },
+  ariaNotify() { return undefined; },
 };
 
 exports.get = function (name, el) {

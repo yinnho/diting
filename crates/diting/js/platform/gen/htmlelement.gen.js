@@ -2,7 +2,7 @@
 //! module: gen/htmlelement
 //! layer: L2
 //! exposes: -
-//! requires-load: htmlelement, legacy:_markNative, legacy:Document, legacy:Element, legacy:HTMLElement, legacy:SVGElement
+//! requires-load: htmlelement, legacy:_markNative, legacy:Document, legacy:Element, legacy:HTMLElement, legacy:SVGElement, legacy:DocumentFragment
 //! requires-call: legacy:_markNative
 
 // M4 knife 2: Chrome 145's HTMLElement/Element common-member layer.
@@ -11,10 +11,13 @@
 // bootstrap had 98 on* on Element.prototype and HTMLElement.prototype
 // bare. Members are seated in Chrome's own order; uniform reflection
 // is DATA (P.reflector); non-uniform semantics delegate to the
-// htmlelement impl module. Staged (later knives, SURFACE.md ledger):
-// ariaNotify, attributeStyleMap, computedStyleMap, moveBefore, part, requestFullscreen, requestPointerLock, webkitRequestFullScreen, webkitRequestFullscreen.
+// htmlelement impl module. Knife 4 landed the last staged families
+// (part/Typed OM/fullscreen trio/pointer lock/moveBefore/ariaNotify)
+// and moveBefore's Document/DocumentFragment hosts.
+// Staged (later knives, SURFACE.md ledger): none - all families landed (knife 4)
 const B = require('htmlelement');
 const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;
+const FRAG = typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null;
 const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;
 
 // ---- on* accessors: bootstrap _defineOnHandler semantics (store
@@ -199,7 +202,7 @@ seat('nonce', function () { P.accessor(HT, 'nonce', function __f() { return B.ge
 seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "kind": "boolean-presence"}); });
 seat('tabIndex', null);
 seat('style', null);
-// staged (SURFACE.md): attributeStyleMap - Typed OM (attributeStyleMap family knife)
+seat('attributeStyleMap', function () { P.getter(HT, 'attributeStyleMap', function __f() { return B.get('attributeStyleMap', this); }); });
 seat('attachInternals', function () { P.method(HT, 'attachInternals', 0, function __f() { const ctx = "Failed to execute 'attachInternals' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('attachInternals', this, ctx, arguments); }); });
 seat('blur', null);
 seat('click', null);
@@ -226,11 +229,10 @@ fixArity('focus', 0);
 fixArity('showPopover', 0);
 fixArity('togglePopover', 0);
 
-// ---- Element.prototype additions (Chrome EL.order order; the engine
-// still carries staged per-element faces here, so the contract is a
-// SUBSET check until those families land).
+// ---- Element.prototype additions (Chrome EL.order order; every
+// staged family landed at knife 4, so the contract is the FULL order)
 if (!Object.prototype.hasOwnProperty.call(EL, 'prefix')) P.getter(EL, 'prefix', function __f() { return null; });
-// staged (SURFACE.md): part - DOMTokenList face
+if (!Object.prototype.hasOwnProperty.call(EL, 'part')) P.accessor(EL, 'part', function __f() { return B.get('part', this); }, function __f(v) { B.set('part', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'assignedSlot')) P.getter(EL, 'assignedSlot', function __f() { return null; });
 if (!Object.prototype.hasOwnProperty.call(EL, 'clientTop')) P.getter(EL, 'clientTop', function __f() { return 0; });
 if (!Object.prototype.hasOwnProperty.call(EL, 'clientLeft')) P.getter(EL, 'clientLeft', function __f() { return 0; });
@@ -243,15 +245,15 @@ installOn(EL, 'onfullscreenchange', false);
 installOn(EL, 'onfullscreenerror', false);
 installOn(EL, 'onwebkitfullscreenchange', false);
 installOn(EL, 'onwebkitfullscreenerror', false);
-// staged (SURFACE.md): computedStyleMap - Typed OM
+if (!Object.prototype.hasOwnProperty.call(EL, 'computedStyleMap')) P.method(EL, 'computedStyleMap', 0, function __f() { const ctx = "Failed to execute 'computedStyleMap' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('computedStyleMap', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'hasAttributeNS')) P.method(EL, 'hasAttributeNS', 2, function __f() { const ctx = "Failed to execute 'hasAttributeNS' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('hasAttributeNS', this, ctx, arguments); });
-// staged (SURFACE.md): moveBefore - moveBefore (later knife)
-// staged (SURFACE.md): requestFullscreen - fullscreen family
-// staged (SURFACE.md): requestPointerLock - pointer lock
+if (!Object.prototype.hasOwnProperty.call(EL, 'moveBefore')) P.method(EL, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'requestFullscreen')) P.method(EL, 'requestFullscreen', 0, function __f() { const ctx = "Failed to execute 'requestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestFullscreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'requestPointerLock')) P.method(EL, 'requestPointerLock', 0, function __f() { const ctx = "Failed to execute 'requestPointerLock' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPointerLock', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'scrollIntoViewIfNeeded')) P.method(EL, 'scrollIntoViewIfNeeded', 0, function __f() { const ctx = "Failed to execute 'scrollIntoViewIfNeeded' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('scrollIntoViewIfNeeded', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'webkitMatchesSelector')) P.method(EL, 'webkitMatchesSelector', 1, function __f() { const ctx = "Failed to execute 'webkitMatchesSelector' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('webkitMatchesSelector', this, ctx, arguments); });
-// staged (SURFACE.md): webkitRequestFullScreen - fullscreen family
-// staged (SURFACE.md): webkitRequestFullscreen - fullscreen family
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullScreen')) P.method(EL, 'webkitRequestFullScreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullScreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullScreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullscreen')) P.method(EL, 'webkitRequestFullscreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullscreen', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'currentCSSZoom')) P.getter(EL, 'currentCSSZoom', function __f() { return 1; });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActiveDescendantElement')) P.accessor(EL, 'ariaActiveDescendantElement', function __f() { return null; }, function __f(v) { B.set('ariaActiveDescendantElement', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaControlsElements')) P.accessor(EL, 'ariaControlsElements', function __f() { return null; }, function __f(v) { B.set('ariaControlsElements', this, v); });
@@ -260,7 +262,12 @@ if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDetailsElements')) P.accessor
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaErrorMessageElements')) P.accessor(EL, 'ariaErrorMessageElements', function __f() { return null; }, function __f(v) { B.set('ariaErrorMessageElements', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaFlowToElements')) P.accessor(EL, 'ariaFlowToElements', function __f() { return null; }, function __f(v) { B.set('ariaFlowToElements', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaLabelledByElements')) P.accessor(EL, 'ariaLabelledByElements', function __f() { return null; }, function __f(v) { B.set('ariaLabelledByElements', this, v); });
-// staged (SURFACE.md): ariaNotify - ariaNotify
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaNotify')) P.method(EL, 'ariaNotify', 1, function __f() { const ctx = "Failed to execute 'ariaNotify' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('ariaNotify', this, ctx, arguments); });
+
+// ---- moveBefore on the other two hosts (truth DOC.moveBefore /
+// FRAG.moveBefore): same op through the impl, host name in the ctx
+if (!Object.prototype.hasOwnProperty.call(DOC, 'moveBefore')) P.method(DOC, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Document'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(FRAG, 'moveBefore')) P.method(FRAG, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'DocumentFragment'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
 
 // ---- read-only faces Chrome ships read-write (setter via impl)
 uprw('classList', function __f(v) { B.set('classList', this, v); });

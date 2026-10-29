@@ -46,8 +46,10 @@ message wording) comes from the IDL; behavior is delegated:
                       the REFLECT table), or delegate to the impl module
                       (non-uniform semantics). Idempotent: every seat is
                       guarded, so regeneration on a drifted engine re-runs
-                      cleanly. STAGED members are named in a comment and
-                      skipped (SURFACE.md keeps the ledger).
+                      cleanly. Knife 4 landed the staged families (part/
+                      Typed OM/fullscreen trio/pointer lock/moveBefore/
+                      ariaNotify + moveBefore's Document/DocumentFragment
+                      hosts); STAGED is the reserve for future knives.
 
 v0 covers what Storage/StorageEvent and the geometry family need; new
 strategies are added per family.
@@ -196,15 +198,25 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
     REFLECT_EL = {"elementTiming": ("elementtiming", "string", None, None, None)}
     IMPL_ACCESSOR_HT = ["translate", "spellcheck", "popover", "nonce",
                         "contentEditable", "outerText", "editContext"]
-    IMPL_GETTER_HT = ["isContentEditable"]
+    IMPL_GETTER_HT = ["isContentEditable", "attributeStyleMap"]
     IMPL_METHOD_HT = {"attachInternals": 0, "showPopover": 0, "hidePopover": 0, "togglePopover": 0}
     IMPL_GETTER_EL = {"prefix": "null", "assignedSlot": "null", "clientLeft": "0",
                       "clientTop": "0", "currentCSSZoom": "1"}
     ARIA_REF_ELEMENTS = [n for n in TRUTH["EL.order"] if n.startswith("aria")
                          and (n.endswith("Element") or n.endswith("Elements"))]
     IMPL_ACCESSOR_EL = ARIA_REF_ELEMENTS  # getter null, setter swallow
-    IMPL_METHOD_EL = {"hasAttributeNS": 2, "scrollIntoViewIfNeeded": 0, "webkitMatchesSelector": 1}
-    STAGED_HT = {"attributeStyleMap": "Typed OM (attributeStyleMap family knife)"}
+    # knife 4: part is a rw accessor with real get/set legs (cached
+    # DOMTokenList / attribute write) - not the aria null+swallow shape.
+    IMPL_ACCESSOR_EL_RW = ["part"]
+    IMPL_METHOD_EL = {"hasAttributeNS": 2, "scrollIntoViewIfNeeded": 0, "webkitMatchesSelector": 1,
+                      "computedStyleMap": 0, "moveBefore": 2, "requestFullscreen": 0,
+                      "webkitRequestFullScreen": 0, "webkitRequestFullscreen": 0,
+                      "requestPointerLock": 0, "ariaNotify": 1}
+    # moveBefore also lives on Document/DocumentFragment (truth DOC.moveBefore
+    # len 2 / FRAG.moveBefore typeof function; error messages carry the host
+    # interface name in the ctx prefix - truth mb.doc).
+    MOVE_BEFORE_HOSTS = {"Document": "DOC", "DocumentFragment": "FRAG"}
+    STAGED_HT = {}
     # engine bootstrap extras Chrome 145 owns on NONE of the probed levels
     # (on.levels): deprecated/never-shipped handlers. Deleted when present.
     EXTRA_ON_REMOVED = ["ondragexit", "onfocusin", "onfocusout", "ontouchcancel",
@@ -212,11 +224,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
     # existing engine read-only faces Chrome ships read-write: the descriptor
     # keeps its native getter, the setter delegates to the impl module.
     KIND_UPGRADE_EL = ["classList", "outerHTML"]
-    STAGED_EL = {"part": "DOMTokenList face", "computedStyleMap": "Typed OM",
-                 "moveBefore": "moveBefore (later knife)",
-                 "requestFullscreen": "fullscreen family", "webkitRequestFullScreen": "fullscreen family",
-                 "webkitRequestFullscreen": "fullscreen family", "requestPointerLock": "pointer lock",
-                 "ariaNotify": "ariaNotify"}
+    STAGED_EL = {}
     SVG_SHARE = ["dataset", "style", "tabIndex", "focus", "blur"]  # HTMLOrSVGOrMath + inline-style mixins
     # members the engine ALREADY owns on Element.prototype (bootstrap or
     # native): pure relocation, no install closure. If the engine ever drops
@@ -350,9 +358,8 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
     for n in sorted(fix_targets):
         PW("fixArity('%s', %d);" % (n, TRUTH["fn.length"][n]))
     PW("")
-    PW("// ---- Element.prototype additions (Chrome EL.order order; the engine")
-    PW("// still carries staged per-element faces here, so the contract is a")
-    PW("// SUBSET check until those families land).")
+    PW("// ---- Element.prototype additions (Chrome EL.order order; every")
+    PW("// staged family landed at knife 4, so the contract is the FULL order)")
     for k in TRUTH["EL.order"]:
         if k in on_el:
             PW("installOn(EL, '%s', false);" % k)
@@ -361,14 +368,20 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
             PW("if (!Object.prototype.hasOwnProperty.call(EL, '%s')) P.reflector(EL, '%s', %s);" % (k, k, json.dumps({"attr": attr, "kind": kind}, sort_keys=True)))
         elif k in IMPL_GETTER_EL:
             PW("if (!Object.prototype.hasOwnProperty.call(EL, '%s')) P.getter(EL, '%s', function __f() { return %s; });" % (k, k, IMPL_GETTER_EL[k]))
+        elif k in IMPL_ACCESSOR_EL_RW:
+            PW("if (!Object.prototype.hasOwnProperty.call(EL, '%s')) P.accessor(EL, '%s', function __f() { return B.get('%s', this); }, function __f(v) { B.set('%s', this, v); });" % (k, k, k, k))
         elif k in IMPL_ACCESSOR_EL:
             PW("if (!Object.prototype.hasOwnProperty.call(EL, '%s')) P.accessor(EL, '%s', function __f() { return null; }, function __f(v) { B.set('%s', this, v); });" % (k, k, k))
         elif k in IMPL_METHOD_EL:
             ln = IMPL_METHOD_EL[k]
             ctx = "\"Failed to execute '%s' on 'Element'\"" % k
             PW("if (!Object.prototype.hasOwnProperty.call(EL, '%s')) P.method(EL, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.call('%s', this, ctx, arguments); });" % (k, k, ln, ctx, ln, k))
-        elif k in STAGED_EL:
-            PW("// staged (SURFACE.md): %s - %s" % (k, STAGED_EL[k]))
+    PW("")
+    PW("// ---- moveBefore on the other two hosts (truth DOC.moveBefore /")
+    PW("// FRAG.moveBefore): same op through the impl, host name in the ctx")
+    for iface, varname in sorted(MOVE_BEFORE_HOSTS.items()):
+        ctx = "\"Failed to execute 'moveBefore' on '%s'\"" % iface
+        PW("if (!Object.prototype.hasOwnProperty.call(%s, 'moveBefore')) P.method(%s, 'moveBefore', 2, function __f() { const ctx = %s; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });" % (varname, varname, ctx))
     PW("")
     PW("// ---- read-only faces Chrome ships read-write (setter via impl)")
     for k in KIND_UPGRADE_EL:
@@ -397,7 +410,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
         "//! module: %s" % module,
         "//! layer: L2",
         "//! exposes: -",
-        "//! requires-load: htmlelement, legacy:_markNative, legacy:Document, legacy:Element, legacy:HTMLElement, legacy:SVGElement",
+        "//! requires-load: htmlelement, legacy:_markNative, legacy:Document, legacy:Element, legacy:HTMLElement, legacy:SVGElement, legacy:DocumentFragment",
         "//! requires-call: legacy:_markNative",
         "",
         "// M4 knife 2: Chrome 145's HTMLElement/Element common-member layer.",
@@ -406,10 +419,13 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
         "// bootstrap had 98 on* on Element.prototype and HTMLElement.prototype",
         "// bare. Members are seated in Chrome's own order; uniform reflection",
         "// is DATA (P.reflector); non-uniform semantics delegate to the",
-        "// htmlelement impl module. Staged (later knives, SURFACE.md ledger):",
-        "// " + ", ".join(staged_all) + ".",
+        "// htmlelement impl module. Knife 4 landed the last staged families",
+        "// (part/Typed OM/fullscreen trio/pointer lock/moveBefore/ariaNotify)",
+        "// and moveBefore's Document/DocumentFragment hosts.",
+        "// Staged (later knives, SURFACE.md ledger): " + (", ".join(staged_all) if staged_all else "none - all families landed (knife 4)"),
         "const B = require('htmlelement');",
         "const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;",
+        "const FRAG = typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null;",
         "const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;",
         "",
     ]

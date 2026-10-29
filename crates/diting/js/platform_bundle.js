@@ -1360,6 +1360,134 @@ P.expect({"length": 0, "members": [{"kind": "accessor", "length": 0, "name": "x"
 if (B.ready) B.ready();
 });
 
+// ---- module stylemap (L2) ----
+__platform.define("stylemap", function (exports, require, P) {
+"use strict";
+// Typed OM read faces for Element staged members (M4 knife 4):
+// element.attributeStyleMap (StylePropertyMap) and
+// element.computedStyleMap() (StylePropertyMapReadOnly). The window classes
+// were bare ctor-throw stubs from global_surface.js; this module owns them
+// for real (P.iface brands + member order from Chrome truth
+// element-staged-truth-145.json keys spm.classes/spm.symbols/spm.ctor - the
+// global_surface THROW install SKIPs on our non-enumerable expose, the same
+// handover pattern Performance took at knife 3). The ctor keeps throwing
+// Chrome's exact "Failed to construct ... Illegal constructor" message.
+//
+// Behavior pinned by truth: attributeStyleMap is a cached ro accessor whose
+// map parses the style attribute (withstyle: 'color: red' -> size 1,
+// get('color') is a CSSStyleValue, String 'red'); computedStyleMap() caches a
+// read-only map over getComputedStyle(el) whose size === gcs(el).length
+// (Chrome 413; the engine's computed-property list is its own count - that
+// list's parity is the CSSStyleDeclaration family, not this one). Instances
+// of CSSStyleValue are privately minted: the window CSSStyleValue face stays
+// the global_surface stub, untouched.
+
+// ---- value face: constructor.name 'CSSStyleValue', String(v) = the text
+// (truth asm.withstyle). Private class - nothing here touches the window
+// CSSStyleValue stub.
+const valSlots = new WeakMap();
+function CSSStyleValue(v) { valSlots.set(this, v); }
+Object.defineProperty(CSSStyleValue.prototype, 'toString', {
+  value: function () { return String(valSlots.get(this)); },
+  writable: true, enumerable: false, configurable: true,
+});
+function mkVal(s) { return new CSSStyleValue(s); }
+
+// ---- interfaces (own-member order = spm.classes truth; @@iterator =
+// entries, spm.symbols truth)
+function StylePropertyMapReadOnly() {
+  P.fail(StylePropertyMapReadOnly, 'Illegal constructor', "Failed to construct 'StylePropertyMapReadOnly'");
+}
+function StylePropertyMap() {
+  P.fail(StylePropertyMap, 'Illegal constructor', "Failed to construct 'StylePropertyMap'");
+}
+const RO = P.iface(StylePropertyMapReadOnly, 'StylePropertyMapReadOnly', 0);
+const MP = P.iface(StylePropertyMap, 'StylePropertyMap', 0, StylePropertyMapReadOnly);
+
+// instance state: { el | null, map: Map<lowercased name, value text> }
+const instData = new WeakMap();
+function data(o, fn) {
+  const d = instData.get(o);
+  if (d === undefined) P.illegal(fn);
+  return d;
+}
+function norm(map, k) {
+  const s = String(k);
+  return map.has(s) ? s : s.toLowerCase();
+}
+
+// StylePropertyMapReadOnly.prototype: size get getAll has entries forEach
+// keys values (Chrome own order), then constructor.
+P.getter(RO, 'size', function __f() { return data(this, __f).map.size; });
+P.method(RO, 'get', 1, function __f(k) { const d = data(this, __f); const v = d.map.get(norm(d.map, k)); return v === undefined ? null : mkVal(v); });
+P.method(RO, 'getAll', 1, function __f(k) { const d = data(this, __f); const v = d.map.get(norm(d.map, k)); return v === undefined ? null : [mkVal(v)]; });
+P.method(RO, 'has', 1, function __f(k) { const d = data(this, __f); return d.map.has(norm(d.map, k)); });
+function smEntries(o, fn) { const d = data(o, fn); const out = []; d.map.forEach(function (v, k) { out.push([k, mkVal(v)]); }); return out; }
+P.method(RO, 'entries', 0, function __f() { return smEntries(this, __f); });
+P.method(RO, 'forEach', 1, function __f(cb, thisArg) { const d = data(this, __f); d.map.forEach(function (v, k) { cb.call(thisArg, mkVal(v), k, d.map.size); }); });
+P.method(RO, 'keys', 0, function __f() { return Array.from(data(this, __f).map.keys()); });
+P.method(RO, 'values', 0, function __f() { const out = []; data(this, __f).map.forEach(function (v) { out.push(mkVal(v)); }); return out; });
+Object.defineProperty(RO, Symbol.iterator, { value: RO.entries, writable: true, enumerable: false, configurable: true });
+P.seal(StylePropertyMapReadOnly);
+
+// StylePropertyMap.prototype: append clear delete set (Chrome own order),
+// then constructor. Mutators update the style attribute in place.
+function writeAttr(o, fn) {
+  const d = data(o, fn);
+  if (d.el) {
+    const parts = [];
+    d.map.forEach(function (v, k) { parts.push(k + ': ' + v); });
+    d.el.setAttribute('style', parts.join('; '));
+  }
+}
+P.method(MP, 'append', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
+P.method(MP, 'clear', 0, function __f() { data(this, __f).map.clear(); writeAttr(this, __f); });
+P.method(MP, 'delete', 1, function __f(k) { const d = data(this, __f); const hit = d.map.delete(norm(d.map, k)); writeAttr(this, __f); return hit; });
+P.method(MP, 'set', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
+P.seal(StylePropertyMap);
+
+// ---- instance mints (cached per element: truth asm.identity/csm.identity)
+function parseDecls(text) {
+  const map = new Map();
+  String(text == null ? '' : text).split(';').forEach(function (part) {
+    const i = part.indexOf(':');
+    if (i < 0) return;
+    const k = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (k) map.set(k.toLowerCase(), v);
+  });
+  return map;
+}
+
+const attrCache = new WeakMap();
+exports.forElement = function (el) {
+  let m = attrCache.get(el);
+  if (!m) {
+    m = Object.create(StylePropertyMap.prototype);
+    instData.set(m, { el: el, map: parseDecls(el.getAttribute('style')) });
+    attrCache.set(el, m);
+  }
+  return m;
+};
+
+const compCache = new WeakMap();
+exports.computedFor = function (el) {
+  let m = compCache.get(el);
+  if (!m) {
+    const cs = getComputedStyle(el);
+    const map = new Map();
+    for (let i = 0; i < cs.length; i++) map.set(cs[i], cs.getPropertyValue(cs[i]));
+    m = Object.create(StylePropertyMapReadOnly.prototype);
+    instData.set(m, { el: null, map: map });
+    compCache.set(el, m);
+  }
+  return m;
+};
+
+P.expose('StylePropertyMapReadOnly', StylePropertyMapReadOnly);
+P.expose('StylePropertyMap', StylePropertyMap);
+});
+
 // ---- module htmlelement (L2) ----
 __platform.define("htmlelement", function (exports, require, P) {
 "use strict";
@@ -1370,6 +1498,10 @@ __platform.define("htmlelement", function (exports, require, P) {
 // below that could be misremembered is pinned by a key in
 // tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
 // Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
+// Knife-4 staged-family behavior (part/attributeStyleMap/computedStyleMap/
+// fullscreen trio/pointer lock/moveBefore/ariaNotify) is pinned by
+// element-staged-truth-145.json and diffed by
+// element_staged_members_match_chrome_truth.
 
 // ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
 // property 'abc' -> getAttribute('nonce') === null). Chrome hides the
@@ -1381,6 +1513,11 @@ const nonceSlots = new WeakMap();
 // togglePopover.plain); show/hide are Chrome's no-ops (truth
 // showPopover.plain === #undefined on a non-popover element).
 const popoverShown = new WeakSet();
+
+// ---- staged-family state (knife 4): part DOMTokenList is cached per
+// element (truth part.same); the Typed OM maps cache in stylemap.
+const partCache = new WeakMap();
+const SM = require('stylemap');
 
 const GET = {
   translate(el) { return el.getAttribute('translate') === 'no' ? false : true; },
@@ -1410,6 +1547,12 @@ const GET = {
   },
   outerText(el) { return el.innerText; },
   editContext() { return null; },
+  part(el) {
+    let p = partCache.get(el);
+    if (!p) { p = new DOMTokenList(el, 'part'); partCache.set(el, p); }
+    return p;
+  },
+  attributeStyleMap(el) { return SM.forElement(el); },
 };
 
 const SET = {
@@ -1454,6 +1597,7 @@ const SET = {
   // aria*Elements: nullable IDREF reflection with no element machinery -
   // the setter accepts and swallows (shape rw per EL.kinds).
   ariaSwallow() { /* swallow */ },
+  part(el, v) { el.setAttribute('part', v === undefined || v === null ? '' : String(v)); },
 };
 
 const CALL = {
@@ -1472,6 +1616,31 @@ const CALL = {
   },
   scrollIntoViewIfNeeded(el) { el.scrollIntoView(); return undefined; },
   webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
+
+  // ---- staged families (knife 4; every message pinned by
+  // element-staged-truth-145.json mb.*/rfs.*/rpl.* keys)
+  computedStyleMap(el) { return SM.computedFor(el); },
+  moveBefore(el, ctx, args) {
+    const node = args[0];
+    if (node === null || node === undefined || typeof node !== 'object' || typeof node.nodeType !== 'number') {
+      throw new TypeError(ctx + ": parameter 1 is not of type 'Node'.");
+    }
+    if (node.parentNode !== el) {
+      throw new DOMException(ctx + ': State-preserving atomic move cannot be performed on nodes participating in an invalid hierarchy.', 'HierarchyRequestError');
+    }
+    const ref = args[1];
+    if (ref !== null && ref !== undefined && ref.parentNode !== el) {
+      throw new DOMException(ctx + ': The node before which the new node is to be inserted is not a child of this node.', 'NotFoundError');
+    }
+    return el.insertBefore(node, ref === undefined ? null : ref);
+  },
+  requestFullscreen() { return Promise.reject(new TypeError('Permissions check failed')); },
+  webkitRequestFullScreen() { return undefined; },
+  webkitRequestFullscreen() { return undefined; },
+  requestPointerLock() {
+    return Promise.reject(new DOMException('The root document of this element is not valid for pointer lock.', 'WrongDocumentError'));
+  },
+  ariaNotify() { return undefined; },
 };
 
 exports.get = function (name, el) {
@@ -1500,10 +1669,13 @@ __platform.define("gen/htmlelement", function (exports, require, P) {
 // bootstrap had 98 on* on Element.prototype and HTMLElement.prototype
 // bare. Members are seated in Chrome's own order; uniform reflection
 // is DATA (P.reflector); non-uniform semantics delegate to the
-// htmlelement impl module. Staged (later knives, SURFACE.md ledger):
-// ariaNotify, attributeStyleMap, computedStyleMap, moveBefore, part, requestFullscreen, requestPointerLock, webkitRequestFullScreen, webkitRequestFullscreen.
+// htmlelement impl module. Knife 4 landed the last staged families
+// (part/Typed OM/fullscreen trio/pointer lock/moveBefore/ariaNotify)
+// and moveBefore's Document/DocumentFragment hosts.
+// Staged (later knives, SURFACE.md ledger): none - all families landed (knife 4)
 const B = require('htmlelement');
 const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;
+const FRAG = typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null;
 const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;
 
 // ---- on* accessors: bootstrap _defineOnHandler semantics (store
@@ -1688,7 +1860,7 @@ seat('nonce', function () { P.accessor(HT, 'nonce', function __f() { return B.ge
 seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "kind": "boolean-presence"}); });
 seat('tabIndex', null);
 seat('style', null);
-// staged (SURFACE.md): attributeStyleMap - Typed OM (attributeStyleMap family knife)
+seat('attributeStyleMap', function () { P.getter(HT, 'attributeStyleMap', function __f() { return B.get('attributeStyleMap', this); }); });
 seat('attachInternals', function () { P.method(HT, 'attachInternals', 0, function __f() { const ctx = "Failed to execute 'attachInternals' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('attachInternals', this, ctx, arguments); }); });
 seat('blur', null);
 seat('click', null);
@@ -1715,11 +1887,10 @@ fixArity('focus', 0);
 fixArity('showPopover', 0);
 fixArity('togglePopover', 0);
 
-// ---- Element.prototype additions (Chrome EL.order order; the engine
-// still carries staged per-element faces here, so the contract is a
-// SUBSET check until those families land).
+// ---- Element.prototype additions (Chrome EL.order order; every
+// staged family landed at knife 4, so the contract is the FULL order)
 if (!Object.prototype.hasOwnProperty.call(EL, 'prefix')) P.getter(EL, 'prefix', function __f() { return null; });
-// staged (SURFACE.md): part - DOMTokenList face
+if (!Object.prototype.hasOwnProperty.call(EL, 'part')) P.accessor(EL, 'part', function __f() { return B.get('part', this); }, function __f(v) { B.set('part', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'assignedSlot')) P.getter(EL, 'assignedSlot', function __f() { return null; });
 if (!Object.prototype.hasOwnProperty.call(EL, 'clientTop')) P.getter(EL, 'clientTop', function __f() { return 0; });
 if (!Object.prototype.hasOwnProperty.call(EL, 'clientLeft')) P.getter(EL, 'clientLeft', function __f() { return 0; });
@@ -1732,15 +1903,15 @@ installOn(EL, 'onfullscreenchange', false);
 installOn(EL, 'onfullscreenerror', false);
 installOn(EL, 'onwebkitfullscreenchange', false);
 installOn(EL, 'onwebkitfullscreenerror', false);
-// staged (SURFACE.md): computedStyleMap - Typed OM
+if (!Object.prototype.hasOwnProperty.call(EL, 'computedStyleMap')) P.method(EL, 'computedStyleMap', 0, function __f() { const ctx = "Failed to execute 'computedStyleMap' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('computedStyleMap', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'hasAttributeNS')) P.method(EL, 'hasAttributeNS', 2, function __f() { const ctx = "Failed to execute 'hasAttributeNS' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('hasAttributeNS', this, ctx, arguments); });
-// staged (SURFACE.md): moveBefore - moveBefore (later knife)
-// staged (SURFACE.md): requestFullscreen - fullscreen family
-// staged (SURFACE.md): requestPointerLock - pointer lock
+if (!Object.prototype.hasOwnProperty.call(EL, 'moveBefore')) P.method(EL, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'requestFullscreen')) P.method(EL, 'requestFullscreen', 0, function __f() { const ctx = "Failed to execute 'requestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestFullscreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'requestPointerLock')) P.method(EL, 'requestPointerLock', 0, function __f() { const ctx = "Failed to execute 'requestPointerLock' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPointerLock', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'scrollIntoViewIfNeeded')) P.method(EL, 'scrollIntoViewIfNeeded', 0, function __f() { const ctx = "Failed to execute 'scrollIntoViewIfNeeded' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('scrollIntoViewIfNeeded', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'webkitMatchesSelector')) P.method(EL, 'webkitMatchesSelector', 1, function __f() { const ctx = "Failed to execute 'webkitMatchesSelector' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('webkitMatchesSelector', this, ctx, arguments); });
-// staged (SURFACE.md): webkitRequestFullScreen - fullscreen family
-// staged (SURFACE.md): webkitRequestFullscreen - fullscreen family
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullScreen')) P.method(EL, 'webkitRequestFullScreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullScreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullScreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullscreen')) P.method(EL, 'webkitRequestFullscreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullscreen', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'currentCSSZoom')) P.getter(EL, 'currentCSSZoom', function __f() { return 1; });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActiveDescendantElement')) P.accessor(EL, 'ariaActiveDescendantElement', function __f() { return null; }, function __f(v) { B.set('ariaActiveDescendantElement', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaControlsElements')) P.accessor(EL, 'ariaControlsElements', function __f() { return null; }, function __f(v) { B.set('ariaControlsElements', this, v); });
@@ -1749,7 +1920,12 @@ if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDetailsElements')) P.accessor
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaErrorMessageElements')) P.accessor(EL, 'ariaErrorMessageElements', function __f() { return null; }, function __f(v) { B.set('ariaErrorMessageElements', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaFlowToElements')) P.accessor(EL, 'ariaFlowToElements', function __f() { return null; }, function __f(v) { B.set('ariaFlowToElements', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaLabelledByElements')) P.accessor(EL, 'ariaLabelledByElements', function __f() { return null; }, function __f(v) { B.set('ariaLabelledByElements', this, v); });
-// staged (SURFACE.md): ariaNotify - ariaNotify
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaNotify')) P.method(EL, 'ariaNotify', 1, function __f() { const ctx = "Failed to execute 'ariaNotify' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('ariaNotify', this, ctx, arguments); });
+
+// ---- moveBefore on the other two hosts (truth DOC.moveBefore /
+// FRAG.moveBefore): same op through the impl, host name in the ctx
+if (!Object.prototype.hasOwnProperty.call(DOC, 'moveBefore')) P.method(DOC, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Document'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(FRAG, 'moveBefore')) P.method(FRAG, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'DocumentFragment'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
 
 // ---- read-only faces Chrome ships read-write (setter via impl)
 uprw('classList', function __f(v) { B.set('classList', this, v); });

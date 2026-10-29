@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→**992**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→**652**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -53,7 +53,7 @@
 | document 只读赋值 | native | （session E2E） | 同上 |
 | elementFromPoint 冷路径/double 参数 | shim | hit_test_cold_path_and_webidl_double_args, mouse_chain_before_first_layout_does_not_fault | 2026-10-29 对照 blitz#1304 |
 | Storage / StorageEvent | **IDL 生成** | storage_matches_chrome_truth（53 探针对 Chrome 156 真值）, platform_generated_descriptors_conform, platform_errors_match_chrome_truth（17 个报错形状对 Chrome）, storage_family_proxy_semantics_and_gate | 2026-10-29 M2 竖切：旧 storage.js 删除；行为对齐 Chrome（名字在原型链上则仍为普通属性；StorageEvent 属性改原型访问器）；已知差异：枚举序（实现定义）、Event 基类实例自有属性（Event 族缺口） |
-| HTMLElement/Element 通用成员层（on* 搬位+反射器+读写升级） | **truth 生成**（patch-common：DATA 表+P.reflector 唯一运行时） | htmlelement_members_match_chrome_truth_except_known_gaps（54 探针对 Chrome 145 真值，51 全等+2 已档缺口+staged 滤表） | 2026-10-29 M4 刀2：详见文末 |
+| HTMLElement/Element 通用成员层（on* 搬位+反射器+读写升级） | **truth 生成**（patch-common：DATA 表+P.reflector 唯一运行时） | htmlelement_members_match_chrome_truth_except_known_gaps（54 探针对 Chrome 145 真值；刀4 后 staged 滤表清空、fn.length 缺口出册） | 2026-10-29 M4 刀2：详见文末 |
 | 几何族 DOMPoint/Rect/Quad/Matrix*+WebKitCSSMatrix | **IDL 生成** | geometry_stack_matches_chrome_truth_except_known_geometry_gaps（156 探针对 Chrome 145 真值，155 全等+1 已档 ulp 缺口） | 2026-10-29 M4 刀1：bootstrap 玩具删除；shape 全生成+行为全委托；WebKitCSSMatrix=旧厂函数共 DOMMatrix.prototype；缺口=rotate 非 90° 整数倍角的 Blink SIMD sincos 末位 ulp（见测试注释） |
 | CSSOM sheet 对象 | shim | cssom_sheets_identity_list_and_adoption | 2026-10-29 自 bootstrap 搬出（纯搬移）；helper 改词法 const |
 | 指针捕获 setPointerCapture | shim | drag_follows_pointer_capture_slider, pointer_touch_family_capture_and_hidden_registry | 2026-10-28 修（滑块拖不动根因） |
@@ -403,3 +403,56 @@ MediaQueryList（mqFlush 注册表）。各为独立家族刀，不并刀。
 IdleDetector 6→3、MediaStream 4→1、SpeechSynthesisUtterance 4→1、
 Animation 22→19）。下一刀顺位：Element staged 家族（Typed OM×2/part/
 fullscreen）或真家族（Animation/Notification/传感器/EditContext）。
+
+## M4 刀4：Element staged 家族收官（2026-10-30）
+
+九件 staged 全数落地，刀2 的 staged 滤表就此清空。真值
+`chrome/element-staged-truth-145.json`（38 键，真 Chrome 145 实捕）：
+
+- **part**（EL rw 存取器）：缓存 `DOMTokenList(el, 'part')`（identity 真），
+  setter 直写属性；SVG 元素同享（装在 Element.prototype）。
+- **attributeStyleMap**（HT ro 存取器）→ **StylePropertyMap**、
+  **computedStyleMap()**（EL 方法）→ **StylePropertyMapReadOnly**：新
+  `platform/stylemap.impl.js` 模块**拥有两接口**（Performance 式移交：
+  global_surface THROW 表 SKIP 我们的非枚举 expose；ctor 照抛 Chrome 原
+  文 "Failed to construct … Illegal constructor"）。原型成员按 Chrome
+  自有序（RO：size/get/getAll/has/entries/forEach/keys/values；SPM：
+  append/clear/delete/set），`@@iterator = entries`（spm.symbols 真），
+  SPM 原型链挂 RO。attributeStyleMap 解析 style 属性成有序 Map，
+  `get('color')` 回私有 CSSStyleValue（constructor.name/toString 真；
+  window 的 CSSStyleValue 桩不动）；computedStyleMap 缓存
+  getComputedStyle(el) 全表，**size ≡ gcs.length 不变量**（Chrome
+  413=413；引擎 444=444——计数差属 CSSStyleDeclaration 计算清单家族，
+  已档棘轮 KNOWN_GAPS）。
+- **fullscreen 三件**：requestFullscreen 回真 Promise 拒 TypeError
+  "Permissions check failed"；webkitRequestFullScreen/webkitRequestFullscreen
+  返回 **undefined**（真值证明：then 读取即 TypeError）。
+- **requestPointerLock**：真 Promise（constructor.name "Promise"）拒
+  DOMException WrongDocumentError "The root document of this element is
+  not valid for pointer lock."。
+- **moveBefore**（EL len2 + **Document/DocumentFragment 双宿主**，报文
+  前缀随宿主接口名）：参数非 Node 抛 TypeError "parameter 1 is not of
+  type 'Node'."；非己子抛 HierarchyRequestError "State-preserving atomic
+  move…"；ref 非己子抛 NotFoundError "The node before which…"；合法即
+  insertBefore 语义。
+- **ariaNotify**（EL，len **1**，Chrome 实测归 Element 非 HTMLElement）：
+  返回 undefined。
+
+生成器长法：patch-common 新 `IMPL_ACCESSOR_EL_RW`（part 真读写腿，别于
+aria 的 null+swallow）与 `MOVE_BEFORE_HOSTS`（ctx 前缀随宿主）；STAGED
+表清空成未来预留。行为腿全在 htmlelement.impl.js（GET/SET/CALL 委托），
+Typed OM 实例铸在 stylemap 模块。
+
+**坑**：`call_function_on_remote` 自做 `__fn.call`——传裸 IIFE 会
+"__fn.call is not a function"；异步探针测试一律包 `() => (probe)` 箭头
++await_promise。真 Chrome 里 `computedStyleMap().size ===
+getComputedStyle(el).length` 两边同值（413/413），引擎侧同构成立
+（444/444）——探针只钉绝对值会误报，测试改验**不变量**。
+
+验收：探针 38 键，36 全等+2 已档（gcs.len 及 csm.face 的 size 位，不变量
+真）；htmlelement 刀2 测试 fn.length 缺口出册（staged 九件装齐后 dict 全
+等）；tests **1437/0**；快照漂移恰七行（Document/Fragment +moveBefore、
+EL/HT/Option 九件、SPM 双原型真身）已重生成；check_fresh 4 件鲜；analyze
+ratchet 过（模块契约零违）。差集表 992→**652**（-340，恰=5 名×68 接口的
+预测账；行 140→118）。下一刀顺位：真家族（Animation 19/Notification 14/
+EditContext 11/传感器×6/SpeechRecognition 8）或 HTML 元素成员家族。

@@ -26299,22 +26299,23 @@ fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
 /// file, key by key.
 ///
 /// STAGED members are later family knives (SURFACE.md ledger) and are
-/// filtered out of the order/kinds comparisons. KNOWN_HTML_GAPS is a
-/// ratchet: an entry that starts matching must be removed.
+/// filtered out of the order/kinds comparisons. Knife 4 landed every staged
+/// family, so the filter is empty. KNOWN_HTML_GAPS is a ratchet: an entry
+/// that starts matching must be removed.
 ///
-/// - fn.length: moveBefore/requestFullscreen report 'none' — staged families
-///   (fullscreen + moveBefore), everything else in the dict must match.
+/// - fn.length: resolved at knife 4 (moveBefore/requestFullscreen installed
+///   with Chrome's arity); the dict now matches in full.
 /// - hasAttributeNS.cases: the engine's attribute storage drops
 ///   namespaceURI (setAttributeNS(xlink,'href') stores no namespace), so
 ///   null-namespace lookups match by local name. Cross-layer DOM-core gap.
 #[test]
 fn htmlelement_members_match_chrome_truth_except_known_gaps() {
-    const STAGED: &[&str] = &[
-        "attributeStyleMap", "part", "computedStyleMap", "moveBefore",
-        "requestFullscreen", "webkitRequestFullScreen", "webkitRequestFullscreen",
-        "requestPointerLock", "ariaNotify",
-    ];
-    const KNOWN_HTML_GAPS: &[&str] = &["fn.length", "hasAttributeNS.cases"];
+    // Knife 4 landed all nine staged families (part/Typed OM/fullscreen
+    // trio/pointer lock/moveBefore/ariaNotify — their behavior lives in
+    // element_staged_members_match_chrome_truth); the filter stays as the
+    // mechanism for any future staging.
+    const STAGED: &[&str] = &[];
+    const KNOWN_HTML_GAPS: &[&str] = &["hasAttributeNS.cases"];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/htmlelement-probe.js");
     let engine: serde_json::Value =
@@ -26469,6 +26470,79 @@ fn eventtarget_chains_match_chrome_truth_except_known_gaps() {
         }
         if got != want {
             bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 knife 4: the Element staged family, landed. Chrome truth
+/// (element-staged-truth-145.json, 38 keys) pins the nine members the
+/// knife-2 ledger staged — part (cached DOMTokenList rw accessor),
+/// attributeStyleMap/computedStyleMap (Typed OM; StylePropertyMap/
+/// StylePropertyMapReadOnly owned by the stylemap module: ctor keeps
+/// Chrome's Illegal-constructor throw, prototype members in Chrome's own
+/// order, @@iterator = entries), the fullscreen trio (requestFullscreen
+/// rejects TypeError "Permissions check failed"; the webkit pair returns
+/// undefined), requestPointerLock (real Promise rejecting DOMException
+/// WrongDocumentError), moveBefore (Element/Document/DocumentFragment
+/// hosts, insertBefore-shaped move with Chrome's exact TypeError/
+/// HierarchyRequestError/NotFoundError messages) and ariaNotify (len 1,
+/// returns undefined). The probe settles its promise faces (fullscreen/
+/// pointer-lock rejections race a 3s timeout so a hang can't wedge the
+/// test) and is awaited through call_function_on_remote(await_promise).
+///
+/// KNOWN_GAPS ratchet:
+/// - gcs.len: the engine's computed-property list count (444) vs Chrome
+///   (413). That count is the CSSStyleDeclaration computed-list family —
+///   a separate knife. csm.face is checked as the INVARIANT
+///   computedStyleMap().size === getComputedStyle(el).length, which holds
+///   in both engines (Chrome 413 === 413, here 444 === 444).
+#[tokio::test(flavor = "current_thread")]
+async fn element_staged_members_match_chrome_truth() {
+    const KNOWN_GAPS: &[&str] = &["gcs.len"];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/element-staged-probe.js");
+    let result = rt
+        // call_function_on_remote invokes its argument as a FUNCTION
+        // (__fn.call), so hand it the probe wrapped as an arrow returning
+        // the probe's promise; await_promise settles it.
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/element-staged-truth-145.json"
+    ))
+    .unwrap();
+    let eng_gcs = engine["gcs.len"].clone();
+    let tru_gcs = truth["gcs.len"].clone();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        let got = &engine[k];
+        match k.as_str() {
+            "csm.face" => {
+                let (g, w) = (got.as_array().unwrap(), want.as_array().unwrap());
+                if !(g.len() == w.len()
+                    && g[0] == w[0]
+                    && g[1] == w[1]
+                    && g[2] == eng_gcs
+                    && w[2] == tru_gcs)
+                {
+                    bad.push(format!(
+                        "csm.face: engine {got} (own gcs {eng_gcs}) chrome {want} (own gcs {tru_gcs})"
+                    ));
+                }
+                continue;
+            }
+            _ => {}
+        }
+        let known = KNOWN_GAPS.contains(&k.as_str());
+        if got != want && !known {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+        if got == want && known {
+            bad.push(format!("{k}: now matches Chrome - remove it from KNOWN_GAPS"));
         }
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));

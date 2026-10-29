@@ -1,0 +1,186 @@
+{
+ "DOC.moveBefore": {
+  "len": 2
+ },
+ "EL.kinds": {
+  "ariaNotify": {
+   "fn": true,
+   "len": 1,
+   "name": "ariaNotify"
+  },
+  "computedStyleMap": {
+   "fn": true,
+   "len": 0,
+   "name": "computedStyleMap"
+  },
+  "moveBefore": {
+   "fn": true,
+   "len": 2,
+   "name": "moveBefore"
+  },
+  "part": "rw",
+  "requestFullscreen": {
+   "fn": true,
+   "len": 0,
+   "name": "requestFullscreen"
+  },
+  "requestPointerLock": {
+   "fn": true,
+   "len": 0,
+   "name": "requestPointerLock"
+  },
+  "webkitRequestFullScreen": {
+   "fn": true,
+   "len": 0,
+   "name": "webkitRequestFullScreen"
+  },
+  "webkitRequestFullscreen": {
+   "fn": true,
+   "len": 0,
+   "name": "webkitRequestFullscreen"
+  }
+ },
+ "FRAG.moveBefore": "function",
+ "HT.kinds": {
+  "ariaNotify": "MISSING",
+  "attributeStyleMap": "ro",
+  "computedStyleMap": "MISSING"
+ },
+ "ariaNotify.face": "#undefined",
+ "asm.assign": "assigned",
+ "asm.face": [
+  "object",
+  "StylePropertyMap",
+  0,
+  "[object StylePropertyMap]"
+ ],
+ "asm.get": [
+  null,
+  false
+ ],
+ "asm.identity": true,
+ "asm.withstyle": [
+  1,
+  "CSSStyleValue",
+  "red"
+ ],
+ "csm.face": [
+  "object",
+  "StylePropertyMapReadOnly",
+  413
+ ],
+ "csm.identity": true,
+ "gcs.len": 413,
+ "mb.badref": "THROW DOMException(NotFoundError): Failed to execute 'moveBefore' on 'Element': The node before which the new node is to be inserted is not a child of this node.",
+ "mb.basic": [
+  2,
+  "B"
+ ],
+ "mb.doc": "THROW HierarchyRequestError: Failed to execute 'moveBefore' on 'Document': State-preserving atomic move cannot be performed on nodes participating in an invalid hierarchy.",
+ "mb.frag": [
+  2,
+  "B"
+ ],
+ "mb.nonchild": "THROW DOMException(HierarchyRequestError): Failed to execute 'moveBefore' on 'Element': State-preserving atomic move cannot be performed on nodes participating in an invalid hierarchy.",
+ "mb.null": "THROW TypeError: Failed to execute 'moveBefore' on 'Element': parameter 1 is not of type 'Node'.",
+ "mb.selfmove": [
+  1,
+  "SPAN"
+ ],
+ "owner.ariaNotify": [
+  true,
+  false,
+  false
+ ],
+ "part.add": [
+  "a b c",
+  true,
+  3
+ ],
+ "part.default": [
+  "object",
+  true,
+  0,
+  "",
+  ""
+ ],
+ "part.desc": [
+  "get part",
+  "set part",
+  0,
+  1
+ ],
+ "part.same": true,
+ "part.set": [
+  "a b",
+  2,
+  "a b"
+ ],
+ "part.setAttr": [
+  2,
+  "x y",
+  "y"
+ ],
+ "part.svg": [
+  "object",
+  true,
+  0
+ ],
+ "rfs.args": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "rfs.face": [
+  "object",
+  true
+ ],
+ "rfs.plain": [
+  "reject",
+  "TypeError",
+  "Permissions check failed"
+ ],
+ "rpl.face": [
+  "object",
+  true,
+  "Promise"
+ ],
+ "rpl.plain": [
+  "reject",
+  "WrongDocumentError",
+  "The root document of this element is not valid for pointer lock."
+ ],
+ "spm.classes": [
+  [
+   "size",
+   "get",
+   "getAll",
+   "has",
+   "entries",
+   "forEach",
+   "keys",
+   "values",
+   "constructor"
+  ],
+  [
+   "append",
+   "clear",
+   "delete",
+   "set",
+   "constructor"
+  ]
+ ],
+ "spm.ctor": "THROW TypeError: Failed to construct 'StylePropertyMap': Illegal constructor",
+ "spm.symbols": [
+  [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  [
+   "Symbol(Symbol.toStringTag)"
+  ]
+ ],
+ "wrfs.face": "THROW TypeError: Cannot read properties of undefined (reading 'then')",
+ "wrfsu.face": "THROW TypeError: Cannot read properties of undefined (reading 'then')"
+}
