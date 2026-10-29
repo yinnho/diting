@@ -133,6 +133,15 @@ function _xhrQueryInDocCharset(url) {
   return m[1] + '?' + q + (m[3] || '');
 }
 
+// (#31 / M3 B2) The on* handlers are IDL attributes — prototype ACCESSORS,
+// the only slot shape the native dispatch core's handler leg fires (an own
+// data property is never a handler). Chrome splits them exactly this way:
+// the seven transfer events on XMLHttpRequestEventTarget.prototype,
+// readystatechange (a plain Event, not the ProgressEvent family) on
+// XMLHttpRequest.prototype. The ctor's `this.onload = null` initializers
+// route through these setters into hidden `_onload` fields.
+__acc(XMLHttpRequestEventTarget, ['onloadstart', 'onprogress', 'onabort', 'onerror', 'onload', 'ontimeout', 'onloadend']);
+
 globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarget {
   static UNSENT = 0;
   static OPENED = 1;
@@ -153,7 +162,12 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     this.response = null;
     this.timeout = 0;
     this.withCredentials = false;
-    this.upload = { addEventListener(){}, removeEventListener(){} };
+    // upload is the XMLHttpRequestUpload interface: an EventTarget through
+    // the chain, like Chrome. Nothing fires on it here (this engine's XHR
+    // has no incremental network leg), so the prototype shape is the whole
+    // contract. Read at ctor time — the interface is defined by
+    // global_surface.js, which runs after this file in the snapshot bake.
+    this.upload = Object.create(globalThis.XMLHttpRequestUpload.prototype);
     this._method = "GET";
     this._url = "";
     this._headers = {};
@@ -580,65 +594,34 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     this.readyState = 0;
   }
 
-  addEventListener(type, handler) {
-    __listenerGate(handler);
-    const L = __lmap(this);
-    if (!L[type]) L[type] = [];
-    L[type].push(handler);
-  }
-
-  removeEventListener(type, handler) {
-    const L = __evtStore.get(this);
-    if (L && L[type]) {
-      L[type] = L[type].filter(h => h !== handler);
-    }
-  }
-
-  // Per WHATWG DOM spec — required by zone.js which patches XHR via
-  // Object.getOwnPropertyDescriptor on XMLHttpRequestEventTarget.prototype.
-  dispatchEvent(event) {
-    if (!event || !event.type) return false;
-    const ev = (typeof event === 'object') ? event : { type: event };
-    _evS(ev, 'target', ev.target || this);
-    _evS(ev, 'currentTarget', ev.currentTarget || this);
-    const type = ev.type;
-    const L = __evtStore.get(this);
-    const handlers = (L && L[type]) || [];
-    _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } } });
-    const prop = 'on' + type;
-    if (typeof this[prop] === 'function') {
-      try { this[prop](ev); } catch (e) {}
-    }
-    return true;
-  }
+  // M3 B2: the EventTarget trio resolves through XMLHttpRequestEventTarget
+  // to the NATIVE core — no own dispatch code on this class. All firing
+  // sites build real Events (see _fireEvent); listeners and on* handlers
+  // run through the core's listener loop and handler leg.
 
   _setReadyState(state) {
     this.readyState = state;
+    // One dispatch carries both legs: the core's handler leg fires
+    // onreadystatechange with the event as its argument (the old direct
+    // `this.onreadystatechange()` call after _fireEvent would now
+    // double-fire it — #248's deliberate skip is superseded by the core).
     this._fireEvent('readystatechange');
-    if (this.onreadystatechange) {
-      try { this.onreadystatechange(); } catch(e) {}
-    }
   }
 
   _fireEvent(type) {
-    const event = { type, target: this, currentTarget: this, bubbles: false };
-    const L = __evtStore.get(this);
-    const handlers = (L && L[type]) || [];
-    _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); } } });
-    const prop = 'on' + type;
-    if (type !== 'readystatechange' && typeof this[prop] === 'function') {
-      try { this[prop](event); } catch(e) {}
-    }
+    // ProgressEvent for the transfer family (Chrome's shape), plain Event
+    // for readystatechange. dispatchEvent resolves through the chain to the
+    // native trio, which stamps target/currentTarget/eventPhase itself.
+    this.dispatchEvent(type === 'readystatechange' ? new Event(type) : new ProgressEvent(type));
   }
 };
+// (see the __acc block above — readystatechange lands on this prototype)
+__acc(globalThis.XMLHttpRequest, ['onreadystatechange']);
 _markNative(XMLHttpRequest);
 _markNative(XMLHttpRequest.prototype.open);
 _markNative(XMLHttpRequest.prototype.send);
 _markNative(XMLHttpRequest.prototype.abort);
 _markNative(XMLHttpRequest.prototype.setRequestHeader);
-_markNative(XMLHttpRequest.prototype.addEventListener);
-_markNative(XMLHttpRequest.prototype.removeEventListener);
-_markNative(XMLHttpRequest.prototype.dispatchEvent);
 _markNative(XMLHttpRequest.prototype.getResponseHeader);
 _markNative(XMLHttpRequest.prototype.getAllResponseHeaders);
 

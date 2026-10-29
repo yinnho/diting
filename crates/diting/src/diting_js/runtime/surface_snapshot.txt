@@ -1306,7 +1306,7 @@ P BackgroundFetchRegistration :: constructor
 P BarProp :: constructor
 P BarcodeDetector :: constructor
 P BaseAudioContext :: constructor,createAnalyser,createBiquadFilter,createBuffer,createBufferSource,createChannelMerger,createChannelSplitter,createConstantSource,createConvolver,createDelay,createDynamicsCompressor,createGain,createIIRFilter,createOscillator,createPanner,createPeriodicWave,createScriptProcessor,createStereoPanner,createWaveShaper,currentTime,decodeAudioData,destination,listener,onstatechange,renderQuantumSize,sampleRate,state
-P BatteryManager :: addEventListener,charging,chargingTime,constructor,dischargingTime,dispatchEvent,level,removeEventListener
+P BatteryManager :: charging,chargingTime,constructor,dischargingTime,level
 P BeforeInstallPromptEvent :: constructor
 P BeforeUnloadEvent :: constructor
 S BigInt :: asIntN,asUintN
@@ -2209,8 +2209,8 @@ P WritableStreamDefaultController :: constructor,error
 P WritableStreamDefaultWriter :: constructor
 P XMLDocument :: constructor
 S XMLHttpRequest :: DONE,HEADERS_RECEIVED,LOADING,OPENED,UNSENT
-P XMLHttpRequest :: _fireEvent,_setReadyState,abort,addEventListener,constructor,dispatchEvent,getAllResponseHeaders,getResponseHeader,open,overrideMimeType,removeEventListener,send,setRequestHeader
-P XMLHttpRequestEventTarget :: addEventListener,constructor,dispatchEvent,removeEventListener
+P XMLHttpRequest :: _fireEvent,_setReadyState,abort,constructor,getAllResponseHeaders,getResponseHeader,onreadystatechange,open,overrideMimeType,send,setRequestHeader
+P XMLHttpRequestEventTarget :: constructor,onabort,onerror,onload,onloadend,onloadstart,onprogress,ontimeout
 P XMLHttpRequestUpload :: constructor
 P XMLSerializer :: constructor,serializeToString
 P XPathEvaluator :: constructor

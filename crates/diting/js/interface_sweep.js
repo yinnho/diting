@@ -13,6 +13,17 @@
 // flags e.g. an Element.prototype.nodeType getter whose toString leaks JS
 // source. Runs once at snapshot build time; genuinely-native V8 builtins
 // already report native, so only JS-backed members change.
+// ---- chain fixups for faces global_surface.js owns (M3 B2) ----
+// XMLHttpRequestUpload is minted by the GENERATED global_surface tables, so
+// its chain wiring lives here (the file after it), not in the generated
+// file. Chrome: XMLHttpRequestUpload.prototype →
+// XMLHttpRequestEventTarget.prototype → EventTarget.prototype.
+(function () {
+  const U = globalThis.XMLHttpRequestUpload, X = globalThis.XMLHttpRequestEventTarget;
+  if (typeof U === 'function' && typeof X === 'function' && U.prototype) {
+    Object.setPrototypeOf(U.prototype, X.prototype);
+  }
+})();
 (function _markBuiltinsNative() {
   const seen = new Set();
   function walk(ctor) {

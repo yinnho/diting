@@ -150,3 +150,29 @@ window own-prop 脸不变。window 专属 on* 腿（`__windowOnHandlers` store�
 验收：探针 79→**85 项对 Chrome 145 全一致**（新增 win.et/win.dispatch.state/win.on.order/win.on.nolistener/win.on.unknown/et.on.unknown）；
 known 分歧（不修，留档）：合成 `dispatchEvent(new Event('error'))` 不触发 onerror（管线已叫过，避免双报；Chrome 会触发）。
 未迁（B2 起）：XHR/MSE/Worker/FileReader/iframe 派发器 + AbortSignal 的 `{type:'abort'}` 普通对象；B3/B4：Document、Element/Node。
+
+## M3 步骤B2a：XHR 家族+AbortSignal+BatteryManager 派发并轨原生核心（2026-10-29）
+
+B1（window）之后的第二刀：七套同形手搓派发器里的第一组并轨。XHRET 类体 34 行三件删净，
+`class XMLHttpRequestEventTarget extends EventTarget {}` ——三件经链解析到原生核心
+（XHRET.prototype → EventTarget.prototype，Chrome 同构）；XHR 类体自有三件（含 zone.js 注释那份
+loose dispatchEvent）同样删净。发火点全部换真事件：`_fireEvent` 现产
+`new ProgressEvent(type)`（传输族）/`new Event('readystatechange')`，`_setReadyState` 的
+`this.onreadystatechange()` 直调删除（#248 的「故意跳过」被核心的 handler 腿取代——
+一次派发同时喂监听器+handler，旧直调会双发）；handler 现在收到 event 参数、this=xhr（Chrome 同）。
+on* 迁 #31 `__acc` 原型 accessor（isHandlerSlot 只认 accessor 槽）：七个传输事件在 XHRET.prototype，
+onreadystatechange 在 XHR.prototype（Chrome 的分家位置），ctor 的 `this.onload=null` 初始化经
+setter 落隐藏 `_onload`。upload 由内联桩对象换 `Object.create(XMLHttpRequestUpload.prototype)`
+（链式真身；引擎无增量网络腿，不发事件，原型形状即全部契约）。AbortSignal 两修：extends 直指
+EventTarget（Chrome 145 真链不过 XHRET——探针抓出的旧简化）、`_signalAbort` 的
+`{type:'abort'}` 普通对象换 `new Event('abort')`。BatteryManager 桩三件删除+接链
+（getBattery 的实例=Object.create 其原型）。NetworkInformation 验明早已接链（#27 时代），不动。
+XMLHttpRequestUpload 由生成件 global_surface 定义，其链布线落在它后面的 interface_sweep.js
+（生成件禁手改）。夹具面 diff=声明的三张原型面（XHRET −三件+七 accessor；XHR −三件
++onreadystatechange；BatteryManager −三桩）；棘轮 47→48（xhr.js 顶层加载期引用 bootstrap 的
+`__acc`）。已知分歧沿 B1 档：handler 先于监听器（Chrome=注册序，本步探针模式两说一致）；
+#31 accessor 的 JS toString vs Chrome native getter（模式级既有面，探针键已避开）。
+验收：探针 85→**96 项对 Chrome 145 全一致**（xhr.chain/instanceof/on.desc/on.default/upload/
+dispatch.shape/dispatch.on/dispatch.string、abort.event/abort.dispatch.state、battery.et）；
+tests 1432/0；check_fresh+棘轮绿。步骤 B2b=MSE/Worker/FileReader（同形）；iframe 两腿因
+receiver() 判链（et-proto 私槽等值比较）与已立案的 _IframeWindow 链缺陷纠缠，并入该专项。

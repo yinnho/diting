@@ -120,6 +120,23 @@
   // hook suppresses 'error' on the global to avoid double-reporting.
   // Known divergence, unchanged by B1; fixing it means moving the pipeline
   // onto a dispatched ErrorEvent with the five-arg onerror unwrap.
+  // ---- XHR family + AbortSignal + BatteryManager on the native core (B2)
+  t('xhr.chain', function () { return [Object.getPrototypeOf(XMLHttpRequestEventTarget.prototype) === EventTarget.prototype, Object.getPrototypeOf(XMLHttpRequest.prototype) === XMLHttpRequestEventTarget.prototype, Object.getPrototypeOf(AbortSignal.prototype) === XMLHttpRequestEventTarget.prototype]; });
+  t('xhr.instanceof', function () { var x = new XMLHttpRequest(), c = new AbortController(); return [x instanceof EventTarget, x instanceof XMLHttpRequestEventTarget, c.signal instanceof EventTarget, c.signal instanceof XMLHttpRequestEventTarget]; });
+  // Accessor-shape only (no `nat` pin: the #31 __acc accessors are JS
+  // getters where Chrome's are native — a pattern-wide pre-existing face
+  // divergence, not this step's concern).
+  t('xhr.on.desc', function () { var a = desc(XMLHttpRequestEventTarget.prototype, 'onload'), b = desc(XMLHttpRequest.prototype, 'onreadystatechange'); return [!!a && !!a.g && a.s === 'fn' && a.e, !!b && !!b.g && b.s === 'fn' && b.e]; });
+  t('xhr.on.default', function () { var x = new XMLHttpRequest(); return [x.onload, x.onerror, x.onreadystatechange, x.onloadend]; });
+  t('xhr.upload', function () { var x = new XMLHttpRequest(); return [x.upload instanceof XMLHttpRequestUpload, x.upload instanceof EventTarget, Object.getOwnPropertyNames(x.upload).length]; });
+  t('xhr.dispatch.shape', function () { var x = new XMLHttpRequest(), r; x.addEventListener('x', function (e) { r = [this === x, e.target === x, e.currentTarget === x, e.eventPhase, e instanceof Event, e.type]; }); x.dispatchEvent(new ProgressEvent('x')); return r; });
+  // on* handler vs listener, the common page pattern (handler assigned
+  // first): registration order and the core's handler-first agree here.
+  t('xhr.dispatch.on', function () { var x = new XMLHttpRequest(), o = []; x.onload = function (e) { o.push('on:' + (e instanceof ProgressEvent) + ':' + (e.target === x)); }; x.addEventListener('load', function () { o.push('ls'); }); x.dispatchEvent(new Event('load')); return o; });
+  t('xhr.dispatch.string', function () { return new XMLHttpRequest().dispatchEvent('load'); });
+  t('abort.event', function () { var c = new AbortController(), o = []; c.signal.onabort = function (e) { o.push('on:' + (e instanceof Event) + ':' + (e.target === c.signal)); }; c.signal.addEventListener('abort', function (e) { o.push('ls:' + e.type); }); c.abort(); return o; });
+  t('abort.dispatch.state', function () { var c = new AbortController(), r; c.signal.addEventListener('abort', function (e) { r = [this === c.signal, e.target === c.signal, e.currentTarget === c.signal, e.eventPhase]; }); c.abort(); return r; });
+  t('battery.et', function () { return [Object.getPrototypeOf(BatteryManager.prototype) === EventTarget.prototype, Object.getOwnPropertyNames(BatteryManager.prototype).indexOf('addEventListener') === -1, Object.getPrototypeOf(NetworkInformation.prototype) === EventTarget.prototype]; });
   t('et.reentrant', function () { var e = new EventTarget(); e.addEventListener('x', function (ev) { e.dispatchEvent(ev); }); return e.dispatchEvent(new Event('x')); });
   t('et.redispatch', function () { var e = new EventTarget(), ev = new Event('x'); e.dispatchEvent(ev); return [ev.target === e, ev.currentTarget, ev.eventPhase, e.dispatchEvent(ev)]; });
   t('et.passive.prevent', function () { var e = new EventTarget(), ev = new Event('x', { cancelable: true }); e.addEventListener('x', function (x) { x.preventDefault(); }, { passive: true }); e.dispatchEvent(ev); return ev.defaultPrevented; });

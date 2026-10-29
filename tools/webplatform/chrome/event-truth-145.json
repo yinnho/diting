@@ -1,4 +1,19 @@
 {
+ "abort.dispatch.state": [
+  true,
+  true,
+  true,
+  2
+ ],
+ "abort.event": [
+  "on:true:true",
+  "ls:abort"
+ ],
+ "battery.et": [
+  true,
+  true,
+  true
+ ],
  "ce.detail": [
   null,
   null,
@@ -1053,5 +1068,44 @@
   1,
   2
  ],
- "win.on.unknown": "no"
+ "win.on.unknown": "no",
+ "xhr.chain": [
+  true,
+  true,
+  false
+ ],
+ "xhr.dispatch.on": [
+  "on:false:true",
+  "ls"
+ ],
+ "xhr.dispatch.shape": [
+  true,
+  true,
+  true,
+  2,
+  true,
+  "x"
+ ],
+ "xhr.dispatch.string": "THROW TypeError: Failed to execute 'dispatchEvent' on 'EventTarget': parameter 1 is not of type 'Event'.",
+ "xhr.instanceof": [
+  true,
+  true,
+  true,
+  false
+ ],
+ "xhr.on.default": [
+  null,
+  null,
+  null,
+  null
+ ],
+ "xhr.on.desc": [
+  true,
+  true
+ ],
+ "xhr.upload": [
+  true,
+  true,
+  0
+ ]
 }

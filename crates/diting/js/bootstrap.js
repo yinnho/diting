@@ -8085,9 +8085,6 @@ globalThis.BatteryManager = class BatteryManager {
   get chargingTime() { return this._chargingTime; }
   get dischargingTime() { return this._dischargingTime; }
   get level() { return this._level; }
-  addEventListener() {}
-  removeEventListener() {}
-  dispatchEvent() { return false; }
 };
 
 globalThis.AudioSinkInfo = class AudioSinkInfo {
@@ -9202,43 +9199,16 @@ if (typeof Headers === "undefined") {
   };
 }
 
-// XMLHttpRequestEventTarget — spec-required ancestor for XHR EventTarget methods.
-// zone.js prefers to walk XMLHttpRequestEventTarget.prototype for addEventListener/
-// removeEventListener/dispatchEvent descriptors before falling back to XHR.prototype.
-class XMLHttpRequestEventTarget {
-  addEventListener(type, handler) {
-    __listenerGate(handler);
-    const L = __lmap(this);
-    if (!L[type]) L[type] = [];
-    L[type].push(handler);
-  }
-  removeEventListener(type, handler) {
-    const L = __evtStore.get(this);
-    if (L && L[type]) {
-      L[type] = L[type].filter(h => h !== handler);
-    }
-  }
-  dispatchEvent(event) {
-    if (!event || !event.type) return false;
-    const ev = (typeof event === 'object') ? event : { type: event };
-    _evS(ev, 'target', ev.target || this);
-    _evS(ev, 'currentTarget', ev.currentTarget || this);
-    const type = ev.type;
-    const L = __evtStore.get(this);
-    const handlers = (L && L[type]) || [];
-    _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } } });
-    const prop = 'on' + type;
-    if (typeof this[prop] === 'function') {
-      try { this[prop](ev); } catch (e) {}
-    }
-    return true;
-  }
-}
+// XMLHttpRequestEventTarget — spec-required ancestor for XHR's EventTarget
+// face. M3 step B2: the trio resolves through the chain to the NATIVE core
+// (XHRET.prototype → EventTarget.prototype), exactly Chrome's chain — no
+// own dispatch code remains. zone.js walks XHRET.prototype for the trio
+// descriptors and falls through to EventTarget.prototype, where the native
+// methods live. The on* handler IDL attributes are installed as prototype
+// accessors by xhr.js (`__acc`) so the core's handler leg fires them.
+class XMLHttpRequestEventTarget extends EventTarget {}
 globalThis.XMLHttpRequestEventTarget = XMLHttpRequestEventTarget;
 _markNative(XMLHttpRequestEventTarget);
-_markNative(XMLHttpRequestEventTarget.prototype.addEventListener);
-_markNative(XMLHttpRequestEventTarget.prototype.removeEventListener);
-_markNative(XMLHttpRequestEventTarget.prototype.dispatchEvent);
 
 
 // WHATWG URL parsing/serialization is delegated to the Rust `url` crate via
@@ -11037,7 +11007,9 @@ _markNative(globalThis.PromiseRejectionEvent);
 // abort()/timeout()/any(), and throwIfAborted(). fetch() consumes the signal
 // pre-flight and races it mid-flight (see _raceAbortSignal at the fetch site).
 let _abortSignalConstructionKey = false;
-class AbortSignal extends XMLHttpRequestEventTarget {
+// Chrome chain truth (probe xhr.chain): AbortSignal.prototype →
+// EventTarget.prototype directly — NOT through XMLHttpRequestEventTarget.
+class AbortSignal extends EventTarget {
   constructor() {
     super();
     if (!_abortSignalConstructionKey) throw new TypeError("Illegal constructor");
@@ -11056,7 +11028,9 @@ class AbortSignal extends XMLHttpRequestEventTarget {
     this._aborted = true;
     this._reason = reason !== undefined ? reason
       : new DOMException("signal is aborted without reason", "AbortError");
-    this.dispatchEvent({ type: "abort" });
+    // Real Event (M3 B2): listeners and the onabort handler both fire
+    // through the native dispatch core now.
+    this.dispatchEvent(new Event("abort"));
   }
   static abort(reason) {
     const ac = new AbortController();
@@ -12971,6 +12945,9 @@ Object.setPrototypeOf(Node.prototype, _EventTarget.prototype);
 // Chrome (NetworkInformation.prototype → EventTarget.prototype), so they
 // are never own names of the first prototype.
 Object.setPrototypeOf(NetworkInformation.prototype, _EventTarget.prototype);
+// BatteryManager: same chain rule (M3 B2 — the old trio were inert stubs;
+// getBattery()'s instance is an Object.create of this prototype).
+Object.setPrototypeOf(globalThis.BatteryManager.prototype, _EventTarget.prototype);
 globalThis.HTMLCollection = class HTMLCollection extends Array {
   item(i) {
     i = i >>> 0;
