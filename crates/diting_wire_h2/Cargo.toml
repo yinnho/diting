@@ -1,0 +1,77 @@
+[package]
+publish = false
+description = "diting HTTP/2 implementation (diting_wire_h2); vendored from http2 0.5.20 (MIT, 0x676e67, Carl Lerche, Sean McArthur) and maintained here"
+build = false
+edition = "2021"
+rust-version = "1.68"
+name = "diting_wire_h2"
+version = "0.5.20"
+authors = [
+    "0x676e67 <gngppz@gmail.com>",
+    "Carl Lerche <me@carllerche.com>",
+    "Sean McArthur <sean@seanmonstar.com>",
+]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+license = "MIT"
+
+[features]
+parking_lot = []
+stream = []
+tracing = []
+unstable = []
+
+[lib]
+name = "diting_wire_h2"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies.atomic-waker]
+version = "1.0.0"
+
+[dependencies.bytes]
+version = "1.11.1"
+
+[dependencies.fnv]
+version = "1.0.5"
+
+[dependencies.futures-core]
+version = "0.3"
+default-features = false
+
+[dependencies.futures-sink]
+version = "0.3"
+default-features = false
+
+[dependencies.http]
+version = "1.4.2"
+
+[dependencies.indexmap]
+version = "2"
+features = ["std"]
+
+[dependencies.slab]
+version = "0.4.2"
+
+[dependencies.smallvec]
+version = "1.15.0"
+
+[dependencies.tokio]
+version = "1"
+features = ["io-util"]
+
+[dependencies.tokio-util]
+version = "0.7.1"
+features = [
+    "codec",
+    "io",
+]
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+priority = 0
+check-cfg = ["cfg(fuzzing)"]

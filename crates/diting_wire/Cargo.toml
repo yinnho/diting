@@ -101,7 +101,8 @@ version = "1.0.1"
 version = "0.1.4"
 
 [dependencies.http2]
-version = "0.5.17"
+package = "diting_wire_h2"
+path = "../diting_wire_h2"
 
 [dependencies.httparse]
 version = "1.10.1"

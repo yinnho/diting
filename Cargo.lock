@@ -1305,13 +1305,13 @@ dependencies = [
  "btls",
  "btls-sys",
  "bytes",
+ "diting_wire_h2",
  "diting_wire_proto",
  "diting_wire_rt",
  "futures-util",
  "http",
  "http-body",
  "http-body-util",
- "http2",
  "httparse",
  "ipnet",
  "libc",
@@ -1329,15 +1329,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "diting_wire_h2"
+version = "0.5.20"
+dependencies = [
+ "atomic-waker",
+ "bytes",
+ "fnv",
+ "futures-core",
+ "futures-sink",
+ "http",
+ "indexmap",
+ "slab",
+ "smallvec",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "diting_wire_proto"
 version = "0.2.6"
 dependencies = [
  "bytes",
+ "diting_wire_h2",
  "futures-channel",
  "futures-util",
  "http",
  "http-body",
- "http2",
  "httparse",
  "pin-project-lite",
  "smallvec",
@@ -2050,25 +2067,6 @@ dependencies = [
  "http",
  "http-body",
  "pin-project-lite",
-]
-
-[[package]]
-name = "http2"
-version = "0.5.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92d3114be2f413b2e491e686b93a28cda30c355cffc8d091a57f8be4b1342896"
-dependencies = [
- "atomic-waker",
- "bytes",
- "fnv",
- "futures-core",
- "futures-sink",
- "http",
- "indexmap",
- "slab",
- "smallvec",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]

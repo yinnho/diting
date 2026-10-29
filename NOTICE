@@ -19,5 +19,10 @@ diting_profiles) was taken from the wreq family of crates by 0x676e67 and contri
 wreq-util 3.0.0-rc.14), licensed under the Apache License, Version 2.0, and has since been
 modified and is maintained here. See crates/VENDORED.md.
 
+The HTTP/2 implementation (crates/diting_wire_h2) was taken from the `http2` crate 0.5.20
+(Copyright (c) 0x676e67, Carl Lerche, Sean McArthur and contributors; itself derived from the `h2` crate),
+licensed under the MIT License (see crates/diting_wire_h2/LICENSE), and has since been modified and is
+maintained here.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.

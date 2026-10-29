@@ -54,7 +54,8 @@ version = "1.4.0"
 version = "1.0.1"
 
 [dependencies.http2]
-version = "0.5.20"
+package = "diting_wire_h2"
+path = "../diting_wire_h2"
 features = ["unstable"]
 
 [dependencies.httparse]
