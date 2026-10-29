@@ -47,6 +47,9 @@
   t('ev.preventDefault', function () { var a = new Event('x', { cancelable: true }), b = new Event('x'); a.preventDefault(); b.preventDefault(); return [a.defaultPrevented, b.defaultPrevented, a.returnValue, b.returnValue]; });
   t('ev.returnValue.set', function () { var a = new Event('x', { cancelable: true }); a.returnValue = false; return [a.defaultPrevented, a.returnValue]; });
   t('ev.cancelBubble', function () { var a = new Event('x'); a.cancelBubble = true; return [a.cancelBubble]; });
+  // Setting cancelBubble=false after stopPropagation must NOT clear the stop
+  // flag (the setter is a one-way legacy IE alias).
+  t('ev.cancelBubble.setfalse', function () { var a = new Event('x'); a.stopPropagation(); a.cancelBubble = false; return a.cancelBubble; });
   t('ev.stopPropagation.cancelBubble', function () { var a = new Event('x'); a.stopPropagation(); return a.cancelBubble; });
   t('ev.initEvent', function () { var a = new Event('x'); a.initEvent('z', true, true); return [a.type, a.bubbles, a.cancelable]; });
   t('ev.initEvent.noarg', function () { return new Event('x').initEvent(); });
@@ -59,6 +62,16 @@
   t('ev.initDict.bad', function () { return new Event('x', 5); });
   t('ev.initDict.null', function () { return new Event('x', null).type; });
   t('ev.type.sym', function () { return new Event(Symbol('s')); });
+  t('ev.isTrusted.desc', function () { return desc(new Event('x'), 'isTrusted'); });
+  t('ev.isTrusted.set.sloppy', function () { var e = new Event('x'); e.isTrusted = true; return e.isTrusted; });
+  t('ev.isTrusted.set.strict', function () { 'use strict'; var e = new Event('x'); try { e.isTrusted = true; return 'ok'; } catch (err) { return 'THROW ' + err.constructor.name + ': ' + err.message; } });
+  t('ev.subclass.ownkeys', function () { var T = class T extends Event {}; var e = new T('x', { bubbles: true }); return [Object.getOwnPropertyNames(e), Object.getPrototypeOf(e) === T.prototype, e instanceof Event, e.type]; });
+  t('ev.subclass.dispatch', function () { var T = class T extends Event {}; var et = new EventTarget(), r; et.addEventListener('y', function (ev) { r = [ev.type, ev.target === et, ev instanceof T, ev.isTrusted]; }); et.dispatchEvent(new T('y', { bubbles: true })); return r; });
+  t('ev.composedPath.after', function () {
+    var d = document.createElement('div'); document.body.appendChild(d);
+    var ev = new Event('x', { bubbles: true }); d.dispatchEvent(ev); d.remove();
+    return ev.composedPath();
+  });
   t('ce.ownkeys', function () { return Object.getOwnPropertyNames(new CustomEvent('x', { detail: 1 })); });
   t('ce.detail', function () { return [new CustomEvent('x').detail, new CustomEvent('x', { detail: undefined }).detail, new CustomEvent('x', { detail: 5 }).detail]; });
   t('ce.initCustomEvent', function () { var e = new CustomEvent('x'); e.initCustomEvent('y', true, true, 7); return [e.type, e.bubbles, e.detail]; });
@@ -73,6 +86,8 @@
   t('et.dispatch.noarg', function () { return new EventTarget().dispatchEvent(); });
   t('et.illegal', function () { return EventTarget.prototype.addEventListener.call({}, 'x', function () {}); });
   t('et.dispatch.return', function () { var e = new EventTarget(), ev = new Event('x', { cancelable: true }); e.addEventListener('x', function (x) { x.preventDefault(); }); return [e.dispatchEvent(ev), ev.defaultPrevented, ev.target === e, ev.currentTarget, ev.eventPhase]; });
+  // { passive: true } makes preventDefault inert mid-listener.
+  t('et.passive', function () { var e = new EventTarget(), seen; e.addEventListener('x', function (x) { x.preventDefault(); seen = x.defaultPrevented; }, { passive: true }); var r = e.dispatchEvent(new Event('x', { cancelable: true })); return [seen, r]; });
   t('et.listener.order', function () { var e = new EventTarget(), l = []; e.addEventListener('x', function () { l.push(1); }); e.addEventListener('x', function () { l.push(2); }); e.dispatchEvent(new Event('x')); return l; });
   t('et.listener.dup', function () { var e = new EventTarget(), l = [], f = function () { l.push(1); }; e.addEventListener('x', f); e.addEventListener('x', f); e.dispatchEvent(new Event('x')); return l; });
   t('et.listener.once', function () { var e = new EventTarget(), l = []; e.addEventListener('x', function () { l.push(1); }, { once: true }); e.dispatchEvent(new Event('x')); e.dispatchEvent(new Event('x')); return l; });

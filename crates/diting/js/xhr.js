@@ -599,8 +599,8 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
   dispatchEvent(event) {
     if (!event || !event.type) return false;
     const ev = (typeof event === 'object') ? event : { type: event };
-    ev.target = ev.target || this;
-    ev.currentTarget = ev.currentTarget || this;
+    _evS(ev, 'target', ev.target || this);
+    _evS(ev, 'currentTarget', ev.currentTarget || this);
     const type = ev.type;
     const L = __evtStore.get(this);
     const handlers = (L && L[type]) || [];

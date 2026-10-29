@@ -18,6 +18,7 @@
 //!    table (append-only, order is load-bearing).
 
 pub(crate) mod declare;
+pub(crate) mod event;
 pub(crate) mod event_target;
 pub(crate) mod exceptions;
 pub(crate) mod geometry;
@@ -33,9 +34,12 @@ pub(crate) static IFACES: declare::Table = &[
 ];
 
 /// Native callbacks that must be registered as external references.
+/// Append-only: V8 stores snapshotted callbacks by INDEX into the combined
+/// table, so the order below is load-bearing.
 pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
     let mut v = declare::external_refs();
     v.extend(event_target::external_refs());
+    v.extend(event::external_refs());
     v
 }
 
@@ -43,6 +47,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
 /// `install_faces`, so the bake and a fresh VM see the identical object.
 pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: v8::Local<v8::Object>) {
     declare::install(scope, global, IFACES);
+    event::install(scope, global);
     event_target::capture_dom_exception(scope, global);
     event_target::install(scope, global);
 }

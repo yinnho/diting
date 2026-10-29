@@ -249,8 +249,8 @@ class _MseEventTarget {
   dispatchEvent(event) {
     if (!event || !event.type) return false;
     const ev = (typeof event === 'object') ? event : { type: event };
-    ev.target = ev.target || this;
-    ev.currentTarget = ev.currentTarget || this;
+    _evS(ev, 'target', ev.target || this);
+    _evS(ev, 'currentTarget', ev.currentTarget || this);
     const L = __evtStore.get(this);
     const handlers = (L && L[ev.type]) || [];
     for (const h of handlers) { try { _invokeListener(h, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }

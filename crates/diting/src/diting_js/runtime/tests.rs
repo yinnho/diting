@@ -26026,36 +26026,16 @@ fn storage_matches_chrome_truth() {
     assert!(bad.is_empty(), "{} probe(s) differ from Chrome:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// JS-PLATFORM-ARCH M3: DOMException and EventTarget are NATIVE interfaces (the
-/// Moli-direction binding layer). This runs the SAME probe that produced
-/// chrome/event-truth-145.json in real Chrome 145 and demands the engine match,
-/// probe by probe - except the known Event-class gaps below. It is a RATCHET:
-/// a listed gap that starts matching must be removed from the list (so the
-/// list only shrinks as the Event family migrates to the native layer).
+/// JS-PLATFORM-ARCH M3: DOMException, EventTarget, Event and CustomEvent are
+/// NATIVE interfaces (the Moli-direction binding layer). This runs the SAME
+/// probe that produced chrome/event-truth-145.json in real Chrome 145 and
+/// demands the engine match, probe by probe - except the known gaps below.
+/// It is a RATCHET: a listed gap that starts matching must be removed from
+/// the list. The Event-class migration (step C) emptied the list; new
+/// entries may only be added for genuinely-new regressions.
 #[test]
 fn event_stack_matches_chrome_truth_except_known_event_gaps() {
-    const KNOWN_EVENT_GAPS: &[&str] = &[
-        "ce.ownkeys",
-        "ev.consts",
-        "ev.ctor.call",
-        "ev.illegal",
-        "ev.illegal.method",
-        "ev.initDict.bad",
-        "ev.initDict.null",
-        "ev.json",
-        "ev.keys",
-        "ev.ownkeys",
-        "ev.preventDefault",
-        "ev.readonly",
-        "ev.returnValue.set",
-        "ev.stopPropagation.cancelBubble",
-        "ev.strict.readonly",
-        "ev.type.sym",
-        "ev.values",
-        "shape.CustomEvent",
-        "shape.Event",
-        "sub.ownkeys",
-    ];
+    const KNOWN_EVENT_GAPS: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/event-probe.js");
     let engine: serde_json::Value = serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();

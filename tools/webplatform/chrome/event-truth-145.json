@@ -170,6 +170,10 @@
    "second"
   ]
  ],
+ "et.passive": [
+  false,
+  true
+ ],
  "et.passive.prevent": false,
  "et.redispatch": [
   true,
@@ -195,6 +199,8 @@
  "ev.cancelBubble": [
   true
  ],
+ "ev.cancelBubble.setfalse": true,
+ "ev.composedPath.after": [],
  "ev.composedPath.fresh": [],
  "ev.consts": [
   0,
@@ -233,6 +239,18 @@
   true
  ],
  "ev.initEvent.noarg": "THROW TypeError: Failed to execute 'initEvent' on 'Event': 1 argument required, but only 0 present.",
+ "ev.isTrusted.desc": {
+  "c": false,
+  "e": true,
+  "g": {
+   "len": 0,
+   "name": "get isTrusted",
+   "nat": true
+  },
+  "s": null
+ },
+ "ev.isTrusted.set.sloppy": false,
+ "ev.isTrusted.set.strict": "THROW TypeError: Cannot set property isTrusted of #<Event> which has only a getter",
  "ev.json": "{\"isTrusted\":false}",
  "ev.keys": [
   "AT_TARGET",
@@ -278,6 +296,20 @@
  ],
  "ev.stopPropagation.cancelBubble": true,
  "ev.strict.readonly": "THROW TypeError: Cannot set property type of #<Event> which has only a getter",
+ "ev.subclass.dispatch": [
+  "y",
+  true,
+  true,
+  false
+ ],
+ "ev.subclass.ownkeys": [
+  [
+   "isTrusted"
+  ],
+  true,
+  true,
+  "x"
+ ],
  "ev.tag": [
   "[object Event]",
   {

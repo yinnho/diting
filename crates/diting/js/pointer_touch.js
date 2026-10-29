@@ -13,8 +13,14 @@
 // typeof-guard. Chrome shape: pointerType defaults to '' (only real input
 // carries 'mouse'/'pen'/'touch'), isPrimary defaults to false.
 globalThis.PointerEvent = class PointerEvent extends MouseEvent {
-  constructor(type, opts={}) { super(type, opts); this.pointerId = opts.pointerId || 0; this.width = opts.width || 1; this.height = opts.height || 1; this.pressure = opts.pressure || 0; this.pointerType = opts.pointerType !== undefined ? opts.pointerType : ''; this.isPrimary = !!opts.isPrimary; }
+  constructor(type, opts={}) {
+    super(type, opts);
+    const s = _evxGuard(_evx.get(this));
+    s.pointerId = opts.pointerId || 0; s.width = opts.width || 1; s.height = opts.height || 1;
+    s.pressure = opts.pressure || 0; s.pointerType = opts.pointerType !== undefined ? opts.pointerType : ''; s.isPrimary = !!opts.isPrimary;
+  }
 }
+_evxProps(globalThis.PointerEvent, ['pointerId', 'width', 'height', 'pressure', 'pointerType', 'isPrimary']);
 
 // Pointer capture (实地反馈 2026-10-28「出现滑块，拖不了」root cause): drag-slider CAPTCHAs and
 // drag handles call setPointerCapture(pointerId) in their pointerdown
@@ -79,14 +85,17 @@ globalThis.Touch = class Touch {
 globalThis.TouchEvent = class TouchEvent extends UIEvent {
   constructor(type, opts = {}) {
     super(type, opts);
-    this.touches = opts.touches || [];
-    this.targetTouches = opts.targetTouches || this.touches;
-    this.changedTouches = opts.changedTouches || [];
-    this.altKey = !!opts.altKey;
-    this.ctrlKey = !!opts.ctrlKey;
-    this.metaKey = !!opts.metaKey;
-    this.shiftKey = !!opts.shiftKey;
+    _evx.set(this, {
+      touches: opts.touches || [],
+      targetTouches: opts.targetTouches || opts.touches || [],
+      changedTouches: opts.changedTouches || [],
+      altKey: !!opts.altKey,
+      ctrlKey: !!opts.ctrlKey,
+      metaKey: !!opts.metaKey,
+      shiftKey: !!opts.shiftKey,
+    });
   }
 };
+_evxProps(globalThis.TouchEvent, ['touches', 'targetTouches', 'changedTouches', 'altKey', 'ctrlKey', 'metaKey', 'shiftKey']);
 
 globalThis.__diting_hide_list.push('__diting_ptrCaps', '__diting_pointerCaptureFor', '__diting_pointerCaptureRelease');

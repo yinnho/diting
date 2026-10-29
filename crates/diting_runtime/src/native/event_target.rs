@@ -15,11 +15,12 @@
 //!                          `_mtWindow` timer-deferral window)
 //!   report(err)           report an uncaught listener exception
 //!   parent(target, ev)    next target on the event path, or null
-//!   isEvent(v)            is `v` an Event?
+//!   handler(target, ev)   the `onfoo` IDL-attribute handler, if any
 //!
-//! Event access goes through the small `EventView` surface below; today an
-//! Event is a JS object with data properties, after the Event migration only
-//! this surface changes.
+//! Events are the native [`super::event`] interface; their state (and the
+//! brand itself) is the `diting#ev-state` private slot installed by its
+//! constructor. Access goes through `EventView` below - the one surface
+//! shared with the accessors in `event.rs`.
 
 use v8::{FunctionCallbackArguments, FunctionCallbackInfo, FunctionTemplate, Local, PropertyAttribute, ReturnValue};
 
@@ -292,30 +293,32 @@ unsafe extern "C" fn remove(info: *const FunctionCallbackInfo) {
     remove_entry(scope, target, ty, cb, o.capture);
 }
 
-// ---- Event access (the only place that knows how an Event stores state) --
+// ---- Event access (the only place dispatch touches event state) ---------
 
-struct EventView<'a> { obj: Local<'a, v8::Object> }
+use super::event::{S_BUBBLES, S_CURRENT, S_IMMEDIATE, S_PASSIVE, S_PHASE, S_PREVENTED, S_STOPPED, S_TARGET, S_TYPE, S_DISPATCHED, S_PATH, S_PATH_DONE, state_of};
+
+/// A branded event, viewed as its state array. Invariants are event.rs':
+/// slot presence is the brand, indices are the `S_*` constants.
+struct EventView<'a> { obj: Local<'a, v8::Object>, st: Local<'a, v8::Array> }
 
 impl<'a> EventView<'a> {
-    fn get(&self, scope: &mut v8::PinScope<'a, '_>, name: &str) -> Local<'a, v8::Value> {
-        let k = s(scope, name);
-        self.obj.get(scope, k.into()).unwrap_or_else(|| v8::undefined(scope).into())
+    fn new(scope: &mut v8::PinScope<'a, '_>, obj: Local<'a, v8::Object>) -> Option<Self> {
+        state_of(scope, obj).map(|st| EventView { obj, st })
     }
-    fn set(&self, scope: &mut v8::PinScope<'a, '_>, name: &str, v: Local<'a, v8::Value>) {
-        let k = s(scope, name);
-        // define (not set): the property may be a data property made
-        // non-writable later, and must stay non-enumerable if internal.
-        self.obj.set(scope, k.into(), v);
+    fn get(&self, scope: &mut v8::PinScope<'a, '_>, i: u32) -> Local<'a, v8::Value> {
+        self.st.get_index(scope, i).unwrap_or_else(|| v8::undefined(scope).into())
     }
-    fn set_hidden(&self, scope: &mut v8::PinScope<'a, '_>, name: &str, v: Local<'a, v8::Value>) {
-        let k = s(scope, name);
-        self.obj.define_own_property(scope, k.into(), v, PropertyAttribute::DONT_ENUM);
+    fn set(&self, scope: &mut v8::PinScope<'a, '_>, i: u32, v: Local<'a, v8::Value>) {
+        self.st.set_index(scope, i, v);
     }
-    fn truthy(&self, scope: &mut v8::PinScope<'a, '_>, name: &str) -> bool { self.get(scope, name).boolean_value(scope) }
+    fn truthy(&self, scope: &mut v8::PinScope<'a, '_>, i: u32) -> bool { self.get(scope, i).is_true() }
+    fn set_bool(&self, scope: &mut v8::PinScope<'a, '_>, i: u32, v: bool) {
+        self.set(scope, i, v8::Boolean::new(scope, v).into());
+    }
     fn set_phase(&self, scope: &mut v8::PinScope<'a, '_>, phase: i32, current: Local<'a, v8::Value>) {
         let p = v8::Integer::new(scope, phase);
-        self.set(scope, "eventPhase", p.into());
-        self.set(scope, "currentTarget", current);
+        self.set(scope, S_PHASE, p.into());
+        self.set(scope, S_CURRENT, current);
     }
 }
 
@@ -344,10 +347,12 @@ fn invoke<'a>(scope: &mut v8::PinScope<'a, '_>, h: Option<Local<'a, v8::Object>>
         if flag(scope, e, E_REMOVED) || flag(scope, e, E_CAPTURE) != capture_pass { continue; }
         if flag(scope, e, E_ONCE) { remove_entry_by(scope, target, ty, e); }
         let passive = flag(scope, e, E_PASSIVE);
-        if passive { let t = v8::Boolean::new(scope, true); ev.set_hidden(scope, "_inPassive", t.into()); }
+        if passive { ev.set_bool(scope, S_PASSIVE, true); }
         let Some(cb) = e.get_index(scope, E_CB) else { continue };
         v8::tc_scope!(let tc, scope);
         let recv: Local<v8::Value> = target.into();
+        // listeners receive the EVENT OBJECT itself — the state array is
+        // engine-internal storage and must never leak into page hands.
         let evv: Local<v8::Value> = ev.obj.into();
         if let Ok(f) = Local::<v8::Function>::try_from(cb) {
             f.call(tc, recv, &[evv]);
@@ -366,12 +371,12 @@ fn invoke<'a>(scope: &mut v8::PinScope<'a, '_>, h: Option<Local<'a, v8::Object>>
             if let Some(exc) = tc.exception() { report(tc, h, exc); }
             tc.reset();
         }
-        if passive { let f = v8::Boolean::new(tc, false); ev.set_hidden(tc, "_inPassive", f.into()); }
-        if ev.truthy(tc, "_immediatePropagationStopped") { break; }
+        if passive { ev.set_bool(tc, S_PASSIVE, false); }
+        if ev.truthy(tc, S_IMMEDIATE) { break; }
     }
     // Event handler IDL attribute (`target.onfoo`): fires once per target,
     // in the bubble leg (after the listeners), via the host hook.
-    if !capture_pass && !ev.truthy(scope, "_immediatePropagationStopped") {
+    if !capture_pass && !ev.truthy(scope, S_IMMEDIATE) {
         if let Some(hf) = h.and_then(|h| hook_fn(scope, h, "handler")) {
             let evv: Local<v8::Value> = ev.obj.into();
             if let Some(handler) = hf.call(scope, h.unwrap().into(), &[target.into(), evv]).and_then(|v| Local::<v8::Function>::try_from(v).ok()) {
@@ -403,23 +408,19 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
     if args.length() < 1 { throw_type(scope, &format!("{prefix}: 1 argument required, but only 0 present.")); return; }
     let h = hooks(scope);
     let evv = args.get(0);
-    let is_event = match h.and_then(|h| hook_fn(scope, h, "isEvent")) {
-        Some(f) => { let u = v8::undefined(scope); f.call(scope, u.into(), &[evv]).map(|r| r.is_true()).unwrap_or(false) }
-        None => evv.is_object(),
-    };
     let Ok(evo) = Local::<v8::Object>::try_from(evv) else { throw_type(scope, &format!("{prefix}: parameter 1 is not of type 'Event'.")); return };
-    if !is_event { throw_type(scope, &format!("{prefix}: parameter 1 is not of type 'Event'.")); return; }
-    let ev = EventView { obj: evo };
-    let flag_key = private(scope, "diting#ev-dispatching");
-    if evo.get_private(scope, flag_key).map(|v| v.is_true()).unwrap_or(false) {
+    // The brand check is native: the event state private slot. A page
+    // cannot forge it (no for_api symbols from script), so `{}` and other
+    // look-alikes are rejected exactly like Chrome.
+    let Some(ev) = EventView::new(scope, evo) else { throw_type(scope, &format!("{prefix}: parameter 1 is not of type 'Event'.")); return };
+    if ev.truthy(scope, S_DISPATCHED) {
         throw_dom(scope, &format!("{prefix}: The event is already being dispatched."), "InvalidStateError");
         return;
     }
-    let tt = v8::Boolean::new(scope, true);
-    evo.set_private(scope, flag_key, tt.into());
+    ev.set_bool(scope, S_DISPATCHED, true);
 
-    let ty = match ev.get(scope, "type").to_string(scope) { Some(t) => t, None => { return } };
-    ev.set(scope, "target", target.into());
+    let ty = match ev.get(scope, S_TYPE).to_string(scope) { Some(t) => t, None => { return } };
+    ev.set(scope, S_TARGET, target.into());
 
     // event path: target first, then ancestors through the parent hook
     let mut path: Vec<Local<v8::Object>> = vec![target];
@@ -427,38 +428,48 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
         let mut cur = target;
         for _ in 0..4096 {
             let u = v8::undefined(scope);
-            let next = pf.call(scope, u.into(), &[cur.into(), ev.obj.into()]);
+            let next = pf.call(scope, u.into(), &[cur.into(), evo.into()]);
             match next.and_then(|v| Local::<v8::Object>::try_from(v).ok()) { Some(n) => { path.push(n); cur = n; } None => break }
         }
     }
+    // the path is the event's composedPath() for the duration of the dispatch
+    let path_arr: Local<v8::Value> = {
+        let elems: Vec<Local<v8::Value>> = path.iter().map(|o| (*o).into()).collect();
+        v8::Array::new_with_elements(scope, &elems).into()
+    };
+    ev.set(scope, S_PATH, path_arr);
+    ev.set_bool(scope, S_PATH_DONE, false);
 
     // capture phase: root first
     for i in (1..path.len()).rev() {
-        if ev.truthy(scope, "_propagationStopped") { break; }
+        if ev.truthy(scope, S_STOPPED) { break; }
         invoke(scope, h, &ev, path[i], ty, 1, true);
     }
     // target: capture listeners, then bubble listeners
-    if !ev.truthy(scope, "_propagationStopped") {
+    if !ev.truthy(scope, S_STOPPED) {
         invoke(scope, h, &ev, path[0], ty, 2, true);
     }
-    if !ev.truthy(scope, "_propagationStopped") {
+    if !ev.truthy(scope, S_STOPPED) {
         invoke(scope, h, &ev, path[0], ty, 2, false);
     }
     // bubble phase
-    if ev.truthy(scope, "bubbles") {
+    if ev.truthy(scope, S_BUBBLES) {
         for i in 1..path.len() {
-            if ev.truthy(scope, "_propagationStopped") { break; }
+            if ev.truthy(scope, S_STOPPED) { break; }
             invoke(scope, h, &ev, path[i], ty, 3, false);
         }
     }
-    // dispatch epilogue
+    // dispatch epilogue: the spec clears the path; composedPath() returns
+    // [] from here on (pathDone), not a recomputed walk.
     let nul = v8::null(scope);
     ev.set_phase(scope, 0, nul.into());
-    let f = v8::Boolean::new(scope, false);
-    ev.set(scope, "_propagationStopped", f.into());
-    ev.set(scope, "_immediatePropagationStopped", f.into());
-    evo.set_private(scope, flag_key, f.into());
-    let canceled = ev.truthy(scope, "defaultPrevented");
+    ev.set_bool(scope, S_STOPPED, false);
+    ev.set_bool(scope, S_IMMEDIATE, false);
+    let empty_path: Local<v8::Value> = v8::Array::new(scope, 0).into();
+    ev.set(scope, S_PATH, empty_path);
+    ev.set_bool(scope, S_PATH_DONE, true);
+    ev.set_bool(scope, S_DISPATCHED, false);
+    let canceled = ev.truthy(scope, S_PREVENTED);
     ReturnValue::from_function_callback_info(info).set(v8::Boolean::new(scope, !canceled).into());
 }
 

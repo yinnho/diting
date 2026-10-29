@@ -6,8 +6,10 @@
 (() => {
   const register = globalThis.__diting_event_hooks_set;
   delete globalThis.__diting_event_hooks_set;
-  // Captured now: a page overwriting window.Node/Event cannot redirect them.
-  const NodeC = globalThis.Node, EventC = globalThis.Event;
+  // Captured now: a page overwriting window.Node cannot redirect it. (The
+  // Event brand check is native - the state private slot - so the hooks no
+  // longer carry an isEvent leg.)
+  const NodeC = globalThis.Node;
   register({
     // the timer-deferral window (#327) around a target's listener loop
     enter() { _mtDepth++; },
@@ -15,7 +17,6 @@
     report(err) { globalThis.__diting_reportUncaughtError(err); },
     // next target on the event path; plain EventTargets have none
     parent(target) { return target instanceof NodeC ? (target.parentNode || null) : null; },
-    isEvent(v) { return v instanceof EventC; },
     // event handler IDL attribute (`el.onfoo = fn`) fires after the listeners
     handler(target, ev) {
       const h = target['on' + ev.type];

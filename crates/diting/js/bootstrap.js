@@ -68,6 +68,16 @@ globalThis.__diting_reportUncaughtError = function(err, src) {
   globalThis.__diting_reportUncaught(message, source, line, err);
 };
 globalThis.__windowListeners = {};
+// Event state facade: the native Event (crates/diting_runtime/src/native/
+// event.rs) keeps its state in a private slot - invisible and unwritable
+// from page JS. Engine legs that must pin dispatch state (target/
+// currentTarget/eventPhase) or read propagation flags go through this
+// captured native function; the global itself is deleted at bake so pages
+// never see it. `_evS(ev, key)` reads, `_evS(ev, key, v)` writes; on an
+// unbranded object it falls back to plain property semantics so the
+// legacy dispatchers keep tolerating hand-rolled event look-alikes.
+const _evS = globalThis.__diting_event_state;
+delete globalThis.__diting_event_state;
 globalThis.addEventListener = function(type, fn) {
   __listenerGate(fn);
   if (!globalThis.__windowListeners[type]) globalThis.__windowListeners[type] = [];
@@ -86,9 +96,9 @@ globalThis.dispatchEvent = function(event) {
   // (Alibaba AWSC's nc-slider init does) saw null and died mid-flight,
   // leaving the punish-page slider track unsized. Spec semantics: every
   // dispatch re-pins target to the host it runs on.
-  event.target = globalThis;
-  event.currentTarget = globalThis;
-  event.eventPhase = 2;
+  _evS(event, 'target', globalThis);
+  _evS(event, 'currentTarget', globalThis);
+  _evS(event, 'eventPhase', 2);
   const handlers = globalThis.__windowListeners[event.type] || [];
   _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, globalThis, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); } } });
   return !event.defaultPrevented;
@@ -4174,7 +4184,7 @@ class Element extends Node {
     // event's target already pinned, and activation must only run for the
     // element the page actually dispatched on.
     const isOrigin = !event.target;
-    if (isOrigin) event.target = this;
+    if (isOrigin) _evS(event, 'target', this);
     // Event-coordinate surface (blitz #663 family): resolve offsetX/Y
     // against the origin target once — the doc-space hit point
     // (client + root scroll) inverse-maps through the element's total
@@ -4206,25 +4216,27 @@ class Element extends Node {
       const path = [];
       for (let n = this.parentNode; n; n = n.parentNode) path.push(n);
       for (let i = path.length - 1; i >= 0; i--) {
-        if (event._propagationStopped) break;
+        if (_evS(event, 'stopped')) break;
         const node = path[i];
         const caps = (_eventRegistryCap[node._nid] || {})[event.type] || [];
         if (!caps.length) continue;
-        event.currentTarget = node;
-        event.eventPhase = 1;
+        _evS(event, 'currentTarget', node);
+        _evS(event, 'eventPhase', 1);
         for (const h of caps.slice()) {
           try { h.call(node, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-          if (event._immediatePropagationStopped) break;
+          if (_evS(event, 'immediateStopped')) break;
         }
       }
-      event.eventPhase = 2;
+      _evS(event, 'eventPhase', 2);
       // stopPropagation on the way down means the target and bubble legs
-      // never run — the target is later on the propagation path.
-      if (event._propagationStopped) return !event.defaultPrevented;
+      // never run — the target is later on the propagation path. The
+      // dispatch itself is still OVER (Chrome: composedPath() is [] from
+      // here on), so stamp the spent-path mark before leaving.
+      if (_evS(event, 'stopped')) { _evS(event, 'pathDone', true); return !event.defaultPrevented; }
     } else {
       // Bubble re-entry at an ancestor: its capture bucket already ran in
       // the origin's capture walk; only the bubble leg fires here.
-      event.eventPhase = 3;
+      _evS(event, 'eventPhase', 3);
     }
     // Activation for an unmanaged click: Chrome runs activation behavior for
     // untrusted clicks too, so `cb.dispatchEvent(new MouseEvent('click'))`
@@ -4235,7 +4247,7 @@ class Element extends Node {
     if (isOrigin && event.type === 'click' && !this._ditingClickInProgress) {
       flip = _preClickFlip(this);
     }
-    event.currentTarget = this;
+    _evS(event, 'currentTarget', this);
     // Spec: inline `onclick="..."` content attributes are event handlers
     // for the matching event type. Fire them alongside any
     // addEventListener handlers. Also honor the IDL property
@@ -4257,18 +4269,22 @@ class Element extends Node {
       const capHandlers = (_eventRegistryCap[this._nid] || {})[event.type] || [];
       for (const h of capHandlers) {
         try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-        if (event._immediatePropagationStopped) break;
+        if (_evS(event, 'immediateStopped')) break;
       }
     }
     const handlers = (_eventRegistry[this._nid] || {})[event.type] || [];
     for (const h of handlers) {
       try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-      if (event._immediatePropagationStopped) break;
+      if (_evS(event, 'immediateStopped')) break;
     }
     });
-    if (event.bubbles && !event._propagationStopped && this.parentNode) {
+    if (event.bubbles && !_evS(event, 'stopped') && this.parentNode) {
       this.parentNode.dispatchEvent(event);
     }
+    // Origin-frame epilogue, mirroring the native core's: the path is
+    // spent once the walk completes — composedPath() returns [] forever
+    // after (Chrome truth ev.composedPath.after).
+    if (isOrigin) _evS(event, 'pathDone', true);
     if (flip) {
       if (event.defaultPrevented) {
         _cancelPreClickFlip(flip);
@@ -6755,10 +6771,10 @@ class Document extends Node {
     // re-entry has its target pinned and already ran the origin's capture
     // walk over this node — firing here would double-fire.
     if (!event.target) {
-      event.target = this;
+      _evS(event, 'target', this);
       if (this._nid !== undefined) {
         const caps = (_eventRegistryCap[this._nid] || {})[event.type] || [];
-        event.currentTarget = this;
+        _evS(event, 'currentTarget', this);
         _mtWindow(() => { for (const h of caps.slice()) {
           try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
         } });
@@ -6766,7 +6782,7 @@ class Document extends Node {
     }
     const L = __evtStore.get(this);
     const handlers = ((L && L[event.type]) || []).slice();
-    if (handlers.length) event.currentTarget = this;
+    if (handlers.length) _evS(event, 'currentTarget', this);
     _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); } } });
     return !event.defaultPrevented;
   }
@@ -9212,8 +9228,8 @@ class XMLHttpRequestEventTarget {
   dispatchEvent(event) {
     if (!event || !event.type) return false;
     const ev = (typeof event === 'object') ? event : { type: event };
-    ev.target = ev.target || this;
-    ev.currentTarget = ev.currentTarget || this;
+    _evS(ev, 'target', ev.target || this);
+    _evS(ev, 'currentTarget', ev.currentTarget || this);
     const type = ev.type;
     const L = __evtStore.get(this);
     const handlers = (L && L[type]) || [];
@@ -10753,43 +10769,31 @@ globalThis.PerformanceObserver = class {
   static get supportedEntryTypes() { return ['mark', 'measure', 'navigation', 'paint']; }
 };
 
-// DOMException is a native interface (crates/diting_runtime/src/native/exceptions.rs),
-// installed with the faces before this script runs.
-globalThis.Event = class Event {
-  // WebIDL: type is a required argument and is coerced to a string — Chrome
-  // throws "1 argument required, but only 0 present." and `new Event(123).type`
-  // is "123", not the number (issue #552). Subclasses inherit both via super.
-  constructor(t,o={}) { if (arguments.length < 1) throw new TypeError("Failed to construct 'Event': 1 argument required, but only 0 present."); this.type=String(t);this.bubbles=!!o.bubbles;this.cancelable=!!o.cancelable;this.composed=!!o.composed;this.defaultPrevented=false;this.target=null;this.currentTarget=null;this.eventPhase=0;this.timeStamp=Date.now();this._propagationStopped=false;this._immediatePropagationStopped=false;  __hideOwn(this);}
-  get isTrusted() { return true; }
-  // Legacy IE alias, still on Chrome's Event.prototype: srcElement tracks
-  // target on every leg. Site code reading e.srcElement.tagName (the
-  // AWSC-family dispatch probes do) found nothing before (#168).
-  get srcElement() { return this.target; }
-  preventDefault() { if (this.cancelable && !this._inPassive) this.defaultPrevented=true; } stopPropagation(){ this._propagationStopped=true; } stopImmediatePropagation(){ this._propagationStopped=true; this._immediatePropagationStopped=true; }
-  initEvent(type,bubbles,cancelable) { if (arguments.length < 1) throw new TypeError("Failed to execute 'initEvent' on 'Event': 1 argument required, but only 0 present."); this.type=String(type);this.bubbles=!!bubbles;this.cancelable=!!cancelable;this.defaultPrevented=false;this._propagationStopped=false;this._immediatePropagationStopped=false; }
-  composedPath() {
-    if (!this.target) return [];
-    const path = [];
-    let n = this.target;
-    while (n) { path.push(n); n = n.parentNode || null; }
-    if (typeof window !== "undefined" && window && path[path.length - 1] !== window) path.push(window);
-    return path;
+// Event and CustomEvent are native interfaces (crates/diting_runtime/src/
+// native/event.rs): state in a private slot, prototype accessors, the
+// unforgeable own isTrusted, one dispatch-flag semantics for initEvent.
+// Installed with the faces before this script runs.
+
+// Event subclasses still live here, but their instance state (view/
+// detail/clientX/...) moved OFF the instance into the `_evx` WeakMap with
+// prototype accessor pairs - Chrome's shape: the only own property an
+// event instance ever has is isTrusted (sub.ownkeys truth). Engine legs
+// that need to write subclass state after construction (offset resolution
+// in the element dispatcher) go through the writable accessors.
+const _evx = new WeakMap();
+function _evxGuard(s) {
+  if (!s) throw new TypeError('Illegal invocation');
+  return s;
+}
+function _evxProps(C, keys) {
+  for (const k of keys) {
+    Object.defineProperty(C.prototype, k, {
+      get() { return _evxGuard(_evx.get(this))[k]; },
+      set(v) { _evxGuard(_evx.get(this))[k] = v; },
+      enumerable: true, configurable: true,
+    });
   }
-};
-globalThis.CustomEvent = class extends Event {
-  // WebIDL CustomEventInit: `any detail = null` — undefined detail must read
-  // back as null, not undefined (issue #552).
-  constructor(t,o={}) { if (arguments.length < 1) throw new TypeError("Failed to construct 'CustomEvent': 1 argument required, but only 0 present."); super(t,o);this.detail=o.detail!==undefined?o.detail:null; }
-  // Legacy DOM Level 2 init; some libraries (Starbucks China bundle, older
-  // analytics shims) still call createEvent('CustomEvent') + initCustomEvent
-  // instead of new CustomEvent(...). See issue #41.
-  initCustomEvent(type,bubbles,cancelable,detail) {
-    this.type = type;
-    this.bubbles = !!bubbles;
-    this.cancelable = !!cancelable;
-    this.detail = detail;
-  }
-};
+}
 // Chrome surfaces every unhandled promise rejection on the window as a
 // cancelable `unhandledrejection` PromiseRejectionEvent (`promise` + `reason`);
 // `rejectionhandled` follows when a handler is attached late. deno_core routes
@@ -10802,10 +10806,10 @@ globalThis.PromiseRejectionEvent = class extends Event {
   constructor(t, o = {}) {
     if (arguments.length < 1) throw new TypeError("Failed to construct 'PromiseRejectionEvent': 1 argument required, but only 0 present.");
     super(t, o);
-    this.promise = o.promise !== undefined ? o.promise : null;
-    this.reason = o.reason;
+    _evx.set(this, { promise: o.promise !== undefined ? o.promise : null, reason: o.reason });
   }
 };
+_evxProps(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
 (function () {
   const core = globalThis.Deno && globalThis.Deno.core;
   if (!core || typeof core.setUnhandledPromiseRejectionHandler !== 'function') return;
@@ -10838,38 +10842,40 @@ globalThis.PromiseRejectionEvent = class extends Event {
 // re-parents onto it to match the Chrome prototype chain (a pointer event
 // that fails `instanceof UIEvent` is what delegation libraries notice first).
 globalThis.UIEvent = class extends Event {
-  constructor(t,o={}) { super(t,o);this.view=o.view||null;this.detail=o.detail||0; }
+  constructor(t,o={}) { super(t,o);_evx.set(this,{view:o.view||null,detail:o.detail||0}); }
   // Legacy DOM Level 2 initializer. Positional signature per UI Events spec.
   initUIEvent(type,canBubble,cancelable,view,detail) {
     if (arguments.length < 1) throw new TypeError("Failed to execute 'initUIEvent' on 'UIEvent': 1 argument required, but only 0 present.");
     this.initEvent(type,canBubble,cancelable);
-    this.view=view===undefined?null:view;
-    this.detail=detail||0;
+    const s = _evxGuard(_evx.get(this)); s.view=view===undefined?null:view; s.detail=detail||0;
   }
 };
+_evxProps(globalThis.UIEvent, ['view', 'detail']);
 globalThis.MouseEvent = class extends UIEvent {
   // Chrome shape: offsetX/Y are NOT constructor-dict settable — a script
   // constructed event reads 0 until dispatch resolves them against the
   // target (the dispatchEvent chokepoint below).
-  constructor(t,o={}) { super(t,o);this.view=o.view||null;this.detail=o.detail||0;this.screenX=o.screenX||0;this.screenY=o.screenY||0;this.clientX=o.clientX||0;this.clientY=o.clientY||0;this.ctrlKey=!!o.ctrlKey;this.altKey=!!o.altKey;this.shiftKey=!!o.shiftKey;this.metaKey=!!o.metaKey;this.button=o.button||0;this.buttons=o.buttons||0;this.relatedTarget=o.relatedTarget||null;this.offsetX=0;this.offsetY=0; }
+  constructor(t,o={}) { super(t,o);_evx.set(this,{view:o.view||null,detail:o.detail||0,screenX:o.screenX||0,screenY:o.screenY||0,clientX:o.clientX||0,clientY:o.clientY||0,ctrlKey:!!o.ctrlKey,altKey:!!o.altKey,shiftKey:!!o.shiftKey,metaKey:!!o.metaKey,button:o.button||0,buttons:o.buttons||0,relatedTarget:o.relatedTarget||null,offsetX:0,offsetY:0}); }
   // Legacy DOM Level 2 initializer. Positional signature per UI Events spec.
   initMouseEvent(type,canBubble,cancelable,view,detail,screenX,screenY,clientX,clientY,ctrlKey,altKey,shiftKey,metaKey,button,relatedTarget) {
     if (arguments.length < 1) throw new TypeError("Failed to execute 'initMouseEvent' on 'MouseEvent': 1 argument required, but only 0 present.");
     this.initEvent(type,canBubble,cancelable);
-    this.view=view===undefined?null:view;
-    this.detail=detail||0;
-    this.screenX=screenX||0;
-    this.screenY=screenY||0;
-    this.clientX=clientX||0;
-    this.clientY=clientY||0;
-    this.ctrlKey=!!ctrlKey;
-    this.altKey=!!altKey;
-    this.shiftKey=!!shiftKey;
-    this.metaKey=!!metaKey;
-    this.button=button||0;
-    this.relatedTarget=relatedTarget===undefined?null:relatedTarget;
+    const s = _evxGuard(_evx.get(this));
+    s.view=view===undefined?null:view;
+    s.detail=detail||0;
+    s.screenX=screenX||0;
+    s.screenY=screenY||0;
+    s.clientX=clientX||0;
+    s.clientY=clientY||0;
+    s.ctrlKey=!!ctrlKey;
+    s.altKey=!!altKey;
+    s.shiftKey=!!shiftKey;
+    s.metaKey=!!metaKey;
+    s.button=button||0;
+    s.relatedTarget=relatedTarget===undefined?null:relatedTarget;
   }
 };
+_evxProps(globalThis.MouseEvent, ['view','detail','screenX','screenY','clientX','clientY','ctrlKey','altKey','shiftKey','metaKey','button','buttons','relatedTarget','offsetX','offsetY']);
 // x/y alias clientX/Y and pageX/pageY add the root scroll — all read-time
 // getters (blitz #663 family), so initMouseEvent rewires keep them true.
 Object.defineProperty(globalThis.MouseEvent.prototype, 'x', { get() { return this.clientX; }, configurable: true, enumerable: true });
@@ -10877,34 +10883,42 @@ Object.defineProperty(globalThis.MouseEvent.prototype, 'y', { get() { return thi
 Object.defineProperty(globalThis.MouseEvent.prototype, 'pageX', { get() { return this.clientX + (globalThis.scrollX || globalThis.pageXOffset || 0); }, configurable: true, enumerable: true });
 Object.defineProperty(globalThis.MouseEvent.prototype, 'pageY', { get() { return this.clientY + (globalThis.scrollY || globalThis.pageYOffset || 0); }, configurable: true, enumerable: true });
 globalThis.KeyboardEvent = class extends UIEvent {
-  constructor(t,o={}) { super(t,o);this.view=o.view||null;this.detail=o.detail||0;this.key=o.key||"";this.code=o.code||"";this.location=o.location||0;this.ctrlKey=!!o.ctrlKey;this.altKey=!!o.altKey;this.shiftKey=!!o.shiftKey;this.metaKey=!!o.metaKey;this.repeat=!!o.repeat; }
+  constructor(t,o={}) { super(t,o);_evx.set(this,{view:o.view||null,detail:o.detail||0,key:o.key||"",code:o.code||"",location:o.location||0,ctrlKey:!!o.ctrlKey,altKey:!!o.altKey,shiftKey:!!o.shiftKey,metaKey:!!o.metaKey,repeat:!!o.repeat}); }
   // Legacy DOM Level 3 initializer. Positional signature per the WebKit/Gecko form.
   initKeyboardEvent(type,canBubble,cancelable,view,key,location,ctrlKey,altKey,shiftKey,metaKey) {
     if (arguments.length < 1) throw new TypeError("Failed to execute 'initKeyboardEvent' on 'KeyboardEvent': 1 argument required, but only 0 present.");
     this.initEvent(type,canBubble,cancelable);
-    this.view=view===undefined?null:view;
-    this.key=key===undefined?"":String(key);
-    this.location=location||0;
-    this.ctrlKey=!!ctrlKey;
-    this.altKey=!!altKey;
-    this.shiftKey=!!shiftKey;
-    this.metaKey=!!metaKey;
+    const s = _evxGuard(_evx.get(this));
+    s.view=view===undefined?null:view;
+    s.key=key===undefined?"":String(key);
+    s.location=location||0;
+    s.ctrlKey=!!ctrlKey;
+    s.altKey=!!altKey;
+    s.shiftKey=!!shiftKey;
+    s.metaKey=!!metaKey;
   }
 };
-globalThis.FocusEvent = class extends UIEvent { constructor(t,o={}) { super(t,o);this.relatedTarget=o.relatedTarget||null; } };
-globalThis.InputEvent = class extends UIEvent { constructor(t,o={}) { super(t,o);this.data=o.data||null;this.inputType=o.inputType||""; } };
-globalThis.ErrorEvent = class extends Event { constructor(t,o={}) { super(t,o);this.message=o.message||"";this.filename=o.filename||"";this.lineno=o.lineno||0;this.colno=o.colno||0;this.error=o.error||null; } };
+_evxProps(globalThis.KeyboardEvent, ['view','detail','key','code','location','ctrlKey','altKey','shiftKey','metaKey','repeat']);
+globalThis.FocusEvent = class extends UIEvent { constructor(t,o={}) { super(t,o);_evx.set(this,{relatedTarget:o.relatedTarget||null}); } };
+_evxProps(globalThis.FocusEvent, ['relatedTarget']);
+globalThis.InputEvent = class extends UIEvent { constructor(t,o={}) { super(t,o);_evx.set(this,{data:o.data||null,inputType:o.inputType||""}); } };
+_evxProps(globalThis.InputEvent, ['data', 'inputType']);
+globalThis.ErrorEvent = class extends Event { constructor(t,o={}) { super(t,o);_evx.set(this,{message:o.message||"",filename:o.filename||"",lineno:o.lineno||0,colno:o.colno||0,error:o.error||null}); } };
+_evxProps(globalThis.ErrorEvent, ['message','filename','lineno','colno','error']);
 globalThis.AnimationEvent = class AnimationEvent extends Event {
   // WebIDL AnimationEventInit: animationName "" / elapsedTime 0 /
   // pseudoElement "" defaults.
   constructor(t, o = {}) {
     if (arguments.length < 1) throw new TypeError("Failed to construct 'AnimationEvent': 1 argument required, but only 0 present.");
     super(t, o);
-    this.animationName = o.animationName !== undefined ? String(o.animationName) : "";
-    this.elapsedTime = o.elapsedTime !== undefined ? Number(o.elapsedTime) : 0;
-    this.pseudoElement = o.pseudoElement !== undefined ? String(o.pseudoElement) : "";
+    _evx.set(this, {
+      animationName: o.animationName !== undefined ? String(o.animationName) : "",
+      elapsedTime: o.elapsedTime !== undefined ? Number(o.elapsedTime) : 0,
+      pseudoElement: o.pseudoElement !== undefined ? String(o.pseudoElement) : "",
+    });
   }
 };
+_evxProps(globalThis.AnimationEvent, ['animationName', 'elapsedTime', 'pseudoElement']);
 globalThis.TransitionEvent = class TransitionEvent extends Event {
   // WebIDL TransitionEventInit: propertyName "" / elapsedTime 0 /
   // pseudoElement "" defaults (blitz#863 family 2). Was an empty Event
@@ -10912,23 +10926,33 @@ globalThis.TransitionEvent = class TransitionEvent extends Event {
   constructor(t, o = {}) {
     if (arguments.length < 1) throw new TypeError("Failed to construct 'TransitionEvent': 1 argument required, but only 0 present.");
     super(t, o);
-    this.propertyName = o.propertyName !== undefined ? String(o.propertyName) : "";
-    this.elapsedTime = o.elapsedTime !== undefined ? Number(o.elapsedTime) : 0;
-    this.pseudoElement = o.pseudoElement !== undefined ? String(o.pseudoElement) : "";
+    _evx.set(this, {
+      propertyName: o.propertyName !== undefined ? String(o.propertyName) : "",
+      elapsedTime: o.elapsedTime !== undefined ? Number(o.elapsedTime) : 0,
+      pseudoElement: o.pseudoElement !== undefined ? String(o.pseudoElement) : "",
+    });
   }
 };
-globalThis.WheelEvent = class extends MouseEvent { constructor(t,o={}) { super(t,o);this.deltaX=o.deltaX||0;this.deltaY=o.deltaY||0;this.deltaZ=o.deltaZ||0;this.deltaMode=o.deltaMode||0; } };
+_evxProps(globalThis.TransitionEvent, ['propertyName', 'elapsedTime', 'pseudoElement']);
+globalThis.WheelEvent = class extends MouseEvent {
+  constructor(t,o={}) {
+    super(t,o);
+    const s = _evxGuard(_evx.get(this));
+    s.deltaX=o.deltaX||0; s.deltaY=o.deltaY||0; s.deltaZ=o.deltaZ||0; s.deltaMode=o.deltaMode||0;
+  }
+};
+_evxProps(globalThis.WheelEvent, ['deltaX', 'deltaY', 'deltaZ', 'deltaMode']);
 
 globalThis.CompositionEvent = class extends UIEvent {
-  constructor(t,o={}) { super(t,o);this.view=o.view||null;this.detail=o.detail||0;this.data=o.data||""; }
+  constructor(t,o={}) { super(t,o);_evx.set(this,{view:o.view||null,detail:o.detail||0,data:o.data||""}); }
   // Legacy DOM Level 3 initializer. Positional signature per UI Events spec.
   initCompositionEvent(type,canBubble,cancelable,view,data) {
     if (arguments.length < 1) throw new TypeError("Failed to execute 'initCompositionEvent' on 'CompositionEvent': 1 argument required, but only 0 present.");
     this.initEvent(type,canBubble,cancelable);
-    this.view=view===undefined?null:view;
-    this.data=data===undefined?"":String(data);
+    const s = _evxGuard(_evx.get(this)); s.view=view===undefined?null:view; s.data=data===undefined?"":String(data);
   }
 };
+_evxProps(globalThis.CompositionEvent, ['view', 'detail', 'data']);
 globalThis.PopStateEvent = class extends Event {
   constructor(type, init) {
     super(type, init || {});
@@ -10936,21 +10960,32 @@ globalThis.PopStateEvent = class extends Event {
     // The earlier stub inherited Event but never stored state, so
     // `popstate.state` was always undefined and SPA routers reading
     // `event.state` to restore route info would mis-render.
-    this.state = init && 'state' in init ? init.state : null;
+    _evx.set(this, { state: init && 'state' in init ? init.state : null });
   }
 };
+_evxProps(globalThis.PopStateEvent, ['state']);
 globalThis.HashChangeEvent = class extends Event {};
-globalThis.MessageEvent = class extends Event { constructor(t,o={}) { super(t,o);this.data=o.data;this.origin=o.origin===undefined?'':String(o.origin);this.lastEventId=o.lastEventId===undefined?'':String(o.lastEventId);this.source=o.source===undefined?null:o.source;this.ports=o.ports===undefined?[]:o.ports; } };
-globalThis.CloseEvent = class extends Event { constructor(t,o={}) { super(t,o);this.wasClean=!!o.wasClean;this.code=o.code===undefined?0:(o.code|0);this.reason=o.reason===undefined?'':String(o.reason); } };
+globalThis.MessageEvent = class extends Event {
+  constructor(t,o={}) {
+    super(t,o);
+    _evx.set(this,{data:o.data,origin:o.origin===undefined?'':String(o.origin),lastEventId:o.lastEventId===undefined?'':String(o.lastEventId),source:o.source===undefined?null:o.source,ports:o.ports===undefined?[]:o.ports});
+  }
+};
+_evxProps(globalThis.MessageEvent, ['data', 'origin', 'lastEventId', 'source', 'ports']);
+globalThis.CloseEvent = class extends Event { constructor(t,o={}) { super(t,o);_evx.set(this,{wasClean:!!o.wasClean,code:o.code===undefined?0:(o.code|0),reason:o.reason===undefined?'':String(o.reason)}); } };
+_evxProps(globalThis.CloseEvent, ['wasClean', 'code', 'reason']);
 globalThis.ProgressEvent = class ProgressEvent extends Event {
   constructor(type, init) {
     super(type, init || {});
     const i = init || {};
-    this.lengthComputable = !!i.lengthComputable;
-    this.loaded = i.loaded != null ? Number(i.loaded) : 0;
-    this.total = i.total != null ? Number(i.total) : 0;
+    _evx.set(this, {
+      lengthComputable: !!i.lengthComputable,
+      loaded: i.loaded != null ? Number(i.loaded) : 0,
+      total: i.total != null ? Number(i.total) : 0,
+    });
   }
 };
+_evxProps(globalThis.ProgressEvent, ['lengthComputable', 'loaded', 'total']);
 globalThis.ClipboardEvent = class extends Event {};
 globalThis.SubmitEvent = class extends Event {};
 
@@ -10961,19 +10996,22 @@ globalThis.SubmitEvent = class extends Event {};
 globalThis.ToggleEvent = class ToggleEvent extends Event {
   constructor(type, init = {}) {
     super(type, init);
-    this.oldState = init.oldState !== undefined ? String(init.oldState) : "";
-    this.newState = init.newState !== undefined ? String(init.newState) : "";
+    _evx.set(this, {
+      oldState: init.oldState !== undefined ? String(init.oldState) : "",
+      newState: init.newState !== undefined ? String(init.newState) : "",
+    });
   }
 };
+_evxProps(globalThis.ToggleEvent, ['oldState', 'newState']);
 _markNative(globalThis.ToggleEvent);
 
 // Fires when an auto content-visibility box skips in/out of rendering.
 globalThis.ContentVisibilityAutoStateChangeEvent = class ContentVisibilityAutoStateChangeEvent extends Event {
   constructor(type, init = {}) {
     super(type, init);
-    this._skipped = Boolean(init && init.skipped);
+    _evx.set(this, { skipped: Boolean(init && init.skipped) });
   }
-  get skipped() { return this._skipped === true; }
+  get skipped() { return _evxGuard(_evx.get(this)).skipped === true; }
 };
 
 // Missing PromiseRejectionEvent made core-js misdetect the environment and
@@ -10989,10 +11027,10 @@ globalThis.PromiseRejectionEvent = class PromiseRejectionEvent extends Event {
       );
     }
     super(type, init);
-    this.promise = init.promise;
-    this.reason = init.reason;
+    _evx.set(this, { promise: init.promise, reason: init.reason });
   }
 };
+_evxProps(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
 _markNative(globalThis.PromiseRejectionEvent);
 
 
@@ -16895,9 +16933,9 @@ globalThis.dispatchEvent = function(event) {
     // on*-assigned handlers must see the same target/currentTarget
     // AT_TARGET state as addEventListener ones (the base wrapper re-pins,
     // but it only runs after this leg).
-    event.target = globalThis;
-    event.currentTarget = globalThis;
-    event.eventPhase = 2;
+    _evS(event, 'target', globalThis);
+    _evS(event, 'currentTarget', globalThis);
+    _evS(event, 'eventPhase', 2);
     // (#37) 'error' is pipeline-only in Chrome: onerror runs from the
     // uncaught-error pipeline (__diting_reportUncaught), never from a
     // synthetic dispatchEvent(new ErrorEvent('error')) — and the pipeline

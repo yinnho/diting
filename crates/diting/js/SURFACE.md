@@ -114,3 +114,21 @@ bootstrap.js 里的 JS 版已删除（−34 行）。探针 36 项对 Chrome 145
 探针（event-probe.js 71 项）38 → 51 一致，EventTarget 部分全绿；剩余 20 项全是 Event 类（见 tests.rs 的 KNOWN_EVENT_GAPS，棘轮式只减不增）。
 副作用发现：audio.js 把普通对象 `{type:'complete'}` 交给 dispatchEvent（Chrome 会抛 "not of type 'Event'"，旧 JS 版放过）——已改成真 Event。
 未迁（步骤 B）：Node/Document/window/XHR/MSE/AbortSignal 各自的 dispatchEvent 仍是遗留 JS（AbortSignal 派发的 `{type:'abort'}` 也是普通对象）。
+
+## M3 步骤C：Event/CustomEvent 原生化 + 20 项棘轮清零（2026-10-29）
+
+`native/event.rs`：Event/CustomEvent 描述符（成员按 Chrome 原型序），状态=固定布局 17 槽 JS 数组存 `diting#ev-state` 私有槽
+（页面子类 `extends Event` 分配普通对象，内部字段装不上——私有槽即品牌，this 上任何 shape 都能盖）。
+`isTrusted` 是 [LegacyUnforgeable]：实例唯一 own 属性（getter-only、不可配置），构造时用捕获的 intrinsic `Object.defineProperty`
+（`diting#ev-dp`）盖共享描述符（`diting#ev-itdesc`）——页面覆写 defineProperty 也偷不走。
+要点：S_DISPATCHED 一个位兼管再入 InvalidStateError 与 initEvent 派发中失效；composedPath 派发中返回存路径、派发后 S_PATH_DONE 永远 `[]`、
+未派发 target=null 也 `[]`；cancelBubble set-false 不清旗；字典成员按字典序读（bubbles/cancelable/composed[/detail]）。
+子类状态迁出实例：`_evx` WeakMap + `_evxProps` 在子类原型装 accessor 对（Chrome 子类 own keys=['isTrusted']）；
+引擎内部写腿=原生 facade `__diting_event_state`（bootstrap 顶部捕获成 `_evS` 即删全局；无品牌对象退化为普通属性——XHR/MSE 手搓事件照旧容忍）。
+全部 ~50 个内部写点迁 `_evS`（window/Node/Document/XHR/MSE/window on* 包装）。
+**修出一个严重泄漏**：EventView 重写时 invoke 把 state 数组本体当 event 传给监听器（Node 走 JS 旧派发没露，普通对象走原生核心全露）——
+EventView 带回 obj 句柄，监听器/on* 钩子收事件本体。
+验收：探针 71→**79 项对 Chrome 145 全一致**（新增 cancelBubble.setfalse、et.passive、isTrusted 六键）；tests.rs KNOWN_EVENT_GAPS 20→**0**
+（棘轮清空，新差异只许真回归）；surface fixture 刷新（Event 原型 12 访问器+4 常量+5 方法，子类原型现出各自成员）；
+变异三刀全咬（cancelBubble 清旗 / preventDefault 弃 passive / isTrusted 不装配——最后一刀 11 键齐响）。
+遗留 JS 派发器（window/Node/Document/XHR/MSE）收尾盖章 `pathDone`（composedPath.after 真值），迁原生核心仍是步骤 B。
