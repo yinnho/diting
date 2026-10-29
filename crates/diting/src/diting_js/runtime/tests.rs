@@ -16758,11 +16758,13 @@
     async fn test_scrollend_fires_after_scroll_completes_and_not_without_translation() {
         // Blitz#354: scrollend trails scroll once scrolling finishes (same
         // tick here — our scrolls are instant) and, unlike scroll, bubbles —
-        // so the element scrollend also reaches document listeners (as in
-        // Chrome), while window listeners hear only the window-path fire.
-        // The negative clause holds too: a scroll op that translated nothing
-        // fires neither scroll nor scrollend. Tall page so the window scroll
-        // has a real range to move in (the root scroller clamps to it now).
+        // so the element scrollend reaches document AND window listeners up
+        // the chain (as in Chrome, via the M3 native core's document →
+        // window path edge), while the window-path fire adds one more at
+        // each. The negative clause holds too: a scroll op that translated
+        // nothing fires neither scroll nor scrollend. Tall page so the
+        // window scroll has a real range to move in (the root scroller
+        // clamps to it now).
         let mut rt = setup_runtime("<html><body><div style=\"height:5000px\"></div></body></html>");
         let script = r#"async () => {
             const el = document.createElement('div');
@@ -16771,7 +16773,7 @@
             el.addEventListener('scrollend', () => se++);
             window.addEventListener('scrollend', () => wse++);
             document.addEventListener('scrollend', () => dse++);
-            el.scrollTop = 100;       // moved -> element scrollend, bubbles to document
+            el.scrollTop = 100;       // moved -> element scrollend, bubbles to document + window
             el.scrollTo(0, 100);      // same position -> no move -> nothing
             window.scrollTo(0, 400);  // moved -> document + window scrollend
             window.scrollTo(0, 400);  // same position -> no move -> nothing
@@ -16779,7 +16781,7 @@
             return [se, wse, dse];
         }"#;
         let result = rt.call_function_on_remote(script, None, &[], true, true).await.unwrap();
-        assert_eq!(result.value.unwrap(), serde_json::json!([1, 1, 2]));
+        assert_eq!(result.value.unwrap(), serde_json::json!([1, 2, 2]));
     }
 
     #[tokio::test(flavor = "current_thread")]

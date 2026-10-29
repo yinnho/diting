@@ -6,10 +6,11 @@
 (() => {
   const register = globalThis.__diting_event_hooks_set;
   delete globalThis.__diting_event_hooks_set;
-  // Captured now: a page overwriting window.Node cannot redirect it. (The
-  // Event brand check is native - the state private slot - so the hooks no
-  // longer carry an isEvent leg.)
+  // Captured now: a page overwriting window.Node/window.document cannot
+  // redirect the path walk. (The Event brand check is native - the state
+  // private slot - so the hooks no longer carry an isEvent leg.)
   const NodeC = globalThis.Node;
+  const DocC = globalThis.document;
   // Is `key` on `target` a real event-handler IDL attribute? Those install
   // as accessor properties (own on the global, prototype-level on Element/
   // Document); a page-assigned plain data property (`et.onfoo = f` on a bare
@@ -30,14 +31,32 @@
     enter() { _mtDepth++; },
     exit() { _mtDepth--; },
     report(err) { globalThis.__diting_reportUncaughtError(err); },
-    // next target on the event path; plain EventTargets have none
-    parent(target) { return target instanceof NodeC ? (target.parentNode || null) : null; },
+    // next target on the event path; plain EventTargets have none. The
+    // document → window edge is explicit (document.parentNode is null, but
+    // Chrome's propagation path continues into the Window — bubbled element
+    // events reach window listeners); it terminates there, the global is
+    // not a Node.
+    parent(target) {
+      if (!(target instanceof NodeC)) return null;
+      if (target.parentNode) return target.parentNode;
+      // The document is the only null-parent Node that still propagates.
+      // The captured DocC is the SNAPSHOT realm's document — a fresh realm
+      // mints a fresh instance, so identity alone never matched at runtime
+      // (composedPath truth: Chrome ends ["D","W"], engine ended at "D").
+      // Accept the live binding as well; detached elements (also null-parent)
+      // stay out, and an iframe's contentDocument is not this realm's
+      // document, so it does not jump to the main window.
+      if (target === DocC || target === globalThis.document) return globalThis;
+      return null;
+    },
     // Event handler IDL attribute (`el.onfoo = fn` / window.onfoo). Fires
     // BEFORE the listeners (the core calls it first in the non-capture
     // leg): the common page pattern assigns on* in markup or early script
     // and lets libraries addEventListener later, so handler-first matches
     // Chrome's registration order for that pattern. Known divergence: a
-    // handler assigned AFTER an addEventListener still fires first.
+    // handler assigned AFTER an addEventListener still fires first. A
+    // `false` return cancels a cancelable event (the core does that —
+    // inline `onclick="...; return false"` contract).
     handler(target, ev) {
       const type = ev.type;
       const key = 'on' + type;
@@ -57,7 +76,83 @@
         return typeof h === 'function' ? h : undefined;
       }
       const h = target[key];
-      return typeof h === 'function' && isHandlerSlot(target, key) ? h : undefined;
+      if (typeof h === 'function' && isHandlerSlot(target, key)) return h;
+      // Nodes: the inline `onclick="..."` content attribute is an event
+      // handler too — same precedence as Chrome (the IDL property wins,
+      // the content attribute backs it up when the property is unset).
+      if (target instanceof NodeC && typeof target._resolveInlineHandler === 'function') {
+        const inline = target._resolveInlineHandler(key);
+        if (typeof inline === 'function') return inline;
+      }
+      return undefined;
+    },
+    // Once per dispatch, right after the target is stamped: mouse offset
+    // resolution against the origin's paint transform (the #663 leg of the
+    // retired Element dispatcher — doc-space hit point inverse-mapped into
+    // the element's local space).
+    origin(target, ev) {
+      if (!(target instanceof NodeC)) return;
+      if (typeof ev.clientX !== 'number' || typeof ev.clientY !== 'number') return;
+      if (target._nid === undefined) return;
+      try {
+        const sx = (globalThis.scrollX || globalThis.pageXOffset || 0);
+        const sy = (globalThis.scrollY || globalThis.pageYOffset || 0);
+        const raw = _domRaw('event_offset', String(target._nid | 0), (ev.clientX + sx) + ',' + (ev.clientY + sy));
+        const pair = raw && raw !== 'null' ? JSON.parse(raw) : null;
+        if (Array.isArray(pair) && pair.length === 2 && isFinite(pair[0]) && isFinite(pair[1])) {
+          ev.offsetX = pair[0];
+          ev.offsetY = pair[1];
+        }
+      } catch (e) { /* keep constructor defaults */ }
+    },
+    // Click activation, part 1: the pre-flip (checkbox/radio snap before
+    // listeners so a prevented click can flip it back). undefined = no arm.
+    activationPre(target, type) {
+      if (type !== 'click' || !(target instanceof NodeC)) return undefined;
+      if (target._ditingClickInProgress) return undefined;
+      return _preClickFlip(target);
+    },
+    // Click activation, part 2 (dispatch epilogue): commit or cancel the
+    // flip, then the post-click activation (label forwarding, form
+    // submission). A boolean return overrides dispatchEvent's result —
+    // the checked-change arm ends the dispatch without activation.
+    activationPost(target, ev, flip) {
+      if (flip) {
+        if (ev.defaultPrevented) { _cancelPreClickFlip(flip); return undefined; }
+        _commitPreClickFlip(flip);
+        if (flip.el.checked !== flip.oldChecked) return !ev.defaultPrevented;
+        _postClickActivation(target);
+        return undefined;
+      }
+      if (ev.type === 'click' && !ev.defaultPrevented && !target._ditingClickInProgress && target instanceof NodeC) {
+        _postClickActivation(target);
+      }
+      return undefined;
+    },
+    // A listener landed: animation* registrations are the practical signal
+    // a page cares about markup-declared animations (no mutation hook sees
+    // those), so scan once for candidates.
+    registered(target, type) {
+      if (typeof type === 'string' && type.indexOf('animation') === 0
+          && target instanceof NodeC && _nodeInDocument(target)) {
+        _scheduleAnimationCheck(document.body || target);
+      }
     },
   });
+  // (M3 B3/B4) Node.prototype must NOT own the EventTarget trio — Chrome
+  // keeps those on EventTarget.prototype and every Node inherits them down
+  // the chain. Some bake-time surface pass fill-if-missing installs inert
+  // native-marked length-0 stubs there (fill-if-missing: verified by trap —
+  // a pre-existing accessor stops the fill; identity of the installer
+  // itself never pinned, see SURFACE.md). Harmless while Element/Document
+  // carried real trilogies above it; the moment B3/B4 removed those, the
+  // stubs became the resolution target and every element/document listener
+  // went dead. This file is the LAST snapshot script, so every earlier
+  // fill has already landed — delete all three (plus the legacy mtDepth
+  // dispatch wrapper bootstrap used to wrap here) and let resolution fall
+  // through to the native core.
+  for (const m of ['addEventListener', 'removeEventListener', 'dispatchEvent']) {
+    const d = Object.getOwnPropertyDescriptor(NodeC.prototype, m);
+    if (d && d.configurable) { try { delete NodeC.prototype[m]; } catch (e) {} }
+  }
 })();

@@ -199,3 +199,37 @@ lengthComputable:false/loaded:0/total:0 与旧普通对象字段全等）。ctor
 （worker.et/mse.et/mse.on/sb.on.desc/fr.et/fr.dispatch）；tests 1432/0。探针自课：裸
 getOwnPropertyDescriptor 描述符上误用 `desc()` 紧凑键 `.g`（真键 `.get`）——第一轮 worker.et
 假分歧即此。
+
+## M3 步骤B3+B4：Document/Element/Node 派发并轨原生核心（2026-10-29，一刀）
+
+七套手搓派发器的终刀（B2c iframe 两腿并入 _IframeWindow 链缺陷专项）：bootstrap 的
+Document 与 Element 自有三件套（合计 ~200 行）连同注册机器（`_eventRegistry` 常量组）
+全部删除，元素/文档的一切派发落到原生 EventTarget 核心。元素专属语义不走类体、全部
+进 `event_hooks.js` 的宿主钩子（Rust 侧四新钩：`origin`（offsetX/Y 逆映射一次/派发）、
+`activationPre/Post`（checkbox/radio 预翻转+提交/取消+label 转发/表单提交）、
+`registered`（animation* 注册即排动画扫描）；handler 腿补 return-false→preventDefault）。
+`parent` 钩子补 document→window 边（document.parentNode 为 null 但 Chrome 传播路径续进
+Window——元素冒泡事件从此达 window 监听器，旧实现停在 document）。连带修法：
+`_windowScroll` 的 scrollend 双发（doc+window 各一）撤窗腿补发（doc 单发即传播到窗，
+旧双发会双响）；`_fireScroll` 陈注「dispatch 不传播」随实况改写。Node.prototype 上
+一对来历不明的惰性三件（add/remove len=0、dispatch=name_sweep 分离壳形）——陷阱实证
+为 fill-if-missing（预设 accessor 即挡装；赋值从不穿 setter、也从不替换 accessor），
+ installer 身份穷尽搜索未钉（全部 js、生成件、Rust、`__diting_init` 均无）；旧世界被
+Element/Document 真三件遮蔽无害，本刀删净上层后它成为解析目标、全元素监听器变哑——
+在 event_hooks.js（最后一个快照脚本，早于它的一切 fill 已落）尾段 delete 中和，解析
+落穿到原生核心。**form 代理腿**：表单元素骑 `_formNamedProxy`（命名访问 JSProxy），
+V8 C++ get_prototype 对 JSProxy 返 null→receiver() 拒收（"Illegal invocation"）——
+补 JS 级 `Object.getPrototypeOf` 兜底（安装期捕 Object 入 `diting#object` 私槽，页面
+覆写不能改道；私符号穿 proxy trap，监听器存储不走代理）。**DocC 教训**：钩子里
+`target === DocC` 的 DocC 是快照 realm 的 document——类跨 realm 存活（instanceof 活）
+但 document 实例每 realm 新铸，恒不等（composedPath 真值键当场抓获：Chrome 尾带 W、
+引擎停在 D）；parent 钩子补认活绑定 `globalThis.document`，detached 元素（同为
+null-parent）仍不误入窗。夹具面 diff=声明的三张原型面（Document/Element/Node 各
+−addEventListener/removeEventListener/dispatchEvent——与 Chrome 同形，三件套解析落
+EventTarget.prototype）。验收：探针 102→**106 项对 Chrome 145 全一致**（新四键
+et.el.window.reach/et.el.onclick.false/et.el.handler.order/et.el.dedup——Chrome 实测
+dedup=2：第四行 (f,false) 与首行塌缩，非预想的 3，探针说了算）；truth 空棘轮零豁免；
+tests 1432/0；check_fresh+棘轮绿（bootstrapLines 净减 ~230，forwardLoadRefs 仍 1）。
+外引擎探针踩坑：`cargo build --release` 只重编 lib 不重链根包 bin（root package=
+diting-browser，bin=根 src/main.rs）——health 报旧 commit+旧行为即此，touch 根
+src/main.rs 强制重链后 106/106。已知分歧沿档：handler 先于监听器（Chrome=注册序）。

@@ -165,5 +165,41 @@
     var d = document.createElement('div'); document.body.appendChild(d); var r;
     d.addEventListener('x', function (e) { r = e.composedPath().map(function (n) { return n === window ? 'W' : n === document ? 'D' : n.nodeName; }); }); d.dispatchEvent(new Event('x', { bubbles: true })); d.remove(); return r;
   });
+  // M3 B3/B4: element dispatch rides the native core — the propagation path
+  // continues past the document into the window (Chrome's composed path).
+  t('et.el.window.reach', function () {
+    var d = document.createElement('div'); document.body.appendChild(d); var l = [];
+    d.addEventListener('x', function () { l.push('d'); });
+    document.addEventListener('x', function () { l.push('doc'); });
+    window.addEventListener('x', function () { l.push('w'); });
+    d.dispatchEvent(new Event('x', { bubbles: true })); d.remove(); return l;
+  });
+  // `el.onfoo = fn; return false` cancels a cancelable event (the inline
+  // content-attribute contract) and dispatchEvent reports it.
+  t('et.el.onclick.false', function () {
+    var d = document.createElement('div'); document.body.appendChild(d); var l = [];
+    d.onclick = function () { l.push(1); return false; };
+    d.addEventListener('click', function (e) { l.push(2, e.defaultPrevented); });
+    var r = d.dispatchEvent(new Event('click', { bubbles: false, cancelable: true }));
+    d.remove(); return [l, r];
+  });
+  // handler vs listener, the common page shape: the on* property is assigned
+  // first (markup/early script) and the addEventListener lands later —
+  // Chrome runs them in registration order.
+  t('et.el.handler.order', function () {
+    var d = document.createElement('div'); document.body.appendChild(d); var l = [];
+    d.onclick = function () { l.push('h'); };
+    d.addEventListener('click', function () { l.push('l'); });
+    d.dispatchEvent(new Event('click')); d.remove(); return l;
+  });
+  // element listener dedup: identical (fn, capture) pairs collapse; the
+  // capture flag distinguishes entries at the target (both fire).
+  t('et.el.dedup', function () {
+    var d = document.createElement('div'); document.body.appendChild(d); var n = 0;
+    function f() { n++; }
+    d.addEventListener('x', f); d.addEventListener('x', f);
+    d.addEventListener('x', f, true); d.addEventListener('x', f, false);
+    d.dispatchEvent(new Event('x')); d.remove(); return n;
+  });
   return JSON.stringify(R);
 })()

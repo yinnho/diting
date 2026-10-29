@@ -16,7 +16,18 @@
 //!   report(err)           report an uncaught listener exception
 //!   parent(target, ev)    next target on the event path, or null
 //!   handler(target, ev)   the `onfoo` IDL-attribute handler, if any (the
-//!                          core fires it BEFORE the listener loop)
+//!                          core fires it BEFORE the listener loop; a `false`
+//!                          return cancels a cancelable event — legacy inline
+//!                          `onclick="...return false"` semantics)
+//!   origin(target, ev)    once per dispatch, right after the target is
+//!                          stamped (mouse offsetX/Y resolution for Nodes)
+//!   activationPre(target, type)  before the phases; its return value is an
+//!                          opaque token passed back to activationPost
+//!                          (the click pre-flip; undefined = no activation)
+//!   activationPost(target, ev, token)  dispatch epilogue; a boolean return
+//!                          overrides dispatchEvent's result (commit/cancel
+//!                          flip, post-click activation)
+//!   registered(target, type)  after a listener lands (animation check)
 //!
 //! Events are the native [`super::event`] interface; their state (and the
 //! brand itself) is the `diting#ev-state` private slot installed by its
@@ -99,6 +110,23 @@ fn receiver<'a>(scope: &mut v8::PinScope<'a, '_>, this: Local<'a, v8::Value>) ->
     // The global object itself has window's prototype chain through a proxy;
     // accept it explicitly.
     if obj.strict_equals(global.into()) { return Some(obj); }
+    // JSProxies (form elements ride the named-access proxy): the C++
+    // get_prototype answers null for them — the [[Prototype]] lives on the
+    // target behind the trap. Pierce with the JS-level Object.getPrototypeOf,
+    // captured at install so a page overwrite cannot redirect the check.
+    let okey = private(scope, "diting#object");
+    let object = global.get_private(scope, okey).and_then(|v| Local::<v8::Object>::try_from(v).ok())?;
+    let gk = s(scope, "getPrototypeOf");
+    let gop = object.get(scope, gk.into()).and_then(|v| Local::<v8::Function>::try_from(v).ok())?;
+    let u = v8::undefined(scope);
+    let mut cur = gop.call(scope, u.into(), &[this.into()]);
+    for _ in 0..64 {
+        let p = cur?;
+        if p.is_null() || p.is_undefined() { break; }
+        if p.strict_equals(et_proto) { return Some(obj); }
+        let po = Local::<v8::Object>::try_from(p).ok()?;
+        cur = gop.call(scope, u.into(), &[po.into()]);
+    }
     None
 }
 
@@ -243,6 +271,14 @@ unsafe extern "C" fn add(info: *const FunctionCallbackInfo) {
         }
     }
     if add_entry(scope, target, ty, cb, &o).is_none() { return; }
+    // Host observation of registrations (the animation check: a listener for
+    // an animation* type is the practical signal a page cares about
+    // markup-declared animations no mutation hook can see).
+    let h = hooks(scope);
+    if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "registered") {
+        let u = v8::undefined(scope);
+        f.call(scope, u.into(), &[target.into(), ty.into()]);
+    } }
     if let Some(sig) = o.signal {
         // remove on abort: a per-listener native function, registered through
         // the signal's own addEventListener (once).
@@ -296,7 +332,7 @@ unsafe extern "C" fn remove(info: *const FunctionCallbackInfo) {
 
 // ---- Event access (the only place dispatch touches event state) ---------
 
-use super::event::{S_BUBBLES, S_CURRENT, S_IMMEDIATE, S_PASSIVE, S_PHASE, S_PREVENTED, S_STOPPED, S_TARGET, S_TYPE, S_DISPATCHED, S_PATH, S_PATH_DONE, state_of};
+use super::event::{S_BUBBLES, S_CANCELABLE, S_CURRENT, S_IMMEDIATE, S_PASSIVE, S_PHASE, S_PREVENTED, S_STOPPED, S_TARGET, S_TYPE, S_DISPATCHED, S_PATH, S_PATH_DONE, state_of};
 
 /// A branded event, viewed as its state array. Invariants are event.rs':
 /// slot presence is the brand, indices are the `S_*` constants.
@@ -362,7 +398,15 @@ fn invoke<'a>(scope: &mut v8::PinScope<'a, '_>, h: Option<Local<'a, v8::Object>>
             let evv: Local<v8::Value> = ev.obj.into();
             if let Some(handler) = hf.call(scope, h.unwrap().into(), &[target.into(), evv]).and_then(|v| Local::<v8::Function>::try_from(v).ok()) {
                 v8::tc_scope!(let tc, scope);
-                handler.call(tc, target.into(), &[evv]);
+                let ret = handler.call(tc, target.into(), &[evv]);
+                // Legacy event-handler semantics: `return false` from an
+                // on*/inline handler cancels a cancelable event (the inline
+                // `onclick="...; return false"` contract).
+                if let Some(r) = ret {
+                    if r.is_boolean() && !r.is_true() && ev.truthy(tc, S_CANCELABLE) && !ev.truthy(tc, S_PASSIVE) {
+                        ev.set_bool(tc, S_PREVENTED, true);
+                    }
+                }
                 if tc.has_caught() && !tc.has_terminated() {
                     if let Some(exc) = tc.exception() { report(tc, h, exc); }
                     tc.reset();
@@ -434,6 +478,12 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
 
     let ty = match ev.get(scope, S_TYPE).to_string(scope) { Some(t) => t, None => { return } };
     ev.set(scope, S_TARGET, target.into());
+    // Origin observation: fires once per dispatch, right after the target is
+    // stamped (mouse offsetX/Y resolution for Nodes).
+    if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "origin") {
+        let u = v8::undefined(scope);
+        f.call(scope, u.into(), &[target.into(), evo.into()]);
+    } }
 
     // event path: target first, then ancestors through the parent hook
     let mut path: Vec<Local<v8::Object>> = vec![target];
@@ -452,6 +502,12 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
     };
     ev.set(scope, S_PATH, path_arr);
     ev.set_bool(scope, S_PATH_DONE, false);
+    // Activation pre-pass (the click pre-flip): an opaque token handed back
+    // to activationPost in the epilogue. undefined = no activation arm.
+    let flip: Option<Local<v8::Value>> = h.and_then(|h| hook_fn(scope, h, "activationPre")).and_then(|f| {
+        let u = v8::undefined(scope);
+        f.call(scope, u.into(), &[target.into(), ty.into()])
+    }).filter(|v| !v.is_undefined() && !v.is_null());
 
     // capture phase: root first
     for i in (1..path.len()).rev() {
@@ -483,7 +539,18 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
     ev.set_bool(scope, S_PATH_DONE, true);
     ev.set_bool(scope, S_DISPATCHED, false);
     let canceled = ev.truthy(scope, S_PREVENTED);
-    ReturnValue::from_function_callback_info(info).set(v8::Boolean::new(scope, !canceled).into());
+    // Activation epilogue: commit/cancel the flip and run post-click
+    // activation. A boolean return overrides dispatchEvent's result (the
+    // legacy checked-change arm returns early with !defaultPrevented).
+    let mut ret = !canceled;
+    if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "activationPost") {
+        let u = v8::undefined(scope);
+        let tok = flip.unwrap_or_else(|| u.into());
+        if let Some(r) = f.call(scope, u.into(), &[target.into(), evo.into(), tok]) {
+            if r.is_boolean() { ret = r.is_true(); }
+        }
+    } }
+    ReturnValue::from_function_callback_info(info).set(v8::Boolean::new(scope, ret).into());
 }
 
 // ---- when(type) ----------------------------------------------------------
@@ -580,7 +647,7 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object
 /// Called by `install` after the other interfaces exist: remember the native
 /// DOMException and intrinsic Promise constructors (InvalidStateError, when()).
 pub(crate) fn capture_dom_exception(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object>) {
-    for (name, slot) in [("DOMException", "diting#dom-exception"), ("Promise", "diting#promise")] {
+    for (name, slot) in [("DOMException", "diting#dom-exception"), ("Promise", "diting#promise"), ("Object", "diting#object")] {
         let k = s(scope, name);
         if let Some(c) = global.get(scope, k.into()) {
             let key = private(scope, slot);

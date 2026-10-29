@@ -69,12 +69,10 @@ globalThis.__diting_reportUncaughtError = function(err, src) {
 };
 // Event state facade: the native Event (crates/diting_runtime/src/native/
 // event.rs) keeps its state in a private slot - invisible and unwritable
-// from page JS. Engine legs that must pin dispatch state (target/
-// currentTarget/eventPhase) or read propagation flags go through this
-// captured native function; the global itself is deleted at bake so pages
-// never see it. `_evS(ev, key)` reads, `_evS(ev, key, v)` writes; on an
-// unbranded object it falls back to plain property semantics so the
-// legacy dispatchers keep tolerating hand-rolled event look-alikes.
+// from page JS. Its JS bridge `__diting_event_state` lost its last engine
+// consumer when the Element and Document dispatch trilogies went native
+// (M3 B3/B4) - the core pins dispatch state itself - so the global is now
+// deleted at bake purely to keep the native facade out of page sight.
 //
 // window itself dispatches through the NATIVE EventTarget core now (M3
 // step B1): the three own addEventListener/removeEventListener/
@@ -83,7 +81,6 @@ globalThis.__diting_reportUncaughtError = function(err, src) {
 // _namedHolder) serves them. The window-specific on* legs (__windowOnHandlers
 // + <body onX> inline fallback, 'error' pipeline-only) live in the
 // `handler` hook in event_hooks.js.
-const _evS = globalThis.__diting_event_state;
 delete globalThis.__diting_event_state;
 // (M3 B1) window dispatches through the native EventTarget core: the trio
 // installed here IS the native one (the runtime installs it on
@@ -514,25 +511,10 @@ function _getFp() {
   return _fpCache;
 }
 function _fp(key) { return _getFp()[key]; }
-globalThis._eventRegistry = globalThis._eventRegistry || {};
-// Capture-bucket twin of _eventRegistry: listeners registered with
-// addEventListener(type, fn, true) / {capture:true}. The DOM runs a capture
-// leg (document → target) before the target/bubble legs for EVERY event —
-// blur/focus never bubble, so React 16 traps them at the root container as
-// capture listeners, and a dispatch model without a capture phase leaves
-// every page's onBlur/onFocus deaf (#100: the tmall SKU suggest commits its
-// value in onBlur).
-globalThis._eventRegistryCap = globalThis._eventRegistryCap || {};
-const _eventRegistry = globalThis._eventRegistry;
-const _eventRegistryCap = globalThis._eventRegistryCap;
-function _listenerWantsCapture(opts) {
-  return opts === true || !!(opts && (opts.capture === true || opts.capture === 'true'));
-}
-function _bucketFor(reg, key, type) {
-  if (!reg[key]) reg[key] = {};
-  if (!reg[key][type]) reg[key][type] = [];
-  return reg[key][type];
-}
+// (M3 B3/B4) The `_eventRegistry` / `_eventRegistryCap` buckets and their
+// helpers went with the Element and Document dispatch trilogies — listener
+// storage is the native core's private slot now (`diting#et-listeners`,
+// crates/diting_runtime/src/native/event_target.rs).
 globalThis._formValues = globalThis._formValues || {};
 globalThis._formChecked = globalThis._formChecked || {};
 globalThis._formIndeterminate = globalThis._formIndeterminate || {};
@@ -4151,146 +4133,12 @@ class Element extends Node {
         );
     }
   }
-  addEventListener(type, handler, opts) {
-    __listenerGate(handler);
-    // Animations already present in initial markup are unobservable through
-    // the mutation hooks above — a listener registration is the practical
-    // signal that this page cares, so scan once (capped) for candidates.
-    if (typeof type === "string" && type.indexOf("animation") === 0 && _nodeInDocument(this)) {
-      _scheduleAnimationCheck(document.body || this);
-    }
-    const key = this._nid;
-    // Capture flag decides the bucket: the two are distinct listeners in
-    // Chrome (removeEventListener only unregisters the matching one).
-    _bucketFor(_listenerWantsCapture(opts) ? _eventRegistryCap : _eventRegistry, key, type).push(handler);
-  }
-  removeEventListener(type, handler, opts) {
-    const key = this._nid;
-    const reg = _listenerWantsCapture(opts) ? _eventRegistryCap : _eventRegistry;
-    if (reg[key] && reg[key][type]) {
-      reg[key][type] = reg[key][type].filter(h => h !== handler);
-    }
-  }
-  dispatchEvent(event) {
-    if (!event) return true;
-    // Original dispatch target detection: bubbling re-enters here with the
-    // event's target already pinned, and activation must only run for the
-    // element the page actually dispatched on.
-    const isOrigin = !event.target;
-    if (isOrigin) _evS(event, 'target', this);
-    // Event-coordinate surface (blitz #663 family): resolve offsetX/Y
-    // against the origin target once — the doc-space hit point
-    // (client + root scroll) inverse-maps through the element's total
-    // paint transform into its local space, minus its padding edge. The
-    // op answers "null" for boxless targets or singular maps; the
-    // constructor defaults survive.
-    if (isOrigin && typeof event.clientX === 'number' && typeof event.clientY === 'number'
-        && this._nid !== undefined) {
-      try {
-        const sx = (globalThis.scrollX || globalThis.pageXOffset || 0);
-        const sy = (globalThis.scrollY || globalThis.pageYOffset || 0);
-        const raw = _domRaw('event_offset', String(this._nid | 0),
-                            (event.clientX + sx) + ',' + (event.clientY + sy));
-        const pair = raw && raw !== 'null' ? JSON.parse(raw) : null;
-        if (Array.isArray(pair) && pair.length === 2 && isFinite(pair[0]) && isFinite(pair[1])) {
-          event.offsetX = pair[0];
-          event.offsetY = pair[1];
-        }
-      } catch (e) { /* keep constructor defaults */ }
-    }
-    // Capture phase (DOM spec §2.9): before the target leg, walk the
-    // ancestor path root-first and run each node's capture-bucket
-    // listeners. This leg runs for non-bubbling events too — blur/focus
-    // ONLY reach delegated listeners through it, and React 16 traps both
-    // at the root container with capture=true, so a dispatch model
-    // without a capture phase leaves every page's onBlur/onFocus deaf
-    // (#100: the tmall SKU suggest commits its typed value in onBlur).
-    if (isOrigin) {
-      const path = [];
-      for (let n = this.parentNode; n; n = n.parentNode) path.push(n);
-      for (let i = path.length - 1; i >= 0; i--) {
-        if (_evS(event, 'stopped')) break;
-        const node = path[i];
-        const caps = (_eventRegistryCap[node._nid] || {})[event.type] || [];
-        if (!caps.length) continue;
-        _evS(event, 'currentTarget', node);
-        _evS(event, 'eventPhase', 1);
-        for (const h of caps.slice()) {
-          try { h.call(node, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-          if (_evS(event, 'immediateStopped')) break;
-        }
-      }
-      _evS(event, 'eventPhase', 2);
-      // stopPropagation on the way down means the target and bubble legs
-      // never run — the target is later on the propagation path. The
-      // dispatch itself is still OVER (Chrome: composedPath() is [] from
-      // here on), so stamp the spent-path mark before leaving.
-      if (_evS(event, 'stopped')) { _evS(event, 'pathDone', true); return !event.defaultPrevented; }
-    } else {
-      // Bubble re-entry at an ancestor: its capture bucket already ran in
-      // the origin's capture walk; only the bubble leg fires here.
-      _evS(event, 'eventPhase', 3);
-    }
-    // Activation for an unmanaged click: Chrome runs activation behavior for
-    // untrusted clicks too, so `cb.dispatchEvent(new MouseEvent('click'))`
-    // toggles a checkbox and a label click forwards to its control. click()
-    // sets its own in-progress flag and drives its activation, so its inner
-    // dispatchEvent skips this arm.
-    let flip = null;
-    if (isOrigin && event.type === 'click' && !this._ditingClickInProgress) {
-      flip = _preClickFlip(this);
-    }
-    _evS(event, 'currentTarget', this);
-    // Spec: inline `onclick="..."` content attributes are event handlers
-    // for the matching event type. Fire them alongside any
-    // addEventListener handlers. Also honor the IDL property
-    // `el.onclick = fn` if set. Without this, b.click() never invokes
-    // the inline handler and forms with onsubmit / buttons with onclick
-    // are silently dead.
-    const handlerName = 'on' + event.type;
-    const inlineFn = this[handlerName] || this._resolveInlineHandler(handlerName);
-    if (typeof inlineFn === 'function') {
-      try {
-        const ret = inlineFn.call(this, event);
-        if (ret === false) event.preventDefault();
-      } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-    }
-    _mtWindow(() => {
-    // At-target listeners fire in both buckets (spec runs the target phase
-    // for capture- and bubble-registered listeners alike).
-    if (isOrigin) {
-      const capHandlers = (_eventRegistryCap[this._nid] || {})[event.type] || [];
-      for (const h of capHandlers) {
-        try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-        if (_evS(event, 'immediateStopped')) break;
-      }
-    }
-    const handlers = (_eventRegistry[this._nid] || {})[event.type] || [];
-    for (const h of handlers) {
-      try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-      if (_evS(event, 'immediateStopped')) break;
-    }
-    });
-    if (event.bubbles && !_evS(event, 'stopped') && this.parentNode) {
-      this.parentNode.dispatchEvent(event);
-    }
-    // Origin-frame epilogue, mirroring the native core's: the path is
-    // spent once the walk completes — composedPath() returns [] forever
-    // after (Chrome truth ev.composedPath.after).
-    if (isOrigin) _evS(event, 'pathDone', true);
-    if (flip) {
-      if (event.defaultPrevented) {
-        _cancelPreClickFlip(flip);
-      } else {
-        _commitPreClickFlip(flip);
-        if (flip.el.checked !== flip.oldChecked) return !event.defaultPrevented;
-        _postClickActivation(this);
-      }
-    } else if (isOrigin && event.type === 'click' && !this._ditingClickInProgress && !event.defaultPrevented) {
-      _postClickActivation(this);
-    }
-    return !event.defaultPrevented;
-  }
+  // addEventListener/removeEventListener/dispatchEvent resolve through the
+  // prototype chain to the NATIVE EventTarget core (M3 B4): the trio here is
+  // gone; everything Element-specific about a dispatch lives in host hooks
+  // (js/event_hooks.js) — parent edge (incl. document → window), inline
+  // content-attribute handlers, offset resolution (origin hook), click
+  // activation (activationPre/Post), the animation check (registered hook).
   _resolveInlineHandler(name) {
     // name = 'onclick' / 'onsubmit' / etc. Compile the content attribute
     // as a function body on first read and cache it on the instance.
@@ -5974,7 +5822,8 @@ class Element extends Node {
     // scrollend (blitz#354) trails the scroll in the same tick: our scrolls
     // are instant, so "scrolling finished" is the moment after the scroll
     // event. Fires with bubbles: true, as the spec has it (unlike scroll,
-    // scrollend bubbles) even though this shim's dispatch doesn't propagate.
+    // scrollend bubbles) — since the M3 native core the propagation is real,
+    // so this reaches document and window listeners up the chain.
     setTimeout(() => {
       try { self.dispatchEvent(new Event('scroll', { bubbles: false })); } catch (e) {}
       try { self.dispatchEvent(new Event('scrollend', { bubbles: true })); } catch (e) {}
@@ -6728,57 +6577,12 @@ class Document extends Node {
     return new Cls('');
   }
   createRange() { return new Range(); }
-  addEventListener(type, fn, opts) {
-    __listenerGate(fn);
-    // Capture listeners live in the shared capture registry keyed by _nid:
-    // Element.dispatchEvent's capture walk reaches the document through the
-    // parentNode chain, and looks listeners up there (#100).
-    if (_listenerWantsCapture(opts)) {
-      if (this._nid !== undefined) {
-        _bucketFor(_eventRegistryCap, this._nid, type).push(fn);
-        return;
-      }
-    }
-    const L = __lmap(this);
-    if (!L[type]) L[type] = [];
-    if (!L[type].includes(fn)) L[type].push(fn);
-  }
-  removeEventListener(type, fn, opts) {
-    if (_listenerWantsCapture(opts) && this._nid !== undefined) {
-      const b = (_eventRegistryCap[this._nid] || {})[type];
-      if (b) _eventRegistryCap[this._nid][type] = b.filter(h => h !== fn);
-      return;
-    }
-    const L = __evtStore.get(this);
-    if (L && L[type]) {
-      L[type] = L[type].filter(h => h !== fn);
-    }
-  }
-  dispatchEvent(event) {
-    if (!event) return true;
-    // At-target capture bucket (#152): the spec runs the target phase for
-    // capture-registered listeners too — Element.dispatchEvent already
-    // fires both buckets at the target. pointerenter/mouseenter dispatched
-    // ON the Document (hover transition chains include it) must reach
-    // document-capture registrations the same way. Origin-only: a bubbled
-    // re-entry has its target pinned and already ran the origin's capture
-    // walk over this node — firing here would double-fire.
-    if (!event.target) {
-      _evS(event, 'target', this);
-      if (this._nid !== undefined) {
-        const caps = (_eventRegistryCap[this._nid] || {})[event.type] || [];
-        _evS(event, 'currentTarget', this);
-        _mtWindow(() => { for (const h of caps.slice()) {
-          try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); }
-        } });
-      }
-    }
-    const L = __evtStore.get(this);
-    const handlers = ((L && L[event.type]) || []).slice();
-    if (handlers.length) _evS(event, 'currentTarget', this);
-    _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); } } });
-    return !event.defaultPrevented;
-  }
+  // addEventListener/removeEventListener/dispatchEvent resolve through the
+  // prototype chain to the NATIVE EventTarget core (M3 B3): the trio here
+  // is gone. Document rides the same hooks as every Node (js/event_hooks.js)
+  // — capture buckets, at-target both-bucket phase, and the document →
+  // window propagation edge the old code lacked (bubbled events dispatched
+  // on or through the document now reach window listeners, Chrome-true).
   createTreeWalker(root, whatToShow, filter) {
     // whatToShow is unsigned long; default SHOW_ALL only when the arg is omitted.
     // An explicit 0 (show nothing) must stay 0, not become SHOW_ALL.
@@ -14397,20 +14201,18 @@ function _windowScroll(x, y, relative) {
   if ((root.scrollLeft || 0) === beforeLeft && (root.scrollTop || 0) === beforeTop) {
     return;
   }
-  // Async, matching the element path. Dispatched at the document AND the
-  // window: a page scroll event reaches both in Chrome, but
-  // Document.dispatchEvent here runs only its own listeners and does not
-  // propagate, so firing once would strand half the listeners. scrollend
-  // (blitz#354) trails in the same tick — our scrolls are instant, so
-  // "finished scrolling" is the moment after the scroll event, and the
-  // caller's no-translation guard already covered the negative clause.
+  // Async, matching the element path. The scroll pair fires at the document
+  // AND the window — scroll never bubbles, and Chrome fires it at both
+  // separately. scrollend (blitz#354) trails in the same tick and BUBBLES:
+  // since the M3 native core the document dispatch propagates to the window
+  // (document → window path edge), so one dispatch at the document covers
+  // both — the old second, explicit window dispatch would double-fire it.
   setTimeout(() => {
     try {
       const doc = globalThis.document;
       if (doc) doc.dispatchEvent(new Event('scroll', { bubbles: false }));
       globalThis.dispatchEvent(new Event('scroll', { bubbles: false }));
       if (doc) doc.dispatchEvent(new Event('scrollend', { bubbles: true }));
-      globalThis.dispatchEvent(new Event('scrollend', { bubbles: true }));
     } catch (e) {}
   }, 0);
 }
@@ -16855,41 +16657,20 @@ for (const _n of _BODY_WINDOW_EVENT_NAMES) {
 }
 // Fire the on* handler alongside addEventListener listeners for the two
 // dispatch paths that did not consult it before (document and window).
-// window.onerror is deliberately NOT consulted here: it is the uncaught-error
-// logger, not a dispatchEvent target in this engine.
-const _documentDispatch = Document.prototype.dispatchEvent;
-Document.prototype.dispatchEvent = function(event) {
-  if (event) {
-    const handler = this['on' + event.type];
-    if (typeof handler === 'function') {
-      try {
-        if (handler.call(this, event) === false && event.preventDefault) event.preventDefault();
-      } catch (e) { console.error('document event error:', e); }
-    }
-  }
-  return _documentDispatch.call(this, event);
-};
-_markNative(Document.prototype.dispatchEvent);
+// (M3 B3/B4) RETIRED: the document leg is the native core's `handler` hook
+// now (event_hooks.js) — it fires document.on* for every dispatch level
+// with Chrome's accessor-slot shape, so the JS pre-fire wrapper is gone.
+// window.onerror stays pipeline-only, as before (the hook's 'error' arm).
 // Macrotask-boundary guard: mark every synchronous dispatch window so
 // timer/message deliveries re-arm instead of firing mid-dispatch (see
 // _runAsMacrotask). Real browsers never interleave the task queue with
 // an in-flight event dispatch; without this, a resolved op_sleep
 // continuation fires at an op checkpoint inside a listener — React 16's
 // scheduler re-entered its own commit this way and threw #327, freezing
-// every later update on the root.
-(function () {
-  for (const holder of [Node.prototype, Element.prototype, Document.prototype]) {
-    const orig = holder.dispatchEvent;
-    if (typeof orig !== 'function') continue;
-    holder.dispatchEvent = function (event) {
-      _mtDepth++;
-      try { return orig.call(this, event); } finally { _mtDepth--; }
-    };
-    _markNative(holder.dispatchEvent);
-  }
-  // window is NOT wrapped here: it dispatches through the native core,
-  // whose enter/exit hooks are this same bracket (event_hooks.js).
-})();
+// every later update on the root. (M3 B3/B4) RETIRED: Node, Element and
+// Document all dispatch through the native core now, whose enter/exit
+// hooks ARE this bracket; event_hooks.js also deletes the inert trio a
+// bake-time fill left on Node.prototype so nothing shadows the core.
 
 /* ===== fp-diff-1014 P0 sweep (runs once at snapshot build) ===== */
 // #1 Name every anonymous function-valued global after its property: WebIDL

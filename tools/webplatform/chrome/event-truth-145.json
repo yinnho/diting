@@ -160,6 +160,24 @@
   "doc:3",
   "d:2"
  ],
+ "et.el.dedup": 2,
+ "et.el.handler.order": [
+  "h",
+  "l"
+ ],
+ "et.el.onclick.false": [
+  [
+   1,
+   2,
+   true
+  ],
+  false
+ ],
+ "et.el.window.reach": [
+  "d",
+  "doc",
+  "w"
+ ],
  "et.illegal": "THROW TypeError: Illegal invocation",
  "et.listener.dup": [
   1
