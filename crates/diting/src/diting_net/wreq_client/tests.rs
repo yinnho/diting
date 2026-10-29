@@ -739,3 +739,46 @@
             "extras Accept-Language must override the default, got:\n{head}"
         );
     }
+
+    // Real Chromium sends HEADERS priority weight 256 (stream-dependency value 255);
+    // wreq-util's Chrome presets ship 219 -> wire 220. Measured against Chrome for Testing
+    // 145.0.7632.117 and 156.0.8078.73 (tools/webplatform/chrome/wire/). The correction is
+    // applied to Chromium-family presets only.
+    #[test]
+    fn chromium_presets_get_the_real_headers_priority_weight() {
+        use super::{apply_chromium_h2_corrections, CHROMIUM_HEADERS_PRIORITY_VALUE};
+        let build = |p: wreq_util::Profile| {
+            wreq::IntoEmulation::into_emulation(
+                wreq_util::Emulation::builder().profile(p).platform(wreq_util::Platform::MacOS).build(),
+            )
+        };
+        let expect = wreq::http2::StreamDependency::new(
+            wreq::http2::StreamId::zero(),
+            CHROMIUM_HEADERS_PRIORITY_VALUE,
+            true,
+        );
+        // before: the upstream value really is the stale one (guards against a silent upstream change)
+        let raw = build(wreq_util::Profile::Chrome145);
+        assert_ne!(
+            format!("{:?}", raw.http2_options.as_ref().unwrap().headers_stream_dependency),
+            format!("{:?}", Some(&expect)),
+            "wreq-util now ships the correct weight - this correction can be dropped"
+        );
+        // after: Chrome and Edge get 256; Firefox/Safari are left alone
+        let fixed = apply_chromium_h2_corrections(wreq_util::Profile::Chrome145, build(wreq_util::Profile::Chrome145));
+        assert_eq!(
+            format!("{:?}", fixed.http2_options.unwrap().headers_stream_dependency),
+            format!("{:?}", Some(expect.clone()))
+        );
+        let edge = apply_chromium_h2_corrections(wreq_util::Profile::Edge145, build(wreq_util::Profile::Edge145));
+        assert_eq!(
+            format!("{:?}", edge.http2_options.unwrap().headers_stream_dependency),
+            format!("{:?}", Some(expect))
+        );
+        let ff_before = format!("{:?}", build(wreq_util::Profile::Firefox133).http2_options);
+        let ff_after = format!(
+            "{:?}",
+            apply_chromium_h2_corrections(wreq_util::Profile::Firefox133, build(wreq_util::Profile::Firefox133)).http2_options
+        );
+        assert_eq!(ff_before, ff_after, "non-Chromium presets must be untouched");
+    }

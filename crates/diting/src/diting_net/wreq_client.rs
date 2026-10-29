@@ -127,6 +127,30 @@ fn fingerprint_family_version(name: &str) -> Option<(&'static str, u32)> {
 /// persisted); the 2026-10-20 restore made the pair coherent.
 pub const CLAIMED_CHROME_MAJOR: u32 = crate::chrome_target::CHROME_MAJOR;
 
+#[cfg(feature = "stealth")]
+/// wreq-util's Chrome presets send the HEADERS-frame priority weight as 220
+/// (`StreamDependency::new(.., 219, ..)`; the wire weight is the value + 1). Every
+/// real Chromium measured sends 256 (value 255) - Chrome for Testing 145.0.7632.117 and
+/// 156.0.8078.73 both, on tls.peet.ws (tools/webplatform/chrome/wire/). 220 is a
+/// per-connection tell the Akamai H2 fingerprint string does not show but finer
+/// H2 fingerprints do. The preset is built by wreq-util; this corrects it on the way in
+/// (wreq's `Emulation`/`Http2Options` fields are public) so no dependency fork is needed.
+/// Chromium-family presets only; Firefox/Safari keep their own values.
+pub(crate) fn apply_chromium_h2_corrections(profile: wreq_util::Profile, mut e: wreq::Emulation) -> wreq::Emulation {
+    let name = format!("{profile:?}");
+    if name.starts_with("Chrome") || name.starts_with("Edge") || name.starts_with("Opera") {
+        if let Some(h2) = e.http2_options.as_mut() {
+            h2.headers_stream_dependency =
+                Some(wreq::http2::StreamDependency::new(wreq::http2::StreamId::zero(), CHROMIUM_HEADERS_PRIORITY_VALUE, true));
+        }
+    }
+    e
+}
+
+/// Wire weight 256 = value 255 (RFC 7540 sec 5.3.2: weight is value + 1).
+#[cfg(feature = "stealth")]
+pub(crate) const CHROMIUM_HEADERS_PRIORITY_VALUE: u8 = 255;
+
 #[cfg(test)]
 mod face_tripwire {
     /// #276 P2-6 "face follows": the preset name's numeric tail must equal
@@ -327,10 +351,12 @@ impl StealthHttpClient {
             emulation_os_for_ua(&std::env::var("DITING_UA").unwrap_or_default())
         };
 
-        let emulation_opts = wreq_util::Emulation::builder()
-            .profile(emulation)
-            .platform(os)
-            .build();
+        let emulation_opts = apply_chromium_h2_corrections(
+            emulation,
+            wreq::IntoEmulation::into_emulation(
+                wreq_util::Emulation::builder().profile(emulation).platform(os).build(),
+            ),
+        );
 
         // .no_proxy() disables wreq's implicit env/system proxy matcher
         // (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) — the engine's proxy decision is
