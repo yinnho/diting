@@ -1,0 +1,1130 @@
+{
+ "ar.methods": [
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0
+ ],
+ "ar.statics": [
+  0,
+  1,
+  0,
+  0,
+  0
+ ],
+ "dm.a.set": [
+  7,
+  7,
+  true
+ ],
+ "dm.ctor.badlen": "THROW TypeError: Failed to construct 'DOMMatrix': The sequence must contain 6 elements for a 2D matrix or 16 elements for a 3D matrix.",
+ "dm.ctor.badtype": "THROW DOMException(SyntaxError): Failed to construct 'DOMMatrix': Failed to parse '5'.",
+ "dm.ctor.nan": [
+  1,
+  null,
+  false
+ ],
+ "dm.ctor2d": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  true,
+  false
+ ],
+ "dm.ctor2dMap": [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true
+ ],
+ "dm.ctor3d": [
+  1,
+  2,
+  5,
+  6,
+  13,
+  16,
+  false
+ ],
+ "dm.ctorString": [
+  2,
+  20,
+  true
+ ],
+ "dm.ctorString.none": [
+  1,
+  1,
+  true
+ ],
+ "dm.f32.round": 0.10000000149011612,
+ "dm.ff32.nan": {
+  "a": null,
+  "b": 0,
+  "c": 0,
+  "d": 1,
+  "e": 0,
+  "f": 0,
+  "is2D": true,
+  "isIdentity": false,
+  "m11": null,
+  "m12": 0,
+  "m13": 0,
+  "m14": 0,
+  "m21": 0,
+  "m22": 1,
+  "m23": 0,
+  "m24": 0,
+  "m31": 0,
+  "m32": 0,
+  "m33": 1,
+  "m34": 0,
+  "m41": 0,
+  "m42": 0,
+  "m43": 0,
+  "m44": 1
+ },
+ "dm.ff32.noargs": "THROW TypeError: Failed to execute 'fromFloat32Array' on 'DOMMatrix': 1 argument required, but only 0 present.",
+ "dm.fromFloat32Array": [
+  1,
+  6
+ ],
+ "dm.fromFloat32Array.badlen": "THROW TypeError: Failed to execute 'fromFloat32Array' on 'DOMMatrix': The sequence must contain 6 elements for a 2D matrix or 16 elements for a 3D matrix.",
+ "dm.fromFloat64Array": [
+  1,
+  false
+ ],
+ "dm.fromFloat64Array.badlen": "THROW TypeError: Failed to execute 'fromFloat64Array' on 'DOMMatrix': The sequence must contain 6 elements for a 2D matrix or 16 elements for a 3D matrix.",
+ "dm.fromMatrix": [
+  1,
+  6,
+  true
+ ],
+ "dm.fromMatrix.empty": {
+  "a": 1,
+  "b": 0,
+  "c": 0,
+  "d": 1,
+  "e": 0,
+  "f": 0,
+  "is2D": true,
+  "isIdentity": true,
+  "m11": 1,
+  "m12": 0,
+  "m13": 0,
+  "m14": 0,
+  "m21": 0,
+  "m22": 1,
+  "m23": 0,
+  "m24": 0,
+  "m31": 0,
+  "m32": 0,
+  "m33": 1,
+  "m34": 0,
+  "m41": 0,
+  "m42": 0,
+  "m43": 0,
+  "m44": 1
+ },
+ "dm.fromMatrix3d": [
+  1,
+  false
+ ],
+ "dm.identity": [
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  true,
+  true
+ ],
+ "dm.instanceofRO": [
+  true,
+  false
+ ],
+ "dm.invertSelf": [
+  0.5,
+  0.5,
+  -5,
+  -10
+ ],
+ "dm.invertSelf.singular": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  false
+ ],
+ "dm.m13.set": [
+  5,
+  false
+ ],
+ "dm.multiplySelf": [
+  2,
+  2,
+  10,
+  20
+ ],
+ "dm.noargs.call": "THROW TypeError: Failed to construct 'DOMMatrix': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "dm.preMultiplySelf": [
+  2,
+  2,
+  20,
+  40
+ ],
+ "dm.rotateAxisAngleSelf": [
+  false,
+  "0.000000",
+  "-1.000000"
+ ],
+ "dm.rotateSelf": [
+  0,
+  1,
+  -1,
+  0
+ ],
+ "dm.scaleSelf": [
+  2,
+  3
+ ],
+ "dm.setMatrixValue": [
+  2,
+  2,
+  10,
+  20,
+  true
+ ],
+ "dm.setMatrixValue.3d": [
+  10,
+  20,
+  30,
+  false
+ ],
+ "dm.setMatrixValue.bad": "THROW DOMException(SyntaxError): Failed to execute 'setMatrixValue' on 'DOMMatrix': Failed to parse 'garbage('.",
+ "dm.setMatrixValue.ret": true,
+ "dm.setMatrixValue.rotate": [
+  0,
+  1,
+  -1,
+  0
+ ],
+ "dm.skewXSelf": [
+  "1.000000000"
+ ],
+ "dm.smv.calc": {
+  "a": 1,
+  "b": 0,
+  "c": 0,
+  "d": 1,
+  "e": 15,
+  "f": 0,
+  "is2D": true,
+  "isIdentity": false,
+  "m11": 1,
+  "m12": 0,
+  "m13": 0,
+  "m14": 0,
+  "m21": 0,
+  "m22": 1,
+  "m23": 0,
+  "m24": 0,
+  "m31": 0,
+  "m32": 0,
+  "m33": 1,
+  "m34": 0,
+  "m41": 15,
+  "m42": 0,
+  "m43": 0,
+  "m44": 1
+ },
+ "dm.smv.chained": [
+  10,
+  0,
+  2,
+  -3,
+  1.9999999999999998
+ ],
+ "dm.smv.degfree": [
+  "-0.000004",
+  "1.000000"
+ ],
+ "dm.smv.empty": [
+  1,
+  0
+ ],
+ "dm.smv.expnot": {
+  "a": 100,
+  "b": 0,
+  "c": 0,
+  "d": 100,
+  "e": 0,
+  "f": 0,
+  "is2D": true,
+  "isIdentity": false,
+  "m11": 100,
+  "m12": 0,
+  "m13": 0,
+  "m14": 0,
+  "m21": 0,
+  "m22": 100,
+  "m23": 0,
+  "m24": 0,
+  "m31": 0,
+  "m32": 0,
+  "m33": 1,
+  "m34": 0,
+  "m41": 0,
+  "m42": 0,
+  "m43": 0,
+  "m44": 1
+ },
+ "dm.smv.grad": [
+  "0.000000000",
+  "1.000000000"
+ ],
+ "dm.smv.matrix": [
+  2,
+  3,
+  10
+ ],
+ "dm.smv.neg": [
+  -10,
+  -25
+ ],
+ "dm.smv.noargs": "THROW TypeError: Failed to execute 'setMatrixValue' on 'DOMMatrix': 1 argument required, but only 0 present.",
+ "dm.smv.numberOnly": "THROW DOMException(SyntaxError): Failed to execute 'setMatrixValue' on 'DOMMatrix': Failed to parse 'scale'.",
+ "dm.smv.percent": "THROW DOMException(SyntaxError): Failed to execute 'setMatrixValue' on 'DOMMatrix': Values must be resolvable at parse time",
+ "dm.smv.perspective": [
+  false,
+  "-0.002500"
+ ],
+ "dm.smv.rotX": [
+  false,
+  "0.000000",
+  "1.000000"
+ ],
+ "dm.smv.rotY": [
+  false,
+  "1.000000",
+  "0.000000"
+ ],
+ "dm.smv.rotate3d": [
+  0,
+  1,
+  false
+ ],
+ "dm.smv.scale1": [
+  2,
+  3,
+  4,
+  false
+ ],
+ "dm.smv.skew": [
+  "0.577350269",
+  "1.732050808"
+ ],
+ "dm.smv.trailing": "THROW DOMException(SyntaxError): Failed to execute 'setMatrixValue' on 'DOMMatrix': Failed to parse 'scale(2) garbage'.",
+ "dm.smv.turn": [
+  "0.000000000",
+  "1.000000000"
+ ],
+ "dm.smv.tx": [
+  5,
+  3,
+  false
+ ],
+ "dm.smv.unitless": "THROW DOMException(SyntaxError): Failed to execute 'setMatrixValue' on 'DOMMatrix': Failed to parse 'rotate(90)'.",
+ "dm.smv.ws": [
+  2
+ ],
+ "dm.smv.zero": [
+  0,
+  true
+ ],
+ "dm.toString": "matrix(1, 2, 3, 4, 5, 6)",
+ "dm.toString.frac": "matrix(0.30000000000000004, 0, 1e+21, 1.5e-7, 6.123233995736766e-17, 1)",
+ "dm.toString.loss2d": "matrix3d(1",
+ "dm.toString3d": "matrix3d(1, ",
+ "dm.toString3d.full": "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)",
+ "dm.translateSelf": [
+  10,
+  20,
+  30,
+  false
+ ],
+ "dmro.ctor": [
+  1,
+  6,
+  true,
+  false
+ ],
+ "dp.ctor": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "dp.ctor.coerce": [
+  5,
+  7
+ ],
+ "dp.ctor.symbol": "THROW TypeError: Failed to construct 'DOMPoint': Cannot convert a Symbol value to a number",
+ "dp.defaults": [
+  0,
+  0,
+  0,
+  1
+ ],
+ "dp.fromPoint": [
+  1,
+  4
+ ],
+ "dp.fromPoint.badtype": "THROW TypeError: Failed to execute 'fromPoint' on 'DOMPoint': The provided value is not of type 'DOMPointInit'.",
+ "dp.fromPoint.empty": [
+  0,
+  0,
+  0,
+  1
+ ],
+ "dp.instanceofRO": true,
+ "dp.matrixTransform": [
+  12,
+  4,
+  "DOMPoint"
+ ],
+ "dp.matrixTransform.empty": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "dp.toJSON": {
+  "w": 4,
+  "x": 1,
+  "y": 2,
+  "z": 3
+ },
+ "dp.transformPoint.badtype": "THROW TypeError: Failed to execute 'transformPoint' on 'DOMMatrixReadOnly': The provided value is not of type 'DOMPointInit'.",
+ "dp.transformPoint.empty": [
+  0,
+  0,
+  0,
+  1,
+  "DOMPoint"
+ ],
+ "dpro.fromPoint": [
+  1,
+  4,
+  "DOMPointReadOnly"
+ ],
+ "dq.bounds": "THROW TypeError: Cannot read properties of undefined (reading 'x')",
+ "dq.boundsGone": true,
+ "dq.ctor": [
+  0,
+  4,
+  true
+ ],
+ "dq.ctorDicts": [
+  0,
+  4,
+  4,
+  true
+ ],
+ "dq.fromQuad": [
+  2,
+  0
+ ],
+ "dq.fromRect": [
+  1,
+  2,
+  4,
+  6
+ ],
+ "dq.fromRect.badtype": "THROW TypeError: Failed to execute 'fromRect' on 'DOMQuad': The provided value is not of type 'DOMRectInit'.",
+ "dq.fromRect.empty": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "dq.getBounds": [
+  0,
+  0,
+  6,
+  6,
+  "DOMRect"
+ ],
+ "dq.toJSON": [
+  0,
+  1,
+  "p1,p2,p3,p4"
+ ],
+ "dr.ctor": [
+  1,
+  2,
+  3,
+  4,
+  2,
+  4,
+  6,
+  1
+ ],
+ "dr.fromRect": [
+  1,
+  3
+ ],
+ "dr.fromRect.empty": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "dr.instanceofRO": true,
+ "dr.neg": [
+  -4,
+  0,
+  0,
+  -3
+ ],
+ "dr.toJSON": {
+  "bottom": 6,
+  "height": 4,
+  "left": 1,
+  "right": 4,
+  "top": 2,
+  "width": 3,
+  "x": 1,
+  "y": 2
+ },
+ "dr.topIsAccessor": false,
+ "ro.flipX": [
+  -1,
+  -2,
+  3,
+  4,
+  5,
+  6
+ ],
+ "ro.flipY": [
+  1,
+  2,
+  -3,
+  -4,
+  5,
+  6
+ ],
+ "ro.inverse": [
+  0.5,
+  0.5,
+  -5,
+  -10
+ ],
+ "ro.inverse.singular": [
+  null,
+  null,
+  false
+ ],
+ "ro.multiply": [
+  2,
+  2,
+  10,
+  20
+ ],
+ "ro.multiply.badtype": "THROW TypeError: Failed to execute 'multiply' on 'DOMMatrixReadOnly': The provided value is not of type 'DOMMatrixInit'.",
+ "ro.multiply.init2d": [
+  2,
+  2,
+  10,
+  true
+ ],
+ "ro.multiply.init3d": [
+  2,
+  false
+ ],
+ "ro.multiply.initConflict": "THROW TypeError: Failed to execute 'multiply' on 'DOMMatrixReadOnly': The is2D member is set to true but the input matrix is a 3d matrix.",
+ "ro.multiply.initContradict": {
+  "a": 1,
+  "b": 0,
+  "c": 0,
+  "d": 1,
+  "e": 0,
+  "f": 0,
+  "is2D": false,
+  "isIdentity": true,
+  "m11": 1,
+  "m12": 0,
+  "m13": 0,
+  "m14": 0,
+  "m21": 0,
+  "m22": 1,
+  "m23": 0,
+  "m24": 0,
+  "m31": 0,
+  "m32": 0,
+  "m33": 1,
+  "m34": 0,
+  "m41": 0,
+  "m42": 0,
+  "m43": 0,
+  "m44": 1
+ },
+ "ro.rotate": [
+  0,
+  1,
+  -1,
+  0
+ ],
+ "ro.rotate.noargs": [
+  1,
+  1,
+  true
+ ],
+ "ro.rotate.undef": [
+  null,
+  null,
+  false
+ ],
+ "ro.rotate.xy": [
+  false,
+  "0.000000",
+  "-1.000000"
+ ],
+ "ro.rotate180": [
+  -1,
+  0,
+  0,
+  -1
+ ],
+ "ro.rotate270": [
+  0,
+  -1
+ ],
+ "ro.rotate30": [
+  0.8660254037844387,
+  0.49999999999999994
+ ],
+ "ro.rotate45": [
+  0.7071067811865476,
+  0.7071067811865476
+ ],
+ "ro.rotateAxisAngle": [
+  0,
+  1,
+  -1,
+  0,
+  true
+ ],
+ "ro.rotateFromVector": [
+  0.6,
+  0.8,
+  -0.8,
+  0.6
+ ],
+ "ro.rotateFromVector.oneArg": [
+  1,
+  0,
+  0,
+  1
+ ],
+ "ro.rotateFromVector.undef": [
+  1,
+  0,
+  0,
+  1
+ ],
+ "ro.rotateNeg90": [
+  0,
+  -1
+ ],
+ "ro.scale": [
+  2,
+  3,
+  0,
+  0
+ ],
+ "ro.scale.oneArg": [
+  2,
+  2,
+  0
+ ],
+ "ro.scale.undefX": [
+  1,
+  1,
+  1,
+  true
+ ],
+ "ro.scale.z": [
+  2,
+  null,
+  3,
+  false
+ ],
+ "ro.scale3d": [
+  2,
+  2,
+  false
+ ],
+ "ro.skewX": [
+  0.9999999999999999
+ ],
+ "ro.skewY": [
+  0.9999999999999999
+ ],
+ "ro.toFloat32Array": [
+  true,
+  16
+ ],
+ "ro.toFloat64Array": [
+  1,
+  2,
+  0,
+  0,
+  3,
+  4,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  5,
+  6,
+  0,
+  1
+ ],
+ "ro.toJSON": {
+  "a": 1,
+  "b": 2,
+  "c": 3,
+  "d": 4,
+  "e": 5,
+  "f": 6,
+  "is2D": true,
+  "isIdentity": false,
+  "m11": 1,
+  "m12": 2,
+  "m13": 0,
+  "m14": 0,
+  "m21": 3,
+  "m22": 4,
+  "m23": 0,
+  "m24": 0,
+  "m31": 0,
+  "m32": 0,
+  "m33": 1,
+  "m34": 0,
+  "m41": 5,
+  "m42": 6,
+  "m43": 0,
+  "m44": 1
+ },
+ "ro.transformPoint": [
+  20,
+  30,
+  5,
+  1
+ ],
+ "ro.transformPoint.w0": [
+  1,
+  0,
+  0
+ ],
+ "ro.translate": [
+  10,
+  20,
+  30,
+  false
+ ],
+ "ro.translate.oneArg": [
+  10,
+  0,
+  0,
+  true
+ ],
+ "ro.translate.undef": [
+  10,
+  20,
+  0,
+  true
+ ],
+ "ro.translate.z0": [
+  10,
+  20,
+  0,
+  true
+ ],
+ "ro.translate2d": [
+  10,
+  20,
+  0,
+  true
+ ],
+ "shape.DOMMatrix": {
+  "len": 0,
+  "members": {
+   "a": "rw",
+   "b": "rw",
+   "c": "rw",
+   "constructor": "function",
+   "d": "rw",
+   "e": "rw",
+   "f": "rw",
+   "invertSelf": "function",
+   "m11": "rw",
+   "m12": "rw",
+   "m13": "rw",
+   "m14": "rw",
+   "m21": "rw",
+   "m22": "rw",
+   "m23": "rw",
+   "m24": "rw",
+   "m31": "rw",
+   "m32": "rw",
+   "m33": "rw",
+   "m34": "rw",
+   "m41": "rw",
+   "m42": "rw",
+   "m43": "rw",
+   "m44": "rw",
+   "multiplySelf": "function",
+   "preMultiplySelf": "function",
+   "rotateAxisAngleSelf": "function",
+   "rotateFromVectorSelf": "function",
+   "rotateSelf": "function",
+   "scale3dSelf": "function",
+   "scaleSelf": "function",
+   "setMatrixValue": "function",
+   "skewXSelf": "function",
+   "skewYSelf": "function",
+   "translateSelf": "function"
+  },
+  "name": "DOMMatrix",
+  "order": [
+   "a",
+   "b",
+   "c",
+   "d",
+   "e",
+   "f",
+   "m11",
+   "m12",
+   "m13",
+   "m14",
+   "m21",
+   "m22",
+   "m23",
+   "m24",
+   "m31",
+   "m32",
+   "m33",
+   "m34",
+   "m41",
+   "m42",
+   "m43",
+   "m44",
+   "invertSelf",
+   "multiplySelf",
+   "preMultiplySelf",
+   "rotateAxisAngleSelf",
+   "rotateFromVectorSelf",
+   "rotateSelf",
+   "scale3dSelf",
+   "scaleSelf",
+   "skewXSelf",
+   "skewYSelf",
+   "translateSelf",
+   "constructor",
+   "setMatrixValue"
+  ],
+  "parent": "DOMMatrixReadOnly",
+  "statics": {
+   "fromFloat32Array": "function+e",
+   "fromFloat64Array": "function+e",
+   "fromMatrix": "function+e"
+  },
+  "tag": "[object DOMMatrix]"
+ },
+ "shape.DOMMatrixReadOnly": {
+  "len": 0,
+  "members": {
+   "a": "ro",
+   "b": "ro",
+   "c": "ro",
+   "constructor": "function",
+   "d": "ro",
+   "e": "ro",
+   "f": "ro",
+   "flipX": "function",
+   "flipY": "function",
+   "inverse": "function",
+   "is2D": "ro",
+   "isIdentity": "ro",
+   "m11": "ro",
+   "m12": "ro",
+   "m13": "ro",
+   "m14": "ro",
+   "m21": "ro",
+   "m22": "ro",
+   "m23": "ro",
+   "m24": "ro",
+   "m31": "ro",
+   "m32": "ro",
+   "m33": "ro",
+   "m34": "ro",
+   "m41": "ro",
+   "m42": "ro",
+   "m43": "ro",
+   "m44": "ro",
+   "multiply": "function",
+   "rotate": "function",
+   "rotateAxisAngle": "function",
+   "rotateFromVector": "function",
+   "scale": "function",
+   "scale3d": "function",
+   "scaleNonUniform": "function",
+   "skewX": "function",
+   "skewY": "function",
+   "toFloat32Array": "function",
+   "toFloat64Array": "function",
+   "toJSON": "function",
+   "toString": "function",
+   "transformPoint": "function",
+   "translate": "function"
+  },
+  "name": "DOMMatrixReadOnly",
+  "order": [
+   "a",
+   "b",
+   "c",
+   "d",
+   "e",
+   "f",
+   "m11",
+   "m12",
+   "m13",
+   "m14",
+   "m21",
+   "m22",
+   "m23",
+   "m24",
+   "m31",
+   "m32",
+   "m33",
+   "m34",
+   "m41",
+   "m42",
+   "m43",
+   "m44",
+   "is2D",
+   "isIdentity",
+   "flipX",
+   "flipY",
+   "inverse",
+   "multiply",
+   "rotate",
+   "rotateAxisAngle",
+   "rotateFromVector",
+   "scale",
+   "scale3d",
+   "scaleNonUniform",
+   "skewX",
+   "skewY",
+   "toFloat32Array",
+   "toFloat64Array",
+   "toJSON",
+   "transformPoint",
+   "translate",
+   "constructor",
+   "toString"
+  ],
+  "parent": "Object",
+  "statics": {
+   "fromFloat32Array": "function+e",
+   "fromFloat64Array": "function+e",
+   "fromMatrix": "function+e"
+  },
+  "tag": "[object DOMMatrixReadOnly]"
+ },
+ "shape.DOMPoint": {
+  "len": 0,
+  "members": {
+   "constructor": "function",
+   "w": "rw",
+   "x": "rw",
+   "y": "rw",
+   "z": "rw"
+  },
+  "name": "DOMPoint",
+  "order": [
+   "x",
+   "y",
+   "z",
+   "w",
+   "constructor"
+  ],
+  "parent": "DOMPointReadOnly",
+  "statics": {
+   "fromPoint": "function+e"
+  },
+  "tag": "[object DOMPoint]"
+ },
+ "shape.DOMPointReadOnly": {
+  "len": 0,
+  "members": {
+   "constructor": "function",
+   "matrixTransform": "function",
+   "toJSON": "function",
+   "w": "ro",
+   "x": "ro",
+   "y": "ro",
+   "z": "ro"
+  },
+  "name": "DOMPointReadOnly",
+  "order": [
+   "x",
+   "y",
+   "z",
+   "w",
+   "matrixTransform",
+   "toJSON",
+   "constructor"
+  ],
+  "parent": "Object",
+  "statics": {
+   "fromPoint": "function+e"
+  },
+  "tag": "[object DOMPointReadOnly]"
+ },
+ "shape.DOMQuad": {
+  "len": 0,
+  "members": {
+   "constructor": "function",
+   "getBounds": "function",
+   "p1": "ro",
+   "p2": "ro",
+   "p3": "ro",
+   "p4": "ro",
+   "toJSON": "function"
+  },
+  "name": "DOMQuad",
+  "order": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "getBounds",
+   "toJSON",
+   "constructor"
+  ],
+  "parent": "Object",
+  "statics": {
+   "fromQuad": "function+e",
+   "fromRect": "function+e"
+  },
+  "tag": "[object DOMQuad]"
+ },
+ "shape.DOMRect": {
+  "len": 0,
+  "members": {
+   "constructor": "function",
+   "height": "rw",
+   "width": "rw",
+   "x": "rw",
+   "y": "rw"
+  },
+  "name": "DOMRect",
+  "order": [
+   "x",
+   "y",
+   "width",
+   "height",
+   "constructor"
+  ],
+  "parent": "DOMRectReadOnly",
+  "statics": {
+   "fromRect": "function+e"
+  },
+  "tag": "[object DOMRect]"
+ },
+ "shape.DOMRectReadOnly": {
+  "len": 0,
+  "members": {
+   "bottom": "ro",
+   "constructor": "function",
+   "height": "ro",
+   "left": "ro",
+   "right": "ro",
+   "toJSON": "function",
+   "top": "ro",
+   "width": "ro",
+   "x": "ro",
+   "y": "ro"
+  },
+  "name": "DOMRectReadOnly",
+  "order": [
+   "x",
+   "y",
+   "width",
+   "height",
+   "top",
+   "right",
+   "bottom",
+   "left",
+   "toJSON",
+   "constructor"
+  ],
+  "parent": "Object",
+  "statics": {
+   "fromRect": "function+e"
+  },
+  "tag": "[object DOMRectReadOnly]"
+ },
+ "wkcm.ctorString": [
+  2,
+  2
+ ],
+ "wkcm.instanceof": [
+  true,
+  "function"
+ ],
+ "wkcm.instanceofSelf": [
+  true,
+  false,
+  "[object DOMMatrix]"
+ ],
+ "wkcm.ownNames": "fromFloat32Array,fromFloat64Array,fromMatrix,length,name,prototype",
+ "wkcm.parent": [
+  false,
+  "function"
+ ],
+ "wkcm.protoOf": [
+  false,
+  false,
+  "function DOMMatrixReadOnly() { [native c"
+ ],
+ "wkcm.sameProto": [
+  true,
+  true
+ ],
+ "wkcm.setMatrixValue.ret": true,
+ "wkcm.subclass": [
+  false,
+  false,
+  "DOMMatrix",
+  0
+ ],
+ "wkcm.toString": "matrix(1, 0, 0, 1, 10, 20)"
+}

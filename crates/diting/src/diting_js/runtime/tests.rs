@@ -26248,3 +26248,41 @@ async fn test_iframe_realm_dispatch_rides_native_core() {
     assert_eq!(v["n"], 1, "native dedup/remove semantics on the frame doc: {v}");
 }
 
+
+/// M4 knife 1: the geometry family (DOMPoint/DOMRect/DOMQuad/DOMMatrix*
+/// + WebKitCSSMatrix) is generated shape (gen/geometry.gen.js) + behavior
+/// module (geometry.impl.js). The probe runs against the live engine and is
+/// diffed key-by-key against real Chrome 145 (captured via
+/// tools/webplatform/capture/probe_run.py). KNOWN_GEOMETRY_GAPS is a
+/// ratchet: an entry that starts matching must be removed.
+///
+/// ro.rotate45 (≤1 ulp): Blink's rotate path uses Chromium's own SIMD
+/// sincos (third_party/simd), whose last-ulp rounding differs from
+/// V8's Math.sin at some angles (observed 45° and 60°: sin 0.7071067811865475
+/// vs ...476, 0.8660254037844386 vs ...387). The engine's Math.sin itself is
+/// bit-identical to real Chrome's Math.sin — verified by capture — so this is
+/// purely the C++ library's rounding, not reachable without emulating its
+/// FMA-evaluated polynomial. cosSin() uses Math.sin/Math.cos.
+#[test]
+fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
+    const KNOWN_GEOMETRY_GAPS: &[&str] = &["ro.rotate45"];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/geometry-probe.js");
+    let engine: serde_json::Value = serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/geometry-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        let got = &engine[k];
+        let known = KNOWN_GEOMETRY_GAPS.contains(&k.as_str());
+        if got != want && !known {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+        if got == want && known {
+            bad.push(format!("{k}: now matches Chrome - remove it from KNOWN_GEOMETRY_GAPS"));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

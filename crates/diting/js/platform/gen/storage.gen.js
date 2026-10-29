@@ -50,7 +50,7 @@ function createStorage(backing) {
 }
 P.expose('Storage', Storage);
 exports.isStorage = isStorage; exports.createStorage = createStorage;
-P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "length"}, {"kind": "method", "length": 1, "name": "key"}, {"kind": "method", "length": 1, "name": "getItem"}, {"kind": "method", "length": 2, "name": "setItem"}, {"kind": "method", "length": 1, "name": "removeItem"}, {"kind": "method", "length": 0, "name": "clear"}], "name": "Storage"});
+P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "length"}, {"kind": "method", "length": 1, "name": "key"}, {"kind": "method", "length": 1, "name": "getItem"}, {"kind": "method", "length": 2, "name": "setItem"}, {"kind": "method", "length": 1, "name": "removeItem"}, {"kind": "method", "length": 0, "name": "clear"}], "name": "Storage", "statics": []});
 
 // ---- StorageEvent (generated from tools/webplatform/spec/storage.json) ----
 const slotsStorageEvent = new WeakMap();
@@ -83,4 +83,4 @@ P.method(protoStorageEvent, 'initStorageEvent', 1, function __f() { const s = sl
 P.seal(StorageEvent);
 P.expose('StorageEvent', StorageEvent);
 exports.StorageEvent = StorageEvent;
-P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "key"}, {"kind": "getter", "length": 0, "name": "oldValue"}, {"kind": "getter", "length": 0, "name": "newValue"}, {"kind": "getter", "length": 0, "name": "url"}, {"kind": "getter", "length": 0, "name": "storageArea"}, {"kind": "method", "length": 1, "name": "initStorageEvent"}], "name": "StorageEvent"});
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "key"}, {"kind": "getter", "length": 0, "name": "oldValue"}, {"kind": "getter", "length": 0, "name": "newValue"}, {"kind": "getter", "length": 0, "name": "url"}, {"kind": "getter", "length": 0, "name": "storageArea"}, {"kind": "method", "length": 1, "name": "initStorageEvent"}], "name": "StorageEvent", "statics": []});

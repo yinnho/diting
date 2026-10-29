@@ -98,6 +98,20 @@ const __platform = (function () {
     setFn(fn, 'get ' + name, 0);
     Object.defineProperty(proto, name, { get: fn, set: undefined, enumerable: true, configurable: true });
   }
+  // read-write IDL attribute: get/set pair on the prototype (e.g. DOMMatrix.a).
+  // (param must not be named setFn — it would shadow the helper above and
+  // get CALLED as one; caught by the geometry knife, first accessor user.)
+  function accessor(proto, name, getFn, setterFn) {
+    setFn(getFn, 'get ' + name, 0);
+    setFn(setterFn, 'set ' + name, 1);
+    Object.defineProperty(proto, name, { get: getFn, set: setterFn, enumerable: true, configurable: true });
+  }
+  // static IDL operation: own on the interface object, ENUMERABLE (Chrome:
+  // DOMPoint.fromMatrix et al. are own+enumerable statics).
+  function stat(ctor, name, length, fn) {
+    setFn(fn, name, length);
+    Object.defineProperty(ctor, name, { value: fn, writable: true, enumerable: true, configurable: true });
+  }
   // Globals. expose(): interface objects. exposeValue(): instance globals that
   // the legacy surface installed with plain assignment (enumerable data).
   function expose(name, ctor) {
@@ -128,15 +142,25 @@ const __platform = (function () {
         if (m.kind === 'method') {
           if (!('value' in d) || !d.writable) bad.push(e.name + '.' + m.name + ': not a writable data prop');
           else if (d.value.length !== m.length || d.value.name !== m.name || !nat(d.value)) bad.push(e.name + '.' + m.name + ': fn shape');
+        } else if (m.kind === 'accessor') {
+          if (!d.get || !d.set || typeof d.set !== 'function') bad.push(e.name + '.' + m.name + ': accessor pair shape');
+          else if (d.get.name !== 'get ' + m.name || d.get.length !== 0 || !nat(d.get)) bad.push(e.name + '.' + m.name + ': getter shape');
+          else if (d.set.name !== 'set ' + m.name || d.set.length !== 1 || !nat(d.set)) bad.push(e.name + '.' + m.name + ': setter shape');
         } else {
           if (!d.get || d.set !== undefined) bad.push(e.name + '.' + m.name + ': accessor shape');
           else if (d.get.name !== 'get ' + m.name || d.get.length !== 0 || !nat(d.get)) bad.push(e.name + '.' + m.name + ': getter shape');
         }
       }
+      for (const s of e.statics || []) {
+        const d = Object.getOwnPropertyDescriptor(C, s.name);
+        if (!d) { bad.push(e.name + '.' + s.name + ': static missing'); continue; }
+        if (!d.writable || !d.enumerable || !d.configurable) bad.push(e.name + '.' + s.name + ': static flags');
+        else if (d.value.length !== s.length || d.value.name !== s.name || !nat(d.value)) bad.push(e.name + '.' + s.name + ': static fn shape');
+      }
     }
     return bad;
   }
 
-  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, expose, exposeValue, expect, verify };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, expose, exposeValue, expect, verify };
   return P;
 })();

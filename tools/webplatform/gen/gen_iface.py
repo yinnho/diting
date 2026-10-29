@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """WebIDL -> JS interface skeleton (JS-PLATFORM-ARCH sec 3.2, M2 v0).
 
-usage: gen_iface.py <spec.json> <out.js> <module-name>
+usage: gen_iface.py <spec.json> <out.js> <module-name> [truth.json]
 
 Reads a slice written by extract_spec.py and emits ONE module file
 (crates/diting/js/platform/gen/<x>.gen.js) with a manifest header. The shape
@@ -19,17 +19,35 @@ message wording) comes from the IDL; behavior is delegated:
   strategy "event"    interface WITH constructor inheriting Event, plus a
                       dictionary <Name>Init: attributes live in an internal
                       slot filled from the dictionary; init<Name>() re-inits.
+  strategy "value"    pure-value interface WITH constructor (no named
+                      specials, not an Event subclass): the geometry family.
+                      The generated file owns the SHAPE only - ctor shells
+                      (brand check, arg count), prototype accessors/methods
+                      (kind + install order from the Chrome truth overlay,
+                      arity from the IDL required-arg count), statics,
+                      inheritance, @@toStringTag, P.expect registrations.
+                      Every body delegates to the behavior module required at
+                      load: B.ctor/get/set/call/stat('<Iface>', '<member>',
+                      ...). Behavior (math, defaults, dict validation, CSS
+                      parsing, error wording) lives in the paired impl module.
 
-v0 covers what Storage/StorageEvent need; new strategies are added per family.
+v0 covers what Storage/StorageEvent and the geometry family need; new
+strategies are added per family.
 """
 import json, os, sys
 
 spec_path, out_path, module = sys.argv[1], sys.argv[2], sys.argv[3]
 spec = json.load(open(spec_path))
-# Chrome overlay (optional): own-property order of each prototype, from
-# chrome/chrome-storage-truth.json `order.<Interface>` (JS-PLATFORM-ARCH sec 3.1).
-_truth_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "chrome", "chrome-storage-truth.json")
-TRUTH = json.load(open(_truth_path))["result"] if os.path.exists(_truth_path) else {}
+# Chrome overlay (optional): truth file with `order.<Interface>` (storage
+# legacy) or `shape.<Interface>` = {order, members, statics} (value strategy,
+# from chrome/geometry-truth-145.json). Third-party shape facts (install
+# order, accessor-vs-data kind) come from real Chrome, never guesswork.
+_truth_path = sys.argv[4] if len(sys.argv) > 4 else os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "chrome", "chrome-storage-truth.json")
+_tj = json.load(open(_truth_path)) if os.path.exists(_truth_path) else {}
+# storage truth files wrap the probe result in {"result": ...}; geometry
+# truth (probe_run output) is the result at top level.
+TRUTH = _tj["result"] if "result" in _tj else _tj
 N = spec["names"]
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 rel_spec = os.path.relpath(spec_path, ROOT)
@@ -91,6 +109,7 @@ exports = []
 expect = []
 requires_load = set()
 requires_call = set()
+has_value = False
 W = out.append
 
 
@@ -110,21 +129,46 @@ def header_gen(name):
     return "// ---- %s (generated from %s) ----" % (name, rel_spec)
 
 
-for name, iface in N.items():
-    if iface["type"] != "interface":
-        continue
+# interface iteration order: parents before children (P.iface links the
+# parent ctor at load; JSON order can put a child first).
+_iface_names = [n for n, i in N.items() if i["type"] == "interface"]
+_seen_order, _done = [], set()
+
+
+def _visit_iface(n):
+    if n in _done or n not in N or N[n]["type"] != "interface":
+        return
+    parent = N[n].get("inheritance")
+    if parent in N and N[parent]["type"] == "interface" and parent in _iface_names:
+        _visit_iface(parent)
+    _done.add(n)
+    _seen_order.append(n)
+
+
+for _n in _iface_names:
+    _visit_iface(n=_n)
+
+for name in _seen_order:
+    iface = N[name]
     cons = members(iface, {"constructor"})
-    specials = [m for m in iface["members"] if m.get("special")]
+    # 'special' here means named-property machinery (getter/setter/deleter);
+    # 'static' ops are ordinary statics, 'inherit' attrs are plain inherited
+    # attributes, and stringifiers are plain methods.
+    specials = [m for m in iface["members"]
+                if m.get("special") and m["special"] not in ("static", "stringifier", "inherit")]
     inherits = iface.get("inheritance")
     attrs = members(iface, {"attribute"})
-    ops = [m for m in members(iface, {"operation"}) if m.get("name")]
+    ops = [m for m in members(iface, {"operation"})
+           if m.get("name") or m.get("special") == "stringifier"]
+    # webref marks statics as special:'static' (not a boolean key)
+    statics = [m for m in ops if m.get("special") == "static"]
 
     W(header_gen(name))
-    W("const slots%s = new WeakMap();" % name)
-    W("function is%s(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slots%s.has(v); }" % (name, name))
 
     # ---------------------------------------------------------------- backing
     if not cons and specials:
+        W("const slots%s = new WeakMap();" % name)
+        W("function is%s(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slots%s.has(v); }" % (name, name))
         exports.append("create" + name)
         W("function %s() { P.fail(%s, 'Illegal constructor', new.target ? \"Failed to construct '%s'\" : ''); }" % (name, name, name))
         W("const proto%s = P.iface(%s, '%s', 0);" % (name, name, name))
@@ -191,6 +235,8 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
 
     # ------------------------------------------------------------------ event
     elif cons and inherits == "Event":
+        W("const slots%s = new WeakMap();" % name)
+        W("function is%s(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slots%s.has(v); }" % (name, name))
         dict_name = name + "Init"
         D = N[dict_name]
         fields = sorted(D["members"], key=lambda m: m["name"])  # WebIDL: lexicographic
@@ -244,12 +290,82 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
         requires_load.add("legacy:_markNative")
         requires_call.add("legacy:Event")
         expect_entry = {"name": name, "length": req}
+    # ------------------------------------------------------------------ value
+    elif cons and not specials and inherits != "Event":
+        # geometry family: pure-value classes. SHAPE here (from IDL + the
+        # Chrome truth overlay), BEHAVIOR in the paired impl module (B).
+        has_value = True
+        shape = TRUTH.get("shape." + name)
+        if not shape:
+            raise SystemExit("gen_iface value: %s needs a shape.<%s> overlay in the truth file" % (module, name))
+        req = sum(1 for p in cons[0]["arguments"] if not p.get("optional") and not p.get("variadic"))
+        # IDL member index (attrs by name, ops by name; '' + stringifier -> toString)
+        idl_attrs = {a["name"]: a for a in attrs}
+        idl_ops = {}
+        for o in ops:
+            idl_ops[o["name"] or "toString"] = o
+        W("function %s() {" % name)
+        W("  if (!new.target) P.fail(%s, \"Please use the 'new' operator, this DOM object constructor cannot be called as a function.\", \"Failed to construct '%s'\");" % (name, name))
+        W("  const ctx = \"Failed to construct '%s'\";" % name)
+        W("  P.args(ctx, arguments.length, %d, %s);" % (req, name))
+        W("  B.ctor('%s', this, ctx, arguments);" % name)
+        W("}")
+        parent_expr = inherits if inherits else None
+        W("const proto%s = P.iface(%s, '%s', %d%s);" % (name, name, name, req, ", " + parent_expr if parent_expr else ""))
+        # members in Chrome's own-property install order, emitted directly
+        # (Chrome interleaves `constructor` mid-order on some interfaces);
+        # anything the IDL declares but Chrome keeps inherited is skipped;
+        # a truth own member missing from the IDL is a build bug.
+        for k in shape["order"]:
+            if k == "constructor":
+                W("P.seal(%s);" % name)
+            elif k in idl_attrs:
+                kind = shape["members"][k]
+                if kind == "rw":
+                    W("P.accessor(proto%s, '%s', function __f() { return B.get('%s', '%s', this); }, function __f(v) { B.set('%s', '%s', this, v); });" % (name, k, name, k, name, k))
+                    expect.append({"iface": name, "kind": "accessor", "name": k, "length": 0})
+                else:
+                    W("P.getter(proto%s, '%s', function __f() { return B.get('%s', '%s', this); });" % (name, k, name, k))
+                    expect.append({"iface": name, "kind": "getter", "name": k, "length": 0})
+            elif k in idl_ops:
+                o = idl_ops[k]
+                required = sum(1 for p in o["arguments"] if not p.get("optional") and not p.get("variadic"))
+                ctx = "\"Failed to execute '%s' on '%s'\"" % (k, name)
+                W("P.method(proto%s, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.call('%s', '%s', this, ctx, arguments); });" % (name, k, required, ctx, required, name, k))
+                expect.append({"iface": name, "kind": "method", "name": k, "length": required})
+            else:
+                raise SystemExit("gen_iface value: %s.%s is in the Chrome truth order but not in the IDL" % (name, k))
+        # statics: on the interface object itself, IDL declaration order
+        # (Chrome own-key order for statics follows the IDL).
+        for o in statics:
+            on = o["name"]
+            required = sum(1 for p in o["arguments"] if not p.get("optional") and not p.get("variadic"))
+            ctx = "\"Failed to execute '%s' on '%s'\"" % (on, name)
+            W("P.stat(%s, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.stat('%s', '%s', ctx, arguments); });" % (name, on, required, ctx, required, name, on))
+            expect.append({"iface": name, "kind": "static", "name": on, "length": required})
+        W("P.expose('%s', %s);" % (name, name))
+        requires_load.add(module.replace("gen/", "", 1))
+        requires_load.add("legacy:_markNative")
+        expect_entry = {"name": name, "length": req}
     else:
         raise SystemExit("gen_iface v0: no strategy for %s" % name)
 
-    members_json = [{k: v for k, v in e.items() if k != "iface"} for e in expect if e["iface"] == name]
-    W("P.expect(%s);" % json.dumps(dict(expect_entry, members=members_json), sort_keys=True))
+    # statics go in their own expect list: verify() checks them against the
+    # interface OBJECT, members against the prototype.
+    members_json = [{k: v for k, v in e.items() if k != "iface"} for e in expect
+                    if e["iface"] == name and e["kind"] != "static"]
+    statics_json = [{k: v for k, v in e.items() if k != "iface"} for e in expect
+                    if e["iface"] == name and e["kind"] == "static"]
+    W("P.expect(%s);" % json.dumps(
+        dict(expect_entry, members=members_json, statics=statics_json), sort_keys=True))
     W("")
+
+if has_value:
+    # all interfaces of this module are exposed now — give the impl module
+    # its post-expose hook (geometry wires WebKitCSSMatrix onto the freshly
+    # exposed DOMMatrix).
+    out.append("if (B.ready) B.ready();")
+    out.append("")
 
 header = [
     "//! GENERATED by tools/webplatform/gen/gen_iface.py from %s (webref %s) - do not edit" % (rel_spec, spec["webref"][:12]),
@@ -265,5 +381,10 @@ header = [
     "const conv = P.conv;",
     "",
 ]
+if has_value:
+    # pull the behavior table at load (bundle order guarantees the impl
+    # module ran first - see requires-load).
+    header.append("const B = require('%s');" % module.replace("gen/", "", 1))
+    header.append("")
 open(out_path, "w").write("\n".join(header + out))
 print("wrote", os.path.relpath(out_path, ROOT), len(out), "lines")

@@ -18,8 +18,10 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口、163 个有缺口、合计 2631 成员——补齐路线图的输入。已确认的真缺口样例：
-`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor、`Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→**142 接口**、
+2631→**2471 成员**；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
+`Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
 ## 文件清单
 
@@ -31,6 +33,8 @@
 | platform_bundle.js | **生成件**：platform/core.js（模块注册表）+ 全部平台模块，按 requires-load 拓扑序（tools/webplatform/bundle.py） |
 | platform/gen/storage.gen.js | **生成件**：Storage、StorageEvent 的 IDL 骨架（tools/webplatform/gen/gen_iface.py，规范 webref 6ac6259，成员顺序取 Chrome 真值 overlay） |
 | platform/storage.impl.js | 手写：Storage 的 backing 行为（惰性加载、防抖写盘、opaque origin 仅内存） |
+| platform/gen/geometry.gen.js | **生成件**：几何七件套的 IDL 骨架（gen_iface.py value 策略：类/描述符/安装序/statics 全生成，行为全部走 B.* 委托） |
+| platform/geometry.impl.js | 手写：几何族行为（m_{CR} 存储、CSS transform-list 解析、WebKitCSSMatrix 旧脸接线 ready()） |
 | worker.js | Worker（含 blob URL Worker） |
 | client_rects.js / computed_size.js | 几何查询 |
 | pointer_touch.js | PointerEvent、指针捕获注册表（interact.rs 的会话/CDP 鼠标链经 __diting_pointerCaptureFor 改道）、Touch、TouchEvent（2026-10-29 棘轮搬出，紧随 cssom_sheets 加载） |
@@ -48,6 +52,7 @@
 | document 只读赋值 | native | （session E2E） | 同上 |
 | elementFromPoint 冷路径/double 参数 | shim | hit_test_cold_path_and_webidl_double_args, mouse_chain_before_first_layout_does_not_fault | 2026-10-29 对照 blitz#1304 |
 | Storage / StorageEvent | **IDL 生成** | storage_matches_chrome_truth（53 探针对 Chrome 156 真值）, platform_generated_descriptors_conform, platform_errors_match_chrome_truth（17 个报错形状对 Chrome）, storage_family_proxy_semantics_and_gate | 2026-10-29 M2 竖切：旧 storage.js 删除；行为对齐 Chrome（名字在原型链上则仍为普通属性；StorageEvent 属性改原型访问器）；已知差异：枚举序（实现定义）、Event 基类实例自有属性（Event 族缺口） |
+| 几何族 DOMPoint/Rect/Quad/Matrix*+WebKitCSSMatrix | **IDL 生成** | geometry_stack_matches_chrome_truth_except_known_geometry_gaps（156 探针对 Chrome 145 真值，155 全等+1 已档 ulp 缺口） | 2026-10-29 M4 刀1：bootstrap 玩具删除；shape 全生成+行为全委托；WebKitCSSMatrix=旧厂函数共 DOMMatrix.prototype；缺口=rotate 非 90° 整数倍角的 Blink SIMD sincos 末位 ulp（见测试注释） |
 | CSSOM sheet 对象 | shim | cssom_sheets_identity_list_and_adoption | 2026-10-29 自 bootstrap 搬出（纯搬移）；helper 改词法 const |
 | 指针捕获 setPointerCapture | shim | drag_follows_pointer_capture_slider, pointer_touch_family_capture_and_hidden_registry | 2026-10-28 修（滑块拖不动根因） |
 
@@ -264,3 +269,34 @@ crossFileLoadTimeNames 50→51（iframe_realm 加载期引 Document/EventTarget 
 合法序边，--write-baseline）。iframe 回归测试载体=Rust 测试而非 Chrome 探针：
 帧域是单 realm 壳（cross-realm identity 在 Chrome 为假、在本引擎为真），探针键
 会造假分歧。
+
+## M4 刀1：几何族（DOMPoint/DOMRect/DOMQuad/DOMMatrix×2 + WebKitCSSMatrix）（2026-10-29）
+
+一族一刀收口：`gen/geometry.gen.js`（gen_iface.py 新 **value 策略**——类壳/描述
+符/安装序/@@toStringTag/statics 全部生成，值行为经 `B.ctor/get/set/call/stat`
+字符串键委托）+ `platform/geometry.impl.js`（全部行为）。bootstrap 的几何玩具
+删除（冻结律只缩）。真源=Chrome 145 实捕 `geometry-truth-145.json`（156 键）：
+**155 键逐位相等 + 1 键已档缺口**。
+
+生成器一并长出（storage.gen.js 同步重生成过门）：webref 的 `special:'static'`
+识别、stringifier 归入 ops、接口拓扑排序（父先子后）、expect 拆
+members/statics（verify() 各自核挂点）、value 模块尾 `if (B.ready) B.ready()`
+——impl 借此在类就位后接线旧脸。
+
+行为钉子（全部 truth 实证）：m_{CR} 列主存储、直角快路（90° 整数倍出干净
+0/±1）、rotate 单参=Z 轴保 is2D / 三参=Rx·Ry·Rz、DOMMatrixInit 三维判定按
+**字典默认值**（m33/m44 默认 1——按 0 比会把活体 2D 矩阵读成 3D）、CSS
+transform-list 的 is2D=无三维函数出现、toJSON 键序=字典序、DOMRect 四边
+NORMALIZE、WebKitCSSMatrix=旧厂函数共享 DOMMatrix.prototype（name 仍
+'DOMMatrix'，三个自有 statics）、`scale(2, undefined, 3)` 的 NaN **不跨列扩散**
+——Blink 原位乘列，全矩阵乘的 0·NaN 会毒化整阵（postTranslate 同理只动末列）。
+
+已知缺口（ratchet，见 tests.rs 注释）：`ro.rotate45` 差 1 ulp——Blink rotate
+走 Chromium 自家 SIMD sincos（third_party/simd），45°/60° 处与 V8 Math.sin 末
+位不同（0.7071067811865475 vs …476）；本引擎 Math.sin 与真 Chrome 的
+Math.sin **逐位相同**（专项实捕验证），故此缺口是 C++ 库末位舍入，非我们错。
+
+验收：tests **1434/0**（新回归=geometry 探针测试）；node 直跑差分 156 键
+155 等；夹具面 diff=几何族换血（WebKitCSSMatrix constructor 壳→全脸）；
+check_fresh 4 生成件全鲜；analyze 棘轮过（moduleContractViolations=0）。
+SURFACE-WEBIDL.md 差集表已随刀刷新：几何六件出表，缺口 163→142 接口、2631→2471 成员。

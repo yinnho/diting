@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 163 个；缺口成员合计 2631。
+已核 196 个接口；有缺口 142 个；缺口成员合计 2471。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -33,8 +33,6 @@
 | HTMLAudioElement | createElement | 48/418 | addTextTrack, assignedSlot, attributeStyleMap, autocapitalize, autoplay, captureStream, clientLeft, clientTop, computedStyleMap, contentEditable, controls, crossOrigin, currentCSSZoom, currentSrc, defaultMuted, defaultPlaybackRate, disableRemotePlayback, draggable, editContext, elementTiming, enterKeyHint, error, hasAttributeNS, inert, inputMode, isContentEditable, loop, mediaKeys, muted, nonce, outerText, part, prefix, preload, preservesPitch, remote, requestFullscreen, requestPointerLock, setMediaKeys, setSinkId, sinkId, spellcheck, srcObject, textTracks, translate, virtualKeyboardPolicy, volume, writingSuggestions |
 | HTMLObjectElement | createElement | 47/390 | align, archive, assignedSlot, attributeStyleMap, autocapitalize, border, checkValidity, clientLeft, clientTop, code, codeBase, codeType, computedStyleMap, contentEditable, currentCSSZoom, data, declare, draggable, editContext, elementTiming, enterKeyHint, getSVGDocument, hasAttributeNS, height, hspace, inert, inputMode, isContentEditable, nonce, outerText, part, prefix, reportValidity, requestFullscreen, requestPointerLock, setCustomValidity, spellcheck, standby, translate, useMap, validationMessage, validity, virtualKeyboardPolicy, vspace, width, willValidate, writingSuggestions |
 | HTMLIFrameElement | createElement | 42/388 | align, allow, allowFullscreen, assignedSlot, attributeStyleMap, autocapitalize, clientLeft, clientTop, computedStyleMap, contentEditable, credentialless, csp, currentCSSZoom, draggable, editContext, elementTiming, enterKeyHint, frameBorder, getSVGDocument, hasAttributeNS, height, inert, inputMode, isContentEditable, loading, longDesc, marginHeight, marginWidth, nonce, outerText, part, prefix, privateToken, referrerPolicy, requestFullscreen, requestPointerLock, scrolling, spellcheck, translate, virtualKeyboardPolicy, width, writingSuggestions |
-| DOMMatrixReadOnly | new | 41/41 | a, b, c, d, e, f, flipX, flipY, inverse, is2D, isIdentity, m11, m12, m13, m14, m21, m22, m23, m24, m31, m32, m33, m34, m41, m42, m43, m44, multiply, rotate, rotateAxisAngle, rotateFromVector, scale, scale3d, scaleNonUniform, skewX, skewY, toFloat32Array, toFloat64Array, toJSON, transformPoint, translate |
-| DOMMatrix | new | 39/53 | flipX, flipY, invertSelf, m11, m12, m13, m14, m21, m22, m23, m24, m31, m32, m33, m34, m41, m42, m43, m44, multiplySelf, preMultiplySelf, rotateAxisAngle, rotateAxisAngleSelf, rotateFromVector, rotateFromVectorSelf, rotateSelf, scale3d, scale3dSelf, scaleNonUniform, scaleSelf, setMatrixValue, skewX, skewXSelf, skewY, skewYSelf, toFloat32Array, toFloat64Array, toJSON, translateSelf |
 | HTMLMarqueeElement | createElement | 39/377 | assignedSlot, attributeStyleMap, autocapitalize, behavior, bgColor, clientLeft, clientTop, computedStyleMap, contentEditable, currentCSSZoom, direction, draggable, editContext, elementTiming, enterKeyHint, hasAttributeNS, height, hspace, inert, inputMode, isContentEditable, loop, nonce, outerText, part, prefix, requestFullscreen, requestPointerLock, scrollAmount, scrollDelay, spellcheck, start, stop, translate, trueSpeed, virtualKeyboardPolicy, vspace, width, writingSuggestions |
 | HTMLLinkElement | createElement | 38/384 | as, assignedSlot, attributeStyleMap, autocapitalize, blocking, charset, clientLeft, clientTop, computedStyleMap, contentEditable, crossOrigin, currentCSSZoom, draggable, editContext, elementTiming, enterKeyHint, fetchPriority, hasAttributeNS, hreflang, imageSizes, imageSrcset, inert, inputMode, integrity, isContentEditable, media, nonce, outerText, part, prefix, referrerPolicy, requestFullscreen, requestPointerLock, spellcheck, target, translate, virtualKeyboardPolicy, writingSuggestions |
 | HTMLScriptElement | createElement | 36/378 | assignedSlot, async, attributeStyleMap, autocapitalize, blocking, charset, clientLeft, clientTop, computedStyleMap, contentEditable, crossOrigin, currentCSSZoom, defer, draggable, editContext, elementTiming, enterKeyHint, event, fetchPriority, hasAttributeNS, inert, inputMode, integrity, isContentEditable, noModule, nonce, outerText, part, prefix, referrerPolicy, requestFullscreen, requestPointerLock, spellcheck, translate, virtualKeyboardPolicy, writingSuggestions |
@@ -100,8 +98,8 @@
 | HTMLUListElement | createElement | 26/366 | assignedSlot, attributeStyleMap, autocapitalize, clientLeft, clientTop, computedStyleMap, contentEditable, currentCSSZoom, draggable, editContext, elementTiming, enterKeyHint, hasAttributeNS, inert, inputMode, isContentEditable, nonce, outerText, part, prefix, requestFullscreen, requestPointerLock, spellcheck, translate, virtualKeyboardPolicy, writingSuggestions |
 | Animation | new | 22/28 | addEventListener, cancel, commitStyles, currentTime, dispatchEvent, effect, finish, finished, id, pause, pending, persist, play, playState, playbackRate, ready, removeEventListener, replaceState, reverse, startTime, timeline, updatePlaybackRate |
 | ClipboardChangeEvent | new | 18/24 | bubbles, cancelBubble, cancelable, composed, composedPath, currentTarget, defaultPrevented, eventPhase, initEvent, isTrusted, preventDefault, returnValue, srcElement, stopImmediatePropagation, stopPropagation, target, timeStamp, type |
-| PointerEvent | new | 18/65 | altitudeAngle, azimuthAngle, cancelBubble, getCoalescedEvents, getModifierState, getPredictedEvents, layerX, layerY, movementX, movementY, persistentDeviceId, returnValue, sourceCapabilities, tangentialPressure, tiltX, tiltY, twist, which |
 | Notification | new | 17/26 | actions, addEventListener, badge, body, close, data, dir, dispatchEvent, icon, lang, removeEventListener, renotify, requireInteraction, silent, tag, timestamp, title |
+| PointerEvent | new | 16/65 | altitudeAngle, azimuthAngle, getCoalescedEvents, getModifierState, getPredictedEvents, layerX, layerY, movementX, movementY, persistentDeviceId, sourceCapabilities, tangentialPressure, tiltX, tiltY, twist, which |
 | RTCIceCandidate | new | 16/17 | address, component, foundation, port, priority, protocol, relatedAddress, relatedPort, relayProtocol, sdpMLineIndex, sdpMid, tcpType, toJSON, type, url, usernameFragment |
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
 | EditContext | new | 14/20 | addEventListener, attachedElements, characterBounds, characterBoundsRangeStart, dispatchEvent, removeEventListener, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
@@ -113,69 +111,49 @@
 | AbsoluteOrientationSensor | new | 10/14 | activated, addEventListener, dispatchEvent, hasReading, populateMatrix, quaternion, removeEventListener, start, stop, timestamp |
 | RelativeOrientationSensor | new | 10/14 | activated, addEventListener, dispatchEvent, hasReading, populateMatrix, quaternion, removeEventListener, start, stop, timestamp |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
-| DOMRectReadOnly | new | 9/9 | bottom, height, left, right, toJSON, top, width, x, y |
-| MouseEvent | new | 9/50 | cancelBubble, getModifierState, layerX, layerY, movementX, movementY, returnValue, sourceCapabilities, which |
 | URLPattern | new | 9/11 | hasRegExpGroups, hash, hostname, password, pathname, port, protocol, search, username |
-| WheelEvent | new | 9/58 | cancelBubble, getModifierState, layerX, layerY, movementX, movementY, returnValue, sourceCapabilities, which |
 | IntersectionObserverEntry | new | 8/8 | boundingClientRect, intersectionRatio, intersectionRect, isIntersecting, isVisible, rootBounds, target, time |
-| KeyboardEvent | new | 8/44 | cancelBubble, charCode, getModifierState, isComposing, keyCode, returnValue, sourceCapabilities, which |
-| Request | new | 8/27 | bodyUsed, bytes, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
-| InputEvent | new | 7/32 | cancelBubble, dataTransfer, getTargetRanges, isComposing, returnValue, sourceCapabilities, which |
+| MouseEvent | new | 7/50 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
+| Request | new | 7/27 | bodyUsed, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |
 | ViewTimeline | new | 7/8 | axis, currentTime, duration, endOffset, source, startOffset, subject |
+| WheelEvent | new | 7/58 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
 | CloseWatcher | new | 6/9 | addEventListener, close, destroy, dispatchEvent, removeEventListener, requestClose |
-| DOMPointReadOnly | new | 6/6 | matrixTransform, toJSON, w, x, y, z |
-| DOMQuad | new | 6/6 | getBounds, p1, p2, p3, p4, toJSON |
 | IdleDetector | new | 6/8 | addEventListener, dispatchEvent, removeEventListener, screenState, start, userState |
+| KeyboardEvent | new | 6/44 | charCode, getModifierState, isComposing, keyCode, sourceCapabilities, which |
+| InputEvent | new | 5/32 | dataTransfer, getTargetRanges, isComposing, sourceCapabilities, which |
 | VideoColorSpace | new | 5/5 | fullRange, matrix, primaries, toJSON, transfer |
 | WebTransportError | new | 5/30 | code, message, name, source, streamErrorCode |
 | CaptureController | new | 4/13 | addEventListener, dispatchEvent, removeEventListener, setFocusBehavior |
-| CompositionEvent | new | 4/29 | cancelBubble, returnValue, sourceCapabilities, which |
-| FocusEvent | new | 4/28 | cancelBubble, returnValue, sourceCapabilities, which |
-| HashChangeEvent | new | 4/24 | cancelBubble, newURL, oldURL, returnValue |
 | MediaStream | new | 4/15 | addEventListener, dispatchEvent, getTrackById, removeEventListener |
 | ScrollTimeline | new | 4/5 | axis, currentTime, duration, source |
 | SpeechSynthesisUtterance | new | 4/17 | addEventListener, dispatchEvent, removeEventListener, voice |
 | TextFormat | new | 4/4 | rangeEnd, rangeStart, underlineStyle, underlineThickness |
-| TouchEvent | new | 4/35 | cancelBubble, returnValue, sourceCapabilities, which |
-| UIEvent | new | 4/27 | cancelBubble, returnValue, sourceCapabilities, which |
 | XRRigidTransform | new | 4/4 | inverse, matrix, orientation, position |
 | AudioContext | new | 3/46 | audioWorklet, setSinkId, sinkId |
-| ClipboardEvent | new | 3/23 | cancelBubble, clipboardData, returnValue |
 | DataTransfer | new | 3/9 | clearData, getData, setData |
 | FontFace | new | 3/19 | ascentOverride, descentOverride, lineGapOverride |
 | IdentityCredentialError | new | 3/30 | code, message, name |
-| MessageEvent | new | 3/28 | cancelBubble, initMessageEvent, returnValue |
 | OffscreenCanvas | new | 3/11 | addEventListener, dispatchEvent, removeEventListener |
-| PopStateEvent | new | 3/24 | cancelBubble, hasUAVisualTransition, returnValue |
 | ProcessingInstruction | new | 3/79 | nextElementSibling, previousElementSibling, sheet |
 | QuotaExceededError | new | 3/30 | code, message, name |
 | SharedWorker | new | 3/6 | addEventListener, dispatchEvent, removeEventListener |
 | SpeechGrammarList | new | 3/4 | addFromString, item, length |
-| SubmitEvent | new | 3/23 | cancelBubble, returnValue, submitter |
 | TaskController | new | 3/3 | abort, setPriority, signal |
 | Text | createTextNode | 3/77 | assignedSlot, nextElementSibling, previousElementSibling |
 | XPathEvaluator | new | 3/3 | createExpression, createNSResolver, evaluate |
 | XRRay | new | 3/3 | direction, matrix, origin |
-| AnimationEvent | new | 2/26 | cancelBubble, returnValue |
-| CloseEvent | new | 2/25 | cancelBubble, returnValue |
 | Comment | new | 2/70 | nextElementSibling, previousElementSibling |
-| ContentVisibilityAutoStateChangeEvent | new | 2/23 | cancelBubble, returnValue |
-| CustomEvent | new | 2/24 | cancelBubble, returnValue |
-| DOMPoint | new | 2/6 | matrixTransform, toJSON |
+| CompositionEvent | new | 2/29 | sourceCapabilities, which |
 | DocumentTimeline | new | 2/3 | currentTime, duration |
-| ErrorEvent | new | 2/27 | cancelBubble, returnValue |
-| Event | new | 2/22 | cancelBubble, returnValue |
+| FocusEvent | new | 2/28 | sourceCapabilities, which |
+| HashChangeEvent | new | 2/24 | newURL, oldURL |
 | Highlight | new | 2/2 | priority, type |
-| ProgressEvent | new | 2/25 | cancelBubble, returnValue |
-| RTCPeerConnectionIceErrorEvent | new | 2/27 | cancelBubble, returnValue |
-| RTCPeerConnectionIceEvent | new | 2/24 | cancelBubble, returnValue |
-| RTCTrackEvent | new | 2/26 | cancelBubble, returnValue |
-| StorageEvent | new | 2/28 | cancelBubble, returnValue |
-| ToggleEvent | new | 2/25 | cancelBubble, returnValue |
-| TransitionEvent | new | 2/26 | cancelBubble, returnValue |
+| TouchEvent | new | 2/35 | sourceCapabilities, which |
+| UIEvent | new | 2/27 | sourceCapabilities, which |
 | WebTransport | new | 2/19 | incomingBidirectionalStreams, incomingUnidirectionalStreams |
 | BarcodeDetector | new | 1/1 | detect |
+| ClipboardEvent | new | 1/23 | clipboardData |
 | DocumentFragment | new | 1/62 | childElementCount |
 | File | new | 1/11 | webkitRelativePath |
 | Headers | new | 1/6 | getSetCookie |
@@ -183,12 +161,13 @@
 | InputDeviceCapabilities | new | 1/2 | firesTouchEvents |
 | MediaMetadata | new | 1/5 | chapterInfo |
 | MediaSource | new | 1/18 | handle |
+| MessageEvent | new | 1/28 | initMessageEvent |
 | OfflineAudioContext | new | 1/37 | audioWorklet |
 | Path2D | new | 1/11 | roundRect |
+| PopStateEvent | new | 1/24 | hasUAVisualTransition |
 | RTCError | new | 1/34 | httpRequestStatusCode |
 | RTCSessionDescription | new | 1/3 | toJSON |
-| Response | new | 1/17 | bytes |
-| Worker | new | 1/9 | dispatchEvent |
+| SubmitEvent | new | 1/23 | submitter |
 | XMLHttpRequest | new | 1/36 | setPrivateToken |
 
 ## 原型级探测（实例造不出，成员未核实）
