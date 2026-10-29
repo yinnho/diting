@@ -1449,9 +1449,10 @@ P DOMPoint :: constructor
 P DOMPointReadOnly :: constructor
 P DOMQuad :: constructor
 S DOMRect :: fromRect
-P DOMRect :: constructor,toJSON
+P DOMRect :: constructor,height,width,x,y
 P DOMRectList :: constructor
-P DOMRectReadOnly :: constructor
+S DOMRectReadOnly :: fromRect
+P DOMRectReadOnly :: bottom,constructor,height,left,right,toJSON,top,width,x,y
 P DOMStringList :: constructor
 P DOMStringMap :: constructor
 P DOMTokenList :: _tokens,_write,add,constructor,contains,entries,forEach,item,keys,length,remove,replace,supports,toString,toggle,value,values

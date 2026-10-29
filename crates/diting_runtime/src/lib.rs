@@ -61,6 +61,7 @@ pub mod settle;
 pub use v8;
 
 pub mod snapshot;
+pub(crate) mod native;
 pub mod state;
 pub mod vm;
 

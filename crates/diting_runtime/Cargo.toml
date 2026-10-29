@@ -34,3 +34,5 @@ url = "2"
 # OpCtx decode, error conversion) don't appear in stateless test ops, proving
 # the own-registration path is deno-free.
 diting_ops = { path = "../diting_ops" }
+# Pilot test compares probe JSON against the Chrome truth file.
+serde_json = "1"

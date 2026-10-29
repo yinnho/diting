@@ -90,6 +90,7 @@ pub(crate) fn external_references() -> Cow<'static, [v8::ExternalReference]> {
     let mut v = vec![v8::ExternalReference {
         function: crate::vm::spawn_callback,
     }];
+    v.extend(crate::native::external_refs());
     if let Some(srcs) = SCRIPT_CONSTS.get() {
         v.extend(srcs.iter().map(|a| v8::ExternalReference {
             pointer: *a as *mut std::ffi::c_void,

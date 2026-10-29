@@ -430,6 +430,8 @@ fn install_faces(isolate: &mut v8::OwnedIsolate, context: &v8::Global<v8::Contex
         v8::Function::new_raw(cs, spawn_callback).expect("__diting_spawn template builds");
     spawn_fn.set_name(spawn_name);
     global.set(cs, spawn_name.into(), spawn_fn.into());
+    // Native (Rust-backed) interfaces - pilot of the Moli-direction layer.
+    crate::native::install(cs, global);
 }
 
 /// Bake the dormant shell into our container format (batch 5). The

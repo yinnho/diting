@@ -1,0 +1,442 @@
+{
+ "ctor.call": "THROW TypeError: Failed to construct 'DOMRectReadOnly': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "ctor.call2": "THROW TypeError: Failed to construct 'DOMRect': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "ctor.conv": [
+  5,
+  6,
+  0,
+  0
+ ],
+ "ctor.defaults": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "ctor.nan": [
+  "NaN",
+  1,
+  "Infinity",
+  "NaN",
+  "NaN"
+ ],
+ "ctor.negative": [
+  10,
+  20,
+  -3,
+  -4,
+  16,
+  10,
+  20,
+  7
+ ],
+ "ctor.negzero": [
+  true
+ ],
+ "ctor.sym": "THROW TypeError: Failed to construct 'DOMRect': Cannot convert a Symbol value to a number",
+ "ctor.values": [
+  1,
+  2,
+  3,
+  4,
+  2,
+  4,
+  6,
+  1
+ ],
+ "freeze": 9,
+ "fromRect.bad": "THROW TypeError: Failed to execute 'fromRect' on 'DOMRect': The provided value is not of type 'DOMRectInit'.",
+ "fromRect.basic": [
+  true,
+  1,
+  2,
+  3,
+  4
+ ],
+ "fromRect.none": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "fromRect.null": [
+  0
+ ],
+ "fromRect.order": [
+  "h",
+  "w",
+  "x",
+  "y"
+ ],
+ "fromRect.ro": [
+  false,
+  true,
+  1,
+  0,
+  0
+ ],
+ "fromRect.this": 3,
+ "global.desc": [
+  {
+   "c": true,
+   "e": false,
+   "len": 0,
+   "name": "DOMRect",
+   "nat": true,
+   "t": "function",
+   "w": true
+  },
+  {
+   "c": true,
+   "e": false,
+   "len": 0,
+   "name": "DOMRectReadOnly",
+   "nat": true,
+   "t": "function",
+   "w": true
+  }
+ ],
+ "illegal.cross": "THROW TypeError: Illegal invocation",
+ "illegal.get": "THROW TypeError: Illegal invocation",
+ "illegal.get.proto": "THROW TypeError: Illegal invocation",
+ "illegal.set": "THROW TypeError: Illegal invocation",
+ "illegal.toJSON": "THROW TypeError: Illegal invocation",
+ "inherit": [
+  true,
+  true,
+  false,
+  true,
+  true
+ ],
+ "json": "{\"x\":1,\"y\":2,\"width\":3,\"height\":4,\"top\":2,\"right\":4,\"bottom\":6,\"left\":1}",
+ "keys.enum": [
+  "x",
+  "y",
+  "width",
+  "height",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "toJSON"
+ ],
+ "ownkeys": [],
+ "reflect.construct": [
+  1,
+  true,
+  "undefined"
+ ],
+ "set.derived.strict": "THROW TypeError: Cannot set property top of #<DOMRectReadOnly> which has only a getter",
+ "set.noarg": "#undefined",
+ "set.readonly": [
+  1
+ ],
+ "set.readonly.strict": "THROW TypeError: Cannot set property x of #<DOMRectReadOnly> which has only a getter",
+ "set.rect": [
+  10,
+  -5,
+  7,
+  5,
+  10,
+  2,
+  9
+ ],
+ "set.sym": "THROW TypeError: Failed to set the 'x' property on 'DOMRect': Cannot convert a Symbol value to a number",
+ "shape.RO": {
+  "ctorParent": "Function",
+  "len": 0,
+  "members": {
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "DOMRectReadOnly",
+    "w": false
+   },
+   "bottom": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get bottom",
+     "nat": true
+    },
+    "s": null
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "DOMRectReadOnly",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "height": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get height",
+     "nat": true
+    },
+    "s": null
+   },
+   "left": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get left",
+     "nat": true
+    },
+    "s": null
+   },
+   "right": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get right",
+     "nat": true
+    },
+    "s": null
+   },
+   "toJSON": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "toJSON",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "top": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get top",
+     "nat": true
+    },
+    "s": null
+   },
+   "width": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get width",
+     "nat": true
+    },
+    "s": null
+   },
+   "x": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get x",
+     "nat": true
+    },
+    "s": null
+   },
+   "y": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get y",
+     "nat": true
+    },
+    "s": null
+   }
+  },
+  "name": "DOMRectReadOnly",
+  "order": [
+   "x",
+   "y",
+   "width",
+   "height",
+   "top",
+   "right",
+   "bottom",
+   "left",
+   "toJSON",
+   "constructor"
+  ],
+  "own": [
+   "fromRect",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "Object",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  },
+  "static": {
+   "fromRect": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "fromRect",
+    "nat": true,
+    "t": "function",
+    "w": true
+   }
+  }
+ },
+ "shape.Rect": {
+  "ctorParent": "DOMRectReadOnly",
+  "len": 0,
+  "members": {
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "DOMRect",
+    "w": false
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "DOMRect",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "height": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get height",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set height",
+     "nat": true
+    }
+   },
+   "width": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get width",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set width",
+     "nat": true
+    }
+   },
+   "x": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get x",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set x",
+     "nat": true
+    }
+   },
+   "y": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get y",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set y",
+     "nat": true
+    }
+   }
+  },
+  "name": "DOMRect",
+  "order": [
+   "x",
+   "y",
+   "width",
+   "height",
+   "constructor"
+  ],
+  "own": [
+   "fromRect",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "DOMRectReadOnly",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  },
+  "static": {
+   "fromRect": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "fromRect",
+    "nat": true,
+    "t": "function",
+    "w": true
+   }
+  }
+ },
+ "structuredClone": [
+  "[object DOMRect]",
+  1
+ ],
+ "subclass": [
+  3,
+  true,
+  "[object DOMRect]",
+  "S",
+  3
+ ],
+ "subclass.ro": [
+  12,
+  true
+ ],
+ "tag": [
+  "[object DOMRect]",
+  "[object DOMRectReadOnly]"
+ ],
+ "toJSON.direct": {
+  "bottom": 6,
+  "height": 4,
+  "left": 1,
+  "right": 4,
+  "top": 2,
+  "width": 3,
+  "x": 1,
+  "y": 2
+ },
+ "toString.fn": [
+  "function DOMRect() { [native code] }",
+  "function DOMRect() { [native code] }"
+ ]
+}

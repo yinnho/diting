@@ -1293,6 +1293,7 @@ dependencies = [
  "deno_error",
  "diting_ops",
  "serde",
+ "serde_json",
  "serde_v8",
  "url",
  "v8",
