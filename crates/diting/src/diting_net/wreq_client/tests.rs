@@ -740,45 +740,46 @@
         );
     }
 
-    // Real Chromium sends HEADERS priority weight 256 (stream-dependency value 255);
-    // wreq-util's Chrome presets ship 219 -> wire 220. Measured against Chrome for Testing
-    // 145.0.7632.117 and 156.0.8078.73 (tools/webplatform/chrome/wire/). The correction is
-    // applied to Chromium-family presets only.
+    // Real Chromium sends the HEADERS-frame priority as exclusive, depends_on 0, wire weight
+    // 256 (field value 255) - Chrome for Testing 145.0.7632.117 and 156.0.8078.73, measured on
+    // tls.peet.ws (tools/webplatform/chrome/wire/). The presets themselves now carry it.
     #[test]
-    fn chromium_presets_get_the_real_headers_priority_weight() {
-        use super::{apply_chromium_h2_corrections, CHROMIUM_HEADERS_PRIORITY_VALUE};
-        let build = |p: diting_profiles::Profile| {
+    fn chromium_presets_carry_the_real_headers_priority_weight() {
+        let want = format!("{:?}", Some(diting_wire::http2::StreamDependency::new(diting_wire::http2::StreamId::zero(), 255, true)));
+        let dep = |p: diting_profiles::Profile| {
+            let e = diting_wire::IntoEmulation::into_emulation(
+                diting_profiles::Emulation::builder().profile(p).platform(diting_profiles::Platform::MacOS).build(),
+            );
+            format!("{:?}", e.http2_options.expect("preset has h2 options").headers_stream_dependency)
+        };
+        for p in [
+            diting_profiles::Profile::Chrome100,
+            diting_profiles::Profile::Chrome131,
+            diting_profiles::Profile::Chrome145,
+            diting_profiles::Profile::Chrome148,
+            diting_profiles::Profile::Edge145,
+        ] {
+            assert_eq!(dep(p), want, "{p:?} must send HEADERS weight 256");
+        }
+        // Firefox/Safari have their own, different values and must not be touched
+        assert_ne!(dep(diting_profiles::Profile::Firefox133), want);
+    }
+
+    // Chrome 145 sends the `trust_anchors` extension (0xCA34) with an EMPTY list (payload 0000);
+    // that one extension is what made our JA4 differ from real Chrome 145 (16 vs 17 extensions).
+    // Other versions are left as they were: we have no capture for them.
+    #[test]
+    fn chrome145_requests_empty_trust_anchors_and_other_presets_do_not() {
+        let tls = |p: diting_profiles::Profile| {
             diting_wire::IntoEmulation::into_emulation(
                 diting_profiles::Emulation::builder().profile(p).platform(diting_profiles::Platform::MacOS).build(),
             )
+            .tls_options
+            .expect("preset has tls options")
         };
-        let expect = diting_wire::http2::StreamDependency::new(
-            diting_wire::http2::StreamId::zero(),
-            CHROMIUM_HEADERS_PRIORITY_VALUE,
-            true,
-        );
-        // before: the upstream value really is the stale one (guards against a silent upstream change)
-        let raw = build(diting_profiles::Profile::Chrome145);
-        assert_ne!(
-            format!("{:?}", raw.http2_options.as_ref().unwrap().headers_stream_dependency),
-            format!("{:?}", Some(&expect)),
-            "wreq-util now ships the correct weight - this correction can be dropped"
-        );
-        // after: Chrome and Edge get 256; Firefox/Safari are left alone
-        let fixed = apply_chromium_h2_corrections(diting_profiles::Profile::Chrome145, build(diting_profiles::Profile::Chrome145));
-        assert_eq!(
-            format!("{:?}", fixed.http2_options.unwrap().headers_stream_dependency),
-            format!("{:?}", Some(expect.clone()))
-        );
-        let edge = apply_chromium_h2_corrections(diting_profiles::Profile::Edge145, build(diting_profiles::Profile::Edge145));
-        assert_eq!(
-            format!("{:?}", edge.http2_options.unwrap().headers_stream_dependency),
-            format!("{:?}", Some(expect))
-        );
-        let ff_before = format!("{:?}", build(diting_profiles::Profile::Firefox133).http2_options);
-        let ff_after = format!(
-            "{:?}",
-            apply_chromium_h2_corrections(diting_profiles::Profile::Firefox133, build(diting_profiles::Profile::Firefox133)).http2_options
-        );
-        assert_eq!(ff_before, ff_after, "non-Chromium presets must be untouched");
+        let ids = tls(diting_profiles::Profile::Chrome145).requested_trust_anchors;
+        assert_eq!(ids.as_deref(), Some(&[][..]), "Chrome145 must send the extension, empty");
+        for p in [diting_profiles::Profile::Chrome131, diting_profiles::Profile::Chrome146, diting_profiles::Profile::Firefox133] {
+            assert!(tls(p).requested_trust_anchors.is_none(), "{p:?} has no evidence for the extension");
+        }
     }

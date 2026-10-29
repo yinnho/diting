@@ -1,6 +1,10 @@
+// HEADERS-frame priority. Every Chromium net stack sends exclusive, depends_on 0, wire weight
+// 256 (the field holds weight - 1 = 255). Measured on tls.peet.ws with Chrome for Testing
+// 145.0.7632.117 and 156.0.8078.73 (tools/webplatform/chrome/wire/). The upstream preset this
+// was taken from shipped 219 (wire 220), a per-connection tell finer H2 fingerprints see.
 macro_rules! headers_stream_dependency {
     () => {
-        StreamDependency::new(StreamId::zero(), 219, true)
+        StreamDependency::new(StreamId::zero(), 255, true)
     };
 }
 

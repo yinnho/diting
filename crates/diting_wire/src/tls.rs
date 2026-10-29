@@ -5,6 +5,7 @@
 pub(super) mod conn;
 
 pub mod compress;
+pub(crate) mod ffi;
 pub mod keylog;
 pub mod session;
 pub mod trust;
@@ -199,6 +200,19 @@ pub struct TlsOptions {
     /// **Default:** `None` (implementation default)
     pub permute_extensions: Option<bool>,
 
+    /// Trust Anchor Identifiers to request (draft-ietf-tls-trust-anchor-ids): the
+    /// `trust_anchors` ClientHello extension (0xCA34 / 51764).
+    ///
+    /// The value is the wire-format list - a series of non-empty, 8-bit length-prefixed
+    /// strings. `Some(empty)` still SENDS the extension with an empty list, which signals
+    /// support for the retry flow without requesting specific anchors; that is exactly what
+    /// Chrome 145 does (payload `0000`; measured with Chrome for Testing 145.0.7632.117 on
+    /// tls.peet.ws, see tools/webplatform/chrome/wire/). Chrome 156 sends a 184-byte list.
+    /// `None` omits the extension.
+    ///
+    /// **Default:** `None`
+    pub requested_trust_anchors: Option<Cow<'static, [u8]>>,
+
     /// Controls whether GREASE extensions ([RFC 8701](https://datatracker.ietf.org/doc/html/rfc8701))
     /// are enabled in general.
     ///
@@ -309,6 +323,16 @@ impl TlsOptionsBuilder {
         I: IntoIterator<Item = AlpsProtocol>,
     {
         self.config.alps_protocols = Some(Cow::Owned(alps.into_iter().collect()));
+        self
+    }
+
+    /// Request trust anchors in the ClientHello; `Some(&[])` sends the extension empty.
+    #[inline]
+    pub fn requested_trust_anchors<T>(mut self, ids: T) -> Self
+    where
+        T: Into<Option<Cow<'static, [u8]>>>,
+    {
+        self.config.requested_trust_anchors = ids.into();
         self
     }
 
@@ -557,6 +581,7 @@ impl Default for TlsOptions {
             pre_shared_key: false,
             enable_ech_grease: false,
             permute_extensions: None,
+            requested_trust_anchors: None,
             grease_enabled: None,
             enable_ocsp_stapling: false,
             enable_signed_cert_timestamps: false,

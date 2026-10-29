@@ -40,6 +40,16 @@ macro_rules! tls_options {
             .curves($curves)
             .alps_use_new_codepoint(true))
     };
+    // (8) = (7) + the empty trust_anchors extension, as sent by real Chrome 145.
+    (8, $curves:expr) => {
+        tls_options!(@build ChromeTlsConfig::builder()
+            .permute_extensions(true)
+            .enable_ech_grease(true)
+            .pre_shared_key(true)
+            .curves($curves)
+            .alps_use_new_codepoint(true)
+            .empty_trust_anchors(true))
+    };
 }
 
 pub const CURVES_1: &str = join!(":", "X25519", "P-256", "P-384");
@@ -104,6 +114,11 @@ pub struct ChromeTlsConfig {
 
     #[builder(default = false, setter(into))]
     pre_shared_key: bool,
+
+    /// Send the `trust_anchors` extension (0xCA34) with an EMPTY list. Real Chrome 145
+    /// does (payload 0000); versions we have no capture for are left as they were.
+    #[builder(default = false, setter(into))]
+    empty_trust_anchors: bool,
 }
 
 impl From<ChromeTlsConfig> for TlsOptions {
@@ -122,6 +137,7 @@ impl From<ChromeTlsConfig> for TlsOptions {
             .enable_ech_grease(val.enable_ech_grease)
             .alps_protocols([val.alps_protos])
             .alps_use_new_codepoint(val.alps_use_new_codepoint)
+            .requested_trust_anchors(val.empty_trust_anchors.then_some(std::borrow::Cow::Borrowed(&[][..])))
             .aes_hw_override(true)
             .certificate_compressors(CERTIFICATE_COMPRESSORS)
             .build()

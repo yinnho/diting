@@ -20,6 +20,8 @@ use btls::{
     ssl::{Ssl, SslConnector, SslMethod, SslOptions, SslSessionCacheMode},
 };
 use ext::SslConnectorBuilderExt;
+
+use crate::tls::ffi;
 use http::{Uri, Version};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_btls::SslStream;
@@ -387,6 +389,11 @@ impl TlsConnectorBuilder {
 
         // Set TLS permute extensions options
         set_option!(opts, permute_extensions, connector, set_permute_extensions);
+
+        // Request trust anchors (the 0xCA34 `trust_anchors` extension); empty list for Chrome 145.
+        if let Some(ids) = opts.requested_trust_anchors.as_deref() {
+            ffi::set_requested_trust_anchors(&mut connector, ids).map_err(Error::tls)?;
+        }
 
         // Set TLS curves list
         set_option_ref_try!(opts, curves_list, connector, set_curves_list);
