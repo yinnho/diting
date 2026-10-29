@@ -27,7 +27,7 @@ TRUTH_PATH = os.path.join(HERE, "..", "chrome", "htmlreflect-truth-145.json")
 UNDEF = object()
 SET_VALUES = {
     "str": "ABC", "empty": "", "num5": 5, "neg1": -1, "true": True, "false": False,
-    "rel": "/rel/p?q=1", "big": 2147483648, "num1.9": 1.9, "null": None, "undef": UNDEF,
+    "rel": "/rel/p?q=1", "big": 2147483648, "num1.9": 1.9, "null": None, "undef": UNDEF, "zero": 0,
 }
 ATTR_BASE = "#B"   # the probe normalizes the page URL to '#B' and its origin to '#O'
 
@@ -113,6 +113,10 @@ def mirror_get(spec, v):
         n = parse_int_attr(v)
         mx = 2147483647 if kind == "unsigned-long" else 4294967295
         return 0 if n is None or n < 0 or n > mx else n
+    if kind == "ulong-def":
+        if v is None: return spec["default"]
+        n = parse_int_attr(v)
+        return spec["default"] if n is None or n < spec.get("min", 0) or n > 2147483647 else n
     if kind == "long":
         if v is None: return 0
         n = parse_int_attr(v)
@@ -121,7 +125,8 @@ def mirror_get(spec, v):
         if v is None: return None
         return "use-credentials" if ascii_lower(v) == "use-credentials" else "anonymous"
     if kind == "url":
-        return d if v is None else resolve_url(v)
+        if v is None: return ATTR_BASE if spec.get("fallbackDoc") else d
+        return resolve_url(v)
     raise SystemExit("mirror_get: unknown kind %r" % kind)
 
 
@@ -132,6 +137,9 @@ def mirror_set(spec, v):
     if kind in ("unsigned-long", "unsigned-long-dim"):
         u = to_uint32(js_number(v))
         return str(0 if u > 2147483647 else u)
+    if kind == "ulong-def":
+        u = to_uint32(js_number(v))
+        return str(spec["default"] if u > 2147483647 or u < spec.get("min", 0) else u)
     if kind == "long": return str(to_int32(js_number(v)))
     if kind == "crossorigin":
         return REMOVE if v is None or v is UNDEF else js_string(v)
@@ -178,11 +186,15 @@ def classify(fp, kind="rw"):
     if fp["def"] == "OBJ:DOMTokenList":
         return {"attr": attr, "kind": "tokenlist"}, None
     cands = []
+    cands.append({"attr": attr, "kind": "url", "fallbackDoc": True})
     for k in ("boolean-presence", "boolean-truefalse", "url", "string", "string-nte",
               "unsigned-long", "unsigned-long-dim", "long", "crossorigin"):
         sp = {"attr": attr, "kind": k}
         if k == "crossorigin": sp["default"] = None
         cands.append(sp)
+    if isinstance(fp["def"], int) and not isinstance(fp["def"], bool):
+        for mn in (0, 1):
+            cands.append({"attr": attr, "kind": "ulong-def", "default": fp["def"], "min": mn})
     e = derive_enum(fp)
     if e:
         cands.append(e)

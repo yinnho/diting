@@ -18,13 +18,19 @@
     HTMLParamElement: 'param', HTMLPreElement: 'pre', HTMLQuoteElement: 'blockquote',
     HTMLScriptElement: 'script', HTMLSourceElement: 'source', HTMLStyleElement: 'style',
     HTMLTableCaptionElement: 'caption', HTMLTimeElement: 'time', HTMLTitleElement: 'title',
+    // knife 7: form-associated and remaining reflect-heavy elements
+    HTMLInputElement: 'input', HTMLObjectElement: 'object', HTMLOutputElement: 'output',
+    HTMLFieldSetElement: 'fieldset', HTMLButtonElement: 'button', HTMLSelectElement: 'select',
+    HTMLTextAreaElement: 'textarea', HTMLTrackElement: 'track', HTMLTemplateElement: 'template',
+    HTMLMeterElement: 'meter', HTMLOptionElement: 'option', HTMLMarqueeElement: 'marquee',
+    HTMLMapElement: 'map', HTMLProgressElement: 'progress', HTMLSlotElement: 'slot',
     // regression rows for reflectors landed in earlier knives (2: HTMLElement
     // common layer; 5: media/image family)
     HTMLElement: 'div', HTMLImageElement: 'img', HTMLVideoElement: 'video', HTMLMediaElement: 'audio'
   };
   var SET_VALUES = [['str', 'ABC'], ['empty', ''], ['num5', 5], ['neg1', -1], ['true', true], ['false', false],
-    ['rel', '/rel/p?q=1'], ['big', 2147483648], ['num1.9', 1.9], ['null', null], ['undef', undefined]];
-  var ATTR_VALUES = ['', 'ABC', 'abc', '5', '-3', '9px', '1e2', '2147483648', '99999999999', 'true', 'false',
+    ['rel', '/rel/p?q=1'], ['big', 2147483648], ['num1.9', 1.9], ['null', null], ['undef', undefined], ['zero', 0]];
+  var ATTR_VALUES = ['', 'ABC', 'abc', '0', '5', '-3', '9px', '1e2', '2147483648', '99999999999', 'true', 'false',
     '/rel/p?q=1', 'http://x.test/a b', 'anonymous', 'use-credentials'];
 
   // Enumerated-attribute vocabulary: a SUPERSET of every HTML keyword the
@@ -40,7 +46,8 @@
     'true', 'false', 'yes', 'no', 'rect', 'circle', 'poly', 'default', 'rectangle', 'circ', 'polygon', 'yes', 'no',
     'render-blocking', 'left', 'right', 'center', 'justify', 'top', 'bottom', 'middle',
     'none', 'sentences', 'words', 'characters', 'enter', 'done', 'go', 'next', 'previous', 'search', 'send', 'text',
-    'tel', 'url', 'email', 'numeric', 'decimal', 'ltr', 'rtl', 'metadata', 'plaintext-only', 'inherit'];
+    'tel', 'url', 'email', 'numeric', 'decimal', 'ltr', 'rtl', 'metadata', 'plaintext-only', 'inherit',
+    'subtitles', 'captions', 'descriptions', 'chapters', 'open', 'closed', 'submit', 'reset', 'button', 'radio', 'checkbox'];
   // DOMTokenList-backed members: which tokens does supports() accept?
   var TOKENS = ['render-blocking', 'noopener', 'noreferrer', 'opener', 'stylesheet', 'preload', 'modulepreload',
     'icon', 'allow-forms', 'allow-scripts', 'allow-same-origin', 'allow-popups', 'allow-modals', 'allow-downloads',

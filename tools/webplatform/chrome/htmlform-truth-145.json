@@ -1,0 +1,244 @@
+{
+ "commandFor": [
+  true,
+  ""
+ ],
+ "fieldset.elements": [
+  3,
+  "[object HTMLCollection]",
+  "a"
+ ],
+ "fieldset.val": [
+  "fieldset",
+  false,
+  true,
+  true,
+  ""
+ ],
+ "input.defaultChecked": [
+  true,
+  true,
+  true,
+  true,
+  true
+ ],
+ "input.defaultValue": [
+  "dv",
+  "dv",
+  "dv",
+  "dv",
+  "dv"
+ ],
+ "input.defaults": [
+  false,
+  "",
+  "",
+  "#B",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  false,
+  false,
+  false
+ ],
+ "input.imgdims": [
+  33,
+  7,
+  "7",
+  0
+ ],
+ "input.list": [
+  null,
+  true,
+  null
+ ],
+ "input.showPicker": "THROW NotAllowedError: Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires a user gesture.",
+ "input.webkitEntries": [
+  true,
+  0,
+  "[object Array]"
+ ],
+ "input.webkitEntries.text": [
+  0
+ ],
+ "map.areas": [
+  2,
+  "[object HTMLCollection]",
+  "a1",
+  "a2"
+ ],
+ "marquee": [
+  6,
+  85,
+  -1,
+  "",
+  "",
+  false,
+  "function",
+  "function",
+  null,
+  null,
+  0
+ ],
+ "marquee.bad": [
+  5,
+  "IndexSizeError",
+  "IndexSizeError",
+  "zzz",
+  "zzz",
+  30
+ ],
+ "marquee.set": [
+  10,
+  30,
+  3,
+  "ALTERNATE",
+  "ALTERNATE",
+  "up"
+ ],
+ "meter": [
+  0,
+  1,
+  0,
+  0,
+  1,
+  0.5,
+  10,
+  20,
+  15,
+  12,
+  18,
+  20,
+  "13"
+ ],
+ "meter.base": [
+  20,
+  20,
+  10,
+  0
+ ],
+ "object.scv": [
+  "",
+  true,
+  true,
+  false
+ ],
+ "object.svg": [
+  null,
+  null,
+  null
+ ],
+ "object.val": [
+  false,
+  true,
+  true,
+  "",
+  true
+ ],
+ "option.defaultSelected": [
+  true,
+  true,
+  true
+ ],
+ "option.index": [
+  1,
+  0
+ ],
+ "output.defaultValue": [
+  "hi",
+  "hi",
+  "hi",
+  "x",
+  "x"
+ ],
+ "output.val": [
+  "output",
+  "",
+  true,
+  false,
+  true,
+  "",
+  true
+ ],
+ "popoverTarget": [
+  null,
+  true,
+  null,
+  null
+ ],
+ "progress.position": [
+  -1,
+  0,
+  1,
+  0.25,
+  1
+ ],
+ "select.autocomplete": [
+  "",
+  false
+ ],
+ "select.length.set": [
+  3,
+  3
+ ],
+ "select.list": [
+  2,
+  "b",
+  null,
+  "b",
+  null,
+  1,
+  1
+ ],
+ "select.showPicker": "THROW NotAllowedError: Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires a user gesture.",
+ "slot.assign": [
+  "function",
+  0,
+  null,
+  0,
+  0
+ ],
+ "template.shadow": [
+  "",
+  false,
+  false,
+  false,
+  "open",
+  "open",
+  ""
+ ],
+ "textarea.defaultValue": [
+  "dv",
+  "dv",
+  "dv",
+  "dv",
+  "dv3",
+  "v2"
+ ],
+ "textarea.textLength": [
+  5
+ ],
+ "track": [
+  0,
+  "[object TextTrack]",
+  "subtitles",
+  false,
+  "",
+  "",
+  0,
+  1,
+  2,
+  3
+ ],
+ "track.kind": [
+  "captions",
+  "metadata",
+  "zzz"
+ ]
+}

@@ -13,36 +13,51 @@
 // only if its mirror of core.js P.reflector reproduces EVERY facet.
 // Install-or-delegate: a member the engine chain already owns is
 // re-seated on the Chrome-true interface forwarding both legs.
-// Ledger: reflect=135 tokenlist=9 impl=14 const=2 delegate=21 left=10 staged=7
+// Ledger: reflect=234 tokenlist=10 impl=50 const=7 delegate=61 left=10 staged=7
 const B = require('htmlreflect');
 const G = globalThis;
 const P_Anchor = typeof G.HTMLAnchorElement === 'function' ? G.HTMLAnchorElement.prototype : null;
 const P_Area = typeof G.HTMLAreaElement === 'function' ? G.HTMLAreaElement.prototype : null;
 const P_BR = typeof G.HTMLBRElement === 'function' ? G.HTMLBRElement.prototype : null;
 const P_Base = typeof G.HTMLBaseElement === 'function' ? G.HTMLBaseElement.prototype : null;
+const P_Button = typeof G.HTMLButtonElement === 'function' ? G.HTMLButtonElement.prototype : null;
 const P_DList = typeof G.HTMLDListElement === 'function' ? G.HTMLDListElement.prototype : null;
 const P_Directory = typeof G.HTMLDirectoryElement === 'function' ? G.HTMLDirectoryElement.prototype : null;
 const P_Embed = typeof G.HTMLEmbedElement === 'function' ? G.HTMLEmbedElement.prototype : null;
+const P_FieldSet = typeof G.HTMLFieldSetElement === 'function' ? G.HTMLFieldSetElement.prototype : null;
 const P_Font = typeof G.HTMLFontElement === 'function' ? G.HTMLFontElement.prototype : null;
 const P_Form = typeof G.HTMLFormElement === 'function' ? G.HTMLFormElement.prototype : null;
 const P_Frame = typeof G.HTMLFrameElement === 'function' ? G.HTMLFrameElement.prototype : null;
 const P_HR = typeof G.HTMLHRElement === 'function' ? G.HTMLHRElement.prototype : null;
 const P_IFrame = typeof G.HTMLIFrameElement === 'function' ? G.HTMLIFrameElement.prototype : null;
+const P_Input = typeof G.HTMLInputElement === 'function' ? G.HTMLInputElement.prototype : null;
 const P_Legend = typeof G.HTMLLegendElement === 'function' ? G.HTMLLegendElement.prototype : null;
 const P_Link = typeof G.HTMLLinkElement === 'function' ? G.HTMLLinkElement.prototype : null;
+const P_Map = typeof G.HTMLMapElement === 'function' ? G.HTMLMapElement.prototype : null;
+const P_Marquee = typeof G.HTMLMarqueeElement === 'function' ? G.HTMLMarqueeElement.prototype : null;
 const P_Menu = typeof G.HTMLMenuElement === 'function' ? G.HTMLMenuElement.prototype : null;
 const P_Meta = typeof G.HTMLMetaElement === 'function' ? G.HTMLMetaElement.prototype : null;
+const P_Meter = typeof G.HTMLMeterElement === 'function' ? G.HTMLMeterElement.prototype : null;
 const P_Mod = typeof G.HTMLModElement === 'function' ? G.HTMLModElement.prototype : null;
+const P_Object = typeof G.HTMLObjectElement === 'function' ? G.HTMLObjectElement.prototype : null;
 const P_OptGroup = typeof G.HTMLOptGroupElement === 'function' ? G.HTMLOptGroupElement.prototype : null;
+const P_Option = typeof G.HTMLOptionElement === 'function' ? G.HTMLOptionElement.prototype : null;
+const P_Output = typeof G.HTMLOutputElement === 'function' ? G.HTMLOutputElement.prototype : null;
 const P_Param = typeof G.HTMLParamElement === 'function' ? G.HTMLParamElement.prototype : null;
 const P_Pre = typeof G.HTMLPreElement === 'function' ? G.HTMLPreElement.prototype : null;
+const P_Progress = typeof G.HTMLProgressElement === 'function' ? G.HTMLProgressElement.prototype : null;
 const P_Quote = typeof G.HTMLQuoteElement === 'function' ? G.HTMLQuoteElement.prototype : null;
 const P_Script = typeof G.HTMLScriptElement === 'function' ? G.HTMLScriptElement.prototype : null;
+const P_Select = typeof G.HTMLSelectElement === 'function' ? G.HTMLSelectElement.prototype : null;
+const P_Slot = typeof G.HTMLSlotElement === 'function' ? G.HTMLSlotElement.prototype : null;
 const P_Source = typeof G.HTMLSourceElement === 'function' ? G.HTMLSourceElement.prototype : null;
 const P_Style = typeof G.HTMLStyleElement === 'function' ? G.HTMLStyleElement.prototype : null;
 const P_TableCaption = typeof G.HTMLTableCaptionElement === 'function' ? G.HTMLTableCaptionElement.prototype : null;
+const P_Template = typeof G.HTMLTemplateElement === 'function' ? G.HTMLTemplateElement.prototype : null;
+const P_TextArea = typeof G.HTMLTextAreaElement === 'function' ? G.HTMLTextAreaElement.prototype : null;
 const P_Time = typeof G.HTMLTimeElement === 'function' ? G.HTMLTimeElement.prototype : null;
 const P_Title = typeof G.HTMLTitleElement === 'function' ? G.HTMLTitleElement.prototype : null;
+const P_Track = typeof G.HTMLTrackElement === 'function' ? G.HTMLTrackElement.prototype : null;
 
 function has(proto, n) { return Object.prototype.hasOwnProperty.call(proto, n); }
 // ancestor below Object.prototype that already owns `n`: its semantics are
@@ -146,7 +161,7 @@ if (P_Anchor) {
   if (!has(P_Anchor, 'hash')) delegate(P_Anchor, 'hash');
   if (!has(P_Anchor, 'href') && !delegate(P_Anchor, 'href', 'str')) P.reflector(P_Anchor, 'href', {"attr": "href", "iface": "HTMLAnchorElement", "kind": "url"});
   else wrapSet(P_Anchor, 'href', 'str');
-  if (!has(P_Anchor, 'toString') && !delegateFn(P_Anchor, 'toString', 0)) P.method(P_Anchor, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAnchorElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('toString', this, ctx, arguments); });
+  if (!has(P_Anchor, 'toString') && !delegateFn(P_Anchor, 'toString', 0)) P.method(P_Anchor, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAnchorElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Anchor.toString', this, ctx, arguments); });
   // staged: interestForElement - experimental (Interest Invokers), not Chrome-released
   if (!has(P_Anchor, 'hrefTranslate') && !delegate(P_Anchor, 'hrefTranslate', 'str')) P.reflector(P_Anchor, 'hrefTranslate', {"attr": "hreftranslate", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'hrefTranslate', 'str');
@@ -187,7 +202,7 @@ if (P_Area) {
   if (!has(P_Area, 'hash')) delegate(P_Area, 'hash');
   if (!has(P_Area, 'href') && !delegate(P_Area, 'href', 'str')) P.reflector(P_Area, 'href', {"attr": "href", "iface": "HTMLAreaElement", "kind": "url"});
   else wrapSet(P_Area, 'href', 'str');
-  if (!has(P_Area, 'toString') && !delegateFn(P_Area, 'toString', 0)) P.method(P_Area, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAreaElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('toString', this, ctx, arguments); });
+  if (!has(P_Area, 'toString') && !delegateFn(P_Area, 'toString', 0)) P.method(P_Area, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAreaElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Area.toString', this, ctx, arguments); });
   // staged: interestForElement - experimental (Interest Invokers), not Chrome-released
   if (!has(P_Area, 'attributionSrc') && !delegate(P_Area, 'attributionSrc', 'str')) P.reflector(P_Area, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLAreaElement", "kind": "string"});
   else wrapSet(P_Area, 'attributionSrc', 'str');
@@ -203,10 +218,47 @@ if (P_BR) {
 
 // ---- HTMLBaseElement.prototype (Chrome own order, 3 names)
 if (P_Base) {
-  if (!has(P_Base, 'href')) P.accessor(P_Base, 'href', function __f() { return B.get('href', this); }, function __f(x) { B.set('href', this, x); });
+  delete P_Base['href'];
+  if (!has(P_Base, 'href')) P.accessor(P_Base, 'href', function __f() { return B.get('Base.href', this); }, function __f(x) { B.set('Base.href', this, x); });
   if (!has(P_Base, 'target') && !delegate(P_Base, 'target', 'str')) P.reflector(P_Base, 'target', {"attr": "target", "iface": "HTMLBaseElement", "kind": "string"});
   else wrapSet(P_Base, 'target', 'str');
   reseat(P_Base, ["href", "target", "constructor"]);
+}
+
+// ---- HTMLButtonElement.prototype (Chrome own order, 23 names)
+if (P_Button) {
+  if (!has(P_Button, 'disabled') && !delegate(P_Button, 'disabled')) P.reflector(P_Button, 'disabled', {"attr": "disabled", "iface": "HTMLButtonElement", "kind": "boolean-presence"});
+  if (!has(P_Button, 'form')) delegate(P_Button, 'form');
+  if (!has(P_Button, 'formAction') && !delegate(P_Button, 'formAction', 'str')) P.reflector(P_Button, 'formAction', {"attr": "formaction", "fallbackDoc": true, "iface": "HTMLButtonElement", "kind": "url"});
+  else wrapSet(P_Button, 'formAction', 'str');
+  if (!has(P_Button, 'formEnctype') && !delegate(P_Button, 'formEnctype', 'str')) P.reflector(P_Button, 'formEnctype', {"attr": "formenctype", "iface": "HTMLButtonElement", "invalid": "application/x-www-form-urlencoded", "kind": "enum", "map": {"multipart/form-data": "multipart/form-data", "text/plain": "text/plain"}, "missing": ""});
+  else wrapSet(P_Button, 'formEnctype', 'str');
+  if (!has(P_Button, 'formMethod') && !delegate(P_Button, 'formMethod', 'str')) P.reflector(P_Button, 'formMethod', {"attr": "formmethod", "iface": "HTMLButtonElement", "invalid": "get", "kind": "enum", "map": {"dialog": "dialog", "post": "post"}, "missing": ""});
+  else wrapSet(P_Button, 'formMethod', 'str');
+  if (!has(P_Button, 'formNoValidate') && !delegate(P_Button, 'formNoValidate')) P.reflector(P_Button, 'formNoValidate', {"attr": "formnovalidate", "iface": "HTMLButtonElement", "kind": "boolean-presence"});
+  if (!has(P_Button, 'formTarget') && !delegate(P_Button, 'formTarget', 'str')) P.reflector(P_Button, 'formTarget', {"attr": "formtarget", "iface": "HTMLButtonElement", "kind": "string"});
+  else wrapSet(P_Button, 'formTarget', 'str');
+  if (!has(P_Button, 'name') && !delegate(P_Button, 'name', 'str')) P.reflector(P_Button, 'name', {"attr": "name", "iface": "HTMLButtonElement", "kind": "string"});
+  else wrapSet(P_Button, 'name', 'str');
+  delete P_Button['type'];
+  if (!has(P_Button, 'type')) P.reflector(P_Button, 'type', {"attr": "type", "iface": "HTMLButtonElement", "invalid": "submit", "kind": "enum", "map": {"button": "button", "reset": "reset"}, "missing": "submit"});
+  delete P_Button['value'];
+  if (!has(P_Button, 'value')) P.reflector(P_Button, 'value', {"attr": "value", "iface": "HTMLButtonElement", "kind": "string"});
+  if (!has(P_Button, 'commandForElement') && !delegate(P_Button, 'commandForElement', 'str')) P.accessor(P_Button, 'commandForElement', function __f() { return B.get('Button.commandForElement', this); }, function __f(x) { B.set('Button.commandForElement', this, x); });
+  if (!has(P_Button, 'command') && !delegate(P_Button, 'command', 'str')) P.reflector(P_Button, 'command', {"attr": "command", "iface": "HTMLButtonElement", "invalid": "", "kind": "enum", "map": {}, "missing": ""});
+  else wrapSet(P_Button, 'command', 'str');
+  if (!has(P_Button, 'willValidate')) delegate(P_Button, 'willValidate');
+  if (!has(P_Button, 'validity')) delegate(P_Button, 'validity');
+  if (!has(P_Button, 'validationMessage')) delegate(P_Button, 'validationMessage');
+  if (!has(P_Button, 'labels')) delegate(P_Button, 'labels');
+  if (!has(P_Button, 'popoverTargetElement') && !delegate(P_Button, 'popoverTargetElement', 'str')) P.accessor(P_Button, 'popoverTargetElement', function __f() { return B.get('Button.popoverTargetElement', this); }, function __f(x) { B.set('Button.popoverTargetElement', this, x); });
+  if (!has(P_Button, 'popoverTargetAction') && !delegate(P_Button, 'popoverTargetAction', 'str')) P.reflector(P_Button, 'popoverTargetAction', {"attr": "popovertargetaction", "iface": "HTMLButtonElement", "invalid": "toggle", "kind": "enum", "map": {}, "missing": "toggle"});
+  else wrapSet(P_Button, 'popoverTargetAction', 'str');
+  if (!has(P_Button, 'checkValidity')) delegateFn(P_Button, 'checkValidity', 0);
+  if (!has(P_Button, 'reportValidity')) delegateFn(P_Button, 'reportValidity', 0);
+  if (!has(P_Button, 'setCustomValidity')) delegateFn(P_Button, 'setCustomValidity', 1);
+  if (!has(P_Button, 'interestForElement')) delegate(P_Button, 'interestForElement');
+  reseat(P_Button, ["disabled", "form", "formAction", "formEnctype", "formMethod", "formNoValidate", "formTarget", "name", "type", "value", "commandForElement", "command", "willValidate", "validity", "validationMessage", "labels", "popoverTargetElement", "popoverTargetAction", "checkValidity", "reportValidity", "setCustomValidity", "interestForElement", "constructor"]);
 }
 
 // ---- HTMLDListElement.prototype (Chrome own order, 2 names)
@@ -235,8 +287,26 @@ if (P_Embed) {
   else wrapSet(P_Embed, 'align', 'str');
   if (!has(P_Embed, 'name') && !delegate(P_Embed, 'name', 'str')) P.reflector(P_Embed, 'name', {"attr": "name", "iface": "HTMLEmbedElement", "kind": "string"});
   else wrapSet(P_Embed, 'name', 'str');
-  if (!has(P_Embed, 'getSVGDocument') && !delegateFn(P_Embed, 'getSVGDocument', 0)) P.method(P_Embed, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLEmbedElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getSVGDocument', this, ctx, arguments); });
+  if (!has(P_Embed, 'getSVGDocument') && !delegateFn(P_Embed, 'getSVGDocument', 0)) P.method(P_Embed, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLEmbedElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Embed.getSVGDocument', this, ctx, arguments); });
   reseat(P_Embed, ["src", "type", "width", "height", "align", "name", "getSVGDocument", "constructor"]);
+}
+
+// ---- HTMLFieldSetElement.prototype (Chrome own order, 12 names)
+if (P_FieldSet) {
+  if (!has(P_FieldSet, 'disabled') && !delegate(P_FieldSet, 'disabled')) P.reflector(P_FieldSet, 'disabled', {"attr": "disabled", "iface": "HTMLFieldSetElement", "kind": "boolean-presence"});
+  if (!has(P_FieldSet, 'form')) delegate(P_FieldSet, 'form');
+  if (!has(P_FieldSet, 'name') && !delegate(P_FieldSet, 'name', 'str')) P.reflector(P_FieldSet, 'name', {"attr": "name", "iface": "HTMLFieldSetElement", "kind": "string"});
+  else wrapSet(P_FieldSet, 'name', 'str');
+  delete P_FieldSet['type'];
+  if (!has(P_FieldSet, 'type')) P.getter(P_FieldSet, 'type', function __f() { return 'fieldset'; });
+  if (!has(P_FieldSet, 'elements') && !delegate(P_FieldSet, 'elements')) P.getter(P_FieldSet, 'elements', function __f() { return B.get('FieldSet.elements', this); });
+  if (!has(P_FieldSet, 'willValidate')) delegate(P_FieldSet, 'willValidate');
+  if (!has(P_FieldSet, 'validity')) delegate(P_FieldSet, 'validity');
+  if (!has(P_FieldSet, 'validationMessage')) delegate(P_FieldSet, 'validationMessage');
+  if (!has(P_FieldSet, 'checkValidity')) delegateFn(P_FieldSet, 'checkValidity', 0);
+  if (!has(P_FieldSet, 'reportValidity')) delegateFn(P_FieldSet, 'reportValidity', 0);
+  if (!has(P_FieldSet, 'setCustomValidity')) delegateFn(P_FieldSet, 'setCustomValidity', 1);
+  reseat(P_FieldSet, ["disabled", "form", "name", "type", "elements", "willValidate", "validity", "validationMessage", "checkValidity", "reportValidity", "setCustomValidity", "constructor"]);
 }
 
 // ---- HTMLFontElement.prototype (Chrome own order, 4 names)
@@ -245,6 +315,7 @@ if (P_Font) {
   else wrapSet(P_Font, 'color', 'nte');
   if (!has(P_Font, 'face') && !delegate(P_Font, 'face', 'str')) P.reflector(P_Font, 'face', {"attr": "face", "iface": "HTMLFontElement", "kind": "string"});
   else wrapSet(P_Font, 'face', 'str');
+  delete P_Font['size'];
   if (!has(P_Font, 'size')) P.reflector(P_Font, 'size', {"attr": "size", "iface": "HTMLFontElement", "kind": "string"});
   reseat(P_Font, ["color", "face", "size", "constructor"]);
 }
@@ -260,16 +331,18 @@ if (P_Form) {
   else wrapSet(P_Form, 'enctype', 'str');
   if (!has(P_Form, 'encoding') && !delegate(P_Form, 'encoding', 'str')) P.reflector(P_Form, 'encoding', {"attr": "enctype", "iface": "HTMLFormElement", "invalid": "application/x-www-form-urlencoded", "kind": "enum", "map": {"multipart/form-data": "multipart/form-data", "text/plain": "text/plain"}, "missing": "application/x-www-form-urlencoded"});
   else wrapSet(P_Form, 'encoding', 'str');
+  delete P_Form['method'];
   if (!has(P_Form, 'method')) P.reflector(P_Form, 'method', {"attr": "method", "iface": "HTMLFormElement", "invalid": "get", "kind": "enum", "map": {"dialog": "dialog", "post": "post"}, "missing": "get"});
   if (!has(P_Form, 'name') && !delegate(P_Form, 'name', 'str')) P.reflector(P_Form, 'name', {"attr": "name", "iface": "HTMLFormElement", "kind": "string"});
   else wrapSet(P_Form, 'name', 'str');
   if (!has(P_Form, 'noValidate') && !delegate(P_Form, 'noValidate')) P.reflector(P_Form, 'noValidate', {"attr": "novalidate", "iface": "HTMLFormElement", "kind": "boolean-presence"});
   if (!has(P_Form, 'target') && !delegate(P_Form, 'target', 'str')) P.reflector(P_Form, 'target', {"attr": "target", "iface": "HTMLFormElement", "kind": "string"});
   else wrapSet(P_Form, 'target', 'str');
+  delete P_Form['rel'];
   if (!has(P_Form, 'rel')) P.reflector(P_Form, 'rel', {"attr": "rel", "iface": "HTMLFormElement", "kind": "string"});
   { const _o = Object.getOwnPropertyDescriptor(P_Form, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Form, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
-  if (!has(P_Form, 'requestSubmit') && !delegateFn(P_Form, 'requestSubmit', 0)) P.method(P_Form, 'requestSubmit', 0, function __f() { const ctx = "Failed to execute 'requestSubmit' on 'HTMLFormElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestSubmit', this, ctx, arguments); });
-  if (!has(P_Form, 'submit') && !delegateFn(P_Form, 'submit', 0)) P.method(P_Form, 'submit', 0, function __f() { const ctx = "Failed to execute 'submit' on 'HTMLFormElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('submit', this, ctx, arguments); });
+  if (!has(P_Form, 'requestSubmit') && !delegateFn(P_Form, 'requestSubmit', 0)) P.method(P_Form, 'requestSubmit', 0, function __f() { const ctx = "Failed to execute 'requestSubmit' on 'HTMLFormElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Form.requestSubmit', this, ctx, arguments); });
+  if (!has(P_Form, 'submit') && !delegateFn(P_Form, 'submit', 0)) P.method(P_Form, 'submit', 0, function __f() { const ctx = "Failed to execute 'submit' on 'HTMLFormElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Form.submit', this, ctx, arguments); });
   reseat(P_Form, ["acceptCharset", "action", "autocomplete", "enctype", "encoding", "method", "name", "noValidate", "target", "rel", "relList", "elements", "length", "checkValidity", "reportValidity", "requestSubmit", "reset", "submit", "constructor"]);
 }
 
@@ -286,7 +359,9 @@ if (P_Frame) {
   if (!has(P_Frame, 'longDesc') && !delegate(P_Frame, 'longDesc', 'str')) P.reflector(P_Frame, 'longDesc', {"attr": "longdesc", "iface": "HTMLFrameElement", "kind": "url"});
   else wrapSet(P_Frame, 'longDesc', 'str');
   if (!has(P_Frame, 'noResize') && !delegate(P_Frame, 'noResize')) P.reflector(P_Frame, 'noResize', {"attr": "noresize", "iface": "HTMLFrameElement", "kind": "boolean-presence"});
+  delete P_Frame['contentDocument'];
   if (!has(P_Frame, 'contentDocument')) P.getter(P_Frame, 'contentDocument', function __f() { return null; });
+  delete P_Frame['contentWindow'];
   if (!has(P_Frame, 'contentWindow')) P.getter(P_Frame, 'contentWindow', function __f() { return null; });
   if (!has(P_Frame, 'marginHeight') && !delegate(P_Frame, 'marginHeight', 'nte')) P.reflector(P_Frame, 'marginHeight', {"attr": "marginheight", "iface": "HTMLFrameElement", "kind": "string-nte"});
   else wrapSet(P_Frame, 'marginHeight', 'nte');
@@ -302,6 +377,7 @@ if (P_HR) {
   if (!has(P_HR, 'color') && !delegate(P_HR, 'color', 'str')) P.reflector(P_HR, 'color', {"attr": "color", "iface": "HTMLHRElement", "kind": "string"});
   else wrapSet(P_HR, 'color', 'str');
   if (!has(P_HR, 'noShade') && !delegate(P_HR, 'noShade')) P.reflector(P_HR, 'noShade', {"attr": "noshade", "iface": "HTMLHRElement", "kind": "boolean-presence"});
+  delete P_HR['size'];
   if (!has(P_HR, 'size')) P.reflector(P_HR, 'size', {"attr": "size", "iface": "HTMLHRElement", "kind": "string"});
   if (!has(P_HR, 'width') && !delegate(P_HR, 'width', 'str')) P.reflector(P_HR, 'width', {"attr": "width", "iface": "HTMLHRElement", "kind": "string"});
   else wrapSet(P_HR, 'width', 'str');
@@ -343,7 +419,7 @@ if (P_IFrame) {
   else wrapSet(P_IFrame, 'marginHeight', 'nte');
   if (!has(P_IFrame, 'marginWidth') && !delegate(P_IFrame, 'marginWidth', 'nte')) P.reflector(P_IFrame, 'marginWidth', {"attr": "marginwidth", "iface": "HTMLIFrameElement", "kind": "string-nte"});
   else wrapSet(P_IFrame, 'marginWidth', 'nte');
-  if (!has(P_IFrame, 'getSVGDocument') && !delegateFn(P_IFrame, 'getSVGDocument', 0)) P.method(P_IFrame, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLIFrameElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getSVGDocument', this, ctx, arguments); });
+  if (!has(P_IFrame, 'getSVGDocument') && !delegateFn(P_IFrame, 'getSVGDocument', 0)) P.method(P_IFrame, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLIFrameElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('IFrame.getSVGDocument', this, ctx, arguments); });
   if (!has(P_IFrame, 'credentialless') && !delegate(P_IFrame, 'credentialless')) P.reflector(P_IFrame, 'credentialless', {"attr": "credentialless", "iface": "HTMLIFrameElement", "kind": "boolean-presence"});
   if (!has(P_IFrame, 'allowPaymentRequest') && !delegate(P_IFrame, 'allowPaymentRequest')) P.reflector(P_IFrame, 'allowPaymentRequest', {"attr": "allowpaymentrequest", "iface": "HTMLIFrameElement", "kind": "boolean-presence"});
   // staged: privateToken - Private State Token flag; not Chrome-released
@@ -353,9 +429,96 @@ if (P_IFrame) {
   reseat(P_IFrame, ["src", "srcdoc", "name", "sandbox", "allowFullscreen", "width", "height", "contentDocument", "contentWindow", "referrerPolicy", "csp", "allow", "loading", "align", "scrolling", "frameBorder", "longDesc", "marginHeight", "marginWidth", "getSVGDocument", "credentialless", "allowPaymentRequest", "constructor"]);
 }
 
+// ---- HTMLInputElement.prototype (Chrome own order, 60 names)
+if (P_Input) {
+  if (!has(P_Input, 'accept') && !delegate(P_Input, 'accept', 'str')) P.reflector(P_Input, 'accept', {"attr": "accept", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'accept', 'str');
+  if (!has(P_Input, 'alt') && !delegate(P_Input, 'alt', 'str')) P.reflector(P_Input, 'alt', {"attr": "alt", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'alt', 'str');
+  if (!has(P_Input, 'autocomplete') && !delegate(P_Input, 'autocomplete', 'str')) P.reflector(P_Input, 'autocomplete', {"attr": "autocomplete", "iface": "HTMLInputElement", "invalid": "", "kind": "enum", "map": {"email": "email", "off": "off", "on": "on", "tel": "tel", "url": "url"}, "missing": ""});
+  else wrapSet(P_Input, 'autocomplete', 'str');
+  if (!has(P_Input, 'defaultChecked') && !delegate(P_Input, 'defaultChecked')) P.reflector(P_Input, 'defaultChecked', {"attr": "checked", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'checked')) delegate(P_Input, 'checked');
+  if (!has(P_Input, 'dirName') && !delegate(P_Input, 'dirName', 'str')) P.reflector(P_Input, 'dirName', {"attr": "dirname", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'dirName', 'str');
+  if (!has(P_Input, 'disabled') && !delegate(P_Input, 'disabled')) P.reflector(P_Input, 'disabled', {"attr": "disabled", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'form')) delegate(P_Input, 'form');
+  if (!has(P_Input, 'files')) delegate(P_Input, 'files');
+  if (!has(P_Input, 'formAction') && !delegate(P_Input, 'formAction', 'str')) P.reflector(P_Input, 'formAction', {"attr": "formaction", "fallbackDoc": true, "iface": "HTMLInputElement", "kind": "url"});
+  else wrapSet(P_Input, 'formAction', 'str');
+  if (!has(P_Input, 'formEnctype') && !delegate(P_Input, 'formEnctype', 'str')) P.reflector(P_Input, 'formEnctype', {"attr": "formenctype", "iface": "HTMLInputElement", "invalid": "application/x-www-form-urlencoded", "kind": "enum", "map": {"multipart/form-data": "multipart/form-data", "text/plain": "text/plain"}, "missing": ""});
+  else wrapSet(P_Input, 'formEnctype', 'str');
+  if (!has(P_Input, 'formMethod') && !delegate(P_Input, 'formMethod', 'str')) P.reflector(P_Input, 'formMethod', {"attr": "formmethod", "iface": "HTMLInputElement", "invalid": "get", "kind": "enum", "map": {"dialog": "dialog", "post": "post"}, "missing": ""});
+  else wrapSet(P_Input, 'formMethod', 'str');
+  if (!has(P_Input, 'formNoValidate') && !delegate(P_Input, 'formNoValidate')) P.reflector(P_Input, 'formNoValidate', {"attr": "formnovalidate", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'formTarget') && !delegate(P_Input, 'formTarget', 'str')) P.reflector(P_Input, 'formTarget', {"attr": "formtarget", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'formTarget', 'str');
+  delete P_Input['height'];
+  if (!has(P_Input, 'height')) P.accessor(P_Input, 'height', function __f() { return B.get('Input.height', this); }, function __f(x) { B.set('Input.height', this, x); });
+  if (!has(P_Input, 'indeterminate')) delegate(P_Input, 'indeterminate');
+  if (!has(P_Input, 'list') && !delegate(P_Input, 'list')) P.getter(P_Input, 'list', function __f() { return B.get('Input.list', this); });
+  if (!has(P_Input, 'max') && !delegate(P_Input, 'max', 'str')) P.reflector(P_Input, 'max', {"attr": "max", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'max', 'str');
+  if (!has(P_Input, 'maxLength')) delegate(P_Input, 'maxLength');
+  if (!has(P_Input, 'min') && !delegate(P_Input, 'min', 'str')) P.reflector(P_Input, 'min', {"attr": "min", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'min', 'str');
+  if (!has(P_Input, 'minLength')) delegate(P_Input, 'minLength');
+  delete P_Input['multiple'];
+  if (!has(P_Input, 'multiple')) P.reflector(P_Input, 'multiple', {"attr": "multiple", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'name') && !delegate(P_Input, 'name', 'str')) P.reflector(P_Input, 'name', {"attr": "name", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'name', 'str');
+  if (!has(P_Input, 'pattern') && !delegate(P_Input, 'pattern', 'str')) P.reflector(P_Input, 'pattern', {"attr": "pattern", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'pattern', 'str');
+  if (!has(P_Input, 'placeholder') && !delegate(P_Input, 'placeholder', 'str')) P.reflector(P_Input, 'placeholder', {"attr": "placeholder", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'placeholder', 'str');
+  if (!has(P_Input, 'readOnly') && !delegate(P_Input, 'readOnly')) P.reflector(P_Input, 'readOnly', {"attr": "readonly", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'required') && !delegate(P_Input, 'required')) P.reflector(P_Input, 'required', {"attr": "required", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'size')) delegate(P_Input, 'size');
+  if (!has(P_Input, 'src') && !delegate(P_Input, 'src', 'str')) P.reflector(P_Input, 'src', {"attr": "src", "iface": "HTMLInputElement", "kind": "url"});
+  else wrapSet(P_Input, 'src', 'str');
+  if (!has(P_Input, 'step') && !delegate(P_Input, 'step', 'str')) P.reflector(P_Input, 'step', {"attr": "step", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'step', 'str');
+  if (!has(P_Input, 'type') && !delegate(P_Input, 'type', 'str')) P.reflector(P_Input, 'type', {"attr": "type", "iface": "HTMLInputElement", "invalid": "text", "kind": "enum", "map": {"button": "button", "checkbox": "checkbox", "email": "email", "image": "image", "radio": "radio", "reset": "reset", "search": "search", "submit": "submit", "tel": "tel", "url": "url"}, "missing": "text"});
+  else wrapSet(P_Input, 'type', 'str');
+  if (!has(P_Input, 'defaultValue') && !delegate(P_Input, 'defaultValue', 'str')) P.reflector(P_Input, 'defaultValue', {"attr": "value", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'defaultValue', 'str');
+  if (!has(P_Input, 'value')) delegate(P_Input, 'value');
+  if (!has(P_Input, 'valueAsDate')) delegate(P_Input, 'valueAsDate');
+  if (!has(P_Input, 'valueAsNumber')) delegate(P_Input, 'valueAsNumber');
+  delete P_Input['width'];
+  if (!has(P_Input, 'width')) P.accessor(P_Input, 'width', function __f() { return B.get('Input.width', this); }, function __f(x) { B.set('Input.width', this, x); });
+  if (!has(P_Input, 'willValidate')) delegate(P_Input, 'willValidate');
+  if (!has(P_Input, 'validity')) delegate(P_Input, 'validity');
+  if (!has(P_Input, 'validationMessage')) delegate(P_Input, 'validationMessage');
+  if (!has(P_Input, 'labels')) delegate(P_Input, 'labels');
+  if (!has(P_Input, 'selectionStart')) delegate(P_Input, 'selectionStart');
+  if (!has(P_Input, 'selectionEnd')) delegate(P_Input, 'selectionEnd');
+  if (!has(P_Input, 'selectionDirection')) delegate(P_Input, 'selectionDirection');
+  if (!has(P_Input, 'align') && !delegate(P_Input, 'align', 'str')) P.reflector(P_Input, 'align', {"attr": "align", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'align', 'str');
+  if (!has(P_Input, 'useMap') && !delegate(P_Input, 'useMap', 'str')) P.reflector(P_Input, 'useMap', {"attr": "usemap", "iface": "HTMLInputElement", "kind": "string"});
+  else wrapSet(P_Input, 'useMap', 'str');
+  if (!has(P_Input, 'webkitdirectory') && !delegate(P_Input, 'webkitdirectory')) P.reflector(P_Input, 'webkitdirectory', {"attr": "webkitdirectory", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'incremental') && !delegate(P_Input, 'incremental')) P.reflector(P_Input, 'incremental', {"attr": "incremental", "iface": "HTMLInputElement", "kind": "boolean-presence"});
+  if (!has(P_Input, 'popoverTargetElement') && !delegate(P_Input, 'popoverTargetElement', 'str')) P.accessor(P_Input, 'popoverTargetElement', function __f() { return B.get('Input.popoverTargetElement', this); }, function __f(x) { B.set('Input.popoverTargetElement', this, x); });
+  if (!has(P_Input, 'popoverTargetAction') && !delegate(P_Input, 'popoverTargetAction', 'str')) P.reflector(P_Input, 'popoverTargetAction', {"attr": "popovertargetaction", "iface": "HTMLInputElement", "invalid": "toggle", "kind": "enum", "map": {}, "missing": "toggle"});
+  else wrapSet(P_Input, 'popoverTargetAction', 'str');
+  if (!has(P_Input, 'checkValidity')) delegateFn(P_Input, 'checkValidity', 0);
+  if (!has(P_Input, 'reportValidity')) delegateFn(P_Input, 'reportValidity', 0);
+  if (!has(P_Input, 'select')) delegateFn(P_Input, 'select', 0);
+  if (!has(P_Input, 'setCustomValidity')) delegateFn(P_Input, 'setCustomValidity', 1);
+  if (!has(P_Input, 'setRangeText')) delegateFn(P_Input, 'setRangeText', 1);
+  if (!has(P_Input, 'setSelectionRange')) delegateFn(P_Input, 'setSelectionRange', 2);
+  if (!has(P_Input, 'showPicker') && !delegateFn(P_Input, 'showPicker', 0)) P.method(P_Input, 'showPicker', 0, function __f() { const ctx = "Failed to execute 'showPicker' on 'HTMLInputElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Input.showPicker', this, ctx, arguments); });
+  if (!has(P_Input, 'stepDown')) delegateFn(P_Input, 'stepDown', 0);
+  if (!has(P_Input, 'stepUp')) delegateFn(P_Input, 'stepUp', 0);
+  if (!has(P_Input, 'webkitEntries') && !delegate(P_Input, 'webkitEntries')) P.getter(P_Input, 'webkitEntries', function __f() { return B.get('Input.webkitEntries', this); });
+  reseat(P_Input, ["accept", "alt", "autocomplete", "defaultChecked", "checked", "dirName", "disabled", "form", "files", "formAction", "formEnctype", "formMethod", "formNoValidate", "formTarget", "height", "indeterminate", "list", "max", "maxLength", "min", "minLength", "multiple", "name", "pattern", "placeholder", "readOnly", "required", "size", "src", "step", "type", "defaultValue", "value", "valueAsDate", "valueAsNumber", "width", "willValidate", "validity", "validationMessage", "labels", "selectionStart", "selectionEnd", "selectionDirection", "align", "useMap", "webkitdirectory", "incremental", "popoverTargetElement", "popoverTargetAction", "checkValidity", "reportValidity", "select", "setCustomValidity", "setRangeText", "setSelectionRange", "showPicker", "stepDown", "stepUp", "webkitEntries", "constructor"]);
+}
+
 // ---- HTMLLegendElement.prototype (Chrome own order, 3 names)
 if (P_Legend) {
-  if (!has(P_Legend, 'form') && !delegate(P_Legend, 'form')) P.getter(P_Legend, 'form', function __f() { return B.get('form', this); });
+  if (!has(P_Legend, 'form') && !delegate(P_Legend, 'form')) P.getter(P_Legend, 'form', function __f() { return B.get('Legend.form', this); });
   if (!has(P_Legend, 'align') && !delegate(P_Legend, 'align', 'str')) P.reflector(P_Legend, 'align', {"attr": "align", "iface": "HTMLLegendElement", "kind": "string"});
   else wrapSet(P_Legend, 'align', 'str');
   reseat(P_Legend, ["form", "align", "constructor"]);
@@ -399,6 +562,37 @@ if (P_Link) {
   reseat(P_Link, ["disabled", "href", "crossOrigin", "rel", "relList", "media", "hreflang", "type", "as", "referrerPolicy", "sizes", "fetchPriority", "imageSrcset", "imageSizes", "charset", "rev", "target", "sheet", "integrity", "blocking", "constructor"]);
 }
 
+// ---- HTMLMapElement.prototype (Chrome own order, 3 names)
+if (P_Map) {
+  if (!has(P_Map, 'name') && !delegate(P_Map, 'name', 'str')) P.reflector(P_Map, 'name', {"attr": "name", "iface": "HTMLMapElement", "kind": "string"});
+  else wrapSet(P_Map, 'name', 'str');
+  if (!has(P_Map, 'areas') && !delegate(P_Map, 'areas')) P.getter(P_Map, 'areas', function __f() { return B.get('Map.areas', this); });
+  reseat(P_Map, ["name", "areas", "constructor"]);
+}
+
+// ---- HTMLMarqueeElement.prototype (Chrome own order, 14 names)
+if (P_Marquee) {
+  if (!has(P_Marquee, 'behavior') && !delegate(P_Marquee, 'behavior', 'str')) P.reflector(P_Marquee, 'behavior', {"attr": "behavior", "iface": "HTMLMarqueeElement", "kind": "string"});
+  else wrapSet(P_Marquee, 'behavior', 'str');
+  if (!has(P_Marquee, 'bgColor') && !delegate(P_Marquee, 'bgColor', 'str')) P.reflector(P_Marquee, 'bgColor', {"attr": "bgcolor", "iface": "HTMLMarqueeElement", "kind": "string"});
+  else wrapSet(P_Marquee, 'bgColor', 'str');
+  if (!has(P_Marquee, 'direction') && !delegate(P_Marquee, 'direction', 'str')) P.reflector(P_Marquee, 'direction', {"attr": "direction", "iface": "HTMLMarqueeElement", "kind": "string"});
+  else wrapSet(P_Marquee, 'direction', 'str');
+  if (!has(P_Marquee, 'height') && !delegate(P_Marquee, 'height', 'str')) P.reflector(P_Marquee, 'height', {"attr": "height", "iface": "HTMLMarqueeElement", "kind": "string"});
+  else wrapSet(P_Marquee, 'height', 'str');
+  if (!has(P_Marquee, 'hspace') && !delegate(P_Marquee, 'hspace')) P.reflector(P_Marquee, 'hspace', {"attr": "hspace", "iface": "HTMLMarqueeElement", "kind": "unsigned-long"});
+  if (!has(P_Marquee, 'loop') && !delegate(P_Marquee, 'loop', 'str')) P.accessor(P_Marquee, 'loop', function __f() { return B.get('Marquee.loop', this); }, function __f(x) { B.set('Marquee.loop', this, x); });
+  if (!has(P_Marquee, 'scrollAmount') && !delegate(P_Marquee, 'scrollAmount')) P.reflector(P_Marquee, 'scrollAmount', {"attr": "scrollamount", "default": 6, "iface": "HTMLMarqueeElement", "kind": "ulong-def", "min": 0});
+  if (!has(P_Marquee, 'scrollDelay') && !delegate(P_Marquee, 'scrollDelay')) P.reflector(P_Marquee, 'scrollDelay', {"attr": "scrolldelay", "default": 85, "iface": "HTMLMarqueeElement", "kind": "ulong-def", "min": 0});
+  if (!has(P_Marquee, 'trueSpeed') && !delegate(P_Marquee, 'trueSpeed')) P.reflector(P_Marquee, 'trueSpeed', {"attr": "truespeed", "iface": "HTMLMarqueeElement", "kind": "boolean-presence"});
+  if (!has(P_Marquee, 'vspace') && !delegate(P_Marquee, 'vspace')) P.reflector(P_Marquee, 'vspace', {"attr": "vspace", "iface": "HTMLMarqueeElement", "kind": "unsigned-long"});
+  if (!has(P_Marquee, 'width') && !delegate(P_Marquee, 'width', 'str')) P.reflector(P_Marquee, 'width', {"attr": "width", "iface": "HTMLMarqueeElement", "kind": "string"});
+  else wrapSet(P_Marquee, 'width', 'str');
+  if (!has(P_Marquee, 'start') && !delegateFn(P_Marquee, 'start', 0)) P.method(P_Marquee, 'start', 0, function __f() { const ctx = "Failed to execute 'start' on 'HTMLMarqueeElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Marquee.start', this, ctx, arguments); });
+  if (!has(P_Marquee, 'stop') && !delegateFn(P_Marquee, 'stop', 0)) P.method(P_Marquee, 'stop', 0, function __f() { const ctx = "Failed to execute 'stop' on 'HTMLMarqueeElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Marquee.stop', this, ctx, arguments); });
+  reseat(P_Marquee, ["behavior", "bgColor", "direction", "height", "hspace", "loop", "scrollAmount", "scrollDelay", "trueSpeed", "vspace", "width", "start", "stop", "constructor"]);
+}
+
 // ---- HTMLMenuElement.prototype (Chrome own order, 2 names)
 if (P_Menu) {
   if (!has(P_Menu, 'compact') && !delegate(P_Menu, 'compact')) P.reflector(P_Menu, 'compact', {"attr": "compact", "iface": "HTMLMenuElement", "kind": "boolean-presence"});
@@ -420,6 +614,21 @@ if (P_Meta) {
   reseat(P_Meta, ["name", "httpEquiv", "content", "media", "scheme", "constructor"]);
 }
 
+// ---- HTMLMeterElement.prototype (Chrome own order, 8 names)
+if (P_Meter) {
+  delete P_Meter['value'];
+  if (!has(P_Meter, 'value')) P.accessor(P_Meter, 'value', function __f() { return B.get('Meter.value', this); }, function __f(x) { B.set('Meter.value', this, x); });
+  delete P_Meter['min'];
+  if (!has(P_Meter, 'min')) P.accessor(P_Meter, 'min', function __f() { return B.get('Meter.min', this); }, function __f(x) { B.set('Meter.min', this, x); });
+  delete P_Meter['max'];
+  if (!has(P_Meter, 'max')) P.accessor(P_Meter, 'max', function __f() { return B.get('Meter.max', this); }, function __f(x) { B.set('Meter.max', this, x); });
+  if (!has(P_Meter, 'low') && !delegate(P_Meter, 'low', 'str')) P.accessor(P_Meter, 'low', function __f() { return B.get('Meter.low', this); }, function __f(x) { B.set('Meter.low', this, x); });
+  if (!has(P_Meter, 'high') && !delegate(P_Meter, 'high', 'str')) P.accessor(P_Meter, 'high', function __f() { return B.get('Meter.high', this); }, function __f(x) { B.set('Meter.high', this, x); });
+  if (!has(P_Meter, 'optimum') && !delegate(P_Meter, 'optimum', 'str')) P.accessor(P_Meter, 'optimum', function __f() { return B.get('Meter.optimum', this); }, function __f(x) { B.set('Meter.optimum', this, x); });
+  if (!has(P_Meter, 'labels')) delegate(P_Meter, 'labels');
+  reseat(P_Meter, ["value", "min", "max", "low", "high", "optimum", "labels", "constructor"]);
+}
+
 // ---- HTMLModElement.prototype (Chrome own order, 3 names)
 if (P_Mod) {
   if (!has(P_Mod, 'cite') && !delegate(P_Mod, 'cite', 'str')) P.reflector(P_Mod, 'cite', {"attr": "cite", "iface": "HTMLModElement", "kind": "url"});
@@ -427,6 +636,52 @@ if (P_Mod) {
   if (!has(P_Mod, 'dateTime') && !delegate(P_Mod, 'dateTime', 'str')) P.reflector(P_Mod, 'dateTime', {"attr": "datetime", "iface": "HTMLModElement", "kind": "string"});
   else wrapSet(P_Mod, 'dateTime', 'str');
   reseat(P_Mod, ["cite", "dateTime", "constructor"]);
+}
+
+// ---- HTMLObjectElement.prototype (Chrome own order, 27 names)
+if (P_Object) {
+  if (!has(P_Object, 'data') && !delegate(P_Object, 'data', 'str')) P.reflector(P_Object, 'data', {"attr": "data", "iface": "HTMLObjectElement", "kind": "url"});
+  else wrapSet(P_Object, 'data', 'str');
+  if (!has(P_Object, 'type') && !delegate(P_Object, 'type', 'str')) P.reflector(P_Object, 'type', {"attr": "type", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'type', 'str');
+  if (!has(P_Object, 'name') && !delegate(P_Object, 'name', 'str')) P.reflector(P_Object, 'name', {"attr": "name", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'name', 'str');
+  if (!has(P_Object, 'useMap') && !delegate(P_Object, 'useMap', 'str')) P.reflector(P_Object, 'useMap', {"attr": "usemap", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'useMap', 'str');
+  if (!has(P_Object, 'form')) delegate(P_Object, 'form');
+  if (!has(P_Object, 'width') && !delegate(P_Object, 'width', 'str')) P.reflector(P_Object, 'width', {"attr": "width", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'width', 'str');
+  if (!has(P_Object, 'height') && !delegate(P_Object, 'height', 'str')) P.reflector(P_Object, 'height', {"attr": "height", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'height', 'str');
+  delete P_Object['contentDocument'];
+  if (!has(P_Object, 'contentDocument')) P.getter(P_Object, 'contentDocument', function __f() { return null; });
+  delete P_Object['contentWindow'];
+  if (!has(P_Object, 'contentWindow')) P.getter(P_Object, 'contentWindow', function __f() { return null; });
+  if (!has(P_Object, 'willValidate')) delegate(P_Object, 'willValidate');
+  if (!has(P_Object, 'validity')) delegate(P_Object, 'validity');
+  if (!has(P_Object, 'validationMessage')) delegate(P_Object, 'validationMessage');
+  if (!has(P_Object, 'align') && !delegate(P_Object, 'align', 'str')) P.reflector(P_Object, 'align', {"attr": "align", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'align', 'str');
+  if (!has(P_Object, 'archive') && !delegate(P_Object, 'archive', 'str')) P.reflector(P_Object, 'archive', {"attr": "archive", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'archive', 'str');
+  if (!has(P_Object, 'code') && !delegate(P_Object, 'code', 'str')) P.reflector(P_Object, 'code', {"attr": "code", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'code', 'str');
+  if (!has(P_Object, 'declare') && !delegate(P_Object, 'declare')) P.reflector(P_Object, 'declare', {"attr": "declare", "iface": "HTMLObjectElement", "kind": "boolean-presence"});
+  if (!has(P_Object, 'hspace') && !delegate(P_Object, 'hspace')) P.reflector(P_Object, 'hspace', {"attr": "hspace", "iface": "HTMLObjectElement", "kind": "unsigned-long"});
+  if (!has(P_Object, 'standby') && !delegate(P_Object, 'standby', 'str')) P.reflector(P_Object, 'standby', {"attr": "standby", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'standby', 'str');
+  if (!has(P_Object, 'vspace') && !delegate(P_Object, 'vspace')) P.reflector(P_Object, 'vspace', {"attr": "vspace", "iface": "HTMLObjectElement", "kind": "unsigned-long"});
+  if (!has(P_Object, 'codeBase') && !delegate(P_Object, 'codeBase', 'str')) P.reflector(P_Object, 'codeBase', {"attr": "codebase", "iface": "HTMLObjectElement", "kind": "url"});
+  else wrapSet(P_Object, 'codeBase', 'str');
+  if (!has(P_Object, 'codeType') && !delegate(P_Object, 'codeType', 'str')) P.reflector(P_Object, 'codeType', {"attr": "codetype", "iface": "HTMLObjectElement", "kind": "string"});
+  else wrapSet(P_Object, 'codeType', 'str');
+  if (!has(P_Object, 'border') && !delegate(P_Object, 'border', 'nte')) P.reflector(P_Object, 'border', {"attr": "border", "iface": "HTMLObjectElement", "kind": "string-nte"});
+  else wrapSet(P_Object, 'border', 'nte');
+  if (!has(P_Object, 'checkValidity')) delegateFn(P_Object, 'checkValidity', 0);
+  if (!has(P_Object, 'getSVGDocument') && !delegateFn(P_Object, 'getSVGDocument', 0)) P.method(P_Object, 'getSVGDocument', 0, function __f() { const ctx = "Failed to execute 'getSVGDocument' on 'HTMLObjectElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Object.getSVGDocument', this, ctx, arguments); });
+  if (!has(P_Object, 'reportValidity')) delegateFn(P_Object, 'reportValidity', 0);
+  if (!has(P_Object, 'setCustomValidity')) delegateFn(P_Object, 'setCustomValidity', 1);
+  reseat(P_Object, ["data", "type", "name", "useMap", "form", "width", "height", "contentDocument", "contentWindow", "willValidate", "validity", "validationMessage", "align", "archive", "code", "declare", "hspace", "standby", "vspace", "codeBase", "codeType", "border", "checkValidity", "getSVGDocument", "reportValidity", "setCustomValidity", "constructor"]);
 }
 
 // ---- HTMLOptGroupElement.prototype (Chrome own order, 3 names)
@@ -437,10 +692,47 @@ if (P_OptGroup) {
   reseat(P_OptGroup, ["disabled", "label", "constructor"]);
 }
 
+// ---- HTMLOptionElement.prototype (Chrome own order, 9 names)
+if (P_Option) {
+  if (!has(P_Option, 'disabled') && !delegate(P_Option, 'disabled')) P.reflector(P_Option, 'disabled', {"attr": "disabled", "iface": "HTMLOptionElement", "kind": "boolean-presence"});
+  if (!has(P_Option, 'form')) delegate(P_Option, 'form');
+  if (!has(P_Option, 'label') && !delegate(P_Option, 'label', 'str')) P.reflector(P_Option, 'label', {"attr": "label", "iface": "HTMLOptionElement", "kind": "string"});
+  else wrapSet(P_Option, 'label', 'str');
+  if (!has(P_Option, 'defaultSelected') && !delegate(P_Option, 'defaultSelected')) P.reflector(P_Option, 'defaultSelected', {"attr": "selected", "iface": "HTMLOptionElement", "kind": "boolean-presence"});
+  if (!has(P_Option, 'selected')) delegate(P_Option, 'selected');
+  if (!has(P_Option, 'value') && !delegate(P_Option, 'value', 'str')) P.reflector(P_Option, 'value', {"attr": "value", "iface": "HTMLOptionElement", "kind": "string"});
+  else wrapSet(P_Option, 'value', 'str');
+  if (!has(P_Option, 'text')) delegate(P_Option, 'text', 'str'); else wrapSet(P_Option, 'text', 'str');
+  if (!has(P_Option, 'index') && !delegate(P_Option, 'index')) P.getter(P_Option, 'index', function __f() { return B.get('Option.index', this); });
+  reseat(P_Option, ["disabled", "form", "label", "defaultSelected", "selected", "value", "text", "index", "constructor"]);
+}
+
+// ---- HTMLOutputElement.prototype (Chrome own order, 14 names)
+if (P_Output) {
+  { const _o = Object.getOwnPropertyDescriptor(P_Output, 'htmlFor'); if (!_o || _o.configurable) tokenAccessor(P_Output, 'htmlFor', 'for', null); }
+  if (!has(P_Output, 'form')) delegate(P_Output, 'form');
+  if (!has(P_Output, 'name') && !delegate(P_Output, 'name', 'str')) P.reflector(P_Output, 'name', {"attr": "name", "iface": "HTMLOutputElement", "kind": "string"});
+  else wrapSet(P_Output, 'name', 'str');
+  delete P_Output['type'];
+  if (!has(P_Output, 'type')) P.getter(P_Output, 'type', function __f() { return 'output'; });
+  if (!has(P_Output, 'defaultValue') && !delegate(P_Output, 'defaultValue', 'str')) P.accessor(P_Output, 'defaultValue', function __f() { return B.get('Output.defaultValue', this); }, function __f(x) { B.set('Output.defaultValue', this, x); });
+  delete P_Output['value'];
+  if (!has(P_Output, 'value')) P.accessor(P_Output, 'value', function __f() { return B.get('Output.value', this); }, function __f(x) { B.set('Output.value', this, x); });
+  if (!has(P_Output, 'willValidate')) delegate(P_Output, 'willValidate');
+  if (!has(P_Output, 'validity')) delegate(P_Output, 'validity');
+  if (!has(P_Output, 'validationMessage')) delegate(P_Output, 'validationMessage');
+  if (!has(P_Output, 'labels')) delegate(P_Output, 'labels');
+  if (!has(P_Output, 'checkValidity')) delegateFn(P_Output, 'checkValidity', 0);
+  if (!has(P_Output, 'reportValidity')) delegateFn(P_Output, 'reportValidity', 0);
+  if (!has(P_Output, 'setCustomValidity')) delegateFn(P_Output, 'setCustomValidity', 1);
+  reseat(P_Output, ["htmlFor", "form", "name", "type", "defaultValue", "value", "willValidate", "validity", "validationMessage", "labels", "checkValidity", "reportValidity", "setCustomValidity", "constructor"]);
+}
+
 // ---- HTMLParamElement.prototype (Chrome own order, 5 names)
 if (P_Param) {
   if (!has(P_Param, 'name') && !delegate(P_Param, 'name', 'str')) P.reflector(P_Param, 'name', {"attr": "name", "iface": "HTMLParamElement", "kind": "string"});
   else wrapSet(P_Param, 'name', 'str');
+  delete P_Param['value'];
   if (!has(P_Param, 'value')) P.reflector(P_Param, 'value', {"attr": "value", "iface": "HTMLParamElement", "kind": "string"});
   if (!has(P_Param, 'type') && !delegate(P_Param, 'type', 'str')) P.reflector(P_Param, 'type', {"attr": "type", "iface": "HTMLParamElement", "kind": "string"});
   else wrapSet(P_Param, 'type', 'str');
@@ -453,6 +745,17 @@ if (P_Param) {
 if (P_Pre) {
   if (!has(P_Pre, 'width') && !delegate(P_Pre, 'width')) P.reflector(P_Pre, 'width', {"attr": "width", "iface": "HTMLPreElement", "kind": "long"});
   reseat(P_Pre, ["width", "constructor"]);
+}
+
+// ---- HTMLProgressElement.prototype (Chrome own order, 5 names)
+if (P_Progress) {
+  delete P_Progress['value'];
+  if (!has(P_Progress, 'value')) P.accessor(P_Progress, 'value', function __f() { return B.get('Progress.value', this); }, function __f(x) { B.set('Progress.value', this, x); });
+  delete P_Progress['max'];
+  if (!has(P_Progress, 'max')) P.accessor(P_Progress, 'max', function __f() { return B.get('Progress.max', this); }, function __f(x) { B.set('Progress.max', this, x); });
+  if (!has(P_Progress, 'position') && !delegate(P_Progress, 'position')) P.getter(P_Progress, 'position', function __f() { return B.get('Progress.position', this); });
+  if (!has(P_Progress, 'labels')) delegate(P_Progress, 'labels');
+  reseat(P_Progress, ["value", "max", "position", "labels", "constructor"]);
 }
 
 // ---- HTMLQuoteElement.prototype (Chrome own order, 2 names)
@@ -471,25 +774,70 @@ if (P_Script) {
   if (!has(P_Script, 'noModule') && !delegate(P_Script, 'noModule')) P.reflector(P_Script, 'noModule', {"attr": "nomodule", "iface": "HTMLScriptElement", "kind": "boolean-presence"});
   if (!has(P_Script, 'charset') && !delegate(P_Script, 'charset', 'str')) P.reflector(P_Script, 'charset', {"attr": "charset", "iface": "HTMLScriptElement", "kind": "string"});
   else wrapSet(P_Script, 'charset', 'str');
-  if (!has(P_Script, 'async') && !delegate(P_Script, 'async', 'str')) P.accessor(P_Script, 'async', function __f() { return B.get('async', this); }, function __f(x) { B.set('async', this, x); });
+  if (!has(P_Script, 'async') && !delegate(P_Script, 'async', 'str')) P.accessor(P_Script, 'async', function __f() { return B.get('Script.async', this); }, function __f(x) { B.set('Script.async', this, x); });
   if (!has(P_Script, 'defer') && !delegate(P_Script, 'defer')) P.reflector(P_Script, 'defer', {"attr": "defer", "iface": "HTMLScriptElement", "kind": "boolean-presence"});
   if (!has(P_Script, 'crossOrigin') && !delegate(P_Script, 'crossOrigin')) P.reflector(P_Script, 'crossOrigin', {"attr": "crossorigin", "default": null, "iface": "HTMLScriptElement", "kind": "crossorigin"});
-  if (!has(P_Script, 'text') && !delegate(P_Script, 'text', 'str')) P.accessor(P_Script, 'text', function __f() { return B.get('text', this); }, function __f(x) { B.set('text', this, x); }); else wrapSet(P_Script, 'text', 'str');
+  if (!has(P_Script, 'text') && !delegate(P_Script, 'text', 'str')) P.accessor(P_Script, 'text', function __f() { return B.get('Script.text', this); }, function __f(x) { B.set('Script.text', this, x); }); else wrapSet(P_Script, 'text', 'str');
   if (!has(P_Script, 'referrerPolicy') && !delegate(P_Script, 'referrerPolicy', 'str')) P.reflector(P_Script, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLScriptElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": "", "nullRemoves": true});
   else wrapSet(P_Script, 'referrerPolicy', 'str');
   if (!has(P_Script, 'fetchPriority') && !delegate(P_Script, 'fetchPriority', 'str')) P.reflector(P_Script, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLScriptElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
   else wrapSet(P_Script, 'fetchPriority', 'str');
   if (!has(P_Script, 'event') && !delegate(P_Script, 'event', 'str')) P.reflector(P_Script, 'event', {"attr": "event", "iface": "HTMLScriptElement", "kind": "string"});
   else wrapSet(P_Script, 'event', 'str');
+  delete P_Script['htmlFor'];
   if (!has(P_Script, 'htmlFor')) P.reflector(P_Script, 'htmlFor', {"attr": "for", "iface": "HTMLScriptElement", "kind": "string"});
   if (!has(P_Script, 'integrity') && !delegate(P_Script, 'integrity', 'str')) P.reflector(P_Script, 'integrity', {"attr": "integrity", "iface": "HTMLScriptElement", "kind": "string"});
   else wrapSet(P_Script, 'integrity', 'str');
   { const _o = Object.getOwnPropertyDescriptor(P_Script, 'blocking'); if (!_o || _o.configurable) tokenAccessor(P_Script, 'blocking', 'blocking', []); }
-  if (!has(P_Script, 'textContent') && !delegate(P_Script, 'textContent')) P.accessor(P_Script, 'textContent', function __f() { return B.get('textContent', this); }, function __f(x) { B.set('textContent', this, x); });
-  if (!has(P_Script, 'innerText') && !delegate(P_Script, 'innerText')) P.accessor(P_Script, 'innerText', function __f() { return B.get('innerText', this); }, function __f(x) { B.set('innerText', this, x); });
+  if (!has(P_Script, 'textContent') && !delegate(P_Script, 'textContent')) P.accessor(P_Script, 'textContent', function __f() { return B.get('Script.textContent', this); }, function __f(x) { B.set('Script.textContent', this, x); });
+  if (!has(P_Script, 'innerText') && !delegate(P_Script, 'innerText')) P.accessor(P_Script, 'innerText', function __f() { return B.get('Script.innerText', this); }, function __f(x) { B.set('Script.innerText', this, x); });
   if (!has(P_Script, 'attributionSrc') && !delegate(P_Script, 'attributionSrc', 'str')) P.reflector(P_Script, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLScriptElement", "kind": "string"});
   else wrapSet(P_Script, 'attributionSrc', 'str');
   reseat(P_Script, ["src", "type", "noModule", "charset", "async", "defer", "crossOrigin", "text", "referrerPolicy", "fetchPriority", "event", "htmlFor", "integrity", "blocking", "textContent", "innerText", "constructor", "attributionSrc"]);
+}
+
+// ---- HTMLSelectElement.prototype (Chrome own order, 26 names)
+if (P_Select) {
+  if (!has(P_Select, 'autocomplete') && !delegate(P_Select, 'autocomplete', 'str')) P.reflector(P_Select, 'autocomplete', {"attr": "autocomplete", "iface": "HTMLSelectElement", "invalid": "", "kind": "enum", "map": {"email": "email", "off": "off", "on": "on", "tel": "tel", "url": "url"}, "missing": ""});
+  else wrapSet(P_Select, 'autocomplete', 'str');
+  if (!has(P_Select, 'disabled') && !delegate(P_Select, 'disabled')) P.reflector(P_Select, 'disabled', {"attr": "disabled", "iface": "HTMLSelectElement", "kind": "boolean-presence"});
+  if (!has(P_Select, 'form')) delegate(P_Select, 'form');
+  if (!has(P_Select, 'multiple') && !delegate(P_Select, 'multiple')) P.reflector(P_Select, 'multiple', {"attr": "multiple", "iface": "HTMLSelectElement", "kind": "boolean-presence"});
+  if (!has(P_Select, 'name') && !delegate(P_Select, 'name', 'str')) P.reflector(P_Select, 'name', {"attr": "name", "iface": "HTMLSelectElement", "kind": "string"});
+  else wrapSet(P_Select, 'name', 'str');
+  if (!has(P_Select, 'required') && !delegate(P_Select, 'required')) P.reflector(P_Select, 'required', {"attr": "required", "iface": "HTMLSelectElement", "kind": "boolean-presence"});
+  delete P_Select['size'];
+  if (!has(P_Select, 'size')) P.reflector(P_Select, 'size', {"attr": "size", "iface": "HTMLSelectElement", "kind": "unsigned-long"});
+  delete P_Select['type'];
+  if (!has(P_Select, 'type')) P.getter(P_Select, 'type', function __f() { return B.get('Select.type', this); });
+  if (!has(P_Select, 'options')) delegate(P_Select, 'options');
+  if (!has(P_Select, 'length') && !delegate(P_Select, 'length', 'str')) P.accessor(P_Select, 'length', function __f() { return B.get('Select.length', this); }, function __f(x) { B.set('Select.length', this, x); });
+  if (!has(P_Select, 'selectedOptions')) delegate(P_Select, 'selectedOptions');
+  if (!has(P_Select, 'selectedIndex')) delegate(P_Select, 'selectedIndex');
+  if (!has(P_Select, 'value')) delegate(P_Select, 'value');
+  if (!has(P_Select, 'willValidate')) delegate(P_Select, 'willValidate');
+  if (!has(P_Select, 'validity')) delegate(P_Select, 'validity');
+  if (!has(P_Select, 'validationMessage')) delegate(P_Select, 'validationMessage');
+  if (!has(P_Select, 'labels')) delegate(P_Select, 'labels');
+  if (!has(P_Select, 'add')) delegateFn(P_Select, 'add', 1);
+  if (!has(P_Select, 'checkValidity')) delegateFn(P_Select, 'checkValidity', 0);
+  if (!has(P_Select, 'item') && !delegateFn(P_Select, 'item', 1)) P.method(P_Select, 'item', 1, function __f() { const ctx = "Failed to execute 'item' on 'HTMLSelectElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('Select.item', this, ctx, arguments); });
+  if (!has(P_Select, 'namedItem') && !delegateFn(P_Select, 'namedItem', 1)) P.method(P_Select, 'namedItem', 1, function __f() { const ctx = "Failed to execute 'namedItem' on 'HTMLSelectElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('Select.namedItem', this, ctx, arguments); });
+  if (!has(P_Select, 'remove')) delegateFn(P_Select, 'remove', 0);
+  if (!has(P_Select, 'reportValidity')) delegateFn(P_Select, 'reportValidity', 0);
+  if (!has(P_Select, 'setCustomValidity')) delegateFn(P_Select, 'setCustomValidity', 1);
+  if (!has(P_Select, 'showPicker') && !delegateFn(P_Select, 'showPicker', 0)) P.method(P_Select, 'showPicker', 0, function __f() { const ctx = "Failed to execute 'showPicker' on 'HTMLSelectElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Select.showPicker', this, ctx, arguments); });
+  reseat(P_Select, ["autocomplete", "disabled", "form", "multiple", "name", "required", "size", "type", "options", "length", "selectedOptions", "selectedIndex", "value", "willValidate", "validity", "validationMessage", "labels", "add", "checkValidity", "item", "namedItem", "remove", "reportValidity", "setCustomValidity", "showPicker", "constructor"]);
+}
+
+// ---- HTMLSlotElement.prototype (Chrome own order, 5 names)
+if (P_Slot) {
+  if (!has(P_Slot, 'name') && !delegate(P_Slot, 'name', 'str')) P.reflector(P_Slot, 'name', {"attr": "name", "iface": "HTMLSlotElement", "kind": "string"});
+  else wrapSet(P_Slot, 'name', 'str');
+  if (!has(P_Slot, 'assign') && !delegateFn(P_Slot, 'assign', 0)) P.method(P_Slot, 'assign', 0, function __f() { const ctx = "Failed to execute 'assign' on 'HTMLSlotElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Slot.assign', this, ctx, arguments); });
+  if (!has(P_Slot, 'assignedElements')) delegateFn(P_Slot, 'assignedElements', 0);
+  if (!has(P_Slot, 'assignedNodes')) delegateFn(P_Slot, 'assignedNodes', 0);
+  reseat(P_Slot, ["name", "assign", "assignedElements", "assignedNodes", "constructor"]);
 }
 
 // ---- HTMLSourceElement.prototype (Chrome own order, 8 names)
@@ -500,6 +848,7 @@ if (P_Source) {
   else wrapSet(P_Source, 'type', 'str');
   if (!has(P_Source, 'srcset') && !delegate(P_Source, 'srcset', 'str')) P.reflector(P_Source, 'srcset', {"attr": "srcset", "iface": "HTMLSourceElement", "kind": "string"});
   else wrapSet(P_Source, 'srcset', 'str');
+  delete P_Source['sizes'];
   if (!has(P_Source, 'sizes')) P.reflector(P_Source, 'sizes', {"attr": "sizes", "iface": "HTMLSourceElement", "kind": "string"});
   if (!has(P_Source, 'media') && !delegate(P_Source, 'media', 'str')) P.reflector(P_Source, 'media', {"attr": "media", "iface": "HTMLSourceElement", "kind": "string"});
   else wrapSet(P_Source, 'media', 'str');
@@ -510,7 +859,8 @@ if (P_Source) {
 
 // ---- HTMLStyleElement.prototype (Chrome own order, 6 names)
 if (P_Style) {
-  if (!has(P_Style, 'disabled')) P.accessor(P_Style, 'disabled', function __f() { return B.get('disabled', this); }, function __f(x) { B.set('disabled', this, x); });
+  delete P_Style['disabled'];
+  if (!has(P_Style, 'disabled')) P.accessor(P_Style, 'disabled', function __f() { return B.get('Style.disabled', this); }, function __f(x) { B.set('Style.disabled', this, x); });
   if (!has(P_Style, 'media') && !delegate(P_Style, 'media', 'str')) P.reflector(P_Style, 'media', {"attr": "media", "iface": "HTMLStyleElement", "kind": "string"});
   else wrapSet(P_Style, 'media', 'str');
   if (!has(P_Style, 'type') && !delegate(P_Style, 'type', 'str')) P.reflector(P_Style, 'type', {"attr": "type", "iface": "HTMLStyleElement", "kind": "string"});
@@ -526,6 +876,59 @@ if (P_TableCaption) {
   reseat(P_TableCaption, ["align", "constructor"]);
 }
 
+// ---- HTMLTemplateElement.prototype (Chrome own order, 6 names)
+if (P_Template) {
+  if (!has(P_Template, 'content')) delegate(P_Template, 'content');
+  delete P_Template['shadowRootMode'];
+  if (!has(P_Template, 'shadowRootMode')) P.reflector(P_Template, 'shadowRootMode', {"attr": "shadowrootmode", "iface": "HTMLTemplateElement", "invalid": "", "kind": "enum", "map": {"closed": "closed", "open": "open"}, "missing": ""});
+  if (!has(P_Template, 'shadowRootDelegatesFocus') && !delegate(P_Template, 'shadowRootDelegatesFocus')) P.reflector(P_Template, 'shadowRootDelegatesFocus', {"attr": "shadowrootdelegatesfocus", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
+  if (!has(P_Template, 'shadowRootClonable') && !delegate(P_Template, 'shadowRootClonable')) P.reflector(P_Template, 'shadowRootClonable', {"attr": "shadowrootclonable", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
+  if (!has(P_Template, 'shadowRootSerializable') && !delegate(P_Template, 'shadowRootSerializable')) P.reflector(P_Template, 'shadowRootSerializable', {"attr": "shadowrootserializable", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
+  reseat(P_Template, ["content", "shadowRootMode", "shadowRootDelegatesFocus", "shadowRootClonable", "shadowRootSerializable", "constructor"]);
+}
+
+// ---- HTMLTextAreaElement.prototype (Chrome own order, 31 names)
+if (P_TextArea) {
+  if (!has(P_TextArea, 'autocomplete') && !delegate(P_TextArea, 'autocomplete', 'str')) P.reflector(P_TextArea, 'autocomplete', {"attr": "autocomplete", "iface": "HTMLTextAreaElement", "invalid": "", "kind": "enum", "map": {"email": "email", "off": "off", "on": "on", "tel": "tel", "url": "url"}, "missing": ""});
+  else wrapSet(P_TextArea, 'autocomplete', 'str');
+  if (!has(P_TextArea, 'cols') && !delegate(P_TextArea, 'cols')) P.reflector(P_TextArea, 'cols', {"attr": "cols", "default": 20, "iface": "HTMLTextAreaElement", "kind": "ulong-def", "min": 1});
+  if (!has(P_TextArea, 'dirName') && !delegate(P_TextArea, 'dirName', 'str')) P.reflector(P_TextArea, 'dirName', {"attr": "dirname", "iface": "HTMLTextAreaElement", "kind": "string"});
+  else wrapSet(P_TextArea, 'dirName', 'str');
+  if (!has(P_TextArea, 'disabled') && !delegate(P_TextArea, 'disabled')) P.reflector(P_TextArea, 'disabled', {"attr": "disabled", "iface": "HTMLTextAreaElement", "kind": "boolean-presence"});
+  if (!has(P_TextArea, 'form')) delegate(P_TextArea, 'form');
+  if (!has(P_TextArea, 'maxLength')) delegate(P_TextArea, 'maxLength');
+  if (!has(P_TextArea, 'minLength')) delegate(P_TextArea, 'minLength');
+  if (!has(P_TextArea, 'name') && !delegate(P_TextArea, 'name', 'str')) P.reflector(P_TextArea, 'name', {"attr": "name", "iface": "HTMLTextAreaElement", "kind": "string"});
+  else wrapSet(P_TextArea, 'name', 'str');
+  if (!has(P_TextArea, 'placeholder') && !delegate(P_TextArea, 'placeholder', 'str')) P.reflector(P_TextArea, 'placeholder', {"attr": "placeholder", "iface": "HTMLTextAreaElement", "kind": "string"});
+  else wrapSet(P_TextArea, 'placeholder', 'str');
+  if (!has(P_TextArea, 'readOnly') && !delegate(P_TextArea, 'readOnly')) P.reflector(P_TextArea, 'readOnly', {"attr": "readonly", "iface": "HTMLTextAreaElement", "kind": "boolean-presence"});
+  if (!has(P_TextArea, 'required') && !delegate(P_TextArea, 'required')) P.reflector(P_TextArea, 'required', {"attr": "required", "iface": "HTMLTextAreaElement", "kind": "boolean-presence"});
+  if (!has(P_TextArea, 'rows') && !delegate(P_TextArea, 'rows')) P.reflector(P_TextArea, 'rows', {"attr": "rows", "default": 2, "iface": "HTMLTextAreaElement", "kind": "ulong-def", "min": 1});
+  if (!has(P_TextArea, 'wrap') && !delegate(P_TextArea, 'wrap', 'str')) P.reflector(P_TextArea, 'wrap', {"attr": "wrap", "iface": "HTMLTextAreaElement", "kind": "string"});
+  else wrapSet(P_TextArea, 'wrap', 'str');
+  delete P_TextArea['type'];
+  if (!has(P_TextArea, 'type')) P.getter(P_TextArea, 'type', function __f() { return 'textarea'; });
+  delete P_TextArea['defaultValue'];
+  if (!has(P_TextArea, 'defaultValue')) P.accessor(P_TextArea, 'defaultValue', function __f() { return B.get('TextArea.defaultValue', this); }, function __f(x) { B.set('TextArea.defaultValue', this, x); });
+  if (!has(P_TextArea, 'value')) delegate(P_TextArea, 'value');
+  if (!has(P_TextArea, 'textLength') && !delegate(P_TextArea, 'textLength')) P.getter(P_TextArea, 'textLength', function __f() { return B.get('TextArea.textLength', this); });
+  if (!has(P_TextArea, 'willValidate')) delegate(P_TextArea, 'willValidate');
+  if (!has(P_TextArea, 'validity')) delegate(P_TextArea, 'validity');
+  if (!has(P_TextArea, 'validationMessage')) delegate(P_TextArea, 'validationMessage');
+  if (!has(P_TextArea, 'labels')) delegate(P_TextArea, 'labels');
+  if (!has(P_TextArea, 'selectionStart')) delegate(P_TextArea, 'selectionStart');
+  if (!has(P_TextArea, 'selectionEnd')) delegate(P_TextArea, 'selectionEnd');
+  if (!has(P_TextArea, 'selectionDirection')) delegate(P_TextArea, 'selectionDirection');
+  if (!has(P_TextArea, 'checkValidity')) delegateFn(P_TextArea, 'checkValidity', 0);
+  if (!has(P_TextArea, 'reportValidity')) delegateFn(P_TextArea, 'reportValidity', 0);
+  if (!has(P_TextArea, 'select')) delegateFn(P_TextArea, 'select', 0);
+  if (!has(P_TextArea, 'setCustomValidity')) delegateFn(P_TextArea, 'setCustomValidity', 1);
+  if (!has(P_TextArea, 'setRangeText')) delegateFn(P_TextArea, 'setRangeText', 1);
+  if (!has(P_TextArea, 'setSelectionRange')) delegateFn(P_TextArea, 'setSelectionRange', 2);
+  reseat(P_TextArea, ["autocomplete", "cols", "dirName", "disabled", "form", "maxLength", "minLength", "name", "placeholder", "readOnly", "required", "rows", "wrap", "type", "defaultValue", "value", "textLength", "willValidate", "validity", "validationMessage", "labels", "selectionStart", "selectionEnd", "selectionDirection", "checkValidity", "reportValidity", "select", "setCustomValidity", "setRangeText", "setSelectionRange", "constructor"]);
+}
+
 // ---- HTMLTimeElement.prototype (Chrome own order, 2 names)
 if (P_Time) {
   if (!has(P_Time, 'dateTime') && !delegate(P_Time, 'dateTime', 'str')) P.reflector(P_Time, 'dateTime', {"attr": "datetime", "iface": "HTMLTimeElement", "kind": "string"});
@@ -535,6 +938,27 @@ if (P_Time) {
 
 // ---- HTMLTitleElement.prototype (Chrome own order, 2 names)
 if (P_Title) {
-  if (!has(P_Title, 'text')) P.accessor(P_Title, 'text', function __f() { return B.get('text', this); }, function __f(x) { B.set('text', this, x); }); else wrapSet(P_Title, 'text', 'str');
+  delete P_Title['text'];
+  if (!has(P_Title, 'text')) P.accessor(P_Title, 'text', function __f() { return B.get('Title.text', this); }, function __f(x) { B.set('Title.text', this, x); }); else wrapSet(P_Title, 'text', 'str');
   reseat(P_Title, ["text", "constructor"]);
+}
+
+// ---- HTMLTrackElement.prototype (Chrome own order, 12 names)
+if (P_Track) {
+  delete P_Track['kind'];
+  if (!has(P_Track, 'kind')) P.reflector(P_Track, 'kind', {"attr": "kind", "iface": "HTMLTrackElement", "invalid": "metadata", "kind": "enum", "map": {"captions": "captions", "chapters": "chapters", "descriptions": "descriptions", "subtitles": "subtitles"}, "missing": "subtitles"});
+  if (!has(P_Track, 'src') && !delegate(P_Track, 'src', 'str')) P.reflector(P_Track, 'src', {"attr": "src", "iface": "HTMLTrackElement", "kind": "url"});
+  else wrapSet(P_Track, 'src', 'str');
+  if (!has(P_Track, 'srclang') && !delegate(P_Track, 'srclang', 'str')) P.reflector(P_Track, 'srclang', {"attr": "srclang", "iface": "HTMLTrackElement", "kind": "string"});
+  else wrapSet(P_Track, 'srclang', 'str');
+  if (!has(P_Track, 'label') && !delegate(P_Track, 'label', 'str')) P.reflector(P_Track, 'label', {"attr": "label", "iface": "HTMLTrackElement", "kind": "string"});
+  else wrapSet(P_Track, 'label', 'str');
+  if (!has(P_Track, 'default') && !delegate(P_Track, 'default')) P.reflector(P_Track, 'default', {"attr": "default", "iface": "HTMLTrackElement", "kind": "boolean-presence"});
+  if (!has(P_Track, 'readyState') && !delegate(P_Track, 'readyState')) P.getter(P_Track, 'readyState', function __f() { return B.get('Track.readyState', this); });
+  if (!has(P_Track, 'track') && !delegate(P_Track, 'track')) P.getter(P_Track, 'track', function __f() { return B.get('Track.track', this); });
+  if (!has(P_Track, 'NONE')) { Object.defineProperty(P_Track, 'NONE', { value: 0, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'NONE', { value: 0, enumerable: true }); }
+  if (!has(P_Track, 'LOADING')) { Object.defineProperty(P_Track, 'LOADING', { value: 1, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'LOADING', { value: 1, enumerable: true }); }
+  if (!has(P_Track, 'LOADED')) { Object.defineProperty(P_Track, 'LOADED', { value: 2, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'LOADED', { value: 2, enumerable: true }); }
+  if (!has(P_Track, 'ERROR')) { Object.defineProperty(P_Track, 'ERROR', { value: 3, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'ERROR', { value: 3, enumerable: true }); }
+  reseat(P_Track, ["kind", "src", "srclang", "label", "default", "readyState", "track", "NONE", "LOADING", "LOADED", "ERROR", "constructor"]);
 }

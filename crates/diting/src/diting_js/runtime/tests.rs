@@ -26679,6 +26679,18 @@ async fn htmlreflect_members_match_chrome_truth() {
         "HTMLMediaElement.playbackRate",
         "HTMLMediaElement.seekable",
         "HTMLScriptElement.innerText",
+        // knife 7 (form family) - state machinery that is not reflection:
+        "HTMLInputElement.files",
+        "HTMLInputElement.selectionEnd",
+        "HTMLInputElement.selectionStart",
+        "HTMLInputElement.type",
+        "HTMLInputElement.value",
+        "HTMLInputElement.valueAsDate",
+        "HTMLSelectElement.options",
+        "HTMLTemplateElement.content",
+        "HTMLTextAreaElement.selectionEnd",
+        "HTMLTextAreaElement.selectionStart",
+        "HTMLTextAreaElement.value",
     ];
     // names Chrome 145 owns that the family deliberately does not install
     // (experimental / origin-trial / flagged; SURFACE.md ledger)
@@ -26690,12 +26702,15 @@ async fn htmlreflect_members_match_chrome_truth() {
         "HTMLIFrameElement.adAuctionHeaders",
         "HTMLIFrameElement.browsingTopics",
         "HTMLIFrameElement.sharedStorageWritable",
+        "HTMLButtonElement.interestForElement",
     ];
     // bootstrap {value} constants are non-configurable and cannot be
     // re-seated (knife 5); strip them from the order comparison
     const IMMOVABLE: &[&str] = &[
         "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE",
         "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA",
+        // HTMLTrackElement IDL constants: non-configurable, so reseat cannot move them
+        "NONE", "LOADING", "LOADED", "ERROR",
     ];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/htmlreflect-probe.js");
@@ -26822,4 +26837,39 @@ async fn htmlreflect_members_match_chrome_truth() {
         }
     }
     assert!(bad.is_empty(), "{} divergence(s):\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 knife 7: behavior of the form-family members the reflect fingerprints
+/// cannot classify (htmlform-probe.js, 36 keys, real Chrome 145): showPicker's
+/// NotAllowedError wording, input.list/webkitEntries/type=image dimensions,
+/// popoverTargetElement/commandForElement element reflection, select.length/
+/// item/namedItem, option.index, output value/defaultValue (default-value
+/// override flag), object/fieldset/output constraint-validation surface,
+/// fieldset.elements / map.areas, textarea defaultValue/textLength, marquee
+/// (scroll*, loop's IndexSizeError, start/stop), meter (clamped doubles) and
+/// progress (position), slot.assign, track (readyState/track/constants/kind
+/// enum), template shadowroot* enum. Every value is diffed whole against the
+/// truth; page URLs are normalized (#B/#O) so the unit page and Chrome's
+/// ephemeral server compare equal.
+#[tokio::test(flavor = "current_thread")]
+async fn htmlform_behaviors_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/htmlform-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/htmlform-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }

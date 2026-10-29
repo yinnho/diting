@@ -777,27 +777,60 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
         ("HTMLFormElement", "rel"), ("HTMLScriptElement", "htmlFor"), ("HTMLParamElement", "value"),
         ("HTMLFormElement", "method"), ("HTMLBaseElement", "href"), ("HTMLStyleElement", "disabled"),
         ("HTMLTitleElement", "text"), ("HTMLFrameElement", "contentDocument"), ("HTMLFrameElement", "contentWindow"),
-    }
+        ("HTMLObjectElement", "contentDocument"), ("HTMLObjectElement", "contentWindow"),
+        ("HTMLFieldSetElement", "type"), ("HTMLOutputElement", "type"), ("HTMLSelectElement", "type"),
+        ("HTMLButtonElement", "type"), ("HTMLTrackElement", "kind"), ("HTMLTemplateElement", "shadowRootMode"),
+        ("HTMLOutputElement", "value"), ("HTMLTextAreaElement", "defaultValue"),
+        ("HTMLButtonElement", "value"), ("HTMLSelectElement", "size"), ("HTMLInputElement", "multiple"),
+        ("HTMLTextAreaElement", "type"),
+    } | {("HTMLMeterElement", n) for n in ("min", "max", "value")} | {("HTMLProgressElement", n) for n in ("value", "max")} \
+      | {("HTMLInputElement", "height"), ("HTMLInputElement", "width")}
+    # WebIDL constants (readyState values etc.): the probe records only the type
+    CONSTANTS = {("HTMLTrackElement", "NONE"): 0, ("HTMLTrackElement", "LOADING"): 1,
+                 ("HTMLTrackElement", "LOADED"): 2, ("HTMLTrackElement", "ERROR"): 3}
     # constant read-only getters (value is a JS literal)
     CONST_GETTER = {
         ("HTMLFrameElement", "contentDocument"): "null",
         ("HTMLFrameElement", "contentWindow"): "null",
+        ("HTMLObjectElement", "contentDocument"): "null",
+        ("HTMLObjectElement", "contentWindow"): "null",
+        ("HTMLFieldSetElement", "type"): "'fieldset'",
+        ("HTMLOutputElement", "type"): "'output'",
+        ("HTMLTextAreaElement", "type"): "'textarea'",
     }
     # impl-delegated accessors/getters/methods (B.get/B.set/B.call by name)
-    IMPL_GETTER = {("HTMLLegendElement", "form")}
+    IMPL_GETTER = {("HTMLLegendElement", "form"), ("HTMLInputElement", "list"),
+                   ("HTMLInputElement", "webkitEntries"), ("HTMLProgressElement", "position"),
+                   ("HTMLOptionElement", "index"), ("HTMLTextAreaElement", "textLength"),
+                   ("HTMLTrackElement", "readyState"), ("HTMLTrackElement", "track"),
+                   ("HTMLFieldSetElement", "elements"), ("HTMLMapElement", "areas"),
+                   ("HTMLSelectElement", "type")}
     IMPL_ACCESSOR = {("HTMLScriptElement", "async"), ("HTMLTitleElement", "text"),
                      ("HTMLStyleElement", "disabled"), ("HTMLScriptElement", "text"),
                      ("HTMLScriptElement", "innerText"), ("HTMLScriptElement", "textContent"),
-                     ("HTMLBaseElement", "href")}
+                     ("HTMLBaseElement", "href"),
+                     ("HTMLInputElement", "height"), ("HTMLInputElement", "width"),
+                     ("HTMLButtonElement", "popoverTargetElement"), ("HTMLInputElement", "popoverTargetElement"),
+                     ("HTMLButtonElement", "commandForElement"), ("HTMLMarqueeElement", "loop"),
+                     ("HTMLOutputElement", "defaultValue"), ("HTMLOutputElement", "value"),
+                     ("HTMLTextAreaElement", "defaultValue"), ("HTMLSelectElement", "length")} \
+                    | {("HTMLMeterElement", n) for n in ("min", "max", "value", "low", "high", "optimum")} \
+                    | {("HTMLProgressElement", n) for n in ("value", "max")}
     IMPL_METHOD = {("HTMLEmbedElement", "getSVGDocument"): 0, ("HTMLIFrameElement", "getSVGDocument"): 0,
+                   ("HTMLObjectElement", "getSVGDocument"): 0,
                    ("HTMLAnchorElement", "toString"): 0, ("HTMLAreaElement", "toString"): 0,
-                   ("HTMLFormElement", "requestSubmit"): 0, ("HTMLFormElement", "submit"): 0}
+                   ("HTMLFormElement", "requestSubmit"): 0, ("HTMLFormElement", "submit"): 0,
+                   ("HTMLInputElement", "showPicker"): 0, ("HTMLSelectElement", "showPicker"): 0,
+                   ("HTMLSelectElement", "item"): 1, ("HTMLSelectElement", "namedItem"): 1,
+                   ("HTMLMarqueeElement", "start"): 0, ("HTMLMarqueeElement", "stop"): 0,
+                   ("HTMLSlotElement", "assign"): 0}
     # engine members that already exist in-place and are not touched
     LEAVE = {("HTMLFormElement", n) for n in ("checkValidity", "reportValidity", "reset", "elements", "length")} \
           | {("HTMLIFrameElement", n) for n in ("contentDocument", "contentWindow")} \
           | {("HTMLLinkElement", "sheet"), ("HTMLStyleElement", "sheet"), ("HTMLAnchorElement", "origin")}
     # script text legs are Trusted-Types unions; engine owns text/innerText/textContent
     # semantics elsewhere, so those delegate when present
+    DELEGATE_ONLY |= {("HTMLOptionElement", "text")}
     DELEGATE_ONLY |= {("HTMLAnchorElement", n) for n in ("hash", "host", "hostname", "password",
                       "pathname", "port", "protocol", "search", "username", "text")}
     DELEGATE_ONLY |= {("HTMLAreaElement", n) for n in ("hash", "host", "hostname", "password",
@@ -903,18 +936,21 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
             if key in CONST_GETTER:
                 ledger["const"] += 1
                 dl = "" if key in FORCE else " && !delegate(%s, '%s')" % (v, m)
+                if key in FORCE: PW("  delete %s['%s'];" % (v, m))
                 PW("  if (!has(%s, '%s')%s) P.getter(%s, '%s', function __f() { return %s; });" % (v, m, dl, v, m, CONST_GETTER[key]))
                 continue
             if key in IMPL_GETTER:
                 ledger["impl"] += 1
                 dl = "" if key in FORCE else " && !delegate(%s, '%s')" % (v, m)
-                PW("  if (!has(%s, '%s')%s) P.getter(%s, '%s', function __f() { return B.get('%s', this); });" % (v, m, dl, v, m, m))
+                if key in FORCE: PW("  delete %s['%s'];" % (v, m))
+                PW("  if (!has(%s, '%s')%s) P.getter(%s, '%s', function __f() { return B.get('%s.%s', this); });" % (v, m, dl, v, m, short, m))
                 continue
             if key in IMPL_ACCESSOR:
                 ledger["impl"] += 1
                 dl = "" if key in FORCE else " && !delegate(%s, '%s'%s)" % (v, m, "" if m in ("textContent", "innerText") else ", 'str'")
-                PW("  if (!has(%s, '%s')%s) P.accessor(%s, '%s', function __f() { return B.get('%s', this); }, function __f(x) { B.set('%s', this, x); });%s" % (
-                    v, m, dl, v, m, m, m, (" else wrapSet(%s, '%s', 'str');" % (v, m)) if m == "text" else ""))
+                if key in FORCE: PW("  delete %s['%s'];" % (v, m))
+                PW("  if (!has(%s, '%s')%s) P.accessor(%s, '%s', function __f() { return B.get('%s.%s', this); }, function __f(x) { B.set('%s.%s', this, x); });%s" % (
+                    v, m, dl, v, m, short, m, short, m, (" else wrapSet(%s, '%s', 'str');" % (v, m)) if m == "text" else ""))
                 continue
             if k == "function":
                 if key in IMPL_METHOD:
@@ -923,9 +959,13 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
                         raise SystemExit("patch-reflect: fn.length mismatch for %s.%s" % (iface, m))
                     ctx = "\"Failed to execute '%s' on '%s'\"" % (m, iface)
                     ledger["impl"] += 1
-                    PW("  if (!has(%s, '%s') && !delegateFn(%s, '%s', %d)) P.method(%s, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.call('%s', this, ctx, arguments); });" % (v, m, v, m, ln, v, m, ln, ctx, ln, m))
+                    PW("  if (!has(%s, '%s') && !delegateFn(%s, '%s', %d)) P.method(%s, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.call('%s.%s', this, ctx, arguments); });" % (v, m, v, m, ln, v, m, ln, ctx, ln, short, m))
                 else:
                     unaccounted.append((iface, m, "method"))
+                    PW("  if (!has(%s, '%s')) delegateFn(%s, '%s', %d);" % (v, m, v, m, HR["fnlen"][iface].get(m, 0)))
+                continue
+            if k == "number" and key in CONSTANTS:
+                PW("  if (!has(%s, '%s')) { Object.defineProperty(%s, '%s', { value: %d, enumerable: true }); Object.defineProperty(G.%s, '%s', { value: %d, enumerable: true }); }" % (v, m, v, m, CONSTANTS[key], iface, m, CONSTANTS[key]))
                 continue
             if k != "rw" and k != "ro":
                 unaccounted.append((iface, m, k))
@@ -946,6 +986,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
             spec, why = RC.classify(fp, k)
             if spec is None:
                 unaccounted.append((iface, m, "unclassified:" + why))
+                PW("  if (!has(%s, '%s')) delegate(%s, '%s');" % (v, m, v, m))
                 continue
             if spec["kind"] == "tokenlist":
                 tk = "%s.%s" % (iface, m)
@@ -956,6 +997,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
             spec["iface"] = iface
             ledger["reflect"] += 1
             cv = {"string": "str", "url": "str", "enum": "str", "string-nte": "nte"}.get(spec["kind"])
+            if key in FORCE: PW("  delete %s['%s'];" % (v, m))
             dl = "" if key in FORCE else (" && !delegate(%s, '%s'%s)" % (v, m, (", '%s'" % cv) if cv else ""))
             PW("  if (!has(%s, '%s')%s) P.reflector(%s, '%s', %s);" % (v, m, dl, v, m, json.dumps(spec, sort_keys=True)))
             if cv and key not in FORCE:
@@ -964,9 +1006,11 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
         PW("}")
 
     if unaccounted:
-        for u in unaccounted:
-            print("patch-reflect: UNACCOUNTED %s.%s (%s)" % u, file=sys.stderr)
-        raise SystemExit("patch-reflect: %d member(s) need a table entry (CONST/IMPL/STAGED/DELEGATE_ONLY)" % len(unaccounted))
+        # not an abort: members no measured kind or table covers are RE-SEATED
+        # from whatever the engine chain owns (ownership becomes Chrome-true,
+        # behavior stays the engine's); the fingerprint test names the ones
+        # whose engine behavior deviates, and absent ones show as missing.
+        print("patch-reflect: %d member(s) delegate-only (no measured kind / table entry)" % len(unaccounted), file=sys.stderr)
 
     # prototypes come off globalThis: the 14 module-owned interfaces (htmlifaces)
     # and the bootstrap-owned ones are both plain global properties by now, so

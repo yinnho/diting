@@ -1,7 +1,7 @@
 //! module: htmlifaces
 //! layer: L2
-//! exposes: HTMLAreaElement, HTMLBaseElement, HTMLDListElement, HTMLDirectoryElement, HTMLEmbedElement, HTMLFontElement, HTMLFrameElement, HTMLMenuElement, HTMLModElement, HTMLParamElement, HTMLQuoteElement, HTMLSourceElement, HTMLTimeElement, HTMLTitleElement
-//! requires-load: legacy:_htmlInterface, legacy:HTMLElement
+//! exposes: HTMLAreaElement, HTMLBaseElement, HTMLDListElement, HTMLDirectoryElement, HTMLEmbedElement, HTMLFontElement, HTMLFrameElement, HTMLMenuElement, HTMLModElement, HTMLParamElement, HTMLQuoteElement, HTMLSourceElement, HTMLTimeElement, HTMLTitleElement, HTMLMapElement, HTMLMarqueeElement, HTMLMeterElement, HTMLObjectElement, HTMLOutputElement, HTMLTrackElement
+//! requires-load: legacy:_htmlInterface, legacy:HTMLElement, legacy:HTMLButtonElement
 //! requires-call: -
 
 // Element interfaces the engine used to know only as global_surface
@@ -29,9 +29,30 @@ const DEFS = {
   HTMLSourceElement: ['source'],
   HTMLTimeElement: ['time'],
   HTMLTitleElement: ['title'],
+  HTMLMapElement: ['map'],
+  HTMLMarqueeElement: ['marquee'],
+  HTMLMeterElement: ['meter'],
+  HTMLObjectElement: ['object'],
+  HTMLOutputElement: ['output'],
+  HTMLTrackElement: ['track'],
 };
 
 for (const name of Object.keys(DEFS)) {
   if (typeof globalThis[name] === 'function') continue; // a legacy script already owns it
   P.expose(name, _htmlInterface(name, DEFS[name]));
+}
+
+// Constraint-validation members for the three interfaces form_validation.js
+// cannot reach (it runs before this bundle, when HTMLObjectElement/
+// HTMLOutputElement did not exist yet): object and output are barred from
+// validation (willValidate false, checkValidity true) but carry the API, so
+// they borrow the descriptors form_validation installed on <button>. The
+// functions are `this`-generic (state(this._el)).
+for (const name of ['HTMLObjectElement', 'HTMLOutputElement', 'HTMLFieldSetElement']) {
+  const proto = globalThis[name] && globalThis[name].prototype;
+  if (!proto || typeof HTMLButtonElement !== 'function') continue;
+  for (const m of ['willValidate', 'validity', 'validationMessage', 'checkValidity', 'reportValidity', 'setCustomValidity']) {
+    const d = Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype, m);
+    if (d && !Object.prototype.hasOwnProperty.call(proto, m)) Object.defineProperty(proto, m, d);
+  }
 }

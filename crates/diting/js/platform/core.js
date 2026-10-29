@@ -127,12 +127,16 @@ const __platform = (function () {
   //               ToUint32, > 2^31-1 -> 0) |
   //             unsigned-long-dim (as above but the GETTER accepts up to
   //               2^32-1: width/height of img/video) |
+  //             ulong-def (limited unsigned long with `default`, optional `min`:
+  //               invalid/negative/overflow/below-min read the default; set > 2^31-1
+  //               or < min writes the default) |
   //             long (signed; out of int32 -> 0; set ToInt32) |
   //             crossorigin (nullable enum: absent null, 'use-credentials',
   //               every other present value 'anonymous'; set null/undefined
   //               removes the attribute) |
   //             url (absent -> default, else resolved against the document
   //               base; '' resolves to the base itself)
+  //   fallbackDoc   url: an ABSENT attribute reads document.URL (formAction)
   //   known / default / fallback   legacy enum spellings
   //   nullRemoves   null/undefined set REMOVES the attribute (enum/string)
   //   map / missing / invalid / empty   measured enum (ASCII-lowercased
@@ -189,6 +193,14 @@ const __platform = (function () {
           const max = kind === 'unsigned-long' ? 2147483647 : 4294967295;
           return n === null || n < 0 || n > max ? 0 : n;
         }
+        case 'ulong-def': {
+          // limited unsigned long with a default (textarea cols/rows,
+          // marquee scrollAmount/scrollDelay): invalid, negative, overflow
+          // or below `min` all read the default
+          if (v === null) return spec.default;
+          const n = parseIntAttr(String(v));
+          return n === null || n < (spec.min || 0) || n > 2147483647 ? spec.default : n;
+        }
         case 'long': {
           if (v === null) return 0;
           const n = parseIntAttr(String(v));
@@ -199,7 +211,7 @@ const __platform = (function () {
           return asciiLower(String(v)) === 'use-credentials' ? 'use-credentials' : 'anonymous';
         }
         case 'url': {
-          if (v === null) return dflt;
+          if (v === null) return spec.fallbackDoc ? document.URL : dflt;
           const base = (typeof document !== 'undefined' && document && document.baseURI)
             || (typeof location !== 'undefined' ? location.href : undefined);
           try { return new URL(v, base).href; } catch (e) { return String(v); }
@@ -215,6 +227,11 @@ const __platform = (function () {
         case 'unsigned-long': case 'unsigned-long-dim': {
           const u = conv.unsignedLong(v, prefix, set);
           el.setAttribute(attr, String(u > 2147483647 ? 0 : u));
+          return;
+        }
+        case 'ulong-def': {
+          const u = conv.unsignedLong(v, prefix, set);
+          el.setAttribute(attr, String(u > 2147483647 || u < (spec.min || 0) ? spec.default : u));
           return;
         }
         case 'long': {
@@ -291,6 +308,6 @@ const __platform = (function () {
     return bad;
   }
 
-  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify, parseIntAttr, asciiLower };
   return P;
 })();

@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→**478**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→**370**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -598,3 +598,58 @@ src 的「差异」全是端口噪声——指纹必须归一化页面 URL/origi
 27 接口缺口名合计；行 115→89，仅余 IFrame.privateToken 为旗标特性）。下一刀
 顺位：表单关联元素族（Input 23/Object 21/Output 7/FieldSet 7/Button 6/Select 6/
 TextArea 6：约束验证 API+状态）或真家族（Animation 19/Notification 14）。
+
+## M4 刀7：表单关联元素族（2026-10-30）
+
+刀6 的指纹流水线延伸到 15 个表单/状态类元素接口（Input/Object/Output/FieldSet/
+Button/Select/TextArea/Track/Template/Meter/Option/Marquee/Map/Progress/Slot），
+关 **108** 个缺口名（478→370；行 89→74）。至此 HTML 元素接口的缺口只剩
+Canvas（captureStream/transferControlToOffscreen）与 IFrame.privateToken（旗标）。
+
+- **探针扩容**：htmlreflect-probe 的 TAGS 增 15 个接口（词表补 track kind、
+  template shadowrootmode、button type；`'0'`/`zero` 取值）；新增**行为探针**
+  `htmlform-probe.js`（36 键，真 Chrome 145）覆盖指纹分不了类的状态/方法成员，
+  页面 URL/origin 归一为 `#B/#O`。
+- **P.reflector 新 kind `ulong-def`**（textarea cols/rows、marquee
+  scrollAmount/scrollDelay：带默认值的限定 unsigned long，非法/负/溢出/低于 min
+  读默认值，set 越界写默认值）；分类器自动从指纹取默认值并试 min 0/1；`url` 增
+  `fallbackDoc`（formAction：属性缺省时读 document.URL）。
+- **生成器兜底改委托**：未归账成员不再让 gen 中止，而是把引擎链上已有的
+  描述符**搬归属到 Chrome 接口**（`delegate`/`delegateFn`），缺的由对拍报
+  missing；impl 表键改 `接口.成员` 命名空间（Meter.value/Progress.value/
+  Output.value 同名）；FORCE 现在先 `delete` 引擎自有错实现再装；IDL 常量
+  （Track.NONE…）同时定义在原型与构造器上。
+- **又一批结构性路由修复**：Map/Marquee/Meter/Object/Output/Track 的
+  `createElement` 实例是裸 HTMLElement，`htmlifaces` 增这 6 个（共 20）。
+- **Object/Output/FieldSet 的约束验证面**：form_validation.js 比平台包先加载，
+  那时这三个接口不存在；`htmlifaces` 把 `<button>` 上 form_validation 已装的
+  描述符借过去（`this` 泛型；willValidate false、checkValidity true）。
+- **引擎里真实存在的错实现（对拍抓获）**：`meter.min/max/value` 返回**字符串**
+  且不夹逼；`progress.value/max` 同样；`select.type`/`textarea.type`/
+  `fieldset.type` 把 type 属性当反射（Chrome 为只读常量）；`button.value`
+  存 expando 不写属性；`select.size` 默认 1（Chrome 0）；`input.multiple`
+  读 undefined；`track.kind('CAPTIONS')` 读 `'metadata'`；`output` 无
+  defaultValue 语义；`popovertarget` 移除不清属性。全部按实测实现：Meter/
+  Progress 为夹逼 double（`'9px'` 整串无效→默认，非有限 TypeError）、output 的
+  default-value-override 标志、元素反射（置 null 移除属性，非 Element 抛
+  `Failed to convert value to 'Element'.`）、marquee.loop 的 IndexSizeError 文案。
+- 新增 `Select.length/item/namedItem/showPicker`、`Input.list/webkitEntries/
+  showPicker/width/height(type=image)`、`Option.index`、`TextArea.defaultValue/
+  textLength`、`FieldSet.elements`、`Map.areas`（`HTMLCollection._from` 快照，
+  非实时，入账）、`Slot.assign`、`Track.readyState/track/常量`。
+
+**KNOWN 入账**（棘轮转绿强制摘除）：Input 的 `files/selectionStart/End/type/
+value/valueAsDate`、TextArea 的 `selectionStart/End/value`（值/选区状态机，
+属输入状态族）；`Select.options` 默认集合、`Template.content` 的 set 面；
+`FieldSet.elements`/`Map.areas` 为快照集合非实时；`Button.interestForElement`
+为实验特性。
+
+**坑**（一新）：**重启引擎的竞态**——`kill; sleep 1; start; probe` 当引擎还没监听
+时探针 `Connection refused`，而对拍读的是**上一轮的旧 JSON**，会得出「diff 没变」
+的假象。启动后必 `curl /health` 确认，且看探针的 `captured` 行。
+
+验收：行为探针 36/36 全等；指纹对拍 46 接口除入账项外全等（routing/tokens/
+extra 同）；tests **1440/0**（新增 htmlform_behaviors_match_chrome_truth）；
+快照漂移恰 15 个原型行已重生成；check_fresh 7 件鲜（27 真值全登记）；analyze
+零违。差集 478→**370**。下一刀顺位：Canvas 方法+真家族（Animation 19/
+Notification 14/EditContext 11/传感器×6/SpeechRecognition 8/PointerEvent 16…）。
