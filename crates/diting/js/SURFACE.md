@@ -233,3 +233,34 @@ tests 1432/0；check_fresh+棘轮绿（bootstrapLines 净减 ~230，forwardLoadR
 外引擎探针踩坑：`cargo build --release` 只重编 lib 不重链根包 bin（root package=
 diting-browser，bin=根 src/main.rs）——health 报旧 commit+旧行为即此，touch 根
 src/main.rs 强制重链后 106/106。已知分歧沿档：handler 先于监听器（Chrome=注册序）。
+
+## M3 步骤B2c：iframe 两腿派发并轨原生核心 + _IframeWindow 链缺陷修（2026-10-29）
+
+M3 终收：iframe-doc 与 content-window 两腿的手搓三件套删净（`__lmap`/`__evtStore`
+随之成死码一并删），帧面的一切监听/派发落原生 EventTarget 核心。**链缺陷修**（M1
+立案的加载期前向引用）：bootstrap 尾部 `setPrototypeOf(_IframeWindow.prototype,
+Window.prototype)` 在加载期引用后件 `iframe_realm.js` 的类、TDZ ReferenceError 被
+catch 吞——帧窗原型实为 Object.prototype 已数月。修法=链接搬进 iframe_realm.js 类
+定义之后，并给死对象 `Window.prototype` 补 Chrome 亲子：帧链=「_IframeDocument.
+prototype → Document.prototype → Node.prototype → ET.prototype」与「_IframeWindow.
+prototype → Window.prototype → ET.prototype」（**主窗链不含 Window.prototype**——
+probe 实证 globalThis 第一层是另一 1263 键对象，主窗靠全局门过 receiver；故给
+Window.prototype 接 ET 只影响帧、零存量位移）。顺带成真：contentDocument
+instanceof Document/Node、contentWindow instanceof Window/EventTarget、
+addEventListener === EventTarget.prototype.addEventListener。**parent 钩子补帧内两跳**
+：帧根（_isIframeDocRoot）→帧 doc→帧窗（帧版 document→window 边）——帧内元素冒泡
+从此达帧 doc/帧窗监听器且止于此（不漏入宿主 doc/主窗，回归测试钉死）；此前旧腿
+两代实现都停在帧根。**假 doc 两坑**：①构造器裸赋值撞链上 Document.prototype 的
+只读 accessor（nodeType 等 7 项改 `__def`）；②链让 Node.prototype 的原生背书
+`parentNode` getter（走 `_dom(_nid)`）对无 nid 的假 doc 抛 Illegal invocation——
+DOM 规范 Document.parentNode 本就=null，补 own getter 双愈（事件路径走查+
+summaryActivation 走查）。已知留档：postMessage 投递仍落主窗（Chrome=目标窗，
+路由缺陷另案）；帧 doc 的 Node.prototype 其余原生背书成员（firstChild 等）对假
+this 仍会抛——面已收窄到事件腿所需。验收：tests 1432→**1433/0**（新回归测试
+test_iframe_realm_dispatch_rides_native_core：链形/冒泡序 [el,doc,win]/on* 腿/
+去重/宿主零漏）；探针 106 项不变全绿（主 realm 面零位移）；外引擎 srcdoc 实战
+烟测全过；夹具面零 diff；棘轮 forwardLoadRefs **1→0**（TDZ 前向引用死绝）、
+crossFileLoadTimeNames 50→51（iframe_realm 加载期引 Document/EventTarget 的
+合法序边，--write-baseline）。iframe 回归测试载体=Rust 测试而非 Chrome 探针：
+帧域是单 realm 壳（cross-realm identity 在 Chrome 为假、在本引擎为真），探针键
+会造假分歧。

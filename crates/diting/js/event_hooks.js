@@ -47,6 +47,17 @@
       // stay out, and an iframe's contentDocument is not this realm's
       // document, so it does not jump to the main window.
       if (target === DocC || target === globalThis.document) return globalThis;
+      // (M3 B2c) frame content: the frame's root hangs off nothing, but its
+      // owner is the frame document, and the frame document's next hop is
+      // the frame window — the frame analog of the document → window edge,
+      // so events dispatched inside a frame reach the frame's document and
+      // window listeners (and stop there: the frame window is not a Node,
+      // and a frame never leaks into the host document's path).
+      if (target._isIframeDocRoot) return target._ownerDoc || null;
+      if (target.nodeType === 9 && target._iframeEl !== undefined) {
+        const dv = target.defaultView;
+        return dv && dv !== globalThis ? dv : null;
+      }
       return null;
     },
     // Event handler IDL attribute (`el.onfoo = fn` / window.onfoo). Fires

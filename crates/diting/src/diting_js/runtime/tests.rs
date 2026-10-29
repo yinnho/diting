@@ -26183,3 +26183,68 @@ async fn js_identity_follows_the_chrome_target() {
         }
     }
 }
+
+/// JS-PLATFORM-ARCH M3 B2c: the iframe realm legs ride the NATIVE EventTarget
+/// core. The frame document IS a Document (chain → Document.prototype →
+/// Node.prototype → EventTarget.prototype) and the frame window IS a Window
+/// (chain → Window.prototype → EventTarget.prototype — the link the old
+/// bootstrap-side setPrototypeOf never made, it died in a TDZ catch at load).
+/// Frame-content propagation: an event dispatched inside the frame reaches the
+/// frame's document and window listeners (the frame analog of the document →
+/// window edge) and stops there — it never leaks into the host document.
+#[tokio::test(flavor = "current_thread")]
+async fn test_iframe_realm_dispatch_rides_native_core() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url("https://example.com/page");
+    let script = r##"async () => {
+        const f = document.createElement('iframe');
+        f.setAttribute('srcdoc', '<body><div id="in-frame">x</div></body>');
+        document.body.appendChild(f);
+        await new Promise(r => setTimeout(r, 30));
+        const doc = f.contentDocument, win = f.contentWindow;
+        const shape = {
+            docIsDoc: doc instanceof Document,
+            docIsNode: doc instanceof Node,
+            winIsWin: win instanceof Window,
+            winIsET: win instanceof EventTarget,
+            addIsNative: win.addEventListener === EventTarget.prototype.addEventListener
+                && doc.addEventListener === EventTarget.prototype.addEventListener,
+            docOldStoreGone: !Object.prototype.hasOwnProperty.call(doc, '_listeners'),
+        };
+        // Frame-content propagation: bubbling from an element inside the
+        // frame reaches the frame doc, the frame window, frame on* handlers
+        // — and does NOT reach the host document or main window.
+        const order = [];
+        const el = doc.getElementById('in-frame');
+        el.addEventListener('tick', () => order.push('el'));
+        doc.addEventListener('tick', () => order.push('doc'));
+        win.addEventListener('tick', () => order.push('win'));
+        doc.onclick = () => order.push('doc-onclick');
+        el.dispatchEvent(new Event('tick', { bubbles: true }));
+        doc.dispatchEvent(new Event('click'));
+        const hostHeard = [];
+        document.addEventListener('tick', () => hostHeard.push('host-doc'));
+        window.addEventListener('tick', () => hostHeard.push('host-win'));
+        el.dispatchEvent(new Event('tick', { bubbles: true }));
+        // Dedup + remove on the frame faces (native store semantics).
+        let n = 0; const bump = () => n++;
+        doc.addEventListener('zz', bump); doc.addEventListener('zz', bump);
+        doc.dispatchEvent(new Event('zz'));
+        doc.removeEventListener('zz', bump); doc.dispatchEvent(new Event('zz'));
+        return { shape, order, hostHeard, n };
+    }"##;
+    let result = rt.call_function_on_remote(script, None, &[], true, true).await.unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["shape"],
+        serde_json::json!({
+            "docIsDoc": true, "docIsNode": true, "winIsWin": true, "winIsET": true,
+            "addIsNative": true, "docOldStoreGone": true,
+        }),
+        "frame faces must chain to the native core: {v}"
+    );
+    assert_eq!(v["order"], serde_json::json!(["el", "doc", "win", "doc-onclick", "el", "doc", "win"]), "frame propagation order (tick dispatched twice; the second run must not reach the host): {v}");
+    assert_eq!(v["hostHeard"], serde_json::json!([]), "frame events must not leak into the host document/window: {v}");
+    assert_eq!(v["n"], 1, "native dedup/remove semantics on the frame doc: {v}");
+}
+

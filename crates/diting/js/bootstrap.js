@@ -246,19 +246,10 @@ function __hideOwn(o) {
   }
   return o;
 }
-// (#78) Event-listener registries must be invisible to page JS: the XHS
-// jsvmp environment scan reads `document._listeners` directly, and a Symbol
-// key doesn't help (getOwnPropertySymbols still enumerates it). Element
-// already keeps its registry in the module-level _eventRegistry; these
-// classes (Document, NetworkInformation, XHR family, iframes, MSE, Worker,
-// FileReader) store theirs in this WeakMap instead — invisible to every
-// form of property enumeration, exactly like Chrome's native slots.
-const __evtStore = new WeakMap();
-function __lmap(t) {
-  let m = __evtStore.get(t);
-  if (!m) { m = {}; __evtStore.set(t, m); }
-  return m;
-}
+// (M3) The WeakMap listener store is GONE — every face that used it rides
+// the native EventTarget core now (private v8 slots), and the last
+// consumers (the iframe realm trios) went with B2c. The lbox/MQL/message-
+// port shims below keep their own per-instance stores.
 // DOM §2.9 listener protocol, shared by every event registry: a listener
 // is a function (invoked with the target as `this`) or an object with a
 // handleEvent method (invoked with the LISTENER itself as `this`) —
@@ -16748,9 +16739,9 @@ globalThis.__diting_frame_globals_build = function () {
 globalThis.__diting_frame_globals = globalThis.__diting_frame_globals_build();
 globalThis.__diting_hide_list.push('__diting_frame_globals', '__diting_frame_globals_build', '__diting_name_sweep');
 
-// Frames inherit Window.prototype (on* handlers, window methods) while
-// keeping _IframeWindow.prototype's own surface (postMessage, ...).
-try { Object.setPrototypeOf(_IframeWindow.prototype, globalThis.Window.prototype); } catch (e) {}
+// (M3 B2c) Frames inherit Window.prototype — the link now lives in
+// iframe_realm.js, after the class definitions (this site ran at bootstrap
+// load time and died in the TDZ catch, so it never linked anything).
 
 // fp-diff-1014: prototype key ORDER. Chrome installs WebIDL attributes
 // first and `constructor` late; ours had constructor first (and Screen

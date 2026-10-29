@@ -6,13 +6,17 @@ class _IframeDocument {
   constructor(html, url, iframeEl) {
     this._url = url;
     this._iframeEl = iframeEl;
-    this.nodeType = 9;
-    this.nodeName = '#document';
-    this.readyState = 'complete';
-    this.characterSet = 'UTF-8';
-    this.contentType = 'text/html';
-    this.visibilityState = 'visible';
-    this.hidden = false;
+    // Own data facts via __def: the class chains to Document.prototype (B2c),
+    // whose get-only accessors (nodeType/nodeName/...) would turn a plain
+    // assignment into a TypeError. defineProperty lands the own prop the
+    // accessors were shadowing anyway.
+    __def(this, 'nodeType', 9);
+    __def(this, 'nodeName', '#document');
+    __def(this, 'readyState', 'complete');
+    __def(this, 'characterSet', 'UTF-8');
+    __def(this, 'contentType', 'text/html');
+    __def(this, 'visibilityState', 'visible');
+    __def(this, 'hidden', false);
 
     this._root = document.createElement('html');
     this._head = document.createElement('head');
@@ -54,6 +58,11 @@ class _IframeDocument {
   }
 
   get documentElement() { return this._root; }
+  // Own, spec-true: a Document has no parent. Without this the chain (B2c)
+  // would resolve parentNode to Node.prototype's native-backed getter, which
+  // throws Illegal invocation on a fake doc (no _nid) — the event path walk
+  // and every parentNode-walking helper would die on the frame document.
+  get parentNode() { return null; }
   get head() { return this._head; }
   get body() { return this._body; }
   get title() { return this._title; }
@@ -116,38 +125,11 @@ class _IframeDocument {
   get implementation() { return document.implementation; }
   get styleSheets() { return []; }
 
-  // Listeners registered on an iframe document used to never run (these were
-  // no-ops), so `iframeDoc.addEventListener('DOMContentLoaded', ...)` and the
-  // like silently did nothing (upstream #478).
-  addEventListener(type, listener) {
-    __listenerGate(listener);
-    const L = __lmap(this);
-    const list = L[type] || (L[type] = []);
-    if (!list.includes(listener)) list.push(listener);
-  }
-  removeEventListener(type, listener) {
-    const L = __evtStore.get(this);
-    const list = L && L[type];
-    if (!list) return;
-    const index = list.indexOf(listener);
-    if (index !== -1) list.splice(index, 1);
-  }
-  dispatchEvent(event) {
-    const type = event && event.type;
-    if (!type) return true;
-    const L = __evtStore.get(this);
-    const list = L && L[type];
-    if (list) {
-      for (const listener of list.slice()) {
-        try { _invokeListener(listener, this, event); } catch (error) { console.error(error); }
-      }
-    }
-    const handler = this['on' + type];
-    if (typeof handler === 'function') {
-      try { handler.call(this, event); } catch (error) { console.error(error); }
-    }
-    return !event.defaultPrevented;
-  }
+  // (M3 B2c) The dispatch trio is GONE: listeners and dispatches on a frame
+  // document resolve through the prototype chain (linked below the class) to
+  // the NATIVE EventTarget core — same store, same algorithm, same Chrome
+  // order (handler vs listeners, capture/bubble) as every other face. The
+  // shim-store trio here (upstream #478 fix) predates the core.
 
   write(html) {
     if (this._body) this._body.innerHTML += html;
@@ -338,24 +320,10 @@ class _IframeWindow {
   clearInterval(id) { globalThis.clearInterval(id); }
   requestAnimationFrame(fn) { return globalThis.requestAnimationFrame(fn); }
 
-  addEventListener(type, fn) {
-    __listenerGate(fn);
-    const L = __lmap(this);
-    if (!L[type]) L[type] = [];
-    L[type].push(fn);
-  }
-  removeEventListener(type, fn) {
-    const L = __evtStore.get(this);
-    if (L && L[type]) {
-      L[type] = L[type].filter(h => h !== fn);
-    }
-  }
-  dispatchEvent(event) {
-    const L = __evtStore.get(this);
-    const handlers = (L && L[event?.type]) || [];
-    for (const h of handlers) { try { _invokeListener(h, this, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); } }
-    return true;
-  }
+  // (M3 B2c) The dispatch trio is GONE — see _IframeDocument. The frame
+  // window's listeners live in the native core's per-object store; on*
+  // handlers stay frame-local through the census accessors (__frameOnHandlers),
+  // which the native handler hook reads through the chain.
 
   getComputedStyle(el) { return globalThis.getComputedStyle(el); }
   matchMedia(q) { return globalThis.matchMedia(q); }
@@ -368,6 +336,19 @@ class _IframeWindow {
 
 globalThis.__ariaQuerySelector = function(root, selector) { return null; };
 globalThis.__ariaQuerySelectorAll = async function*(root, selector) { /* yields nothing */ };
+
+// (M3 B2c) The frame chain, Chrome order: the frame document IS a Document,
+// the frame window IS a Window — both resolve the dispatch trio through the
+// chain into the NATIVE EventTarget core (receiver() accepts: the chain now
+// contains EventTarget.prototype). The old bootstrap-side link ran at
+// bootstrap LOAD time, hit this file's TDZ and died in the catch — the frame
+// window's prototype was Object.prototype all along. The links live here,
+// after the classes, and Window.prototype gets its Chrome parent: the MAIN
+// window's chain (globalThis → its own layers) never includes
+// Window.prototype, so nothing existing moves.
+Object.setPrototypeOf(_IframeDocument.prototype, Document.prototype);
+Object.setPrototypeOf(globalThis.Window.prototype, EventTarget.prototype);
+Object.setPrototypeOf(_IframeWindow.prototype, globalThis.Window.prototype);
 
 // Shadow-including "is this node in a document": `_nodeInDocument` stops at a
 // ShadowRoot (its parentNode is null), which is right for window-named
