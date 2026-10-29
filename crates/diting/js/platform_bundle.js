@@ -120,7 +120,13 @@ const __platform = (function () {
   //   attr      content attribute name (already lowercase)
   //   kind      string | boolean-presence | boolean-truefalse |
   //             string-known (getter: known-lowercase else default/'') |
-  //             known-fallback (getter: known else fallback)
+  //             known-fallback (getter: known else fallback) |
+  //             unsigned-long (dimension reflect: ToUint both ways, truth
+  //               vid.wh/img.wh - set 'abc' -> 0 and attribute '0') |
+  //             crossorigin (getter: null | 'anonymous' (attr '' too) |
+  //               'use-credentials' | null on unknown - truth med.cross) |
+  //             url (getter: absent -> default; else resolve against the
+  //               document base - truth vid.poster: '' resolves to the page)
   //   known     keyword list (lowercase), for the string-known kinds
   //   default   getter default when the attribute is absent ('' unless set)
   //   fallback  getter answer for a present-but-invalid value
@@ -144,6 +150,24 @@ const __platform = (function () {
         if (known && known.indexOf(low) >= 0) return low;
         return kind === 'known-fallback' ? spec.fallback : dflt;
       }
+      if (kind === 'unsigned-long') {
+        if (v === null) return 0;
+        const n = Number(v);
+        if (!isFinite(n)) return 0;
+        return ((Math.trunc(n) % 4294967296) + 4294967296) % 4294967296;
+      }
+      if (kind === 'crossorigin') {
+        if (v === null) return null;
+        const low = String(v).toLowerCase();
+        return low === '' || low === 'anonymous' ? 'anonymous'
+          : low === 'use-credentials' ? 'use-credentials' : null;
+      }
+      if (kind === 'url') {
+        if (v === null) return dflt;
+        const base = (typeof document !== 'undefined' && document && document.baseURI)
+          || (typeof location !== 'undefined' ? location.href : undefined);
+        try { return new URL(v, base).href; } catch (e) { return String(v); }
+      }
       return undefined;
     };
     const set = function (v) {
@@ -151,6 +175,7 @@ const __platform = (function () {
       if (kind === 'string') { el.setAttribute(attr, v === undefined || v === null ? '' : String(v)); return; }
       if (kind === 'boolean-presence') { if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return; }
       if (kind === 'boolean-truefalse') { el.setAttribute(attr, v ? 'true' : 'false'); return; }
+      if (kind === 'unsigned-long') { el.setAttribute(attr, String(conv.unsignedLong(v, 'set ' + name, set))); return; }
       // keyword kinds: Chrome writes the value AS GIVEN; invalid keywords
       // still land in the attribute (truth set.autocapitalize.bad /
       // set.enterKeyHint 'GO' -> attr 'GO') — only translate no-ops invalid.
@@ -1959,6 +1984,330 @@ if (SVG) {
   for (const n of ["onabort", "onbeforeinput", "onbeforematch", "onbeforetoggle", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncuechange", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpause", "onplay", "onplaying", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkittransitionend", "onwheel", "onauxclick", "ongotpointercapture", "onlostpointercapture", "onpointerdown", "onpointermove", "onpointerup", "onpointercancel", "onpointerover", "onpointerout", "onpointerenter", "onpointerleave", "onselectstart", "onselectionchange", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "ontransitionrun", "ontransitionstart", "ontransitionend", "ontransitioncancel", "onbeforexrselect", "oncopy", "oncut", "onpaste", "onscrollsnapchange", "onscrollsnapchanging", "onpointerrawupdate"]) installOn(SVG, n, true);
   if (!Object.prototype.hasOwnProperty.call(SVG, 'nonce')) P.accessor(SVG, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); });
 }
+});
+
+// ---- module htmlmedia (L2) ----
+__platform.define("htmlmedia", function (exports, require, P) {
+"use strict";
+// HTMLMediaElement/HTMLVideoElement/HTMLImageElement behavior only (M4
+// knife 5); the member SHAPE (placement, own order, descriptor kinds,
+// arity) is generated from the Chrome truth overlay in
+// gen/htmlmedia.gen.js, and uniform attribute reflection is DATA there
+// (P.reflector, incl. the unsigned-long/crossorigin/url kinds core.js
+// grew for this family). This module owns the NON-uniform semantics;
+// every fact below that could be misremembered is pinned by a key in
+// tools/webplatform/chrome/htmlmedia-truth-145.json (real Chrome 145)
+// and diffed by the htmlmedia_members_match_chrome_truth test.
+//
+// Faces: TextTrackList/TextTrack/RemotePlayback stay the global_surface
+// stubs (their ctor messages and @@toStringTag already match Chrome
+// word for word) and serve as mint prototypes. VideoPlaybackQuality IS
+// taken over here - the stub's ctor message lacked the Chrome prefix
+// (truth faces: "Failed to construct 'VideoPlaybackQuality': Illegal
+// constructor"); same handover pattern Performance took at knife 3.
+
+// ---- VideoPlaybackQuality: ctor shell only; getVideoPlaybackQuality()
+// mints bare instances (truth vid.gvpq: no own enumerable members).
+function VideoPlaybackQuality() {
+  P.fail(VideoPlaybackQuality, 'Illegal constructor', "Failed to construct 'VideoPlaybackQuality'");
+}
+P.iface(VideoPlaybackQuality, 'VideoPlaybackQuality', 0);
+P.seal(VideoPlaybackQuality);
+
+// ---- per-element state. volume/muted/preservesPitch/defaultPlaybackRate/
+// srcObject/mediaKeys are pure state (muted deliberately does NOT track the
+// 'muted' attribute - truth med.muted/med.defaultMuted); textTracks/remote/
+// controlsList cache their minted or DOMTokenList faces per element; vfc is
+// the requestVideoFrameCallback id counter (truth vid.rvcb: 1 then 2).
+const S = new WeakMap();
+function st(el) {
+  let s = S.get(el);
+  if (!s) {
+    s = { volume: 1, muted: false, preservesPitch: true, defaultPlaybackRate: 1,
+      mediaKeys: null, srcObject: null, ttList: null, tracks: null, remote: null,
+      controlsList: null, vfc: 0 };
+    S.set(el, s);
+  }
+  return s;
+}
+
+const GET = {
+  volume(el) { return st(el).volume; },
+  muted(el) { return st(el).muted; },
+  preservesPitch(el) { return st(el).preservesPitch; },
+  defaultPlaybackRate(el) { return st(el).defaultPlaybackRate; },
+  mediaKeys(el) { return st(el).mediaKeys; },
+  srcObject(el) { return st(el).srcObject; },
+  textTracks(el) {
+    const s = st(el);
+    if (!s.ttList) {
+      s.tracks = [];
+      s.ttList = Object.create(TextTrackList.prototype);
+      Object.defineProperty(s.ttList, 'length', {
+        get: function () { return s.tracks.length; },
+        enumerable: true, configurable: true,
+      });
+    }
+    return s.ttList;
+  },
+  remote(el) {
+    const s = st(el);
+    if (!s.remote) s.remote = Object.create(RemotePlayback.prototype);
+    return s.remote;
+  },
+  controlsList(el) {
+    const s = st(el);
+    if (!s.controlsList) s.controlsList = new DOMTokenList(el, 'controlslist');
+    return s.controlsList;
+  },
+  // truth img.defaults/img.complete.appended: a sourceless image reports
+  // complete immediately (attached or not). The engine settles image loads
+  // instantly, so true is also the with-src answer; pinned only sourceless.
+  complete() { return true; },
+};
+
+const SET = {
+  volume(el, v) {
+    // truth med.vol.clamp: exact IndexSizeError wording, the offending value
+    // stringified as a number ('5', 'NaN'); med.vol.set: numeric strings
+    // convert (volume '0.25' -> 0.25).
+    const n = Number(v);
+    if (isNaN(n) || n < 0 || n > 1) {
+      throw new DOMException("Failed to set the 'volume' property on 'HTMLMediaElement': The volume provided (" + n + ") is outside the range [0, 1].", 'IndexSizeError');
+    }
+    st(el).volume = n;
+  },
+  muted(el, v) { st(el).muted = !!v; },
+  preservesPitch(el, v) { st(el).preservesPitch = !!v; },
+  defaultPlaybackRate(el, v) { st(el).defaultPlaybackRate = Number(v); },
+  mediaKeys(el, v) { st(el).mediaKeys = v === undefined ? null : v; },
+  srcObject(el, v) { st(el).srcObject = v === undefined || v === null ? null : v; },
+  controlsList(el, v) { el.setAttribute('controlslist', v === undefined || v === null ? '' : String(v)); },
+};
+
+const CALL = {
+  // truth med.addTextTrack: ('subtitles') -> TextTrack instance with
+  // kind/label/language carried and mode 'hidden'; the track joins
+  // textTracks (length grows - spec-true, unpinned face).
+  addTextTrack(el, ctx, args) {
+    const kind = String(args[0]);
+    if (['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'].indexOf(kind) < 0) {
+      throw new TypeError(ctx + ": The provided value '" + kind + "' is not a valid enum value of type TextTrackKind.");
+    }
+    GET.textTracks(el);
+    const s = st(el);
+    const tt = Object.create(TextTrack.prototype);
+    const fields = { kind: kind, label: args[1] === undefined ? '' : String(args[1]),
+      language: args[2] === undefined ? '' : String(args[2]), mode: 'hidden' };
+    Object.keys(fields).forEach(function (k) {
+      Object.defineProperty(tt, k, { value: fields[k], writable: true, enumerable: true, configurable: true });
+    });
+    s.tracks.push(tt);
+    return tt;
+  },
+  captureStream() { return new MediaStream(); },
+  // truth med.setSinkId.plain: rejects NotFoundError 'Requested device not
+  // found' (no sink machinery - null is not the default device).
+  setSinkId() { return Promise.reject(new DOMException('Requested device not found', 'NotFoundError')); },
+  // truth med.setMediaKeys.plain: (null) resolves undefined.
+  setMediaKeys(el, ctx, args) { SET.mediaKeys(el, args[0]); return Promise.resolve(); },
+  // truth vid.gvpq: no own enumerable members (a bare mint, branded).
+  getVideoPlaybackQuality() { return Object.create(VideoPlaybackQuality.prototype); },
+  requestVideoFrameCallback(el) { const s = st(el); return ++s.vfc; },
+  cancelVideoFrameCallback() { return undefined; },
+  // carried over from media_late.js (that block is deleted): a video with
+  // no loaded metadata rejects InvalidStateError (Chrome face unpinned).
+  requestPictureInPicture() {
+    return Promise.reject(new DOMException('Metadata for the video element are not loaded yet.', 'InvalidStateError'));
+  },
+  // truth img.decode.plain: a sourceless image rejects EncodingError 'The
+  // source image cannot be decoded.'; anything with a src(srcset) resolves.
+  decode(el) {
+    if (el.getAttribute('src') === null && el.getAttribute('srcset') === null) {
+      return Promise.reject(new DOMException('The source image cannot be decoded.', 'EncodingError'));
+    }
+    return Promise.resolve();
+  },
+};
+
+exports.get = function (name, el) {
+  const f = GET[name];
+  if (!f) throw new Error('htmlmedia impl: no getter ' + name);
+  return f(el);
+};
+exports.set = function (name, el, v) {
+  const f = SET[name];
+  if (!f) throw new Error('htmlmedia impl: no setter ' + name);
+  f(el, v);
+};
+exports.call = function (name, el, ctx, args) {
+  const f = CALL[name];
+  if (!f) throw new Error('htmlmedia impl: no operation ' + name);
+  return f(el, ctx, args);
+};
+
+P.expose('VideoPlaybackQuality', VideoPlaybackQuality);
+});
+
+// ---- module gen/htmlmedia (L2) ----
+__platform.define("gen/htmlmedia", function (exports, require, P) {
+"use strict";
+// M4 knife 5: the media/image reflected-attribute family. Chrome owns
+// HTMLMediaElement/HTMLVideoElement/HTMLImageElement prototypes complete
+// (53/16/30 own names); the engine had 25/5/3 with three kind drifts
+// (duration rw, sizes ro, the VID on* pair as data props). Uniform
+// reflection is DATA (P.reflector - this family grew the
+// unsigned-long/crossorigin/url kinds); non-uniform semantics delegate
+// to the htmlmedia impl module; a reseat() walk pins each prototype's
+// own order to Chrome's exact sequence.
+const B = require('htmlmedia');
+const MED = HTMLMediaElement.prototype, VID = HTMLVideoElement.prototype, IMG = HTMLImageElement.prototype;
+
+// ---- on* accessors, bootstrap _defineOnHandler semantics (same
+// store/inline-fallback contract as gen/htmlelement.gen.js).
+function installOn(P, name, fallback) {
+  if (Object.prototype.hasOwnProperty.call(P, name)) return;
+  const get = function () {
+    const store = this.__onHandlers;
+    if (store && Object.prototype.hasOwnProperty.call(store, name)) return store[name];
+    if (fallback && typeof this._resolveInlineHandler === 'function') return this._resolveInlineHandler(name);
+    return null;
+  };
+  const set = function (fn) {
+    if (typeof fn !== 'function') fn = null;
+    const store = this.__onHandlers || (this.__onHandlers = {});
+    store[name] = fn;
+  };
+  Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });
+  Object.defineProperty(get, 'length', { value: 0, configurable: true });
+  Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true });
+  Object.defineProperty(set, 'length', { value: 1, configurable: true });
+  _markNative(get); _markNative(set);
+  Object.defineProperty(P, name, { configurable: true, enumerable: true, get: get, set: set });
+}
+function has(P, n) { return Object.prototype.hasOwnProperty.call(P, n); }
+// final own-order pass: walk Chrome's order, delete+redefine each
+// descriptor in place - after the walk the prototype's own order IS
+// Chrome's (idempotent: a second walk re-seats the same order).
+// Non-configurable descriptors cannot move: the nine WebIDL
+// readiness/network constants (bootstrap: {value} = non-configurable)
+// stay put and cluster at the front; the truth test normalizes them
+// out of the order comparison (a bootstrap-layer fact, SURFACE.md).
+function reseat(P, order) {
+  for (const n of order) {
+    const d = Object.getOwnPropertyDescriptor(P, n);
+    if (d && d.configurable) { delete P[n]; Object.defineProperty(P, n, d); }
+  }
+}
+
+// ---- HTMLMediaElement.prototype (Chrome own order MED.order; installs guarded,
+// kind fixes applied, reseat() walk last)
+if (!has(MED, 'error')) P.getter(MED, 'error', function __f() { return null; });
+if (!has(MED, 'src')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, 'src'); if (_d && _d.get && _d.set) P.accessor(MED, 'src', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }
+if (!has(MED, 'currentSrc')) P.getter(MED, 'currentSrc', function __f() { return ''; });
+if (!has(MED, 'crossOrigin')) P.reflector(MED, 'crossOrigin', {"attr": "crossorigin", "kind": "crossorigin"});
+// networkState: engine-owned, kept (reseat relocates)
+if (!has(MED, 'preload')) P.reflector(MED, 'preload', {"attr": "preload", "default": "metadata", "fallback": "metadata", "kind": "known-fallback", "known": ["none", "metadata", "auto"]});
+// buffered: engine-owned, kept (reseat relocates)
+// readyState: engine-owned, kept (reseat relocates)
+// seeking: engine-owned, kept (reseat relocates)
+// currentTime: engine-owned, kept (reseat relocates)
+(function () { const d = Object.getOwnPropertyDescriptor(MED, 'duration'); if (d && d.get && d.set) Object.defineProperty(MED, 'duration', { get: d.get, set: undefined, enumerable: true, configurable: true }); })();
+// paused: engine-owned, kept (reseat relocates)
+if (!has(MED, 'defaultPlaybackRate')) P.accessor(MED, 'defaultPlaybackRate', function __f() { return B.get('defaultPlaybackRate', this); }, function __f(v) { B.set('defaultPlaybackRate', this, v); });
+// playbackRate: engine-owned, kept (reseat relocates)
+// played: engine-owned, kept (reseat relocates)
+// seekable: engine-owned, kept (reseat relocates)
+// ended: engine-owned, kept (reseat relocates)
+if (!has(MED, 'autoplay')) P.reflector(MED, 'autoplay', {"attr": "autoplay", "kind": "boolean-presence"});
+if (!has(MED, 'loop')) P.reflector(MED, 'loop', {"attr": "loop", "kind": "boolean-presence"});
+if (!has(MED, 'preservesPitch')) P.accessor(MED, 'preservesPitch', function __f() { return B.get('preservesPitch', this); }, function __f(v) { B.set('preservesPitch', this, v); });
+if (!has(MED, 'controls')) P.reflector(MED, 'controls', {"attr": "controls", "kind": "boolean-presence"});
+if (!has(MED, 'controlsList')) P.accessor(MED, 'controlsList', function __f() { return B.get('controlsList', this); }, function __f(v) { B.set('controlsList', this, v); });
+if (!has(MED, 'volume')) P.accessor(MED, 'volume', function __f() { return B.get('volume', this); }, function __f(v) { B.set('volume', this, v); });
+if (!has(MED, 'muted')) P.accessor(MED, 'muted', function __f() { return B.get('muted', this); }, function __f(v) { B.set('muted', this, v); });
+if (!has(MED, 'defaultMuted')) P.reflector(MED, 'defaultMuted', {"attr": "muted", "kind": "boolean-presence"});
+if (!has(MED, 'textTracks')) P.getter(MED, 'textTracks', function __f() { return B.get('textTracks', this); });
+if (!has(MED, 'webkitAudioDecodedByteCount')) P.getter(MED, 'webkitAudioDecodedByteCount', function __f() { return 0; });
+if (!has(MED, 'webkitVideoDecodedByteCount')) P.getter(MED, 'webkitVideoDecodedByteCount', function __f() { return 0; });
+delete MED['onencrypted']; installOn(MED, 'onencrypted', true);
+delete MED['onwaitingforkey']; installOn(MED, 'onwaitingforkey', true);
+if (!has(MED, 'srcObject')) P.accessor(MED, 'srcObject', function __f() { return B.get('srcObject', this); }, function __f(v) { B.set('srcObject', this, v); });
+// NETWORK_EMPTY: engine-owned, kept (reseat relocates)
+// NETWORK_IDLE: engine-owned, kept (reseat relocates)
+// NETWORK_LOADING: engine-owned, kept (reseat relocates)
+// NETWORK_NO_SOURCE: engine-owned, kept (reseat relocates)
+// HAVE_NOTHING: engine-owned, kept (reseat relocates)
+// HAVE_METADATA: engine-owned, kept (reseat relocates)
+// HAVE_CURRENT_DATA: engine-owned, kept (reseat relocates)
+// HAVE_FUTURE_DATA: engine-owned, kept (reseat relocates)
+// HAVE_ENOUGH_DATA: engine-owned, kept (reseat relocates)
+if (!has(MED, 'addTextTrack')) P.method(MED, 'addTextTrack', 1, function __f() { const ctx = "Failed to execute 'addTextTrack' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('addTextTrack', this, ctx, arguments); });
+// canPlayType: engine-owned, kept (reseat relocates)
+if (!has(MED, 'captureStream')) P.method(MED, 'captureStream', 0, function __f() { const ctx = "Failed to execute 'captureStream' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('captureStream', this, ctx, arguments); });
+// load: engine-owned, kept (reseat relocates)
+// pause: engine-owned, kept (reseat relocates)
+// play: engine-owned, kept (reseat relocates)
+if (!has(MED, 'sinkId')) P.getter(MED, 'sinkId', function __f() { return ''; });
+if (!has(MED, 'remote')) P.getter(MED, 'remote', function __f() { return B.get('remote', this); });
+if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "kind": "boolean-presence"});
+if (!has(MED, 'setSinkId')) P.method(MED, 'setSinkId', 1, function __f() { const ctx = "Failed to execute 'setSinkId' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setSinkId', this, ctx, arguments); });
+if (!has(MED, 'mediaKeys')) P.getter(MED, 'mediaKeys', function __f() { return B.get('mediaKeys', this); });
+if (!has(MED, 'setMediaKeys')) P.method(MED, 'setMediaKeys', 1, function __f() { const ctx = "Failed to execute 'setMediaKeys' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setMediaKeys', this, ctx, arguments); });
+reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "preload", "buffered", "readyState", "seeking", "currentTime", "duration", "paused", "defaultPlaybackRate", "playbackRate", "played", "seekable", "ended", "autoplay", "loop", "preservesPitch", "controls", "controlsList", "volume", "muted", "defaultMuted", "textTracks", "webkitAudioDecodedByteCount", "webkitVideoDecodedByteCount", "onencrypted", "onwaitingforkey", "srcObject", "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE", "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA", "addTextTrack", "canPlayType", "captureStream", "load", "pause", "play", "sinkId", "remote", "disableRemotePlayback", "setSinkId", "constructor", "mediaKeys", "setMediaKeys"]);
+
+// ---- HTMLVideoElement.prototype (Chrome own order VID.order; installs guarded,
+// kind fixes applied, reseat() walk last)
+if (!has(VID, 'width')) P.reflector(VID, 'width', {"attr": "width", "kind": "unsigned-long"});
+if (!has(VID, 'height')) P.reflector(VID, 'height', {"attr": "height", "kind": "unsigned-long"});
+if (!has(VID, 'videoWidth')) P.getter(VID, 'videoWidth', function __f() { return 0; });
+if (!has(VID, 'videoHeight')) P.getter(VID, 'videoHeight', function __f() { return 0; });
+if (!has(VID, 'poster')) P.reflector(VID, 'poster', {"attr": "poster", "kind": "url"});
+if (!has(VID, 'webkitDecodedFrameCount')) P.getter(VID, 'webkitDecodedFrameCount', function __f() { return 0; });
+if (!has(VID, 'webkitDroppedFrameCount')) P.getter(VID, 'webkitDroppedFrameCount', function __f() { return 0; });
+if (!has(VID, 'playsInline')) P.reflector(VID, 'playsInline', {"attr": "playsinline", "kind": "boolean-presence"});
+delete VID['onenterpictureinpicture']; installOn(VID, 'onenterpictureinpicture', true);
+delete VID['onleavepictureinpicture']; installOn(VID, 'onleavepictureinpicture', true);
+if (!has(VID, 'disablePictureInPicture')) P.reflector(VID, 'disablePictureInPicture', {"attr": "disablepictureinpicture", "kind": "boolean-presence"});
+if (!has(VID, 'cancelVideoFrameCallback')) P.method(VID, 'cancelVideoFrameCallback', 1, function __f() { const ctx = "Failed to execute 'cancelVideoFrameCallback' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('cancelVideoFrameCallback', this, ctx, arguments); });
+if (!has(VID, 'getVideoPlaybackQuality')) P.method(VID, 'getVideoPlaybackQuality', 0, function __f() { const ctx = "Failed to execute 'getVideoPlaybackQuality' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('getVideoPlaybackQuality', this, ctx, arguments); });
+if (!has(VID, 'requestPictureInPicture')) P.method(VID, 'requestPictureInPicture', 0, function __f() { const ctx = "Failed to execute 'requestPictureInPicture' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPictureInPicture', this, ctx, arguments); });
+if (!has(VID, 'requestVideoFrameCallback')) P.method(VID, 'requestVideoFrameCallback', 1, function __f() { const ctx = "Failed to execute 'requestVideoFrameCallback' on 'HTMLVideoElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('requestVideoFrameCallback', this, ctx, arguments); });
+reseat(VID, ["width", "height", "videoWidth", "videoHeight", "poster", "webkitDecodedFrameCount", "webkitDroppedFrameCount", "playsInline", "onenterpictureinpicture", "onleavepictureinpicture", "disablePictureInPicture", "cancelVideoFrameCallback", "getVideoPlaybackQuality", "requestPictureInPicture", "requestVideoFrameCallback", "constructor"]);
+
+// ---- HTMLImageElement.prototype (Chrome own order IMG.order; installs guarded,
+// kind fixes applied, reseat() walk last)
+if (!has(IMG, 'alt')) P.reflector(IMG, 'alt', {"attr": "alt", "kind": "string"});
+// src: engine-owned, kept (reseat relocates)
+if (!has(IMG, 'srcset')) P.reflector(IMG, 'srcset', {"attr": "srcset", "kind": "string"});
+(function () { const d = Object.getOwnPropertyDescriptor(IMG, 'sizes'); if (d && d.get && !d.set) { const set = function (v) { this.setAttribute('sizes', v === undefined || v === null ? '' : String(v)); }; Object.defineProperty(set, 'name', { value: 'set sizes', configurable: true }); Object.defineProperty(set, 'length', { value: 1, configurable: true }); _markNative(set); Object.defineProperty(IMG, 'sizes', { get: d.get, set: set, enumerable: true, configurable: true }); } })();
+if (!has(IMG, 'crossOrigin')) P.reflector(IMG, 'crossOrigin', {"attr": "crossorigin", "kind": "crossorigin"});
+if (!has(IMG, 'useMap')) P.reflector(IMG, 'useMap', {"attr": "usemap", "kind": "string"});
+if (!has(IMG, 'isMap')) P.reflector(IMG, 'isMap', {"attr": "ismap", "kind": "boolean-presence"});
+if (!has(IMG, 'width')) P.reflector(IMG, 'width', {"attr": "width", "kind": "unsigned-long"});
+if (!has(IMG, 'height')) P.reflector(IMG, 'height', {"attr": "height", "kind": "unsigned-long"});
+if (!has(IMG, 'naturalWidth')) P.getter(IMG, 'naturalWidth', function __f() { return 0; });
+if (!has(IMG, 'naturalHeight')) P.getter(IMG, 'naturalHeight', function __f() { return 0; });
+if (!has(IMG, 'complete')) P.getter(IMG, 'complete', function __f() { return B.get('complete', this); });
+if (!has(IMG, 'currentSrc')) P.getter(IMG, 'currentSrc', function __f() { return ''; });
+if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "default": "", "kind": "string-known", "known": ["", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"]});
+if (!has(IMG, 'decoding')) P.reflector(IMG, 'decoding', {"attr": "decoding", "default": "auto", "fallback": "auto", "kind": "known-fallback", "known": ["sync", "async", "auto"]});
+if (!has(IMG, 'fetchPriority')) P.reflector(IMG, 'fetchPriority', {"attr": "fetchpriority", "default": "auto", "kind": "string-known", "known": ["auto", "high", "low"]});
+if (!has(IMG, 'loading')) P.reflector(IMG, 'loading', {"attr": "loading", "default": "auto", "fallback": "auto", "kind": "known-fallback", "known": ["eager", "lazy"]});
+if (!has(IMG, 'name')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, 'name'); if (_d && _d.get && _d.set) P.accessor(IMG, 'name', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }
+if (!has(IMG, 'lowsrc')) P.reflector(IMG, 'lowsrc', {"attr": "lowsrc", "kind": "string"});
+if (!has(IMG, 'align')) P.reflector(IMG, 'align', {"attr": "align", "kind": "string"});
+if (!has(IMG, 'hspace')) P.reflector(IMG, 'hspace', {"attr": "hspace", "kind": "unsigned-long"});
+if (!has(IMG, 'vspace')) P.reflector(IMG, 'vspace', {"attr": "vspace", "kind": "unsigned-long"});
+if (!has(IMG, 'longDesc')) P.reflector(IMG, 'longDesc', {"attr": "longdesc", "kind": "string"});
+if (!has(IMG, 'border')) P.reflector(IMG, 'border', {"attr": "border", "kind": "string"});
+if (!has(IMG, 'x')) P.getter(IMG, 'x', function __f() { return 0; });
+if (!has(IMG, 'y')) P.getter(IMG, 'y', function __f() { return 0; });
+if (!has(IMG, 'decode')) P.method(IMG, 'decode', 0, function __f() { const ctx = "Failed to execute 'decode' on 'HTMLImageElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('decode', this, ctx, arguments); });
+if (!has(IMG, 'browsingTopics')) P.reflector(IMG, 'browsingTopics', {"attr": "browsingtopics", "kind": "boolean-presence"});
+if (!has(IMG, 'attributionSrc')) P.reflector(IMG, 'attributionSrc', {"attr": "attributionsrc", "kind": "string"});
+if (!has(IMG, 'sharedStorageWritable')) P.reflector(IMG, 'sharedStorageWritable', {"attr": "sharedstoragewritable", "kind": "boolean-presence"});
+reseat(IMG, ["alt", "src", "srcset", "sizes", "crossOrigin", "useMap", "isMap", "width", "height", "naturalWidth", "naturalHeight", "complete", "currentSrc", "referrerPolicy", "decoding", "fetchPriority", "loading", "name", "lowsrc", "align", "hspace", "vspace", "longDesc", "border", "x", "y", "decode", "constructor", "browsingTopics", "attributionSrc", "sharedStorageWritable"]);
 });
 
 // ---- module gen/storage (L2) ----

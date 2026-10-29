@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→**652**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→**575**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -456,3 +456,59 @@ EL/HT/Option 九件、SPM 双原型真身）已重生成；check_fresh 4 件鲜�
 ratchet 过（模块契约零违）。差集表 992→**652**（-340，恰=5 名×68 接口的
 预测账；行 140→118）。下一刀顺位：真家族（Animation 19/Notification 14/
 EditContext 11/传感器×6/SpeechRecognition 8）或 HTML 元素成员家族。
+
+## M4 刀5：HTMLMedia/Video/Image 媒体图像家族（2026-10-30）
+
+缺口行分解干净的一刀：HTMLAudioElement 22 行=HTMLMediaElement 级、
+HTMLVideoElement 31 行中 video 独有 9、HTMLImageElement 24——55 名关
+**77 行**。Chrome 在三原型上是**满员**（53/16/30 own 名，引擎基线
+25/5/3、零多余），故这刀不是补洞而是**整原型对齐**：缺件安装+三处
+kind 修偏+reseat() 重排到 Chrome 精确 own 序。
+
+- **生成器**：`patch-media` 策略（gen_iface.py）。DATA 表三张
+  （REFLECT/CONST_GETTER/IMPL_*）+PURE_MOVE+ON_INSTALL；reseat() 尾走
+  Chrome 序 delete+redefine（幂等）。
+- **P.reflector 长三 kind**（core.js，真值钉死）：
+  `unsigned-long`（双向 ToUint：set 'abc'→0/attr '0'，真值 vid.wh/
+  img.wh）；`crossorigin`（'' 与 anonymous→'anonymous'，
+  use-credentials，未知→null，真值 med.cross）；`url`（读值对
+  document.baseURI 解析——poster='' 解析回页面本身，真值 vid.poster；
+  写值原样进 attr）。
+- **行为模块** htmlmedia.impl.js：volume 出 [0,1] 抛 IndexSizeError
+  （真值逐字）；muted 纯状态不反射；defaultMuted=反射 'muted' 属性
+  （attr 改动不动运行时）；preload 缺/坏皆读 'metadata'；textTracks
+  铸 TextTrackList（stub 原型直接用，ctor 消息本就逐字同）；addTextTrack
+  铸 TextTrack{mode:'hidden'} 且入列；captureStream=真 new MediaStream；
+  setSinkId 拒 NotFoundError；setMediaKeys(null) resolve；decode 无源拒
+  EncodingError；rvcb 计数 1,2；gvpq 铸 VideoPlaybackQuality 空实例。
+  **VideoPlaybackQuality 类接管**（stub ctor 消息缺 Chrome 前缀，真值
+  faces 六中五的唯一差）。
+- **三处 kind 修偏**：MED.duration rw→ro（剥 setter）；IMG.sizes ro→rw
+  （补 attr 写腿，原生 getter 留守）；VID onenter/onleave 数据属性→
+  installOn 访问器。
+- **链委托**（新类目）：med `src` 与 img `name` Chrome 归接口层、引擎在
+  Element.prototype——且引擎 src setter 是**承重腿**（MSE blob 握手/
+  script 预备/iframe 装载）。装同名访问器两腿转调 Element 描述符：归属
+  层归 Chrome，引擎语义原封（一刀两得，不搬家）。
+- **media_late.js 收缩**：VID PiP 四件块删除——它在 platform_bundle
+  **之后**跑，会把模块装的 on* 访问器盖回数据属性（对拍当场抓获）；
+  四件全部平台化（requestPictureInPicture 行为原样搬进 impl）。
+- **bootstrap Image 模拟改槽**：complete/naturalWidth/naturalHeight 装
+  成 getter-only 后，模拟内部的直赋（9 处）改 `__def` 隐藏槽（同
+  _playing 通道）——own 槽遮原型 getter，读写两全。实例直赋在 Chrome
+  同样抛 TypeError（readonly accessor），页面侧行为=Chrome。
+
+**坑**（两新）：①九个就绪/网络常量（NETWORK_*/HAVE_*）bootstrap 以
+`{value}` 装=**不可配置**，reseat 搬不动（delete 即 TypeError，快照期
+当场抓获）；且引擎侧不可枚举而 Chrome 可枚举——**bootstrap 层既定
+事实**，测试 MED.order 按剥常量后精确等序断言。②SURFACE-WEBIDL 行探
+针走实例链，Element 级 src/name 早被探到=**从来不是缺口行**，装它们是
+归属层洁癖——装错（裸反射器）当场拆了 MSE。
+
+验收：探针 49 键全等（MED.order 常量归一后等序，VID/IMG.order 逐字
+等）；tests **1438/0**（新增 htmlmedia_members_match_chrome_truth）；
+快照漂移恰三原型+Image 别名行已重生成；check_fresh 4 件鲜；analyze
+ratchet 过（模块契约零违）。差集表 652→**575**（-77，恰=预测账；行
+118→115）。下一刀顺位：HTMLInputElement 23 / HTMLObjectElement 21 /
+HTMLIFrameElement 16（元素家族续刀）或 Animation 19 / Notification 14
+（真家族）。

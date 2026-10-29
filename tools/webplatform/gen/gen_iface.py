@@ -50,6 +50,18 @@ message wording) comes from the IDL; behavior is delegated:
                       Typed OM/fullscreen trio/pointer lock/moveBefore/
                       ariaNotify + moveBefore's Document/DocumentFragment
                       hosts); STAGED is the reserve for future knives.
+  strategy "patch-media" (argv[5] == 'patch-media') no new interfaces:
+                      AUGMENT HTMLMediaElement/HTMLVideoElement/
+                      HTMLImageElement prototypes to Chrome's COMPLETE member
+                      sets (M4 knife 5): installs go in place (no cross-proto
+                      relocation - engine src/name on Element.prototype are
+                      shadowed), three kind drifts are fixed in place, and a
+                      reseat() walk re-orders each prototype into Chrome's
+                      exact own order. Consumes chrome/htmlmedia-truth-145.json
+                      (*.order/*.kinds/fn.length); uniform reflection is DATA
+                      (P.reflector: this family grew the unsigned-long/
+                      crossorigin/url kinds); the rest delegates to the
+                      htmlmedia impl module.
 
 v0 covers what Storage/StorageEvent and the geometry family need; new
 strategies are added per family.
@@ -427,6 +439,239 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
         "const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;",
         "const FRAG = typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null;",
         "const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;",
+        "",
+    ]
+    open(out_path, "w").write("\n".join(pheader + po) + "\n")
+    print("wrote", os.path.relpath(out_path, ROOT), len(po), "lines")
+    sys.exit(0)
+
+# --------------------------------------------------------------------------
+# strategy "patch-media": HTMLMediaElement/HTMLVideoElement/HTMLImageElement
+# member family (M4 knife 5)
+# --------------------------------------------------------------------------
+if len(sys.argv) > 5 and sys.argv[5] == "patch-media":
+    # Chrome owns the three prototypes COMPLETE (own-name sets with zero
+    # engine extras - htmlmedia-truth-145.json *.order/*.kinds vs the engine
+    # baseline 25/5/3 own), so unlike patch-common's seat() there is no
+    # cross-prototype relocation: every missing member installs HERE, every
+    # pre-owned member stays (with up to three kind fixes), and a final
+    # reseat() walk re-orders each prototype into Chrome's exact own order.
+    # Engine members owned one level up (src/name on Element.prototype) are
+    # shadowed by the install, never relocated.
+    REFLECT = {  # interface -> name -> (attr, kind, known|None, default, fallback)
+        "MED": {
+            "autoplay": ("autoplay", "boolean-presence", None, None, None),
+            "loop": ("loop", "boolean-presence", None, None, None),
+            "controls": ("controls", "boolean-presence", None, None, None),
+            "defaultMuted": ("muted", "boolean-presence", None, None, None),
+            "disableRemotePlayback": ("disableremoteplayback", "boolean-presence", None, None, None),
+            # truth med.preload*: absent AND invalid both read 'metadata'
+            "preload": ("preload", "known-fallback", ["none", "metadata", "auto"], "metadata", "metadata"),
+            "crossOrigin": ("crossorigin", "crossorigin", None, None, None),
+        },
+        "VID": {
+            "width": ("width", "unsigned-long", None, None, None),
+            "height": ("height", "unsigned-long", None, None, None),
+            "poster": ("poster", "url", None, None, None),
+            "playsInline": ("playsinline", "boolean-presence", None, None, None),
+            # media_late.js's installs (this family owns them now; the
+            # satellite block was deleted - it ran after the bundle and
+            # clobbered the module's on* accessors)
+            "disablePictureInPicture": ("disablepictureinpicture", "boolean-presence", None, None, None),
+        },
+        "IMG": {
+            "alt": ("alt", "string", None, None, None),
+            "srcset": ("srcset", "string", None, None, None),
+            "crossOrigin": ("crossorigin", "crossorigin", None, None, None),
+            "useMap": ("usemap", "string", None, None, None),
+            "isMap": ("ismap", "boolean-presence", None, None, None),
+            "width": ("width", "unsigned-long", None, None, None),
+            "height": ("height", "unsigned-long", None, None, None),
+            "referrerPolicy": ("referrerpolicy", "string-known",
+                               ["", "no-referrer", "no-referrer-when-downgrade", "origin",
+                                "origin-when-cross-origin", "same-origin", "strict-origin",
+                                "strict-origin-when-cross-origin", "unsafe-url"], "", None),
+            "decoding": ("decoding", "known-fallback", ["sync", "async", "auto"], "auto", "auto"),
+            "fetchPriority": ("fetchpriority", "string-known", ["auto", "high", "low"], "auto", None),
+            "loading": ("loading", "known-fallback", ["eager", "lazy"], "auto", "auto"),
+            "lowsrc": ("lowsrc", "string", None, None, None),
+            "align": ("align", "string", None, None, None),
+            "hspace": ("hspace", "unsigned-long", None, None, None),
+            "vspace": ("vspace", "unsigned-long", None, None, None),
+            "longDesc": ("longdesc", "string", None, None, None),
+            "border": ("border", "string", None, None, None),
+            "attributionSrc": ("attributionsrc", "string", None, None, None),
+            "browsingTopics": ("browsingtopics", "boolean-presence", None, None, None),
+            "sharedStorageWritable": ("sharedstoragewritable", "boolean-presence", None, None, None),
+        },
+    }
+    CONST_GETTER = {  # name -> JS literal the getter returns (Chrome-true static faces)
+        "MED": {"error": "null", "currentSrc": "''", "sinkId": "''",
+                "webkitAudioDecodedByteCount": "0", "webkitVideoDecodedByteCount": "0"},
+        "VID": {"videoWidth": "0", "videoHeight": "0",
+                "webkitDecodedFrameCount": "0", "webkitDroppedFrameCount": "0"},
+        "IMG": {"naturalWidth": "0", "naturalHeight": "0", "currentSrc": "''", "x": "0", "y": "0"},
+    }
+    IMPL_GETTER = {"MED": ["mediaKeys", "textTracks", "remote"], "VID": [], "IMG": ["complete"]}
+    IMPL_ACCESSOR = {"MED": ["volume", "muted", "preservesPitch", "defaultPlaybackRate",
+                             "srcObject", "controlsList"], "VID": [], "IMG": []}
+    IMPL_METHOD = {"MED": {"addTextTrack": 1, "captureStream": 0, "setSinkId": 1, "setMediaKeys": 1},
+                   "VID": {"getVideoPlaybackQuality": 0, "requestVideoFrameCallback": 1,
+                           "cancelVideoFrameCallback": 1, "requestPictureInPicture": 0},
+                   "IMG": {"decode": 0}}
+    # engine owns these on the SAME prototype already: reseat only
+    PURE_MOVE = {
+        "MED": ["networkState", "buffered", "readyState", "seeking", "currentTime", "duration",
+                "paused", "playbackRate", "played", "seekable", "ended",
+                "canPlayType", "load", "pause", "play",
+                "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE",
+                "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA",
+                "HAVE_ENOUGH_DATA"],
+        "VID": [],
+        "IMG": ["src"],
+    }
+    ON_INSTALL = {"MED": ["onencrypted", "onwaitingforkey"],
+                  "VID": ["onenterpictureinpicture", "onleavepictureinpicture"], "IMG": []}
+    IFACE = {"MED": "HTMLMediaElement", "VID": "HTMLVideoElement", "IMG": "HTMLImageElement"}
+    # kind corrections on engine-owned descriptors (truth kinds vs engine
+    # baseline): duration rw->ro; sizes ro->rw (setter writes the attribute);
+    # the VID on* pair are DATA props -> installOn accessors (delete first:
+    # installOn is own-check-guarded).
+    RO_STRIP = {"MED": ["duration"]}
+    RW_ADD_ATTR = {"IMG": {"sizes": "sizes"}}
+    # src (media) / name (image): Chrome owns them on the interface, the
+    # engine on Element.prototype - and its src setter is LOAD-BEARING
+    # (MSE blob attach, script preparation, iframe loads; the getter already
+    # resolves URLs like a browser). Install an accessor on the interface
+    # that delegates BOTH legs to the Element descriptor: placement becomes
+    # Chrome-true, engine semantics untouched.
+    CHAIN_DELEGATE = {"MED": ["src"], "VID": [], "IMG": ["name"]}
+
+    # ---- build-time assertions against the truth file
+    for tag in ("MED", "VID", "IMG"):
+        order = TRUTH[tag + ".order"]
+        kinds = TRUTH[tag + ".kinds"]
+        accounted = (set(REFLECT[tag]) | set(CONST_GETTER[tag]) | set(IMPL_GETTER[tag])
+                     | set(IMPL_ACCESSOR[tag]) | set(IMPL_METHOD[tag]) | set(PURE_MOVE[tag])
+                     | set(ON_INSTALL[tag]) | set(RO_STRIP.get(tag, []))
+                     | set(RW_ADD_ATTR.get(tag, [])) | set(CHAIN_DELEGATE[tag]) | {"constructor"})
+        for k in order:
+            if k not in accounted:
+                raise SystemExit("patch-media: %s.order member %r unaccounted" % (tag, k))
+        # post-fix kind expectations: reflect/accessor/on = rw, getters = ro,
+        # pure moves keep their truth kind
+        for k in set(REFLECT[tag]) | set(IMPL_ACCESSOR[tag]) | set(ON_INSTALL[tag]):
+            if kinds.get(k) != "rw":
+                raise SystemExit("patch-media: %s.%s expected rw, truth says %r" % (tag, k, kinds.get(k)))
+        for k in list(CONST_GETTER[tag]) + list(IMPL_GETTER[tag]):
+            if kinds.get(k) != "ro":
+                raise SystemExit("patch-media: %s.%s expected ro, truth says %r" % (tag, k, kinds.get(k)))
+    for tag, methods in IMPL_METHOD.items():
+        for m, ln in methods.items():
+            if TRUTH["fn.length"].get(m) != ln:
+                raise SystemExit("patch-media: fn.length mismatch for %s" % m)
+
+    po = []
+    PW = po.append
+    PW("// ---- on* accessors, bootstrap _defineOnHandler semantics (same")
+    PW("// store/inline-fallback contract as gen/htmlelement.gen.js).")
+    PW("function installOn(P, name, fallback) {")
+    PW("  if (Object.prototype.hasOwnProperty.call(P, name)) return;")
+    PW("  const get = function () {")
+    PW("    const store = this.__onHandlers;")
+    PW("    if (store && Object.prototype.hasOwnProperty.call(store, name)) return store[name];")
+    PW("    if (fallback && typeof this._resolveInlineHandler === 'function') return this._resolveInlineHandler(name);")
+    PW("    return null;")
+    PW("  };")
+    PW("  const set = function (fn) {")
+    PW("    if (typeof fn !== 'function') fn = null;")
+    PW("    const store = this.__onHandlers || (this.__onHandlers = {});")
+    PW("    store[name] = fn;")
+    PW("  };")
+    PW("  Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });")
+    PW("  Object.defineProperty(get, 'length', { value: 0, configurable: true });")
+    PW("  Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true });")
+    PW("  Object.defineProperty(set, 'length', { value: 1, configurable: true });")
+    PW("  _markNative(get); _markNative(set);")
+    PW("  Object.defineProperty(P, name, { configurable: true, enumerable: true, get: get, set: set });")
+    PW("}")
+    PW("function has(P, n) { return Object.prototype.hasOwnProperty.call(P, n); }")
+    PW("// final own-order pass: walk Chrome's order, delete+redefine each")
+    PW("// descriptor in place - after the walk the prototype's own order IS")
+    PW("// Chrome's (idempotent: a second walk re-seats the same order).")
+    PW("// Non-configurable descriptors cannot move: the nine WebIDL")
+    PW("// readiness/network constants (bootstrap: {value} = non-configurable)")
+    PW("// stay put and cluster at the front; the truth test normalizes them")
+    PW("// out of the order comparison (a bootstrap-layer fact, SURFACE.md).")
+    PW("function reseat(P, order) {")
+    PW("  for (const n of order) {")
+    PW("    const d = Object.getOwnPropertyDescriptor(P, n);")
+    PW("    if (d && d.configurable) { delete P[n]; Object.defineProperty(P, n, d); }")
+    PW("  }")
+    PW("}")
+
+    for tag in ("MED", "VID", "IMG"):
+        iface = IFACE[tag]
+        order = TRUTH[tag + ".order"]
+        PW("")
+        PW("// ---- %s.prototype (Chrome own order %s.order; installs guarded," % (iface, tag))
+        PW("// kind fixes applied, reseat() walk last)")
+        for k in order:
+            if k == "constructor":
+                continue  # reseat moves it to Chrome's position
+            if k in REFLECT[tag]:
+                attr, kind, known, dflt, fallback = REFLECT[tag][k]
+                spec = {"attr": attr, "kind": kind}
+                if known is not None:
+                    spec["known"] = known
+                if dflt is not None:
+                    spec["default"] = dflt
+                if fallback is not None:
+                    spec["fallback"] = fallback
+                PW("if (!has(%s, '%s')) P.reflector(%s, '%s', %s);" % (tag, k, tag, k, json.dumps(spec, sort_keys=True)))
+            elif k in CONST_GETTER[tag]:
+                PW("if (!has(%s, '%s')) P.getter(%s, '%s', function __f() { return %s; });" % (tag, k, tag, k, CONST_GETTER[tag][k]))
+            elif k in IMPL_GETTER[tag]:
+                PW("if (!has(%s, '%s')) P.getter(%s, '%s', function __f() { return B.get('%s', this); });" % (tag, k, tag, k, k))
+            elif k in IMPL_ACCESSOR[tag]:
+                PW("if (!has(%s, '%s')) P.accessor(%s, '%s', function __f() { return B.get('%s', this); }, function __f(v) { B.set('%s', this, v); });" % (tag, k, tag, k, k, k))
+            elif k in IMPL_METHOD[tag]:
+                ln = IMPL_METHOD[tag][k]
+                ctx = "\"Failed to execute '%s' on '%s'\"" % (k, iface)
+                PW("if (!has(%s, '%s')) P.method(%s, '%s', %d, function __f() { const ctx = %s; P.args(ctx, arguments.length, %d, __f); return B.call('%s', this, ctx, arguments); });" % (tag, k, tag, k, ln, ctx, ln, k))
+            elif k in ON_INSTALL[tag]:
+                # the VID pair pre-exist as DATA props: clear first
+                PW("delete %s['%s']; installOn(%s, '%s', true);" % (tag, k, tag, k))
+            elif k in RO_STRIP.get(tag, []):
+                PW("(function () { const d = Object.getOwnPropertyDescriptor(%s, '%s'); if (d && d.get && d.set) Object.defineProperty(%s, '%s', { get: d.get, set: undefined, enumerable: true, configurable: true }); })();" % (tag, k, tag, k))
+            elif k in RW_ADD_ATTR.get(tag, []):
+                PW("(function () { const d = Object.getOwnPropertyDescriptor(%s, '%s'); if (d && d.get && !d.set) { const set = function (v) { this.setAttribute('%s', v === undefined || v === null ? '' : String(v)); }; Object.defineProperty(set, 'name', { value: 'set %s', configurable: true }); Object.defineProperty(set, 'length', { value: 1, configurable: true }); _markNative(set); Object.defineProperty(%s, '%s', { get: d.get, set: set, enumerable: true, configurable: true }); } })();" % (tag, k, REFLECT[tag][k][0] if k in REFLECT[tag] else k.lower(), k, tag, k))
+            elif k in CHAIN_DELEGATE[tag]:
+                PW("if (!has(%s, '%s')) { const _d = Object.getOwnPropertyDescriptor(Element.prototype, '%s'); if (_d && _d.get && _d.set) P.accessor(%s, '%s', function __f() { return _d.get.call(this); }, function __f(v) { _d.set.call(this, v); }); }" % (tag, k, k, tag, k))
+            elif k in PURE_MOVE[tag]:
+                PW("// %s: engine-owned, kept (reseat relocates)" % k)
+            else:
+                raise SystemExit("patch-media: unhandled %s.%s" % (tag, k))
+        PW("reseat(%s, %s);" % (tag, json.dumps(order)))
+    PW("")
+    pheader = [
+        "//! GENERATED by tools/webplatform/gen/gen_iface.py (patch-media strategy) from chrome/htmlmedia-truth-145.json (Chrome 145) - do not edit",
+        "//! module: %s" % module,
+        "//! layer: L2",
+        "//! exposes: -",
+        "//! requires-load: htmlmedia, legacy:_markNative, legacy:Element, legacy:HTMLMediaElement, legacy:HTMLImageElement, legacy:HTMLVideoElement",
+        "//! requires-call: legacy:_markNative",
+        "",
+        "// M4 knife 5: the media/image reflected-attribute family. Chrome owns",
+        "// HTMLMediaElement/HTMLVideoElement/HTMLImageElement prototypes complete",
+        "// (53/16/30 own names); the engine had 25/5/3 with three kind drifts",
+        "// (duration rw, sizes ro, the VID on* pair as data props). Uniform",
+        "// reflection is DATA (P.reflector - this family grew the",
+        "// unsigned-long/crossorigin/url kinds); non-uniform semantics delegate",
+        "// to the htmlmedia impl module; a reseat() walk pins each prototype's",
+        "// own order to Chrome's exact sequence.",
+        "const B = require('htmlmedia');",
+        "const MED = HTMLMediaElement.prototype, VID = HTMLVideoElement.prototype, IMG = HTMLImageElement.prototype;",
         "",
     ]
     open(out_path, "w").write("\n".join(pheader + po) + "\n")

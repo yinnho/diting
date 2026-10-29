@@ -1,0 +1,576 @@
+{
+ "IMG.kinds": {
+  "align": "rw",
+  "alt": "rw",
+  "attributionSrc": "rw",
+  "border": "rw",
+  "browsingTopics": "rw",
+  "complete": "ro",
+  "constructor": "function",
+  "crossOrigin": "rw",
+  "currentSrc": "ro",
+  "decode": "function",
+  "decoding": "rw",
+  "fetchPriority": "rw",
+  "height": "rw",
+  "hspace": "rw",
+  "isMap": "rw",
+  "loading": "rw",
+  "longDesc": "rw",
+  "lowsrc": "rw",
+  "name": "rw",
+  "naturalHeight": "ro",
+  "naturalWidth": "ro",
+  "referrerPolicy": "rw",
+  "sharedStorageWritable": "rw",
+  "sizes": "rw",
+  "src": "rw",
+  "srcset": "rw",
+  "useMap": "rw",
+  "vspace": "rw",
+  "width": "rw",
+  "x": "ro",
+  "y": "ro"
+ },
+ "IMG.order": [
+  "alt",
+  "src",
+  "srcset",
+  "sizes",
+  "crossOrigin",
+  "useMap",
+  "isMap",
+  "width",
+  "height",
+  "naturalWidth",
+  "naturalHeight",
+  "complete",
+  "currentSrc",
+  "referrerPolicy",
+  "decoding",
+  "fetchPriority",
+  "loading",
+  "name",
+  "lowsrc",
+  "align",
+  "hspace",
+  "vspace",
+  "longDesc",
+  "border",
+  "x",
+  "y",
+  "decode",
+  "constructor",
+  "browsingTopics",
+  "attributionSrc",
+  "sharedStorageWritable"
+ ],
+ "MED.kinds": {
+  "HAVE_CURRENT_DATA": "number",
+  "HAVE_ENOUGH_DATA": "number",
+  "HAVE_FUTURE_DATA": "number",
+  "HAVE_METADATA": "number",
+  "HAVE_NOTHING": "number",
+  "NETWORK_EMPTY": "number",
+  "NETWORK_IDLE": "number",
+  "NETWORK_LOADING": "number",
+  "NETWORK_NO_SOURCE": "number",
+  "addTextTrack": "function",
+  "autoplay": "rw",
+  "buffered": "ro",
+  "canPlayType": "function",
+  "captureStream": "function",
+  "constructor": "function",
+  "controls": "rw",
+  "controlsList": "rw",
+  "crossOrigin": "rw",
+  "currentSrc": "ro",
+  "currentTime": "rw",
+  "defaultMuted": "rw",
+  "defaultPlaybackRate": "rw",
+  "disableRemotePlayback": "rw",
+  "duration": "ro",
+  "ended": "ro",
+  "error": "ro",
+  "load": "function",
+  "loop": "rw",
+  "mediaKeys": "ro",
+  "muted": "rw",
+  "networkState": "ro",
+  "onencrypted": "rw",
+  "onwaitingforkey": "rw",
+  "pause": "function",
+  "paused": "ro",
+  "play": "function",
+  "playbackRate": "rw",
+  "played": "ro",
+  "preload": "rw",
+  "preservesPitch": "rw",
+  "readyState": "ro",
+  "remote": "ro",
+  "seekable": "ro",
+  "seeking": "ro",
+  "setMediaKeys": "function",
+  "setSinkId": "function",
+  "sinkId": "ro",
+  "src": "rw",
+  "srcObject": "rw",
+  "textTracks": "ro",
+  "volume": "rw",
+  "webkitAudioDecodedByteCount": "ro",
+  "webkitVideoDecodedByteCount": "ro"
+ },
+ "MED.order": [
+  "error",
+  "src",
+  "currentSrc",
+  "crossOrigin",
+  "networkState",
+  "preload",
+  "buffered",
+  "readyState",
+  "seeking",
+  "currentTime",
+  "duration",
+  "paused",
+  "defaultPlaybackRate",
+  "playbackRate",
+  "played",
+  "seekable",
+  "ended",
+  "autoplay",
+  "loop",
+  "preservesPitch",
+  "controls",
+  "controlsList",
+  "volume",
+  "muted",
+  "defaultMuted",
+  "textTracks",
+  "webkitAudioDecodedByteCount",
+  "webkitVideoDecodedByteCount",
+  "onencrypted",
+  "onwaitingforkey",
+  "srcObject",
+  "NETWORK_EMPTY",
+  "NETWORK_IDLE",
+  "NETWORK_LOADING",
+  "NETWORK_NO_SOURCE",
+  "HAVE_NOTHING",
+  "HAVE_METADATA",
+  "HAVE_CURRENT_DATA",
+  "HAVE_FUTURE_DATA",
+  "HAVE_ENOUGH_DATA",
+  "addTextTrack",
+  "canPlayType",
+  "captureStream",
+  "load",
+  "pause",
+  "play",
+  "sinkId",
+  "remote",
+  "disableRemotePlayback",
+  "setSinkId",
+  "constructor",
+  "mediaKeys",
+  "setMediaKeys"
+ ],
+ "VID.kinds": {
+  "cancelVideoFrameCallback": "function",
+  "constructor": "function",
+  "disablePictureInPicture": "rw",
+  "getVideoPlaybackQuality": "function",
+  "height": "rw",
+  "onenterpictureinpicture": "rw",
+  "onleavepictureinpicture": "rw",
+  "playsInline": "rw",
+  "poster": "rw",
+  "requestPictureInPicture": "function",
+  "requestVideoFrameCallback": "function",
+  "videoHeight": "ro",
+  "videoWidth": "ro",
+  "webkitDecodedFrameCount": "ro",
+  "webkitDroppedFrameCount": "ro",
+  "width": "rw"
+ },
+ "VID.order": [
+  "width",
+  "height",
+  "videoWidth",
+  "videoHeight",
+  "poster",
+  "webkitDecodedFrameCount",
+  "webkitDroppedFrameCount",
+  "playsInline",
+  "onenterpictureinpicture",
+  "onleavepictureinpicture",
+  "disablePictureInPicture",
+  "cancelVideoFrameCallback",
+  "getVideoPlaybackQuality",
+  "requestPictureInPicture",
+  "requestVideoFrameCallback",
+  "constructor"
+ ],
+ "faces": {
+  "AudioTrackList": "undefined",
+  "RemotePlayback": "function",
+  "RemotePlayback.ctor": "THROW TypeError: Failed to construct 'RemotePlayback': Illegal constructor",
+  "TextTrack": "function",
+  "TextTrack.ctor": "THROW TypeError: Failed to construct 'TextTrack': Illegal constructor",
+  "TextTrackList": "function",
+  "TextTrackList.ctor": "THROW TypeError: Failed to construct 'TextTrackList': Illegal constructor",
+  "VideoPlaybackQuality": "function",
+  "VideoPlaybackQuality.ctor": "THROW TypeError: Failed to construct 'VideoPlaybackQuality': Illegal constructor",
+  "VideoTrackList": "undefined"
+ },
+ "fn.length": {
+  "addTextTrack": 1,
+  "cancelVideoFrameCallback": 1,
+  "captureStream": 0,
+  "decode": 0,
+  "getVideoPlaybackQuality": 0,
+  "requestPictureInPicture": 0,
+  "requestVideoFrameCallback": 1,
+  "setMediaKeys": 1,
+  "setSinkId": 1
+ },
+ "img.complete.appended": true,
+ "img.cross": [
+  null,
+  [
+   "anonymous",
+   "ANONYMOUS"
+  ],
+  [
+   "anonymous",
+   ""
+  ]
+ ],
+ "img.decode": [
+  "object",
+  true
+ ],
+ "img.decode.plain": [
+  "reject",
+  "EncodingError",
+  "The source image cannot be decoded."
+ ],
+ "img.decoding": [
+  [
+   "async",
+   "ASYNC"
+  ],
+  [
+   "auto",
+   "x"
+  ]
+ ],
+ "img.defaults": {
+  "align": "",
+  "alt": "",
+  "border": "",
+  "complete": true,
+  "crossOrigin": null,
+  "currentSrc": "",
+  "decoding": "auto",
+  "fetchPriority": "auto",
+  "height": 0,
+  "hspace": 0,
+  "isMap": false,
+  "loading": "auto",
+  "longDesc": "",
+  "lowsrc": "",
+  "naturalHeight": 0,
+  "naturalWidth": 0,
+  "referrerPolicy": "",
+  "srcset": "",
+  "useMap": "",
+  "vspace": 0,
+  "width": 0,
+  "x": 0,
+  "y": 0
+ },
+ "img.fetchPriority": [
+  "auto",
+  "high",
+  "HIGH"
+ ],
+ "img.hsv": [
+  [
+   10,
+   "10"
+  ],
+  [
+   "left",
+   "left"
+  ],
+  [
+   "2",
+   "2"
+  ]
+ ],
+ "img.loading": [
+  [
+   "eager",
+   "EAGER"
+  ],
+  [
+   "auto",
+   "x"
+  ]
+ ],
+ "img.map": [
+  [
+   true,
+   true
+  ],
+  [
+   "#m",
+   "#m"
+  ],
+  [
+   "http://x/",
+   "http://x/"
+  ],
+  [
+   "http://y/",
+   "http://y/"
+  ]
+ ],
+ "img.referrerPolicy": [
+  "",
+  "no-referrer",
+  "no-referrer"
+ ],
+ "img.wh": [
+  [
+   5,
+   "5"
+  ],
+  [
+   0,
+   "0"
+  ],
+  [
+   7,
+   "7"
+  ]
+ ],
+ "med.addTextTrack": [
+  "object",
+  "TextTrack",
+  "subtitles",
+  "",
+  "",
+  "hidden"
+ ],
+ "med.autoplay": [
+  true,
+  true
+ ],
+ "med.captureStream": [
+  "object",
+  true
+ ],
+ "med.controls": [
+  true,
+  true
+ ],
+ "med.cross": [
+  null,
+  [
+   "anonymous",
+   "ANONYMOUS"
+  ],
+  [
+   "anonymous",
+   ""
+  ]
+ ],
+ "med.defaultMuted": [
+  true,
+  false,
+  true,
+  false,
+  true
+ ],
+ "med.defaults": {
+  "autoplay": false,
+  "controls": false,
+  "crossOrigin": null,
+  "currentSrc": "",
+  "defaultMuted": false,
+  "defaultPlaybackRate": 1,
+  "disableRemotePlayback": false,
+  "error": null,
+  "loop": false,
+  "mediaKeys": null,
+  "muted": false,
+  "preload": "metadata",
+  "preservesPitch": true,
+  "sinkId": "",
+  "srcObject": null,
+  "volume": 1
+ },
+ "med.loop": [
+  true,
+  true
+ ],
+ "med.muted": [
+  true,
+  false,
+  false,
+  false
+ ],
+ "med.preload": [
+  "none",
+  "NONE",
+  [
+   "metadata",
+   "x"
+  ]
+ ],
+ "med.preload.attr": [
+  "metadata",
+  "metadata"
+ ],
+ "med.setMediaKeys": [
+  "object",
+  true
+ ],
+ "med.setMediaKeys.plain": [
+  "resolve",
+  "#undefined"
+ ],
+ "med.setSinkId": [
+  "object",
+  true
+ ],
+ "med.setSinkId.plain": [
+  "reject",
+  "NotFoundError",
+  "Requested device not found"
+ ],
+ "med.textTracks": [
+  "object",
+  true,
+  0
+ ],
+ "med.vol.clamp": "THROW DOMException(IndexSizeError): Failed to set the 'volume' property on 'HTMLMediaElement': The volume provided (5) is outside the range [0, 1].",
+ "med.vol.set": [
+  0.5,
+  0.25
+ ],
+ "owner.img": {
+  "align": "HTMLImageElement",
+  "alt": "HTMLImageElement",
+  "border": "HTMLImageElement",
+  "complete": "HTMLImageElement",
+  "crossOrigin": "HTMLImageElement",
+  "currentSrc": "HTMLImageElement",
+  "decode": "HTMLImageElement",
+  "decoding": "HTMLImageElement",
+  "fetchPriority": "HTMLImageElement",
+  "height": "HTMLImageElement",
+  "hspace": "HTMLImageElement",
+  "isMap": "HTMLImageElement",
+  "loading": "HTMLImageElement",
+  "longDesc": "HTMLImageElement",
+  "lowsrc": "HTMLImageElement",
+  "naturalHeight": "HTMLImageElement",
+  "naturalWidth": "HTMLImageElement",
+  "referrerPolicy": "HTMLImageElement",
+  "srcset": "HTMLImageElement",
+  "useMap": "HTMLImageElement",
+  "vspace": "HTMLImageElement",
+  "width": "HTMLImageElement",
+  "x": "HTMLImageElement",
+  "y": "HTMLImageElement"
+ },
+ "owner.med": {
+  "addTextTrack": "HTMLMediaElement",
+  "autoplay": "HTMLMediaElement",
+  "captureStream": "HTMLMediaElement",
+  "controls": "HTMLMediaElement",
+  "crossOrigin": "HTMLMediaElement",
+  "currentSrc": "HTMLMediaElement",
+  "defaultMuted": "HTMLMediaElement",
+  "defaultPlaybackRate": "HTMLMediaElement",
+  "disableRemotePlayback": "HTMLMediaElement",
+  "error": "HTMLMediaElement",
+  "loop": "HTMLMediaElement",
+  "mediaKeys": "HTMLMediaElement",
+  "muted": "HTMLMediaElement",
+  "preload": "HTMLMediaElement",
+  "preservesPitch": "HTMLMediaElement",
+  "remote": "HTMLMediaElement",
+  "setMediaKeys": "HTMLMediaElement",
+  "setSinkId": "HTMLMediaElement",
+  "sinkId": "HTMLMediaElement",
+  "srcObject": "HTMLMediaElement",
+  "textTracks": "HTMLMediaElement",
+  "volume": "HTMLMediaElement"
+ },
+ "owner.vid": {
+  "cancelVideoFrameCallback": "HTMLVideoElement",
+  "getVideoPlaybackQuality": "HTMLVideoElement",
+  "height": "HTMLVideoElement",
+  "playsInline": "HTMLVideoElement",
+  "poster": "HTMLVideoElement",
+  "requestVideoFrameCallback": "HTMLVideoElement",
+  "videoHeight": "HTMLVideoElement",
+  "videoWidth": "HTMLVideoElement",
+  "width": "HTMLVideoElement"
+ },
+ "vid.cvcb": [
+  null,
+  null
+ ],
+ "vid.defaults": {
+  "height": 0,
+  "playsInline": false,
+  "poster": "",
+  "videoHeight": 0,
+  "videoWidth": 0,
+  "width": 0
+ },
+ "vid.gvpq": {},
+ "vid.playsInline": [
+  true,
+  true
+ ],
+ "vid.poster": [
+  [
+   "/x.png",
+   "x.png"
+  ],
+  [
+   "#base",
+   ""
+  ]
+ ],
+ "vid.remote": [
+  "object",
+  true,
+  "[object RemotePlayback]"
+ ],
+ "vid.rvcb": [
+  "number",
+  1,
+  2
+ ],
+ "vid.wh": [
+  [
+   5,
+   "5"
+  ],
+  [
+   0,
+   "0"
+  ],
+  [
+   7,
+   "7"
+  ]
+ ]
+}

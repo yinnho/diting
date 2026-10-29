@@ -14505,7 +14505,11 @@ if (typeof Image === 'undefined') {
   globalThis.Image = function Image(width, height) {
     const img = document.createElement('img');
     img.onload = null; img.onerror = null;
-    img.complete = false; img.naturalWidth = 0; img.naturalHeight = 0;
+    // complete/naturalWidth/naturalHeight are prototype getter-ONLY
+    // accessors now (platform gen/htmlmedia.gen.js, M4 knife 5): internal
+    // emulation state writes go through the hidden-slot channel, the same
+    // one _playing uses. An own (non-enumerable) slot shadows the getter.
+    __def(img, 'complete', false); __def(img, 'naturalWidth', 0); __def(img, 'naturalHeight', 0);
     // #236: width/height are accessors, not data props. The HTML spec has
     // the IDL getter fall back to the natural size when no value was ever
     // set — `new Image()` with a decoded 1×1 src must read 1, not the
@@ -14541,7 +14545,7 @@ if (typeof Image === 'undefined') {
         set(v) {
           _imgSrcDesc.set.call(img, v);
           if (!img.getAttribute('src')) return;
-          img.complete = false;
+          __def(img, 'complete', false);
           // (#41) Real load semantics: the fetch attempt decides load vs
           // error. The old stub fired `load` unconditionally, so probes
           // pinning load faces to unroutable hosts read fake success.
@@ -14558,23 +14562,23 @@ if (typeof Image === 'undefined') {
           // load/error decision (#41: transport status) stays with the
           // caller, this only fills in numbers.
           const succeed = function (dimsJson) {
-            img.complete = true;
+            __def(img, 'complete', true);
             try {
               const d = JSON.parse(dimsJson || '{}');
               if (d && d.width > 0) {
-                img.naturalWidth = d.width;
-                img.naturalHeight = d.height;
+                __def(img, 'naturalWidth', d.width);
+                __def(img, 'naturalHeight', d.height);
               }
             } catch (e) {}
-            img.naturalWidth = img.naturalWidth || img.width || 0;
-            img.naturalHeight = img.naturalHeight || img.height || 0;
+            __def(img, 'naturalWidth', img.naturalWidth || img.width || 0);
+            __def(img, 'naturalHeight', img.naturalHeight || img.height || 0);
             try { img.dispatchEvent(new Event('load')); } catch (e) {}
           };
           const dimsFromBase64 = function (b64) {
             try { return _OPS.op_image_info(String(b64 || '')); } catch (e) { return '{}'; }
           };
           const fail = function () {
-            img.complete = false;
+            __def(img, 'complete', false);
             try { img.dispatchEvent(new Event('error')); } catch (e) {}
           };
           if (fullUrl.startsWith('data:')) {

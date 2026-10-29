@@ -23,15 +23,12 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 118 个；缺口成员合计 652。
+已核 196 个接口；有缺口 115 个；缺口成员合计 575。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
 | Document | document | 31/294 | alinkColor, anchors, applets, bgColor, captureEvents, caretPositionFromPoint, clear, createExpression, createNSResolver, designMode, embeds, exitFullscreen, exitPointerLock, fgColor, fragmentDirective, fullscreen, fullscreenElement, fullscreenEnabled, hasPrivateToken, hasRedemptionRecord, hasUnpartitionedCookieAccess, lastModified, linkColor, plugins, pointerLockElement, prerendering, releaseEvents, rootElement, timeline, vlinkColor, wasDiscarded |
-| HTMLVideoElement | createElement | 31/431 | addTextTrack, autoplay, cancelVideoFrameCallback, captureStream, controls, crossOrigin, currentSrc, defaultMuted, defaultPlaybackRate, disableRemotePlayback, error, getVideoPlaybackQuality, height, loop, mediaKeys, muted, playsInline, poster, preload, preservesPitch, remote, requestVideoFrameCallback, setMediaKeys, setSinkId, sinkId, srcObject, textTracks, videoHeight, videoWidth, volume, width |
-| HTMLImageElement | createElement | 24/392 | align, alt, border, complete, crossOrigin, currentSrc, decode, decoding, fetchPriority, height, hspace, isMap, loading, longDesc, lowsrc, naturalHeight, naturalWidth, referrerPolicy, srcset, useMap, vspace, width, x, y |
 | HTMLInputElement | createElement | 23/427 | accept, align, alt, autocomplete, defaultChecked, defaultValue, dirName, formAction, formEnctype, formMethod, formTarget, height, list, pattern, popoverTargetAction, popoverTargetElement, readOnly, required, showPicker, useMap, webkitEntries, webkitdirectory, width |
-| HTMLAudioElement | createElement | 22/418 | addTextTrack, autoplay, captureStream, controls, crossOrigin, currentSrc, defaultMuted, defaultPlaybackRate, disableRemotePlayback, error, loop, mediaKeys, muted, preload, preservesPitch, remote, setMediaKeys, setSinkId, sinkId, srcObject, textTracks, volume |
 | HTMLObjectElement | createElement | 21/390 | align, archive, border, checkValidity, code, codeBase, codeType, data, declare, getSVGDocument, height, hspace, reportValidity, setCustomValidity, standby, useMap, validationMessage, validity, vspace, width, willValidate |
 | Animation | new | 19/28 | cancel, commitStyles, currentTime, effect, finish, finished, id, pause, pending, persist, play, playState, playbackRate, ready, replaceState, reverse, startTime, timeline, updatePlaybackRate |
 | ClipboardChangeEvent | new | 18/24 | bubbles, cancelBubble, cancelable, composed, composedPath, currentTarget, defaultPrevented, eventPhase, initEvent, isTrusted, preventDefault, returnValue, srcElement, stopImmediatePropagation, stopPropagation, target, timeStamp, type |

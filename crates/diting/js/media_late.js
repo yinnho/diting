@@ -41,14 +41,9 @@
     };
     _markNative(D.exitPictureInPicture);
   }
-  const V = globalThis.HTMLVideoElement && globalThis.HTMLVideoElement.prototype;
-  if (V && !('requestPictureInPicture' in V)) {
-    V.requestPictureInPicture = function requestPictureInPicture() {
-      return Promise.reject(new DOMException('Metadata for the video element are not loaded yet.', 'InvalidStateError'));
-    };
-    _markNative(V.requestPictureInPicture);
-    Object.defineProperty(V, 'disablePictureInPicture', { get: function () { return this.hasAttribute('disablepictureinpicture'); }, set: function (v) { if (v) this.setAttribute('disablepictureinpicture', ''); else this.removeAttribute('disablepictureinpicture'); }, enumerable: true, configurable: true });
-    Object.defineProperty(V, 'onenterpictureinpicture', { value: null, writable: true, enumerable: true, configurable: true });
-    Object.defineProperty(V, 'onleavepictureinpicture', { value: null, writable: true, enumerable: true, configurable: true });
-  }
+  // The HTMLVideoElement PiP members (requestPictureInPicture,
+  // disablePictureInPicture, onenter/onleavepictureinpicture) moved to the
+  // platform module gen/htmlmedia.gen.js (M4 knife 5); this satellite ran
+  // AFTER the bundle and clobbered the module's on* accessors back to data
+  // props - the block is deleted, not relocated (legacy only shrinks).
 })();

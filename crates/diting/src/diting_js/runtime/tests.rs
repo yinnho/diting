@@ -26547,3 +26547,77 @@ async fn element_staged_members_match_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 5: HTMLMediaElement/HTMLVideoElement/HTMLImageElement
+/// media/image family (htmlmedia-probe.js, 49 keys). Chrome owns the three
+/// prototypes complete (53/16/30 own names; the engine had 25/5/3 with three
+/// kind drifts: duration rw, sizes ro, the VID on* pair as data props).
+/// gen/htmlmedia.gen.js installs the missing members, applies the kind fixes
+/// and reseat()s each prototype into Chrome's exact own order; uniform
+/// reflection is DATA (P.reflector — this family grew the unsigned-long /
+/// crossorigin / url kinds), the rest delegates to the htmlmedia impl
+/// module. media_late.js's HTMLVideoElement PiP block was deleted (it ran
+/// after the platform bundle and clobbered the module's on* accessors);
+/// those four members are platform-owned now.
+///
+/// KNOWN_GAPS ratchet: none. MED.order is compared CONSTANT-NORMALIZED: the
+/// nine readiness/network constants are bootstrap-installed {value: N} =
+/// non-configurable (and non-enumerable, where Chrome has them enumerable),
+/// so no module-level pass can relocate them — they cluster at the front
+/// while Chrome interleaves them mid-sequence. Every movable member's
+/// position matches Chrome exactly; the constants' placement is a
+/// bootstrap-layer fact (SURFACE.md knife 5).
+#[tokio::test(flavor = "current_thread")]
+async fn htmlmedia_members_match_chrome_truth() {
+    const IMMOVABLE: &[&str] = &[
+        "NETWORK_EMPTY",
+        "NETWORK_IDLE",
+        "NETWORK_LOADING",
+        "NETWORK_NO_SOURCE",
+        "HAVE_NOTHING",
+        "HAVE_METADATA",
+        "HAVE_CURRENT_DATA",
+        "HAVE_FUTURE_DATA",
+        "HAVE_ENOUGH_DATA",
+    ];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/htmlmedia-probe.js");
+    let result = rt
+        // call_function_on_remote invokes its argument as a FUNCTION, so the
+        // promise-returning probe rides an arrow; await_promise settles the
+        // decode/setSinkId/setMediaKeys faces (each races a 3s timeout).
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/htmlmedia-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        let got = &engine[k];
+        if k == "MED.order" {
+            let strip = |v: &serde_json::Value| -> Vec<String> {
+                v.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|n| n.as_str().unwrap().to_string())
+                    .filter(|n| !IMMOVABLE.contains(&n.as_str()))
+                    .collect()
+            };
+            let (e, t) = (strip(got), strip(want));
+            if e != t {
+                bad.push(format!(
+                    "MED.order (constant-normalized):\n   engine {e:?}\n   chrome {t:?}"
+                ));
+            }
+            continue;
+        }
+        if got != want {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

@@ -117,7 +117,13 @@ const __platform = (function () {
   //   attr      content attribute name (already lowercase)
   //   kind      string | boolean-presence | boolean-truefalse |
   //             string-known (getter: known-lowercase else default/'') |
-  //             known-fallback (getter: known else fallback)
+  //             known-fallback (getter: known else fallback) |
+  //             unsigned-long (dimension reflect: ToUint both ways, truth
+  //               vid.wh/img.wh - set 'abc' -> 0 and attribute '0') |
+  //             crossorigin (getter: null | 'anonymous' (attr '' too) |
+  //               'use-credentials' | null on unknown - truth med.cross) |
+  //             url (getter: absent -> default; else resolve against the
+  //               document base - truth vid.poster: '' resolves to the page)
   //   known     keyword list (lowercase), for the string-known kinds
   //   default   getter default when the attribute is absent ('' unless set)
   //   fallback  getter answer for a present-but-invalid value
@@ -141,6 +147,24 @@ const __platform = (function () {
         if (known && known.indexOf(low) >= 0) return low;
         return kind === 'known-fallback' ? spec.fallback : dflt;
       }
+      if (kind === 'unsigned-long') {
+        if (v === null) return 0;
+        const n = Number(v);
+        if (!isFinite(n)) return 0;
+        return ((Math.trunc(n) % 4294967296) + 4294967296) % 4294967296;
+      }
+      if (kind === 'crossorigin') {
+        if (v === null) return null;
+        const low = String(v).toLowerCase();
+        return low === '' || low === 'anonymous' ? 'anonymous'
+          : low === 'use-credentials' ? 'use-credentials' : null;
+      }
+      if (kind === 'url') {
+        if (v === null) return dflt;
+        const base = (typeof document !== 'undefined' && document && document.baseURI)
+          || (typeof location !== 'undefined' ? location.href : undefined);
+        try { return new URL(v, base).href; } catch (e) { return String(v); }
+      }
       return undefined;
     };
     const set = function (v) {
@@ -148,6 +172,7 @@ const __platform = (function () {
       if (kind === 'string') { el.setAttribute(attr, v === undefined || v === null ? '' : String(v)); return; }
       if (kind === 'boolean-presence') { if (v) el.setAttribute(attr, ''); else el.removeAttribute(attr); return; }
       if (kind === 'boolean-truefalse') { el.setAttribute(attr, v ? 'true' : 'false'); return; }
+      if (kind === 'unsigned-long') { el.setAttribute(attr, String(conv.unsignedLong(v, 'set ' + name, set))); return; }
       // keyword kinds: Chrome writes the value AS GIVEN; invalid keywords
       // still land in the attribute (truth set.autocapitalize.bad /
       // set.enterKeyHint 'GO' -> attr 'GO') — only translate no-ops invalid.

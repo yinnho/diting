@@ -1,0 +1,2877 @@
+{
+ "includes": [],
+ "names": {
+  "HTMLImageElement": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "unsigned long",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "width",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "unsigned long",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "height",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "name": "LegacyFactoryFunction",
+     "rhs": {
+      "type": "identifier",
+      "value": "Image"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window,\n LegacyFactoryFunction=Image(optional unsigned long width, optional unsigned long height)]\ninterface HTMLImageElement : HTMLElement {\n  [HTMLConstructor] constructor();\n\n  [CEReactions, Reflect] attribute DOMString alt;\n  [CEReactions, ReflectURL] attribute USVString src;\n  [CEReactions, Reflect] attribute USVString srcset;\n  [CEReactions, Reflect] attribute DOMString sizes;\n  [CEReactions] attribute DOMString? crossOrigin;\n  [CEReactions, Reflect] attribute DOMString useMap;\n  [CEReactions, Reflect] attribute boolean isMap;\n  [CEReactions, Reflect] attribute boolean controls;\n  [CEReactions, ReflectSetter] attribute unsigned long width;\n  [CEReactions, ReflectSetter] attribute unsigned long height;\n  readonly attribute unsigned long naturalWidth;\n  readonly attribute unsigned long naturalHeight;\n  readonly attribute boolean complete;\n  readonly attribute USVString currentSrc;\n  [CEReactions] attribute DOMString referrerPolicy;\n  [CEReactions] attribute DOMString decoding;\n  [CEReactions] attribute DOMString loading;\n  [CEReactions] attribute DOMString fetchPriority;\n\n  Promise<undefined> decode();\n\n  // also has obsolete members\n};",
+   "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#htmlimageelement",
+   "inheritance": "HTMLElement",
+   "members": [
+    {
+     "arguments": [],
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "HTMLConstructor",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-alt",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "alt",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "ReflectURL",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-src",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "src",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-srcset",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "srcset",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-sizes",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "sizes",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-crossorigin",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "crossOrigin",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-usemap",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "useMap",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-ismap",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "isMap",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-controls",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "controls",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "ReflectSetter",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-width",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "width",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "ReflectSetter",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-height",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "height",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-naturalwidth",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "naturalWidth",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-naturalheight",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "naturalHeight",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-complete",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "complete",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-currentsrc",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "currentSrc",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-referrerpolicy",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "referrerPolicy",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-decoding",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "decoding",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-loading",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "loading",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-fetchpriority",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "fetchPriority",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-decode",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "Promise",
+      "idlType": [
+       {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "undefined",
+        "nullable": false,
+        "type": "return-type",
+        "union": false
+       }
+      ],
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "decode",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "HTMLImageElement",
+   "partial": false,
+   "type": "interface"
+  },
+  "HTMLMediaElement": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface HTMLMediaElement : HTMLElement {\n\n  // error state\n  readonly attribute MediaError? error;\n\n  // network state\n  [CEReactions, ReflectURL] attribute USVString src;\n  attribute MediaProvider? srcObject;\n  readonly attribute USVString currentSrc;\n  [CEReactions] attribute DOMString? crossOrigin;\n  const unsigned short NETWORK_EMPTY = 0;\n  const unsigned short NETWORK_IDLE = 1;\n  const unsigned short NETWORK_LOADING = 2;\n  const unsigned short NETWORK_NO_SOURCE = 3;\n  readonly attribute unsigned short networkState;\n  [CEReactions] attribute DOMString preload;\n  readonly attribute TimeRanges buffered;\n  undefined load();\n  CanPlayTypeResult canPlayType(DOMString type);\n\n  // ready state\n  const unsigned short HAVE_NOTHING = 0;\n  const unsigned short HAVE_METADATA = 1;\n  const unsigned short HAVE_CURRENT_DATA = 2;\n  const unsigned short HAVE_FUTURE_DATA = 3;\n  const unsigned short HAVE_ENOUGH_DATA = 4;\n  readonly attribute unsigned short readyState;\n  readonly attribute boolean seeking;\n\n  // playback state\n  attribute double currentTime;\n  undefined fastSeek(double time);\n  readonly attribute unrestricted double duration;\n  object getStartDate();\n  readonly attribute boolean paused;\n  attribute double defaultPlaybackRate;\n  attribute double playbackRate;\n  attribute boolean preservesPitch;\n  readonly attribute TimeRanges played;\n  readonly attribute TimeRanges seekable;\n  readonly attribute boolean ended;\n  [CEReactions, Reflect] attribute boolean autoplay;\n  [CEReactions, Reflect] attribute boolean loop;\n  Promise<undefined> play();\n  undefined pause();\n\n  // controls\n  [CEReactions, Reflect] attribute boolean controls;\n  attribute double volume;\n  attribute boolean muted;\n  [CEReactions, Reflect=\"muted\"] attribute boolean defaultMuted;\n  [CEReactions] attribute DOMString loading;\n\n  // tracks\n  [SameObject] readonly attribute AudioTrackList audioTracks;\n  [SameObject] readonly attribute VideoTrackList videoTracks;\n  [SameObject] readonly attribute TextTrackList textTracks;\n  TextTrack addTextTrack(TextTrackKind kind, optional DOMString label = \"\", optional DOMString language = \"\");\n};",
+   "href": "https://html.spec.whatwg.org/multipage/media.html#htmlmediaelement",
+   "inheritance": "HTMLElement",
+   "members": [
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-error",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "MediaError",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "error",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "ReflectURL",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-src",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "src",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-srcobject",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "MediaProvider",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "srcObject",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-currentsrc",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "currentSrc",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-crossorigin",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "crossOrigin",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-network_empty",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "NETWORK_EMPTY",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "0"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-network_idle",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "NETWORK_IDLE",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "1"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-network_loading",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "NETWORK_LOADING",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "2"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-network_no_source",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "NETWORK_NO_SOURCE",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "3"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-networkstate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "networkState",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-preload",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "preload",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-buffered",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TimeRanges",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "buffered",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-load",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "load",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-navigator-canplaytype",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CanPlayTypeResult",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "canPlayType",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-have_nothing",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "HAVE_NOTHING",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "0"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-have_metadata",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "HAVE_METADATA",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "1"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-have_current_data",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "HAVE_CURRENT_DATA",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "2"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-have_future_data",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "HAVE_FUTURE_DATA",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "3"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-have_enough_data",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "const-type",
+      "union": false
+     },
+     "name": "HAVE_ENOUGH_DATA",
+     "type": "const",
+     "value": {
+      "type": "number",
+      "value": "4"
+     }
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-readystate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "readyState",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-seeking",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "seeking",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-currenttime",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "currentTime",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "double",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "time",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-fastseek",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "fastSeek",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-duration",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unrestricted double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "duration",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-getstartdate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "object",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "getStartDate",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-paused",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "paused",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-defaultplaybackrate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "defaultPlaybackRate",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-playbackrate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "playbackRate",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-preservespitch",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "preservesPitch",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-played",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TimeRanges",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "played",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-seekable",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TimeRanges",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "seekable",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-ended",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "ended",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-autoplay",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "autoplay",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-loop",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "loop",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-play",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "Promise",
+      "idlType": [
+       {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "undefined",
+        "nullable": false,
+        "type": "return-type",
+        "union": false
+       }
+      ],
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "play",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-pause",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "pause",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-controls",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "controls",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-volume",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "volume",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-muted",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "muted",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": {
+        "type": "string",
+        "value": "\"muted\""
+       },
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-defaultmuted",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "defaultMuted",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-loading",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "loading",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "SameObject",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-audiotracks",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "AudioTrackList",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "audioTracks",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "SameObject",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-videotracks",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "VideoTrackList",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "videoTracks",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "SameObject",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-texttracks",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrackList",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "textTracks",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "TextTrackKind",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "kind",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "string",
+        "value": ""
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "label",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "string",
+        "value": ""
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "language",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-media-addtexttrack",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrack",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "addTextTrack",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "HTMLMediaElement",
+   "partial": false,
+   "type": "interface"
+  },
+  "HTMLVideoElement": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface HTMLVideoElement : HTMLMediaElement {\n  [HTMLConstructor] constructor();\n\n  [CEReactions, Reflect] attribute unsigned long width;\n  [CEReactions, Reflect] attribute unsigned long height;\n  readonly attribute unsigned long videoWidth;\n  readonly attribute unsigned long videoHeight;\n  [CEReactions, ReflectURL] attribute USVString poster;\n  [CEReactions, Reflect] attribute boolean playsInline;\n\n};",
+   "href": "https://html.spec.whatwg.org/multipage/media.html#htmlvideoelement",
+   "inheritance": "HTMLMediaElement",
+   "members": [
+    {
+     "arguments": [],
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "HTMLConstructor",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-video-width",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "width",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-video-height",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "height",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-video-videowidth",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "videoWidth",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-video-videoheight",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "videoHeight",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "ReflectURL",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-video-poster",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "poster",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "CEReactions",
+       "rhs": null,
+       "type": "extended-attribute"
+      },
+      {
+       "arguments": [],
+       "name": "Reflect",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-video-playsinline",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "playsInline",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "HTMLVideoElement",
+   "partial": false,
+   "type": "interface"
+  },
+  "TextTrack": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface TextTrack : EventTarget {\n  readonly attribute TextTrackKind kind;\n  readonly attribute DOMString label;\n  readonly attribute DOMString language;\n\n  readonly attribute DOMString id;\n  readonly attribute DOMString inBandMetadataTrackDispatchType;\n\n  attribute TextTrackMode mode;\n\n  readonly attribute TextTrackCueList? cues;\n  readonly attribute TextTrackCueList? activeCues;\n\n  undefined addCue(TextTrackCue cue);\n  undefined removeCue(TextTrackCue cue);\n\n  attribute EventHandler oncuechange;\n};",
+   "href": "https://html.spec.whatwg.org/multipage/media.html#texttrack",
+   "inheritance": "EventTarget",
+   "members": [
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-kind",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrackKind",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "kind",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-label",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "label",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-language",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "language",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-id",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "id",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-inbandmetadatatrackdispatchtype",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "inBandMetadataTrackDispatchType",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-mode",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrackMode",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "mode",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-cues",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrackCueList",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "cues",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-activecues",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrackCueList",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "activeCues",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "TextTrackCue",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "cue",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-addcue",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "addCue",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "TextTrackCue",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "cue",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttrack-removecue",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "undefined",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "removeCue",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#handler-texttrack-oncuechange",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "EventHandler",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "oncuechange",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "TextTrack",
+   "partial": false,
+   "type": "interface"
+  },
+  "TextTrackList": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface TextTrackList : EventTarget {\n  readonly attribute unsigned long length;\n  getter TextTrack (unsigned long index);\n  TextTrack? getTrackById(DOMString id);\n\n  attribute EventHandler onchange;\n  attribute EventHandler onaddtrack;\n  attribute EventHandler onremovetrack;\n};",
+   "href": "https://html.spec.whatwg.org/multipage/media.html#texttracklist",
+   "inheritance": "EventTarget",
+   "members": [
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttracklist-length",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "length",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "unsigned long",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "index",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrack",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "",
+     "special": "getter",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "id",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#dom-texttracklist-gettrackbyid",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "TextTrack",
+      "nullable": true,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "getTrackById",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#handler-texttracklist-onchange",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "EventHandler",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "onchange",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#handler-texttracklist-onaddtrack",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "EventHandler",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "onaddtrack",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/media.html#handler-texttracklist-onremovetrack",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "EventHandler",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "onremovetrack",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "TextTrackList",
+   "partial": false,
+   "type": "interface"
+  }
+ },
+ "partials": {
+  "HTMLImageElement": [
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLImageElement {\n  readonly attribute long x;\n  readonly attribute long y;\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "extAttrs": [],
+      "href": "https://drafts.csswg.org/cssom-view-1/#dom-htmlimageelement-x",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "long",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "x",
+      "readonly": true,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [],
+      "href": "https://drafts.csswg.org/cssom-view-1/#dom-htmlimageelement-y",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "long",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "y",
+      "readonly": true,
+      "special": "",
+      "type": "attribute"
+     }
+    ],
+    "name": "HTMLImageElement",
+    "partial": true,
+    "type": "interface"
+   },
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLImageElement {\n  [CEReactions, Reflect] attribute DOMString name;\n  [CEReactions, ReflectURL] attribute USVString lowsrc;\n  [CEReactions, Reflect] attribute DOMString align;\n  [CEReactions, Reflect] attribute unsigned long hspace;\n  [CEReactions, Reflect] attribute unsigned long vspace;\n  [CEReactions, ReflectURL] attribute USVString longDesc;\n\n  [CEReactions, Reflect] attribute [LegacyNullToEmptyString] DOMString border;\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "Reflect",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-name",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "DOMString",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "name",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "ReflectURL",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-lowsrc",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "USVString",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "lowsrc",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "Reflect",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-align",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "DOMString",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "align",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "Reflect",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-hspace",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "unsigned long",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "hspace",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "Reflect",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-vspace",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "unsigned long",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "vspace",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "ReflectURL",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-longdesc",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "USVString",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "longDesc",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       },
+       {
+        "arguments": [],
+        "name": "Reflect",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://html.spec.whatwg.org/multipage/obsolete.html#dom-img-border",
+      "idlType": {
+       "extAttrs": [
+        {
+         "arguments": [],
+         "name": "LegacyNullToEmptyString",
+         "rhs": null,
+         "type": "extended-attribute"
+        }
+       ],
+       "generic": "",
+       "idlType": "DOMString",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "border",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     }
+    ],
+    "name": "HTMLImageElement",
+    "partial": true,
+    "type": "interface"
+   }
+  ],
+  "HTMLMediaElement": [
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLMediaElement {\n  [SecureContext] readonly attribute DOMString sinkId;\n  [SecureContext] Promise<undefined> setSinkId (DOMString sinkId);\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "SecureContext",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/mediacapture-output/#dom-htmlmediaelement-sinkid",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "DOMString",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "sinkId",
+      "readonly": true,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "arguments": [
+       {
+        "default": null,
+        "extAttrs": [],
+        "idlType": {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "DOMString",
+         "nullable": false,
+         "type": "argument-type",
+         "union": false
+        },
+        "name": "sinkId",
+        "optional": false,
+        "type": "argument",
+        "variadic": false
+       }
+      ],
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "SecureContext",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/mediacapture-output/#dom-htmlmediaelement-setsinkid",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "Promise",
+       "idlType": [
+        {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "undefined",
+         "nullable": false,
+         "type": "return-type",
+         "union": false
+        }
+       ],
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "setSinkId",
+      "special": "",
+      "type": "operation"
+     }
+    ],
+    "name": "HTMLMediaElement",
+    "partial": true,
+    "type": "interface"
+   },
+   {
+    "extAttrs": [
+     {
+      "arguments": [],
+      "name": "Exposed",
+      "rhs": {
+       "type": "identifier",
+       "value": "Window"
+      },
+      "type": "extended-attribute"
+     }
+    ],
+    "fragment": "[Exposed=Window] partial interface HTMLMediaElement {\n  [SecureContext] readonly        attribute MediaKeys?   mediaKeys;\n                                  attribute EventHandler onencrypted;\n                                  attribute EventHandler onwaitingforkey;\n  [SecureContext] Promise<undefined> setMediaKeys (MediaKeys? mediaKeys);\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "SecureContext",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/encrypted-media/#dom-htmlmediaelement-mediakeys",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "MediaKeys",
+       "nullable": true,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "mediaKeys",
+      "readonly": true,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [],
+      "href": "https://w3c.github.io/encrypted-media/#dom-htmlmediaelement-onencrypted",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "EventHandler",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "onencrypted",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [],
+      "href": "https://w3c.github.io/encrypted-media/#dom-htmlmediaelement-onwaitingforkey",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "EventHandler",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "onwaitingforkey",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "arguments": [
+       {
+        "default": null,
+        "extAttrs": [],
+        "idlType": {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "MediaKeys",
+         "nullable": true,
+         "type": "argument-type",
+         "union": false
+        },
+        "name": "mediaKeys",
+        "optional": false,
+        "type": "argument",
+        "variadic": false
+       }
+      ],
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "SecureContext",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/encrypted-media/#dom-htmlmediaelement-setmediakeys",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "Promise",
+       "idlType": [
+        {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "undefined",
+         "nullable": false,
+         "type": "return-type",
+         "union": false
+        }
+       ],
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "setMediaKeys",
+      "special": "",
+      "type": "operation"
+     }
+    ],
+    "name": "HTMLMediaElement",
+    "partial": true,
+    "type": "interface"
+   },
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLMediaElement {\n    MediaStream captureStream ();\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "arguments": [],
+      "extAttrs": [],
+      "href": "https://w3c.github.io/mediacapture-fromelement/#dom-htmlmediaelement-capturestream",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "MediaStream",
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "captureStream",
+      "special": "",
+      "type": "operation"
+     }
+    ],
+    "name": "HTMLMediaElement",
+    "partial": true,
+    "type": "interface"
+   },
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLMediaElement {\n  [SameObject] readonly attribute RemotePlayback remote;\n\n  [CEReactions] attribute boolean disableRemotePlayback;\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "SameObject",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/remote-playback/#dom-htmlmediaelement-remote",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "RemotePlayback",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "remote",
+      "readonly": true,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/remote-playback/#dom-htmlmediaelement-disableremoteplayback",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "boolean",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "disableRemotePlayback",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     }
+    ],
+    "name": "HTMLMediaElement",
+    "partial": true,
+    "type": "interface"
+   }
+  ],
+  "HTMLVideoElement": [
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLVideoElement {\n  VideoPlaybackQuality getVideoPlaybackQuality();\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "arguments": [],
+      "extAttrs": [],
+      "href": "https://w3c.github.io/media-playback-quality/#dom-htmlvideoelement-getvideoplaybackquality",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "VideoPlaybackQuality",
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "getVideoPlaybackQuality",
+      "special": "",
+      "type": "operation"
+     }
+    ],
+    "name": "HTMLVideoElement",
+    "partial": true,
+    "type": "interface"
+   },
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLVideoElement {\n  [NewObject] Promise<PictureInPictureWindow> requestPictureInPicture();\n\n  attribute EventHandler onenterpictureinpicture;\n  attribute EventHandler onleavepictureinpicture;\n\n  [CEReactions] attribute boolean disablePictureInPicture;\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "arguments": [],
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "NewObject",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/picture-in-picture/#dom-htmlvideoelement-requestpictureinpicture",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "Promise",
+       "idlType": [
+        {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "PictureInPictureWindow",
+         "nullable": false,
+         "type": "return-type",
+         "union": false
+        }
+       ],
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "requestPictureInPicture",
+      "special": "",
+      "type": "operation"
+     },
+     {
+      "extAttrs": [],
+      "href": "https://w3c.github.io/picture-in-picture/#dom-htmlvideoelement-onenterpictureinpicture",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "EventHandler",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "onenterpictureinpicture",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [],
+      "href": "https://w3c.github.io/picture-in-picture/#dom-htmlvideoelement-onleavepictureinpicture",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "EventHandler",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "onleavepictureinpicture",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     },
+     {
+      "extAttrs": [
+       {
+        "arguments": [],
+        "name": "CEReactions",
+        "rhs": null,
+        "type": "extended-attribute"
+       }
+      ],
+      "href": "https://w3c.github.io/picture-in-picture/#dom-htmlvideoelement-disablepictureinpicture",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "boolean",
+       "nullable": false,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "disablePictureInPicture",
+      "readonly": false,
+      "special": "",
+      "type": "attribute"
+     }
+    ],
+    "name": "HTMLVideoElement",
+    "partial": true,
+    "type": "interface"
+   },
+   {
+    "extAttrs": [],
+    "fragment": "partial interface HTMLVideoElement {\n    unsigned long requestVideoFrameCallback(VideoFrameRequestCallback callback);\n    undefined cancelVideoFrameCallback(unsigned long handle);\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "arguments": [
+       {
+        "default": null,
+        "extAttrs": [],
+        "idlType": {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "VideoFrameRequestCallback",
+         "nullable": false,
+         "type": "argument-type",
+         "union": false
+        },
+        "name": "callback",
+        "optional": false,
+        "type": "argument",
+        "variadic": false
+       }
+      ],
+      "extAttrs": [],
+      "href": "https://wicg.github.io/video-rvfc/#dom-htmlvideoelement-requestvideoframecallback",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "unsigned long",
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "requestVideoFrameCallback",
+      "special": "",
+      "type": "operation"
+     },
+     {
+      "arguments": [
+       {
+        "default": null,
+        "extAttrs": [],
+        "idlType": {
+         "extAttrs": [],
+         "generic": "",
+         "idlType": "unsigned long",
+         "nullable": false,
+         "type": "argument-type",
+         "union": false
+        },
+        "name": "handle",
+        "optional": false,
+        "type": "argument",
+        "variadic": false
+       }
+      ],
+      "extAttrs": [],
+      "href": "https://wicg.github.io/video-rvfc/#dom-htmlvideoelement-cancelvideoframecallback",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "undefined",
+       "nullable": false,
+       "type": "return-type",
+       "union": false
+      },
+      "name": "cancelVideoFrameCallback",
+      "special": "",
+      "type": "operation"
+     }
+    ],
+    "name": "HTMLVideoElement",
+    "partial": true,
+    "type": "interface"
+   }
+  ],
+  "TextTrack": [
+   {
+    "extAttrs": [
+     {
+      "arguments": [],
+      "name": "Exposed",
+      "rhs": {
+       "type": "identifier",
+       "value": "Window"
+      },
+      "type": "extended-attribute"
+     }
+    ],
+    "fragment": "[Exposed=Window]\npartial interface TextTrack {\n  readonly attribute SourceBuffer? sourceBuffer;\n};",
+    "inheritance": null,
+    "members": [
+     {
+      "extAttrs": [],
+      "href": "https://w3c.github.io/media-source/#dom-texttrack-sourcebuffer",
+      "idlType": {
+       "extAttrs": [],
+       "generic": "",
+       "idlType": "SourceBuffer",
+       "nullable": true,
+       "type": "attribute-type",
+       "union": false
+      },
+      "name": "sourceBuffer",
+      "readonly": true,
+      "special": "",
+      "type": "attribute"
+     }
+    ],
+    "name": "TextTrack",
+    "partial": true,
+    "type": "interface"
+   }
+  ]
+ },
+ "specs": {
+  "HTMLImageElement": "https://html.spec.whatwg.org/multipage/",
+  "HTMLMediaElement": "https://html.spec.whatwg.org/multipage/",
+  "HTMLVideoElement": "https://html.spec.whatwg.org/multipage/",
+  "TextTrack": "https://html.spec.whatwg.org/multipage/",
+  "TextTrackList": "https://html.spec.whatwg.org/multipage/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

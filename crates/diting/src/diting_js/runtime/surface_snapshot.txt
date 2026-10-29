@@ -1615,7 +1615,7 @@ P HTMLHeadElement :: constructor
 P HTMLHeadingElement :: align,constructor
 P HTMLHtmlElement :: constructor
 P HTMLIFrameElement :: constructor,contentDocument,contentWindow,sandbox,src,srcdoc
-P HTMLImageElement :: constructor,sizes,src
+P HTMLImageElement :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,crossOrigin,currentSrc,decode,decoding,fetchPriority,height,hspace,isMap,loading,longDesc,lowsrc,name,naturalHeight,naturalWidth,referrerPolicy,sharedStorageWritable,sizes,src,srcset,useMap,vspace,width,x,y
 P HTMLInputElement :: checkValidity,checked,constructor,disabled,files,form,formNoValidate,indeterminate,max,maxLength,min,minLength,multiple,name,placeholder,reportValidity,setCustomValidity,size,step,type,validationMessage,validity,value,valueAsDate,valueAsNumber,willValidate
 P HTMLLIElement :: constructor,type,value
 P HTMLLabelElement :: constructor,form,htmlFor
@@ -1623,7 +1623,7 @@ P HTMLLegendElement :: constructor
 P HTMLLinkElement :: constructor,disabled,rel,relList,rev,sheet,sizes
 P HTMLMapElement :: constructor
 P HTMLMarqueeElement :: constructor
-P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_METADATA,HAVE_NOTHING,NETWORK_EMPTY,NETWORK_IDLE,NETWORK_LOADING,NETWORK_NO_SOURCE,buffered,canPlayType,constructor,currentTime,duration,ended,load,networkState,pause,paused,play,playbackRate,played,readyState,seekable,seeking
+P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_METADATA,HAVE_NOTHING,NETWORK_EMPTY,NETWORK_IDLE,NETWORK_LOADING,NETWORK_NO_SOURCE,addTextTrack,autoplay,buffered,canPlayType,captureStream,constructor,controls,controlsList,crossOrigin,currentSrc,currentTime,defaultMuted,defaultPlaybackRate,disableRemotePlayback,duration,ended,error,load,loop,mediaKeys,muted,networkState,onencrypted,onwaitingforkey,pause,paused,play,playbackRate,played,preload,preservesPitch,readyState,remote,seekable,seeking,setMediaKeys,setSinkId,sinkId,src,srcObject,textTracks,volume,webkitAudioDecodedByteCount,webkitVideoDecodedByteCount
 P HTMLMenuElement :: constructor
 P HTMLMetaElement :: constructor,content,scheme
 P HTMLMeterElement :: constructor
@@ -1662,7 +1662,7 @@ P HTMLTrackElement :: constructor
 P HTMLUListElement :: compact,constructor,type
 P HTMLUnknownElement :: constructor
 P HTMLUserMediaElement :: constructor
-P HTMLVideoElement :: constructor,disablePictureInPicture,onenterpictureinpicture,onleavepictureinpicture,requestPictureInPicture
+P HTMLVideoElement :: cancelVideoFrameCallback,constructor,disablePictureInPicture,getVideoPlaybackQuality,height,onenterpictureinpicture,onleavepictureinpicture,playsInline,poster,requestPictureInPicture,requestVideoFrameCallback,videoHeight,videoWidth,webkitDecodedFrameCount,webkitDroppedFrameCount,width
 P HashChangeEvent :: constructor
 P Headers :: append,constructor,delete,entries,forEach,get,has,keys,set,values
 P Highlight :: constructor
@@ -1687,7 +1687,7 @@ P IdentityCredentialError :: constructor
 P IdentityProvider :: constructor
 P IdleDeadline :: constructor
 P IdleDetector :: constructor
-P Image :: constructor,sizes,src
+P Image :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,crossOrigin,currentSrc,decode,decoding,fetchPriority,height,hspace,isMap,loading,longDesc,lowsrc,name,naturalHeight,naturalWidth,referrerPolicy,sharedStorageWritable,sizes,src,srcset,useMap,vspace,width,x,y
 P ImageBitmap :: close,constructor
 P ImageBitmapRenderingContext :: constructor
 P ImageCapture :: constructor
@@ -2156,7 +2156,7 @@ P VideoColorSpace :: constructor
 P VideoDecoder :: constructor
 P VideoEncoder :: constructor
 P VideoFrame :: close,constructor,duration,format,timestamp
-P VideoPlaybackQuality :: constructor,corruptedVideoFrames,creationTime,droppedVideoFrames,totalVideoFrames
+P VideoPlaybackQuality :: constructor
 P ViewTimeline :: constructor
 P ViewTransition :: constructor,finished,ready,skipTransition,updateCallbackDone
 P ViewTransitionTypeSet :: constructor
