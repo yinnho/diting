@@ -75,6 +75,11 @@ Apache-2.0 自托管，或直接用 [browser.aginx.net](https://browser.aginx.ne
 
 [![Star History Chart](https://api.star-history.com/svg?repos=yinnho/diting&type=Date)](https://star-history.com/#yinnho/diting&Date)
 
+## 致谢
+
+diting 的 JavaScript 运行时层建立在 [Obscura](https://github.com/h4ckf0r0day/obscura)（Apache-2.0）的工作之上。
+许多兼容性修复跟随 Obscura 的改动，并在源码注释中以 `upstream <commit>` 标注来源。详见 [`NOTICE`](NOTICE)。
+
 ## 许可
 
-Apache-2.0
+Apache-2.0，详见 [`LICENSE`](LICENSE) 与 [`NOTICE`](NOTICE)。

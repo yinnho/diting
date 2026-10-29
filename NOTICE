@@ -1,0 +1,17 @@
+diting
+Copyright 2026 yinnho
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes software developed by the Obscura project
+(https://github.com/h4ckf0r0day/obscura), which is licensed under the Apache
+License, Version 2.0. Portions of this repository were adapted from Obscura,
+principally the JavaScript runtime layer (crates/diting/js/) and related Rust
+components of the engine (for example under crates/diting/src/diting_js/,
+diting_browser/, diting_net/, diting_css/ and diting_layout/). Source files mark
+individual adaptations with `upstream <commit>` or `upstream #<issue>` comments
+that refer to the corresponding Obscura commits and issues. Those portions have
+since been modified, extended and, in part, replaced.
+
+Other third-party components are used under their own licenses; see Cargo.lock
+and the dependency manifests.

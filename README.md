@@ -62,6 +62,13 @@ Self-host under Apache-2.0, or use the hosted instance at [browser.aginx.net](ht
 
 [![Star History Chart](https://api.star-history.com/svg?repos=yinnho/diting&type=Date)](https://star-history.com/#yinnho/diting&Date)
 
+## Acknowledgements
+
+diting's JavaScript runtime layer builds on work from the
+[Obscura](https://github.com/h4ckf0r0day/obscura) project (Apache-2.0). Many
+compatibility fixes track Obscura changes and are credited in source comments as
+`upstream <commit>`. See [`NOTICE`](NOTICE).
+
 ## License
 
-Apache-2.0
+Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
