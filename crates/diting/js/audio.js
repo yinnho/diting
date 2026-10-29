@@ -103,9 +103,8 @@ function _ctxSetState(ctx, s) {
   if (b.state === s) return;
   b.state = s;
   Promise.resolve().then(() => {
-    const ev = { type: 'statechange', target: ctx };
-    try { if (typeof b.onstatechange === 'function') b.onstatechange(ev); } catch (e) {}
-    try { ctx.dispatchEvent(ev); } catch (e) {}
+    // A real Event: dispatch fires the onstatechange handler attribute itself.
+    try { ctx.dispatchEvent(new Event('statechange')); } catch (e) {}
   });
 }
 globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
@@ -239,9 +238,11 @@ globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioCont
     const self = this;
     return Promise.resolve().then(() => {
       _ctxSetState(self, 'closed');
-      const ev = { type: 'complete', renderedBuffer: buf, target: self };
-      try { if (typeof b.oncomplete === 'function') b.oncomplete(ev); } catch (e) {}
-      self.dispatchEvent(ev);
+      // OfflineAudioCompletionEvent: a real Event carrying renderedBuffer;
+      // dispatch fires the oncomplete handler attribute itself.
+      const ev = new Event('complete');
+      Object.defineProperty(ev, 'renderedBuffer', { value: buf, enumerable: false, configurable: true });
+      try { self.dispatchEvent(ev); } catch (e) {}
       return buf;
     });
   }

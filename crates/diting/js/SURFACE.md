@@ -105,3 +105,12 @@ bootstrap.js 里的 JS 版已删除（−34 行）。探针 36 项对 Chrome 145
 - 代价：粗实现 291ns/次派发（3 监听器），JS WeakMap 版 29ns；主要是每次重建键字符串，正式实现要缓存键。
 设计含义：EventTarget 原生化**不需要**内部字段/原生构造函数创建的对象——遗留节点、window 照样能用私有槽，迁移可渐进。
 未验证：监听器抛异常时的 TryCatch 上报、嵌套派发、中途增删监听器的快照语义（正式实现里用探针覆盖）。
+
+## M3 步骤2：EventTarget 原生化 + 单一派发核心（2026-10-29）
+
+`native/event_target.rs`：DOM §2.9 派发算法一份（路径 → 捕获 → 目标[捕获/冒泡两趟] → 冒泡；once/passive/signal/去重/监听器快照/handleEvent 对象/
+异常上报后继续/再入 InvalidStateError/`when()`）；监听器表在私有槽（实验已验证）；宿主相关的一切走 `event_hooks.js` 注册的 hooks
+（enter/exit=_mtWindow 括号、report、parent、isEvent、handler=on* 属性）。`__diting_event_hooks_set` 一次性注册后即删，页面不可见。
+探针（event-probe.js 71 项）38 → 51 一致，EventTarget 部分全绿；剩余 20 项全是 Event 类（见 tests.rs 的 KNOWN_EVENT_GAPS，棘轮式只减不增）。
+副作用发现：audio.js 把普通对象 `{type:'complete'}` 交给 dispatchEvent（Chrome 会抛 "not of type 'Event'"，旧 JS 版放过）——已改成真 Event。
+未迁（步骤 B）：Node/Document/window/XHR/MSE/AbortSignal 各自的 dispatchEvent 仍是遗留 JS（AbortSignal 派发的 `{type:'abort'}` 也是普通对象）。

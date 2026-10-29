@@ -105,6 +105,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("client_rects.js", include_str!("js/client_rects.js")),
     // Clone hooks for native (Rust-backed) interfaces; needs the natives (installed with the faces).
     ("native_clone.js", include_str!("js/native_clone.js")),
+    // Host hooks for the native EventTarget core (needs Node/Event from bootstrap).
+    ("event_hooks.js", include_str!("js/event_hooks.js")),
 ];
 
 /// Read `chrome-target.toml` (a flat key = value subset of TOML) and emit

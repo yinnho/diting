@@ -10765,7 +10765,7 @@ globalThis.Event = class Event {
   // target on every leg. Site code reading e.srcElement.tagName (the
   // AWSC-family dispatch probes do) found nothing before (#168).
   get srcElement() { return this.target; }
-  preventDefault() { if (this.cancelable) this.defaultPrevented=true; } stopPropagation(){ this._propagationStopped=true; } stopImmediatePropagation(){ this._propagationStopped=true; this._immediatePropagationStopped=true; }
+  preventDefault() { if (this.cancelable && !this._inPassive) this.defaultPrevented=true; } stopPropagation(){ this._propagationStopped=true; } stopImmediatePropagation(){ this._propagationStopped=true; this._immediatePropagationStopped=true; }
   initEvent(type,bubbles,cancelable) { if (arguments.length < 1) throw new TypeError("Failed to execute 'initEvent' on 'Event': 1 argument required, but only 0 present."); this.type=String(type);this.bubbles=!!bubbles;this.cancelable=!!cancelable;this.defaultPrevented=false;this._propagationStopped=false;this._immediatePropagationStopped=false; }
   composedPath() {
     if (!this.target) return [];
@@ -12930,62 +12930,16 @@ for (const _proto of [Document.prototype, DocumentFragment.prototype]) {
 // addEventListener/removeEventListener/dispatchEvent/when (300015 P4) — sit
 // here for every class that extends EventTarget without overriding them
 // (the audio contexts; Chrome truth: tools/webplatform/chrome/chrome-audio-truth.json).
-const _EventTarget = { EventTarget: class EventTarget {} }.EventTarget;
-const _etBag = new WeakMap();
-// Bootstrap is "use strict": bare `addEventListener(...)` (classic page
-// scripts, Qianfan SPA) arrives with this === undefined. WeakMap keys must
-// be objects — coerce nullish this to the Window global (Chrome classic-script
-// bare call lands on window). Method calls keep their receiver.
-function _etSelf(t) { return (t === undefined || t === null) ? globalThis : t; }
-function _etLs(t) { t = _etSelf(t); let b = _etBag.get(t); if (!b) { b = {}; _etBag.set(t, b); } return b; }
-_EventTarget.prototype.addEventListener = function addEventListener(type, cb) {
-  __listenerGate(cb);
-  const self = _etSelf(this);
-  const l = _etLs(self); (l[type] || (l[type] = [])).push(cb);
-};
-// Chrome's own order: addEventListener, dispatchEvent, removeEventListener, when.
-_EventTarget.prototype.dispatchEvent = function dispatchEvent(ev) {
-  if (!ev) return true;
-  const self = _etSelf(this);
-  // DOM: dispatch re-pins target to the host it runs on.
-  try {
-    ev.target = self;
-    ev.currentTarget = self;
-    ev.eventPhase = 2;
-  } catch (e) {}
-  const l = (_etLs(self)[ev.type]) || [];
-  // The page's own synchronous dispatch loop is bracketed so a timer
-  // delivery that would land mid-dispatch defers (#327), like every other
-  // dispatch arm.
-  _mtWindow(() => {
-    for (const f of l.slice()) { try { _invokeListener(f, self, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
-  });
-  // Event handler IDL attributes (on*) fire during dispatch too — Chrome
-  // runs them for every EventTarget subclass (conn.onchange, node.onclick),
-  // not just for "real" DOM events (300015 P6, was conn-only before the
-  // EventTarget relink).
-  const h = self["on" + ev.type];
-  if (typeof h === "function") { try { _invokeListener(h, self, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
-  return !ev.defaultPrevented;
-};
-_EventTarget.prototype.removeEventListener = function removeEventListener(type, cb) {
-  const self = _etSelf(this);
-  const l = _etLs(self)[type]; if (l) { const i = l.indexOf(cb); if (i >= 0) l.splice(i, 1); }
-};
-// Chrome's promise-returning one-shot listener (EventTarget.when).
-_EventTarget.prototype.when = function when(type) {
-  const self = _etSelf(this);
-  return new Promise(function (resolve) {
-    const h = function (ev) { self.removeEventListener(type, h); resolve(ev); };
-    self.addEventListener(type, h);
-  });
-};
+// EventTarget is a NATIVE interface (crates/diting_runtime/src/native/
+// event_target.rs): one dispatch algorithm, listener tables in private slots.
+// Its host hooks (event path parent, timer-deferral bracket, error report)
+// are registered by event_hooks.js.
+const _EventTarget = globalThis.EventTarget;
 Object.setPrototypeOf(Node.prototype, _EventTarget.prototype);
 // conn picks up the EventTarget methods through the chain, exactly like
 // Chrome (NetworkInformation.prototype → EventTarget.prototype), so they
 // are never own names of the first prototype.
 Object.setPrototypeOf(NetworkInformation.prototype, _EventTarget.prototype);
-globalThis.EventTarget = _EventTarget;
 globalThis.HTMLCollection = class HTMLCollection extends Array {
   item(i) {
     i = i >>> 0;
