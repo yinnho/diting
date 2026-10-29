@@ -146,7 +146,6 @@ pub struct ExperimentalSettings {
 #[derive(Debug)]
 pub struct ExperimentalSettingsBuilder {
     settings: SmallVec<[Setting; SettingId::DEFAULT_STACK_SIZE]>,
-    mask: u16,
 }
 
 // ===== impl ExperimentalSettings =====
@@ -156,7 +155,6 @@ impl ExperimentalSettings {
     pub fn builder() -> ExperimentalSettingsBuilder {
         ExperimentalSettingsBuilder {
             settings: SmallVec::new(),
-            mask: 0,
         }
     }
 }
@@ -179,22 +177,17 @@ impl ExperimentalSettingsBuilder {
     where
         S: Into<Option<Setting>>,
     {
-        let setting = setting.into();
-        let Some(setting) = setting else {
+        let Some(setting) = setting.into() else {
             return self;
         };
 
-        // Only insert if this unknown setting ID has not been seen before (deduplication)
+        // Only unknown ids belong here, and each id once (the first wins).
         if let SettingId::Unknown(id) = setting.id {
             if matches!(SettingId::from(id), SettingId::Unknown(_)) {
-                let mask_id = setting.id.mask_id();
-                if mask_id != 0 {
-                    if self.mask & mask_id == 0 {
-                        self.mask |= mask_id;
-                        self.settings.push(setting);
-                    } else {
-                        tracing::trace!("duplicate unknown setting ID ignored: {id:?}");
-                    }
+                if self.settings.iter().any(|s| s.id == setting.id) {
+                    tracing::trace!("duplicate unknown setting ID ignored: {id:?}");
+                } else {
+                    self.settings.push(setting);
                 }
             }
         }
@@ -540,6 +533,18 @@ impl Settings {
                 }
             }
         }
+
+        // Experimental settings the order list does not name go LAST, in the order they were
+        // given. Chrome 145 does exactly that with its GREASE setting (`...;6:262144;<0x?A?A>:<v>`),
+        // and the order list cannot name ids above 15 (it dedupes with a 16-bit mask).
+        #[cfg(feature = "unstable")]
+        if let Some(ref unknown_settings) = self.experimental_settings {
+            for setting in unknown_settings {
+                if !self.settings_order.into_iter().any(|id| *id == setting.id) {
+                    f(setting.clone());
+                }
+            }
+        }
     }
 }
 
@@ -597,8 +602,11 @@ impl Setting {
     pub fn from_id(id: impl Into<SettingId>, value: u32) -> Option<Setting> {
         let id = id.into();
         if let SettingId::Unknown(id) = id {
-            if id == 0 || id > SettingId::MAX_ID {
-                tracing::debug!("limiting unknown setting id to 0..{}", SettingId::MAX_ID);
+            // Any non-zero id is allowed: real Chrome 145 sends a GREASE setting whose id is
+            // 0x?A?A (RFC 8701 style), far above 15. (The old 1..=15 cap existed only because
+            // duplicates were tracked in a 16-bit mask.)
+            if id == 0 {
+                tracing::debug!("ignoring setting id 0");
                 return None;
             }
         }
@@ -708,9 +716,7 @@ mod tests {
     #[cfg(feature = "unstable")]
     #[test]
     fn test_experimental_settings_builder() {
-        // ignore id > SettingId::MAX_ID
-        assert!(SettingId::MAX_ID < 16);
-
+        // ids above the old 1..=15 cap are fine now; the same id twice keeps the first
         let unknown = ExperimentalSettings::builder()
             .extend(vec![
                 Setting::from_id(SettingId::Unknown(16), 42),
@@ -718,7 +724,10 @@ mod tests {
             ])
             .build();
 
-        assert_eq!(unknown.settings.len(), 0);
+        assert_eq!(unknown.settings.len(), 1);
+        assert_eq!(unknown.settings[0].value, 42);
+        // id 0 is never a setting
+        assert!(Setting::from_id(SettingId::Unknown(0), 1).is_none());
 
         let unknown = ExperimentalSettings::builder()
             .push(Setting::from_id(SettingId::Unknown(15), 42))

@@ -24,6 +24,10 @@ stream = []
 tracing = []
 unstable = []
 
+[[test]]
+name = "experimental_settings"
+path = "tests/experimental_settings.rs"
+
 [lib]
 name = "diting_wire_h2"
 path = "src/lib.rs"

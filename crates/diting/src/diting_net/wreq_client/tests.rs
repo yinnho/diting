@@ -783,3 +783,27 @@
             assert!(tls(p).requested_trust_anchors.is_none(), "{p:?} has no evidence for the extension");
         }
     }
+
+    // Real Chrome 145 sends one random GREASE setting (id 0x?A?A) in the initial SETTINGS frame
+    // on every connection (6/6 captures); Chrome 156 sends none (0/6). So it is a per-version trait
+    // of the preset: only Chrome145 carries it, other presets are untouched.
+    #[test]
+    fn only_chrome145_sends_the_h2_grease_setting() {
+        let h2 = |p: diting_profiles::Profile| {
+            diting_wire::IntoEmulation::into_emulation(
+                diting_profiles::Emulation::builder().profile(p).platform(diting_profiles::Platform::MacOS).build(),
+            )
+            .http2_options
+            .expect("preset has h2 options")
+        };
+        assert!(h2(diting_profiles::Profile::Chrome145).grease_setting);
+        for p in [
+            diting_profiles::Profile::Chrome131,
+            diting_profiles::Profile::Chrome144,
+            diting_profiles::Profile::Chrome146,
+            diting_profiles::Profile::Chrome148,
+            diting_profiles::Profile::Firefox133,
+        ] {
+            assert!(!h2(p).grease_setting, "{p:?} has no capture showing the GREASE setting");
+        }
+    }

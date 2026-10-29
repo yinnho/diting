@@ -293,6 +293,14 @@ where
         if let Some(priority) = self.opts.priorities {
             builder.priorities(priority);
         }
+        if self.opts.grease_setting {
+            let (id, value) = grease_setting();
+            if let Some(setting) = http2::frame::Setting::from_id(http2::frame::SettingId::Unknown(id), value) {
+                builder.experimental_settings(
+                    http2::frame::ExperimentalSettings::builder().push(setting).build(),
+                );
+            }
+        }
 
         // Create the ping configuration for the connection.
         let ping_config = ping::Config::new(
@@ -316,4 +324,21 @@ where
             },
         ))
     }
+}
+
+
+/// One HTTP/2 GREASE setting `(id, value)`, drawn per connection like Chrome's session start:
+/// id `0x?A?A` with both `?` nibbles random, value a random 32-bit number. Observed on Chrome for
+/// Testing 145.0.7632.117 (ids such as 0x7A3A, 0xCA0A, 0x6A0A, 0xEACA; values across the full u32 range).
+/// Unpredictable, not cryptographic: it only has to look like a browser's pick.
+pub fn grease_setting() -> (u16, u32) {
+    use std::{
+        collections::hash_map::RandomState,
+        hash::{BuildHasher, Hasher},
+    };
+    let mut h = RandomState::new().build_hasher();
+    h.write_u8(0);
+    let r = h.finish();
+    let id = 0x0A0A | ((((r >> 8) & 0xF) as u16) << 12) | ((((r >> 16) & 0xF) as u16) << 4);
+    (id, (r >> 32) as u32)
 }

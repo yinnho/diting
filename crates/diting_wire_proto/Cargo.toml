@@ -31,6 +31,10 @@ default = []
 full = []
 tracing = []
 
+[[test]]
+name = "grease_setting"
+path = "tests/grease_setting.rs"
+
 [lib]
 name = "diting_wire_proto"
 path = "src/lib.rs"

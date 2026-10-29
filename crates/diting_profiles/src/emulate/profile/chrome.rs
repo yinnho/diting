@@ -1633,7 +1633,7 @@ mod_generator!(
 mod_generator!(
     v145,
     tls_options!(8, CURVES_3),
-    http2_options!(3),
+    http2_options!(4),
     header_initializer_with_zstd_priority,
     [
         (

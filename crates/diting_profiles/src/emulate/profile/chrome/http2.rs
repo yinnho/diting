@@ -66,4 +66,11 @@ macro_rules! http2_options {
             .enable_push(false)
             .build()
     };
+    // (4) = (3) + a random GREASE setting per connection, as real Chrome 145 sends it.
+    (4) => {
+        http2_options!(@base Http2Options::builder())
+            .enable_push(false)
+            .grease_setting(true)
+            .build()
+    };
 }

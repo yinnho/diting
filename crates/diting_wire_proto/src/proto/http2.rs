@@ -539,6 +539,12 @@ pub struct Http2Options {
 
     /// The list of PRIORITY frames to be sent after connection establishment.
     pub priorities: Option<Priorities>,
+
+    /// Send one random GREASE setting in the initial SETTINGS frame, drawn fresh for EVERY
+    /// connection, after the regular settings. Chrome 145 does (id `0x?A?A`, random 32-bit value;
+    /// 6/6 captures with Chrome for Testing 145.0.7632.117) and Chrome 156 does not (0/6), so this
+    /// is a per-version trait of the preset, not a default.
+    pub grease_setting: bool,
 }
 
 impl Http2OptionsBuilder {
@@ -849,6 +855,13 @@ impl Http2OptionsBuilder {
         self
     }
 
+    /// Send one random GREASE setting per connection (see [`Http2Options::grease_setting`]).
+    #[inline]
+    pub fn grease_setting(mut self, enabled: bool) -> Self {
+        self.opts.grease_setting = enabled;
+        self
+    }
+
     /// Builds the `Http2Options` instance.
     #[inline]
     pub fn build(self) -> Http2Options {
@@ -898,6 +911,7 @@ impl Default for Http2Options {
             headers_pseudo_order: None,
             headers_stream_dependency: None,
             priorities: None,
+            grease_setting: false,
         }
     }
 }
