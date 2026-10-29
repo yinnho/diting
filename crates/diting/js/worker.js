@@ -28,12 +28,16 @@ function _workerSourceFor(url) {
   return Promise.resolve({ code: null, fetchUrl: null, error: null });
 }
 
-globalThis.Worker = class Worker {
+globalThis.Worker = class Worker extends EventTarget {
   constructor(url, options) {
+    super();
+    // Route through the Worker.prototype accessors below (__acc): the
+    // native dispatch core's handler leg only fires accessor slots.
+    // Chrome 145 face: Worker.prototype carries onmessage/onerror only —
+    // no onmessageerror (probe worker.et).
     this.onmessage = null;
     this.onerror = null;
     this._terminated = false;
-    __lmap(this);
     this._code = null;
     this._codeReady = false;
     this._pending = null;
@@ -67,7 +71,7 @@ globalThis.Worker = class Worker {
       try { _bootWorker(worker); }
       catch (e) {
         console.error('Worker error:', e.message);
-        _fireWorkerError(worker, e, __evtStore.get(worker));
+        _fireWorkerError(worker, e);
       }
       // Drain messages that queued while the source loaded. Delivery here
       // runs as a microtask at the next JS yield - immune to macro-task
@@ -80,7 +84,7 @@ globalThis.Worker = class Worker {
         if (m && !m.delivered) {
           m.delivered = true;
           if (code) _runWorkerMessage(worker, m.data);
-          else _fireWorkerError(worker, worker._fetchError || new Error('Worker script failed to load or execute (no message from browser)'), __evtStore.get(worker));
+          else _fireWorkerError(worker, worker._fetchError || new Error('Worker script failed to load or execute (no message from browser)'));
         }
       }
     });
@@ -106,7 +110,7 @@ globalThis.Worker = class Worker {
       msg.delivered = true;
       if (!worker._code) {
         const err = worker._fetchError || new Error('Worker script failed to load or execute (no message from browser)');
-        _fireWorkerError(worker, err, __evtStore.get(worker));
+        _fireWorkerError(worker, err);
         return;
       }
       _runWorkerMessage(worker, data);
@@ -114,17 +118,13 @@ globalThis.Worker = class Worker {
     setTimeout(attempt, 0);
   }
   terminate() { this._terminated = true; }
-  addEventListener(type, fn) {
-    __listenerGate(fn);
-    const L = __lmap(this);
-    if (!L[type]) L[type] = [];
-    L[type].push(fn);
-  }
-  removeEventListener(type, fn) {
-    const L = __evtStore.get(this);
-    if (L && L[type]) L[type] = L[type].filter(h => h !== fn);
-  }
+  // The EventTarget trio resolves through the chain to the NATIVE core
+  // (M3 B2b) — no own dispatch code on this class.
 };
+// (#31 / M3 B2b) on* handler IDL attributes as prototype accessors — the
+// only slot shape the native core's handler leg fires. Chrome 145's set
+// on Worker.prototype: onmessage / onerror (no onmessageerror).
+__acc(globalThis.Worker, ['onmessage', 'onerror']);
 // importScripts() is synchronous per spec, but the only I/O this realm can
 // do is promise-based while the worker body runs synchronously inside
 // new Function — so the targets are preloaded: string-literal arguments in
@@ -364,15 +364,14 @@ function _bootWorker(worker) {
     // bare `onmessage = fn` and lands it on the worker scope.
     workerSelf.onmessage = null;
     workerSelf.postMessage = (msg) => {
-      const evt = { data: msg };
       // Page handlers run with the page global fully intact even when the
-      // worker is mid-dispatch under the mask.
+      // worker is mid-dispatch under the mask: MessageEvent resolves and
+      // the native dispatch (M3 B2b) runs inside the unmask window. The
+      // core's handler leg fires worker.onmessage before the listeners —
+      // the order this shim always used.
       const reMask = _unmaskMainThreadGlobals();
       try {
-        if (worker.onmessage) worker.onmessage(evt);
-        const wl = __evtStore.get(worker);
-        const handlers = (wl && wl['message']) || [];
-        for (const h of handlers) _invokeListener(h, worker, evt);
+        worker.dispatchEvent(new MessageEvent('message', { data: msg }));
       } finally { reMask(); }
     };
     workerSelf.addEventListener = (type, fn) => { workerSelf['on' + type] = fn; };
@@ -399,16 +398,15 @@ function _runWorkerMessage(worker, data) {
     if (worker._workerSelf.onmessage) worker._workerSelf.onmessage({ data });
   } catch(e) {
     console.error('Worker error:', e.message);
-    _fireWorkerError(worker, e, __evtStore.get(worker));
+    _fireWorkerError(worker, e);
   } finally { restore(); }
 }
 
 // Module-level so both construction-time fetch failures and execution-time
-// throws share one ErrorEvent-shaped path.
-function _fireWorkerError(worker, err, listeners) {
+// throws share one ErrorEvent path (M3 B2b: a real ErrorEvent through the
+// native core — the handler leg fires worker.onerror first, then the
+// 'error' listeners, the order the manual unshift produced).
+function _fireWorkerError(worker, err) {
   const message = err instanceof Error ? (err.message || err.name) : String(err);
-  const evt = { message, filename: '', lineno: 0, colno: 0, error: err };
-  const handlers = ((listeners && listeners['error']) || []).slice();
-  if (worker.onerror) handlers.unshift(worker.onerror);
-  for (const h of handlers) { try { _invokeListener(h, worker, evt); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
+  worker.dispatchEvent(new ErrorEvent('error', { message, filename: '', lineno: 0, colno: 0, error: err }));
 }

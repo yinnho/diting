@@ -1507,7 +1507,7 @@ P FetchLaterResult :: constructor
 P File :: constructor
 P FileList :: constructor
 S FileReader :: DONE,EMPTY,LOADING
-P FileReader :: DONE,EMPTY,LOADING,_fire,_read,abort,addEventListener,constructor,dispatchEvent,error,onabort,onerror,onload,onloadend,onloadstart,onprogress,readAsArrayBuffer,readAsBinaryString,readAsDataURL,readAsText,readyState,removeEventListener,result
+P FileReader :: DONE,EMPTY,LOADING,_fire,_read,abort,constructor,error,onabort,onerror,onload,onloadend,onloadstart,onprogress,readAsArrayBuffer,readAsBinaryString,readAsDataURL,readAsText,readyState,result
 P FileSystemDirectoryHandle :: constructor
 P FileSystemFileHandle :: constructor
 P FileSystemHandle :: constructor
@@ -1755,7 +1755,7 @@ S MediaRecorder :: isTypeSupported
 P MediaRecorder :: constructor
 P MediaSession :: constructor
 S MediaSource :: isTypeSupported
-P MediaSource :: _afterAppend,_attachToElement,_unionBuffered,addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,readyState,removeSourceBuffer,setLiveSeekableRange
+P MediaSource :: _afterAppend,_attachToElement,_unionBuffered,addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,onsourceclose,onsourceended,onsourceopen,readyState,removeSourceBuffer,setLiveSeekableRange
 P MediaSourceHandle :: constructor
 P MediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
 P MediaStreamAudioDestinationNode :: constructor
@@ -2047,7 +2047,7 @@ P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersectio
 P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,cloneNode,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
 P SharedWorker :: constructor
 P SnapEvent :: constructor
-P SourceBuffer :: _applyAppend,abort,appendBuffer,buffered,changeType,constructor,remove
+P SourceBuffer :: _applyAppend,abort,appendBuffer,buffered,changeType,constructor,onabort,onerror,onupdate,onupdateend,onupdatestart,remove
 P SourceBufferList :: constructor
 P SpeechGrammar :: constructor
 P SpeechGrammarList :: constructor
@@ -2202,7 +2202,7 @@ P WheelEvent :: constructor,deltaMode,deltaX,deltaY,deltaZ
 P Window :: constructor
 P WindowControlsOverlay :: constructor
 P WindowControlsOverlayGeometryChangeEvent :: constructor
-P Worker :: addEventListener,constructor,postMessage,removeEventListener,terminate
+P Worker :: constructor,onerror,onmessage,postMessage,terminate
 P Worklet :: constructor
 P WritableStream :: abort,close,constructor,getWriter,locked
 P WritableStreamDefaultController :: constructor,error

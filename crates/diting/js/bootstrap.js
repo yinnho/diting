@@ -14889,12 +14889,12 @@ if (typeof Option === 'undefined') {
 }
 
 if (typeof FileReader === 'undefined') {
-  globalThis.FileReader = class FileReader {
+  globalThis.FileReader = class FileReader extends EventTarget {
     constructor() {
+      super();
       this.result = null; this.error = null; this.readyState = 0; // EMPTY
       this.onloadstart = null; this.onprogress = null; this.onload = null;
       this.onabort = null; this.onerror = null; this.onloadend = null;
-      __lmap(this);
       __hideOwn(this);
     }
     get [Symbol.toStringTag]() { return "FileReader"; }
@@ -14927,14 +14927,14 @@ if (typeof FileReader === 'undefined') {
       this.readyState = 0; this.result = null;
       if (wasReading) { this._fire("abort"); this._fire("loadend"); }
     }
+    // M3 B2b: one real ProgressEvent through the native core — the ctor
+    // init dict defaults (lengthComputable:false, loaded:0, total:0) are
+    // exactly the fields the old plain object carried, and the on* handler
+    // + listeners now both fire from the core (handler first).
     _fire(type) {
-      const ev = { type: type, target: this, currentTarget: this, lengthComputable: false, loaded: 0, total: 0 };
-      const h = this["on" + type]; if (typeof h === "function") { try { h.call(this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
-      const ls = __evtStore.get(this)?.[type]; if (ls) for (const fn of ls.slice()) { try { _invokeListener(fn, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
+      this.dispatchEvent(new ProgressEvent(type));
     }
-    addEventListener(t, fn) { __listenerGate(fn); const L = __lmap(this); (L[t] = L[t] || []).push(fn); }
-    removeEventListener(t, fn) { const ls = __evtStore.get(this)?.[t]; if (ls) { const i = ls.indexOf(fn); if (i >= 0) ls.splice(i, 1); } }
-    dispatchEvent() { return true; }
+    // (the EventTarget trio resolves through the chain — no own copies)
   };
   globalThis.FileReader.EMPTY = 0; globalThis.FileReader.LOADING = 1; globalThis.FileReader.DONE = 2;
   Object.assign(globalThis.FileReader.prototype, { EMPTY: 0, LOADING: 1, DONE: 2 });

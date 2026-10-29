@@ -352,6 +352,27 @@
   true,
   false
  ],
+ "fr.dispatch": [
+  "on:true:5",
+  "ls"
+ ],
+ "fr.et": [
+  true,
+  true,
+  null
+ ],
+ "mse.et": [
+  true,
+  false,
+  "function",
+  0
+ ],
+ "mse.on": "yes:true:true",
+ "sb.on.desc": [
+  true,
+  true,
+  true
+ ],
  "shape.CustomEvent": {
   "len": 1,
   "members": {
@@ -1069,6 +1090,12 @@
   2
  ],
  "win.on.unknown": "no",
+ "worker.et": [
+  true,
+  true,
+  true,
+  false
+ ],
  "xhr.chain": [
   true,
   true,

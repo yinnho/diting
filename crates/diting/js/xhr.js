@@ -175,7 +175,6 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     this._timeoutTimer = null;
     this._timedOut = false;
     this._aborted = false;
-    __lmap(this);
     this.onreadystatechange = null;
     this.onload = null;
     this.onerror = null;

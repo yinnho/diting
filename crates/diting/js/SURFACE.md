@@ -176,3 +176,26 @@ XMLHttpRequestUpload 由生成件 global_surface 定义，其链布线落在它�
 dispatch.shape/dispatch.on/dispatch.string、abort.event/abort.dispatch.state、battery.et）；
 tests 1432/0；check_fresh+棘轮绿。步骤 B2b=MSE/Worker/FileReader（同形）；iframe 两腿因
 receiver() 判链（et-proto 私槽等值比较）与已立案的 _IframeWindow 链缺陷纠缠，并入该专项。
+
+## M3 步骤B2b：Worker/MSE/FileReader 派发并轨原生核心（2026-10-29）
+
+七套手搓派发器第二组收编，`__evtStore` 只剩 Document（B3）与 iframe 两腿（B2c，并入
+_IframeWindow 链缺陷专项）。**Worker**：`class Worker extends EventTarget`，自有
+add/remove 二件删净；发火点全换真事件——workerSelf.postMessage 的页面腿换成
+`dispatchEvent(new MessageEvent('message', {data}))`（在 `_unmaskMainThreadGlobals` 窗内，
+MessageEvent 可解析），`_fireWorkerError` 换 `new ErrorEvent('error', {...})`（原生 handler 腿
+先 onerror 后监听器=旧 unshift 序）；on* 迁 `__acc` 原型 accessor——**Chrome 145 实测
+Worker.prototype 无 onmessageerror**（成员=constructor/onerror/onmessage/postMessage/terminate，
+引擎迁移后成员集与 Chrome 完全一致）。**MSE**：`_MseEventTarget` 三件删净换 `extends EventTarget`
+（旧注释担心的 tree 路径/nid 问题不存在——核心 parent 钩子对非 Node 返 null）；发火点本就真
+`new Event`；关键补丁=`ms.onsourceopen = fn` 原落实例数据属性会被 isHandlerSlot 拒——补
+`__acc(MediaSource, [onsourceopen/onsourceended/onsourceclose])` 与
+`__acc(SourceBuffer, [onupdatestart/onupdate/onupdateend/onerror/onabort])`（Chrome 分家位置；
+播放器在 onsourceopen 里建 SourceBuffer，不补即哑）。**FileReader**：`extends EventTarget`，
+桩 dispatchEvent（恒 true 的空壳）删净，`_fire` 换 `new ProgressEvent(type)`（ctor 默认
+lengthComputable:false/loaded:0/total:0 与旧普通对象字段全等）。ctor 的死 `__lmap(this)`
+清除（XHR/Worker/FileReader 三处）。夹具面 diff=四张原型面（上述+FileReader）；棘轮 48→50
+（worker.js/media_source.js 加载期引 `__acc`）。验收：探针 96→**102 项对 Chrome 145 全一致**
+（worker.et/mse.et/mse.on/sb.on.desc/fr.et/fr.dispatch）；tests 1432/0。探针自课：裸
+getOwnPropertyDescriptor 描述符上误用 `desc()` 紧凑键 `.g`（真键 `.get`）——第一轮 worker.et
+假分歧即此。

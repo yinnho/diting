@@ -225,46 +225,16 @@ class _SourceBufferList extends Array {
 }
 
 // MSE objects are EventTargets but NOT Nodes — Chrome says
-// `new MediaSource() instanceof Node` is false. The global EventTarget in
-// this realm is the DOM Node stand-in (see the binding block near
-// Document/Element), so extending it would both route dispatch through the
-// tree-flavored path (which silently no-ops on nid-less objects — the
-// 'sourceopen' handshake never fired) and make instanceof Node true. A
-// self-contained registry keeps the surface right; same shape
-// XMLHttpRequestEventTarget uses. The on<type> property dispatch is
-// load-bearing here: onsourceopen/onsourceended and SourceBuffer's
-// onupdate/onupdateend/onerror/onabort are standard IDL attributes.
-class _MseEventTarget {
-  addEventListener(type, handler) {
-    __listenerGate(handler);
-    const L = __lmap(this);
-    (L[type] || (L[type] = [])).push(handler);
-  }
-  removeEventListener(type, handler) {
-    const L = __evtStore.get(this);
-    if (L && L[type]) {
-      L[type] = L[type].filter(h => h !== handler);
-    }
-  }
-  dispatchEvent(event) {
-    if (!event || !event.type) return false;
-    const ev = (typeof event === 'object') ? event : { type: event };
-    _evS(ev, 'target', ev.target || this);
-    _evS(ev, 'currentTarget', ev.currentTarget || this);
-    const L = __evtStore.get(this);
-    const handlers = (L && L[ev.type]) || [];
-    for (const h of handlers) { try { _invokeListener(h, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
-    const prop = 'on' + ev.type;
-    if (typeof this[prop] === 'function') {
-      try { this[prop](ev); } catch (e) {}
-    }
-    return true;
-  }
-}
+// `new MediaSource() instanceof Node` is false. Since the native core took
+// over dispatch (M3 B2b) the old worry is gone: the chain
+// _MseEventTarget.prototype → EventTarget.prototype is exactly Chrome's
+// shape, the core's parent hook returns null for non-Node targets (no tree
+// path, no nid assumptions), and every firing site already builds real
+// Events. The on<type> handlers are standard IDL attributes — installed as
+// prototype accessors (__acc) at the bottom of this file so the core's
+// handler leg fires them (an instance data prop never fires).
+class _MseEventTarget extends EventTarget {}
 _markNative(_MseEventTarget);
-_markNative(_MseEventTarget.prototype.addEventListener);
-_markNative(_MseEventTarget.prototype.removeEventListener);
-_markNative(_MseEventTarget.prototype.dispatchEvent);
 
 globalThis.SourceBuffer = class SourceBuffer extends _MseEventTarget {
   constructor(ms, mime) {
@@ -491,3 +461,10 @@ globalThis.MediaSource = class MediaSource extends _MseEventTarget {
 };
 _markNative(globalThis.MediaSource);
 _markNative(globalThis.MediaSource.isTypeSupported);
+// (#31 / M3 B2b) on* handler IDL attributes as prototype accessors, the
+// only slot shape the native core's handler leg fires. Chrome's split:
+// MediaSource owns sourceopen/sourceended/sourceclose, SourceBuffer owns
+// the update family. Without these an `ms.onsourceopen = fn` assignment
+// would land as an instance data prop and never fire.
+__acc(globalThis.MediaSource, ['onsourceopen', 'onsourceended', 'onsourceclose']);
+__acc(globalThis.SourceBuffer, ['onupdatestart', 'onupdate', 'onupdateend', 'onerror', 'onabort']);
