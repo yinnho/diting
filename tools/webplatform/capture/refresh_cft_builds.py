@@ -5,12 +5,14 @@ import datetime, json, os, urllib.request
 URL = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions.json"
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "chrome", "cft-builds.json")
 d = json.load(urllib.request.urlopen(URL, timeout=60))
+STABLE_URL = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json"
+stable = json.load(urllib.request.urlopen(STABLE_URL, timeout=60))["channels"]["Stable"]["version"]
 by = {}
 for v in d["versions"]:
     parts = v["version"].split(".")
     by.setdefault(int(parts[0]), set()).add(".".join(parts[2:]))
 key = lambda bp: tuple(int(x) for x in bp.split("."))
-json.dump({"_meta": {"source": URL, "fetched": datetime.date.today().isoformat(),
+json.dump({"_meta": {"source": URL, "fetched": datetime.date.today().isoformat(), "stable": stable,
                      "note": "major -> every build.patch Google published as a Chrome for Testing known-good version. Used offline to prove that a claimed full version really exists."},
            "builds": {str(m): sorted(v, key=key) for m, v in sorted(by.items())}},
           open(out, "w"), indent=0, sort_keys=True)

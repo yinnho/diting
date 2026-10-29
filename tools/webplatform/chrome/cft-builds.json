@@ -2,7 +2,8 @@
 "_meta": {
 "fetched": "2026-10-29",
 "note": "major -> every build.patch Google published as a Chrome for Testing known-good version. Used offline to prove that a claimed full version really exists.",
-"source": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions.json"
+"source": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions.json",
+"stable": "156.0.8078.73"
 },
 "builds": {
 "113": [

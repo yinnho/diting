@@ -54,7 +54,7 @@ impl SearchEngine for SogouEngine {
         );
 
         let resp = self.client.get(&url)
-            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+            .header("User-Agent", diting::chrome_target::UA_DEFAULT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
             .send()

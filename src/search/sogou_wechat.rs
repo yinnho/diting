@@ -66,7 +66,7 @@ async fn reqwest_search_and_resolve(
 
     // Step 1: Search with plain reqwest, collect cookies.
     let resp = match plain_client.get(&search_url)
-        .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+        .header("User-Agent", diting::chrome_target::UA_DEFAULT)
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
         .send()
@@ -131,7 +131,7 @@ async fn reqwest_search_and_resolve(
         }
 
         let mut req = plain_client.get(&result.url)
-            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+            .header("User-Agent", diting::chrome_target::UA_DEFAULT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
             .header("Referer", &search_url);
@@ -154,7 +154,7 @@ async fn reqwest_search_and_resolve(
                         } else if loc.starts_with("http") {
                             // Follow one more hop.
                             if let Ok(next) = plain_client.get(loc)
-                                .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+                                .header("User-Agent", diting::chrome_target::UA_DEFAULT)
                                 .send().await
                             {
                                 if next.status().is_redirection() {

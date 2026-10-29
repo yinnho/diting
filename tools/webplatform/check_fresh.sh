@@ -37,7 +37,8 @@ diff -q "$tmp/storage.gen.js" crates/diting/js/platform/gen/storage.gen.js >/dev
 python3 $WP/bundle.py "$tmp/platform_bundle.js" >/dev/null
 diff -q "$tmp/platform_bundle.js" crates/diting/js/platform_bundle.js >/dev/null \
   || { echo "FAIL: crates/diting/js/platform_bundle.js is stale vs bundle.py" >&2; fail=1; }
-# 4. every Chrome full version we can claim really shipped
+# 4. every Chrome full version we can claim really shipped; all layers follow the one target
+python3 tools/apply_chrome_target.py --check >/dev/null && python3 tools/check_coherence.py >/dev/null || { python3 tools/check_coherence.py >&2; fail=1; }
 python3 $WP/check_versions.py >/dev/null || { python3 $WP/check_versions.py >&2; fail=1; }
 [ "$fail" = 0 ] && echo "webplatform generated files fresh (4 artifacts, $(ls $WP/chrome/*.json | wc -l | tr -d ' ') truth files)"
 exit $fail

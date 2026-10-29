@@ -1,0 +1,27 @@
+# The ONE place that says which Chrome we claim to be (owner ruling 2026-10-29: follow
+# Chrome stable; UA / Client Hints / TLS / JS surface must all be the SAME real version;
+# platform macOS arm64). build.rs turns this into Rust constants (src/chrome_target.rs),
+# `tools/check_coherence.py` (CI) checks every layer against it.
+#
+# Changing the target = change this file, capture the new version's truth
+# (tools/webplatform/capture/wire_capture.py against Chrome for Testing), regenerate, and
+# review the snapshot-fixture diff. Do NOT hard-code a Chrome version anywhere else.
+
+major        = 145
+# Must be a version Google really published (checked offline against
+# tools/webplatform/chrome/cft-builds.json) - never extrapolate a build number.
+full_version = "145.0.7632.117"
+# wreq-util emulation preset used for the TLS/H2 handshake: "chrome<major>". build.rs
+# emits `wreq_util::Profile::Chrome<major>`, so a preset the TLS library lacks fails the build.
+tls_profile  = "chrome145"
+platform     = "macOS"
+arch         = "arm64"
+
+# Why 145 and not the current stable (156.0.8078.73 on 2026-10-29) - keep this honest:
+#  * wreq-util 3.0.0-rc.14 presets stop at Chrome148, so 149..156 have no real handshake.
+#  * The xhs edge routes UA majors non-monotonically (2026-10-17 probe: 145/154/157/158 reach
+#    production, 146-153 and 155/156 land in its SIT loop). 145 is the only production-routed
+#    major a real preset can back. Re-probe before moving.
+#  * A UA/TLS mismatch is a measured WAF tell (UA 154 over a chrome145 handshake, 2026-10-19).
+# The lag to stable is reported by tools/check_coherence.py; closing it needs (a) our own
+# TLS preset for the new major and (b) a fresh xhs routing probe.

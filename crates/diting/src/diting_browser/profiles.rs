@@ -23,49 +23,49 @@ pub struct BrowserProfile {
 
 pub static PROFILES: &[BrowserProfile] = &[
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_WINDOWS,
         platform: "Win32",
         ua_platform: "Windows",
         ua_platform_version: "10.0.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_WINDOWS,
         platform: "Win32",
         ua_platform: "Windows",
         ua_platform_version: "10.0.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_WINDOWS,
         platform: "Win32",
         ua_platform: "Windows",
         ua_platform_version: "15.0.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_WINDOWS,
         platform: "Win32",
         ua_platform: "Windows",
         ua_platform_version: "15.0.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_MAC,
         platform: "MacIntel",
         ua_platform: "macOS",
         ua_platform_version: "13.6.7",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_MAC,
         platform: "MacIntel",
         ua_platform: "macOS",
         ua_platform_version: "14.4.1",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_MAC,
         platform: "MacIntel",
         ua_platform: "macOS",
         ua_platform_version: "14.5.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_MAC,
         platform: "MacIntel",
         ua_platform: "macOS",
         ua_platform_version: "14.6.0",
@@ -76,34 +76,33 @@ pub static PROFILES: &[BrowserProfile] = &[
     // match its kernel's SYN. Chrome on Linux reports platformVersion as
     // the kernel version; plausible mainline versions per entry.
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_LINUX,
         platform: "Linux x86_64",
         ua_platform: "Linux",
         ua_platform_version: "5.15.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_LINUX,
         platform: "Linux x86_64",
         ua_platform: "Linux",
         ua_platform_version: "6.1.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_LINUX,
         platform: "Linux x86_64",
         ua_platform: "Linux",
         ua_platform_version: "6.5.0",
     },
     BrowserProfile {
-        user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        user_agent: crate::chrome_target::UA_LINUX,
         platform: "Linux x86_64",
         ua_platform: "Linux",
         ua_platform_version: "6.8.0",
     },
 ];
 
-/// Product default: the stable macOS Chrome/145 persona this service has
-/// always presented when no override is set (index 6 in the pool). UA major
-/// is 154; TLS fingerprint name remains chrome145 (wreq-util shape).
+/// Product default: the macOS persona this service presents when no override is
+/// set (index 6 in the pool). Its Chrome version is `chrome_target` (single source).
 /// Upstream's `select_profile` defaults to `PROFILES[0]` (Windows); flipping
 /// our default would change the UA every un-pinned deployment sends, so we
 /// pin ours.
@@ -208,7 +207,7 @@ mod tests {
         // Un-pinned select keeps the persona every DITING_UA-unset
         // deployment has always presented: macOS Chrome at the fleet major.
         assert!(p.user_agent.starts_with("Mozilla/5.0 (Macintosh"));
-        assert!(p.user_agent.contains("Chrome/145"));
+        assert!(p.user_agent.contains(&format!("Chrome/{}", crate::chrome_target::CHROME_MAJOR)));
         assert_eq!(p.platform, "MacIntel");
     }
 

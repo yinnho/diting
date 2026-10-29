@@ -277,7 +277,7 @@ impl HttpClient {
             cookie_jar,
             user_agent: RwLock::new(
                 std::env::var("DITING_UA").unwrap_or_else(|_| {
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36".to_string()
+                    crate::chrome_target::UA_DEFAULT.to_string()
                 }),
             ),
             accept_language: RwLock::new(
@@ -895,7 +895,7 @@ impl HttpClient {
             let (sec_ch_ua, platform) = derive_client_hints(&ua);
             let mut headers = HeaderMap::new();
             headers.insert(USER_AGENT, HeaderValue::from_str(&ua).unwrap_or_else(|_| {
-                HeaderValue::from_static("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36")
+                HeaderValue::from_static(crate::chrome_target::UA_DEFAULT)
             }));
             headers.insert(reqwest::header::ACCEPT, HeaderValue::from_static(default_accept));
             headers.insert(

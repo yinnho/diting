@@ -186,11 +186,10 @@ pub struct Persona {
     pub user_agent: String,
 }
 
-/// UA pool for a fresh persona: Windows and macOS Chrome/145 only.
-/// Fleet story: UA string (and GL/uad/sec-ch-ua) claims Chrome 154; the TLS
-/// handshake still uses wreq-util's chrome145 *shape* (JA3 preset name, not
-/// the UA major). Pool entries match Chrome/145 so `warn_on_ua_tls_mismatch`
-/// stays quiet. TLS emulation OS follows the UA, so Win↔Mac is the free
+/// UA pool for a fresh persona: Windows and macOS Chrome at the target major only.
+/// The target version is single-sourced in `diting::chrome_target`
+/// (crates/diting/chrome-target.toml): UA, Client Hints, TLS preset and JS surface
+/// all follow it, so `warn_on_ua_tls_mismatch` stays quiet. TLS emulation OS follows the UA, so Win↔Mac is the free
 /// axis — hardware differentiation rides the fp_seed. Linux is excluded:
 /// the TLS/OS contract and the product default are Win↔Mac; X11 jars on a
 /// Mac host are out of family. Drawn from the profiles pool (not hardcoded)
@@ -199,24 +198,23 @@ fn persona_ua_pool() -> Vec<&'static str> {
     diting::diting_browser::profiles::PROFILES
         .iter()
         .filter(|p| {
-            p.user_agent.contains("Chrome/145.0.0.0")
+            p.user_agent.contains(&format!("Chrome/{}.0.0.0", diting::chrome_target::CHROME_MAJOR))
                 && (p.user_agent.contains("Windows NT") || p.user_agent.contains("Macintosh"))
         })
         .map(|p| p.user_agent)
         .collect()
 }
 
-/// Product-default Mac Chrome/145 UA (profiles `DEFAULT_PROFILE_INDEX`).
-fn default_mac_chrome145_ua() -> &'static str {
+/// Product-default Mac Chrome UA at the target major (profiles `DEFAULT_PROFILE_INDEX`).
+fn default_mac_chrome_ua() -> &'static str {
     diting::diting_browser::profiles::PROFILES
         .iter()
         .find(|p| {
-            p.user_agent.contains("Macintosh") && p.user_agent.contains("Chrome/145.0.0.0")
+            p.user_agent.contains("Macintosh")
+                && p.user_agent.contains(&format!("Chrome/{}.0.0.0", diting::chrome_target::CHROME_MAJOR))
         })
         .map(|p| p.user_agent)
-        .unwrap_or(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-        )
+        .unwrap_or(diting::chrome_target::UA_MAC)
 }
 
 /// Prefer a Mac-only draw when the host is Darwin, or when the operator pins
@@ -270,7 +268,7 @@ fn coerce_ua_to_tls(ua: &str) -> String {
         .find(|p| prefer_mac && p.contains("Macintosh"))
         .or_else(|| pool.iter().copied().find(|p| prefer_win && p.contains("Windows NT")))
         .or_else(|| pool.first().copied())
-        .unwrap_or_else(default_mac_chrome145_ua);
+        .unwrap_or_else(default_mac_chrome_ua);
     tracing::warn!(
         "persona UA Chrome major mismatches fleet Chrome{} (TLS shape stays chrome145); rewriting to coherent pool UA",
         default_tls_chrome_major()
@@ -294,7 +292,7 @@ pub fn resolve_ua_hint(explicit: Option<&str>) -> Option<String> {
         }
     }
     if prefer_mac_persona() {
-        return Some(default_mac_chrome145_ua().to_string());
+        return Some(default_mac_chrome_ua().to_string());
     }
     None
 }
@@ -1163,7 +1161,7 @@ mod tests {
         let fixed = coerce_ua_to_tls(bad);
         assert!(fixed.contains("Chrome/145.0.0.0"), "got {fixed}");
         assert!(fixed.contains("Macintosh"), "got {fixed}");
-        let good = default_mac_chrome145_ua();
+        let good = default_mac_chrome_ua();
         assert_eq!(coerce_ua_to_tls(good), good);
     }
 

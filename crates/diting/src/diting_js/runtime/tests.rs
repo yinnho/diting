@@ -26052,3 +26052,45 @@ async fn ua_data_full_version_is_a_real_chrome_build() {
         assert!(ok, "claimed {full} was never published by Google");
     }
 }
+
+/// Chrome-version coherence at RUNTIME (the offline gate is tools/check_coherence.py):
+/// the JS-visible identity follows crates/diting/chrome-target.toml - the reduced UA,
+/// the Client Hints brand versions and the full version all carry the target.
+#[tokio::test(flavor = "current_thread")]
+async fn js_identity_follows_the_chrome_target() {
+    use crate::chrome_target::{CHROME_FULL_VERSION, CHROME_MAJOR};
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                var h = await navigator.userAgentData.getHighEntropyValues(['uaFullVersion', 'fullVersionList']);
+                return JSON.stringify({ ua: navigator.userAgent, brands: navigator.userAgentData.brands,
+                                        full: h.uaFullVersion, list: h.fullVersionList });
+            }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    assert!(
+        v["ua"].as_str().unwrap().contains(&format!("Chrome/{CHROME_MAJOR}.0.0.0 ")),
+        "navigator.userAgent must carry the target major: {}",
+        v["ua"]
+    );
+    assert_eq!(v["full"], CHROME_FULL_VERSION, "uaFullVersion must be the target's full version");
+    for b in v["brands"].as_array().unwrap() {
+        let name = b["brand"].as_str().unwrap();
+        if name == "Chromium" || name == "Google Chrome" {
+            assert_eq!(b["version"], CHROME_MAJOR.to_string(), "brand {name} must carry the target major");
+        }
+    }
+    for b in v["list"].as_array().unwrap() {
+        let name = b["brand"].as_str().unwrap();
+        if name == "Chromium" || name == "Google Chrome" {
+            assert_eq!(b["version"], CHROME_FULL_VERSION, "fullVersionList {name} must be the full version");
+        }
+    }
+}

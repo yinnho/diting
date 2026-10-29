@@ -20,8 +20,7 @@ use crate::diting_net::cookies::CookieJar;
 use crate::diting_net::client::{Response, NetError, ResourceType};
 
 #[cfg(feature = "stealth")]
-pub const STEALTH_USER_AGENT: &str =
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
+pub const STEALTH_USER_AGENT: &str = crate::chrome_target::UA_DEFAULT;
 
 /// The TLS fingerprint stealth builds present by default. `with_proxy_and_os`
 /// constructs the matching emulation and `/health` reports this string, so
@@ -29,7 +28,7 @@ pub const STEALTH_USER_AGENT: &str =
 /// purpose (#276 P2-6): the face is single-sourced — account personas, the
 /// UA/TLS coherence warning, and this preset all read the pair below, and
 /// the tripwire test runs in every build.
-pub const DEFAULT_TLS_FINGERPRINT: &str = "chrome145";
+pub const DEFAULT_TLS_FINGERPRINT: &str = crate::chrome_target::TLS_PROFILE_NAME;
 
 /// Map a user-friendly TLS fingerprint name to a wreq-util `Profile`
 /// variant. Accepted values (case-insensitive): "chrome145"/"chrome",
@@ -42,7 +41,8 @@ pub const DEFAULT_TLS_FINGERPRINT: &str = "chrome145";
 #[cfg(feature = "stealth")]
 pub fn parse_tls_fingerprint(s: &str) -> Option<wreq_util::Profile> {
     match s.to_ascii_lowercase().as_str() {
-        "chrome145" | "chrome" => Some(wreq_util::Profile::Chrome145),
+        "chrome" => Some(crate::chrome_target::target_tls_profile()),
+        "chrome145" => Some(wreq_util::Profile::Chrome145),
         "chrome131" => Some(wreq_util::Profile::Chrome131),
         "firefox133" | "firefox" => Some(wreq_util::Profile::Firefox133),
         "firefox147" => Some(wreq_util::Profile::Firefox147),
@@ -125,7 +125,7 @@ fn fingerprint_family_version(name: &str) -> Option<(&'static str, u32)> {
 /// History: the fleet claimed 154 over a chrome145-shaped handshake from
 /// 2026-10-17 to 2026-10-20 (UA/TLS mismatch, 300015 on publish_render
 /// persisted); the 2026-10-20 restore made the pair coherent.
-pub const CLAIMED_CHROME_MAJOR: u32 = 145;
+pub const CLAIMED_CHROME_MAJOR: u32 = crate::chrome_target::CHROME_MAJOR;
 
 #[cfg(test)]
 mod face_tripwire {
@@ -412,7 +412,7 @@ impl StealthHttpClient {
             cookie_jar,
             proxy_url,
             os_override,
-            parse_tls_fingerprint(DEFAULT_TLS_FINGERPRINT).unwrap_or(wreq_util::Profile::Chrome145),
+            parse_tls_fingerprint(DEFAULT_TLS_FINGERPRINT).unwrap_or_else(crate::chrome_target::target_tls_profile),
         )
     }
 
@@ -449,9 +449,7 @@ impl StealthHttpClient {
             cookie_jar,
             extra_headers: RwLock::new(HashMap::new()),
             user_agent: RwLock::new(
-                std::env::var("DITING_UA").unwrap_or_else(|_| {
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36".to_string()
-                }),
+                std::env::var("DITING_UA").unwrap_or_else(|_| crate::chrome_target::UA_DEFAULT.to_string()),
             ),
             accept_language: RwLock::new(
                 std::env::var("DITING_ACCEPT_LANGUAGE")

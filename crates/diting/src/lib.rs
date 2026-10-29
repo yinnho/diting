@@ -4,6 +4,7 @@
 //! paint, with a built-in V8 runtime — and expose it through the `Page`-level
 //! API. No product concerns live here (ARCHITECTURE.md §2, rule R2).
 
+pub mod chrome_target;
 pub mod diting_browser;
 pub mod diting_dom;
 pub mod diting_js;

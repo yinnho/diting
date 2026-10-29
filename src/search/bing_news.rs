@@ -18,7 +18,7 @@ impl BingNewsEngine {
 
 const BN_HEADERS: &[(&str, &str)] = &[(
     "User-Agent",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+    diting::chrome_target::UA_DEFAULT,
 )];
 
 #[async_trait]

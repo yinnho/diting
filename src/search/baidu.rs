@@ -8,7 +8,7 @@ use super::{strip_tags, SearchParams, RawSearchResult, SearchEngine, SearchEngin
 const HEADERS: &[(&str, &str)] = &[
     (
         "User-Agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+        diting::chrome_target::UA_DEFAULT,
     ),
     (
         "Accept",
