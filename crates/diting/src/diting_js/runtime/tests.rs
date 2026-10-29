@@ -26390,3 +26390,86 @@ fn htmlelement_members_match_chrome_truth_except_known_gaps() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 3: the EventTarget family's INHERITANCE face. Chrome truth
+/// (eventtarget-chain-truth-145.json, 43 keys) pins, for all 147 non-DOM
+/// interfaces of the family: the full prototype chain (constructor names per
+/// level), that the trio is never an own member of a leaf prototype
+/// (ownTrio), live listener/dispatch round-trips on constructible leaves,
+/// and singleton instance links (performance/screen/navigator.*/… instanceof
+/// their class AND EventTarget). The repair is GENERATED — global_surface.js
+/// ET_CHAIN/ET_ALIAS/ET_SINGLETON tables, emitted by gen_globals_surface.py
+/// from this same truth — plus three legacy shrinks: the _MseEventTarget
+/// intermediate deleted (media_source.js extends EventTarget directly),
+/// _MediaQueryList renamed to MediaQueryList (constructor-name face), and
+/// VisualViewport's inert trio stubs deleted (listeners now really work).
+///
+/// SHADOWED_TRIO ratchets the residue: seven pre-M3 shims still own a
+/// hand-rolled trio on their prototype — dispatch registries with live
+/// delivery paths reading them (WebSocket/EventSource/BroadcastChannel read
+/// _lbox; MessagePort owns a message-only queue; IDB maps listeners to
+/// on-handlers; MediaQueryList feeds the mq-flush registry). Rewiring each
+/// onto the native core is its own family knife; when one lands, remove its
+/// name here.
+#[test]
+fn eventtarget_chains_match_chrome_truth_except_known_gaps() {
+    const SHADOWED_TRIO: &[&str] = &[
+        "BroadcastChannel", "EventSource", "IDBDatabase", "IDBTransaction",
+        "MediaQueryList", "MessagePort", "WebSocket",
+    ];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/eventtarget-chain-probe.js");
+    let engine: serde_json::Value =
+        serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/eventtarget-chain-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        let got = &engine[k];
+        match k.as_str() {
+            // every interface's chain: level names exactly, and no
+            // engine-only chains Chrome's family doesn't have.
+            "chains" => {
+                for (n, wchain) in want.as_object().unwrap() {
+                    let gchain = &got[n];
+                    if gchain != wchain {
+                        bad.push(format!("chains.{n}: engine {gchain} chrome {wchain}"));
+                    }
+                }
+                for n in got.as_object().unwrap().keys() {
+                    if want.get(n).is_none() {
+                        bad.push(format!("chains.{n}: engine-only chain (not in Chrome truth)"));
+                    }
+                }
+                continue;
+            }
+            // the trio must be inherited at every leaf; the hand-rolled
+            // dispatch shims are the ratcheted exception.
+            "ownTrio" => {
+                let g: Vec<&str> = got.as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+                let w: Vec<&str> = want.as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+                let mut exp: Vec<&str> = w.clone();
+                exp.extend_from_slice(SHADOWED_TRIO);
+                exp.sort();
+                let mut gs = g.clone();
+                gs.sort();
+                if gs != exp {
+                    for n in &gs {
+                        if !exp.contains(n) { bad.push(format!("ownTrio: {n} owns the trio unexpectedly")); }
+                    }
+                    for n in &exp {
+                        if !gs.contains(n) { bad.push(format!("ownTrio: {n} no longer shadows - remove it from SHADOWED_TRIO")); }
+                    }
+                }
+                continue;
+            }
+            _ => {}
+        }
+        if got != want {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

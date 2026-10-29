@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 142 个；缺口成员合计 1043。
+已核 196 个接口；有缺口 140 个；缺口成员合计 992。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -33,54 +33,53 @@
 | HTMLInputElement | createElement | 28/427 | accept, align, alt, attributeStyleMap, autocomplete, computedStyleMap, defaultChecked, defaultValue, dirName, formAction, formEnctype, formMethod, formTarget, height, list, part, pattern, popoverTargetAction, popoverTargetElement, readOnly, requestFullscreen, requestPointerLock, required, showPicker, useMap, webkitEntries, webkitdirectory, width |
 | HTMLAudioElement | createElement | 27/418 | addTextTrack, attributeStyleMap, autoplay, captureStream, computedStyleMap, controls, crossOrigin, currentSrc, defaultMuted, defaultPlaybackRate, disableRemotePlayback, error, loop, mediaKeys, muted, part, preload, preservesPitch, remote, requestFullscreen, requestPointerLock, setMediaKeys, setSinkId, sinkId, srcObject, textTracks, volume |
 | HTMLObjectElement | createElement | 26/390 | align, archive, attributeStyleMap, border, checkValidity, code, codeBase, codeType, computedStyleMap, data, declare, getSVGDocument, height, hspace, part, reportValidity, requestFullscreen, requestPointerLock, setCustomValidity, standby, useMap, validationMessage, validity, vspace, width, willValidate |
-| Animation | new | 22/28 | addEventListener, cancel, commitStyles, currentTime, dispatchEvent, effect, finish, finished, id, pause, pending, persist, play, playState, playbackRate, ready, removeEventListener, replaceState, reverse, startTime, timeline, updatePlaybackRate |
 | HTMLIFrameElement | createElement | 21/388 | align, allow, allowFullscreen, attributeStyleMap, computedStyleMap, credentialless, csp, frameBorder, getSVGDocument, height, loading, longDesc, marginHeight, marginWidth, part, privateToken, referrerPolicy, requestFullscreen, requestPointerLock, scrolling, width |
+| Animation | new | 19/28 | cancel, commitStyles, currentTime, effect, finish, finished, id, pause, pending, persist, play, playState, playbackRate, ready, replaceState, reverse, startTime, timeline, updatePlaybackRate |
 | ClipboardChangeEvent | new | 18/24 | bubbles, cancelBubble, cancelable, composed, composedPath, currentTarget, defaultPrevented, eventPhase, initEvent, isTrusted, preventDefault, returnValue, srcElement, stopImmediatePropagation, stopPropagation, target, timeStamp, type |
 | HTMLMarqueeElement | createElement | 18/377 | attributeStyleMap, behavior, bgColor, computedStyleMap, direction, height, hspace, loop, part, requestFullscreen, requestPointerLock, scrollAmount, scrollDelay, start, stop, trueSpeed, vspace, width |
 | HTMLLinkElement | createElement | 17/384 | as, attributeStyleMap, blocking, charset, computedStyleMap, crossOrigin, fetchPriority, hreflang, imageSizes, imageSrcset, integrity, media, part, referrerPolicy, requestFullscreen, requestPointerLock, target |
-| Notification | new | 17/26 | actions, addEventListener, badge, body, close, data, dir, dispatchEvent, icon, lang, removeEventListener, renotify, requireInteraction, silent, tag, timestamp, title |
 | PointerEvent | new | 16/65 | altitudeAngle, azimuthAngle, getCoalescedEvents, getModifierState, getPredictedEvents, layerX, layerY, movementX, movementY, persistentDeviceId, sourceCapabilities, tangentialPressure, tiltX, tiltY, twist, which |
 | RTCIceCandidate | new | 16/17 | address, component, foundation, port, priority, protocol, relatedAddress, relatedPort, relayProtocol, sdpMLineIndex, sdpMid, tcpType, toJSON, type, url, usernameFragment |
 | HTMLScriptElement | createElement | 15/378 | async, attributeStyleMap, blocking, charset, computedStyleMap, crossOrigin, defer, event, fetchPriority, integrity, noModule, part, referrerPolicy, requestFullscreen, requestPointerLock |
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
-| EditContext | new | 14/20 | addEventListener, attachedElements, characterBounds, characterBoundsRangeStart, dispatchEvent, removeEventListener, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
+| Notification | new | 14/26 | actions, badge, body, close, data, dir, icon, lang, renotify, requireInteraction, silent, tag, timestamp, title |
 | HTMLAnchorElement | createElement | 13/390 | attributeStyleMap, charset, computedStyleMap, coords, download, hreflang, part, ping, referrerPolicy, requestFullscreen, requestPointerLock, shape, target |
 | HTMLAreaElement | createElement | 13/387 | alt, attributeStyleMap, computedStyleMap, coords, download, noHref, part, ping, referrerPolicy, requestFullscreen, requestPointerLock, shape, target |
 | HTMLFieldSetElement | createElement | 12/375 | attributeStyleMap, checkValidity, computedStyleMap, elements, part, reportValidity, requestFullscreen, requestPointerLock, setCustomValidity, validationMessage, validity, willValidate |
 | HTMLOutputElement | createElement | 12/377 | attributeStyleMap, checkValidity, computedStyleMap, defaultValue, part, reportValidity, requestFullscreen, requestPointerLock, setCustomValidity, validationMessage, validity, willValidate |
-| Accelerometer | new | 11/15 | activated, addEventListener, dispatchEvent, hasReading, removeEventListener, start, stop, timestamp, x, y, z |
-| GravitySensor | new | 11/15 | activated, addEventListener, dispatchEvent, hasReading, removeEventListener, start, stop, timestamp, x, y, z |
-| Gyroscope | new | 11/15 | activated, addEventListener, dispatchEvent, hasReading, removeEventListener, start, stop, timestamp, x, y, z |
+| EditContext | new | 11/20 | attachedElements, characterBounds, characterBoundsRangeStart, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
 | HTMLButtonElement | createElement | 11/385 | attributeStyleMap, computedStyleMap, formAction, formEnctype, formMethod, formTarget, part, popoverTargetAction, popoverTargetElement, requestFullscreen, requestPointerLock |
 | HTMLFrameElement | createElement | 11/374 | attributeStyleMap, computedStyleMap, frameBorder, longDesc, marginHeight, marginWidth, noResize, part, requestFullscreen, requestPointerLock, scrolling |
 | HTMLSelectElement | createElement | 11/388 | attributeStyleMap, autocomplete, computedStyleMap, item, length, namedItem, part, requestFullscreen, requestPointerLock, required, showPicker |
 | HTMLTextAreaElement | createElement | 11/394 | attributeStyleMap, autocomplete, computedStyleMap, defaultValue, dirName, part, readOnly, requestFullscreen, requestPointerLock, required, textLength |
 | HTMLTrackElement | createElement | 11/375 | attributeStyleMap, computedStyleMap, default, kind, label, part, readyState, requestFullscreen, requestPointerLock, srclang, track |
-| LinearAccelerationSensor | new | 11/15 | activated, addEventListener, dispatchEvent, hasReading, removeEventListener, start, stop, timestamp, x, y, z |
-| SpeechRecognition | new | 11/26 | abort, addEventListener, continuous, dispatchEvent, grammars, interimResults, lang, maxAlternatives, removeEventListener, start, stop |
-| AbsoluteOrientationSensor | new | 10/14 | activated, addEventListener, dispatchEvent, hasReading, populateMatrix, quaternion, removeEventListener, start, stop, timestamp |
 | HTMLFormElement | createElement | 10/382 | acceptCharset, attributeStyleMap, autocomplete, computedStyleMap, encoding, enctype, part, requestFullscreen, requestPointerLock, target |
-| RelativeOrientationSensor | new | 10/14 | activated, addEventListener, dispatchEvent, hasReading, populateMatrix, quaternion, removeEventListener, start, stop, timestamp |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
 | HTMLEmbedElement | createElement | 9/371 | align, attributeStyleMap, computedStyleMap, getSVGDocument, height, part, requestFullscreen, requestPointerLock, width |
 | HTMLHRElement | createElement | 9/369 | align, attributeStyleMap, color, computedStyleMap, noShade, part, requestFullscreen, requestPointerLock, width |
 | HTMLSourceElement | createElement | 9/371 | attributeStyleMap, computedStyleMap, height, media, part, requestFullscreen, requestPointerLock, srcset, width |
 | HTMLTemplateElement | createElement | 9/372 | attributeStyleMap, computedStyleMap, part, requestFullscreen, requestPointerLock, shadowRootClonable, shadowRootDelegatesFocus, shadowRootMode, shadowRootSerializable |
 | URLPattern | new | 9/11 | hasRegExpGroups, hash, hostname, password, pathname, port, protocol, search, username |
+| Accelerometer | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
+| GravitySensor | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
+| Gyroscope | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
 | HTMLMeterElement | createElement | 8/371 | attributeStyleMap, computedStyleMap, high, low, optimum, part, requestFullscreen, requestPointerLock |
 | HTMLOptionElement | createElement | 8/372 | attributeStyleMap, computedStyleMap, defaultSelected, index, label, part, requestFullscreen, requestPointerLock |
 | IntersectionObserverEntry | new | 8/8 | boundingClientRect, intersectionRatio, intersectionRect, isIntersecting, isVisible, rootBounds, target, time |
+| LinearAccelerationSensor | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
+| SpeechRecognition | new | 8/26 | abort, continuous, grammars, interimResults, lang, maxAlternatives, start, stop |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
+| AbsoluteOrientationSensor | new | 7/14 | activated, hasReading, populateMatrix, quaternion, start, stop, timestamp |
 | HTMLCanvasElement | createElement | 7/371 | attributeStyleMap, captureStream, computedStyleMap, part, requestFullscreen, requestPointerLock, transferControlToOffscreen |
 | HTMLFontElement | createElement | 7/367 | attributeStyleMap, color, computedStyleMap, face, part, requestFullscreen, requestPointerLock |
 | HTMLMetaElement | createElement | 7/369 | attributeStyleMap, computedStyleMap, httpEquiv, media, part, requestFullscreen, requestPointerLock |
 | HTMLModElement | createElement | 7/366 | attributeStyleMap, cite, computedStyleMap, dateTime, part, requestFullscreen, requestPointerLock |
 | HTMLStyleElement | createElement | 7/369 | attributeStyleMap, blocking, computedStyleMap, media, part, requestFullscreen, requestPointerLock |
 | MouseEvent | new | 7/50 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
+| RelativeOrientationSensor | new | 7/14 | activated, hasReading, populateMatrix, quaternion, start, stop, timestamp |
 | Request | new | 7/27 | bodyUsed, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |
 | ViewTimeline | new | 7/8 | axis, currentTime, duration, endOffset, source, startOffset, subject |
 | WheelEvent | new | 7/58 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
-| CloseWatcher | new | 6/9 | addEventListener, close, destroy, dispatchEvent, removeEventListener, requestClose |
 | HTMLBRElement | createElement | 6/365 | attributeStyleMap, clear, computedStyleMap, part, requestFullscreen, requestPointerLock |
 | HTMLBaseElement | createElement | 6/366 | attributeStyleMap, computedStyleMap, part, requestFullscreen, requestPointerLock, target |
 | HTMLDListElement | createElement | 6/365 | attributeStyleMap, compact, computedStyleMap, part, requestFullscreen, requestPointerLock |
@@ -97,7 +96,6 @@
 | HTMLTableCaptionElement | createElement | 6/365 | align, attributeStyleMap, computedStyleMap, part, requestFullscreen, requestPointerLock |
 | HTMLTimeElement | createElement | 6/365 | attributeStyleMap, computedStyleMap, dateTime, part, requestFullscreen, requestPointerLock |
 | HTMLTitleElement | createElement | 6/365 | attributeStyleMap, computedStyleMap, part, requestFullscreen, requestPointerLock, text |
-| IdleDetector | new | 6/8 | addEventListener, dispatchEvent, removeEventListener, screenState, start, userState |
 | KeyboardEvent | new | 6/44 | charCode, getModifierState, isComposing, keyCode, sourceCapabilities, which |
 | HTMLBodyElement | createElement | 5/392 | attributeStyleMap, computedStyleMap, part, requestFullscreen, requestPointerLock |
 | HTMLDataElement | createElement | 5/365 | attributeStyleMap, computedStyleMap, part, requestFullscreen, requestPointerLock |
@@ -124,20 +122,17 @@
 | InputEvent | new | 5/32 | dataTransfer, getTargetRanges, isComposing, sourceCapabilities, which |
 | VideoColorSpace | new | 5/5 | fullRange, matrix, primaries, toJSON, transfer |
 | WebTransportError | new | 5/30 | code, message, name, source, streamErrorCode |
-| CaptureController | new | 4/13 | addEventListener, dispatchEvent, removeEventListener, setFocusBehavior |
-| MediaStream | new | 4/15 | addEventListener, dispatchEvent, getTrackById, removeEventListener |
 | ScrollTimeline | new | 4/5 | axis, currentTime, duration, source |
-| SpeechSynthesisUtterance | new | 4/17 | addEventListener, dispatchEvent, removeEventListener, voice |
 | TextFormat | new | 4/4 | rangeEnd, rangeStart, underlineStyle, underlineThickness |
 | XRRigidTransform | new | 4/4 | inverse, matrix, orientation, position |
 | AudioContext | new | 3/46 | audioWorklet, setSinkId, sinkId |
+| CloseWatcher | new | 3/9 | close, destroy, requestClose |
 | DataTransfer | new | 3/9 | clearData, getData, setData |
 | FontFace | new | 3/19 | ascentOverride, descentOverride, lineGapOverride |
 | IdentityCredentialError | new | 3/30 | code, message, name |
-| OffscreenCanvas | new | 3/11 | addEventListener, dispatchEvent, removeEventListener |
+| IdleDetector | new | 3/8 | screenState, start, userState |
 | ProcessingInstruction | new | 3/79 | nextElementSibling, previousElementSibling, sheet |
 | QuotaExceededError | new | 3/30 | code, message, name |
-| SharedWorker | new | 3/6 | addEventListener, dispatchEvent, removeEventListener |
 | SpeechGrammarList | new | 3/4 | addFromString, item, length |
 | TaskController | new | 3/3 | abort, setPriority, signal |
 | Text | createTextNode | 3/77 | assignedSlot, nextElementSibling, previousElementSibling |
@@ -153,6 +148,7 @@
 | UIEvent | new | 2/27 | sourceCapabilities, which |
 | WebTransport | new | 2/19 | incomingBidirectionalStreams, incomingUnidirectionalStreams |
 | BarcodeDetector | new | 1/1 | detect |
+| CaptureController | new | 1/13 | setFocusBehavior |
 | ClipboardEvent | new | 1/23 | clipboardData |
 | DocumentFragment | new | 1/62 | childElementCount |
 | File | new | 1/11 | webkitRelativePath |
@@ -161,12 +157,14 @@
 | InputDeviceCapabilities | new | 1/2 | firesTouchEvents |
 | MediaMetadata | new | 1/5 | chapterInfo |
 | MediaSource | new | 1/18 | handle |
+| MediaStream | new | 1/15 | getTrackById |
 | MessageEvent | new | 1/28 | initMessageEvent |
 | OfflineAudioContext | new | 1/37 | audioWorklet |
 | Path2D | new | 1/11 | roundRect |
 | PopStateEvent | new | 1/24 | hasUAVisualTransition |
 | RTCError | new | 1/34 | httpRequestStatusCode |
 | RTCSessionDescription | new | 1/3 | toJSON |
+| SpeechSynthesisUtterance | new | 1/17 | voice |
 | SubmitEvent | new | 1/23 | submitter |
 | XMLHttpRequest | new | 1/36 | setPrivateToken |
 

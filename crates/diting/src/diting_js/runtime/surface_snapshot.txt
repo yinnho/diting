@@ -1829,7 +1829,7 @@ P PaymentMethodChangeEvent :: constructor
 P PaymentRequest :: constructor
 P PaymentRequestUpdateEvent :: constructor
 P PaymentResponse :: constructor
-P Performance :: constructor
+P Performance :: _all,_lastMark,_navTiming,_paintTimings,_recordResource,_resetDerived,_resolveTimeRef,_resourcesAll,_rustResources,clearMarks,clearMeasures,clearResourceTimings,constructor,eventCounts,getEntries,getEntriesByName,getEntriesByType,mark,measure,memory,navigation,now,setResourceTimingBufferSize,timeOrigin,timing
 P PerformanceElementTiming :: constructor
 P PerformanceEntry :: constructor,detail,duration,entryType,name,startTime,toJSON
 P PerformanceEventTiming :: constructor
@@ -2164,7 +2164,7 @@ P Viewport :: constructor
 P VirtualKeyboard :: constructor
 P VirtualKeyboardGeometryChangeEvent :: constructor
 P VisibilityStateEntry :: constructor
-P VisualViewport :: addEventListener,constructor,height,offsetLeft,offsetTop,pageLeft,pageTop,removeEventListener,scale,width
+P VisualViewport :: constructor,height,offsetLeft,offsetTop,pageLeft,pageTop,scale,width
 P WGSLLanguageFeatures :: constructor
 P WakeLock :: constructor
 P WakeLockSentinel :: constructor
@@ -2315,7 +2315,7 @@ P scrollBy :: constructor
 P scrollTo :: constructor
 P stop :: constructor
 P subtleCipher :: constructor
-P webkitMediaStream :: constructor
+P webkitMediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
 P webkitRTCPeerConnection :: __emitCand,__mkOfferSdp,__setGather,addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
 P webkitSpeechGrammar :: constructor
 P webkitSpeechGrammarList :: constructor

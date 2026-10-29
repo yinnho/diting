@@ -8754,8 +8754,9 @@ globalThis.VisualViewport = class VisualViewport {
   get scale() { return this._scale || 1; }
   get width() { return this._width || 0; }
   get height() { return this._height || 0; }
-  addEventListener() {}
-  removeEventListener() {}
+  // no own trio (M4 knife 3): the prototype chains to EventTarget.prototype
+  // (global_surface ET_CHAIN) and the native core carries the listeners —
+  // the old empty stubs swallowed them.
 };
 globalThis.__diting_makeVisualViewport = function(w, h) {
   const vv = Object.create(VisualViewport.prototype);
@@ -9669,7 +9670,7 @@ function _mqMatches(q) {
 // __diting_clearViewport flush the registry afterwards and fire `change`
 // (carrying matches/media) on every object that crossed — the half
 // responsive pages need beyond reading matches once at boot.
-function _MediaQueryList(q) {
+function MediaQueryList(q) {
   this._q = String(q);
   this._last = false;
   try { this._last = _mqMatches(this._q); } catch (e) {}
@@ -9681,24 +9682,24 @@ function _MediaQueryList(q) {
     media: { value: this._q, enumerable: true },
   });
 }
-_MediaQueryList.prototype.addListener = function (fn) { this.addEventListener('change', fn); };
-_MediaQueryList.prototype.removeListener = function (fn) { this.removeEventListener('change', fn); };
-_MediaQueryList.prototype.addEventListener = function (type, fn) {
+MediaQueryList.prototype.addListener = function (fn) { this.addEventListener('change', fn); };
+MediaQueryList.prototype.removeListener = function (fn) { this.removeEventListener('change', fn); };
+MediaQueryList.prototype.addEventListener = function (type, fn) {
   __listenerGate(fn);
   if (type === 'change' && fn != null && this._change.indexOf(fn) < 0) this._change.push(fn);
 };
-_MediaQueryList.prototype.removeEventListener = function (type, fn) {
+MediaQueryList.prototype.removeEventListener = function (type, fn) {
   if (type !== 'change') return;
   const i = this._change.indexOf(fn);
   if (i >= 0) this._change.splice(i, 1);
 };
-_MediaQueryList.prototype.dispatchEvent = function (ev) {
+MediaQueryList.prototype.dispatchEvent = function (ev) {
   const handlers = this._change.slice();
   if (typeof this.onchange === 'function') handlers.push(this.onchange);
   for (const h of handlers) { try { _invokeListener(h, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
   return true;
 };
-if (typeof MediaQueryList === 'undefined') globalThis.MediaQueryList = _MediaQueryList;
+if (typeof globalThis.MediaQueryList === 'undefined') globalThis.MediaQueryList = MediaQueryList;
 const _mqlRegistry = [];
 // Re-evaluate every subscribed MQL against the new environment and fire
 // change on the ones that flipped. Inert objects (no listener, no
@@ -9720,7 +9721,7 @@ globalThis.__diting_mqFlush = function () {
   }
 };
 globalThis.matchMedia = _markNative(function matchMedia(q) {
-  const mq = new _MediaQueryList(q);
+  const mq = new MediaQueryList(q);
   _mqlRegistry.push(mq);
   return mq;
 });

@@ -225,18 +225,16 @@ class _SourceBufferList extends Array {
 }
 
 // MSE objects are EventTargets but NOT Nodes — Chrome says
-// `new MediaSource() instanceof Node` is false. Since the native core took
-// over dispatch (M3 B2b) the old worry is gone: the chain
-// _MseEventTarget.prototype → EventTarget.prototype is exactly Chrome's
-// shape, the core's parent hook returns null for non-Node targets (no tree
-// path, no nid assumptions), and every firing site already builds real
-// Events. The on<type> handlers are standard IDL attributes — installed as
-// prototype accessors (__acc) at the bottom of this file so the core's
-// handler leg fires them (an instance data prop never fires).
-class _MseEventTarget extends EventTarget {}
-_markNative(_MseEventTarget);
-
-globalThis.SourceBuffer = class SourceBuffer extends _MseEventTarget {
+// `new MediaSource() instanceof Node` is false. The chain is DIRECT:
+// MediaSource/SourceBuffer.prototype → EventTarget.prototype (truth
+// eventtarget-chain-truth-145.json; the old _MseEventTarget intermediate
+// is gone — Chrome has no such level), the core's parent hook returns
+// null for non-Node targets (no tree path, no nid assumptions), and every
+// firing site already builds real Events. The on<type> handlers are
+// standard IDL attributes — installed as prototype accessors (__acc) at
+// the bottom of this file so the core's handler leg fires them (an
+// instance data prop never fires).
+globalThis.SourceBuffer = class SourceBuffer extends EventTarget {
   constructor(ms, mime) {
     super();
     this._ms = ms;
@@ -315,7 +313,7 @@ globalThis.SourceBuffer = class SourceBuffer extends _MseEventTarget {
   }
 };
 
-globalThis.MediaSource = class MediaSource extends _MseEventTarget {
+globalThis.MediaSource = class MediaSource extends EventTarget {
   constructor() {
     super();
     this._explicitDuration = undefined;

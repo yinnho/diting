@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→**1043**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→**992**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -356,3 +356,50 @@ namespaceURI，跨层 DOM-core 债）+ fn.length 两项 staged。
 on.levels 的 startswith("DOC") 同病（值形如 "HT+SVG+DOC"），须
 split("+") 含判。④spec 直觉再输一次：accessKeyLabel 在真 Chrome 145
 不存在（Blink 未实现），truth 定谳。
+
+## M4 刀3：EventTarget 继承 sweep（2026-10-30）
+
+真值 `chrome/eventtarget-chain-truth-145.json`（43 键，探针
+`eventtarget-chain-probe.js` 两端跑）：Chrome 145 非 DOM 侧共 **147 个**
+EventTarget 家族接口，每个的**全链**（各级 constructor 名）、叶级不自有
+三件（ownTrio）、可构造叶的监听/派发往返（rt.*）、20 个单例的
+instanceof 面（sin.*）。修前引擎：129 件链断（含 Sensor/OrientationSensor/
+AudioNode/AudioScheduledSourceNode/BaseAudioContext/Screen/MediaStreamTrack
+等全部抽象中间层）+2 件 MSE 带私有中间层+16 个单例裸对象。
+
+**修法（生成件 DATA 化）**：`gen_globals_surface.py` 读同一 truth 文件，
+emit 三张表到 `global_surface.js`（该件在一切真类之后、sweep 之前跑）：
+- `ET_CHAIN` 143 行：逐名 `setPrototypeOf(X.prototype, 真值父.prototype)`
+  ——三件/when 经 M3 原生核继承解析；
+- `ET_ALIAS` 3 行：webkitMediaStream/webkitSpeechRecognition/
+  webkitRTCPeerConnection 是**同一接口对象**（[LegacyAlias]），从 OK 表
+  除名换真身别名；
+- `ET_SINGLETON` 20 行：裸对象单例（performance/speechSynthesis/
+  cookieStore/screen.orientation/navigator 十一件…）补挂类原型。
+
+**配套三处 legacy 收缩**（freeze 律最小缺陷修正，记档）：
+- `media_source.js`：删 `_MseEventTarget` 空中间层，MediaSource/
+  SourceBuffer 直接 extends EventTarget（Chrome 无此层）；
+- `bootstrap.js`：`_MediaQueryList` 正名 MediaQueryList（constructor
+  名脸）+ VisualViewport 删两行**空桩三件**（原监听被吞，现在真活）；
+- `performance.js`：`_Performance` 正名 Performance + 构造守卫
+  （`new Performance()` 照抛 Illegal constructor，内部旗标放行单例铸造）
+  ——公开真类原型载成员、THROW 桩退役，chain/instanceof/方法三者同真。
+
+**教训（当场抓获）**：盲 setPrototypeOf 单例会拆**拆体类**——performance
+  的方法原在私有 `_Performance.prototype`，换链到 THROW 桩原型即孤儿化，
+  fetch 全线死（`performance.now is not a function`），page 测试 172 件
+  PoisonError 连坐（真根一件）。单例挂链前必须核方法的宿主原型。
+
+**残留（棘轮在案）**：ownTrio 七件遮蔽——WebSocket/EventSource/
+BroadcastChannel（`__lboxProto` 注册表，WS message 直读 _lbox）、
+MessagePort（message-only 队列）、IDB 三件（on-handler 映射）、
+MediaQueryList（mqFlush 注册表）。各为独立家族刀，不并刀。
+
+验收：探针 43 键全等（147/147 链+无引擎多链）；tests **1436/0**；快照
+漂移恰三行（Performance 真成员/Viewport 删三件/webkitMediaStream 真身）
+已重生成；check_fresh 4 件鲜；analyze ratchet 过。差集表 1043→**992**
+（OffscreenCanvas/SharedWorker 整行出表；CloseWatcher 6→3、
+IdleDetector 6→3、MediaStream 4→1、SpeechSynthesisUtterance 4→1、
+Animation 22→19）。下一刀顺位：Element staged 家族（Typed OM×2/part/
+fullscreen）或真家族（Animation/Notification/传感器/EditContext）。

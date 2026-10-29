@@ -1,0 +1,1020 @@
+{
+ "ET.ctorName": "EventTarget",
+ "ET.own": [
+  "addEventListener",
+  "dispatchEvent",
+  "removeEventListener",
+  "when",
+  "constructor"
+ ],
+ "chain.AudioNode": [
+  "AudioNode",
+  "EventTarget",
+  "Object"
+ ],
+ "chain.OrientationSensor": [
+  "OrientationSensor",
+  "Sensor",
+  "EventTarget",
+  "Object"
+ ],
+ "chain.OscillatorNode": [
+  "OscillatorNode",
+  "AudioScheduledSourceNode",
+  "AudioNode",
+  "EventTarget",
+  "Object"
+ ],
+ "chain.Sensor": [
+  "Sensor",
+  "EventTarget",
+  "Object"
+ ],
+ "chains": {
+  "AbortSignal": [
+   "AbortSignal",
+   "EventTarget",
+   "Object"
+  ],
+  "AbsoluteOrientationSensor": [
+   "AbsoluteOrientationSensor",
+   "OrientationSensor",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "Accelerometer": [
+   "Accelerometer",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "AnalyserNode": [
+   "AnalyserNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "Animation": [
+   "Animation",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioBufferSourceNode": [
+   "AudioBufferSourceNode",
+   "AudioScheduledSourceNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioContext": [
+   "AudioContext",
+   "BaseAudioContext",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioDecoder": [
+   "AudioDecoder",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioDestinationNode": [
+   "AudioDestinationNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioEncoder": [
+   "AudioEncoder",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioNode": [
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioScheduledSourceNode": [
+   "AudioScheduledSourceNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "AudioWorkletNode": [
+   "AudioWorkletNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "BackgroundFetchRegistration": [
+   "BackgroundFetchRegistration",
+   "EventTarget",
+   "Object"
+  ],
+  "BaseAudioContext": [
+   "BaseAudioContext",
+   "EventTarget",
+   "Object"
+  ],
+  "BatteryManager": [
+   "BatteryManager",
+   "EventTarget",
+   "Object"
+  ],
+  "BiquadFilterNode": [
+   "BiquadFilterNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "Bluetooth": [
+   "Bluetooth",
+   "EventTarget",
+   "Object"
+  ],
+  "BluetoothDevice": [
+   "BluetoothDevice",
+   "EventTarget",
+   "Object"
+  ],
+  "BluetoothRemoteGATTCharacteristic": [
+   "BluetoothRemoteGATTCharacteristic",
+   "EventTarget",
+   "Object"
+  ],
+  "BroadcastChannel": [
+   "BroadcastChannel",
+   "EventTarget",
+   "Object"
+  ],
+  "BrowserCaptureMediaStreamTrack": [
+   "BrowserCaptureMediaStreamTrack",
+   "MediaStreamTrack",
+   "EventTarget",
+   "Object"
+  ],
+  "CSSAnimation": [
+   "CSSAnimation",
+   "Animation",
+   "EventTarget",
+   "Object"
+  ],
+  "CSSTransition": [
+   "CSSTransition",
+   "Animation",
+   "EventTarget",
+   "Object"
+  ],
+  "CanvasCaptureMediaStreamTrack": [
+   "CanvasCaptureMediaStreamTrack",
+   "MediaStreamTrack",
+   "EventTarget",
+   "Object"
+  ],
+  "CaptureController": [
+   "CaptureController",
+   "EventTarget",
+   "Object"
+  ],
+  "ChannelMergerNode": [
+   "ChannelMergerNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "ChannelSplitterNode": [
+   "ChannelSplitterNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "Clipboard": [
+   "Clipboard",
+   "EventTarget",
+   "Object"
+  ],
+  "CloseWatcher": [
+   "CloseWatcher",
+   "EventTarget",
+   "Object"
+  ],
+  "ConstantSourceNode": [
+   "ConstantSourceNode",
+   "AudioScheduledSourceNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "ConvolverNode": [
+   "ConvolverNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "CookieStore": [
+   "CookieStore",
+   "EventTarget",
+   "Object"
+  ],
+  "CreateMonitor": [
+   "CreateMonitor",
+   "EventTarget",
+   "Object"
+  ],
+  "DelayNode": [
+   "DelayNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "DevicePosture": [
+   "DevicePosture",
+   "EventTarget",
+   "Object"
+  ],
+  "DocumentPictureInPicture": [
+   "DocumentPictureInPicture",
+   "EventTarget",
+   "Object"
+  ],
+  "DynamicsCompressorNode": [
+   "DynamicsCompressorNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "EditContext": [
+   "EditContext",
+   "EventTarget",
+   "Object"
+  ],
+  "EventSource": [
+   "EventSource",
+   "EventTarget",
+   "Object"
+  ],
+  "EventTarget": [
+   "EventTarget",
+   "Object"
+  ],
+  "FileReader": [
+   "FileReader",
+   "EventTarget",
+   "Object"
+  ],
+  "GPUDevice": [
+   "GPUDevice",
+   "EventTarget",
+   "Object"
+  ],
+  "GainNode": [
+   "GainNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "GravitySensor": [
+   "GravitySensor",
+   "Accelerometer",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "Gyroscope": [
+   "Gyroscope",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "HID": [
+   "HID",
+   "EventTarget",
+   "Object"
+  ],
+  "HIDDevice": [
+   "HIDDevice",
+   "EventTarget",
+   "Object"
+  ],
+  "IDBDatabase": [
+   "IDBDatabase",
+   "EventTarget",
+   "Object"
+  ],
+  "IDBOpenDBRequest": [
+   "IDBOpenDBRequest",
+   "IDBRequest",
+   "EventTarget",
+   "Object"
+  ],
+  "IDBRequest": [
+   "IDBRequest",
+   "EventTarget",
+   "Object"
+  ],
+  "IDBTransaction": [
+   "IDBTransaction",
+   "EventTarget",
+   "Object"
+  ],
+  "IIRFilterNode": [
+   "IIRFilterNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "IdleDetector": [
+   "IdleDetector",
+   "EventTarget",
+   "Object"
+  ],
+  "LinearAccelerationSensor": [
+   "LinearAccelerationSensor",
+   "Accelerometer",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "MIDIAccess": [
+   "MIDIAccess",
+   "EventTarget",
+   "Object"
+  ],
+  "MIDIInput": [
+   "MIDIInput",
+   "MIDIPort",
+   "EventTarget",
+   "Object"
+  ],
+  "MIDIOutput": [
+   "MIDIOutput",
+   "MIDIPort",
+   "EventTarget",
+   "Object"
+  ],
+  "MIDIPort": [
+   "MIDIPort",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaDevices": [
+   "MediaDevices",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaElementAudioSourceNode": [
+   "MediaElementAudioSourceNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaKeySession": [
+   "MediaKeySession",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaQueryList": [
+   "MediaQueryList",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaRecorder": [
+   "MediaRecorder",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaSource": [
+   "MediaSource",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaStream": [
+   "MediaStream",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaStreamAudioDestinationNode": [
+   "MediaStreamAudioDestinationNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaStreamAudioSourceNode": [
+   "MediaStreamAudioSourceNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaStreamTrack": [
+   "MediaStreamTrack",
+   "EventTarget",
+   "Object"
+  ],
+  "MediaStreamTrackGenerator": [
+   "MediaStreamTrackGenerator",
+   "MediaStreamTrack",
+   "EventTarget",
+   "Object"
+  ],
+  "MessagePort": [
+   "MessagePort",
+   "EventTarget",
+   "Object"
+  ],
+  "Navigation": [
+   "Navigation",
+   "EventTarget",
+   "Object"
+  ],
+  "NavigationHistoryEntry": [
+   "NavigationHistoryEntry",
+   "EventTarget",
+   "Object"
+  ],
+  "NavigatorManagedData": [
+   "NavigatorManagedData",
+   "EventTarget",
+   "Object"
+  ],
+  "NetworkInformation": [
+   "NetworkInformation",
+   "EventTarget",
+   "Object"
+  ],
+  "Notification": [
+   "Notification",
+   "EventTarget",
+   "Object"
+  ],
+  "OfflineAudioContext": [
+   "OfflineAudioContext",
+   "BaseAudioContext",
+   "EventTarget",
+   "Object"
+  ],
+  "OffscreenCanvas": [
+   "OffscreenCanvas",
+   "EventTarget",
+   "Object"
+  ],
+  "OrientationSensor": [
+   "OrientationSensor",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "OscillatorNode": [
+   "OscillatorNode",
+   "AudioScheduledSourceNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "PannerNode": [
+   "PannerNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "PaymentRequest": [
+   "PaymentRequest",
+   "EventTarget",
+   "Object"
+  ],
+  "PaymentResponse": [
+   "PaymentResponse",
+   "EventTarget",
+   "Object"
+  ],
+  "Performance": [
+   "Performance",
+   "EventTarget",
+   "Object"
+  ],
+  "PermissionStatus": [
+   "PermissionStatus",
+   "EventTarget",
+   "Object"
+  ],
+  "PictureInPictureWindow": [
+   "PictureInPictureWindow",
+   "EventTarget",
+   "Object"
+  ],
+  "PresentationAvailability": [
+   "PresentationAvailability",
+   "EventTarget",
+   "Object"
+  ],
+  "PresentationConnection": [
+   "PresentationConnection",
+   "EventTarget",
+   "Object"
+  ],
+  "PresentationConnectionList": [
+   "PresentationConnectionList",
+   "EventTarget",
+   "Object"
+  ],
+  "PresentationRequest": [
+   "PresentationRequest",
+   "EventTarget",
+   "Object"
+  ],
+  "Profiler": [
+   "Profiler",
+   "EventTarget",
+   "Object"
+  ],
+  "RTCDTMFSender": [
+   "RTCDTMFSender",
+   "EventTarget",
+   "Object"
+  ],
+  "RTCDataChannel": [
+   "RTCDataChannel",
+   "EventTarget",
+   "Object"
+  ],
+  "RTCDtlsTransport": [
+   "RTCDtlsTransport",
+   "EventTarget",
+   "Object"
+  ],
+  "RTCIceTransport": [
+   "RTCIceTransport",
+   "EventTarget",
+   "Object"
+  ],
+  "RTCPeerConnection": [
+   "RTCPeerConnection",
+   "EventTarget",
+   "Object"
+  ],
+  "RTCSctpTransport": [
+   "RTCSctpTransport",
+   "EventTarget",
+   "Object"
+  ],
+  "RelativeOrientationSensor": [
+   "RelativeOrientationSensor",
+   "OrientationSensor",
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "RemotePlayback": [
+   "RemotePlayback",
+   "EventTarget",
+   "Object"
+  ],
+  "Screen": [
+   "Screen",
+   "EventTarget",
+   "Object"
+  ],
+  "ScreenDetailed": [
+   "ScreenDetailed",
+   "Screen",
+   "EventTarget",
+   "Object"
+  ],
+  "ScreenDetails": [
+   "ScreenDetails",
+   "EventTarget",
+   "Object"
+  ],
+  "ScreenOrientation": [
+   "ScreenOrientation",
+   "EventTarget",
+   "Object"
+  ],
+  "ScriptProcessorNode": [
+   "ScriptProcessorNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "Sensor": [
+   "Sensor",
+   "EventTarget",
+   "Object"
+  ],
+  "Serial": [
+   "Serial",
+   "EventTarget",
+   "Object"
+  ],
+  "SerialPort": [
+   "SerialPort",
+   "EventTarget",
+   "Object"
+  ],
+  "ServiceWorker": [
+   "ServiceWorker",
+   "EventTarget",
+   "Object"
+  ],
+  "ServiceWorkerContainer": [
+   "ServiceWorkerContainer",
+   "EventTarget",
+   "Object"
+  ],
+  "ServiceWorkerRegistration": [
+   "ServiceWorkerRegistration",
+   "EventTarget",
+   "Object"
+  ],
+  "SharedWorker": [
+   "SharedWorker",
+   "EventTarget",
+   "Object"
+  ],
+  "SourceBuffer": [
+   "SourceBuffer",
+   "EventTarget",
+   "Object"
+  ],
+  "SourceBufferList": [
+   "SourceBufferList",
+   "EventTarget",
+   "Object"
+  ],
+  "SpeechRecognition": [
+   "SpeechRecognition",
+   "EventTarget",
+   "Object"
+  ],
+  "SpeechSynthesis": [
+   "SpeechSynthesis",
+   "EventTarget",
+   "Object"
+  ],
+  "SpeechSynthesisUtterance": [
+   "SpeechSynthesisUtterance",
+   "EventTarget",
+   "Object"
+  ],
+  "StereoPannerNode": [
+   "StereoPannerNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "TaskSignal": [
+   "TaskSignal",
+   "AbortSignal",
+   "EventTarget",
+   "Object"
+  ],
+  "TextTrack": [
+   "TextTrack",
+   "EventTarget",
+   "Object"
+  ],
+  "TextTrackCue": [
+   "TextTrackCue",
+   "EventTarget",
+   "Object"
+  ],
+  "TextTrackList": [
+   "TextTrackList",
+   "EventTarget",
+   "Object"
+  ],
+  "USB": [
+   "USB",
+   "EventTarget",
+   "Object"
+  ],
+  "VTTCue": [
+   "VTTCue",
+   "TextTrackCue",
+   "EventTarget",
+   "Object"
+  ],
+  "VideoDecoder": [
+   "VideoDecoder",
+   "EventTarget",
+   "Object"
+  ],
+  "VideoEncoder": [
+   "VideoEncoder",
+   "EventTarget",
+   "Object"
+  ],
+  "VirtualKeyboard": [
+   "VirtualKeyboard",
+   "EventTarget",
+   "Object"
+  ],
+  "VisualViewport": [
+   "VisualViewport",
+   "EventTarget",
+   "Object"
+  ],
+  "WakeLockSentinel": [
+   "WakeLockSentinel",
+   "EventTarget",
+   "Object"
+  ],
+  "WaveShaperNode": [
+   "WaveShaperNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "WebSocket": [
+   "WebSocket",
+   "EventTarget",
+   "Object"
+  ],
+  "WindowControlsOverlay": [
+   "WindowControlsOverlay",
+   "EventTarget",
+   "Object"
+  ],
+  "Worker": [
+   "Worker",
+   "EventTarget",
+   "Object"
+  ],
+  "XMLHttpRequest": [
+   "XMLHttpRequest",
+   "XMLHttpRequestEventTarget",
+   "EventTarget",
+   "Object"
+  ],
+  "XMLHttpRequestEventTarget": [
+   "XMLHttpRequestEventTarget",
+   "EventTarget",
+   "Object"
+  ],
+  "XMLHttpRequestUpload": [
+   "XMLHttpRequestUpload",
+   "XMLHttpRequestEventTarget",
+   "EventTarget",
+   "Object"
+  ],
+  "XRBoundedReferenceSpace": [
+   "XRBoundedReferenceSpace",
+   "XRReferenceSpace",
+   "XRSpace",
+   "EventTarget",
+   "Object"
+  ],
+  "XRJointSpace": [
+   "XRJointSpace",
+   "XRSpace",
+   "EventTarget",
+   "Object"
+  ],
+  "XRLayer": [
+   "XRLayer",
+   "EventTarget",
+   "Object"
+  ],
+  "XRLightProbe": [
+   "XRLightProbe",
+   "EventTarget",
+   "Object"
+  ],
+  "XRReferenceSpace": [
+   "XRReferenceSpace",
+   "XRSpace",
+   "EventTarget",
+   "Object"
+  ],
+  "XRSession": [
+   "XRSession",
+   "EventTarget",
+   "Object"
+  ],
+  "XRSpace": [
+   "XRSpace",
+   "EventTarget",
+   "Object"
+  ],
+  "XRSystem": [
+   "XRSystem",
+   "EventTarget",
+   "Object"
+  ],
+  "XRWebGLLayer": [
+   "XRWebGLLayer",
+   "XRLayer",
+   "EventTarget",
+   "Object"
+  ],
+  "webkitMediaStream": [
+   "MediaStream",
+   "EventTarget",
+   "Object"
+  ],
+  "webkitRTCPeerConnection": [
+   "RTCPeerConnection",
+   "EventTarget",
+   "Object"
+  ],
+  "webkitSpeechRecognition": [
+   "SpeechRecognition",
+   "EventTarget",
+   "Object"
+  ]
+ },
+ "ownTrio": [
+  "EventTarget"
+ ],
+ "rt.AbsOrient": [
+  true,
+  1,
+  true
+ ],
+ "rt.Accelerometer": [
+  true,
+  1,
+  true
+ ],
+ "rt.Animation": [
+  true,
+  1,
+  true
+ ],
+ "rt.CaptureController": [
+  true,
+  1,
+  true
+ ],
+ "rt.CloseWatcher": [
+  true,
+  1,
+  true
+ ],
+ "rt.EditContext": [
+  true,
+  1,
+  true
+ ],
+ "rt.Gyroscope": [
+  true,
+  1,
+  true
+ ],
+ "rt.IdleDetector": [
+  true,
+  1,
+  true
+ ],
+ "rt.MediaStream": [
+  true,
+  1,
+  true
+ ],
+ "rt.Notification": [
+  true,
+  1,
+  true
+ ],
+ "rt.OffscreenCanvas": [
+  true,
+  1,
+  true
+ ],
+ "rt.SharedWorker": [
+  true,
+  1,
+  true
+ ],
+ "rt.SpeechRecognition": [
+  true,
+  1,
+  true
+ ],
+ "rt.SpeechSynthesisUtterance": [
+  true,
+  1,
+  true
+ ],
+ "sin.cookieStore": [
+  true,
+  true,
+  true
+ ],
+ "sin.documentPictureInPicture": [
+  true,
+  true,
+  true
+ ],
+ "sin.matchMedia": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigation": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.bluetooth": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.clipboard": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.connection": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.devicePosture": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.hid": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.managed": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.mediaDevices": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.serial": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.serviceWorker": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.usb": [
+  true,
+  true,
+  true
+ ],
+ "sin.navigator.windowControlsOverlay": [
+  true,
+  true,
+  true
+ ],
+ "sin.performance": [
+  true,
+  true,
+  true
+ ],
+ "sin.screen": [
+  true,
+  true,
+  true
+ ],
+ "sin.screen.orientation": [
+  true,
+  true,
+  true
+ ],
+ "sin.speechSynthesis": [
+  true,
+  true,
+  true
+ ],
+ "sin.visualViewport": [
+  true,
+  true,
+  true
+ ],
+ "sincls": {
+  "cookieStore": "CookieStore",
+  "documentPictureInPicture": "DocumentPictureInPicture",
+  "matchMedia": "MediaQueryList",
+  "navigation": "Navigation",
+  "navigator.bluetooth": "Bluetooth",
+  "navigator.clipboard": "Clipboard",
+  "navigator.connection": "NetworkInformation",
+  "navigator.devicePosture": "DevicePosture",
+  "navigator.hid": "HID",
+  "navigator.managed": "NavigatorManagedData",
+  "navigator.mediaDevices": "MediaDevices",
+  "navigator.serial": "Serial",
+  "navigator.serviceWorker": "ServiceWorkerContainer",
+  "navigator.usb": "USB",
+  "navigator.windowControlsOverlay": "WindowControlsOverlay",
+  "performance": "Performance",
+  "screen": "Screen",
+  "screen.orientation": "ScreenOrientation",
+  "speechSynthesis": "SpeechSynthesis",
+  "visualViewport": "VisualViewport"
+ }
+}

@@ -194,8 +194,16 @@ class PerformanceObserverEntryList {
 _markNativeProto(PerformanceObserverEntryList.prototype);
 globalThis.PerformanceObserverEntryList = PerformanceObserverEntryList;
 
-class _Performance {
+// Chrome's `performance` is a real Performance instance whose class is
+// NON-constructible (`new Performance()` → "Illegal constructor"); the
+// singleton is minted once here through an internal gate (M4 knife 3:
+// methods on the public Performance.prototype, chain
+// Performance.prototype → EventTarget.prototype — truth
+// eventtarget-chain-truth-145.json).
+let _perfInit = false;
+class Performance {
   constructor() {
+    if (!_perfInit) throw new TypeError("Failed to construct 'Performance': Illegal constructor");
     this._marks = []; this._measures = [];
     this._navEntry = null; this._paintEntries = null;
     this._resources = [];
@@ -444,8 +452,12 @@ class _Performance {
   // Per-navigation cache reset, called from __diting_init after timing lands.
   _resetDerived() { this._navEntry = null; this._paintEntries = null; }
 }
-_markNativeProto(_Performance.prototype);
-globalThis.performance = globalThis.performance || new _Performance();
+_markNativeProto(Performance.prototype);
+globalThis.Performance = Performance;
+if (!globalThis.performance) {
+  _perfInit = true;
+  try { globalThis.performance = new Performance(); } finally { _perfInit = false; }
+}
 
 // Replace the bootstrap stub with a working observer. supportedEntryTypes
 // stays the honest set (mark/measure/navigation/paint) — never advertise
