@@ -1,0 +1,1006 @@
+{
+ "ce.detail": [
+  null,
+  null,
+  5
+ ],
+ "ce.initCustomEvent": [
+  "y",
+  true,
+  7
+ ],
+ "ce.ownkeys": [
+  "isTrusted"
+ ],
+ "dex.call": "THROW TypeError: Failed to construct 'DOMException': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "dex.consts": [
+  20,
+  20,
+  {
+   "c": false,
+   "e": true,
+   "t": "number",
+   "v": 20,
+   "w": false
+  },
+  {
+   "c": false,
+   "e": true,
+   "t": "number",
+   "v": 20,
+   "w": false
+  }
+ ],
+ "dex.ctor.args": [
+  "AbortError",
+  "m",
+  20,
+  "AbortError: m",
+  true,
+  "[object DOMException]"
+ ],
+ "dex.ctor.noargs": [
+  "Error",
+  "",
+  0,
+  "Error"
+ ],
+ "dex.illegal.name": "THROW TypeError: Illegal invocation",
+ "dex.keys": [
+  "code",
+  "name",
+  "message",
+  "INDEX_SIZE_ERR",
+  "DOMSTRING_SIZE_ERR",
+  "HIERARCHY_REQUEST_ERR",
+  "WRONG_DOCUMENT_ERR",
+  "INVALID_CHARACTER_ERR",
+  "NO_DATA_ALLOWED_ERR",
+  "NO_MODIFICATION_ALLOWED_ERR",
+  "NOT_FOUND_ERR",
+  "NOT_SUPPORTED_ERR",
+  "INUSE_ATTRIBUTE_ERR",
+  "INVALID_STATE_ERR",
+  "SYNTAX_ERR",
+  "INVALID_MODIFICATION_ERR",
+  "NAMESPACE_ERR",
+  "INVALID_ACCESS_ERR",
+  "VALIDATION_ERR",
+  "TYPE_MISMATCH_ERR",
+  "SECURITY_ERR",
+  "NETWORK_ERR",
+  "ABORT_ERR",
+  "URL_MISMATCH_ERR",
+  "QUOTA_EXCEEDED_ERR",
+  "TIMEOUT_ERR",
+  "INVALID_NODE_TYPE_ERR",
+  "DATA_CLONE_ERR"
+ ],
+ "dex.legacyCodes": [
+  1,
+  11,
+  25,
+  20,
+  23
+ ],
+ "dex.msgConv": "o",
+ "dex.name.set": [
+  "AbortError",
+  "m"
+ ],
+ "dex.ownkeys": [],
+ "dex.stack": [
+  "undefined",
+  false
+ ],
+ "dex.tag": [
+  {
+   "c": true,
+   "e": false,
+   "t": "string",
+   "v": "DOMException",
+   "w": false
+  },
+  "[object DOMException]"
+ ],
+ "dex.unknownName": [
+  "Nope",
+  0
+ ],
+ "et.add.arity": "THROW TypeError: Failed to execute 'addEventListener' on 'EventTarget': 2 arguments required, but only 0 present.",
+ "et.add.during": [
+  "a"
+ ],
+ "et.add.notfn": "THROW TypeError: Failed to execute 'addEventListener' on 'EventTarget': parameter 2 is not of type 'Object'.",
+ "et.add.null": "#undefined",
+ "et.call": "THROW TypeError: Failed to construct 'EventTarget': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "et.capture": [
+  "pc",
+  "d",
+  "pb"
+ ],
+ "et.composedPath": [
+  "DIV",
+  "BODY",
+  "HTML",
+  "D",
+  "W"
+ ],
+ "et.ctor": [
+  [],
+  "[object EventTarget]"
+ ],
+ "et.dispatch.noarg": "THROW TypeError: Failed to execute 'dispatchEvent' on 'EventTarget': 1 argument required, but only 0 present.",
+ "et.dispatch.notEvent": "THROW TypeError: Failed to execute 'dispatchEvent' on 'EventTarget': parameter 1 is not of type 'Event'.",
+ "et.dispatch.return": [
+  false,
+  true,
+  true,
+  null,
+  0
+ ],
+ "et.document.bubble": [
+  "d:2",
+  "p:3:true:true",
+  "doc:3",
+  "d:2"
+ ],
+ "et.illegal": "THROW TypeError: Illegal invocation",
+ "et.listener.dup": [
+  1
+ ],
+ "et.listener.objectHandler": [
+  "x",
+  false
+ ],
+ "et.listener.once": [
+  1
+ ],
+ "et.listener.order": [
+  1,
+  2
+ ],
+ "et.listener.signal": [
+  1
+ ],
+ "et.listener.this": true,
+ "et.listener.throws": [
+  true,
+  [
+   "second"
+  ]
+ ],
+ "et.passive.prevent": false,
+ "et.redispatch": [
+  true,
+  null,
+  0,
+  true
+ ],
+ "et.reentrant": true,
+ "et.remove.during": [
+  "a"
+ ],
+ "et.shape.sub": [
+  1
+ ],
+ "et.stopImmediate": [
+  1
+ ],
+ "et.window": [
+  true,
+  true,
+  2
+ ],
+ "ev.cancelBubble": [
+  true
+ ],
+ "ev.composedPath.fresh": [],
+ "ev.consts": [
+  0,
+  1,
+  2,
+  3,
+  {
+   "c": false,
+   "e": true,
+   "t": "number",
+   "v": 2,
+   "w": false
+  },
+  {
+   "c": false,
+   "e": true,
+   "t": "number",
+   "v": 2,
+   "w": false
+  }
+ ],
+ "ev.ctor.call": "THROW TypeError: Failed to construct 'Event': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "ev.ctor.noargs": "THROW TypeError: Failed to construct 'Event': 1 argument required, but only 0 present.",
+ "ev.illegal": "THROW TypeError: Illegal invocation",
+ "ev.illegal.method": "THROW TypeError: Illegal invocation",
+ "ev.initDict.bad": "THROW TypeError: Failed to construct 'Event': The provided value is not of type 'EventInit'.",
+ "ev.initDict.getters": [
+  "b",
+  "c",
+  "p"
+ ],
+ "ev.initDict.null": "x",
+ "ev.initEvent": [
+  "z",
+  true,
+  true
+ ],
+ "ev.initEvent.noarg": "THROW TypeError: Failed to execute 'initEvent' on 'Event': 1 argument required, but only 0 present.",
+ "ev.json": "{\"isTrusted\":false}",
+ "ev.keys": [
+  "AT_TARGET",
+  "BUBBLING_PHASE",
+  "CAPTURING_PHASE",
+  "NONE",
+  "bubbles",
+  "cancelBubble",
+  "cancelable",
+  "composed",
+  "composedPath",
+  "currentTarget",
+  "defaultPrevented",
+  "eventPhase",
+  "initEvent",
+  "isTrusted",
+  "preventDefault",
+  "returnValue",
+  "srcElement",
+  "stopImmediatePropagation",
+  "stopPropagation",
+  "target",
+  "timeStamp",
+  "type"
+ ],
+ "ev.ownkeys": [
+  "isTrusted"
+ ],
+ "ev.preventDefault": [
+  true,
+  false,
+  false,
+  true
+ ],
+ "ev.readonly": [
+  "x",
+  null,
+  false
+ ],
+ "ev.returnValue.set": [
+  true,
+  false
+ ],
+ "ev.stopPropagation.cancelBubble": true,
+ "ev.strict.readonly": "THROW TypeError: Cannot set property type of #<Event> which has only a getter",
+ "ev.tag": [
+  "[object Event]",
+  {
+   "c": true,
+   "e": false,
+   "t": "string",
+   "v": "Event",
+   "w": false
+  }
+ ],
+ "ev.type.sym": "THROW TypeError: Failed to construct 'Event': Cannot convert a Symbol value to a string",
+ "ev.values": [
+  "123",
+  true,
+  true,
+  false,
+  false,
+  null,
+  null,
+  0,
+  false,
+  "number",
+  null,
+  true,
+  false
+ ],
+ "shape.CustomEvent": {
+  "len": 1,
+  "members": {
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "CustomEvent",
+    "w": false
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 1,
+    "name": "CustomEvent",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "detail": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get detail",
+     "nat": true
+    },
+    "s": null
+   },
+   "initCustomEvent": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "initCustomEvent",
+    "nat": true,
+    "t": "function",
+    "w": true
+   }
+  },
+  "name": "CustomEvent",
+  "order": [
+   "detail",
+   "initCustomEvent",
+   "constructor"
+  ],
+  "own": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "Event",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  }
+ },
+ "shape.DOMException": {
+  "len": 0,
+  "members": {
+   "ABORT_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 20,
+    "w": false
+   },
+   "DATA_CLONE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 25,
+    "w": false
+   },
+   "DOMSTRING_SIZE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 2,
+    "w": false
+   },
+   "HIERARCHY_REQUEST_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 3,
+    "w": false
+   },
+   "INDEX_SIZE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 1,
+    "w": false
+   },
+   "INUSE_ATTRIBUTE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 10,
+    "w": false
+   },
+   "INVALID_ACCESS_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 15,
+    "w": false
+   },
+   "INVALID_CHARACTER_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 5,
+    "w": false
+   },
+   "INVALID_MODIFICATION_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 13,
+    "w": false
+   },
+   "INVALID_NODE_TYPE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 24,
+    "w": false
+   },
+   "INVALID_STATE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 11,
+    "w": false
+   },
+   "NAMESPACE_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 14,
+    "w": false
+   },
+   "NETWORK_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 19,
+    "w": false
+   },
+   "NOT_FOUND_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 8,
+    "w": false
+   },
+   "NOT_SUPPORTED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 9,
+    "w": false
+   },
+   "NO_DATA_ALLOWED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 6,
+    "w": false
+   },
+   "NO_MODIFICATION_ALLOWED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 7,
+    "w": false
+   },
+   "QUOTA_EXCEEDED_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 22,
+    "w": false
+   },
+   "SECURITY_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 18,
+    "w": false
+   },
+   "SYNTAX_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 12,
+    "w": false
+   },
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "DOMException",
+    "w": false
+   },
+   "TIMEOUT_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 23,
+    "w": false
+   },
+   "TYPE_MISMATCH_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 17,
+    "w": false
+   },
+   "URL_MISMATCH_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 21,
+    "w": false
+   },
+   "VALIDATION_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 16,
+    "w": false
+   },
+   "WRONG_DOCUMENT_ERR": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 4,
+    "w": false
+   },
+   "code": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get code",
+     "nat": true
+    },
+    "s": null
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "DOMException",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "message": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get message",
+     "nat": true
+    },
+    "s": null
+   },
+   "name": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get name",
+     "nat": true
+    },
+    "s": null
+   }
+  },
+  "name": "DOMException",
+  "order": [
+   "code",
+   "name",
+   "message",
+   "INDEX_SIZE_ERR",
+   "DOMSTRING_SIZE_ERR",
+   "HIERARCHY_REQUEST_ERR",
+   "WRONG_DOCUMENT_ERR",
+   "INVALID_CHARACTER_ERR",
+   "NO_DATA_ALLOWED_ERR",
+   "NO_MODIFICATION_ALLOWED_ERR",
+   "NOT_FOUND_ERR",
+   "NOT_SUPPORTED_ERR",
+   "INUSE_ATTRIBUTE_ERR",
+   "INVALID_STATE_ERR",
+   "SYNTAX_ERR",
+   "INVALID_MODIFICATION_ERR",
+   "NAMESPACE_ERR",
+   "INVALID_ACCESS_ERR",
+   "VALIDATION_ERR",
+   "TYPE_MISMATCH_ERR",
+   "SECURITY_ERR",
+   "NETWORK_ERR",
+   "ABORT_ERR",
+   "URL_MISMATCH_ERR",
+   "QUOTA_EXCEEDED_ERR",
+   "TIMEOUT_ERR",
+   "INVALID_NODE_TYPE_ERR",
+   "DATA_CLONE_ERR",
+   "constructor"
+  ],
+  "own": [
+   "ABORT_ERR",
+   "DATA_CLONE_ERR",
+   "DOMSTRING_SIZE_ERR",
+   "HIERARCHY_REQUEST_ERR",
+   "INDEX_SIZE_ERR",
+   "INUSE_ATTRIBUTE_ERR",
+   "INVALID_ACCESS_ERR",
+   "INVALID_CHARACTER_ERR",
+   "INVALID_MODIFICATION_ERR",
+   "INVALID_NODE_TYPE_ERR",
+   "INVALID_STATE_ERR",
+   "NAMESPACE_ERR",
+   "NETWORK_ERR",
+   "NOT_FOUND_ERR",
+   "NOT_SUPPORTED_ERR",
+   "NO_DATA_ALLOWED_ERR",
+   "NO_MODIFICATION_ALLOWED_ERR",
+   "QUOTA_EXCEEDED_ERR",
+   "SECURITY_ERR",
+   "SYNTAX_ERR",
+   "TIMEOUT_ERR",
+   "TYPE_MISMATCH_ERR",
+   "URL_MISMATCH_ERR",
+   "VALIDATION_ERR",
+   "WRONG_DOCUMENT_ERR",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "Error",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  }
+ },
+ "shape.Event": {
+  "len": 1,
+  "members": {
+   "AT_TARGET": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 2,
+    "w": false
+   },
+   "BUBBLING_PHASE": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 3,
+    "w": false
+   },
+   "CAPTURING_PHASE": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 1,
+    "w": false
+   },
+   "NONE": {
+    "c": false,
+    "e": true,
+    "t": "number",
+    "v": 0,
+    "w": false
+   },
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "Event",
+    "w": false
+   },
+   "bubbles": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get bubbles",
+     "nat": true
+    },
+    "s": null
+   },
+   "cancelBubble": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get cancelBubble",
+     "nat": true
+    },
+    "s": "fn"
+   },
+   "cancelable": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get cancelable",
+     "nat": true
+    },
+    "s": null
+   },
+   "composed": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get composed",
+     "nat": true
+    },
+    "s": null
+   },
+   "composedPath": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "composedPath",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 1,
+    "name": "Event",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "currentTarget": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get currentTarget",
+     "nat": true
+    },
+    "s": null
+   },
+   "defaultPrevented": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get defaultPrevented",
+     "nat": true
+    },
+    "s": null
+   },
+   "eventPhase": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get eventPhase",
+     "nat": true
+    },
+    "s": null
+   },
+   "initEvent": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "initEvent",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "preventDefault": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "preventDefault",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "returnValue": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get returnValue",
+     "nat": true
+    },
+    "s": "fn"
+   },
+   "srcElement": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get srcElement",
+     "nat": true
+    },
+    "s": null
+   },
+   "stopImmediatePropagation": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "stopImmediatePropagation",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "stopPropagation": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "stopPropagation",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "target": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get target",
+     "nat": true
+    },
+    "s": null
+   },
+   "timeStamp": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get timeStamp",
+     "nat": true
+    },
+    "s": null
+   },
+   "type": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get type",
+     "nat": true
+    },
+    "s": null
+   }
+  },
+  "name": "Event",
+  "order": [
+   "type",
+   "target",
+   "currentTarget",
+   "eventPhase",
+   "bubbles",
+   "cancelable",
+   "defaultPrevented",
+   "composed",
+   "timeStamp",
+   "srcElement",
+   "returnValue",
+   "cancelBubble",
+   "NONE",
+   "CAPTURING_PHASE",
+   "AT_TARGET",
+   "BUBBLING_PHASE",
+   "composedPath",
+   "initEvent",
+   "preventDefault",
+   "stopImmediatePropagation",
+   "stopPropagation",
+   "constructor"
+  ],
+  "own": [
+   "AT_TARGET",
+   "BUBBLING_PHASE",
+   "CAPTURING_PHASE",
+   "NONE",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "Object",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  }
+ },
+ "shape.EventTarget": {
+  "len": 0,
+  "members": {
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "EventTarget",
+    "w": false
+   },
+   "addEventListener": {
+    "c": true,
+    "e": true,
+    "len": 2,
+    "name": "addEventListener",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "EventTarget",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "dispatchEvent": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "dispatchEvent",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "removeEventListener": {
+    "c": true,
+    "e": true,
+    "len": 2,
+    "name": "removeEventListener",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "when": {
+    "c": true,
+    "e": true,
+    "len": 1,
+    "name": "when",
+    "nat": true,
+    "t": "function",
+    "w": true
+   }
+  },
+  "name": "EventTarget",
+  "order": [
+   "addEventListener",
+   "dispatchEvent",
+   "removeEventListener",
+   "when",
+   "constructor"
+  ],
+  "own": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "Object",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  }
+ },
+ "sub.ownkeys": [
+  "UIEvent:isTrusted",
+  "MouseEvent:isTrusted",
+  "KeyboardEvent:isTrusted",
+  "FocusEvent:isTrusted",
+  "ErrorEvent:isTrusted",
+  "MessageEvent:isTrusted",
+  "ProgressEvent:isTrusted",
+  "CloseEvent:isTrusted"
+ ]
+}
