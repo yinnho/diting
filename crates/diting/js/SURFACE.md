@@ -80,3 +80,10 @@ Rust 测试 `test_request_and_response_keep_binary_bodies_intact` / `test_text_d
 `install_faces` 里装到全局，bootstrap 里原 JS 版因 `typeof DOMRect === 'undefined'` 守卫自动让位。
 验收：`native-pilot-probe.js` 42 项对 Chrome 145 真值（`native-pilot-truth-145.json`）——裸 V8 快照恢复 / 新建 VM 全一致，完整引擎 41/42
 （唯一差异 structuredClone：它是 JS 实现，不认原生实例，需每接口序列化钩子）。
+
+## 原生后端：声明层 + DOMPoint + structuredClone 钩子（2026-10-29）
+
+接口 = 静态描述符（`native/declare.rs` + `native/geometry.rs`），一套通用回调（ctor/get/set/toJSON/factory）服务全部接口，
+external_references 恒为 5 条，与接口数无关。DOMRect*/DOMPoint* 四个接口，探针 63 项：裸 V8（快照恢复/新建）全一致，
+完整引擎 62/63（缺 `DOMPointReadOnly.matrixTransform`，待 DOMMatrix 原生化）。跨族品牌（DOMRect getter 作用于 DOMPoint）
+走 family 标签拒绝，变异验证过。structuredClone：原生实例由 `client_rects.js` 的 `__diting_clone_hooks` 重建（按 @@toStringTag）。

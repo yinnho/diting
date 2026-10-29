@@ -1,4 +1,9 @@
 {
+ "brand.point.getter.on.rect": "THROW TypeError: Illegal invocation",
+ "brand.point.on.derived": 7,
+ "brand.rect.getter.on.point": "THROW TypeError: Illegal invocation",
+ "brand.rect.setter.on.point": "THROW TypeError: Illegal invocation",
+ "brand.rect.toJSON.on.point": "THROW TypeError: Illegal invocation",
  "ctor.call": "THROW TypeError: Failed to construct 'DOMRectReadOnly': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
  "ctor.call2": "THROW TypeError: Failed to construct 'DOMRect': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
  "ctor.conv": [
@@ -125,6 +130,50 @@
   "toJSON"
  ],
  "ownkeys": [],
+ "point.ctor.call": "THROW TypeError: Failed to construct 'DOMPoint': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "point.defaults": [
+  0,
+  0,
+  0,
+  1
+ ],
+ "point.fromPoint": [
+  true,
+  1,
+  0,
+  0,
+  5
+ ],
+ "point.fromPoint.none": [
+  true,
+  1
+ ],
+ "point.fromPoint.order": [
+  "w",
+  "x",
+  "y",
+  "z"
+ ],
+ "point.inherit": [
+  true,
+  true,
+  false
+ ],
+ "point.json": "{\"x\":1,\"y\":2,\"z\":3,\"w\":4}",
+ "point.set": [
+  8,
+  9
+ ],
+ "point.tag": [
+  "[object DOMPoint]",
+  "[object DOMPointReadOnly]"
+ ],
+ "point.values": [
+  1,
+  2,
+  3,
+  4
+ ],
  "reflect.construct": [
   1,
   true,
@@ -146,6 +195,216 @@
   9
  ],
  "set.sym": "THROW TypeError: Failed to set the 'x' property on 'DOMRect': Cannot convert a Symbol value to a number",
+ "shape.Point": {
+  "ctorParent": "DOMPointReadOnly",
+  "len": 0,
+  "members": {
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "DOMPoint",
+    "w": false
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "DOMPoint",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "w": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get w",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set w",
+     "nat": true
+    }
+   },
+   "x": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get x",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set x",
+     "nat": true
+    }
+   },
+   "y": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get y",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set y",
+     "nat": true
+    }
+   },
+   "z": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get z",
+     "nat": true
+    },
+    "s": {
+     "len": 1,
+     "name": "set z",
+     "nat": true
+    }
+   }
+  },
+  "name": "DOMPoint",
+  "order": [
+   "x",
+   "y",
+   "z",
+   "w",
+   "constructor"
+  ],
+  "own": [
+   "fromPoint",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "DOMPointReadOnly",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  },
+  "static": {
+   "fromRect": null
+  }
+ },
+ "shape.PointRO": {
+  "ctorParent": "Function",
+  "len": 0,
+  "members": {
+   "Symbol(Symbol.toStringTag)": {
+    "c": true,
+    "e": false,
+    "t": "string",
+    "v": "DOMPointReadOnly",
+    "w": false
+   },
+   "constructor": {
+    "c": true,
+    "e": false,
+    "len": 0,
+    "name": "DOMPointReadOnly",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "matrixTransform": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "matrixTransform",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "toJSON": {
+    "c": true,
+    "e": true,
+    "len": 0,
+    "name": "toJSON",
+    "nat": true,
+    "t": "function",
+    "w": true
+   },
+   "w": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get w",
+     "nat": true
+    },
+    "s": null
+   },
+   "x": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get x",
+     "nat": true
+    },
+    "s": null
+   },
+   "y": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get y",
+     "nat": true
+    },
+    "s": null
+   },
+   "z": {
+    "c": true,
+    "e": true,
+    "g": {
+     "len": 0,
+     "name": "get z",
+     "nat": true
+    },
+    "s": null
+   }
+  },
+  "name": "DOMPointReadOnly",
+  "order": [
+   "x",
+   "y",
+   "z",
+   "w",
+   "matrixTransform",
+   "toJSON",
+   "constructor"
+  ],
+  "own": [
+   "fromPoint",
+   "length",
+   "name",
+   "prototype"
+  ],
+  "parent": "Object",
+  "proto": {
+   "c": false,
+   "e": false,
+   "t": "object",
+   "v": "#object",
+   "w": false
+  },
+  "static": {
+   "fromRect": null
+  }
+ },
  "shape.RO": {
   "ctorParent": "Function",
   "len": 0,
@@ -409,6 +668,26 @@
  "structuredClone": [
   "[object DOMRect]",
   1
+ ],
+ "structuredClone.nested": [
+  1,
+  8,
+  true
+ ],
+ "structuredClone.point": [
+  "[object DOMPoint]",
+  1,
+  4,
+  true
+ ],
+ "structuredClone.rect.ro": [
+  "[object DOMRectReadOnly]",
+  4,
+  false
+ ],
+ "structuredClone.shared": [
+  true,
+  true
  ],
  "subclass": [
   3,

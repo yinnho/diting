@@ -65,5 +65,28 @@
   t('structuredClone', function () { var r = structuredClone(new D(1, 2, 3, 4)); return [Object.prototype.toString.call(r), r.x]; });
   t('toString.fn', function () { return [Function.prototype.toString.call(D), Function.prototype.toString.call(D.prototype.constructor)]; });
   t('freeze', function () { var r = Object.freeze(new D(1, 2, 3, 4)); r.x = 9; return r.x; });
+  // ---- DOMPoint family + cross-brand (a DOMRect must not pass as a DOMPoint)
+  var PRO = DOMPointReadOnly, PT = DOMPoint;
+  t('shape.PointRO', function () { return shape(PRO); });
+  t('shape.Point', function () { return shape(PT); });
+  t('point.defaults', function () { var p = new PT(); return [p.x, p.y, p.z, p.w]; });
+  t('point.values', function () { var p = new PT(1, 2, 3, 4); return [p.x, p.y, p.z, p.w]; });
+  t('point.set', function () { var p = new PT(); p.w = 9; p.z = '8'; return [p.z, p.w]; });
+  t('point.json', function () { return JSON.stringify(new PT(1, 2, 3, 4)); });
+  t('point.fromPoint', function () { var p = PT.fromPoint({ x: 1, w: 5 }); return [p instanceof PT, p.x, p.y, p.z, p.w]; });
+  t('point.fromPoint.none', function () { var p = PRO.fromPoint(); return [p instanceof PRO, p.w]; });
+  t('point.fromPoint.order', function () { var log = []; PT.fromPoint({ get z() { log.push('z'); }, get w() { log.push('w'); }, get x() { log.push('x'); }, get y() { log.push('y'); } }); return log; });
+  t('point.ctor.call', function () { return PT(); });
+  t('point.tag', function () { return [Object.prototype.toString.call(new PT()), Object.prototype.toString.call(new PRO())]; });
+  t('point.inherit', function () { return [new PT() instanceof PRO, Object.getPrototypeOf(PT) === PRO, new PT() instanceof RO]; });
+  t('brand.rect.getter.on.point', function () { return Object.getOwnPropertyDescriptor(RO.prototype, 'x').get.call(new PT(1, 2, 3, 4)); });
+  t('brand.point.getter.on.rect', function () { return Object.getOwnPropertyDescriptor(PRO.prototype, 'x').get.call(new D(1, 2, 3, 4)); });
+  t('brand.rect.toJSON.on.point', function () { return RO.prototype.toJSON.call(new PT()); });
+  t('brand.rect.setter.on.point', function () { return Object.getOwnPropertyDescriptor(D.prototype, 'x').set.call(new PT(), 1); });
+  t('brand.point.on.derived', function () { return Object.getOwnPropertyDescriptor(PRO.prototype, 'x').get.call(new PT(7, 0, 0, 1)); });
+  t('structuredClone.point', function () { var r = structuredClone(new PT(1, 2, 3, 4)); return [Object.prototype.toString.call(r), r.x, r.w, r instanceof PT]; });
+  t('structuredClone.rect.ro', function () { var r = structuredClone(new RO(1, 2, 3, 4)); return [Object.prototype.toString.call(r), r.right, r instanceof D]; });
+  t('structuredClone.nested', function () { var o = { a: new D(1, 2, 3, 4), b: [new PT(5, 6, 7, 8)] }; var c = structuredClone(o); return [c.a.x, c.b[0].w, c.a !== o.a]; });
+  t('structuredClone.shared', function () { var r = new D(1, 2, 3, 4); var c = structuredClone([r, r]); return [c[0] === c[1], c[0] !== r]; });
   return JSON.stringify(R);
 })()

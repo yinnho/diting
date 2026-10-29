@@ -1445,8 +1445,9 @@ P DOMMatrix :: constructor,inverse,multiply,rotate,scale,transformPoint,translat
 P DOMMatrixReadOnly :: constructor
 P DOMParser :: constructor,parseFromString
 S DOMPoint :: fromPoint
-P DOMPoint :: constructor
-P DOMPointReadOnly :: constructor
+P DOMPoint :: constructor,w,x,y,z
+S DOMPointReadOnly :: fromPoint
+P DOMPointReadOnly :: constructor,toJSON,w,x,y,z
 P DOMQuad :: constructor
 S DOMRect :: fromRect
 P DOMRect :: constructor,height,width,x,y
