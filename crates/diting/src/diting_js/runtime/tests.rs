@@ -26873,3 +26873,48 @@ async fn htmlform_behaviors_match_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 8: the UI event family (uievent-probe.js, 112 keys, real Chrome
+/// 145): UIEvent / MouseEvent / WheelEvent / KeyboardEvent / InputEvent /
+/// FocusEvent / CompositionEvent / PointerEvent. The bootstrap classes kept a
+/// hand-picked slice of the init dictionary (92 of 111 behavior keys off); the
+/// platform module `uievent` now owns the eight interfaces: own-member order,
+/// arity, constants and prototype chain (`shape`), constructor errors
+/// (argument count, `new`, non-object init), WebIDL dictionary conversions per
+/// member type (long/ulong/short/ushort, truncating double, float32, DOMString,
+/// Window/EventTarget/InputDeviceCapabilities unions) with Chrome's exact
+/// "Failed to read the 'x' property from 'YInit'" wording, derived members
+/// (`which`, layerX/offsetX/pageX, wheelDelta*, altitudeAngle/azimuthAngle <->
+/// tiltX/tiltY bit-identical to Chrome's libm), getModifierState, init*
+/// legacy initializers, and event inheritance. The offsetX/Y write of the
+/// dispatch chokepoint goes through the hidden __diting_uiOffset hook.
+#[tokio::test(flavor = "current_thread")]
+async fn uievent_family_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/uievent-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/uievent-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if k == "shape" {
+            for (cls, tshape) in want.as_object().unwrap() {
+                for (facet, tv) in tshape.as_object().unwrap() {
+                    if &engine["shape"][cls][facet] != tv {
+                        bad.push(format!("shape {cls}.{facet}:\n   engine {}\n   chrome {tv}", engine["shape"][cls][facet]));
+                    }
+                }
+            }
+        } else if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

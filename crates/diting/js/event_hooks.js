@@ -111,8 +111,10 @@
         const raw = _domRaw('event_offset', String(target._nid | 0), (ev.clientX + sx) + ',' + (ev.clientY + sy));
         const pair = raw && raw !== 'null' ? JSON.parse(raw) : null;
         if (Array.isArray(pair) && pair.length === 2 && isFinite(pair[0]) && isFinite(pair[1])) {
-          ev.offsetX = pair[0];
-          ev.offsetY = pair[1];
+          // offsetX/Y are read-only getters on the platform MouseEvent: the write goes
+          // through the module's hidden hook (platform/uievent.impl.js)
+          if (typeof __diting_uiOffset === 'function') __diting_uiOffset(ev, pair[0], pair[1]);
+          else { ev.offsetX = pair[0]; ev.offsetY = pair[1]; }
         }
       } catch (e) { /* keep constructor defaults */ }
     },

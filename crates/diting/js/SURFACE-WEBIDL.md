@@ -23,14 +23,13 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 74 个；缺口成员合计 370。
+已核 196 个接口；有缺口 65 个；缺口成员合计 321。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
 | Document | document | 31/294 | alinkColor, anchors, applets, bgColor, captureEvents, caretPositionFromPoint, clear, createExpression, createNSResolver, designMode, embeds, exitFullscreen, exitPointerLock, fgColor, fragmentDirective, fullscreen, fullscreenElement, fullscreenEnabled, hasPrivateToken, hasRedemptionRecord, hasUnpartitionedCookieAccess, lastModified, linkColor, plugins, pointerLockElement, prerendering, releaseEvents, rootElement, timeline, vlinkColor, wasDiscarded |
 | Animation | new | 19/28 | cancel, commitStyles, currentTime, effect, finish, finished, id, pause, pending, persist, play, playState, playbackRate, ready, replaceState, reverse, startTime, timeline, updatePlaybackRate |
 | ClipboardChangeEvent | new | 18/24 | bubbles, cancelBubble, cancelable, composed, composedPath, currentTarget, defaultPrevented, eventPhase, initEvent, isTrusted, preventDefault, returnValue, srcElement, stopImmediatePropagation, stopPropagation, target, timeStamp, type |
-| PointerEvent | new | 16/65 | altitudeAngle, azimuthAngle, getCoalescedEvents, getModifierState, getPredictedEvents, layerX, layerY, movementX, movementY, persistentDeviceId, sourceCapabilities, tangentialPressure, tiltX, tiltY, twist, which |
 | RTCIceCandidate | new | 16/17 | address, component, foundation, port, priority, protocol, relatedAddress, relatedPort, relayProtocol, sdpMLineIndex, sdpMid, tcpType, toJSON, type, url, usernameFragment |
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
 | Notification | new | 14/26 | actions, badge, body, close, data, dir, icon, lang, renotify, requireInteraction, silent, tag, timestamp, title |
@@ -45,13 +44,9 @@
 | SpeechRecognition | new | 8/26 | abort, continuous, grammars, interimResults, lang, maxAlternatives, start, stop |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
 | AbsoluteOrientationSensor | new | 7/14 | activated, hasReading, populateMatrix, quaternion, start, stop, timestamp |
-| MouseEvent | new | 7/50 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
 | RelativeOrientationSensor | new | 7/14 | activated, hasReading, populateMatrix, quaternion, start, stop, timestamp |
 | Request | new | 7/27 | bodyUsed, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |
 | ViewTimeline | new | 7/8 | axis, currentTime, duration, endOffset, source, startOffset, subject |
-| WheelEvent | new | 7/58 | getModifierState, layerX, layerY, movementX, movementY, sourceCapabilities, which |
-| KeyboardEvent | new | 6/44 | charCode, getModifierState, isComposing, keyCode, sourceCapabilities, which |
-| InputEvent | new | 5/32 | dataTransfer, getTargetRanges, isComposing, sourceCapabilities, which |
 | VideoColorSpace | new | 5/5 | fullRange, matrix, primaries, toJSON, transfer |
 | WebTransportError | new | 5/30 | code, message, name, source, streamErrorCode |
 | ScrollTimeline | new | 4/5 | axis, currentTime, duration, source |
@@ -71,14 +66,10 @@
 | XPathEvaluator | new | 3/3 | createExpression, createNSResolver, evaluate |
 | XRRay | new | 3/3 | direction, matrix, origin |
 | Comment | new | 2/70 | nextElementSibling, previousElementSibling |
-| CompositionEvent | new | 2/29 | sourceCapabilities, which |
 | DocumentTimeline | new | 2/3 | currentTime, duration |
-| FocusEvent | new | 2/28 | sourceCapabilities, which |
 | HTMLCanvasElement | createElement | 2/371 | captureStream, transferControlToOffscreen |
 | HashChangeEvent | new | 2/24 | newURL, oldURL |
 | Highlight | new | 2/2 | priority, type |
-| TouchEvent | new | 2/35 | sourceCapabilities, which |
-| UIEvent | new | 2/27 | sourceCapabilities, which |
 | WebTransport | new | 2/19 | incomingBidirectionalStreams, incomingUnidirectionalStreams |
 | BarcodeDetector | new | 1/1 | detect |
 | CaptureController | new | 1/13 | setFocusBehavior |

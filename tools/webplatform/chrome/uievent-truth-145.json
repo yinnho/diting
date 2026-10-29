@@ -1,0 +1,1223 @@
+{
+ "badInit.CompositionEvent": "THROW TypeError: Failed to construct 'CompositionEvent': The provided value is not of type 'CompositionEventInit'.",
+ "badInit.FocusEvent": "THROW TypeError: Failed to construct 'FocusEvent': The provided value is not of type 'FocusEventInit'.",
+ "badInit.InputEvent": "THROW TypeError: Failed to construct 'InputEvent': The provided value is not of type 'InputEventInit'.",
+ "badInit.KeyboardEvent": "THROW TypeError: Failed to construct 'KeyboardEvent': The provided value is not of type 'KeyboardEventInit'.",
+ "badInit.MouseEvent": "THROW TypeError: Failed to construct 'MouseEvent': The provided value is not of type 'MouseEventInit'.",
+ "badInit.PointerEvent": "THROW TypeError: Failed to construct 'PointerEvent': The provided value is not of type 'PointerEventInit'.",
+ "badInit.UIEvent": "THROW TypeError: Failed to construct 'UIEvent': The provided value is not of type 'UIEventInit'.",
+ "badInit.WheelEvent": "THROW TypeError: Failed to construct 'WheelEvent': The provided value is not of type 'WheelEventInit'.",
+ "call.CompositionEvent": "THROW TypeError: Failed to construct 'CompositionEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.FocusEvent": "THROW TypeError: Failed to construct 'FocusEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.InputEvent": "THROW TypeError: Failed to construct 'InputEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.KeyboardEvent": "THROW TypeError: Failed to construct 'KeyboardEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.MouseEvent": "THROW TypeError: Failed to construct 'MouseEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.PointerEvent": "THROW TypeError: Failed to construct 'PointerEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.UIEvent": "THROW TypeError: Failed to construct 'UIEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "call.WheelEvent": "THROW TypeError: Failed to construct 'WheelEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "chain": [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true
+ ],
+ "conv.CompositionEvent.data": {
+  "big": "4294967301",
+  "bool": "true",
+  "float": "2.7",
+  "nan": "NaN",
+  "neg": "-3",
+  "null": "null",
+  "num": "5",
+  "obj": "[object Object]",
+  "str": "7",
+  "strABC": "abc",
+  "undef": ""
+ },
+ "conv.InputEvent.data": {
+  "big": "4294967301",
+  "bool": "true",
+  "float": "2.7",
+  "nan": "NaN",
+  "neg": "-3",
+  "null": null,
+  "num": "5",
+  "obj": "[object Object]",
+  "str": "7",
+  "strABC": "abc",
+  "undef": null
+ },
+ "conv.InputEvent.inputType": {
+  "big": "",
+  "bool": "",
+  "float": "",
+  "nan": "",
+  "neg": "",
+  "null": "",
+  "num": "",
+  "obj": "",
+  "str": "",
+  "strABC": "",
+  "undef": ""
+ },
+ "conv.InputEvent.isComposing": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
+ "conv.KeyboardEvent.charCode": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.KeyboardEvent.code": {
+  "big": "4294967301",
+  "bool": "true",
+  "float": "2.7",
+  "nan": "NaN",
+  "neg": "-3",
+  "null": "null",
+  "num": "5",
+  "obj": "[object Object]",
+  "str": "7",
+  "strABC": "abc",
+  "undef": ""
+ },
+ "conv.KeyboardEvent.isComposing": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
+ "conv.KeyboardEvent.key": {
+  "big": "4294967301",
+  "bool": "true",
+  "float": "2.7",
+  "nan": "NaN",
+  "neg": "-3",
+  "null": "null",
+  "num": "5",
+  "obj": "[object Object]",
+  "str": "7",
+  "strABC": "abc",
+  "undef": ""
+ },
+ "conv.KeyboardEvent.keyCode": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.KeyboardEvent.location": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": 4294967293,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.KeyboardEvent.repeat": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
+ "conv.MouseEvent.altKey": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
+ "conv.MouseEvent.button": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.MouseEvent.buttons": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": 65533,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.MouseEvent.clientY": {
+  "big": 4294967301,
+  "bool": 1,
+  "float": 2,
+  "nan": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'clientY' property from 'MouseEventInit': The provided do",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'clientY' property from 'MouseEventInit': The provided do",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'clientY' property from 'MouseEventInit': The provided do",
+  "undef": 0
+ },
+ "conv.MouseEvent.ctrlKey": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
+ "conv.MouseEvent.detail": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.MouseEvent.movementX": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.MouseEvent.movementY": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.MouseEvent.relatedTarget": {
+  "big": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "bool": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "float": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "nan": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "neg": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "null": null,
+  "num": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "obj": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "str": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "strABC": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'relatedTarget' property from 'MouseEventInit': Failed to",
+  "undef": null
+ },
+ "conv.MouseEvent.screenX": {
+  "big": 4294967301,
+  "bool": 1,
+  "float": 2,
+  "nan": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'screenX' property from 'MouseEventInit': The provided do",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'screenX' property from 'MouseEventInit': The provided do",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'screenX' property from 'MouseEventInit': The provided do",
+  "undef": 0
+ },
+ "conv.MouseEvent.view": {
+  "big": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "bool": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "float": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "nan": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "neg": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "null": null,
+  "num": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "obj": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "str": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "strABC": "THROW TypeError: Failed to construct 'MouseEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert val",
+  "undef": null
+ },
+ "conv.PointerEvent.height": {
+  "big": 4294967301,
+  "bool": 1,
+  "float": 2.7,
+  "nan": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'height' property from 'PointerEventInit': The provided",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'height' property from 'PointerEventInit': The provided",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'height' property from 'PointerEventInit': The provided",
+  "undef": 1
+ },
+ "conv.PointerEvent.isPrimary": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
+ "conv.PointerEvent.persistentDeviceId": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.PointerEvent.pointerId": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.PointerEvent.pointerType": {
+  "big": "4294967301",
+  "bool": "true",
+  "float": "2.7",
+  "nan": "NaN",
+  "neg": "-3",
+  "null": "null",
+  "num": "5",
+  "obj": "[object Object]",
+  "str": "7",
+  "strABC": "abc",
+  "undef": ""
+ },
+ "conv.PointerEvent.pressure": {
+  "big": 4294967296,
+  "bool": 1,
+  "float": 2.700000047683716,
+  "nan": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'pressure' property from 'PointerEventInit': The provid",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'pressure' property from 'PointerEventInit': The provid",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'pressure' property from 'PointerEventInit': The provid",
+  "undef": 0
+ },
+ "conv.PointerEvent.tangentialPressure": {
+  "big": 4294967296,
+  "bool": 1,
+  "float": 2.700000047683716,
+  "nan": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'tangentialPressure' property from 'PointerEventInit': ",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'tangentialPressure' property from 'PointerEventInit': ",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'tangentialPressure' property from 'PointerEventInit': ",
+  "undef": 0
+ },
+ "conv.PointerEvent.tiltX": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.PointerEvent.tiltY": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.PointerEvent.twist": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.PointerEvent.width": {
+  "big": 4294967301,
+  "bool": 1,
+  "float": 2.7,
+  "nan": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'width' property from 'PointerEventInit': The provided ",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'width' property from 'PointerEventInit': The provided ",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'PointerEvent': Failed to read the 'width' property from 'PointerEventInit': The provided ",
+  "undef": 1
+ },
+ "conv.UIEvent.detail": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.UIEvent.sourceCapabilities": {
+  "big": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "bool": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "float": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "nan": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "neg": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "null": null,
+  "num": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "obj": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "str": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "strABC": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'sourceCapabilities' property from 'UIEventInit': Failed to ",
+  "undef": null
+ },
+ "conv.UIEvent.view": {
+  "big": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "bool": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "float": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "nan": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "neg": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "null": null,
+  "num": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "obj": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "str": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "strABC": "THROW TypeError: Failed to construct 'UIEvent': Failed to read the 'view' property from 'UIEventInit': Failed to convert value ",
+  "undef": null
+ },
+ "conv.WheelEvent.deltaMode": {
+  "big": 5,
+  "bool": 1,
+  "float": 2,
+  "nan": 0,
+  "neg": 4294967293,
+  "null": 0,
+  "num": 5,
+  "obj": 0,
+  "str": 7,
+  "strABC": 0,
+  "undef": 0
+ },
+ "conv.WheelEvent.deltaX": {
+  "big": 4294967301,
+  "bool": 1,
+  "float": 2.7,
+  "nan": "THROW TypeError: Failed to construct 'WheelEvent': Failed to read the 'deltaX' property from 'WheelEventInit': The provided dou",
+  "neg": -3,
+  "null": 0,
+  "num": 5,
+  "obj": "THROW TypeError: Failed to construct 'WheelEvent': Failed to read the 'deltaX' property from 'WheelEventInit': The provided dou",
+  "str": 7,
+  "strABC": "THROW TypeError: Failed to construct 'WheelEvent': Failed to read the 'deltaX' property from 'WheelEventInit': The provided dou",
+  "undef": 0
+ },
+ "ctor0.CompositionEvent": "THROW TypeError: Failed to construct 'CompositionEvent': 1 argument required, but only 0 present.",
+ "ctor0.FocusEvent": "THROW TypeError: Failed to construct 'FocusEvent': 1 argument required, but only 0 present.",
+ "ctor0.InputEvent": "THROW TypeError: Failed to construct 'InputEvent': 1 argument required, but only 0 present.",
+ "ctor0.KeyboardEvent": "THROW TypeError: Failed to construct 'KeyboardEvent': 1 argument required, but only 0 present.",
+ "ctor0.MouseEvent": "THROW TypeError: Failed to construct 'MouseEvent': 1 argument required, but only 0 present.",
+ "ctor0.PointerEvent": "THROW TypeError: Failed to construct 'PointerEvent': 1 argument required, but only 0 present.",
+ "ctor0.UIEvent": "THROW TypeError: Failed to construct 'UIEvent': 1 argument required, but only 0 present.",
+ "ctor0.WheelEvent": "THROW TypeError: Failed to construct 'WheelEvent': 1 argument required, but only 0 present.",
+ "def.CompositionEvent": {
+  "data": "",
+  "which": 0
+ },
+ "def.FocusEvent": {
+  "relatedTarget": null,
+  "which": 0
+ },
+ "def.InputEvent": {
+  "data": null,
+  "dataTransfer": null,
+  "inputType": "",
+  "isComposing": false,
+  "which": 0
+ },
+ "def.KeyboardEvent": {
+  "altKey": false,
+  "charCode": 0,
+  "code": "",
+  "ctrlKey": false,
+  "isComposing": false,
+  "key": "",
+  "keyCode": 0,
+  "location": 0,
+  "metaKey": false,
+  "repeat": false,
+  "shiftKey": false,
+  "which": 0
+ },
+ "def.MouseEvent": {
+  "altKey": false,
+  "button": 0,
+  "buttons": 0,
+  "clientX": 0,
+  "clientY": 0,
+  "ctrlKey": false,
+  "detail": 0,
+  "fromElement": null,
+  "layerX": 0,
+  "layerY": 0,
+  "metaKey": false,
+  "movementX": 0,
+  "movementY": 0,
+  "offsetX": 0,
+  "offsetY": 0,
+  "pageX": 0,
+  "pageY": 0,
+  "relatedTarget": null,
+  "screenX": 0,
+  "screenY": 0,
+  "shiftKey": false,
+  "toElement": null,
+  "which": 1,
+  "x": 0,
+  "y": 0
+ },
+ "def.PointerEvent": {
+  "altitudeAngle": 1.5707963267948966,
+  "azimuthAngle": 0,
+  "button": 0,
+  "buttons": 0,
+  "height": 1,
+  "isPrimary": false,
+  "layerX": 0,
+  "movementX": 0,
+  "pageX": 0,
+  "persistentDeviceId": 0,
+  "pointerId": 0,
+  "pointerType": "",
+  "pressure": 0,
+  "tangentialPressure": 0,
+  "tiltX": 0,
+  "tiltY": 0,
+  "twist": 0,
+  "which": 1,
+  "width": 1
+ },
+ "def.UIEvent": {
+  "detail": 0,
+  "sourceCapabilities": null,
+  "view": null,
+  "which": 0
+ },
+ "def.WheelEvent": {
+  "deltaMode": 0,
+  "deltaX": 0,
+  "deltaY": 0,
+  "deltaZ": 0,
+  "wheelDelta": 0,
+  "wheelDeltaX": 0,
+  "wheelDeltaY": 0,
+  "which": 1
+ },
+ "gms.args": [
+  1,
+  "TypeError: Failed to execute 'getModifierState' on 'MouseEvent': 1 argument required, but only 0 present."
+ ],
+ "gms.dict": {
+  "AltGraph": true,
+  "CapsLock": true,
+  "Fn": true,
+  "Hyper": false,
+  "NumLock": true,
+  "OS": false,
+  "ScrollLock": true,
+  "Symbol": true
+ },
+ "gms.input": [
+  "undefined",
+  "undefined",
+  "undefined"
+ ],
+ "gms.key": [
+  true,
+  true,
+  false
+ ],
+ "gms.keys": {
+  "": false,
+  "Alt": false,
+  "AltGraph": false,
+  "CapsLock": false,
+  "Control": true,
+  "Fn": false,
+  "FnLock": false,
+  "Hyper": false,
+  "Meta": false,
+  "Nope": false,
+  "NumLock": false,
+  "OS": false,
+  "ScrollLock": false,
+  "Shift": true,
+  "Super": false,
+  "Symbol": false,
+  "SymbolLock": false,
+  "control": false
+ },
+ "gms.wheel": [
+  true,
+  "function"
+ ],
+ "inherit.event": [
+  true,
+  true,
+  true,
+  false,
+  false,
+  0,
+  true,
+  null,
+  true,
+  false
+ ],
+ "input.dt": [
+  null
+ ],
+ "input.methods": [
+  true,
+  0,
+  0,
+  null
+ ],
+ "key.init": [
+  "Enter",
+  "Enter",
+  13,
+  0,
+  13,
+  true,
+  1,
+  true
+ ],
+ "key.init.legacy": [
+  "",
+  2,
+  true,
+  "keydown",
+  true
+ ],
+ "key.init.len": [
+  1,
+  1,
+  1
+ ],
+ "layer": [
+  10,
+  20,
+  10,
+  20,
+  10,
+  20,
+  10,
+  20
+ ],
+ "mouse.consts": [
+  "undefined",
+  [
+   "length",
+   "name",
+   "prototype"
+  ],
+  [
+   "length",
+   "name",
+   "prototype"
+  ]
+ ],
+ "movement.pass": [
+  4,
+  -6
+ ],
+ "nullInit.CompositionEvent": [
+  "x",
+  false
+ ],
+ "nullInit.FocusEvent": [
+  "x",
+  false
+ ],
+ "nullInit.InputEvent": [
+  "x",
+  false
+ ],
+ "nullInit.KeyboardEvent": [
+  "x",
+  false
+ ],
+ "nullInit.MouseEvent": [
+  "x",
+  false
+ ],
+ "nullInit.PointerEvent": [
+  "x",
+  false
+ ],
+ "nullInit.UIEvent": [
+  "x",
+  false
+ ],
+ "nullInit.WheelEvent": [
+  "x",
+  false
+ ],
+ "ptr.angles": {
+  "-90,0": [
+   0,
+   3.141592653589793
+  ],
+  "0,0": [
+   1.5707963267948966,
+   0
+  ],
+  "0,45": [
+   0.7853981633974483,
+   1.5707963267948966
+  ],
+  "30,0": [
+   1.0471975511965979,
+   0
+  ],
+  "30,45": [
+   0.7137243789447657,
+   1.0471975511965979
+  ],
+  "90,0": [
+   0,
+   0
+  ],
+  "90,90": [
+   0,
+   0
+  ],
+  "dflt": [
+   1.5707963267948966,
+   0
+  ]
+ },
+ "ptr.defaults2": [
+  1,
+  1,
+  0,
+  "",
+  false,
+  0
+ ],
+ "ptr.explicit": [
+  0.5,
+  1,
+  20,
+  0
+ ],
+ "ptr.methods": [
+  true,
+  0,
+  true,
+  0,
+  0
+ ],
+ "screen.alias": [
+  30.5,
+  7.25,
+  7.25,
+  7.25
+ ],
+ "shape": {
+  "CompositionEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "constructor": "function",
+    "data": "ro",
+    "initCompositionEvent": "function"
+   },
+   "lens": {
+    "constructor": 1,
+    "initCompositionEvent": 1
+   },
+   "order": [
+    "data",
+    "initCompositionEvent",
+    "constructor"
+   ],
+   "parent": "UIEvent",
+   "protoParent": "UIEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object CompositionEvent]"
+  },
+  "FocusEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "constructor": "function",
+    "relatedTarget": "ro"
+   },
+   "lens": {
+    "constructor": 1
+   },
+   "order": [
+    "relatedTarget",
+    "constructor"
+   ],
+   "parent": "UIEvent",
+   "protoParent": "UIEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object FocusEvent]"
+  },
+  "InputEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "constructor": "function",
+    "data": "ro",
+    "dataTransfer": "ro",
+    "getTargetRanges": "function",
+    "inputType": "ro",
+    "isComposing": "ro"
+   },
+   "lens": {
+    "constructor": 1,
+    "getTargetRanges": 0
+   },
+   "order": [
+    "data",
+    "isComposing",
+    "inputType",
+    "dataTransfer",
+    "getTargetRanges",
+    "constructor"
+   ],
+   "parent": "UIEvent",
+   "protoParent": "UIEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object InputEvent]"
+  },
+  "KeyboardEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "DOM_KEY_LOCATION_LEFT": "number",
+    "DOM_KEY_LOCATION_NUMPAD": "number",
+    "DOM_KEY_LOCATION_RIGHT": "number",
+    "DOM_KEY_LOCATION_STANDARD": "number",
+    "altKey": "ro",
+    "charCode": "ro",
+    "code": "ro",
+    "constructor": "function",
+    "ctrlKey": "ro",
+    "getModifierState": "function",
+    "initKeyboardEvent": "function",
+    "isComposing": "ro",
+    "key": "ro",
+    "keyCode": "ro",
+    "location": "ro",
+    "metaKey": "ro",
+    "repeat": "ro",
+    "shiftKey": "ro"
+   },
+   "lens": {
+    "constructor": 1,
+    "getModifierState": 1,
+    "initKeyboardEvent": 1
+   },
+   "order": [
+    "key",
+    "code",
+    "location",
+    "ctrlKey",
+    "shiftKey",
+    "altKey",
+    "metaKey",
+    "repeat",
+    "isComposing",
+    "charCode",
+    "keyCode",
+    "DOM_KEY_LOCATION_STANDARD",
+    "DOM_KEY_LOCATION_LEFT",
+    "DOM_KEY_LOCATION_RIGHT",
+    "DOM_KEY_LOCATION_NUMPAD",
+    "getModifierState",
+    "initKeyboardEvent",
+    "constructor"
+   ],
+   "parent": "UIEvent",
+   "protoParent": "UIEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype",
+    "DOM_KEY_LOCATION_STANDARD",
+    "DOM_KEY_LOCATION_LEFT",
+    "DOM_KEY_LOCATION_RIGHT",
+    "DOM_KEY_LOCATION_NUMPAD"
+   ],
+   "tag": "[object KeyboardEvent]"
+  },
+  "MouseEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "altKey": "ro",
+    "button": "ro",
+    "buttons": "ro",
+    "clientX": "ro",
+    "clientY": "ro",
+    "constructor": "function",
+    "ctrlKey": "ro",
+    "fromElement": "ro",
+    "getModifierState": "function",
+    "initMouseEvent": "function",
+    "layerX": "ro",
+    "layerY": "ro",
+    "metaKey": "ro",
+    "movementX": "ro",
+    "movementY": "ro",
+    "offsetX": "ro",
+    "offsetY": "ro",
+    "pageX": "ro",
+    "pageY": "ro",
+    "relatedTarget": "ro",
+    "screenX": "ro",
+    "screenY": "ro",
+    "shiftKey": "ro",
+    "toElement": "ro",
+    "x": "ro",
+    "y": "ro"
+   },
+   "lens": {
+    "constructor": 1,
+    "getModifierState": 1,
+    "initMouseEvent": 1
+   },
+   "order": [
+    "screenX",
+    "screenY",
+    "clientX",
+    "clientY",
+    "ctrlKey",
+    "shiftKey",
+    "altKey",
+    "metaKey",
+    "button",
+    "buttons",
+    "relatedTarget",
+    "pageX",
+    "pageY",
+    "x",
+    "y",
+    "offsetX",
+    "offsetY",
+    "movementX",
+    "movementY",
+    "fromElement",
+    "toElement",
+    "layerX",
+    "layerY",
+    "getModifierState",
+    "initMouseEvent",
+    "constructor"
+   ],
+   "parent": "UIEvent",
+   "protoParent": "UIEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object MouseEvent]"
+  },
+  "PointerEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "altitudeAngle": "ro",
+    "azimuthAngle": "ro",
+    "constructor": "function",
+    "getCoalescedEvents": "function",
+    "getPredictedEvents": "function",
+    "height": "ro",
+    "isPrimary": "ro",
+    "persistentDeviceId": "ro",
+    "pointerId": "ro",
+    "pointerType": "ro",
+    "pressure": "ro",
+    "tangentialPressure": "ro",
+    "tiltX": "ro",
+    "tiltY": "ro",
+    "twist": "ro",
+    "width": "ro"
+   },
+   "lens": {
+    "constructor": 1,
+    "getCoalescedEvents": 0,
+    "getPredictedEvents": 0
+   },
+   "order": [
+    "pointerId",
+    "width",
+    "height",
+    "pressure",
+    "tiltX",
+    "tiltY",
+    "azimuthAngle",
+    "altitudeAngle",
+    "tangentialPressure",
+    "twist",
+    "pointerType",
+    "isPrimary",
+    "getPredictedEvents",
+    "persistentDeviceId",
+    "constructor",
+    "getCoalescedEvents"
+   ],
+   "parent": "MouseEvent",
+   "protoParent": "MouseEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object PointerEvent]"
+  },
+  "UIEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "constructor": "function",
+    "detail": "ro",
+    "initUIEvent": "function",
+    "sourceCapabilities": "ro",
+    "view": "ro",
+    "which": "ro"
+   },
+   "lens": {
+    "constructor": 1,
+    "initUIEvent": 1
+   },
+   "order": [
+    "view",
+    "detail",
+    "sourceCapabilities",
+    "which",
+    "initUIEvent",
+    "constructor"
+   ],
+   "parent": "Event",
+   "protoParent": "Event",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object UIEvent]"
+  },
+  "WheelEvent": {
+   "ctorLen": 1,
+   "kinds": {
+    "DOM_DELTA_LINE": "number",
+    "DOM_DELTA_PAGE": "number",
+    "DOM_DELTA_PIXEL": "number",
+    "constructor": "function",
+    "deltaMode": "ro",
+    "deltaX": "ro",
+    "deltaY": "ro",
+    "deltaZ": "ro",
+    "wheelDelta": "ro",
+    "wheelDeltaX": "ro",
+    "wheelDeltaY": "ro"
+   },
+   "lens": {
+    "constructor": 1
+   },
+   "order": [
+    "deltaX",
+    "deltaY",
+    "deltaZ",
+    "deltaMode",
+    "wheelDeltaX",
+    "wheelDeltaY",
+    "wheelDelta",
+    "DOM_DELTA_PIXEL",
+    "DOM_DELTA_LINE",
+    "DOM_DELTA_PAGE",
+    "constructor"
+   ],
+   "parent": "MouseEvent",
+   "protoParent": "MouseEvent",
+   "statics": [
+    "length",
+    "name",
+    "prototype",
+    "DOM_DELTA_PIXEL",
+    "DOM_DELTA_LINE",
+    "DOM_DELTA_PAGE"
+   ],
+   "tag": "[object WheelEvent]"
+  }
+ },
+ "undefInit.CompositionEvent": [
+  "x"
+ ],
+ "undefInit.FocusEvent": [
+  "x"
+ ],
+ "undefInit.InputEvent": [
+  "x"
+ ],
+ "undefInit.KeyboardEvent": [
+  "x"
+ ],
+ "undefInit.MouseEvent": [
+  "x"
+ ],
+ "undefInit.PointerEvent": [
+  "x"
+ ],
+ "undefInit.UIEvent": [
+  "x"
+ ],
+ "undefInit.WheelEvent": [
+  "x"
+ ],
+ "wheel.legacy": [
+  100,
+  -50,
+  100,
+  0,
+  0,
+  1,
+  2
+ ],
+ "which.key": [
+  65,
+  0,
+  68,
+  0,
+  0
+ ],
+ "which.mouse": {
+  "b0": 1,
+  "b1": 2,
+  "b2": 3,
+  "b3": 4,
+  "b4": 5
+ },
+ "which.other": [
+  0,
+  0,
+  0,
+  2
+ ]
+}

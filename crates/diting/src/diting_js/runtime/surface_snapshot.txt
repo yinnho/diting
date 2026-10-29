@@ -1416,7 +1416,7 @@ P CloseEvent :: code,constructor,reason,wasClean
 P CloseWatcher :: constructor
 P CommandEvent :: constructor
 P Comment :: cloneNode,constructor,nodeName,nodeType
-P CompositionEvent :: constructor,data,detail,initCompositionEvent,view
+P CompositionEvent :: constructor,data,initCompositionEvent
 P CompressionStream :: constructor
 P ConstantSourceNode :: constructor
 P ContentVisibilityAutoStateChangeEvent :: constructor,skipped
@@ -1699,7 +1699,7 @@ P ImageTrackList :: constructor
 P Ink :: constructor
 P InputDeviceCapabilities :: constructor
 P InputDeviceInfo :: constructor
-P InputEvent :: constructor,data,inputType
+P InputEvent :: constructor,data,dataTransfer,getTargetRanges,inputType,isComposing
 S Int16Array :: BYTES_PER_ELEMENT
 P Int16Array :: BYTES_PER_ELEMENT,constructor
 S Int32Array :: BYTES_PER_ELEMENT
@@ -1714,7 +1714,8 @@ P IntersectionObserverEntry :: constructor
 S Iterator :: concat,from
 P Iterator :: constructor,drop,every,filter,find,flatMap,forEach,map,reduce,some,take,toArray
 P Keyboard :: constructor,getLayoutMap,lock,unlock
-P KeyboardEvent :: altKey,code,constructor,ctrlKey,detail,initKeyboardEvent,key,location,metaKey,repeat,shiftKey,view
+S KeyboardEvent :: DOM_KEY_LOCATION_LEFT,DOM_KEY_LOCATION_NUMPAD,DOM_KEY_LOCATION_RIGHT,DOM_KEY_LOCATION_STANDARD
+P KeyboardEvent :: DOM_KEY_LOCATION_LEFT,DOM_KEY_LOCATION_NUMPAD,DOM_KEY_LOCATION_RIGHT,DOM_KEY_LOCATION_STANDARD,altKey,charCode,code,constructor,ctrlKey,getModifierState,initKeyboardEvent,isComposing,key,keyCode,location,metaKey,repeat,shiftKey
 P KeyboardLayoutMap :: constructor
 P KeyframeEffect :: constructor
 P LanguageDetector :: constructor
@@ -1775,7 +1776,7 @@ P MessageEvent :: constructor,data,lastEventId,origin,ports,source
 P MessagePort :: _armEntry,_dispatch,_enqueue,_fire,_recoverStalled,addEventListener,close,constructor,onmessage,onmessageerror,postMessage,removeEventListener,start
 P MimeType :: constructor,description,enabledPlugin,suffixes,type
 P MimeTypeArray :: constructor,item,length,namedItem
-P MouseEvent :: altKey,button,buttons,clientX,clientY,constructor,ctrlKey,detail,initMouseEvent,metaKey,offsetX,offsetY,pageX,pageY,relatedTarget,screenX,screenY,shiftKey,view,x,y
+P MouseEvent :: altKey,button,buttons,clientX,clientY,constructor,ctrlKey,fromElement,getModifierState,initMouseEvent,layerX,layerY,metaKey,movementX,movementY,offsetX,offsetY,pageX,pageY,relatedTarget,screenX,screenY,shiftKey,toElement,x,y
 P MutationObserver :: constructor,disconnect,observe,takeRecords
 P MutationRecord :: constructor
 P NamedNodeMap :: constructor
@@ -1859,7 +1860,7 @@ P PictureInPictureEvent :: constructor
 P PictureInPictureWindow :: constructor
 P Plugin :: constructor,description,filename,item,length,name,namedItem
 P PluginArray :: constructor,item,length,namedItem,refresh
-P PointerEvent :: constructor,height,isPrimary,pointerId,pointerType,pressure,width
+P PointerEvent :: altitudeAngle,azimuthAngle,constructor,getCoalescedEvents,getPredictedEvents,height,isPrimary,persistentDeviceId,pointerId,pointerType,pressure,tangentialPressure,tiltX,tiltY,twist,width
 P PopStateEvent :: constructor,state
 P Presentation :: constructor
 P PresentationAvailability :: constructor
@@ -2123,7 +2124,7 @@ P TrustedScriptURL :: constructor
 P TrustedTypePolicy :: constructor
 P TrustedTypePolicyFactory :: constructor
 P TypeError :: constructor,message,name
-P UIEvent :: constructor,detail,initUIEvent,view
+P UIEvent :: constructor,detail,initUIEvent,sourceCapabilities,view,which
 P URIError :: constructor,message,name
 S URL :: __diting,canParse,createObjectURL,parse,revokeObjectURL
 P URL :: _refreshSP,_set,_updateSearch,constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username
@@ -2202,7 +2203,8 @@ P WebTransport :: close,closed,congestionControl,constructor,createBidirectional
 P WebTransportBidirectionalStream :: constructor
 P WebTransportDatagramDuplexStream :: constructor
 P WebTransportError :: constructor
-P WheelEvent :: constructor,deltaMode,deltaX,deltaY,deltaZ
+S WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL
+P WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL,constructor,deltaMode,deltaX,deltaY,deltaZ,wheelDelta,wheelDeltaX,wheelDeltaY
 P Window :: constructor
 P WindowControlsOverlay :: constructor
 P WindowControlsOverlayGeometryChangeEvent :: constructor

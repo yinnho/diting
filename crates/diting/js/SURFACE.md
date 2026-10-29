@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→**370**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→**321**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -653,3 +653,50 @@ extra 同）；tests **1440/0**（新增 htmlform_behaviors_match_chrome_truth�
 快照漂移恰 15 个原型行已重生成；check_fresh 7 件鲜（27 真值全登记）；analyze
 零违。差集 478→**370**。下一刀顺位：Canvas 方法+真家族（Animation 19/
 Notification 14/EditContext 11/传感器×6/SpeechRecognition 8/PointerEvent 16…）。
+
+## M4 刀8：UI 事件族整体接管（2026-10-30）
+
+UIEvent / MouseEvent / WheelEvent / KeyboardEvent / InputEvent / FocusEvent /
+CompositionEvent / PointerEvent。这不是补洞：bootstrap 的旧类构造器只挑几个
+字段（`o.screenX||0`），init 字典里没列的成员（movementX、keyCode、tiltX…）连
+存的地方都没有，**行为探针 111 键里 92 键与 Chrome 不同**。新模块
+`platform/uievent.impl.js` 用「每类字典成员表（类型+默认值）+ 一个共享运行时」
+造出 8 个接口，探针 112 键 0 差异。差集 370→**321**（-49；行 74→65，连未直接
+改的 TouchEvent 也因继承 UIEvent 而关行）。
+
+- **真值** `uievent-truth-145.json`（真 Chrome 145，`uievent-probe.js` 112 键）：
+  形状（自有成员序/种类/arity/常量/原型链）、构造器错误（缺参/无 new/非对象
+  init）、**每个字典成员的类型转换**、派生成员、getModifierState、init* 旧式
+  初始化器。
+- **WebIDL 字典读取序**：祖先字典先、同字典内字典序；报错文案
+  `Failed to construct 'MouseEvent': Failed to read the 'clientY' property from
+  'MouseEventInit': The provided double value is non-finite.`（view 属
+  UIEventInit，relatedTarget 属各自 Init，转 EventTarget/Window 的文案各异）。
+- **转换类型（实测）**：`long`(ToInt32，detail/movementX/charCode/keyCode)、
+  `ulong`(location/deltaMode)、`short`(button)、`ushort`(buttons，-3→65533)、
+  **截断 double**(MouseEvent 的 screenX/clientX…：非有限抛 TypeError、2.7→2、
+  4294967301 不回绕)、PointerEvent 的坐标保留小数、`float32`(pressure，
+  2.7→2.700000047683716)、`DOMString?`(InputEvent.data：null/undefined 皆 null)。
+- **怪癖逐项实测**：`which` 只在 UIEvent 原型上（UIEvent 自身恒 0；鼠标族
+  =button+1；键盘=keyCode，与 charCode 无关）；`InputEvent.inputType` 只认
+  Input Events 标准词表否则读 `''`；`modifierOS`/'OS' 恒 false；
+  `initKeyboardEvent` 的 key 标识实参被忽略；`wheelDelta*` 为 delta 的截断而非
+  ×-3；offsetX/layerX 在未派发事件上读 pageX。
+- **PointerEvent 倾角↔球面角**：规格公式 + 位级对齐。V8 的 `Math.tan` 与 Chrome
+  C++(libm) 在末位 ulp 不同（tan 30°），**tan 用 sin/cos、高度角用
+  `atan2(1, sqrt(x²+y²))`、轴向用 `π/2-|tilt·rad|`** 才与 10 组真值逐位一致。
+- **宿主集成**：旧子类（TouchEvent 等）运行期按原型链重新挂到新原型（其
+  `super()` 经 [[GetPrototypeOf]] 动态解析，挂一次即可）；派发枢纽
+  `event_hooks.js` 对 `offsetX/Y` 的赋值改走隐藏钩子 `__diting_uiOffset`
+  （成员现为只读 getter，赋值会静默失败而退回 0——#663 的回归）。
+
+**坑**：①V8 `Math.tan` 与 libm 差末位——凡要「位级一致」的三角计算先用 Chrome
+真值反推公式变体，不要凭规格推导；②`P.expose` 的名字要登记进模块
+`exposes:` 清单，否则 analyze 报 expose-not-listed（模块不得直接写全局）；
+③macOS `sed -i` 语法与 GNU 不同，改文件一律用 python。
+
+验收：探针 112 键 0 差异；tests **1441/0**（新增
+uievent_family_matches_chrome_truth）；快照漂移 8 个原型行（旧类把 view/detail
+错放在 Composition/Keyboard/Mouse 原型上，现回 UIEvent）；check_fresh 7 件鲜
+（28 真值）；analyze 零违。下一刀顺位：真家族（Animation 19/Notification 14/
+EditContext 11/传感器×6/SpeechRecognition 8）、ClipboardChangeEvent 18。
