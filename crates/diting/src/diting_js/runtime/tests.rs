@@ -3988,30 +3988,31 @@
         );
     }
 
-    /// Issue #227 regression, quiet-corpse shape: the script-timeout
-    /// watchdog arms a RAW thread with no stale flag, so a dispatch window
-    /// beheaded here (`_mtWindow` bracket open at the fire) leaks
-    /// `_mtDepth > 0` with every heal flag blind — the #39 entry heal, the
-    /// #50 poll boundary, nothing fires. Every chain the probe's push arms
-    /// then hits the `if (_mtDepth > 0) defer` branch and defer-spins
-    /// while stamping `_mtLastBeat`: alive to every retire check, timers
-    /// rot in `_mtQueue` forever (the fxg wedge's defer-climbing state).
-    /// The fire must forward the unwind so the next loop entry resets the
-    /// leaked bracket.
+    /// Issue #227 regression, native-core shape: a dispatch window beheaded
+    /// by the script-timeout watchdog used to leak `_mtDepth > 0` (the JS
+    /// `_mtWindow` finally died with the stack), wedging every timer chain
+    /// into defer-spin — the quiet corpse. The window dispatch rides the
+    /// native EventTarget core now (M3 B1): its enter/exit hooks run
+    /// Rust-side, so the bracket closes even when the listener is beheaded
+    /// mid-spin. Pin both: the beheading hit a LIVE dispatch (the listener
+    /// entered its spin), and the depth is back to 0 the moment the
+    /// beheaded script returns — the leak shape cannot recur on this path.
     #[tokio::test(flavor = "current_thread")]
     async fn timer_fires_after_script_timeout_beheads_dispatch_window() {
         let mut rt = setup_runtime("<html><body></body></html>");
         rt.evaluate(
-            "globalThis.__fired = false;
+            "globalThis.__fired = false; globalThis.__entered = false;
              setTimeout(() => { globalThis.__fired = true; }, 50);",
         )
         .unwrap();
 
         // Behead a dispatch window: the listener spins 3s synchronously
-        // inside `_mtWindow`, killed at 200ms by the script-timeout
-        // watchdog. The window's `finally { _mtDepth-- }` never runs.
+        // inside the native core's enter/exit bracket, killed at 200ms by
+        // the script-timeout watchdog. The exit hook is Rust-side: it runs
+        // even though the listener's JS never returned.
         rt.execute_script_with_timeout(
             "globalThis.addEventListener('probe-evt', () => { \
+                 globalThis.__entered = true; \
                  const t = Date.now(); while (Date.now() - t < 3000) {} \
              }); \
              globalThis.dispatchEvent(new Event('probe-evt'));",
@@ -4019,13 +4020,19 @@
         )
         .unwrap();
         assert!(
+            rt.evaluate("globalThis.__entered")
+                .unwrap()
+                .as_bool()
+                .unwrap_or(false),
+            "precondition: the watchdog must have beheaded a live dispatch"
+        );
+        assert_eq!(
             rt.evaluate("globalThis.__MT_STATE().depth")
                 .unwrap()
                 .as_f64()
-                .unwrap()
-                >= 1.0,
-            "precondition: the dispatch window bracket must have leaked \
-             (nested _mtWindow brackets leak together — both finallys die)"
+                .unwrap(),
+            0.0,
+            "the native core's exit hook closes the bracket even under beheading"
         );
 
         // Pump: the probe's push arms a chain that must NOT defer-spin on

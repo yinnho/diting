@@ -67,7 +67,6 @@ globalThis.__diting_reportUncaughtError = function(err, src) {
   }
   globalThis.__diting_reportUncaught(message, source, line, err);
 };
-globalThis.__windowListeners = {};
 // Event state facade: the native Event (crates/diting_runtime/src/native/
 // event.rs) keeps its state in a private slot - invisible and unwritable
 // from page JS. Engine legs that must pin dispatch state (target/
@@ -76,33 +75,27 @@ globalThis.__windowListeners = {};
 // never see it. `_evS(ev, key)` reads, `_evS(ev, key, v)` writes; on an
 // unbranded object it falls back to plain property semantics so the
 // legacy dispatchers keep tolerating hand-rolled event look-alikes.
+//
+// window itself dispatches through the NATIVE EventTarget core now (M3
+// step B1): the three own addEventListener/removeEventListener/
+// dispatchEvent globals are gone and the chain (window -> Window.prototype
+// -> named-access gate -> EventTarget.prototype, see the rewire at the
+// _namedHolder) serves them. The window-specific on* legs (__windowOnHandlers
+// + <body onX> inline fallback, 'error' pipeline-only) live in the
+// `handler` hook in event_hooks.js.
 const _evS = globalThis.__diting_event_state;
 delete globalThis.__diting_event_state;
-globalThis.addEventListener = function(type, fn) {
-  __listenerGate(fn);
-  if (!globalThis.__windowListeners[type]) globalThis.__windowListeners[type] = [];
-  globalThis.__windowListeners[type].push(fn);
-};
-globalThis.removeEventListener = function(type, fn) {
-  if (globalThis.__windowListeners[type]) {
-    globalThis.__windowListeners[type] = globalThis.__windowListeners[type].filter(h => h !== fn);
-  }
-};
-globalThis.dispatchEvent = function(event) {
-  if (!event) return true;
-  // (#168) The dispatch host IS the event's target at the AT_TARGET phase —
-  // the element dispatchEvent below pins the same trio at its level, but
-  // this arm never did, so a window listener reading e.target.tagName
-  // (Alibaba AWSC's nc-slider init does) saw null and died mid-flight,
-  // leaving the punish-page slider track unsized. Spec semantics: every
-  // dispatch re-pins target to the host it runs on.
-  _evS(event, 'target', globalThis);
-  _evS(event, 'currentTarget', globalThis);
-  _evS(event, 'eventPhase', 2);
-  const handlers = globalThis.__windowListeners[event.type] || [];
-  _mtWindow(() => { for (const h of handlers) { try { _invokeListener(h, globalThis, event); } catch(e) { globalThis.__diting_reportUncaughtError(e); } } });
-  return !event.defaultPrevented;
-};
+// (M3 B1) window dispatches through the native EventTarget core: the trio
+// installed here IS the native one (the runtime installs it on
+// EventTarget.prototype before any JS runs). global_surface.js relocates
+// them to the proto layer later, exactly as it did the legacy trio, so
+// window keeps no own event-method props on the Chrome face. The
+// window-specific on* legs (__windowOnHandlers + <body onX> inline
+// fallback, 'error' pipeline-only suppression) ride the native dispatch's
+// handler hook (event_hooks.js).
+globalThis.addEventListener = globalThis.EventTarget.prototype.addEventListener;
+globalThis.removeEventListener = globalThis.EventTarget.prototype.removeEventListener;
+globalThis.dispatchEvent = globalThis.EventTarget.prototype.dispatchEvent;
 
 // Receiver validation: real browsers throw TypeError("Illegal invocation")
 // when a DOM method is called with a fake receiver (e.g.
@@ -10816,10 +10809,10 @@ _evxProps(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
   core.setUnhandledPromiseRejectionHandler(function (promise, reason) {
     const e = new PromiseRejectionEvent('unhandledrejection', { promise: promise, reason: reason, cancelable: true });
     // (#37) the IDL attribute handler (window/body.onunhandledrejection = fn)
-    // is fired by the window dispatchEvent wrapper — from __windowOnHandlers
-    // or the `<body onunhandledrejection>` attribute — and can
-    // preventDefault to swallow the default report, like Chrome. Firing it
-    // here as well would run every handler twice.
+    // is fired by the native dispatch's handler hook (event_hooks.js) — from
+    // __windowOnHandlers or the `<body onunhandledrejection>` attribute — and
+    // can preventDefault to swallow the default report, like Chrome. Firing
+    // it here as well would run every handler twice.
     globalThis.dispatchEvent(e);
     // Chrome's default report is a console line and the page keeps running.
     // deno_core's default (op_dispatch_exception) terminates the runtime —
@@ -16917,46 +16910,9 @@ _markNative(Document.prototype.dispatchEvent);
     };
     _markNative(holder.dispatchEvent);
   }
-  const origWin = globalThis.dispatchEvent;
-  if (typeof origWin === 'function') {
-    globalThis.dispatchEvent = function (event) {
-      _mtDepth++;
-      try { return origWin.call(this, event); } finally { _mtDepth--; }
-    };
-    _markNative(globalThis.dispatchEvent);
-  }
+  // window is NOT wrapped here: it dispatches through the native core,
+  // whose enter/exit hooks are this same bracket (event_hooks.js).
 })();
-const _windowDispatch = globalThis.dispatchEvent;
-globalThis.dispatchEvent = function(event) {
-  if (event && event.type !== 'error') {
-    // (#168) Pin the dispatch host before the IDL-attribute handler runs —
-    // on*-assigned handlers must see the same target/currentTarget
-    // AT_TARGET state as addEventListener ones (the base wrapper re-pins,
-    // but it only runs after this leg).
-    _evS(event, 'target', globalThis);
-    _evS(event, 'currentTarget', globalThis);
-    _evS(event, 'eventPhase', 2);
-    // (#37) 'error' is pipeline-only in Chrome: onerror runs from the
-    // uncaught-error pipeline (__diting_reportUncaught), never from a
-    // synthetic dispatchEvent(new ErrorEvent('error')) — and the pipeline
-    // already calls onerror before dispatching, so firing here too would
-    // double-report.
-    const store = globalThis.__windowOnHandlers || {};
-    const key = 'on' + event.type;
-    const has = Object.prototype.hasOwnProperty.call(store, key);
-    // (#37) fall back to the `<body onX="...">` content attribute only when
-    // nothing was ever assigned through JS — an explicit null (non-callable
-    // assignment) overwrites the attribute handler, per Chrome.
-    const handler = has ? store[key]
-      : (_BODY_WINDOW_EVENT_SET.has(event.type) ? _bodyWindowInline(key) : null);
-    if (typeof handler === 'function') {
-      try {
-        if (handler.call(globalThis, event) === false && event.preventDefault) event.preventDefault();
-      } catch (e) { console.error(e); }
-    }
-  }
-  return _windowDispatch.call(this, event);
-};
 
 /* ===== fp-diff-1014 P0 sweep (runs once at snapshot build) ===== */
 // #1 Name every anonymous function-valued global after its property: WebIDL

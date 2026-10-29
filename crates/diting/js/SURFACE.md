@@ -132,3 +132,21 @@ EventView 带回 obj 句柄，监听器/on* 钩子收事件本体。
 （棘轮清空，新差异只许真回归）；surface fixture 刷新（Event 原型 12 访问器+4 常量+5 方法，子类原型现出各自成员）；
 变异三刀全咬（cancelBubble 清旗 / preventDefault 弃 passive / isTrusted 不装配——最后一刀 11 键齐响）。
 遗留 JS 派发器（window/Node/Document/XHR/MSE）收尾盖章 `pathDone`（composedPath.after 真值），迁原生核心仍是步骤 B。
+
+## M3 步骤B1：window 派发并轨原生核心（2026-10-29）
+
+bootstrap 顶部的遗留 window 三件（`__windowListeners` 基表 + `_mtDepth` 包装 + `_windowDispatch` on* 包装，三层）删除；
+`:96-98` 直接把 `EventTarget.prototype` 三件装成 window own 属性，`global_surface.js` relocate() 照旧搬到 P1 门层——
+window own-prop 脸不变。window 专属 on* 腿（`__windowOnHandlers` store、`<body onX>` 内联回退 `_bodyWindowInline`、
+'error' 只走管线不上双报）整体住进 `event_hooks.js` 的 `handler` 钩子；handler 在监听器循环**之前**跑（指派在前的常见页形与 Chrome 同序；
+已知分歧：监听器在前、on* 后指派时我们仍 handler 先）。
+`_mtDepth` IIFE 的 window 腿随之删除（Node/Element/Document 腿不动，B3/B4 再并）。
+**修出一处核心缺口**：`invoke()` 在监听表为空时提前 return，把 handler 腿也跳了——DOM §2.9 的 inner invoke 与监听器数量无关
+（`<body onload>` 页零监听器照样触发 onload；Chrome 探针 `win.on.nolistener`=yes 坐实）。空表现在只清空快照，on* 照跑。
+**反向缺口一并修**：通用腿 `target[key]` 对非 IDL 处理器槽的 on* 数据属性（`window.onzzzprobe=f`、裸 EventTarget 上的 `et.onfoo=f`）
+会过度触发——Chrome 只认 accessor 槽（`isHandlerSlot` 沿原型链找第一个描述符，data 即非处理器）。
+#227 斩首形改写：native 核心的 enter/exit 钩子跑在 Rust 侧，监听器被脚本看门狗砍掉后括号照样闭合（`_mtDepth` 立即归 0）——
+旧测试断言「必须泄漏≥1」的前提不复存在，改为钉「砍的是活派发 + 砍完即回 0」。
+验收：探针 79→**85 项对 Chrome 145 全一致**（新增 win.et/win.dispatch.state/win.on.order/win.on.nolistener/win.on.unknown/et.on.unknown）；
+known 分歧（不修，留档）：合成 `dispatchEvent(new Event('error'))` 不触发 onerror（管线已叫过，避免双报；Chrome 会触发）。
+未迁（B2 起）：XHR/MSE/Worker/FileReader/iframe 派发器 + AbortSignal 的 `{type:'abort'}` 普通对象；B3/B4：Document、Element/Node。

@@ -15,7 +15,8 @@
 //!                          `_mtWindow` timer-deferral window)
 //!   report(err)           report an uncaught listener exception
 //!   parent(target, ev)    next target on the event path, or null
-//!   handler(target, ev)   the `onfoo` IDL-attribute handler, if any
+//!   handler(target, ev)   the `onfoo` IDL-attribute handler, if any (the
+//!                          core fires it BEFORE the listener loop)
 //!
 //! Events are the native [`super::event`] interface; their state (and the
 //! brand itself) is the `diting#ev-state` private slot installed by its
@@ -335,13 +336,40 @@ fn report<'a>(scope: &mut v8::PinScope<'a, '_>, h: Option<Local<'a, v8::Object>>
 /// `phase`. `capture_pass`: Some(true) = only capture listeners, Some(false)
 /// = only non-capture, None never happens.
 fn invoke<'a>(scope: &mut v8::PinScope<'a, '_>, h: Option<Local<'a, v8::Object>>, ev: &EventView<'a>, target: Local<'a, v8::Object>, ty: Local<'a, v8::String>, phase: i32, capture_pass: bool) {
-    let Some(st) = store(scope, target, false) else { return };
-    let Some(l) = list(scope, st, ty, false) else { return };
+    // Listener bookkeeping is optional here: DOM §2.9's inner invoke stamps
+    // phase/currentTarget and fires the event handler IDL attribute
+    // (`target.onfoo`) even when ZERO listeners are registered — a target no
+    // addEventListener ever touched still runs its on* leg (`<body onload>`
+    // pages register no window 'load' listeners at all).
+    let l = store(scope, target, false).and_then(|st| list(scope, st, ty, false));
     // Spec: iterate a clone; listeners added during the walk do not run,
     // removed ones (flag) are skipped.
-    let n = l.length();
-    let snapshot: Vec<Local<'a, v8::Array>> = (0..n).filter_map(|i| l.get_index(scope, i).and_then(|v| Local::<v8::Array>::try_from(v).ok())).collect();
+    let snapshot: Vec<Local<'a, v8::Array>> = match l {
+        Some(l) => {
+            let n = l.length();
+            (0..n).filter_map(|i| l.get_index(scope, i).and_then(|v| Local::<v8::Array>::try_from(v).ok())).collect()
+        }
+        None => Vec::new(),
+    };
     ev.set_phase(scope, phase, target.into());
+    // Event handler IDL attribute (`target.onfoo`): fires BEFORE the
+    // listeners in the bubble leg — the common page pattern assigns on* in
+    // markup/early script and lets libraries addEventListener later, so
+    // handler-first matches Chrome's registration order for it. A capture
+    // listener's stopImmediatePropagation still suppresses it.
+    if !capture_pass && !ev.truthy(scope, S_IMMEDIATE) {
+        if let Some(hf) = h.and_then(|h| hook_fn(scope, h, "handler")) {
+            let evv: Local<v8::Value> = ev.obj.into();
+            if let Some(handler) = hf.call(scope, h.unwrap().into(), &[target.into(), evv]).and_then(|v| Local::<v8::Function>::try_from(v).ok()) {
+                v8::tc_scope!(let tc, scope);
+                handler.call(tc, target.into(), &[evv]);
+                if tc.has_caught() && !tc.has_terminated() {
+                    if let Some(exc) = tc.exception() { report(tc, h, exc); }
+                    tc.reset();
+                }
+            }
+        }
+    }
     if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "enter") { let u = v8::undefined(scope); f.call(scope, u.into(), &[]); } }
     for e in snapshot {
         if flag(scope, e, E_REMOVED) || flag(scope, e, E_CAPTURE) != capture_pass { continue; }
@@ -373,21 +401,6 @@ fn invoke<'a>(scope: &mut v8::PinScope<'a, '_>, h: Option<Local<'a, v8::Object>>
         }
         if passive { ev.set_bool(tc, S_PASSIVE, false); }
         if ev.truthy(tc, S_IMMEDIATE) { break; }
-    }
-    // Event handler IDL attribute (`target.onfoo`): fires once per target,
-    // in the bubble leg (after the listeners), via the host hook.
-    if !capture_pass && !ev.truthy(scope, S_IMMEDIATE) {
-        if let Some(hf) = h.and_then(|h| hook_fn(scope, h, "handler")) {
-            let evv: Local<v8::Value> = ev.obj.into();
-            if let Some(handler) = hf.call(scope, h.unwrap().into(), &[target.into(), evv]).and_then(|v| Local::<v8::Function>::try_from(v).ok()) {
-                v8::tc_scope!(let tc, scope);
-                handler.call(tc, target.into(), &[evv]);
-                if tc.has_caught() && !tc.has_terminated() {
-                    if let Some(exc) = tc.exception() { report(tc, h, exc); }
-                    tc.reset();
-                }
-            }
-        }
     }
     if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "exit") { let u = v8::undefined(scope); f.call(scope, u.into(), &[]); } }
 }

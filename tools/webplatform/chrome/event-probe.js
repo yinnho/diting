@@ -98,6 +98,28 @@
   t('et.stopImmediate', function () { var e = new EventTarget(), l = []; e.addEventListener('x', function (ev) { l.push(1); ev.stopImmediatePropagation(); }); e.addEventListener('x', function () { l.push(2); }); e.dispatchEvent(new Event('x')); return l; });
   t('et.remove.during', function () { var e = new EventTarget(), l = [], b = function () { l.push('b'); }; e.addEventListener('x', function () { l.push('a'); e.removeEventListener('x', b); }); e.addEventListener('x', b); e.dispatchEvent(new Event('x')); return l; });
   t('et.add.during', function () { var e = new EventTarget(), l = []; e.addEventListener('x', function () { l.push('a'); e.addEventListener('x', function () { l.push('late'); }); }); e.dispatchEvent(new Event('x')); return l; });
+  // ---- window on the native core (M3 step B1)
+  // (No `instanceof EventTarget` / getPrototypeOf pins here: this engine's
+  // global proto layer is the named-access gate, not Window.prototype, and
+  // EventTarget.prototype is not in the chain — pre-existing face shape,
+  // unchanged by B1.)
+  t('win.et', function () { return [typeof self.addEventListener, typeof self.removeEventListener, typeof self.dispatchEvent, self.dispatchEvent.length]; });
+  t('win.dispatch.state', function () { var r; self.addEventListener('wprobe', function (e) { r = [this === self, e.target === self, e.currentTarget === self, e.eventPhase]; }); self.dispatchEvent(new Event('wprobe')); return r; });
+  t('win.on.order', function () { var o = []; self.onmessage = function () { o.push(1); }; self.addEventListener('message', function () { o.push(2); }); self.dispatchEvent(new Event('message')); self.onmessage = null; return o; });
+  // The on* handler fires with ZERO listeners registered — inner invoke
+  // runs it regardless of the listener table (a `<body onload>` page has no
+  // window 'load' listeners at all). And the converse face: on* only fires
+  // for REAL handler IDL attributes — a plain `onfoo` data property on the
+  // window or a bare EventTarget is never called (Chrome ignores it).
+  t('win.on.nolistener', function () { var r = 'no'; self.onload = function () { r = 'yes'; }; self.dispatchEvent(new Event('load')); self.onload = null; return r; });
+  t('win.on.unknown', function () { var r = 'no'; self.onzzzprobe = function () { r = 'yes'; }; self.dispatchEvent(new Event('zzzprobe')); self.onload = null; return r; });
+  t('et.on.unknown', function () { var e = new EventTarget(), r = 'no'; e.onfoo = function () { r = 'yes'; }; e.dispatchEvent(new Event('foo')); return r; });
+  // NOTE: no key for synthetic dispatchEvent(new Event('error')) firing
+  // onerror — real Chrome DOES fire it (truth said 1), but this engine's
+  // error pipeline calls onerror itself before dispatching, so the handler
+  // hook suppresses 'error' on the global to avoid double-reporting.
+  // Known divergence, unchanged by B1; fixing it means moving the pipeline
+  // onto a dispatched ErrorEvent with the five-arg onerror unwrap.
   t('et.reentrant', function () { var e = new EventTarget(); e.addEventListener('x', function (ev) { e.dispatchEvent(ev); }); return e.dispatchEvent(new Event('x')); });
   t('et.redispatch', function () { var e = new EventTarget(), ev = new Event('x'); e.dispatchEvent(ev); return [ev.target === e, ev.currentTarget, ev.eventPhase, e.dispatchEvent(ev)]; });
   t('et.passive.prevent', function () { var e = new EventTarget(), ev = new Event('x', { cancelable: true }); e.addEventListener('x', function (x) { x.preventDefault(); }, { passive: true }); e.dispatchEvent(ev); return ev.defaultPrevented; });
