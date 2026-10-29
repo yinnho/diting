@@ -13946,6 +13946,43 @@
         assert_eq!(result.as_str().unwrap(), "B");
     }
 
+    // PDD "invalid wire type": binary must stay bytes through every body path.
+    #[test]
+    fn test_text_decoder_malformed_utf8_gets_replacement_chars() {
+        let mut rt = setup_runtime("<html><body></body></html>");
+        // lone continuation, overlong C0 80, surrogate ED A0 80, truncated E2 82, F5 (invalid lead)
+        let r = rt.evaluate(
+            "Array.from(new TextDecoder().decode(new Uint8Array([0x61,0x80,0x62,0xC0,0x80,0xED,0xA0,0x80,0xE2,0x82,0x63,0xF5,0x64]))).map(c=>c.charCodeAt(0).toString(16)).join(',')"
+        ).unwrap();
+        assert_eq!(r.as_str().unwrap(), "61,fffd,62,fffd,fffd,fffd,fffd,fffd,fffd,63,fffd,64");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_request_and_response_keep_binary_bodies_intact() {
+        let mut rt = setup_runtime("<html><body></body></html>");
+        let result = rt.call_function_on_remote(
+            r#"async () => {
+                const pb = new Uint8Array([0xEF, 0xBF, 0xBD, 0x37, 0x00, 0xFF, 0x80, 0x10]);
+                const hex = (ab) => Array.from(new Uint8Array(ab)).map(b => b.toString(16)).join(',');
+                const want = hex(pb);
+                const out = [];
+                for (const body of [pb, pb.buffer, new Blob([pb])]) {
+                    const r = new Request('http://x/', { method: 'POST', body });
+                    out.push(hex(await r.clone().arrayBuffer()) === want);
+                    out.push(hex(await r.clone().bytes()) === want);
+                    out.push(hex(await (await r.clone().blob()).arrayBuffer()) === want);
+                }
+                out.push(hex(await new Response(pb).bytes()) === want);
+                return out.every(Boolean);
+            }"#,
+            None,
+            &[],
+            true,
+            true,
+        ).await.unwrap();
+        assert_eq!(result.value.unwrap(), serde_json::json!(true));
+    }
+
     #[test]
     fn test_document_doctype() {
         let mut rt = setup_runtime("<!DOCTYPE html><html><body></body></html>");

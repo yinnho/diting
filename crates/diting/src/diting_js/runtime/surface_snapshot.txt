@@ -1918,12 +1918,12 @@ P RelativeOrientationSensor :: constructor
 P RemotePlayback :: constructor
 P ReportBody :: constructor
 P ReportingObserver :: constructor
-P Request :: arrayBuffer,blob,clone,constructor,formData,json,text
+P Request :: arrayBuffer,blob,bytes,clone,constructor,formData,json,text
 P ResizeObserver :: _fireFor,constructor,disconnect,observe,takeRecords,unobserve
 P ResizeObserverEntry :: constructor
 P ResizeObserverSize :: constructor
 S Response :: error,json,redirect
-P Response :: arrayBuffer,blob,body,bodyUsed,clone,constructor,formData,json,text
+P Response :: arrayBuffer,blob,body,bodyUsed,bytes,clone,constructor,formData,json,text
 P RestrictionTarget :: constructor
 P SVGAElement :: constructor
 P SVGAngle :: constructor

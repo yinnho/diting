@@ -9384,12 +9384,16 @@ if (typeof Request === 'undefined') {
         cache: this.cache,
       });
     }
-    async text() { return this.body ? String(this.body) : ''; }
+    // Body readers work on the BYTES of the body (fetch spec: a body is a
+    // byte sequence). Stringifying a binary body mangled it, which is how a
+    // protobuf frame turned into "invalid wire type" in PDD's decoder.
+    async text() { return new TextDecoder().decode(_requestBodyBytes(this.body)); }
     async json() { return JSON.parse(await this.text()); }
-    async arrayBuffer() { return new TextEncoder().encode(await this.text()).buffer; }
+    async arrayBuffer() { return _arrayBufferFromBytes(_requestBodyBytes(this.body)); }
+    async bytes() { return _requestBodyBytes(this.body).slice(); }
     async blob() {
       const ct = this.headers && this.headers.get ? (this.headers.get('content-type') || '') : '';
-      return new Blob(this.body != null ? [this.body] : [], { type: ct });
+      return new Blob(this.body != null ? [_requestBodyBytes(this.body)] : [], { type: ct });
     }
     // A Request constructed with a FormData body hands that instance back;
     // string bodies parse by Content-Type (urlencoded / multipart).
@@ -9399,6 +9403,15 @@ if (typeof Request === 'undefined') {
       return _formDataFromString(this.body == null ? '' : String(this.body), ct);
     }
   };
+}
+
+// Bytes of a fetch body init (string / Blob / ArrayBuffer / view / params).
+function _requestBodyBytes(body) {
+  if (body == null) return new Uint8Array(0);
+  if (typeof Blob === 'function' && body instanceof Blob) return body._bytes || new Uint8Array(0);
+  if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0));
+  if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength));
+  return new TextEncoder().encode(String(body));
 }
 
 // Decode a response body honoring the Content-Type charset, so fetch()/XHR
@@ -9430,6 +9443,7 @@ if (typeof Response === 'undefined') {
     async text() { __def(this, '_bodyUsed', true); return _decodeBodyWithCharset(this._bodyBytes, this.headers); }
     async json() { __def(this, '_bodyUsed', true); return JSON.parse(await this.text()); }
     async arrayBuffer() { __def(this, '_bodyUsed', true); return _arrayBufferFromBytes(this._bodyBytes); }
+    async bytes() { __def(this, '_bodyUsed', true); return this._bodyBytes.slice(); }
     async blob() { __def(this, '_bodyUsed', true); return new Blob([this._bodyBytes]); }
     async formData() {
       __def(this, '_bodyUsed', true);
@@ -9581,17 +9595,37 @@ if (typeof TextEncoder === 'undefined') {
 }
 // Fast pure-JS UTF-8 decode (the common case: Response/Blob .text(), most
 // pages). Avoids the op + JSON round trip for plain UTF-8.
+// WHATWG UTF-8 decoder (non-fatal): malformed input yields U+FFFD per the
+// spec's "maximal subpart" rule, never garbage code points. Chrome-identical
+// for overlongs, surrogates (ED A0..BF), > U+10FFFF and truncated tails.
 function _utf8DecodeBytes(bytes, start) {
-  let str = '', i = start | 0;
   const n = bytes.length;
+  let i = start | 0, out = '';
+  const buf = [];
+  const flush = () => { out += String.fromCharCode.apply(null, buf); buf.length = 0; };
   while (i < n) {
-    let c = bytes[i++];
-    if (c < 0x80) str += String.fromCharCode(c);
-    else if (c < 0xE0) str += String.fromCharCode(((c & 0x1F) << 6) | (bytes[i++] & 0x3F));
-    else if (c < 0xF0) { const b1 = bytes[i++], b2 = bytes[i++]; str += String.fromCharCode(((c & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F)); }
-    else { const b1 = bytes[i++], b2 = bytes[i++], b3 = bytes[i++]; const cp = ((c & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F); if (cp > 0xFFFF) { const s = cp - 0x10000; str += String.fromCharCode(0xD800 + (s >> 10), 0xDC00 + (s & 0x3FF)); } else str += String.fromCharCode(cp); }
+    const c = bytes[i++];
+    if (c < 0x80) { buf.push(c); }
+    else {
+      let need, cp, lo = 0x80, hi = 0xBF;
+      if (c >= 0xC2 && c <= 0xDF) { need = 1; cp = c & 0x1F; }
+      else if (c >= 0xE0 && c <= 0xEF) { need = 2; cp = c & 0x0F; if (c === 0xE0) lo = 0xA0; else if (c === 0xED) hi = 0x9F; }
+      else if (c >= 0xF0 && c <= 0xF4) { need = 3; cp = c & 0x07; if (c === 0xF0) lo = 0x90; else if (c === 0xF4) hi = 0x8F; }
+      else { buf.push(0xFFFD); continue; }
+      let ok = true;
+      for (let k = 0; k < need; k++) {
+        const b = i < n ? bytes[i] : -1;
+        if (b < lo || b > hi) { ok = false; break; }
+        lo = 0x80; hi = 0xBF; cp = (cp << 6) | (b & 0x3F); i++;
+      }
+      if (!ok) { buf.push(0xFFFD); continue; }
+      if (cp > 0xFFFF) { const t = cp - 0x10000; buf.push(0xD800 + (t >> 10), 0xDC00 + (t & 0x3FF)); }
+      else buf.push(cp);
+    }
+    if (buf.length >= 8192) flush();
   }
-  return str;
+  flush();
+  return out;
 }
 if (typeof TextDecoder === 'undefined') {
   globalThis.TextDecoder = class TextDecoder {
@@ -15120,7 +15154,16 @@ if (typeof WebSocket === 'undefined') {
           this._emit(new Event('open'));
         } else if (ev.kind === 'message') {
           if (this._terminal) break;
-          const data = ev.binary ? _base64ToUint8Array(ev.data) : ev.data;
+          let data = ev.data;
+          if (ev.binary) {
+            // Spec: binary frames surface as ArrayBuffer when binaryType is
+            // 'arraybuffer', as Blob otherwise (PDD's decoder does
+            // `new Uint8Array(buf, 16)`, which a Uint8Array silently breaks).
+            const bytes = _base64ToUint8Array(ev.data);
+            data = this.binaryType === 'arraybuffer'
+              ? _arrayBufferFromBytes(bytes)
+              : new Blob([bytes]);
+          }
           this._emit(new MessageEvent('message', { data }));
         } else if (ev.kind === 'error') {
           if (this._terminal) break;
@@ -15140,6 +15183,9 @@ if (typeof WebSocket === 'undefined') {
       if (typeof data === 'string') {
         kind = 'text'; payload = data;
         byteLen = new TextEncoder().encode(data).length;
+      } else if (data instanceof Blob) {
+        kind = 'binary'; payload = _bytesToBase64(data._bytes);
+        byteLen = data._bytes.length;
       } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
         const bytes = data instanceof ArrayBuffer
           ? new Uint8Array(data)
