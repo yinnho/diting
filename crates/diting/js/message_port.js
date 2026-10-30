@@ -35,12 +35,17 @@ class MessagePort {
     this._started = false;
     this._closed = false;
     this._queue = [];
-    this._listeners = [];
     // #237: payloads not yet delivered, one entry per post: {data, gen,
     // since}. `since` is the first-arm time — the wait window measures the
     // OLDEST undelivered payload, so it cannot drift (a lost arm can no
     // longer leak a counter decrement; the list itself is the truth).
     this._pending = [];
+    // 刀56: listener registry is the native EventTarget core now (the class
+    // owned shadow copies of addEventListener/removeEventListener Chrome
+    // keeps inherited); liveness queries ride the hooks' mirror
+    // (__diting_etHasListeners, event_hooks.js) — the #237 orphan-drop and
+    // sweep-prune heuristics below must not treat a port with live native
+    // listeners as handler-less.
     __hideOwn(this);
   }
   get onmessage() { return this._onmessage; }
@@ -76,21 +81,16 @@ class MessagePort {
     });
   }
   _fire(data) {
-    const self = this;
     if (this._inflight) {
       console.error('[PORT-REENTRY] new delivery while one in flight (' +
         (Date.now() - this._inflightT) + 'ms); fn=' + String(this._onmessage).slice(0, 100));
     }
     this._inflight = true; this._inflightT = Date.now();
     try {
-      const evt = { type: 'message', data, target: self, currentTarget: self };
-      const h = self._onmessage;
-      if (typeof h === 'function') {
-        try { h.call(self, evt); } catch (e) { console.error('MessagePort onmessage error:', e && e.message, e && e.stack ? '\n' + e.stack : ''); }
-      }
-      for (const fn of self._listeners.slice()) {
-        try { _invokeListener(fn, self, evt); } catch (e) { globalThis.__diting_reportUncaughtError(e); }
-      }
+      // 刀56: a real MessageEvent through the native dispatch — onmessage
+      // fires via the handler hook, listeners from the native registry;
+      // the fake event object is gone (instanceof MessageEvent now holds).
+      this.dispatchEvent(new MessageEvent('message', { data }));
     } finally {
       const dur = Date.now() - this._inflightT;
       this._inflight = false;
@@ -107,7 +107,8 @@ class MessagePort {
   // 2026-10-12), so drop the orphaned queue instead.
   _recoverStalled(force) {
     if (this._closed || !this._pending.length || this._inflight) return 0;
-    if (!this._onmessage && this._listeners.length === 0) {
+    const _has = globalThis.__diting_etHasListeners;
+    if (!this._onmessage && !(_has && _has(this, 'message'))) {
       // Same age gate as below: a worker still booting holds pending
       // handler-less for a few seconds (fetch + importScripts), and those
       // messages must survive for its late onconnect.
@@ -140,13 +141,9 @@ class MessagePort {
     this._queue = [];
     for (const d of q) this._dispatch(d);
   }
-  addEventListener(type, fn) {
-    if (type !== 'message') return;
-    __listenerGate(fn);
-    this._listeners.push(fn);
-    this.start();
-  }
-  removeEventListener(type, fn) { if (type === 'message') this._listeners = this._listeners.filter(f => f !== fn); }
+  // 刀56: addEventListener/removeEventListener left the class body — they
+  // are the inherited native trio now. A 'message' registration still
+  // starts the port: the hooks' registered leg does it (event_hooks.js).
   close() { this._closed = true; this._queue = []; this._pending = []; }
 }
 Object.defineProperty(MessagePort.prototype, Symbol.toStringTag, { value: 'MessagePort', configurable: true });
@@ -199,7 +196,7 @@ function _portSweep() {
         console.error('[PORT-RECOVER] re-armed ' + n + ' stalled message(s), waiting ' +
           waited + 'ms; fn=' + String(p._onmessage).slice(0, 120));
     }
-    if (p._closed || (p._pending.length === 0 && !p._onmessage && p._listeners.length === 0)) _portReg.delete(p);
+    if (p._closed || (p._pending.length === 0 && !p._onmessage && !__diting_etHasListeners(p, 'message'))) _portReg.delete(p);
   }
 }
 function _armPortSweep() {

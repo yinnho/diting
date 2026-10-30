@@ -26441,10 +26441,11 @@ fn htmlelement_members_match_chrome_truth_except_known_gaps() {
 /// name here.
 #[test]
 fn eventtarget_chains_match_chrome_truth_except_known_gaps() {
-    const SHADOWED_TRIO: &[&str] = &[
-        "BroadcastChannel", "EventSource", "IDBDatabase", "IDBTransaction",
-        "MediaQueryList", "MessagePort", "WebSocket",
-    ];
+    // 刀56 emptied the ratchet: the seven socket-like shims dropped their
+    // hand-rolled trio shadows and inherit the native EventTarget core, so
+    // NO interface owns addEventListener/removeEventListener/dispatchEvent
+    // outside Chrome's own list. The mechanism stays for any future shim.
+    const SHADOWED_TRIO: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/eventtarget-chain-probe.js");
     let engine: serde_json::Value =
@@ -27756,4 +27757,160 @@ async fn element_prototype_members_match_chrome_truth() {
         extra.is_empty() && missing.is_empty(),
         "Element.prototype member set drifted from Chrome 145: extra {extra:?} missing {missing:?}"
     );
+}
+
+/// M4 刀56: the wrong-prototype-level family folded. Shape truths:
+/// (1) Attr.prototype owns exactly Chrome's 8 members — the 11
+/// Node-reflecting leftovers (parentNode=null, childNodes=[], textContent
+/// =value, …) now answer through the nodelevel dispatch table, not own
+/// copies; (2) the Range boundary getters live on AbstractRange.prototype
+/// ONLY — Range.prototype and StaticRange.prototype own none of the five;
+/// (3) the EventTarget trio is inherited everywhere: none of the seven
+/// former shims (BroadcastChannel/EventSource/IDBDatabase/IDBTransaction/
+/// MediaQueryList/MessagePort/WebSocket) owns addEventListener/
+/// removeEventListener/dispatchEvent. Behavior pins: attr tree answers,
+/// the dispatcher's base fallback on elements, Range/StaticRange boundary
+/// reads through the lifted getters, MQL change delivery through a native
+/// listener + onchange in one flush.
+#[tokio::test(flavor = "current_thread")]
+async fn knife56_wrong_prototype_levels_fold_to_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let src = r#"
+(() => {
+  const r = {};
+  // (1) Attr face + tree answers
+  r.attrOwn = Object.getOwnPropertyNames(Attr.prototype).sort().join(',');
+  const el = document.createElement('div');
+  el.setAttribute('id', 'k56');
+  const a = el.getAttributeNode('id');
+  r.attrTree = [a.parentNode, a.parentElement, a.firstChild, a.lastChild,
+    a.previousSibling, a.nextSibling, a.childNodes.length, a.hasChildNodes(),
+    a.isConnected, a.nodeType, a.nodeName, a.textContent, a instanceof Node].join('|');
+  a.textContent = 'zz';
+  r.attrWriteThrough = el.getAttribute('id');
+  // dispatcher base fallback: elements keep the real Node answers
+  const span = document.createElement('span');
+  document.body.appendChild(span);
+  span.textContent = 't';
+  r.elFallback = [span.isConnected, span.parentNode === document.body,
+    span.firstChild && span.firstChild.nodeType, span.childNodes.length,
+    span.ownerDocument === document, typeof span.cloneNode('deep')].join('|');
+  // (2) AbstractRange owns the five, the leaves own none
+  r.arOwn = Object.getOwnPropertyNames(AbstractRange.prototype).sort().join(',');
+  r.leafOwn = ['Range', 'StaticRange'].map((n) => {
+    const p = globalThis[n].prototype;
+    return ['startContainer', 'startOffset', 'endContainer', 'endOffset', 'collapsed']
+      .filter((k) => Object.prototype.hasOwnProperty.call(p, k)).length;
+  }).join('|');
+  const rng = document.createRange();
+  rng.setStart(document.body, 0);
+  rng.setEnd(document.body, 1);
+  rng.collapse(true);
+  const sr = new StaticRange({ startContainer: document.body, startOffset: 0,
+    endContainer: document.body, endOffset: 2 });
+  r.rangeRead = [rng.startContainer === document.body, rng.startOffset,
+    rng.collapsed, sr.startContainer === document.body, sr.endOffset,
+    sr.collapsed, rng instanceof AbstractRange, sr instanceof AbstractRange].join('|');
+  // (3) the trio is inherited at every former shim
+  r.trioOwn = ['BroadcastChannel', 'EventSource', 'IDBDatabase', 'IDBTransaction',
+    'MediaQueryList', 'MessagePort', 'WebSocket'].map((n) => {
+    const p = globalThis[n].prototype;
+    return ['addEventListener', 'removeEventListener', 'dispatchEvent']
+      .filter((k) => Object.prototype.hasOwnProperty.call(p, k)).length;
+  }).join('|');
+  r.etOwns = Object.getOwnPropertyNames(EventTarget.prototype).sort().join(',');
+  return JSON.stringify(r);
+})()
+"#;
+    let v: serde_json::Value =
+        serde_json::from_str(rt.evaluate(src).unwrap().as_str().unwrap()).unwrap();
+    // (1) Chrome 145 Attr.prototype owns exactly these 8.
+    assert_eq!(
+        v["attrOwn"].as_str().unwrap(),
+        "constructor,localName,name,namespaceURI,ownerElement,prefix,specified,value",
+        "Attr.prototype member set drifted"
+    );
+    assert_eq!(
+        v["attrTree"].as_str().unwrap(),
+        "||||||0|false|false|2|id|k56|true",
+        "attr tree answers changed"
+    );
+    assert_eq!(v["attrWriteThrough"].as_str().unwrap(), "zz", "attr textContent write no longer reaches the element");
+    assert_eq!(
+        v["elFallback"].as_str().unwrap(),
+        "true|true|3|1|true|object",
+        "element Node-member fallback broke"
+    );
+    // (2) Chrome 145 AbstractRange.prototype owns exactly these 6.
+    assert_eq!(
+        v["arOwn"].as_str().unwrap(),
+        "collapsed,constructor,endContainer,endOffset,startContainer,startOffset",
+        "AbstractRange.prototype member set drifted"
+    );
+    assert_eq!(v["leafOwn"].as_str().unwrap(), "0|0", "Range/StaticRange still own boundary getters");
+    assert_eq!(
+        v["rangeRead"].as_str().unwrap(),
+        "true|0|true|true|2|false|true|true",
+        "range boundary reads broke"
+    );
+    // (3) zero own trio members at every former shim.
+    assert_eq!(v["trioOwn"].as_str().unwrap(), "0|0|0|0|0|0|0", "a shim still owns trio members");
+    assert_eq!(
+        v["etOwns"].as_str().unwrap(),
+        "addEventListener,constructor,dispatchEvent,removeEventListener,when",
+        "EventTarget.prototype member set drifted"
+    );
+}
+
+/// M4 刀56 behavior: delivery through the native core — a BroadcastChannel
+/// message reaches BOTH the onmessage handler and an addEventListener
+/// listener exactly once each, as a REAL MessageEvent with the right
+/// target; a MessagePort 'message' listener alone starts the port; a
+/// MediaQueryList change fires its native listener and onchange in one
+/// flush. These pin the event_hooks-registered path (listener-visible
+/// liveness) that replaced the hand-rolled registries.
+#[tokio::test(flavor = "current_thread")]
+async fn knife56_native_core_delivery_single_fire() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+(() => {
+  window.__k56 = {};
+  const a = new BroadcastChannel('k56t'), b = new BroadcastChannel('k56t');
+  let on = 0, ls = 0, isME = null, data = null, tgt = null;
+  b.onmessage = (e) => { on++; isME = e instanceof MessageEvent; data = e.data && e.data.v; tgt = e.target === b; };
+  b.addEventListener('message', () => ls++);
+  a.postMessage({ v: 7 });
+  window.__k56.bcDone = () => [on, ls, isME, data, tgt].join('|');
+  const mc = new MessageChannel();
+  let n = 0;
+  mc.port1.addEventListener('message', () => n++);
+  mc.port2.postMessage(1);
+  mc.port2.postMessage(2);
+  window.__k56.portCount = () => n;
+  const mq = matchMedia('(min-width: 500px)');
+  let mls = 0, mon = 0;
+  mq.addEventListener('change', () => mls++);
+  mq.onchange = () => mon++;
+  // deterministic regardless of the default viewport: flip narrow then
+  // wide — at least one flip happens either way, listener and onchange
+  // must fire the same number of times, and the final state is wide.
+  __diting_setViewport(300, 800);
+  __diting_setViewport(1200, 800);
+  window.__k56.mqlState = () => [mls === mon && mls >= 1, mq.matches, mls, mon].join('|');
+})();
+"#,
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(200).await;
+    let v: serde_json::Value = serde_json::from_str(
+        rt.evaluate("JSON.stringify({bc: window.__k56.bcDone(), port: window.__k56.portCount(), mql: window.__k56.mqlState()})")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(v["bc"].as_str().unwrap(), "1|1|true|7|true", "BroadcastChannel delivery changed");
+    assert_eq!(v["port"].as_i64().unwrap(), 2, "listener-only MessagePort did not start/deliver");
+    assert!(v["mql"].as_str().unwrap().starts_with("true|true"), "MQL change delivery changed: {}", v["mql"]);
 }

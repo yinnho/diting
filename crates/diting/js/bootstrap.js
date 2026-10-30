@@ -292,32 +292,14 @@ function __acc(C, names) {
     });
   }
 }
-// Minimal EventTarget surface for socket-like shims: one Map per instance,
-// methods on the prototype (never own instance props — #31). These don't
-// extend the real EventTarget — it sits above Node in the chain and would
-// drag DOM-tree assumptions into a WebSocket.
-function __lboxProto(C) {
-  Object.assign(C.prototype, {
-    addEventListener(type, fn) {
-      __listenerGate(fn);
-      let b = this._lbox.get(type);
-      if (!b) { b = []; this._lbox.set(type, b); }
-      b.push(fn);
-    },
-    removeEventListener(type, fn) {
-      const b = this._lbox.get(type);
-      if (!b) return;
-      const i = b.indexOf(fn);
-      if (i >= 0) b.splice(i, 1);
-    },
-    dispatchEvent(event) {
-      const b = this._lbox.get(event && event.type);
-      if (!b) return true;
-      _mtWindow(() => { for (const fn of b.slice()) { try { _invokeListener(fn, this, event); } catch (e) { globalThis.__diting_reportUncaughtError(e); } } });
-      return true;
-    },
-  });
-}
+// (M4 刀56) __lboxProto — the minimal per-instance listener-box trio for
+// socket-like shims — is RETIRED. Its classes (EventSource / WebSocket /
+// BroadcastChannel) have chained to EventTarget.prototype since the
+// global_surface wiring; the trio was a redundant shadow with WEAKER
+// semantics than the native core (no options/once/capture, no on* firing).
+// The classes now inherit the native trio like every Chrome EventTarget,
+// and their delivery fires on* through the native dispatch's handler hook
+// (the accessors are prototype-level, so isHandlerSlot passes).
 
 function _markNative(fn) { if (typeof fn === 'function') _nativeFnAdd(fn); return fn; }
 // Flat post-bootstrap scripts (lift_own / stub_members / window_extras ...) reach it through this hidden global instead of a free
@@ -8710,6 +8692,8 @@ if (!CharacterData.prototype.replaceWith) CharacterData.prototype.replaceWith = 
 if (!CharacterData.prototype.remove) CharacterData.prototype.remove = Element.prototype.remove;
 
 if (!('isConnected' in Node.prototype)) {
+  // 刀56: configurable like every Chrome Node member (it was installed
+  // non-configurable, which blocked the nodelevel dispatcher redefinition).
   Object.defineProperty(Node.prototype, 'isConnected', {
     get() {
       let node = this;
@@ -8719,7 +8703,8 @@ if (!('isConnected' in Node.prototype)) {
         node = node.parentNode;
       }
       return false;
-    }
+    },
+    enumerable: false, configurable: true,
   });
 }
 
@@ -9089,7 +9074,6 @@ const MediaQueryList = function MediaQueryList(q) {
   this._q = String(q);
   this._last = false;
   try { this._last = _mqMatches(this._q); } catch (e) {}
-  this._change = [];
   this.onchange = null;
 };
 // Read-only prototype attributes (Chrome: no instance own properties, no setters).
@@ -9099,32 +9083,23 @@ Object.defineProperties(MediaQueryList.prototype, {
 });
 MediaQueryList.prototype.addListener = function (fn) { this.addEventListener('change', fn); };
 MediaQueryList.prototype.removeListener = function (fn) { this.removeEventListener('change', fn); };
-MediaQueryList.prototype.addEventListener = function (type, fn) {
-  __listenerGate(fn);
-  if (type === 'change' && fn != null && this._change.indexOf(fn) < 0) this._change.push(fn);
-};
-MediaQueryList.prototype.removeEventListener = function (type, fn) {
-  if (type !== 'change') return;
-  const i = this._change.indexOf(fn);
-  if (i >= 0) this._change.splice(i, 1);
-};
-MediaQueryList.prototype.dispatchEvent = function (ev) {
-  const handlers = this._change.slice();
-  if (typeof this.onchange === 'function') handlers.push(this.onchange);
-  for (const h of handlers) { try { _invokeListener(h, this, ev); } catch (e) { globalThis.__diting_reportUncaughtError(e); } }
-  return true;
-};
+// 刀56: the hand-rolled trio is gone — MediaQueryList inherits the native
+// EventTarget core like Chrome (listeners with full options semantics;
+// onchange fires through the dispatch handler hook; the accessor is
+// prototype-level, so isHandlerSlot passes).
 if (typeof globalThis.MediaQueryList === 'undefined') globalThis.MediaQueryList = MediaQueryList;
 const _mqlRegistry = [];
 // Re-evaluate every subscribed MQL against the new environment and fire
 // change on the ones that flipped. Inert objects (no listener, no
 // onchange) are pruned first: their matches is live-computed on read, so
 // only subscribed objects need tracking — matchMedia inside a resize
-// handler cannot grow the registry unbounded.
+// handler cannot grow the registry unbounded. Listener liveness is the
+// hooks' registry mirror (event_hooks.js); _change died with the trio.
 globalThis.__diting_mqFlush = function () {
+  const hasListeners = globalThis.__diting_etHasListeners || (() => false);
   for (let i = _mqlRegistry.length - 1; i >= 0; i--) {
     const mq = _mqlRegistry[i];
-    if (!mq._change.length && mq.onchange == null) _mqlRegistry.splice(i, 1);
+    if (mq.onchange == null && !hasListeners(mq, 'change')) _mqlRegistry.splice(i, 1);
   }
   for (const mq of _mqlRegistry.slice()) {
     const now = mq.matches;
@@ -13833,13 +13808,12 @@ if (typeof EventSource === 'undefined') {
       this.readyState = 0; // CONNECTING
       this.withCredentials = !!(init && init.withCredentials);
       this.onopen = null; this.onmessage = null; this.onerror = null;
-      this._lbox = new Map();
       Promise.resolve().then(() => {
         if (this.readyState !== 0) return;
         this.readyState = 1; // OPEN
-        const ev = new Event('open');
-        if (typeof this.onopen === 'function') { try { this.onopen(ev); } catch (e) {} }
-        try { this.dispatchEvent(ev); } catch (e) {}
+        // 刀56: the native dispatch fires on* itself (handler hook) — the
+        // manual onopen call is gone or it would fire twice.
+        try { this.dispatchEvent(new Event('open')); } catch (e) {}
       });
       __hideOwn(this);
     }
@@ -13848,7 +13822,6 @@ if (typeof EventSource === 'undefined') {
   };
   __acc(globalThis.EventSource, ['url', 'readyState', 'withCredentials',
     'onopen', 'onmessage', 'onerror']);
-  __lboxProto(globalThis.EventSource);
 }
 
 if (typeof WebSocket === 'undefined') {
@@ -13890,7 +13863,6 @@ if (typeof WebSocket === 'undefined') {
       this.onopen = null; this.onmessage = null; this.onerror = null; this.onclose = null;
       this._id = undefined;
       this._terminal = false; // close event fired; no further events
-      this._lbox = new Map();
       // #161: send() during CONNECTING buffers (Chrome/spec) instead of
       // throwing — flushed in order when the pump reaches `open`.
       this._sendQueue = [];
@@ -13917,8 +13889,8 @@ if (typeof WebSocket === 'undefined') {
       __hideOwn(this);
     }
     _emit(ev) {
-      const on = this['on' + ev.type];
-      if (typeof on === 'function') { try { on.call(this, ev); } catch (e) {} }
+      // 刀56: on* fires through the native dispatch's handler hook — no
+      // manual leg, or an assigned onmessage would run twice.
       try { this.dispatchEvent(ev); } catch (e) {}
     }
     _fail() {
@@ -14037,7 +14009,6 @@ if (typeof WebSocket === 'undefined') {
   };
   __acc(globalThis.WebSocket, ['url', 'readyState', 'bufferedAmount', 'binaryType',
     'extensions', 'protocol', 'onopen', 'onmessage', 'onerror', 'onclose']);
-  __lboxProto(globalThis.WebSocket);
 }
 
 if (typeof BroadcastChannel === 'undefined') {
@@ -14058,7 +14029,6 @@ if (typeof BroadcastChannel === 'undefined') {
       this.name = String(name);
       this.onmessage = null;
       this.onmessageerror = null;
-      this._lbox = new Map();
       this._closed = false;
       let set = _bcReg.get(this.name);
       if (!set) { set = new Set(); _bcReg.set(this.name, set); }
@@ -14079,15 +14049,12 @@ if (typeof BroadcastChannel === 'undefined') {
         });
       }
     }
+    // 刀56: a REAL MessageEvent through the native dispatch — the hand-rolled
+    // fake ({type,data,target,currentTarget} plain object) failed
+    // `ev instanceof MessageEvent` and fired onmessage manually; the native
+    // core stamps target/currentTarget and fires on* via the handler hook.
     _fire(data) {
-      const evt = { type: 'message', data, target: this, currentTarget: this };
-      const h = this.onmessage;
-      if (typeof h === 'function') {
-        try { h.call(this, evt); } catch (e) { globalThis.__diting_reportUncaughtError(e); }
-      }
-      for (const fn of (this._lbox.get('message') || []).slice()) {
-        try { _invokeListener(fn, this, evt); } catch (e) { globalThis.__diting_reportUncaughtError(e); }
-      }
+      try { this.dispatchEvent(new MessageEvent('message', { data })); } catch (e) {}
     }
     close() {
       if (this._closed) return;
@@ -14097,7 +14064,6 @@ if (typeof BroadcastChannel === 'undefined') {
     }
   };
   __acc(globalThis.BroadcastChannel, ['name', 'onmessage', 'onmessageerror']);
-  __lboxProto(globalThis.BroadcastChannel);
 }
 
 if (typeof ImageData === 'undefined') {
@@ -15253,8 +15219,12 @@ if (!globalThis.Attr) {
     get nodeValue() { return this.value; }
     set nodeValue(v) { this.value = v; }
     get nodeType() { return 2; }
-    // Node.prototype is now above Attr.prototype (nodelevel.impl.js); its id-based members would throw for an Attr (no DOM node id).
-    // An attribute has no parent, children or siblings; its text is its value.
+    // 刀56: the 11 Node-reflecting members below are HOISTED at load by
+    // nodelevel.impl.js into its per-prototype dispatch table (deleted from
+    // this prototype) — Node.prototype's members would otherwise throw for
+    // an Attr (no DOM node id), and Chrome does not list any of these on
+    // Attr.prototype. An attribute has no parent, children or siblings; its
+    // text is its value.
     get parentNode() { return null; }
     get parentElement() { return null; }
     get firstChild() { return null; }
@@ -15967,7 +15937,6 @@ try {
   d('__ditingLocaleArg', __ditingLocaleArg);
   d('__ditingPlatformFromUA', __ditingPlatformFromUA);
   d('__hideOwn', __hideOwn);
-  d('__listenerGate', __listenerGate);
   d('__locParts', __locParts);
   d('__prepareInitialStylesheets', __prepareInitialStylesheets);
   d('__recordFetchTiming', __recordFetchTiming);
@@ -16003,7 +15972,6 @@ try {
   a('_fpSeed', () => _fpSeed, (v) => { _fpSeed = v; });
   d('_getElementsByClassName', _getElementsByClassName);
   d('_htmlInterface', _htmlInterface);
-  d('_invokeListener', _invokeListener);
   d('_isValidPITarget', _isValidPITarget);
   d('_locationObj', _locationObj);
   d('_markNative', _markNative);

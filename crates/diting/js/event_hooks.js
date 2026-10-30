@@ -11,6 +11,33 @@
   // private slot - so the hooks no longer carry an isEvent leg.)
   const NodeC = globalThis.Node;
   const DocC = globalThis.document;
+  // (M4 刀56) JS-side liveness mirror of the native listener registry:
+  // registered/unregistered keep it exact (the native core dedups and
+  // funnels every removal — explicit, once-drain, abort-cleanup — through
+  // one spot). Consumers that must know a target still has listeners
+  // without being able to see the registry: MessagePort's orphan-drop
+  // heuristic (#237: a handler-less port's queue is dropped, a port with
+  // a live listener must never be) and MediaQueryList registry pruning.
+  const liveTypes = new WeakMap();
+  function noteAdd(t, ty) {
+    let s = liveTypes.get(t);
+    if (!s) { s = new Set(); liveTypes.set(t, s); }
+    s.add(String(ty));
+  }
+  function noteDrop(t, ty) {
+    const s = liveTypes.get(t);
+    if (s) s.delete(String(ty));
+  }
+  Object.defineProperty(globalThis, '__diting_etHasListeners', {
+    value(t, ty) {
+      const s = liveTypes.get(t);
+      return !!s && s.has(String(ty));
+    },
+    writable: true, enumerable: false, configurable: true,
+  });
+  // A 'message' listener on a MessagePort starts it, exactly like the
+  // class's own addEventListener used to (and onmessage still does).
+  const PortC = globalThis.MessagePort;
   // Is `key` on `target` a real event-handler IDL attribute? Those install
   // as accessor properties (own on the global, prototype-level on Element/
   // Document); a page-assigned plain data property (`et.onfoo = f` on a bare
@@ -144,13 +171,19 @@
     },
     // A listener landed: animation* registrations are the practical signal
     // a page cares about markup-declared animations (no mutation hook sees
-    // those), so scan once for candidates.
+    // those), so scan once for candidates. 刀56: also mirrored into the
+    // liveness map, and a 'message' listener starts a MessagePort.
     registered(target, type) {
+      noteAdd(target, type);
+      if (PortC && target instanceof PortC && type === 'message' && typeof target.start === 'function') {
+        try { target.start(); } catch (e) {}
+      }
       if (typeof type === 'string' && type.indexOf('animation') === 0
           && target instanceof NodeC && _nodeInDocument(target)) {
         _scheduleAnimationCheck(document.body || target);
       }
     },
+    unregistered(target, type) { noteDrop(target, type); },
   });
   // (M3 B3/B4) Node.prototype must NOT own the EventTarget trio — Chrome
   // keeps those on EventTarget.prototype and every Node inherits them down
