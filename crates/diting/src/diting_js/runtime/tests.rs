@@ -26510,15 +26510,11 @@ fn eventtarget_chains_match_chrome_truth_except_known_gaps() {
 /// pointer-lock rejections race a 3s timeout so a hang can't wedge the
 /// test) and is awaited through call_function_on_remote(await_promise).
 ///
-/// KNOWN_GAPS ratchet:
-/// - gcs.len: the engine's computed-property list count (444) vs Chrome
-///   (413). That count is the CSSStyleDeclaration computed-list family —
-///   a separate knife. csm.face is checked as the INVARIANT
-///   computedStyleMap().size === getComputedStyle(el).length, which holds
-///   in both engines (Chrome 413 === 413, here 444 === 444).
+/// KNOWN_GAPS ratchet: empty since M4 knife 54 (the computed-property list is Chrome's 413 longhands). csm.face is checked as the
+/// INVARIANT computedStyleMap().size === getComputedStyle(el).length.
 #[tokio::test(flavor = "current_thread")]
 async fn element_staged_members_match_chrome_truth() {
-    const KNOWN_GAPS: &[&str] = &["gcs.len"];
+    const KNOWN_GAPS: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/element-staged-probe.js");
     let result = rt
@@ -27664,7 +27660,6 @@ async fn window_enumerable_own_keys_match_chrome_truth() {
 /// M4 knife 53 - the own-ENUMERABLE keys of ~200 objects (every element tag, nodes, ranges, events, XHR/WebSocket/streams, singletons,
 /// canvas, observers, URL family, ...) against Chrome 145 (chrome/enum-probe.js, enum-truth-145.json). for-in + hasOwnProperty is what
 /// for-in / JSON.stringify / Object.assign / spread see. KNOWN GAPS are listed explicitly and must shrink, never grow:
-///   computed  - getComputedStyle enumerates 690 names; Chrome enumerates the indexed longhands
 ///   newdoc    - createHTMLDocument()/DOMParser documents are plain objects, not Documents
 ///   gain/ctxDest - Web Audio nodes are plain objects (GainNode/AudioDestinationNode identity missing)
 ///   gl        - WebGL: headless Chrome answers null, the engine a fake context
@@ -27683,7 +27678,7 @@ async fn own_enumerable_keys_match_chrome_truth() {
         "../../../../../tools/webplatform/chrome/enum-truth-145.json"
     ))
     .unwrap();
-    const SKIP: &[&str] = &["computed", "newdoc", "gain", "ctxDest", "gl", "sheets", "nodeList", "htmlColl", "rects", "selfWin", "globalThis", "ls"];
+    const SKIP: &[&str] = &["newdoc", "gain", "ctxDest", "gl", "sheets", "nodeList", "htmlColl", "rects", "selfWin", "globalThis", "ls"];
     let mut bad = Vec::new();
     for (k, want) in truth.as_object().unwrap() {
         if k.starts_with('#') || SKIP.contains(&k.as_str()) {
