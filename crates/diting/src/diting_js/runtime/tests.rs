@@ -27221,3 +27221,34 @@ async fn reqres_match_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 17: Web Animations (anim-probe.js, 89 keys, real Chrome 145): shape of
+/// Animation / AnimationEffect / KeyframeEffect / AnimationTimeline /
+/// DocumentTimeline / AnimationPlaybackEvent, EffectTiming validation wording,
+/// keyframe normalization (array / property-indexed, computed offsets, offset and
+/// easing and composite checks), the play / pause / finish / cancel / reverse /
+/// updatePlaybackRate state machine with the pending flag, ready/finished promise
+/// identity, finish/cancel/remove events, replace state, getAnimations,
+/// commitStyles. Element.animate returns a real Animation.
+#[tokio::test(flavor = "current_thread")]
+async fn animation_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/anim-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/anim-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

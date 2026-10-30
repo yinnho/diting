@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→**180**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→**158**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -998,3 +998,35 @@ Response.error/redirect/json 全套、`bytes()`。**text() 不再按 Content-Typ
 测试后）987 过/30 败，失败集与干净 HEAD 逐条相同（环境类：CSS/布局/计算样式），`test_local_fetch_resolves_on_task_boundary`
 为时序型，偶发于满载全量、单跑 3/3 过。下一刀候选：Animation 19、EditContext 11、VideoFrame 10、XSLTProcessor 8、
 RTCPeerConnection 15、ImageData/Highlight/FontFace 等。
+
+## M4 刀17：Web Animations（2026-10-30）
+
+`platform/animation.impl.js`（模块 `animation`，L2）一次落六个接口：Animation / AnimationEffect /
+KeyframeEffect / AnimationTimeline / DocumentTimeline / AnimationPlaybackEvent，并让 `document.timeline`
+有真对象。此前这些全是构造器桩，`Element.animate` 返回 web_api_gaps.js 里手写的对象字面量（不是 Animation
+实例、没有 pending、没有 KeyframeEffect）。探针 `anim-probe.js`（89 键，真 Chrome 145，
+`anim-truth-145.json`）0 差异：六接口形状；EffectTiming 校验与逐字措辞（`duration must be non-negative or
+auto` / `iterationCount must be non-negative` / `iterationStart must be non-negative` / easing 与枚举错误
+的字典名 `EffectTiming`）；关键帧规整（数组式与属性索引式、computedOffset 补全、offset 区间与单调检查、
+easing/composite 校验）；`getComputedTiming` 按 Chrome 以**秒**做加法再乘 1000（endTime 215.00000000000003）；
+play/pause/finish/cancel/reverse/updatePlaybackRate 状态机与 `pending`、ready/finished promise 的同一性
+与重建时机、finish/cancel/remove 事件、replaceState、`getAnimations`、`commitStyles`。
+
+- **状态机**：startTime/holdTime/playbackRate/pendingPlaybackRate + 待决任务（play|pause|rate）；任务由约
+  16ms 的“帧”定时器完成（Chrome 在下一帧 resolve ready）。currentTime 与 playState 皆派生。自然结束只
+  用一个按剩余时间武装的定时器；finish/cancel/remove 事件同样在帧上派发。`playState` 的 finished 判断用
+  **有效速率**（pending rate 优先）——`reverse()` 后速率读数仍是旧值而状态已按新方向算，正是 Chrome 的行为。
+- **胶水**：`Element.animate`/`getAnimations`（及 Document/ShadowRoot）在 web_api_gaps.js 里只剩两行
+  钩子调用（`__diting_animate` / `__diting_getAnimations`，已入 hide list），并继续调用原生 animate 以保留
+  既有 animationstart/animationend 事件（test_element_animate_lifecycle_events 仍过）；旧的 ~60 行手写
+  对象删除。on<finish|cancel|remove> 只存函数，派发由引擎的 on* 属性机制完成（再挂监听会双触发）。
+
+**坑**：①引擎 EventTarget 派发本身会调 `on<type>` 属性——属性访问器里再 addEventListener 会让处理器触发两次；
+②`performance.now()` 在满载下偶尔读到略小于 0，timeline.currentTime 须钳到 ≥0；③探针里凡与帧定时器赛跑的等待
+（事件、remove）要给 ≥300ms 余量，否则满载全量偶发误报。
+
+验收：探针 89 键 0 差；新增 animation_matches_chrome_truth；缺口 180→158（Animation 19、DocumentTimeline 2、
+Document.timeline 1 出表）；check_fresh 7 件鲜（37 真值）；analyze 零违。全量（跳两个毒化页面测试）988 过/30 败，
+失败集与干净 HEAD 逐条相同；连跑 4 次动画测试 0 误报。**留后**：ScrollTimeline/ViewTimeline、
+rangeStart/rangeEnd 真值（现为恒 null）、复合效果（add/accumulate 的真实叠加）、CSSAnimation/CSSTransition
+真对象。下一刀候选：EditContext 11、VideoFrame 10、XSLTProcessor 8、RTCPeerConnection 15、ImageData/Highlight/FontFace。

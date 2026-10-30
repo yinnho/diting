@@ -96,71 +96,24 @@
     _markNative(XMLSerializer.prototype.serializeToString);
   }
 
-  // ---- WAAPI: a live animation object + getAnimations registries -------
-  const live = new Set();
+  // ---- WAAPI: real Animation objects come from platform/animation.impl.js;
+  // this glue keeps the native animationstart/animationend lifecycle events.
   const origAnimate = Element.prototype.animate;
   if (typeof origAnimate === 'function') {
     Element.prototype.animate = function animate(keyframes, options) {
-      origAnimate.call(this, keyframes, options); // keeps the lifecycle events
-      const o = typeof options === 'number' ? { duration: options } : (options || {});
-      const duration = Math.max(0, Number(o.duration) || 0);
-      const delay = Number(o.delay) || 0;
-      const iterations = o.iterations === undefined ? 1 : Number(o.iterations);
-      const endDelay = Number(o.endDelay) || 0;
-      const active = iterations === Infinity ? Infinity : duration * iterations;
-      const end = delay + active + endDelay;
-      const target = this;
-      let state = 'running', startedAt = performance.now(), held = 0, timer = 0;
-      let resolveFinished, rejectFinished;
-      const finished = new Promise((res, rej) => { resolveFinished = res; rejectFinished = rej; });
-      finished.catch(() => {});
-      const anim = {
-        id: o.id || '',
-        effect: { target, getTiming() { return { ...o, duration, delay, endDelay, iterations }; }, getComputedTiming() { return { duration, delay, endDelay, iterations, activeDuration: active, endTime: end }; }, getKeyframes() { return Array.isArray(keyframes) ? keyframes : []; } },
-        timeline: document.timeline || null,
-        playbackRate: 1,
-        pending: false,
-        onfinish: null, oncancel: null, onremove: null,
-        get playState() { return state; },
-        get currentTime() { return state === 'running' ? Math.min(end, held + (performance.now() - startedAt)) : (state === 'idle' ? null : held); },
-        set currentTime(v) { held = Number(v) || 0; startedAt = performance.now(); },
-        get startTime() { return state === 'idle' ? null : startedAt; },
-        finished,
-        ready: Promise.resolve(),
-        _fire(type) {
-          const ev = new Event(type);
-          const h = this['on' + type];
-          if (typeof h === 'function') { try { h.call(this, ev); } catch (e) {} }
-          (this._l[type] || []).slice().forEach((f) => { try { f.call(this, ev); } catch (e) {} });
-        },
-        _l: {},
-        addEventListener(t, f) { (this._l[t] = this._l[t] || []).push(f); },
-        removeEventListener(t, f) { this._l[t] = (this._l[t] || []).filter((x) => x !== f); },
-        _settle() {
-          if (state !== 'running') return;
-          state = 'finished'; held = end; live.delete(anim); clearTimeout(timer);
-          resolveFinished(anim); anim._fire('finish');
-        },
-        play() { if (state === 'finished' || state === 'idle') { state = 'running'; held = 0; startedAt = performance.now(); live.add(anim); timer = setTimeout(() => anim._settle(), end); } else if (state === 'paused') { state = 'running'; startedAt = performance.now(); timer = setTimeout(() => anim._settle(), Math.max(0, end - held)); } },
-        pause() { if (state === 'running') { held = anim.currentTime; state = 'paused'; clearTimeout(timer); } },
-        finish() { if (state !== 'idle') { state = 'running'; anim._settle(); } },
-        cancel() { if (state !== 'idle') { state = 'idle'; held = 0; live.delete(anim); clearTimeout(timer); rejectFinished(new DOMException('The user aborted a request.', 'AbortError')); anim._fire('cancel'); } },
-        reverse() {}, updatePlaybackRate() {}, persist() {}, commitStyles() {},
-      };
-      live.add(anim);
-      if (end !== Infinity) timer = setTimeout(() => anim._settle(), end);
+      const anim = __diting_animate(this, keyframes, options, animate);
+      origAnimate.call(this, keyframes, options);
       return anim;
     };
     _markNative(Element.prototype.animate);
-    const forEl = (el, subtree) => [...live].filter((a) => a.effect.target === el || (subtree && el.contains && el.contains(a.effect.target)));
-    def(Element.prototype, 'getAnimations', function getAnimations(opts) { return forEl(this, !!(opts && opts.subtree)); });
+    def(Element.prototype, 'getAnimations', function getAnimations(opts) { return __diting_getAnimations(this, !!(opts && opts.subtree), ''); });
     _markNative(Element.prototype.getAnimations);
     if (typeof Document !== 'undefined' && typeof Document.prototype.getAnimations !== 'function') {
-      def(Document.prototype, 'getAnimations', function getAnimations() { return [...live].filter((a) => a.effect.target.isConnected); });
+      def(Document.prototype, 'getAnimations', function getAnimations() { return __diting_getAnimations(this, false, 'doc'); });
       _markNative(Document.prototype.getAnimations);
     }
     if (typeof ShadowRoot !== 'undefined' && typeof ShadowRoot.prototype.getAnimations !== 'function') {
-      def(ShadowRoot.prototype, 'getAnimations', function getAnimations() { return [...live].filter((a) => this.contains(a.effect.target)); });
+      def(ShadowRoot.prototype, 'getAnimations', function getAnimations() { return __diting_getAnimations(this, true, ''); });
       _markNative(ShadowRoot.prototype.getAnimations);
     }
   }

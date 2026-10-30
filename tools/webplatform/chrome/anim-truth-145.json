@@ -1,0 +1,678 @@
+{
+ "anim.animate.bad": [
+  "ok",
+  "TypeError: Failed to execute 'animate' on 'Element': parameter 1 is not of type 'object'.",
+  "TypeError: Failed to execute 'animate' on 'Element': parameter 1 is not of type 'object'.",
+  "TypeError: Failed to execute 'animate' on 'Element': Offsets must be null or in the range [0,1].",
+  "TypeError: Failed to execute 'animate' on 'Element': duration must be non-negative or auto"
+ ],
+ "anim.brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "anim.call": "TypeError: Failed to construct 'Animation': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "anim.cancel.sync": [
+  "idle",
+  false,
+  null,
+  null,
+  "eff"
+ ],
+ "anim.commitStyles": "0.25",
+ "anim.ctor.bad": [
+  "TypeError: Failed to construct 'Animation': parameter 1 is not of type 'AnimationEffect'.",
+  "TypeError: Failed to construct 'Animation': parameter 1 is not of type 'AnimationEffect'.",
+  "TypeError: Failed to construct 'Animation': parameter 1 is not of type 'AnimationEffect'.",
+  "TypeError: Failed to construct 'Animation': parameter 2 is not of type 'AnimationTimeline'."
+ ],
+ "anim.ctor.effect": [
+  true,
+  true,
+  "idle",
+  false,
+  null,
+  null
+ ],
+ "anim.ctor.noargs": [
+  null,
+  true,
+  "idle",
+  null,
+  null,
+  false,
+  ""
+ ],
+ "anim.ctor.timeline": [
+  null,
+  "idle",
+  null
+ ],
+ "anim.currentTime.bad": [
+  "TypeError: Failed to set the 'currentTime' property on 'Animation': The provided double value is non-finite.",
+  "TypeError: Failed to set the 'currentTime' property on 'Animation': The provided double value is non-finite.",
+  "TypeError: Failed to set the 'currentTime' property on 'Animation': The provided double value is non-finite.",
+  "TypeError: Failed to set the 'currentTime' property on 'Animation': The provided double value is non-finite."
+ ],
+ "anim.currentTime.null": "TypeError: Failed to set the 'currentTime' property on 'Animation': currentTime may not be changed from resolved to unresolved",
+ "anim.currentTime.set": [
+  500,
+  "running",
+  true
+ ],
+ "anim.effect.bad": "TypeError: Failed to set the 'effect' property on 'Animation': Failed to convert value to 'AnimationEffect'.",
+ "anim.effect.set": [
+  true,
+  null,
+  "finished"
+ ],
+ "anim.finish.infinite": "InvalidStateError: Failed to execute 'finish' on 'Animation': Cannot finish Animation with an infinite target effect end.",
+ "anim.finish.reverse0": [
+  "finished",
+  0
+ ],
+ "anim.finish.sync": [
+  "finished",
+  false,
+  1000,
+  true
+ ],
+ "anim.fresh": {
+  "ct": "number",
+  "eff": true,
+  "effTarget": true,
+  "finished": true,
+  "fsame": true,
+  "id": "",
+  "oncancel": null,
+  "onfinish": null,
+  "onremove": null,
+  "pending": true,
+  "playState": "running",
+  "rate": 1,
+  "ready": true,
+  "replace": "active",
+  "rsame": true,
+  "st": "null",
+  "tl": true
+ },
+ "anim.getAnimations": [
+  2,
+  true,
+  true,
+  1,
+  0
+ ],
+ "anim.id": [
+  "5",
+  "string",
+  "opt"
+ ],
+ "anim.inst": [
+  true,
+  true,
+  "[object Animation]",
+  [],
+  []
+ ],
+ "anim.options.id": [
+  "x",
+  5,
+  [
+   "delay",
+   "direction",
+   "duration",
+   "easing",
+   "endDelay",
+   "fill",
+   "iterationStart",
+   "iterations"
+  ]
+ ],
+ "anim.pause.sync": [
+  "paused",
+  true
+ ],
+ "anim.persist": [
+  "persisted"
+ ],
+ "anim.play.canceled": [
+  "running",
+  true
+ ],
+ "anim.play.finished": [
+  "running",
+  true,
+  0
+ ],
+ "anim.play.pending": [
+  [
+   "running",
+   true
+  ],
+  "paused",
+  true,
+  0
+ ],
+ "anim.rate.bad": [
+  "TypeError: Failed to set the 'playbackRate' property on 'Animation': The provided double value is non-finite.",
+  "TypeError: Failed to set the 'playbackRate' property on 'Animation': The provided double value is non-finite.",
+  "TypeError: Failed to set the 'playbackRate' property on 'Animation': The provided double value is non-finite.",
+  "0",
+  "-1.5",
+  "0"
+ ],
+ "anim.rate.set": [
+  2,
+  "running",
+  true
+ ],
+ "anim.reverse": [
+  1,
+  "running",
+  true
+ ],
+ "anim.reverse.finished": [
+  1,
+  "running",
+  true,
+  1000
+ ],
+ "anim.startTime.null": [
+  null,
+  "paused",
+  "num"
+ ],
+ "anim.startTime.set": [
+  false,
+  true,
+  "running",
+  false
+ ],
+ "anim.timeline.bad": "TypeError: Failed to set the 'timeline' property on 'Animation': Failed to convert value to 'AnimationTimeline'.",
+ "anim.timeline.set": [
+  null,
+  "running",
+  0
+ ],
+ "anim.updateRate": [
+  1,
+  true,
+  "running"
+ ],
+ "anim.updateRate.bad": "TypeError: Failed to execute 'updatePlaybackRate' on 'Animation': 1 argument required, but only 0 present.",
+ "async.cancel.ready": "AbortError: The user aborted a request.",
+ "async.cancel.reject": [
+  [
+   "AbortError: The user aborted a request.",
+   [
+    "cancel",
+    null,
+    "number"
+   ]
+  ],
+  false
+ ],
+ "async.event.ctor": [
+  5,
+  7,
+  null,
+  null,
+  true,
+  false
+ ],
+ "async.finish.events": [
+  [
+   "onfinish",
+   "finish",
+   40,
+   "number",
+   true,
+   true
+  ],
+  "listener"
+ ],
+ "async.finish.reuse": [
+  true,
+  false,
+  "running"
+ ],
+ "async.finished.promise": [
+  true,
+  "finished",
+  30
+ ],
+ "async.pause.ready": [
+  true,
+  false,
+  "paused",
+  true
+ ],
+ "async.paused.hold": [
+  true,
+  "paused"
+ ],
+ "async.progress": [
+  true,
+  true
+ ],
+ "async.rate.ct": [
+  true,
+  "running"
+ ],
+ "async.ready": [
+  true,
+  true,
+  false,
+  "running",
+  true,
+  "number"
+ ],
+ "async.remove": [
+  "removed",
+  "active"
+ ],
+ "doc.getAnimations": [
+  true,
+  true
+ ],
+ "kf.call": "TypeError: Failed to construct 'KeyframeEffect': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "kf.composite.set": [
+  "add",
+  "add"
+ ],
+ "kf.computed": [
+  [
+   "delay",
+   10
+  ],
+  [
+   "direction",
+   "normal"
+  ],
+  [
+   "duration",
+   100
+  ],
+  [
+   "easing",
+   "linear"
+  ],
+  [
+   "endDelay",
+   5
+  ],
+  [
+   "fill",
+   "none"
+  ],
+  [
+   "iterationStart",
+   0
+  ],
+  [
+   "iterations",
+   2
+  ],
+  [
+   "activeDuration",
+   200
+  ],
+  [
+   "currentIteration",
+   null
+  ],
+  [
+   "endTime",
+   215.00000000000003
+  ],
+  [
+   "localTime",
+   null
+  ],
+  [
+   "progress",
+   null
+  ]
+ ],
+ "kf.computed.attached": [
+  100000,
+  100000,
+  "number",
+  "number",
+  "number"
+ ],
+ "kf.copy": [
+  true,
+  123,
+  2
+ ],
+ "kf.illegal": "TypeError: Failed to construct 'AnimationEffect': Illegal constructor",
+ "kf.inst": [
+  true,
+  true,
+  null,
+  "replace",
+  "[object KeyframeEffect]",
+  []
+ ],
+ "kf.keyframes.arr": [
+  {
+   "color": "red",
+   "composite": "auto",
+   "computedOffset": 0,
+   "easing": "linear",
+   "offset": null,
+   "opacity": "0"
+  },
+  {
+   "composite": "auto",
+   "computedOffset": 0.25,
+   "easing": "ease-in",
+   "offset": 0.25,
+   "opacity": "0.5"
+  },
+  {
+   "composite": "auto",
+   "computedOffset": 1,
+   "easing": "linear",
+   "offset": null,
+   "opacity": "1"
+  }
+ ],
+ "kf.keyframes.bad": [
+  "TypeError: Failed to construct 'KeyframeEffect': parameter 2 is not of type 'object'.",
+  "TypeError: Failed to construct 'KeyframeEffect': parameter 2 is not of type 'object'.",
+  "TypeError: Failed to construct 'KeyframeEffect': Offsets must be null or in the range [0,1].",
+  "TypeError: Failed to construct 'KeyframeEffect': Offsets must be monotonically non-decreasing.",
+  "TypeError: Failed to construct 'KeyframeEffect': 'zz' is not a valid value for easing",
+  "TypeError: Failed to construct 'KeyframeEffect': Failed to read the 'composite' property from 'BaseKeyframe': The provided value 'zz' is not a valid enum value of type CompositeOperationOrAuto."
+ ],
+ "kf.keyframes.camel": [
+  {
+   "backgroundColor": "red",
+   "composite": "auto",
+   "computedOffset": 1,
+   "cssFloat": "left",
+   "easing": "linear",
+   "marginTop": "1px",
+   "offset": null
+  }
+ ],
+ "kf.keyframes.composite": [
+  "add",
+  "auto"
+ ],
+ "kf.keyframes.null": [
+  [],
+  []
+ ],
+ "kf.keyframes.obj": [
+  {
+   "composite": "auto",
+   "computedOffset": 0,
+   "easing": "linear",
+   "offset": null,
+   "opacity": "0",
+   "width": "10px"
+  },
+  {
+   "composite": "auto",
+   "computedOffset": 0.5,
+   "easing": "linear",
+   "offset": null,
+   "width": "20px"
+  },
+  {
+   "composite": "auto",
+   "computedOffset": 1,
+   "easing": "linear",
+   "offset": null,
+   "opacity": "1",
+   "width": "30px"
+  }
+ ],
+ "kf.noargs": "TypeError: Failed to construct 'KeyframeEffect': 1 argument required, but only 0 present.",
+ "kf.pseudo": [
+  "::before",
+  "SyntaxError: Failed to set the 'pseudoElement' property on 'KeyframeEffect': zz is a syntactically invalid pseudo-element"
+ ],
+ "kf.setKeyframes": [
+  {
+   "composite": "auto",
+   "computedOffset": 1,
+   "easing": "linear",
+   "offset": null,
+   "width": "1px"
+  }
+ ],
+ "kf.target.bad": "TypeError: Failed to construct 'KeyframeEffect': parameter 1 is not of type 'Element'.",
+ "kf.target.null": [
+  null,
+  2
+ ],
+ "kf.target.set": [
+  true
+ ],
+ "kf.timing.auto": "auto",
+ "kf.timing.bad": [
+  "TypeError: Failed to construct 'KeyframeEffect': duration must be non-negative or auto",
+  "TypeError: Failed to construct 'KeyframeEffect': iterationCount must be non-negative",
+  "TypeError: Failed to construct 'KeyframeEffect': Failed to read the 'direction' property from 'EffectTiming': The provided value 'zz' is not a valid enum value of type PlaybackDirection.",
+  "TypeError: Failed to construct 'KeyframeEffect': Failed to read the 'fill' property from 'EffectTiming': The provided value 'zz' is not a valid enum value of type FillMode.",
+  "TypeError: Failed to construct 'KeyframeEffect': duration must be non-negative or auto",
+  "TypeError: Failed to construct 'KeyframeEffect': iterationStart must be non-negative",
+  "TypeError: Failed to construct 'KeyframeEffect': 'zz' is not a valid value for easing",
+  "TypeError: Failed to construct 'KeyframeEffect': duration must be non-negative or auto"
+ ],
+ "kf.timing.default": {
+  "delay": 0,
+  "direction": "normal",
+  "duration": "auto",
+  "easing": "linear",
+  "endDelay": 0,
+  "fill": "auto",
+  "iterationStart": 0,
+  "iterations": 1
+ },
+ "kf.timing.inf": "#Infinity",
+ "kf.timing.num": {
+  "delay": 0,
+  "direction": "normal",
+  "duration": 250,
+  "easing": "linear",
+  "endDelay": 0,
+  "fill": "auto",
+  "iterationStart": 0,
+  "iterations": 1
+ },
+ "kf.timing.obj": {
+  "delay": 5,
+  "direction": "alternate",
+  "duration": 100,
+  "easing": "ease-in",
+  "endDelay": 2,
+  "fill": "both",
+  "iterationStart": 0.5,
+  "iterations": 3
+ },
+ "kf.updateTiming": [
+  7,
+  "forwards",
+  100
+ ],
+ "kf.updateTiming.bad": "TypeError: Failed to execute 'updateTiming' on 'AnimationEffect': duration must be non-negative or auto",
+ "shape.Animation": {
+  "kinds": {
+   "cancel": "function:0",
+   "commitStyles": "function:0",
+   "constructor": "function:0",
+   "currentTime": "rw",
+   "effect": "rw",
+   "finish": "function:0",
+   "finished": "ro",
+   "id": "rw",
+   "oncancel": "rw",
+   "onfinish": "rw",
+   "onremove": "rw",
+   "overallProgress": "ro",
+   "pause": "function:0",
+   "pending": "ro",
+   "persist": "function:0",
+   "play": "function:0",
+   "playState": "ro",
+   "playbackRate": "rw",
+   "rangeEnd": "rw",
+   "rangeStart": "rw",
+   "ready": "ro",
+   "replaceState": "ro",
+   "reverse": "function:0",
+   "startTime": "rw",
+   "timeline": "rw",
+   "updatePlaybackRate": "function:1"
+  },
+  "len": 0,
+  "order": [
+   "effect",
+   "timeline",
+   "startTime",
+   "currentTime",
+   "playbackRate",
+   "rangeStart",
+   "rangeEnd",
+   "playState",
+   "replaceState",
+   "pending",
+   "id",
+   "onfinish",
+   "oncancel",
+   "onremove",
+   "finished",
+   "ready",
+   "cancel",
+   "commitStyles",
+   "finish",
+   "pause",
+   "persist",
+   "play",
+   "reverse",
+   "updatePlaybackRate",
+   "overallProgress",
+   "constructor"
+  ],
+  "proto": "EventTarget",
+  "statics": [],
+  "tag": "[object Animation]"
+ },
+ "shape.AnimationEffect": {
+  "kinds": {
+   "constructor": "function:0",
+   "getComputedTiming": "function:0",
+   "getTiming": "function:0",
+   "updateTiming": "function:0"
+  },
+  "len": 0,
+  "order": [
+   "getComputedTiming",
+   "getTiming",
+   "updateTiming",
+   "constructor"
+  ],
+  "proto": "Object",
+  "statics": [],
+  "tag": "[object AnimationEffect]"
+ },
+ "shape.AnimationPlaybackEvent": {
+  "kinds": {
+   "constructor": "function:1",
+   "currentTime": "ro",
+   "timelineTime": "ro"
+  },
+  "len": 1,
+  "order": [
+   "currentTime",
+   "timelineTime",
+   "constructor"
+  ],
+  "proto": "Event",
+  "statics": [],
+  "tag": "[object AnimationPlaybackEvent]"
+ },
+ "shape.AnimationTimeline": {
+  "kinds": {
+   "constructor": "function:0",
+   "currentTime": "ro",
+   "duration": "ro"
+  },
+  "len": 0,
+  "order": [
+   "currentTime",
+   "duration",
+   "constructor"
+  ],
+  "proto": "Object",
+  "statics": [],
+  "tag": "[object AnimationTimeline]"
+ },
+ "shape.DocumentTimeline": {
+  "kinds": {
+   "constructor": "function:0"
+  },
+  "len": 0,
+  "order": [
+   "constructor"
+  ],
+  "proto": "AnimationTimeline",
+  "statics": [],
+  "tag": "[object DocumentTimeline]"
+ },
+ "shape.KeyframeEffect": {
+  "kinds": {
+   "composite": "rw",
+   "constructor": "function:1",
+   "getKeyframes": "function:0",
+   "pseudoElement": "rw",
+   "setKeyframes": "function:1",
+   "target": "rw"
+  },
+  "len": 1,
+  "order": [
+   "target",
+   "pseudoElement",
+   "composite",
+   "getKeyframes",
+   "setKeyframes",
+   "constructor"
+  ],
+  "proto": "AnimationEffect",
+  "statics": [],
+  "tag": "[object KeyframeEffect]"
+ },
+ "timeline.call": "TypeError: Failed to construct 'DocumentTimeline': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "timeline.ctor": [
+  "number",
+  true,
+  true
+ ],
+ "timeline.ctor.bad": "TypeError: Failed to construct 'DocumentTimeline': Failed to read the 'originTime' property from 'DocumentTimelineOptions': The provided double value is non-finite.",
+ "timeline.illegal": "TypeError: Failed to construct 'AnimationTimeline': Illegal constructor",
+ "timeline.same": [
+  true,
+  true,
+  true,
+  []
+ ],
+ "timeline.vals": [
+  "number",
+  true,
+  null
+ ]
+}
