@@ -1340,3 +1340,18 @@ bootstrap.js 删除了两个对象字面量工厂与 TreeWalker 桩类。TreeWal
 以后的检查口径：**分别**看 `ratchet` 行与 `module contract violations` 行，脚本里用 `grep -E "FAIL|OK"`。
 验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 逐条相同；check_fresh 7 件鲜（43 真值）；analyze 棘轮 OK 且契约零违。
 
+## M4 刀39：Performance* 条目换成原型访问器 + 追回被「新鲜度更新」抹掉的 global_surface 手改（2026-10-30）
+
+**Performance 家族**（performance.js）：①`PerformanceNavigationTiming` 现在**继承 PerformanceResourceTiming**（Chrome 即如此；之前继承 PerformanceEntry），其「Level-2 字段」不再用 `Object.assign(this, extra)` 灌成 25 个实例自有属性，
+也不再有实例自有的 `toJSON` 覆盖——导航阶段时间戳放进构造时的记录 `_prt`，Resource Timing 的 getter 与导航专有 getter（unloadEventStart…loadEventEnd、type、redirectCount、criticalCHRestart、activationStart、confidence、notRestoredReasons）
+共同读它，`toJSON` 在原型上；②`PerformanceResourceTiming` 补齐 Chrome 的完整时间面（workerStart、redirectStart/End、fetchStart、domainLookup*、connect*、requestStart、responseStart/End、serverTiming、finalResponseHeadersStart、
+firstInterimResponseStart、worker* 、contentEncoding…），有真实测量就用，没有按规范给 0 / 空；③`detail` 只留在 PerformanceMark/Measure（Chrome 的 PerformanceEntry 上没有）；
+④`PerformanceServerTiming` 不再继承 PerformanceEntry（Chrome 里是独立接口：name/duration/description/toJSON）。性能相关 9 个测试全过。
+
+**一次事故（已修）**：`global_surface.js` 是**生成件**（头注释写明由 gen_globals_surface.py 生成），而我在刀24/刀27 **手改**了它（AUDIT_CHAIN、`__diting_stubs` 登记）。刀38 里我跑了两次 `check_fresh.sh --update`，
+它按生成器重写了该文件，把我的两处手改**整段抹掉**（-204 行）——提交 eb37f00 因此静默丢了父原型修复（父原型不同 8→193）和真桩登记，而我当时只看了「全量失败集不变」，没复核审计。刀39 复跑审计才发现。
+**修法是改生成器而不是再手改**：`gen_globals_surface.py` 现在直接产出 `__diting_stubs` 登记与 `AUDIT_CHAIN`（由 shape-audit-truth-145.json 直接算出：Chrome 145 父原型不是 Object 且不在 ET_CHAIN 的全部接口；排除 SVGElement 家族与真 Performance* 类）。
+**新规矩**：①改了生成件的来源（生成器/真值）后必须 `check_fresh.sh --update` 并**再跑一遍审计**确认没被抹；②任何「手改」前先看文件头是不是 GENERATED；③形状/实例审计的数字应作为每刀的固定回归检查，而不只看测试通过。
+结果：完全一致接口 741/936（含追回的父原型修复），父原型不同 8，实例审计带泄漏对象 30/127（PerformanceNavigationTiming 的 25 个自有键清零）。
+验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 逐条相同；check_fresh 7 件鲜（43 真值）；ratchet OK。
+

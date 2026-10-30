@@ -28,8 +28,6 @@ class PerformanceEntry {
   get entryType() { return this._peType; }
   get startTime() { return this._peStart; }
   get duration() { return this._peDur; }
-  // #192: Chrome carries detail on the prototype (null when never set).
-  get detail() { return this._peDetail; }
   toJSON() {
     const o = { name: this._peName, entryType: this._peType,
                 startTime: this._peStart, duration: this._peDur };
@@ -56,21 +54,48 @@ globalThis.PerformanceResourceTiming = class PerformanceResourceTiming extends P
     __hideOwn(this);
   }
   get initiatorType() { return this._prt.initiatorType || "other"; }
-  get nextHopProtocol() { return ""; }
+  get nextHopProtocol() { return this._prt.nextHopProtocol || ""; }
   get renderBlockingStatus() { return this._prt.renderBlocking ? "blocking" : "non-blocking"; }
   get deliveryType() { return ""; }
-  get secureConnectionStart() { return 0; }
+  // Resource Timing level-2 surface (Chrome 145 prototype accessors). Real measurements come from the record when the
+  // pipeline captured them; the rest are the spec's zero / empty defaults for a request that never used that phase.
+  get workerStart() { return this._prtNum('workerStart', 0); }
+  get redirectStart() { return this._prtNum('redirectStart', 0); }
+  get redirectEnd() { return this._prtNum('redirectEnd', 0); }
+  get fetchStart() { return this._prtNum('fetchStart', this._peStart); }
+  get domainLookupStart() { return this._prtNum('domainLookupStart', this.fetchStart); }
+  get domainLookupEnd() { return this._prtNum('domainLookupEnd', this.fetchStart); }
+  get connectStart() { return this._prtNum('connectStart', this.fetchStart); }
+  get connectEnd() { return this._prtNum('connectEnd', this.fetchStart); }
+  get secureConnectionStart() { return this._prtNum('secureConnectionStart', 0); }
+  get requestStart() { return this._prtNum('requestStart', this.fetchStart); }
+  get responseStart() { return this._prtNum('responseStart', this.fetchStart); }
+  get responseEnd() { return this._prtNum('responseEnd', this._peStart + this._peDur); }
   get transferSize() { return this._prt.transferSize || 0; }
   get encodedBodySize() { return this._prt.encodedBodySize || 0; }
   get decodedBodySize() { return this._prt.decodedBodySize || 0; }
+  get serverTiming() { return []; }
   get responseStatus() { return this._prt.responseStatus || 0; }
+  get finalResponseHeadersStart() { return this._prtNum('finalResponseHeadersStart', 0); }
+  get firstInterimResponseStart() { return this._prtNum('firstInterimResponseStart', 0); }
+  get workerRouterEvaluationStart() { return 0; }
+  get workerCacheLookupStart() { return 0; }
+  get workerMatchedSourceType() { return ""; }
+  get workerFinalSourceType() { return ""; }
+  get contentEncoding() { return this._prt.contentEncoding || ""; }
+  _prtNum(k, d) { const v = this._prt[k]; return typeof v === 'number' ? v : d; }
   toJSON() {
     return Object.assign(PerformanceEntry.prototype.toJSON.call(this), {
-      initiatorType: this.initiatorType, nextHopProtocol: "",
-      renderBlockingStatus: this.renderBlockingStatus, deliveryType: "",
-      secureConnectionStart: 0, transferSize: this.transferSize,
-      encodedBodySize: this.encodedBodySize, decodedBodySize: this.decodedBodySize,
-      responseStatus: this.responseStatus,
+      initiatorType: this.initiatorType, deliveryType: "", nextHopProtocol: this.nextHopProtocol,
+      workerStart: this.workerStart, redirectStart: this.redirectStart, redirectEnd: this.redirectEnd, fetchStart: this.fetchStart,
+      domainLookupStart: this.domainLookupStart, domainLookupEnd: this.domainLookupEnd, connectStart: this.connectStart,
+      connectEnd: this.connectEnd, secureConnectionStart: this.secureConnectionStart, requestStart: this.requestStart,
+      responseStart: this.responseStart, responseEnd: this.responseEnd, transferSize: this.transferSize,
+      encodedBodySize: this.encodedBodySize, decodedBodySize: this.decodedBodySize, serverTiming: [],
+      workerRouterEvaluationStart: 0, workerCacheLookupStart: 0, workerMatchedSourceType: "", workerFinalSourceType: "",
+      renderBlockingStatus: this.renderBlockingStatus, responseStatus: this.responseStatus,
+      firstInterimResponseStart: this.firstInterimResponseStart, finalResponseHeadersStart: this.finalResponseHeadersStart,
+      contentEncoding: this.contentEncoding,
     });
   }
 };
@@ -91,6 +116,8 @@ globalThis.PerformanceMark = class PerformanceMark extends PerformanceEntry {
     if ('detail' in o) this._peDetail = o.detail;
     __hideOwn(this);
   }
+  // #192: Chrome carries detail on Mark / Measure (null when never set), not on PerformanceEntry.
+  get detail() { return this._peDetail; }
 };
 _markNativeProto(globalThis.PerformanceMark.prototype);
 globalThis.PerformanceMeasure = class PerformanceMeasure extends PerformanceEntry {
@@ -98,6 +125,7 @@ globalThis.PerformanceMeasure = class PerformanceMeasure extends PerformanceEntr
     if (tok !== _RT_INTERNAL) throw new TypeError("Illegal constructor");
     super(String(name), 'measure', startTime, duration);
   }
+  get detail() { return this._peDetail; }
 };
 _markNativeProto(globalThis.PerformanceMeasure.prototype);
 globalThis.PerformancePaintTiming = class PerformancePaintTiming extends PerformanceEntry {
@@ -107,19 +135,45 @@ globalThis.PerformancePaintTiming = class PerformancePaintTiming extends Perform
   }
 };
 _markNativeProto(globalThis.PerformancePaintTiming.prototype);
-globalThis.PerformanceNavigationTiming = class PerformanceNavigationTiming extends PerformanceEntry {
+globalThis.PerformanceNavigationTiming = class PerformanceNavigationTiming extends globalThis.PerformanceResourceTiming {
   constructor(name, duration, extra, tok) {
     if (tok !== _RT_INTERNAL) throw new TypeError("Illegal constructor");
-    super(String(name), 'navigation', 0, duration);
-    // Level-2 fields stay own data props — the existing _navTiming posture.
-    Object.assign(this, extra);
+    // Chrome: PerformanceNavigationTiming IS a PerformanceResourceTiming. The record carries the navigation phase
+    // timestamps; the Resource Timing getters and the navigation-only getters below both read it (no own data props).
+    super(Object.assign({ name: String(name), startTime: 0, duration, initiatorType: 'navigation' }, extra), _RT_INTERNAL);
+    this._peType = 'navigation';
+  }
+  get unloadEventStart() { return this._prtNum('unloadEventStart', 0); }
+  get unloadEventEnd() { return this._prtNum('unloadEventEnd', 0); }
+  get domInteractive() { return this._prtNum('domInteractive', 0); }
+  get domContentLoadedEventStart() { return this._prtNum('domContentLoadedEventStart', 0); }
+  get domContentLoadedEventEnd() { return this._prtNum('domContentLoadedEventEnd', 0); }
+  get domComplete() { return this._prtNum('domComplete', 0); }
+  get loadEventStart() { return this._prtNum('loadEventStart', 0); }
+  get loadEventEnd() { return this._prtNum('loadEventEnd', 0); }
+  get type() { return this._prt.type || 'navigate'; }
+  get redirectCount() { return this._prtNum('redirectCount', 0); }
+  get criticalCHRestart() { return 0; }
+  get activationStart() { return 0; }
+  get confidence() { return null; }
+  get notRestoredReasons() { return null; }
+  toJSON() {
+    return Object.assign(globalThis.PerformanceResourceTiming.prototype.toJSON.call(this), {
+      unloadEventStart: this.unloadEventStart, unloadEventEnd: this.unloadEventEnd, domInteractive: this.domInteractive,
+      domContentLoadedEventStart: this.domContentLoadedEventStart, domContentLoadedEventEnd: this.domContentLoadedEventEnd,
+      domComplete: this.domComplete, loadEventStart: this.loadEventStart, loadEventEnd: this.loadEventEnd,
+      type: this.type, redirectCount: this.redirectCount, criticalCHRestart: 0, activationStart: 0, notRestoredReasons: null,
+    });
   }
 };
 _markNativeProto(globalThis.PerformanceNavigationTiming.prototype);
-globalThis.PerformanceServerTiming = class PerformanceServerTiming extends PerformanceEntry {
+globalThis.PerformanceServerTiming = class PerformanceServerTiming {
+  // Chrome: a standalone interface (name / duration / description / toJSON), NOT a PerformanceEntry.
   constructor() { throw new TypeError("Illegal constructor"); }
-  get serverTimingName() { return this._peName; }
+  get name() { return ""; }
+  get duration() { return 0; }
   get description() { return ""; }
+  toJSON() { return { name: "", duration: 0, description: "" }; }
 };
 _markNativeProto(globalThis.PerformanceServerTiming.prototype);
 globalThis.EventCounts = class EventCounts {
@@ -346,10 +400,6 @@ class Performance {
     const e = new globalThis.PerformanceNavigationTiming(
       (globalThis.location && globalThis.location.href) || '',
       Math.max(0, loadEnd - nav0), extra, _RT_INTERNAL);
-    e.toJSON = function() {
-      return Object.assign(PerformanceEntry.prototype.toJSON.call(this), extra);
-    };
-    _markNative(e.toJSON);
     __def(this, '_navEntry', e);
     return e;
   }

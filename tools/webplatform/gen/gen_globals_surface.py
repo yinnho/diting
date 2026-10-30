@@ -99,16 +99,21 @@ const SKIP = (n) => { try { return n in globalThis; } catch (e) { return true; }
 
 js.append("""
 // ---- interface factories
+// Inert constructor stubs (THROW / OK lists below) register here so tooling (shape audit, stub_members.js generation)
+// can tell them from real classes whose instances carry their members as own properties.
+Object.defineProperty(globalThis, '__diting_stubs', { value: new WeakSet(), writable: true, enumerable: false, configurable: true });
 function mkThrow(name, len, msg) {
   const C = function () { throw new TypeError(msg); };
   try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
   try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
+  globalThis.__diting_stubs.add(C);
   return C;
 }
 function mkOk(name, len) {
   const C = function () { return Object.create(C.prototype); };
   try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
   try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
+  globalThis.__diting_stubs.add(C);
   return C;
 }
 function mkMethod(name, len) {
@@ -244,6 +249,13 @@ for (const [name, tag] of OBJ_GETTERS) {
 }
 """ % ",\n  ".join(rows))
 
+_AUDIT = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../chrome/shape-audit-truth-145.json")))
+_ET_NAMES = set(n for n, _ in et_chain)
+_AUDIT_SKIP = {"SVGElement", "SVGClipPathElement", "SVGSymbolElement", "SVGFEDropShadowElement", "PerformanceNavigationTiming",
+               "PerformanceResourceTiming", "PerformanceMark", "PerformanceMeasure", "PerformancePaintTiming", "PerformanceServerTiming"}
+audit_chain = [(n, v["proto"]) for n, v in sorted(_AUDIT.items())
+               if v["proto"] not in ("Object", "null", "?") and n not in _ET_NAMES and n not in _AUDIT_SKIP and v["proto"] != n]
+
 js.append("""
 // ---- scalar faces
 if (!SKIP('credentialless')) Object.defineProperty(globalThis, 'credentialless', { get() { return false; }, enumerable: true, configurable: true });
@@ -261,6 +273,20 @@ if (!SKIP('event')) Object.defineProperty(globalThis, 'event', { get() { return 
 // directly). Runs LAST in this file so the OBJ_GETTERS singletons exist.
 const ET_CHAIN = [%s];
 for (const [name, parent] of ET_CHAIN) {
+  try {
+    const C = globalThis[name], P = globalThis[parent];
+    if (typeof C === 'function' && C.prototype && typeof P === 'function' && P.prototype) {
+      Object.setPrototypeOf(C.prototype, P.prototype);
+    }
+  } catch (e) {}
+}
+// Remaining prototype-parent repairs, generated from the whole-surface shape audit (chrome/shape-audit-truth-145.json): every
+// interface whose Chrome 145 parent is not Object and not already handled above. Only the prototype chain is repaired here (the
+// constructors' own [[Prototype]] is a separate step). Left out on purpose: the real Performance* classes wire themselves in
+// performance.js, and the SVGElement family (the engine's SVGElement extends HTMLElement; re-parenting it to Element would drop
+// the HTMLElement behaviour SVG elements lean on).
+const AUDIT_CHAIN = [%s];
+for (const [name, parent] of AUDIT_CHAIN) {
   try {
     const C = globalThis[name], P = globalThis[parent];
     if (typeof C === 'function' && C.prototype && typeof P === 'function' && P.prototype) {
@@ -290,6 +316,7 @@ for (const [path, cls] of ET_SINGLETON) {
 }
 })();
 """ % (",\n  ".join("[%s,%s]" % (json.dumps(n), json.dumps(p)) for n, p in et_chain),
+       ",\n  ".join("[%s,%s]" % (json.dumps(n), json.dumps(p)) for n, p in audit_chain),
        ",\n  ".join("[%s,%s]" % (json.dumps(a), json.dumps(b)) for a, b in sorted(et_alias.items())),
        ",\n  ".join("[%s,%s]" % (json.dumps(a), json.dumps(b)) for a, b in et_single)))
 
