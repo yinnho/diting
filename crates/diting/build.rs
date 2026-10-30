@@ -107,6 +107,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("native_clone.js", include_str!("js/native_clone.js")),
     // Host hooks for the native EventTarget core (needs Node/Event from bootstrap).
     ("event_hooks.js", include_str!("js/event_hooks.js")),
+    // LAST of all: descriptor-level conformance table (generated from the shape audit).
+    ("shape_fix.js", include_str!("js/shape_fix.js")),
 ];
 
 /// Read `chrome-target.toml` (a flat key = value subset of TOML) and emit

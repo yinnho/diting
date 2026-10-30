@@ -1176,3 +1176,13 @@ CSSTransformComponent/Credential/DOMException/HTMLElement… 。`global_surface.
 试过与原型链一并重挂，会破坏 Performance* 构造路径，应作为独立一步并带测试。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 
+## M4 刀25：描述符级一致性表 shape_fix.js（2026-10-30）
+
+审计里最大的两类——方法 `length`（397+124 项）和 e/c/w 标志（类方法在 JS 里天生不可枚举，而 WebIDL 的操作/属性可枚举；~300 项）——是纯数据问题，不必逐类改代码。
+`tools/webplatform/gen/gen_shape_fix.py <engine.json>` 把引擎抓取与 Chrome 真值的差生成 `crates/diting/js/shape_fix.js`（数据表 + 一个小应用器），`build.rs` 把它排在**最后**
+（所有脚本之后，类已定稿）。应用器只改「两边都有的成员」：函数 length、构造器 length、e/c/w 标志（data 与 accessor 区别对待）；ro/rw（setter 有无）有意不碰，因为引擎内部代码可能经 setter 写入。
+效果：完全一致的接口 146→194，构造器/方法 length 差异清零（124→0），种类差异 220→40（余下是 ro/rw 与不可重定义的非 configurable 常量）。
+**再生成注意**：要在**未应用** shape_fix.js 的引擎上抓取（暂时把它从 build.rs 注释掉），否则表会是空的。
+**顺带纠正一个旧测试**：canvas_blank_readout_face_p3 曾断言 `toDataURL.length === 2`、`toBlob.length === 3`，真 Chrome 145 是 0 和 1（IDL 里 toDataURL 两个参数皆可选，toBlob 只有 callback 必填），测试已改为 Chrome 值。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。余下审计项：缺成员 622、顺序 155、种类 40、多余 33、statics 59、父原型 15、Symbol 82。
+

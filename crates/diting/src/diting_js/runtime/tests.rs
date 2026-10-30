@@ -1771,10 +1771,10 @@
         assert_eq!(v["drawn"][0], "data:image/png;base64,", "drawn canvas → engine PNG (documented residual)");
         assert_eq!(v["drawn"][1], true, "drawn canvas payload is real bytes");
         assert_eq!(v["face"][0], "toDataURL", "wrapper name");
-        assert_eq!(v["face"][1], 2, "toDataURL.length (type, quality)");
+        assert_eq!(v["face"][1], 0, "toDataURL.length (both args optional per IDL; Chrome 145 shape audit)");
         assert_eq!(v["face"][2], true, "toDataURL toString native");
         assert_eq!(v["face"][3], "toBlob", "wrapper name");
-        assert_eq!(v["face"][4], 3, "toBlob.length (callback, type, quality)");
+        assert_eq!(v["face"][4], 1, "toBlob.length (callback required; Chrome 145 shape audit)");
         assert_eq!(v["face"][5], true, "toBlob toString native");
     }
 
