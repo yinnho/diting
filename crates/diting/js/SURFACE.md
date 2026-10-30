@@ -1153,3 +1153,14 @@ EventTarget 方法自带副本等，属**placement 族**，须逐类搬到 Chrom
 **下一步建议顺序**：①placement 族（节点级 nodeName/nodeType/cloneNode 搬回 Node.prototype；Range/StaticRange 的 start*/end* 搬到 AbstractRange；EventTarget 副本去重）；
 ②155 个「序不同」与 220 个「种类不同」多半可由生成器/重排一把清；③195 个「父原型不同」查链；④再回到按接口的功能刀（RTCPeerConnection、VideoFrame、XSLTProcessor）。
 
+## M4 刀23：节点级成员搬回 Node.prototype（2026-10-30）
+
+`platform/nodelevel.impl.js`：Chrome 的 nodeType/nodeName/nodeValue/cloneNode 只在 Node.prototype 上，各节点接口继承。引擎里 Text/Comment/CDATASection/
+ProcessingInstruction/Document/DocumentFragment/DocumentType/ShadowRoot 各自挂了一份自有访问器/方法。模块把这些描述符摘下存入「以原型为键」的表，
+Node.prototype 的四个成员改为分派器（按接收者原型链查表，按原型缓存命中；元素这条热路径只在每个原型第一次 miss，其后走原 Node 基础实现）。
+行为不变，形状向 Chrome 靠拢：带多余成员的接口 38→32，完全一致的接口 115→118。**Attr 不在其中**——引擎里 Attr 不继承 Node，其自有 nodeType 等必须保留
+（第一次把它也搬走，XPath 以属性节点作上下文即告失败，已回退）。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；analyze 零违；快照已重生。
+余下 placement：Range/StaticRange 的 start*/end*/collapsed 应在 AbstractRange.prototype；EventTarget 方法的自带副本（BroadcastChannel/EventSource/IDB*/MediaQueryList/MessagePort/WebSocket/Audio）；
+Element 上的按标签成员与 Option 继承的 HTMLElement 成员。
+
