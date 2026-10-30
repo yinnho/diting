@@ -117,4 +117,20 @@
       _markNative(ShadowRoot.prototype.getAnimations);
     }
   }
+
+  // ---- Credential id/type (刀57) ----------------------------------------
+  // Chrome owns id/type on Credential.prototype only (ro:ec); Password/
+  // FederatedCredential inherit. The mint carried stub getters (undefined
+  // for real values), so before this block PasswordCredential had to keep
+  // its own copies — the shape audit's last Credential-family extras. The
+  // real getters read the _id/_type slots the constructors set; stub_members
+  // (later, fill-if-missing) sees them present and stays out.
+  if (typeof Credential === 'function') {
+    const gid = function id() { return this._id; };
+    const gtype = function type() { return this._type; };
+    _markNative(gid);
+    _markNative(gtype);
+    Object.defineProperty(Credential.prototype, 'id', { get: gid, enumerable: true, configurable: true });
+    Object.defineProperty(Credential.prototype, 'type', { get: gtype, enumerable: true, configurable: true });
+  }
 })();

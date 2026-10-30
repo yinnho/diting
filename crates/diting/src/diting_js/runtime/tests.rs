@@ -1869,8 +1869,8 @@
             v["ac_proto"],
             serde_json::json!(["baseLatency","outputLatency","onerror","close",
                 "createMediaElementSource","createMediaStreamDestination","createMediaStreamSource",
-                "getOutputTimestamp","resume","suspend","playbackStats","constructor"]),
-            "AudioContext.prototype names"
+                "getOutputTimestamp","resume","suspend","constructor"]),
+            "AudioContext.prototype names (刀57: playbackStats deleted)"
         );
         assert_eq!(
             v["oac_proto"],
@@ -1884,8 +1884,8 @@
                 "createChannelMerger","createChannelSplitter","createConstantSource","createConvolver",
                 "createDelay","createDynamicsCompressor","createGain","createIIRFilter","createOscillator",
                 "createPanner","createPeriodicWave","createScriptProcessor","createStereoPanner",
-                "createWaveShaper","decodeAudioData","renderQuantumSize","constructor"]),
-            "BaseAudioContext.prototype names (no resume/suspend — they moved up a level)"
+                "createWaveShaper","decodeAudioData","constructor"]),
+            "BaseAudioContext.prototype names (no resume/suspend — they moved up a level; 刀57: renderQuantumSize deleted)"
         );
         assert_eq!(
             v["et_proto"],
@@ -6651,7 +6651,9 @@
 
         let v = result.value.unwrap();
         assert_eq!(v[0], serde_json::json!(0), "Object.keys(navigator) is empty");
-        assert_eq!(v[1], serde_json::json!(83), "Chrome 145's exact 83-key prototype face");
+        // 刀57: 82 = Chrome 145's exact enumerable prototype face (the old 83
+        // counted the invented cpuPerformance; constructor is non-enumerable).
+        assert_eq!(v[1], serde_json::json!(82), "Chrome 145's exact prototype face");
         assert_eq!(v[2], serde_json::json!(true), "previously missing keys present");
         assert_eq!(v[3], serde_json::json!(0), "Object.keys(screen) is empty");
         assert_eq!(v[4], serde_json::json!(true), "screen.width still reads");
@@ -23145,8 +23147,10 @@ fn navigator_methods_are_writable_data_props() {
     assert_eq!(v["attrKept"], serde_json::json!(true));
 }
 
-/// #203: all four observer families carry takeRecords — the 抖店 SDK calls
-/// it on its PerformanceObserver instance at startup.
+/// #203: the observer families Chrome gives takeRecords carry it — the 抖店
+/// SDK calls it on its PerformanceObserver instance at startup. 刀57 tightened
+/// the family to Chrome truth: ResizeObserver is NOT one of them (its face is
+/// observe/unobserve/disconnect only).
 #[test]
 fn observer_take_records_on_all_families() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -23159,17 +23163,15 @@ fn observer_take_records_on_all_families() {
           }
           const po = new PerformanceObserver(function () {});
           out.perfCall = Array.isArray(po.takeRecords());
-          const ro = new ResizeObserver(function () {});
-          out.roCall = Array.isArray(ro.takeRecords());
           return JSON.stringify(out);
         })()
     "#).unwrap();
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
-    for n in ["MutationObserver", "IntersectionObserver", "ResizeObserver", "PerformanceObserver"] {
+    for n in ["MutationObserver", "IntersectionObserver", "PerformanceObserver"] {
         assert_eq!(v[n]["proto"], serde_json::json!("function"), "{n}.prototype.takeRecords missing");
     }
+    assert_eq!(v["ResizeObserver"]["proto"], serde_json::json!("undefined"), "ResizeObserver.takeRecords absent (Chrome truth, 刀57)");
     assert_eq!(v["perfCall"], serde_json::json!(true));
-    assert_eq!(v["roCall"], serde_json::json!(true));
 }
 
 /// #48: window named access. Elements with an id (and form/iframe/embed/
@@ -27913,4 +27915,100 @@ async fn knife56_native_core_delivery_single_fire() {
     assert_eq!(v["bc"].as_str().unwrap(), "1|1|true|7|true", "BroadcastChannel delivery changed");
     assert_eq!(v["port"].as_i64().unwrap(), 2, "listener-only MessagePort did not start/deliver");
     assert!(v["mql"].as_str().unwrap().starts_with("true|true"), "MQL change delivery changed: {}", v["mql"]);
+}
+
+/// M4 刀57 (2026-10-31): the singleton one-off extras leave — the
+/// whole-surface audit's "extra" class reaches ZERO (58→17→0 over 刀55–57).
+/// 17 members across 16 interfaces, three verdicts from Chrome 145 truth:
+///   DELETE (11 pure inventions): AudioContext.playbackStats,
+///     BaseAudioContext.renderQuantumSize, CSSCounterStyleRule.style,
+///     CSSPropertyRule.style, CSSScopeRule.conditionText, Document.referrerPolicy,
+///     GPUAdapter.requestAdapterInfo, LaunchQueue.setTargetURL,
+///     Navigator.cpuPerformance, ResizeObserver.takeRecords, WebTransport.congestionControl
+///   MOVE→CSSConditionRule (3): Media/Container/Supports conditionText now
+///     inherit (Chrome owns it there); CSSScopeRule — chained under
+///     CSSGroupingRule, NOT Condition — loses it entirely (scope rules answer
+///     start/end, never conditionText).
+///   MOVE→Credential/ShadowRoot (3): PasswordCredential id/type answer through
+///     Credential.prototype's real getters (ctor sets _id/_type);
+///     DocumentFragment lost its innerHTML pair (plain fragments and
+///     template.content answer undefined, assignment is a no-parse expando —
+///     Chrome-probed) and ShadowRoot owns its own rw:ec pair.
+/// The fragment face had three internal users that rode the deleted setter:
+/// template parsing (Element.innerHTML's template case), DocumentFragment.
+/// cloneNode(deep) and Range.createContextualFragment — all three now parse
+/// through the set_inner_html op directly.
+#[test]
+fn knife57_singleton_extras_fold_to_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const own = (C) => Object.getOwnPropertyNames(C.prototype).join(',');
+          const st = document.createElement('style');
+          st.textContent = '@media (min-width:100px){a{color:red}} @supports (display:grid){b{c:d}} @container card (min-width:400px){e{f:g}} @scope (div) to (p) { i {color:red} }';
+          document.head.appendChild(st);
+          const rs = {}; for (const r of st.sheet.cssRules) rs[r.constructor.name] = r;
+          const tpl = document.createElement('template');
+          tpl.innerHTML = '<s>s</s><t>t</t>';
+          const df = document.createDocumentFragment();
+          const df2 = document.createDocumentFragment(); df2.innerHTML = '<i>i</i>';
+          const host = document.createElement('div'); document.body.appendChild(host);
+          const sr = host.attachShadow({mode:'open'});
+          sr.innerHTML = '<u>u</u>';
+          const r = document.createRange();
+          const host2 = document.createElement('div'); host2.innerHTML = 'xx<b>bb</b>'; document.body.appendChild(host2);
+          r.selectNode(host2.firstChild.nextSibling);
+          const cf = r.createContextualFragment('<i>cf</i>');
+          const pc = new PasswordCredential({ id: 'u1', password: 'p1', name: 'N' });
+          const dfc = document.createDocumentFragment(); dfc.appendChild(document.createElement('p'));
+          const cl = dfc.cloneNode(true);
+          return JSON.stringify({
+            acOwn: own(AudioContext), baseOwn: own(BaseAudioContext),
+            mediaOwn: own(CSSMediaRule), scopeOwn: own(CSSScopeRule),
+            condOwn: own(CSSConditionRule), propOwn: own(CSSPropertyRule),
+            counterOwn: own(CSSCounterStyleRule), credOwn: own(Credential),
+            pcOwn: own(PasswordCredential), dfHas: Object.getOwnPropertyDescriptor(DocumentFragment.prototype, 'innerHTML') === undefined,
+            srHas: typeof Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'innerHTML').get,
+            roOwn: own(ResizeObserver), lqOwn: own(LaunchQueue), gpuOwn: own(GPUAdapter),
+            wtOwn: own(WebTransport), navCPU: typeof navigator.cpuPerformance,
+            docRP: typeof Object.getOwnPropertyDescriptor(Document.prototype, 'referrerPolicy'),
+            cond: [rs['CSSMediaRule'].conditionText, rs['CSSSupportsRule'].conditionText, rs['CSSContainerRule'].conditionText],
+            scopeCond: typeof rs['CSSScopeRule'].conditionText,
+            cred: [pc.id, pc.type, pc.name, pc.password],
+            sr: [sr.innerHTML, sr.firstChild.tagName],
+            df: [df.innerHTML, df2.innerHTML, df2.childNodes.length, String(df2.firstChild)],
+            tpl: [tpl.content.childNodes.length, tpl.content.firstChild.tagName, tpl.innerHTML],
+            clone: [cl.childNodes.length, cl.firstChild.tagName],
+            cf: [cf.childNodes.length, cf.firstChild.tagName],
+          });
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    // ---- shape truths (extra class = 0) ----
+    assert_eq!(v["acOwn"], serde_json::json!("baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor"));
+    assert_eq!(v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"), false);
+    assert_eq!(v["mediaOwn"], serde_json::json!("media,constructor"));
+    assert_eq!(v["scopeOwn"], serde_json::json!("constructor"));
+    assert_eq!(v["condOwn"], serde_json::json!("conditionText,constructor"));
+    assert_eq!(v["propOwn"], serde_json::json!("name,syntax,inherits,initialValue,constructor"));
+    assert_eq!(v["counterOwn"], serde_json::json!("name,constructor"));
+    assert_eq!(v["credOwn"], serde_json::json!("id,type,constructor"));
+    assert_eq!(v["pcOwn"], serde_json::json!("password,name,iconURL,constructor"));
+    assert_eq!(v["dfHas"], serde_json::json!(true), "DocumentFragment.prototype has no innerHTML");
+    assert_eq!(v["srHas"], serde_json::json!("function"), "ShadowRoot owns its innerHTML pair");
+    assert_eq!(v["roOwn"], serde_json::json!("disconnect,observe,unobserve,constructor"));
+    assert_eq!(v["lqOwn"], serde_json::json!("setConsumer,constructor"));
+    assert_eq!(v["gpuOwn"], serde_json::json!("requestDevice,constructor"));
+    assert_eq!(v["wtOwn"].as_str().unwrap().contains("congestionControl"), false);
+    assert_eq!(v["navCPU"], serde_json::json!("undefined"));
+    assert_eq!(v["docRP"], serde_json::json!("undefined"));
+    // ---- behavior through the moved/deleted faces ----
+    assert_eq!(v["cond"], serde_json::json!(["(min-width: 100px)", "(display:grid)", "card (min-width: 400px)"]), "conditionText inherits from CSSConditionRule with real values");
+    assert_eq!(v["scopeCond"], serde_json::json!("undefined"), "scope rules never answer conditionText");
+    assert_eq!(v["cred"], serde_json::json!(["u1", "password", "N", "p1"]), "PasswordCredential answers id/type through Credential");
+    assert_eq!(v["sr"], serde_json::json!(["<u>u</u>", "U"]), "ShadowRoot innerHTML round-trips");
+    assert_eq!(v["df"], serde_json::json!([null, "<i>i</i>", 0, "null"]), "plain fragment: read undefined, assignment is a no-parse expando (Chrome truth)");
+    assert_eq!(v["tpl"], serde_json::json!([2, "S", "<s>s</s><t>t</t>"]), "template parsing survived the fragment face loss");
+    assert_eq!(v["clone"], serde_json::json!([1, "P"]), "fragment cloneNode(deep) parses through the op");
+    assert_eq!(v["cf"], serde_json::json!([1, "I"]), "createContextualFragment parses through the op");
 }

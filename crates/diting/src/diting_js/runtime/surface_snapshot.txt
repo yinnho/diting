@@ -1234,7 +1234,7 @@ P Attr :: constructor,localName,name,namespaceURI,ownerElement,prefix,specified,
 P Audio :: constructor
 P AudioBuffer :: constructor,copyFromChannel,copyToChannel,duration,getChannelData,length,numberOfChannels,sampleRate
 P AudioBufferSourceNode :: buffer,constructor,detune,loop,loopEnd,loopStart,playbackRate,start
-P AudioContext :: baseLatency,close,constructor,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,onerror,outputLatency,playbackStats,resume,suspend
+P AudioContext :: baseLatency,close,constructor,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,onerror,outputLatency,resume,suspend
 P AudioData :: allocationSize,clone,close,constructor,copyTo,duration,format,numberOfChannels,numberOfFrames,sampleRate,timestamp
 S AudioDecoder :: isConfigSupported
 P AudioDecoder :: close,configure,constructor,decode,decodeQueueSize,flush,ondequeue,reset,state
@@ -1259,7 +1259,7 @@ P BackgroundFetchRegistration :: abort,constructor,downloadTotal,downloaded,fail
 P BarProp :: constructor,visible
 S BarcodeDetector :: getSupportedFormats
 P BarcodeDetector :: constructor,detect
-P BaseAudioContext :: constructor,createAnalyser,createBiquadFilter,createBuffer,createBufferSource,createChannelMerger,createChannelSplitter,createConstantSource,createConvolver,createDelay,createDynamicsCompressor,createGain,createIIRFilter,createOscillator,createPanner,createPeriodicWave,createScriptProcessor,createStereoPanner,createWaveShaper,currentTime,decodeAudioData,destination,listener,onstatechange,renderQuantumSize,sampleRate,state
+P BaseAudioContext :: constructor,createAnalyser,createBiquadFilter,createBuffer,createBufferSource,createChannelMerger,createChannelSplitter,createConstantSource,createConvolver,createDelay,createDynamicsCompressor,createGain,createIIRFilter,createOscillator,createPanner,createPeriodicWave,createScriptProcessor,createStereoPanner,createWaveShaper,currentTime,decodeAudioData,destination,listener,onstatechange,sampleRate,state
 P BatteryManager :: charging,chargingTime,constructor,dischargingTime,level
 P BeforeInstallPromptEvent :: constructor,platforms,prompt,userChoice
 P BeforeUnloadEvent :: constructor,returnValue
@@ -1288,8 +1288,8 @@ P CDATASection :: constructor
 P CSPViolationReportBody :: blockedURL,columnNumber,constructor,disposition,documentURL,effectiveDirective,lineNumber,originalPolicy,referrer,sample,sourceFile,statusCode,toJSON
 P CSSAnimation :: animationName,constructor
 P CSSConditionRule :: conditionText,constructor
-P CSSContainerRule :: conditionText,constructor,containerName,containerQuery
-P CSSCounterStyleRule :: constructor,name,style
+P CSSContainerRule :: constructor,containerName,containerQuery
+P CSSCounterStyleRule :: constructor,name
 P CSSFontFaceRule :: constructor,style
 P CSSFontFeatureValuesRule :: annotation,characterVariant,constructor,fontFamily,ornaments,styleset,stylistic,swash
 P CSSFontPaletteValuesRule :: constructor,name
@@ -1314,7 +1314,7 @@ P CSSMathProduct :: constructor,values
 P CSSMathSum :: constructor,values
 P CSSMathValue :: constructor,operator
 P CSSMatrixComponent :: constructor,matrix
-P CSSMediaRule :: conditionText,constructor,media
+P CSSMediaRule :: constructor,media
 P CSSNamespaceRule :: constructor,namespaceURI,prefix
 P CSSNestedDeclarations :: constructor,style
 P CSSNumericArray :: constructor,entries,forEach,keys,length,values
@@ -1325,13 +1325,13 @@ P CSSPerspective :: constructor,length
 P CSSPositionTryDescriptors :: align-self,alignSelf,block-size,blockSize,bottom,constructor,height,inline-size,inlineSize,inset,inset-block,inset-block-end,inset-block-start,inset-inline,inset-inline-end,inset-inline-start,insetBlock,insetBlockEnd,insetBlockStart,insetInline,insetInlineEnd,insetInlineStart,justify-self,justifySelf,left,margin,margin-block,margin-block-end,margin-block-start,margin-bottom,margin-inline,margin-inline-end,margin-inline-start,margin-left,margin-right,margin-top,marginBlock,marginBlockEnd,marginBlockStart,marginBottom,marginInline,marginInlineEnd,marginInlineStart,marginLeft,marginRight,marginTop,max-block-size,max-height,max-inline-size,max-width,maxBlockSize,maxHeight,maxInlineSize,maxWidth,min-block-size,min-height,min-inline-size,min-width,minBlockSize,minHeight,minInlineSize,minWidth,place-self,placeSelf,position-anchor,position-area,positionAnchor,positionArea,right,top,width
 P CSSPositionTryRule :: constructor,name,style
 P CSSPositionValue :: constructor,x,y
-P CSSPropertyRule :: constructor,inherits,initialValue,name,style,syntax
+P CSSPropertyRule :: constructor,inherits,initialValue,name,syntax
 P CSSRotate :: angle,constructor,x,y,z
 S CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE
 P CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE,constructor,cssText,parentRule,parentStyleSheet,type
 P CSSRuleList :: constructor,item,length
 P CSSScale :: constructor,x,y,z
-P CSSScopeRule :: conditionText,constructor
+P CSSScopeRule :: constructor
 P CSSSkew :: ax,ay,constructor
 P CSSSkewX :: ax,constructor
 P CSSSkewY :: ay,constructor
@@ -1341,7 +1341,7 @@ P CSSStyleRule :: constructor,cssRules,deleteRule,insertRule,selectorText,style
 P CSSStyleSheet :: addRule,constructor,cssRules,deleteRule,insertRule,ownerRule,removeRule,replace,replaceSync,rules
 S CSSStyleValue :: parse,parseAll
 P CSSStyleValue :: constructor,toString
-P CSSSupportsRule :: conditionText,constructor
+P CSSSupportsRule :: constructor
 P CSSTransformComponent :: constructor,is2D,toMatrix,toString
 P CSSTransformValue :: constructor,entries,forEach,is2D,keys,length,toMatrix,values
 P CSSTransition :: constructor,transitionProperty
@@ -1433,8 +1433,8 @@ S DigitalCredential :: userAgentAllowsProtocol
 P DigitalCredential :: constructor,data,protocol,toJSON
 P DisposableStack :: adopt,constructor,defer,dispose,disposed,move,use
 S Document :: parseHTMLUnsafe
-P Document :: URL,activeElement,adoptNode,adoptedStyleSheets,alinkColor,all,anchors,append,applets,bgColor,body,captureEvents,caretPositionFromPoint,characterSet,charset,childElementCount,children,clear,close,compatMode,constructor,contentType,cookie,createAttribute,createAttributeNS,createCDATASection,createComment,createDocumentFragment,createElement,createElementNS,createEvent,createExpression,createNSResolver,createNodeIterator,createProcessingInstruction,createRange,createTextNode,createTreeWalker,currentScript,defaultView,designMode,dir,doctype,documentElement,documentURI,domain,elementFromPoint,elementsFromPoint,embeds,evaluate,execCommand,exitFullscreen,exitPictureInPicture,exitPointerLock,fgColor,firstElementChild,fonts,forms,fragmentDirective,fullscreen,fullscreenElement,fullscreenEnabled,getAnimations,getElementById,getElementsByClassName,getElementsByName,getElementsByTagName,getElementsByTagNameNS,getSelection,hasFocus,hasPrivateToken,hasRedemptionRecord,hasStorageAccess,hasUnpartitionedCookieAccess,head,hidden,images,implementation,importNode,inputEncoding,lastElementChild,lastModified,linkColor,links,moveBefore,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforecopy,onbeforecut,onbeforeinput,onbeforematch,onbeforepaste,onbeforetoggle,onbeforexrselect,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncommand,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onformdata,onfullscreenchange,onfullscreenerror,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onscrollsnapchange,onscrollsnapchanging,onsearch,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkitfullscreenchange,onwebkitfullscreenerror,onwebkittransitionend,onwheel,open,pictureInPictureElement,pictureInPictureEnabled,plugins,pointerLockElement,prepend,prerendering,queryCommandEnabled,queryCommandIndeterm,queryCommandState,queryCommandSupported,queryCommandValue,querySelector,querySelectorAll,readyState,referrer,referrerPolicy,releaseEvents,replaceChildren,requestStorageAccess,rootElement,scripts,scrollingElement,startViewTransition,styleSheets,timeline,title,visibilityState,vlinkColor,wasDiscarded,write,writeln
-P DocumentFragment :: append,childElementCount,children,constructor,firstElementChild,getElementById,innerHTML,lastElementChild,moveBefore,prepend,querySelector,querySelectorAll,replaceChildren
+P Document :: URL,activeElement,adoptNode,adoptedStyleSheets,alinkColor,all,anchors,append,applets,bgColor,body,captureEvents,caretPositionFromPoint,characterSet,charset,childElementCount,children,clear,close,compatMode,constructor,contentType,cookie,createAttribute,createAttributeNS,createCDATASection,createComment,createDocumentFragment,createElement,createElementNS,createEvent,createExpression,createNSResolver,createNodeIterator,createProcessingInstruction,createRange,createTextNode,createTreeWalker,currentScript,defaultView,designMode,dir,doctype,documentElement,documentURI,domain,elementFromPoint,elementsFromPoint,embeds,evaluate,execCommand,exitFullscreen,exitPictureInPicture,exitPointerLock,fgColor,firstElementChild,fonts,forms,fragmentDirective,fullscreen,fullscreenElement,fullscreenEnabled,getAnimations,getElementById,getElementsByClassName,getElementsByName,getElementsByTagName,getElementsByTagNameNS,getSelection,hasFocus,hasPrivateToken,hasRedemptionRecord,hasStorageAccess,hasUnpartitionedCookieAccess,head,hidden,images,implementation,importNode,inputEncoding,lastElementChild,lastModified,linkColor,links,moveBefore,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforecopy,onbeforecut,onbeforeinput,onbeforematch,onbeforepaste,onbeforetoggle,onbeforexrselect,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncommand,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onformdata,onfullscreenchange,onfullscreenerror,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onscrollsnapchange,onscrollsnapchanging,onsearch,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkitfullscreenchange,onwebkitfullscreenerror,onwebkittransitionend,onwheel,open,pictureInPictureElement,pictureInPictureEnabled,plugins,pointerLockElement,prepend,prerendering,queryCommandEnabled,queryCommandIndeterm,queryCommandState,queryCommandSupported,queryCommandValue,querySelector,querySelectorAll,readyState,referrer,releaseEvents,replaceChildren,requestStorageAccess,rootElement,scripts,scrollingElement,startViewTransition,styleSheets,timeline,title,visibilityState,vlinkColor,wasDiscarded,write,writeln
+P DocumentFragment :: append,childElementCount,children,constructor,firstElementChild,getElementById,lastElementChild,moveBefore,prepend,querySelector,querySelectorAll,replaceChildren
 P DocumentPictureInPicture :: constructor,onenter,requestWindow,window
 P DocumentPictureInPictureEvent :: constructor,window
 P DocumentTimeline :: constructor
@@ -1487,7 +1487,7 @@ P FormData :: append,constructor,delete,entries,forEach,get,getAll,has,keys,set,
 P FormDataEvent :: constructor,formData
 P FragmentDirective :: constructor
 P GPU :: constructor,getPreferredCanvasFormat,requestAdapter
-P GPUAdapter :: constructor,requestAdapterInfo,requestDevice
+P GPUAdapter :: constructor,requestDevice
 P GPUAdapterInfo :: architecture,constructor,description,device,isFallbackAdapter,subgroupMaxSize,subgroupMinSize,vendor
 P GPUBindGroup :: constructor,label
 P GPUBindGroupLayout :: constructor,label
@@ -1678,7 +1678,7 @@ S LanguageDetector :: availability,create
 P LanguageDetector :: constructor,destroy,detect,expectedInputLanguages,inputQuota,measureInputUsage
 P LargestContentfulPaint :: constructor,element,id,loadTime,paintTime,presentationTime,renderTime,size,toJSON,url
 P LaunchParams :: constructor,files,targetURL
-P LaunchQueue :: constructor,setConsumer,setTargetURL
+P LaunchQueue :: constructor,setConsumer
 P LayoutShift :: constructor,hadRecentInput,lastInputTime,sources,toJSON,value
 P LayoutShiftAttribution :: constructor,currentRect,node,previousRect,toJSON
 P LinearAccelerationSensor :: constructor
@@ -1746,7 +1746,7 @@ P NavigationHistoryEntry :: constructor,getState,id,index,key,ondispose,sameDocu
 P NavigationPrecommitController :: constructor,redirect
 P NavigationPreloadManager :: constructor,disable,enable,getState,setHeaderValue
 P NavigationTransition :: committed,constructor,finished,from,navigationType,to
-P Navigator :: adAuctionComponents,appCodeName,appName,appVersion,bluetooth,canLoadAdAuctionFencedFrame,canShare,clearAppBadge,clearOriginJoinedAdInterestGroups,clipboard,connection,constructor,cookieEnabled,cpuPerformance,createAuctionNonce,credentials,deprecatedReplaceInURN,deprecatedRunAdAuctionEnforcesKAnonymity,deprecatedURNToURL,deviceMemory,devicePosture,doNotTrack,geolocation,getBattery,getGamepads,getInstalledRelatedApps,getInterestGroupAdAuctionData,getUserMedia,gpu,hardwareConcurrency,hid,ink,javaEnabled,joinAdInterestGroup,keyboard,language,languages,leaveAdInterestGroup,locks,login,managed,maxTouchPoints,mediaCapabilities,mediaDevices,mediaSession,mimeTypes,onLine,pdfViewerEnabled,permissions,platform,plugins,presentation,product,productSub,protectedAudience,registerProtocolHandler,requestMIDIAccess,requestMediaKeySystemAccess,runAdAuction,scheduling,sendBeacon,serial,serviceWorker,setAppBadge,share,storage,storageBuckets,unregisterProtocolHandler,updateAdInterestGroups,usb,userActivation,userAgent,userAgentData,vendor,vendorSub,vibrate,virtualKeyboard,wakeLock,webdriver,webkitGetUserMedia,webkitPersistentStorage,webkitTemporaryStorage,windowControlsOverlay,xr
+P Navigator :: adAuctionComponents,appCodeName,appName,appVersion,bluetooth,canLoadAdAuctionFencedFrame,canShare,clearAppBadge,clearOriginJoinedAdInterestGroups,clipboard,connection,constructor,cookieEnabled,createAuctionNonce,credentials,deprecatedReplaceInURN,deprecatedRunAdAuctionEnforcesKAnonymity,deprecatedURNToURL,deviceMemory,devicePosture,doNotTrack,geolocation,getBattery,getGamepads,getInstalledRelatedApps,getInterestGroupAdAuctionData,getUserMedia,gpu,hardwareConcurrency,hid,ink,javaEnabled,joinAdInterestGroup,keyboard,language,languages,leaveAdInterestGroup,locks,login,managed,maxTouchPoints,mediaCapabilities,mediaDevices,mediaSession,mimeTypes,onLine,pdfViewerEnabled,permissions,platform,plugins,presentation,product,productSub,protectedAudience,registerProtocolHandler,requestMIDIAccess,requestMediaKeySystemAccess,runAdAuction,scheduling,sendBeacon,serial,serviceWorker,setAppBadge,share,storage,storageBuckets,unregisterProtocolHandler,updateAdInterestGroups,usb,userActivation,userAgent,userAgentData,vendor,vendorSub,vibrate,virtualKeyboard,wakeLock,webdriver,webkitGetUserMedia,webkitPersistentStorage,webkitTemporaryStorage,windowControlsOverlay,xr
 P NavigatorLogin :: constructor,setStatus
 P NavigatorManagedData :: constructor,getManagedConfiguration,onmanagedconfigurationchange
 P NavigatorUAData :: brands,constructor,getHighEntropyValues,mobile,platform,toJSON
@@ -1781,7 +1781,7 @@ P PageRevealEvent :: constructor,viewTransition
 P PageSwapEvent :: activation,constructor,viewTransition
 P PageTransitionEvent :: constructor,persisted
 P PannerNode :: coneInnerAngle,coneOuterAngle,coneOuterGain,constructor,distanceModel,maxDistance,orientationX,orientationY,orientationZ,panningModel,positionX,positionY,positionZ,refDistance,rolloffFactor,setOrientation,setPosition
-P PasswordCredential :: constructor,iconURL,id,name,password,type
+P PasswordCredential :: constructor,iconURL,name,password
 P Path2D :: addPath,arc,arcTo,bezierCurveTo,closePath,constructor,ellipse,lineTo,moveTo,quadraticCurveTo,rect
 P PaymentAddress :: addressLine,city,constructor,country,dependentLocality,organization,phone,postalCode,recipient,region,sortingCode,toJSON
 P PaymentManager :: constructor,enableDelegations,userHint
@@ -1889,7 +1889,7 @@ P RemotePlayback :: cancelWatchAvailability,constructor,onconnect,onconnecting,o
 P ReportBody :: constructor,toJSON
 P ReportingObserver :: constructor,disconnect,observe,takeRecords
 P Request :: arrayBuffer,blob,body,bodyUsed,bytes,cache,clone,constructor,credentials,destination,duplex,formData,headers,integrity,isHistoryNavigation,json,keepalive,method,mode,redirect,referrer,referrerPolicy,signal,targetAddressSpace,text,url
-P ResizeObserver :: constructor,disconnect,observe,takeRecords,unobserve
+P ResizeObserver :: constructor,disconnect,observe,unobserve
 P ResizeObserverEntry :: borderBoxSize,constructor,contentBoxSize,contentRect,devicePixelContentBoxSize,target
 P ResizeObserverSize :: blockSize,constructor,inlineSize
 S Response :: error,json,redirect
@@ -2025,7 +2025,7 @@ P ServiceWorker :: constructor,onerror,onstatechange,postMessage,scriptURL,state
 P ServiceWorkerContainer :: constructor,controller,getRegistration,getRegistrations,ready,register
 P ServiceWorkerRegistration :: active,backgroundFetch,constructor,cookies,getNotifications,installing,navigationPreload,onupdatefound,paymentManager,periodicSync,pushManager,scope,showNotification,sync,unregister,update,updateViaCache,waiting
 P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersection,isDisjointFrom,isSubsetOf,isSupersetOf,keys,size,symmetricDifference,union,values
-P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
+P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,innerHTML,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
 P SharedStorage :: append,batchUpdate,clear,constructor,createWorklet,delete,get,run,selectURL,set,worklet
 P SharedStorageAppendMethod :: constructor
 P SharedStorageClearMethod :: constructor
@@ -2186,7 +2186,7 @@ S WebSocket :: CLOSED,CLOSING,CONNECTING,OPEN
 P WebSocket :: binaryType,bufferedAmount,close,constructor,extensions,onclose,onerror,onmessage,onopen,protocol,readyState,send,url
 P WebSocketError :: closeCode,constructor,reason
 P WebSocketStream :: close,constructor
-P WebTransport :: close,closed,congestionControl,constructor,createBidirectionalStream,createUnidirectionalStream,datagrams,ready
+P WebTransport :: close,closed,constructor,createBidirectionalStream,createUnidirectionalStream,datagrams,ready
 P WebTransportBidirectionalStream :: constructor,readable,writable
 P WebTransportDatagramDuplexStream :: constructor,incomingHighWaterMark,incomingMaxAge,maxDatagramSize,outgoingHighWaterMark,outgoingMaxAge,readable,writable
 P WebTransportError :: constructor,source,streamErrorCode
