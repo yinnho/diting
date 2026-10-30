@@ -5278,7 +5278,10 @@ class Element extends Node {
       }
     }
     if (!globalThis.__interactiveValidate(this, submitter)) return;
-    const cancelled = !this.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    // the platform SubmitEvent carries the submitter; UA-originated, so trusted
+    const sev = new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: submitter === undefined ? null : submitter });
+    _eventState(sev, 'isTrusted', true);
+    const cancelled = !this.dispatchEvent(sev);
     if (cancelled) return;
     this._navigateSubmit(submitter);
   }

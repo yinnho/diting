@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→**208**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→**188**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -892,3 +892,48 @@ foundation/component/priority/address/protocol/port/type/tcpType/relatedAddress/
 验收：探针 72 键 0 差异（单测）；tests **1446/0**（新增 rtcice_matches_chrome_truth）；快照漂移 1 行；
 check_fresh 7 件鲜（33 真值）；analyze 零违。下一刀顺位：Animation 19、EditContext 11、VideoFrame 10、
 XSLTProcessor 8、RTCPeerConnection 15。
+
+## M4 刀14：DOM/事件小成员扫尾（2026-10-30）
+
+差集里一批 1–4 个名的缺口，接口形状已有、缺行为：差集 208→**188**（-20；行 54→42）。
+新模块 `platform/domsmall.impl.js`，探针 `smallmembers-probe.js` 51 键 0 差异（形状按「Chrome 的名字
+都在 + 共有名相对序一致 + 父类一致」比较）。
+
+- **节点 mixin**：`CharacterData.nextElementSibling/previousElementSibling`（Chrome 里在
+  CharacterData 上，Text/Comment/PI 继承）、`Text.assignedSlot`(null)、
+  `ProcessingInstruction.sheet`(null)、`DocumentFragment.childElementCount`。
+- **四个空桩事件换真身**：`HashChangeEvent{oldURL,newURL}`（USVString，null→'null'）、
+  `SubmitEvent{submitter}`（只收 HTML 命名空间的 HTMLElement——引擎的 SVG 元素
+  `instanceof HTMLElement` 为真，须按 namespaceURI 判；转换失败文案 `Failed to convert value
+  to 'HTMLElement'.`）、`PopStateEvent{state, hasUAVisualTransition}`、
+  `ClipboardEvent{clipboardData: DataTransfer|null}`；共用一个小工厂（字典序读取+Chrome 文案）。
+- **真实表单提交**：`requestSubmit()`/按钮点击派发的 `submit` 以前是普通 `Event`；现在是
+  **`SubmitEvent`，带 submitter、isTrusted=true**（bootstrap 一处最小改，用 `_eventState`）。
+- **MessageEvent**：补 `initMessageEvent`(长度 1，参数默认 data null/origin ''/source null/
+  ports [])与 `userActivation`(null)，按 Chrome 序重排。
+- **DataTransfer**：补 `setData/getData/clearData`（格式小写；'text'→text/plain、'url'→
+  text/uri-list；同类型 set 替换；`getData('url')` 返回 uri-list 首个**合法 URL 的序列化**
+  （'http://x'→'http://x/'）；`types` 为冻结数组且内容不变时**同一对象**），挂在旧类的
+  `_dtItems` 存储上并按 Chrome 序重排。
+- **RTCSessionDescription**：旧类只是两个赋值；新类 `type`/`sdp` **可读写**（type 默认 null，
+  非枚举值的 setter 忽略；构造器枚举错抛 `... valid enum value of type RTCSdpType.`）、`toJSON()`。
+- **InputDeviceCapabilities**：`{firesTouchEvents}` 默认 false；让 UIEvent 的 `sourceCapabilities`
+  终于能装真对象。
+
+**本刀入账的 KNOWN（节点层 placement 族）**：Text/Comment/ProcessingInstruction/DocumentFragment
+实例原型上，引擎多挂了 `nodeName/nodeType/cloneNode/innerHTML/nodeValue`（Chrome 在
+Node.prototype）；`DocumentFragment`/`ProcessingInstruction` 构造器 `length` 不同。
+**本刀有意不做**（各自成族，留后续）：`Headers.getSetCookie`（旧 Headers 是个会覆盖重复值的
+对象表，须整族重写含排序/校验）、`ImageData`（原型上无 width/height/data）、`Highlight`、
+`FontFace` 覆盖项、`TaskController`/`TaskSignal`、`CloseWatcher`、`QuotaExceededError`、
+`MediaStream` 缺 id/active/getTrackById、`Path2D.roundRect`。
+
+**坑**：①**改了 impl 必须重跑 bundle.py**（Rust 测试嵌入的是 platform_bundle.js，不是 impl
+源文件——忘了会拿旧代码对拍并得到「修了没生效」的假象）；②按 Chrome 序重排某原型时，**目标成员
+若由后加载的模块再安装就会落到末尾**（moveBefore 在 gen/htmlelement 里装）——用
+`requires-load` 让重排模块排在安装者之后；③引擎的 SVG 元素继承 HTMLElement，凡是「须为 HTML 元素」
+的转换都要看命名空间。
+
+验收：探针 51 键 0 差异；tests **1447/0**（新增 smallmembers_match_chrome_truth）；快照漂移 13 行；
+check_fresh 7 件鲜（34 真值）；analyze 零违。下一刀顺位：Headers/Request/Response 整族、
+Animation 19、EditContext 11、ImageData/Highlight/FontFace、VideoFrame 10。

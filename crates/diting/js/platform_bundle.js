@@ -315,6 +315,831 @@ const __platform = (function () {
   return P;
 })();
 
+// ---- module stylemap (L2) ----
+__platform.define("stylemap", function (exports, require, P) {
+"use strict";
+// Typed OM read faces for Element staged members (M4 knife 4):
+// element.attributeStyleMap (StylePropertyMap) and
+// element.computedStyleMap() (StylePropertyMapReadOnly). The window classes
+// were bare ctor-throw stubs from global_surface.js; this module owns them
+// for real (P.iface brands + member order from Chrome truth
+// element-staged-truth-145.json keys spm.classes/spm.symbols/spm.ctor - the
+// global_surface THROW install SKIPs on our non-enumerable expose, the same
+// handover pattern Performance took at knife 3). The ctor keeps throwing
+// Chrome's exact "Failed to construct ... Illegal constructor" message.
+//
+// Behavior pinned by truth: attributeStyleMap is a cached ro accessor whose
+// map parses the style attribute (withstyle: 'color: red' -> size 1,
+// get('color') is a CSSStyleValue, String 'red'); computedStyleMap() caches a
+// read-only map over getComputedStyle(el) whose size === gcs(el).length
+// (Chrome 413; the engine's computed-property list is its own count - that
+// list's parity is the CSSStyleDeclaration family, not this one). Instances
+// of CSSStyleValue are privately minted: the window CSSStyleValue face stays
+// the global_surface stub, untouched.
+
+// ---- value face: constructor.name 'CSSStyleValue', String(v) = the text
+// (truth asm.withstyle). Private class - nothing here touches the window
+// CSSStyleValue stub.
+const valSlots = new WeakMap();
+function CSSStyleValue(v) { valSlots.set(this, v); }
+Object.defineProperty(CSSStyleValue.prototype, 'toString', {
+  value: function () { return String(valSlots.get(this)); },
+  writable: true, enumerable: false, configurable: true,
+});
+function mkVal(s) { return new CSSStyleValue(s); }
+
+// ---- interfaces (own-member order = spm.classes truth; @@iterator =
+// entries, spm.symbols truth)
+function StylePropertyMapReadOnly() {
+  P.fail(StylePropertyMapReadOnly, 'Illegal constructor', "Failed to construct 'StylePropertyMapReadOnly'");
+}
+function StylePropertyMap() {
+  P.fail(StylePropertyMap, 'Illegal constructor', "Failed to construct 'StylePropertyMap'");
+}
+const RO = P.iface(StylePropertyMapReadOnly, 'StylePropertyMapReadOnly', 0);
+const MP = P.iface(StylePropertyMap, 'StylePropertyMap', 0, StylePropertyMapReadOnly);
+
+// instance state: { el | null, map: Map<lowercased name, value text> }
+const instData = new WeakMap();
+function data(o, fn) {
+  const d = instData.get(o);
+  if (d === undefined) P.illegal(fn);
+  return d;
+}
+function norm(map, k) {
+  const s = String(k);
+  return map.has(s) ? s : s.toLowerCase();
+}
+
+// StylePropertyMapReadOnly.prototype: size get getAll has entries forEach
+// keys values (Chrome own order), then constructor.
+P.getter(RO, 'size', function __f() { return data(this, __f).map.size; });
+P.method(RO, 'get', 1, function __f(k) { const d = data(this, __f); const v = d.map.get(norm(d.map, k)); return v === undefined ? null : mkVal(v); });
+P.method(RO, 'getAll', 1, function __f(k) { const d = data(this, __f); const v = d.map.get(norm(d.map, k)); return v === undefined ? null : [mkVal(v)]; });
+P.method(RO, 'has', 1, function __f(k) { const d = data(this, __f); return d.map.has(norm(d.map, k)); });
+function smEntries(o, fn) { const d = data(o, fn); const out = []; d.map.forEach(function (v, k) { out.push([k, mkVal(v)]); }); return out; }
+P.method(RO, 'entries', 0, function __f() { return smEntries(this, __f); });
+P.method(RO, 'forEach', 1, function __f(cb, thisArg) { const d = data(this, __f); d.map.forEach(function (v, k) { cb.call(thisArg, mkVal(v), k, d.map.size); }); });
+P.method(RO, 'keys', 0, function __f() { return Array.from(data(this, __f).map.keys()); });
+P.method(RO, 'values', 0, function __f() { const out = []; data(this, __f).map.forEach(function (v) { out.push(mkVal(v)); }); return out; });
+Object.defineProperty(RO, Symbol.iterator, { value: RO.entries, writable: true, enumerable: false, configurable: true });
+P.seal(StylePropertyMapReadOnly);
+
+// StylePropertyMap.prototype: append clear delete set (Chrome own order),
+// then constructor. Mutators update the style attribute in place.
+function writeAttr(o, fn) {
+  const d = data(o, fn);
+  if (d.el) {
+    const parts = [];
+    d.map.forEach(function (v, k) { parts.push(k + ': ' + v); });
+    d.el.setAttribute('style', parts.join('; '));
+  }
+}
+P.method(MP, 'append', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
+P.method(MP, 'clear', 0, function __f() { data(this, __f).map.clear(); writeAttr(this, __f); });
+P.method(MP, 'delete', 1, function __f(k) { const d = data(this, __f); const hit = d.map.delete(norm(d.map, k)); writeAttr(this, __f); return hit; });
+P.method(MP, 'set', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
+P.seal(StylePropertyMap);
+
+// ---- instance mints (cached per element: truth asm.identity/csm.identity)
+function parseDecls(text) {
+  const map = new Map();
+  String(text == null ? '' : text).split(';').forEach(function (part) {
+    const i = part.indexOf(':');
+    if (i < 0) return;
+    const k = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (k) map.set(k.toLowerCase(), v);
+  });
+  return map;
+}
+
+const attrCache = new WeakMap();
+exports.forElement = function (el) {
+  let m = attrCache.get(el);
+  if (!m) {
+    m = Object.create(StylePropertyMap.prototype);
+    instData.set(m, { el: el, map: parseDecls(el.getAttribute('style')) });
+    attrCache.set(el, m);
+  }
+  return m;
+};
+
+const compCache = new WeakMap();
+exports.computedFor = function (el) {
+  let m = compCache.get(el);
+  if (!m) {
+    const cs = getComputedStyle(el);
+    const map = new Map();
+    for (let i = 0; i < cs.length; i++) map.set(cs[i], cs.getPropertyValue(cs[i]));
+    m = Object.create(StylePropertyMapReadOnly.prototype);
+    instData.set(m, { el: null, map: map });
+    compCache.set(el, m);
+  }
+  return m;
+};
+
+P.expose('StylePropertyMapReadOnly', StylePropertyMapReadOnly);
+P.expose('StylePropertyMap', StylePropertyMap);
+});
+
+// ---- module htmlelement (L2) ----
+__platform.define("htmlelement", function (exports, require, P) {
+"use strict";
+// HTMLElement/Element behavior only; the member SHAPE (placement, order,
+// descriptor kinds, arity) is generated from the Chrome truth overlay in
+// gen/htmlelement.gen.js, and uniform attribute reflection is DATA there
+// (P.reflector). This module owns the NON-uniform semantics; every fact
+// below that could be misremembered is pinned by a key in
+// tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
+// Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
+// Knife-4 staged-family behavior (part/attributeStyleMap/computedStyleMap/
+// fullscreen trio/pointer lock/moveBefore/ariaNotify) is pinned by
+// element-staged-truth-145.json and diffed by
+// element_staged_members_match_chrome_truth.
+
+// ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
+// property 'abc' -> getAttribute('nonce') === null). Chrome hides the
+// attribute value once the element is connected; that nuance is staged.
+const nonceSlots = new WeakMap();
+
+// ---- popover shown-state: no invoker/layout machinery yet - toggle flips
+// a per-element flag (first call on a plain div returns true, truth
+// togglePopover.plain); show/hide are Chrome's no-ops (truth
+// showPopover.plain === #undefined on a non-popover element).
+const popoverShown = new WeakSet();
+
+// ---- staged-family state (knife 4): part DOMTokenList is cached per
+// element (truth part.same); the Typed OM maps cache in stylemap.
+const partCache = new WeakMap();
+const SM = require('stylemap');
+
+const GET = {
+  translate(el) { return el.getAttribute('translate') === 'no' ? false : true; },
+  spellcheck(el) {
+    const v = el.getAttribute('spellcheck');
+    return v === 'true' ? true : v === 'false' ? false : true; // invalid attr -> default true (truth spellcheck.attr.invalid)
+  },
+  popover(el) {
+    const v = el.getAttribute('popover');
+    if (v === null) return null;
+    if (v === '') return 'auto';
+    const low = v.toLowerCase();
+    return low === 'auto' || low === 'manual' ? low : 'manual';
+  },
+  nonce(el) { return nonceSlots.get(el) || ''; },
+  contentEditable(el) {
+    const v = el.getAttribute('contenteditable');
+    if (v === null) return 'inherit';
+    const low = v.toLowerCase();
+    if (low === '') return 'true'; // empty attribute = the true state (htmlreflect-truth vocab[''])
+    return low === 'true' || low === 'false' || low === 'plaintext-only' ? low : 'inherit';
+  },
+  isContentEditable(el) {
+    const v = el.getAttribute('contenteditable');
+    if (v === null) return false;
+    const low = v.toLowerCase();
+    return low === '' || low === 'true' || low === 'plaintext-only';
+  },
+  outerText(el) { return el.innerText; },
+  editContext() { return null; },
+  part(el) {
+    let p = partCache.get(el);
+    if (!p) { p = new DOMTokenList(el, 'part'); partCache.set(el, p); }
+    return p;
+  },
+  attributeStyleMap(el) { return SM.forElement(el); },
+};
+
+const SET = {
+  translate(el, v) {
+    // boolean IDL attribute over the enumerated content attribute: ToBoolean
+    // of ANY value, written 'yes'/'no' (htmlreflect-truth translate.set.*:
+    // 'maybe'/5/true -> 'yes'; ''/null/undefined/false -> 'no'). The knife-2
+    // reading ("invalid values are a no-op") misread set.translate.bad.
+    el.setAttribute('translate', v ? 'yes' : 'no');
+  },
+  spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
+  popover(el, v) {
+    if (v === null) { el.removeAttribute('popover'); return; }
+    el.setAttribute('popover', v === undefined ? '' : String(v));
+  },
+  nonce(el, v) { nonceSlots.set(el, P.conv.DOMString(v, "Failed to set the 'nonce' property on 'HTMLElement'", SET.nonce)); },
+  contentEditable(el, v) {
+    const s = P.conv.DOMString(v, "Failed to set the 'contentEditable' property on 'HTMLElement'", SET.contentEditable);
+    const low = s.toLowerCase();
+    if (low === 'true' || low === 'false' || low === 'plaintext-only') { el.setAttribute('contenteditable', low); return; }
+    if (low === 'inherit') { el.removeAttribute('contenteditable'); return; }
+    throw new DOMException("Failed to set the 'contentEditable' property on 'HTMLElement': The value provided ('" +
+      s + "') is not one of 'true', 'false', 'plaintext-only', or 'inherit'.", 'SyntaxError');
+  },
+  outerText(el, v) {
+    // Chrome replaces the element with a text node (truth set.outerText:
+    // parentNode is null afterwards); parentless is a silent no-op.
+    const parent = el.parentNode;
+    if (!parent) return;
+    parent.replaceChild(document.createTextNode(String(v)), el);
+  },
+  editContext() { /* swallow */ },
+  classList(el, v) { el.className = v === undefined || v === null ? '' : String(v); },
+  outerHTML(el, v) {
+    // Chrome replaces the node via fragment parsing; the pinned case is the
+    // parentless throw (truth outerHTML.set, exact message).
+    const parent = el.parentNode;
+    if (!parent) throw new DOMException("Failed to set the 'outerHTML' property on 'Element': This element has no parent node.", 'NoModificationAllowedError');
+    el.insertAdjacentHTML('beforebegin', String(v));
+    el.remove();
+  },
+  // aria*Elements: nullable IDREF reflection with no element machinery -
+  // the setter accepts and swallows (shape rw per EL.kinds).
+  ariaSwallow() { /* swallow */ },
+  part(el, v) { el.setAttribute('part', v === undefined || v === null ? '' : String(v)); },
+};
+
+const CALL = {
+  attachInternals() {
+    throw new DOMException("Failed to execute 'attachInternals' on 'HTMLElement': Unable to attach ElementInternals to non-custom elements.", 'NotSupportedError');
+  },
+  showPopover() { return undefined; },
+  hidePopover() { return undefined; },
+  togglePopover(el) {
+    if (popoverShown.has(el)) { popoverShown.delete(el); return false; }
+    popoverShown.add(el);
+    return true;
+  },
+  hasAttributeNS(el, ctx, args) {
+    return el.getAttributeNS(args[0], args[1]) !== null;
+  },
+  scrollIntoViewIfNeeded(el) { el.scrollIntoView(); return undefined; },
+  webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
+
+  // ---- staged families (knife 4; every message pinned by
+  // element-staged-truth-145.json mb.*/rfs.*/rpl.* keys)
+  computedStyleMap(el) { return SM.computedFor(el); },
+  moveBefore(el, ctx, args) {
+    const node = args[0];
+    if (node === null || node === undefined || typeof node !== 'object' || typeof node.nodeType !== 'number') {
+      throw new TypeError(ctx + ": parameter 1 is not of type 'Node'.");
+    }
+    if (node.parentNode !== el) {
+      throw new DOMException(ctx + ': State-preserving atomic move cannot be performed on nodes participating in an invalid hierarchy.', 'HierarchyRequestError');
+    }
+    const ref = args[1];
+    if (ref !== null && ref !== undefined && ref.parentNode !== el) {
+      throw new DOMException(ctx + ': The node before which the new node is to be inserted is not a child of this node.', 'NotFoundError');
+    }
+    return el.insertBefore(node, ref === undefined ? null : ref);
+  },
+  requestFullscreen() { return Promise.reject(new TypeError('Permissions check failed')); },
+  webkitRequestFullScreen() { return undefined; },
+  webkitRequestFullscreen() { return undefined; },
+  requestPointerLock() {
+    return Promise.reject(new DOMException('The root document of this element is not valid for pointer lock.', 'WrongDocumentError'));
+  },
+  ariaNotify() { return undefined; },
+};
+
+exports.get = function (name, el) {
+  const f = GET[name];
+  if (!f) throw new Error('htmlelement impl: no getter ' + name);
+  return f(el);
+};
+exports.set = function (name, el, v) {
+  const f = SET[name] || (/^aria\w+Elements?$/.test(name) ? SET.ariaSwallow : null);
+  if (!f) throw new Error('htmlelement impl: no setter ' + name);
+  f(el, v);
+};
+exports.call = function (name, el, ctx, args) {
+  const f = CALL[name];
+  if (!f) throw new Error('htmlelement impl: no operation ' + name);
+  return f(el, ctx, args);
+};
+});
+
+// ---- module gen/htmlelement (L2) ----
+__platform.define("gen/htmlelement", function (exports, require, P) {
+"use strict";
+// M4 knife 2: Chrome 145's HTMLElement/Element common-member layer.
+// Chrome owns 102 on* + 38 members on HTMLElement.prototype, 8 on* on
+// Element.prototype, all 110 on* on Document.prototype; the engine
+// bootstrap had 98 on* on Element.prototype and HTMLElement.prototype
+// bare. Members are seated in Chrome's own order; uniform reflection
+// is DATA (P.reflector); non-uniform semantics delegate to the
+// htmlelement impl module. Knife 4 landed the last staged families
+// (part/Typed OM/fullscreen trio/pointer lock/moveBefore/ariaNotify)
+// and moveBefore's Document/DocumentFragment hosts.
+// Staged (later knives, SURFACE.md ledger): none - all families landed (knife 4)
+const B = require('htmlelement');
+const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;
+const FRAG = typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null;
+const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;
+
+// ---- on* accessors: bootstrap _defineOnHandler semantics (store
+// __onHandlers per instance; inline content-attribute fallback for
+// element faces). installOn is idempotent; seat() additionally
+// RELOCATES a descriptor the bootstrap put on Element.prototype -
+// Chrome owns it on HTMLElement (+SVGElement for the shared set) -
+// deleting it from Element.prototype in the same step.
+function installOn(P, name, fallback) {
+  if (Object.prototype.hasOwnProperty.call(P, name)) return;
+  const get = function () {
+    const store = this.__onHandlers;
+    if (store && Object.prototype.hasOwnProperty.call(store, name)) return store[name];
+    if (fallback && typeof this._resolveInlineHandler === 'function') return this._resolveInlineHandler(name);
+    return null;
+  };
+  const set = function (fn) {
+    if (typeof fn !== 'function') fn = null;
+    const store = this.__onHandlers || (this.__onHandlers = {});
+    store[name] = fn;
+  };
+  Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });
+  Object.defineProperty(get, 'length', { value: 0, configurable: true });
+  Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true });
+  Object.defineProperty(set, 'length', { value: 1, configurable: true });
+  _markNative(get); _markNative(set);
+  Object.defineProperty(P, name, { configurable: true, enumerable: true, get: get, set: set });
+}
+function seat(name, install) {
+  const d = Object.getOwnPropertyDescriptor(EL, name);
+  if (d) {
+    Object.defineProperty(HT, name, d);
+    if (SVG && SVG_SHARE.indexOf(name) >= 0 && !Object.prototype.hasOwnProperty.call(SVG, name)) Object.defineProperty(SVG, name, d);
+    delete EL[name];
+  } else if (install && !Object.prototype.hasOwnProperty.call(HT, name)) install();
+}
+function seatOn(name) {
+  const d = Object.getOwnPropertyDescriptor(EL, name);
+  if (d) { Object.defineProperty(HT, name, d); delete EL[name]; }
+  else installOn(HT, name, true);
+}
+const SVG_SHARE = ["dataset", "style", "tabIndex", "focus", "blur"];
+function uprw(name, setter) {
+  Object.defineProperty(setter, 'name', { value: 'set ' + name, configurable: true });
+  Object.defineProperty(setter, 'length', { value: 1, configurable: true });
+  _markNative(setter);
+  const d = Object.getOwnPropertyDescriptor(EL, name);
+  if (d && d.get && !d.set && !Object.prototype.hasOwnProperty.call(d, 'value')) {
+    Object.defineProperty(EL, name, { get: d.get, set: setter, enumerable: true, configurable: true });
+  }
+}
+
+// ---- HTMLElement.prototype, installed in Chrome's own order (HT.order):
+// the emitted sequence IS the own-property order; `constructor` is
+// re-seated at Chrome's position (139th of 141).
+seat('title', function () { P.reflector(HT, 'title', {"attr": "title", "iface": "HTMLElement", "kind": "string"}); });
+seat('lang', function () { P.reflector(HT, 'lang', {"attr": "lang", "iface": "HTMLElement", "kind": "string"}); });
+seat('translate', function () { P.accessor(HT, 'translate', function __f() { return B.get('translate', this); }, function __f(v) { B.set('translate', this, v); }); });
+seat('dir', function () { P.reflector(HT, 'dir', {"attr": "dir", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"auto": "auto", "ltr": "ltr", "rtl": "rtl"}, "missing": ""}); });
+seat('hidden', function () { P.reflector(HT, 'hidden', {"attr": "hidden", "iface": "HTMLElement", "kind": "boolean-presence"}); });
+seat('inert', function () { P.reflector(HT, 'inert', {"attr": "inert", "iface": "HTMLElement", "kind": "boolean-presence"}); });
+seat('accessKey', function () { P.reflector(HT, 'accessKey', {"attr": "accesskey", "iface": "HTMLElement", "kind": "string"}); });
+seat('draggable', function () { P.reflector(HT, 'draggable', {"attr": "draggable", "iface": "HTMLElement", "kind": "boolean-truefalse"}); });
+seat('spellcheck', function () { P.accessor(HT, 'spellcheck', function __f() { return B.get('spellcheck', this); }, function __f(v) { B.set('spellcheck', this, v); }); });
+seat('autocapitalize', function () { P.reflector(HT, 'autocapitalize', {"attr": "autocapitalize", "empty": "", "iface": "HTMLElement", "invalid": "sentences", "kind": "enum", "map": {"characters": "characters", "none": "none", "off": "none", "words": "words"}, "missing": ""}); });
+seat('editContext', function () { P.accessor(HT, 'editContext', function __f() { return B.get('editContext', this); }, function __f(v) { B.set('editContext', this, v); }); });
+seat('contentEditable', function () { P.accessor(HT, 'contentEditable', function __f() { return B.get('contentEditable', this); }, function __f(v) { B.set('contentEditable', this, v); }); });
+seat('enterKeyHint', function () { P.reflector(HT, 'enterKeyHint', {"attr": "enterkeyhint", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"done": "done", "enter": "enter", "go": "go", "next": "next", "previous": "previous", "search": "search", "send": "send"}, "missing": ""}); });
+seat('isContentEditable', function () { P.getter(HT, 'isContentEditable', function __f() { return B.get('isContentEditable', this); }); });
+seat('inputMode', function () { P.reflector(HT, 'inputMode', {"attr": "inputmode", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"decimal": "decimal", "email": "email", "none": "none", "numeric": "numeric", "search": "search", "tel": "tel", "text": "text", "url": "url"}, "missing": ""}); });
+seat('virtualKeyboardPolicy', function () { P.reflector(HT, 'virtualKeyboardPolicy', {"attr": "virtualkeyboardpolicy", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"auto": "auto", "manual": "manual"}, "missing": ""}); });
+seat('offsetParent', null);
+seat('offsetTop', null);
+seat('offsetLeft', null);
+seat('offsetWidth', null);
+seat('offsetHeight', null);
+seat('popover', function () { P.accessor(HT, 'popover', function __f() { return B.get('popover', this); }, function __f(v) { B.set('popover', this, v); }); });
+seat('innerText', null);
+seat('outerText', function () { P.accessor(HT, 'outerText', function __f() { return B.get('outerText', this); }, function __f(v) { B.set('outerText', this, v); }); });
+seat('writingSuggestions', function () { P.reflector(HT, 'writingSuggestions', {"attr": "writingsuggestions", "iface": "HTMLElement", "invalid": "true", "kind": "enum", "map": {"false": "false"}, "missing": "true"}); });
+seatOn('onabort');
+seatOn('onbeforeinput');
+seatOn('onbeforematch');
+seatOn('onbeforetoggle');
+seatOn('onblur');
+seatOn('oncancel');
+seatOn('oncanplay');
+seatOn('oncanplaythrough');
+seatOn('onchange');
+seatOn('onclick');
+seatOn('onclose');
+seatOn('oncommand');
+seatOn('oncontentvisibilityautostatechange');
+seatOn('oncontextlost');
+seatOn('oncontextmenu');
+seatOn('oncontextrestored');
+seatOn('oncuechange');
+seatOn('ondblclick');
+seatOn('ondrag');
+seatOn('ondragend');
+seatOn('ondragenter');
+seatOn('ondragleave');
+seatOn('ondragover');
+seatOn('ondragstart');
+seatOn('ondrop');
+seatOn('ondurationchange');
+seatOn('onemptied');
+seatOn('onended');
+seatOn('onerror');
+seatOn('onfocus');
+seatOn('onformdata');
+seatOn('oninput');
+seatOn('oninvalid');
+seatOn('onkeydown');
+seatOn('onkeypress');
+seatOn('onkeyup');
+seatOn('onload');
+seatOn('onloadeddata');
+seatOn('onloadedmetadata');
+seatOn('onloadstart');
+seatOn('onmousedown');
+seatOn('onmouseenter');
+seatOn('onmouseleave');
+seatOn('onmousemove');
+seatOn('onmouseout');
+seatOn('onmouseover');
+seatOn('onmouseup');
+seatOn('onmousewheel');
+seatOn('onpause');
+seatOn('onplay');
+seatOn('onplaying');
+seatOn('onprogress');
+seatOn('onratechange');
+seatOn('onreset');
+seatOn('onresize');
+seatOn('onscroll');
+seatOn('onscrollend');
+seatOn('onsecuritypolicyviolation');
+seatOn('onseeked');
+seatOn('onseeking');
+seatOn('onselect');
+seatOn('onslotchange');
+seatOn('onstalled');
+seatOn('onsubmit');
+seatOn('onsuspend');
+seatOn('ontimeupdate');
+seatOn('ontoggle');
+seatOn('onvolumechange');
+seatOn('onwaiting');
+seatOn('onwebkitanimationend');
+seatOn('onwebkitanimationiteration');
+seatOn('onwebkitanimationstart');
+seatOn('onwebkittransitionend');
+seatOn('onwheel');
+seatOn('onauxclick');
+seatOn('ongotpointercapture');
+seatOn('onlostpointercapture');
+seatOn('onpointerdown');
+seatOn('onpointermove');
+seatOn('onpointerup');
+seatOn('onpointercancel');
+seatOn('onpointerover');
+seatOn('onpointerout');
+seatOn('onpointerenter');
+seatOn('onpointerleave');
+seatOn('onselectstart');
+seatOn('onselectionchange');
+seatOn('onanimationcancel');
+seatOn('onanimationend');
+seatOn('onanimationiteration');
+seatOn('onanimationstart');
+seatOn('ontransitionrun');
+seatOn('ontransitionstart');
+seatOn('ontransitionend');
+seatOn('ontransitioncancel');
+seatOn('onbeforexrselect');
+seatOn('oncopy');
+seatOn('oncut');
+seatOn('onpaste');
+seat('dataset', null);
+seat('nonce', function () { P.accessor(HT, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); }); });
+seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "iface": "HTMLElement", "kind": "boolean-presence"}); });
+seat('tabIndex', null);
+seat('style', null);
+seat('attributeStyleMap', function () { P.getter(HT, 'attributeStyleMap', function __f() { return B.get('attributeStyleMap', this); }); });
+seat('attachInternals', function () { P.method(HT, 'attachInternals', 0, function __f() { const ctx = "Failed to execute 'attachInternals' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('attachInternals', this, ctx, arguments); }); });
+seat('blur', null);
+seat('click', null);
+seat('focus', null);
+seat('hidePopover', function () { P.method(HT, 'hidePopover', 0, function __f() { const ctx = "Failed to execute 'hidePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('hidePopover', this, ctx, arguments); }); });
+seat('showPopover', function () { P.method(HT, 'showPopover', 0, function __f() { const ctx = "Failed to execute 'showPopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('showPopover', this, ctx, arguments); }); });
+seat('togglePopover', function () { P.method(HT, 'togglePopover', 0, function __f() { const ctx = "Failed to execute 'togglePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('togglePopover', this, ctx, arguments); }); });
+seatOn('onscrollsnapchange');
+seatOn('onscrollsnapchanging');
+delete HT.constructor;
+Object.defineProperty(HT, 'constructor', { value: HTMLElement, writable: true, enumerable: false, configurable: true });
+seatOn('onpointerrawupdate');
+
+// ---- arity alignment for relocated natives (truth fn.length: the
+// engine declared optional args Chrome doesn't count)
+function fixArity(name, len) {
+  const d = Object.getOwnPropertyDescriptor(HT, name);
+  if (d && typeof d.value === 'function' && d.value.length !== len) { try { Object.defineProperty(d.value, 'length', { value: len, configurable: true }); } catch (e) {} }
+}
+fixArity('attachInternals', 0);
+fixArity('blur', 0);
+fixArity('click', 0);
+fixArity('focus', 0);
+fixArity('showPopover', 0);
+fixArity('togglePopover', 0);
+
+// ---- Element.prototype additions (Chrome EL.order order; every
+// staged family landed at knife 4, so the contract is the FULL order)
+if (!Object.prototype.hasOwnProperty.call(EL, 'prefix')) P.getter(EL, 'prefix', function __f() { return null; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'part')) P.accessor(EL, 'part', function __f() { return B.get('part', this); }, function __f(v) { B.set('part', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'assignedSlot')) P.getter(EL, 'assignedSlot', function __f() { return null; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'clientTop')) P.getter(EL, 'clientTop', function __f() { return 0; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'clientLeft')) P.getter(EL, 'clientLeft', function __f() { return 0; });
+installOn(EL, 'onbeforecopy', false);
+installOn(EL, 'onbeforecut', false);
+installOn(EL, 'onbeforepaste', false);
+installOn(EL, 'onsearch', false);
+if (!Object.prototype.hasOwnProperty.call(EL, 'elementTiming')) P.reflector(EL, 'elementTiming', {"attr": "elementtiming", "kind": "string"});
+installOn(EL, 'onfullscreenchange', false);
+installOn(EL, 'onfullscreenerror', false);
+installOn(EL, 'onwebkitfullscreenchange', false);
+installOn(EL, 'onwebkitfullscreenerror', false);
+if (!Object.prototype.hasOwnProperty.call(EL, 'computedStyleMap')) P.method(EL, 'computedStyleMap', 0, function __f() { const ctx = "Failed to execute 'computedStyleMap' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('computedStyleMap', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'hasAttributeNS')) P.method(EL, 'hasAttributeNS', 2, function __f() { const ctx = "Failed to execute 'hasAttributeNS' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('hasAttributeNS', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'moveBefore')) P.method(EL, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'requestFullscreen')) P.method(EL, 'requestFullscreen', 0, function __f() { const ctx = "Failed to execute 'requestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestFullscreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'requestPointerLock')) P.method(EL, 'requestPointerLock', 0, function __f() { const ctx = "Failed to execute 'requestPointerLock' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPointerLock', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'scrollIntoViewIfNeeded')) P.method(EL, 'scrollIntoViewIfNeeded', 0, function __f() { const ctx = "Failed to execute 'scrollIntoViewIfNeeded' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('scrollIntoViewIfNeeded', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitMatchesSelector')) P.method(EL, 'webkitMatchesSelector', 1, function __f() { const ctx = "Failed to execute 'webkitMatchesSelector' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('webkitMatchesSelector', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullScreen')) P.method(EL, 'webkitRequestFullScreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullScreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullScreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullscreen')) P.method(EL, 'webkitRequestFullscreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullscreen', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'currentCSSZoom')) P.getter(EL, 'currentCSSZoom', function __f() { return 1; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActiveDescendantElement')) P.accessor(EL, 'ariaActiveDescendantElement', function __f() { return null; }, function __f(v) { B.set('ariaActiveDescendantElement', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaControlsElements')) P.accessor(EL, 'ariaControlsElements', function __f() { return null; }, function __f(v) { B.set('ariaControlsElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDescribedByElements')) P.accessor(EL, 'ariaDescribedByElements', function __f() { return null; }, function __f(v) { B.set('ariaDescribedByElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDetailsElements')) P.accessor(EL, 'ariaDetailsElements', function __f() { return null; }, function __f(v) { B.set('ariaDetailsElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaErrorMessageElements')) P.accessor(EL, 'ariaErrorMessageElements', function __f() { return null; }, function __f(v) { B.set('ariaErrorMessageElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaFlowToElements')) P.accessor(EL, 'ariaFlowToElements', function __f() { return null; }, function __f(v) { B.set('ariaFlowToElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaLabelledByElements')) P.accessor(EL, 'ariaLabelledByElements', function __f() { return null; }, function __f(v) { B.set('ariaLabelledByElements', this, v); });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaNotify')) P.method(EL, 'ariaNotify', 1, function __f() { const ctx = "Failed to execute 'ariaNotify' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('ariaNotify', this, ctx, arguments); });
+
+// ---- moveBefore on the other two hosts (truth DOC.moveBefore /
+// FRAG.moveBefore): same op through the impl, host name in the ctx
+if (!Object.prototype.hasOwnProperty.call(DOC, 'moveBefore')) P.method(DOC, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Document'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+if (!Object.prototype.hasOwnProperty.call(FRAG, 'moveBefore')) P.method(FRAG, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'DocumentFragment'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
+
+// ---- read-only faces Chrome ships read-write (setter via impl)
+uprw('classList', function __f(v) { B.set('classList', this, v); });
+uprw('outerHTML', function __f(v) { B.set('outerHTML', this, v); });
+
+// ---- engine on* extras Chrome 145 owns on no level (on.levels)
+if (Object.prototype.hasOwnProperty.call(EL, 'ondragexit')) delete EL['ondragexit'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ondragexit')) delete DOC['ondragexit'];
+if (Object.prototype.hasOwnProperty.call(EL, 'onfocusin')) delete EL['onfocusin'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'onfocusin')) delete DOC['onfocusin'];
+if (Object.prototype.hasOwnProperty.call(EL, 'onfocusout')) delete EL['onfocusout'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'onfocusout')) delete DOC['onfocusout'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchcancel')) delete EL['ontouchcancel'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchcancel')) delete DOC['ontouchcancel'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchend')) delete EL['ontouchend'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchend')) delete DOC['ontouchend'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchmove')) delete EL['ontouchmove'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchmove')) delete DOC['ontouchmove'];
+if (Object.prototype.hasOwnProperty.call(EL, 'ontouchstart')) delete EL['ontouchstart'];
+if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchstart')) delete DOC['ontouchstart'];
+
+// ---- Document.prototype: Chrome owns all 110 on* here; the engine's
+// 98 were bootstrap-installed - add whatever is missing (no inline
+// fallback on the document face, matching the bootstrap's choice).
+for (const n of ["onabort", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "onauxclick", "onbeforecopy", "onbeforecut", "onbeforeinput", "onbeforematch", "onbeforepaste", "onbeforetoggle", "onbeforexrselect", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncopy", "oncuechange", "oncut", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "onfullscreenchange", "onfullscreenerror", "ongotpointercapture", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onlostpointercapture", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpaste", "onpause", "onplay", "onplaying", "onpointercancel", "onpointerdown", "onpointerenter", "onpointerleave", "onpointermove", "onpointerout", "onpointerover", "onpointerrawupdate", "onpointerup", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onscrollsnapchange", "onscrollsnapchanging", "onsearch", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onselectionchange", "onselectstart", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "ontransitioncancel", "ontransitionend", "ontransitionrun", "ontransitionstart", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkitfullscreenchange", "onwebkitfullscreenerror", "onwebkittransitionend", "onwheel"]) installOn(DOC, n, false);
+
+// ---- SVGElement.prototype: GlobalEventHandlers + the
+// HTMLOrSVGOrMath/inline-style mixin faces (dataset/style/tabIndex/
+// focus/blur arrive via seat()'s SVG_SHARE copy; nonce installs here).
+if (SVG) {
+  for (const n of ["onabort", "onbeforeinput", "onbeforematch", "onbeforetoggle", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncuechange", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpause", "onplay", "onplaying", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkittransitionend", "onwheel", "onauxclick", "ongotpointercapture", "onlostpointercapture", "onpointerdown", "onpointermove", "onpointerup", "onpointercancel", "onpointerover", "onpointerout", "onpointerenter", "onpointerleave", "onselectstart", "onselectionchange", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "ontransitionrun", "ontransitionstart", "ontransitionend", "ontransitioncancel", "onbeforexrselect", "oncopy", "oncut", "onpaste", "onscrollsnapchange", "onscrollsnapchanging", "onpointerrawupdate"]) installOn(SVG, n, true);
+  if (!Object.prototype.hasOwnProperty.call(SVG, 'nonce')) P.accessor(SVG, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); });
+}
+});
+
+// ---- module domsmall (L2) ----
+__platform.define("domsmall", function (exports, require, P) {
+"use strict";
+// (loads after gen/htmlelement so DocumentFragment.moveBefore exists when the
+// prototype is re-seated into Chrome's order)
+// Small-member sweep (M4 knife 14): the 1-3 name gaps on interfaces that already
+// have their shape - CharacterData/Text/ProcessingInstruction/DocumentFragment
+// mixin members, MessageEvent.initMessageEvent/userActivation, DataTransfer data
+// access - plus four stubs that had no members at all (HashChangeEvent,
+// SubmitEvent, PopStateEvent, ClipboardEvent) and the value classes
+// RTCSessionDescription and InputDeviceCapabilities. Every fact is pinned by
+// chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
+// smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
+// prototype into Chrome's own member order.
+
+function reseat(proto, order) {
+  for (const n of order) {
+    const d = Object.getOwnPropertyDescriptor(proto, n);
+    if (d && d.configurable) { delete proto[n]; Object.defineProperty(proto, n, d); }
+  }
+}
+
+// ================= NonDocumentTypeChildNode on CharacterData; Slottable on Text;
+// LinkStyle on ProcessingInstruction; ParentNode.childElementCount on fragments
+const CD = CharacterData.prototype;
+function elementSibling(node, dir) {
+  for (let x = dir > 0 ? node.nextSibling : node.previousSibling; x; x = dir > 0 ? x.nextSibling : x.previousSibling) {
+    if (x.nodeType === 1) return x;
+  }
+  return null;
+}
+P.getter(CD, 'previousElementSibling', function __f() { if (!(this instanceof CharacterData)) P.illegal(__f); return elementSibling(this, -1); });
+P.getter(CD, 'nextElementSibling', function __f() { if (!(this instanceof CharacterData)) P.illegal(__f); return elementSibling(this, 1); });
+reseat(CD, ['data', 'length', 'previousElementSibling', 'nextElementSibling', 'after', 'appendData', 'before', 'deleteData',
+  'insertData', 'remove', 'replaceData', 'replaceWith', 'substringData', 'constructor']);
+P.getter(Text.prototype, 'assignedSlot', function __f() { if (!(this instanceof Text)) P.illegal(__f); return null; });
+reseat(Text.prototype, ['wholeText', 'assignedSlot', 'splitText', 'constructor']);
+P.getter(ProcessingInstruction.prototype, 'sheet', function __f() { if (!(this instanceof ProcessingInstruction)) P.illegal(__f); return null; });
+reseat(ProcessingInstruction.prototype, ['target', 'sheet', 'constructor']);
+P.getter(DocumentFragment.prototype, 'childElementCount', function __f() {
+  if (!(this instanceof DocumentFragment)) P.illegal(__f);
+  let n = 0;
+  for (let x = this.firstChild; x; x = x.nextSibling) if (x.nodeType === 1) n++;
+  return n;
+});
+reseat(DocumentFragment.prototype, ['children', 'firstElementChild', 'lastElementChild', 'childElementCount', 'append', 'getElementById',
+  'moveBefore', 'prepend', 'querySelector', 'querySelectorAll', 'replaceChildren', 'constructor']);
+
+// ================= tiny init-dictionary event factory
+const evSlots = new WeakMap();
+const isObj = (v) => (typeof v === 'object' && v !== null) || typeof v === 'function';
+const CONV = {
+  usv: (v, fn, pre) => P.conv.USVString(v, pre, fn),
+  bool: (v) => !!v,
+  any: (v) => v,
+  htmlElement: (v, fn, pre) => {
+    if (v === null || v === undefined) return null;
+    // the engine's SVG elements inherit HTMLElement: judge by namespace
+    if (v instanceof HTMLElement && v.namespaceURI === 'http://www.w3.org/1999/xhtml') return v;
+    P.fail(fn, "Failed to convert value to 'HTMLElement'.", pre);
+  },
+  dataTransfer: (v, fn, pre) => {
+    if (v === null || v === undefined) return null;
+    if (v instanceof DataTransfer) return v;
+    P.fail(fn, "Failed to convert value to 'DataTransfer'.", pre);
+  },
+};
+function mkEvent(name, dict, members, getters) {
+  const C = { [name]: function () {
+    const pre = "Failed to construct '" + name + "'";
+    if (new.target === undefined) P.fail(C, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
+    if (arguments.length < 1) P.fail(C, '1 argument required, but only 0 present.', pre);
+    const type = P.conv.DOMString(arguments[0], pre, C);
+    const init = arguments[1];
+    if (init !== undefined && init !== null && !isObj(init)) P.fail(C, "The provided value is not of type '" + dict + "'.", pre);
+    const o = init === undefined || init === null ? {} : init;
+    const ev = Reflect.construct(Event, init === undefined || init === null ? [type] : [type, init], new.target);
+    const s = {};
+    for (const m of Object.keys(members).sort()) {
+      const [conv, dflt] = members[m];
+      s[m] = o[m] === undefined ? dflt : CONV[conv](o[m], C, pre + ": Failed to read the '" + m + "' property from '" + dict + "'");
+    }
+    evSlots.set(ev, s);
+    return ev;
+  } }[name];
+  const proto = P.iface(C, name, 1, Event);
+  for (const g of getters) {
+    P.getter(proto, g, function __f() { const s = evSlots.get(this); if (!s) P.illegal(__f); return s[g]; });
+  }
+  P.seal(C);
+  return C;
+}
+const HashChangeEvent = mkEvent('HashChangeEvent', 'HashChangeEventInit', { newURL: ['usv', ''], oldURL: ['usv', ''] }, ['oldURL', 'newURL']);
+const SubmitEvent = mkEvent('SubmitEvent', 'SubmitEventInit', { submitter: ['htmlElement', null] }, ['submitter']);
+const PopStateEvent = mkEvent('PopStateEvent', 'PopStateEventInit', { hasUAVisualTransition: ['bool', false], state: ['any', null] }, ['state', 'hasUAVisualTransition']);
+const ClipboardEvent = mkEvent('ClipboardEvent', 'ClipboardEventInit', { clipboardData: ['dataTransfer', null] }, ['clipboardData']);
+
+// ================= MessageEvent: initMessageEvent + userActivation on the bootstrap class
+const ME = MessageEvent.prototype;
+P.getter(ME, 'userActivation', function __f() { _evxGuard(_evx.get(this)); return null; });
+P.method(ME, 'initMessageEvent', 1, function __f() {
+  const pre = "Failed to execute 'initMessageEvent' on 'MessageEvent'";
+  const s = _evxGuard(_evx.get(this));
+  if (arguments.length < 1) P.fail(__f, '1 argument required, but only 0 present.', pre);
+  const a = arguments;
+  const type = P.conv.DOMString(a[0], pre, __f);
+  if (this.eventPhase !== 0) return;
+  this.initEvent(type, !!a[1], !!a[2]);
+  s.data = a[3] === undefined ? null : a[3];
+  s.origin = a[4] === undefined ? '' : P.conv.USVString(a[4], pre, __f);
+  s.lastEventId = a[5] === undefined ? '' : P.conv.DOMString(a[5], pre, __f);
+  s.source = a[6] === undefined ? null : a[6];
+  s.ports = a[7] === undefined || a[7] === null ? [] : Array.from(a[7]);
+});
+reseat(ME, ['data', 'origin', 'lastEventId', 'source', 'ports', 'userActivation', 'initMessageEvent', 'constructor']);
+
+// ================= DataTransfer data access on the bootstrap class's string-item store
+const DT = DataTransfer.prototype;
+function dtFormat(f) {
+  const l = f.toLowerCase();
+  return l === 'text' ? 'text/plain' : l === 'url' ? 'text/uri-list' : l;
+}
+const typesCache = new WeakMap();
+P.method(DT, 'clearData', 0, function __f(format) {
+  if (!Array.isArray(this._dtItems)) P.illegal(__f);
+  const keep = [];
+  const f = arguments.length === 0 ? null : dtFormat(P.conv.DOMString(format, "Failed to execute 'clearData' on 'DataTransfer'", __f));
+  for (const it of this._dtItems) { if (it.kind === 'file' || (f !== null && it.type !== f)) keep.push(it); }
+  this._dtItems.length = 0;
+  for (const it of keep) this._dtItems.push(it);
+});
+P.method(DT, 'getData', 1, function __f(format) {
+  const pre = "Failed to execute 'getData' on 'DataTransfer'";
+  if (!Array.isArray(this._dtItems)) P.illegal(__f);
+  if (arguments.length < 1) P.fail(__f, '1 argument required, but only 0 present.', pre);
+  const raw = P.conv.DOMString(format, pre, __f);
+  const f = dtFormat(raw);
+  const it = this._dtItems.find((x) => x.kind === 'string' && x.type === f);
+  if (!it) return '';
+  if (raw.toLowerCase() === 'url') {
+    // the legacy 'url' format returns the first valid URL of the uri-list, serialized
+    for (const line of String(it.data).split(/\r?\n/)) {
+      if (line === '' || line[0] === '#') continue;
+      try { return new URL(line).href; } catch (e) { return ''; }
+    }
+    return '';
+  }
+  return it.data;
+});
+P.method(DT, 'setData', 2, function __f(format, data) {
+  const pre = "Failed to execute 'setData' on 'DataTransfer'";
+  if (!Array.isArray(this._dtItems)) P.illegal(__f);
+  if (arguments.length < 2) P.fail(__f, '2 arguments required, but only ' + arguments.length + ' present.', pre);
+  const f = dtFormat(P.conv.DOMString(format, pre, __f));
+  const d = P.conv.DOMString(data, pre, __f);
+  const at = this._dtItems.findIndex((x) => x.kind === 'string' && x.type === f);
+  if (at >= 0) this._dtItems.splice(at, 1);
+  this._dtItems.push({ kind: 'string', type: f, data: d });
+});
+// types: frozen, and the SAME array until the content changes
+const legacyTypes = Object.getOwnPropertyDescriptor(DT, 'types').get;
+P.getter(DT, 'types', function __f() {
+  const fresh = legacyTypes.call(this);
+  const prev = typesCache.get(this);
+  if (prev && prev.length === fresh.length && prev.every((v, i) => v === fresh[i])) return prev;
+  const frozen = Object.freeze(fresh);
+  typesCache.set(this, frozen);
+  return frozen;
+});
+reseat(DT, ['dropEffect', 'effectAllowed', 'items', 'types', 'files', 'clearData', 'getData', 'setData', 'setDragImage', 'constructor']);
+
+// ================= RTCSessionDescription (type and sdp are read-write)
+const sdSlots = new WeakMap();
+const SDP_TYPES = ['offer', 'answer', 'pranswer', 'rollback'];
+function RTCSessionDescription() {
+  const pre = "Failed to construct 'RTCSessionDescription'";
+  if (new.target === undefined) P.fail(RTCSessionDescription, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
+  let init = arguments[0];
+  if (init === null) init = undefined;
+  if (init !== undefined && !isObj(init)) P.fail(RTCSessionDescription, "The provided value is not of type 'RTCSessionDescriptionInit'.", pre);
+  const o = init === undefined ? {} : init;
+  const rd = (k) => pre + ": Failed to read the '" + k + "' property from 'RTCSessionDescriptionInit'";
+  const sdp = o.sdp === undefined ? '' : P.conv.DOMString(o.sdp, rd('sdp'), RTCSessionDescription);
+  let type = null;
+  if (o.type !== undefined) {
+    const t = P.conv.DOMString(o.type, rd('type'), RTCSessionDescription);
+    if (!SDP_TYPES.includes(t)) P.fail(RTCSessionDescription, "The provided value '" + t + "' is not a valid enum value of type RTCSdpType.", rd('type'));
+    type = t;
+  }
+  const self = Reflect.construct(Object, [], new.target);
+  sdSlots.set(self, { type, sdp });
+  return self;
+}
+const SDP = P.iface(RTCSessionDescription, 'RTCSessionDescription', 0);
+function sd(o, fn) { const s = o !== null && typeof o === 'object' ? sdSlots.get(o) : undefined; if (!s) P.illegal(fn); return s; }
+P.accessor(SDP, 'type', function __f() { return sd(this, __f).type; }, function __f(v) {
+  const t = P.conv.DOMString(v, "Failed to set the 'type' property on 'RTCSessionDescription'", __f);
+  if (SDP_TYPES.includes(t)) sd(this, __f).type = t; else sd(this, __f);
+});
+P.accessor(SDP, 'sdp', function __f() { return sd(this, __f).sdp; },
+  function __f(v) { sd(this, __f).sdp = P.conv.DOMString(v, "Failed to set the 'sdp' property on 'RTCSessionDescription'", __f); });
+P.method(SDP, 'toJSON', 0, function __f() { const s = sd(this, __f); return { type: s.type, sdp: s.sdp }; });
+P.seal(RTCSessionDescription);
+
+// ================= InputDeviceCapabilities({firesTouchEvents})
+const idcSlots = new WeakMap();
+function InputDeviceCapabilities() {
+  const pre = "Failed to construct 'InputDeviceCapabilities'";
+  if (new.target === undefined) P.fail(InputDeviceCapabilities, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
+  let init = arguments[0];
+  if (init === null) init = undefined;
+  if (init !== undefined && !isObj(init)) P.fail(InputDeviceCapabilities, "The provided value is not of type 'InputDeviceCapabilitiesInit'.", pre);
+  const self = Reflect.construct(Object, [], new.target);
+  idcSlots.set(self, { firesTouchEvents: init === undefined ? false : !!init.firesTouchEvents });
+  return self;
+}
+const IDP = P.iface(InputDeviceCapabilities, 'InputDeviceCapabilities', 0);
+P.getter(IDP, 'firesTouchEvents', function __f() { const s = idcSlots.get(this); if (!s) P.illegal(__f); return s.firesTouchEvents; });
+P.seal(InputDeviceCapabilities);
+
+for (const [n, C] of Object.entries({ HashChangeEvent, SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
+});
+
 // ---- module geometry (L2) ----
 __platform.define("geometry", function (exports, require, P) {
 "use strict";
@@ -1460,608 +2285,6 @@ P.expose('DOMRect', DOMRect);
 P.expect({"length": 0, "members": [{"kind": "accessor", "length": 0, "name": "x"}, {"kind": "accessor", "length": 0, "name": "y"}, {"kind": "accessor", "length": 0, "name": "width"}, {"kind": "accessor", "length": 0, "name": "height"}], "name": "DOMRect", "statics": [{"kind": "static", "length": 0, "name": "fromRect"}]});
 
 if (B.ready) B.ready();
-});
-
-// ---- module stylemap (L2) ----
-__platform.define("stylemap", function (exports, require, P) {
-"use strict";
-// Typed OM read faces for Element staged members (M4 knife 4):
-// element.attributeStyleMap (StylePropertyMap) and
-// element.computedStyleMap() (StylePropertyMapReadOnly). The window classes
-// were bare ctor-throw stubs from global_surface.js; this module owns them
-// for real (P.iface brands + member order from Chrome truth
-// element-staged-truth-145.json keys spm.classes/spm.symbols/spm.ctor - the
-// global_surface THROW install SKIPs on our non-enumerable expose, the same
-// handover pattern Performance took at knife 3). The ctor keeps throwing
-// Chrome's exact "Failed to construct ... Illegal constructor" message.
-//
-// Behavior pinned by truth: attributeStyleMap is a cached ro accessor whose
-// map parses the style attribute (withstyle: 'color: red' -> size 1,
-// get('color') is a CSSStyleValue, String 'red'); computedStyleMap() caches a
-// read-only map over getComputedStyle(el) whose size === gcs(el).length
-// (Chrome 413; the engine's computed-property list is its own count - that
-// list's parity is the CSSStyleDeclaration family, not this one). Instances
-// of CSSStyleValue are privately minted: the window CSSStyleValue face stays
-// the global_surface stub, untouched.
-
-// ---- value face: constructor.name 'CSSStyleValue', String(v) = the text
-// (truth asm.withstyle). Private class - nothing here touches the window
-// CSSStyleValue stub.
-const valSlots = new WeakMap();
-function CSSStyleValue(v) { valSlots.set(this, v); }
-Object.defineProperty(CSSStyleValue.prototype, 'toString', {
-  value: function () { return String(valSlots.get(this)); },
-  writable: true, enumerable: false, configurable: true,
-});
-function mkVal(s) { return new CSSStyleValue(s); }
-
-// ---- interfaces (own-member order = spm.classes truth; @@iterator =
-// entries, spm.symbols truth)
-function StylePropertyMapReadOnly() {
-  P.fail(StylePropertyMapReadOnly, 'Illegal constructor', "Failed to construct 'StylePropertyMapReadOnly'");
-}
-function StylePropertyMap() {
-  P.fail(StylePropertyMap, 'Illegal constructor', "Failed to construct 'StylePropertyMap'");
-}
-const RO = P.iface(StylePropertyMapReadOnly, 'StylePropertyMapReadOnly', 0);
-const MP = P.iface(StylePropertyMap, 'StylePropertyMap', 0, StylePropertyMapReadOnly);
-
-// instance state: { el | null, map: Map<lowercased name, value text> }
-const instData = new WeakMap();
-function data(o, fn) {
-  const d = instData.get(o);
-  if (d === undefined) P.illegal(fn);
-  return d;
-}
-function norm(map, k) {
-  const s = String(k);
-  return map.has(s) ? s : s.toLowerCase();
-}
-
-// StylePropertyMapReadOnly.prototype: size get getAll has entries forEach
-// keys values (Chrome own order), then constructor.
-P.getter(RO, 'size', function __f() { return data(this, __f).map.size; });
-P.method(RO, 'get', 1, function __f(k) { const d = data(this, __f); const v = d.map.get(norm(d.map, k)); return v === undefined ? null : mkVal(v); });
-P.method(RO, 'getAll', 1, function __f(k) { const d = data(this, __f); const v = d.map.get(norm(d.map, k)); return v === undefined ? null : [mkVal(v)]; });
-P.method(RO, 'has', 1, function __f(k) { const d = data(this, __f); return d.map.has(norm(d.map, k)); });
-function smEntries(o, fn) { const d = data(o, fn); const out = []; d.map.forEach(function (v, k) { out.push([k, mkVal(v)]); }); return out; }
-P.method(RO, 'entries', 0, function __f() { return smEntries(this, __f); });
-P.method(RO, 'forEach', 1, function __f(cb, thisArg) { const d = data(this, __f); d.map.forEach(function (v, k) { cb.call(thisArg, mkVal(v), k, d.map.size); }); });
-P.method(RO, 'keys', 0, function __f() { return Array.from(data(this, __f).map.keys()); });
-P.method(RO, 'values', 0, function __f() { const out = []; data(this, __f).map.forEach(function (v) { out.push(mkVal(v)); }); return out; });
-Object.defineProperty(RO, Symbol.iterator, { value: RO.entries, writable: true, enumerable: false, configurable: true });
-P.seal(StylePropertyMapReadOnly);
-
-// StylePropertyMap.prototype: append clear delete set (Chrome own order),
-// then constructor. Mutators update the style attribute in place.
-function writeAttr(o, fn) {
-  const d = data(o, fn);
-  if (d.el) {
-    const parts = [];
-    d.map.forEach(function (v, k) { parts.push(k + ': ' + v); });
-    d.el.setAttribute('style', parts.join('; '));
-  }
-}
-P.method(MP, 'append', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
-P.method(MP, 'clear', 0, function __f() { data(this, __f).map.clear(); writeAttr(this, __f); });
-P.method(MP, 'delete', 1, function __f(k) { const d = data(this, __f); const hit = d.map.delete(norm(d.map, k)); writeAttr(this, __f); return hit; });
-P.method(MP, 'set', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
-P.seal(StylePropertyMap);
-
-// ---- instance mints (cached per element: truth asm.identity/csm.identity)
-function parseDecls(text) {
-  const map = new Map();
-  String(text == null ? '' : text).split(';').forEach(function (part) {
-    const i = part.indexOf(':');
-    if (i < 0) return;
-    const k = part.slice(0, i).trim();
-    const v = part.slice(i + 1).trim();
-    if (k) map.set(k.toLowerCase(), v);
-  });
-  return map;
-}
-
-const attrCache = new WeakMap();
-exports.forElement = function (el) {
-  let m = attrCache.get(el);
-  if (!m) {
-    m = Object.create(StylePropertyMap.prototype);
-    instData.set(m, { el: el, map: parseDecls(el.getAttribute('style')) });
-    attrCache.set(el, m);
-  }
-  return m;
-};
-
-const compCache = new WeakMap();
-exports.computedFor = function (el) {
-  let m = compCache.get(el);
-  if (!m) {
-    const cs = getComputedStyle(el);
-    const map = new Map();
-    for (let i = 0; i < cs.length; i++) map.set(cs[i], cs.getPropertyValue(cs[i]));
-    m = Object.create(StylePropertyMapReadOnly.prototype);
-    instData.set(m, { el: null, map: map });
-    compCache.set(el, m);
-  }
-  return m;
-};
-
-P.expose('StylePropertyMapReadOnly', StylePropertyMapReadOnly);
-P.expose('StylePropertyMap', StylePropertyMap);
-});
-
-// ---- module htmlelement (L2) ----
-__platform.define("htmlelement", function (exports, require, P) {
-"use strict";
-// HTMLElement/Element behavior only; the member SHAPE (placement, order,
-// descriptor kinds, arity) is generated from the Chrome truth overlay in
-// gen/htmlelement.gen.js, and uniform attribute reflection is DATA there
-// (P.reflector). This module owns the NON-uniform semantics; every fact
-// below that could be misremembered is pinned by a key in
-// tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
-// Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
-// Knife-4 staged-family behavior (part/attributeStyleMap/computedStyleMap/
-// fullscreen trio/pointer lock/moveBefore/ariaNotify) is pinned by
-// element-staged-truth-145.json and diffed by
-// element_staged_members_match_chrome_truth.
-
-// ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
-// property 'abc' -> getAttribute('nonce') === null). Chrome hides the
-// attribute value once the element is connected; that nuance is staged.
-const nonceSlots = new WeakMap();
-
-// ---- popover shown-state: no invoker/layout machinery yet - toggle flips
-// a per-element flag (first call on a plain div returns true, truth
-// togglePopover.plain); show/hide are Chrome's no-ops (truth
-// showPopover.plain === #undefined on a non-popover element).
-const popoverShown = new WeakSet();
-
-// ---- staged-family state (knife 4): part DOMTokenList is cached per
-// element (truth part.same); the Typed OM maps cache in stylemap.
-const partCache = new WeakMap();
-const SM = require('stylemap');
-
-const GET = {
-  translate(el) { return el.getAttribute('translate') === 'no' ? false : true; },
-  spellcheck(el) {
-    const v = el.getAttribute('spellcheck');
-    return v === 'true' ? true : v === 'false' ? false : true; // invalid attr -> default true (truth spellcheck.attr.invalid)
-  },
-  popover(el) {
-    const v = el.getAttribute('popover');
-    if (v === null) return null;
-    if (v === '') return 'auto';
-    const low = v.toLowerCase();
-    return low === 'auto' || low === 'manual' ? low : 'manual';
-  },
-  nonce(el) { return nonceSlots.get(el) || ''; },
-  contentEditable(el) {
-    const v = el.getAttribute('contenteditable');
-    if (v === null) return 'inherit';
-    const low = v.toLowerCase();
-    if (low === '') return 'true'; // empty attribute = the true state (htmlreflect-truth vocab[''])
-    return low === 'true' || low === 'false' || low === 'plaintext-only' ? low : 'inherit';
-  },
-  isContentEditable(el) {
-    const v = el.getAttribute('contenteditable');
-    if (v === null) return false;
-    const low = v.toLowerCase();
-    return low === '' || low === 'true' || low === 'plaintext-only';
-  },
-  outerText(el) { return el.innerText; },
-  editContext() { return null; },
-  part(el) {
-    let p = partCache.get(el);
-    if (!p) { p = new DOMTokenList(el, 'part'); partCache.set(el, p); }
-    return p;
-  },
-  attributeStyleMap(el) { return SM.forElement(el); },
-};
-
-const SET = {
-  translate(el, v) {
-    // boolean IDL attribute over the enumerated content attribute: ToBoolean
-    // of ANY value, written 'yes'/'no' (htmlreflect-truth translate.set.*:
-    // 'maybe'/5/true -> 'yes'; ''/null/undefined/false -> 'no'). The knife-2
-    // reading ("invalid values are a no-op") misread set.translate.bad.
-    el.setAttribute('translate', v ? 'yes' : 'no');
-  },
-  spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
-  popover(el, v) {
-    if (v === null) { el.removeAttribute('popover'); return; }
-    el.setAttribute('popover', v === undefined ? '' : String(v));
-  },
-  nonce(el, v) { nonceSlots.set(el, P.conv.DOMString(v, "Failed to set the 'nonce' property on 'HTMLElement'", SET.nonce)); },
-  contentEditable(el, v) {
-    const s = P.conv.DOMString(v, "Failed to set the 'contentEditable' property on 'HTMLElement'", SET.contentEditable);
-    const low = s.toLowerCase();
-    if (low === 'true' || low === 'false' || low === 'plaintext-only') { el.setAttribute('contenteditable', low); return; }
-    if (low === 'inherit') { el.removeAttribute('contenteditable'); return; }
-    throw new DOMException("Failed to set the 'contentEditable' property on 'HTMLElement': The value provided ('" +
-      s + "') is not one of 'true', 'false', 'plaintext-only', or 'inherit'.", 'SyntaxError');
-  },
-  outerText(el, v) {
-    // Chrome replaces the element with a text node (truth set.outerText:
-    // parentNode is null afterwards); parentless is a silent no-op.
-    const parent = el.parentNode;
-    if (!parent) return;
-    parent.replaceChild(document.createTextNode(String(v)), el);
-  },
-  editContext() { /* swallow */ },
-  classList(el, v) { el.className = v === undefined || v === null ? '' : String(v); },
-  outerHTML(el, v) {
-    // Chrome replaces the node via fragment parsing; the pinned case is the
-    // parentless throw (truth outerHTML.set, exact message).
-    const parent = el.parentNode;
-    if (!parent) throw new DOMException("Failed to set the 'outerHTML' property on 'Element': This element has no parent node.", 'NoModificationAllowedError');
-    el.insertAdjacentHTML('beforebegin', String(v));
-    el.remove();
-  },
-  // aria*Elements: nullable IDREF reflection with no element machinery -
-  // the setter accepts and swallows (shape rw per EL.kinds).
-  ariaSwallow() { /* swallow */ },
-  part(el, v) { el.setAttribute('part', v === undefined || v === null ? '' : String(v)); },
-};
-
-const CALL = {
-  attachInternals() {
-    throw new DOMException("Failed to execute 'attachInternals' on 'HTMLElement': Unable to attach ElementInternals to non-custom elements.", 'NotSupportedError');
-  },
-  showPopover() { return undefined; },
-  hidePopover() { return undefined; },
-  togglePopover(el) {
-    if (popoverShown.has(el)) { popoverShown.delete(el); return false; }
-    popoverShown.add(el);
-    return true;
-  },
-  hasAttributeNS(el, ctx, args) {
-    return el.getAttributeNS(args[0], args[1]) !== null;
-  },
-  scrollIntoViewIfNeeded(el) { el.scrollIntoView(); return undefined; },
-  webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
-
-  // ---- staged families (knife 4; every message pinned by
-  // element-staged-truth-145.json mb.*/rfs.*/rpl.* keys)
-  computedStyleMap(el) { return SM.computedFor(el); },
-  moveBefore(el, ctx, args) {
-    const node = args[0];
-    if (node === null || node === undefined || typeof node !== 'object' || typeof node.nodeType !== 'number') {
-      throw new TypeError(ctx + ": parameter 1 is not of type 'Node'.");
-    }
-    if (node.parentNode !== el) {
-      throw new DOMException(ctx + ': State-preserving atomic move cannot be performed on nodes participating in an invalid hierarchy.', 'HierarchyRequestError');
-    }
-    const ref = args[1];
-    if (ref !== null && ref !== undefined && ref.parentNode !== el) {
-      throw new DOMException(ctx + ': The node before which the new node is to be inserted is not a child of this node.', 'NotFoundError');
-    }
-    return el.insertBefore(node, ref === undefined ? null : ref);
-  },
-  requestFullscreen() { return Promise.reject(new TypeError('Permissions check failed')); },
-  webkitRequestFullScreen() { return undefined; },
-  webkitRequestFullscreen() { return undefined; },
-  requestPointerLock() {
-    return Promise.reject(new DOMException('The root document of this element is not valid for pointer lock.', 'WrongDocumentError'));
-  },
-  ariaNotify() { return undefined; },
-};
-
-exports.get = function (name, el) {
-  const f = GET[name];
-  if (!f) throw new Error('htmlelement impl: no getter ' + name);
-  return f(el);
-};
-exports.set = function (name, el, v) {
-  const f = SET[name] || (/^aria\w+Elements?$/.test(name) ? SET.ariaSwallow : null);
-  if (!f) throw new Error('htmlelement impl: no setter ' + name);
-  f(el, v);
-};
-exports.call = function (name, el, ctx, args) {
-  const f = CALL[name];
-  if (!f) throw new Error('htmlelement impl: no operation ' + name);
-  return f(el, ctx, args);
-};
-});
-
-// ---- module gen/htmlelement (L2) ----
-__platform.define("gen/htmlelement", function (exports, require, P) {
-"use strict";
-// M4 knife 2: Chrome 145's HTMLElement/Element common-member layer.
-// Chrome owns 102 on* + 38 members on HTMLElement.prototype, 8 on* on
-// Element.prototype, all 110 on* on Document.prototype; the engine
-// bootstrap had 98 on* on Element.prototype and HTMLElement.prototype
-// bare. Members are seated in Chrome's own order; uniform reflection
-// is DATA (P.reflector); non-uniform semantics delegate to the
-// htmlelement impl module. Knife 4 landed the last staged families
-// (part/Typed OM/fullscreen trio/pointer lock/moveBefore/ariaNotify)
-// and moveBefore's Document/DocumentFragment hosts.
-// Staged (later knives, SURFACE.md ledger): none - all families landed (knife 4)
-const B = require('htmlelement');
-const HT = HTMLElement.prototype, EL = Element.prototype, DOC = Document.prototype;
-const FRAG = typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null;
-const SVG = typeof SVGElement !== 'undefined' ? SVGElement.prototype : null;
-
-// ---- on* accessors: bootstrap _defineOnHandler semantics (store
-// __onHandlers per instance; inline content-attribute fallback for
-// element faces). installOn is idempotent; seat() additionally
-// RELOCATES a descriptor the bootstrap put on Element.prototype -
-// Chrome owns it on HTMLElement (+SVGElement for the shared set) -
-// deleting it from Element.prototype in the same step.
-function installOn(P, name, fallback) {
-  if (Object.prototype.hasOwnProperty.call(P, name)) return;
-  const get = function () {
-    const store = this.__onHandlers;
-    if (store && Object.prototype.hasOwnProperty.call(store, name)) return store[name];
-    if (fallback && typeof this._resolveInlineHandler === 'function') return this._resolveInlineHandler(name);
-    return null;
-  };
-  const set = function (fn) {
-    if (typeof fn !== 'function') fn = null;
-    const store = this.__onHandlers || (this.__onHandlers = {});
-    store[name] = fn;
-  };
-  Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });
-  Object.defineProperty(get, 'length', { value: 0, configurable: true });
-  Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true });
-  Object.defineProperty(set, 'length', { value: 1, configurable: true });
-  _markNative(get); _markNative(set);
-  Object.defineProperty(P, name, { configurable: true, enumerable: true, get: get, set: set });
-}
-function seat(name, install) {
-  const d = Object.getOwnPropertyDescriptor(EL, name);
-  if (d) {
-    Object.defineProperty(HT, name, d);
-    if (SVG && SVG_SHARE.indexOf(name) >= 0 && !Object.prototype.hasOwnProperty.call(SVG, name)) Object.defineProperty(SVG, name, d);
-    delete EL[name];
-  } else if (install && !Object.prototype.hasOwnProperty.call(HT, name)) install();
-}
-function seatOn(name) {
-  const d = Object.getOwnPropertyDescriptor(EL, name);
-  if (d) { Object.defineProperty(HT, name, d); delete EL[name]; }
-  else installOn(HT, name, true);
-}
-const SVG_SHARE = ["dataset", "style", "tabIndex", "focus", "blur"];
-function uprw(name, setter) {
-  Object.defineProperty(setter, 'name', { value: 'set ' + name, configurable: true });
-  Object.defineProperty(setter, 'length', { value: 1, configurable: true });
-  _markNative(setter);
-  const d = Object.getOwnPropertyDescriptor(EL, name);
-  if (d && d.get && !d.set && !Object.prototype.hasOwnProperty.call(d, 'value')) {
-    Object.defineProperty(EL, name, { get: d.get, set: setter, enumerable: true, configurable: true });
-  }
-}
-
-// ---- HTMLElement.prototype, installed in Chrome's own order (HT.order):
-// the emitted sequence IS the own-property order; `constructor` is
-// re-seated at Chrome's position (139th of 141).
-seat('title', function () { P.reflector(HT, 'title', {"attr": "title", "iface": "HTMLElement", "kind": "string"}); });
-seat('lang', function () { P.reflector(HT, 'lang', {"attr": "lang", "iface": "HTMLElement", "kind": "string"}); });
-seat('translate', function () { P.accessor(HT, 'translate', function __f() { return B.get('translate', this); }, function __f(v) { B.set('translate', this, v); }); });
-seat('dir', function () { P.reflector(HT, 'dir', {"attr": "dir", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"auto": "auto", "ltr": "ltr", "rtl": "rtl"}, "missing": ""}); });
-seat('hidden', function () { P.reflector(HT, 'hidden', {"attr": "hidden", "iface": "HTMLElement", "kind": "boolean-presence"}); });
-seat('inert', function () { P.reflector(HT, 'inert', {"attr": "inert", "iface": "HTMLElement", "kind": "boolean-presence"}); });
-seat('accessKey', function () { P.reflector(HT, 'accessKey', {"attr": "accesskey", "iface": "HTMLElement", "kind": "string"}); });
-seat('draggable', function () { P.reflector(HT, 'draggable', {"attr": "draggable", "iface": "HTMLElement", "kind": "boolean-truefalse"}); });
-seat('spellcheck', function () { P.accessor(HT, 'spellcheck', function __f() { return B.get('spellcheck', this); }, function __f(v) { B.set('spellcheck', this, v); }); });
-seat('autocapitalize', function () { P.reflector(HT, 'autocapitalize', {"attr": "autocapitalize", "empty": "", "iface": "HTMLElement", "invalid": "sentences", "kind": "enum", "map": {"characters": "characters", "none": "none", "off": "none", "words": "words"}, "missing": ""}); });
-seat('editContext', function () { P.accessor(HT, 'editContext', function __f() { return B.get('editContext', this); }, function __f(v) { B.set('editContext', this, v); }); });
-seat('contentEditable', function () { P.accessor(HT, 'contentEditable', function __f() { return B.get('contentEditable', this); }, function __f(v) { B.set('contentEditable', this, v); }); });
-seat('enterKeyHint', function () { P.reflector(HT, 'enterKeyHint', {"attr": "enterkeyhint", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"done": "done", "enter": "enter", "go": "go", "next": "next", "previous": "previous", "search": "search", "send": "send"}, "missing": ""}); });
-seat('isContentEditable', function () { P.getter(HT, 'isContentEditable', function __f() { return B.get('isContentEditable', this); }); });
-seat('inputMode', function () { P.reflector(HT, 'inputMode', {"attr": "inputmode", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"decimal": "decimal", "email": "email", "none": "none", "numeric": "numeric", "search": "search", "tel": "tel", "text": "text", "url": "url"}, "missing": ""}); });
-seat('virtualKeyboardPolicy', function () { P.reflector(HT, 'virtualKeyboardPolicy', {"attr": "virtualkeyboardpolicy", "iface": "HTMLElement", "invalid": "", "kind": "enum", "map": {"auto": "auto", "manual": "manual"}, "missing": ""}); });
-seat('offsetParent', null);
-seat('offsetTop', null);
-seat('offsetLeft', null);
-seat('offsetWidth', null);
-seat('offsetHeight', null);
-seat('popover', function () { P.accessor(HT, 'popover', function __f() { return B.get('popover', this); }, function __f(v) { B.set('popover', this, v); }); });
-seat('innerText', null);
-seat('outerText', function () { P.accessor(HT, 'outerText', function __f() { return B.get('outerText', this); }, function __f(v) { B.set('outerText', this, v); }); });
-seat('writingSuggestions', function () { P.reflector(HT, 'writingSuggestions', {"attr": "writingsuggestions", "iface": "HTMLElement", "invalid": "true", "kind": "enum", "map": {"false": "false"}, "missing": "true"}); });
-seatOn('onabort');
-seatOn('onbeforeinput');
-seatOn('onbeforematch');
-seatOn('onbeforetoggle');
-seatOn('onblur');
-seatOn('oncancel');
-seatOn('oncanplay');
-seatOn('oncanplaythrough');
-seatOn('onchange');
-seatOn('onclick');
-seatOn('onclose');
-seatOn('oncommand');
-seatOn('oncontentvisibilityautostatechange');
-seatOn('oncontextlost');
-seatOn('oncontextmenu');
-seatOn('oncontextrestored');
-seatOn('oncuechange');
-seatOn('ondblclick');
-seatOn('ondrag');
-seatOn('ondragend');
-seatOn('ondragenter');
-seatOn('ondragleave');
-seatOn('ondragover');
-seatOn('ondragstart');
-seatOn('ondrop');
-seatOn('ondurationchange');
-seatOn('onemptied');
-seatOn('onended');
-seatOn('onerror');
-seatOn('onfocus');
-seatOn('onformdata');
-seatOn('oninput');
-seatOn('oninvalid');
-seatOn('onkeydown');
-seatOn('onkeypress');
-seatOn('onkeyup');
-seatOn('onload');
-seatOn('onloadeddata');
-seatOn('onloadedmetadata');
-seatOn('onloadstart');
-seatOn('onmousedown');
-seatOn('onmouseenter');
-seatOn('onmouseleave');
-seatOn('onmousemove');
-seatOn('onmouseout');
-seatOn('onmouseover');
-seatOn('onmouseup');
-seatOn('onmousewheel');
-seatOn('onpause');
-seatOn('onplay');
-seatOn('onplaying');
-seatOn('onprogress');
-seatOn('onratechange');
-seatOn('onreset');
-seatOn('onresize');
-seatOn('onscroll');
-seatOn('onscrollend');
-seatOn('onsecuritypolicyviolation');
-seatOn('onseeked');
-seatOn('onseeking');
-seatOn('onselect');
-seatOn('onslotchange');
-seatOn('onstalled');
-seatOn('onsubmit');
-seatOn('onsuspend');
-seatOn('ontimeupdate');
-seatOn('ontoggle');
-seatOn('onvolumechange');
-seatOn('onwaiting');
-seatOn('onwebkitanimationend');
-seatOn('onwebkitanimationiteration');
-seatOn('onwebkitanimationstart');
-seatOn('onwebkittransitionend');
-seatOn('onwheel');
-seatOn('onauxclick');
-seatOn('ongotpointercapture');
-seatOn('onlostpointercapture');
-seatOn('onpointerdown');
-seatOn('onpointermove');
-seatOn('onpointerup');
-seatOn('onpointercancel');
-seatOn('onpointerover');
-seatOn('onpointerout');
-seatOn('onpointerenter');
-seatOn('onpointerleave');
-seatOn('onselectstart');
-seatOn('onselectionchange');
-seatOn('onanimationcancel');
-seatOn('onanimationend');
-seatOn('onanimationiteration');
-seatOn('onanimationstart');
-seatOn('ontransitionrun');
-seatOn('ontransitionstart');
-seatOn('ontransitionend');
-seatOn('ontransitioncancel');
-seatOn('onbeforexrselect');
-seatOn('oncopy');
-seatOn('oncut');
-seatOn('onpaste');
-seat('dataset', null);
-seat('nonce', function () { P.accessor(HT, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); }); });
-seat('autofocus', function () { P.reflector(HT, 'autofocus', {"attr": "autofocus", "iface": "HTMLElement", "kind": "boolean-presence"}); });
-seat('tabIndex', null);
-seat('style', null);
-seat('attributeStyleMap', function () { P.getter(HT, 'attributeStyleMap', function __f() { return B.get('attributeStyleMap', this); }); });
-seat('attachInternals', function () { P.method(HT, 'attachInternals', 0, function __f() { const ctx = "Failed to execute 'attachInternals' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('attachInternals', this, ctx, arguments); }); });
-seat('blur', null);
-seat('click', null);
-seat('focus', null);
-seat('hidePopover', function () { P.method(HT, 'hidePopover', 0, function __f() { const ctx = "Failed to execute 'hidePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('hidePopover', this, ctx, arguments); }); });
-seat('showPopover', function () { P.method(HT, 'showPopover', 0, function __f() { const ctx = "Failed to execute 'showPopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('showPopover', this, ctx, arguments); }); });
-seat('togglePopover', function () { P.method(HT, 'togglePopover', 0, function __f() { const ctx = "Failed to execute 'togglePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('togglePopover', this, ctx, arguments); }); });
-seatOn('onscrollsnapchange');
-seatOn('onscrollsnapchanging');
-delete HT.constructor;
-Object.defineProperty(HT, 'constructor', { value: HTMLElement, writable: true, enumerable: false, configurable: true });
-seatOn('onpointerrawupdate');
-
-// ---- arity alignment for relocated natives (truth fn.length: the
-// engine declared optional args Chrome doesn't count)
-function fixArity(name, len) {
-  const d = Object.getOwnPropertyDescriptor(HT, name);
-  if (d && typeof d.value === 'function' && d.value.length !== len) { try { Object.defineProperty(d.value, 'length', { value: len, configurable: true }); } catch (e) {} }
-}
-fixArity('attachInternals', 0);
-fixArity('blur', 0);
-fixArity('click', 0);
-fixArity('focus', 0);
-fixArity('showPopover', 0);
-fixArity('togglePopover', 0);
-
-// ---- Element.prototype additions (Chrome EL.order order; every
-// staged family landed at knife 4, so the contract is the FULL order)
-if (!Object.prototype.hasOwnProperty.call(EL, 'prefix')) P.getter(EL, 'prefix', function __f() { return null; });
-if (!Object.prototype.hasOwnProperty.call(EL, 'part')) P.accessor(EL, 'part', function __f() { return B.get('part', this); }, function __f(v) { B.set('part', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'assignedSlot')) P.getter(EL, 'assignedSlot', function __f() { return null; });
-if (!Object.prototype.hasOwnProperty.call(EL, 'clientTop')) P.getter(EL, 'clientTop', function __f() { return 0; });
-if (!Object.prototype.hasOwnProperty.call(EL, 'clientLeft')) P.getter(EL, 'clientLeft', function __f() { return 0; });
-installOn(EL, 'onbeforecopy', false);
-installOn(EL, 'onbeforecut', false);
-installOn(EL, 'onbeforepaste', false);
-installOn(EL, 'onsearch', false);
-if (!Object.prototype.hasOwnProperty.call(EL, 'elementTiming')) P.reflector(EL, 'elementTiming', {"attr": "elementtiming", "kind": "string"});
-installOn(EL, 'onfullscreenchange', false);
-installOn(EL, 'onfullscreenerror', false);
-installOn(EL, 'onwebkitfullscreenchange', false);
-installOn(EL, 'onwebkitfullscreenerror', false);
-if (!Object.prototype.hasOwnProperty.call(EL, 'computedStyleMap')) P.method(EL, 'computedStyleMap', 0, function __f() { const ctx = "Failed to execute 'computedStyleMap' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('computedStyleMap', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'hasAttributeNS')) P.method(EL, 'hasAttributeNS', 2, function __f() { const ctx = "Failed to execute 'hasAttributeNS' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('hasAttributeNS', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'moveBefore')) P.method(EL, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Element'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'requestFullscreen')) P.method(EL, 'requestFullscreen', 0, function __f() { const ctx = "Failed to execute 'requestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestFullscreen', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'requestPointerLock')) P.method(EL, 'requestPointerLock', 0, function __f() { const ctx = "Failed to execute 'requestPointerLock' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('requestPointerLock', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'scrollIntoViewIfNeeded')) P.method(EL, 'scrollIntoViewIfNeeded', 0, function __f() { const ctx = "Failed to execute 'scrollIntoViewIfNeeded' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('scrollIntoViewIfNeeded', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'webkitMatchesSelector')) P.method(EL, 'webkitMatchesSelector', 1, function __f() { const ctx = "Failed to execute 'webkitMatchesSelector' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('webkitMatchesSelector', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullScreen')) P.method(EL, 'webkitRequestFullScreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullScreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullScreen', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullscreen')) P.method(EL, 'webkitRequestFullscreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullscreen', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'currentCSSZoom')) P.getter(EL, 'currentCSSZoom', function __f() { return 1; });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActiveDescendantElement')) P.accessor(EL, 'ariaActiveDescendantElement', function __f() { return null; }, function __f(v) { B.set('ariaActiveDescendantElement', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaControlsElements')) P.accessor(EL, 'ariaControlsElements', function __f() { return null; }, function __f(v) { B.set('ariaControlsElements', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDescribedByElements')) P.accessor(EL, 'ariaDescribedByElements', function __f() { return null; }, function __f(v) { B.set('ariaDescribedByElements', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDetailsElements')) P.accessor(EL, 'ariaDetailsElements', function __f() { return null; }, function __f(v) { B.set('ariaDetailsElements', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaErrorMessageElements')) P.accessor(EL, 'ariaErrorMessageElements', function __f() { return null; }, function __f(v) { B.set('ariaErrorMessageElements', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaFlowToElements')) P.accessor(EL, 'ariaFlowToElements', function __f() { return null; }, function __f(v) { B.set('ariaFlowToElements', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaLabelledByElements')) P.accessor(EL, 'ariaLabelledByElements', function __f() { return null; }, function __f(v) { B.set('ariaLabelledByElements', this, v); });
-if (!Object.prototype.hasOwnProperty.call(EL, 'ariaNotify')) P.method(EL, 'ariaNotify', 1, function __f() { const ctx = "Failed to execute 'ariaNotify' on 'Element'"; P.args(ctx, arguments.length, 1, __f); return B.call('ariaNotify', this, ctx, arguments); });
-
-// ---- moveBefore on the other two hosts (truth DOC.moveBefore /
-// FRAG.moveBefore): same op through the impl, host name in the ctx
-if (!Object.prototype.hasOwnProperty.call(DOC, 'moveBefore')) P.method(DOC, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'Document'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
-if (!Object.prototype.hasOwnProperty.call(FRAG, 'moveBefore')) P.method(FRAG, 'moveBefore', 2, function __f() { const ctx = "Failed to execute 'moveBefore' on 'DocumentFragment'"; P.args(ctx, arguments.length, 2, __f); return B.call('moveBefore', this, ctx, arguments); });
-
-// ---- read-only faces Chrome ships read-write (setter via impl)
-uprw('classList', function __f(v) { B.set('classList', this, v); });
-uprw('outerHTML', function __f(v) { B.set('outerHTML', this, v); });
-
-// ---- engine on* extras Chrome 145 owns on no level (on.levels)
-if (Object.prototype.hasOwnProperty.call(EL, 'ondragexit')) delete EL['ondragexit'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'ondragexit')) delete DOC['ondragexit'];
-if (Object.prototype.hasOwnProperty.call(EL, 'onfocusin')) delete EL['onfocusin'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'onfocusin')) delete DOC['onfocusin'];
-if (Object.prototype.hasOwnProperty.call(EL, 'onfocusout')) delete EL['onfocusout'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'onfocusout')) delete DOC['onfocusout'];
-if (Object.prototype.hasOwnProperty.call(EL, 'ontouchcancel')) delete EL['ontouchcancel'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchcancel')) delete DOC['ontouchcancel'];
-if (Object.prototype.hasOwnProperty.call(EL, 'ontouchend')) delete EL['ontouchend'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchend')) delete DOC['ontouchend'];
-if (Object.prototype.hasOwnProperty.call(EL, 'ontouchmove')) delete EL['ontouchmove'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchmove')) delete DOC['ontouchmove'];
-if (Object.prototype.hasOwnProperty.call(EL, 'ontouchstart')) delete EL['ontouchstart'];
-if (Object.prototype.hasOwnProperty.call(DOC, 'ontouchstart')) delete DOC['ontouchstart'];
-
-// ---- Document.prototype: Chrome owns all 110 on* here; the engine's
-// 98 were bootstrap-installed - add whatever is missing (no inline
-// fallback on the document face, matching the bootstrap's choice).
-for (const n of ["onabort", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "onauxclick", "onbeforecopy", "onbeforecut", "onbeforeinput", "onbeforematch", "onbeforepaste", "onbeforetoggle", "onbeforexrselect", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncopy", "oncuechange", "oncut", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "onfullscreenchange", "onfullscreenerror", "ongotpointercapture", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onlostpointercapture", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpaste", "onpause", "onplay", "onplaying", "onpointercancel", "onpointerdown", "onpointerenter", "onpointerleave", "onpointermove", "onpointerout", "onpointerover", "onpointerrawupdate", "onpointerup", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onscrollsnapchange", "onscrollsnapchanging", "onsearch", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onselectionchange", "onselectstart", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "ontransitioncancel", "ontransitionend", "ontransitionrun", "ontransitionstart", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkitfullscreenchange", "onwebkitfullscreenerror", "onwebkittransitionend", "onwheel"]) installOn(DOC, n, false);
-
-// ---- SVGElement.prototype: GlobalEventHandlers + the
-// HTMLOrSVGOrMath/inline-style mixin faces (dataset/style/tabIndex/
-// focus/blur arrive via seat()'s SVG_SHARE copy; nonce installs here).
-if (SVG) {
-  for (const n of ["onabort", "onbeforeinput", "onbeforematch", "onbeforetoggle", "onblur", "oncancel", "oncanplay", "oncanplaythrough", "onchange", "onclick", "onclose", "oncommand", "oncontentvisibilityautostatechange", "oncontextlost", "oncontextmenu", "oncontextrestored", "oncuechange", "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror", "onfocus", "onformdata", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload", "onloadeddata", "onloadedmetadata", "onloadstart", "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onpause", "onplay", "onplaying", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onscrollend", "onsecuritypolicyviolation", "onseeked", "onseeking", "onselect", "onslotchange", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "ontoggle", "onvolumechange", "onwaiting", "onwebkitanimationend", "onwebkitanimationiteration", "onwebkitanimationstart", "onwebkittransitionend", "onwheel", "onauxclick", "ongotpointercapture", "onlostpointercapture", "onpointerdown", "onpointermove", "onpointerup", "onpointercancel", "onpointerover", "onpointerout", "onpointerenter", "onpointerleave", "onselectstart", "onselectionchange", "onanimationcancel", "onanimationend", "onanimationiteration", "onanimationstart", "ontransitionrun", "ontransitionstart", "ontransitionend", "ontransitioncancel", "onbeforexrselect", "oncopy", "oncut", "onpaste", "onscrollsnapchange", "onscrollsnapchanging", "onpointerrawupdate"]) installOn(SVG, n, true);
-  if (!Object.prototype.hasOwnProperty.call(SVG, 'nonce')) P.accessor(SVG, 'nonce', function __f() { return B.get('nonce', this); }, function __f(v) { B.set('nonce', this, v); });
-}
 });
 
 // ---- module htmlmedia (L2) ----

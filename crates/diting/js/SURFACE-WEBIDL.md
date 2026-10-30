@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 198 个接口；有缺口 54 个；缺口成员合计 208。
+已核 198 个接口；有缺口 42 个；缺口成员合计 188。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -43,43 +43,31 @@
 | XRRigidTransform | new | 4/4 | inverse, matrix, orientation, position |
 | AudioContext | new | 3/46 | audioWorklet, setSinkId, sinkId |
 | CloseWatcher | new | 3/9 | close, destroy, requestClose |
-| DataTransfer | new | 3/9 | clearData, getData, setData |
 | FontFace | new | 3/19 | ascentOverride, descentOverride, lineGapOverride |
 | IdentityCredentialError | new | 3/30 | code, message, name |
 | IdleDetector | new | 3/8 | screenState, start, userState |
-| ProcessingInstruction | new | 3/79 | nextElementSibling, previousElementSibling, sheet |
 | QuotaExceededError | new | 3/30 | code, message, name |
 | TaskController | new | 3/3 | abort, setPriority, signal |
-| Text | createTextNode | 3/77 | assignedSlot, nextElementSibling, previousElementSibling |
 | XPathEvaluator | new | 3/3 | createExpression, createNSResolver, evaluate |
 | XRRay | new | 3/3 | direction, matrix, origin |
-| Comment | new | 2/70 | nextElementSibling, previousElementSibling |
 | DocumentTimeline | new | 2/3 | currentTime, duration |
 | HTMLCanvasElement | createElement | 2/371 | captureStream, transferControlToOffscreen |
-| HashChangeEvent | new | 2/24 | newURL, oldURL |
 | Highlight | new | 2/2 | priority, type |
 | WebTransport | new | 2/19 | incomingBidirectionalStreams, incomingUnidirectionalStreams |
 | BarcodeDetector | new | 1/1 | detect |
 | CaptureController | new | 1/13 | setFocusBehavior |
-| ClipboardEvent | new | 1/23 | clipboardData |
-| DocumentFragment | new | 1/62 | childElementCount |
 | File | new | 1/11 | webkitRelativePath |
 | HTMLIFrameElement | createElement | 1/388 | privateToken |
 | Headers | new | 1/6 | getSetCookie |
 | ImageData | new | 1/5 | colorSpace |
-| InputDeviceCapabilities | new | 1/2 | firesTouchEvents |
 | MediaMetadata | new | 1/5 | chapterInfo |
 | MediaSource | new | 1/18 | handle |
 | MediaStream | new | 1/15 | getTrackById |
-| MessageEvent | new | 1/28 | initMessageEvent |
 | Notification | new | 1/26 | image |
 | OfflineAudioContext | new | 1/37 | audioWorklet |
 | Path2D | new | 1/11 | roundRect |
-| PopStateEvent | new | 1/24 | hasUAVisualTransition |
 | RTCError | new | 1/34 | httpRequestStatusCode |
-| RTCSessionDescription | new | 1/3 | toJSON |
 | SpeechSynthesisUtterance | new | 1/17 | voice |
-| SubmitEvent | new | 1/23 | submitter |
 | XMLHttpRequest | new | 1/36 | setPrivateToken |
 
 ## 原型级探测（实例造不出，成员未核实）

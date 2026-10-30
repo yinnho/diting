@@ -1,0 +1,457 @@
+{
+ "clipboard.bad": "THROW TypeError: Failed to construct 'ClipboardEvent': Failed to read the 'clipboardData' property from 'ClipboardEventInit': Failed to convert value to 'DataTransfer'.",
+ "clipboard.event": [
+  null,
+  "DataTransfer",
+  [
+   "clipboardData",
+   "constructor"
+  ],
+  1
+ ],
+ "clipboard.noargs": "THROW TypeError: Failed to construct 'ClipboardEvent': 1 argument required, but only 0 present.",
+ "dt.case": [
+  [
+   "text/plain"
+  ],
+  "v",
+  "v"
+ ],
+ "dt.clear": [
+  [
+   "text/html"
+  ],
+  []
+ ],
+ "dt.clear.fmt": [],
+ "dt.noargs": [
+  [
+   "Failed to execute 'setData' on 'DataTransfer': 2 arguments required, but only 1 present.",
+   "Failed to execute 'getData' on 'DataTransfer': 1 argument required, but only 0 present."
+  ],
+  0,
+  1,
+  2
+ ],
+ "dt.norm": [
+  "a",
+  "a",
+  "http://x/",
+  "http://x",
+  [
+   "text/plain",
+   "text/uri-list"
+  ]
+ ],
+ "dt.replace": [
+  "b",
+  1
+ ],
+ "dt.set": [
+  "hello",
+  "<b>x</b>",
+  "",
+  [
+   "text/plain",
+   "text/html"
+  ],
+  2
+ ],
+ "dt.shape": [
+  [
+   "dropEffect",
+   "effectAllowed",
+   "items",
+   "types",
+   "files",
+   "clearData",
+   "getData",
+   "setData",
+   "setDragImage",
+   "constructor"
+  ],
+  "none",
+  "none",
+  [],
+  0,
+  0,
+  0
+ ],
+ "dt.types.frozen": [
+  true,
+  true,
+  true
+ ],
+ "frag.count": [
+  2,
+  2,
+  "ro:true"
+ ],
+ "frag.count.empty": 0,
+ "hashchange": [
+  "http://a/#1",
+  "http://a/#2",
+  "",
+  "",
+  "hashchange",
+  false,
+  [
+   "oldURL",
+   "newURL",
+   "constructor"
+  ],
+  true
+ ],
+ "hashchange.call": "THROW TypeError: Failed to construct 'HashChangeEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "hashchange.conv": [
+  "5",
+  "null"
+ ],
+ "hashchange.noargs": "THROW TypeError: Failed to construct 'HashChangeEvent': 1 argument required, but only 0 present.",
+ "idc": [
+  true,
+  false,
+  false,
+  [
+   "firesTouchEvents",
+   "constructor"
+  ],
+  0
+ ],
+ "idc.conv": [
+  true,
+  false
+ ],
+ "message.init": [
+  "function",
+  1,
+  "foo",
+  true,
+  true,
+  "data",
+  "http://o",
+  "lid",
+  true,
+  0,
+  "m2",
+  null,
+  "",
+  null
+ ],
+ "message.init.noargs": "THROW TypeError: Failed to execute 'initMessageEvent' on 'MessageEvent': 1 argument required, but only 0 present.",
+ "message.order": [
+  "data",
+  "origin",
+  "lastEventId",
+  "source",
+  "ports",
+  "userActivation",
+  "initMessageEvent",
+  "constructor"
+ ],
+ "pi.sheet": [
+  null,
+  "ro:true"
+ ],
+ "popstate": [
+  5,
+  false,
+  [
+   "state",
+   "hasUAVisualTransition",
+   "constructor"
+  ],
+  true
+ ],
+ "rtcsd": [
+  {
+   "sdp": "v=0",
+   "type": "offer"
+  },
+  [
+   "type",
+   "sdp"
+  ],
+  [
+   "type",
+   "sdp",
+   "toJSON",
+   "constructor"
+  ],
+  0,
+  "{\"type\":\"offer\",\"sdp\":\"v=0\"}"
+ ],
+ "rtcsd.badinit": "THROW TypeError: Failed to construct 'RTCSessionDescription': The provided value is not of type 'RTCSessionDescriptionInit'.",
+ "rtcsd.badtype": "THROW TypeError: Failed to construct 'RTCSessionDescription': Failed to read the 'type' property from 'RTCSessionDescriptionInit': The provided value 'zzz' is not a valid enum value of type RTCSdpType.",
+ "rtcsd.brand": "THROW TypeError: Illegal invocation",
+ "rtcsd.call": "THROW TypeError: Failed to construct 'RTCSessionDescription': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "rtcsd.conv": [
+  "5",
+  "string"
+ ],
+ "rtcsd.empty": {
+  "sdp": "",
+  "type": "answer"
+ },
+ "rtcsd.emptyinit": [
+  null,
+  ""
+ ],
+ "rtcsd.noargs": [
+  null,
+  ""
+ ],
+ "rtcsd.own": [],
+ "rtcsd.ro": [
+  "answer",
+  "b"
+ ],
+ "rtcsd.sdponly": [
+  null,
+  "x"
+ ],
+ "rtcsd.types": {
+  "OFFER": "T",
+  "answer": "answer",
+  "offer": "offer",
+  "pranswer": "pranswer",
+  "rollback": "rollback"
+ },
+ "shape": {
+  "CharacterData": {
+   "len": 0,
+   "order": [
+    "data",
+    "length",
+    "previousElementSibling",
+    "nextElementSibling",
+    "after",
+    "appendData",
+    "before",
+    "deleteData",
+    "insertData",
+    "remove",
+    "replaceData",
+    "replaceWith",
+    "substringData",
+    "constructor"
+   ],
+   "parent": "Node"
+  },
+  "ClipboardEvent": {
+   "len": 1,
+   "order": [
+    "clipboardData",
+    "constructor"
+   ],
+   "parent": "Event"
+  },
+  "Comment": {
+   "len": 0,
+   "order": [
+    "constructor"
+   ],
+   "parent": "CharacterData"
+  },
+  "DataTransfer": {
+   "len": 0,
+   "order": [
+    "dropEffect",
+    "effectAllowed",
+    "items",
+    "types",
+    "files",
+    "clearData",
+    "getData",
+    "setData",
+    "setDragImage",
+    "constructor"
+   ],
+   "parent": ""
+  },
+  "DocumentFragment": {
+   "len": 0,
+   "order": [
+    "children",
+    "firstElementChild",
+    "lastElementChild",
+    "childElementCount",
+    "append",
+    "getElementById",
+    "moveBefore",
+    "prepend",
+    "querySelector",
+    "querySelectorAll",
+    "replaceChildren",
+    "constructor"
+   ],
+   "parent": "Node"
+  },
+  "HashChangeEvent": {
+   "len": 1,
+   "order": [
+    "oldURL",
+    "newURL",
+    "constructor"
+   ],
+   "parent": "Event"
+  },
+  "InputDeviceCapabilities": {
+   "len": 0,
+   "order": [
+    "firesTouchEvents",
+    "constructor"
+   ],
+   "parent": ""
+  },
+  "MessageEvent": {
+   "len": 1,
+   "order": [
+    "data",
+    "origin",
+    "lastEventId",
+    "source",
+    "ports",
+    "userActivation",
+    "initMessageEvent",
+    "constructor"
+   ],
+   "parent": "Event"
+  },
+  "PopStateEvent": {
+   "len": 1,
+   "order": [
+    "state",
+    "hasUAVisualTransition",
+    "constructor"
+   ],
+   "parent": "Event"
+  },
+  "ProcessingInstruction": {
+   "len": 0,
+   "order": [
+    "target",
+    "sheet",
+    "constructor"
+   ],
+   "parent": "CharacterData"
+  },
+  "RTCSessionDescription": {
+   "len": 0,
+   "order": [
+    "type",
+    "sdp",
+    "toJSON",
+    "constructor"
+   ],
+   "parent": ""
+  },
+  "SubmitEvent": {
+   "len": 1,
+   "order": [
+    "submitter",
+    "constructor"
+   ],
+   "parent": "Event"
+  },
+  "Text": {
+   "len": 0,
+   "order": [
+    "wholeText",
+    "assignedSlot",
+    "splitText",
+    "constructor"
+   ],
+   "parent": "CharacterData"
+  }
+ },
+ "sib.attr": [
+  "object",
+  "ro:true"
+ ],
+ "sib.orphan": [
+  null,
+  null
+ ],
+ "sib.proto": [
+  [
+   "Text",
+   "ABSENT",
+   "ABSENT"
+  ],
+  [
+   "Comment",
+   "ABSENT",
+   "ABSENT"
+  ],
+  [
+   "ProcessingInstruction",
+   "ABSENT",
+   "ABSENT"
+  ],
+  [
+   "CharacterData",
+   "ro:true",
+   "ro:true"
+  ]
+ ],
+ "sib.vals": [
+  [
+   "#text",
+   "b",
+   "a"
+  ],
+  [
+   "#comment",
+   "b",
+   "a"
+  ],
+  [
+   "#text",
+   "i",
+   "b"
+  ],
+  [
+   "#comment",
+   "i",
+   "b"
+  ]
+ ],
+ "submit.bad": "THROW TypeError: Failed to construct 'SubmitEvent': Failed to read the 'submitter' property from 'SubmitEventInit': Failed to convert value to 'HTMLElement'.",
+ "submit.bad2": "THROW TypeError: Failed to construct 'SubmitEvent': Failed to read the 'submitter' property from 'SubmitEventInit': Failed to convert value to 'HTMLElement'.",
+ "submit.event": [
+  true,
+  null,
+  "submit",
+  [
+   "submitter",
+   "constructor"
+  ],
+  true,
+  1
+ ],
+ "submit.noargs": "THROW TypeError: Failed to construct 'SubmitEvent': 1 argument required, but only 0 present.",
+ "submit.null": null,
+ "submit.real": [
+  [
+   "SubmitEvent",
+   true,
+   true
+  ],
+  [
+   "SubmitEvent",
+   false,
+   true
+  ],
+  [
+   "SubmitEvent",
+   true,
+   true
+  ]
+ ],
+ "submit.svg": "THROW TypeError: Failed to construct 'SubmitEvent': Failed to read the 'submitter' property from 'SubmitEventInit': Failed to convert value to 'HTMLElement'.",
+ "text.assignedSlot": [
+  null,
+  "ro:true"
+ ]
+}

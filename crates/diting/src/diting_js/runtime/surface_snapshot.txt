@@ -1407,10 +1407,10 @@ P ChannelMergerNode :: constructor
 P ChannelSplitterNode :: constructor
 P ChapterInformation :: constructor
 P CharacterBoundsUpdateEvent :: constructor
-P CharacterData :: after,appendData,before,constructor,data,deleteData,insertData,length,remove,replaceData,replaceWith,substringData
+P CharacterData :: after,appendData,before,constructor,data,deleteData,insertData,length,nextElementSibling,previousElementSibling,remove,replaceData,replaceWith,substringData
 P Clipboard :: constructor
 P ClipboardChangeEvent :: changeId,constructor,types
-P ClipboardEvent :: constructor
+P ClipboardEvent :: clipboardData,constructor
 P ClipboardItem :: constructor
 P CloseEvent :: code,constructor,reason,wasClean
 P CloseWatcher :: constructor
@@ -1459,7 +1459,7 @@ P DOMRectReadOnly :: bottom,constructor,height,left,right,toJSON,top,width,x,y
 P DOMStringList :: constructor
 P DOMStringMap :: constructor
 P DOMTokenList :: _tokens,_write,add,constructor,contains,entries,forEach,item,keys,length,remove,replace,supports,toString,toggle,value,values
-P DataTransfer :: constructor,dropEffect,effectAllowed,files,items,setDragImage,types
+P DataTransfer :: clearData,constructor,dropEffect,effectAllowed,files,getData,items,setData,setDragImage,types
 P DataTransferItem :: constructor
 P DataTransferItemList :: constructor
 P DataView :: buffer,byteLength,byteOffset,constructor,getBigInt64,getBigUint64,getFloat16,getFloat32,getFloat64,getInt16,getInt32,getInt8,getUint16,getUint32,getUint8,setBigInt64,setBigUint64,setFloat16,setFloat32,setFloat64,setInt16,setInt32,setInt8,setUint16,setUint32,setUint8
@@ -1477,7 +1477,7 @@ P DigitalCredential :: constructor
 P DisposableStack :: adopt,constructor,defer,dispose,disposed,move,use
 S Document :: parseHTMLUnsafe
 P Document :: URL,activeElement,adoptNode,adoptedStyleSheets,all,append,body,characterSet,charset,childElementCount,children,cloneNode,close,compatMode,constructor,contentType,cookie,createAttribute,createAttributeNS,createCDATASection,createComment,createDocumentFragment,createElement,createElementNS,createEvent,createNodeIterator,createProcessingInstruction,createRange,createTextNode,createTreeWalker,currentScript,defaultView,dir,doctype,documentElement,documentURI,domain,elementFromPoint,elementsFromPoint,evaluate,execCommand,exitPictureInPicture,firstElementChild,fonts,forms,getAnimations,getElementById,getElementsByClassName,getElementsByName,getElementsByTagName,getElementsByTagNameNS,getSelection,hasFocus,hasStorageAccess,head,hidden,images,implementation,importNode,inputEncoding,lastElementChild,links,location,moveBefore,nodeName,nodeType,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforecopy,onbeforecut,onbeforeinput,onbeforematch,onbeforepaste,onbeforetoggle,onbeforexrselect,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncommand,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onformdata,onfullscreenchange,onfullscreenerror,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onscrollsnapchange,onscrollsnapchanging,onsearch,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkitfullscreenchange,onwebkitfullscreenerror,onwebkittransitionend,onwheel,open,ownerDocument,pictureInPictureElement,pictureInPictureEnabled,prepend,queryCommandEnabled,queryCommandIndeterm,queryCommandState,queryCommandSupported,queryCommandValue,querySelector,querySelectorAll,readyState,referrer,referrerPolicy,replaceChildren,requestStorageAccess,scripts,scrollingElement,startViewTransition,styleSheets,title,visibilityState,write,writeln
-P DocumentFragment :: append,children,cloneNode,constructor,firstElementChild,getElementById,innerHTML,lastElementChild,moveBefore,nodeName,nodeType,prepend,querySelector,querySelectorAll,replaceChildren
+P DocumentFragment :: append,childElementCount,children,cloneNode,constructor,firstElementChild,getElementById,innerHTML,lastElementChild,moveBefore,nodeName,nodeType,prepend,querySelector,querySelectorAll,replaceChildren
 P DocumentPictureInPicture :: constructor
 P DocumentPictureInPictureEvent :: constructor
 P DocumentTimeline :: constructor
@@ -1664,7 +1664,7 @@ P HTMLUListElement :: compact,constructor,type
 P HTMLUnknownElement :: constructor
 P HTMLUserMediaElement :: constructor
 P HTMLVideoElement :: cancelVideoFrameCallback,constructor,disablePictureInPicture,getVideoPlaybackQuality,height,onenterpictureinpicture,onleavepictureinpicture,playsInline,poster,requestPictureInPicture,requestVideoFrameCallback,videoHeight,videoWidth,webkitDecodedFrameCount,webkitDroppedFrameCount,width
-P HashChangeEvent :: constructor
+P HashChangeEvent :: constructor,newURL,oldURL
 P Headers :: append,constructor,delete,entries,forEach,get,has,keys,set,values
 P Highlight :: constructor
 P HighlightRegistry :: constructor
@@ -1697,7 +1697,7 @@ P ImageDecoder :: constructor
 P ImageTrack :: constructor
 P ImageTrackList :: constructor
 P Ink :: constructor
-P InputDeviceCapabilities :: constructor
+P InputDeviceCapabilities :: constructor,firesTouchEvents
 P InputDeviceInfo :: constructor
 P InputEvent :: constructor,data,dataTransfer,getTargetRanges,inputType,isComposing
 S Int16Array :: BYTES_PER_ELEMENT
@@ -1772,7 +1772,7 @@ P MediaStreamTrackGenerator :: constructor
 P MediaStreamTrackProcessor :: constructor
 P MediaStreamTrackVideoStats :: constructor
 P MessageChannel :: constructor
-P MessageEvent :: constructor,data,lastEventId,origin,ports,source
+P MessageEvent :: constructor,data,initMessageEvent,lastEventId,origin,ports,source,userActivation
 P MessagePort :: _armEntry,_dispatch,_enqueue,_fire,_recoverStalled,addEventListener,close,constructor,onmessage,onmessageerror,postMessage,removeEventListener,start
 P MimeType :: constructor,description,enabledPlugin,suffixes,type
 P MimeTypeArray :: constructor,item,length,namedItem
@@ -1861,7 +1861,7 @@ P PictureInPictureWindow :: constructor
 P Plugin :: constructor,description,filename,item,length,name,namedItem
 P PluginArray :: constructor,item,length,namedItem,refresh
 P PointerEvent :: altitudeAngle,azimuthAngle,constructor,getCoalescedEvents,getPredictedEvents,height,isPrimary,persistentDeviceId,pointerId,pointerType,pressure,tangentialPressure,tiltX,tiltY,twist,width
-P PopStateEvent :: constructor,state
+P PopStateEvent :: constructor,hasUAVisualTransition,state
 P Presentation :: constructor
 P PresentationAvailability :: constructor
 P PresentationConnection :: constructor
@@ -1872,7 +1872,7 @@ P PresentationReceiver :: constructor
 P PresentationRequest :: constructor
 P PressureObserver :: constructor
 P PressureRecord :: constructor
-P ProcessingInstruction :: cloneNode,constructor,nodeName,nodeType,nodeValue,target
+P ProcessingInstruction :: cloneNode,constructor,nodeName,nodeType,nodeValue,sheet,target
 P Profiler :: constructor
 P ProgressEvent :: constructor,lengthComputable,loaded,total
 S Promise :: all,allSettled,any,race,reject,resolve,try,withResolvers
@@ -1905,7 +1905,7 @@ P RTCRtpScriptTransform :: constructor
 P RTCRtpSender :: constructor
 P RTCRtpTransceiver :: constructor,direction,mid,stop
 P RTCSctpTransport :: constructor,maxMessageSize,state
-P RTCSessionDescription :: constructor
+P RTCSessionDescription :: constructor,sdp,toJSON,type
 P RTCStatsReport :: constructor,forEach,get,has,size
 P RTCTrackEvent :: constructor
 P RadioNodeList :: constructor
@@ -2078,7 +2078,7 @@ P StylePropertyMap :: append,clear,constructor,delete,set
 P StylePropertyMapReadOnly :: constructor,entries,forEach,get,getAll,has,keys,size,values
 P StyleSheet :: constructor,disabled,href,media,ownerNode,parentStyleSheet,title,type
 P StyleSheetList :: constructor
-P SubmitEvent :: constructor
+P SubmitEvent :: constructor,submitter
 P Subscriber :: constructor
 P SubtleCrypto :: constructor
 P Summarizer :: constructor
@@ -2091,7 +2091,7 @@ P TaskAttributionTiming :: constructor
 P TaskController :: constructor
 P TaskPriorityChangeEvent :: constructor
 P TaskSignal :: constructor
-P Text :: cloneNode,constructor,nodeName,nodeType,splitText,wholeText
+P Text :: assignedSlot,cloneNode,constructor,nodeName,nodeType,splitText,wholeText
 P TextDecoder :: constructor,decode
 P TextDecoderStream :: constructor
 P TextEncoder :: constructor,encode,encodeInto,encoding

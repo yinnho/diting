@@ -27094,3 +27094,70 @@ async fn rtcice_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 14: the small-member sweep (smallmembers-probe.js, 51 keys, real
+/// Chrome 145): CharacterData.nextElementSibling/previousElementSibling,
+/// Text.assignedSlot, ProcessingInstruction.sheet, DocumentFragment.
+/// childElementCount; HashChangeEvent / SubmitEvent / PopStateEvent /
+/// ClipboardEvent (init dictionaries, exact conversion wording; SubmitEvent
+/// also from the real form-submission path, carrying the submitter and
+/// trusted); MessageEvent.initMessageEvent + userActivation; DataTransfer
+/// setData/getData/clearData (format normalization, replace, frozen cached
+/// `types`); RTCSessionDescription (read-write type/sdp, enum check, toJSON);
+/// InputDeviceCapabilities. Shapes are compared as: same parent, every Chrome
+/// member present, the members both sides have in the same relative order.
+/// KNOWN: Text/Comment/ProcessingInstruction/DocumentFragment carry extra own
+/// members (nodeName/nodeType/cloneNode/innerHTML/nodeValue - Chrome puts them
+/// on Node.prototype) and DocumentFragment/ProcessingInstruction constructor
+/// lengths differ: the node-level placement family.
+#[tokio::test(flavor = "current_thread")]
+async fn smallmembers_match_chrome_truth() {
+    const KNOWN_LEN: &[&str] = &["DocumentFragment", "ProcessingInstruction"];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/smallmembers-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/smallmembers-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if k == "shape" {
+            for (name, t) in want.as_object().unwrap() {
+                let e = &engine["shape"][name];
+                if e.is_string() || e.is_null() {
+                    bad.push(format!("shape {name}: interface missing in engine"));
+                    continue;
+                }
+                let names = |v: &serde_json::Value| -> Vec<String> {
+                    v["order"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect()
+                };
+                let (tn, en) = (names(t), names(e));
+                for n in &tn {
+                    if !en.contains(n) {
+                        bad.push(format!("shape {name}: Chrome owns {n}, engine does not"));
+                    }
+                }
+                let common_t: Vec<_> = tn.iter().filter(|n| en.contains(n)).collect();
+                let common_e: Vec<_> = en.iter().filter(|n| tn.contains(n)).collect();
+                if common_t != common_e {
+                    bad.push(format!("shape {name}: member order differs\n   engine {common_e:?}\n   chrome {common_t:?}"));
+                }
+                if t["parent"] != e["parent"] {
+                    bad.push(format!("shape {name}: parent engine {} chrome {}", e["parent"], t["parent"]));
+                }
+                if t["len"] != e["len"] && !KNOWN_LEN.contains(&name.as_str()) {
+                    bad.push(format!("shape {name}: ctor length engine {} chrome {}", e["len"], t["len"]));
+                }
+            }
+        } else if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
