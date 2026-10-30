@@ -1249,3 +1249,15 @@ key_enumeration_keeps_page_underscore_keys… 钉着这条；第一版一刀切�
 需逐类转原型访问器（见刀29 说明）。
 验收：全量（跳两个毒化页面测试）991–992 过/30 败（test_local_fetch… 为已知时序偶发），失败集与干净 HEAD 相同；快照重生。
 
+## M4 刀31：实例自有数据属性 → 原型访问器（lift_own.js）（2026-10-30）
+
+`gen_lift_own.py <instance-audit.json> Class,…` 为指定类在原型上定义「getter/setter + 私有槽」访问器（只提升 Chrome 原型上本来就是 ro/rw 访问器的名字）。构造器里的 `this.readyState = 0`
+和内部读取原样继续工作——赋值落到继承的 setter，实例不再有这些自有键。首批：XMLHttpRequest(11)、CanvasRenderingContext2D(9)、SpeechSynthesisUtterance(5)、TextDecoder(3)、MediaQueryList(3)、
+TreeWalker(4)、NodeIterator(5)、Touch(12)、TextMetrics(3)、MediaStream(2)。XHR 的 UNSENT…DONE 原是**类字段**（`UNSENT = 0;` 用 [[Define]] 语义直接在实例上建属性，绕过 setter），
+已删字段并在原型上定义为只读常量（Chrome 的形状）。实例上引擎存放的 `_on*` 处理器槽（XHR 的 `_onload` 等）并入隐藏规则（`/^_on[a-z]+$/`）。
+**已接受并记录的权衡**：提升后的访问器**带 setter**（Chrome 的只读属性没有），因此审计里这些属性的 kind 从 ro 变 rw，页面对只读属性的写入会成功而不是被忽略。选这个是因为实例自有键泄漏
+（`Object.keys(xhr)`/`hasOwnProperty('readyState')`）比描述符 setter 更常被探测，且无需改动引擎里成百上千处内部写入。
+**此机制的局限**：用 `Object.defineProperty(this, …)` 在构造器里建的自有属性（TreeWalker/NodeIterator 的 root、CanvasRenderingContext2D 的 fillStyle 等）和类字段不被 setter 拦截，仍是自有键，需逐类改源码。
+**再生成链**（脚本 `scratchpad/regen_shape.sh` 的做法，须固化为工具）：lift_own → internal_names → mixin_fix → stub_members → sym_fix → [抓取，shape_fix 关] → gen_shape_fix → shape_fix。
+结果：带泄漏对象 76→38；完全一致接口 729→728（个别接口的 ro 变 rw）。验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+

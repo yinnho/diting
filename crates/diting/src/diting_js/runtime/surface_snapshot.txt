@@ -1387,7 +1387,7 @@ P CacheStorage :: constructor,delete,has,keys,match,open
 P CanvasCaptureMediaStreamTrack :: canvas,constructor,requestFrame
 P CanvasGradient :: addColorStop,constructor
 P CanvasPattern :: constructor,setTransform
-P CanvasRenderingContext2D :: constructor
+P CanvasRenderingContext2D :: canvas,constructor,fillStyle,font,globalAlpha,globalCompositeOperation,lineWidth,strokeStyle,textAlign,textBaseline
 P CaptureController :: constructor,decreaseZoomLevel,forwardWheel,getSupportedZoomLevels,increaseZoomLevel,onzoomlevelchange,resetZoomLevel,setFocusBehavior,zoomLevel
 P CaretPosition :: constructor,getClientRect,offset,offsetNode
 P ChannelMergerNode :: constructor
@@ -1748,7 +1748,7 @@ P MediaKeySystemAccess :: constructor,createMediaKeys,getConfiguration,keySystem
 P MediaKeys :: constructor,createSession,getStatusForPolicy,setServerCertificate
 P MediaList :: appendMedium,constructor,deleteMedium,item,length,mediaText,toString
 P MediaMetadata :: album,artist,artwork,constructor,title
-P MediaQueryList :: addEventListener,addListener,constructor,dispatchEvent,removeEventListener,removeListener
+P MediaQueryList :: addEventListener,addListener,constructor,dispatchEvent,matches,media,onchange,removeEventListener,removeListener
 P MediaQueryListEvent :: constructor,matches,media
 S MediaRecorder :: isTypeSupported
 P MediaRecorder :: audioBitrateMode,audioBitsPerSecond,constructor,mimeType,ondataavailable,onerror,onpause,onresume,onstart,onstop,pause,requestData,resume,start,state,stop,stream,videoBitsPerSecond
@@ -1756,7 +1756,7 @@ P MediaSession :: constructor,metadata,playbackState,setActionHandler,setCameraA
 S MediaSource :: isTypeSupported
 P MediaSource :: addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,onsourceclose,onsourceended,onsourceopen,readyState,removeSourceBuffer,setLiveSeekableRange
 P MediaSourceHandle :: constructor
-P MediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
+P MediaStream :: active,addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,id,removeTrack
 P MediaStreamAudioDestinationNode :: constructor,stream
 P MediaStreamAudioSourceNode :: constructor,mediaStream
 P MediaStreamEvent :: constructor,stream
@@ -2089,7 +2089,7 @@ P SpeechRecognitionPhrase :: boost,constructor,phrase
 P SpeechSynthesis :: cancel,constructor,getVoices,onvoiceschanged,pause,paused,pending,resume,speak,speaking
 P SpeechSynthesisErrorEvent :: constructor,error
 P SpeechSynthesisEvent :: charIndex,charLength,constructor,elapsedTime,name,utterance
-P SpeechSynthesisUtterance :: constructor
+P SpeechSynthesisUtterance :: constructor,lang,pitch,rate,text,volume
 P SpeechSynthesisVoice :: constructor,default,lang,localService,name,voiceURI
 P StaticRange :: collapsed,constructor,endContainer,endOffset,startContainer,startOffset
 P StereoPannerNode :: constructor,pan
@@ -2120,14 +2120,14 @@ P TaskPriorityChangeEvent :: constructor,previousPriority
 S TaskSignal :: any
 P TaskSignal :: constructor,onprioritychange,priority
 P Text :: assignedSlot,constructor,splitText,wholeText
-P TextDecoder :: constructor,decode
+P TextDecoder :: constructor,decode,encoding,fatal,ignoreBOM
 P TextDecoderStream :: constructor
 P TextEncoder :: constructor,encode,encodeInto,encoding
 P TextEncoderStream :: constructor,encoding
 P TextEvent :: constructor,data,initTextEvent
 P TextFormat :: constructor,rangeEnd,rangeStart,underlineStyle,underlineThickness
 P TextFormatUpdateEvent :: constructor,getTextFormats
-P TextMetrics :: constructor
+P TextMetrics :: actualBoundingBoxAscent,actualBoundingBoxDescent,constructor,width
 P TextTrack :: activeCues,addCue,constructor,cues,id,kind,label,language,mode,oncuechange,removeCue
 P TextTrackCue :: constructor,endTime,id,pauseOnExit,startTime,track
 P TextTrackCueList :: constructor,getCueById,length
@@ -2138,7 +2138,7 @@ P TimelineTrigger :: constructor
 P TimelineTriggerRange :: constructor
 P TimelineTriggerRangeList :: constructor
 P ToggleEvent :: constructor,newState,oldState
-P Touch :: constructor
+P Touch :: clientX,clientY,constructor,force,identifier,pageX,pageY,radiusX,radiusY,rotationAngle,screenX,screenY,target
 P TouchEvent :: altKey,changedTouches,constructor,ctrlKey,metaKey,shiftKey,targetTouches,touches
 P TouchList :: constructor,item,length
 P TrackEvent :: constructor,track
@@ -2147,7 +2147,7 @@ P TransformStreamDefaultController :: constructor,desiredSize,enqueue,error,term
 P TransitionEvent :: constructor,elapsedTime,propertyName,pseudoElement
 S Translator :: availability,create
 P Translator :: constructor,destroy,inputQuota,measureInputUsage,sourceLanguage,targetLanguage,translate,translateStreaming
-P TreeWalker :: constructor,firstChild,lastChild,nextNode,nextSibling,parentNode,previousNode,previousSibling
+P TreeWalker :: constructor,currentNode,filter,firstChild,lastChild,nextNode,nextSibling,parentNode,previousNode,previousSibling,root,whatToShow
 P TrustedHTML :: constructor,toJSON,toString
 P TrustedScript :: constructor,toJSON,toString
 P TrustedScriptURL :: constructor,toJSON,toString
@@ -2247,7 +2247,7 @@ P WritableStreamDefaultController :: constructor,error
 P WritableStreamDefaultWriter :: abort,close,closed,constructor,desiredSize,ready,releaseLock,write
 P XMLDocument :: constructor
 S XMLHttpRequest :: DONE,HEADERS_RECEIVED,LOADING,OPENED,UNSENT
-P XMLHttpRequest :: abort,constructor,getAllResponseHeaders,getResponseHeader,onreadystatechange,open,overrideMimeType,send,setRequestHeader
+P XMLHttpRequest :: DONE,HEADERS_RECEIVED,LOADING,OPENED,UNSENT,abort,constructor,getAllResponseHeaders,getResponseHeader,onreadystatechange,open,overrideMimeType,readyState,response,responseText,responseType,responseURL,responseXML,send,setRequestHeader,status,statusText,timeout,upload,withCredentials
 P XMLHttpRequestEventTarget :: constructor,onabort,onerror,onload,onloadend,onloadstart,onprogress,ontimeout
 P XMLHttpRequestUpload :: constructor
 P XMLSerializer :: constructor,serializeToString
@@ -2326,7 +2326,7 @@ P scroll :: constructor
 P scrollBy :: constructor
 P scrollTo :: constructor
 P stop :: constructor
-P webkitMediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
+P webkitMediaStream :: active,addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,id,removeTrack
 P webkitRTCPeerConnection :: addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
 P webkitSpeechGrammar :: constructor,src,weight
 P webkitSpeechGrammarList :: addFromString,addFromUri,constructor,item,length

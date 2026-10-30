@@ -108,6 +108,7 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Host hooks for the native EventTarget core (needs Node/Event from bootstrap).
     ("event_hooks.js", include_str!("js/event_hooks.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
+    ("lift_own.js", include_str!("js/lift_own.js")),
     ("internal_names.js", include_str!("js/internal_names.js")),
     ("mixin_fix.js", include_str!("js/mixin_fix.js")),
     ("stub_members.js", include_str!("js/stub_members.js")),

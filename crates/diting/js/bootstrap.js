@@ -15411,7 +15411,7 @@ globalThis.__diting_init = function() {
     // expando on document / performance / any platform object stays visible like in Chrome.
     const _hideInternalOnInstance = (names) => {
       const set = globalThis.__diting_internal_names;
-      return set ? names.filter(n => typeof n !== 'string' || !set.has(n)) : names;
+      return set ? names.filter(n => typeof n !== 'string' || !(set.has(n) || /^_on[a-z]+$/.test(n))) : names;
     };
     const _hideOn = (o, names) => {
       if (o === globalThis) return names.filter(n => !_isInternal(n));

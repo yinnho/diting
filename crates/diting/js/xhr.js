@@ -148,7 +148,6 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
   static HEADERS_RECEIVED = 2;
   static LOADING = 3;
   static DONE = 4;
-  UNSENT = 0; OPENED = 1; HEADERS_RECEIVED = 2; LOADING = 3; DONE = 4;
 
   constructor() {
     super();
@@ -614,6 +613,10 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     this.dispatchEvent(type === 'readystatechange' ? new Event(type) : new ProgressEvent(type));
   }
 };
+// Chrome: the readyState constants live on the prototype (and the constructor, via the statics above), not on instances.
+for (const [k, v] of [['UNSENT', 0], ['OPENED', 1], ['HEADERS_RECEIVED', 2], ['LOADING', 3], ['DONE', 4]]) {
+  Object.defineProperty(XMLHttpRequest.prototype, k, { value: v, writable: false, enumerable: true, configurable: false });
+}
 // (see the __acc block above — readystatechange lands on this prototype)
 __acc(globalThis.XMLHttpRequest, ['onreadystatechange']);
 _markNative(XMLHttpRequest);
