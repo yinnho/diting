@@ -1331,3 +1331,12 @@ toStringTag 仍不能删。要对齐须给每个 realm 一份自己的 Window.pr
 bootstrap.js 删除了两个对象字面量工厂与 TreeWalker 桩类。TreeWalker/NodeIterator 实例自有键泄漏消失；实例审计带泄漏对象 33→32。
 验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 逐条相同；analyze 零违；check_fresh 7 件鲜（43 真值）；快照与形状表按再生成链重生。
 
+## M4 刀38 补记：依赖棘轮（2026-10-30）
+
+**我自己的流程漏洞**：从刀30 起我每次跑 `analyze.mjs --check baseline.json` 都只看 `tail -1`，而棘轮失败的那一行（`FAIL dependency ratchet: crossFileLoadTimeNames: 55 > baseline 51`）在倒数第二行，
+被「module contract violations」这一行盖住了——棘轮实际从 lift_own/stub_members/window_extras 三个平铺脚本在加载期直接引用 `_markNative`（+3）加上 treewalker 模块的 Document/_markNative（+1）起就是红的，却被我当成绿的提交了几刀。
+修复（不动基线）：①bootstrap 在 `_markNative` 定义处导出隐藏全局 `__diting_markNative`，在具名访问 holder 创建处导出 `__diting_namedHolder`，平铺脚本经 `globalThis.…` 取用（属性访问不是自由变量引用，不计入棘轮）；
+②treewalker 模块改 `globalThis.Document.prototype` 并用 `P.method({}, 'NodeFilter', 0, fn)` 标记原生，去掉 load-time 依赖。结果 crossFileLoadTimeNames 51（=基线），`dependency ratchet OK`。
+以后的检查口径：**分别**看 `ratchet` 行与 `module contract violations` 行，脚本里用 `grep -E "FAIL|OK"`。
+验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 逐条相同；check_fresh 7 件鲜（43 真值）；analyze 棘轮 OK 且契约零违。
+

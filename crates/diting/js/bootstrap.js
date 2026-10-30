@@ -315,6 +315,9 @@ function __lboxProto(C) {
 }
 
 function _markNative(fn) { if (typeof fn === 'function') _nativeFnAdd(fn); return fn; }
+// Flat post-bootstrap scripts (lift_own / stub_members / window_extras ...) reach it through this hidden global instead of a free
+// reference, so the dependency ratchet's cross-file load-time count stays flat. (`__diting` names are filtered from enumeration.)
+Object.defineProperty(globalThis, '__diting_markNative', { value: _markNative, writable: true, enumerable: false, configurable: true });
 // Mark every method AND accessor on a shim prototype as native. Lie
 // detectors (fingerprintjs-style) verify `Function.prototype.toString.call(fn)`
 // reports [native code] for each API they probe — an unmarked shim flips
@@ -2473,6 +2476,7 @@ const _namedHolder = (function () {
       },
     });
     Object.setPrototypeOf(globalThis, gate);
+    Object.defineProperty(globalThis, '__diting_namedHolder', { value: h, writable: true, enumerable: false, configurable: true });
     return h; // installs/uninstalls address the raw target
   } catch (e) { return globalThis; }
 })();

@@ -7092,13 +7092,13 @@ function args(fnName, fn, a) {
   else if (typeof filter !== 'object' && typeof filter !== 'function') P.fail(fn, "parameter 3 is not of type 'Object'.", pre);
   return { root, whatToShow, filter };
 }
-P.method(Document.prototype, 'createTreeWalker', 1, function __f() {
+P.method(globalThis.Document.prototype, 'createTreeWalker', 1, function __f() {
   const a = args('createTreeWalker', __f, arguments);
   const w = Object.create(TP);
   walkers.set(w, { root: a.root, current: a.root, whatToShow: a.whatToShow, filter: a.filter });
   return w;
 });
-P.method(Document.prototype, 'createNodeIterator', 1, function __f() {
+P.method(globalThis.Document.prototype, 'createNodeIterator', 1, function __f() {
   const a = args('createNodeIterator', __f, arguments);
   const it = Object.create(NP);
   iters.set(it, { root: a.root, ref: a.root, before: true, whatToShow: a.whatToShow, filter: a.filter });
@@ -7110,7 +7110,7 @@ P.method(Document.prototype, 'createNodeIterator', 1, function __f() {
 // A callback interface has no constructor and no prototype property: a method-shorthand function is callable-typed, has no
 // `prototype`, and `new NodeFilter()` fails with "is not a constructor" like Chrome's.
 const NodeFilter = { NodeFilter() {} }.NodeFilter;
-if (typeof _markNative === 'function') _markNative(NodeFilter);
+P.method({}, 'NodeFilter', 0, NodeFilter); // marks it native + fixes name/length (the holder object is discarded)
 for (const k of ['FILTER_ACCEPT', 'FILTER_REJECT', 'FILTER_SKIP', 'SHOW_ALL', 'SHOW_ELEMENT', 'SHOW_ATTRIBUTE', 'SHOW_TEXT', 'SHOW_CDATA_SECTION', 'SHOW_ENTITY_REFERENCE',
   'SHOW_ENTITY', 'SHOW_PROCESSING_INSTRUCTION', 'SHOW_COMMENT', 'SHOW_DOCUMENT', 'SHOW_DOCUMENT_TYPE', 'SHOW_DOCUMENT_FRAGMENT', 'SHOW_NOTATION']) {
   const v = globalThis.NodeFilter && globalThis.NodeFilter[k];

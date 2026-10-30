@@ -5,7 +5,7 @@
   if (typeof SS !== 'function' || Object.prototype.hasOwnProperty.call(globalThis, 'sharedStorage')) return;
   let inst = null;
   const get = function () { return inst || (inst = Object.create(SS.prototype)); };
-  const mark = typeof _markNative === 'function' ? _markNative : (f) => f;
+  const mark = globalThis.__diting_markNative || ((f) => f);
   Object.defineProperty(get, 'name', { value: 'get sharedStorage', configurable: true });
   Object.defineProperty(globalThis, 'sharedStorage', { get: mark(get), set: undefined, enumerable: true, configurable: true });
 })();
@@ -18,15 +18,16 @@
 
 // Window prototype chain (shape-audit finding, M4 knife 37). The main window's chain was window -> gate(WindowProperties, named
 // access) -> a bare `{constructor}` layer -> Object.prototype: no Window.prototype, no EventTarget.prototype, so
-// `window instanceof EventTarget` was false (Chrome: true). Re-point the gate's raw target (bootstrap's `_namedHolder`) at the real
+// `window instanceof EventTarget` was false (Chrome: true). Re-point the gate's raw target (bootstrap's `_namedHolder`, exposed as the hidden `__diting_namedHolder`) at the real
 // Window.prototype, which chains to EventTarget.prototype (iframe_realm.js). The gate still sits ahead of everything, so named
 // access resolution and the trio the holder carries are unchanged; the immediate prototype is still the gate, not Window.prototype
 // (Chrome's order is window -> Window.prototype -> WindowProperties -> EventTarget), which needs a per-realm Window.prototype.
 (function () {
   try {
-    if (typeof _namedHolder !== 'object' || _namedHolder === null || _namedHolder === globalThis) return;
+    const holder = globalThis.__diting_namedHolder;
+    if (typeof holder !== 'object' || holder === null || holder === globalThis) return;
     const W = globalThis.Window;
-    if (typeof W !== 'function' || !W.prototype || W.prototype === _namedHolder) return;
-    Object.setPrototypeOf(_namedHolder, W.prototype);
+    if (typeof W !== 'function' || !W.prototype || W.prototype === holder) return;
+    Object.setPrototypeOf(holder, W.prototype);
   } catch (e) {}
 })();
