@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 65 个；缺口成员合计 321。
+已核 196 个接口；有缺口 59 个；缺口成员合计 275。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -36,15 +36,9 @@
 | EditContext | new | 11/20 | attachedElements, characterBounds, characterBoundsRangeStart, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
 | URLPattern | new | 9/11 | hasRegExpGroups, hash, hostname, password, pathname, port, protocol, search, username |
-| Accelerometer | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
-| GravitySensor | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
-| Gyroscope | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
 | IntersectionObserverEntry | new | 8/8 | boundingClientRect, intersectionRatio, intersectionRect, isIntersecting, isVisible, rootBounds, target, time |
-| LinearAccelerationSensor | new | 8/15 | activated, hasReading, start, stop, timestamp, x, y, z |
 | SpeechRecognition | new | 8/26 | abort, continuous, grammars, interimResults, lang, maxAlternatives, start, stop |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
-| AbsoluteOrientationSensor | new | 7/14 | activated, hasReading, populateMatrix, quaternion, start, stop, timestamp |
-| RelativeOrientationSensor | new | 7/14 | activated, hasReading, populateMatrix, quaternion, start, stop, timestamp |
 | Request | new | 7/27 | bodyUsed, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |
 | ViewTimeline | new | 7/8 | axis, currentTime, duration, endOffset, source, startOffset, subject |
 | VideoColorSpace | new | 5/5 | fullRange, matrix, primaries, toJSON, transfer |

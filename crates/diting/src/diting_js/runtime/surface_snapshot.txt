@@ -1264,7 +1264,7 @@ S AbortSignal :: abort,any,timeout
 P AbortSignal :: _signalAbort,aborted,constructor,onabort,reason,throwIfAborted
 P AbsoluteOrientationSensor :: constructor
 P AbstractRange :: constructor
-P Accelerometer :: constructor
+P Accelerometer :: constructor,x,y,z
 P AggregateError :: constructor,message,name
 P AnalyserNode :: constructor
 P Animation :: constructor
@@ -1575,7 +1575,7 @@ P GeolocationCoordinates :: accuracy,altitude,altitudeAccuracy,constructor,headi
 P GeolocationPosition :: constructor,coords,timestamp
 P GeolocationPositionError :: constructor
 P GravitySensor :: constructor
-P Gyroscope :: constructor
+P Gyroscope :: constructor,x,y,z
 P HID :: constructor
 P HIDConnectionEvent :: constructor
 P HIDDevice :: constructor
@@ -1815,7 +1815,7 @@ P OffscreenCanvas :: constructor,convertToBlob,getContext,transferToImageBitmap
 P OffscreenCanvasRenderingContext2D :: constructor
 P OpaqueRange :: constructor
 P Option :: accessKey,attachInternals,attributeStyleMap,autocapitalize,autofocus,blur,click,constructor,contentEditable,dataset,dir,draggable,editContext,enterKeyHint,focus,hidden,hidePopover,inert,innerText,inputMode,isContentEditable,lang,nonce,offsetHeight,offsetLeft,offsetParent,offsetTop,offsetWidth,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforeinput,onbeforematch,onbeforetoggle,onbeforexrselect,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncommand,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onformdata,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onscrollsnapchange,onscrollsnapchanging,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkittransitionend,onwheel,outerText,popover,showPopover,spellcheck,style,tabIndex,title,togglePopover,translate,virtualKeyboardPolicy,writingSuggestions
-P OrientationSensor :: constructor
+P OrientationSensor :: constructor,populateMatrix,quaternion
 P Origin :: constructor
 P OscillatorNode :: constructor
 P OverconstrainedError :: constructor
@@ -2040,8 +2040,8 @@ P ScriptProcessorNode :: constructor
 P ScrollTimeline :: constructor
 P SecurityPolicyViolationEvent :: constructor
 P Selection :: _anchor,_focus,_inDoc,_setRange,addRange,anchorNode,anchorOffset,collapse,collapseToEnd,collapseToStart,constructor,containsNode,deleteFromDocument,empty,extend,focusNode,focusOffset,getRangeAt,isCollapsed,modify,rangeCount,removeAllRanges,removeRange,selectAllChildren,setBaseAndExtent,setPosition,toString,type
-P Sensor :: constructor
-P SensorErrorEvent :: constructor
+P Sensor :: activated,constructor,hasReading,onactivate,onerror,onreading,start,stop,timestamp
+P SensorErrorEvent :: constructor,error
 P Serial :: constructor
 P SerialPort :: constructor
 P ServiceWorker :: constructor

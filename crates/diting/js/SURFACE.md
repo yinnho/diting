@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→**321**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→**275**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -700,3 +700,43 @@ uievent_family_matches_chrome_truth）；快照漂移 8 个原型行（旧类把
 错放在 Composition/Keyboard/Mouse 原型上，现回 UIEvent）；check_fresh 7 件鲜
 （28 真值）；analyze 零违。下一刀顺位：真家族（Animation 19/Notification 14/
 EditContext 11/传感器×6/SpeechRecognition 8）、ClipboardChangeEvent 18。
+
+## M4 刀9：Generic Sensor 家族（2026-10-30）
+
+Sensor / Accelerometer / LinearAccelerationSensor / GravitySensor / Gyroscope /
+OrientationSensor / AbsoluteOrientationSensor / RelativeOrientationSensor /
+SensorErrorEvent（9 接口）。差集 321→**275**（-46；行 65→59）。新模块
+`platform/sensor.impl.js`，探针 `sensor-probe.js` 43 键 0 差异。
+
+- **Chrome 145（无传感器硬件）的真面**：所有传感器可构造；`start()` **异步**触发
+  **trusted** 的 `SensorErrorEvent`（`DOMException NotReadableError`，
+  "Could not connect to a sensor"，`error.code` 0，不冒泡不可取消）；永不
+  `activated`、永无读数（x/y/z/quaternion/timestamp 为 null）。**Magnetometer 与
+  AmbientLightSensor 在 Chrome 145 不存在**——引擎也不定义（'多'表不变）。
+- 行为：二次 `start()` 只出一个 error；`stop()` 取消待发的 error；error 之后可
+  重新 start；`populateMatrix` 参数检查（缺参/类型联合/Float 数组长度 <16 抛
+  `Target buffer must have at least 16 elements.`，合法则抛 NotReadableError
+  `Sensor data is not available.`）；构造选项字典 `SensorOptions{frequency:
+  double}`←`SpatialSensorOptions{referenceFrame: LocalCoordinateSystem}`，祖先先读，
+  报错文案逐字（枚举错 `... is not a valid enum value of type
+  LocalCoordinateSystem.`）；`SensorErrorEvent` 需 2 参、`error` 必填且须
+  DOMException（`Required member is undefined.`）。
+- 抽象类 `Sensor`/`OrientationSensor` 构造抛 `Illegal constructor`；x/y/z 只属
+  Accelerometer/Gyroscope 家族、quaternion/populateMatrix 只属 OrientationSensor
+  家族（跨类 getter 调用抛 Illegal invocation）。
+
+**宿主前置（最小例外）**：UA 事件的 `isTrusted=true` 只能经原生 Event 状态
+facade `__diting_event_state` 设置，而 bootstrap 在烘焙时把它从全局删掉。现在
+在删除前一行存入**词法**常量 `_eventState`（仍不是全局属性，页面 JS 看不见），
+平台模块经 `legacy:_eventState` 使用——这是之后所有 UA 派发事件（SpeechRecognition、
+Notification…）的通路。bootstrap 因此 +4 行（含注释），属「既有缺陷最小例外」。
+
+**已知核心级偏差（不在本刀）**：IDL `on*` 处理器由引擎派发核心**先于**监听器触发
+（event_hooks 注释已记「handler 后赋值仍先触发」），Chrome 按注册序。探针把
+处理器触发与监听器日志分开记录，两者顺序不比对。
+
+验收：探针 43 键 0 差异；tests **1442/0**（新增 sensor_family_matches_chrome_truth）；
+快照漂移 6 个原型行（Accelerometer/Gyroscope 获 x/y/z，Sensor/OrientationSensor/
+SensorErrorEvent 由空桩变真身）；check_fresh 7 件鲜（29 真值）；analyze 零违。下一刀
+顺位：Notification 14、Animation 19、EditContext 11、SpeechRecognition 8、
+ClipboardChangeEvent 18。

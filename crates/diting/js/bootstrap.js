@@ -81,6 +81,10 @@ globalThis.__diting_reportUncaughtError = function(err, src) {
 // _namedHolder) serves them. The window-specific on* legs (__windowOnHandlers
 // + <body onX> inline fallback, 'error' pipeline-only) live in the
 // `handler` hook in event_hooks.js.
+// Platform modules that dispatch UA-originated events (sensor errors, ...) need
+// isTrusted=true, which only this facade can set. Keep it as a LEXICAL binding
+// (never a global property, so page JS still cannot see it) before the delete.
+const _eventState = globalThis.__diting_event_state;
 delete globalThis.__diting_event_state;
 // (M3 B1) window dispatches through the native EventTarget core: the trio
 // installed here IS the native one (the runtime installs it on

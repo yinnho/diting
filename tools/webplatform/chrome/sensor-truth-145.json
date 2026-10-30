@@ -1,0 +1,450 @@
+{
+ "badopt.Accelerometer": "THROW TypeError: Failed to construct 'Accelerometer': The provided value is not of type 'SpatialSensorOptions'.",
+ "badopt.GravitySensor": "THROW TypeError: Failed to construct 'GravitySensor': The provided value is not of type 'SpatialSensorOptions'.",
+ "badopt.Gyroscope": "THROW TypeError: Failed to construct 'Gyroscope': The provided value is not of type 'SpatialSensorOptions'.",
+ "badopt.RelativeOrientationSensor": "THROW TypeError: Failed to construct 'RelativeOrientationSensor': The provided value is not of type 'SpatialSensorOptions'.",
+ "badref.Accelerometer": "THROW TypeError: Failed to construct 'Accelerometer': Failed to read the 'referenceFrame' property from 'SpatialSensorOptions': The provided value 'zzz' is not a valid enum value of type LocalCoordinateSystem.",
+ "badref.GravitySensor": "THROW TypeError: Failed to construct 'GravitySensor': Failed to read the 'referenceFrame' property from 'SpatialSensorOptions': The provided value 'zzz' is not a valid enum value of type LocalCoordinateSystem.",
+ "badref.Gyroscope": "THROW TypeError: Failed to construct 'Gyroscope': Failed to read the 'referenceFrame' property from 'SpatialSensorOptions': The provided value 'zzz' is not a valid enum value of type LocalCoordinateSystem.",
+ "badref.RelativeOrientationSensor": "THROW TypeError: Failed to construct 'RelativeOrientationSensor': Failed to read the 'referenceFrame' property from 'SpatialSensorOptions': The provided value 'zzz' is not a valid enum value of type LocalCoordinateSystem.",
+ "brand.get": "THROW TypeError: Illegal invocation",
+ "brand.quat": "THROW TypeError: Illegal invocation",
+ "brand.start": "THROW TypeError: Illegal invocation",
+ "brand.stop": "THROW TypeError: Illegal invocation",
+ "brand.xyz": "THROW TypeError: Illegal invocation",
+ "chain": [
+  true,
+  true,
+  true,
+  false
+ ],
+ "ctor.call": "THROW TypeError: Failed to construct 'Accelerometer': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "ctor.errevent.call": "THROW TypeError: Failed to construct 'SensorErrorEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "ctor.orient": "THROW TypeError: Failed to construct 'OrientationSensor': Illegal constructor",
+ "ctor.sensor": "THROW TypeError: Failed to construct 'Sensor': Illegal constructor",
+ "errevent.bad": "THROW TypeError: Failed to construct 'SensorErrorEvent': Failed to read the 'error' property from 'SensorErrorEventInit': Failed to convert value to 'DOMException'.",
+ "errevent.badinit": "THROW TypeError: Failed to construct 'SensorErrorEvent': The provided value is not of type 'SensorErrorEventInit'.",
+ "errevent.brand": "THROW TypeError: Illegal invocation",
+ "errevent.empty": "THROW TypeError: Failed to construct 'SensorErrorEvent': Failed to read the 'error' property from 'SensorErrorEventInit': Required member is undefined.",
+ "errevent.init": [
+  true,
+  true,
+  true,
+  "SensorErrorEvent",
+  true,
+  false
+ ],
+ "errevent.noerr": "THROW TypeError: Failed to construct 'SensorErrorEvent': 2 arguments required, but only 1 present.",
+ "ev.abs": {
+  "hlog": [
+   "onerror"
+  ],
+  "log": [
+   "error:false:false:DOMException:NotReadableError:Could not connect to a sensor:0:true:true:SensorErrorEvent",
+   "end: activated=false hasReading=false x=undefined"
+  ]
+ },
+ "ev.none": {
+  "hlog": [],
+  "log": [
+   "end: activated=false hasReading=false x=undefined"
+  ]
+ },
+ "ev.rel": {
+  "hlog": [
+   "onerror"
+  ],
+  "log": [
+   "error:false:false:DOMException:NotReadableError:Could not connect to a sensor:0:true:true:SensorErrorEvent",
+   "end: activated=false hasReading=false x=undefined"
+  ]
+ },
+ "ev.restart": {
+  "hlog": [
+   "onerror",
+   "onerror"
+  ],
+  "log": [
+   "error:false:false:DOMException:NotReadableError:Could not connect to a sensor:0:true:true:SensorErrorEvent",
+   "error:false:false:DOMException:NotReadableError:Could not connect to a sensor:0:true:true:SensorErrorEvent",
+   "end: activated=false hasReading=false x=null"
+  ]
+ },
+ "ev.start": {
+  "hlog": [
+   "onerror"
+  ],
+  "log": [
+   "start->undefined",
+   "sync activated=false",
+   "error:false:false:DOMException:NotReadableError:Could not connect to a sensor:0:true:true:SensorErrorEvent",
+   "end: activated=false hasReading=false x=null"
+  ]
+ },
+ "ev.stopNow": {
+  "hlog": [],
+  "log": [
+   "end: activated=false hasReading=false x=null"
+  ]
+ },
+ "ev.twice": {
+  "hlog": [
+   "onerror"
+  ],
+  "log": [
+   "error:false:false:DOMException:NotReadableError:Could not connect to a sensor:0:true:true:SensorErrorEvent",
+   "end: activated=false hasReading=false x=null"
+  ]
+ },
+ "exist": {
+  "AbsoluteOrientationSensor": "function",
+  "Accelerometer": "function",
+  "AmbientLightSensor": "undefined",
+  "GravitySensor": "function",
+  "Gyroscope": "function",
+  "LinearAccelerationSensor": "function",
+  "Magnetometer": "undefined",
+  "OrientationSensor": "function",
+  "RelativeOrientationSensor": "function",
+  "Sensor": "function",
+  "SensorErrorEvent": "function"
+ },
+ "freq.conv": {
+  "big": "ok",
+  "inf": "TypeError: Failed to construct 'Accelerometer': Failed to read the 'frequency' property from 'SensorOptions': The provided double value is non-finite.",
+  "nan": "TypeError: Failed to construct 'Accelerometer': Failed to read the 'frequency' property from 'SensorOptions': The provided double value is non-finite.",
+  "neg": "ok",
+  "null": "ok",
+  "obj": "TypeError: Failed to construct 'Accelerometer': Failed to read the 'frequency' property from 'SensorOptions': The provided double value is non-finite.",
+  "str": "ok",
+  "sym": "TypeError: Failed to construct 'Accelerometer': Failed to read the 'frequency' property from 'SensorOptions': Cannot convert a Symbol value to a number",
+  "zero": "ok"
+ },
+ "handlers": [
+  true,
+  null,
+  true,
+  false
+ ],
+ "instance": [
+  [
+   "Accelerometer",
+   false,
+   false,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "[object Accelerometer]",
+   0,
+   true,
+   true,
+   null,
+   null,
+   null
+  ],
+  [
+   "LinearAccelerationSensor",
+   false,
+   false,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "[object LinearAccelerationSensor]",
+   0,
+   true,
+   true,
+   null,
+   null,
+   null
+  ],
+  [
+   "GravitySensor",
+   false,
+   false,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "[object GravitySensor]",
+   0,
+   true,
+   true,
+   null,
+   null,
+   null
+  ],
+  [
+   "Gyroscope",
+   false,
+   false,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "[object Gyroscope]",
+   0,
+   true,
+   true,
+   null,
+   null,
+   null
+  ],
+  [
+   "AbsoluteOrientationSensor",
+   false,
+   false,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "[object AbsoluteOrientationSensor]",
+   0,
+   true,
+   true,
+   null,
+   null,
+   null
+  ],
+  [
+   "RelativeOrientationSensor",
+   false,
+   false,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "[object RelativeOrientationSensor]",
+   0,
+   true,
+   true,
+   null,
+   null,
+   null
+  ]
+ ],
+ "opts.nullish": "ok",
+ "order.freq-first": [
+  "freq",
+  "ref",
+  "throw"
+ ],
+ "populate.noargs": "THROW TypeError: Failed to execute 'populateMatrix' on 'OrientationSensor': 1 argument required, but only 0 present.",
+ "populate.types": {
+  "arr": "TypeError: Failed to execute 'populateMatrix' on 'OrientationSensor': The provided value is not of type '(DOMMatrix or Float32Array or Float64Array)'.",
+  "dm": "NotReadableError: Failed to execute 'populateMatrix' on 'OrientationSensor': Sensor data is not available.",
+  "f32": "NotReadableError: Failed to execute 'populateMatrix' on 'OrientationSensor': Sensor data is not available.",
+  "f32big": "NotReadableError: Failed to execute 'populateMatrix' on 'OrientationSensor': Sensor data is not available.",
+  "f32s": "TypeError: Failed to execute 'populateMatrix' on 'OrientationSensor': Target buffer must have at least 16 elements.",
+  "f64": "NotReadableError: Failed to execute 'populateMatrix' on 'OrientationSensor': Sensor data is not available.",
+  "i32": "TypeError: Failed to execute 'populateMatrix' on 'OrientationSensor': The provided value is not of type '(DOMMatrix or Float32Array or Float64Array)'.",
+  "null": "TypeError: Failed to execute 'populateMatrix' on 'OrientationSensor': The provided value is not of type '(DOMMatrix or Float32Array or Float64Array)'.",
+  "obj": "TypeError: Failed to execute 'populateMatrix' on 'OrientationSensor': The provided value is not of type '(DOMMatrix or Float32Array or Float64Array)'."
+ },
+ "presence": [
+  true,
+  false,
+  false,
+  true,
+  true,
+  true,
+  true,
+  true,
+  false,
+  false
+ ],
+ "ref.vals": {
+  "": "T",
+  "DEVICE": "T",
+  "device": "ok",
+  "screen": "ok"
+ },
+ "shape": {
+  "AbsoluteOrientationSensor": {
+   "kinds": {
+    "constructor": "function:0:false"
+   },
+   "len": 0,
+   "order": [
+    "constructor"
+   ],
+   "parent": "OrientationSensor",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object AbsoluteOrientationSensor]"
+  },
+  "Accelerometer": {
+   "kinds": {
+    "constructor": "function:0:false",
+    "x": "ro:true",
+    "y": "ro:true",
+    "z": "ro:true"
+   },
+   "len": 0,
+   "order": [
+    "x",
+    "y",
+    "z",
+    "constructor"
+   ],
+   "parent": "Sensor",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object Accelerometer]"
+  },
+  "GravitySensor": {
+   "kinds": {
+    "constructor": "function:0:false"
+   },
+   "len": 0,
+   "order": [
+    "constructor"
+   ],
+   "parent": "Accelerometer",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object GravitySensor]"
+  },
+  "Gyroscope": {
+   "kinds": {
+    "constructor": "function:0:false",
+    "x": "ro:true",
+    "y": "ro:true",
+    "z": "ro:true"
+   },
+   "len": 0,
+   "order": [
+    "x",
+    "y",
+    "z",
+    "constructor"
+   ],
+   "parent": "Sensor",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object Gyroscope]"
+  },
+  "LinearAccelerationSensor": {
+   "kinds": {
+    "constructor": "function:0:false"
+   },
+   "len": 0,
+   "order": [
+    "constructor"
+   ],
+   "parent": "Accelerometer",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object LinearAccelerationSensor]"
+  },
+  "OrientationSensor": {
+   "kinds": {
+    "constructor": "function:0:false",
+    "populateMatrix": "function:1:true",
+    "quaternion": "ro:true"
+   },
+   "len": 0,
+   "order": [
+    "quaternion",
+    "populateMatrix",
+    "constructor"
+   ],
+   "parent": "Sensor",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object OrientationSensor]"
+  },
+  "RelativeOrientationSensor": {
+   "kinds": {
+    "constructor": "function:0:false"
+   },
+   "len": 0,
+   "order": [
+    "constructor"
+   ],
+   "parent": "OrientationSensor",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object RelativeOrientationSensor]"
+  },
+  "Sensor": {
+   "kinds": {
+    "activated": "ro:true",
+    "constructor": "function:0:false",
+    "hasReading": "ro:true",
+    "onactivate": "rw:true",
+    "onerror": "rw:true",
+    "onreading": "rw:true",
+    "start": "function:0:true",
+    "stop": "function:0:true",
+    "timestamp": "ro:true"
+   },
+   "len": 0,
+   "order": [
+    "activated",
+    "hasReading",
+    "timestamp",
+    "onerror",
+    "onreading",
+    "onactivate",
+    "start",
+    "stop",
+    "constructor"
+   ],
+   "parent": "EventTarget",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object Sensor]"
+  },
+  "SensorErrorEvent": {
+   "kinds": {
+    "constructor": "function:2:false",
+    "error": "ro:true"
+   },
+   "len": 2,
+   "order": [
+    "error",
+    "constructor"
+   ],
+   "parent": "Event",
+   "statics": [
+    "length",
+    "name",
+    "prototype"
+   ],
+   "tag": "[object SensorErrorEvent]"
+  }
+ },
+ "stop.noop": "#undefined"
+}

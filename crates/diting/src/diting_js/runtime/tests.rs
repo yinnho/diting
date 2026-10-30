@@ -26918,3 +26918,38 @@ async fn uievent_family_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 9: the Generic Sensor family (sensor-probe.js, real Chrome 145
+/// headless): Sensor / Accelerometer / LinearAccelerationSensor /
+/// GravitySensor / Gyroscope / OrientationSensor / Absolute- and
+/// RelativeOrientationSensor / SensorErrorEvent. With no sensor hardware every
+/// sensor constructs, start() asynchronously fires a TRUSTED SensorErrorEvent
+/// (NotReadableError "Could not connect to a sensor") and nothing ever
+/// activates; Magnetometer / AmbientLightSensor do not exist. The probe covers
+/// shape and chain, options-dictionary conversion order and wording, brand
+/// checks, populateMatrix argument checks, the start()/stop() event sequences
+/// (twice -> one error, stop cancels, restart works) and SensorErrorEvent's
+/// required `error`. IDL on* handlers are logged apart from listeners: the
+/// engine core fires handlers first (a known core-level divergence).
+#[tokio::test(flavor = "current_thread")]
+async fn sensor_family_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/sensor-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/sensor-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
