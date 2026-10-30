@@ -2024,7 +2024,7 @@ P SensorErrorEvent :: constructor,error
 P Serial :: constructor,getPorts,onconnect,ondisconnect,requestPort
 P SerialPort :: close,connected,constructor,forget,getInfo,getSignals,onconnect,ondisconnect,open,readable,setSignals,writable
 P ServiceWorker :: constructor,onerror,onstatechange,postMessage,scriptURL,state
-P ServiceWorkerContainer :: constructor,getRegistrations,register
+P ServiceWorkerContainer :: constructor,controller,getRegistration,getRegistrations,ready,register
 P ServiceWorkerRegistration :: active,backgroundFetch,constructor,cookies,getNotifications,installing,navigationPreload,onupdatefound,paymentManager,periodicSync,pushManager,scope,showNotification,sync,unregister,update,updateViaCache,waiting
 P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersection,isDisjointFrom,isSubsetOf,isSupersetOf,keys,size,symmetricDifference,union,values
 P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
@@ -2066,7 +2066,7 @@ P StyleSheet :: constructor,disabled,href,media,ownerNode,parentStyleSheet,title
 P StyleSheetList :: constructor,item,length
 P SubmitEvent :: constructor,submitter
 P Subscriber :: active,addTeardown,complete,constructor,error,next,signal
-P SubtleCrypto :: constructor
+P SubtleCrypto :: constructor,decrypt,deriveBits,deriveKey,digest,encrypt,exportKey,generateKey,importKey,sign,unwrapKey,verify,wrapKey
 S Summarizer :: availability,create
 P Summarizer :: constructor,destroy,expectedContextLanguages,expectedInputLanguages,format,inputQuota,length,measureInputUsage,outputLanguage,sharedContext,summarize,summarizeStreaming,type
 P SuppressedError :: constructor,message,name

@@ -1291,3 +1291,12 @@ Chrome 145 里 window 上**不可配置**的自有属性恰好 8 个：Infinity/
 结果：不可配置集合与 Chrome 逐项相同（8/8）。验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 相同；快照重生。
 经验：**bootstrap/各脚本里的顶层 `function` 声明都会泄漏成不可配置全局**（本次 crypto helper 与 MediaQueryList 同源），新代码应放进 IIFE 或用 `const` 函数表达式。
 
+## M4 刀35：单例对象的自有成员下沉到原型（demote_own.js）（2026-10-30）
+
+`history`、`crypto`、`crypto.subtle`、`navigator.geolocation`、`navigator.serviceWorker`、`indexedDB` 在引擎里把成员（pushState/getRandomValues/getCurrentPosition/open…）存成**实例自有属性**；Chrome 的这些实例没有任何自有属性，成员都在原型上。
+`demote_own.js`：把实例上的自有方法/访问器按**同一函数对象**搬到对应接口原型（History/Crypto/SubtleCrypto/Geolocation/ServiceWorkerContainer/IDBFactory），自有**数据**属性（`history.length` 等）改成原型访问器+私有槽，
+使引擎内部的赋值照常工作；实例自带的 `Symbol.toStringTag` 若原型已有则删除以免遮蔽。**EventTarget 三件套不搬**（可能由对象自己的监听表支撑，且搬到子接口原型会违反 EventTarget 链真值——被 eventtarget_chains 测试抓出过）。
+下沉函数在两个时点运行：快照末尾，以及**每页 init 末尾**（`__diting_demote_own`，因为 indexedDB / serviceWorker 这类单例是每页新建的）。
+结果：History/Crypto/SubtleCrypto/Geolocation 干净；带泄漏对象 38→34。**仍剩**：IDBFactory（open/deleteDatabase/databases/cmp）与 ServiceWorkerContainer（register/getRegistrations）——它们的对象在 demote 之后才创建或被每次访问重建，需在其创建处处理。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+
