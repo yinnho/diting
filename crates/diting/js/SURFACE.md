@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→**275**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→**262**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -740,3 +740,41 @@ Notification…）的通路。bootstrap 因此 +4 行（含注释），属「既
 SensorErrorEvent 由空桩变真身）；check_fresh 7 件鲜（29 真值）；analyze 零违。下一刀
 顺位：Notification 14、Animation 19、EditContext 11、SpeechRecognition 8、
 ClipboardChangeEvent 18。
+
+## M4 刀10：Web Notifications（2026-10-30）
+
+`Notification`（单接口，旧实现是空壳：只有静态 permission/requestPermission 和一个假
+`image` getter）。差集 275→**262**（-13；行数不变——`Notification.image` 一行见下）。
+新模块 `platform/notification.impl.js`，探针 `notification-probe.js` 42 键全等。
+
+- **Chrome 145 headless 真面**：`Notification.permission` 起始 `default`；**首次
+  `requestPermission()` 结算 `denied` 且从此固定**（无提示 UI；回调与 Promise 都给
+  `denied`，非函数实参抛 `parameter 1 is not of type 'Function'.`）；没有授权时
+  `new Notification()` 在**后一个任务**触发 **trusted** 的普通 `error` Event（不冒泡、
+  不可取消、target=该通知），**即便期间已 `close()` 也照发**，永不 show。
+- **NotificationOptions 字典**：按 WebIDL 字典序读取；`title` 走 DOMString（null→'null'）；
+  `icon/badge` 为 USVString 并**解析成绝对 URL**（空串保持空）；`timestamp` 是
+  `unsigned long long`（负数/溢出按 2^64 回绕：-5→18446744073709552000，1e20→
+  7766279631452242000，NaN/null→0，默认 Date.now()）；`vibrate` 是冻结数组且缓存
+  （数字→[n]，非法→[0]）；`data` 在构造时**结构化克隆并缓存**（`data !== 原对象`，重复读
+  同一个；函数/Symbol 抛 `DataCloneError`，文案以被拒值命名：
+  `Failed to construct 'Notification': function () {} could not be cloned.`）；`dir` 枚举
+  区分大小写；`actions` 非空抛"仅支持 ServiceWorkerRegistration.showNotification()"；
+  `silent`+`vibrate`、`renotify` 无 tag 各有专门 TypeError。
+- 形状：原型自有序 `onclick,onshow,onerror,onclose,title,dir,lang,body,tag,icon,badge,
+  vibrate,timestamp,renotify,silent,requireInteraction,data,actions,close,constructor`；
+  静态 `permission`、`maxActions`(=2)、`requestPermission` 依序；实例无自有属性；
+  **`image` 不是实例成员**（规格与 BCD 都列了它，但 Chrome 145 实测没有——本表该行即此
+  假阳性，以真 Chrome 为准不装）；`NotificationEvent` 在 window 上不存在。
+- 第二个使用 `_eventState` 的模块（trusted `error` 事件）。
+
+**坑**：①**活引擎的 /eval 会在同一运行时把脚本执行两遍**，带副作用的状态（这里是
+requestPermission 把权限固定成 denied）在第二遍已变——对拍到 `permission.initial` 读
+`denied` 是探测环境假象，**有状态探针以 Rust 单测（新运行时、单次执行）为准**；②Chrome
+的 DataCloneError 文案命名被拒值，而引擎 structuredClone 的是通用文案——本模块在边界处
+重建（沿对象/数组/Map/Set 找第一个函数/Symbol）；structuredClone 本身的文案属另一刀。
+
+验收：探针 42 键全等（单测）；tests **1443/0**（新增 notification_matches_chrome_truth）；
+快照漂移 1 行（Notification 空桩→真身，并去掉引擎多出的假 `image`）；check_fresh 7 件鲜
+（30 真值）；analyze 零违。下一刀顺位：Animation 19、EditContext 11、SpeechRecognition 8、
+ClipboardChangeEvent 18、RTCIceCandidate 16、VideoFrame 10、URLPattern 9。

@@ -1802,7 +1802,7 @@ P NodeRange :: constructor
 P NotRestoredReasonDetails :: constructor
 P NotRestoredReasons :: constructor
 S Notification :: maxActions,permission,requestPermission
-P Notification :: constructor,image
+P Notification :: actions,badge,body,close,constructor,data,dir,icon,lang,onclick,onclose,onerror,onshow,renotify,requireInteraction,silent,tag,timestamp,title,vibrate
 S Number :: EPSILON,MAX_SAFE_INTEGER,MAX_VALUE,MIN_SAFE_INTEGER,MIN_VALUE,NEGATIVE_INFINITY,NaN,POSITIVE_INFINITY,isFinite,isInteger,isNaN,isSafeInteger,parseFloat,parseInt
 P Number :: constructor,toExponential,toFixed,toLocaleString,toPrecision,toString,valueOf
 P OTPCredential :: constructor

@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 196 个接口；有缺口 59 个；缺口成员合计 275。
+已核 196 个接口；有缺口 59 个；缺口成员合计 262。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -32,7 +32,6 @@
 | ClipboardChangeEvent | new | 18/24 | bubbles, cancelBubble, cancelable, composed, composedPath, currentTarget, defaultPrevented, eventPhase, initEvent, isTrusted, preventDefault, returnValue, srcElement, stopImmediatePropagation, stopPropagation, target, timeStamp, type |
 | RTCIceCandidate | new | 16/17 | address, component, foundation, port, priority, protocol, relatedAddress, relatedPort, relayProtocol, sdpMLineIndex, sdpMid, tcpType, toJSON, type, url, usernameFragment |
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
-| Notification | new | 14/26 | actions, badge, body, close, data, dir, icon, lang, renotify, requireInteraction, silent, tag, timestamp, title |
 | EditContext | new | 11/20 | attachedElements, characterBounds, characterBoundsRangeStart, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
 | URLPattern | new | 9/11 | hasRegExpGroups, hash, hostname, password, pathname, port, protocol, search, username |
@@ -78,6 +77,7 @@
 | MediaSource | new | 1/18 | handle |
 | MediaStream | new | 1/15 | getTrackById |
 | MessageEvent | new | 1/28 | initMessageEvent |
+| Notification | new | 1/26 | image |
 | OfflineAudioContext | new | 1/37 | audioWorklet |
 | Path2D | new | 1/11 | roundRect |
 | PopStateEvent | new | 1/24 | hasUAVisualTransition |

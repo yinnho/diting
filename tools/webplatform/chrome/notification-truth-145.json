@@ -1,0 +1,242 @@
+{
+ "brand": "THROW TypeError: Illegal invocation",
+ "close.brand": "THROW TypeError: Illegal invocation",
+ "close.ret": [
+  null,
+  null
+ ],
+ "ctor.badopt": "THROW TypeError: Failed to construct 'Notification': The provided value is not of type 'NotificationOptions'.",
+ "ctor.call": "THROW TypeError: Failed to construct 'Notification': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "ctor.noargs": "THROW TypeError: Failed to construct 'Notification': 1 argument required, but only 0 present.",
+ "ctor.sym": "THROW TypeError: Failed to construct 'Notification': Cannot convert a Symbol value to a string",
+ "data.clone": [
+  false,
+  "{\"x\":[1,2]}",
+  true
+ ],
+ "data.fn": "THROW DataCloneError: Failed to construct 'Notification': function () {} could not be cloned.",
+ "data.vals": {
+  "date": "[object Date]",
+  "map": "[object Map]",
+  "null": null,
+  "num": 5,
+  "str": "s",
+  "sym": "DataCloneError: Failed to construct 'Notification': Symbol() could not be cloned.",
+  "undef": null
+ },
+ "ev.basic": {
+  "hlog": [
+   "onerror"
+  ],
+  "log": [
+   "error:Event:true:false:false:true",
+   "end",
+   "afterclose"
+  ]
+ },
+ "ev.close": {
+  "hlog": [
+   "onerror"
+  ],
+  "log": [
+   "error:Event:true:false:false:true",
+   "end",
+   "afterclose"
+  ]
+ },
+ "fresh": {
+  "actions": "OBJ:Array0",
+  "badge": "",
+  "body": "",
+  "chain": [
+   true,
+   true
+  ],
+  "data": null,
+  "dir": "auto",
+  "icon": "",
+  "image": "#undefined",
+  "lang": "",
+  "maxActions": "#undefined",
+  "onclick": null,
+  "onclose": null,
+  "onerror": null,
+  "onshow": null,
+  "own": [],
+  "renotify": false,
+  "requireInteraction": false,
+  "silent": false,
+  "tag": "",
+  "tag2": "[object Notification]",
+  "title": "Title",
+  "tsNear": true,
+  "vibrate": "OBJ:Array0"
+ },
+ "handlers": [
+  true,
+  null,
+  null
+ ],
+ "maxActions": 2,
+ "opts.actions": "THROW TypeError: Failed to construct 'Notification': Actions are only supported for persistent notifications shown using ServiceWorkerRegistration.showNotification().",
+ "opts.actions.empty": "ok",
+ "opts.badDir": "THROW TypeError: Failed to construct 'Notification': Failed to read the 'dir' property from 'NotificationOptions': The provided value 'zzz' is not a valid enum value of type NotificationDirection.",
+ "opts.bools": [
+  true,
+  true,
+  false
+ ],
+ "opts.conv": [
+  "5",
+  "7",
+  "null",
+  "",
+  false,
+  9
+ ],
+ "opts.dir.vals": {
+  "RTL": "T",
+  "auto": "auto",
+  "ltr": "ltr",
+  "rtl": "rtl"
+ },
+ "opts.icon.empty": "",
+ "opts.icon.rel": [
+  "#O/rel.png",
+  "http://x.test/b%20a.png"
+ ],
+ "opts.image": [
+  false,
+  null
+ ],
+ "opts.nullish": "ok",
+ "opts.renotify.notag": "THROW TypeError: Failed to construct 'Notification': Notifications which set the renotify flag must specify a non-empty tag.",
+ "opts.silent.null": false,
+ "opts.silent.vibrate": "THROW TypeError: Failed to construct 'Notification': Silent notifications must not specify vibration patterns.",
+ "opts.ts": {
+  "big": 7766279631452242000,
+  "float": 2,
+  "nan": 0,
+  "neg": 18446744073709552000,
+  "null": 0,
+  "str": 9
+ },
+ "opts.vibrate": [
+  [
+   100,
+   50,
+   200
+  ],
+  true,
+  true,
+  true
+ ],
+ "opts.vibrate.bad": [
+  0
+ ],
+ "opts.vibrate.num": [
+  200
+ ],
+ "opts1": {
+  "badge": "#O/b.png",
+  "body": "b",
+  "data": {
+   "a": 1
+  },
+  "dir": "rtl",
+  "icon": "#O/i.png",
+  "lang": "fr",
+  "renotify": true,
+  "requireInteraction": true,
+  "silent": true,
+  "tag": "tg",
+  "timestamp": 12345,
+  "title": "T",
+  "vibrate": []
+ },
+ "permission.after": "denied",
+ "permission.initial": "default",
+ "reqperm": "denied",
+ "reqperm.badcb": "THROW TypeError: Failed to execute 'requestPermission' on 'Notification': parameter 1 is not of type 'Function'.",
+ "reqperm.cb": [
+  "cb",
+  "denied",
+  "function"
+ ],
+ "requestPermission.len": 0,
+ "shape": {
+  "kinds": {
+   "actions": "ro:true",
+   "badge": "ro:true",
+   "body": "ro:true",
+   "close": "function:0:true",
+   "constructor": "function:1:false",
+   "data": "ro:true",
+   "dir": "ro:true",
+   "icon": "ro:true",
+   "lang": "ro:true",
+   "onclick": "rw:true",
+   "onclose": "rw:true",
+   "onerror": "rw:true",
+   "onshow": "rw:true",
+   "renotify": "ro:true",
+   "requireInteraction": "ro:true",
+   "silent": "ro:true",
+   "tag": "ro:true",
+   "timestamp": "ro:true",
+   "title": "ro:true",
+   "vibrate": "ro:true"
+  },
+  "len": 1,
+  "order": [
+   "onclick",
+   "onshow",
+   "onerror",
+   "onclose",
+   "title",
+   "dir",
+   "lang",
+   "body",
+   "tag",
+   "icon",
+   "badge",
+   "vibrate",
+   "timestamp",
+   "renotify",
+   "silent",
+   "requireInteraction",
+   "data",
+   "actions",
+   "close",
+   "constructor"
+  ],
+  "parent": "EventTarget",
+  "staticKinds": {
+   "length": "number::false",
+   "maxActions": "ro:true",
+   "name": "string::false",
+   "permission": "ro:true",
+   "prototype": "object::false",
+   "requestPermission": "function:0:true"
+  },
+  "statics": [
+   "length",
+   "name",
+   "prototype",
+   "permission",
+   "maxActions",
+   "requestPermission"
+  ],
+  "tag": "[object Notification]"
+ },
+ "title.conv": {
+  "null": "null",
+  "num": "0",
+  "obj": "[object Object]",
+  "undef": "undefined"
+ },
+ "window.names": [
+  "function",
+  "undefined"
+ ]
+}
