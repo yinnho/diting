@@ -1,0 +1,228 @@
+{
+ "args": [
+  "TypeError: Failed to execute 'item' on 'NamedNodeMap': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'getNamedItem' on 'NamedNodeMap': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'getNamedItemNS' on 'NamedNodeMap': 2 arguments required, but only 0 present.",
+  "TypeError: Failed to execute 'setNamedItem' on 'NamedNodeMap': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'setNamedItemNS' on 'NamedNodeMap': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'removeNamedItem' on 'NamedNodeMap': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'removeNamedItemNS' on 'NamedNodeMap': 2 arguments required, but only 0 present."
+ ],
+ "basic": [
+  true,
+  "[object NamedNodeMap]",
+  3,
+  true,
+  [
+   "0",
+   "1",
+   "2",
+   "id",
+   "class",
+   "data-x"
+  ],
+  [
+   "0",
+   "1",
+   "2"
+  ],
+  "id",
+  "1",
+  "#undef",
+  "class",
+  null,
+  null
+ ],
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "case.html": [
+  "data-y",
+  "data-y",
+  "1",
+  "1"
+ ],
+ "clone": [
+  3,
+  false,
+  true
+ ],
+ "ctor": "TypeError: Failed to construct 'NamedNodeMap': Illegal constructor",
+ "empty": [
+  0,
+  [],
+  "#undef",
+  "[]"
+ ],
+ "equal": [
+  true,
+  true
+ ],
+ "forin": [
+  "0",
+  "1",
+  "2",
+  "length",
+  "getNamedItem",
+  "getNamedItemNS",
+  "item",
+  "removeNamedItem",
+  "removeNamedItemNS",
+  "setNamedItem",
+  "setNamedItemNS"
+ ],
+ "getAttributeNames": [
+  "id",
+  "class",
+  "data-x"
+ ],
+ "identity": [
+  true,
+  true,
+  true,
+  true,
+  true
+ ],
+ "inuse": "InUseAttributeError: Failed to execute 'setAttributeNode' on 'Element': The node provided is an attribute node that is already an attribute of another Element; attribute nodes must be explicitly cloned.",
+ "inuse.same": true,
+ "iter": [
+  [
+   "id",
+   "class",
+   "data-x"
+  ],
+  [
+   "a",
+   "b c",
+   "1"
+  ],
+  [
+   "id",
+   "class",
+   "data-x"
+  ],
+  true
+ ],
+ "live": [
+  4,
+  3,
+  "class",
+  "#undef",
+  [
+   "class",
+   "data-x",
+   "title"
+  ]
+ ],
+ "live.value": [
+  "z",
+  "y",
+  "y",
+  "y"
+ ],
+ "named": [
+  "a",
+  "1",
+  true,
+  false,
+  "#undef",
+  "b c",
+  "b c",
+  null,
+  3
+ ],
+ "ns": [
+  true,
+  "p:k",
+  "k",
+  "p",
+  "urn:x",
+  "v",
+  true
+ ],
+ "ns.remove": [
+  "p:k",
+  false,
+  "NotFoundError: Failed to execute 'removeNamedItemNS' on 'NamedNodeMap': No item with name 'urn:x::zz' was found."
+ ],
+ "readded.identity": [
+  false,
+  null,
+  true,
+  "q"
+ ],
+ "removeAttributeNode": [
+  true,
+  false,
+  "NotFoundError: Failed to execute 'removeAttributeNode' on 'Element': The node provided is owned by another element."
+ ],
+ "removeNamedItem": [
+  true,
+  false,
+  null,
+  2,
+  "NotFoundError: Failed to execute 'removeNamedItem' on 'NamedNodeMap': No item with name 'zz' was found."
+ ],
+ "removed.detached": [
+  null,
+  "a",
+  null,
+  false
+ ],
+ "setAttributeNode": [
+  null,
+  true,
+  true,
+  "fr"
+ ],
+ "setNamedItem": [
+  null,
+  true,
+  "U",
+  null,
+  true,
+  true,
+  4
+ ],
+ "setNamedItem.bad": [
+  "TypeError: Failed to execute 'setNamedItem' on 'NamedNodeMap': parameter 1 is not of type 'Attr'.",
+  "TypeError: Failed to execute 'setNamedItem' on 'NamedNodeMap': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'setAttributeNode' on 'Element': parameter 1 is not of type 'Attr'."
+ ],
+ "shape.NamedNodeMap": {
+  "kinds": {
+   "constructor": "function:0",
+   "getNamedItem": "function:1",
+   "getNamedItemNS": "function:2",
+   "item": "function:1",
+   "length": "ro",
+   "removeNamedItem": "function:1",
+   "removeNamedItemNS": "function:2",
+   "setNamedItem": "function:1",
+   "setNamedItemNS": "function:1"
+  },
+  "len": 0,
+  "order": [
+   "length",
+   "getNamedItem",
+   "getNamedItemNS",
+   "item",
+   "removeNamedItem",
+   "removeNamedItemNS",
+   "setNamedItem",
+   "setNamedItemNS",
+   "constructor"
+  ],
+  "syms": [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  "tag": "[object NamedNodeMap]"
+ },
+ "toggle": [
+  4,
+  "",
+  true
+ ]
+}

@@ -15452,7 +15452,9 @@ if (!Document.prototype.createAttributeNS) {
         throw new DOMException('Invalid attribute name', 'InvalidCharacterError');
       }
     }
-    return __diting_mkAttr(qn, '', ns, prefix);
+    const attr = __diting_mkAttr(qn, '', ns, prefix);
+    attr.localName = localName;
+    return attr;
   };
   _markNative(Document.prototype.createAttributeNS);
 }

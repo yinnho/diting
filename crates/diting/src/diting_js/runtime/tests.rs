@@ -27490,9 +27490,8 @@ async fn canvasobjects_match_chrome_truth() {
 /// M4 knife 43: Attr is a Node (attr-probe.js, real Chrome 145): `attr instanceof Node`, Node members answer null / empty for an
 /// attribute, nodeType/nodeName/nodeValue come from Node.prototype, the public constructor is illegal (nodes come from
 /// createAttribute / getAttributeNode), no own keys on instances.
-/// KNOWN (next knife, NamedNodeMap + live Attr identity): `getAttributeNode('x') === getAttributeNode('x')` is false here (a
-/// fresh object per call; `element.attributes` is still an array of plain objects), and the lifted fields are rw accessors where
-/// Chrome's are read-only.
+/// KNOWN: the lifted fields are rw accessors where Chrome's are read-only. (Attr identity and NamedNodeMap landed in knife 44:
+/// see namednodemap_matches_chrome_truth.)
 #[tokio::test(flavor = "current_thread")]
 async fn attr_matches_chrome_truth() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -27509,9 +27508,6 @@ async fn attr_matches_chrome_truth() {
     .unwrap();
     let mut bad = Vec::new();
     for (k, want) in truth.as_object().unwrap() {
-        if k == "compare" {
-            continue;
-        }
         if k == "proto.kinds" {
             // only the six lifted ro->rw members are known; everything else must match
             let mut e = engine[k].clone();
@@ -27528,6 +27524,33 @@ async fn attr_matches_chrome_truth() {
             }
             continue;
         }
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 knife 44: NamedNodeMap + live Attr nodes (nnm-probe.js, 37 keys, real Chrome 145): one NamedNodeMap per element (indexed
+/// and named properties, live length, iterable), one Attr per attribute that keeps its identity while the attribute exists,
+/// follows the value both ways, is detached (ownerElement null, last value kept) on removal and replaced by a NEW node on
+/// re-add; set/remove/getNamedItem(NS) and the Element attribute-node methods with exact error names and wording.
+#[tokio::test(flavor = "current_thread")]
+async fn namednodemap_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/nnm-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/nnm-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
         if &engine[k] != want {
             bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
         }

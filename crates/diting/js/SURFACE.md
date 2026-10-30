@@ -1402,3 +1402,17 @@ nodeType/nodeName/nodeValue 并入刀23 的 Node.prototype 分派表（`nodeleve
 - 提升字段与 Node 成员覆盖在原型上显示为 rw/多出成员（Chrome 里只读 / 在 Node.prototype）。
 验收：全量（跳两个毒化页面测试）997 过/30 败，失败集与干净 HEAD 相同；ratchet OK；契约零违；check_fresh 7 件鲜（46 真值）；实例审计带泄漏对象 19/127。XPath 以属性节点作上下文的用例仍全绿。
 
+## M4 刀44：NamedNodeMap + 活的 Attr 节点（2026-10-30）
+
+`platform/attributes.impl.js`（模块 `attributes`，探针 `nnm-probe.js` 37 键 0 差异）。此前每次访问 `element.attributes` 都新建一个「普通对象的数组」（`el.attributes !== el.attributes`，`getNamedItem` 等作为数组自有属性），
+`getAttributeNode` 每次返回新对象且值不跟随元素。现在：
+- **每元素一个 NamedNodeMap**（Proxy 实现 legacy platform object：索引与属性名两类属性；索引可枚举、名字不可枚举，`Object.getOwnPropertyNames` 为 `['0','1','2','id','class','data-x']`，`Object.keys` 只有索引；`for-in` 含原型上的可枚举方法；
+  `length` 实时；`Symbol.iterator === Array.prototype.values`；构造器非法）；`item/getNamedItem(NS)/setNamedItem(NS)/removeNamedItem(NS)` 的参数个数、`InUseAttributeError`、`NotFoundError`（措辞含 `No item with name 'urn:x::zz' was found.`）逐字对拍。
+- **每个属性一个 Attr 节点**：属性存在期间身份不变（`getAttributeNode === attributes[i] === getNamedItem`）；`value` 双向跟随元素（刀43 已接）；**移除时脱离**（`ownerElement` 变 null，保留最后一个值），**重新添加得到一个新 Attr**；
+  `setAttributeNode` 返回被替换的旧节点（并使其脱离）、属于其他元素时抛 InUseAttributeError、重复放同一个返回自身。
+- 移除路径拦截：`removeAttribute`/`removeAttributeNS`/`toggleAttribute`/`removeAttributeNode`/`removeNamedItem` 在 DOM 真移除前把缓存的 Attr 脱离（先取走值）。
+- 命名空间：引擎 DOM 只按限定名存属性、丢命名空间，故模块**记录** `setAttributeNS` 的命名空间，`getAttributeNS`/`hasAttributeNS`/`getNamedItemNS`/`removeNamedItemNS` 按（命名空间，localName）查找；`createAttributeNS` 现在把 `localName` 设为冒号后部分。
+**引擎自用方也受益**：`isEqualNode`、outerHTML 等读 `node.attributes` 的内部代码照常工作（NamedNodeMap 支持索引与 length）；XPath 模块自带的属性节点缓存现在是冗余的（保留，无害）。
+**已知局限**：HTML 文档的属性 DOM 不记录命名空间，所以由解析器产生的 `xlink:href` 之类属性的 `namespaceURI` 仍为 null；内部 JS 之外（Rust 侧解析/innerHTML 重建）造成的属性移除不会让已缓存的 Attr 脱离（元素被替换，旧 Attr 持有旧元素）。
+验收：全量（跳两个毒化页面测试）998 过/30 败，失败集与干净 HEAD 相同；ratchet OK；契约零违；check_fresh 7 件鲜（47 真值）；实例审计带泄漏对象 18/127。
+
