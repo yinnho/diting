@@ -6296,12 +6296,15 @@ __platform.define("nodelevel", function (exports, require, P) {
 // (the hot path) miss the table once per prototype and then take the base getter.
 
 const NP = Node.prototype;
+// Attr is a Node in Chrome (`attr instanceof Node`). bootstrap.js links Attr.prototype under Node.prototype (same-file link: a
+// cross-file prototype mutation would raise the dependency ratchet); its type-specific nodeType / nodeName / nodeValue are hoisted
+// below like every other node class's.
 const NAMES = ['nodeType', 'nodeName', 'nodeValue', 'cloneNode'];
 const base = {};
 const table = {};
 const caches = {};
 for (const n of NAMES) { base[n] = Object.getOwnPropertyDescriptor(NP, n); table[n] = new Map(); caches[n] = new WeakMap(); }
-for (const C of [Text, Comment, CDATASection, ProcessingInstruction, Document, DocumentFragment, DocumentType, ShadowRoot]) {
+for (const C of [Text, Comment, CDATASection, ProcessingInstruction, Document, DocumentFragment, DocumentType, ShadowRoot, Attr]) {
   if (typeof C !== 'function') continue;
   for (const n of NAMES) {
     const d = Object.getOwnPropertyDescriptor(C.prototype, n);

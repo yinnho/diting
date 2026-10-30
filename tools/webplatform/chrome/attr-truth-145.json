@@ -1,0 +1,73 @@
+{
+ "compare": [
+  true,
+  true,
+  true
+ ],
+ "create": [
+  "foo",
+  "bar",
+  null,
+  true,
+  2
+ ],
+ "create.bad": "InvalidCharacterError",
+ "ctor": "TypeError: Failed to construct 'Attr': Illegal constructor",
+ "fields": [
+  "data-x",
+  "data-x",
+  "v1",
+  null,
+  null,
+  true,
+  true,
+  2,
+  "data-x",
+  "v1",
+  "v1"
+ ],
+ "inst": [
+  true,
+  true,
+  "[object Attr]",
+  [],
+  true
+ ],
+ "named": [
+  2,
+  "data-x",
+  "data-x",
+  "q"
+ ],
+ "node.has": [
+  false,
+  false,
+  false
+ ],
+ "node.members": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  0,
+  false,
+  false,
+  true
+ ],
+ "proto.kinds": {
+  "constructor": "function",
+  "localName": "ro",
+  "name": "ro",
+  "namespaceURI": "ro",
+  "ownerElement": "ro",
+  "prefix": "ro",
+  "specified": "ro",
+  "value": "rw"
+ },
+ "value.set": [
+  "v2",
+  "v2",
+  "v2"
+ ]
+}

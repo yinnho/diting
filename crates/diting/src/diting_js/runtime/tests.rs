@@ -27486,3 +27486,51 @@ async fn canvasobjects_match_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 43: Attr is a Node (attr-probe.js, real Chrome 145): `attr instanceof Node`, Node members answer null / empty for an
+/// attribute, nodeType/nodeName/nodeValue come from Node.prototype, the public constructor is illegal (nodes come from
+/// createAttribute / getAttributeNode), no own keys on instances.
+/// KNOWN (next knife, NamedNodeMap + live Attr identity): `getAttributeNode('x') === getAttributeNode('x')` is false here (a
+/// fresh object per call; `element.attributes` is still an array of plain objects), and the lifted fields are rw accessors where
+/// Chrome's are read-only.
+#[tokio::test(flavor = "current_thread")]
+async fn attr_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/attr-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/attr-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if k == "compare" {
+            continue;
+        }
+        if k == "proto.kinds" {
+            // only the six lifted ro->rw members are known; everything else must match
+            let mut e = engine[k].clone();
+            let mut w = want.clone();
+            // the lifted ro->rw fields plus the safe Node-member overrides Attr.prototype carries (Chrome has them on Node.prototype)
+            for m in ["name", "localName", "namespaceURI", "prefix", "ownerElement", "specified", "childNodes", "firstChild",
+                "hasChildNodes", "isConnected", "lastChild", "nextSibling", "ownerDocument", "parentElement", "parentNode",
+                "previousSibling", "textContent"] {
+                e.as_object_mut().unwrap().remove(m);
+                w.as_object_mut().unwrap().remove(m);
+            }
+            if e != w {
+                bad.push(format!("{k}:\n   engine {e}\n   chrome {w}"));
+            }
+            continue;
+        }
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

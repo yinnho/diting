@@ -15363,21 +15363,53 @@ if (!Document.prototype.getElementsByTagNameNS) {
 // ---- Attr nodes and createAttribute ----
 // Attr class: represents attribute nodes (nodeType 2)
 if (!globalThis.Attr) {
+  // Internal construction token: Chrome's Attr has an illegal public constructor (nodes come from createAttribute / getAttributeNode).
+  const _ATTR_TOK = Symbol('attr');
+  globalThis.__diting_mkAttr = (name, value, ns, prefix) => new globalThis.Attr(name, value, ns, prefix, _ATTR_TOK);
   globalThis.Attr = class Attr {
-    constructor(name, value = '', namespaceURI = null, prefix = null) {
+    constructor(name, value = '', namespaceURI = null, prefix = null, tok) {
+      if (tok !== _ATTR_TOK) throw new TypeError("Failed to construct 'Attr': Illegal constructor");
       this.name = name;
       this.localName = name;
-      this.value = value;
+      this._v = String(value);
       this.namespaceURI = namespaceURI;
       this.prefix = prefix;
       this.ownerElement = null;
       this.specified = true;
     }
+    // Live while attached (Chrome: an Attr and its element's attribute are one thing): reads/writes go through the owner element.
+    get value() {
+      const o = this.ownerElement;
+      if (o) { const v = o.getAttribute(this.name); if (v !== null) return v; }
+      return this._v;
+    }
+    set value(v) {
+      v = String(v);
+      this._v = v;
+      const o = this.ownerElement;
+      if (o) o.setAttribute(this.name, v);
+    }
     get nodeName() { return this.name; }
     get nodeValue() { return this.value; }
     set nodeValue(v) { this.value = v; }
     get nodeType() { return 2; }
+    // Node.prototype is now above Attr.prototype (nodelevel.impl.js); its id-based members would throw for an Attr (no DOM node id).
+    // An attribute has no parent, children or siblings; its text is its value.
+    get parentNode() { return null; }
+    get parentElement() { return null; }
+    get firstChild() { return null; }
+    get lastChild() { return null; }
+    get previousSibling() { return null; }
+    get nextSibling() { return null; }
+    get childNodes() { return _nodeList([]); }
+    hasChildNodes() { return false; }
+    get isConnected() { return false; }
+    get ownerDocument() { return globalThis.document; }
+    get textContent() { return this.value; }
+    set textContent(v) { this.value = v === null ? '' : String(v); }
   };
+  // Chrome: Attr is a Node. Its id-based Node members are overridden above (an Attr has no DOM node id).
+  Object.setPrototypeOf(globalThis.Attr.prototype, Node.prototype);
 }
 
 // XML Name validation helper for attribute/processing instruction names
@@ -15393,7 +15425,7 @@ if (!Document.prototype.createAttribute) {
     if (!_ns_isValidXmlName(name)) {
       throw new DOMException('Invalid attribute name', 'InvalidCharacterError');
     }
-    return new Attr(name, '', null, null);
+    return __diting_mkAttr(name, '', null, null);
   };
   _markNative(Document.prototype.createAttribute);
 }
@@ -15420,7 +15452,7 @@ if (!Document.prototype.createAttributeNS) {
         throw new DOMException('Invalid attribute name', 'InvalidCharacterError');
       }
     }
-    return new Attr(qn, '', ns, prefix);
+    return __diting_mkAttr(qn, '', ns, prefix);
   };
   _markNative(Document.prototype.createAttributeNS);
 }
@@ -15430,7 +15462,7 @@ if (!Element.prototype.getAttributeNode) {
   Element.prototype.getAttributeNode = function(name) {
     const val = this.getAttribute(name);
     if (val === null) return null;
-    const attr = new Attr(name, val, null, null);
+    const attr = __diting_mkAttr(name, val, null, null);
     attr.ownerElement = this;
     return attr;
   };
@@ -15443,7 +15475,7 @@ if (!Element.prototype.getAttributeNodeNS) {
     const val = this.getAttributeNS(namespaceURI, localName);
     if (val === null) return null;
     const name = String(localName || '');
-    const attr = new Attr(name, val, namespaceURI ? String(namespaceURI) : null, null);
+    const attr = __diting_mkAttr(name, val, namespaceURI ? String(namespaceURI) : null, null);
     attr.ownerElement = this;
     return attr;
   };
@@ -15455,7 +15487,7 @@ if (!Element.prototype.setAttributeNode) {
   Element.prototype.setAttributeNode = function(attr) {
     if (!attr || typeof attr.name !== 'string') return null;
     const prevVal = this.getAttribute(attr.name);
-    const prevAttr = prevVal !== null ? new Attr(attr.name, prevVal, null, null) : null;
+    const prevAttr = prevVal !== null ? __diting_mkAttr(attr.name, prevVal, null, null) : null;
     if (prevAttr) prevAttr.ownerElement = this;
     this.setAttribute(attr.name, attr.value);
     attr.ownerElement = this;
@@ -15470,7 +15502,7 @@ if (!Element.prototype.setAttributeNodeNS) {
     if (!attr || typeof attr.name !== 'string') return null;
     const prevVal = this.getAttribute(attr.name);
     const prevAttr = prevVal !== null 
-      ? new Attr(attr.name, prevVal, attr.namespaceURI || null, attr.prefix || null) 
+      ? __diting_mkAttr(attr.name, prevVal, attr.namespaceURI || null, attr.prefix || null) 
       : null;
     if (prevAttr) prevAttr.ownerElement = this;
     this.setAttributeNS(attr.namespaceURI || null, attr.name, attr.value);

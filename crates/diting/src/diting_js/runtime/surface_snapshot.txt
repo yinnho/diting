@@ -1232,7 +1232,7 @@ P Array :: at,concat,constructor,copyWithin,entries,every,fill,filter,find,findI
 S ArrayBuffer :: isView
 P ArrayBuffer :: byteLength,constructor,detached,maxByteLength,resizable,resize,slice,transfer,transferToFixedLength
 P AsyncDisposableStack :: adopt,constructor,defer,disposeAsync,disposed,move,use
-P Attr :: constructor,nodeName,nodeType,nodeValue
+P Attr :: childNodes,constructor,firstChild,hasChildNodes,isConnected,lastChild,localName,name,namespaceURI,nextSibling,ownerDocument,ownerElement,parentElement,parentNode,prefix,previousSibling,specified,textContent,value
 P Audio :: addEventListener,constructor,load,pause,play,removeEventListener
 P AudioBuffer :: constructor,copyFromChannel,copyToChannel,duration,getChannelData,length,numberOfChannels,sampleRate
 P AudioBufferSourceNode :: buffer,constructor,detune,loop,loopEnd,loopStart,playbackRate,start

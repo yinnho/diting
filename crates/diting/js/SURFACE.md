@@ -1390,3 +1390,15 @@ CanvasGradient/CanvasPattern 实例、无任何参数校验、`_x0` 等键外泄
 **教训（已第二次踩）**：平台模块里写 `CSS`/`HTMLCanvasElement` 这类**自由变量**会触发契约违规与棘轮上涨——一律用 `globalThis.X`（属性访问不计入）。
 验收：全量（跳两个毒化页面测试）996 过/30 败，失败集与干净 HEAD 相同；ratchet OK；契约零违；check_fresh 7 件鲜。
 
+## M4 刀43：Attr 成为 Node（2026-10-30）
+
+Chrome 的 `Attr` 是 `Node` 的子类；引擎的 Attr 是个不挂 DOM 节点 id 的普通 JS 类（`attr instanceof Node` 为假、7 个实例自有键、公开构造器可用）。本刀：
+①bootstrap 里把 `Attr.prototype` 接到 `Node.prototype` 之下（**必须写在 bootstrap 同文件**：放进平台模块会算「跨文件原型改写」让依赖棘轮 16→17 变红，刚好被「棘轮行单独看」的新规矩拦下）；
+②Node 上基于 id 的成员对 Attr 会抛 Illegal invocation，故在 Attr 上覆盖为属性节点的正确答案：parentNode/parentElement/firstChild/lastChild/previousSibling/nextSibling 为 null、childNodes 为空、hasChildNodes 假、isConnected 假、textContent=value、ownerDocument=document；
+nodeType/nodeName/nodeValue 并入刀23 的 Node.prototype 分派表（`nodelevel.impl.js`，Attr 终于能加入）；③公开构造器非法（`Failed to construct 'Attr': Illegal constructor`），引擎内部经隐藏工厂 `__diting_mkAttr` 创建（6 处调用点已改）；
+④`value` 现在**与宿主元素联动**：附着时读写都经 ownerElement（`attr.value = 'v2'` 会真改元素的属性，此前只改 Attr 对象自己；Chrome 里 Attr 与元素属性是同一件事）；⑤其余 7 个字段由 lift_own 提升为原型访问器，实例无自有键。
+探针 `attr-probe.js`（真 Chrome 145，11 键）与引擎一致，除两项**已知差异**（测试里显式豁免并说明）：
+- **身份**：`el.getAttributeNode('id') === el.getAttributeNode('id')` 在引擎为假（每次新对象），且 `el.attributes` 仍是「普通对象数组」而非 NamedNodeMap——属于下一刀（NamedNodeMap 接口 + 按元素缓存的活 Attr 节点）；
+- 提升字段与 Node 成员覆盖在原型上显示为 rw/多出成员（Chrome 里只读 / 在 Node.prototype）。
+验收：全量（跳两个毒化页面测试）997 过/30 败，失败集与干净 HEAD 相同；ratchet OK；契约零违；check_fresh 7 件鲜（46 真值）；实例审计带泄漏对象 19/127。XPath 以属性节点作上下文的用例仍全绿。
+
