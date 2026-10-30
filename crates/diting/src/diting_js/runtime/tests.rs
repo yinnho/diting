@@ -1487,11 +1487,14 @@
             ['oncopy','oncut','onpaste','ondragexit','ontouchstart'].forEach(function(n){
                 r['gone_'+n] = !has(n);
             });
-            r.throw_iface = typeof window.PermissionsPolicy;
-            r.throw_msg = (function(){ try { new PermissionsPolicy(); return 'no-throw'; } catch(e){ return e.message; } })();
-            r.throw_enum = Object.getOwnPropertyDescriptor(window,'PermissionsPolicy').enumerable;
-            r.ok_iface = typeof window.XSLTProcessor;
-            r.ok_new = window.XSLTProcessor && (new XSLTProcessor()) instanceof XSLTProcessor;
+            // PermissionsPolicy / XSLTProcessor are not in Chrome 145 (the pinned target; the older truth these
+            // assertions came from was Chrome 155) - see version_prune.js. Use interfaces 145 does have.
+            r.throw_iface = typeof window.AbortController;
+            r.throw_msg = (function(){ try { new IDBCursor(); return 'no-throw'; } catch(e){ return e.message; } })();
+            r.throw_enum = Object.getOwnPropertyDescriptor(window,'IDBCursor').enumerable;
+            r.ok_iface = typeof window.XMLSerializer;
+            r.ok_new = window.XMLSerializer && (new XMLSerializer()) instanceof XMLSerializer;
+            r.gone145 = [typeof window.PermissionsPolicy, typeof window.XSLTProcessor, typeof window.Sanitizer];
             r.method = typeof window.moveTo;
             r.method_enum = Object.getOwnPropertyDescriptor(window,'moveTo').enumerable;
             r.method_ctor = (function(){ try { new moveTo(); return 'no-throw'; } catch(e){ return e.message; } })();
@@ -1515,10 +1518,11 @@
             assert_eq!(obj[k], true, "{} leaked onto the window face", k);
         }
         assert_eq!(obj["throw_iface"], "function");
-        assert_eq!(obj["throw_msg"], "Failed to construct 'PermissionsPolicy': Illegal constructor");
+        assert_eq!(obj["throw_msg"], "Illegal constructor");
         assert_eq!(obj["throw_enum"], false);
         assert_eq!(obj["ok_iface"], "function");
         assert_eq!(obj["ok_new"], true);
+        assert_eq!(obj["gone145"], serde_json::json!(["undefined", "undefined", "undefined"]));
         assert_eq!(obj["method"], "function");
         assert_eq!(obj["method_enum"], true);
         assert_eq!(obj["method_ctor"], "moveTo is not a constructor");

@@ -1,4 +1,4 @@
-[globals] 1242
+[globals] 1214
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -11,7 +11,6 @@ G AnimationEffect
 G AnimationEvent
 G AnimationPlaybackEvent
 G AnimationTimeline
-G AnimationTrigger
 G Array
 G ArrayBuffer
 G AsyncDisposableStack
@@ -29,7 +28,6 @@ G AudioListener
 G AudioNode
 G AudioParam
 G AudioParamMap
-G AudioPlaybackStats
 G AudioProcessingEvent
 G AudioScheduledSourceNode
 G AudioSinkInfo
@@ -311,7 +309,6 @@ G HTMLBRElement
 G HTMLBaseElement
 G HTMLBodyElement
 G HTMLButtonElement
-G HTMLCameraElement
 G HTMLCanvasElement
 G HTMLCollection
 G HTMLDListElement
@@ -349,7 +346,6 @@ G HTMLMediaElement
 G HTMLMenuElement
 G HTMLMetaElement
 G HTMLMeterElement
-G HTMLMicrophoneElement
 G HTMLModElement
 G HTMLOListElement
 G HTMLObjectElement
@@ -383,7 +379,6 @@ G HTMLTitleElement
 G HTMLTrackElement
 G HTMLUListElement
 G HTMLUnknownElement
-G HTMLUserMediaElement
 G HTMLVideoElement
 G HashChangeEvent
 G Headers
@@ -425,7 +420,6 @@ G Int16Array
 G Int32Array
 G Int8Array
 G IntegrityViolationReportBody
-G InteractionContentfulPaint
 G InterestEvent
 G IntersectionObserver
 G IntersectionObserverEntry
@@ -437,7 +431,6 @@ G KeyboardEvent
 G KeyboardLayoutMap
 G KeyframeEffect
 G LanguageDetector
-G LanguageModel
 G LargestContentfulPaint
 G LaunchParams
 G LaunchQueue
@@ -515,7 +508,6 @@ G Node
 G NodeFilter
 G NodeIterator
 G NodeList
-G NodeRange
 G NotRestoredReasonDetails
 G NotRestoredReasons
 G Notification
@@ -527,7 +519,6 @@ G OfflineAudioCompletionEvent
 G OfflineAudioContext
 G OffscreenCanvas
 G OffscreenCanvasRenderingContext2D
-G OpaqueRange
 G Option
 G OrientationSensor
 G Origin
@@ -561,14 +552,12 @@ G PerformancePaintTiming
 G PerformanceResourceTiming
 G PerformanceScriptTiming
 G PerformanceServerTiming
-G PerformanceSoftNavigation
 G PerformanceTiming
 G PerformanceTimingConfidence
 G PeriodicSyncManager
 G PeriodicWave
 G PermissionStatus
 G Permissions
-G PermissionsPolicy
 G PictureInPictureEvent
 G PictureInPictureWindow
 G Plugin
@@ -739,7 +728,6 @@ G SVGTransformList
 G SVGUnitTypes
 G SVGUseElement
 G SVGViewElement
-G Sanitizer
 G Scheduler
 G Scheduling
 G Screen
@@ -821,9 +809,6 @@ G TextTrackCueList
 G TextTrackList
 G TextUpdateEvent
 G TimeRanges
-G TimelineTrigger
-G TimelineTriggerRange
-G TimelineTriggerRangeList
 G ToggleEvent
 G Touch
 G TouchEvent
@@ -935,12 +920,8 @@ G XRAnchorSet
 G XRBoundedReferenceSpace
 G XRCPUDepthInformation
 G XRCamera
-G XRCompositionLayer
-G XRCubeLayer
-G XRCylinderLayer
 G XRDOMOverlayState
 G XRDepthInformation
-G XREquirectLayer
 G XRFrame
 G XRHand
 G XRHitTestResult
@@ -952,14 +933,9 @@ G XRInputSourcesChangeEvent
 G XRJointPose
 G XRJointSpace
 G XRLayer
-G XRLayerEvent
 G XRLightEstimate
 G XRLightProbe
-G XRPlane
-G XRPlaneSet
 G XRPose
-G XRProjectionLayer
-G XRQuadLayer
 G XRRay
 G XRReferenceSpace
 G XRReferenceSpaceEvent
@@ -968,7 +944,6 @@ G XRRigidTransform
 G XRSession
 G XRSessionEvent
 G XRSpace
-G XRSubImage
 G XRSystem
 G XRTransientInputHitTestResult
 G XRTransientInputHitTestSource
@@ -979,8 +954,6 @@ G XRVisibilityMaskChangeEvent
 G XRWebGLBinding
 G XRWebGLDepthInformation
 G XRWebGLLayer
-G XRWebGLSubImage
-G XSLTProcessor
 G alert
 G atob
 G blur
@@ -1193,7 +1166,6 @@ G releaseEvents
 G reportError
 G requestAnimationFrame
 G requestIdleCallback
-G requestResize
 G resizeBy
 G resizeTo
 G scheduler
@@ -1254,7 +1226,6 @@ P AnimationEffect :: constructor,getComputedTiming,getTiming,updateTiming
 P AnimationEvent :: animationName,constructor,elapsedTime,pseudoElement
 P AnimationPlaybackEvent :: constructor,currentTime,timelineTime
 P AnimationTimeline :: constructor,currentTime,duration
-P AnimationTrigger :: constructor
 S Array :: from,fromAsync,isArray,of
 P Array :: at,concat,constructor,copyWithin,entries,every,fill,filter,find,findIndex,findLast,findLastIndex,flat,flatMap,forEach,includes,indexOf,join,keys,lastIndexOf,length,map,pop,push,reduce,reduceRight,reverse,shift,slice,some,sort,splice,toLocaleString,toReversed,toSorted,toSpliced,toString,unshift,values,with
 S ArrayBuffer :: isView
@@ -1275,7 +1246,6 @@ P AudioListener :: constructor,forwardX,forwardY,forwardZ,positionX,positionY,po
 P AudioNode :: connect,constructor,disconnect
 P AudioParam :: automationRate,cancelAndHoldAtTime,cancelScheduledValues,constructor,defaultValue,exponentialRampToValueAtTime,linearRampToValueAtTime,maxValue,minValue,setTargetAtTime,setValueAtTime,setValueCurveAtTime,value
 P AudioParamMap :: constructor,entries,forEach,get,has,keys,size,values
-P AudioPlaybackStats :: constructor
 P AudioProcessingEvent :: constructor,inputBuffer,outputBuffer,playbackTime
 P AudioScheduledSourceNode :: constructor,onended,start,stop
 P AudioSinkInfo :: constructor,type
@@ -1578,7 +1548,6 @@ P HTMLBRElement :: clear,constructor
 P HTMLBaseElement :: constructor,href,target
 P HTMLBodyElement :: aLink,background,bgColor,constructor,link,onafterprint,onbeforeprint,onbeforeunload,onblur,onerror,onfocus,ongamepadconnected,ongamepaddisconnected,onhashchange,onlanguagechange,onload,onmessage,onmessageerror,onoffline,ononline,onpagehide,onpageshow,onpopstate,onrejectionhandled,onresize,onscroll,onstorage,onunhandledrejection,onunload,text,vLink
 P HTMLButtonElement :: checkValidity,command,commandForElement,constructor,disabled,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,labels,name,popoverTargetAction,popoverTargetElement,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
-P HTMLCameraElement :: constructor
 P HTMLCanvasElement :: constructor,getContext,height,toBlob,toDataURL,width
 P HTMLCollection :: constructor,item,namedItem
 P HTMLDListElement :: compact,constructor
@@ -1617,7 +1586,6 @@ P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_M
 P HTMLMenuElement :: compact,constructor
 P HTMLMetaElement :: constructor,content,httpEquiv,media,name,scheme
 P HTMLMeterElement :: constructor,high,labels,low,max,min,optimum,value
-P HTMLMicrophoneElement :: constructor
 P HTMLModElement :: cite,constructor,dateTime
 P HTMLOListElement :: compact,constructor,reversed,start,type
 P HTMLObjectElement :: align,archive,border,checkValidity,code,codeBase,codeType,constructor,contentDocument,contentWindow,data,declare,form,getSVGDocument,height,hspace,name,reportValidity,setCustomValidity,standby,type,useMap,validationMessage,validity,vspace,width,willValidate
@@ -1652,7 +1620,6 @@ S HTMLTrackElement :: ERROR,LOADED,LOADING,NONE
 P HTMLTrackElement :: ERROR,LOADED,LOADING,NONE,constructor,default,kind,label,readyState,src,srclang,track
 P HTMLUListElement :: compact,constructor,type
 P HTMLUnknownElement :: constructor
-P HTMLUserMediaElement :: constructor
 P HTMLVideoElement :: cancelVideoFrameCallback,constructor,disablePictureInPicture,getVideoPlaybackQuality,height,onenterpictureinpicture,onleavepictureinpicture,playsInline,poster,requestPictureInPicture,requestVideoFrameCallback,videoHeight,videoWidth,webkitDecodedFrameCount,webkitDroppedFrameCount,width
 P HashChangeEvent :: constructor,newURL,oldURL
 P Headers :: append,constructor,delete,entries,forEach,get,getSetCookie,has,keys,set,values
@@ -1700,7 +1667,6 @@ P Int32Array :: BYTES_PER_ELEMENT,constructor
 S Int8Array :: BYTES_PER_ELEMENT
 P Int8Array :: BYTES_PER_ELEMENT,constructor
 P IntegrityViolationReportBody :: blockedURL,constructor,destination,documentURL,reportOnly,toJSON
-P InteractionContentfulPaint :: constructor
 P InterestEvent :: constructor,source
 P IntersectionObserver :: constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
 P IntersectionObserverEntry :: boundingClientRect,constructor,intersectionRatio,intersectionRect,isIntersecting,isVisible,rootBounds,target,time
@@ -1713,7 +1679,6 @@ P KeyboardLayoutMap :: constructor,entries,forEach,get,has,keys,size,values
 P KeyframeEffect :: composite,constructor,getKeyframes,pseudoElement,setKeyframes,target
 S LanguageDetector :: availability,create
 P LanguageDetector :: constructor,destroy,detect,expectedInputLanguages,inputQuota,measureInputUsage
-P LanguageModel :: constructor
 P LargestContentfulPaint :: constructor,element,id,loadTime,paintTime,presentationTime,renderTime,size,toJSON,url
 P LaunchParams :: constructor,files,targetURL
 P LaunchQueue :: constructor,setConsumer,setTargetURL
@@ -1793,7 +1758,6 @@ S Node :: ATTRIBUTE_NODE,CDATA_SECTION_NODE,COMMENT_NODE,DOCUMENT_FRAGMENT_NODE,
 P Node :: ATTRIBUTE_NODE,CDATA_SECTION_NODE,COMMENT_NODE,DOCUMENT_FRAGMENT_NODE,DOCUMENT_NODE,DOCUMENT_POSITION_CONTAINED_BY,DOCUMENT_POSITION_CONTAINS,DOCUMENT_POSITION_DISCONNECTED,DOCUMENT_POSITION_FOLLOWING,DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC,DOCUMENT_POSITION_PRECEDING,DOCUMENT_TYPE_NODE,ELEMENT_NODE,ENTITY_NODE,ENTITY_REFERENCE_NODE,NOTATION_NODE,PROCESSING_INSTRUCTION_NODE,TEXT_NODE,appendChild,baseURI,childNodes,cloneNode,compareDocumentPosition,constructor,contains,firstChild,getRootNode,hasChildNodes,insertBefore,isConnected,isDefaultNamespace,isEqualNode,isSameNode,lastChild,lookupNamespaceURI,lookupPrefix,nextSibling,nodeName,nodeType,nodeValue,normalize,ownerDocument,parentElement,parentNode,previousSibling,removeChild,replaceChild,textContent
 P NodeIterator :: constructor,detach,filter,nextNode,pointerBeforeReferenceNode,previousNode,referenceNode,root,whatToShow
 P NodeList :: constructor,entries,forEach,item,keys,values
-P NodeRange :: constructor
 P NotRestoredReasonDetails :: constructor,reason,toJSON
 P NotRestoredReasons :: children,constructor,id,name,reasons,src,toJSON,url
 S Notification :: maxActions,permission,requestPermission
@@ -1809,7 +1773,6 @@ P OfflineAudioCompletionEvent :: constructor,renderedBuffer
 P OfflineAudioContext :: constructor,length,oncomplete,resume,startRendering,suspend
 P OffscreenCanvas :: constructor,convertToBlob,getContext,transferToImageBitmap
 P OffscreenCanvasRenderingContext2D :: arc,arcTo,beginPath,bezierCurveTo,canvas,clearRect,clip,closePath,constructor,createConicGradient,createImageData,createLinearGradient,createPattern,createRadialGradient,direction,drawImage,ellipse,fill,fillRect,fillStyle,fillText,filter,font,fontKerning,fontStretch,fontVariantCaps,getContextAttributes,getImageData,getLineDash,getTransform,globalAlpha,globalCompositeOperation,imageSmoothingEnabled,imageSmoothingQuality,isContextLost,isPointInPath,isPointInStroke,lang,letterSpacing,lineCap,lineDashOffset,lineJoin,lineTo,lineWidth,measureText,miterLimit,moveTo,putImageData,quadraticCurveTo,rect,reset,resetTransform,restore,rotate,roundRect,save,scale,setLineDash,setTransform,shadowBlur,shadowColor,shadowOffsetX,shadowOffsetY,stroke,strokeRect,strokeStyle,strokeText,textAlign,textBaseline,textRendering,transform,translate,wordSpacing
-P OpaqueRange :: constructor
 P Option :: accessKey,attachInternals,attributeStyleMap,autocapitalize,autofocus,blur,click,constructor,contentEditable,dataset,dir,draggable,editContext,enterKeyHint,focus,hidden,hidePopover,inert,innerText,inputMode,isContentEditable,lang,nonce,offsetHeight,offsetLeft,offsetParent,offsetTop,offsetWidth,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforeinput,onbeforematch,onbeforetoggle,onbeforexrselect,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncommand,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onformdata,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onscrollsnapchange,onscrollsnapchanging,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkittransitionend,onwheel,outerText,popover,showPopover,spellcheck,style,tabIndex,title,togglePopover,translate,virtualKeyboardPolicy,writingSuggestions
 P OrientationSensor :: constructor,populateMatrix,quaternion
 S Origin :: from
@@ -1847,14 +1810,12 @@ P PerformancePaintTiming :: constructor
 P PerformanceResourceTiming :: constructor,decodedBodySize,deliveryType,encodedBodySize,initiatorType,nextHopProtocol,renderBlockingStatus,responseStatus,secureConnectionStart,toJSON,transferSize
 P PerformanceScriptTiming :: constructor,executionStart,forcedStyleAndLayoutDuration,invoker,invokerType,pauseDuration,sourceCharPosition,sourceFunctionName,sourceURL,toJSON,window,windowAttribution
 P PerformanceServerTiming :: constructor,description,serverTimingName
-P PerformanceSoftNavigation :: constructor
 P PerformanceTiming :: connectEnd,connectStart,constructor,domComplete,domContentLoadedEventEnd,domContentLoadedEventStart,domInteractive,domLoading,domainLookupEnd,domainLookupStart,fetchStart,loadEventEnd,loadEventStart,navigationStart,redirectEnd,redirectStart,requestStart,responseEnd,responseStart,secureConnectionStart,toJSON,unloadEventEnd,unloadEventStart
 P PerformanceTimingConfidence :: constructor,randomizedTriggerRate,toJSON,value
 P PeriodicSyncManager :: constructor,getTags,register,unregister
 P PeriodicWave :: constructor
 P PermissionStatus :: constructor,name,onchange,state
 P Permissions :: constructor,query
-P PermissionsPolicy :: constructor
 P PictureInPictureEvent :: constructor,pictureInPictureWindow
 P PictureInPictureWindow :: constructor,height,onresize,width
 P Plugin :: constructor,description,filename,item,length,name,namedItem
@@ -2048,7 +2009,6 @@ P SVGUnitTypes :: SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,SVG_UNIT_TYPE_UNKNOWN,SVG_UNIT
 P SVGUseElement :: constructor
 S SVGViewElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN
 P SVGViewElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN,constructor,preserveAspectRatio,viewBox,zoomAndPan
-P Sanitizer :: constructor
 P Scheduler :: constructor,postTask,yield
 P Scheduling :: constructor,isInputPending
 P Screen :: availHeight,availLeft,availTop,availWidth,colorDepth,constructor,height,isExtended,onchange,orientation,pixelDepth,width
@@ -2134,9 +2094,6 @@ P TextTrackCueList :: constructor,getCueById,length
 P TextTrackList :: constructor,getTrackById,length,onaddtrack,onchange,onremovetrack
 P TextUpdateEvent :: constructor,selectionEnd,selectionStart,text,updateRangeEnd,updateRangeStart
 P TimeRanges :: constructor,end,length,start
-P TimelineTrigger :: constructor
-P TimelineTriggerRange :: constructor
-P TimelineTriggerRangeList :: constructor
 P ToggleEvent :: constructor,newState,oldState
 P Touch :: clientX,clientY,constructor,force,identifier,pageX,pageY,radiusX,radiusY,rotationAngle,screenX,screenY,target
 P TouchEvent :: altKey,changedTouches,constructor,ctrlKey,metaKey,shiftKey,targetTouches,touches
@@ -2260,12 +2217,8 @@ P XRAnchorSet :: constructor,entries,forEach,has,keys,size,values
 P XRBoundedReferenceSpace :: boundsGeometry,constructor
 P XRCPUDepthInformation :: constructor,data,getDepthInMeters
 P XRCamera :: constructor,height,width
-P XRCompositionLayer :: constructor
-P XRCubeLayer :: constructor
-P XRCylinderLayer :: constructor
 P XRDOMOverlayState :: constructor,type
 P XRDepthInformation :: constructor,height,normDepthBufferFromNormView,projectionMatrix,rawValueToMeters,transform,width
-P XREquirectLayer :: constructor
 P XRFrame :: constructor,createAnchor,fillJointRadii,fillPoses,getDepthInformation,getHitTestResults,getHitTestResultsForTransientInput,getJointPose,getLightEstimate,getPose,getViewerPose,session,trackedAnchors
 P XRHand :: constructor,entries,forEach,get,keys,size,values
 P XRHitTestResult :: constructor,createAnchor,getPose
@@ -2277,14 +2230,9 @@ P XRInputSourcesChangeEvent :: added,constructor,removed,session
 P XRJointPose :: constructor,radius
 P XRJointSpace :: constructor,jointName
 P XRLayer :: constructor
-P XRLayerEvent :: constructor
 P XRLightEstimate :: constructor,primaryLightDirection,primaryLightIntensity,sphericalHarmonicsCoefficients
 P XRLightProbe :: constructor,onreflectionchange,probeSpace
-P XRPlane :: constructor
-P XRPlaneSet :: constructor
 P XRPose :: constructor,emulatedPosition,transform
-P XRProjectionLayer :: constructor
-P XRQuadLayer :: constructor
 P XRRay :: constructor,direction,matrix,origin
 P XRReferenceSpace :: constructor,getOffsetReferenceSpace,onreset
 P XRReferenceSpaceEvent :: constructor,referenceSpace,transform
@@ -2293,7 +2241,6 @@ P XRRigidTransform :: constructor,inverse,matrix,orientation,position
 P XRSession :: cancelAnimationFrame,constructor,depthActive,depthDataFormat,depthType,depthUsage,domOverlayState,enabledFeatures,end,environmentBlendMode,inputSources,interactionMode,onend,oninputsourceschange,onselect,onselectend,onselectstart,onsqueeze,onsqueezeend,onsqueezestart,onvisibilitychange,onvisibilitymaskchange,pauseDepthSensing,preferredReflectionFormat,renderState,requestAnimationFrame,requestHitTestSource,requestHitTestSourceForTransientInput,requestLightProbe,requestReferenceSpace,resumeDepthSensing,updateRenderState,visibilityState
 P XRSessionEvent :: constructor,session
 P XRSpace :: constructor
-P XRSubImage :: constructor
 P XRSystem :: constructor,isSessionSupported,ondevicechange,requestSession
 P XRTransientInputHitTestResult :: constructor,inputSource,results
 P XRTransientInputHitTestSource :: cancel,constructor
@@ -2305,8 +2252,6 @@ P XRWebGLBinding :: constructor,getCameraImage,getDepthInformation,getReflection
 P XRWebGLDepthInformation :: constructor,texture
 S XRWebGLLayer :: getNativeFramebufferScaleFactor
 P XRWebGLLayer :: antialias,constructor,framebuffer,framebufferHeight,framebufferWidth,getViewport,ignoreDepthValues
-P XRWebGLSubImage :: constructor
-P XSLTProcessor :: constructor
 P alert :: constructor
 P blur :: constructor
 P cancelIdleCallback :: constructor

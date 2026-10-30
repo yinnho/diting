@@ -1261,3 +1261,14 @@ TreeWalker(4)、NodeIterator(5)、Touch(12)、TextMetrics(3)、MediaStream(2)。
 **再生成链**（脚本 `scratchpad/regen_shape.sh` 的做法，须固化为工具）：lift_own → internal_names → mixin_fix → stub_members → sym_fix → [抓取，shape_fix 关] → gen_shape_fix → shape_fix。
 结果：带泄漏对象 76→38；完全一致接口 729→728（个别接口的 ro 变 rw）。验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 
+## M4 刀32：版本一致性——Chrome 155 遗留名字清出 window（2026-10-30）
+
+**上一刀留下的仲裁问题查清了**：旧 window 键真值（`chrome/fp-chrome*.json`，global_surface 的各表由它生成）里 `fp-chrome.json` 带的 UA 是 **Chrome/155**，而 chrome-target.toml 钉死的目标是
+**145**（"all layers the SAME real version"）。所以那些名字不是 headless/headful 之分，而是**抓自更新的版本**。Chrome for Testing 145.0.7632.117（审计真值）没有它们，Window 的名字集合因此多出：
+AnimationTrigger/AudioPlaybackStats/HTMLCameraElement/HTMLMicrophoneElement/HTMLUserMediaElement/InteractionContentfulPaint/LanguageModel/NodeRange/OpaqueRange/PerformanceSoftNavigation/
+PermissionsPolicy/TimelineTrigger*/XR*Layer/XRPlane*/XRSubImage/XRWebGLSubImage/Sanitizer/XSLTProcessor（XSLT 在 Chrome 142 起已移除）/requestResize。`version_prune.js`（最后加载）把这 28 个 `delete`。
+**有意保留**：FontFaceSet、CSSPseudoElement——同样不在 145，但引擎自己的 document.fonts / 伪元素代码按名字用它们，待这些调用方改造后再删。
+**测试同步**：window_own_prop_face_p2 原先钉着 PermissionsPolicy/XSLTProcessor 存在（据旧 155 真值），改为断言它们（及 Sanitizer）在 145 下 `undefined`，并改用 145 确有的接口（IDBCursor、XMLSerializer）验证「惰性构造器 / 可构造」两种形状。
+这条的更大含义：**global_surface.js 的各生成表来自 155 抓取，仍可能含有别的 155-only 的细节**（成员、顺序、枚举）；已有的 CfT 145 审计（形状/实例/XPath/…）才是权威，后续对 global_surface 的修补应以 145 真值为准。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生；实例审计带泄漏对象 38/127。
+
