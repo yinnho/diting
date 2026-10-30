@@ -1563,3 +1563,20 @@ for-in 一览无余、`getOwnPropertyDescriptor(Element.prototype,'requestSubmit
 测试改动：`element_prototype_members_match_chrome_truth`（新，钉死 147 名单=Chrome）；4 个钉旧发明的测试改钉真值（slot 的 assignedSlots、div.labels=undefined、section/row/table 面名单）。
 验收：`cargo test -p diting` 失败集与干净 HEAD **逐名全等**（110 个既有环境败）；ratchet（baseline 51→52，element_sink→bootstrap:Element 一条合法新边）/契约/check_fresh 过。
 **教训**：取基线用 `git stash` 前先想清楚未跟踪文件——`stash push` 带不存在路径会失败，随后误弹上一会话的旧 stash；已原样存回。
+
+## M4 刀56：挂错原型层家族折翼——Attr 11 + Range 5×2 + EventTarget 三件套×7（2026-10-31）
+
+58 个 extra 拆族后的「挂错原型层」一族：成员本身 Chrome 有，但挂在 Chrome 不放它的原型上。三摊：
+- **Attr +11**（childNodes/firstChild/lastChild/hasChildNodes/isConnected/nextSibling/ownerDocument/parentElement/parentNode/previousSibling/textContent）：Attr 链上 Node.prototype 后，其 id 基成员会对 Attr 炸，类体只好手搓 11 个。正解=**nodelevel 派发表扩容**（刀23 只收 nodeType/nodeName/nodeValue/cloneNode 四名）：15 名按 getter/accessor/method 三组批量收表、批量装派发器，Attr 类体的 11 个被吊走后 Attr.prototype 恰剩 Chrome 的 8 名。热路径元素走 WeakMap 缓存 miss-once 后落 base getter（刀23 已验证同型）。坑：NP.isConnected 原是 defineProperty 装的**非配置**属性，派发器 redefine 直接炸快照——补 `configurable:true`（Chrome 真形 ro:ec）。
+- **Range/StaticRange 各 +5**（startContainer/startOffset/endContainer/endOffset/collapsed）：AbstractRange.prototype 早有五件、双原型链也对，纯冗余 own 副本。新脚本 **`range_lift.js`**（挂 global_surface 之后、stub_members 之前——AbstractRange 要等 global_surface 铸、stub 的 fill-if-missing 要让位真体）：五 getter（体=range_selection 原文，`_rngSame` 因文件词法不可达而内联）装上 AbstractRange（ro:ec、`__diting_markNative` 防 toString 漏源码），两叶类 delete。
+- **EventTarget 三件套×7**（BroadcastChannel/EventSource/MediaQueryList/WebSocket 各 3，IDBDatabase/IDBTransaction/MessagePort 各 2）：七家早已链到 EventTarget.prototype（native 核心，M3 B1），own 拷贝全是语义更弱的影子（无 options/once/capture、手搓 Map）。本刀全数拆除、统一继承：
+  - `__lboxProto` 退役（函数+三调用点+三个 `_lbox` 字段）；ES/WS/BC 发火路径删手动 on* 腿——native dispatch 的 handler 钩子（isHandlerSlot 查原型 accessor）本来就会发，双发才错。BC._fire 换真 `MessageEvent`（原假事件对象连 instanceof 都过不了）。
+  - MessagePort：类体三件套删，`_fire` 走 native dispatch；**#237 防丢件账本不能瞎**——native 注册表 JS 不可见，故 Rust 侧 `remove_entry` 补 **`unregistered(target,type)` 钩子**（显式移除/once 排干/abort 清理三条路都过这），event_hooks 维护 WeakMap 镜像 + 隐藏口 `__diting_etHasListeners(t,ty)`；孤儿判定与 sweep 剪枝改查镜像；「'message' 监听即 start()」搬进 registered 钩子腿。
+  - MediaQueryList：三件套删（addListener/removeListener 保留，Chrome 有）；registry 剪枝同查镜像；`_change` 数组随三件套死。
+  - IDB：`_idbProtoOps` 两名单摘掉三件套转发件（实例字面量自持 on* 路由方法，转发件纯为形状）。
+
+数字：整面 extra 成员 58 → **17**（余下全为单件族=刀57），missing 603 不变，same 748 → 751；order 28 不变、kind 66→65（无新噪声，shape_fix 未再生）。枚举审计 204/211 干净（7 已知缺口不变）。ratchet 过（crossFileLoadTimeNames 52 不变；exports 块因 `__lboxProto` 退役刷新）。
+行为验证（活引擎探针）：WS 真回声往返 open/message/close 各 1×1×1；BC onmessage+listener 各 1×、真 MessageEvent、target 正确；MQL 翻转 listener 与 onchange 同次各发；MessagePort 纯监听端口自启两投两达；IDB open→onsuccess 活；attr 树答（null/空 NodeList/value 直通/写穿元素）+ 元素 isConnected/childNodes 回退全对。
+测试：`eventtarget_chains_match_chrome_truth_except_known_gaps` 的 SHADOWED_TRIO 棘轮例外表**清空**（七家下榜）；新增 `knife56_wrong_prototype_levels_fold_to_chrome`（三摊形状+行为钉死）与 `knife56_native_core_delivery_single_fire`（单发/真事件/注册可见性）。surface_snapshot 重生成。
+验收：`cargo test -p diting` 失败集与干净 HEAD **逐名全等**（110 既有环境败，928 过=924+4）。
+**教训**：`function get name(){}` 不是合法 JS（getter 名推导只在对象字面量/类体里成立），独立函数表达式要用 `function name(){}`；测 MQL 翻转先归一视口再翻，别赌默认视口宽度。

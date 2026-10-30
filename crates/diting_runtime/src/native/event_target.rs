@@ -28,6 +28,11 @@
 //!                          overrides dispatchEvent's result (commit/cancel
 //!                          flip, post-click activation)
 //!   registered(target, type)  after a listener lands (animation check)
+//!   unregistered(target, type)  after a listener leaves — every removal
+//!                          path (explicit removeEventListener, once-drain,
+//!                          abort-signal cleanup) funnels through the same
+//!                          spot, so a JS-side liveness mirror stays exact
+//!                          (M4 刀56: MessagePort orphan-drop, MQL pruning)
 //!
 //! Events are the native [`super::event`] interface; their state (and the
 //! brand itself) is the `diting#ev-state` private slot installed by its
@@ -229,6 +234,16 @@ fn remove_entry<'a>(scope: &mut v8::PinScope<'a, '_>, target: Local<'a, v8::Obje
                 if let Some(x) = l.get_index(scope, j) { keep.set_index(scope, n, x); n += 1; }
             }
             st.set(scope, ty.into(), keep.into());
+            // Host mirror of `registered` (M4 刀56): every removal path funnels
+            // through here — explicit removeEventListener, once-drain during a
+            // dispatch, abort-signal cleanup — so JS-side listener liveness
+            // bookkeeping (MessagePort orphan-drop, MediaQueryList registry
+            // pruning) stays exact without the registry itself being visible.
+            let h = hooks(scope);
+            if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "unregistered") {
+                let u = v8::undefined(scope);
+                f.call(scope, u.into(), &[target.into(), ty.into()]);
+            } }
             return;
         }
     }

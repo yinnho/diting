@@ -483,8 +483,12 @@ function _idbProtoOps(iface, names) {
   }
 }
 _idbProtoOps(IDBFactory, [['open', 1], ['deleteDatabase', 1], ['databases', 0], ['cmp', 2]]);
-_idbProtoOps(IDBDatabase, [['createObjectStore', 1], ['deleteObjectStore', 1], ['transaction', 1], ['close', 0], 'addEventListener', 'removeEventListener']);
-_idbProtoOps(IDBTransaction, [['abort', 0], ['commit', 0], ['objectStore', 1], 'addEventListener', 'removeEventListener']);
+// 刀56: addEventListener/removeEventListener left the lists — the
+// instances keep their own on*-routing methods, and the PROTOTYPE trio
+// now resolves to the inherited native EventTarget core (Chrome's shape;
+// the forwarders were extra members the shape audit flagged).
+_idbProtoOps(IDBDatabase, [['createObjectStore', 1], ['deleteObjectStore', 1], ['transaction', 1], ['close', 0]]);
+_idbProtoOps(IDBTransaction, [['abort', 0], ['commit', 0], ['objectStore', 1]]);
 _idbProtoOps(IDBObjectStore, [['put', 1], ['add', 1], ['get', 1], ['getKey', 1], ['getAll', 1], ['getAllKeys', 1], ['count', 0], ['delete', 1], ['clear', 0], ['openCursor', 1], ['openKeyCursor', 1], ['index', 1], ['createIndex', 2], ['deleteIndex', 1]]);
 _idbProtoOps(IDBIndex, [['get', 1], ['getKey', 1], ['getAll', 1], ['getAllKeys', 1], ['count', 0], ['openCursor', 1], ['openKeyCursor', 1]]);
 _idbProtoOps(IDBCursor, [['advance', 1], ['continue', 0], ['continuePrimaryKey', 2], ['update', 1], ['delete', 0]]);

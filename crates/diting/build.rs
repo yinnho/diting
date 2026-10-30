@@ -105,6 +105,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("css_rules.js", include_str!("js/css_rules.js")),
     ("adopted_sheets.js", include_str!("js/adopted_sheets.js")),
     ("web_api_gaps.js", include_str!("js/web_api_gaps.js")),
+    // 刀56: after global_surface minted AbstractRange and wired the Range
+    // chains, the shared boundary getters land on AbstractRange.prototype
+    // and leave the two class prototypes (before stub_members' fill).
+    ("range_lift.js", include_str!("js/range_lift.js")),
     ("navigation.js", include_str!("js/navigation.js")),
     ("client_rects.js", include_str!("js/client_rects.js")),
     // Clone hooks for native (Rust-backed) interfaces; needs the natives (installed with the faces).
