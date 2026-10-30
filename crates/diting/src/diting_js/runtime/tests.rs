@@ -24034,7 +24034,7 @@ fn document_evaluate_xpath_subset() {
                 "[object HTMLInputElement]",
                 "[object HTMLDocument]",
                 "[object Location]",
-                "[object Console]",
+                "[object console]",
                 "[object Storage]",
                 "[object History]",
                 "[object Performance]",
@@ -27659,4 +27659,39 @@ async fn window_enumerable_own_keys_match_chrome_truth() {
     let extra: Vec<&String> = engine.iter().filter(|k| !chrome.contains(k)).collect();
     let missing: Vec<&String> = chrome.iter().filter(|k| !engine.contains(k)).collect();
     assert!(extra.is_empty() && missing.is_empty(), "extra {extra:?} missing {missing:?}");
+}
+
+/// M4 knife 53 - the own-ENUMERABLE keys of ~200 objects (every element tag, nodes, ranges, events, XHR/WebSocket/streams, singletons,
+/// canvas, observers, URL family, ...) against Chrome 145 (chrome/enum-probe.js, enum-truth-145.json). for-in + hasOwnProperty is what
+/// for-in / JSON.stringify / Object.assign / spread see. KNOWN GAPS are listed explicitly and must shrink, never grow:
+///   computed  - getComputedStyle enumerates 690 names; Chrome enumerates the indexed longhands
+///   newdoc    - createHTMLDocument()/DOMParser documents are plain objects, not Documents
+///   gain/ctxDest - Web Audio nodes are plain objects (GainNode/AudioDestinationNode identity missing)
+///   gl        - WebGL: headless Chrome answers null, the engine a fake context
+/// and keys that depend on the host page / shared state, not on the engine (stylesheet and div counts, localStorage left by other tests).
+#[tokio::test(flavor = "current_thread")]
+async fn own_enumerable_keys_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/enum-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/enum-truth-145.json"
+    ))
+    .unwrap();
+    const SKIP: &[&str] = &["computed", "newdoc", "gain", "ctxDest", "gl", "sheets", "nodeList", "htmlColl", "rects", "selfWin", "globalThis", "ls"];
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if k.starts_with('#') || SKIP.contains(&k.as_str()) {
+            continue;
+        }
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} object(s) off:\n{}", bad.len(), bad.join("\n"));
 }

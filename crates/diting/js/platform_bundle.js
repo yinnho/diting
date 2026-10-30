@@ -2020,6 +2020,36 @@ P.expose('CaretPosition', CaretPosition);
 P.expose('FragmentDirective', FragmentDirective);
 });
 
+// ---- module domrectlist (L2) ----
+__platform.define("domrectlist", function (exports, require, P) {
+"use strict";
+// DOMRectList (M4 knife 53). Element/Range.getClientRects() returned a plain Array with an own `item` method grafted on (an Array
+// answers `Array.isArray`, shows `item` in for-in and reports [object Array]); Chrome returns a DOMRectList: indexed properties only,
+// `length` and `item` on the prototype. Instances are plain objects over the prototype with the length in a hidden slot.
+
+function DOMRectList() { P.fail(DOMRectList, 'Illegal constructor', "Failed to construct 'DOMRectList'"); }
+const LP = P.iface(DOMRectList, 'DOMRectList', 0);
+const len = new WeakMap();
+const lenOf = (o, fn) => { const n = o !== null && typeof o === 'object' ? len.get(o) : undefined; if (n === undefined) P.illegal(fn); return n; };
+P.getter(LP, 'length', function __f() { return lenOf(this, __f); });
+P.method(LP, 'item', 1, function __f(i) {
+  const n = lenOf(this, __f); P.args("Failed to execute 'item' on 'DOMRectList'", arguments.length, 1, __f);
+  const k = P.conv.unsignedLong(i, "Failed to execute 'item' on 'DOMRectList'", __f);
+  return k < n ? this[k] : null;
+});
+Object.defineProperty(LP, Symbol.iterator, { value: Array.prototype.values, writable: true, enumerable: false, configurable: true });
+P.seal(DOMRectList);
+
+function make(rects) {
+  const o = Object.create(LP);
+  for (let i = 0; i < rects.length; i++) o[i] = rects[i];
+  len.set(o, rects.length);
+  return o;
+}
+P.expose('DOMRectList', DOMRectList);
+P.exposeValue('__diting_mkRectList', make);
+});
+
 // ---- module stylemap (L2) ----
 __platform.define("stylemap", function (exports, require, P) {
 "use strict";
@@ -2843,6 +2873,27 @@ P.getter(IDP, 'firesTouchEvents', function __f() { const s = idcSlots.get(this);
 P.seal(InputDeviceCapabilities);
 
 for (const [n, C] of Object.entries({ HashChangeEvent, SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
+});
+
+// ---- module dragevent (L2) ----
+__platform.define("dragevent", function (exports, require, P) {
+"use strict";
+// DragEvent (M4 knife 53): MouseEvent + `dataTransfer`. The generated stub ignored its arguments (`new DragEvent('x')` threw
+// "1 argument required"), so no page could construct or dispatch one. `dataTransfer` is the init value or null (no DataTransfer
+// object is synthesised for script-built events, like Chrome).
+
+function DragEvent(type, init) {
+  if (new.target === undefined) P.fail(DragEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DragEvent'");
+  P.args("Failed to construct 'DragEvent'", arguments.length, 1, DragEvent);
+  const e = Reflect.construct(MouseEvent, [P.conv.DOMString(type, "Failed to construct 'DragEvent'", DragEvent), init], new.target);
+  slots.set(e, init !== undefined && init !== null && init.dataTransfer !== undefined ? init.dataTransfer : null);
+  return e;
+}
+const DP = P.iface(DragEvent, 'DragEvent', 1, MouseEvent);
+const slots = new WeakMap();
+P.getter(DP, 'dataTransfer', function __f() { if (!slots.has(this)) P.illegal(__f); return slots.get(this); });
+P.seal(DragEvent);
+P.expose('DragEvent', DragEvent);
 });
 
 // ---- module editcontext (L2) ----
@@ -7104,6 +7155,32 @@ P.expose('IntersectionObserver', IntersectionObserver);
 P.expose('IntersectionObserverEntry', IntersectionObserverEntry);
 });
 
+// ---- module mutationrecord (L2) ----
+__platform.define("mutationrecord", function (exports, require, P) {
+"use strict";
+// MutationRecord (M4 knife 53). The observer delivered plain object literals ({type, target, addedNodes, ...}: [object Object], own
+// enumerable data, no MutationRecord identity); Chrome's records are MutationRecord instances with read-only accessors on the
+// prototype. Instances keep their data in a WeakMap slot; the hidden factory `__diting_mkMutationRecord(fields)` builds one.
+
+function MutationRecord() { P.fail(MutationRecord, 'Illegal constructor', "Failed to construct 'MutationRecord'"); }
+const MP = P.iface(MutationRecord, 'MutationRecord', 0);
+const slots = new WeakMap();
+const slotOf = (o, fn) => { const s = o !== null && typeof o === 'object' ? slots.get(o) : undefined; if (s === undefined) P.illegal(fn); return s; };
+for (const k of ['type', 'target', 'addedNodes', 'removedNodes', 'previousSibling', 'nextSibling', 'attributeName', 'attributeNamespace', 'oldValue']) {
+  P.getter(MP, k, function __f() { return slotOf(this, __f)[k]; });
+}
+P.seal(MutationRecord);
+
+function make(f) {
+  const o = Object.create(MP);
+  slots.set(o, { type: f.type, target: f.target, addedNodes: f.addedNodes, removedNodes: f.removedNodes, previousSibling: f.previousSibling,
+    nextSibling: f.nextSibling, attributeName: f.attributeName, attributeNamespace: null, oldValue: f.oldValue });
+  return o;
+}
+P.expose('MutationRecord', MutationRecord);
+P.exposeValue('__diting_mkMutationRecord', make);
+});
+
 // ---- module nodelevel (L2) ----
 __platform.define("nodelevel", function (exports, require, P) {
 "use strict";
@@ -7979,6 +8056,36 @@ function makeBacking(persistent) {
 
 P.exposeValue('localStorage', gen.createStorage(makeBacking(true)));
 P.exposeValue('sessionStorage', gen.createStorage(makeBacking(false)));
+});
+
+// ---- module stylesheetlist (L2) ----
+__platform.define("stylesheetlist", function (exports, require, P) {
+"use strict";
+// StyleSheetList (M4 knife 53). `document.styleSheets` was a plain Object literal with an own `length`, an own `item` method and an
+// own @@iterator ([object Object]); Chrome's is a StyleSheetList: indexed own properties only, `length`/`item`/@@iterator on the
+// prototype.
+
+function StyleSheetList() { P.fail(StyleSheetList, 'Illegal constructor', "Failed to construct 'StyleSheetList'"); }
+const SP = P.iface(StyleSheetList, 'StyleSheetList', 0);
+const len = new WeakMap();
+const lenOf = (o, fn) => { const n = o !== null && typeof o === 'object' ? len.get(o) : undefined; if (n === undefined) P.illegal(fn); return n; };
+P.getter(SP, 'length', function __f() { return lenOf(this, __f); });
+P.method(SP, 'item', 1, function __f(i) {
+  const n = lenOf(this, __f); P.args("Failed to execute 'item' on 'StyleSheetList'", arguments.length, 1, __f);
+  const k = P.conv.unsignedLong(i, "Failed to execute 'item' on 'StyleSheetList'", __f);
+  return k < n ? this[k] : null;
+});
+Object.defineProperty(SP, Symbol.iterator, { value: Array.prototype.values, writable: true, enumerable: false, configurable: true });
+P.seal(StyleSheetList);
+
+function make(sheets) {
+  const o = Object.create(SP);
+  for (let i = 0; i < sheets.length; i++) o[i] = sheets[i];
+  len.set(o, sheets.length);
+  return o;
+}
+P.expose('StyleSheetList', StyleSheetList);
+P.exposeValue('__diting_mkSheetList', make);
 });
 
 // ---- module treewalker (L2) ----

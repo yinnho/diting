@@ -14,6 +14,13 @@
     ['indexedDB', () => globalThis.indexedDB, 'IDBFactory'],
     ['clipboard', () => globalThis.navigator && globalThis.navigator.clipboard, 'Clipboard'],
     ['permissions', () => globalThis.navigator && globalThis.navigator.permissions, 'Permissions'],
+    ['storage', () => globalThis.navigator && globalThis.navigator.storage, 'StorageManager'],
+    ['mediaSession', () => globalThis.navigator && globalThis.navigator.mediaSession, 'MediaSession'],
+    ['mediaDevices', () => globalThis.navigator && globalThis.navigator.mediaDevices, 'MediaDevices'],
+    ['speechSynthesis', () => globalThis.speechSynthesis, 'SpeechSynthesis'],
+    ['caches', () => globalThis.caches, 'CacheStorage'],
+    ['implementation', () => globalThis.document && globalThis.document.implementation, 'DOMImplementation'],
+    ['performance.timing', () => globalThis.performance && globalThis.performance.timing, 'PerformanceTiming'],
   ];
   const gopn = Object.getOwnPropertyNames, gopd = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
   for (const [label, get, cn] of TARGETS) {
@@ -24,7 +31,8 @@
       if (Object.getPrototypeOf(obj) !== P) { try { Object.setPrototypeOf(obj, P); } catch (e) { continue; } }
       const slot = new WeakMap();
       for (const name of gopn(obj)) {
-        if (name.charCodeAt(0) === 95) continue;
+        // engine-private `_x` fields stay own but must not be enumerable (for-in / JSON / spread)
+        if (name.charCodeAt(0) === 95) { const pd = gopd(obj, name); if (pd && pd.configurable && pd.enumerable && 'value' in pd) def(obj, name, { value: pd.value, writable: pd.writable, enumerable: false, configurable: true }); continue; }
         // a prototype entry that already exists is a placeholder (class-body stub): the instance's own member is the working
         // implementation, so it REPLACES the placeholder rather than being skipped
         // EventTarget trio: a custom per-object listener list may back these (ServiceWorkerContainer); moving them onto the

@@ -1,4 +1,1219 @@
 {
+ "#chains": {
+  "ac": [
+   "AbortController",
+   "Object"
+  ],
+  "ac2": [
+   "AudioContext",
+   "BaseAudioContext",
+   "EventTarget",
+   "Object"
+  ],
+  "anim": [
+   "AnimationEvent",
+   "Event",
+   "Object"
+  ],
+  "anim2": [
+   "Animation",
+   "EventTarget",
+   "Object"
+  ],
+  "as": [
+   "AbortSignal",
+   "EventTarget",
+   "Object"
+  ],
+  "attr": [
+   "Attr",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "aud": [
+   "HTMLAudioElement",
+   "HTMLMediaElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "bc": [
+   "BroadcastChannel",
+   "EventTarget",
+   "Object"
+  ],
+  "blob": [
+   "Blob",
+   "Object"
+  ],
+  "caches": [
+   "CacheStorage",
+   "Object"
+  ],
+  "ce": [
+   "CustomElementRegistry",
+   "Object"
+  ],
+  "classList": [
+   "DOMTokenList",
+   "Object"
+  ],
+  "clip": [
+   "ClipboardEvent",
+   "Event",
+   "Object"
+  ],
+  "clip2": [
+   "Clipboard",
+   "EventTarget",
+   "Object"
+  ],
+  "closeEv": [
+   "CloseEvent",
+   "Event",
+   "Object"
+  ],
+  "comment": [
+   "Comment",
+   "CharacterData",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "computed": [
+   "CSSStyleDeclaration",
+   "Object"
+  ],
+  "conn": [
+   "NetworkInformation",
+   "EventTarget",
+   "Object"
+  ],
+  "console": [
+   "?",
+   "Object"
+  ],
+  "cookie": [
+   "CookieStore",
+   "EventTarget",
+   "Object"
+  ],
+  "crypto": [
+   "Crypto",
+   "Object"
+  ],
+  "cssRule": [
+   "CSSStyleRule",
+   "CSSRule",
+   "Object"
+  ],
+  "cssRules": [
+   "CSSRuleList",
+   "Object"
+  ],
+  "ctxDest": [
+   "AudioDestinationNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "custom": [
+   "CustomEvent",
+   "Event",
+   "Object"
+  ],
+  "cv": [
+   "CanvasRenderingContext2D",
+   "Object"
+  ],
+  "dataset": [
+   "DOMStringMap",
+   "Object"
+  ],
+  "dm": [
+   "DOMMatrix",
+   "DOMMatrixReadOnly",
+   "Object"
+  ],
+  "doc": [
+   "HTMLDocument",
+   "Document",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "docType": [
+   "DocumentType",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "dp": [
+   "DOMParser",
+   "Object"
+  ],
+  "dr": [
+   "DOMRect",
+   "DOMRectReadOnly",
+   "Object"
+  ],
+  "drag": [
+   "DragEvent",
+   "MouseEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "drro": [
+   "DOMRectReadOnly",
+   "Object"
+  ],
+  "editctx": [
+   "EditContext",
+   "EventTarget",
+   "Object"
+  ],
+  "el.a": [
+   "HTMLAnchorElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.area": [
+   "HTMLAreaElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.attached": [
+   "HTMLDivElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.audio": [
+   "HTMLAudioElement",
+   "HTMLMediaElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.base": [
+   "HTMLBaseElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.blockquote": [
+   "HTMLQuoteElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.body": [
+   "HTMLBodyElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.br": [
+   "HTMLBRElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.button": [
+   "HTMLButtonElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.canvas": [
+   "HTMLCanvasElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.caption": [
+   "HTMLTableCaptionElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.col": [
+   "HTMLTableColElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.data": [
+   "HTMLDataElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.details": [
+   "HTMLDetailsElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.dialog": [
+   "HTMLDialogElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.div": [
+   "HTMLDivElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.embed": [
+   "HTMLEmbedElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.fieldset": [
+   "HTMLFieldSetElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.form": [
+   "HTMLFormElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.h1": [
+   "HTMLHeadingElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.head": [
+   "HTMLHeadElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.hr": [
+   "HTMLHRElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.html": [
+   "HTMLHtmlElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.iframe": [
+   "HTMLIFrameElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.img": [
+   "HTMLImageElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.input": [
+   "HTMLInputElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.label": [
+   "HTMLLabelElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.legend": [
+   "HTMLLegendElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.li": [
+   "HTMLLIElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.link": [
+   "HTMLLinkElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.listened": [
+   "HTMLInputElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.map": [
+   "HTMLMapElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.menu": [
+   "HTMLMenuElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.meta": [
+   "HTMLMetaElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.meter": [
+   "HTMLMeterElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.noscript": [
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.object": [
+   "HTMLObjectElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.optgroup": [
+   "HTMLOptGroupElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.option": [
+   "HTMLOptionElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.output": [
+   "HTMLOutputElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.p": [
+   "HTMLParagraphElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.param": [
+   "HTMLParamElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.picture": [
+   "HTMLPictureElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.pre": [
+   "HTMLPreElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.progress": [
+   "HTMLProgressElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.script": [
+   "HTMLScriptElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.select": [
+   "HTMLSelectElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.slot": [
+   "HTMLSlotElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.source": [
+   "HTMLSourceElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.span": [
+   "HTMLSpanElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.style": [
+   "HTMLStyleElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.styled": [
+   "HTMLDivElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.svg": [
+   "HTMLUnknownElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.table": [
+   "HTMLTableElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.td": [
+   "HTMLTableCellElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.template": [
+   "HTMLTemplateElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.textarea": [
+   "HTMLTextAreaElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.time": [
+   "HTMLTimeElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.title": [
+   "HTMLTitleElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.tr": [
+   "HTMLTableRowElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.track": [
+   "HTMLTrackElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.ul": [
+   "HTMLUListElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "el.video": [
+   "HTMLVideoElement",
+   "HTMLMediaElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "err": [
+   "ErrorEvent",
+   "Event",
+   "Object"
+  ],
+  "es": [
+   "EventSource",
+   "EventTarget",
+   "Object"
+  ],
+  "evt": [
+   "Event",
+   "Object"
+  ],
+  "face": [
+   "FontFace",
+   "Object"
+  ],
+  "fd": [
+   "FormData",
+   "Object"
+  ],
+  "file": [
+   "File",
+   "Blob",
+   "Object"
+  ],
+  "focus": [
+   "FocusEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "fonts": [
+   "?",
+   "EventTarget",
+   "Object"
+  ],
+  "fr": [
+   "FileReader",
+   "EventTarget",
+   "Object"
+  ],
+  "frag": [
+   "DocumentFragment",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "gain": [
+   "GainNode",
+   "AudioNode",
+   "EventTarget",
+   "Object"
+  ],
+  "gbcr": [
+   "DOMRect",
+   "DOMRectReadOnly",
+   "Object"
+  ],
+  "geo": [
+   "Geolocation",
+   "Object"
+  ],
+  "globalThis": [
+   "Window",
+   "?",
+   "EventTarget",
+   "Object"
+  ],
+  "grad": [
+   "CanvasGradient",
+   "Object"
+  ],
+  "hash": [
+   "HashChangeEvent",
+   "Event",
+   "Object"
+  ],
+  "hdr": [
+   "Headers",
+   "Object"
+  ],
+  "hist": [
+   "History",
+   "Object"
+  ],
+  "htmlColl": [
+   "HTMLCollection",
+   "Object"
+  ],
+  "idb": [
+   "IDBFactory",
+   "Object"
+  ],
+  "img2": [
+   "HTMLImageElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "imgd": [
+   "ImageData",
+   "Object"
+  ],
+  "implementation": [
+   "DOMImplementation",
+   "Object"
+  ],
+  "input": [
+   "InputEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "io": [
+   "IntersectionObserver",
+   "Object"
+  ],
+  "kb": [
+   "KeyboardEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "kf": [
+   "KeyframeEffect",
+   "AnimationEffect",
+   "Object"
+  ],
+  "loc": [
+   "Location",
+   "Object"
+  ],
+  "ls": [
+   "Storage",
+   "Object"
+  ],
+  "mark": [
+   "PerformanceMark",
+   "PerformanceEntry",
+   "Object"
+  ],
+  "mathEl": [
+   "MathMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "mc": [
+   "MessageChannel",
+   "Object"
+  ],
+  "mediaDev": [
+   "MediaDevices",
+   "EventTarget",
+   "Object"
+  ],
+  "mediaSession": [
+   "MediaSession",
+   "Object"
+  ],
+  "mimes": [
+   "MimeTypeArray",
+   "Object"
+  ],
+  "mo": [
+   "MutationObserver",
+   "Object"
+  ],
+  "moRec": [
+   "MutationRecord",
+   "Object"
+  ],
+  "mouse": [
+   "MouseEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "mq": [
+   "MediaQueryList",
+   "EventTarget",
+   "Object"
+  ],
+  "msg": [
+   "MessageEvent",
+   "Event",
+   "Object"
+  ],
+  "namedNodeMap": [
+   "NamedNodeMap",
+   "Object"
+  ],
+  "nav": [
+   "Navigator",
+   "Object"
+  ],
+  "navTiming": [
+   "PerformanceNavigationTiming",
+   "PerformanceResourceTiming",
+   "PerformanceEntry",
+   "Object"
+  ],
+  "newdoc": [
+   "HTMLDocument",
+   "Document",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "nodeIter": [
+   "NodeIterator",
+   "Object"
+  ],
+  "nodeList": [
+   "NodeList",
+   "Object"
+  ],
+  "offc": [
+   "OffscreenCanvas",
+   "EventTarget",
+   "Object"
+  ],
+  "opt": [
+   "HTMLOptionElement",
+   "HTMLElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "path": [
+   "Path2D",
+   "Object"
+  ],
+  "perf": [
+   "Performance",
+   "EventTarget",
+   "Object"
+  ],
+  "perm": [
+   "Permissions",
+   "Object"
+  ],
+  "pi": [
+   "ProcessingInstruction",
+   "CharacterData",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "plugins": [
+   "PluginArray",
+   "Object"
+  ],
+  "po": [
+   "PerformanceObserver",
+   "Object"
+  ],
+  "pointer": [
+   "PointerEvent",
+   "MouseEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "pop": [
+   "PopStateEvent",
+   "Event",
+   "Object"
+  ],
+  "port": [
+   "MessagePort",
+   "EventTarget",
+   "Object"
+  ],
+  "progress": [
+   "ProgressEvent",
+   "Event",
+   "Object"
+  ],
+  "pt": [
+   "DOMPoint",
+   "DOMPointReadOnly",
+   "Object"
+  ],
+  "quad": [
+   "DOMQuad",
+   "Object"
+  ],
+  "range": [
+   "Range",
+   "AbstractRange",
+   "Object"
+  ],
+  "rects": [
+   "DOMRectList",
+   "Object"
+  ],
+  "relList": [
+   "DOMTokenList",
+   "Object"
+  ],
+  "req": [
+   "Request",
+   "Object"
+  ],
+  "res": [
+   "Response",
+   "Object"
+  ],
+  "ro": [
+   "ResizeObserver",
+   "Object"
+  ],
+  "rs": [
+   "ReadableStream",
+   "Object"
+  ],
+  "rsCtl": [
+   "ReadableStreamDefaultController",
+   "Object"
+  ],
+  "rsReader": [
+   "ReadableStreamDefaultReader",
+   "Object"
+  ],
+  "rtc": [
+   "RTCPeerConnection",
+   "EventTarget",
+   "Object"
+  ],
+  "scheduler": [
+   "Scheduler",
+   "Object"
+  ],
+  "screen": [
+   "Screen",
+   "EventTarget",
+   "Object"
+  ],
+  "selection": [
+   "Selection",
+   "Object"
+  ],
+  "selfWin": [
+   "Window",
+   "?",
+   "EventTarget",
+   "Object"
+  ],
+  "shadow": [
+   "ShadowRoot",
+   "DocumentFragment",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "sheet": [
+   "CSSStyleSheet",
+   "StyleSheet",
+   "Object"
+  ],
+  "sheets": [
+   "StyleSheetList",
+   "Object"
+  ],
+  "speech": [
+   "SpeechSynthesis",
+   "EventTarget",
+   "Object"
+  ],
+  "ss": [
+   "Storage",
+   "Object"
+  ],
+  "staticRange": [
+   "StaticRange",
+   "AbstractRange",
+   "Object"
+  ],
+  "storage": [
+   "StorageManager",
+   "Object"
+  ],
+  "storageEv": [
+   "StorageEvent",
+   "Event",
+   "Object"
+  ],
+  "style": [
+   "CSSStyleDeclaration",
+   "Object"
+  ],
+  "subtle": [
+   "SubtleCrypto",
+   "Object"
+  ],
+  "svgEl": [
+   "SVGRectElement",
+   "SVGGeometryElement",
+   "SVGGraphicsElement",
+   "SVGElement",
+   "Element",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "sw": [
+   "ServiceWorkerContainer",
+   "EventTarget",
+   "Object"
+  ],
+  "td": [
+   "TextDecoder",
+   "Object"
+  ],
+  "te": [
+   "TextEncoder",
+   "Object"
+  ],
+  "text": [
+   "Text",
+   "CharacterData",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "timing": [
+   "PerformanceTiming",
+   "Object"
+  ],
+  "tl": [
+   "DocumentTimeline",
+   "AnimationTimeline",
+   "Object"
+  ],
+  "tm": [
+   "TextMetrics",
+   "Object"
+  ],
+  "tmplContent": [
+   "DocumentFragment",
+   "Node",
+   "EventTarget",
+   "Object"
+  ],
+  "touch": [
+   "TouchEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "trans": [
+   "TransitionEvent",
+   "Event",
+   "Object"
+  ],
+  "treeWalker": [
+   "TreeWalker",
+   "Object"
+  ],
+  "trusted": [
+   "TrustedTypePolicyFactory",
+   "Object"
+  ],
+  "ts": [
+   "TransformStream",
+   "Object"
+  ],
+  "ua": [
+   "NavigatorUAData",
+   "Object"
+  ],
+  "url": [
+   "URL",
+   "Object"
+  ],
+  "usp": [
+   "URLSearchParams",
+   "Object"
+  ],
+  "utter": [
+   "SpeechSynthesisUtterance",
+   "EventTarget",
+   "Object"
+  ],
+  "vv": [
+   "VisualViewport",
+   "EventTarget",
+   "Object"
+  ],
+  "wheel": [
+   "WheelEvent",
+   "MouseEvent",
+   "UIEvent",
+   "Event",
+   "Object"
+  ],
+  "ws": [
+   "WebSocket",
+   "EventTarget",
+   "Object"
+  ],
+  "ws2": [
+   "WritableStream",
+   "Object"
+  ],
+  "xhr": [
+   "XMLHttpRequest",
+   "XMLHttpRequestEventTarget",
+   "EventTarget",
+   "Object"
+  ],
+  "xhrUpload": [
+   "XMLHttpRequestUpload",
+   "XMLHttpRequestEventTarget",
+   "EventTarget",
+   "Object"
+  ],
+  "xpe": [
+   "XPathEvaluator",
+   "Object"
+  ],
+  "xs": [
+   "XMLSerializer",
+   "Object"
+  ]
+ },
  "ac": [],
  "ac2": [],
  "anim": [

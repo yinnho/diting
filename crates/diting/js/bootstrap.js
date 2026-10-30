@@ -1441,7 +1441,7 @@ const _styleProxy = (decl) => new Proxy(decl, {
     t._pull();
     if (/^\d+$/.test(p) && +p < t.length) return { value: t.item(+p), writable: false, enumerable: true, configurable: true };
     if (_cssCamelToKebab(p) in t._props || _CSS_PROP_SET.has(p) || _CSS_PROP_SET.has(_cssKebabToCamel(p))) {
-      return { value: t.getPropertyValue(p), writable: true, enumerable: true, configurable: true };
+      return { value: t.getPropertyValue(p), writable: true, enumerable: !/^epub/.test(p), configurable: true };
     }
     return undefined;
   },
@@ -5565,7 +5565,13 @@ class Element extends Node {
     }
     if (changed && !this._scrollSuppress) this._fireScroll();
   }
+  // Chrome hands back a DOMRect (instanceof, [object DOMRect], accessors on the prototype, no own keys); the layout paths below
+  // still build plain literals, which this converts at the single exit.
   getBoundingClientRect() {
+    const r = this._boundingRectLiteral();
+    return new DOMRect(r.x, r.y, r.width, r.height);
+  }
+  _boundingRectLiteral() {
     globalThis.__diting_click_target = this;
     // Fabricated iframe documents (obscura #976): elements of a sync-created
     // contentDocument are an orphan subtree — measured by a dedicated
@@ -6306,8 +6312,11 @@ class Document extends Node {
   // never parse in quirks mode (upstream #468).
   get scrollingElement() { return this.documentElement; }
   get implementation() {
+    // Chrome: one DOMImplementation per document (document.implementation === document.implementation); demote_own.js moves
+    // these members onto DOMImplementation.prototype after the first read.
+    if (this.__diting_impl) return this.__diting_impl;
     const ownerDoc = this;
-    return {
+    const impl = {
       // Spec: createHTMLDocument returns a NEW detached Document. jQuery
       // 3.x's selector feature-detect calls `body.innerHTML = '<form>'` on
       // the result — when we returned `globalThis.document`, the real
@@ -6361,6 +6370,9 @@ class Document extends Node {
       },
       hasFeature() { return true; },
     };
+    Object.defineProperty(this, '__diting_impl', { value: impl, configurable: true });
+    if (typeof globalThis.__diting_demote_own === 'function') globalThis.__diting_demote_own();
+    return impl;
   }
   get styleSheets() {
     // Document-order sheet list: <style> elements plus <link rel=stylesheet>
@@ -7823,7 +7835,6 @@ const __navStore = {
     },
     getUserMedia() { return Promise.reject(new DOMException("NotAllowedError")); },
     getDisplayMedia() { return Promise.reject(new DOMException("NotAllowedError")); },
-    addEventListener(){}, removeEventListener(){},
   },
   serviceWorker: (function () {
     // Chrome's register() resolves a ServiceWorkerRegistration; pages chain
@@ -9609,16 +9620,16 @@ globalThis.__notifyMutation = function(type, target_nid, addedNodes, removedNode
     else if (type === 'characterData' && opts.characterDataOldValue) eff = oldValue ?? null;
     let record = cache.get(eff);
     if (!record) {
-      record = {
+      record = __diting_mkMutationRecord({
         type: type, // 'childList', 'attributes', 'characterData'
         target: target,
-        addedNodes: addedNodes ? addedNodes.map(nid => _wrap(nid)).filter(Boolean) : [],
-        removedNodes: removedNodes ? removedNodes.map(nid => _wrap(nid)).filter(Boolean) : [],
+        addedNodes: addedNodes ? __diting_mkNodeList(addedNodes.map(nid => _wrap(nid)).filter(Boolean)) : __diting_mkNodeList([]),
+        removedNodes: removedNodes ? __diting_mkNodeList(removedNodes.map(nid => _wrap(nid)).filter(Boolean)) : __diting_mkNodeList([]),
         attributeName: attributeName || null,
         oldValue: eff,
         previousSibling: prevNid != null ? (_wrap(prevNid) || null) : null,
         nextSibling: nextNid != null ? (_wrap(nextNid) || null) : null,
-      };
+      });
       cache.set(eff, record);
     }
     obs._records.push(record);
@@ -11887,6 +11898,7 @@ Object.setPrototypeOf(NetworkInformation.prototype, _EventTarget.prototype);
 Object.setPrototypeOf(globalThis.BatteryManager.prototype, _EventTarget.prototype);
 // Build a NodeList (no named access, per spec) for querySelectorAll and
 // childNodes. Kept light on purpose: querySelectorAll is the hottest query API.
+globalThis.__diting_mkNodeList = (els) => _nodeList(els); // addedNodes/removedNodes are NodeLists in Chrome (Array before)
 function _nodeList(els) {
   const nl = new NodeList();
   for (let i = 0; i < els.length; i++) nl[i] = els[i];
@@ -13366,88 +13378,27 @@ globalThis.postMessage = function(message, targetOrigin) {
 };
 globalThis.requestIdleCallback = globalThis.requestIdleCallback || function(cb) { return setTimeout(cb, 0); };
 globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function(id) { clearTimeout(id); };
+const _rsStream = new WeakMap(); // ReadableStreamDefaultController | ReadableStreamDefaultReader -> its ReadableStream
 if (typeof ReadableStream === 'undefined') {
   globalThis.ReadableStream = class ReadableStream {
     constructor(source = {}, strategy = {}) {
       this._source = source; this._queue = []; this._closed = false; this._errored = null;
       this._locked = false; this._pullBusy = false; this._pendingReads = [];
       const stream = this;
-      this._controller = {
-        enqueue: (chunk) => {
-          if (stream._closed) return;
-          // A parked read gets the chunk directly; otherwise buffer it.
-          if (stream._pendingReads.length > 0) {
-            stream._pendingReads.shift().resolve({ value: chunk, done: false });
-          } else {
-            stream._queue.push(chunk);
-          }
-        },
-        close: () => {
-          if (stream._closed) return;
-          stream._closed = true;
-          const waiters = stream._pendingReads.splice(0);
-          for (const w of waiters) w.resolve({ value: undefined, done: true });
-        },
-        error: (e) => {
-          if (stream._closed) return;
-          stream._errored = e || new Error("stream error");
-          stream._closed = true;
-          const waiters = stream._pendingReads.splice(0);
-          for (const w of waiters) w.reject(stream._errored);
-        },
-        get desiredSize() { return 1; },
-      };
+      // the controller / reader are instances of their own interfaces; state lives in _rsStream (members are on the prototypes)
+      this._controller = Object.create(ReadableStreamDefaultController.prototype);
+      _rsStream.set(this._controller, this);
       if (source.start) {
         try { source.start(this._controller); } catch (e) { this._controller.error(e); }
       }
-      Object.setPrototypeOf(this._controller, ReadableStreamDefaultController.prototype);
       __hideOwn(this);
     }
     get locked() { return this._locked; }
     getReader() {
       this._locked = true;
       const stream = this;
-      const reader = {
-        read() {
-          if (stream._queue.length > 0) return Promise.resolve({ value: stream._queue.shift(), done: false });
-          if (stream._closed) {
-            if (stream._errored) return Promise.reject(stream._errored);
-            return Promise.resolve({ value: undefined, done: true });
-          }
-          // Pull-driven source (e.g. React's partial-flight re-wrapping
-          // `new ReadableStream({async pull(controller){...}})`): ask the
-          // source for a chunk, then hand back whatever it enqueued.
-          if (stream._source.pull && !stream._pullBusy) {
-            stream._pullBusy = true;
-            return Promise.resolve()
-              .then(() => stream._source.pull(stream._controller))
-              .then(() => {
-                stream._pullBusy = false;
-                if (stream._queue.length > 0) return { value: stream._queue.shift(), done: false };
-                if (stream._errored) throw stream._errored;
-                return { value: undefined, done: true };
-              }, (e) => {
-                stream._pullBusy = false;
-                stream._controller.error(e);
-                throw stream._errored;
-              });
-          }
-          // Live producer (a TransformStream's readable side, or any source
-          // that enqueues after read): park the read until
-          // enqueue/close/error wakes it.
-          return new Promise((resolve, reject) => {
-            stream._pendingReads.push({ resolve, reject });
-          });
-        },
-        releaseLock() { stream._locked = false; },
-        cancel() {
-          stream._closed = true;
-          if (stream._source.cancel) { try { stream._source.cancel(); } catch (e) {} }
-          return Promise.resolve();
-        },
-        get closed() { return stream._closed ? Promise.resolve() : new Promise(() => {}); },
-      };
-      Object.setPrototypeOf(reader, ReadableStreamDefaultReader.prototype);
+      const reader = Object.create(ReadableStreamDefaultReader.prototype);
+      _rsStream.set(reader, stream);
       return reader;
     }
     cancel() { this._closed = true; return Promise.resolve(); }
@@ -13516,16 +13467,75 @@ if (typeof ReadableStream === 'undefined') {
 globalThis.ReadableStreamDefaultController = class ReadableStreamDefaultController {
   constructor() { throw new TypeError("Illegal constructor"); }
   get desiredSize() { return 1; }
-  close() {}
-  enqueue() {}
-  error() {}
+  close() {
+    const stream = _rsStream.get(this);
+    if (stream._closed) return;
+    stream._closed = true;
+    const waiters = stream._pendingReads.splice(0);
+    for (const w of waiters) w.resolve({ value: undefined, done: true });
+  }
+  enqueue(chunk) {
+    const stream = _rsStream.get(this);
+    if (stream._closed) return;
+    // A parked read gets the chunk directly; otherwise buffer it.
+    if (stream._pendingReads.length > 0) {
+      stream._pendingReads.shift().resolve({ value: chunk, done: false });
+    } else {
+      stream._queue.push(chunk);
+    }
+  }
+  error(e) {
+    const stream = _rsStream.get(this);
+    if (stream._closed) return;
+    stream._errored = e || new Error("stream error");
+    stream._closed = true;
+    const waiters = stream._pendingReads.splice(0);
+    for (const w of waiters) w.reject(stream._errored);
+  }
 };
 _markNativeProto(globalThis.ReadableStreamDefaultController.prototype);
 globalThis.ReadableStreamDefaultReader = class ReadableStreamDefaultReader {
   constructor() { throw new TypeError("Illegal constructor"); }
-  read() { return Promise.resolve({ value: undefined, done: true }); }
-  releaseLock() {}
-  cancel() { return Promise.resolve(); }
+  read() {
+    const stream = _rsStream.get(this);
+    if (stream._queue.length > 0) return Promise.resolve({ value: stream._queue.shift(), done: false });
+    if (stream._closed) {
+      if (stream._errored) return Promise.reject(stream._errored);
+      return Promise.resolve({ value: undefined, done: true });
+    }
+    // Pull-driven source (e.g. React's partial-flight re-wrapping
+    // `new ReadableStream({async pull(controller){...}})`): ask the
+    // source for a chunk, then hand back whatever it enqueued.
+    if (stream._source.pull && !stream._pullBusy) {
+      stream._pullBusy = true;
+      return Promise.resolve()
+        .then(() => stream._source.pull(stream._controller))
+        .then(() => {
+          stream._pullBusy = false;
+          if (stream._queue.length > 0) return { value: stream._queue.shift(), done: false };
+          if (stream._errored) throw stream._errored;
+          return { value: undefined, done: true };
+        }, (e) => {
+          stream._pullBusy = false;
+          stream._controller.error(e);
+          throw stream._errored;
+        });
+    }
+    // Live producer (a TransformStream's readable side, or any source
+    // that enqueues after read): park the read until
+    // enqueue/close/error wakes it.
+    return new Promise((resolve, reject) => {
+      stream._pendingReads.push({ resolve, reject });
+    });
+  }
+  releaseLock() { _rsStream.get(this)._locked = false; }
+  cancel() {
+    const stream = _rsStream.get(this);
+    stream._closed = true;
+    if (stream._source.cancel) { try { stream._source.cancel(); } catch (e) {} }
+    return Promise.resolve();
+  }
+  get closed() { return _rsStream.get(this)._closed ? Promise.resolve() : new Promise(() => {}); }
 };
 _markNativeProto(globalThis.ReadableStreamDefaultReader.prototype);
 globalThis.WritableStreamDefaultController = class WritableStreamDefaultController {
@@ -13701,12 +13711,16 @@ if (typeof Image === 'undefined') {
   globalThis.Image.prototype = globalThis.HTMLImageElement.prototype;
 }
 
+// `new Audio(url)` is `document.createElement('audio')` with preload=auto and src (Chrome); like Image it builds a real element.
 if (typeof Audio === 'undefined') {
-  globalThis.Audio = class Audio {
-    constructor(src) { this.src = src || ''; this.paused = true; this.volume = 1; this.currentTime = 0; this.duration = 0; }
-    play() { return Promise.resolve(); } pause() { this.paused = true; } load() {}
-    addEventListener() {} removeEventListener() {}
+  globalThis.Audio = function Audio(src) {
+    if (new.target === undefined) throw new TypeError("Failed to construct 'Audio': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    const a = document.createElement('audio');
+    a.setAttribute('preload', 'auto');
+    if (src !== undefined) a.setAttribute('src', String(src));
+    return a;
   };
+  globalThis.Audio.prototype = globalThis.HTMLAudioElement.prototype;
 }
 
 // `new Option(text, value, defaultSelected, selected)` — the legacy factory for

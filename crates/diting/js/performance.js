@@ -357,7 +357,7 @@ class Performance {
     const m = this._lastMark(name);
     if (m) return m.startTime;
     const t = this.timing || {};
-    if (Object.prototype.hasOwnProperty.call(t, name) && typeof t[name] === 'number') {
+    if (name in t && typeof t[name] === 'number') { // the attributes live on PerformanceTiming.prototype
       const nav0 = t.navigationStart || this.timeOrigin;
       return Math.max(0, t[name] - nav0);
     }

@@ -19,10 +19,7 @@
     const [sx, sy] = scroll();
     return arr.map((r) => rect(r[0] - sx, r[1] - sy, r[2], r[3]));
   };
-  const list = (rects) => {
-    Object.defineProperty(rects, 'item', { value(i) { return rects[i] || null; }, configurable: true, writable: true });
-    return rects;
-  };
+  const list = (rects) => __diting_mkRectList(rects); // a DOMRectList (platform/domrectlist.impl.js), not an Array with a grafted `item`
   const textLen = (n) => (n.data || n.nodeValue || '').length;
   const before = (n, o, m, p) => _rngCmp(n, o, m, p) <= 0;
 
