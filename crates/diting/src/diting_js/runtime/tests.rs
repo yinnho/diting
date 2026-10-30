@@ -28366,3 +28366,83 @@ fn knife61_rtc_peer_connection_face() {
     assert_eq!(v["closed"], serde_json::json!(["closed", "closed", "closed", "new"]), "close() leaves iceGatheringState at 'new'");
     assert_eq!(v["errors"].as_array().map(|a| a.len()), Some(15), "closed guards: addTransceiver + setConfiguration both InvalidStateError");
 }
+
+/// 刀62 — RTC family stragglers: MediaStreamTrack / RTCDataChannel /
+/// RTCRtpTransceiver full faces + RTCTrackEvent / RTCPeerConnectionIceErrorEvent
+/// rebinds, every member in Chrome 145 truth raw order (constructor last).
+/// Behaviors probed against Chrome for Testing 145: MST `new` = Illegal
+/// constructor, clone preserves readyState/label but mints a fresh unique id,
+/// stop() = 'ended'; DC defaults (arraybuffer/0/0/null/connecting/''),
+/// invalid binaryType silently ignored, send on non-open = InvalidStateError,
+/// close() on connecting = 'closing'; transceiver direction ignores junk,
+/// post-stop setter = InvalidStateError, header-extension tables audio 5 /
+/// video 16, negotiated view all-'stopped', setHeaderExtensionsToNegotiate([])
+/// = InvalidModificationError; TrackEvent requires receiver/track/transceiver
+/// (TypeError) and freezes streams; IceErrorEvent requires errorCode, defaults
+/// address/port null + url/errorText/hostCandidate ''. Known divergences
+/// (recorded): getCapabilities/getSettings return {} (no real source),
+/// engine canvas has no captureStream (tracks minted via addTransceiver).
+#[test]
+fn knife62_rtc_family_stragglers() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const out = {};
+          out.mstOrder = Object.getOwnPropertyNames(MediaStreamTrack.prototype);
+          out.mstParent = Object.getPrototypeOf(MediaStreamTrack.prototype) === EventTarget.prototype;
+          out.mstCtor = (() => { try { new MediaStreamTrack(); return 'no-throw'; } catch (e) { return e.name; } })();
+          const pc = new RTCPeerConnection();
+          const tr = pc.addTransceiver('audio');
+          const t = tr.receiver.track;
+          out.track = [t.kind, typeof t.id, t.muted, t.readyState, t.enabled, t.contentHint, t.getConstraints(), t.getCaptureHandle(), t.stats];
+          out.clone = (() => { const c = t.clone(); return [c.kind, c.readyState, c.id !== t.id]; })();
+          out.stopped = (() => { const s = pc.addTransceiver('video').receiver.track; s.stop(); return [s.readyState, s.clone().readyState]; })();
+          out.onfire = (() => { const f = pc.addTransceiver('audio').receiver.track; let n = 0; f.onmute = function () { n++; }; f.dispatchEvent(new Event('mute')); return n; })();
+          const dc = pc.createDataChannel('lbl');
+          out.dc = [dc.label, dc.ordered, dc.maxPacketLifeTime, dc.maxRetransmits, dc.protocol, dc.negotiated, dc.id, dc.readyState, dc.bufferedAmount, dc.bufferedAmountLowThreshold, dc.binaryType, dc.reliable];
+          const dc2 = pc.createDataChannel('l2', { ordered: false, maxRetransmits: 3, protocol: 'p1', negotiated: true, id: 7 });
+          out.dc2 = [dc2.ordered, dc2.maxRetransmits, dc2.protocol, dc2.negotiated, dc2.id, dc2.reliable];
+          out.dcBin = (() => { dc.binaryType = 'blob'; const v = dc.binaryType; dc.binaryType = 'junk'; return [v, dc.binaryType]; })();
+          out.dcErr = [(() => { try { dc.send('x'); return 'no-throw'; } catch (e) { return e.name; } })(), (() => { dc.close(); return dc.readyState; })()];
+          out.dcOrder = Object.getOwnPropertyNames(RTCDataChannel.prototype);
+          out.trOrder = Object.getOwnPropertyNames(RTCRtpTransceiver.prototype);
+          out.trDir = (() => { tr.direction = 'recvonly'; const a = tr.direction; tr.direction = 'junk'; return [a, tr.direction]; })();
+          out.trStop = (() => { tr.stop(); return [tr.stopped, tr.direction, tr.currentDirection, (() => { try { tr.direction = 'sendonly'; return 'no-throw'; } catch (e) { return e.name; } })()]; })();
+          out.hdr = [pc.addTransceiver('audio').getHeaderExtensionsToNegotiate().length, pc.addTransceiver('video').getHeaderExtensionsToNegotiate().length, (() => { const x = pc.addTransceiver('audio'); return x.getNegotiatedHeaderExtensions().every((e) => e.direction === 'stopped') && x.getNegotiatedHeaderExtensions().length; })()];
+          out.hdrSet = (() => { const x = pc.addTransceiver('audio'); const f = []; f.push((() => { try { x.setCodecPreferences([]); return 'ok'; } catch (e) { return e.name; } })()); f.push((() => { try { x.setCodecPreferences(null); return 'no-throw'; } catch (e) { return e.name; } })()); f.push((() => { try { x.setHeaderExtensionsToNegotiate([]); return 'no-throw'; } catch (e) { return e.name; } })()); f.push((() => { try { x.setHeaderExtensionsToNegotiate([{}]); return 'no-throw'; } catch (e) { return e.name; } })()); f.push((() => { try { x.setHeaderExtensionsToNegotiate(x.getHeaderExtensionsToNegotiate()); return x.getHeaderExtensionsToNegotiate().length; } catch (e) { return 'ERR:' + e.name; } })()); return f; })();
+          out.teOrder = Object.getOwnPropertyNames(RTCTrackEvent.prototype);
+          out.te = (() => { const e = new RTCTrackEvent('track', { receiver: tr.receiver, track: tr.receiver.track, transceiver: tr }); return [e.receiver === tr.receiver, e.track === tr.receiver.track, e.transceiver === tr, Object.prototype.toString.call(e.streams), e.streams.length, Object.isFrozen(e.streams), Object.prototype.toString.call(e)]; })();
+          out.teErrs = [(() => { try { new RTCTrackEvent('track', {}); return 'no-throw'; } catch (e) { return e.name; } })(), (() => { try { new RTCTrackEvent('track', { receiver: tr.receiver, track: {}, transceiver: tr }); return 'no-throw'; } catch (e) { return e.name; } })()];
+          out.ieeOrder = Object.getOwnPropertyNames(RTCPeerConnectionIceErrorEvent.prototype);
+          out.iee = (() => { const e = new RTCPeerConnectionIceErrorEvent('x', { address: '1.2.3.4', port: 3478, url: 'turn:x', errorCode: 401, errorText: ' t ', hostCandidate: '5.6.7.8:1' }); return [e.address, e.port, e.url, e.errorCode, e.errorText, e.hostCandidate, Object.prototype.toString.call(e)]; })();
+          out.ieeMin = (() => { const e = new RTCPeerConnectionIceErrorEvent('x', { errorCode: 401 }); return [e.address, e.port, e.url, e.errorCode, e.errorText, e.hostCandidate]; })();
+          out.ieeEmpty = (() => { try { new RTCPeerConnectionIceErrorEvent('x', {}); return 'no-throw'; } catch (e) { return e.name; } })();
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["mstOrder"], serde_json::json!(["kind","id","label","enabled","muted","onmute","onunmute","readyState","onended","stats","contentHint","applyConstraints","clone","getCapabilities","getConstraints","getSettings","stop","oncapturehandlechange","getCaptureHandle","constructor"]), "MST truth raw order");
+    assert_eq!(v["mstParent"], serde_json::json!(true), "MST extends EventTarget");
+    assert_eq!(v["mstCtor"], serde_json::json!("TypeError"), "MST Illegal constructor");
+    assert_eq!(v["track"], serde_json::json!(["audio","string",false,"live",true,"",{},null,null]), "MST defaults");
+    assert_eq!(v["clone"], serde_json::json!(["audio","live",true]), "clone keeps kind/readyState, fresh id");
+    assert_eq!(v["stopped"], serde_json::json!(["ended","ended"]), "stop() + clone of stopped stays ended");
+    assert_eq!(v["onfire"], serde_json::json!(1), "onmute handler fires");
+    assert_eq!(v["dc"], serde_json::json!(["lbl",true,null,null,"",false,null,"connecting",0,0,"arraybuffer",true]), "DC defaults");
+    assert_eq!(v["dc2"], serde_json::json!([false,3,"p1",true,7,false]), "DC options parsed");
+    assert_eq!(v["dcBin"], serde_json::json!(["blob","blob"]), "invalid binaryType ignored");
+    assert_eq!(v["dcErr"], serde_json::json!(["InvalidStateError","closing"]), "send guard + close on connecting");
+    assert_eq!(v["dcOrder"], serde_json::json!(["label","ordered","maxPacketLifeTime","maxRetransmits","protocol","negotiated","id","readyState","bufferedAmount","bufferedAmountLowThreshold","onopen","onbufferedamountlow","onerror","onclosing","onclose","onmessage","binaryType","reliable","close","send","constructor"]), "DC truth raw order");
+    assert_eq!(v["trOrder"], serde_json::json!(["mid","sender","receiver","stopped","direction","currentDirection","getHeaderExtensionsToNegotiate","getNegotiatedHeaderExtensions","setCodecPreferences","setHeaderExtensionsToNegotiate","stop","constructor"]), "transceiver truth raw order");
+    assert_eq!(v["trDir"], serde_json::json!(["recvonly","recvonly"]), "junk direction silently ignored");
+    assert_eq!(v["trStop"], serde_json::json!([true,"stopped",null,"InvalidStateError"]), "stop() locks direction");
+    assert_eq!(v["hdr"], serde_json::json!([5,16,5]), "header-extension tables audio 5 / video 16");
+    assert_eq!(v["hdrSet"], serde_json::json!(["ok","TypeError","InvalidModificationError","TypeError",5]), "setHeaderExtensions taxonomy");
+    assert_eq!(v["teOrder"], serde_json::json!(["receiver","track","streams","transceiver","constructor"]), "TrackEvent truth raw order");
+    assert_eq!(v["te"], serde_json::json!([true,true,true,"[object Array]",0,true,"[object RTCTrackEvent]"]), "TrackEvent identity + frozen streams");
+    assert_eq!(v["teErrs"], serde_json::json!(["TypeError","TypeError"]), "TrackEvent required members");
+    assert_eq!(v["ieeOrder"], serde_json::json!(["address","port","hostCandidate","url","errorCode","errorText","constructor"]), "IceErrorEvent truth raw order");
+    assert_eq!(v["iee"], serde_json::json!(["1.2.3.4",3478,"turn:x",401," t ","5.6.7.8:1","[object RTCPeerConnectionIceErrorEvent]"]), "IceErrorEvent values + brand");
+    assert_eq!(v["ieeMin"], serde_json::json!([null,null,"",401,"",""]), "IceErrorEvent defaults");
+    assert_eq!(v["ieeEmpty"], serde_json::json!("TypeError"), "errorCode required");
+}
