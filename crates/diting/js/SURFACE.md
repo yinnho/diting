@@ -1486,3 +1486,20 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 **发现（下一刀）**：`JSON.stringify(element)`、`for-in`、`Object.assign`/展开会看到引擎内部的 `_nid/_style/_templateContent`（Node 构造器与懒建字段为可枚举自有属性）；文本/注释/片段/Range/DocumentType/Blob/File/FormData/MutationObserver/XHR/WebSocket/ReadableStream 等同样。
 此前实例审计走打过补丁的 `getOwnPropertyNames`，看不到这一面。
 验收：engine 全量 1000 过/30 败（同干净 HEAD）；diting-browser 464 过/46 败（同干净 HEAD）；ratchet/契约/check_fresh 过。
+
+## M4 刀52：document.fonts 做成真 FontFaceSet、FontFace 重做、Window 额外全局清零（2026-10-30）
+
+**实例审计 127/127 全部干净**（leaky 0；整面审计 936 接口：同 744、缺 118、多 29）。
+`document.fonts` 原先是一个**数组**（`Array.isArray` 为真，`size` 为 undefined，`forEach/has/check/...` 作为自有属性嫁接，里面是伪造的"常见字体" FontFace 标签对象，`check()` 对未知字体返回 false），
+`FontFaceSet`/`CSSPseudoElement` 这两个 Chrome 145 并不暴露的接口站在 window 上。新模块 `platform/fontfaceset.impl.js`（旧实现整段删除，bootstrap 少约 150 行）：
+- **FontFaceSet**（接口对象不暴露、原型无自有 `constructor`，继承 EventTarget）：`size/status/ready/check/load/add/clear/delete/entries/forEach/has/keys/values/@@iterator`，成员顺序与 Chrome 一致；
+  插入序去重；默认**空集**（Chrome 不预装字体）；`check()` 对没有 FontFace 声明的家族一律返回 true，`font` 简写必须可解析否则 `SyntaxError: Could not resolve '…' as a font.`；`load()` 返回 Promise，无参/非法走 rejected；`keys !== values`、`@@iterator === values`；
+  非法 this 的 promise 属性返回 rejected promise 而不是同步抛。
+- **FontFace** 移入模块：完整 Chrome 145 描述符面（补 `ascentOverride/descentOverride/lineGapOverride/sizeAdjust/variationSettings`，去掉非标准的 `source` 访问器，默认值 `weight:'normal'`、`sizeAdjust:'100%'`），
+  setter/构造器按各描述符语法校验（非法 setter 抛 `SyntaxError: Failed to set '…' as a property value.`；构造器里非法描述符/来源不抛，状态变 `error`），`unicodeRange` 规范化（`U+0041`→`U+41`），`loaded` 稳定同一 Promise，`load()` 幂等。
+- `Document.prototype.fonts` 现在是模块里的原型 getter，每个文档一个稳定实例。
+- `FontFaceSet`/`CSSPseudoElement` 加入 `version_prune.js`；window 上多余的自有 `Symbol.toStringTag` 删除（原型链已到 Window.prototype）。
+- 探针 `fonts-probe.js` 27 键对 Chrome 145 0 差（`fonts-truth-145.json`，测试 `fonts_matches_chrome_truth`）。`fonts_for_each_iterates_without_recursing` 改为先 `add` 一个 FontFace（Chrome 的集合默认为空）。
+- `shape_fix.js`/`internal_names.js` 按新引擎重新生成（`regen_shape.sh`、`gen_internal_names.py`；FontFace 的成员顺序原先按旧引擎写死）；`check_fresh --update` 把 coll/fonts 真值登记进 MANIFEST。
+**行为变化（有意，对齐 Chrome）**：`document.fonts.check('12px "不存在的字体"')` 现在是 true；`document.fonts.size` 为 0；遍历默认无元素。依赖"字体探测"的指纹脚本在 Chrome 上读到的就是这些值。
+验收：engine 全量 1001 过/30 败（同干净 HEAD）；diting-browser 464 过/46 败（同干净 HEAD）；ratchet/契约/check_fresh 过。
