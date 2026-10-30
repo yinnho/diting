@@ -1214,7 +1214,7 @@ G webkitSpeechRecognitionError
 G webkitSpeechRecognitionEvent
 G webkitURL
 G window
-P AbortController :: abort,constructor
+P AbortController :: abort,constructor,signal
 S AbortSignal :: abort,any,timeout
 P AbortSignal :: aborted,constructor,onabort,reason,throwIfAborted
 P AbsoluteOrientationSensor :: constructor
@@ -1272,7 +1272,7 @@ P BigInt64Array :: BYTES_PER_ELEMENT,constructor
 S BigUint64Array :: BYTES_PER_ELEMENT
 P BigUint64Array :: BYTES_PER_ELEMENT,constructor
 P BiquadFilterNode :: Q,constructor,detune,frequency,gain,getFrequencyResponse,type
-P Blob :: arrayBuffer,bytes,constructor,slice,stream,text
+P Blob :: arrayBuffer,bytes,constructor,size,slice,stream,text,type
 P BlobEvent :: constructor,data,timecode
 P Bluetooth :: constructor,getAvailability,requestDevice
 P BluetoothCharacteristicProperties :: authenticatedSignedWrites,broadcast,constructor,indicate,notify,read,reliableWrite,writableAuxiliaries,write,writeWithoutResponse
@@ -1466,7 +1466,7 @@ P FederatedCredential :: constructor,iconURL,name,protocol,provider
 P Fence :: constructor,getNestedConfigs,reportEvent,setReportEventDataForAutomaticBeacons
 P FencedFrameConfig :: constructor,setSharedStorageContext
 P FetchLaterResult :: activated,constructor
-P File :: constructor
+P File :: constructor,lastModified,name
 P FileList :: constructor
 S FileReader :: DONE,EMPTY,LOADING
 P FileReader :: DONE,EMPTY,LOADING,abort,constructor,error,onabort,onerror,onload,onloadend,onloadstart,onprogress,readAsArrayBuffer,readAsBinaryString,readAsDataURL,readAsText,readyState,result
@@ -1652,7 +1652,7 @@ P Image :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,c
 P ImageBitmap :: close,constructor
 P ImageBitmapRenderingContext :: canvas,constructor,transferFromImageBitmap
 P ImageCapture :: constructor,getPhotoCapabilities,getPhotoSettings,grabFrame,takePhoto,track
-P ImageData :: constructor
+P ImageData :: constructor,height,width
 S ImageDecoder :: isTypeSupported
 P ImageDecoder :: close,complete,completed,constructor,decode,reset,tracks,type
 P ImageTrack :: animated,constructor,frameCount,repetitionCount,selected
@@ -1732,7 +1732,7 @@ P MediaStreamTrackEvent :: constructor,track
 P MediaStreamTrackGenerator :: constructor,writable
 P MediaStreamTrackProcessor :: constructor,readable
 P MediaStreamTrackVideoStats :: constructor,deliveredFrames,discardedFrames,toJSON,totalFrames
-P MessageChannel :: constructor
+P MessageChannel :: constructor,port1,port2
 P MessageEvent :: constructor,data,initMessageEvent,lastEventId,origin,ports,source,userActivation
 P MessagePort :: addEventListener,close,constructor,onmessage,onmessageerror,postMessage,removeEventListener,start
 P MimeType :: constructor,description,enabledPlugin,suffixes,type
@@ -2101,7 +2101,7 @@ P Touch :: clientX,clientY,constructor,force,identifier,pageX,pageY,radiusX,radi
 P TouchEvent :: altKey,changedTouches,constructor,ctrlKey,metaKey,shiftKey,targetTouches,touches
 P TouchList :: constructor,item,length
 P TrackEvent :: constructor,track
-P TransformStream :: constructor
+P TransformStream :: constructor,readable,writable
 P TransformStreamDefaultController :: constructor,desiredSize,enqueue,error,terminate
 P TransitionEvent :: constructor,elapsedTime,propertyName,pseudoElement
 S Translator :: availability,create

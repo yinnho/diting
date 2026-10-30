@@ -9,7 +9,7 @@ JS = os.path.join(HERE, '../../../crates/diting/js')
 SKIP = {'platform_bundle.js', 'shape_fix.js', 'stub_members.js', 'sym_fix.js', 'internal_names.js', 'mixin_fix.js'}
 names = set()
 rx = re.compile(r'\bthis\.(_[A-Za-z0-9_]+)\b')
-rx2 = re.compile(r'(?:\b[a-z]\w*|\])\.(_[A-Za-z][A-Za-z0-9_]*)\s*=[^=]')
+rx2 = re.compile(r'(?:\b\w+|\])\.(_[A-Za-z][A-Za-z0-9_]*)\s*=[^=]')
 for f in sorted(os.listdir(JS)):
     if not f.endswith('.js') or f in SKIP: continue
     src = open(os.path.join(JS, f), encoding='utf8').read()

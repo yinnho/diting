@@ -1355,3 +1355,13 @@ firstInterimResponseStart、worker* 、contentEncoding…），有真实测量�
 结果：完全一致接口 741/936（含追回的父原型修复），父原型不同 8，实例审计带泄漏对象 30/127（PerformanceNavigationTiming 的 25 个自有键清零）。
 验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 逐条相同；check_fresh 7 件鲜（43 真值）；ratchet OK。
 
+## M4 刀40：lift/demote 扩面（2026-10-30）
+
+lift_own 增 AbortController(signal)、MessageChannel(port1/2)、TransformStream(readable/writable)、Blob(size/type)、File(name/lastModified)、ImageData(width/height)、Image(6)；`gen_lift_own.py` 新增第 4 个参数
+（Chrome 侧实例审计）：**Chrome 实例自己也持有的名字不提升**（ImageData.data 在 Chrome 里就是实例自有，第一版提升后审计立刻报 `missing=['data']`）。demote_own 增 navigator.clipboard(Clipboard)、navigator.permissions(Permissions)。
+gen_internal_names 的赋值正则放宽到任意接收者（`x._bufferedAmount = …`）。实例审计带泄漏对象 30→22/127。
+**留作决策而非机械修复**：CSSStyleDeclaration 的 383 个缺失属性名（Chrome 的 `el.style` 实例上有全部 CSS 属性的 camelCase 自有名，含 anchorName 等引擎并未实现的特性）——补上会让 `'anchorName' in el.style`
+这类特性检测为真，而引擎并不实现，页面可能据此走不通的分支；是「对外自称」与「真实能力」的取舍，需要产品裁决（建议：只补引擎真实支持的，其余维持缺失）。
+还剩：CanvasRenderingContext2D(defineProperty 自建)、RTCPeerConnection、Image(DOM 类自有)、Attr(不继承 Node)、NamedNodeMap、CanvasGradient、WebSocket(动态 `_` 名)。
+验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 相同；ratchet OK；一致接口 741/936。
+

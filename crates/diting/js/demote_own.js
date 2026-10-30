@@ -12,6 +12,8 @@
     ['geolocation', () => globalThis.navigator && globalThis.navigator.geolocation, 'Geolocation'],
     ['serviceWorker', () => globalThis.navigator && globalThis.navigator.serviceWorker, 'ServiceWorkerContainer'],
     ['indexedDB', () => globalThis.indexedDB, 'IDBFactory'],
+    ['clipboard', () => globalThis.navigator && globalThis.navigator.clipboard, 'Clipboard'],
+    ['permissions', () => globalThis.navigator && globalThis.navigator.permissions, 'Permissions'],
   ];
   const gopn = Object.getOwnPropertyNames, gopd = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
   for (const [label, get, cn] of TARGETS) {
