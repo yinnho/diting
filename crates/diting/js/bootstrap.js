@@ -1283,6 +1283,7 @@ const _CSS_PROPERTY_NAMES = [
   "whiteSpace","width","willChange","wordBreak","wordSpacing","wordWrap","writingMode","zIndex","zoom",
 ];
 const _CSS_PROP_SET = new Set(_CSS_PROPERTY_NAMES);
+Object.defineProperty(globalThis, '__diting_cssNames', { value: { list: _CSS_PROPERTY_NAMES, set: _CSS_PROP_SET }, writable: true, enumerable: false, configurable: true });
 
 // Parse a `style` attribute string (`"color: red; margin: 5px"`) into the given
 // dashed-key store, replacing its contents in place.

@@ -1460,3 +1460,11 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 `dispatchEvent(new Event('x'))` 现在返回 `true`（Chrome 行为；旧桩返回 false），`test_issue_81_service_worker_event_target` 的期望按 Chrome 真值改为 true。
 剩余泄漏：`CSSStyleDeclaration`(383 属性名)、`Window`(FontFaceSet/CSSPseudoElement 引擎内部使用)、`HTMLCollection.length`(继承 Array)。
 注意：iframe 等非主文档的 Document 包装对象不再有 `location`（它们原先靠原型）；全量测试无回归。验收：全量 998 过/30 败同干净 HEAD。
+
+## M4 刀50：CSSStyleDeclaration 属性名枚举（2026-10-30）
+
+泄漏对象 3→2（127 个）。样式对象是 Proxy，自有键来自 bootstrap 里的名单，只有 309/690 个 Chrome 145 的 camelCase 属性名。新模块 `platform/cssnames.impl.js`
+通过隐藏全局 `__diting_cssNames`（`{list, set}`，bootstrap 只多一行）把名单原地替换成 Chrome 的 690 个名字（字母序，与实例枚举一致）。
+**策略澄清**：未知属性本来就能被 `setProperty` 和 `style.xxx = v` 存储、读回并参与 `cssText` 序列化（`_cssDeclAccepted` 只对长度类属性做 token 校验），缺的只是枚举与 `in`；
+所以补全名单并不新增任何「声称支持」的能力，布局仍只实现它实现的那部分。`cssFloat` 不再枚举（Chrome 145 实例上没有），但保留 get/set/has 识别。
+剩余泄漏：`Window`(FontFaceSet/CSSPseudoElement，引擎内部使用)、`HTMLCollection.length`(继承 Array)。验收：全量 998 过/30 败同干净 HEAD；ratchet/契约/check_fresh 过。
