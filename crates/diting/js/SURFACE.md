@@ -1300,3 +1300,12 @@ Chrome 145 里 window 上**不可配置**的自有属性恰好 8 个：Infinity/
 结果：History/Crypto/SubtleCrypto/Geolocation 干净；带泄漏对象 38→34。**仍剩**：IDBFactory（open/deleteDatabase/databases/cmp）与 ServiceWorkerContainer（register/getRegistrations）——它们的对象在 demote 之后才创建或被每次访问重建，需在其创建处处理。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 
+## M4 刀36：IDBFactory 干净 + window.sharedStorage + 窗口原型链的发现（2026-10-30）
+
+- **IDBFactory**：`indexedDB` 对象的自有方法 open/deleteDatabase/databases/cmp 此前被 demote 跳过——因为 IDBFactory.prototype 上**已有同名占位**（类体里的桩）。改为：原型上已有的是占位，**实例自有的才是可用实现，替换占位**后删除自有。实例审计 IDBFactory 干净；ServiceWorkerContainer 只剩 EventTarget 三件套（有意不搬）。
+- **window.sharedStorage**：新增 `window_extras.js`，在 window 上装 getter（enumerable/configurable，返回单例 SharedStorage 实例），补上 Chrome 145 有而引擎没有的名字。Window 的「缺失名字」清零。
+- **窗口原型链（发现，未修）**：Chrome 里 `Object.getPrototypeOf(window) === Window.prototype` 且链为 window → Window.prototype → WindowProperties → EventTarget.prototype，`window instanceof EventTarget` 为真；
+  引擎里全局对象的**直接原型不是** Window.prototype（`window instanceof Window` 靠链上某处成立），`window instanceof EventTarget` 为**假**。窗口自有的 `Symbol.toStringTag` 因此不能删（删了 `Object.prototype.toString.call(window)` 变成 `[object Object]`，已试过并回退）。
+  这是 V8 全局模板（Rust 侧）的问题，脚本层无解；会让 `window instanceof EventTarget` 这类检查与 Chrome 不同，值得单列一刀（改全局对象模板的原型）。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 相同；快照重生；实例审计带泄漏对象 33/127。
+

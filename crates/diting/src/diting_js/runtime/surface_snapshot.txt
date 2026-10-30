@@ -1,4 +1,4 @@
-[globals] 1214
+[globals] 1215
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -1184,6 +1184,7 @@ G self
 G sessionStorage
 G setInterval
 G setTimeout
+G sharedStorage
 G showDirectoryPicker
 G showOpenFilePicker
 G showSaveFilePicker

@@ -22,7 +22,9 @@
       if (Object.getPrototypeOf(obj) !== P) { try { Object.setPrototypeOf(obj, P); } catch (e) { continue; } }
       const slot = new WeakMap();
       for (const name of gopn(obj)) {
-        if (name.charCodeAt(0) === 95 || Object.prototype.hasOwnProperty.call(P, name)) continue;
+        if (name.charCodeAt(0) === 95) continue;
+        // a prototype entry that already exists is a placeholder (class-body stub): the instance's own member is the working
+        // implementation, so it REPLACES the placeholder rather than being skipped
         // EventTarget trio: a custom per-object listener list may back these (ServiceWorkerContainer); moving them onto the
         // prototype would also trip the EventTarget-chain truth (the trio lives on EventTarget.prototype only)
         if (name === 'addEventListener' || name === 'removeEventListener' || name === 'dispatchEvent') continue;

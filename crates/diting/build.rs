@@ -114,6 +114,7 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("mixin_fix.js", include_str!("js/mixin_fix.js")),
     ("stub_members.js", include_str!("js/stub_members.js")),
     ("sym_fix.js", include_str!("js/sym_fix.js")),
+    ("window_extras.js", include_str!("js/window_extras.js")),
     ("shape_fix.js", include_str!("js/shape_fix.js")),
     ("version_prune.js", include_str!("js/version_prune.js")),
     ("window_order.js", include_str!("js/window_order.js")),
