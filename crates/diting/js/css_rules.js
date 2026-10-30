@@ -202,7 +202,9 @@
   }
   acc(globalThis.CSSStyleRule, 'selectorText', function () { return rec(this).selector; }, function (v) { rec(this).selector = normSelector(String(v)); const sh = rec(this).sheet; if (sh && sh._cssomChanged) sh._cssomChanged(); });
   acc(globalThis.CSSStyleRule, 'style', function () { return rec(this).style; });
-  for (const n of ['CSSFontFaceRule', 'CSSPageRule', 'CSSKeyframeRule', 'CSSPropertyRule', 'CSSCounterStyleRule']) acc(globalThis[n], 'style', function () { return rec(this).style; });
+  // 刀57: CSSPropertyRule/CSSCounterStyleRule drop their invented `style` — Chrome
+  // keeps it on the style-decl rule faces only (FontFace/Page/Keyframe/Style).
+  for (const n of ['CSSFontFaceRule', 'CSSPageRule', 'CSSKeyframeRule']) acc(globalThis[n], 'style', function () { return rec(this).style; });
   acc(globalThis.CSSPageRule, 'selectorText', function () { return rec(this).prelude; });
   acc(globalThis.CSSKeyframeRule, 'keyText', function () { return rec(this).keyText; }, function (v) { rec(this).keyText = normKeyText(String(v)); });
   acc(globalThis.CSSKeyframesRule, 'name', function () { return rec(this).name; }, function (v) { rec(this).name = String(v); });
@@ -217,7 +219,11 @@
     return { get length() { return items.length; }, item(i) { return items[i] ?? null; }, get mediaText() { return items.join(', '); }, set mediaText(v) { items.splice(0, items.length, ...splitTop(String(v), ',').map((x) => x.trim()).filter(Boolean)); }, appendMedium(m) { items.push(String(m)); }, deleteMedium(m) { const i = items.indexOf(String(m)); if (i >= 0) items.splice(i, 1); }, toString() { return items.join(', '); } };
   };
   acc(globalThis.CSSMediaRule, 'media', function () { const d = rec(this); return d.mediaObj || (d.mediaObj = mediaList(d.cond)); });
-  for (const n of ['CSSMediaRule', 'CSSSupportsRule', 'CSSContainerRule', 'CSSScopeRule']) acc(globalThis[n], 'conditionText', function () { return rec(this).cond; });
+  // 刀57: conditionText lives ONLY on CSSConditionRule (Chrome truth); Media/
+  // Container/Supports inherit it down the chain, and CSSScopeRule (chained
+  // under CSSGroupingRule, not Condition) loses it entirely — scope rules
+  // answer start/end in Chrome, never conditionText.
+  acc(globalThis.CSSConditionRule, 'conditionText', function () { return rec(this).cond; });
   acc(globalThis.CSSContainerRule, 'containerName', function () { const m = /^([\w-]+)\s*(?:\(|$)/.exec(rec(this).cond); return m && !/^(not|and|or)$/i.test(m[1]) ? m[1] : ''; });
   acc(globalThis.CSSContainerRule, 'containerQuery', function () { return rec(this).cond.replace(/^[\w-]+\s+(?=\()/, ''); });
   acc(globalThis.CSSLayerBlockRule, 'name', function () { return rec(this).name; });

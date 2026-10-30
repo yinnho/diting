@@ -1580,3 +1580,18 @@ for-in 一览无余、`getOwnPropertyDescriptor(Element.prototype,'requestSubmit
 测试：`eventtarget_chains_match_chrome_truth_except_known_gaps` 的 SHADOWED_TRIO 棘轮例外表**清空**（七家下榜）；新增 `knife56_wrong_prototype_levels_fold_to_chrome`（三摊形状+行为钉死）与 `knife56_native_core_delivery_single_fire`（单发/真事件/注册可见性）。surface_snapshot 重生成。
 验收：`cargo test -p diting` 失败集与干净 HEAD **逐名全等**（110 既有环境败，928 过=924+4）。
 **教训**：`function get name(){}` 不是合法 JS（getter 名推导只在对象字面量/类体里成立），独立函数表达式要用 `function name(){}`；测 MQL 翻转先归一视口再翻，别赌默认视口宽度。
+
+## M4 刀57：单件族清尾——extra 类清零 152→58→17→**0**（2026-10-31）
+
+17 件散兵（16 接口各 1–2 件）按真源普查分三判：
+- **DELETE 纯发明 ×11**：AudioContext.playbackStats、BaseAudioContext.renderQuantumSize、CSSCounterStyleRule.style、CSSPropertyRule.style、**CSSScopeRule.conditionText**（真源反转：Chrome 里 ScopeRule 挂 CSSGroupingRule 下、答 start/end，从无 conditionText）、Document.referrerPolicy（Chrome 的 Document.prototype 没有，只在元素/Request 上）、GPUAdapter.requestAdapterInfo、LaunchQueue.setTargetURL、Navigator.cpuPerformance、ResizeObserver.takeRecords（Chrome RO=observe/unobserve/disconnect 三件，takeRecords 属 Mutation/Intersection/Performance 家）、WebTransport.congestionControl。
+- **MOVE→CSSConditionRule ×3**：Media/Container/Supports 的 conditionText 副本删，真 getter 装上 CSSConditionRule（原先是 stub_members 的 undefined 桩——**先验桩再删副本**，否则行为退化）；三子类沿链继承真值，CSSScopeRule 直接失去。
+- **MOVE→Credential/ShadowRoot ×3**：PasswordCredential.id/type 走继承（Credential.prototype 换真 getter 读 `_id`/`_type`，ctor 补 `this._type="password"`，web_api_gaps 装桩替换位）；DocumentFragment 的 innerHTML 对（get+set）**删**、ShadowRoot 类体自有一对——Chrome 145 真探：plain fragment 与 template.content 读 innerHTML 皆 **undefined**、赋值=无解析裸 expando（firstChild 不变 null）、只有 ShadowRoot 真往返。
+
+**断腿发现**：fragment 面（innerHTML 对）有三个内部用户原靠它解析——Element.innerHTML 的 template 特例、DocumentFragment.cloneNode(deep)、Range.createContextualFragment——删面后 template 解析当场死（kids=0）。三处全改 `_dom("set_inner_html", frag._nid, …)` 直调 op，template/深克隆/上下文档段全活。
+
+数字：整面 **extra=0**（刀55 起 152→58→17→0），missing 111 接口/603 成员不变（ShadowRoot 仍缺 5：onslotchange/pointerLockElement/fullscreenElement/pictureInPictureElement/getSelection），same 751→**759**；order 28（ShadowRoot 因 innerHTML 入类一度 29，shape_fix 正规再生循环收敛回 28——ORDER.ShadowRoot 补 innerHTML、PROTO.Node 甩掉刀56 已原生正确的 isConnected）；kind 65 不变。枚举审计 204/211（7 已知缺口不变）；ratchet 过（crossFileLoadTimeNames 52 不变）。
+shape_fix 再生：禁用→重建→裸捕获→gen→恢复→重建（生成器头部规定的舞步）；语义 diff 恰两条（见上）。internal_names 再生（`_congestionControl` 出列）。
+测试：`knife57_singleton_extras_fold_to_chrome_truth`（新，16 接口形状+9 组行为钉死）；两个钉发明的测试改钉真值（observer 族 RO=undefined、Navigator 枚举面 83→82）；音频形状清单两处摘名。surface_snapshot 重生成（恰 17 行）。
+验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 既有环境败，929 过=925+4）；活引擎行为探针复验（真值 conditionText 三例、scope undefined、pc.id/type/name/password 继承答、sr 往返、df 裸 expando、template kids=2、clone/上下文档段解析）。
+**教训**：删成员前先查真源该成员在 Chrome 的**全部宿主**（conditionText 的宿主是 CSSConditionRule 而非四个子类——判 MOVE 还是 DELETE 全靠它）；「桩在、副本真」的格局里删副本必先换桩为真（Credential 同理）；改原型面后必跑内部用户 grep——`content.innerHTML`/`frag.innerHTML` 这类顺手写法就是隐性依赖。

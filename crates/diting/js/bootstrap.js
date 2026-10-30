@@ -3633,7 +3633,10 @@ class Element extends Node {
   get innerHTML() { return _domParse("inner_html", this._nid) ?? ""; }
   set innerHTML(v) {
     if (this.localName === 'template') {
-      this.content.innerHTML = v;
+      // 刀57: the fragment prototype no longer carries an innerHTML setter
+      // (Chrome truth), so parse straight through the op instead of writing
+      // `content.innerHTML` — that would now be a plain no-parse expando.
+      _dom("set_inner_html", this.content._nid, String(v ?? ""));
       return;
     }
     // Capture the children that are about to be replaced so we can deliver
@@ -6077,10 +6080,10 @@ class Document extends Node {
   // automation navigations. Computed by the navigation layer per
   // strict-origin-when-cross-origin (upstream edb1785).
   get referrer() { return _domParse("document_referrer") ?? ""; }
-  // Document referrer policy (Referrer Policy spec): header-delivered policy
-  // beats <meta name=referrer>; "" = no policy (spec default applies per
-  // request). Resolved Rust-side so fetch/XHR/loaders see the same value.
-  get referrerPolicy() { return _domParse("document_referrer_policy") ?? ""; }
+  // 刀57: document.referrerPolicy deleted — Chrome 145's Document.prototype
+  // carries no referrerPolicy (only the per-element/request faces have one).
+  // The policy itself stays resolved Rust-side (document_referrer_policy op)
+  // where the fetch/XHR loaders read it; the JS face was an invention.
   // document.domain: legacy same-origin surface. The getter returns the
   // origin's host — bilibili's log-reporter scopes its b_lsid cookie with
   // `document.domain.split(".")`, and an undefined domain took the whole
@@ -6499,8 +6502,8 @@ class DocumentFragment extends Node {
   }
   get nodeType() { return 11; }
   get nodeName() { return "#document-fragment"; }
-  get innerHTML() { return _domParse("inner_html", this._nid) ?? ""; }
-  set innerHTML(v) { _dom("set_inner_html", this._nid, String(v ?? "")); }
+  // 刀56/57: no innerHTML here — Chrome's DocumentFragment.prototype has none
+  // (a plain fragment answers undefined); ShadowRoot owns its own pair below.
   querySelector(s) {
     const id = +_dom("query_selector_scoped", this._nid, s);
     // Parser-order visibility (#120): if the engine's first match is a script
@@ -6534,7 +6537,9 @@ class DocumentFragment extends Node {
   }
   cloneNode(deep) {
     const frag = document.createDocumentFragment();
-    if (deep) frag.innerHTML = this.innerHTML;
+    // 刀57: fragments lost their innerHTML face (Chrome truth); clone
+    // through the ops so `deep` still materializes children.
+    if (deep) _dom("set_inner_html", frag._nid, _domParse("inner_html", this._nid) ?? "");
     return frag;
   }
 }
@@ -7403,7 +7408,6 @@ const __diting_keyboard = Object.create(globalThis.Keyboard.prototype);
 globalThis.LaunchQueue = class LaunchQueue {
   constructor() { throw new TypeError("Illegal constructor"); }
   setConsumer(callback) { this._consumer = callback; }
-  setTargetURL() {}
 };
 const __diting_launchQueue = Object.create(globalThis.LaunchQueue.prototype);
 
@@ -7496,12 +7500,13 @@ globalThis.PasswordCredential = class PasswordCredential {
     this._id = String(data.id);
     this._name = data.name === undefined ? "" : String(data.name);
     this._password = String(data.password);
+    // 刀57: id/type answer through Credential.prototype now (Chrome owns
+    // them there; PasswordCredential.prototype lists neither).
+    this._type = "password";
   }
-  get id() { return this._id; }
   get name() { return this._name; }
   get password() { return this._password; }
   get iconURL() { return ""; }
-  get type() { return "password"; }
 };
 
 globalThis.PushSubscriptionOptions = class PushSubscriptionOptions {
@@ -7566,9 +7571,7 @@ globalThis.WebTransport = class WebTransport {
     if (arguments.length === 0) throw new TypeError("Failed to construct 'WebTransport': 1 argument required, but only 0 present.");
     try { this._url = new URL(url, _docBase()).href; }
     catch (e) { throw new TypeError("Failed to construct 'WebTransport': The provided value is not a valid URL."); }
-    this._congestionControl = options && options.congestionControl !== undefined ? String(options.congestionControl) : "default";
   }
-  get congestionControl() { return this._congestionControl; }
   get ready() { if (!this._ready) this._ready = new Promise(() => {}); return this._ready; }
   get closed() { if (!this._closedP) this._closedP = new Promise(() => {}); return this._closedP; }
   get datagrams() {
@@ -7795,7 +7798,6 @@ const __navStore = {
     return true;
   },
   vibrate() { return false; },
-  cpuPerformance: "high",
   deprecatedRunAdAuctionEnforcesKAnonymity: false,
   protectedAudience: {},
   bluetooth: {
@@ -8746,7 +8748,9 @@ globalThis.ResizeObserver = class ResizeObserver {
   }
   unobserve(el) { this._targets.delete(el); }
   disconnect() { this._connected = false; this._targets.clear(); }
-  takeRecords() { return []; }
+  // 刀57: takeRecords deleted — Chrome's ResizeObserver.prototype carries
+  // only observe/unobserve/disconnect; pending-record draining is a
+  // MutationObserver/PerformanceObserver face, not this one.
 };
 
 if (typeof TextEncoder === 'undefined') {
@@ -9653,6 +9657,12 @@ globalThis.ShadowRoot = class ShadowRoot extends DocumentFragment {
   }
   get host() { return this._host; }
   get mode() { return this._mode; }
+  // 刀57: ShadowRoot owns its innerHTML pair (Chrome truth: ShadowRoot.
+  // prototype has it rw:ec; DocumentFragment.prototype has none, so the
+  // inherited copy had to become ShadowRoot's own — template.content and
+  // plain fragments answer undefined, exactly like Chrome 145).
+  get innerHTML() { return _domParse("inner_html", this._nid) ?? ""; }
+  set innerHTML(v) { _dom("set_inner_html", this._nid, String(v ?? "")); }
   get delegatesFocus() { return this._delegatesFocus; }
   get slotAssignment() { return this._slotAssignment; }
   get clonable() { return this._clonable; }
@@ -11811,7 +11821,6 @@ globalThis.TextMetrics = class TextMetrics {
     this.actualBoundingBoxAscent = 0; this.actualBoundingBoxDescent = 0; }
 };
 globalThis.GPUAdapter = class GPUAdapter {
-  requestAdapterInfo() { return Promise.resolve({ vendor: 'google', architecture: 'unknown', device: '', description: '' }); }
   requestDevice() { return Promise.reject(new Error('GPUDevice unavailable')); }
 };
 globalThis.GPU = class GPU {
@@ -15893,7 +15902,7 @@ try {
     'webkitTemporaryStorage','webkitPersistentStorage','windowControlsOverlay','hardwareConcurrency','cookieEnabled',
     'appCodeName','appName','appVersion','platform','product','userAgent','language','languages','onLine','webdriver',
     'plugins','mimeTypes','pdfViewerEnabled','connection','getGamepads','javaEnabled','sendBeacon','vibrate','constructor',
-    'cpuPerformance','deprecatedRunAdAuctionEnforcesKAnonymity','protectedAudience','bluetooth','clipboard','credentials',
+    'deprecatedRunAdAuctionEnforcesKAnonymity','protectedAudience','bluetooth','clipboard','credentials',
     'keyboard','managed','mediaDevices','serviceWorker','virtualKeyboard','wakeLock','deviceMemory','userAgentData',
     'locks','storage','gpu','login','ink','mediaCapabilities','permissions','devicePosture','hid','mediaSession',
     'presentation','serial','usb','xr','storageBuckets','adAuctionComponents','runAdAuction','canLoadAdAuctionFencedFrame',

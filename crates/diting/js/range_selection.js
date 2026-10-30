@@ -124,7 +124,9 @@ globalThis.Range = class Range {
     const node = this._sc;
     const ownerDoc = (node && node.ownerDocument) || globalThis.document;
     const frag = ownerDoc.createDocumentFragment();
-    frag.innerHTML = String(html);
+    // 刀57: plain fragments have no innerHTML setter (Chrome truth) — parse
+    // through the op directly.
+    _dom("set_inner_html", frag._nid, String(html));
     return frag;
   }
   toString() {
