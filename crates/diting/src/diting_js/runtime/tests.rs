@@ -27558,3 +27558,49 @@ async fn namednodemap_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 51 - the HTMLCollection family against real Chrome 145 (coll-probe.js, 25 keys): HTMLCollection is a legacy platform
+/// object (not an Array: indexed read-only props, non-enumerable named props, prototype `length`, only item/namedItem/@@iterator),
+/// HTMLOptionsCollection (add/remove/selectedIndex/writable length) and HTMLFormControlsCollection (RadioNodeList on several matches).
+#[tokio::test(flavor = "current_thread")]
+async fn htmlcollection_family_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/coll-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/coll-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// Re-rendering a container with the same ids must hand back the NEW elements: getElementById only finds nodes in the document
+/// (the id index used to keep pointing at the detached old node, and never learned the new one).
+#[tokio::test(flavor = "current_thread")]
+async fn get_element_by_id_ignores_detached_nodes_after_inner_html() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"(function () {
+        var h = document.createElement('div'); document.body.appendChild(h);
+        var H = '<select id="s"><option>a</option></select><p id="p">x</p>';
+        h.innerHTML = H; var s1 = document.getElementById('s');
+        h.innerHTML = H; var s2 = document.getElementById('s');
+        var d = document.createElement('div'); d.id = 'loose';
+        return JSON.stringify([s1 === s2, s1.isConnected, s2.isConnected, document.querySelectorAll('select').length, document.getElementById('loose')]);
+    })()"#,
+        )
+        .unwrap();
+    assert_eq!(out.as_str().unwrap(), "[false,false,true,1,null]");
+}

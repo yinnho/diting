@@ -2,7 +2,7 @@
 //! layer: L2
 //! exposes: -
 //! requires-load: legacy:Node
-//! requires-call: legacy:DOMTokenList, legacy:document, legacy:URL, legacy:DOMException, legacy:HTMLCollection, legacy:TextTrack, legacy:Element
+//! requires-call: legacy:DOMTokenList, legacy:document, legacy:URL, legacy:DOMException, legacy:__diting_mkCollection, legacy:TextTrack, legacy:Element
 
 // Behavior legs for the HTML element families (M4 knives 6-7). Member SHAPE
 // and every uniformly reflected member are generated into
@@ -171,9 +171,9 @@ const GET = {
       if (c.localName === 'input' && (c.getAttribute('type') || '').toLowerCase() === 'image') continue;
       out.push(c);
     }
-    return HTMLCollection._from(out);
+    return __diting_mkCollection(out);
   },
-  'Map.areas'(el) { return HTMLCollection._from(Array.from(el.querySelectorAll('area'))); },
+  'Map.areas'(el) { return __diting_mkCollection(Array.from(el.querySelectorAll('area'))); },
 
   // ---- track
   'Track.readyState'() { return 0; },

@@ -1468,3 +1468,21 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 **策略澄清**：未知属性本来就能被 `setProperty` 和 `style.xxx = v` 存储、读回并参与 `cssText` 序列化（`_cssDeclAccepted` 只对长度类属性做 token 校验），缺的只是枚举与 `in`；
 所以补全名单并不新增任何「声称支持」的能力，布局仍只实现它实现的那部分。`cssFloat` 不再枚举（Chrome 145 实例上没有），但保留 get/set/has 识别。
 剩余泄漏：`Window`(FontFaceSet/CSSPseudoElement，引擎内部使用)、`HTMLCollection.length`(继承 Array)。验收：全量 998 过/30 败同干净 HEAD；ratchet/契约/check_fresh 过。
+
+## M4 刀51：HTMLCollection 家族重做 + getElementById 脱离节点修复（2026-10-30）
+
+泄漏对象 2→1。`HTMLCollection` 原为 `class extends Array` + Proxy：`Array.isArray` 为真、带全套 Array 方法、自有不可配置 `length`、公开静态 `_from`。
+新模块 `platform/collections.impl.js`（不做兼容，旧实现整段删除）：
+- **HTMLCollection** = legacy platform object：Proxy over `Object.create(HTMLCollection.prototype)`，后备快照数组在 WeakMap。索引属性可枚举只读（`writable:false`），具名属性（id / HTML `name`，先 id 后 name，去重）为不可枚举自有，
+  原型成员遮蔽具名（`<p id="item">` 不盖 `item`），`length` 是原型只读访问器，只有 `item/namedItem/@@iterator(=Array.prototype.values)`，构造器非法，`Object.defineProperty` 索引键抛 Chrome 原文 TypeError。
+- **HTMLOptionsCollection**（`select.options`）：`length` 可写（截断/补空 option）、`selectedIndex`、`add`、`remove`，原先是给数组实例硬塞的自有属性。
+- **HTMLFormControlsCollection**（`form.elements`）+ **RadioNodeList**：同名多匹配返回 `RadioNodeList`（NodeList 子类，`value` 取选中单选项/按值勾选）。
+- 工厂改为隐藏全局 `__diting_mkCollection(items, kind, owner)`，不再有 `HTMLCollection._from`；全部内部调用点（bootstrap、domparser、docmisc、htmlreflect）已改。
+- 探针 `coll-probe.js` 25 键对 Chrome 145 0 差异（`coll-truth-145.json`，测试 `htmlcollection_family_matches_chrome_truth`）。严格模式下 set/delete 的报错措辞无法在 Proxy trap 内区分（不知调用方是否严格），探针不含该项。
+
+**顺手修的引擎 bug**：`set_inner_html` 只 `detach` 旧子节点，`id_index`（保留首个）仍指向旧节点且永远学不到同 id 的新元素 → 同容器重复 `innerHTML = 同样 id 的标记` 后 `getElementById` 返回已脱离的旧节点、`isConnected` 为假
+（Chrome 只返回文档树内的节点）。`get_element_by_id` 现在要求索引命中必须在文档里，否则重新扫描并刷新索引；脱离节点按 Chrome 不再被找到。测试 `get_element_by_id_ignores_detached_nodes_after_inner_html`。
+
+**发现（下一刀）**：`JSON.stringify(element)`、`for-in`、`Object.assign`/展开会看到引擎内部的 `_nid/_style/_templateContent`（Node 构造器与懒建字段为可枚举自有属性）；文本/注释/片段/Range/DocumentType/Blob/File/FormData/MutationObserver/XHR/WebSocket/ReadableStream 等同样。
+此前实例审计走打过补丁的 `getOwnPropertyNames`，看不到这一面。
+验收：engine 全量 1000 过/30 败（同干净 HEAD）；diting-browser 464 过/46 败（同干净 HEAD）；ratchet/契约/check_fresh 过。

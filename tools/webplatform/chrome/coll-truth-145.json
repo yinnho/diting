@@ -1,0 +1,300 @@
+{
+ "args": [
+  "TypeError: Failed to execute 'item' on 'HTMLCollection': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'namedItem' on 'HTMLCollection': 1 argument required, but only 0 present."
+ ],
+ "basic": [
+  true,
+  false,
+  "[object HTMLCollection]",
+  4,
+  "undefined",
+  "undefined",
+  "undefined",
+  "function",
+  true
+ ],
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "controls": [
+  true,
+  true,
+  "[object HTMLFormControlsCollection]",
+  3,
+  true,
+  "v",
+  "s",
+  "s",
+  [
+   "0",
+   "1",
+   "2",
+   "u",
+   "v",
+   "s",
+   "sel"
+  ]
+ ],
+ "ctor": "TypeError: Failed to construct 'HTMLCollection': Illegal constructor",
+ "ctor.opts": "TypeError: Failed to construct 'HTMLOptionsCollection': Illegal constructor",
+ "define": [
+  "TypeError: Failed to set an indexed property [0] on 'HTMLCollection': Index property setter is not supported.",
+  "ok"
+ ],
+ "desc": [
+  false,
+  true,
+  true,
+  [
+   false,
+   false,
+   true
+  ],
+  "#undef",
+  "#undef"
+ ],
+ "forin": [
+  "0",
+  "1",
+  "2",
+  "3",
+  "length",
+  "item",
+  "namedItem"
+ ],
+ "index": [
+  "a",
+  "SPAN",
+  "#undef",
+  true,
+  "b",
+  null,
+  null,
+  "c",
+  "b"
+ ],
+ "iter": [
+  [
+   "P",
+   "P",
+   "P",
+   "SPAN"
+  ],
+  4,
+  4,
+  [
+   "a",
+   "",
+   "c",
+   ""
+  ],
+  [
+   "n",
+   "o",
+   "k",
+   "e",
+   "y",
+   "s"
+  ],
+  "undefined",
+  "undefined",
+  "undefined"
+ ],
+ "keys": [
+  [
+   "0",
+   "1",
+   "2",
+   "3"
+  ],
+  [
+   "0",
+   "1",
+   "2",
+   "3",
+   "a",
+   "b",
+   "c",
+   "d"
+  ],
+  0,
+  "[\"0\",\"1\",\"2\",\"3\"]"
+ ],
+ "map.areas": [
+  true,
+  2,
+  "a1"
+ ],
+ "named": [
+  "P",
+  "b",
+  "c",
+  "c",
+  true,
+  false,
+  "#undef",
+  "a",
+  "c",
+  null,
+  null,
+  "#undef"
+ ],
+ "named.shadow": [
+  "function",
+  3,
+  "function",
+  "item"
+ ],
+ "options": [
+  true,
+  true,
+  "[object HTMLOptionsCollection]",
+  3,
+  1,
+  1,
+  "2",
+  "3",
+  "function",
+  "function",
+  [
+   "0",
+   "1",
+   "2"
+  ],
+  [
+   "0",
+   "1",
+   "2"
+  ]
+ ],
+ "options.length": [
+  2,
+  2,
+  4,
+  4,
+  "OPTION",
+  ""
+ ],
+ "options.ops": [
+  2,
+  "3",
+  4,
+  "9",
+  "5",
+  5,
+  "1",
+  4
+ ],
+ "selectedOptions": [
+  true,
+  true,
+  1,
+  "2"
+ ],
+ "shape.HTMLCollection": {
+  "kinds": {
+   "constructor": "function:0",
+   "item": "function:1",
+   "length": "ro",
+   "namedItem": "function:1"
+  },
+  "len": 0,
+  "order": [
+   "length",
+   "item",
+   "namedItem",
+   "constructor"
+  ],
+  "proto": "Object",
+  "statics": [],
+  "syms": [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  "tag": "[object HTMLCollection]"
+ },
+ "shape.HTMLFormControlsCollection": {
+  "kinds": {
+   "constructor": "function:0",
+   "namedItem": "function:1"
+  },
+  "len": 0,
+  "order": [
+   "namedItem",
+   "constructor"
+  ],
+  "proto": "HTMLCollection",
+  "statics": [],
+  "syms": [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  "tag": "[object HTMLFormControlsCollection]"
+ },
+ "shape.HTMLOptionsCollection": {
+  "kinds": {
+   "add": "function:1",
+   "constructor": "function:0",
+   "length": "rw",
+   "remove": "function:1",
+   "selectedIndex": "rw"
+  },
+  "len": 0,
+  "order": [
+   "length",
+   "selectedIndex",
+   "add",
+   "remove",
+   "constructor"
+  ],
+  "proto": "HTMLCollection",
+  "statics": [],
+  "syms": [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  "tag": "[object HTMLOptionsCollection]"
+ },
+ "sources": [
+  [
+   true,
+   true,
+   3
+  ],
+  [
+   true,
+   true,
+   4
+  ],
+  [
+   true,
+   1,
+   "f",
+   0,
+   0,
+   true,
+   1,
+   1
+  ]
+ ],
+ "table": [
+  2,
+  2,
+  true,
+  2,
+  2,
+  true,
+  "r1"
+ ],
+ "write": [
+  "a",
+  4,
+  7,
+  "a",
+  true,
+  "#undef"
+ ]
+}

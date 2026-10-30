@@ -1,8 +1,8 @@
 //! module: docmisc
 //! layer: L2
 //! exposes: CaretPosition, FragmentDirective
-//! requires-load: legacy:Document, legacy:HTMLCollection
-//! requires-call: legacy:Element, legacy:DOMRect, legacy:document
+//! requires-load: legacy:Document
+//! requires-call: legacy:__diting_mkCollection, legacy:Element, legacy:DOMRect, legacy:document
 
 // Document legacy/misc members (M4 knife 20). None of these existed on
 // Document.prototype - and because they were absent, page assignments such as
@@ -25,8 +25,8 @@ const D = Document.prototype;
 let designMode = 'off';
 
 function live(selector) {
-  const fresh = () => HTMLCollection._from(document.querySelectorAll(selector));
-  return new Proxy(HTMLCollection._from([]), {
+  const fresh = () => __diting_mkCollection(document.querySelectorAll(selector));
+  return new Proxy(__diting_mkCollection([]), {
     get(t, k) { const c = fresh(); const v = Reflect.get(c, k); return typeof v === 'function' ? v.bind(c) : v; },
     has(t, k) { return Reflect.has(fresh(), k); },
     ownKeys() { return Reflect.ownKeys(fresh()); },
@@ -68,7 +68,7 @@ P.accessor(D, 'designMode', function __f() { if (!isDoc(this)) P.illegal(__f); r
   if (s === 'on' || s === 'off') designMode = s;
 });
 ro('anchors', () => coll('anchors', 'a[name]'));
-ro('applets', () => cache.applets || (cache.applets = HTMLCollection._from([])));
+ro('applets', () => cache.applets || (cache.applets = __diting_mkCollection([])));
 colorAttr('fgColor', 'text');
 colorAttr('linkColor', 'link');
 colorAttr('vlinkColor', 'vlink');

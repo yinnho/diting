@@ -150,10 +150,10 @@ globalThis.DOMParser = class DOMParser {
       // 2026-10-12: the SDK read document.scripts on a DOMParser doc and
       // got undefined where Chrome hands an HTMLCollection). Anchors/embeds
       // stay unlisted, matching the live Document's exposed set exactly.
-      get scripts() { return HTMLCollection._from(this.querySelectorAll('script')); },
-      get forms() { return HTMLCollection._from(this.querySelectorAll('form')); },
-      get images() { return HTMLCollection._from(this.querySelectorAll('img')); },
-      get links() { return HTMLCollection._from(this.querySelectorAll('a[href], area[href]')); },
+      get scripts() { return __diting_mkCollection(this.querySelectorAll('script')); },
+      get forms() { return __diting_mkCollection(this.querySelectorAll('form')); },
+      get images() { return __diting_mkCollection(this.querySelectorAll('img')); },
+      get links() { return __diting_mkCollection(this.querySelectorAll('a[href], area[href]')); },
       // No script of this document is executing — Chrome reports null here.
       get currentScript() { return null; },
       createElement: (t) => document.createElement(t),

@@ -558,12 +558,12 @@ function _splitAsciiWhitespace(s) {
 // named access work on the result). `root` must expose querySelectorAll.
 function _getElementsByClassName(root, classNames) {
   const tokens = _splitAsciiWhitespace(classNames);
-  if (tokens.length === 0) return HTMLCollection._from([]);
+  if (tokens.length === 0) return __diting_mkCollection([]);
   // Fast path: a single CSS-identifier token goes straight to the native
   // selector engine (the common case). Only multi-token sets or exotic class
   // names (NBSP, leading digits, etc.) fall back to the O(n) JS scan below.
   if (tokens.length === 1 && /^[A-Za-z_-][\w-]*$/.test(tokens[0])) {
-    return HTMLCollection._from(root.querySelectorAll("." + tokens[0]));
+    return __diting_mkCollection(root.querySelectorAll("." + tokens[0]));
   }
   const all = root.querySelectorAll("*");
   const matched = [];
@@ -576,7 +576,7 @@ function _getElementsByClassName(root, classNames) {
     }
     if (ok) matched.push(el);
   }
-  return HTMLCollection._from(matched);
+  return __diting_mkCollection(matched);
 }
 // Parser-order script visibility (#120): while a classic parser script runs,
 // <script> elements later in the markup are not yet parsed and must be
@@ -3759,7 +3759,7 @@ class Element extends Node {
   set innerText(v) { this.textContent = v; }
   get children() {
     const ids = _domParse("element_children", this._nid) || [];
-    return HTMLCollection._from(ids.map(_wrapEl).filter(Boolean));
+    return __diting_mkCollection(ids.map(_wrapEl).filter(Boolean));
   }
   get content() {
     // <template>.content is a DocumentFragment; <meta>.content reflects
@@ -4018,7 +4018,7 @@ class Element extends Node {
     const ids = _parserVisibleIds(_domParse("query_selector_all_scoped", this._nid, s) || []);
     return _nodeList(ids.map(_wrapEl).filter(Boolean));
   }
-  getElementsByTagName(t) { return HTMLCollection._from(this.querySelectorAll(t)); }
+  getElementsByTagName(t) { return __diting_mkCollection(this.querySelectorAll(t)); }
   getElementsByClassName(c) { return _getElementsByClassName(this, c); }
   matches(s) {
     // :popover-open is a JS-observable popover state, not understood by the
@@ -4855,22 +4855,8 @@ class Element extends Node {
   }
   get options() {
     if (this.localName !== 'select') return [];
-    // HTMLOptionsCollection: an HTMLCollection plus add/remove/selectedIndex.
-    // Framework form code populates selects via `select.options.add(opt)`
-    // (glama.ai admin hydration); a bare HTMLCollection has no add().
-    const sel = this;
-    const opts = HTMLCollection._from(this.querySelectorAll('option'));
-    opts.add = (item, before) => sel.add(item, before);
-    opts.remove = (i) => {
-      const o = sel.options[i >>> 0];
-      if (o && o.parentNode) o.parentNode.removeChild(o);
-    };
-    Object.defineProperty(opts, 'selectedIndex', {
-      configurable: true, enumerable: true,
-      get() { return sel.selectedIndex; },
-      set(v) { sel.selectedIndex = v; },
-    });
-    return opts;
+    // HTMLOptionsCollection (platform/collections.impl.js): add/remove/selectedIndex/length on the prototype.
+    return __diting_mkCollection(this.querySelectorAll('option'), 'options', this);
   }
   // `options` only exists on HTMLSelectElement in Chrome, so assigning it on
   // any other element is a plain own-property expando there. bilibili's
@@ -4929,7 +4915,7 @@ class Element extends Node {
   // selectedOptions: the multiple-select filtered view (spec §4.10.8).
   get selectedOptions() {
     if (this.localName !== 'select') return undefined;
-    return HTMLCollection._from(Array.from(this.options).filter((o) => o.selected));
+    return __diting_mkCollection(Array.from(this.options).filter((o) => o.selected));
   }
   get multiple() {
     if (this.localName !== 'select') return undefined;
@@ -5101,16 +5087,16 @@ class Element extends Node {
           if (s.localName === name) out.push(...Array.from(s.children));
         }
       }
-      return HTMLCollection._from(out);
+      return __diting_mkCollection(out);
     }
     if (t === 'thead' || t === 'tbody' || t === 'tfoot') {
-      return HTMLCollection._from(Array.from(this.children).filter((c) => c.localName === 'tr'));
+      return __diting_mkCollection(Array.from(this.children).filter((c) => c.localName === 'tr'));
     }
     return undefined;
   }
   get tBodies() {
     if (this.localName !== 'table') return undefined;
-    return HTMLCollection._from(Array.from(this.children).filter((c) => c.localName === 'tbody'));
+    return __diting_mkCollection(Array.from(this.children).filter((c) => c.localName === 'tbody'));
   }
   get tHead() {
     if (this.localName !== 'table') return undefined;
@@ -5210,7 +5196,7 @@ class Element extends Node {
   }
   get cells() {
     if (this.localName !== 'tr') return undefined;
-    return HTMLCollection._from(Array.from(this.children).filter(
+    return __diting_mkCollection(Array.from(this.children).filter(
       (c) => c.localName === 'td' || c.localName === 'th'
     ));
   }
@@ -6046,7 +6032,7 @@ class Document extends Node {
   // `e.addEventListener` on myseller and poisoned the workbench boot.
   get children() {
     const de = this.documentElement;
-    return HTMLCollection._from(de ? [de] : []);
+    return __diting_mkCollection(de ? [de] : []);
   }
   get firstElementChild() { return this.documentElement || null; }
   get lastElementChild() { return this.documentElement || null; }
@@ -6186,7 +6172,7 @@ class Document extends Node {
     const ids = _parserVisibleIds(_domParse("query_selector_all", s) || []);
     return _nodeList(ids.map(_wrapEl).filter(Boolean));
   }
-  getElementsByTagName(t) { return HTMLCollection._from(this.querySelectorAll(t)); }
+  getElementsByTagName(t) { return __diting_mkCollection(this.querySelectorAll(t)); }
   getElementsByClassName(c) { return _getElementsByClassName(this, c); }
   getElementsByName(name) { return this.querySelectorAll('[name="' + String(name).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]'); }
   createElement(t) {
@@ -6392,10 +6378,10 @@ class Document extends Node {
   // Spec collections. HTMLCollection (not NodeList): namedItem + Proxy named
   // access come free, and frameworks (react-router/Next.js form lookups) call
   // document.forms.namedItem — which used to crash hydration here.
-  get forms() { return HTMLCollection._from(this.querySelectorAll('form')); }
-  get images() { return HTMLCollection._from(this.querySelectorAll('img')); }
-  get links() { return HTMLCollection._from(this.querySelectorAll('a[href], area[href]')); }
-  get scripts() { return HTMLCollection._from(this.querySelectorAll('script')); }
+  get forms() { return __diting_mkCollection(this.querySelectorAll('form')); }
+  get images() { return __diting_mkCollection(this.querySelectorAll('img')); }
+  get links() { return __diting_mkCollection(this.querySelectorAll('a[href], area[href]')); }
+  get scripts() { return __diting_mkCollection(this.querySelectorAll('script')); }
   get cookie() {
     __cookieGate(false);
     return _OPS.op_get_cookies();
@@ -6534,7 +6520,7 @@ class DocumentFragment extends Node {
   }
   get children() {
     const ids = _domParse("element_children", this._nid) || [];
-    return HTMLCollection._from(ids.map(_wrapEl).filter(Boolean));
+    return __diting_mkCollection(ids.map(_wrapEl).filter(Boolean));
   }
   get firstElementChild() { return this.children[0] || null; }
   get lastElementChild() { const ch = this.children; return ch[ch.length - 1] || null; }
@@ -11434,7 +11420,7 @@ globalThis.HTMLUnknownElement = {
   },
 }.HTMLUnknownElement;
 globalThis.HTMLFormElement = class HTMLFormElement extends globalThis.HTMLElement {
-  get elements() { return HTMLCollection._from(this.querySelectorAll("input, select, textarea, button, fieldset, output, object")); }
+  get elements() { return __diting_mkCollection(this.querySelectorAll("input, select, textarea, button, fieldset, output, object"), 'controls'); }
   get length() { return this.elements.length; }
   // Inherit submit() from Element.prototype: it dispatches the cancelable
   // 'submit' event and (if not prevented) builds form data and navigates.
@@ -12002,56 +11988,6 @@ Object.setPrototypeOf(NetworkInformation.prototype, _EventTarget.prototype);
 // BatteryManager: same chain rule (M3 B2 — the old trio were inert stubs;
 // getBattery()'s instance is an Object.create of this prototype).
 Object.setPrototypeOf(globalThis.BatteryManager.prototype, _EventTarget.prototype);
-globalThis.HTMLCollection = class HTMLCollection extends Array {
-  item(i) {
-    i = i >>> 0;
-    return this[i] != null ? this[i] : null;
-  }
-  namedItem(name) {
-    if (name === undefined || name === null || name === "") return null;
-    name = String(name);
-    for (let i = 0; i < this.length; i++) {
-      const el = this[i];
-      if (!el) continue;
-      // id always contributes; name only for HTML elements in HTML documents.
-      if (el.id === name) return el;
-      if (_isHTMLEl(el) && typeof el.getAttribute === "function" && el.getAttribute("name") === name) return el;
-    }
-    return null;
-  }
-  // Factory: build an HTMLCollection from an array of elements. Named access
-  // (collection[name]) is served lazily by a Proxy so there is NO per-element
-  // work at build time (eager defineProperty per id was an O(n) build cost that
-  // made querySelectorAll on large result sets ~26x slower). The Proxy only
-  // resolves a name when an unknown string key is actually read.
-  static _from(arr) {
-    const c = new HTMLCollection();
-    if (arr) for (let i = 0; i < arr.length; i++) { if (arr[i]) c[c.length] = arr[i]; }
-    return new Proxy(c, _htmlCollectionProxy);
-  }
-};
-_markNative(HTMLCollection.prototype.item);
-_markNative(HTMLCollection.prototype.namedItem);
-// Shared (allocated once) Proxy traps for HTMLCollection named access. Indices,
-// length, and inherited methods resolve normally via Reflect; only an unknown
-// non-numeric string key falls back to namedItem(), so item/namedItem and the
-// Array methods are never shadowed and id="namedItem" cannot recurse.
-const _htmlCollectionProxy = {
-  get(t, k, r) {
-    const v = Reflect.get(t, k, r);
-    if (v !== undefined || typeof k !== "string") return v;
-    return t.namedItem ? (t.namedItem(k) || undefined) : undefined;
-  },
-  has(t, k) {
-    if (Reflect.has(t, k)) return true;
-    return typeof k === "string" && !!(t.namedItem && t.namedItem(k));
-  },
-};
-// True for elements in the HTML namespace (the only ones whose name attribute
-// contributes to an HTMLCollection's supported property names).
-function _isHTMLEl(el) {
-  return !!el && (el.namespaceURI === undefined || el.namespaceURI === "http://www.w3.org/1999/xhtml");
-}
 // Build a NodeList (no named access, per spec) for querySelectorAll and
 // childNodes. Kept light on purpose: querySelectorAll is the hottest query API.
 function _nodeList(els) {
@@ -15327,9 +15263,7 @@ if (!Element.prototype.getElementsByTagNameNS) {
       const tagOk = tagMatch || (elTag === localName);
       if (nsOk && tagOk) filtered.push(el);
     }
-    const result = new HTMLCollection(...filtered);
-    result.item = (i) => result[i] != null ? result[i] : null;
-    return result;
+    return __diting_mkCollection(filtered);
   };
   _markNative(Element.prototype.getElementsByTagNameNS);
 }
@@ -15348,9 +15282,7 @@ if (!Document.prototype.getElementsByTagNameNS) {
       const tagOk = tagMatch || (elTag === localName);
       if (nsOk && tagOk) filtered.push(el);
     }
-    const result = new HTMLCollection(...filtered);
-    result.item = (i) => result[i] != null ? result[i] : null;
-    return result;
+    return __diting_mkCollection(filtered);
   };
   _markNative(Document.prototype.getElementsByTagNameNS);
 }

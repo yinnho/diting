@@ -1114,7 +1114,10 @@ impl DomTree {
 
     pub fn get_element_by_id(&self, id: &str) -> Option<NodeId> {
         let indexed = self.inner.borrow().id_index.get(id).copied();
-        if indexed.is_some_and(|node| self.containing_shadow_root(node).is_none()) {
+        // The index is keep-first and set_inner_html only detaches the old children, so it can point at a node that is no longer in
+        // the document (and then never learns about the new element with the same id). getElementById only finds nodes IN the
+        // tree, so an indexed hit must be connected to the document; otherwise rescan and refresh the index below.
+        if indexed.is_some_and(|node| self.containing_shadow_root(node).is_none() && self.is_in_document(node)) {
             return indexed;
         }
 
@@ -1124,10 +1127,30 @@ impl DomTree {
         // document.getElementById; recover the first matching light-tree
         // element in document order instead. Detached and template-content
         // nodes retain the legacy best-effort lookup behavior.
-        self.descendants(self.document()).into_iter().find(|node_id| {
+        let found = self.descendants(self.document()).into_iter().find(|node_id| {
             self.with_node(*node_id, |node| node.get_attribute("id") == Some(id))
                 .unwrap_or(false)
-        })
+        });
+        if let Some(node) = found {
+            self.inner.borrow_mut().id_index.insert(id.to_string(), node);
+        }
+        found
+    }
+
+    /// True when walking the parent chain from `node_id` reaches the document node (light tree only).
+    pub fn is_in_document(&self, node_id: NodeId) -> bool {
+        let inner = self.inner.borrow();
+        let mut current = node_id;
+        for _ in 0..=inner.nodes.len() {
+            if current == inner.document {
+                return true;
+            }
+            match inner.nodes.get(current.index()).and_then(|n| n.as_ref()).and_then(|n| n.parent) {
+                Some(parent) => current = parent,
+                None => return false,
+            }
+        }
+        false
     }
 
     pub fn text_content(&self, node_id: NodeId) -> String {
