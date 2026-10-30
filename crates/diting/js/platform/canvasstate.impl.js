@@ -80,12 +80,6 @@ P.method(P_, 'setLineDash', 1, function __f(a) {
 P.method(P_, 'isContextLost', 0, function __f() { st(this, __f); return false; });
 P.method(P_, 'getContextAttributes', 0, function __f() { st(this, __f); return { alpha: true, colorSpace: 'srgb', colorType: 'unorm8', desynchronized: false, toneMapping: { mode: 'standard' }, willReadFrequently: false }; });
 P.method(P_, 'drawFocusIfNeeded', 1, function __f() { st(this, __f); P.args("Failed to execute 'drawFocusIfNeeded' on 'CanvasRenderingContext2D'", arguments.length, 1, __f); });
-P.method(P_, 'createConicGradient', 3, function __f(a, x, y) {
-  st(this, __f);
-  P.args("Failed to execute 'createConicGradient' on 'CanvasRenderingContext2D'", arguments.length, 3, __f);
-  for (const n of [a, x, y]) if (!isFinite(Number(n))) P.fail(__f, 'The provided double value is non-finite.', "Failed to execute 'createConicGradient' on 'CanvasRenderingContext2D'");
-  return this.createLinearGradient(0, 0, 0, 0);
-});
 P.method(P_, 'reset', 0, function __f() {
   const s = st(this, __f);
   Object.assign(s, defaults());

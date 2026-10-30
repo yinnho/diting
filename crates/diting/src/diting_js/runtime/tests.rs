@@ -27459,3 +27459,30 @@ async fn canvasstate_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 42: CanvasGradient / CanvasPattern (cvobj-probe.js, 16 keys, real Chrome 145): illegal-constructor interfaces,
+/// factories that return real instances (they were object literals with `_x0` keys) and validate their arguments
+/// (arity, non-finite doubles, negative radii as IndexSizeError, pattern image type / repetition / zero-size canvas),
+/// addColorStop's range and color checks, setTransform, fillStyle round-trip identity, brand checks.
+#[tokio::test(flavor = "current_thread")]
+async fn canvasobjects_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/cvobj-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/cvobj-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

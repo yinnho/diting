@@ -1,0 +1,111 @@
+{
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "conic.inst": [
+  true,
+  []
+ ],
+ "ctor": [
+  "TypeError: Failed to construct 'CanvasGradient': Illegal constructor",
+  "TypeError: Failed to construct 'CanvasPattern': Illegal constructor"
+ ],
+ "fill.roundtrip": [
+  true,
+  true
+ ],
+ "lin.args": [
+  "TypeError: Failed to execute 'createLinearGradient' on 'CanvasRenderingContext2D': 4 arguments required, but only 0 present.",
+  "TypeError: Failed to execute 'createLinearGradient' on 'CanvasRenderingContext2D': 4 arguments required, but only 3 present.",
+  "TypeError: Failed to execute 'createLinearGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite.",
+  "TypeError: Failed to execute 'createLinearGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite.",
+  "ok",
+  "TypeError: Failed to execute 'createLinearGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite."
+ ],
+ "lin.inst": [
+  true,
+  "[object CanvasGradient]",
+  [],
+  false
+ ],
+ "pat.args": [
+  "TypeError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': 2 arguments required, but only 0 present.",
+  "TypeError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': 2 arguments required, but only 1 present.",
+  false,
+  false,
+  false,
+  false,
+  false,
+  "SyntaxError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': The provided type ('zz') is not one of 'repeat', 'no-repeat', 'repeat-x', or 'repeat-y'.",
+  "TypeError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'.",
+  "TypeError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'.",
+  "TypeError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."
+ ],
+ "pat.inst": [
+  true,
+  "[object CanvasPattern]",
+  [],
+  "function"
+ ],
+ "pat.setTransform": [
+  "ok",
+  "ok",
+  "ok",
+  "TypeError: Failed to execute 'setTransform' on 'CanvasPattern': The provided value is not of type 'DOMMatrix2DInit'."
+ ],
+ "pat.zero": "InvalidStateError: Failed to execute 'createPattern' on 'CanvasRenderingContext2D': The image argument is a canvas element with a width or height of 0.",
+ "rad.args": [
+  "TypeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': 6 arguments required, but only 5 present.",
+  "IndexSizeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': The r0 provided is less than 0.",
+  "IndexSizeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': The r1 provided is less than 0.",
+  "TypeError: Failed to execute 'createRadialGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite."
+ ],
+ "rad.inst": [
+  true,
+  []
+ ],
+ "shape.CanvasGradient": {
+  "kinds": {
+   "addColorStop": "function:2",
+   "constructor": "function:0"
+  },
+  "len": 0,
+  "order": [
+   "addColorStop",
+   "constructor"
+  ],
+  "tag": "[object CanvasGradient]"
+ },
+ "shape.CanvasPattern": {
+  "kinds": {
+   "constructor": "function:0",
+   "setTransform": "function:0"
+  },
+  "len": 0,
+  "order": [
+   "setTransform",
+   "constructor"
+  ],
+  "tag": "[object CanvasPattern]"
+ },
+ "stop.args": [
+  "TypeError: Failed to execute 'addColorStop' on 'CanvasGradient': 2 arguments required, but only 0 present.",
+  "TypeError: Failed to execute 'addColorStop' on 'CanvasGradient': 2 arguments required, but only 1 present.",
+  "ok",
+  "ok",
+  "IndexSizeError: Failed to execute 'addColorStop' on 'CanvasGradient': The provided value (-0.1) is outside the range (0.0, 1.0).",
+  "IndexSizeError: Failed to execute 'addColorStop' on 'CanvasGradient': The provided value (1.1) is outside the range (0.0, 1.0).",
+  "TypeError: Failed to execute 'addColorStop' on 'CanvasGradient': The provided double value is non-finite.",
+  "SyntaxError: Failed to execute 'addColorStop' on 'CanvasGradient': The value provided ('zz') could not be parsed as a color.",
+  "SyntaxError: Failed to execute 'addColorStop' on 'CanvasGradient': The value provided ('') could not be parsed as a color.",
+  "ok",
+  "SyntaxError: Failed to execute 'addColorStop' on 'CanvasGradient': The value provided ('5') could not be parsed as a color.",
+  "ok",
+  "ok",
+  "ok"
+ ],
+ "stop.len": [
+  2
+ ]
+}

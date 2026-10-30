@@ -12638,9 +12638,6 @@ class _Canvas2D {
     const s = this._stateStack.pop();
     if (s) { const m = s._m; Object.assign(this, s); this._m = m; }
   }
-  createLinearGradient(x0,y0,x1,y1) { return { addColorStop(){}, _x0:x0,_y0:y0,_x1:x1,_y1:y1 }; }
-  createRadialGradient() { return { addColorStop(){} }; }
-  createPattern() { return {}; }
 }
 
 // (#117) Canvas-only methods live on HTMLCanvasElement.prototype in Chrome —

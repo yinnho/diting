@@ -1379,3 +1379,14 @@ shadowColor/shadowOffsetX/Y/shadowBlur/lineCap/lineJoin/miterLimit/lineDashOffse
 **仍未处理**：`createLinearGradient` 等返回的是对象字面量而不是 CanvasGradient 实例（实例审计 CanvasGradient 5 个自有键），下一刀。
 验收：全量（跳两个毒化页面测试）995 过/30 败，失败集与干净 HEAD 相同；ratchet OK；analyze 契约零违；实例审计带泄漏对象 21/127。
 
+## M4 刀42：CanvasGradient / CanvasPattern 真接口（2026-10-30）
+
+`platform/canvasobjects.impl.js`。此前 `createLinearGradient` 返回 `{ addColorStop(){}, _x0, _y0, _x1, _y1 }`、`createRadialGradient` 返回 `{ addColorStop(){} }`、`createPattern` 返回 `{}`：不是
+CanvasGradient/CanvasPattern 实例、无任何参数校验、`_x0` 等键外泄。Chrome 145：非法构造器接口；工厂的参数个数（`4 arguments required`/`6`/`3`/`2`）、非有限数（`The provided double value is non-finite.`）、
+**负半径为 IndexSizeError**（`The r0 provided is less than 0.`）；`addColorStop` 的 `(0.0, 1.0)` 范围检查（IndexSizeError，措辞里带实际值）与颜色解析失败（SyntaxError `The value provided ('zz') could not be parsed as a color.`，
+颜色经 `CSS.supports('color', v)` 判定，`currentcolor`/`transparent` 放行，空串拒绝）；`createPattern` 的图像类型联合措辞、repetition 枚举（`''`/null 等同 repeat，其余无效为 SyntaxError）、
+0 尺寸 canvas 为 InvalidStateError、未加载完的 img 返回 null；`CanvasPattern.setTransform`；`fillStyle = gradient` 往返身份保持。探针 `cvobj-probe.js`（16 键）0 差异。
+同样没有渲染效果（软件光栅器没有渐变管线），状态被记录供将来使用。canvasstate 里临时的 createConicGradient 移入本模块。实例审计 CanvasGradient 清零（带泄漏对象 21→20/127）。
+**教训（已第二次踩）**：平台模块里写 `CSS`/`HTMLCanvasElement` 这类**自由变量**会触发契约违规与棘轮上涨——一律用 `globalThis.X`（属性访问不计入）。
+验收：全量（跳两个毒化页面测试）996 过/30 败，失败集与干净 HEAD 相同；ratchet OK；契约零违；check_fresh 7 件鲜。
+
