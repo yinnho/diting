@@ -28446,3 +28446,138 @@ fn knife62_rtc_family_stragglers() {
     assert_eq!(v["ieeMin"], serde_json::json!([null,null,"",401,"",""]), "IceErrorEvent defaults");
     assert_eq!(v["ieeEmpty"], serde_json::json!("TypeError"), "errorCode required");
 }
+
+#[test]
+fn knife63_svg_family_five_faces() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const NS = 'http://www.w3.org/2000/svg';
+          const E = (t) => document.createElementNS(NS, t);
+          const t = (f) => { try { return f(); } catch (e) { return 'E:' + e.name; } };
+          const out = {};
+          // marker: defaults, orient tri-state, setOrient*, reflector identity
+          const mk = E('marker');
+          out.mkOrder = Object.getOwnPropertyNames(SVGMarkerElement.prototype);
+          out.mkDef = [mk.refX.baseVal.value, mk.refY.baseVal.value, mk.markerWidth.baseVal.value, mk.markerHeight.baseVal.value,
+                       mk.markerUnits.baseVal, mk.orientType.baseVal, mk.orientAngle.baseVal.value, mk.orientAngle.baseVal.unitType];
+          out.mkIdent = [mk.orientAngle === mk.orientAngle, mk.orientAngle.baseVal !== mk.orientAngle.animVal];
+          mk.setAttribute('orient', 'auto'); const o1 = mk.orientType.baseVal;
+          mk.setAttribute('orient', 'auto-start-reverse'); const o2 = mk.orientType.baseVal;
+          mk.setAttribute('orient', 'junk'); const o3 = [mk.orientType.baseVal, mk.orientAngle.baseVal.value];
+          mk.setAttribute('orient', '45'); const o4 = [mk.orientType.baseVal, mk.orientAngle.baseVal.value];
+          out.mkOrient = [o1, o2, o3, o4];
+          const svg0 = E('svg');
+          out.mkSetAngle = [t(() => { const a = svg0.createSVGAngle(); a.newValueSpecifiedUnits(1, 45); mk.setOrientToAngle(a); return mk.getAttribute('orient'); }),
+                            t(() => { const a = svg0.createSVGAngle(); a.newValueSpecifiedUnits(2, 30); mk.setOrientToAngle(a); return mk.getAttribute('orient'); }),
+                            t(() => { mk.setOrientToAngle(45); return 'no-throw'; })];
+          out.mkAuto = t(() => { mk.setOrientToAuto(); return mk.getAttribute('orient'); });
+          out.mkAngleWrite = t(() => { mk.orientAngle.baseVal.value = 20; return mk.getAttribute('orient'); });
+          out.mkUnits = [t(() => { mk.setAttribute('markerUnits', 'userSpaceOnUse'); return mk.markerUnits.baseVal; }),
+                         t(() => { mk.setAttribute('markerUnits', 'junk'); return mk.markerUnits.baseVal; })];
+          out.mkWrite = t(() => { mk.markerWidth.baseVal.value = 8; return mk.getAttribute('markerWidth'); });
+          out.mkStatic = [SVGMarkerElement.prototype.SVG_MARKERUNITS_STROKEWIDTH, SVGMarkerElement.SVG_MARKER_ORIENT_ANGLE,
+                          Object.getOwnPropertyDescriptor(SVGMarkerElement.prototype, 'SVG_MARKERUNITS_UNKNOWN').enumerable];
+          // animation: null target, on* coercion, no-op methods, dur parse
+          const an = E('animate');
+          out.anOrder = Object.getOwnPropertyNames(SVGAnimationElement.prototype);
+          out.anTarget = an.targetElement;
+          out.anOn = [t(() => { an.onbegin = function () {}; return typeof an.onbegin; }),
+                      t(() => { an.onend = 5; return an.onend; }),
+                      t(() => { an.onrepeat = 'x'; return an.onrepeat; })];
+          out.anM = [an.beginElement(), an.beginElementAt(2), an.endElement(), an.endElementAt(2), an.getCurrentTime(), t(() => an.getStartTime())];
+          out.anDur = [t(() => { an.setAttribute('dur', '5s'); return an.getSimpleDuration(); }),
+                       t(() => { an.removeAttribute('dur'); return an.getSimpleDuration(); }),
+                       t(() => { an.setAttribute('dur', '250ms'); return an.getSimpleDuration(); })];
+          out.anLists = [an.requiredExtensions.length, an.requiredExtensions === an.requiredExtensions, an.systemLanguage.length,
+                         Object.prototype.toString.call(an.requiredExtensions)];
+          // text: no-layout nchars, textLength view, per-char throws
+          const tx = E('text');
+          out.txOrder = Object.getOwnPropertyNames(SVGTextContentElement.prototype);
+          out.txN = [tx.getNumberOfChars(), tx.getComputedTextLength(), tx.getCharNumAtPosition({ x: 0, y: 0 })];
+          out.txTL = [t(() => tx.textLength.baseVal.value),
+                      t(() => { tx.textLength.baseVal.value = 60; return [tx.getAttribute('textLength'), tx.textLength.baseVal.value]; }),
+                      t(() => { tx.textLength.baseVal.valueAsString = '70px'; return [tx.getAttribute('textLength'), tx.textLength.baseVal.unitType]; })];
+          out.txLA = [tx.lengthAdjust.baseVal, t(() => { tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); return tx.lengthAdjust.baseVal; }),
+                      t(() => { tx.setAttribute('lengthAdjust', 'junk'); return tx.lengthAdjust.baseVal; })];
+          out.txChar = [t(() => tx.getSubStringLength(0, 0)), t(() => tx.getSubStringLength(0, 5)), t(() => tx.getStartPositionOfChar(0)),
+                        t(() => tx.getEndPositionOfChar(0)), t(() => tx.getExtentOfChar(0)), t(() => tx.getRotationOfChar(0)), t(() => tx.selectSubString(0, 0))];
+          out.txParent = Object.getPrototypeOf(SVGTextContentElement.prototype) === SVGGraphicsElement.prototype;
+          // feDropShadow: number/string views, pair stdDeviation, internal override, FE-region %
+          const fe = E('feDropShadow');
+          out.feOrder = Object.getOwnPropertyNames(SVGFEDropShadowElement.prototype);
+          out.feDef = [fe.dx.baseVal, fe.dy.baseVal, fe.stdDeviationX.baseVal, fe.stdDeviationY.baseVal,
+                       fe.x.baseVal.valueInSpecifiedUnits, fe.x.baseVal.unitType, fe.in1.baseVal, fe.result.baseVal];
+          out.feParent = Object.getPrototypeOf(SVGFEDropShadowElement.prototype) === SVGElement.prototype;
+          out.feIn = t(() => { fe.in1.baseVal = 'SourceGraphic'; return [fe.getAttribute('in'), fe.in1.animVal]; });
+          out.feDx = [t(() => { fe.dx.baseVal = 3.5; return [fe.getAttribute('dx'), fe.dx.baseVal]; }),
+                      t(() => { fe.setAttribute('dx', 'junk'); return fe.dx.baseVal; })];
+          out.feStd = [t(() => { fe.setAttribute('stdDeviation', '4 6'); return [fe.stdDeviationX.baseVal, fe.stdDeviationY.baseVal]; }),
+                       t(() => { fe.setAttribute('stdDeviation', '5'); return [fe.stdDeviationX.baseVal, fe.stdDeviationY.baseVal]; })];
+          out.feSet = [t(() => { fe.setStdDeviation(1.5, 2.5); return [fe.stdDeviationX.baseVal, fe.stdDeviationY.baseVal, fe.getAttribute('stdDeviation')]; }),
+                       t(() => { fe.setStdDeviation(); return 'no-throw'; }), t(() => { fe.setStdDeviation('a', 'b'); return 'no-throw'; })];
+          out.feX = [t(() => { fe.setAttribute('x', '-10%'); return [fe.x.baseVal.valueInSpecifiedUnits, fe.x.baseVal.unitType]; }),
+                     t(() => fe.x.baseVal.value), t(() => { fe.setAttribute('x', '7'); return fe.x.baseVal.value; })];
+          // pattern: enums, transform list view, PAR, string lists
+          const pt = E('pattern');
+          out.ptOrder = Object.getOwnPropertyNames(SVGPatternElement.prototype);
+          out.ptDef = [pt.patternUnits.baseVal, pt.patternContentUnits.baseVal, pt.x.baseVal.value, pt.width.baseVal.value];
+          out.ptU = [t(() => { pt.setAttribute('patternUnits', 'userSpaceOnUse'); return pt.patternUnits.baseVal; }),
+                     t(() => { pt.setAttribute('patternUnits', 'junk'); return pt.patternUnits.baseVal; }),
+                     t(() => { pt.setAttribute('patternContentUnits', 'objectBoundingBox'); return pt.patternContentUnits.baseVal; })];
+          out.ptT = [t(() => { pt.setAttribute('patternTransform', 'rotate(30)'); return [pt.patternTransform.baseVal.numberOfItems, pt.patternTransform.baseVal.getItem(0).type, pt.patternTransform.baseVal.getItem(0).angle]; }),
+                     t(() => { pt.setAttribute('patternTransform', ''); return pt.patternTransform.baseVal.getItem(0); }),
+                     t(() => { pt.setAttribute('patternTransform', 'rotate(30)'); return [pt.patternTransform.baseVal !== pt.patternTransform.animVal, pt.patternTransform.baseVal === pt.patternTransform.baseVal]; })];
+          out.ptPAR = pt.preserveAspectRatio.baseVal.align;
+          out.ptLists = [pt.requiredExtensions.length, pt.systemLanguage.length];
+          out.ptHrefKind = [Object.getOwnPropertyDescriptor(SVGPatternElement.prototype, 'href').set === undefined,
+                            Object.prototype.toString.call(pt.href)];
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["mkOrder"], serde_json::json!(["refX","refY","markerUnits","markerWidth","markerHeight","orientType","orientAngle","viewBox","preserveAspectRatio",
+        "SVG_MARKERUNITS_UNKNOWN","SVG_MARKERUNITS_USERSPACEONUSE","SVG_MARKERUNITS_STROKEWIDTH","SVG_MARKER_ORIENT_UNKNOWN","SVG_MARKER_ORIENT_AUTO","SVG_MARKER_ORIENT_ANGLE",
+        "setOrientToAngle","setOrientToAuto","constructor"]), "marker truth raw order");
+    assert_eq!(v["mkDef"], serde_json::json!([0,0,3,3,2,2,0,1]), "marker defaults (probed: width/height 3, orientType ANGLE 2)");
+    assert_eq!(v["mkIdent"], serde_json::json!([true,true]), "orientAngle reflector identity");
+    assert_eq!(v["mkOrient"], serde_json::json!([1,0,[2,0],[2,45]]), "orient keyword tri-state (probed)");
+    assert_eq!(v["mkSetAngle"], serde_json::json!(["45","30deg","E:TypeError"]), "setOrientToAngle serializes value+unit, rejects non-SVGAngle (probed)");
+    assert_eq!(v["mkAuto"], serde_json::json!("auto"), "setOrientToAuto writes attr");
+    assert_eq!(v["mkAngleWrite"], serde_json::json!("20"), "orientAngle.baseVal.value write serializes");
+    assert_eq!(v["mkUnits"], serde_json::json!([1,2]), "markerUnits keyword + junk->default (probed)");
+    assert_eq!(v["mkWrite"], serde_json::json!("8"), "markerWidth write-through");
+    assert_eq!(v["mkStatic"], serde_json::json!([2,2,true]), "marker constants on proto+ctor");
+    assert_eq!(v["anOrder"], serde_json::json!(["targetElement","onbegin","onend","onrepeat","requiredExtensions","systemLanguage",
+        "beginElement","beginElementAt","endElement","endElementAt","getCurrentTime","getSimpleDuration","getStartTime","constructor"]), "animation truth raw order");
+    assert_eq!(v["anTarget"], serde_json::json!(null), "bare animate targetElement null (probed)");
+    assert_eq!(v["anOn"], serde_json::json!(["function",null,null]), "on* accessor coerces non-function to null (probed)");
+    assert_eq!(v["anM"], serde_json::json!([null,null,null,null,0,"E:InvalidStateError"]), "animation no-ops + probed errors");
+    assert_eq!(v["anDur"], serde_json::json!([5,"E:NotSupportedError",0.25]), "dur parse + missing (probed)");
+    assert_eq!(v["anLists"], serde_json::json!([0,true,0,"[object SVGStringList]"]), "SVGStringList views identity-stable");
+    assert_eq!(v["txOrder"], serde_json::json!(["textLength","lengthAdjust","LENGTHADJUST_UNKNOWN","LENGTHADJUST_SPACING","LENGTHADJUST_SPACINGANDGLYPHS",
+        "getCharNumAtPosition","getComputedTextLength","getEndPositionOfChar","getExtentOfChar","getNumberOfChars","getRotationOfChar",
+        "getStartPositionOfChar","getSubStringLength","selectSubString","constructor"]), "text truth raw order");
+    assert_eq!(v["txN"], serde_json::json!([0,0,-1]), "no text layout: nchars 0 (probed)");
+    assert_eq!(v["txTL"], serde_json::json!([0,["60",60],["70px",5]]), "textLength view write-through (probed)");
+    assert_eq!(v["txLA"], serde_json::json!([1,2,1]), "lengthAdjust enum + junk->default (probed)");
+    assert_eq!(v["txChar"], serde_json::json!([0,"E:IndexSizeError","E:IndexSizeError","E:IndexSizeError","E:IndexSizeError","E:IndexSizeError","E:IndexSizeError"]),
+        "per-char APIs throw on nchars 0 (probed)");
+    assert_eq!(v["txParent"], serde_json::json!(true), "text parent = SVGGraphicsElement");
+    assert_eq!(v["feOrder"], serde_json::json!(["in1","dx","dy","stdDeviationX","stdDeviationY","x","y","width","height","result","setStdDeviation","constructor"]), "feDropShadow truth raw order");
+    assert_eq!(v["feDef"], serde_json::json!([2,2,2,2,0,2,"",""]), "feDropShadow defaults (probed: dx/dy/std 2, region [0,%])");
+    assert_eq!(v["feParent"], serde_json::json!(true), "feDropShadow parent = SVGElement (empty intermediate cut)");
+    assert_eq!(v["feIn"], serde_json::json!(["SourceGraphic","SourceGraphic"]), "in1 string view + animVal mirror (probed)");
+    assert_eq!(v["feDx"], serde_json::json!([["3.5",3.5],2]), "dx float view + junk->default (probed)");
+    assert_eq!(v["feStd"], serde_json::json!([[4,6],[5,5]]), "stdDeviation pair parse (probed)");
+    assert_eq!(v["feSet"], serde_json::json!([[1.5,2.5,"5"],"E:TypeError","E:TypeError"]), "setStdDeviation internal override (reads win, attr untouched — probed null only on attr-less element) + restricted float");
+    assert_eq!(v["feX"], serde_json::json!([[-10,2],"E:NotSupportedError",7]), "FE region % never resolves (probed)");
+    assert_eq!(v["ptOrder"], serde_json::json!(["patternUnits","patternContentUnits","patternTransform","x","y","width","height","viewBox",
+        "preserveAspectRatio","href","requiredExtensions","systemLanguage","constructor"]), "pattern truth raw order");
+    assert_eq!(v["ptDef"], serde_json::json!([2,1,0,0]), "pattern defaults (probed)");
+    assert_eq!(v["ptU"], serde_json::json!([1,2,2]), "pattern enums + junk->default (probed)");
+    assert_eq!(v["ptT"], serde_json::json!([[1,4,30],"E:IndexSizeError",[true,true]]), "patternTransform view (probed: rotate type 4, OOR throws)");
+    assert_eq!(v["ptPAR"], serde_json::json!(6), "pattern PAR default xMidYMid");
+    assert_eq!(v["ptLists"], serde_json::json!([0,0]), "pattern string lists");
+    assert_eq!(v["ptHrefKind"], serde_json::json!([true,"[object SVGAnimatedString]"]), "href ro:ec + animated-string view");
+}
