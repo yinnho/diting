@@ -27381,3 +27381,25 @@ async fn xpath_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 37: the main window's prototype chain now contains Window.prototype and EventTarget.prototype
+/// (`window instanceof EventTarget` was false; Chrome: true), while window event listeners still work through the
+/// named-access holder that sits ahead of them.
+#[tokio::test(flavor = "current_thread")]
+async fn window_chain_reaches_event_target() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate_remote(
+            "(async () => { let n = 0; const f = () => { n++; }; window.addEventListener('zz', f); window.dispatchEvent(new Event('zz')); \
+             window.removeEventListener('zz', f); window.dispatchEvent(new Event('zz')); \
+             return [window instanceof EventTarget, window instanceof Window, Object.prototype.toString.call(window), n, typeof window.addEventListener]; })()",
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        v.value.unwrap(),
+        serde_json::json!([true, true, "[object Window]", 1, "function"])
+    );
+}

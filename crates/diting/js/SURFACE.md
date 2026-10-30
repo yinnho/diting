@@ -1309,3 +1309,13 @@ Chrome 145 里 window 上**不可配置**的自有属性恰好 8 个：Infinity/
   这是 V8 全局模板（Rust 侧）的问题，脚本层无解；会让 `window instanceof EventTarget` 这类检查与 Chrome 不同，值得单列一刀（改全局对象模板的原型）。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 相同；快照重生；实例审计带泄漏对象 33/127。
 
+## M4 刀37：主窗口原型链接上 Window.prototype / EventTarget.prototype（2026-10-30）
+
+上一刀的发现（`window instanceof EventTarget` 为假）**不需要改 Rust**——我之前判断成「V8 全局模板问题」是错的：`v8::Context::new` 用的是默认全局，原型链全是 JS 在搭。真正的结构是
+window → gate(Proxy，WindowProperties 具名访问层) → 一个只有 `constructor` 的裸层 → Object.prototype；iframe_realm.js 的注释还写着「主窗口的链从不包含 Window.prototype，所以现有东西不动」。
+修法（window_extras.js 末尾）：把 gate 的**原始目标** `_namedHolder`（bootstrap 顶层绑定，跨脚本可见）的原型改指真正的 `Window.prototype`（它已链到 EventTarget.prototype）。gate 仍在最前，具名访问解析与 holder 上的 EventTarget 三件套不变；
+结果 `window instanceof EventTarget` / `instanceof Window` 皆真，链 window → gate → Window.prototype → EventTarget.prototype → Object.prototype。新增回归测试 window_chain_reaches_event_target（含 add/removeEventListener + dispatchEvent 实测）。
+**仍与 Chrome 不同**：Chrome 的**直接**原型就是 Window.prototype（window → Window.prototype → WindowProperties → EventTarget），引擎的直接原型是 gate；因此 `Object.getPrototypeOf(window) === Window.prototype` 仍为假，window 自有的
+toStringTag 仍不能删。要对齐须给每个 realm 一份自己的 Window.prototype（现在主窗口与 iframe 窗口共用一个），属较大的结构改动，暂不做。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+

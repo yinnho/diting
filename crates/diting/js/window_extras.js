@@ -15,3 +15,18 @@
 // (Object.getPrototypeOf(window) !== Window.prototype, EventTarget is not in the chain: `window instanceof EventTarget` is false
 // where Chrome's is true), so deleting the own tag turns Object.prototype.toString.call(window) into "[object Object]".
 // Fixing that is a V8 global-template change (Rust side), not a script-layer one.
+
+// Window prototype chain (shape-audit finding, M4 knife 37). The main window's chain was window -> gate(WindowProperties, named
+// access) -> a bare `{constructor}` layer -> Object.prototype: no Window.prototype, no EventTarget.prototype, so
+// `window instanceof EventTarget` was false (Chrome: true). Re-point the gate's raw target (bootstrap's `_namedHolder`) at the real
+// Window.prototype, which chains to EventTarget.prototype (iframe_realm.js). The gate still sits ahead of everything, so named
+// access resolution and the trio the holder carries are unchanged; the immediate prototype is still the gate, not Window.prototype
+// (Chrome's order is window -> Window.prototype -> WindowProperties -> EventTarget), which needs a per-realm Window.prototype.
+(function () {
+  try {
+    if (typeof _namedHolder !== 'object' || _namedHolder === null || _namedHolder === globalThis) return;
+    const W = globalThis.Window;
+    if (typeof W !== 'function' || !W.prototype || W.prototype === _namedHolder) return;
+    Object.setPrototypeOf(_namedHolder, W.prototype);
+  } catch (e) {}
+})();
