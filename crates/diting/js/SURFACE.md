@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→158；刀18 继收：158→143；刀19 继收：143→135；刀20 继收：135→**107**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→158；刀18 继收：158→143；刀19 继收：143→135；刀20 继收：135→107；刀21 继收：107→**102**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -1101,3 +1101,36 @@ check_fresh 7 件鲜（39 真值）；analyze 零违。全量（跳两个毒化�
 验收：探针 36 键 0 差；新增 docmisc_matches_chrome_truth；缺口 135→107（Document 30→2）；check_fresh 7 件鲜（40 真值）；analyze 零违。
 全量（跳两个毒化页面测试）991 过/30 败，失败集与干净 HEAD 逐条相同。下一刀候选：XPath 族（Document 2+XPathEvaluator 3+XSLTProcessor 8）、
 VideoFrame 10 + VideoColorSpace 5、RTCPeerConnection 15、Typed OM（CSSUnitValue 等，ScrollTimeline/ViewTimeline 的前置）。
+
+## M4 刀21：XPath 1.0 全量（2026-10-30）
+
+`platform/xpath.impl.js`（模块 `xpath`，L2）取代 bootstrap 里的「紧凑子集」（仅 child/descendant 步、@attr、几种谓词形状，无联合、
+无轴、无函数、无运算符、无命名空间；约 420 行，连同 Document.evaluate 一并删除，bootstrap 净减 ~280 行）。新实现是完整的
+XPath 1.0 求值器：词法（按规范的运算符/名字消歧）、递归下降解析、十三条轴（namespace:: 恒空，同 Chrome）、核心函数库
+（含元数检查）、四种值的转换与比较规则、命名空间解析、XPathResult / XPathExpression / XPathEvaluator /
+`createExpression`/`createNSResolver`。对抓取/代理型页面脚本这是高价值面（轴、count()、normalize-space()、联合、算术）。
+探针 `xpath-probe.js`（583 键，真 Chrome 145）0 差异：~120 条路径（全部轴/节点测试/谓词）、~370 条标量表达式与函数、结果类型与
+访问器报错、~130 条畸形表达式的逐字措辞、命名空间、顺序、迭代器失效、XPathExpression/XPathEvaluator。
+
+**从语料里挖出的 WebKit/Blink 特性**（均已复刻）：
+- 数字转字符串取 **6 位有效数字**：指数在 [-6,5] 用定点（`0.000001`、`12345.7`、`999999`），否则 `d.ddddde+X` 且尾数保留 5 位小数
+  （`1000000`→`1.00000e+6`、`0.0000001`→`1.00000e-7`、`5 div 3`→`1.66667`）；
+- **无序结果类型保持求值顺序**（联合是左右拼接而非排序；`//b | //li` 的 ANY_UNORDERED 首个是 B），有序类型才排成文档序；
+- 变量不受支持：`$x` 求值为空串、`$x + 1` 为 NaN；`count(1)` 抛 SyntaxError「Type conversion failed…」，`sum(1)` 为 0，`local-name(1)` 为 ''；
+- `lang()` 只看 `xml:lang`（`<p lang="en-US">` 对 `lang("en")` 为假）；`name()` 对 HTML 文档里的 HTML 元素回小写；
+- 无前缀名字测试只匹配无命名空间元素，HTML 文档里还匹配 XHTML 命名空间（大小写不敏感），SVG `circle` 须经已解析前缀；
+  无法解析的前缀在**解析期**抛 NamespaceError；
+- 游离树的绝对路径根是其最顶祖先；DocumentFragment/DocumentType 作上下文抛 NotSupportedError；
+- 迭代器结果在**任何**文档变动后失效（InvalidStateError），经一个共享 MutationObserver + 同步 takeRecords 实现；
+- `ANY_TYPE` 的节点集结果是迭代器（对它读 stringValue 抛 TypeError）——旧测试 document_evaluate_xpath_subset 的断言据此改为 Chrome 行为，联合也不再抛。
+
+**坑**：①**Chrome 自己的 XPath 解析器遇 `a[$b]` 会死循环**（探针语料里踩到，已剔除；写语料前先分段二分）；②引擎的探针页面跨次 /eval 持久，往
+document 里追加的节点会累积（`//li` 翻倍），探针必须开头清理、结尾还原，并把宿主页的 head/body 子节点临时摘下以免计数依赖宿主页；
+③单元测试宿主页没有 doctype/meta/pre，别用 `document.doctype`，用 createDocumentType 造游离节点。
+
+**已知差异（引擎，非 XPath）**：DOMParser/createHTMLDocument/createDocument 造出的次级文档在引擎里不是 Document 实例（原型链只有 Object），
+没有 evaluate()；**XSLTProcessor 仍是桩**（8 个成员，另需一整套 XSLT 引擎）。
+
+验收：探针 583 键 0 差；新增 xpath_matches_chrome_truth；缺口 107→102（XPathEvaluator 3、Document 2 出表）；check_fresh 7 件鲜（41 真值）；analyze 零违。
+全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同。下一刀候选：次级文档升格为真 Document（解锁 XML 上的 XPath 与大量 DOMParser 用法）、
+VideoFrame 10 + VideoColorSpace 5、RTCPeerConnection 15、XSLTProcessor 8。

@@ -23443,9 +23443,11 @@ fn data_transfer_items_and_files_feed_input() {
 }
 
 /// #59: document.evaluate + a global XPathResult. Covers the node-test
-/// shapes, positional/[last()] predicates, attribute results, contains/not,
-/// the constant surface (static + prototype), and honest SyntaxError for
-/// unsupported syntax (unions) instead of a silently-wrong node set.
+/// shapes, positional/[last()] predicates, attribute results, contains/not and
+/// the constant surface (static + prototype). Originally written against the
+/// compact subset; since knife 21 (full XPath 1.0, xpath_matches_chrome_truth)
+/// the assertions follow Chrome: an ANY_TYPE node-set result is an iterator
+/// (stringValue on it throws), and unions are legal.
 #[test]
 fn document_evaluate_xpath_subset() {
     let mut rt = setup_runtime(
@@ -23461,7 +23463,7 @@ fn document_evaluate_xpath_subset() {
         const contains = document.evaluate('//p[contains(text(),"tw")]', document, null, 9, null).singleNodeValue.textContent;
         const notA = document.evaluate('//p[not(@class="a")]', document, null, 7, null);
         const attr = document.evaluate('//a/@href', document, null, 0, null);
-        const attrVal = attr.stringValue;
+        const attrVal = attr.iterateNext().value;
         const pos2 = document.evaluate('//p[2]', document, null, 9, null).singleNodeValue.textContent;
         const lastP = document.evaluate('//p[last()]', document, null, 9, null).singleNodeValue.textContent;
         const dotEq = document.evaluate('//p[.="three"]', document, null, 9, null).singleNodeValue.textContent;
@@ -23475,7 +23477,7 @@ fn document_evaluate_xpath_subset() {
         const consts = [XPathResult.ANY_TYPE, XPathResult.FIRST_ORDERED_NODE_TYPE,
                         XPathResult.prototype.ORDERED_NODE_SNAPSHOT_TYPE, typeof XPathResult];
         let threw = null;
-        try { document.evaluate('//p | //a', document, null, 9, null); } catch (e) { threw = e.name; }
+        try { threw = document.evaluate('//p | //a', document, null, 9, null).singleNodeValue.textContent; } catch (e) { threw = e.name; }
         globalThis.__out = JSON.stringify([
             count, second, first, contains, notA.snapshotLength,
             attr.resultType, attrVal, pos2, lastP, dotEq,
@@ -23495,9 +23497,9 @@ fn document_evaluate_xpath_subset() {
         serde_json::json!([
             3, "two", "one", "two", 1,
             4, "/x", "two", "three", "three",
-            "one", true, [0, 9, 7, "function"], "SyntaxError"
+            "one", true, [0, 9, 7, "function"], "one"
         ]),
-        "evaluate subset: snapshots, predicates, attr results, iterator exhaustion, constants, honest errors"
+        "evaluate: snapshots, predicates, attr results, iterator exhaustion, constants, unions"
     );
 }
 
@@ -27334,6 +27336,37 @@ async fn docmisc_matches_chrome_truth() {
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../tools/webplatform/chrome/docmisc-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 knife 21: XPath 1.0 (xpath-probe.js, 583 keys, real Chrome 145): ~120 location
+/// paths over every axis, ~370 scalar expressions and core functions (number formatting
+/// to six significant digits, substring/round edge cases, comparison rules), result types
+/// and their accessor errors, ~130 malformed expressions with exact wording, namespace
+/// resolution (NamespaceError, resolver forms), unordered-vs-ordered result order,
+/// iterator invalidation on mutation, XPathExpression / XPathEvaluator / createNSResolver.
+/// KNOWN gap (engine, not XPath): documents made by DOMParser / createHTMLDocument /
+/// createDocument are not Document instances here, so they carry no evaluate().
+#[tokio::test(flavor = "current_thread")]
+async fn xpath_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/xpath-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/xpath-truth-145.json"
     ))
     .unwrap();
     let mut bad = Vec::new();

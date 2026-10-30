@@ -1,0 +1,2747 @@
+{
+ "bad.\" \"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string ' ' is not a valid XPath expression.",
+ "bad.\"\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '' is not a valid XPath expression.",
+ "bad.\"$x + 1\"": [
+  "num",
+  "#NaN"
+ ],
+ "bad.\"$x\"": [
+  "str",
+  ""
+ ],
+ "bad.\"'abc\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string ''abc' is not a valid XPath expression.",
+ "bad.\"(1\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '(1' is not a valid XPath expression.",
+ "bad.\"(1)/a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"(1)[1]\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"(a)(b)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '(a)(b)' is not a valid XPath expression.",
+ "bad.\"(a)//b\"": [
+  "it4",
+  []
+ ],
+ "bad.\"(a)/b\"": [
+  "it4",
+  []
+ ],
+ "bad.\"(a)[1]\"": [
+  "it4",
+  [
+   "A#a1"
+  ]
+ ],
+ "bad.\"(a)[1][2]\"": [
+  "it4",
+  []
+ ],
+ "bad.\"* * *\"": [
+  "num",
+  "#NaN"
+ ],
+ "bad.\"* div *\"": [
+  "num",
+  "#NaN"
+ ],
+ "bad.\"*:*\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '*:*' is not a valid XPath expression.",
+ "bad.\"*:x\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '*:x' is not a valid XPath expression.",
+ "bad.\"-a\"": [
+  "num",
+  "#NaN"
+ ],
+ "bad.\"...\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '...' is not a valid XPath expression.",
+ "bad.\"..//\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '..//' is not a valid XPath expression.",
+ "bad.\".//\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string './/' is not a valid XPath expression.",
+ "bad.\".//.\"": [
+  "it4",
+  [
+   "DIV#root",
+   "UL#list",
+   "LI#i1",
+   "\"one\"",
+   "LI#i2",
+   "\"two \"",
+   "B#b1",
+   "\"bold\"",
+   "\" tail\"",
+   "LI#i3",
+   "\"three\"",
+   "LI#i4",
+   "P#p1",
+   "\"Hello \"",
+   "I",
+   "\"there\"",
+   "\", \"",
+   "<!--c1-->",
+   "\" world\"",
+   "P#p2",
+   "\"Bonjour\"",
+   "TABLE#t",
+   "TBODY",
+   "TR#r1",
+   "TD",
+   "\"a\"",
+   "TD",
+   "\"b\"",
+   "TR#r2",
+   "TD",
+   "\"c\"",
+   "TD",
+   "\"d\"",
+   "SPAN#s1",
+   "\"  spaced   o\"",
+   "A#a1",
+   "\"link\"",
+   "INPUT#in1"
+  ]
+ ],
+ "bad.\".5\"": [
+  "num",
+  0.5
+ ],
+ "bad.\"/ /\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '/ /' is not a valid XPath expression.",
+ "bad.\"/*/\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '/*/' is not a valid XPath expression.",
+ "bad.\"/.\"": [
+  "it4",
+  [
+   "#document"
+  ]
+ ],
+ "bad.\"/..\"": [
+  "it4",
+  []
+ ],
+ "bad.\"//\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '//' is not a valid XPath expression.",
+ "bad.\"///a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '///a' is not a valid XPath expression.",
+ "bad.\"//li[@]\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '//li[@]' is not a valid XPath expression.",
+ "bad.\"/li/\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '/li/' is not a valid XPath expression.",
+ "bad.\"0x1\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '0x1' is not a valid XPath expression.",
+ "bad.\"1 +\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1 +' is not a valid XPath expression.",
+ "bad.\"1 2\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1 2' is not a valid XPath expression.",
+ "bad.\"1 = = 1\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1 = = 1' is not a valid XPath expression.",
+ "bad.\"1 | 2\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1)' is not a valid XPath expression.",
+ "bad.\"1.2.3\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1.2.3' is not a valid XPath expression.",
+ "bad.\"1[1]\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"1a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1a' is not a valid XPath expression.",
+ "bad.\"1e3\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '1e3' is not a valid XPath expression.",
+ "bad.\"5.\"": [
+  "num",
+  5
+ ],
+ "bad.\"::a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '::a' is not a valid XPath expression.",
+ "bad.\"@\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '@' is not a valid XPath expression.",
+ "bad.\"@*\"": [
+  "it4",
+  [
+   "@id=root"
+  ]
+ ],
+ "bad.\"@@id\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '@@id' is not a valid XPath expression.",
+ "bad.\"\\\"a\\\" | \\\"b\\\"\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"\\\"a\\\"/a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"\\\"a\\\"[1]\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"\\\"abc\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '\"abc' is not a valid XPath expression.",
+ "bad.\"_a\"": [
+  "it4",
+  []
+ ],
+ "bad.\"a and\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'a and' is not a valid XPath expression.",
+ "bad.\"a b\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'a b' is not a valid XPath expression.",
+ "bad.\"a |\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'a |' is not a valid XPath expression.",
+ "bad.\"a-b\"": [
+  "it4",
+  []
+ ],
+ "bad.\"a.b\"": [
+  "it4",
+  []
+ ],
+ "bad.\"a///b\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'a///b' is not a valid XPath expression.",
+ "bad.\"a/@*\"": [
+  "it4",
+  [
+   "@id=a1",
+   "@href=#z",
+   "@name=nm"
+  ]
+ ],
+ "bad.\"a/@b/c\"": [
+  "it4",
+  []
+ ],
+ "bad.\"a1\"": [
+  "it4",
+  []
+ ],
+ "bad.\"a:*\"": "THROW NamespaceError: Failed to execute 'evaluate' on 'Document': The string 'a:*' contains unresolvable namespaces.",
+ "bad.\"a:b\"": "THROW NamespaceError: Failed to execute 'evaluate' on 'Document': The string 'a:b' contains unresolvable namespaces.",
+ "bad.\"a[1](b)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'a[1](b)' is not a valid XPath expression.",
+ "bad.\"a_b\"": [
+  "it4",
+  []
+ ],
+ "bad.\"ancestor::\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'ancestor::' is not a valid XPath expression.",
+ "bad.\"and a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'and a' is not a valid XPath expression.",
+ "bad.\"and and and\"": [
+  "bool",
+  false
+ ],
+ "bad.\"and\"": [
+  "it4",
+  []
+ ],
+ "bad.\"aé\"": [
+  "it4",
+  []
+ ],
+ "bad.\"boolean()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'boolean()' is not a valid XPath expression.",
+ "bad.\"child::\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'child::' is not a valid XPath expression.",
+ "bad.\"child::*\"": [
+  "it4",
+  [
+   "UL#list",
+   "P#p1",
+   "P#p2",
+   "TABLE#t",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "bad.\"child::node()\"": [
+  "it4",
+  [
+   "UL#list",
+   "P#p1",
+   "P#p2",
+   "TABLE#t",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "bad.\"comment()()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'comment()()' is not a valid XPath expression.",
+ "bad.\"comment(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'comment(1)' is not a valid XPath expression.",
+ "bad.\"concat()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'concat()' is not a valid XPath expression.",
+ "bad.\"concat(\\\"a\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'concat(\"a\")' is not a valid XPath expression.",
+ "bad.\"contains(\\\"a\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'contains(\"a\")' is not a valid XPath expression.",
+ "bad.\"contains(\\\"a\\\",\\\"b\\\",\\\"c\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'contains(\"a\",\"b\",\"c\")' is not a valid XPath expression.",
+ "bad.\"count()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'count()' is not a valid XPath expression.",
+ "bad.\"count(//li) | 1\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"count(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"count(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'count(1,2)' is not a valid XPath expression.",
+ "bad.\"count(\\\"a\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': Type conversion failed while evaluating the expression.",
+ "bad.\"descendant::*\"": [
+  "it4",
+  [
+   "UL#list",
+   "LI#i1",
+   "LI#i2",
+   "B#b1",
+   "LI#i3",
+   "LI#i4",
+   "P#p1",
+   "I",
+   "P#p2",
+   "TABLE#t",
+   "TBODY",
+   "TR#r1",
+   "TD",
+   "TD",
+   "TR#r2",
+   "TD",
+   "TD",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "bad.\"div div div\"": [
+  "num",
+  "#NaN"
+ ],
+ "bad.\"div\"": [
+  "it4",
+  []
+ ],
+ "bad.\"f(\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'f(' is not a valid XPath expression.",
+ "bad.\"floor()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'floor()' is not a valid XPath expression.",
+ "bad.\"foo::bar\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'foo::bar' is not a valid XPath expression.",
+ "bad.\"id()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'id()' is not a valid XPath expression.",
+ "bad.\"lang()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'lang()' is not a valid XPath expression.",
+ "bad.\"last(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'last(1)' is not a valid XPath expression.",
+ "bad.\"li/\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'li/' is not a valid XPath expression.",
+ "bad.\"li[\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'li[' is not a valid XPath expression.",
+ "bad.\"li[1\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'li[1' is not a valid XPath expression.",
+ "bad.\"li[]\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'li[]' is not a valid XPath expression.",
+ "bad.\"li]\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'li]' is not a valid XPath expression.",
+ "bad.\"local-name(1)\"": [
+  "str",
+  ""
+ ],
+ "bad.\"mod\"": [
+  "it4",
+  []
+ ],
+ "bad.\"name(\\\"a\\\")\"": [
+  "str",
+  ""
+ ],
+ "bad.\"node\"": [
+  "it4",
+  []
+ ],
+ "bad.\"node(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'node(1)' is not a valid XPath expression.",
+ "bad.\"normalize-space(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'normalize-space(1,2)' is not a valid XPath expression.",
+ "bad.\"not()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'not()' is not a valid XPath expression.",
+ "bad.\"not(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'not(1,2)' is not a valid XPath expression.",
+ "bad.\"number(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'number(1,2)' is not a valid XPath expression.",
+ "bad.\"or or or\"": [
+  "bool",
+  false
+ ],
+ "bad.\"or\"": [
+  "it4",
+  []
+ ],
+ "bad.\"position(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'position(1)' is not a valid XPath expression.",
+ "bad.\"processing-instruction(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'processing-instruction(1)' is not a valid XPath expression.",
+ "bad.\"processing-instruction(\\\"a\\\",\\\"b\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'processing-instruction(\"a\",\"b\")' is not a valid XPath expression.",
+ "bad.\"round(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'round(1,2)' is not a valid XPath expression.",
+ "bad.\"string(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'string(1,2)' is not a valid XPath expression.",
+ "bad.\"string-length(1,2)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'string-length(1,2)' is not a valid XPath expression.",
+ "bad.\"substring(\\\"a\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'substring(\"a\")' is not a valid XPath expression.",
+ "bad.\"sum()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'sum()' is not a valid XPath expression.",
+ "bad.\"sum(1)\"": [
+  "num",
+  0
+ ],
+ "bad.\"text\"": [
+  "it4",
+  []
+ ],
+ "bad.\"text(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'text(1)' is not a valid XPath expression.",
+ "bad.\"translate(\\\"a\\\",\\\"b\\\")\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'translate(\"a\",\"b\")' is not a valid XPath expression.",
+ "bad.\"true(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'true(1)' is not a valid XPath expression.",
+ "bad.\"unknown()\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'unknown()' is not a valid XPath expression.",
+ "bad.\"unknown(1)\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'unknown(1)' is not a valid XPath expression.",
+ "bad.\"| a\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '| a' is not a valid XPath expression.",
+ "bad.\"|\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '|' is not a valid XPath expression.",
+ "bad.\"é\"": [
+  "it4",
+  []
+ ],
+ "bad.\"éa\"": [
+  "it4",
+  []
+ ],
+ "bad.\"١\"": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string '١' is not a valid XPath expression.",
+ "bad.ctx": [
+  "TypeError: Failed to execute 'evaluate' on 'Document': parameter 2 is not of type 'Node'.",
+  "TypeError: Failed to execute 'evaluate' on 'Document': parameter 2 is not of type 'Node'.",
+  "TypeError: Failed to execute 'evaluate' on 'Document': parameter 2 is not of type 'Node'.",
+  "TypeError: Failed to execute 'evaluate' on 'Document': parameter 2 is not of type 'Node'.",
+  "TypeError: Failed to execute 'evaluate' on 'Document': parameter 2 is not of type 'Node'."
+ ],
+ "bad.ctx.nodes": [
+  "NotSupportedError: Failed to execute 'evaluate' on 'Document': The node provided is '#document-fragment', which is not a valid context node type.",
+  1,
+  1,
+  "NotSupportedError: Failed to execute 'evaluate' on 'Document': The node provided is 'html', which is not a valid context node type.",
+  1
+ ],
+ "bad.noargs": "TypeError: Failed to execute 'evaluate' on 'Document': 2 arguments required, but only 0 present.",
+ "bad.nullexpr": [
+  "it4",
+  []
+ ],
+ "bad.onearg": "TypeError: Failed to execute 'evaluate' on 'Document': 2 arguments required, but only 1 present.",
+ "bad.resolver": [
+  "ok",
+  "TypeError: Failed to execute 'evaluate' on 'Document': parameter 3 is not of type 'Object'.",
+  "ok",
+  "ok"
+ ],
+ "bad.undefexpr": [
+  "it4",
+  []
+ ],
+ "ctx.detached": [
+  2,
+  2,
+  2,
+  0,
+  0
+ ],
+ "ctx.detached.abs": 1,
+ "evalr.brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "evalr.call": "TypeError: Failed to construct 'XPathEvaluator': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "evalr.createExpression": 4,
+ "evalr.createNSResolver": true,
+ "evalr.ctor": [
+  "[object XPathEvaluator]",
+  []
+ ],
+ "evalr.docfaces": [
+  true,
+  true,
+  true
+ ],
+ "evalr.evaluate": 4,
+ "evalr.lens": [
+  2,
+  1,
+  1,
+  2,
+  1,
+  1,
+  1
+ ],
+ "expr.bad": "SyntaxError: Failed to execute 'createExpression' on 'Document': The string 'li[' is not a valid XPath expression.",
+ "expr.brand": "TypeError: Illegal invocation",
+ "expr.create": [
+  "[object XPathExpression]",
+  true,
+  4,
+  []
+ ],
+ "expr.ctor": "TypeError: Failed to construct 'XPathExpression': Illegal constructor",
+ "expr.evaluate.badctx": "TypeError: Failed to execute 'evaluate' on 'XPathExpression': parameter 1 is not of type 'Node'.",
+ "expr.evaluate.defaults": [
+  1,
+  4
+ ],
+ "expr.evaluate.noargs": "TypeError: Failed to execute 'evaluate' on 'XPathExpression': 1 argument required, but only 0 present.",
+ "expr.noargs": "TypeError: Failed to execute 'createExpression' on 'Document': 1 argument required, but only 0 present.",
+ "expr.resolver": 0,
+ "expr.reuse": [
+  4,
+  0,
+  4
+ ],
+ "ns.createNSResolver": [
+  true,
+  "function"
+ ],
+ "ns.createNSResolver.bad": "TypeError: Failed to execute 'createNSResolver' on 'Document': 1 argument required, but only 0 present.",
+ "ns.createNSResolver.node": "THROW NamespaceError: Failed to execute 'evaluate' on 'Document': The string 'h:li' contains unresolvable namespaces.",
+ "ns.html.case": [
+  4,
+  4,
+  4,
+  15,
+  15
+ ],
+ "ns.prefix.nullreturn": "NamespaceError: Failed to execute 'evaluate' on 'Document': The string 'h:li' contains unresolvable namespaces.",
+ "ns.prefix.resolver": 0,
+ "ns.prefix.resolver.obj": 0,
+ "ns.prefix.resolver.star": true,
+ "ns.prefix.unresolved": "NamespaceError: Failed to execute 'evaluate' on 'Document': The string 'x:li' contains unresolvable namespaces.",
+ "ns.prefix.wrongns": 0,
+ "ns.svg": [
+  0,
+  1,
+  1,
+  "http://www.w3.org/2000/svg"
+ ],
+ "order.ancestors": [
+  "snap7",
+  [
+   "HTML",
+   "BODY",
+   "DIV#root",
+   "UL#list",
+   "LI#i2"
+  ]
+ ],
+ "order.attr.vs.child": [
+  "snap7",
+  [
+   "@id=list",
+   "@class=l a",
+   "LI#i1"
+  ]
+ ],
+ "order.attrs": [
+  "snap7",
+  [
+   "@id=i1",
+   "@class=x",
+   "@data-n=1"
+  ]
+ ],
+ "order.attrs.multi": [
+  "snap7",
+  [
+   "@id=list",
+   "@class=l a"
+  ]
+ ],
+ "order.dedupe": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "order.following": [
+  "snap7",
+  [
+   "LI#i2",
+   "B#b1",
+   "LI#i3",
+   "LI#i4",
+   "P#p1",
+   "I",
+   "P#p2",
+   "TABLE#t",
+   "TBODY",
+   "TR#r1",
+   "TD",
+   "TD",
+   "TR#r2",
+   "TD",
+   "TD",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "order.iter": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4",
+   "B#b1"
+  ]
+ ],
+ "order.rev": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "order.union": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "path.(//li | //b)[2]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.(//td)[1]": [
+  "snap7",
+  [
+   "TD"
+  ]
+ ],
+ "path.(//td)[last()]": [
+  "snap7",
+  [
+   "TD"
+  ]
+ ],
+ "path.(//td)[position()<3]": [
+  "snap7",
+  [
+   "TD",
+   "TD"
+  ]
+ ],
+ "path.*": [
+  "snap7",
+  [
+   "UL#list",
+   "P#p1",
+   "P#p2",
+   "TABLE#t",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "path..": [
+  "snap7",
+  [
+   "DIV#root"
+  ]
+ ],
+ "path...": [
+  "snap7",
+  [
+   "BODY"
+  ]
+ ],
+ "path..//b": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path../ul/li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path./": [
+  "snap7",
+  [
+   "#document"
+  ]
+ ],
+ "path./*": [
+  "snap7",
+  [
+   "HTML"
+  ]
+ ],
+ "path.//*[@class]": [
+  "snap7",
+  [
+   "UL#list",
+   "LI#i1",
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "path.//*[@id=\"b1\"]": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path.//*[contains(@class,\"x\")]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i3"
+  ]
+ ],
+ "path.//*[local-name()=\"b\"]": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path.//*[name()=\"LI\"]": [
+  "snap7",
+  []
+ ],
+ "path.//*[name()=\"li\"]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.//*[self::b or self::i]": [
+  "snap7",
+  [
+   "B#b1",
+   "I"
+  ]
+ ],
+ "path.//@*": [
+  "snap7",
+  [
+   "@id=root",
+   "@id=list",
+   "@class=l a",
+   "@id=i1",
+   "@class=x",
+   "@data-n=1",
+   "@id=i2",
+   "@class=y",
+   "@data-n=2",
+   "@id=b1",
+   "@id=i3",
+   "@class=x y",
+   "@data-n=3",
+   "@id=i4",
+   "@data-n=10",
+   "@id=p1",
+   "@lang=en-US",
+   "@id=p2",
+   "@lang=fr",
+   "@id=t",
+   "@id=r1",
+   "@id=r2",
+   "@id=s1",
+   "@id=a1",
+   "@href=#z",
+   "@name=nm",
+   "@id=in1",
+   "@value=v1"
+  ]
+ ],
+ "path.//@id": [
+  "snap7",
+  [
+   "@id=root",
+   "@id=list",
+   "@id=i1",
+   "@id=i2",
+   "@id=b1",
+   "@id=i3",
+   "@id=i4",
+   "@id=p1",
+   "@id=p2",
+   "@id=t",
+   "@id=r1",
+   "@id=r2",
+   "@id=s1",
+   "@id=a1",
+   "@id=in1"
+  ]
+ ],
+ "path.//a[@href=\"#z\"]/@name": [
+  "snap7",
+  [
+   "@name=nm"
+  ]
+ ],
+ "path.//a[@name]": [
+  "snap7",
+  [
+   "A#a1"
+  ]
+ ],
+ "path.//b": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path.//b | //li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "B#b1",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.//b/..": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.//b/ancestor-or-self::*": [
+  "snap7",
+  [
+   "HTML",
+   "BODY",
+   "DIV#root",
+   "UL#list",
+   "LI#i2",
+   "B#b1"
+  ]
+ ],
+ "path.//b/ancestor::ul": [
+  "snap7",
+  [
+   "UL#list"
+  ]
+ ],
+ "path.//b/parent::li": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.//body/*[1]": [
+  "snap7",
+  [
+   "DIV#root"
+  ]
+ ],
+ "path.//comment()": [
+  "snap7",
+  [
+   "<!--c1-->"
+  ]
+ ],
+ "path.//input/@value": [
+  "snap7",
+  [
+   "@value=v1"
+  ]
+ ],
+ "path.//input[@value=\"v1\"]": [
+  "snap7",
+  [
+   "INPUT#in1"
+  ]
+ ],
+ "path.//li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.//li | //b": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "B#b1",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.//li/@id": [
+  "snap7",
+  [
+   "@id=i1",
+   "@id=i2",
+   "@id=i3",
+   "@id=i4"
+  ]
+ ],
+ "path.//li/attribute::class": [
+  "snap7",
+  [
+   "@class=x",
+   "@class=y",
+   "@class=x y"
+  ]
+ ],
+ "path.//li[. = \"two  tail\"]": [
+  "snap7",
+  []
+ ],
+ "path.//li[1]/@*": [
+  "snap7",
+  [
+   "@id=i1",
+   "@class=x",
+   "@data-n=1"
+  ]
+ ],
+ "path.//li[2]/following-sibling::li": [
+  "snap7",
+  [
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.//li[2]/following::*": [
+  "snap7",
+  [
+   "LI#i3",
+   "LI#i4",
+   "P#p1",
+   "I",
+   "P#p2",
+   "TABLE#t",
+   "TBODY",
+   "TR#r1",
+   "TD",
+   "TD",
+   "TR#r2",
+   "TD",
+   "TD",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "path.//li[2]/text()[2]": [
+  "snap7",
+  [
+   "\" tail\""
+  ]
+ ],
+ "path.//li[3]/preceding-sibling::li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2"
+  ]
+ ],
+ "path.//li[3]/preceding-sibling::li[1]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.//li[3]/preceding::li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2"
+  ]
+ ],
+ "path.//li[@class=\"x y\"]": [
+  "snap7",
+  [
+   "LI#i3"
+  ]
+ ],
+ "path.//li[@data-n>=2][@data-n<=3]": [
+  "snap7",
+  [
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "path.//li[@id and @class]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "path.//li[@id and not(@class)]": [
+  "snap7",
+  [
+   "LI#i4"
+  ]
+ ],
+ "path.//li[count(b)=1]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.//li[normalize-space(.)=\"one\"]": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.//li[string-length(.)>3]": [
+  "snap7",
+  [
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "path.//p/comment()": [
+  "snap7",
+  [
+   "<!--c1-->"
+  ]
+ ],
+ "path.//p/node()": [
+  "snap7",
+  [
+   "\"Hello \"",
+   "I",
+   "\", \"",
+   "<!--c1-->",
+   "\" world\"",
+   "\"Bonjour\""
+  ]
+ ],
+ "path.//p/text()": [
+  "snap7",
+  [
+   "\"Hello \"",
+   "\", \"",
+   "\" world\"",
+   "\"Bonjour\""
+  ]
+ ],
+ "path.//p[@lang]": [
+  "snap7",
+  [
+   "P#p1",
+   "P#p2"
+  ]
+ ],
+ "path.//p[lang(\"en\")]": [
+  "snap7",
+  []
+ ],
+ "path.//p[lang(\"fr\")]": [
+  "snap7",
+  []
+ ],
+ "path.//p[starts-with(@lang,\"en\")]": [
+  "snap7",
+  [
+   "P#p1"
+  ]
+ ],
+ "path.//span[1]/text()": [
+  "snap7",
+  [
+   "\"  spaced   o\""
+  ]
+ ],
+ "path.//table//td": [
+  "snap7",
+  [
+   "TD",
+   "TD",
+   "TD",
+   "TD"
+  ]
+ ],
+ "path.//td[1]": [
+  "snap7",
+  [
+   "TD",
+   "TD"
+  ]
+ ],
+ "path.//text()[.=\"Bonjour\"]": [
+  "snap7",
+  [
+   "\"Bonjour\""
+  ]
+ ],
+ "path.//tr/td": [
+  "snap7",
+  [
+   "TD",
+   "TD",
+   "TD",
+   "TD"
+  ]
+ ],
+ "path.//tr/td[position()=last()]": [
+  "snap7",
+  [
+   "TD",
+   "TD"
+  ]
+ ],
+ "path.//tr[2]/td[1]": [
+  "snap7",
+  [
+   "TD"
+  ]
+ ],
+ "path.//tr[td=\"c\"]": [
+  "snap7",
+  [
+   "TR#r2"
+  ]
+ ],
+ "path.//tr[td[2]=\"b\"]/@id": [
+  "snap7",
+  [
+   "@id=r1"
+  ]
+ ],
+ "path.//ul//b": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path.//ul/descendant-or-self::*": [
+  "snap7",
+  [
+   "UL#list",
+   "LI#i1",
+   "LI#i2",
+   "B#b1",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.//ul/descendant::b": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path.//ul/self::div": [
+  "snap7",
+  []
+ ],
+ "path.//ul/self::ul": [
+  "snap7",
+  [
+   "UL#list"
+  ]
+ ],
+ "path.//ul[count(li)=4]": [
+  "snap7",
+  [
+   "UL#list"
+  ]
+ ],
+ "path./descendant::body": [
+  "snap7",
+  [
+   "BODY"
+  ]
+ ],
+ "path./html/body": [
+  "snap7",
+  [
+   "BODY"
+  ]
+ ],
+ "path./html/body/div": [
+  "snap7",
+  [
+   "DIV#root"
+  ]
+ ],
+ "path.abs.fromdeep": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.attr.ancestor": [
+  "snap7",
+  [
+   "HTML",
+   "BODY",
+   "DIV#root",
+   "UL#list",
+   "LI#i1"
+  ]
+ ],
+ "path.attr.self": [
+  "snap7",
+  [
+   "@id=i1"
+  ]
+ ],
+ "path.fromattr": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.fromdoc": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.id(\"i1 i3\")": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i3"
+  ]
+ ],
+ "path.id(\"i1\")": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.id(\"i1\")/following-sibling::li[1]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.id(//li[1]/@id)": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.node()": [
+  "snap7",
+  [
+   "UL#list",
+   "P#p1",
+   "P#p2",
+   "TABLE#t",
+   "SPAN#s1",
+   "A#a1",
+   "INPUT#in1"
+  ]
+ ],
+ "path.p/i": [
+  "snap7",
+  [
+   "I"
+  ]
+ ],
+ "path.p[1]/i/text()": [
+  "snap7",
+  [
+   "\"there\""
+  ]
+ ],
+ "path.rev.pos": [
+  "snap7",
+  [
+   "@id=i2"
+  ]
+ ],
+ "path.rev.pos2": [
+  "snap7",
+  [
+   "@id=i2"
+  ]
+ ],
+ "path.text.ctx": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.text.sib": [
+  "snap7",
+  [
+   "B#b1",
+   "\" tail\""
+  ]
+ ],
+ "path.ul": [
+  "snap7",
+  [
+   "UL#list"
+  ]
+ ],
+ "path.ul | p": [
+  "snap7",
+  [
+   "UL#list",
+   "P#p1",
+   "P#p2"
+  ]
+ ],
+ "path.ul | p[1] | table": [
+  "snap7",
+  [
+   "UL#list",
+   "P#p1",
+   "TABLE#t"
+  ]
+ ],
+ "path.ul/li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li/text()": [
+  "snap7",
+  [
+   "\"one\"",
+   "\"two \"",
+   "\" tail\"",
+   "\"three\""
+  ]
+ ],
+ "path.ul/li[.=\"one\"]": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.ul/li[1]": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.ul/li[2]/b/text()": [
+  "snap7",
+  [
+   "\"bold\""
+  ]
+ ],
+ "path.ul/li[2][b]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.ul/li[@class=\"x\"]": [
+  "snap7",
+  [
+   "LI#i1"
+  ]
+ ],
+ "path.ul/li[@data-n=10]": [
+  "snap7",
+  [
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[@data-n>1]": [
+  "snap7",
+  [
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[@id!=\"i2\"]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[@id=\"i2\"]/b": [
+  "snap7",
+  [
+   "B#b1"
+  ]
+ ],
+ "path.ul/li[@id]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[b]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.ul/li[contains(.,\"o\")]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2"
+  ]
+ ],
+ "path.ul/li[last()-1]": [
+  "snap7",
+  [
+   "LI#i3"
+  ]
+ ],
+ "path.ul/li[last()]": [
+  "snap7",
+  [
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[not(b)]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[position() mod 2 = 1]": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i3"
+  ]
+ ],
+ "path.ul/li[position()=2 or position()=3]": [
+  "snap7",
+  [
+   "LI#i2",
+   "LI#i3"
+  ]
+ ],
+ "path.ul/li[position()>1][1]": [
+  "snap7",
+  [
+   "LI#i2"
+  ]
+ ],
+ "path.ul/li[position()>2]": [
+  "snap7",
+  [
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "path.ul/li[text()=\"three\"]": [
+  "snap7",
+  [
+   "LI#i3"
+  ]
+ ],
+ "res.access": [
+  "TypeError: Failed to read the 'numberValue' property from 'XPathResult': The result type is not a number.",
+  "TypeError: Failed to read the 'stringValue' property from 'XPathResult': The result type is not a string.",
+  "TypeError: Failed to read the 'booleanValue' property from 'XPathResult': The result type is not a boolean.",
+  "TypeError: Failed to read the 'singleNodeValue' property from 'XPathResult': The result type is not a single node.",
+  "TypeError: Failed to execute 'iterateNext' on 'XPathResult': The result type is not an iterator."
+ ],
+ "res.access.it": [
+  "TypeError: Failed to read the 'snapshotLength' property from 'XPathResult': The result type is not a snapshot.",
+  "TypeError: Failed to read the 'numberValue' property from 'XPathResult': The result type is not a number.",
+  "TypeError: Failed to read the 'stringValue' property from 'XPathResult': The result type is not a string.",
+  "TypeError: Failed to read the 'booleanValue' property from 'XPathResult': The result type is not a boolean.",
+  "TypeError: Failed to read the 'singleNodeValue' property from 'XPathResult': The result type is not a single node.",
+  "TypeError: Failed to execute 'snapshotItem' on 'XPathResult': The result type is not a snapshot."
+ ],
+ "res.access.num": [
+  "TypeError: Failed to read the 'snapshotLength' property from 'XPathResult': The result type is not a snapshot.",
+  "TypeError: Failed to read the 'stringValue' property from 'XPathResult': The result type is not a string.",
+  "TypeError: Failed to read the 'booleanValue' property from 'XPathResult': The result type is not a boolean.",
+  "TypeError: Failed to read the 'singleNodeValue' property from 'XPathResult': The result type is not a single node.",
+  "false",
+  "TypeError: Failed to execute 'snapshotItem' on 'XPathResult': The result type is not a snapshot.",
+  "TypeError: Failed to execute 'iterateNext' on 'XPathResult': The result type is not an iterator."
+ ],
+ "res.access.one": [
+  "TypeError: Failed to read the 'snapshotLength' property from 'XPathResult': The result type is not a snapshot.",
+  "TypeError: Failed to read the 'numberValue' property from 'XPathResult': The result type is not a number.",
+  "TypeError: Failed to read the 'stringValue' property from 'XPathResult': The result type is not a string.",
+  "TypeError: Failed to read the 'booleanValue' property from 'XPathResult': The result type is not a boolean."
+ ],
+ "res.brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "res.consts": {
+  "ANY_TYPE": [
+   0,
+   true,
+   false,
+   0
+  ],
+  "ANY_UNORDERED_NODE_TYPE": [
+   8,
+   true,
+   false,
+   8
+  ],
+  "BOOLEAN_TYPE": [
+   3,
+   true,
+   false,
+   3
+  ],
+  "FIRST_ORDERED_NODE_TYPE": [
+   9,
+   true,
+   false,
+   9
+  ],
+  "NUMBER_TYPE": [
+   1,
+   true,
+   false,
+   1
+  ],
+  "ORDERED_NODE_ITERATOR_TYPE": [
+   5,
+   true,
+   false,
+   5
+  ],
+  "ORDERED_NODE_SNAPSHOT_TYPE": [
+   7,
+   true,
+   false,
+   7
+  ],
+  "STRING_TYPE": [
+   2,
+   true,
+   false,
+   2
+  ],
+  "UNORDERED_NODE_ITERATOR_TYPE": [
+   4,
+   true,
+   false,
+   4
+  ],
+  "UNORDERED_NODE_SNAPSHOT_TYPE": [
+   6,
+   true,
+   false,
+   6
+  ]
+ },
+ "res.ctor": "TypeError: Failed to construct 'XPathResult': Illegal constructor",
+ "res.iter.exhaust": [
+  4,
+  null,
+  false
+ ],
+ "res.iter.mutate": [
+  true,
+  "InvalidStateError: Failed to execute 'iterateNext' on 'XPathResult': The document has mutated since the result was returned.",
+  true
+ ],
+ "res.iter.mutate.unrelated": "InvalidStateError",
+ "res.reuse": [
+  false,
+  4,
+  7
+ ],
+ "res.reuse.bad": "ok",
+ "res.snap.edges": [
+  null,
+  true,
+  "LI#i1",
+  "LI#i2",
+  "LI#i2",
+  4,
+  7,
+  false
+ ],
+ "res.snap.mutate": [
+  1,
+  false
+ ],
+ "res.tag": [
+  "[object XPathResult]",
+  true,
+  []
+ ],
+ "sc.\"1\" = true()": [
+  "bool",
+  true
+ ],
+ "sc.\"10\" > \"9\"": [
+  "bool",
+  true
+ ],
+ "sc.\"3\" * \"4\"": [
+  "num",
+  12
+ ],
+ "sc.\"a\" != \"b\"": [
+  "bool",
+  true
+ ],
+ "sc.\"a\" < \"b\"": [
+  "bool",
+  false
+ ],
+ "sc.\"a\" < 1": [
+  "bool",
+  false
+ ],
+ "sc.\"a\" = \"a\"": [
+  "bool",
+  true
+ ],
+ "sc.\"a\" = //zz": [
+  "bool",
+  false
+ ],
+ "sc.\"abc\" < \"abd\"": [
+  "bool",
+  false
+ ],
+ "sc.\"one\" = //li": [
+  "bool",
+  true
+ ],
+ "sc.\"x\" = //li": [
+  "bool",
+  false
+ ],
+ "sc.\"zz\" != //li": [
+  "bool",
+  true
+ ],
+ "sc.(1 + 2) * 3": [
+  "num",
+  9
+ ],
+ "sc.(1 or 0) and 0": [
+  "bool",
+  false
+ ],
+ "sc.- //li[1]/@data-n": [
+  "num",
+  -1
+ ],
+ "sc.-(-3)": [
+  "num",
+  3
+ ],
+ "sc.-1 div 0": [
+  "num",
+  "#-Infinity"
+ ],
+ "sc.-7 mod 3": [
+  "num",
+  -1
+ ],
+ "sc.//li = \"one\"": [
+  "bool",
+  true
+ ],
+ "sc.//li = //zz": [
+  "bool",
+  false
+ ],
+ "sc.//li = true()": [
+  "bool",
+  true
+ ],
+ "sc.//li/@data-n < //li/@data-n": [
+  "bool",
+  true
+ ],
+ "sc.//li/@data-n < 2": [
+  "bool",
+  true
+ ],
+ "sc.//li/@data-n = 2": [
+  "bool",
+  true
+ ],
+ "sc.//li/@data-n > 9": [
+  "bool",
+  true
+ ],
+ "sc.//li/@data-n >= 10": [
+  "bool",
+  true
+ ],
+ "sc.//li/@id = //li/@class": [
+  "bool",
+  false
+ ],
+ "sc.//li[1] + 1": [
+  "num",
+  "#NaN"
+ ],
+ "sc.//zz != //zz": [
+  "bool",
+  false
+ ],
+ "sc.//zz = //zz": [
+  "bool",
+  false
+ ],
+ "sc.//zz = false()": [
+  "bool",
+  true
+ ],
+ "sc.//zz = true()": [
+  "bool",
+  false
+ ],
+ "sc.0 = -0": [
+  "bool",
+  true
+ ],
+ "sc.0 = false()": [
+  "bool",
+  true
+ ],
+ "sc.0 div 0": [
+  "num",
+  "#NaN"
+ ],
+ "sc.1": [
+  "num",
+  1
+ ],
+ "sc.1 != 1": [
+  "bool",
+  false
+ ],
+ "sc.1 + \"2\"": [
+  "num",
+  3
+ ],
+ "sc.1 + 2 * 3": [
+  "num",
+  7
+ ],
+ "sc.1 - -1": [
+  "num",
+  2
+ ],
+ "sc.1 - //li[1]/@data-n": [
+  "num",
+  0
+ ],
+ "sc.1 < \"2\"": [
+  "bool",
+  true
+ ],
+ "sc.1 < 2": [
+  "bool",
+  true
+ ],
+ "sc.1 < 2 < 3": [
+  "bool",
+  true
+ ],
+ "sc.1 = \"1\"": [
+  "bool",
+  true
+ ],
+ "sc.1 = 1": [
+  "bool",
+  true
+ ],
+ "sc.1 = 1 = 1": [
+  "bool",
+  true
+ ],
+ "sc.1 = true()": [
+  "bool",
+  true
+ ],
+ "sc.1 and 2 and 0": [
+  "bool",
+  false
+ ],
+ "sc.1 div 0": [
+  "num",
+  "#Infinity"
+ ],
+ "sc.1 or 0 and 0": [
+  "bool",
+  true
+ ],
+ "sc.1+2": [
+  "num",
+  3
+ ],
+ "sc.10 div 2 div 5": [
+  "num",
+  1
+ ],
+ "sc.2 * 3 mod 4": [
+  "num",
+  2
+ ],
+ "sc.2 <= 2": [
+  "bool",
+  true
+ ],
+ "sc.2*3": [
+  "num",
+  6
+ ],
+ "sc.3 > 2 > 1": [
+  "bool",
+  false
+ ],
+ "sc.3 > 4": [
+  "bool",
+  false
+ ],
+ "sc.5 div 3": [
+  "num",
+  1.6666666666666667
+ ],
+ "sc.5 mod 0": [
+  "num",
+  "#NaN"
+ ],
+ "sc.5-3": [
+  "num",
+  2
+ ],
+ "sc.7 div 2": [
+  "num",
+  3.5
+ ],
+ "sc.7 mod -3": [
+  "num",
+  1
+ ],
+ "sc.7 mod 3": [
+  "num",
+  1
+ ],
+ "sc.boolean(\"\")": [
+  "bool",
+  false
+ ],
+ "sc.boolean(\"a\")": [
+  "bool",
+  true
+ ],
+ "sc.boolean(//li)": [
+  "bool",
+  true
+ ],
+ "sc.boolean(//zz)": [
+  "bool",
+  false
+ ],
+ "sc.boolean(0 div 0)": [
+  "bool",
+  false
+ ],
+ "sc.boolean(0)": [
+  "bool",
+  false
+ ],
+ "sc.ceiling(-1.2)": [
+  "num",
+  -1
+ ],
+ "sc.ceiling(1.2)": [
+  "num",
+  2
+ ],
+ "sc.concat(\"a\",\"b\")": [
+  "str",
+  "ab"
+ ],
+ "sc.concat(\"a\",\"b\",\"c\",\"d\")": [
+  "str",
+  "abcd"
+ ],
+ "sc.concat(1 div 3, \"\")": [
+  "str",
+  "0.333333"
+ ],
+ "sc.concat(1,2)": [
+  "str",
+  "12"
+ ],
+ "sc.contains(\"\",\"a\")": [
+  "bool",
+  false
+ ],
+ "sc.contains(\"hello\",\"\")": [
+  "bool",
+  true
+ ],
+ "sc.contains(\"hello\",\"ll\")": [
+  "bool",
+  true
+ ],
+ "sc.count(//*)": [
+  "num",
+  24
+ ],
+ "sc.count(//@*)": [
+  "num",
+  28
+ ],
+ "sc.count(//comment())": [
+  "num",
+  1
+ ],
+ "sc.count(//li | //li)": [
+  "num",
+  4
+ ],
+ "sc.count(//li | //p)": [
+  "num",
+  6
+ ],
+ "sc.count(//li)": [
+  "num",
+  4
+ ],
+ "sc.count(//li) + count(//p)": [
+  "num",
+  6
+ ],
+ "sc.count(//li/@id)": [
+  "num",
+  4
+ ],
+ "sc.count(//p[1]/node())": [
+  "num",
+  5
+ ],
+ "sc.count(//processing-instruction())": [
+  "num",
+  0
+ ],
+ "sc.count(//zz)": [
+  "num",
+  0
+ ],
+ "sc.count(/descendant::*)": [
+  "num",
+  24
+ ],
+ "sc.count(/html/*)": [
+  "num",
+  2
+ ],
+ "sc.count(id(\"i1 i2 zz\"))": [
+  "num",
+  2
+ ],
+ "sc.count(id(\"root\")//node())": [
+  "num",
+  37
+ ],
+ "sc.count(id(\"root\")//text())": [
+  "num",
+  16
+ ],
+ "sc.false()": [
+  "bool",
+  false
+ ],
+ "sc.false() = \"\"": [
+  "bool",
+  true
+ ],
+ "sc.floor(\"x\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.floor(-1.5)": [
+  "num",
+  -2
+ ],
+ "sc.floor(0 div 0)": [
+  "num",
+  "#NaN"
+ ],
+ "sc.floor(1.5)": [
+  "num",
+  1
+ ],
+ "sc.lang(\"EN\")": [
+  "bool",
+  false
+ ],
+ "sc.lang(\"e\")": [
+  "bool",
+  false
+ ],
+ "sc.lang(\"en\")": [
+  "bool",
+  false
+ ],
+ "sc.last()": [
+  "num",
+  1
+ ],
+ "sc.local-name()": [
+  "str",
+  "div"
+ ],
+ "sc.local-name(//li[1])": [
+  "str",
+  "li"
+ ],
+ "sc.local-name(//zz)": [
+  "str",
+  ""
+ ],
+ "sc.name(/)": [
+  "str",
+  ""
+ ],
+ "sc.name(//@id)": [
+  "str",
+  "id"
+ ],
+ "sc.name(//li[1])": [
+  "str",
+  "li"
+ ],
+ "sc.namespace-uri(//li[1])": [
+  "str",
+  "http://www.w3.org/1999/xhtml"
+ ],
+ "sc.namespace-uri(//zz)": [
+  "str",
+  ""
+ ],
+ "sc.normalize-space(\"  a  b  \")": [
+  "str",
+  "a b"
+ ],
+ "sc.normalize-space(\"\")": [
+  "str",
+  ""
+ ],
+ "sc.normalize-space()": [
+  "str",
+  "onetwo bold tailthreeHello there, worldBonjourabcd spaced out text link"
+ ],
+ "sc.normalize-space(//span)": [
+  "str",
+  "spaced out text"
+ ],
+ "sc.not(\"\")": [
+  "bool",
+  true
+ ],
+ "sc.not(//zz)": [
+  "bool",
+  true
+ ],
+ "sc.not(1)": [
+  "bool",
+  false
+ ],
+ "sc.not(true())": [
+  "bool",
+  false
+ ],
+ "sc.number(\" 12 \")": [
+  "num",
+  12
+ ],
+ "sc.number(\"\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(\"+3\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(\"-3.5\")": [
+  "num",
+  -3.5
+ ],
+ "sc.number(\".5\")": [
+  "num",
+  0.5
+ ],
+ "sc.number(\"0x10\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(\"12\")": [
+  "num",
+  12
+ ],
+ "sc.number(\"1e3\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(\"5.\")": [
+  "num",
+  5
+ ],
+ "sc.number(\"Infinity\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(\"x\")": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(//li[1]/@data-n)": [
+  "num",
+  1
+ ],
+ "sc.number(//li[4]/@data-n)": [
+  "num",
+  10
+ ],
+ "sc.number(//zz)": [
+  "num",
+  "#NaN"
+ ],
+ "sc.number(true())": [
+  "num",
+  1
+ ],
+ "sc.position()": [
+  "num",
+  1
+ ],
+ "sc.round(-0.4)": [
+  "num",
+  "#-0"
+ ],
+ "sc.round(-1.5)": [
+  "num",
+  -1
+ ],
+ "sc.round(-2.5)": [
+  "num",
+  -2
+ ],
+ "sc.round(0 div 0)": [
+  "num",
+  "#NaN"
+ ],
+ "sc.round(0.4)": [
+  "num",
+  0
+ ],
+ "sc.round(1 div 0)": [
+  "num",
+  "#Infinity"
+ ],
+ "sc.round(1.5)": [
+  "num",
+  2
+ ],
+ "sc.round(2.5)": [
+  "num",
+  3
+ ],
+ "sc.starts-with(\"hello\",\"\")": [
+  "bool",
+  true
+ ],
+ "sc.starts-with(\"hello\",\"he\")": [
+  "bool",
+  true
+ ],
+ "sc.string(-0)": [
+  "str",
+  "0"
+ ],
+ "sc.string(-0.5)": [
+  "str",
+  "-0.5"
+ ],
+ "sc.string(-1234567)": [
+  "str",
+  "-1.23457e+6"
+ ],
+ "sc.string(-2147483648)": [
+  "str",
+  "-2.14748e+9"
+ ],
+ "sc.string(.1)": [
+  "str",
+  "0.1"
+ ],
+ "sc.string(//li[1])": [
+  "str",
+  "one"
+ ],
+ "sc.string(//li[2])": [
+  "str",
+  "two bold tail"
+ ],
+ "sc.string(//zz)": [
+  "str",
+  ""
+ ],
+ "sc.string(0 div 0)": [
+  "str",
+  "NaN"
+ ],
+ "sc.string(0.0000001)": [
+  "str",
+  "1.00000e-7"
+ ],
+ "sc.string(0.000001)": [
+  "str",
+  "0.000001"
+ ],
+ "sc.string(0.00000123456789)": [
+  "str",
+  "0.00000123457"
+ ],
+ "sc.string(0.00001234567)": [
+  "str",
+  "0.0000123457"
+ ],
+ "sc.string(0.1+0.2)": [
+  "str",
+  "0.3"
+ ],
+ "sc.string(0.1234567)": [
+  "str",
+  "0.123457"
+ ],
+ "sc.string(1 div 0)": [
+  "str",
+  "Infinity"
+ ],
+ "sc.string(1 div 3)": [
+  "str",
+  "0.333333"
+ ],
+ "sc.string(1 div 7)": [
+  "str",
+  "0.142857"
+ ],
+ "sc.string(1.0)": [
+  "str",
+  "1"
+ ],
+ "sc.string(1.5)": [
+  "str",
+  "1.5"
+ ],
+ "sc.string(10)": [
+  "str",
+  "10"
+ ],
+ "sc.string(100 div 3)": [
+  "str",
+  "33.3333"
+ ],
+ "sc.string(100000*10)": [
+  "str",
+  "1.00000e+6"
+ ],
+ "sc.string(1000000 div 3)": [
+  "str",
+  "333333"
+ ],
+ "sc.string(1000000)": [
+  "str",
+  "1.00000e+6"
+ ],
+ "sc.string(1000000*1000000*1000)": [
+  "str",
+  "1.00000e+15"
+ ],
+ "sc.string(10000000 div 3)": [
+  "str",
+  "3.33333e+6"
+ ],
+ "sc.string(100000000)": [
+  "str",
+  "1.00000e+8"
+ ],
+ "sc.string(1000000000000)": [
+  "str",
+  "1.00000e+12"
+ ],
+ "sc.string(1000001)": [
+  "str",
+  "1.00000e+6"
+ ],
+ "sc.string(12345.6789)": [
+  "str",
+  "12345.7"
+ ],
+ "sc.string(123456)": [
+  "str",
+  "123456"
+ ],
+ "sc.string(123456.7)": [
+  "str",
+  "123457"
+ ],
+ "sc.string(1234567)": [
+  "str",
+  "1.23457e+6"
+ ],
+ "sc.string(1234567.5)": [
+  "str",
+  "1.23457e+6"
+ ],
+ "sc.string(1234567.891)": [
+  "str",
+  "1.23457e+6"
+ ],
+ "sc.string(123456789 * 1000)": [
+  "str",
+  "1.23457e+11"
+ ],
+ "sc.string(123456789012345678)": [
+  "str",
+  "1.23457e+17"
+ ],
+ "sc.string(16777216)": [
+  "str",
+  "1.67772e+7"
+ ],
+ "sc.string(16777217)": [
+  "str",
+  "1.67772e+7"
+ ],
+ "sc.string(1e3)": "THROW SyntaxError: Failed to execute 'evaluate' on 'Document': The string 'string(1e3)' is not a valid XPath expression.",
+ "sc.string(2147483647)": [
+  "str",
+  "2.14748e+9"
+ ],
+ "sc.string(2147483648)": [
+  "str",
+  "2.14748e+9"
+ ],
+ "sc.string(3.14159265358979)": [
+  "str",
+  "3.14159"
+ ],
+ "sc.string(4294967296)": [
+  "str",
+  "4.29497e+9"
+ ],
+ "sc.string(5 div 3)": [
+  "str",
+  "1.66667"
+ ],
+ "sc.string(999999)": [
+  "str",
+  "999999"
+ ],
+ "sc.string(true())": [
+  "str",
+  "true"
+ ],
+ "sc.string-length(\"\")": [
+  "num",
+  0
+ ],
+ "sc.string-length(\"abc\")": [
+  "num",
+  3
+ ],
+ "sc.string-length()": [
+  "num",
+  76
+ ],
+ "sc.string-length(//li[1])": [
+  "num",
+  3
+ ],
+ "sc.string-length(string(//li[2]))": [
+  "num",
+  13
+ ],
+ "sc.substring(\"12345\",-1 div 0,1 div 0)": [
+  "str",
+  ""
+ ],
+ "sc.substring(\"12345\",-1)": [
+  "str",
+  "12345"
+ ],
+ "sc.substring(\"12345\",0 div 0)": [
+  "str",
+  ""
+ ],
+ "sc.substring(\"12345\",0)": [
+  "str",
+  "12345"
+ ],
+ "sc.substring(\"12345\",0,3)": [
+  "str",
+  "12"
+ ],
+ "sc.substring(\"12345\",1,0 div 0)": [
+  "str",
+  ""
+ ],
+ "sc.substring(\"12345\",1,1 div 0)": [
+  "str",
+  "12345"
+ ],
+ "sc.substring(\"12345\",1.5,2.6)": [
+  "str",
+  "234"
+ ],
+ "sc.substring(\"12345\",2)": [
+  "str",
+  "2345"
+ ],
+ "sc.substring(\"12345\",2,3)": [
+  "str",
+  "234"
+ ],
+ "sc.substring(\"12345\",5,2)": [
+  "str",
+  "5"
+ ],
+ "sc.substring(\"12345\",6)": [
+  "str",
+  ""
+ ],
+ "sc.substring-after(\"a-b-c\",\"-\")": [
+  "str",
+  "b-c"
+ ],
+ "sc.substring-after(\"abc\",\"\")": [
+  "str",
+  "abc"
+ ],
+ "sc.substring-after(\"abc\",\"z\")": [
+  "str",
+  ""
+ ],
+ "sc.substring-before(\"a-b-c\",\"-\")": [
+  "str",
+  "a"
+ ],
+ "sc.substring-before(\"abc\",\"z\")": [
+  "str",
+  ""
+ ],
+ "sc.sum(//b)": [
+  "num",
+  "#NaN"
+ ],
+ "sc.sum(//li/@data-n)": [
+  "num",
+  16
+ ],
+ "sc.sum(//li/@data-n) div count(//li)": [
+  "num",
+  4
+ ],
+ "sc.sum(//zz)": [
+  "num",
+  0
+ ],
+ "sc.translate(\"--aaa--\",\"a-\",\"A\")": [
+  "str",
+  "AAA"
+ ],
+ "sc.translate(\"abc\",\"\",\"x\")": [
+  "str",
+  "abc"
+ ],
+ "sc.translate(\"abc\",\"aa\",\"AB\")": [
+  "str",
+  "Abc"
+ ],
+ "sc.translate(\"abc\",\"ab\",\"A\")": [
+  "str",
+  "Ac"
+ ],
+ "sc.translate(\"abc\",\"abc\",\"ABC\")": [
+  "str",
+  "ABC"
+ ],
+ "sc.true()": [
+  "bool",
+  true
+ ],
+ "sc.true() < 2": [
+  "bool",
+  true
+ ],
+ "sc.true() = \"a\"": [
+  "bool",
+  true
+ ],
+ "sc.true() = 1": [
+  "bool",
+  true
+ ],
+ "sc.true() and false()": [
+  "bool",
+  false
+ ],
+ "sc.true() or false()": [
+  "bool",
+  true
+ ],
+ "shape.XPathEvaluator": {
+  "kinds": {
+   "constructor": "function:0",
+   "createExpression": "function:1",
+   "createNSResolver": "function:1",
+   "evaluate": "function:2"
+  },
+  "len": 0,
+  "order": [
+   "createExpression",
+   "createNSResolver",
+   "evaluate",
+   "constructor"
+  ],
+  "statics": [],
+  "tag": "[object XPathEvaluator]"
+ },
+ "shape.XPathExpression": {
+  "kinds": {
+   "constructor": "function:0",
+   "evaluate": "function:1"
+  },
+  "len": 0,
+  "order": [
+   "evaluate",
+   "constructor"
+  ],
+  "statics": [],
+  "tag": "[object XPathExpression]"
+ },
+ "shape.XPathResult": {
+  "kinds": {
+   "ANY_TYPE": "number:",
+   "ANY_UNORDERED_NODE_TYPE": "number:",
+   "BOOLEAN_TYPE": "number:",
+   "FIRST_ORDERED_NODE_TYPE": "number:",
+   "NUMBER_TYPE": "number:",
+   "ORDERED_NODE_ITERATOR_TYPE": "number:",
+   "ORDERED_NODE_SNAPSHOT_TYPE": "number:",
+   "STRING_TYPE": "number:",
+   "UNORDERED_NODE_ITERATOR_TYPE": "number:",
+   "UNORDERED_NODE_SNAPSHOT_TYPE": "number:",
+   "booleanValue": "ro",
+   "constructor": "function:0",
+   "invalidIteratorState": "ro",
+   "iterateNext": "function:0",
+   "numberValue": "ro",
+   "resultType": "ro",
+   "singleNodeValue": "ro",
+   "snapshotItem": "function:1",
+   "snapshotLength": "ro",
+   "stringValue": "ro"
+  },
+  "len": 0,
+  "order": [
+   "resultType",
+   "numberValue",
+   "stringValue",
+   "booleanValue",
+   "singleNodeValue",
+   "invalidIteratorState",
+   "snapshotLength",
+   "ANY_TYPE",
+   "NUMBER_TYPE",
+   "STRING_TYPE",
+   "BOOLEAN_TYPE",
+   "UNORDERED_NODE_ITERATOR_TYPE",
+   "ORDERED_NODE_ITERATOR_TYPE",
+   "UNORDERED_NODE_SNAPSHOT_TYPE",
+   "ORDERED_NODE_SNAPSHOT_TYPE",
+   "ANY_UNORDERED_NODE_TYPE",
+   "FIRST_ORDERED_NODE_TYPE",
+   "iterateNext",
+   "snapshotItem",
+   "constructor"
+  ],
+  "statics": [
+   "ANY_TYPE",
+   "NUMBER_TYPE",
+   "STRING_TYPE",
+   "BOOLEAN_TYPE",
+   "UNORDERED_NODE_ITERATOR_TYPE",
+   "ORDERED_NODE_ITERATOR_TYPE",
+   "UNORDERED_NODE_SNAPSHOT_TYPE",
+   "ORDERED_NODE_SNAPSHOT_TYPE",
+   "ANY_UNORDERED_NODE_TYPE",
+   "FIRST_ORDERED_NODE_TYPE"
+  ],
+  "tag": "[object XPathResult]"
+ },
+ "type.0.1.count(//li)": [
+  "num",
+  4
+ ],
+ "type.1.2.count(//li)": [
+  "str",
+  "4"
+ ],
+ "type.10.1.//zz": [
+  "num",
+  "#NaN"
+ ],
+ "type.11.2.//zz": [
+  "str",
+  ""
+ ],
+ "type.12.4.//li": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.13.5.//li": [
+  "it5",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.14.6.//li": [
+  "snap6",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.15.7.//li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.16.8.//li": [
+  "one8",
+  "LI#i1"
+ ],
+ "type.17.9.//li": [
+  "one9",
+  "LI#i1"
+ ],
+ "type.18.8.//zz": [
+  "one8",
+  null
+ ],
+ "type.19.9.//zz": [
+  "one9",
+  null
+ ],
+ "type.2.3.count(//li)": [
+  "bool",
+  true
+ ],
+ "type.20.4.//zz": [
+  "it4",
+  []
+ ],
+ "type.21.7.//zz": [
+  "snap7",
+  []
+ ],
+ "type.22.4.1": "THROW TypeError: Failed to execute 'evaluate' on 'Document': The result is not a node set, and therefore cannot be converted to the desired type.",
+ "type.23.5.true()": "THROW TypeError: Failed to execute 'evaluate' on 'Document': The result is not a node set, and therefore cannot be converted to the desired type.",
+ "type.24.6.\"s\"": "THROW TypeError: Failed to execute 'evaluate' on 'Document': The result is not a node set, and therefore cannot be converted to the desired type.",
+ "type.25.7.1": "THROW TypeError: Failed to execute 'evaluate' on 'Document': The result is not a node set, and therefore cannot be converted to the desired type.",
+ "type.26.8.1": "THROW TypeError: Failed to execute 'evaluate' on 'Document': The result is not a node set, and therefore cannot be converted to the desired type.",
+ "type.27.9.\"x\"": "THROW TypeError: Failed to execute 'evaluate' on 'Document': The result is not a node set, and therefore cannot be converted to the desired type.",
+ "type.28.4.//li | //b": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4",
+   "B#b1"
+  ]
+ ],
+ "type.29.7.//b | //li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "B#b1",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.3.1.\"12\"": [
+  "num",
+  12
+ ],
+ "type.30.9.//li | //b": [
+  "one9",
+  "LI#i1"
+ ],
+ "type.31.8.//b | //li": [
+  "one8",
+  "B#b1"
+ ],
+ "type.32.0.//li": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.33.0.count(//li)": [
+  "num",
+  4
+ ],
+ "type.34.0.\"s\"": [
+  "str",
+  "s"
+ ],
+ "type.35.0.1=1": [
+  "bool",
+  true
+ ],
+ "type.36.10.//li": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.37.-1.//li": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.38.4.9.//li": [
+  "it4",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.39.7.//li": [
+  "snap7",
+  [
+   "LI#i1",
+   "LI#i2",
+   "LI#i3",
+   "LI#i4"
+  ]
+ ],
+ "type.4.2.1+1": [
+  "str",
+  "2"
+ ],
+ "type.5.3.\"x\"": [
+  "bool",
+  true
+ ],
+ "type.6.1.//li[1]/@data-n": [
+  "num",
+  1
+ ],
+ "type.7.2.//li[2]": [
+  "str",
+  "two bold tail"
+ ],
+ "type.8.3.//li": [
+  "bool",
+  true
+ ],
+ "type.9.3.//zz": [
+  "bool",
+  false
+ ]
+}

@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 200 个接口；有缺口 35 个；缺口成员合计 107。
+已核 200 个接口；有缺口 33 个；缺口成员合计 102。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -42,9 +42,7 @@
 | IdleDetector | new | 3/8 | screenState, start, userState |
 | QuotaExceededError | new | 3/30 | code, message, name |
 | TaskController | new | 3/3 | abort, setPriority, signal |
-| XPathEvaluator | new | 3/3 | createExpression, createNSResolver, evaluate |
 | XRRay | new | 3/3 | direction, matrix, origin |
-| Document | document | 2/294 | createExpression, createNSResolver |
 | HTMLCanvasElement | createElement | 2/371 | captureStream, transferControlToOffscreen |
 | Highlight | new | 2/2 | priority, type |
 | WebTransport | new | 2/19 | incomingBidirectionalStreams, incomingUnidirectionalStreams |
