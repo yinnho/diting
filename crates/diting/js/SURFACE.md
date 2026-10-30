@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→**224**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→**208**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -859,3 +859,36 @@ ClipboardChangeEvent。差集 262→**233**（-29；行 59→56；已核接口 1
 验收：探针 900 键 0 差异（单测）；tests **1445/0**（新增 urlpattern_matches_chrome_truth）；
 快照漂移 1 行（URLPattern 桩→真身）；check_fresh 7 件鲜（32 真值）；analyze 零违。下一刀顺位：
 Animation 19、EditContext 11、RTCIceCandidate 16、VideoFrame 10、XSLTProcessor 8。
+
+## M4 刀13：RTCIceCandidate（2026-10-30）
+
+旧 bootstrap 类只存了 `candidate` 一个字段。Chrome 把 candidate-attribute 串解析成
+foundation/component/priority/address/protocol/port/type/tcpType/relatedAddress/relatedPort，
+**解析是全有或全无**——任何一个 token 不合法，所有解析字段全为 null。新模块
+`platform/rtcice.impl.js`，探针 `rtcice-probe.js` 72 键 0 差异（43 条 candidate 语料 + 构造器转换/
+校验 + toJSON）。差集 224→**208**（-16）。
+
+- **解析规则（语料实测）**：可带 `a=` 前缀与结尾 CRLF；**只容单空格**（`candidate: 8` 与多空格整体
+  失败）；`typ` 与类型关键字必须小写（`TYP HOST` 整体失败）、类型限 host/srflx/prflx/relay；传输层
+  大小写不敏感且**归一为小写**，仅 udp/tcp（sctp 整体失败）；端口 ≤65535、优先级 ≤4294967295 且
+  纯数字；`component` 1→'rtp'、2→'rtcp'、其它数字→null（但其余字段仍解析成功）；裸 IPv6 地址
+  **自动加方括号**；扩展属性（ufrag、generation、network-id/cost、未知词、`relay-protocol`、`url`）
+  **全部忽略**；`tcptype` 仅 active/passive/so；`raddr`/`rport` 给一个时另一个取 `''`/`0`，都没给
+  则两者为 null。
+- **`usernameFragment` 永远只来自 init**（候选串里的 `ufrag` 不解析）；`relayProtocol`、`url` 实例上
+  恒为 null。
+- **构造器**：`init` 缺省/null 为空字典，非对象抛 `not of type 'RTCIceCandidateInit'`；字典成员按
+  字典序读取；`candidate` 为 DOMString（null→'null'）；`sdpMLineIndex` 为可空 unsigned short
+  （-1→65535、70000→4464、1.9→1、NaN/对象→0）；`sdpMid`/`usernameFragment` 为可空 DOMString；
+  `sdpMid` 与 `sdpMLineIndex` 同时为 null 抛 `sdpMid and sdpMLineIndex are both null.`。
+- **toJSON**：`{candidate, sdpMid(null→''), [sdpMLineIndex 仅非 null 时存在], usernameFragment(null→'')}`，
+  键序为声明序；`JSON.stringify` 同。
+- webrtc.js 的 `__emitCand` 内部构造（`sdpMid:'0', sdpMLineIndex:0`）与新类兼容。
+
+**坑**：①Chrome 的候选串解析是**严格的全有或全无**——凭"能解析多少解析多少"的直觉实现会处处与真值
+不符，必须以失败语料（空格、大小写、范围、缺 token）为准；②`relayProtocol`/`url` 看似该从串里取，
+实测恒 null（它们只在本地候选上有值）——**别按规格字段名推断来源，按语料证据**。
+
+验收：探针 72 键 0 差异（单测）；tests **1446/0**（新增 rtcice_matches_chrome_truth）；快照漂移 1 行；
+check_fresh 7 件鲜（33 真值）；analyze 零违。下一刀顺位：Animation 19、EditContext 11、VideoFrame 10、
+XSLTProcessor 8、RTCPeerConnection 15。

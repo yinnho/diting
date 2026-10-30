@@ -27060,3 +27060,37 @@ async fn urlpattern_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} of {} probe(s) off:\n{}", bad.len(), truth.as_object().unwrap().len(), bad.iter().take(20).cloned().collect::<Vec<_>>().join("\n"));
 }
+
+/// M4 knife 13: RTCIceCandidate (rtcice-probe.js, 72 keys, real Chrome 145).
+/// The bootstrap class only stored `candidate`; Chrome parses the candidate-
+/// attribute string into foundation/component/priority/address/protocol/port/
+/// type/tcpType/relatedAddress/relatedPort, ALL-OR-NOTHING (any malformed token
+/// leaves every parsed field null): single spaces only, lowercase `typ` and
+/// type keywords, transport case-insensitive and normalized, port/priority
+/// range checks, IPv6 bare addresses bracketed, ufrag/generation/... ignored,
+/// raddr/rport defaulting each other ('' / 0), `usernameFragment` only from
+/// the init. Pinned too: constructor validation (sdpMid and sdpMLineIndex both
+/// null), the RTCIceCandidateInit conversions (unsigned short wrap) and toJSON
+/// (null sdpMid/usernameFragment -> '', null sdpMLineIndex omitted).
+#[tokio::test(flavor = "current_thread")]
+async fn rtcice_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/rtcice-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/rtcice-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

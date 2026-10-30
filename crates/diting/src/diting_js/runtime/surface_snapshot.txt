@@ -1895,7 +1895,7 @@ P RTCEncodedAudioFrame :: constructor,data,timestamp
 P RTCEncodedVideoFrame :: constructor
 P RTCError :: constructor
 P RTCErrorEvent :: constructor
-P RTCIceCandidate :: constructor
+P RTCIceCandidate :: address,candidate,component,constructor,foundation,port,priority,protocol,relatedAddress,relatedPort,relayProtocol,sdpMLineIndex,sdpMid,tcpType,toJSON,type,url,usernameFragment
 P RTCIceTransport :: constructor
 P RTCPeerConnection :: __emitCand,__mkOfferSdp,__setGather,addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
 P RTCPeerConnectionIceErrorEvent :: address,constructor,port,url
