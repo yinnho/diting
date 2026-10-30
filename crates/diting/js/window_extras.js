@@ -31,3 +31,31 @@
     Object.setPrototypeOf(holder, W.prototype);
   } catch (e) {}
 })();
+
+// `location` own layout (M4 knife 48). Chrome's Location is [LegacyUnforgeable]: every member is an OWN property of the instance, in
+// the order valueOf, ancestorOrigins, href, origin, protocol, host, hostname, port, pathname, search, hash, assign, reload,
+// replace, toString, plus an own Symbol.toPrimitive (undefined, frozen); the instance inherits from Location.prototype (which
+// carries the toStringTag) and has no fragmentDirective (that is a Document member). The bootstrap literal had an Object.prototype
+// parent, an own toStringTag and fragmentDirective, and lacked valueOf/ancestorOrigins.
+(function () {
+  try {
+    const L = globalThis.location, LP = globalThis.Location && globalThis.Location.prototype;
+    if (!L || !LP || Object.getPrototypeOf(L) === LP) return;
+    const ORDER = ['valueOf', 'ancestorOrigins', 'href', 'origin', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'assign', 'reload', 'replace', 'toString'];
+    const D = Object.create(null);
+    for (const k of Object.getOwnPropertyNames(L)) D[k] = Object.getOwnPropertyDescriptor(L, k);
+    const mark = globalThis.__diting_markNative || ((f) => f);
+    if (!D.valueOf) D.valueOf = { value: Object.prototype.valueOf, writable: false, enumerable: false, configurable: false };
+    if (!D.ancestorOrigins) {
+      const empty = typeof globalThis.DOMStringList === 'function' ? Object.create(globalThis.DOMStringList.prototype) : Object.freeze([]);
+      D.ancestorOrigins = { get: mark({ get ancestorOrigins() { return empty; } }.__lookupGetter__('ancestorOrigins')), set: undefined, enumerable: true, configurable: false };
+    }
+    if (Object.getOwnPropertyDescriptor(L, Symbol.toStringTag)) delete L[Symbol.toStringTag];
+    delete D.fragmentDirective;
+    for (const k of Object.getOwnPropertyNames(L)) { try { delete L[k]; } catch (e) { return; } }
+    Object.setPrototypeOf(L, LP);
+    for (const k of ORDER) if (D[k]) Object.defineProperty(L, k, D[k]);
+    Object.defineProperty(L, Symbol.toPrimitive, { value: undefined, writable: false, enumerable: false, configurable: false });
+    if (!Object.getOwnPropertyDescriptor(LP, Symbol.toStringTag)) Object.defineProperty(LP, Symbol.toStringTag, { value: 'Location', writable: false, enumerable: false, configurable: true });
+  } catch (e) {}
+})();

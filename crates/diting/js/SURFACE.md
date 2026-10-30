@@ -1443,3 +1443,12 @@ nodeType/nodeName/nodeValue 并入刀23 的 Node.prototype 分派表（`nodeleve
 `new Option()` 的原型链错），并删掉实例上的 `text` 自有访问器（原型上本就有）；`NodeList.length` 改为原型访问器 + 隐藏 `_len` 槽（`__accPrivs` 登记后实例枚举隐藏）。
 未动：`HTMLCollection.length`（继承 Array，自有 `length` 不可配置，无法隐藏——要改需脱离 Array 子类，另立刀）。
 surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指）。验收：全量 998 过/30 败同干净 HEAD；ratchet/check_fresh 过。
+
+## M4 刀48：PluginArray / MimeTypeArray 具名属性与 Location 自有布局（2026-10-30）
+
+泄漏对象 8→5。`navigator.plugins['PDF Viewer']`、`navigator.mimeTypes['application/pdf']` 原先返回 undefined；现在按 legacy platform object 加不可枚举的自有具名属性（同名先到先得）。
+`location` 对齐 Chrome 的 [LegacyUnforgeable] 布局（`window_extras.js`）：原型改为 `Location.prototype`（原为 Object.prototype；toStringTag 来自原型而非实例自有），自有成员按
+`valueOf, ancestorOrigins, href, origin, protocol, host, hostname, port, pathname, search, hash, assign, reload, replace, toString` 重排，`valueOf` 为 `Object.prototype.valueOf` 的同一函数（不可写不可配），
+自有 `Symbol.toPrimitive`（undefined，冻结），去掉实例上的 `fragmentDirective`，补 `ancestorOrigins`（空 DOMStringList）。对拍探针 `q2`：descriptor/名序/同一性与 Chrome 一致。
+**坑**：模块里用 `{}` 当描述符表时 `D.valueOf` 继承自 Object.prototype，`if (!D.valueOf)` 恒假——键名可能撞 Object.prototype 时用 `Object.create(null)`。
+剩余：CSSStyleDeclaration(383)、Window(FontFaceSet/CSSPseudoElement)、ServiceWorkerContainer、HTMLCollection.length、Document.location。验收：全量 998 过/30 败同干净 HEAD。

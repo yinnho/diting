@@ -7308,6 +7308,8 @@ globalThis.PluginArray = class PluginArray {
   constructor(...items) {
     __pluginArrStore.set(this, items);
     items.forEach((p, i) => Object.defineProperty(this, String(i), { value: p, writable: true, configurable: true, enumerable: true }));
+    // Named properties (legacy platform object): own but NOT enumerable, first plugin of a name wins.
+    items.forEach((p) => { if (!Object.prototype.hasOwnProperty.call(this, p.name)) Object.defineProperty(this, p.name, { value: p, writable: true, configurable: true, enumerable: false }); });
   }
   get length() { return __pluginArrStore.get(this).length; }
   item(i) { return this[i] || null; }
@@ -7324,6 +7326,7 @@ globalThis.MimeTypeArray = class MimeTypeArray {
   constructor(...items) {
     __mimeArrStore.set(this, items);
     items.forEach((m, i) => Object.defineProperty(this, String(i), { value: m, writable: true, configurable: true, enumerable: true }));
+    items.forEach((m) => { if (!Object.prototype.hasOwnProperty.call(this, m.type)) Object.defineProperty(this, m.type, { value: m, writable: true, configurable: true, enumerable: false }); });
   }
   get length() { return __mimeArrStore.get(this).length; }
   item(i) { return this[i] || null; }
