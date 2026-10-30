@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→158；刀18 继收：158→143；刀19 继收：143→**135**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→158；刀18 继收：158→143；刀19 继收：143→135；刀20 继收：135→**107**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -1075,3 +1075,29 @@ observe 后微任务触发一次 + 指数退避 120/500/1500/3500/7000ms 再触�
 验收：探针 31 键 0 差；新增 intersection_matches_chrome_truth；缺口 143→135（IntersectionObserverEntry 8 出表）；
 check_fresh 7 件鲜（39 真值）；analyze 零违。全量（跳两个毒化页面测试）990 过/30 败，失败集与干净 HEAD 逐条相同。
 下一刀候选：ScrollTimeline/ViewTimeline 11（复用 animation 模块）、VideoFrame 10 + VideoColorSpace 5、XSLTProcessor 8、RTCPeerConnection 15。
+
+## M4 刀20：Document 遗留/杂项成员（2026-10-30）
+
+`platform/docmisc.impl.js`（模块 `docmisc`，L2）把 Document.prototype 上缺的 28 个成员按 Chrome 的相对顺序装齐，
+并新增 CaretPosition、FragmentDirective 两个接口。**此前最隐蔽的后果**：这些成员不存在时，页面赋值
+（`document.bgColor = 'red'`、`document.fullscreen = true`）会在 document 上凭空长出自有数据属性——可被指纹探测，
+读回的也是页面自己写的值。探针 `docmisc-probe.js`（36 键，真 Chrome 145）0 差异：
+
+- 五个颜色属性（fg/link/vlink/alink/bgColor）反射 body 的 text/link/vlink/alink/bgcolor 遗留属性，null→''，无 body 时读 ''、写静默；
+- `anchors`（`a[name]`，按属性存在计）/`embeds`/`plugins` 是**活**集合且身份稳定（embeds===plugins，anchors===anchors），`applets` 恒空；
+- `designMode` 大小写不敏感地归一为 on/off，其余值（含 null/undefined 字符串化）忽略；
+- fullscreen/fullscreenElement/fullscreenEnabled 在 Chrome 里是 **rw 描述符但写入被忽略**，pointerLockElement/
+  prerendering/wasDiscarded/rootElement 只读；`exitFullscreen()` 返回拒绝的 promise（`Document not active`）；
+- `lastModified` 为本地 `MM/DD/YYYY HH:MM:SS`；`captureEvents/releaseEvents/clear` 是 length 0 的空操作；
+- `caretPositionFromPoint(x,y)`（length 2，参数个数检查）经 elementFromPoint 命中后返回 CaretPosition（引擎无行内光标模型，
+  位置取命中元素起点，getClientRect 为元素 rect）；
+- `hasPrivateToken/hasRedemptionRecord`（length 1，缺参数返回拒绝的 promise，否则 false）、`hasUnpartitionedCookieAccess`（true）；
+- `fragmentDirective` 是单例 FragmentDirective 对象（构造器非法）。
+
+**本刀不含**：`createExpression/createNSResolver`（XPath 族，缺口表里还剩，与 XPathEvaluator 3 项一并另做）。
+**已知差异**：anchors/embeds/plugins 的「活」是每次访问重新查询（Proxy），不是增量维护；forms/images/links/scripts 仍是旧的
+每次新建快照（与 Chrome 的身份稳定不符，属另一刀）。
+
+验收：探针 36 键 0 差；新增 docmisc_matches_chrome_truth；缺口 135→107（Document 30→2）；check_fresh 7 件鲜（40 真值）；analyze 零违。
+全量（跳两个毒化页面测试）991 过/30 败，失败集与干净 HEAD 逐条相同。下一刀候选：XPath 族（Document 2+XPathEvaluator 3+XSLTProcessor 8）、
+VideoFrame 10 + VideoColorSpace 5、RTCPeerConnection 15、Typed OM（CSSUnitValue 等，ScrollTimeline/ViewTimeline 的前置）。

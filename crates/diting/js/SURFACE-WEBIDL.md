@@ -23,11 +23,10 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 200 个接口；有缺口 35 个；缺口成员合计 135。
+已核 200 个接口；有缺口 35 个；缺口成员合计 107。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
-| Document | document | 30/294 | alinkColor, anchors, applets, bgColor, captureEvents, caretPositionFromPoint, clear, createExpression, createNSResolver, designMode, embeds, exitFullscreen, exitPointerLock, fgColor, fragmentDirective, fullscreen, fullscreenElement, fullscreenEnabled, hasPrivateToken, hasRedemptionRecord, hasUnpartitionedCookieAccess, lastModified, linkColor, plugins, pointerLockElement, prerendering, releaseEvents, rootElement, vlinkColor, wasDiscarded |
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
@@ -45,6 +44,7 @@
 | TaskController | new | 3/3 | abort, setPriority, signal |
 | XPathEvaluator | new | 3/3 | createExpression, createNSResolver, evaluate |
 | XRRay | new | 3/3 | direction, matrix, origin |
+| Document | document | 2/294 | createExpression, createNSResolver |
 | HTMLCanvasElement | createElement | 2/371 | captureStream, transferControlToOffscreen |
 | Highlight | new | 2/2 | priority, type |
 | WebTransport | new | 2/19 | incomingBidirectionalStreams, incomingUnidirectionalStreams |

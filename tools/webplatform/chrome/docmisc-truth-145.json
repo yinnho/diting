@@ -1,0 +1,370 @@
+{
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "caret": [
+  "CaretPosition",
+  "number",
+  "object"
+ ],
+ "caret.args": "TypeError: Failed to execute 'caretPositionFromPoint' on 'Document': 2 arguments required, but only 1 present.",
+ "caret.ctor": "TypeError: Failed to construct 'CaretPosition': Illegal constructor",
+ "caret.len": 2,
+ "caret.rect": "DOMRect",
+ "coll.anchors.attr": [
+  0,
+  1,
+  1
+ ],
+ "coll.empty": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "coll.live": [
+  1,
+  true,
+  1,
+  true,
+  1,
+  0,
+  0
+ ],
+ "coll.types": [
+  "[object HTMLCollection]",
+  "[object HTMLCollection]",
+  "[object HTMLCollection]",
+  "[object HTMLCollection]",
+  true,
+  true
+ ],
+ "color.attr": [
+  "green",
+  "blue"
+ ],
+ "color.conv": [
+  "",
+  "5"
+ ],
+ "color.defaults": [
+  "",
+  "",
+  "",
+  "",
+  ""
+ ],
+ "color.nobody": [
+  "",
+  "",
+  "noerr"
+ ],
+ "color.set": [
+  "red",
+  "#00f",
+  "x",
+  "red",
+  "#00f",
+  "x"
+ ],
+ "designMode": [
+  "off",
+  "on",
+  "on",
+  "on",
+  "off"
+ ],
+ "designMode.conv": [
+  "off",
+  "on"
+ ],
+ "fd.ctor": "TypeError: Failed to construct 'FragmentDirective': Illegal constructor",
+ "fragmentDirective": [
+  "[object FragmentDirective]",
+  true,
+  "FragmentDirective",
+  []
+ ],
+ "fs.exit": [
+  true
+ ],
+ "fs.exit.result": "TypeError: Failed to execute 'exitFullscreen' on 'Document': Document not active",
+ "fs.readonly": [
+  false,
+  false,
+  null
+ ],
+ "fs.state": [
+  false,
+  null,
+  "boolean",
+  null,
+  false,
+  false,
+  null
+ ],
+ "kinds": {
+  "alinkColor": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "anchors": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "applets": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "bgColor": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "captureEvents": [
+   "function",
+   true,
+   true,
+   0
+  ],
+  "caretPositionFromPoint": [
+   "function",
+   true,
+   true,
+   2
+  ],
+  "clear": [
+   "function",
+   true,
+   true,
+   0
+  ],
+  "designMode": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "embeds": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "exitFullscreen": [
+   "function",
+   true,
+   true,
+   0
+  ],
+  "exitPointerLock": [
+   "function",
+   true,
+   true,
+   0
+  ],
+  "fgColor": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "fragmentDirective": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "fullscreen": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "fullscreenElement": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "fullscreenEnabled": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "hasPrivateToken": [
+   "function",
+   true,
+   true,
+   1
+  ],
+  "hasRedemptionRecord": [
+   "function",
+   true,
+   true,
+   1
+  ],
+  "hasUnpartitionedCookieAccess": [
+   "function",
+   true,
+   true,
+   0
+  ],
+  "lastModified": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "linkColor": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "plugins": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "pointerLockElement": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "prerendering": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "releaseEvents": [
+   "function",
+   true,
+   true,
+   0
+  ],
+  "rootElement": [
+   "ro",
+   true,
+   true,
+   null
+  ],
+  "vlinkColor": [
+   "rw",
+   true,
+   true,
+   null
+  ],
+  "wasDiscarded": [
+   "ro",
+   true,
+   true,
+   null
+  ]
+ },
+ "lastModified": [
+  "string",
+  true,
+  true
+ ],
+ "noop.methods": [
+  "#undef",
+  "#undef",
+  "#undef",
+  0,
+  0,
+  0
+ ],
+ "pl.exit": "#undefined",
+ "priv.args": [
+  "promise",
+  "promise"
+ ],
+ "priv.args.async": [
+  "TypeError: Failed to execute 'hasPrivateToken' on 'Document': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'hasRedemptionRecord' on 'Document': 1 argument required, but only 0 present."
+ ],
+ "priv.cookie": true,
+ "priv.record": false,
+ "priv.returns": [
+  true,
+  true,
+  true
+ ],
+ "priv.token": false,
+ "relorder": [
+  "lastModified",
+  "embeds",
+  "plugins",
+  "designMode",
+  "anchors",
+  "applets",
+  "fgColor",
+  "linkColor",
+  "vlinkColor",
+  "alinkColor",
+  "bgColor",
+  "wasDiscarded",
+  "prerendering",
+  "fullscreenEnabled",
+  "fullscreen",
+  "rootElement",
+  "pointerLockElement",
+  "fullscreenElement",
+  "captureEvents",
+  "caretPositionFromPoint",
+  "clear",
+  "exitFullscreen",
+  "exitPointerLock",
+  "hasUnpartitionedCookieAccess",
+  "releaseEvents",
+  "fragmentDirective",
+  "hasPrivateToken",
+  "hasRedemptionRecord"
+ ],
+ "shape.CaretPosition": {
+  "kinds": {
+   "constructor": "function:0",
+   "getClientRect": "function:0",
+   "offset": "ro",
+   "offsetNode": "ro"
+  },
+  "len": 0,
+  "order": [
+   "offsetNode",
+   "offset",
+   "getClientRect",
+   "constructor"
+  ],
+  "tag": "[object CaretPosition]"
+ },
+ "shape.FragmentDirective": {
+  "kinds": {
+   "constructor": "function:0"
+  },
+  "len": 0,
+  "order": [
+   "constructor"
+  ],
+  "tag": "[object FragmentDirective]"
+ }
+}

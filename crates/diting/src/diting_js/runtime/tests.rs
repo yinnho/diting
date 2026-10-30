@@ -27313,3 +27313,34 @@ async fn intersection_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 20: Document legacy/misc members (docmisc-probe.js, 36 keys, real Chrome 145):
+/// the body-colour legacy attributes (reflect bgcolor/text/link/vlink/alink, null -> ''),
+/// live anchors/embeds/plugins with stable identity (embeds === plugins), applets,
+/// designMode normalization, idle fullscreen/pointer-lock faces whose rw setters ignore
+/// writes, lastModified, no-op captureEvents/releaseEvents/clear, caretPositionFromPoint /
+/// CaretPosition, the privacy promise members, FragmentDirective, relative member order.
+/// Previously every one of these was absent, so `document.bgColor = 'red'` minted an own
+/// data property on the document.
+#[tokio::test(flavor = "current_thread")]
+async fn docmisc_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/docmisc-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/docmisc-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
