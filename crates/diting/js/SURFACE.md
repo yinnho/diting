@@ -1234,3 +1234,18 @@ SVGMarkerElement 17、RTCDataChannel 16、PerformanceNavigationTiming 15、Speec
 这同时会清掉另一个指纹面：**实例上不该有的自有属性**（Chrome 里这些接口的实例没有自有属性），当前审计只量原型，尚未量实例。建议下一步先给审计加「实例自有键」维度，再按「引擎自有键数 × 被探测频率」排序逐类转换。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 
+## M4 刀30：实例自有键审计 + 引擎内部状态不再外泄到实例/全局（2026-10-30）
+
+**新审计维度**：`chrome/instance-audit-probe.js`（127 种常见对象的 `Object.getOwnPropertyNames(instance)`）+ `tools/webplatform/instance_audit.py <engine.json> <chrome.json>`。Chrome 的 WebIDL 实例几乎没有自有属性，
+引擎的真类常把成员存成自有数据属性，并带 `_nid`/`_style`/`_peName`… 引擎内部状态。基线：127 个里 51 个干净、76 个带泄漏。
+**修复**（bootstrap 枚举补丁再扩展）：①平台接口**实例**（直接原型是平台原型）上，引擎自己脚本用过的 `_x` 名字不再出现在 getOwnPropertyNames/ownKeys/keys/getOwnPropertyDescriptors 中——名字集合由
+`gen_internal_names.py` 扫描 `js/*.js` 的 `this._x` 生成 `internal_names.js`（350 个），**不是**一刀切隐藏所有 `_`：页面给 `document`/`performance` 挂的 `_docMarker` 必须可见（旧测试
+key_enumeration_keeps_page_underscore_keys… 钉着这条；第一版一刀切被它抓出）。页面子类的实例（直接原型是页面原型）本来就不受影响；②crypto_subtle.js/ed25519.js 的 25 个 helper 函数声明
+（makeKey/keyBytes/runOp/…，块内函数声明被提升成全局且两文件共享，无法改成局部）加入全局枚举过滤的显式名单。结果：带泄漏的对象 76→42，Window 里 25 个 helper 泄漏消失。
+**未做、需裁决**：Window 还多出 ~29 个 Chrome 145 CfT 抓取里没有的接口名（AnimationTrigger/LanguageModel/Sanitizer/XSLTProcessor/PermissionsPolicy/XR*Layer/requestResize…）。
+旧的 window 键真值（fp-chrome-winkeys*.json，测试 window_own_prop_face_p2 钉着）**包含**这些名字，而本次 CfT 145 无头抓取没有——两份真值不同源（版本或 headless 差异）。
+我先按「全部删掉」试过，立刻与旧测试冲突；在弄清哪份才代表目标 Chrome 145 稳定版（有头）之前不动，**已回退**。建议：用有头的 Chrome 145 重抓 window 键作仲裁。
+仍泄漏的真类（成员是实例自有属性）：CSSStyleDeclaration(383, 属性很多但 cssFloat 多余)、PerformanceNavigationTiming、XMLHttpRequest、TreeWalker、CanvasRenderingContext2D、Touch、SubtleCrypto、RTCPeerConnection…
+需逐类转原型访问器（见刀29 说明）。
+验收：全量（跳两个毒化页面测试）991–992 过/30 败（test_local_fetch… 为已知时序偶发），失败集与干净 HEAD 相同；快照重生。
+

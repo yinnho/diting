@@ -1,4 +1,4 @@
-[globals] 1267
+[globals] 1242
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -983,17 +983,12 @@ G XRWebGLSubImage
 G XSLTProcessor
 G alert
 G atob
-G b64urlToBytes
 G blur
 G btoa
-G bytesToB64url
 G caches
 G cancelAnimationFrame
 G cancelIdleCallback
 G captureEvents
-G checkKeyUsages
-G checkUsageStrings
-G checkUsages
 G chrome
 G clearInterval
 G clearTimeout
@@ -1014,9 +1009,6 @@ G decodeURIComponent
 G devicePixelRatio
 G document
 G documentPictureInPicture
-G ecMaterial
-G ecUsagesFor
-G ecdsaUnflat
 G encodeURI
 G encodeURIComponent
 G escape
@@ -1041,17 +1033,11 @@ G innerWidth
 G isFinite
 G isNaN
 G isSecureContext
-G jwkMemberBytes
-G jwkRequire
-G jwkValidateCommon
-G keyAlgorithmFor
-G keyBytes
 G launchQueue
 G length
 G localStorage
 G location
 G locationbar
-G makeKey
 G matchMedia
 G menubar
 G moveBy
@@ -1059,8 +1045,6 @@ G moveTo
 G name
 G navigation
 G navigator
-G normalizeAlgo
-G normalizeHash
 G offscreenBuffering
 G onabort
 G onafterprint
@@ -1210,16 +1194,8 @@ G reportError
 G requestAnimationFrame
 G requestIdleCallback
 G requestResize
-G requireEcdsaUsages
-G requireHashParam
 G resizeBy
 G resizeTo
-G rsaFace
-G rsaGenerateKey
-G rsaImportKey
-G rsaMaterial
-G rsaUnflat
-G runOp
 G scheduler
 G screen
 G screenLeft
@@ -1245,7 +1221,6 @@ G statusbar
 G stop
 G structuredClone
 G styleMedia
-G subtleCipher
 G toolbar
 G top
 G trustedTypes
@@ -2333,49 +2308,24 @@ P XRWebGLLayer :: antialias,constructor,framebuffer,framebufferHeight,framebuffe
 P XRWebGLSubImage :: constructor
 P XSLTProcessor :: constructor
 P alert :: constructor
-P b64urlToBytes :: constructor
 P blur :: constructor
-P bytesToB64url :: constructor
 P cancelIdleCallback :: constructor
-P checkKeyUsages :: constructor
-P checkUsageStrings :: constructor
-P checkUsages :: constructor
 P close :: constructor
 P confirm :: constructor
 P createImageBitmap :: constructor
-P ecMaterial :: constructor
-P ecUsagesFor :: constructor
-P ecdsaUnflat :: constructor
 P fetch :: constructor
 P focus :: constructor
 P getSelection :: constructor
-P jwkMemberBytes :: constructor
-P jwkRequire :: constructor
-P jwkValidateCommon :: constructor
-P keyAlgorithmFor :: constructor
-P keyBytes :: constructor
-P makeKey :: constructor
 P matchMedia :: constructor
-P normalizeAlgo :: constructor
-P normalizeHash :: constructor
 P open :: constructor
 P postMessage :: constructor
 P print :: constructor
 P prompt :: constructor
 P requestIdleCallback :: constructor
-P requireEcdsaUsages :: constructor
-P requireHashParam :: constructor
-P rsaFace :: constructor
-P rsaGenerateKey :: constructor
-P rsaImportKey :: constructor
-P rsaMaterial :: constructor
-P rsaUnflat :: constructor
-P runOp :: constructor
 P scroll :: constructor
 P scrollBy :: constructor
 P scrollTo :: constructor
 P stop :: constructor
-P subtleCipher :: constructor
 P webkitMediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
 P webkitRTCPeerConnection :: addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
 P webkitSpeechGrammar :: constructor,src,weight

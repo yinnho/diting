@@ -15362,8 +15362,15 @@ globalThis.__diting_init = function() {
     // `__diting_objects` & friends created by Rust AFTER the snapshot
     // froze the list are still caught by the diting / `__` arms.
     let _hideSet = null;
+    // crypto_subtle.js / ed25519.js helper function declarations (block-level declarations hoist to global
+    // scope and ed25519.js shares them): not `_`-prefixed, so the membership set above cannot catch them.
+    const _extraHide = new Set(['makeKey', 'keyBytes', 'ecdsaUnflat', 'ecMaterial', 'requireEcdsaUsages', 'ecUsagesFor', 'normalizeAlgo',
+      'normalizeHash', 'b64urlToBytes', 'bytesToB64url', 'runOp', 'keyAlgorithmFor', 'checkUsageStrings', 'checkKeyUsages', 'jwkRequire',
+      'jwkMemberBytes', 'jwkValidateCommon', 'requireHashParam', 'rsaFace', 'rsaUnflat', 'rsaMaterial', 'rsaImportKey', 'rsaGenerateKey',
+      'subtleCipher', 'checkUsages']);
     const _isInternal = (n) => {
       if (typeof n !== 'string') return false;
+      if (_extraHide.has(n)) return true;
       if (n.includes('diting') || n.includes('Diting') || n === '__bootstrap') return true;
       if (n.startsWith('__')) return true;
       if (n.startsWith('_')) {
@@ -15398,9 +15405,22 @@ globalThis.__diting_init = function() {
         if (C.prototype && typeof C.prototype === 'object') _ifaceObjs.add(C.prototype);
       }
     }
+    const _gpo = Object.getPrototypeOf;
+    const _hideUnderscore = (names) => names.filter(n => typeof n !== 'string' || n.charCodeAt(0) !== 95);
+    // instances: only the names the engine's own scripts use (internal_names.js, generated) - a page's own `_x`
+    // expando on document / performance / any platform object stays visible like in Chrome.
+    const _hideInternalOnInstance = (names) => {
+      const set = globalThis.__diting_internal_names;
+      return set ? names.filter(n => typeof n !== 'string' || !set.has(n)) : names;
+    };
     const _hideOn = (o, names) => {
       if (o === globalThis) return names.filter(n => !_isInternal(n));
-      if (_ifaceObjs.has(o)) return names.filter(n => typeof n !== 'string' || n.charCodeAt(0) !== 95);
+      if (o === null || (typeof o !== 'object' && typeof o !== 'function')) return names;
+      if (_ifaceObjs.has(o)) return _hideUnderscore(names);
+      // an INSTANCE of a platform interface (its direct prototype is the platform prototype): the engine keeps
+      // helper state in `_x` own properties that Chrome's instances do not have. Instances of page-defined
+      // subclasses have a page prototype and keep their `_x` (Lit/Stencil style fields) visible.
+      if (typeof o === 'object') { let pr; try { pr = _gpo(o); } catch (e) { return names; } if (pr !== null && _ifaceObjs.has(pr)) return _hideInternalOnInstance(names); }
       return names;
     };
     _patch(Object, 'getOwnPropertyNames', function(o) { return _hideOn(o, _gopn(o)); });
@@ -15409,7 +15429,11 @@ globalThis.__diting_init = function() {
     _patch(Object, 'getOwnPropertyDescriptors', function(o) {
       const all = _gopds(o);
       if (o === globalThis) { for (const n of _gopn(all)) { if (_isInternal(n)) delete all[n]; } }
-      else if (_ifaceObjs.has(o)) { for (const n of _gopn(all)) { if (n.charCodeAt(0) === 95) delete all[n]; } }
+      else if (o !== null && typeof o === 'object' || typeof o === 'function') {
+        let hide = _ifaceObjs.has(o);
+        if (!hide && typeof o === 'object') { try { const pr = _gpo(o); hide = pr !== null && _ifaceObjs.has(pr); } catch (e) {} }
+        if (hide) { const keep = typeof o === 'object' && !_ifaceObjs.has(o) ? _hideInternalOnInstance : _hideUnderscore; const kept = new Set(keep(_gopn(all))); for (const n of _gopn(all)) { if (!kept.has(n)) delete all[n]; } }
+      }
       return all;
     });
     globalThis.__diting_gopn_patched = true;
