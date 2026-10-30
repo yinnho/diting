@@ -9264,7 +9264,9 @@ function _mqMatches(q) {
 // __diting_clearViewport flush the registry afterwards and fire `change`
 // (carrying matches/media) on every object that crossed — the half
 // responsive pages need beyond reading matches once at boot.
-function MediaQueryList(q) {
+// const, not a function declaration: a top-level declaration would mint a NON-configurable window property (Chrome's
+// MediaQueryList is a normal configurable interface global; it is installed explicitly below).
+const MediaQueryList = function MediaQueryList(q) {
   this._q = String(q);
   this._last = false;
   try { this._last = _mqMatches(this._q); } catch (e) {}
@@ -9275,7 +9277,7 @@ function MediaQueryList(q) {
     matches: { get() { try { return _mqMatches(self._q); } catch (e) { return false; } } },
     media: { value: this._q, enumerable: true },
   });
-}
+};
 MediaQueryList.prototype.addListener = function (fn) { this.addEventListener('change', fn); };
 MediaQueryList.prototype.removeListener = function (fn) { this.removeEventListener('change', fn); };
 MediaQueryList.prototype.addEventListener = function (type, fn) {

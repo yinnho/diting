@@ -1283,3 +1283,11 @@ PermissionsPolicy/TimelineTrigger*/XR*Layer/XRPlane*/XRSubImage/XRWebGLSubImage/
 `MediaQueryList` 在引擎里是不可配置的全局（Chrome 里是普通可配置接口），另可查成因。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 
+## M4 刀34：不可配置的 window 属性集合对齐 Chrome（2026-10-30）
+
+Chrome 145 里 window 上**不可配置**的自有属性恰好 8 个：Infinity/NaN/undefined/window/document/location/top/chrome。引擎有两处偏差：①`MediaQueryList` 是 bootstrap.js 里的顶层 `function` 声明，
+顶层函数声明会生成**不可配置**的全局属性——改成 `const MediaQueryList = function MediaQueryList(q) {…}`（词法绑定不产生全局属性，再由原有 `globalThis.MediaQueryList = …` 显式装成普通可配置接口全局）；
+②`window.chrome` 在引擎里可配置，Chrome 里不可——window_order.js 的排序函数末尾在它就位后把它改为不可配置（排序对不可配置项只跳过，所以位置保持）。
+结果：不可配置集合与 Chrome 逐项相同（8/8）。验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 相同；快照重生。
+经验：**bootstrap/各脚本里的顶层 `function` 声明都会泄漏成不可配置全局**（本次 crypto helper 与 MediaQueryList 同源），新代码应放进 IIFE 或用 `const` 函数表达式。
+

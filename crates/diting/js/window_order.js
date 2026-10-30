@@ -15,6 +15,9 @@
     del(g, n);
     def(g, n, d);
   }
+  // Chrome's window.chrome is NON-configurable (only Infinity/NaN/undefined/window/document/location/top/chrome are); now
+  // that it sits at its final position, freeze its configurability.
+  { const d = gopd(g, 'chrome'); if (d && d.configurable) def(g, 'chrome', Object.assign({}, d, { configurable: false })); }
   };
   // once at snapshot time, and again at the end of every page init (window_faces / __diting_init re-install some window
   // accessors per page, which appends them at the END of the key order)
