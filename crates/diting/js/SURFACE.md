@@ -1595,3 +1595,15 @@ shape_fix 再生：禁用→重建→裸捕获→gen→恢复→重建（生成�
 测试：`knife57_singleton_extras_fold_to_chrome_truth`（新，16 接口形状+9 组行为钉死）；两个钉发明的测试改钉真值（observer 族 RO=undefined、Navigator 枚举面 83→82）；音频形状清单两处摘名。surface_snapshot 重生成（恰 17 行）。
 验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 既有环境败，929 过=925+4）；活引擎行为探针复验（真值 conditionText 三例、scope undefined、pc.id/type/name/password 继承答、sr 往返、df 裸 expando、template kids=2、clone/上下文档段解析）。
 **教训**：删成员前先查真源该成员在 Chrome 的**全部宿主**（conditionText 的宿主是 CSSConditionRule 而非四个子类——判 MOVE 还是 DELETE 全靠它）；「桩在、副本真」的格局里删副本必先换桩为真（Credential 同理）；改原型面后必跑内部用户 grep——`content.innerHTML`/`frag.innerHTML` 这类顺手写法就是隐性依赖。
+
+## M4 刀58：ElementInternals ARIAMixin 五十一件（missing 方向第一刀）（2026-10-31）
+
+extra 清零后转 missing 方向，最大户 ElementInternals：Chrome 145 有而引擎无的 **51 件全是 ARIAMixin 反射族**（role + 43 nullable-DOMString aria* + 7 element-ref aria*，全 rw:ec），引擎只有表单验证 12 件。
+
+**Chrome 真义三探钉死（三轮探针互证）**：ElementInternals 的 aria 存储**纯内部、两向都不同步**——宿主的 aria-*/role 内容属性喂不进 getter；setter 不碰属性；element 自己的 ARIAMixin 面（真反射属性）与 internals 面互相独立（`el.ariaLabel='A'` 与 `inr.ariaLabel='B'` 共存互不覆盖）。element-ref 七件（ariaActiveDescendantElement/Controls/DescribedBy/Details/ErrorMessage/FlowTo/LabelledBy Elements）同样零属性同步：存数组原样返回、null 清、[] 留空表。**假象警**：第一轮探针的「setter 写属性」实为手动 setAttribute 的残留值——对拍必须逐步归因，别让前一腿的副作用冒充本腿结论。
+
+实现：bootstrap 的 ElementInternals 类后装机（44 字串件 + 7 element-ref 件，`this._aria`/`this._refs` 隐藏槽，internal_names 再生收名）；`v==null` 清、`String(v)` 强转（5→'5'）。
+
+数字：missing 接口 111→**110**（ElementInternals 毕业），same 759→**760**，extra 0/order 28/kind 65 不变；枚举审计 204/211（7 缺口不变）；ratchet 过（crossFileLoadTimeNames 52）。shape_fix 正规再生恰一条 diff（ORDER.ElementInternals 全 Chrome 序）。surface_snapshot 重生成。
+测试：`knife58_element_internals_aria_reflection_family`（新，63 面+13 组断言：缺省 null/属性不喂/setter 不碰/双面独立/强转/null 清/role/ref 三态/rw:ec/隐藏槽/toStringTag）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，930 过=929+1）。
+**教训**：对拍探针的每一步都可能被前一步污染——同页连续赋值/设属性后，下一腿的读数要先排除前腿残留；customElements 名字在同一 /eval 页里跨调用持久（脚本双注入即撞名），探针一律 `if (!customElements.get(...))` 守卫。

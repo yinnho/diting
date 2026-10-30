@@ -9796,6 +9796,47 @@ globalThis.ElementInternals = class ElementInternals {
   get shadowRoot() { return (this._el && this._el._shadowRoot) || null; }
   get states() { return this._states; }
 };
+// 刀58 (M4): ElementInternals' ARIAMixin face — 51 members Chrome 145 lists
+// (role, 43 nullable-DOMString aria*, 7 element-ref aria*) that the engine
+// lacked entirely (the audit's biggest missing family). Chrome-truth storage
+// semantics, probed all three ways (attribute→getter, setter→attribute,
+// setter→element's own reflection face): the store is INTERNAL ONLY. The
+// host's aria-*/role content attributes never feed these getters, these
+// setters never touch the attributes, and the element's own ARIAMixin face
+// reads the attributes — two independent stores (el.ariaLabel='A' +
+// internals.ariaLabel='B' coexist). Element-ref faces store the array as-is
+// (no attribute sync either direction; null clears; [] stays an empty list).
+{
+  const STR = ['role', 'ariaAtomic', 'ariaAutoComplete', 'ariaBrailleLabel',
+    'ariaBrailleRoleDescription', 'ariaBusy', 'ariaChecked', 'ariaColCount',
+    'ariaColIndex', 'ariaColIndexText', 'ariaColSpan', 'ariaCurrent',
+    'ariaDescription', 'ariaDisabled', 'ariaExpanded', 'ariaHasPopup',
+    'ariaHidden', 'ariaInvalid', 'ariaKeyShortcuts', 'ariaLabel', 'ariaLevel',
+    'ariaLive', 'ariaModal', 'ariaMultiLine', 'ariaMultiSelectable',
+    'ariaOrientation', 'ariaPlaceholder', 'ariaPosInSet', 'ariaPressed',
+    'ariaReadOnly', 'ariaRelevant', 'ariaRequired', 'ariaRoleDescription',
+    'ariaRowCount', 'ariaRowIndex', 'ariaRowIndexText', 'ariaRowSpan',
+    'ariaSelected', 'ariaSetSize', 'ariaSort', 'ariaValueMax', 'ariaValueMin',
+    'ariaValueNow', 'ariaValueText'];
+  const REFS = ['ariaActiveDescendantElement', 'ariaControlsElements',
+    'ariaDescribedByElements', 'ariaDetailsElements', 'ariaErrorMessageElements',
+    'ariaFlowToElements', 'ariaLabelledByElements'];
+  const IP = ElementInternals.prototype;
+  for (const k of STR) {
+    Object.defineProperty(IP, k, {
+      get: function () { const s = this._aria; return s && s[k] !== undefined ? s[k] : null; },
+      set: function (v) { (this._aria || (this._aria = {}))[k] = v == null ? undefined : String(v); },
+      enumerable: true, configurable: true,
+    });
+  }
+  for (const k of REFS) {
+    Object.defineProperty(IP, k, {
+      get: function () { const s = this._refs; return s && s[k] !== undefined ? s[k] : null; },
+      set: function (v) { (this._refs || (this._refs = {}))[k] = Array.isArray(v) ? v.slice() : null; },
+      enumerable: true, configurable: true,
+    });
+  }
+}
 // Full standard constant set (issue #439). The partial version here lacked
 // FILTER_ACCEPT/REJECT/SKIP and most SHOW_* values, so the canonical
 // `acceptNode() { return NodeFilter.FILTER_ACCEPT; }` filter idiom returned
