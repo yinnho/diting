@@ -1164,3 +1164,15 @@ Node.prototype 的四个成员改为分派器（按接收者原型链查表，�
 余下 placement：Range/StaticRange 的 start*/end*/collapsed 应在 AbstractRange.prototype；EventTarget 方法的自带副本（BroadcastChannel/EventSource/IDB*/MediaQueryList/MessagePort/WebSocket/Audio）；
 Element 上的按标签成员与 Option 继承的 HTMLElement 成员。
 
+## M4 刀24：父原型链按审计批量修复（2026-10-30）
+
+形状审计的「父原型不同」195 项里，绝大多数是引擎类缺省挂在 Object.prototype 下而 Chrome 的父是 Event/SVGElement/WebGLObject/CSSRule/CSSMathValue/CSSStyleValue/
+CSSTransformComponent/Credential/DOMException/HTMLElement… 。`global_surface.js` 已有 ET_CHAIN（只含 EventTarget 家族）；新增 `AUDIT_CHAIN`（由审计直接生成的 [子, 父] 表，
+共 ~190 项，一次 `setPrototypeOf(C.prototype, P.prototype)`）。完全一致的接口 118→146，父原型不同 195→9（余下为 Performance* 条目与 SVGElement 家族）。
+
+**有意排除**：①`Performance*` → PerformanceEntry/PerformanceResourceTiming（9 项）——这些真类在 performance.js 里晚于本表定义，改父会让 5 个性能测试失败（桩的 PerformanceEntry 访问器遮住真成员），
+须先把 PerformanceEntry 做成真类再接；②SVGElement/SVGClipPathElement/SVGSymbolElement/SVGFEDropShadowElement——引擎里 SVGElement 继承 HTMLElement（已知怪癖，改成 Element
+会丢掉 style/dataset 等依赖 HTMLElement 的行为），须先重做 SVG 基类。③**构造器自身的 [[Prototype]]**（`Object.getPrototypeOf(Derived) === Parent`，审计的 statics 项）本刀未动：
+试过与原型链一并重挂，会破坏 Performance* 构造路径，应作为独立一步并带测试。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+
