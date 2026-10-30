@@ -1536,3 +1536,13 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 测试 `own_enumerable_keys_match_chrome_truth`（`enum-truth-145.json`）：~200 个对象逐个对拍，**已知缺口显式列出且只能缩不能涨**：
 `computed`（getComputedStyle 枚举 690 个名字，Chrome 枚举索引）、`newdoc`（createHTMLDocument/DOMParser 文档是普通对象）、`gain/ctxDest`（Web Audio 节点是普通对象）、`gl`（无头 Chrome 的 WebGL 是 null，引擎给假上下文）。
 验收：engine 1003 过/30 败、diting-browser 464/46 败、diting_runtime 全过（均同干净 HEAD）；ratchet/契约/check_fresh 过。
+
+## M4 刀54：getComputedStyle 的枚举形状对齐 Chrome（2026-10-31）
+
+`getComputedStyle(el)` 原来：`length` 444（含简写如 `margin`/`border`/`font`），没有任何索引键，名字只枚举 444 个。Chrome 145：`length` **413**（只有长声明 longhand，顺序即 Chrome 的），
+自有可枚举键 = **413 个索引 + 681 个 camelCase 名**（`epub*` 9 个不可枚举，共 690 个名，与 `element.style` 同一份名单，见 `platform/cssnames.impl.js`），`getOwnPropertyNames` 共 1103 个。
+改动（均在 `getComputedStyle` 的 Proxy 里）：`_COMPUTED_PROPS_KEBAB` 换成 Chrome 的 413 个 longhand（bootstrap 少 ~30 行）；`ownKeys` = 索引 + `__diting_cssNames.list`；`getOwnPropertyDescriptor`/`has` 认索引与全部 690 名
+（索引为只读可枚举值，名字为带实时 `lookup` 值的可写数据属性）。简写（`margin`…）仍可读取，只是不再是 computed 声明的「项」。
+`element_staged_members_match_chrome_truth` 的 KNOWN_GAPS 清空（`gcs.len` 现在等于 Chrome 的 413）；`own_enumerable_keys_match_chrome_truth` 不再跳过 `computed`。
+枚举审计：211 个对象 204 个干净；剩 `newdoc`（createHTMLDocument/DOMParser 文档是普通对象）、`gain`/`ctxDest`（Web Audio 节点）、`gl`（WebGL，待拍板）和三个依赖宿主页面计数的噪声键。
+验收：engine 1002 过/31 败中，唯一多出的 `docmisc_matches_chrome_truth` 是 `lastModified` 两次读取跨秒的时间型偶发（单独跑三次全过）；其余失败集同干净 HEAD；diting-browser 同基线；ratchet/契约/check_fresh 过。

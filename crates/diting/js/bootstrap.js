@@ -9143,60 +9143,65 @@ globalThis.matchMedia = _markNative(function matchMedia(q) {
 // Chrome's enumerable computed-style property set (kebab-case). Real
 // Chrome 145 exposes ~470 of these on every getComputedStyle() result;
 // count AND enumeration are fingerprint surfaces (Castle cssKeys).
-const _COMPUTED_PROPS_KEBAB = ('accent-color align-content align-items align-self alignment-baseline all animation animation-composition ' +
-  'animation-delay animation-direction animation-duration animation-fill-mode animation-iteration-count animation-name animation-play-state ' +
-  'animation-range animation-range-end animation-range-start animation-timeline app-region appearance ascent-override aspect-ratio ' +
-  'backdrop-filter backface-visibility background background-attachment background-blend-mode background-clip background-color ' +
-  'background-image background-origin background-position background-position-x background-position-y background-repeat background-size ' +
-  'baseline-shift block-size border border-block border-block-color border-block-end border-block-end-color border-block-end-style ' +
-  'border-block-end-width border-block-start border-block-start-color border-block-start-style border-block-start-width border-block-style ' +
-  'border-block-width border-bottom border-bottom-color border-bottom-left-radius border-bottom-right-radius border-bottom-style ' +
-  'border-bottom-width border-collapse border-color border-end-end-radius border-end-start-radius border-image border-image-outset ' +
-  'border-image-repeat border-image-slice border-image-source border-image-width border-left border-left-color border-left-style ' +
-  'border-left-width border-radius border-right border-right-color border-right-style border-right-width border-spacing ' +
-  'border-start-end-radius border-start-start-radius border-style border-top border-top-color border-top-left-radius ' +
-  'border-top-right-radius border-top-style border-top-width border-width bottom box-decoration-break box-shadow box-sizing break-after ' +
-  'break-before break-inside buffered-rendering caption-side caret caret-color caret-shape clear clip clip-path clip-rule color ' +
-  'color-interpolation color-interpolation-filters color-scheme column-count column-fill column-gap column-rule column-rule-color ' +
-  'column-rule-style column-rule-width column-span column-width columns contain contain-intrinsic-block-size contain-intrinsic-height ' +
-  'contain-intrinsic-inline-size contain-intrinsic-size contain-intrinsic-width container container-name container-type content ' +
-  'content-visibility counter-increment counter-reset counter-set cursor cx cy d descent-override direction display dominant-baseline ' +
-  'empty-cells field-sizing fill fill-opacity fill-rule filter flex flex-basis flex-direction flex-flow flex-grow flex-shrink flex-wrap ' +
-  'float flood-color flood-opacity font font-family font-feature-settings font-kerning font-optical-sizing font-palette font-size ' +
-  'font-size-adjust font-stretch font-style font-synthesis font-synthesis-position font-synthesis-small-caps font-synthesis-style ' +
-  'font-synthesis-weight font-variant font-variant-alternates font-variant-caps font-variant-east-asian font-variant-emoji ' +
-  'font-variant-ligatures font-variant-numeric font-variant-position font-variation-settings font-weight forced-color-adjust gap ' +
-  'glyph-orientation-horizontal glyph-orientation-vertical grid grid-area grid-auto-columns grid-auto-flow grid-auto-rows grid-column ' +
-  'grid-column-end grid-column-gap grid-column-start grid-row grid-row-end grid-row-gap grid-row-start grid-template grid-template-areas ' +
-  'grid-template-columns grid-template-rows hanging-punctuation height hyphenate-character hyphenate-limit-chars hyphens ' +
-  'image-orientation image-rendering image-resolution inherits initial-letter initial-letter-align inline-size input-security inset ' +
-  'inset-block inset-block-end inset-block-start inset-inline inset-inline-end inset-inline-start isolation justify-content ' +
-  'justify-items justify-self left letter-spacing lighting-color line-break line-clamp line-height line-height-step list-style list-style-image ' +
-  'list-style-position list-style-type margin margin-block margin-block-end margin-block-start margin-bottom margin-inline ' +
-  'margin-inline-end margin-inline-start margin-left margin-right margin-top marker marker-end marker-mid marker-start mask mask-border ' +
-  'mask-border-mode mask-border-outset mask-border-repeat mask-border-slice mask-border-source mask-border-width mask-clip ' +
-  'mask-composite mask-image mask-mode mask-origin mask-position mask-repeat mask-size mask-type math-depth math-shift math-style ' +
-  'max-block-size max-height max-inline-size max-width min-block-size min-height min-inline-size min-width mix-blend-mode object-fit ' +
-  'object-position offset offset-anchor offset-distance offset-path offset-position offset-rotate opacity order orphans outline ' +
-  'outline-color outline-offset outline-style outline-width overflow overflow-anchor overflow-block overflow-clip-margin overflow-inline ' +
-  'overflow-wrap overflow-x overflow-y overlay overscroll-behavior overscroll-behavior-block overscroll-behavior-inline ' +
-  'overscroll-behavior-x overscroll-behavior-y padding padding-block padding-block-end padding-block-start padding-bottom ' +
-  'padding-inline padding-inline-end padding-inline-start padding-left padding-right padding-top page page-break-after page-break-before ' +
-  'page-break-inside paint-order perspective perspective-origin place-content place-items place-self pointer-events position ' +
-  'print-color-adjust quotes r resize right rotate row-gap ruby-align ruby-position rx ry scale scroll-behavior scroll-margin ' +
-  'scroll-margin-block scroll-margin-block-end scroll-margin-block-start scroll-margin-bottom scroll-margin-inline scroll-margin-inline-end ' +
-  'scroll-margin-inline-start scroll-margin-left scroll-margin-right scroll-margin-top scroll-padding scroll-padding-block ' +
-  'scroll-padding-block-end scroll-padding-block-start scroll-padding-bottom scroll-padding-inline scroll-padding-inline-end ' +
-  'scroll-padding-inline-start scroll-padding-left scroll-padding-right scroll-padding-top scroll-snap-align scroll-snap-stop ' +
-  'scroll-snap-type scroll-timeline-axis scroll-timeline-name scrollbar-color scrollbar-gutter scrollbar-width shape-image-threshold ' +
-  'shape-margin shape-outside shape-rendering speak speak-as tab-size table-layout text-align text-align-last text-anchor ' +
-  'text-combine-upright text-decoration text-decoration-color text-decoration-line text-decoration-skip-ink text-decoration-style ' +
-  'text-decoration-thickness text-emphasis text-emphasis-color text-emphasis-position text-emphasis-style text-indent text-justify ' +
-  'text-orientation text-overflow text-rendering text-shadow text-size-adjust text-transform text-underline-offset ' +
-  'text-underline-position text-wrap text-wrap-mode text-wrap-style timeline-scope top touch-action transform transform-box ' +
-  'transform-origin transform-style transition transition-behavior transition-delay transition-duration transition-property ' +
-  'transition-timing-function translate unicode-bidi user-select vector-effect vertical-align visibility white-space ' +
-  'white-space-collapse widows width will-change word-break word-spacing word-wrap writing-mode x y z-index zoom').split(' ');
+// Chrome 145's getComputedStyle longhand list, in Chrome's order (413 names; shorthands are NOT items of a computed declaration).
+const _COMPUTED_PROPS_KEBAB = ('accent-color align-content align-items align-self alignment-baseline anchor-name anchor-scope animation-composition ' +
+  'animation-delay animation-direction animation-duration animation-fill-mode animation-iteration-count animation-name ' +
+  'animation-play-state animation-range-end animation-range-start animation-timeline animation-timing-function app-region ' +
+  'appearance backdrop-filter backface-visibility background-attachment background-blend-mode background-clip background-color ' +
+  'background-image background-origin background-position background-repeat background-size baseline-shift baseline-source ' +
+  'block-size border-block-end-color border-block-end-style border-block-end-width border-block-start-color ' +
+  'border-block-start-style border-block-start-width border-bottom-color border-bottom-left-radius border-bottom-right-radius ' +
+  'border-bottom-style border-bottom-width border-collapse border-end-end-radius border-end-start-radius border-image-outset ' +
+  'border-image-repeat border-image-slice border-image-source border-image-width border-inline-end-color border-inline-end-style ' +
+  'border-inline-end-width border-inline-start-color border-inline-start-style border-inline-start-width border-left-color ' +
+  'border-left-style border-left-width border-right-color border-right-style border-right-width border-start-end-radius ' +
+  'border-start-start-radius border-top-color border-top-left-radius border-top-right-radius border-top-style border-top-width ' +
+  'bottom box-decoration-break box-shadow box-sizing break-after break-before break-inside buffered-rendering caption-side ' +
+  'caret-animation caret-color caret-shape clear clip clip-path clip-rule color color-interpolation color-interpolation-filters ' +
+  'color-rendering column-count column-gap column-height column-rule-color column-rule-style column-rule-width column-span ' +
+  'column-width column-wrap contain-intrinsic-block-size contain-intrinsic-height contain-intrinsic-inline-size ' +
+  'contain-intrinsic-size contain-intrinsic-width container-name container-type content corner-bottom-left-shape ' +
+  'corner-bottom-right-shape corner-end-end-shape corner-end-start-shape corner-start-end-shape corner-start-start-shape ' +
+  'corner-top-left-shape corner-top-right-shape cursor cx cy d direction display dominant-baseline dynamic-range-limit empty-cells ' +
+  'field-sizing fill fill-opacity fill-rule filter flex-basis flex-direction flex-grow flex-shrink flex-wrap float flood-color ' +
+  'flood-opacity font-family font-kerning font-language-override font-optical-sizing font-palette font-size font-size-adjust ' +
+  'font-stretch font-style font-synthesis-small-caps font-synthesis-style font-synthesis-weight font-variant ' +
+  'font-variant-alternates font-variant-caps font-variant-east-asian font-variant-emoji font-variant-ligatures ' +
+  'font-variant-numeric font-variant-position font-weight grid-auto-columns grid-auto-flow grid-auto-rows grid-column-end ' +
+  'grid-column-start grid-row-end grid-row-start grid-template-areas grid-template-columns grid-template-rows height ' +
+  'hyphenate-character hyphenate-limit-chars hyphens image-orientation image-rendering initial-letter inline-size inset-block-end ' +
+  'inset-block-start inset-inline-end inset-inline-start interactivity interest-delay-end interest-delay-start interpolate-size ' +
+  'isolation justify-content justify-items justify-self left letter-spacing lighting-color line-break line-height list-style-image ' +
+  'list-style-position list-style-type margin-block-end margin-block-start margin-bottom margin-inline-end margin-inline-start ' +
+  'margin-left margin-right margin-top marker-end marker-mid marker-start mask-clip mask-composite mask-image mask-mode ' +
+  'mask-origin mask-position mask-repeat mask-size mask-type math-depth math-shift math-style max-block-size max-height ' +
+  'max-inline-size max-width min-block-size min-height min-inline-size min-width mix-blend-mode object-fit object-position ' +
+  'object-view-box offset-anchor offset-distance offset-path offset-position offset-rotate opacity order orphans outline-color ' +
+  'outline-offset outline-style outline-width overflow-anchor overflow-block overflow-clip-margin overflow-inline overflow-wrap ' +
+  'overflow-x overflow-y overlay overscroll-behavior-block overscroll-behavior-inline padding-block-end padding-block-start ' +
+  'padding-bottom padding-inline-end padding-inline-start padding-left padding-right padding-top paint-order perspective ' +
+  'perspective-origin pointer-events position position-anchor position-area position-try-fallbacks position-try-order ' +
+  'position-visibility print-color-adjust r reading-flow reading-order resize right rotate row-gap ruby-align ruby-position rx ry ' +
+  'scale scroll-behavior scroll-initial-target scroll-margin-block-end scroll-margin-block-start scroll-margin-inline-end ' +
+  'scroll-margin-inline-start scroll-marker-group scroll-padding-block-end scroll-padding-block-start scroll-padding-inline-end ' +
+  'scroll-padding-inline-start scroll-target-group scroll-timeline-axis scroll-timeline-name scrollbar-color scrollbar-gutter ' +
+  'scrollbar-width shape-image-threshold shape-margin shape-outside shape-rendering speak stop-color stop-opacity stroke ' +
+  'stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width tab-size ' +
+  'table-layout text-align text-align-last text-anchor text-autospace text-box-edge text-box-trim text-decoration ' +
+  'text-decoration-color text-decoration-line text-decoration-skip-ink text-decoration-style text-emphasis-color ' +
+  'text-emphasis-position text-emphasis-style text-indent text-justify text-overflow text-rendering text-shadow text-size-adjust ' +
+  'text-spacing-trim text-transform text-underline-position text-wrap-mode text-wrap-style timeline-scope top touch-action ' +
+  'transform transform-origin transform-style transition-behavior transition-delay transition-duration transition-property ' +
+  'transition-timing-function translate unicode-bidi user-select vector-effect vertical-align view-timeline-axis ' +
+  'view-timeline-inset view-timeline-name view-transition-class view-transition-group view-transition-name visibility ' +
+  'white-space-collapse widows width will-change word-break word-spacing writing-mode x y z-index zoom ' +
+  '-webkit-border-horizontal-spacing -webkit-border-image -webkit-border-vertical-spacing -webkit-box-align ' +
+  '-webkit-box-decoration-break -webkit-box-direction -webkit-box-flex -webkit-box-ordinal-group -webkit-box-orient ' +
+  '-webkit-box-pack -webkit-box-reflect -webkit-font-smoothing -webkit-line-break -webkit-line-clamp -webkit-locale ' +
+  '-webkit-mask-box-image -webkit-mask-box-image-outset -webkit-mask-box-image-repeat -webkit-mask-box-image-slice ' +
+  '-webkit-mask-box-image-source -webkit-mask-box-image-width -webkit-rtl-ordering -webkit-tap-highlight-color ' +
+  '-webkit-text-combine -webkit-text-decorations-in-effect -webkit-text-fill-color -webkit-text-orientation -webkit-text-security ' +
+  '-webkit-text-stroke-color -webkit-text-stroke-width -webkit-user-drag -webkit-user-modify -webkit-writing-mode').split(' ');
 const _camelCache = new Map();
 const _camel = (kebab) => {
   let c = _camelCache.get(kebab);
@@ -9207,7 +9212,6 @@ const _camel = (kebab) => {
   return c;
 };
 const _computedKebab = () => _COMPUTED_PROPS_KEBAB;
-const _computedSet = () => { if (!_computedSet._s) { _computedSet._s = new Set(_COMPUTED_PROPS_KEBAB.map(_camel)); } return _computedSet._s; };
 
 // getComputedStyle() wrappers share one immutable native snapshot per
 // element until the DOM mutates — frameworks call getComputedStyle()
@@ -9441,15 +9445,30 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     // Real Chrome enumerates ~470 camelCase property names on a computed
     // style (Object.keys / for-in). A featureless object reads as 0 keys,
     // which fingerprinters (Castle cssKeys) score as headless.
-    ownKeys() { return _computedKebab().map(_camel); },
+    // Chrome: the 413 indexed longhands (own, enumerable) followed by the 690 camelCase property names (the epub* ones are not
+    // enumerable); the same name list as element.style (platform/cssnames.impl.js)
+    ownKeys() {
+      const k = _computedKebab(), out = [];
+      for (let i = 0; i < k.length; i++) out.push(String(i));
+      return out.concat(globalThis.__diting_cssNames.list);
+    },
     getOwnPropertyDescriptor(_, prop) {
-      if (typeof prop === 'string' && _computedSet().has(prop)) {
-        return { configurable: true, enumerable: true, get: () => lookup(prop) };
+      if (typeof prop === 'string') {
+        if (/^(0|[1-9]\d*)$/.test(prop)) {
+          const k = _computedKebab();
+          return +prop < k.length ? { value: k[+prop], writable: false, enumerable: true, configurable: true } : undefined;
+        }
+        if (globalThis.__diting_cssNames.set.has(prop)) {
+          return { value: lookup(prop), writable: true, enumerable: !/^epub/.test(prop), configurable: true };
+        }
       }
       return Object.getOwnPropertyDescriptor(target, prop);
     },
     has(_, prop) {
-      if (typeof prop === 'string' && _computedSet().has(prop)) return true;
+      if (typeof prop === 'string') {
+        if (/^(0|[1-9]\d*)$/.test(prop)) return +prop < _computedKebab().length;
+        if (globalThis.__diting_cssNames.set.has(prop)) return true;
+      }
       return prop in target;
     },
   });
