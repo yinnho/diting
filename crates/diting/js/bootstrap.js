@@ -9081,12 +9081,12 @@ const MediaQueryList = function MediaQueryList(q) {
   try { this._last = _mqMatches(this._q); } catch (e) {}
   this._change = [];
   this.onchange = null;
-  const self = this;
-  Object.defineProperties(this, {
-    matches: { get() { try { return _mqMatches(self._q); } catch (e) { return false; } } },
-    media: { value: this._q, enumerable: true },
-  });
 };
+// Read-only prototype attributes (Chrome: no instance own properties, no setters).
+Object.defineProperties(MediaQueryList.prototype, {
+  matches: { get: _markNative({ get matches() { try { return _mqMatches(this._q); } catch (e) { return false; } } }.__lookupGetter__('matches')), set: undefined, enumerable: true, configurable: true },
+  media: { get: _markNative({ get media() { return this._q; } }.__lookupGetter__('media')), set: undefined, enumerable: true, configurable: true },
+});
 MediaQueryList.prototype.addListener = function (fn) { this.addEventListener('change', fn); };
 MediaQueryList.prototype.removeListener = function (fn) { this.removeEventListener('change', fn); };
 MediaQueryList.prototype.addEventListener = function (type, fn) {
@@ -12055,8 +12055,13 @@ globalThis.DOMTokenList = DOMTokenList;
 // It keeps the array-like surface scripts actually use: indexed access, length,
 // item(), forEach(), entries/keys/values, and iteration (so spread and for..of
 // work).
+__accPrivs.add('_len');
 globalThis.NodeList = class NodeList {
-  constructor() { this.length = 0; }
+  // (`_len` is registered in __accPrivs below so instance enumeration hides it.)
+  // `length` is a prototype accessor over a hidden `_len` slot (Chrome: instances own only their indices).
+  constructor() { Object.defineProperty(this, '_len', { value: 0, writable: true, configurable: true }); }
+  get length() { return this._len; }
+  set length(v) { if (this._len === undefined) Object.defineProperty(this, '_len', { value: v, writable: true, configurable: true }); else this._len = v; }
   item(i) { i = i >>> 0; return this[i] != null ? this[i] : null; }
   forEach(cb, thisArg) {
     for (let i = 0; i < this.length; i++) cb.call(thisArg, this[i], i, this);
@@ -13872,14 +13877,9 @@ if (typeof Option === 'undefined') {
     if (value !== undefined && value !== null) opt.setAttribute('value', String(value));
     if (defaultSelected) opt.setAttribute('selected', '');
     if (selected) opt.selected = true;
-    Object.defineProperty(opt, 'text', {
-      configurable: true, enumerable: true,
-      get() { return opt.textContent; },
-      set(v) { opt.textContent = String(v); },
-    });
     return opt;
   };
-  globalThis.Option.prototype = globalThis.HTMLElement ? globalThis.HTMLElement.prototype : Element.prototype;
+  globalThis.Option.prototype = globalThis.HTMLOptionElement ? globalThis.HTMLOptionElement.prototype : (globalThis.HTMLElement ? globalThis.HTMLElement.prototype : Element.prototype);
 }
 
 if (typeof FileReader === 'undefined') {

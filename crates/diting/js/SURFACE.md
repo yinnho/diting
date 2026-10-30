@@ -1436,3 +1436,10 @@ nodeType/nodeName/nodeValue 并入刀23 的 Node.prototype 分派表（`nodeleve
 登记它造出的 `_x` 私有槽名到隐藏集 `__diting_accPrivs`，实例枚举补丁一并隐藏 → `WebSocket._bufferedAmount…`、`FileReader._result/_error` 不再外泄。
 剩余：CSSStyleDeclaration(383)、PluginArray/MimeTypeArray 具名属性、Location、Window、ServiceWorkerContainer、MediaQueryList(matches/media 由 matchMedia 返回物 defineProperty 造)、NodeList/HTMLCollection.length、HTMLOptionElement.text、Document.location。
 验收：全量 998 过/30 败（失败集同干净 HEAD）；ratchet/契约/check_fresh 过。
+
+## M4 刀47：MediaQueryList / Option / NodeList（2026-10-30）
+
+泄漏对象 11→8。`MediaQueryList.matches/media` 由实例 `defineProperties` 改为原型只读访问器（无 setter，与 Chrome 一致）；`Option.prototype` 改为 `HTMLOptionElement.prototype`（原为 `HTMLElement.prototype`，
+`new Option()` 的原型链错），并删掉实例上的 `text` 自有访问器（原型上本就有）；`NodeList.length` 改为原型访问器 + 隐藏 `_len` 槽（`__accPrivs` 登记后实例枚举隐藏）。
+未动：`HTMLCollection.length`（继承 Array，自有 `length` 不可配置，无法隐藏——要改需脱离 Array 子类，另立刀）。
+surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指）。验收：全量 998 过/30 败同干净 HEAD；ratchet/check_fresh 过。
