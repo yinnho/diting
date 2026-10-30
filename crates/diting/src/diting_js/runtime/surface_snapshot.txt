@@ -1709,8 +1709,8 @@ P Int8Array :: BYTES_PER_ELEMENT,constructor
 P IntegrityViolationReportBody :: constructor
 P InteractionContentfulPaint :: constructor
 P InterestEvent :: constructor
-P IntersectionObserver :: _fireFor,constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
-P IntersectionObserverEntry :: constructor
+P IntersectionObserver :: constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
+P IntersectionObserverEntry :: boundingClientRect,constructor,intersectionRatio,intersectionRect,isIntersecting,isVisible,rootBounds,target,time
 S Iterator :: concat,from
 P Iterator :: constructor,drop,every,filter,find,flatMap,forEach,map,reduce,some,take,toArray
 P Keyboard :: constructor,getLayoutMap,lock,unlock

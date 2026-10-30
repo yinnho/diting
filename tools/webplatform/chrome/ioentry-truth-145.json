@@ -1,0 +1,203 @@
+{
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "call": "TypeError: Illegal constructor",
+ "ctor": "THROW TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+ "ctor.bad": [
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+  "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor"
+ ],
+ "ctor.flags": "THROW TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+ "ctor.nullroot": "THROW TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+ "ctor.rect.plain": "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+ "ctor.rects": "THROW TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+ "io.badcb": [
+  "TypeError: Failed to construct 'IntersectionObserver': parameter 1 is not of type 'Function'.",
+  "TypeError: Failed to construct 'IntersectionObserver': parameter 1 is not of type 'Function'.",
+  "TypeError: Failed to construct 'IntersectionObserver': parameter 1 is not of type 'Function'.",
+  "TypeError: Failed to construct 'IntersectionObserver': parameter 1 is not of type 'Function'."
+ ],
+ "io.brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "io.call": "TypeError: Failed to construct 'IntersectionObserver': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "io.callback.args": [
+  true,
+  1,
+  true,
+  true,
+  2
+ ],
+ "io.callback.once": 1,
+ "io.defaults": [
+  null,
+  "0px 0px 0px 0px",
+  "0px 0px 0px 0px",
+  [
+   0
+  ],
+  0,
+  false,
+  [],
+  [],
+  "[object IntersectionObserver]"
+ ],
+ "io.noargs": "TypeError: Failed to construct 'IntersectionObserver': 1 argument required, but only 0 present.",
+ "io.observe.bad": [
+  "TypeError: Failed to execute 'observe' on 'IntersectionObserver': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'observe' on 'IntersectionObserver': parameter 1 is not of type 'Element'.",
+  "TypeError: Failed to execute 'observe' on 'IntersectionObserver': parameter 1 is not of type 'Element'.",
+  "TypeError: Failed to execute 'unobserve' on 'IntersectionObserver': parameter 1 is not of type 'Element'."
+ ],
+ "io.opts": [
+  "10px 10px 10px 10px",
+  [
+   0.10000000149011612,
+   0.5,
+   1
+  ]
+ ],
+ "io.opts.margin": [
+  "5px 10px 5px 10px",
+  "1px 2px 3px 2px",
+  "-5% 3px -5% 3px",
+  "SyntaxError: Failed to construct 'IntersectionObserver': rootMargin must be specified in pixels or percent.",
+  "1px 2px 3px 4px"
+ ],
+ "io.opts.root": true,
+ "io.opts.root.bad": "TypeError: Failed to construct 'IntersectionObserver': Failed to read the 'root' property from 'IntersectionObserverInit': The provided value is not of type '(Document or Element)'.",
+ "io.opts.thresh": [
+  [
+   0.30000001192092896
+  ],
+  [
+   0
+  ],
+  [
+   1
+  ],
+  [
+   0
+  ]
+ ],
+ "io.opts.thresh.bad": [
+  "RangeError: Failed to construct 'IntersectionObserver': Threshold values must be numbers between 0 and 1",
+  "RangeError: Failed to construct 'IntersectionObserver': Threshold values must be numbers between 0 and 1",
+  "TypeError: Failed to construct 'IntersectionObserver': Failed to read the 'threshold' property from 'IntersectionObserverInit': The provided double value is non-finite.",
+  "RangeError: Failed to construct 'IntersectionObserver': Threshold values must be numbers between 0 and 1",
+  "TypeError: Failed to construct 'IntersectionObserver': Failed to read the 'threshold' property from 'IntersectionObserverInit': The provided double value is non-finite."
+ ],
+ "io.opts.type": [
+  "TypeError: Failed to construct 'IntersectionObserver': The provided value is not of type 'IntersectionObserverInit'.",
+  "TypeError: Failed to construct 'IntersectionObserver': The provided value is not of type 'IntersectionObserverInit'."
+ ],
+ "io.returns": [
+  "#undef",
+  "#undef",
+  "#undef",
+  true
+ ],
+ "io.thresholds.frozen": [
+  true,
+  false
+ ],
+ "noargs": "TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor",
+ "observed": [
+  true,
+  true,
+  true,
+  "number",
+  "boolean",
+  "number",
+  true,
+  true,
+  true,
+  "boolean",
+  [],
+  []
+ ],
+ "observed.time": [
+  true,
+  true
+ ],
+ "shape.IntersectionObserver": {
+  "kinds": {
+   "constructor": "function:1",
+   "delay": "ro",
+   "disconnect": "function:0",
+   "observe": "function:1",
+   "root": "ro",
+   "rootMargin": "ro",
+   "scrollMargin": "ro",
+   "takeRecords": "function:0",
+   "thresholds": "ro",
+   "trackVisibility": "ro",
+   "unobserve": "function:1"
+  },
+  "len": 1,
+  "order": [
+   "root",
+   "rootMargin",
+   "scrollMargin",
+   "thresholds",
+   "delay",
+   "trackVisibility",
+   "disconnect",
+   "observe",
+   "takeRecords",
+   "unobserve",
+   "constructor"
+  ],
+  "proto": "Object",
+  "statics": [],
+  "tag": "[object IntersectionObserver]"
+ },
+ "shape.IntersectionObserverEntry": {
+  "kinds": {
+   "boundingClientRect": "ro",
+   "constructor": "function:0",
+   "intersectionRatio": "ro",
+   "intersectionRect": "ro",
+   "isIntersecting": "ro",
+   "isVisible": "ro",
+   "rootBounds": "ro",
+   "target": "ro",
+   "time": "ro"
+  },
+  "len": 0,
+  "order": [
+   "time",
+   "rootBounds",
+   "boundingClientRect",
+   "intersectionRect",
+   "isIntersecting",
+   "isVisible",
+   "intersectionRatio",
+   "target",
+   "constructor"
+  ],
+  "proto": "Object",
+  "statics": [],
+  "tag": "[object IntersectionObserverEntry]"
+ },
+ "toJSON": "THROW TypeError: Failed to construct 'IntersectionObserverEntry': Illegal constructor"
+}

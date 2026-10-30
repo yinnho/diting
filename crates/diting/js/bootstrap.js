@@ -10274,117 +10274,6 @@ globalThis.NodeFilter = {
 // ResizeObserver is defined earlier with real per-target firing; the stub
 // that previously lived here was a no-op that clobbered the real class.
 //
-// IntersectionObserver: without a layout engine we can't compute real
-// intersection geometry, so every observed target is treated as fully
-// in-viewport (`isIntersecting: true`, `intersectionRatio: 1`). Real
-// libraries lean on this in three patterns we must support:
-//
-//   1. Lazy load: observe(img) -> first intersection -> load src -> unobserve.
-//      One fire is enough — covered by the initial microtask fire.
-//   2. Infinite scroll: observe(sentinel) -> on intersection load more ->
-//      new sentinel mounts -> fire again. Needs re-fires as DOM grows.
-//   3. Reveal-on-scroll animations: observe(card) -> isIntersecting flips
-//      true once and an animation runs. One fire is enough.
-//
-// To cover (2) without spinning forever, we burst-fire at an exponential
-// backoff schedule and ALSO re-fire whenever the DOM mutates (a strong
-// signal that the page just rendered something new). Per-observer total
-// fire cap stops us from looping on a never-disconnected observer.
-globalThis.__intersectionObservers = [];
-globalThis.IntersectionObserver = class IntersectionObserver {
-  constructor(callback, options) {
-    this._callback = callback;
-    this._options = options || {};
-    this._targets = new Set();
-    this._connected = true;
-    this._fireCount = 0;
-    globalThis.__intersectionObservers.push(this);
-    __hideOwn(this);
-  }
-  _fireFor(targets) {
-    if (!this._connected || !targets.length || this._fireCount >= 256) return;
-    this._fireCount++;
-    const records = targets.map(target => ({
-      target,
-      isIntersecting: true,
-      intersectionRatio: 1,
-      boundingClientRect: target.getBoundingClientRect
-        ? target.getBoundingClientRect()
-        : { x: 0, y: 0, width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 },
-      intersectionRect: target.getBoundingClientRect
-        ? target.getBoundingClientRect()
-        : { x: 0, y: 0, width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 },
-      rootBounds: { x: 0, y: 0, width: 1280, height: 720, top: 0, left: 0, right: 1280, bottom: 720 },
-      time: Date.now(),
-    }));
-    try { this._callback(records, this); } catch (e) { globalThis.__diting_reportUncaughtError(e); }
-  }
-  observe(el) {
-    if (!el || !this._connected) return;
-    if (this._targets.has(el)) return;
-    this._targets.add(el);
-    Promise.resolve().then(() => this._fireFor([el]));
-    // Exponential burst to cover infinite-scroll sentinels that "re-arm"
-    // after content lands. Without a real scroll/layout signal, we fake the
-    // re-fire schedule. Beyond ~10s the page has usually settled.
-    [120, 500, 1500, 3500, 7000].forEach(delay => {
-      setTimeout(() => {
-        if (this._connected && this._targets.has(el)) this._fireFor([el]);
-      }, delay);
-    });
-  }
-  unobserve(el) { this._targets.delete(el); }
-  disconnect() {
-    this._connected = false;
-    this._targets.clear();
-    const idx = globalThis.__intersectionObservers.indexOf(this);
-    if (idx >= 0) globalThis.__intersectionObservers.splice(idx, 1);
-  }
-  takeRecords() { return []; }
-  get root() { return this._options.root || null; }
-  get rootMargin() { return this._options.rootMargin || "0px 0px 0px 0px"; }
-  get thresholds() {
-    const t = this._options.threshold;
-    if (t == null) return [0];
-    return Array.isArray(t) ? t.slice() : [t];
-  }
-  // (#39) Chrome 151's IntersectionObserver face carries these three
-  // attributes (scroll-margin spec + visibility tracking); defaults mirror
-  // Chrome. The #27 enumerability sweep flips the getters like any other
-  // member.
-  get scrollMargin() { return this._options.scrollMargin || "0px 0px 0px 0px"; }
-  get delay() { return 0; }
-  get trackVisibility() { return false; }
-};
-// When the DOM mutates (e.g. infinite scroll loads a batch of items), re-fire
-// every active IntersectionObserver so libraries observing dynamic content
-// see a fresh isIntersecting=true event. Uses the same per-observer fire cap
-// to prevent runaway loops if the page is mutating in a tight cycle.
-(function() {
-  const reFire = () => {
-    for (const obs of globalThis.__intersectionObservers) {
-      if (!obs._connected) continue;
-      const ts = [...obs._targets];
-      if (ts.length) obs._fireFor(ts);
-    }
-  };
-  // Lazy-attach a single MutationObserver on document.body once the page is
-  // ready, debounced via a microtask so a flurry of mutations only triggers
-  // one IO sweep.
-  let pending = false;
-  const wireUp = () => {
-    if (!globalThis.document?.body) return;
-    const mo = new MutationObserver(() => {
-      if (pending) return;
-      pending = true;
-      Promise.resolve().then(() => { pending = false; reFire(); });
-    });
-    try { mo.observe(globalThis.document.body, {childList: true, subtree: true}); } catch {}
-  };
-  if (globalThis.document?.body) wireUp();
-  else Promise.resolve().then(wireUp);
-})();
-globalThis.IntersectionObserverEntry = class IntersectionObserverEntry {};
 // Stub replaced by the real PerformanceObserver in performance.js (after
 // the Performance timeline is constructed). Kept here so early interface
 // sweeps see the name; observe/callback face is #217 / obscura #1166.
@@ -12701,7 +12590,7 @@ _markNative(NodeList.prototype.forEach);
   Document.prototype.hasFocus,
   Notification, Notification.requestPermission,
   window.chrome?.csi, window.chrome?.loadTimes,
-  MutationObserver, ResizeObserver, IntersectionObserver, PerformanceObserver,
+  MutationObserver, ResizeObserver, PerformanceObserver,
   XMLSerializer, XMLSerializer.prototype.serializeToString,
 ].forEach(fn => { if (typeof fn === 'function') _markNative(fn); });
 

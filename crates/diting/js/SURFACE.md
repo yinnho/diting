@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→158；刀18 继收：158→**143**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→180；刀17 继收：180→158；刀18 继收：158→143；刀19 继收：143→**135**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -1050,3 +1050,28 @@ init 字典（字典序读取、unsigned long 回绕）与 `getTextFormats()` �
 check_fresh 7 件鲜（38 真值）；analyze 零违。全量（跳两个毒化页面测试）989 过/30 败，失败集与干净 HEAD 逐条相同。
 下一刀候选：VideoFrame 10 + VideoColorSpace 5、XSLTProcessor 8、IntersectionObserverEntry 8、ViewTimeline/
 ScrollTimeline 11、RTCPeerConnection 15。
+
+## M4 刀19：IntersectionObserver + IntersectionObserverEntry（2026-10-30）
+
+`platform/intersection.impl.js`（模块 `intersection`，L2）整体接管：IntersectionObserver 连同其调度逻辑从
+bootstrap.js 迁出（bootstrap 净减 ~110 行），IntersectionObserverEntry 由空类换成真接口。旧面：原型里带
+`_fireFor`、构造器 length 2、观察者回调收到**无原型的对象字面量**、rect 不是 DOMRectReadOnly、entry 类是空壳。
+探针 `ioentry-probe.js`（31 键，真 Chrome 145）0 差异：**Chrome 145 的 entry 构造器是非法的**（`new` 与直接调用
+措辞不同：前者 `Failed to construct '…': Illegal constructor`，后者裸 `Illegal constructor`），八个成员是原型
+getter、无 own 属性、无 toJSON；观察者投递的 entry 是真实例，rect 皆 DOMRectReadOnly，rootBounds 为视口矩形；
+观察者校验：回调须为 Function、init 类型、root 须 Element/Document、rootMargin/scrollMargin 展开为四段并校验
+（无单位 0 抛 SyntaxError `rootMargin must be specified in pixels or percent.`）、threshold 范围检查
+（RangeError）与非有限数（TypeError）、thresholds 存 float32 升序且每次读取返回**新的冻结数组**、回调
+`(entries, observer)` 且 this===observer、observe/unobserve 的 Element 与参数个数校验。
+
+**行为策略不变**（只是搬家）：无布局引擎，被观察目标一律视为完全在视口内（isIntersecting true、ratio 1），
+observe 后微任务触发一次 + 指数退避 120/500/1500/3500/7000ms 再触发，DOM 变动（防抖）重触发全部存活观察者，
+单观察者 256 次封顶。几何值（intersectionRect 等）仍是目标自身 rect——**不是**真交叠计算，真交叠属后续布局相关刀。
+
+**坑**：①用 Python 做字符串替换时 `s.index(a):s.index(b)` 若 b 先于 a 出现会得空串，`replace('', new, 1)` 会把新文本
+塞到文件开头（本刀踩过，ResizeObserver 里有同名片段）——替换前断言 old 非空；②迁移类后要清掉 bootstrap 里对该名字的
+加载期引用（`_markNative` 列表），否则快照构建期 ReferenceError。
+
+验收：探针 31 键 0 差；新增 intersection_matches_chrome_truth；缺口 143→135（IntersectionObserverEntry 8 出表）；
+check_fresh 7 件鲜（39 真值）；analyze 零违。全量（跳两个毒化页面测试）990 过/30 败，失败集与干净 HEAD 逐条相同。
+下一刀候选：ScrollTimeline/ViewTimeline 11（复用 animation 模块）、VideoFrame 10 + VideoColorSpace 5、XSLTProcessor 8、RTCPeerConnection 15。
