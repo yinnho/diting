@@ -9105,97 +9105,6 @@ globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function cancel
 _markNative(globalThis.requestIdleCallback);
 _markNative(globalThis.cancelIdleCallback);
 
-if (typeof Request === 'undefined') {
-  globalThis.Request = class Request {
-    constructor(input, init = {}) {
-      const inputRequest = input instanceof Request ? input : null;
-      if (typeof input === 'string') { this.url = input; }
-      else if (inputRequest) { this.url = inputRequest.url; init = { ...inputRequest, ...init }; }
-      else if (typeof URL === 'function' && input instanceof URL) { this.url = input.href; }
-      else { this.url = input?.url || input?.href || String(input); }
-      this.method = (init.method || 'GET').toUpperCase();
-      this.headers = new Headers(init.headers);
-      this.body = init.body || null;
-      // Body extraction infers Content-Type (fetch spec): FormData bodies get
-      // multipart/form-data; boundary=..., URLSearchParams get
-      // x-www-form-urlencoded. Without this, react-router/remix route actions
-      // handing a Request to request.formData() see a bare header and every
-      // framework form submission dies on "content-type isn't form data".
-      if (this.body != null && !this.headers.get('content-type')) {
-        if (typeof FormData === 'function' && this.body instanceof FormData) {
-          const boundary = '----ditingFormBoundary' + Math.random().toString(16).slice(2) + Date.now().toString(16);
-          this.headers.set('content-type', 'multipart/form-data; boundary=' + boundary);
-        } else if (typeof URLSearchParams === 'function' && this.body instanceof URLSearchParams) {
-          this.headers.set('content-type', 'application/x-www-form-urlencoded;charset=UTF-8');
-        }
-      }
-      this.mode = init.mode || 'cors';
-      this.credentials = init.credentials !== undefined
-        ? String(init.credentials)
-        : (inputRequest ? inputRequest.credentials : 'same-origin');
-      if (this.credentials !== 'omit' && this.credentials !== 'same-origin' && this.credentials !== 'include') {
-        throw new TypeError("Failed to construct 'Request': '" + this.credentials + "' is not a valid RequestCredentials value");
-      }
-      this.redirect = init.redirect || 'follow';
-      // Fetch spec: absent referrer means "about:client" (the document); the
-      // empty string means no-referrer — the two must not collapse.
-      this.referrer = init.referrer === undefined ? 'about:client' : String(init.referrer);
-      this.referrerPolicy = init.referrerPolicy || '';
-      if (REFERRER_POLICIES.indexOf(this.referrerPolicy) < 0) {
-        throw new TypeError("Failed to construct 'Request': '" + this.referrerPolicy + "' is not a valid ReferrerPolicy value");
-      }
-      // Fetch spec: an absent signal means a fresh, never-aborted one — not
-      // null, not a shared dummy (the old literal stub failed instanceof
-      // checks pages run on request.signal).
-      this.signal = init.signal !== undefined
-        ? init.signal
-        : (typeof AbortController === "function" ? new AbortController().signal : { aborted: false, addEventListener(){}, removeEventListener(){} });
-      this.cache = init.cache || 'default';
-    }
-    clone() {
-      return new Request(this.url, {
-        method: this.method,
-        headers: this.headers,
-        body: this.body,
-        mode: this.mode,
-        credentials: this.credentials,
-        redirect: this.redirect,
-        referrer: this.referrer,
-        referrerPolicy: this.referrerPolicy,
-        signal: this.signal,
-        cache: this.cache,
-      });
-    }
-    // Body readers work on the BYTES of the body (fetch spec: a body is a
-    // byte sequence). Stringifying a binary body mangled it, which is how a
-    // protobuf frame turned into "invalid wire type" in PDD's decoder.
-    async text() { return new TextDecoder().decode(_requestBodyBytes(this.body)); }
-    async json() { return JSON.parse(await this.text()); }
-    async arrayBuffer() { return _arrayBufferFromBytes(_requestBodyBytes(this.body)); }
-    async bytes() { return _requestBodyBytes(this.body).slice(); }
-    async blob() {
-      const ct = this.headers && this.headers.get ? (this.headers.get('content-type') || '') : '';
-      return new Blob(this.body != null ? [_requestBodyBytes(this.body)] : [], { type: ct });
-    }
-    // A Request constructed with a FormData body hands that instance back;
-    // string bodies parse by Content-Type (urlencoded / multipart).
-    async formData() {
-      if (typeof FormData === 'function' && this.body instanceof FormData) return this.body;
-      const ct = this.headers && this.headers.get ? (this.headers.get('content-type') || '') : '';
-      return _formDataFromString(this.body == null ? '' : String(this.body), ct);
-    }
-  };
-}
-
-// Bytes of a fetch body init (string / Blob / ArrayBuffer / view / params).
-function _requestBodyBytes(body) {
-  if (body == null) return new Uint8Array(0);
-  if (typeof Blob === 'function' && body instanceof Blob) return body._bytes || new Uint8Array(0);
-  if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0));
-  if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength));
-  return new TextEncoder().encode(String(body));
-}
-
 // Decode a response body honoring the Content-Type charset, so fetch()/XHR
 // over non-UTF-8 resources (GBK, Shift_JIS, ISO-8859-x, ...) return correctly
 // decoded text instead of mojibake. The UTF-8 case (the overwhelming majority)
@@ -9211,50 +9120,6 @@ function _decodeBodyWithCharset(bytes, headers) {
   if (!label || /^utf-?8$/i.test(label)) return new TextDecoder().decode(bytes);
   try { return new TextDecoder(label).decode(bytes); }
   catch (e) { return new TextDecoder().decode(bytes); }
-}
-
-if (typeof Response === 'undefined') {
-  globalThis.Response = class Response {
-    constructor(body, init = {}) {
-      this._bodyBytes = _bodyToUint8Array(body); this.status = init.status || 200; this.statusText = init.statusText || '';
-      this.ok = this.status >= 200 && this.status < 300;
-      this.headers = new Headers(init.headers);
-      this.type = init.type || 'basic'; this.url = init.url || ''; this.redirected = !!init.redirected;
-      __hideOwn(this);
-    }
-    async text() { __def(this, '_bodyUsed', true); return _decodeBodyWithCharset(this._bodyBytes, this.headers); }
-    async json() { __def(this, '_bodyUsed', true); return JSON.parse(await this.text()); }
-    async arrayBuffer() { __def(this, '_bodyUsed', true); return _arrayBufferFromBytes(this._bodyBytes); }
-    async bytes() { __def(this, '_bodyUsed', true); return this._bodyBytes.slice(); }
-    async blob() { __def(this, '_bodyUsed', true); return new Blob([this._bodyBytes]); }
-    async formData() {
-      __def(this, '_bodyUsed', true);
-      const ct = this.headers.get ? (this.headers.get('content-type') || '') : '';
-      return _formDataFromString(_decodeBodyWithCharset(this._bodyBytes, this.headers), ct);
-    }
-    // RSC/flight consumers (React server actions, Next app-router prefetch)
-    // stream the payload through response.body.getReader(); without a body
-    // stream createFromFetch resolves `x.body` to undefined and the whole
-    // action/navigation promise chain hangs forever — the "server accepted
-    // the POST but the client never navigates" wedge. Always return a
-    // stream (empty+closed when there are no bytes) rather than null: the
-    // lazy-stream wrapper in the flight client cannot cope with null.
-    get body() {
-      if (!this._bodyStream) {
-        const bytes = this._bodyBytes;
-        this._bodyStream = new ReadableStream({
-          start(c) { if (bytes && bytes.length) c.enqueue(new Uint8Array(bytes)); c.close(); },
-        });
-        __hideOwn(this);
-      }
-      return this._bodyStream;
-    }
-    get bodyUsed() { return this._bodyUsed === true; }
-    clone() { return new Response(this._bodyBytes, { status: this.status, statusText: this.statusText, headers: this.headers, type: this.type, url: this.url, redirected: this.redirected }); }
-    static error() { return new Response(null, { status: 0 }); }
-    static redirect(url, status) { return new Response(null, { status: status || 302, headers: { Location: url } }); }
-    static json(data, init) { return new Response(JSON.stringify(data), { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } }); }
-  };
 }
 
 if (!Element.prototype.replaceWith) {
@@ -11078,54 +10943,6 @@ if (typeof FormData === "undefined") globalThis.FormData = class FormData {
   [Symbol.iterator](){return this.entries();}
   forEach(cb,thisArg){this._d.forEach(([k,v])=>cb.call(thisArg,v,k,this));}
 };
-// formData() parse side, shared by Request.formData() and Response.formData().
-// Content-Type picks the decoder — urlencoded pairs, multipart parts (files
-// become File entries), anything else is the spec TypeError. react-router and
-// remix route actions open every form submission with request.formData(); a
-// missing method wedged the client action chain behind "e.formData is not a
-// function".
-function _formDataFromString(text, contentType) {
-  const ct = String(contentType || "").toLowerCase();
-  if (ct.includes("application/x-www-form-urlencoded")) {
-    const fd = new FormData();
-    for (const [k, v] of new URLSearchParams(text)) fd.append(k, v);
-    return fd;
-  }
-  if (ct.includes("multipart/form-data")) {
-    // The boundary parameter is case-sensitive — only the MIME type itself is
-    // case-insensitive — so it must come from the original header, not `ct`.
-    const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(String(contentType || ""));
-    if (!m) throw new TypeError("Failed to parse form data: multipart boundary not found in content-type");
-    const fd = new FormData();
-    const boundary = "--" + (m[1] || m[2]).trim();
-    const parts = String(text).split(boundary);
-    const unq = (s) => s.replace(/\\(.)/g, "$1");
-    for (let i = 1; i < parts.length; i++) {
-      // The closing delimiter is the trailing "--" segment (epilogue may follow it).
-      if (/^--(\r\n|\r|\n|$)/.test(parts[i])) break;
-      let part = parts[i].replace(/^\r\n/, "");
-      const sep = part.indexOf("\r\n\r\n");
-      if (sep < 0) continue;
-      const head = part.slice(0, sep);
-      let content = part.slice(sep + 4);
-      if (content.endsWith("\r\n")) content = content.slice(0, -2);
-      const cd = /content-disposition:\s*form-data;([^\r\n]*)/i.exec(head);
-      if (!cd) continue;
-      const nameM = /name="((?:[^"\\]|\\.)*)"/i.exec(cd[1]);
-      if (!nameM) continue;
-      const name = unq(nameM[1]);
-      const fileM = /filename="((?:[^"\\]|\\.)*)"/i.exec(cd[1]);
-      if (fileM) {
-        const typeM = /content-type:\s*([^\r\n]+)/i.exec(head);
-        fd.append(name, new File([content], unq(fileM[1]) || "blob", { type: typeM ? typeM[1].trim() : "" }));
-      } else {
-        fd.append(name, content);
-      }
-    }
-    return fd;
-  }
-  throw new TypeError("Request body's content-type isn't form data: expected a form content-type, got \"" + (contentType || "") + "\"");
-}
 // application/x-www-form-urlencoded serializer: like encodeURIComponent but
 // space -> '+' and also percent-encoding the chars encodeURIComponent leaves
 // bare ( ! ~ ' ( ) ), keeping the form-urlencoded safe set ( * - . _ ).

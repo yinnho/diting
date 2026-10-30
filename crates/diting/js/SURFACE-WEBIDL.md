@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 198 个接口；有缺口 41 个；缺口成员合计 187。
+已核 198 个接口；有缺口 40 个；缺口成员合计 180。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -34,7 +34,6 @@
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
 | IntersectionObserverEntry | new | 8/8 | boundingClientRect, intersectionRatio, intersectionRect, isIntersecting, isVisible, rootBounds, target, time |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
-| Request | new | 7/27 | bodyUsed, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |
 | ViewTimeline | new | 7/8 | axis, currentTime, duration, endOffset, source, startOffset, subject |
 | VideoColorSpace | new | 5/5 | fullRange, matrix, primaries, toJSON, transfer |
 | WebTransportError | new | 5/30 | code, message, name, source, streamErrorCode |

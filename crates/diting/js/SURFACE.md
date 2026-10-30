@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→**187**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→187；刀16 继收：187→**180**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -965,3 +965,36 @@ destination、duplex、integrity、isHistoryNavigation、keepalive、targetAddre
 与 viewport_override_drives_media_queries_and_survives_navigation 两个页面测试先败后毒化共享锁
 （PoisonError 连带），与本刀无关；待单独查。下一刀顺位：Request/Response 整族、Animation 19、
 EditContext 11、ImageData/Highlight/FontFace、VideoFrame 10。
+
+## M4 刀16：Request / Response（2026-10-30）
+
+`platform/fetchapi.impl.js`（模块 `fetchapi`，L2）整族换真身，旧的 bootstrap 两个类连同
+`_requestBodyBytes`/`_formDataFromString` 一并删除（bootstrap 净减 ~200 行）。探针
+`reqres-probe.js`（96 键，真 Chrome 145，`reqres-truth-145.json`）0 差异：原型形状与成员序、
+`headers` 改**原型 getter**（旧：自有数据属性）、构造校验与逐字措辞（URL 解析/带凭据、method token 与
+CONNECT/TRACE/TRACK、枚举成员按字典序读取、GET/HEAD 带 body、mode:navigate、referrer 跨源回
+`about:client`、signal 须为 AbortSignal 且 Request.signal 是**跟随**输入信号的新对象、status 取
+unsigned short 后须在 [200,599]、204/205/304 不能带 body、statusText 字节串+字符集校验）、体推导
+Content-Type（string→text/plain;charset=UTF-8、Blob→其 type、URLSearchParams→urlencoded、FormData→
+multipart、ArrayBuffer/流→无）、`bodyUsed`/locked/disturbed 语义（读取 body 流或任一 reader 方法即置位，
+null 体永不置位）、clone（字节体复制、流体 tee、已用抛 `... body is already used`）、
+Response.error/redirect/json 全套、`bytes()`。**text() 不再按 Content-Type charset 解码**（Chrome
+恒为 UTF-8；探针 `res.text.gbk` 为证）。
+
+- **头守卫**落在 Headers 模块：`request`（丢弃禁用请求头名与 `proxy-`/`sec-` 前缀）、
+  `request-no-cors`（只放 CORS 安全清单名/值）、`response`（丢弃 Set-Cookie/Set-Cookie2）、
+  `immutable`（Response.error()/redirect() 抛 `Headers are immutable`）。Headers 因此导出
+  内部面 make/has/add/copy/guard/addLenient 给 fetchapi 用。
+- **fetch.js 两个隐藏钩子**（入 hide list）：`__diting_mkResponse(body, {status,statusText,headers,
+  type,url,redirected})` 造网络 Response（公共构造器按 Chrome 忽略 type/url/redirected）；
+  `__diting_reqTake(req)` 异步取 Request 体字节并置已用（fetch(request) 复用已用 Request 现按 Chrome 抛
+  TypeError）。fetch(request) 现在也带上 Request.headers（旧版丢弃，含体推导的 content-type）。
+
+**坑**：①Response 头守卫会吃掉 Set-Cookie，网络造的头里非法名要**跳过不抛**（addLenient），否则一个怪头杀整个响应；
+②Request 体来自输入 Request 时要把输入置已用；③`Promise` 返回方法的坏接收者应返回 rejected promise，不是同步抛。
+
+验收：探针 96 键 0 差；新增 reqres_match_chrome_truth；headers 测试的四个 KNOWN 全部转绿；缺口 187→180
+（Request 的 7 个缺失成员出表）；check_fresh 7 件鲜（36 真值）；analyze 零违。全量（跳过两个先败毒化共享锁的页面
+测试后）987 过/30 败，失败集与干净 HEAD 逐条相同（环境类：CSS/布局/计算样式），`test_local_fetch_resolves_on_task_boundary`
+为时序型，偶发于满载全量、单跑 3/3 过。下一刀候选：Animation 19、EditContext 11、VideoFrame 10、XSLTProcessor 8、
+RTCPeerConnection 15、ImageData/Highlight/FontFace 等。

@@ -81,7 +81,7 @@ const __ditingFetchImpl = async (input, init = {}) => {
         __recordFetchTiming(_rtT0, url, _rtInit, { status: 200 }, {
           encodedBodySize: r.bytes.length, decodedBodySize: r.bytes.length, transferSize: 0,
         });
-        resolve(new Response(r.bytes, {
+        resolve(__diting_mkResponse(r.bytes, {
           status: 200,
           statusText: "OK",
           headers: { 'content-type': r.mime },
@@ -107,7 +107,7 @@ const __ditingFetchImpl = async (input, init = {}) => {
         __recordFetchTiming(_rtT0, url, _rtInit, { status: 200 }, {
           encodedBodySize: bytes.length, decodedBodySize: bytes.length, transferSize: 0,
         });
-        resolve(new Response(bytes, {
+        resolve(__diting_mkResponse(bytes, {
           status: 200,
           statusText: "OK",
           headers: blob.type ? { 'content-type': blob.type } : {},
@@ -118,18 +118,20 @@ const __ditingFetchImpl = async (input, init = {}) => {
       });
     });
   }
-  const hdrObj = init.headers instanceof Headers
-    ? Object.fromEntries(init.headers.entries())
+  const _hsrc = init.headers !== undefined ? init.headers : (input instanceof Request ? input.headers : undefined);
+  const hdrObj = _hsrc instanceof Headers
+    ? Object.fromEntries(_hsrc.entries())
     // Plain-object headers get the same WebIDL ByteString stringification
     // Headers.set applies — a numeric value stored raw kills the whole
     // header group at the transport's string-typed map (same family as the
     // XHR setRequestHeader hole, XHS 2026-10-12).
-    : Object.fromEntries(Object.entries(init.headers || {}).map(([k, v]) => [k, String(v)]));
+    : Object.fromEntries(Object.entries(_hsrc || {}).map(([k, v]) => [k, String(v)]));
   // fetch(request) with no explicit init.body inherits the Request's body
   // (upstream #716 split, item: "A Request object's inherited body is also
   // dropped when fetch(request) has no explicit init.body").
-  if (init.body == null && input instanceof Request && input.body != null) {
-    init = { ...init, body: input.body };
+  if (init.body == null && input instanceof Request) {
+    const _tb = await __diting_reqTake(input);
+    if (_tb !== null) init = { ...init, body: _tb };
   }
   let body = "";
   let bodyIsBase64 = false;
@@ -247,7 +249,7 @@ const __ditingFetchImpl = async (input, init = {}) => {
     const respType = parsed.status === 0 ? "opaque" : (fetchMode === "no-cors" ? "opaque" : "basic");
     const responseBody = parsed.bodyBase64 ? _base64ToUint8Array(parsed.bodyBase64) : (parsed.body || "");
     _fetchStage('resp', _fk);
-    return new Response(responseBody, {
+    return __diting_mkResponse(responseBody, {
       status: parsed.status,
       statusText: "",
       headers: parsed.headers || {},

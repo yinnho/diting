@@ -53,7 +53,34 @@ function sortedView(list) {
 }
 
 function appendTo(list, n, v) { list.push({ name: n, value: v }); }
-function fill(list, init, fn) {
+// Header guards (Fetch §5.2): Request.headers is 'request' (forbidden request-header
+// names are silently dropped), 'request-no-cors' (only CORS-safelisted names/values),
+// Response.headers is 'response' (Set-Cookie/Set-Cookie2 dropped), 'immutable'
+// (Response.error()/redirect()) throws. A plain `new Headers()` is 'none'.
+const guards = new WeakMap();
+const FORBIDDEN_REQ = new Set(['accept-charset', 'accept-encoding', 'access-control-request-headers', 'access-control-request-method',
+  'connection', 'content-length', 'cookie', 'cookie2', 'date', 'dnt', 'expect', 'host', 'keep-alive', 'origin', 'referer',
+  'set-cookie', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'via']);
+function forbiddenReq(n) { return FORBIDDEN_REQ.has(n) || n.startsWith('proxy-') || n.startsWith('sec-'); }
+function safelisted(n, v) {
+  if (v.length > 128) return false;
+  if (n === 'accept') return !/[\u0000-\u0008\u000a-\u001f"()/:<>?@[\\\]{}\u007f]/.test(v);
+  if (n === 'accept-language' || n === 'content-language') return /^[0-9A-Za-z *,\-.;=]*$/.test(v);
+  if (n === 'content-type') return /^(application\/x-www-form-urlencoded|multipart\/form-data|text\/plain)\s*(;|$)/i.test(v);
+  if (n === 'range') return /^bytes=\d+-\d*$/.test(v);
+  return false;
+}
+function blocked(guard, n, v) {
+  if (guard === 'request') return forbiddenReq(n);
+  if (guard === 'request-no-cors') return forbiddenReq(n) || !safelisted(n, v);
+  if (guard === 'response') return n === 'set-cookie' || n === 'set-cookie2';
+  return false;
+}
+function gappend(guard, list, n, v) { if (!blocked(guard, n, v)) appendTo(list, n, v); }
+function guardOf(h) { return guards.get(h) || 'none'; }
+function immutable(h, m, fn) { if (guardOf(h) === 'immutable') P.fail(fn, 'Headers are immutable', "Failed to execute '" + m + "' on 'Headers'"); }
+
+function fill(list, init, fn, ENUM_PRE, guard) {
   const NOT = "The provided value is not of type '(record<ByteString, ByteString> or sequence<sequence<ByteString>>)'.";
   if (init === undefined) return;
   if (init === null || (typeof init !== 'object' && typeof init !== 'function')) P.fail(fn, NOT, ENUM_PRE);
@@ -65,7 +92,7 @@ function fill(list, init, fn) {
       const p = Array.from(pair);
       if (p.length !== 2) P.fail(fn, 'Invalid value', ENUM_PRE);
       const n = checkName(byteString(p[0], ENUM_PRE, fn), ENUM_PRE, fn);
-      appendTo(list, n, checkValue(byteString(p[1], ENUM_PRE, fn), ENUM_PRE, fn));
+      gappend(guard, list, n, checkValue(byteString(p[1], ENUM_PRE, fn), ENUM_PRE, fn));
     }
     return;
   }
@@ -74,14 +101,14 @@ function fill(list, init, fn) {
     const d = Object.getOwnPropertyDescriptor(init, k);
     if (!d || !d.enumerable) continue;
     const n = checkName(byteString(k, ENUM_PRE, fn), ENUM_PRE, fn);
-    appendTo(list, n, checkValue(byteString(init[k], ENUM_PRE, fn), ENUM_PRE, fn));
+    gappend(guard, list, n, checkValue(byteString(init[k], ENUM_PRE, fn), ENUM_PRE, fn));
   }
 }
 
 function Headers() {
   if (new.target === undefined) P.fail(Headers, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", ENUM_PRE);
   const list = [];
-  fill(list, arguments[0], Headers);
+  fill(list, arguments[0], Headers, ENUM_PRE, 'none');
   const h = Reflect.construct(Object, [], new.target);
   lists.set(h, list);
   return h;
@@ -95,11 +122,14 @@ function need(args, n, m, fn) {
 P.method(HP, 'append', 2, function __f() {
   const l = slot(this, __f); need(arguments, 2, 'append', __f);
   const n = checkName(byteString(arguments[0], pre('append'), __f), pre('append'), __f);
-  appendTo(l, n, checkValue(byteString(arguments[1], pre('append'), __f), pre('append'), __f));
+  const v = checkValue(byteString(arguments[1], pre('append'), __f), pre('append'), __f);
+  immutable(this, 'append', __f); gappend(guardOf(this), l, n, v);
 });
 P.method(HP, 'delete', 1, function __f() {
   const l = slot(this, __f); need(arguments, 1, 'delete', __f);
   const n = checkName(byteString(arguments[0], pre('delete'), __f), pre('delete'), __f);
+  immutable(this, 'delete', __f);
+  if (blocked(guardOf(this), n, '')) return;
   for (let i = l.length - 1; i >= 0; i--) if (l[i].name === n) l.splice(i, 1);
 });
 P.method(HP, 'get', 1, function __f() {
@@ -121,6 +151,8 @@ P.method(HP, 'set', 2, function __f() {
   const l = slot(this, __f); need(arguments, 2, 'set', __f);
   const n = checkName(byteString(arguments[0], pre('set'), __f), pre('set'), __f);
   const v = checkValue(byteString(arguments[1], pre('set'), __f), pre('set'), __f);
+  immutable(this, 'set', __f);
+  if (blocked(guardOf(this), n, v)) return;
   const first = l.findIndex((e) => e.name === n);
   if (first < 0) { appendTo(l, n, v); return; }
   l[first].value = v;
@@ -159,5 +191,28 @@ P.method(HP, 'keys', 0, function __f() { return mkIter(this, 'keys', __f); });
 P.method(HP, 'values', 0, function __f() { return mkIter(this, 'values', __f); });
 P.seal(Headers);
 Object.defineProperty(HP, Symbol.iterator, { value: HP.entries, writable: true, enumerable: false, configurable: true });
+
+// Internal faces for Request/Response (fetchapi): build a guarded Headers with the
+// caller's error prefix, and raw list access for body-derived content-type.
+exports.make = function (init, guard, preText, fn) {
+  const list = [];
+  fill(list, init, fn, preText, guard);
+  const h = Object.create(HP);
+  lists.set(h, list);
+  guards.set(h, guard);
+  return h;
+};
+exports.has = function (h, name) { const l = lists.get(h); return l !== undefined && l.some((e) => e.name === name); };
+exports.add = function (h, name, value) { const l = lists.get(h); if (l !== undefined) appendTo(l, name, value); };
+exports.copy = function (h, guard) { const l = lists.get(h); const c = Object.create(HP); lists.set(c, l.map((e) => ({ name: e.name, value: e.value }))); guards.set(c, guard === undefined ? guardOf(h) : guard); return c; };
+// network-built Response headers: bad names are skipped, never thrown
+exports.addLenient = function (h, name, value) {
+  const n = name.toLowerCase();
+  if (!TOKEN.test(n)) return;
+  const v = normalizeValue(value);
+  if (/[\u0000\r\n]/.test(v) || blocked(guardOf(h), n, v)) return;
+  appendTo(lists.get(h), n, v);
+};
+exports.guard = function (h, g) { guards.set(h, g); };
 
 P.expose('Headers', Headers);

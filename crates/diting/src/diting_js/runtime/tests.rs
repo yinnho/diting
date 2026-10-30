@@ -27167,18 +27167,9 @@ async fn smallmembers_match_chrome_truth() {
 /// exact wording), name/value validity and normalization, same-name combining,
 /// sorted LIVE iteration, set-cookie separation + getSetCookie, the iterator
 /// protocol, JSON/own shape.
-/// KNOWN (the Request/Response knife): Request/Response keep `headers` as an
-/// own property instead of a prototype getter, Response does not add the
-/// default content-type for string/Blob/URLSearchParams bodies, and the
-/// response guard does not filter Set-Cookie.
+/// (the four Request/Response cross-keys went green with knife 16.)
 #[tokio::test(flavor = "current_thread")]
 async fn headers_match_chrome_truth() {
-    const KNOWN: &[&str] = &[
-        "headers.from.request",
-        "headers.from.response",
-        "headers.response.ct",
-        "sc.response",
-    ];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/headers-probe.js");
     let result = rt
@@ -27193,9 +27184,37 @@ async fn headers_match_chrome_truth() {
     .unwrap();
     let mut bad = Vec::new();
     for (k, want) in truth.as_object().unwrap() {
-        if KNOWN.contains(&k.as_str()) {
-            continue;
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
         }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 knife 16: Request / Response (reqres-probe.js, 96 keys, real Chrome 145):
+/// prototype shape and member order, `headers` as a prototype getter, construction
+/// validation with exact wording (URL parse / credentials, method tokens and
+/// forbidden methods, enum members, GET/HEAD body, mode navigate, referrer,
+/// signal, status range and null-body statuses, statusText), body-derived
+/// Content-Type, header guards (forbidden request headers, no-cors safelist,
+/// Response Set-Cookie filtering), Response.error/redirect/json, clone and tee,
+/// bodyUsed / locked / disturbed semantics and the byte readers.
+#[tokio::test(flavor = "current_thread")]
+async fn reqres_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/reqres-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/reqres-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
         if &engine[k] != want {
             bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
         }

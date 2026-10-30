@@ -1,0 +1,593 @@
+{
+ "req.ab": [
+  1,
+  2,
+  3
+ ],
+ "req.blob": [
+  2,
+  "x/y"
+ ],
+ "req.body.ct": [
+  "text/plain;charset=UTF-8",
+  "application/x-www-form-urlencoded;charset=UTF-8",
+  "text/x",
+  "",
+  "",
+  "multipart/form-data; boundary=B",
+  "a/b"
+ ],
+ "req.body.stream": [
+  true,
+  false
+ ],
+ "req.bytes": [
+  97,
+  98
+ ],
+ "req.call": "THROW TypeError: Failed to construct 'Request': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "req.clone": [
+  "abc",
+  false,
+  true,
+  "abc",
+  "POST",
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "content-type",
+    "text/plain;charset=UTF-8"
+   ]
+  ],
+  false
+ ],
+ "req.clone.used": "TypeError: Failed to execute 'clone' on 'Request': Request body is already used",
+ "req.defaults": {
+  "body": null,
+  "bodyUsed": false,
+  "cache": "default",
+  "credentials": "same-origin",
+  "destination": "",
+  "duplex": "half",
+  "hdr": [],
+  "integrity": "",
+  "isHist": false,
+  "isReload": "#undef",
+  "keepalive": false,
+  "method": "GET",
+  "mode": "cors",
+  "redirect": "follow",
+  "referrer": "about:client",
+  "referrerPolicy": "",
+  "sig": false,
+  "url": "http://probe.test/a?b=1#h"
+ },
+ "req.enum.bad": {
+  "cache": "TypeError: Failed to construct 'Request': Failed to read the 'cache' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type RequestCache.",
+  "credentials": "TypeError: Failed to construct 'Request': Failed to read the 'credentials' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type RequestCredentials.",
+  "duplex": "TypeError: Failed to construct 'Request': Failed to read the 'duplex' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type RequestDuplex.",
+  "mode": "TypeError: Failed to construct 'Request': Failed to read the 'mode' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type RequestMode.",
+  "priority": "TypeError: Failed to construct 'Request': Failed to read the 'priority' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type FetchPriority.",
+  "redirect": "TypeError: Failed to construct 'Request': Failed to read the 'redirect' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type RequestRedirect.",
+  "referrerPolicy": "TypeError: Failed to construct 'Request': Failed to read the 'referrerPolicy' property from 'RequestInit': The provided value 'zz' is not a valid enum value of type ReferrerPolicy."
+ },
+ "req.enum.good": [
+  "no-cors",
+  "include",
+  "no-store",
+  "manual",
+  "origin",
+  "sha256-x",
+  true
+ ],
+ "req.forbidden": [
+  [
+   "x-a",
+   "1"
+  ]
+ ],
+ "req.formData": [
+  [
+   "a",
+   "1"
+  ],
+  [
+   "b",
+   "2"
+  ]
+ ],
+ "req.from.request": [
+  "POST",
+  "include",
+  "no-cache",
+  [
+   [
+    "content-type",
+    "text/plain;charset=UTF-8"
+   ],
+   [
+    "x-a",
+    "1"
+   ]
+  ],
+  true,
+  false,
+  "http://probe.test/a?b=1#h"
+ ],
+ "req.from.request.override": [
+  "PUT",
+  [
+   [
+    "x-b",
+    "2"
+   ]
+  ]
+ ],
+ "req.get.body": "TypeError: Failed to construct 'Request': Request with GET/HEAD method cannot have body.",
+ "req.get.nullbody": null,
+ "req.head.body": "TypeError: Failed to construct 'Request': Request with GET/HEAD method cannot have body.",
+ "req.headers.assign": true,
+ "req.headers.mut": [
+  [
+   "a",
+   "1"
+  ],
+  [
+   "b",
+   "2"
+  ]
+ ],
+ "req.headers.same": true,
+ "req.init.null": "GET",
+ "req.init.type": [
+  "TypeError: Failed to construct 'Request': The provided value is not of type 'RequestInit'.",
+  "TypeError: Failed to construct 'Request': The provided value is not of type 'RequestInit'.",
+  "TypeError: Failed to construct 'Request': The provided value is not of type 'RequestInit'."
+ ],
+ "req.json": "{}",
+ "req.json.bad": "SyntaxError",
+ "req.method.bad": [
+  "TypeError: Failed to construct 'Request': 'CONNECT' HTTP method is unsupported.",
+  "TypeError: Failed to construct 'Request': 'TRACE' HTTP method is unsupported.",
+  "TypeError: Failed to construct 'Request': 'TRACK' HTTP method is unsupported.",
+  "TypeError: Failed to construct 'Request': 'a b' is not a valid HTTP method.",
+  "TypeError: Failed to construct 'Request': '' is not a valid HTTP method."
+ ],
+ "req.method.norm": [
+  "GET",
+  "POST",
+  "PUT",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+  "patch",
+  "PaTch",
+  "foo"
+ ],
+ "req.mode.navigate": "TypeError: Failed to construct 'Request': Cannot construct a Request with a RequestInit whose mode member is set as 'navigate'.",
+ "req.noargs": "THROW TypeError: Failed to construct 'Request': 1 argument required, but only 0 present.",
+ "req.nocors.headers": [
+  [
+   "accept",
+   "x"
+  ]
+ ],
+ "req.own": [],
+ "req.readstream": [
+  [
+   97,
+   98,
+   99
+  ],
+  false,
+  true
+ ],
+ "req.referrer": [
+  "",
+  "about:client",
+  "ORIGIN/rel",
+  "about:client"
+ ],
+ "req.referrer.bad": "about:client",
+ "req.signal": [
+  false,
+  true,
+  true,
+  false,
+  false
+ ],
+ "req.signal.bad": "TypeError: Failed to construct 'Request': Failed to read the 'signal' property from 'RequestInit': Failed to convert value to 'AbortSignal'.",
+ "req.tag": [
+  "[object Request]",
+  "[object Request]",
+  true
+ ],
+ "req.tas": "unknown",
+ "req.text": [
+  "héllo",
+  true
+ ],
+ "req.text.nobody": [
+  "",
+  false
+ ],
+ "req.text.twice": "TypeError: Failed to execute 'text' on 'Request': body stream already read",
+ "req.url.badurl": "THROW TypeError: Failed to construct 'Request': Failed to parse URL from http://",
+ "req.url.cred": "THROW TypeError: Failed to construct 'Request': Request cannot be constructed from a URL that includes credentials: http://user:pw@probe.test/",
+ "req.url.obj": [
+  "http://probe.test/o",
+  "http://probe.test/ts"
+ ],
+ "req.url.rel": "ORIGIN/x/y",
+ "res.ab": [
+  1,
+  2,
+  3
+ ],
+ "res.blob": [
+  2,
+  "text/plain;charset=utf-8"
+ ],
+ "res.blob.type": [
+  2,
+  "x/y"
+ ],
+ "res.body.bad": [
+  "text/plain;charset=UTF-8",
+  "text/plain;charset=UTF-8",
+  "text/plain;charset=UTF-8",
+  "text/plain;charset=UTF-8",
+  "text/plain;charset=UTF-8"
+ ],
+ "res.body.ct": [
+  "text/plain;charset=UTF-8",
+  "text/x",
+  "",
+  "application/x-www-form-urlencoded;charset=UTF-8",
+  "",
+  "",
+  "multipart/form-data; boundary=B",
+  "",
+  "a/b",
+  ""
+ ],
+ "res.body.type": [
+  true,
+  null,
+  true,
+  null
+ ],
+ "res.bytes": [
+  97,
+  98
+ ],
+ "res.call": "THROW TypeError: Failed to construct 'Response': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "res.clone": [
+  "abc",
+  false,
+  true,
+  "abc",
+  201,
+  "C",
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "content-type",
+    "text/plain;charset=UTF-8"
+   ]
+  ],
+  false
+ ],
+ "res.clone.used": "TypeError: Failed to execute 'clone' on 'Response': Response body is already used",
+ "res.defaults": {
+  "body": null,
+  "bodyUsed": false,
+  "hdr": [],
+  "ok": true,
+  "redirected": false,
+  "status": 200,
+  "statusText": "",
+  "type": "default",
+  "url": ""
+ },
+ "res.formData": [
+  [
+   "a",
+   "1"
+  ],
+  [
+   "b",
+   "2"
+  ]
+ ],
+ "res.formData.bad": "TypeError: Failed to fetch",
+ "res.fromstream": "st",
+ "res.headers.bad": "TypeError: Failed to construct 'Response': Invalid name",
+ "res.headers.init": [
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ],
+  [
+   [
+    "c",
+    "3"
+   ]
+  ]
+ ],
+ "res.headers.same": true,
+ "res.ignores": [
+  "default",
+  "",
+  false
+ ],
+ "res.init.null": 200,
+ "res.init.type": [
+  "TypeError: Failed to construct 'Response': The provided value is not of type 'ResponseInit'.",
+  "TypeError: Failed to construct 'Response': The provided value is not of type 'ResponseInit'.",
+  "TypeError: Failed to construct 'Response': The provided value is not of type 'ResponseInit'."
+ ],
+ "res.json": {
+  "a": [
+   1
+  ]
+ },
+ "res.json.bad": "SyntaxError",
+ "res.ok": "THROW RangeError: Failed to construct 'Response': The status provided (199) is outside the range [200, 599].",
+ "res.own": [],
+ "res.static.error": [
+  0,
+  "error",
+  false,
+  "",
+  [],
+  null
+ ],
+ "res.static.error.text": "",
+ "res.static.json": [
+  200,
+  [
+   [
+    "content-type",
+    "application/json"
+   ]
+  ],
+  true
+ ],
+ "res.static.json.bad": [
+  "TypeError: Failed to execute 'json' on 'Response': The data is not JSON serializable",
+  "TypeError: Failed to execute 'json' on 'Response': The data is not JSON serializable",
+  "TypeError: Failed to execute 'json' on 'Response': The data is not JSON serializable",
+  "TypeError: Failed to execute 'json' on 'Response': Do not know how to serialize a BigInt"
+ ],
+ "res.static.json.ct": [
+  [
+   "content-type",
+   "x/y"
+  ]
+ ],
+ "res.static.json.cyc": "TypeError",
+ "res.static.json.init": [
+  201,
+  "C",
+  [
+   [
+    "content-type",
+    "application/json"
+   ],
+   [
+    "x-a",
+    "1"
+   ]
+  ]
+ ],
+ "res.static.json.text": "{\"a\":[1,\"é\"]}",
+ "res.static.redirect": [
+  301,
+  "default",
+  [
+   [
+    "location",
+    "http://probe.test/to"
+   ]
+  ],
+  false,
+  false,
+  null
+ ],
+ "res.static.redirect.bad": [
+  "RangeError: Failed to execute 'redirect' on 'Response': Invalid status code",
+  "RangeError: Failed to execute 'redirect' on 'Response': Invalid status code",
+  308,
+  "RangeError: Failed to execute 'redirect' on 'Response': Invalid status code"
+ ],
+ "res.static.redirect.badurl": "TypeError: Failed to execute 'redirect' on 'Response': Failed to parse URL from http://",
+ "res.static.redirect.def": "302:ORIGIN/rel",
+ "res.status.conv": [
+  201,
+  201,
+  "RangeError",
+  "RangeError",
+  200
+ ],
+ "res.status.default": [
+  200,
+  204,
+  ""
+ ],
+ "res.status.nullbody": [
+  "RangeError: Failed to construct 'Response': The status provided (101) is outside the range [200, 599].",
+  "TypeError: Failed to construct 'Response': Response with null body status cannot have body",
+  "TypeError: Failed to construct 'Response': Response with null body status cannot have body",
+  "TypeError: Failed to construct 'Response': Response with null body status cannot have body"
+ ],
+ "res.status.range": [
+  "RangeError: Failed to construct 'Response': The status provided (99) is outside the range [200, 599].",
+  "RangeError: Failed to construct 'Response': The status provided (100) is outside the range [200, 599].",
+  "RangeError: Failed to construct 'Response': The status provided (199) is outside the range [200, 599].",
+  200,
+  299,
+  300,
+  599,
+  "RangeError: Failed to construct 'Response': The status provided (600) is outside the range [200, 599].",
+  "RangeError: Failed to construct 'Response': The status provided (0) is outside the range [200, 599].",
+  "RangeError: Failed to construct 'Response': The status provided (65535) is outside the range [200, 599].",
+  "RangeError: Failed to construct 'Response': The status provided (51712) is outside the range [200, 599]."
+ ],
+ "res.statusText": [
+  "OK",
+  "TypeError: Failed to construct 'Response': Invalid statusText",
+  "é",
+  "TypeError: Failed to construct 'Response': Failed to read the 'statusText' property from 'ResponseInit': String contains non ISO-8859-1 code point.",
+  "",
+  "5",
+  "null"
+ ],
+ "res.stream": [
+  [
+   97,
+   98,
+   99
+  ],
+  false,
+  true,
+  true
+ ],
+ "res.stream.locked": "TypeError: Failed to execute 'text' on 'Response': body stream is locked",
+ "res.stream.then.text": "abc",
+ "res.tag": [
+  "[object Response]",
+  "[object Response]",
+  "{}"
+ ],
+ "res.text": [
+  "héllo",
+  true
+ ],
+ "res.text.gbk": "���",
+ "res.text.null": [
+  "",
+  false
+ ],
+ "res.text.twice": "TypeError: Failed to execute 'text' on 'Response': body stream already read",
+ "shape.Request": {
+  "kinds": {
+   "arrayBuffer": "function:0",
+   "blob": "function:0",
+   "body": "ro",
+   "bodyUsed": "ro",
+   "bytes": "function:0",
+   "cache": "ro",
+   "clone": "function:0",
+   "constructor": "function:1",
+   "credentials": "ro",
+   "destination": "ro",
+   "duplex": "ro",
+   "formData": "function:0",
+   "headers": "ro",
+   "integrity": "ro",
+   "isHistoryNavigation": "ro",
+   "json": "function:0",
+   "keepalive": "ro",
+   "method": "ro",
+   "mode": "ro",
+   "redirect": "ro",
+   "referrer": "ro",
+   "referrerPolicy": "ro",
+   "signal": "ro",
+   "targetAddressSpace": "ro",
+   "text": "function:0",
+   "url": "ro"
+  },
+  "len": 1,
+  "order": [
+   "method",
+   "url",
+   "headers",
+   "destination",
+   "referrer",
+   "referrerPolicy",
+   "mode",
+   "credentials",
+   "cache",
+   "redirect",
+   "integrity",
+   "keepalive",
+   "signal",
+   "duplex",
+   "isHistoryNavigation",
+   "bodyUsed",
+   "arrayBuffer",
+   "blob",
+   "clone",
+   "formData",
+   "json",
+   "text",
+   "targetAddressSpace",
+   "body",
+   "bytes",
+   "constructor"
+  ],
+  "statics": [],
+  "tag": "[object Request]"
+ },
+ "shape.Response": {
+  "kinds": {
+   "arrayBuffer": "function:0",
+   "blob": "function:0",
+   "body": "ro",
+   "bodyUsed": "ro",
+   "bytes": "function:0",
+   "clone": "function:0",
+   "constructor": "function:0",
+   "formData": "function:0",
+   "headers": "ro",
+   "json": "function:0",
+   "ok": "ro",
+   "redirected": "ro",
+   "status": "ro",
+   "statusText": "ro",
+   "text": "function:0",
+   "type": "ro",
+   "url": "ro"
+  },
+  "len": 0,
+  "order": [
+   "type",
+   "url",
+   "redirected",
+   "status",
+   "ok",
+   "statusText",
+   "headers",
+   "body",
+   "bodyUsed",
+   "arrayBuffer",
+   "blob",
+   "clone",
+   "formData",
+   "json",
+   "text",
+   "bytes",
+   "constructor"
+  ],
+  "statics": [
+   "error",
+   "json",
+   "redirect"
+  ],
+  "tag": "[object Response]"
+ }
+}
