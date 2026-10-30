@@ -3,7 +3,64 @@
 // out of bootstrap.js. Top level
 // only declares bindings; nothing here is read before call time.
 globalThis.MediaStream = class MediaStream { constructor(){this.id='';this.active=true;} getTracks(){return [];} getAudioTracks(){return [];} getVideoTracks(){return [];} addTrack(){} removeTrack(){} clone(){return new MediaStream();} };
-globalThis.MediaStreamTrack = class MediaStreamTrack { constructor(){this.kind='';this.enabled=true;this.readyState='live';} stop(){} clone(){return new MediaStreamTrack();} };
+// 刀62: MediaStreamTrack full Chrome face — 20 own prototype members in
+// Chrome's raw order (kind first, constructor LAST; probed), no statics,
+// getCapabilities on the PROTOTYPE (statics probed empty), `new` is an
+// illegal constructor, and the prototype chain runs through EventTarget.
+// Function-minted (not class syntax) so every member, constructor included,
+// is configurable — the flag/reorder pass at the bottom can then make the
+// raw own-key order equal Chrome's with the audit's ec/e flags. All state
+// lives in hidden slots; a minted track answers Chrome's defaults.
+let __rtcMintTrackImpl = null; // wired by the PC face below once mintTrack exists
+(function () {
+  const P = { __proto__: EventTarget.prototype };
+  const slot = (o, k, v) => { if (o[k] === undefined) Object.defineProperty(o, k, { value: v, writable: true, configurable: true }); };
+  const dg = (n, get, set) => Object.defineProperty(P, n, set ? { get, set, enumerable: true, configurable: true } : { get, enumerable: true, configurable: true });
+  const df = (n, f) => { _markNative(f); return Object.defineProperty(P, n, { value: f, writable: true, enumerable: true, configurable: true }); };
+  dg('kind', function kind() { return this.__kind || ''; });
+  // 刀62: track ids must be UNIQUE per track (Chrome mints a fresh GUID per
+  // instance) — __rtcToken is persona-seeded and stable, so roll real entropy.
+  const __rtcUid = () => { let s = ''; for (let i = 0; i < 64; i++) s += 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'[Math.floor(Math.random() * 64)]; return s; };
+  dg('id', function id() { slot(this, '__id', __rtcUid()); return this.__id; });
+  dg('label', function label() { return this.__label || ''; });
+  dg('enabled', function enabled() { return this.__enabled === undefined ? true : this.__enabled; },
+    function enabled(v) { Object.defineProperty(this, '__enabled', { value: !!v, writable: true, configurable: true }); });
+  const onDef = (n) => dg(n, new Function('n', 'return function () { const o = this.__on; return o && o[n] !== undefined ? o[n] : null; };')(n),
+    new Function('n', 'return function (v) { if (!this.__on) Object.defineProperty(this, "__on", { value: {}, writable: true, configurable: true }); this.__on[n] = typeof v === "function" ? v : null; };')(n));
+  dg('muted', function muted() { return false; });
+  onDef('onmute');
+  onDef('onunmute');
+  dg('readyState', function readyState() { return this.__rs || 'live'; });
+  onDef('onended');
+  dg('stats', function stats() { return null; });
+  dg('contentHint', function contentHint() { return this.__ch || ''; },
+    function contentHint(v) { Object.defineProperty(this, '__ch', { value: String(v), writable: true, configurable: true }); });
+  df('applyConstraints', function applyConstraints(constraints) { return Promise.resolve(); });
+  df('clone', function clone() {
+    const c = __rtcMintTrackImpl ? __rtcMintTrackImpl(this.__kind || '') : Object.create(globalThis.MediaStreamTrack.prototype);
+    Object.defineProperty(c, '__label', { value: this.__label || '', writable: true, configurable: true });
+    Object.defineProperty(c, '__rs', { value: this.__rs || 'live', writable: true, configurable: true });
+    if (this.__enabled !== undefined) Object.defineProperty(c, '__enabled', { value: this.__enabled, writable: true, configurable: true });
+    if (this.__ch !== undefined) Object.defineProperty(c, '__ch', { value: this.__ch, writable: true, configurable: true });
+    return c;
+  });
+  // 刀62 divergence (recorded): capabilities/settings/constraints return {}
+  // — Chrome answers source-derived dictionaries (canvas track probed);
+  // the engine mints carry no source, and {} is exactly Chrome's own answer
+  // for getConstraints on that same probed track.
+  df('getCapabilities', function getCapabilities() { return {}; });
+  df('getConstraints', function getConstraints() { return {}; });
+  df('getSettings', function getSettings() { return {}; });
+  df('stop', function stop() { Object.defineProperty(this, '__rs', { value: 'ended', writable: true, configurable: true }); });
+  onDef('oncapturehandlechange');
+  df('getCaptureHandle', function getCaptureHandle() { return null; });
+  function MediaStreamTrack() {
+    throw new TypeError("Failed to construct 'MediaStreamTrack': Illegal constructor");
+  }
+  Object.defineProperty(P, 'constructor', { value: MediaStreamTrack, writable: true, enumerable: false, configurable: true });
+  MediaStreamTrack.prototype = P;
+  Object.defineProperty(globalThis, 'MediaStreamTrack', { value: MediaStreamTrack, writable: true, enumerable: false, configurable: true });
+})();
 // (#170) RTCPeerConnection is a WebIDL interface in Chrome: a bare call
 // throws the DOM TypeError (not V8's class-constructor text), and
 // Object.prototype.toString brands instances [object RTCPeerConnection]
@@ -109,13 +166,22 @@ const __RTCPCImpl = class RTCPeerConnection extends EventTarget {
     this.__rtc.cs = 'closed';
     this.__rtc.sig = 'closed';
   }
-  createDataChannel(label){
-    // 刀61: a branded instance, not a plain object — Object.create keeps the
-    // RTCDataChannel shell's toStringTag brand and readyState getter (the
-    // channel's own member face is its own audit line).
+  createDataChannel(label, opts){
+    // 刀62: a branded instance whose whole face is the RTCDataChannel
+    // prototype (installed load-time in web_api_gaps) — options parse into
+    // the hidden __dc slot: Chrome's fresh channel answers ordered:true,
+    // reliable true unless maxRetransmits/maxPacketLifeTime is set, id null
+    // unless negotiated carries one, readyState 'connecting' (close() on a
+    // connecting channel lands 'closing', probed).
+    const o = opts && typeof opts === 'object' ? opts : {};
+    const d = { label: label == null ? '' : String(label), ordered: o.ordered !== false,
+      maxPacketLifeTime: o.maxPacketLifeTime === undefined ? null : Number(o.maxPacketLifeTime),
+      maxRetransmits: o.maxRetransmits === undefined ? null : Number(o.maxRetransmits),
+      protocol: o.protocol === undefined ? '' : String(o.protocol),
+      negotiated: !!o.negotiated, id: o.id === undefined ? null : Number(o.id),
+      rs: 'connecting', bt: 'arraybuffer', ba: 0, batlt: 0 };
     const ch = Object.create(globalThis.RTCDataChannel.prototype);
-    Object.defineProperty(ch, '__label', { value: label == null ? '' : String(label), writable: true, configurable: true });
-    ch.close = function close(){ this.readyState = 'closed'; };
+    Object.defineProperty(ch, '__dc', { value: d, writable: true, configurable: true });
     return ch;
   }
   getStats(){ return Promise.resolve(new Map()); }
@@ -220,10 +286,8 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
     satsFilled = true;
     const RSP = globalThis.RTCRtpSender && globalThis.RTCRtpSender.prototype;
     const RRP = globalThis.RTCRtpReceiver && globalThis.RTCRtpReceiver.prototype;
-    const RTP = globalThis.RTCRtpTransceiver && globalThis.RTCRtpTransceiver.prototype;
     const DSP = globalThis.RTCDTMFSender && globalThis.RTCDTMFSender.prototype;
-    const RDC = globalThis.RTCDataChannel.prototype, CERT = globalThis.RTCCertificate && globalThis.RTCCertificate.prototype;
-    const has = (o, n) => Object.prototype.hasOwnProperty.call(o, n);
+    const CERT = globalThis.RTCCertificate && globalThis.RTCCertificate.prototype;
     // force: these were stub_members' undefined-returning stubs (the audit
     // sees the right kind, the reads were dead) or the satellite's constant
     // getter — the mints' per-instance reads must be REAL.
@@ -239,17 +303,11 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
       force(DSP, 'interToneGap', function interToneGap() { return null; });
       force(DSP, 'toneBuffer', function toneBuffer() { return ''; });
     }
-    force(globalThis.MediaStreamTrack.prototype, 'kind', function kind() { return this.__kind || ''; });
-    force(RDC, 'label', function label() { return this.__label || ''; });
     if (CERT) force(CERT, 'expires', function expires() { return this.__expires == null ? 0 : this.__expires; });
-    // fill-if-missing: the transceiver satellite owns real members; these
-    // four are absent everywhere and its own knife owns the rest.
-    if (RTP) {
-      if (!has(RTP, 'currentDirection')) dg(RTP, 'currentDirection', function currentDirection() { return null; });
-      if (!has(RTP, 'stopped')) dg(RTP, 'stopped', function stopped() { return !!this.__stopped; });
-      if (!has(RTP, 'sender')) dg(RTP, 'sender', function sender() { return this.__sender || null; });
-      if (!has(RTP, 'receiver')) dg(RTP, 'receiver', function receiver() { return this.__receiver || null; });
-    }
+    // 刀62: MediaStreamTrack/RTCDataChannel/RTCRtpTransceiver own their whole
+    // prototype faces now — MediaStreamTrack load-time above, the two shells
+    // load-time in web_api_gaps (which runs after global_surface). Only the
+    // sender/receiver/DTMF/certificate reads still need this lazy force.
   };
   const mintTrack = (kind) => {
     fillSats();
@@ -269,13 +327,14 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
     Object.defineProperty(r, '__t', { value: track || null, writable: true, configurable: true });
     return r;
   };
-  const mintTransceiver = (sender, receiver) => {
+  const mintTransceiver = (sender, receiver, kind) => {
     fillSats();
     const t = Object.create(globalThis.RTCRtpTransceiver.prototype);
     Object.defineProperties(t, {
       __sender: { value: sender, writable: true, configurable: true },
       __receiver: { value: receiver, writable: true, configurable: true },
       __stopped: { value: false, writable: true, configurable: true },
+      __xkind: { value: kind === 'audio' ? 'audio' : 'video', writable: true, configurable: true },
     });
     return t;
   };
@@ -321,7 +380,7 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
     if (!(track instanceof globalThis.MediaStreamTrack)) throw typeErr('addTrack', 'MediaStreamTrack');
     if (this.__closed) throw closedErr('addTrack');
     const kind = track && track.__kind === 'audio' ? 'audio' : 'video';
-    const sender = mintSender(track), recv = mintReceiver(mintTrack(kind)), tr = mintTransceiver(sender, recv);
+    const sender = mintSender(track), recv = mintReceiver(mintTrack(kind)), tr = mintTransceiver(sender, recv, kind);
     this.__rtc.senders.push(sender); this.__rtc.receivers.push(recv); this.__rtc.transceivers.push(tr);
     for (const s of streams) if (s && !this.__rtc.lstreams.includes(s)) this.__rtc.lstreams.push(s);
     return sender;
@@ -334,7 +393,7 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
     const kind = isTrack ? (kindOrTrack.__kind === 'audio' ? 'audio' : 'video') : kindOrTrack;
     const recv = mintReceiver(mintTrack(kind === 'audio' ? 'audio' : 'video'));
     const sender = mintSender(isTrack ? kindOrTrack : null);
-    const tr = mintTransceiver(sender, recv);
+    const tr = mintTransceiver(sender, recv, kind);
     this.__rtc.senders.push(sender); this.__rtc.receivers.push(recv); this.__rtc.transceivers.push(tr);
     return tr;
   }, 1);
@@ -377,6 +436,7 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
     'getReceivers', 'getRemoteStreams', 'getSenders', 'getStats', 'getTransceivers', 'removeStream',
     'removeTrack', 'restartIce', 'setConfiguration', 'setLocalDescription', 'setRemoteDescription', 'constructor'];
   Object.defineProperty(P, 'constructor', { value: PC, writable: true, enumerable: false, configurable: true });
+  __rtcMintTrackImpl = mintTrack;
   for (const n of ORDER) {
     const d = Object.getOwnPropertyDescriptor(P, n);
     if (d && d.configurable) { delete P[n]; Object.defineProperty(P, n, d); }
