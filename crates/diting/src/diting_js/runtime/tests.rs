@@ -61,13 +61,15 @@
     /// #208: FontFaceSet.forEach shadowed Array.prototype.forEach with a
     /// function that called itself — every call was a RangeError. The
     /// replacement iterates by index and keeps Set callback semantics
-    /// (value, value, set) with thisArg pass-through.
+    /// (value, value, set) with thisArg pass-through. (Chrome's set is EMPTY
+    /// until a page adds faces - M4 knife 52 - so the test adds one first.)
     #[test]
     fn fonts_for_each_iterates_without_recursing() {
         let mut rt = setup_runtime("<html><body></body></html>");
         let probe = "(function() { \
             var seen = 0, self2nd = null, set3rd = null, thisOk = false; \
             var ctx = { tag: 'ctx' }; \
+            document.fonts.add(new FontFace('T', 'local(Arial)')); \
             document.fonts.forEach(function (v, v2, s) { \
                 seen++; self2nd = (v === v2); set3rd = s; \
                 if (this === ctx) thisOk = true; \
@@ -27603,4 +27605,29 @@ async fn get_element_by_id_ignores_detached_nodes_after_inner_html() {
         )
         .unwrap();
     assert_eq!(out.as_str().unwrap(), "[false,false,true,1,null]");
+}
+
+/// M4 knife 52 - document.fonts is a real FontFaceSet (EventTarget, insertion-ordered set of FontFace, interface object not exposed on
+/// window) and FontFace has Chrome 145's full descriptor surface; fonts-probe.js, 27 keys against Chrome for Testing.
+#[tokio::test(flavor = "current_thread")]
+async fn fonts_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/fonts-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/fonts-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }

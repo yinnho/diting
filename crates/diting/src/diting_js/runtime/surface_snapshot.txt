@@ -1,4 +1,4 @@
-[globals] 1215
+[globals] 1213
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -105,7 +105,6 @@ G CSSPositionTryDescriptors
 G CSSPositionTryRule
 G CSSPositionValue
 G CSSPropertyRule
-G CSSPseudoElement
 G CSSRotate
 G CSSRule
 G CSSRuleList
@@ -240,7 +239,6 @@ G Float64Array
 G FocusEvent
 G FontData
 G FontFace
-G FontFaceSet
 G FontFaceSetLoadEvent
 G FormData
 G FormDataEvent
@@ -1328,7 +1326,6 @@ P CSSPositionTryDescriptors :: align-self,alignSelf,block-size,blockSize,bottom,
 P CSSPositionTryRule :: constructor,name,style
 P CSSPositionValue :: constructor,x,y
 P CSSPropertyRule :: constructor,inherits,initialValue,name,style,syntax
-P CSSPseudoElement :: constructor
 P CSSRotate :: angle,constructor,x,y,z
 S CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE
 P CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE,constructor,cssText,parentRule,parentStyleSheet,type
@@ -1484,8 +1481,7 @@ S Float64Array :: BYTES_PER_ELEMENT
 P Float64Array :: BYTES_PER_ELEMENT,constructor
 P FocusEvent :: constructor,relatedTarget
 P FontData :: blob,constructor,family,fullName,postscriptName,style
-P FontFace :: constructor,display,family,featureSettings,load,loaded,source,status,stretch,style,unicodeRange,variant,weight
-P FontFaceSet :: constructor
+P FontFace :: ascentOverride,constructor,descentOverride,display,family,featureSettings,lineGapOverride,load,loaded,sizeAdjust,status,stretch,style,unicodeRange,variant,variationSettings,weight
 P FontFaceSetLoadEvent :: constructor,fontfaces
 P FormData :: append,constructor,delete,entries,forEach,get,getAll,has,keys,set,values
 P FormDataEvent :: constructor,formData

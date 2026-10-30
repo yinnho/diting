@@ -59,3 +59,10 @@
     if (!Object.getOwnPropertyDescriptor(LP, Symbol.toStringTag)) Object.defineProperty(LP, Symbol.toStringTag, { value: 'Location', writable: false, enumerable: false, configurable: true });
   } catch (e) {}
 })();
+
+// Chrome's window carries no OWN @@toStringTag (it comes from Window.prototype now that the chain reaches it).
+(function () {
+  try {
+    if (Object.getOwnPropertyDescriptor(globalThis, Symbol.toStringTag) && Object.getOwnPropertyDescriptor(globalThis.Window.prototype, Symbol.toStringTag)) delete globalThis[Symbol.toStringTag];
+  } catch (e) {}
+})();

@@ -10767,71 +10767,7 @@ globalThis.XMLSerializer = class XMLSerializer {
   }
 };
 
-// document.fonts enumerates the same per-platform installed set the span-
-// measure layer uses (_INSTALLED_FONTS above) — resolved at ACCESS time, not
-// snapshot time, so a late set_user_agent re-platforms both faces together
-// and they can never report different font universes.
-function _commonFonts() {
-  return _INSTALLED_FONTS[_DITING_FONT_PLATFORM()] || _INSTALLED_FONTS.mac;
-}
-// FontFace constructor. document.fonts below returns FontFace-tagged objects,
-// but the WorkOS/font-loader code path calls `new FontFace(...)` directly and
-// a missing global throws a ReferenceError that aborts the script bundle —
-// intermittently killing the whole React mount (the authk flaky blank page).
-class FontFace {
-  // Spec-shaped FontFace: `family`/`style`/`weight`/`stretch`/`status` are
-  // PROTOTYPE accessors backed by private slots, not instance data
-  // properties. Bot detectors (Castle/WorkOS) do
-  // `getOwnPropertyDescriptor(FontFace.prototype, 'family')` — instance
-  // props made that undefined, which their lie-detector flags, which sends
-  // every "isolated iframe" probe into the MAIN document (page wipe).
-  constructor(family, source, descriptors) {
-    const d = descriptors || {};
-    this._ffFamily = String(family == null ? '' : family);
-    this._ffSource = String(source == null ? '' : source);
-    this._ffStyle = d.style || 'normal';
-    this._ffWeight = d.weight || '400';
-    this._ffStretch = d.stretch || 'normal';
-    this._ffDisplay = d.display || 'auto';
-    this._ffUnicodeRange = d.unicodeRange || 'U+0-10FFFF';
-    this._ffVariant = d.variant || 'normal';
-    this._ffFeatureSettings = d.featureSettings || 'normal';
-    this._ffStatus = 'unloaded';
-    this._ffLoaded = null;
-    __hideOwn(this);
-  }
-  get family() { return this._ffFamily; }
-  set family(v) { this._ffFamily = String(v == null ? '' : v); }
-  get source() { return this._ffSource; }
-  set source(v) { this._ffSource = String(v == null ? '' : v); }
-  get style() { return this._ffStyle; }
-  set style(v) { this._ffStyle = String(v == null ? 'normal' : v); }
-  get weight() { return this._ffWeight; }
-  set weight(v) { this._ffWeight = String(v == null ? '400' : v); }
-  get stretch() { return this._ffStretch; }
-  set stretch(v) { this._ffStretch = String(v == null ? 'normal' : v); }
-  get display() { return this._ffDisplay; }
-  set display(v) { this._ffDisplay = String(v == null ? 'auto' : v); }
-  get unicodeRange() { return this._ffUnicodeRange; }
-  set unicodeRange(v) { this._ffUnicodeRange = String(v == null ? 'U+0-10FFFF' : v); }
-  get variant() { return this._ffVariant; }
-  set variant(v) { this._ffVariant = String(v == null ? 'normal' : v); }
-  get featureSettings() { return this._ffFeatureSettings; }
-  set featureSettings(v) { this._ffFeatureSettings = String(v == null ? 'normal' : v); }
-  get status() { return this._ffStatus; }
-  get loaded() {
-    if (!this._ffLoaded) __def(this, '_ffLoaded', this.load());
-    return this._ffLoaded;
-  }
-  load() {
-    this._ffStatus = 'loaded';
-    return Promise.resolve(this);
-  }
-}
-Object.defineProperty(FontFace.prototype, Symbol.toStringTag, { value: 'FontFace', configurable: true });
-_markNativeProto(FontFace.prototype);
-globalThis.FontFace = FontFace;
-_markNative(FontFace);
+// FontFace / FontFaceSet / document.fonts live in platform/fontfaceset.impl.js (M4 knife 52).
 
 // fp-diff-1014 P1: Chrome desktop exposes SharedArrayBuffer ONLY inside
 // cross-origin-isolated contexts (since 92) — a plain page reads
@@ -10848,46 +10784,6 @@ if (!('crossOriginIsolated' in globalThis)) {
   Object.defineProperty(globalThis, 'crossOriginIsolated', { value: false, configurable: true });
 }
 
-Object.defineProperty(Document.prototype, 'fonts', {
-  get() {
-    // Identity: Chrome hands back the same FontFaceSet object every access
-    // (`document.fonts === document.fonts`), so listeners/ready registered
-    // through one access are visible on the next. The getter used to build a
-    // fresh array per read (#208 追溯).
-    if (this.__diting_fonts) return this.__diting_fonts;
-    const _names = _commonFonts();
-    const _set = _names.map((name, i) => ({
-      family: name, style: 'normal', weight: '400', stretch: 'normal',
-      status: 'loaded', loaded: Promise.resolve(this),
-      [Symbol.toStringTag]: 'FontFace',
-    }));
-    // Set semantics (value, value, set) with an index loop — the naive
-    // `_set.forEach = (fn) => _set.forEach(fn)` shadowed Array.prototype and
-    // recursed into itself (RangeError on any call; #208).
-    _set.forEach = (fn, thisArg) => {
-      for (let i = 0; i < _set.length; i++) fn.call(thisArg, _set[i], _set[i], _set);
-    };
-    _set.has = (f) => typeof f === 'string'
-      ? _names.some(n => n.toLowerCase() === f.toLowerCase())
-      : _set.some(ff => ff.family === f?.family);
-    _set.delete = (f) => false;
-    _set.clear = () => {};
-    _set.add = () => {};
-    _set.load = () => Promise.resolve(_set);
-    _set.check = (font) => {
-      const m = typeof font === 'string' ? font.match(/["']([^"']+)["']/) : null;
-      return m ? _names.some(n => n.toLowerCase() === m[1].toLowerCase()) : true;
-    };
-    _set.ready = Promise.resolve(_set);
-    _set.status = 'loaded';
-    _set.addEventListener = () => {};
-    _set.removeEventListener = () => {};
-    _set.dispatchEvent = () => true;
-    Object.defineProperty(this, '__diting_fonts', { value: _set, configurable: true });
-    return _set;
-  },
-  configurable: true,
-});
 globalThis.crypto = globalThis.crypto || {
   // Fill an integer TypedArray from the OS CSPRNG. Filling the underlying bytes
   // (not per-element Math.random) keeps the distribution uniform across every

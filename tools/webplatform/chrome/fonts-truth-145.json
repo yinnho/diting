@@ -1,0 +1,290 @@
+{
+ "add": [
+  true,
+  1,
+  true,
+  "loaded",
+  0,
+  false
+ ],
+ "add.bad": [
+  "TypeError: Failed to execute 'add' on 'FontFaceSet': parameter 1 is not of type 'FontFace'.",
+  "TypeError: Failed to execute 'add' on 'FontFaceSet': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'has' on 'FontFaceSet': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'delete' on 'FontFaceSet': parameter 1 is not of type 'FontFace'."
+ ],
+ "brand": [
+  "TypeError: Illegal invocation",
+  "ok",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "ok"
+ ],
+ "check": [
+  true,
+  true,
+  true,
+  true
+ ],
+ "check.bad": [
+  "TypeError: Failed to execute 'check' on 'FontFaceSet': 1 argument required, but only 0 present.",
+  "SyntaxError: Failed to execute 'check' on 'FontFaceSet': Could not resolve 'nonsense' as a font.",
+  "SyntaxError: Failed to execute 'check' on 'FontFaceSet': Could not resolve '' as a font."
+ ],
+ "clear": [
+  2,
+  0,
+  "#undef"
+ ],
+ "ctor": [
+  "function",
+  2,
+  [
+   "family",
+   "style",
+   "weight",
+   "stretch",
+   "unicodeRange",
+   "variant",
+   "featureSettings",
+   "display",
+   "ascentOverride",
+   "descentOverride",
+   "lineGapOverride",
+   "sizeAdjust",
+   "status",
+   "loaded"
+  ]
+ ],
+ "defaults": [
+  0,
+  "loaded",
+  null,
+  null,
+  null,
+  true,
+  true
+ ],
+ "events": {
+  "n": 1,
+  "onloading": [
+   true,
+   null
+  ],
+  "onloadingdone": [
+   true,
+   null
+  ],
+  "onloadingerror": [
+   true,
+   null
+  ]
+ },
+ "face.badsource": [
+  "error"
+ ],
+ "face.brand": [
+  "promise",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "promise"
+ ],
+ "face.ctor.bad": [
+  "TypeError: Failed to construct 'FontFace': 2 arguments required, but only 0 present.",
+  "TypeError: Failed to construct 'FontFace': 2 arguments required, but only 1 present.",
+  "TypeError: Failed to construct 'FontFace': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+  "ok",
+  "TypeError: Failed to construct 'FontFace': The provided value is not of type 'FontFaceDescriptors'.",
+  "ok"
+ ],
+ "face.defaults": [
+  "Fam",
+  "normal",
+  "normal",
+  "normal",
+  "U+0-10FFFF",
+  "normal",
+  "normal",
+  "auto",
+  "normal",
+  "normal",
+  "normal",
+  "100%",
+  "unloaded",
+  [],
+  "[object FontFace]",
+  true,
+  true
+ ],
+ "face.desc": [
+  "Fam2",
+  "italic",
+  "700",
+  "condensed",
+  "U+41",
+  "small-caps",
+  "\"liga\" 0",
+  "swap",
+  "90%",
+  "10%",
+  "0%",
+  "110%"
+ ],
+ "face.load": [
+  true,
+  false,
+  true,
+  true,
+  true
+ ],
+ "face.set": [
+  "oblique",
+  "bold",
+  "Other",
+  "SyntaxError: Failed to set the 'style' property on 'FontFace': Failed to set 'zzz' as a property value.",
+  "SyntaxError: Failed to set the 'display' property on 'FontFace': Failed to set 'bad' as a property value.",
+  "unloaded"
+ ],
+ "face.shape": {
+  "kinds": {
+   "ascentOverride": "rw",
+   "constructor": "function:2",
+   "descentOverride": "rw",
+   "display": "rw",
+   "family": "rw",
+   "featureSettings": "rw",
+   "lineGapOverride": "rw",
+   "load": "function:0",
+   "loaded": "ro",
+   "sizeAdjust": "rw",
+   "status": "ro",
+   "stretch": "rw",
+   "style": "rw",
+   "unicodeRange": "rw",
+   "variant": "rw",
+   "variationSettings": "rw",
+   "weight": "rw"
+  },
+  "len": 2,
+  "order": [
+   "family",
+   "style",
+   "weight",
+   "stretch",
+   "unicodeRange",
+   "variant",
+   "featureSettings",
+   "display",
+   "ascentOverride",
+   "descentOverride",
+   "lineGapOverride",
+   "sizeAdjust",
+   "status",
+   "loaded",
+   "load",
+   "variationSettings",
+   "constructor"
+  ],
+  "proto": true,
+  "statics": [],
+  "syms": [
+   "Symbol(Symbol.toStringTag)"
+  ],
+  "tag": "[object FontFace]"
+ },
+ "forEach": [
+  [
+   true,
+   true,
+   true,
+   true
+  ],
+  "TypeError: Failed to execute 'forEach' on 'FontFaceSet': 1 argument required, but only 0 present."
+ ],
+ "identity": [
+  true,
+  true,
+  "undefined"
+ ],
+ "iter": [
+  "function",
+  true,
+  false,
+  false,
+  0,
+  0
+ ],
+ "load.bad": [],
+ "load.type": [
+  true
+ ],
+ "order": [
+  "O2",
+  "O1"
+ ],
+ "ready": "promise",
+ "shape": {
+  "ctorOnProto": "#undef",
+  "exposedCtor": "undefined",
+  "kinds": {
+   "add": "function:1",
+   "check": "function:1",
+   "clear": "function:0",
+   "delete": "function:1",
+   "entries": "function:0",
+   "forEach": "function:1",
+   "has": "function:1",
+   "keys": "function:0",
+   "load": "function:1",
+   "onloading": "rw",
+   "onloadingdone": "rw",
+   "onloadingerror": "rw",
+   "ready": "ro",
+   "size": "ro",
+   "status": "ro",
+   "values": "function:0"
+  },
+  "order": [
+   "onloading",
+   "onloadingdone",
+   "onloadingerror",
+   "ready",
+   "status",
+   "size",
+   "check",
+   "load",
+   "add",
+   "clear",
+   "delete",
+   "entries",
+   "forEach",
+   "has",
+   "keys",
+   "values"
+  ],
+  "own": [],
+  "protoOfProto": true,
+  "syms": [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  "tag": "[object FontFaceSet]"
+ },
+ "win": [
+  [],
+  false,
+  false,
+  false,
+  -1
+ ],
+ "worker": [
+  "undefined",
+  true,
+  true
+ ]
+}
