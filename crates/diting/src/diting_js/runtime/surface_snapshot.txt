@@ -1358,7 +1358,7 @@ P CacheStorage :: constructor,delete,has,keys,match,open
 P CanvasCaptureMediaStreamTrack :: canvas,constructor,requestFrame
 P CanvasGradient :: addColorStop,constructor
 P CanvasPattern :: constructor,setTransform
-P CanvasRenderingContext2D :: canvas,constructor,fillStyle,font,globalAlpha,globalCompositeOperation,lineWidth,strokeStyle,textAlign,textBaseline
+P CanvasRenderingContext2D :: arc,arcTo,beginPath,bezierCurveTo,canvas,clearRect,clip,closePath,constructor,createConicGradient,createImageData,createLinearGradient,createPattern,createRadialGradient,direction,drawFocusIfNeeded,drawImage,ellipse,fill,fillRect,fillStyle,fillText,filter,font,fontKerning,fontStretch,fontVariantCaps,getContextAttributes,getImageData,getLineDash,getTransform,globalAlpha,globalCompositeOperation,imageSmoothingEnabled,imageSmoothingQuality,isContextLost,isPointInPath,isPointInStroke,lang,letterSpacing,lineCap,lineDashOffset,lineJoin,lineTo,lineWidth,measureText,miterLimit,moveTo,putImageData,quadraticCurveTo,rect,reset,resetTransform,restore,rotate,roundRect,save,scale,setLineDash,setTransform,shadowBlur,shadowColor,shadowOffsetX,shadowOffsetY,stroke,strokeRect,strokeStyle,strokeText,textAlign,textBaseline,textRendering,transform,translate,wordSpacing
 P CaptureController :: constructor,decreaseZoomLevel,forwardWheel,getSupportedZoomLevels,increaseZoomLevel,onzoomlevelchange,resetZoomLevel,setFocusBehavior,zoomLevel
 P CaretPosition :: constructor,getClientRect,offset,offsetNode
 P ChannelMergerNode :: constructor

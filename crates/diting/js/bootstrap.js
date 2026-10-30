@@ -12126,6 +12126,7 @@ _markNative(NodeList.prototype.forEach);
 
 class _Canvas2D {
   constructor(canvas) {
+    if (canvas === undefined || canvas === null || typeof canvas !== 'object') throw new TypeError("Failed to construct 'CanvasRenderingContext2D': Illegal constructor");
     this.canvas = canvas;
     this._w = canvas.width || 300;
     this._h = canvas.height || 150;
@@ -14246,7 +14247,11 @@ if (typeof ImageData === 'undefined') {
 }
 
 if (typeof CanvasRenderingContext2D === 'undefined') {
-  globalThis.CanvasRenderingContext2D = class CanvasRenderingContext2D {};
+  // The 2D context implementation class IS the interface: `ctx instanceof CanvasRenderingContext2D`, `ctx.constructor.name` and
+  // Object.prototype.toString.call(ctx) must read like Chrome's (they used to expose `_Canvas2D` / "[object Object]", with the
+  // global an empty stub class the instances never inherited from).
+  Object.defineProperty(_Canvas2D, 'name', { value: 'CanvasRenderingContext2D', configurable: true });
+  globalThis.CanvasRenderingContext2D = _Canvas2D;
 }
 
 if (typeof OffscreenCanvas === 'undefined') {

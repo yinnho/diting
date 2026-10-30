@@ -1,0 +1,266 @@
+{
+ "bool.smoothing": [
+  false,
+  false,
+  true,
+  false,
+  false,
+  false,
+  true
+ ],
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "conic": [
+  [
+   "object",
+   "function"
+  ],
+  "TypeError: Failed to execute 'createConicGradient' on 'CanvasRenderingContext2D': 3 arguments required, but only 2 present.",
+  "TypeError: Failed to execute 'createConicGradient' on 'CanvasRenderingContext2D': The provided double value is non-finite."
+ ],
+ "ctor": "TypeError: Failed to construct 'CanvasRenderingContext2D': Illegal constructor",
+ "dash.bad": [
+  "TypeError: Failed to execute 'setLineDash' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'setLineDash' on 'CanvasRenderingContext2D': The provided value cannot be converted to a sequence.",
+  "TypeError: Failed to execute 'setLineDash' on 'CanvasRenderingContext2D': The provided value cannot be converted to a sequence.",
+  "TypeError: Failed to execute 'setLineDash' on 'CanvasRenderingContext2D': The provided value cannot be converted to a sequence."
+ ],
+ "dash.basic": [
+  [
+   1,
+   2,
+   3,
+   1,
+   2,
+   3
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   4,
+   5
+  ],
+  [],
+  false
+ ],
+ "dash.iter": [
+  2,
+  4
+ ],
+ "defaults": {
+  "direction": "ltr",
+  "filter": "none",
+  "fontKerning": "auto",
+  "fontStretch": "normal",
+  "fontVariantCaps": "normal",
+  "imageSmoothingEnabled": true,
+  "imageSmoothingQuality": "low",
+  "lang": "inherit",
+  "letterSpacing": "0px",
+  "lineCap": "butt",
+  "lineDashOffset": 0,
+  "lineJoin": "miter",
+  "miterLimit": 10,
+  "shadowBlur": 0,
+  "shadowColor": "rgba(0, 0, 0, 0)",
+  "shadowOffsetX": 0,
+  "shadowOffsetY": 0,
+  "textRendering": "auto",
+  "wordSpacing": "0px"
+ },
+ "enum.coerce": [
+  "round",
+  "round"
+ ],
+ "enum.direction": [
+  "ltr",
+  "rtl",
+  "ltr",
+  "ltr",
+  "ltr",
+  "ltr"
+ ],
+ "enum.fontKerning": [
+  "auto",
+  "normal",
+  "none",
+  "none"
+ ],
+ "enum.fontStretch": [
+  "condensed",
+  "ultra-expanded",
+  "ultra-expanded"
+ ],
+ "enum.fontVariantCaps": [
+  "small-caps",
+  "titling-caps",
+  "titling-caps"
+ ],
+ "enum.imageSmoothingQuality": [
+  "low",
+  "medium",
+  "high",
+  "high"
+ ],
+ "enum.lineCap": [
+  "round",
+  "square",
+  "square",
+  "square"
+ ],
+ "enum.lineJoin": [
+  "bevel",
+  "round",
+  "round"
+ ],
+ "enum.textRendering": [
+  "optimizeSpeed",
+  "geometricPrecision",
+  "geometricPrecision"
+ ],
+ "focus": "TypeError: Failed to execute 'drawFocusIfNeeded' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.",
+ "instance.own": [
+  [],
+  true,
+  "CanvasRenderingContext2D",
+  "[object CanvasRenderingContext2D]"
+ ],
+ "kinds": {
+  "createConicGradient": "fn3",
+  "direction": "rw",
+  "drawFocusIfNeeded": "fn1",
+  "filter": "rw",
+  "fontKerning": "rw",
+  "fontStretch": "rw",
+  "fontVariantCaps": "rw",
+  "getContextAttributes": "fn0",
+  "getLineDash": "fn0",
+  "imageSmoothingEnabled": "rw",
+  "imageSmoothingQuality": "rw",
+  "isContextLost": "fn0",
+  "lang": "rw",
+  "letterSpacing": "rw",
+  "lineCap": "rw",
+  "lineDashOffset": "rw",
+  "lineJoin": "rw",
+  "miterLimit": "rw",
+  "reset": "fn0",
+  "roundRect": "fn4",
+  "setLineDash": "fn1",
+  "shadowBlur": "rw",
+  "shadowColor": "rw",
+  "shadowOffsetX": "rw",
+  "shadowOffsetY": "rw",
+  "textRendering": "rw",
+  "wordSpacing": "rw"
+ },
+ "len.spacing": [
+  "2px",
+  "1em",
+  "-3px",
+  "-3px",
+  "-3px",
+  "-3px",
+  "1.5pt",
+  "1.5pt",
+  "1.5pt"
+ ],
+ "len.word": [
+  "2px",
+  "2px",
+  "2px"
+ ],
+ "lost": [
+  false,
+  {
+   "alpha": true,
+   "colorSpace": "srgb",
+   "colorType": "unorm8",
+   "desynchronized": false,
+   "toneMapping": {
+    "mode": "standard"
+   },
+   "willReadFrequently": false
+  }
+ ],
+ "num.lineDashOffset": [
+  3,
+  -2,
+  -2,
+  -2
+ ],
+ "num.miterLimit": [
+  3,
+  3,
+  3,
+  3,
+  1000000000,
+  4
+ ],
+ "num.shadowBlur": [
+  5,
+  5,
+  5,
+  5,
+  7,
+  0,
+  0,
+  0
+ ],
+ "num.shadowOffset": [
+  3,
+  -4,
+  -4,
+  -4,
+  2,
+  0
+ ],
+ "reset": [
+  "#undef",
+  "butt",
+  0,
+  [],
+  "#000000",
+  1,
+  "ltr"
+ ],
+ "round.errors": [
+  "TypeError: Failed to execute 'roundRect' on 'CanvasRenderingContext2D': 4 arguments required, but only 0 present.",
+  "TypeError: Failed to execute 'roundRect' on 'CanvasRenderingContext2D': 4 arguments required, but only 3 present.",
+  "RangeError: Failed to execute 'roundRect' on 'CanvasRenderingContext2D': Radius value -1 is negative.",
+  "RangeError: Failed to execute 'roundRect' on 'CanvasRenderingContext2D': 5 radii provided. Between one and four radii are necessary.",
+  "RangeError: Failed to execute 'roundRect' on 'CanvasRenderingContext2D': 0 radii provided. Between one and four radii are necessary.",
+  "ok",
+  "ok",
+  "ok"
+ ],
+ "round.fill": [
+  255,
+  255
+ ],
+ "str.filter": [
+  "blur(2px)",
+  "blur(2px)",
+  "none",
+  "grayscale(1)"
+ ],
+ "str.lang": [
+  "fr",
+  "5",
+  "null",
+  "undefined",
+  ""
+ ]
+}

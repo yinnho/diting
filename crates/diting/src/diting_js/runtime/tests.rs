@@ -27432,3 +27432,30 @@ async fn treewalker_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 41: CanvasRenderingContext2D is the real interface (instanceof, constructor name, toStringTag, no own keys)
+/// and carries the state attributes the 2D context never had (cvstate-probe.js, 32 keys, real Chrome 145): defaults,
+/// silent rejection of invalid enum / non-finite / malformed-length values, 'inherit' direction, line-dash handling,
+/// reset(), roundRect() validation and rasterization, brand checks.
+#[tokio::test(flavor = "current_thread")]
+async fn canvasstate_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/cvstate-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/cvstate-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

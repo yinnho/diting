@@ -1365,3 +1365,17 @@ gen_internal_names 的赋值正则放宽到任意接收者（`x._bufferedAmount 
 还剩：CanvasRenderingContext2D(defineProperty 自建)、RTCPeerConnection、Image(DOM 类自有)、Attr(不继承 Node)、NamedNodeMap、CanvasGradient、WebSocket(动态 `_` 名)。
 验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 相同；ratchet OK；一致接口 741/936。
 
+## M4 刀41：CanvasRenderingContext2D 成为真接口 + 状态属性（2026-10-30）
+
+**可见度很高的缺陷**：`canvas.getContext('2d')` 返回的是 bootstrap 里私有类 `_Canvas2D` 的实例，而全局 `CanvasRenderingContext2D` 是个空桩类、实例从不继承它：`ctx instanceof CanvasRenderingContext2D` 为**假**，
+`ctx.constructor.name` 是 **`_Canvas2D`**（泄漏内部类名），`Object.prototype.toString.call(ctx)` 是 `[object Object]`，实例上 15 个自有键。Canvas 指纹脚本最爱检查这几项。
+**修法**：让实现类**就是**接口——把 `_Canvas2D` 改名为 `CanvasRenderingContext2D` 并直接装成全局（原桩删除）；构造器对非对象 canvas 抛 `Failed to construct 'CanvasRenderingContext2D': Illegal constructor`。
+lift_own 已把它的 9 个赋值型属性提升为原型访问器，内部 `_w/_h/_buf/...` 因实例的直接原型已是平台原型而被隐藏。
+**状态属性**（`platform/canvasstate.impl.js`，探针 `cvstate-probe.js`，32 键 0 差）：此前 lang/direction/fontKerning/fontStretch/fontVariantCaps/letterSpacing/textRendering/wordSpacing/filter/imageSmoothingQuality/imageSmoothingEnabled/
+shadowColor/shadowOffsetX/Y/shadowBlur/lineCap/lineJoin/miterLimit/lineDashOffset 读出 `undefined`/`null`、且接受任何值。现按 Chrome：默认值逐项相同；无效枚举值**静默忽略**（含大小写敏感：`'LTR'`、`'BUTT'` 无效）、
+`direction='inherit'` 解析为 `'ltr'`、非有限数/负 shadowBlur/非正 miterLimit 忽略、letterSpacing/wordSpacing 只收**无空白、带单位**的 CSS 长度（`'0'` 与 `'5'` 无单位被拒、`' 4px '` 被拒）；
+`setLineDash`（奇数长度自动复制、含负数/NaN 整体忽略、迭代器可用）/`getLineDash`（每次新数组）、`reset()`、`roundRect()`（半径数量与负值的 RangeError 措辞、对象半径、真实光栅化）、`createConicGradient`、
+`getContextAttributes`（含 colorType/toneMapping）、`isContextLost`、`drawFocusIfNeeded`。这些属性**无渲染效果**（软件光栅器没有阴影/滤镜管线，与此前一致），只是状态面。
+**仍未处理**：`createLinearGradient` 等返回的是对象字面量而不是 CanvasGradient 实例（实例审计 CanvasGradient 5 个自有键），下一刀。
+验收：全量（跳两个毒化页面测试）995 过/30 败，失败集与干净 HEAD 相同；ratchet OK；analyze 契约零违；实例审计带泄漏对象 21/127。
+
