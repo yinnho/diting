@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 199 个接口；有缺口 56 个；缺口成员合计 233。
+已核 199 个接口；有缺口 55 个；缺口成员合计 224。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -33,7 +33,6 @@
 | RTCPeerConnection | new | 15/47 | addTrack, addTransceiver, canTrickleIceCandidates, currentLocalDescription, currentRemoteDescription, getConfiguration, getReceivers, getSenders, getTransceivers, pendingLocalDescription, pendingRemoteDescription, removeTrack, restartIce, sctp, setConfiguration |
 | EditContext | new | 11/20 | attachedElements, characterBounds, characterBoundsRangeStart, selectionEnd, selectionStart, text, updateCharacterBounds, updateControlBounds, updateSelection, updateSelectionBounds, updateText |
 | VideoFrame | new | 10/17 | allocationSize, clone, codedHeight, codedRect, codedWidth, colorSpace, copyTo, displayHeight, displayWidth, visibleRect |
-| URLPattern | new | 9/11 | hasRegExpGroups, hash, hostname, password, pathname, port, protocol, search, username |
 | IntersectionObserverEntry | new | 8/8 | boundingClientRect, intersectionRatio, intersectionRect, isIntersecting, isVisible, rootBounds, target, time |
 | XSLTProcessor | new | 8/8 | clearParameters, getParameter, importStylesheet, removeParameter, reset, setParameter, transformToDocument, transformToFragment |
 | Request | new | 7/27 | bodyUsed, destination, duplex, integrity, isHistoryNavigation, keepalive, targetAddressSpace |

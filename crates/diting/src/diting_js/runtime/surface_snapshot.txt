@@ -2129,7 +2129,7 @@ P UIEvent :: constructor,detail,initUIEvent,sourceCapabilities,view,which
 P URIError :: constructor,message,name
 S URL :: __diting,canParse,createObjectURL,parse,revokeObjectURL
 P URL :: _refreshSP,_set,_updateSearch,constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username
-P URLPattern :: constructor,exec,test
+P URLPattern :: constructor,exec,hasRegExpGroups,hash,hostname,password,pathname,port,protocol,search,test,username
 P URLSearchParams :: _decode,_notify,_parseString,_setFromString,append,constructor,delete,entries,forEach,get,getAll,has,keys,set,size,sort,toString,values
 P USB :: constructor
 P USBAlternateInterface :: constructor

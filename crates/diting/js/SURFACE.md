@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→**233**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→**224**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -824,3 +824,38 @@ ClipboardChangeEvent。差集 262→**233**（-29；行 59→56；已核接口 1
 18 行（旧空桩→真身，含 5 个 webkit 别名）；check_fresh 7 件鲜（31 真值）；analyze 零违。
 下一刀顺位：URLPattern（旧实现是 test()恒false 的桩，真实现是完整 URL Pattern 标准，体量
 一整刀）、Animation 19、EditContext 11、RTCIceCandidate 16、VideoFrame 10。
+
+## M4 刀12：URLPattern 真实现（2026-10-30）
+
+旧 bootstrap 类是惰性桩（`test()` 恒 false、`exec()` 恒 null、没有任何组件 getter）。新模块
+`platform/urlpattern.impl.js` 按 WHATWG URL Pattern 标准实现全套：分词器、模式串解析器、各组件
+规范化、正则与模式串生成、构造串解析器（状态机）、匹配。差集 233→**224**（-9），探针
+`urlpattern-probe.js` **900 键 0 差异**。
+
+- **语料驱动对拍**：约 150 个构造用例（字符串/字典/baseURL/选项/各组件错误输入）+ 741 个
+  「模式 × 输入」匹配矩阵（test() 与完整 exec() 结果：inputs、各组件 groups 与 input、
+  字典序成员序）。真值取自真 Chrome 145，报错文案是 liburlpattern 风格逐字
+  （`Invalid pathname pattern '/('. Unbalanced regex at index 1.`、`Unexpected '}' '}' at
+  index 2, expected end of pattern.`、`Duplicate group name 'a' at index 6.` 等）。
+- **构造器重载与转换**：`null` 输入视为空字典；三参选 (input, baseURL, options) 重载，第二参
+  **恒转字符串**（`undefined`→`'undefined'`，报 `Invalid baseURL 'undefined'.`）；字典输入
+  配字符串 baseURL 抛 `Invalid second argument baseURL ... Use the URLPatternInit.baseURL
+  property instead.`；字典成员按字典序读取并转 USVString。
+- **标准里的易错点（对拍抓获）**：`*` 是修饰符还是通配符取决于前面有没有名字 token
+  （`:a*` = 名字 + 修饰符，`(.*)` 才是匿名通配）；hostname 规范化在 `/ ? # \` 处截断
+  （引擎 URL 的 hostname setter 不截断，须预处理）；`isSearchPrefix` 在 token 0 时前一个
+  token 不存在应为 true；`exec().inputs[0]` 是字典**副本**不是原对象；协议大小写不敏感地判
+  默认端口（HTTPS+443 → 端口 ''）。
+- 引擎 URL 的依赖面：组件规范化复用 `new URL()` 与其 setter（username/password/hostname/
+  pathname/search/hash），pathname 用 '/-' 前缀技巧避免相对路径被解析；IPv6 主机名、opaque
+  路径、port 数字前缀语义单独实现。
+
+**坑**：①单测页的 origin（`http://example.com`）恰与语料里的输入字面量重名，探针对页面 URL
+的归一化把输入回显改成了 `#O`——**探针语料的域名不得与测试页 origin 重名**，单测改用
+`probe.test`；②WebIDL 字典→JS 对象的成员序是字典序（hash,hostname,inputs,password,…），
+自建结果对象必须按该序；③分词器宽松模式（构造串）与严格模式（模式串）的报错路径不同，
+宽松模式把非法字符变成 invalid-char token 继续走状态机。
+
+验收：探针 900 键 0 差异（单测）；tests **1445/0**（新增 urlpattern_matches_chrome_truth）；
+快照漂移 1 行（URLPattern 桩→真身）；check_fresh 7 件鲜（32 真值）；analyze 零违。下一刀顺位：
+Animation 19、EditContext 11、RTCIceCandidate 16、VideoFrame 10、XSLTProcessor 8。

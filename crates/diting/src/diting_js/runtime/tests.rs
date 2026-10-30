@@ -27024,3 +27024,39 @@ async fn speech_family_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 12: URLPattern (urlpattern-probe.js, 900 keys, real Chrome 145).
+/// The old bootstrap class was an inert stub (test() always false, exec()
+/// always null); the platform module `urlpattern` implements the URL Pattern
+/// standard - tokenizer, pattern-string parser, per-component
+/// canonicalization, regexp and pattern-string generation, the constructor-
+/// string parser and matching - and is diffed against a corpus of ~150
+/// constructions (strings, dictionaries, baseURL, options, every component's
+/// error input with liburlpattern's exact wording) plus a 741-case pattern x
+/// input match matrix (test() and the whole exec() result: inputs, per-
+/// component groups and input, lexicographic member order).
+#[tokio::test(flavor = "current_thread")]
+async fn urlpattern_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    // the corpus uses example.com literals: keep the page origin (normalized to
+    // #O by the probe) out of that namespace
+    rt.set_url("http://probe.test/p.html");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/urlpattern-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/urlpattern-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} of {} probe(s) off:\n{}", bad.len(), truth.as_object().unwrap().len(), bad.iter().take(20).cloned().collect::<Vec<_>>().join("\n"));
+}

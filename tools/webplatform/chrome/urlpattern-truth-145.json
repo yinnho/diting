@@ -1,0 +1,13298 @@
+{
+ "brand": "THROW TypeError: Illegal invocation",
+ "brand.exec": "THROW TypeError: Illegal invocation",
+ "brand.test": "THROW TypeError: Illegal invocation",
+ "c.e.close": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/a}'. Unexpected '}' '}' at index 2, expected end of pattern.",
+ "c.e.dupname": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/:a/:a'. Duplicate group name 'a' at index 6.",
+ "c.e.empty.regexp": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/()'. Missing regex at index 1.",
+ "c.e.hash.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid hash pattern '('. Unbalanced regex at index 0.",
+ "c.e.hostname.at": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern 'a@b'. Invalid hostname 'a@b'.",
+ "c.e.hostname.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern 'a b'. Invalid hostname 'a b'.",
+ "c.e.hostname.colon": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "a:b",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.hostname.pct": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern 'a%zzb'. Invalid hostname 'a%zzb'.",
+ "c.e.hostname.slash": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "a",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.nested": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/((a))'. Unnamed capturing groups are not allowed at index 3.",
+ "c.e.noname": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/:'. Missing parameter name at index 1.",
+ "c.e.noname2": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/:-a'. Missing parameter name at index 1.",
+ "c.e.open": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/a{'. Unexpected end of pattern '' at index 3, expected '}'.",
+ "c.e.open.nested": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/{a{b}}'. Unexpected '{' '{' at index 3, expected '}'.",
+ "c.e.paren": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/('. Unbalanced regex at index 1.",
+ "c.e.paren2": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/\\)",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.port.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid port pattern 'abc'. Invalid port 'abc'.",
+ "c.e.port.big": "THROW TypeError: Failed to construct 'URLPattern': Invalid port pattern '99999'. Invalid port '99999'.",
+ "c.e.port.float": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "1",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.port.neg": "THROW TypeError: Failed to construct 'URLPattern': Invalid port pattern '-1'. Invalid port '-1'.",
+ "c.e.protocol.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid protocol pattern 'a b'. Invalid protocol 'a b'.",
+ "c.e.protocol.digit": "THROW TypeError: Failed to construct 'URLPattern': Invalid protocol pattern '1http'. Invalid protocol '1http'.",
+ "c.e.protocol.pat.bad": {
+  "hasRegExpGroups": true,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "(a b)",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.regexp.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/([)'. Custom regular expression group '[' is invalid.",
+ "c.e.regexp.nonascii": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/(é)'. Invalid non-ASCII character 0xe9 at index 2.",
+ "c.e.regexp.q": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/(?:a)'. Regex cannot start with '?' at index 2",
+ "c.e.search.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid search pattern '('. Unbalanced regex at index 0.",
+ "c.e.str.base.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid baseURL 'not a url'.",
+ "c.e.str.base.rel": "THROW TypeError: Failed to construct 'URLPattern': Invalid baseURL '/rel'.",
+ "c.e.str.colon": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.str.host": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern 'a b'. Invalid hostname 'a b'.",
+ "c.e.str.name": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/:'. Missing parameter name at index 1.",
+ "c.e.str.paren": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/('. Unbalanced regex at index 1.",
+ "c.e.str.port": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com:abc",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.e.str.proto": "THROW TypeError: Failed to construct 'URLPattern': Invalid protocol pattern 'a b'. Invalid protocol 'a b'.",
+ "c.e.sym": "THROW TypeError: Failed to construct 'URLPattern': Cannot convert a Symbol value to a string",
+ "c.e.sym.member": "THROW TypeError: Failed to construct 'URLPattern': Failed to read the 'pathname' property from 'URLPatternInit': Cannot convert a Symbol value to a string",
+ "c.e.trail.backslash": "THROW TypeError: Failed to construct 'URLPattern': Invalid pathname pattern '/a\\'. Trailing escape character at index 2.",
+ "c.e.username.bad": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "ab"
+ },
+ "c.empty": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.emptyObj": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.emptyStr": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string '' must have a base URL passed as the second argument.",
+ "c.i.base.str": "THROW TypeError: Failed to construct 'URLPattern': Invalid second argument baseURL 'https://b.com' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead.",
+ "c.i.baseURL": {
+  "hasRegExpGroups": false,
+  "hash": "h",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/a/b",
+  "port": "",
+  "protocol": "https",
+  "search": "q",
+  "username": "*"
+ },
+ "c.i.baseURL.bad": "THROW TypeError: Failed to construct 'URLPattern': Invalid baseURL 'not a url'.",
+ "c.i.baseURL.host": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "other.com",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.baseURL.opaque": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "",
+  "password": "*",
+  "pathname": "x",
+  "port": "",
+  "protocol": "data",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.baseURL.override": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/a/c",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.baseURL.proto": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "http",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.baseURL.search": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/a",
+  "port": "",
+  "protocol": "https",
+  "search": "z=1",
+  "username": "*"
+ },
+ "c.i.hash": {
+  "hasRegExpGroups": false,
+  "hash": "h",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.hash.nh": {
+  "hasRegExpGroups": false,
+  "hash": "h",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.hash.space": {
+  "hasRegExpGroups": false,
+  "hash": "a%20b",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.hostname.ipv6": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern '[::1]'. Missing parameter name at index 1.",
+ "c.i.hostname.ipv6.up": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern '[ABCD::1]'. Missing parameter name at index 5.",
+ "c.i.hostname.pat": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*.example.com",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.hostname.upper": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.nonspecial.path": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "a/b",
+  "port": "*",
+  "protocol": "foo",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.nonspecial.path2": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/a/../b",
+  "port": "*",
+  "protocol": "foo",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.nullmember": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "null",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.nums": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "5",
+  "port": "80",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.opts.ic": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/ABC",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.opts.null": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/x",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.opts.undef": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/x",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.password": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "p%40ss",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.pathname": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/a/:b*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.pathname.dots": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/a/c",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.pathname.rel": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "a/b",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.pathname.space": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/a%20b",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.port": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "8080",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.port.def": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.port.http": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "",
+  "protocol": "http",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.port.pat": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": ":p",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.protocol": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.protocol.colon": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.protocol.pat": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "http{s}?",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.protocol.upper": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.search": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "x=1",
+  "username": "*"
+ },
+ "c.i.search.nq": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "x=1",
+  "username": "*"
+ },
+ "c.i.search.space": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "a%20b",
+  "username": "*"
+ },
+ "c.i.undefmember": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.unknown": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/x",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.i.username": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "bob"
+ },
+ "c.i.username.pat": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": ":u"
+ },
+ "c.n.arr": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.n.fn": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.n.null": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.n.num": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string '5' must have a base URL passed as the second argument.",
+ "c.n.true": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string 'true' must have a base URL passed as the second argument.",
+ "c.o.ic.str": "THROW TypeError: Failed to construct 'URLPattern': Invalid baseURL 'undefined'.",
+ "c.o.opts.bad": "THROW TypeError: Failed to construct 'URLPattern': The provided value is not of type 'URLPatternOptions'.",
+ "c.o.opts.ic.conv": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/ABC",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.o.opts.ic.str": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/ABC",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.base.opts": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/x",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.basic": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/books/:id",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.blob": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "",
+  "password": "*",
+  "pathname": "*",
+  "port": "",
+  "protocol": "blob",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.colon.port": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/",
+  "port": "*",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.data": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string 'data:text/plain,hello' must have a base URL passed as the second argument.",
+ "c.s.dots": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/b",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.escape": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/a.b",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.file": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "",
+  "password": "*",
+  "pathname": "/tmp/*",
+  "port": "",
+  "protocol": "file",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.group": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/a{/b}?/c",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.hash.pat": {
+  "hasRegExpGroups": false,
+  "hash": ":frag",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "",
+  "username": "*"
+ },
+ "c.s.host.idn": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "xn--bcher-kva.example",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.http_s": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*.example.com",
+  "password": "*",
+  "pathname": "/*",
+  "port": "",
+  "protocol": "http{s}?",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.ipv6": "THROW TypeError: Failed to construct 'URLPattern': Invalid hostname pattern '[::1]'. Missing parameter name at index 1.",
+ "c.s.js": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "",
+  "password": "*",
+  "pathname": "*",
+  "port": "",
+  "protocol": "javascript",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.mailto": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "",
+  "password": "*",
+  "pathname": "*@example.com",
+  "port": "",
+  "protocol": "mailto",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.modplus": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/:a+",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.modstar": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/:a*",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.name.after": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/:a-:b",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.name.dot": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/:a.:b",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.name.regexp": {
+  "hasRegExpGroups": true,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/:id(\\d+)",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.name.under": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/:a_b",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.name.unicode": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/:café",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.nonspecial": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "bar",
+  "password": "*",
+  "pathname": "/baz",
+  "port": "",
+  "protocol": "foo",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.nonspecial.host": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": ":h",
+  "password": "*",
+  "pathname": "/p",
+  "port": "",
+  "protocol": "foo",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.noscheme.host": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string 'example.com/a' must have a base URL passed as the second argument.",
+ "c.s.opaque": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string 'about:blank' must have a base URL passed as the second argument.",
+ "c.s.opt": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/:a/:b?",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.pctenc": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/caf%C3%A9",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.port.default": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.port.http80": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "http",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.port.q.h": {
+  "hasRegExpGroups": false,
+  "hash": "h",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/a",
+  "port": "8080",
+  "protocol": "https",
+  "search": "x=1",
+  "username": "*"
+ },
+ "c.s.query.pat": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "a=:b&c=*",
+  "username": "*"
+ },
+ "c.s.regexp": {
+  "hasRegExpGroups": true,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/(\\d+)",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.rel.base": {
+  "hasRegExpGroups": false,
+  "hash": "baz",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/foo",
+  "port": "",
+  "protocol": "https",
+  "search": "bar",
+  "username": "*"
+ },
+ "c.s.rel.dir": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/dir/sub/page",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.rel.dotdot": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/a/up",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.rel.h": {
+  "hasRegExpGroups": false,
+  "hash": "h",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/p",
+  "port": "",
+  "protocol": "https",
+  "search": "z",
+  "username": "*"
+ },
+ "c.s.rel.norel": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string '/foo' must have a base URL passed as the second argument.",
+ "c.s.rel.q": {
+  "hasRegExpGroups": false,
+  "hash": "h",
+  "hostname": "ex.com",
+  "password": "*",
+  "pathname": "/p",
+  "port": "",
+  "protocol": "https",
+  "search": "q=1",
+  "username": "*"
+ },
+ "c.s.scheme.only": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "",
+  "password": "*",
+  "pathname": "*",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.space": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/a%20b",
+  "port": "",
+  "protocol": "http",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.star.path": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "x.com",
+  "password": "*",
+  "pathname": "/*/a/*",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.uppercase": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "example.com",
+  "password": "*",
+  "pathname": "/PATH",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "*"
+ },
+ "c.s.userinfo": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "host",
+  "password": ":pass",
+  "pathname": "/",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": ":user"
+ },
+ "c.s.userinfo2": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "host.com",
+  "password": "*",
+  "pathname": "/x",
+  "port": "",
+  "protocol": "https",
+  "search": "*",
+  "username": "bob:pw"
+ },
+ "c.s.wild.all": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "/*",
+  "port": "",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "c.undef": {
+  "hasRegExpGroups": false,
+  "hash": "*",
+  "hostname": "*",
+  "password": "*",
+  "pathname": "*",
+  "port": "*",
+  "protocol": "*",
+  "search": "*",
+  "username": "*"
+ },
+ "call": "THROW TypeError: Failed to construct 'URLPattern': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "count": 741,
+ "exists": "function",
+ "m.all.0": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.10": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/x"
+    },
+    "input": "/a/x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.11": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/12"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/12"
+    },
+    "input": "/12"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.12": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ab"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/ab"
+    },
+    "input": "/ab"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/ABC"
+    },
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.14": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/abc"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/abc"
+    },
+    "input": "/abc"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.15": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://bob:secret@example.com/"
+   ],
+   "password": {
+    "groups": {
+     "0": "secret"
+    },
+    "input": "secret"
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": "bob"
+    },
+    "input": "bob"
+   }
+  },
+  "test": true
+ },
+ "m.all.16": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/?q=1&z=2"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "q=1&z=2"
+    },
+    "input": "q=1&z=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.17": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "top"
+    },
+    "input": "top"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/#top"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.all.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.all.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "shop.example.com"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.22": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/a/./b"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/b"
+    },
+    "input": "/a/b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.23": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "bar"
+    },
+    "input": "bar"
+   },
+   "inputs": [
+    "foo://bar/baz"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/baz"
+    },
+    "input": "/baz"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "foo"
+    },
+    "input": "foo"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.24": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://EXAMPLE.com/Books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/Books/42"
+    },
+    "input": "/Books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.25": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/b/c/x/d"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/b/c/x/d"
+    },
+    "input": "/a/b/c/x/d"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.26": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.27": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "a.example.com"
+    },
+    "input": "a.example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "a.example.com",
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.28": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "example.com",
+     "pathname": "/books/1",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.29": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/files/q"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/q"
+    },
+    "input": "/files/q"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.3": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "http://example.com/books/1"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "http"
+    },
+    "input": "http"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.30": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {}
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.31": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/a b"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a%20b"
+    },
+    "input": "/a%20b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.32": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "search": "?q=1"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": "q=1"
+    },
+    "input": "q=1"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.35": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "port": "443",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.36": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "EXAMPLE.COM"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.all.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.all.4": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/"
+    },
+    "input": "/books/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.5": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books"
+    },
+    "input": "/books"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.6": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com:8443/books/9"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/9"
+    },
+    "input": "/books/9"
+   },
+   "port": {
+    "groups": {
+     "0": "8443"
+    },
+    "input": "8443"
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.7": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/a/b.txt"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/a/b.txt"
+    },
+    "input": "/files/a/b.txt"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.8": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/"
+    },
+    "input": "/files/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.all.9": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a"
+    },
+    "input": "/a"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.anon.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.25": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/b/c/x/d"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "a/b/c",
+     "1": "d"
+    },
+    "input": "/a/b/c/x/d"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.anon.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.anon.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {},
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.base.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {},
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.base.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {},
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.base.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {},
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.base.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.base.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.full.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "h": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.hash.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.17": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "h": "top"
+    },
+    "input": "top"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/#top"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.hash.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.hash.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "sub": "shop"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.host.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.27": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "sub": "a"
+    },
+    "input": "a.example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "a.example.com",
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.host.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.host.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {},
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.ic.14": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/abc"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {},
+    "input": "/abc"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.ic.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.ic.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {},
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.ics.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.ics.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.23": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {},
+    "input": "bar"
+   },
+   "inputs": [
+    "foo://bar/baz"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "p": "baz"
+    },
+    "input": "/baz"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "foo"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.nonspecial.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.nonspecial.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.11": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/12"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "12"
+    },
+    "input": "/12"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.num.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.num.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.10": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "b": "x"
+    },
+    "input": "/a/x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.opt.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.22": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/a/./b"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "b": "b"
+    },
+    "input": "/a/b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.opt.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.opt.9": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "b": "#undef"
+    },
+    "input": "/a"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.0": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "shop.example.com"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.26": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.27": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "a.example.com"
+    },
+    "input": "a.example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "a.example.com",
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.28": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "example.com",
+     "pathname": "/books/1",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.3": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "http://example.com/books/1"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "http"
+    },
+    "input": "http"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.6": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com:8443/books/9"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "id": "9"
+    },
+    "input": "/books/9"
+   },
+   "port": {
+    "groups": {
+     "0": "8443"
+    },
+    "input": "8443"
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.path.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.path.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.0": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.10": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a/x"
+    },
+    "input": "/a/x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.11": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/12"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "12"
+    },
+    "input": "/12"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.12": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ab"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "ab"
+    },
+    "input": "/ab"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "ABC"
+    },
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.14": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/abc"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "abc"
+    },
+    "input": "/abc"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "shop.example.com"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.22": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/a/./b"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a/b"
+    },
+    "input": "/a/b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.23": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "bar"
+    },
+    "input": "bar"
+   },
+   "inputs": [
+    "foo://bar/baz"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "baz"
+    },
+    "input": "/baz"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "foo"
+    },
+    "input": "foo"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.24": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://EXAMPLE.com/Books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "Books/42"
+    },
+    "input": "/Books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.25": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/b/c/x/d"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a/b/c/x/d"
+    },
+    "input": "/a/b/c/x/d"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.26": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.27": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "a.example.com"
+    },
+    "input": "a.example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "a.example.com",
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.28": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "example.com",
+     "pathname": "/books/1",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.29": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/files/q"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "files/q"
+    },
+    "input": "/files/q"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.3": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "http://example.com/books/1"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "http"
+    },
+    "input": "http"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.31": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/a b"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a%20b"
+    },
+    "input": "/a%20b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.5": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books"
+    },
+    "input": "/books"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.6": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com:8443/books/9"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/9"
+    },
+    "input": "/books/9"
+   },
+   "port": {
+    "groups": {
+     "0": "8443"
+    },
+    "input": "8443"
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.7": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/a/b.txt"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "files/a/b.txt"
+    },
+    "input": "/files/a/b.txt"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.plus.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.plus.9": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a"
+    },
+    "input": "/a"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.0": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.10": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/x"
+    },
+    "input": "/a/x"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.11": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/12"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/12"
+    },
+    "input": "/12"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.12": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ab"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/ab"
+    },
+    "input": "/ab"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/ABC"
+    },
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.14": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/abc"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/abc"
+    },
+    "input": "/abc"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.15": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://bob:secret@example.com/"
+   ],
+   "password": {
+    "groups": {
+     "0": "secret"
+    },
+    "input": "secret"
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": "bob"
+    },
+    "input": "bob"
+   }
+  },
+  "test": true
+ },
+ "m.port.16": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/?q=1&z=2"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "q=1&z=2"
+    },
+    "input": "q=1&z=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.17": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "top"
+    },
+    "input": "top"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/#top"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "shop.example.com"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.22": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/a/./b"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/b"
+    },
+    "input": "/a/b"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.24": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://EXAMPLE.com/Books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/Books/42"
+    },
+    "input": "/Books/42"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.25": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/b/c/x/d"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/b/c/x/d"
+    },
+    "input": "/a/b/c/x/d"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.28": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "example.com",
+     "pathname": "/books/1",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.35": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "port": "443",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.4": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/"
+    },
+    "input": "/books/"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.5": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books"
+    },
+    "input": "/books"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.port.7": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/a/b.txt"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/a/b.txt"
+    },
+    "input": "/files/a/b.txt"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.8": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/"
+    },
+    "input": "/files/"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.port.9": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a"
+    },
+    "input": "/a"
+   },
+   "port": {
+    "groups": {},
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.0": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.10": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/x"
+    },
+    "input": "/a/x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.11": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/12"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/12"
+    },
+    "input": "/12"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.12": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ab"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/ab"
+    },
+    "input": "/ab"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/ABC"
+    },
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.14": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/abc"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/abc"
+    },
+    "input": "/abc"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.15": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://bob:secret@example.com/"
+   ],
+   "password": {
+    "groups": {
+     "0": "secret"
+    },
+    "input": "secret"
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": "bob"
+    },
+    "input": "bob"
+   }
+  },
+  "test": true
+ },
+ "m.scheme.16": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/?q=1&z=2"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "q=1&z=2"
+    },
+    "input": "q=1&z=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.17": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "top"
+    },
+    "input": "top"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/#top"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "shop.example.com"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.22": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/a/./b"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/b"
+    },
+    "input": "/a/b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.24": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://EXAMPLE.com/Books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/Books/42"
+    },
+    "input": "/Books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.25": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/b/c/x/d"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a/b/c/x/d"
+    },
+    "input": "/a/b/c/x/d"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.28": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "example.com",
+     "pathname": "/books/1",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.3": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "http://example.com/books/1"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "http"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.35": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "port": "443",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.scheme.4": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/"
+    },
+    "input": "/books/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.5": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books"
+    },
+    "input": "/books"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.6": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com:8443/books/9"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/books/9"
+    },
+    "input": "/books/9"
+   },
+   "port": {
+    "groups": {
+     "0": "8443"
+    },
+    "input": "8443"
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.7": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/a/b.txt"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/a/b.txt"
+    },
+    "input": "/files/a/b.txt"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.8": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/files/"
+    },
+    "input": "/files/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.scheme.9": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/a"
+    },
+    "input": "/a"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {},
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.search.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.16": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/?q=1&z=2"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "z=2",
+     "v": "1"
+    },
+    "input": "q=1&z=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.search.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.search.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.0": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.1": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": "frag"
+    },
+    "input": "frag"
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books/42?x=1&y=2#frag"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/42"
+    },
+    "input": "/books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": "x=1&y=2"
+    },
+    "input": "x=1&y=2"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.10": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a/x"
+    },
+    "input": "/a/x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.11": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/12"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "12"
+    },
+    "input": "/12"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.12": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ab"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "ab"
+    },
+    "input": "/ab"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.13": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/ABC"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "ABC"
+    },
+    "input": "/ABC"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.14": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/abc"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "abc"
+    },
+    "input": "/abc"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.2": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "shop.example.com"
+    },
+    "input": "shop.example.com"
+   },
+   "inputs": [
+    "https://shop.example.com/books/7"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/7"
+    },
+    "input": "/books/7"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.20": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "/books/5",
+    "https://x.com"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.21": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/books/%20x"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/%20x"
+    },
+    "input": "/books/%20x"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.22": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    "https://x.com/a/./b"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a/b"
+    },
+    "input": "/a/b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.23": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "bar"
+    },
+    "input": "bar"
+   },
+   "inputs": [
+    "foo://bar/baz"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "baz"
+    },
+    "input": "/baz"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "foo"
+    },
+    "input": "foo"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.24": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://EXAMPLE.com/Books/42"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "Books/42"
+    },
+    "input": "/Books/42"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.25": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a/b/c/x/d"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a/b/c/x/d"
+    },
+    "input": "/a/b/c/x/d"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.26": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.27": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "a.example.com"
+    },
+    "input": "a.example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "a.example.com",
+     "pathname": "/books/5"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/5"
+    },
+    "input": "/books/5"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.28": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "example.com",
+     "pathname": "/books/1",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.29": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/files/q"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "files/q"
+    },
+    "input": "/files/q"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.3": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "http://example.com/books/1"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/1"
+    },
+    "input": "/books/1"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "http"
+    },
+    "input": "http"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.30": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {}
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "#undef"
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.31": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/a b"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a%20b"
+    },
+    "input": "/a%20b"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.32": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "search": "?q=1"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "#undef"
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": "q=1"
+    },
+    "input": "q=1"
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.33": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/3"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/3"
+    },
+    "input": "/books/3"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.34": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "x.com"
+    },
+    "input": "x.com"
+   },
+   "inputs": [
+    {
+     "baseURL": "https://x.com/books/",
+     "pathname": "rel"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/rel"
+    },
+    "input": "/books/rel"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.35": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "port": "443",
+     "protocol": "https"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "#undef"
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.36": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    {
+     "hostname": "EXAMPLE.COM"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "#undef"
+    },
+    "input": ""
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.5": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/books"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books"
+    },
+    "input": "/books"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.6": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com:8443/books/9"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "books/9"
+    },
+    "input": "/books/9"
+   },
+   "port": {
+    "groups": {
+     "0": "8443"
+    },
+    "input": "8443"
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.7": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/a/b.txt"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "files/a/b.txt"
+    },
+    "input": "/files/a/b.txt"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.star.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.star.9": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/a"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "a": "a"
+    },
+    "input": "/a"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.userinfo.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.15": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://bob:secret@example.com/"
+   ],
+   "password": {
+    "groups": {
+     "p": "secret"
+    },
+    "input": "secret"
+   },
+   "pathname": {
+    "groups": {
+     "0": "/"
+    },
+    "input": "/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "u": "bob"
+    },
+    "input": "bob"
+   }
+  },
+  "test": true
+ },
+ "m.userinfo.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.29": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.7": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.8": {
+  "exec": null,
+  "test": false
+ },
+ "m.userinfo.9": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.0": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.1": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.10": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.11": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.12": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.13": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.14": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.15": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.16": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.17": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.18": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.19": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.2": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.20": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.21": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.22": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.23": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.24": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.25": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.26": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.27": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.28": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.29": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "inputs": [
+    {
+     "pathname": "/files/q"
+    }
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "q"
+    },
+    "input": "/files/q"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.wild.3": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.30": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.31": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.32": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.33": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.34": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.35": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.36": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.37": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.38": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.4": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.5": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.6": {
+  "exec": null,
+  "test": false
+ },
+ "m.wild.7": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/a/b.txt"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": "a/b.txt"
+    },
+    "input": "/files/a/b.txt"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.wild.8": {
+  "exec": {
+   "hash": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "hostname": {
+    "groups": {
+     "0": "example.com"
+    },
+    "input": "example.com"
+   },
+   "inputs": [
+    "https://example.com/files/"
+   ],
+   "password": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "pathname": {
+    "groups": {
+     "0": ""
+    },
+    "input": "/files/"
+   },
+   "port": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "protocol": {
+    "groups": {
+     "0": "https"
+    },
+    "input": "https"
+   },
+   "search": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   },
+   "username": {
+    "groups": {
+     "0": ""
+    },
+    "input": ""
+   }
+  },
+  "test": true
+ },
+ "m.wild.9": {
+  "exec": null,
+  "test": false
+ },
+ "shape": {
+  "kinds": {
+   "constructor": "function:0:false",
+   "exec": "function:0:true",
+   "hasRegExpGroups": "ro:true",
+   "hash": "ro:true",
+   "hostname": "ro:true",
+   "password": "ro:true",
+   "pathname": "ro:true",
+   "port": "ro:true",
+   "protocol": "ro:true",
+   "search": "ro:true",
+   "test": "function:0:true",
+   "username": "ro:true"
+  },
+  "len": 0,
+  "order": [
+   "protocol",
+   "username",
+   "password",
+   "hostname",
+   "port",
+   "pathname",
+   "search",
+   "hash",
+   "hasRegExpGroups",
+   "exec",
+   "test",
+   "constructor"
+  ],
+  "statics": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "tag": "[object URLPattern]"
+ },
+ "x.groups.order": [
+  "0",
+  "z",
+  "a",
+  "m"
+ ],
+ "x.groups.undef": [
+  [
+   "b"
+  ],
+  "#undef",
+  true
+ ],
+ "x.init.base": "THROW TypeError: Failed to execute 'test' on 'URLPattern': Invalid second argument baseURL 'https://x.com' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead.",
+ "x.inputs.identity": [
+  false,
+  1
+ ],
+ "x.len": [
+  0,
+  0
+ ],
+ "x.noargs": [
+  true,
+  [
+   {}
+  ]
+ ],
+ "x.null": true,
+ "x.num": false,
+ "x.result.shape": [
+  [
+   "hash",
+   "hostname",
+   "inputs",
+   "password",
+   "pathname",
+   "port",
+   "protocol",
+   "search",
+   "username"
+  ],
+  [
+   "groups",
+   "input"
+  ],
+  true,
+  true,
+  [
+   "0"
+  ]
+ ],
+ "x.str.base.undef": [
+  "https://x.com/a"
+ ],
+ "x.sym": "THROW TypeError: Failed to execute 'test' on 'URLPattern': Cannot convert a Symbol value to a string",
+ "x.undef": [
+  false,
+  true
+ ]
+}
