@@ -1319,3 +1319,15 @@ window → gate(Proxy，WindowProperties 具名访问层) → 一个只有 `cons
 toStringTag 仍不能删。要对齐须给每个 realm 一份自己的 Window.prototype（现在主窗口与 iframe 窗口共用一个），属较大的结构改动，暂不做。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 
+## M4 刀38：TreeWalker / NodeIterator / NodeFilter（2026-10-30）
+
+`platform/treewalker.impl.js`（模块 `treewalker`）。此前 `document.createTreeWalker/createNodeIterator` 返回**对象字面量**（不是 TreeWalker/NodeIterator 实例，`[object Object]`，实例上泄漏 13 个自有键：`_filter`/`_accept`/
+`_traverseChildren`/… 与所有移动方法）。Chrome 145：构造器非法、`root/whatToShow/filter` 只读、`currentNode` 可读写的原型访问器、原型上的移动方法。探针 `treewalker-probe.js`（真 Chrome 145，63 键）0 差异：形状、
+参数校验措辞（`1 argument required` / `parameter 1 is not of type 'Node'.` / `parameter 3 is not of type 'Object'.`）、whatToShow 的 unsigned long 转换、currentNode 赋值的 `Failed to convert value to 'Node'.`、
+**过滤器返回值按 unsigned short 取模，==1 接受、==2 拒绝（剪枝），其余一律跳过**（旧实现用严格相等且把非数字当作接受/拒绝以外的混合情形）、过滤器异常原样传播、全方向遍历语料、NodeIterator 指针语义。遍历算法本身
+（#432/#461/#462/#467/#469/#475 一整套 DOM 6.1/6.2 规则）原样搬到原型方法，状态放私有槽。
+**两处与旧引擎行为不同、以 Chrome 为准**：①`previousNode()` 爬到**被接受的根**时**返回根**（规范与 Chrome 一致；旧实现里「后退遍历永不返回根」的注释与测试 test_treewalker_previousnode_reverse_order 是错的，已改为 `["A","DIV"]`）；
+②`NodeFilter` 在 Chrome 是**没有 prototype 的函数**（回调接口：常量挂在函数上，`new NodeFilter()` 报 not a constructor），引擎里原来是普通对象（`typeof` 为 object）——用方法简写函数实现。
+bootstrap.js 删除了两个对象字面量工厂与 TreeWalker 桩类。TreeWalker/NodeIterator 实例自有键泄漏消失；实例审计带泄漏对象 33→32。
+验收：全量（跳两个毒化页面测试）994 过/30 败，失败集与干净 HEAD 逐条相同；analyze 零违；check_fresh 7 件鲜（43 真值）；快照与形状表按再生成链重生。
+

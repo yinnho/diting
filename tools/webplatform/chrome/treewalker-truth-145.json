@@ -1,0 +1,432 @@
+{
+ "badroot": [
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 1 is not of type 'Node'.",
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 1 is not of type 'Node'.",
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 1 is not of type 'Node'.",
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 1 is not of type 'Node'."
+ ],
+ "badroot.ni": [
+  "TypeError: Failed to execute 'createNodeIterator' on 'Document': parameter 1 is not of type 'Node'.",
+  "TypeError: Failed to execute 'createNodeIterator' on 'Document': parameter 1 is not of type 'Node'.",
+  "TypeError: Failed to execute 'createNodeIterator' on 'Document': parameter 1 is not of type 'Node'."
+ ],
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "children": [
+  "UL#u",
+  "LI#a",
+  "LI#b",
+  "LI#c",
+  null,
+  "I#ci",
+  null,
+  "LI#c",
+  "UL#u",
+  "DIV#tw",
+  null
+ ],
+ "children.reject": [
+  "P#p",
+  "SPAN#s"
+ ],
+ "children.skip": [
+  "LI#a",
+  "B#ab",
+  null,
+  "LI#a"
+ ],
+ "create.lens": [
+  1,
+  1
+ ],
+ "ctor": "TypeError: Failed to construct 'TreeWalker': Illegal constructor",
+ "ctor.ni": "TypeError: Failed to construct 'NodeIterator': Illegal constructor",
+ "currentNode.outside": [
+  "DIV#tw",
+  "UL#u",
+  "UL#u"
+ ],
+ "currentNode.set": [
+  true,
+  "TypeError: Failed to set the 'currentNode' property on 'TreeWalker': Failed to convert value to 'Node'.",
+  "TypeError: Failed to set the 'currentNode' property on 'TreeWalker': Failed to convert value to 'Node'.",
+  "TypeError: Failed to set the 'currentNode' property on 'TreeWalker': Failed to convert value to 'Node'."
+ ],
+ "defaults": [
+  true,
+  true,
+  4294967295,
+  null,
+  [],
+  true,
+  "[object TreeWalker]",
+  []
+ ],
+ "defaults.ni": [
+  true,
+  true,
+  true,
+  4294967295,
+  null,
+  [],
+  true,
+  "[object NodeIterator]"
+ ],
+ "filter.args": 1,
+ "filter.bad": [
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 3 is not of type 'Object'.",
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 3 is not of type 'Object'.",
+  "TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 3 is not of type 'Object'."
+ ],
+ "filter.forms": [
+  true,
+  true,
+  null,
+  null
+ ],
+ "filter.odd": [
+  [
+   "UL#u",
+   "B#ab",
+   "LI#b"
+  ],
+  [
+   "UL#u",
+   "B#ab",
+   "LI#b"
+  ],
+  [
+   "UL#u",
+   "B#ab",
+   "LI#b"
+  ],
+  [
+   "UL#u",
+   "B#ab",
+   "LI#b"
+  ],
+  [
+   "UL#u",
+   "B#ab",
+   "LI#b"
+  ],
+  [
+   "UL#u",
+   "LI#a",
+   "B#ab"
+  ],
+  [
+   "UL#u",
+   "LI#a",
+   "B#ab"
+  ]
+ ],
+ "filter.reject": [
+  "P#p",
+  "SPAN#s"
+ ],
+ "filter.reject.li": [
+  "UL#u",
+  "P#p",
+  "SPAN#s"
+ ],
+ "filter.skip": [
+  "LI#a",
+  "B#ab",
+  "LI#b",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "SPAN#s"
+ ],
+ "filter.this": [
+  "object",
+  [
+   true
+  ]
+ ],
+ "filter.throw": "RangeError: boom",
+ "methods.len": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "next.all": [
+  "UL#u",
+  "LI#a",
+  "\"A\"",
+  "B#ab",
+  "\"x\"",
+  "LI#b",
+  "<!--c-->",
+  "\"B\"",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "\"P\"",
+  "SPAN#s",
+  "\"S\""
+ ],
+ "next.comment": [
+  "<!--c-->"
+ ],
+ "next.elements": [
+  "UL#u",
+  "LI#a",
+  "B#ab",
+  "LI#b",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "SPAN#s"
+ ],
+ "next.text": [
+  "\"A\"",
+  "\"x\"",
+  "\"B\"",
+  "\"P\"",
+  "\"S\""
+ ],
+ "next.zero": [],
+ "ni.back.first": [
+  null,
+  true,
+  "DIV#tw"
+ ],
+ "ni.detach": [
+  "#undef",
+  "object"
+ ],
+ "ni.elements": [
+  "DIV#tw",
+  "UL#u",
+  "LI#a",
+  "B#ab",
+  "LI#b",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "SPAN#s",
+  null
+ ],
+ "ni.end": [
+  "SPAN#s",
+  null,
+  null,
+  "SPAN#s",
+  null
+ ],
+ "ni.filter.obj": [
+  "LI#a",
+  "LI#b",
+  "LI#c",
+  null
+ ],
+ "ni.fwd": [
+  "DIV#tw",
+  "UL#u",
+  "LI#a",
+  "\"A\"",
+  "B#ab",
+  "\"x\"",
+  "LI#b",
+  "<!--c-->",
+  "\"B\"",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "\"P\"",
+  "SPAN#s",
+  "\"S\"",
+  null
+ ],
+ "ni.methods.len": [
+  0,
+  0,
+  0
+ ],
+ "ni.readonly": [
+  true,
+  true,
+  true
+ ],
+ "ni.reject": [
+  "DIV#tw",
+  "LI#a",
+  "B#ab",
+  "LI#b",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "SPAN#s",
+  null
+ ],
+ "ni.reverse": [
+  "DIV#tw",
+  "UL#u",
+  "UL#u",
+  true,
+  "DIV#tw",
+  "DIV#tw",
+  false
+ ],
+ "ni.skip": [
+  "DIV#tw",
+  "LI#a",
+  "B#ab",
+  "LI#b",
+  "LI#c",
+  "I#ci",
+  "P#p",
+  "SPAN#s",
+  null
+ ],
+ "ni.state": [
+  true,
+  "DIV#tw",
+  false,
+  "DIV#tw",
+  false,
+  "UL#u"
+ ],
+ "ni.text": [
+  "\"A\"",
+  "\"x\"",
+  "\"B\"",
+  "\"P\"",
+  "\"S\"",
+  null
+ ],
+ "noargs": "TypeError: Failed to execute 'createTreeWalker' on 'Document': 1 argument required, but only 0 present.",
+ "noargs.ni": "TypeError: Failed to execute 'createNodeIterator' on 'Document': 1 argument required, but only 0 present.",
+ "nodefilter": [
+  {
+   "FILTER_ACCEPT": 1,
+   "FILTER_REJECT": 2,
+   "FILTER_SKIP": 3,
+   "SHOW_ALL": 4294967295,
+   "SHOW_ATTRIBUTE": 2,
+   "SHOW_CDATA_SECTION": 8,
+   "SHOW_COMMENT": 128,
+   "SHOW_DOCUMENT": 256,
+   "SHOW_DOCUMENT_FRAGMENT": 1024,
+   "SHOW_DOCUMENT_TYPE": 512,
+   "SHOW_ELEMENT": 1,
+   "SHOW_ENTITY": 32,
+   "SHOW_ENTITY_REFERENCE": 16,
+   "SHOW_NOTATION": 2048,
+   "SHOW_PROCESSING_INSTRUCTION": 64,
+   "SHOW_TEXT": 4,
+   "length": 0,
+   "name": "string"
+  },
+  [],
+  "function"
+ ],
+ "prev": [
+  "P#p",
+  "I#ci",
+  "LI#c",
+  "LI#b",
+  "B#ab",
+  "LI#a",
+  "UL#u",
+  "DIV#tw"
+ ],
+ "readonly": [
+  true,
+  4294967295,
+  null
+ ],
+ "root.bounds": [
+  null,
+  null,
+  null,
+  null
+ ],
+ "shape.NodeIterator": {
+  "kinds": {
+   "constructor": "function:0",
+   "detach": "function:0",
+   "filter": "ro",
+   "nextNode": "function:0",
+   "pointerBeforeReferenceNode": "ro",
+   "previousNode": "function:0",
+   "referenceNode": "ro",
+   "root": "ro",
+   "whatToShow": "ro"
+  },
+  "len": 0,
+  "order": [
+   "root",
+   "referenceNode",
+   "pointerBeforeReferenceNode",
+   "whatToShow",
+   "filter",
+   "detach",
+   "nextNode",
+   "previousNode",
+   "constructor"
+  ],
+  "tag": "[object NodeIterator]"
+ },
+ "shape.TreeWalker": {
+  "kinds": {
+   "constructor": "function:0",
+   "currentNode": "rw",
+   "filter": "ro",
+   "firstChild": "function:0",
+   "lastChild": "function:0",
+   "nextNode": "function:0",
+   "nextSibling": "function:0",
+   "parentNode": "function:0",
+   "previousNode": "function:0",
+   "previousSibling": "function:0",
+   "root": "ro",
+   "whatToShow": "ro"
+  },
+  "len": 0,
+  "order": [
+   "root",
+   "whatToShow",
+   "filter",
+   "currentNode",
+   "firstChild",
+   "lastChild",
+   "nextNode",
+   "nextSibling",
+   "parentNode",
+   "previousNode",
+   "previousSibling",
+   "constructor"
+  ],
+  "tag": "[object TreeWalker]"
+ },
+ "whatToShow.conv": [
+  0,
+  1,
+  4294967295,
+  4294967295,
+  0,
+  0,
+  5,
+  1,
+  0,
+  4294967295,
+  0
+ ]
+}

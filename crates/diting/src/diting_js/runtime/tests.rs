@@ -8297,9 +8297,10 @@
             while ((n = w.previousNode())) tags.push(n.tagName);
             return tags;
         "#).unwrap();
-        // Reverse document order with B skipped: the walk from C finds A, then
-        // stops at root (which a backward traversal never returns).
-        assert_eq!(result, serde_json::json!(["A"]));
+        // Reverse document order with B skipped: the walk from C finds A, then climbs to the parent - which is the
+        // (accepted) root, and DOM 6.1 / Chrome 145 (treewalker_matches_chrome_truth, prev) return it. The old
+        // expectation `["A"]` assumed a backward traversal never returns root; real Chrome does.
+        assert_eq!(result, serde_json::json!(["A", "DIV"]));
     }
 
     #[test]
@@ -27402,4 +27403,32 @@ async fn window_chain_reaches_event_target() {
         v.value.unwrap(),
         serde_json::json!([true, true, "[object Window]", 1, "function"])
     );
+}
+
+/// M4 knife 38: TreeWalker / NodeIterator (treewalker-probe.js, real Chrome 145): real interface instances (were object
+/// literals with thirteen own keys), illegal constructors, prototype accessors (currentNode read-write), argument and filter
+/// validation wording, the filter verdict rule (unsigned short: 1 accept, 2 reject, everything else skip), traversal in every
+/// direction incl. FILTER_REJECT pruning and previousNode returning an accepted root, NodeIterator pointer semantics, and
+/// NodeFilter as a prototype-less constants function.
+#[tokio::test(flavor = "current_thread")]
+async fn treewalker_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/treewalker-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/treewalker-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
