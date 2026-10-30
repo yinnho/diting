@@ -1272,3 +1272,14 @@ PermissionsPolicy/TimelineTrigger*/XR*Layer/XRPlane*/XRSubImage/XRWebGLSubImage/
 这条的更大含义：**global_surface.js 的各生成表来自 155 抓取，仍可能含有别的 155-only 的细节**（成员、顺序、枚举）；已有的 CfT 145 审计（形状/实例/XPath/…）才是权威，后续对 global_surface 的修补应以 145 真值为准。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生；实例审计带泄漏对象 38/127。
 
+## M4 刀33：window 自有名字的顺序（2026-10-30）
+
+指纹收集器（Radar 的 windowFeatures 等）对 `Object.getOwnPropertyNames(window)` 的**有序**列表取哈希。引擎按脚本加载顺序建全局，与 Chrome 145 的顺序在 1212 个位置里有 1151 个不同。
+`gen_window_order.py <instance-audit-chrome.json>` 把 Chrome 145 的 window 名字序（1213 个）生成 `window_order.js`：对每个 configurable 且 Chrome 也有的全局 `delete` 再按序 `defineProperty`（引擎独有的 configurable 名字先放，它们本就被枚举补丁隐藏）。
+**两个坑**：①循环会 `delete` 掉 `Object`/`Reflect`/`Set` 本身——所有原语（getOwnPropertyDescriptor、defineProperty、Reflect.deleteProperty、hasOwnProperty）必须先捕获进局部，第一版直接引用 `Object` 导致引擎启动即 `Object is not defined`；
+②`window_faces.js`/`__diting_init` **每个页面**会重装若干 window 访问器（innerWidth、scrollX…），重装的属性被追加到键序**末尾**，所以排序函数导出为隐藏全局 `__diting_reorder_window`，在快照末尾跑一次、并在每页 init 末尾再跑一次。
+**结果**：其余 1204 个名字的**相对次序与 Chrome 完全一致（0 处不同）**。**做不到的部分**：8 个不可配置名字（Infinity/NaN/undefined/window/document/location/top，加引擎多出的 MediaQueryList）无法移动，仍排在最前，
+而 Chrome 里它们散布在 6/7/8/…/690 位置——所以**绝对位置哈希仍与 Chrome 不同**，只有「相对序」对齐。这需要在 V8 建 realm 的层面解决（Infinity 等由 V8 在内建序列中间创建），脚本层无解；
+`MediaQueryList` 在引擎里是不可配置的全局（Chrome 里是普通可配置接口），另可查成因。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+

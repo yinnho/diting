@@ -115,6 +115,7 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("sym_fix.js", include_str!("js/sym_fix.js")),
     ("shape_fix.js", include_str!("js/shape_fix.js")),
     ("version_prune.js", include_str!("js/version_prune.js")),
+    ("window_order.js", include_str!("js/window_order.js")),
 ];
 
 /// Read `chrome-target.toml` (a flat key = value subset of TOML) and emit
