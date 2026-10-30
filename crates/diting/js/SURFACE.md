@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→**262**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→**233**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -778,3 +778,49 @@ requestPermission 把权限固定成 denied）在第二遍已变——对拍到 
 快照漂移 1 行（Notification 空桩→真身，并去掉引擎多出的假 `image`）；check_fresh 7 件鲜
 （30 真值）；analyze 零违。下一刀顺位：Animation 19、EditContext 11、SpeechRecognition 8、
 ClipboardChangeEvent 18、RTCIceCandidate 16、VideoFrame 10、URLPattern 9。
+
+## M4 刀11：Web Speech 识别族 + ClipboardChangeEvent（2026-10-30）
+
+SpeechRecognition / SpeechRecognitionEvent / SpeechRecognitionErrorEvent /
+SpeechGrammarList / SpeechGrammar / SpeechRecognitionPhrase + 5 个 `webkit*` 别名 +
+ClipboardChangeEvent。差集 262→**233**（-29；行 59→56；已核接口 196→199——新装的
+接口进入了探测范围）。新模块 `platform/speech.impl.js`，探针 `speech-probe.js` 74 键
+全等（单测）。
+
+- **Chrome 145 headless 真面**：无识别器无权限 UI。`start()` 在后一任务触发 **trusted**
+  的 `SpeechRecognitionErrorEvent{error:'not-allowed'}` 再触发 trusted 的普通 `end`
+  （**没有 `start` 事件**）；第二次 `start()` 抛 `InvalidStateError ... recognition has
+  already started.`；`stop()`/`abort()` 在已 start 时取消待发的 error、只剩 `end`，未
+  start 时什么都不发；error 后可重新 start。
+- **`webkit*` 是同一个对象**（`webkitSpeechRecognition === SpeechRecognition`，
+  `.name` 仍为 'SpeechRecognition'，非枚举）；`SpeechRecognitionResult/ResultList/
+  Alternative` 在 window 上**不暴露**，所以 `SpeechRecognitionEvent.results` 只可能是
+  null（传非 null 抛 `Failed to convert value to 'SpeechRecognitionResultList'.`）。
+- 实例/静态面：原型自有序含 `onaudiostart…onend`(11 个 handler)、`abort,start,stop,
+  processLocally,phrases`；静态 `available`/`install`（on-device 语音包）：`available`
+  需 `{langs}`（缺/空/非序列各有专门文案），`processLocally:false`→`'available'`，
+  本地且是常见语言→`'downloadable'`，未知语言→`'unavailable'`；`install` 对
+  downloadable 抛 `NotAllowedError ... Requires handling a user gesture`，其余 resolve false。
+- **SpeechGrammarList**：自有可枚举下标属性（`Object.keys` 为 "0","1"…，空表 `0 in g`
+  false）；`addFromString` 把文本编成 `data:application/xml,<encodeURIComponent>`，
+  `addFromUri`（Chrome 145 拼写是 `Uri`，无 `URI`）把 src 解析为绝对 URL；weight 是
+  **float32**（0.2→0.20000000298023224；非有限抛 float TypeError；不夹逼：3/-1 保持）。
+- **SpeechRecognitionPhrase(phrase, boost=1)**：boost 范围 [0,10] 外抛 `SyntaxError
+  ... must be inside the range [0, 10].`。**SpeechRecognitionErrorEvent.error 是自由
+  DOMString**（'zzz'、5→'5'、null→'null' 都原样，缺省 ''，不校验枚举）。
+- **ClipboardChangeEvent 的怪构造器**：签名 `(optional init)`，**没有 type 参数**（type
+  恒 `clipboardchange`，`length` 0——传字符串当第一个参数会被当字典而抛）；`changeId`
+  是 **BigInt**（有符号不回绕：-1n、2n**70n 原样；字符串 '7'→7n；数字抛
+  `Cannot convert 5 to a BigInt`）；`types` 是 `sequence<DOMString>`，**每次读返回新的
+  冻结数组**（`e.types !== e.types`），构造时拷贝（改原数组不影响）。
+
+**坑**：①ClipboardChangeEvent 第一轮探针全部抛"not of type Init"——因为我按 Event 惯例
+传了 type 字符串；构造器签名是真值的一部分，**先 `length`、再试无参，别默认 `(type, init)`**；
+②探针 JSON 序列化遇 BigInt 会抛，需 replacer 标记（'BIGINT:n'）；③本刀的 on-device 语言表
+是**近似**（实测只有 en-US/zh-CN→downloadable、xx-ZZ→unavailable 三点，其余按常见语言
+前缀猜），属已知近似。
+
+验收：探针 74 键全等；tests **1444/0**（新增 speech_family_matches_chrome_truth）；快照漂移
+18 行（旧空桩→真身，含 5 个 webkit 别名）；check_fresh 7 件鲜（31 真值）；analyze 零违。
+下一刀顺位：URLPattern（旧实现是 test()恒false 的桩，真实现是完整 URL Pattern 标准，体量
+一整刀）、Animation 19、EditContext 11、RTCIceCandidate 16、VideoFrame 10。

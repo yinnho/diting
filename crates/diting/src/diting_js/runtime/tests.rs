@@ -26989,3 +26989,38 @@ async fn notification_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 11: Web Speech recognition + ClipboardChangeEvent
+/// (speech-probe.js, 74 keys, real Chrome 145 headless). SpeechRecognition
+/// constructs; start() asynchronously fires a trusted SpeechRecognitionErrorEvent
+/// 'not-allowed' then a trusted plain 'end' (never 'start'); a second start()
+/// throws InvalidStateError; stop()/abort() while started cancel the error and
+/// leave only 'end'. The webkit* names are the same interface objects;
+/// SpeechRecognitionResult/ResultList/Alternative are not exposed. Also pinned:
+/// shapes and statics, grammar list (own index properties, data: URIs, float32
+/// weights), SpeechRecognitionPhrase boost range, the event inits (error is a
+/// free DOMString), SpeechRecognition.available()/install() option checks and
+/// the on-device availability answers, and ClipboardChangeEvent(init) - no
+/// type argument, BigInt changeId, a fresh frozen `types` array per read.
+#[tokio::test(flavor = "current_thread")]
+async fn speech_family_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/speech-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/speech-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

@@ -1,0 +1,598 @@
+{
+ "cce.brand": "THROW TypeError: Illegal invocation",
+ "cce.call": "THROW TypeError: Failed to construct 'ClipboardChangeEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "cce.init.bubbles": [
+  "clipboardchange",
+  [],
+  "BIGINT:0",
+  true,
+  true
+ ],
+ "cce.init.changeId": [
+  "clipboardchange",
+  [],
+  "BIGINT:5",
+  false,
+  false
+ ],
+ "cce.init.changeIdBig": [
+  "clipboardchange",
+  [],
+  "BIGINT:1180591620717411303424",
+  false,
+  false
+ ],
+ "cce.init.changeIdNeg": [
+  "clipboardchange",
+  [],
+  "BIGINT:-1",
+  false,
+  false
+ ],
+ "cce.init.changeIdNum": "THROW TypeError: Failed to construct 'ClipboardChangeEvent': Failed to read the 'changeId' property from 'ClipboardChangeEventInit': Cannot convert 5 to a BigInt",
+ "cce.init.changeIdStr": [
+  "clipboardchange",
+  [],
+  "BIGINT:7",
+  false,
+  false
+ ],
+ "cce.init.empty": [
+  "clipboardchange",
+  [],
+  "BIGINT:0",
+  false,
+  false
+ ],
+ "cce.init.fn": [
+  "clipboardchange",
+  [],
+  "BIGINT:0",
+  false,
+  false
+ ],
+ "cce.init.null": [
+  "clipboardchange",
+  [],
+  "BIGINT:0",
+  false,
+  false
+ ],
+ "cce.init.num": "THROW TypeError: Failed to construct 'ClipboardChangeEvent': The provided value is not of type 'ClipboardChangeEventInit'.",
+ "cce.init.str": "THROW TypeError: Failed to construct 'ClipboardChangeEvent': The provided value is not of type 'ClipboardChangeEventInit'.",
+ "cce.init.types": [
+  "clipboardchange",
+  [
+   "a",
+   "b"
+  ],
+  "BIGINT:0",
+  false,
+  false
+ ],
+ "cce.init.typesBad": "THROW TypeError: Failed to construct 'ClipboardChangeEvent': Failed to read the 'types' property from 'ClipboardChangeEventInit': The provided value cannot be converted to a sequence.",
+ "cce.init.undef": [
+  "clipboardchange",
+  [],
+  "BIGINT:0",
+  false,
+  false
+ ],
+ "cce.noargs": [
+  "clipboardchange",
+  [],
+  "BIGINT:0",
+  true,
+  false,
+  false,
+  false,
+  false,
+  [
+   "isTrusted"
+  ]
+ ],
+ "cce.typesCopy": [
+  [
+   "x"
+  ]
+ ],
+ "cce.typesProps": [
+  true,
+  true,
+  false
+ ],
+ "chain": [
+  true,
+  true,
+  true,
+  true,
+  true
+ ],
+ "ev.abort": {
+  "hlog": [],
+  "log": []
+ },
+ "ev.restart": {
+  "hlog": [
+   "onerror",
+   "onend",
+   "onerror",
+   "onend"
+  ],
+  "log": [
+   "error:SpeechRecognitionErrorEvent:not-allowed::true:false:false:true",
+   "end:Event:::true:false:false:true",
+   "error:SpeechRecognitionErrorEvent:not-allowed::true:false:false:true",
+   "end:Event:::true:false:false:true"
+  ]
+ },
+ "ev.start": {
+  "hlog": [
+   "onerror",
+   "onend"
+  ],
+  "log": [
+   "start->undefined",
+   "error:SpeechRecognitionErrorEvent:not-allowed::true:false:false:true",
+   "end:Event:::true:false:false:true"
+  ]
+ },
+ "ev.startabort": {
+  "hlog": [
+   "onend"
+  ],
+  "log": [
+   "end:Event:::true:false:false:true"
+  ]
+ },
+ "ev.startstop": {
+  "hlog": [
+   "onend"
+  ],
+  "log": [
+   "end:Event:::true:false:false:true"
+  ]
+ },
+ "ev.stop": {
+  "hlog": [],
+  "log": []
+ },
+ "ev.twice": {
+  "hlog": [
+   "onerror",
+   "onend"
+  ],
+  "log": [
+   "2nd THROW InvalidStateError: Failed to execute 'start' on 'SpeechRecognition': recognition has already started.",
+   "error:SpeechRecognitionErrorEvent:not-allowed::true:false:false:true",
+   "end:Event:::true:false:false:true"
+  ]
+ },
+ "exist": {
+  "ClipboardChangeEvent": "function",
+  "SpeechGrammar": "function",
+  "SpeechGrammarList": "function",
+  "SpeechRecognition": "function",
+  "SpeechRecognitionAlternative": "undefined",
+  "SpeechRecognitionErrorEvent": "function",
+  "SpeechRecognitionEvent": "function",
+  "SpeechRecognitionPhrase": "function",
+  "SpeechRecognitionResult": "undefined",
+  "SpeechRecognitionResultList": "undefined",
+  "webkitSpeechGrammar": "function",
+  "webkitSpeechGrammarList": "function",
+  "webkitSpeechRecognition": "function",
+  "webkitSpeechRecognitionError": "function",
+  "webkitSpeechRecognitionEvent": "function"
+ },
+ "grammar": [
+  "",
+  1,
+  "#O/x",
+  0.30000001192092896
+ ],
+ "grammar.weight": {
+  "big": 5,
+  "nan": "TypeError: Failed to set the 'weight' property on 'SpeechGrammar': The provided float value is non-finite.",
+  "neg": -1,
+  "str": 0.5
+ },
+ "handlers": [
+  true,
+  null
+ ],
+ "phrase": [
+  "hello",
+  2,
+  "x",
+  1
+ ],
+ "phrase.boost": {
+  "big": "SyntaxError: Failed to construct 'SpeechRecognitionPhrase': Speech recognition phrase boost value must be inside the range [0, 10].",
+  "nan": "TypeError: Failed to construct 'SpeechRecognitionPhrase': The provided float value is non-finite.",
+  "neg": "SyntaxError: Failed to construct 'SpeechRecognitionPhrase': Speech recognition phrase boost value must be inside the range [0, 10].",
+  "str": 3,
+  "ten": 10
+ },
+ "phrase.noargs": "THROW TypeError: Failed to construct 'SpeechRecognitionPhrase': 1 argument required, but only 0 present.",
+ "sgl": [
+  0,
+  1,
+  "function",
+  1,
+  "undefined",
+  null,
+  false
+ ],
+ "sgl.add": [
+  1,
+  "data:application/xml,%23JSGF%20V1.0%3B",
+  0.5,
+  true,
+  null,
+  true
+ ],
+ "sgl.add.w": [
+  4,
+  1,
+  0.20000000298023224,
+  "data:application/xml,b",
+  "http://x.test/g.xml",
+  0.699999988079071,
+  "#O/rel.xml",
+  [
+   "0",
+   "1",
+   "2",
+   "3"
+  ]
+ ],
+ "sgl.item.conv": [
+  true,
+  null,
+  null,
+  true
+ ],
+ "sgl.noargs": [
+  "Failed to execute 'item' on 'SpeechGrammarList': 1 argument required, but only 0 present.",
+  "Failed to execute 'addFromString' on 'SpeechGrammarList': 1 argument required, but only 0 present.",
+  "Failed to execute 'addFromUri' on 'SpeechGrammarList': 1 argument required, but only 0 present."
+ ],
+ "sgl.weight": {
+  "big": 3,
+  "nan": "TypeError: Failed to execute 'addFromString' on 'SpeechGrammarList': The provided float value is non-finite.",
+  "neg": -1,
+  "str": 0.5
+ },
+ "shape": {
+  "ClipboardChangeEvent": {
+   "kinds": {
+    "changeId": "ro:true",
+    "constructor": "function:0:false",
+    "types": "ro:true"
+   },
+   "len": 0,
+   "order": [
+    "types",
+    "changeId",
+    "constructor"
+   ],
+   "parent": "Event",
+   "statics": {
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object ClipboardChangeEvent]"
+  },
+  "SpeechGrammar": {
+   "kinds": {
+    "constructor": "function:0:false",
+    "src": "rw:true",
+    "weight": "rw:true"
+   },
+   "len": 0,
+   "order": [
+    "src",
+    "weight",
+    "constructor"
+   ],
+   "parent": "",
+   "statics": {
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object SpeechGrammar]"
+  },
+  "SpeechGrammarList": {
+   "kinds": {
+    "addFromString": "function:1:true",
+    "addFromUri": "function:1:true",
+    "constructor": "function:0:false",
+    "item": "function:1:true",
+    "length": "ro:true"
+   },
+   "len": 0,
+   "order": [
+    "length",
+    "addFromString",
+    "addFromUri",
+    "item",
+    "constructor"
+   ],
+   "parent": "",
+   "statics": {
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object SpeechGrammarList]"
+  },
+  "SpeechRecognition": {
+   "kinds": {
+    "abort": "function:0:true",
+    "constructor": "function:0:false",
+    "continuous": "rw:true",
+    "grammars": "rw:true",
+    "interimResults": "rw:true",
+    "lang": "rw:true",
+    "maxAlternatives": "rw:true",
+    "onaudioend": "rw:true",
+    "onaudiostart": "rw:true",
+    "onend": "rw:true",
+    "onerror": "rw:true",
+    "onnomatch": "rw:true",
+    "onresult": "rw:true",
+    "onsoundend": "rw:true",
+    "onsoundstart": "rw:true",
+    "onspeechend": "rw:true",
+    "onspeechstart": "rw:true",
+    "onstart": "rw:true",
+    "phrases": "rw:true",
+    "processLocally": "rw:true",
+    "start": "function:0:true",
+    "stop": "function:0:true"
+   },
+   "len": 0,
+   "order": [
+    "grammars",
+    "lang",
+    "continuous",
+    "interimResults",
+    "maxAlternatives",
+    "onaudiostart",
+    "onsoundstart",
+    "onspeechstart",
+    "onspeechend",
+    "onsoundend",
+    "onaudioend",
+    "onresult",
+    "onnomatch",
+    "onerror",
+    "onstart",
+    "onend",
+    "abort",
+    "start",
+    "stop",
+    "processLocally",
+    "phrases",
+    "constructor"
+   ],
+   "parent": "EventTarget",
+   "statics": {
+    "available": "function:1:true",
+    "install": "function:1:true",
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object SpeechRecognition]"
+  },
+  "SpeechRecognitionErrorEvent": {
+   "kinds": {
+    "constructor": "function:1:false",
+    "error": "ro:true",
+    "message": "ro:true"
+   },
+   "len": 1,
+   "order": [
+    "error",
+    "message",
+    "constructor"
+   ],
+   "parent": "Event",
+   "statics": {
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object SpeechRecognitionErrorEvent]"
+  },
+  "SpeechRecognitionEvent": {
+   "kinds": {
+    "constructor": "function:1:false",
+    "resultIndex": "ro:true",
+    "results": "ro:true"
+   },
+   "len": 1,
+   "order": [
+    "resultIndex",
+    "results",
+    "constructor"
+   ],
+   "parent": "Event",
+   "statics": {
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object SpeechRecognitionEvent]"
+  },
+  "SpeechRecognitionPhrase": {
+   "kinds": {
+    "boost": "ro:true",
+    "constructor": "function:1:false",
+    "phrase": "ro:true"
+   },
+   "len": 1,
+   "order": [
+    "phrase",
+    "boost",
+    "constructor"
+   ],
+   "parent": "",
+   "statics": {
+    "length": "number::false",
+    "name": "string::false",
+    "prototype": "object::false"
+   },
+   "tag": "[object SpeechRecognitionPhrase]"
+  }
+ },
+ "sr.available": "available",
+ "sr.available.emptylangs": "THROW TypeError: Failed to execute 'available' on 'SpeechRecognition': Langs array cannot be empty.",
+ "sr.available.langs.bad": "THROW TypeError: Failed to execute 'available' on 'SpeechRecognition': Failed to read the 'langs' property from 'SpeechRecognitionOptions': The provided value cannot be converted to a sequence.",
+ "sr.available.langs.multi": "downloadable",
+ "sr.available.local": "downloadable",
+ "sr.available.local.str": "unavailable",
+ "sr.available.noargs": "THROW TypeError: Failed to execute 'available' on 'SpeechRecognition': 1 argument required, but only 0 present.",
+ "sr.available.nolangs": "THROW TypeError: Failed to execute 'available' on 'SpeechRecognition': Failed to read the 'langs' property from 'SpeechRecognitionOptions': Required member is undefined.",
+ "sr.available.opt.bad": "THROW TypeError: Failed to execute 'available' on 'SpeechRecognition': The provided value is not of type 'SpeechRecognitionOptions'.",
+ "sr.bools": [
+  true,
+  false,
+  true
+ ],
+ "sr.brand": "THROW TypeError: Illegal invocation",
+ "sr.brand.get": "THROW TypeError: Illegal invocation",
+ "sr.call": "THROW TypeError: Failed to construct 'SpeechRecognition': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "sr.fresh": [
+  "",
+  false,
+  false,
+  1,
+  "SpeechGrammarList",
+  0,
+  null,
+  null,
+  null,
+  [],
+  false,
+  "Array",
+  0,
+  true,
+  true
+ ],
+ "sr.grammars.set": [
+  true,
+  "TypeError: Failed to set the 'grammars' property on 'SpeechRecognition': Failed to convert value to 'SpeechGrammarList'."
+ ],
+ "sr.install": "THROW NotAllowedError: Failed to execute 'install' on 'SpeechRecognition': Requires handling a user gesture when availability is \"downloadable\".",
+ "sr.install.emptylangs": "THROW TypeError: Failed to execute 'install' on 'SpeechRecognition': Langs array cannot be empty.",
+ "sr.install.noargs": "THROW TypeError: Failed to execute 'install' on 'SpeechRecognition': 1 argument required, but only 0 present.",
+ "sr.install.nolangs": "THROW TypeError: Failed to execute 'install' on 'SpeechRecognition': Failed to read the 'langs' property from 'SpeechRecognitionOptions': Required member is undefined.",
+ "sr.install.nonlocal": false,
+ "sr.lang": [
+  "null",
+  "undefined",
+  "5"
+ ],
+ "sr.maxalt": {
+  "big": 1,
+  "nan": 0,
+  "neg": 4294967295,
+  "str": 5,
+  "zero": 0
+ },
+ "sr.phrases.set": [
+  "ok",
+  0
+ ],
+ "sr.set": [
+  "zh-CN",
+  true,
+  true,
+  3
+ ],
+ "sr.statics": [
+  1,
+  1
+ ],
+ "sre.noargs": "THROW TypeError: Failed to construct 'SpeechRecognitionEvent': 1 argument required, but only 0 present.",
+ "sre.noinit": [
+  0,
+  null,
+  "result"
+ ],
+ "sre.vals": {
+  "idx": [
+   3,
+   null
+  ],
+  "neg": [
+   4294967295,
+   null
+  ],
+  "none": [
+   0,
+   null
+  ],
+  "results.arr": "TypeError: Failed to construct 'SpeechRecognitionEvent': Failed to read the 'results' property from 'SpeechRecognitionEventInit': Failed to convert value to 'SpeechRecognitionResultList'.",
+  "results.null": [
+   0,
+   null
+  ],
+  "results.obj": "TypeError: Failed to construct 'SpeechRecognitionEvent': Failed to read the 'results' property from 'SpeechRecognitionEventInit': Failed to convert value to 'SpeechRecognitionResultList'.",
+  "str": [
+   7,
+   null
+  ]
+ },
+ "sree": [
+  "no-speech",
+  "m",
+  "error",
+  false,
+  false,
+  [
+   "isTrusted"
+  ]
+ ],
+ "sree.noargs": "THROW TypeError: Failed to construct 'SpeechRecognitionErrorEvent': 1 argument required, but only 0 present.",
+ "sree.noinit": [
+  "",
+  ""
+ ],
+ "sree.vals": {
+  "bad": [
+   "zzz",
+   ""
+  ],
+  "noerror": [
+   "",
+   "m"
+  ],
+  "none": [
+   "",
+   ""
+  ],
+  "null": [
+   "null",
+   ""
+  ],
+  "num": [
+   "5",
+   ""
+  ]
+ },
+ "webkit": [
+  true,
+  true,
+  true,
+  true,
+  true,
+  "SpeechRecognition",
+  false
+ ]
+}
