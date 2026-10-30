@@ -1193,3 +1193,15 @@ shape_fix.js 增加 ORDER 表（审计里「序不同」的接口，只含两边
 余下审计项：缺成员 622、种类 40、多余 33、statics 59、父原型 15、Symbol 82、序 10。验收：全量（跳两个毒化页面测试）991–992 过/30 败（test_local_fetch_resolves_on_task_boundary 为已知时序型偶发，单跑 2/2 过），
 失败集与干净 HEAD 相同；快照重生。
 
+## M4 刀27：纯桩接口的成员外壳 stub_members.js（2026-10-30）
+
+审计里「缺成员」的大头是**纯桩接口**：USB*/Bluetooth*/XR*/GPU*/多数 Audio 节点/CSS Typed OM…，引擎里只有 global_surface.js 造的惰性构造器（mkThrow/mkOk），原型除 `constructor` 外空空。
+`tools/webplatform/gen/gen_stub_members.py` 由 Chrome 真值为它们生成 `crates/diting/js/stub_members.js`（482 个接口、2548 个成员，含访问器 ro/rw、方法的 name+length+e/c/w、常量及其真值、静态成员），
+`build.rs` 排在 shape_fix.js 之前。行为契约：在该桩的**真实例**（原型链匹配）上，getter/方法返回 undefined；在**任何其他接收者**上抛 `TypeError: Illegal invocation`（Chrome 的品牌检查——指纹脚本会对 `{}` 调
+描述符 getter 来识破造假）。
+**关键约束**：只给**真桩**加外壳——global_surface.js 现把每个惰性构造器登记进 `__diting_stubs`（隐藏全局 WeakSet），审计探针据此给引擎侧打 `stub` 标记，生成器只取标记为真桩的接口。
+第一版按「原型只有 constructor」判定，误伤了 File/SharedWorker 等**把成员当自有实例属性**的真类（构造器里 `this.name = …` 遇到继承的只读访问器在严格模式下抛错，连带 ~90 个测试失败）。
+结果：缺成员 622→140，完全一致接口 236→659（共 936）。ORDER 表须在**应用桩之后**重新生成（桩成员追加在 constructor 之后，需按 Chrome 序重排）：先注释掉 shape_fix.js，抓取，再运行 gen_shape_fix.py。
+再生成流程（两步，均需暂时从 build.rs 注释掉被生成的脚本）：①注释 stub_members.js 与 shape_fix.js → 抓取 → gen_stub_members.py；②启用 stub_members.js、注释 shape_fix.js → 抓取 → gen_shape_fix.py。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。余下审计项：缺成员 140、序 27、种类 40、多余 33、statics 15、父原型 15、Symbol 82。
+

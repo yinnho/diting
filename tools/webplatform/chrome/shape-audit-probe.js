@@ -16,11 +16,13 @@
   });
   names.sort().forEach(function (n) {
     var C = globalThis[n], P = C.prototype;
-    var s = { len: C.length, order: Object.getOwnPropertyNames(P), statics: Object.getOwnPropertyNames(C).filter(function (k) { return k !== 'length' && k !== 'name' && k !== 'prototype'; }), kinds: {}, skinds: {}, syms: Object.getOwnPropertySymbols(P).map(String) };
+    var s = { stub: !!(globalThis.__diting_stubs && globalThis.__diting_stubs.has(C)), vals: {}, svals: {}, len: C.length, order: Object.getOwnPropertyNames(P), statics: Object.getOwnPropertyNames(C).filter(function (k) { return k !== 'length' && k !== 'name' && k !== 'prototype'; }), kinds: {}, skinds: {}, syms: Object.getOwnPropertySymbols(P).map(String) };
     var pp = Object.getPrototypeOf(P);
     s.proto = pp === Object.prototype ? 'Object' : pp === null ? 'null' : (pp.constructor && pp.constructor.name) || '?';
     s.order.forEach(function (m) { try { s.kinds[m] = kind(P, m); } catch (e) { s.kinds[m] = 'err'; } });
     s.statics.forEach(function (m) { try { s.skinds[m] = kind(C, m); } catch (e) { s.skinds[m] = 'err'; } });
+    s.order.forEach(function (m) { var d = Object.getOwnPropertyDescriptor(P, m); if (d && !d.get && !d.set && (typeof d.value === 'number' || typeof d.value === 'string' || typeof d.value === 'boolean')) s.vals[m] = d.value; });
+    s.statics.forEach(function (m) { var d = Object.getOwnPropertyDescriptor(C, m); if (d && !d.get && !d.set && (typeof d.value === 'number' || typeof d.value === 'string' || typeof d.value === 'boolean')) s.svals[m] = d.value; });
     R[n] = s;
   });
   return JSON.stringify(R);

@@ -53,16 +53,21 @@ const SKIP = (n) => { try { return n in globalThis; } catch (e) { return true; }
 })();
 
 // ---- interface factories
+// Inert constructor stubs (THROW / OK lists below) register here so tooling (shape audit, stub_members.js
+// generation) can tell them from real classes whose instances carry their members as own properties.
+Object.defineProperty(globalThis, '__diting_stubs', { value: new WeakSet(), writable: true, enumerable: false, configurable: true });
 function mkThrow(name, len, msg) {
   const C = function () { throw new TypeError(msg); };
   try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
   try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
+  globalThis.__diting_stubs.add(C);
   return C;
 }
 function mkOk(name, len) {
   const C = function () { return Object.create(C.prototype); };
   try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
   try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
+  globalThis.__diting_stubs.add(C);
   return C;
 }
 function mkMethod(name, len) {
