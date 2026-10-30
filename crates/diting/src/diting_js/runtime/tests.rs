@@ -28012,3 +28012,63 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     assert_eq!(v["clone"], serde_json::json!([1, "P"]), "fragment cloneNode(deep) parses through the op");
     assert_eq!(v["cf"], serde_json::json!([1, "I"]), "createContextualFragment parses through the op");
 }
+
+/// M4 刀58 (2026-10-31): ElementInternals' ARIAMixin face — 51 members
+/// (role + 43 nullable-DOMString aria* + 7 element-ref aria*) the engine
+/// lacked entirely, the audit's biggest missing family. Chrome-truth storage
+/// semantics probed all three ways: the store is INTERNAL ONLY — the host's
+/// aria-*/role content attributes never feed these getters, these setters
+/// never touch the attributes, and the element's own ARIAMixin face (which
+/// DOES reflect attributes) stays independent (el.ariaLabel='A' +
+/// internals.ariaLabel='B' coexist). Element-ref faces store the array
+/// as-is, no attribute sync either direction; null clears; [] stays empty.
+#[test]
+fn knife58_element_internals_aria_reflection_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          if (!customElements.get('x-knife58')) customElements.define('x-knife58', class extends HTMLElement {});
+          const el = document.createElement('x-knife58');
+          document.body.appendChild(el);
+          const inr = el.attachInternals();
+          const el2 = document.createElement('span'); el2.id = 'k58b'; document.body.appendChild(el2);
+          const d = Object.getOwnPropertyDescriptor(ElementInternals.prototype, 'ariaLabel');
+          const dref = Object.getOwnPropertyDescriptor(ElementInternals.prototype, 'ariaLabelledByElements');
+          const out = {};
+          out.own = Object.getOwnPropertyNames(ElementInternals.prototype).length;
+          out.absent = [inr.ariaLabel, inr.role, inr.ariaLabelledByElements, inr.ariaColIndexText];
+          el.setAttribute('aria-label', 'FROM-ATTR');
+          out.attrToGetter = [inr.ariaLabel, el.ariaLabel];
+          inr.ariaLabel = 'L1';
+          out.setLabel = [el.getAttribute('aria-label'), inr.ariaLabel, el.ariaLabel];
+          out.coerce = (inr.ariaLabel = 5, inr.ariaLabel);
+          out.nullClears = (inr.ariaLabel = null, inr.ariaLabel);
+          inr.role = 'switch';
+          out.role = [inr.role, el.getAttribute('role')];
+          inr.ariaLabelledByElements = [el2];
+          out.refSet = [inr.ariaLabelledByElements.length, inr.ariaLabelledByElements[0] === el2, el.getAttribute('aria-labelledby')];
+          out.refNull = (inr.ariaLabelledByElements = null, inr.ariaLabelledByElements);
+          out.refEmpty = (inr.ariaLabelledByElements = [], inr.ariaLabelledByElements.length);
+          out.desc = [d.enumerable, d.configurable, typeof d.get, typeof d.set];
+          out.descRef = [dref.enumerable, dref.configurable];
+          out.hidden = Object.getOwnPropertyNames(inr).join(',');
+          out.tag = Object.prototype.toString.call(inr);
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["own"], serde_json::json!(63), "Chrome's exact 63-member prototype face");
+    assert_eq!(v["absent"], serde_json::json!([null, null, null, null]), "absent faces read null");
+    assert_eq!(v["attrToGetter"], serde_json::json!([null, "FROM-ATTR"]), "content attribute does not feed the internals getter");
+    assert_eq!(v["setLabel"], serde_json::json!(["FROM-ATTR", "L1", "FROM-ATTR"]), "internals setter never touches the attribute; element face independent");
+    assert_eq!(v["coerce"], serde_json::json!("5"), "WebIDL DOMString coercion");
+    assert_eq!(v["nullClears"], serde_json::json!(null));
+    assert_eq!(v["role"], serde_json::json!(["switch", null]), "role stores internally, attribute untouched");
+    assert_eq!(v["refSet"], serde_json::json!([1, true, null]), "element-ref stores the array, no attribute sync");
+    assert_eq!(v["refNull"], serde_json::json!(null));
+    assert_eq!(v["refEmpty"], serde_json::json!(0));
+    assert_eq!(v["desc"], serde_json::json!([true, true, "function", "function"]), "rw:ec");
+    assert_eq!(v["descRef"], serde_json::json!([true, true]));
+    assert_eq!(v["hidden"], serde_json::json!(""), "_aria/_refs and ctor state stay hidden on the instance");
+    assert_eq!(v["tag"], serde_json::json!("[object ElementInternals]"));
+}
