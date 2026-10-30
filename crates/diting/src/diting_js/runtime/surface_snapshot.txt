@@ -1406,7 +1406,7 @@ P CaretPosition :: constructor
 P ChannelMergerNode :: constructor
 P ChannelSplitterNode :: constructor
 P ChapterInformation :: constructor
-P CharacterBoundsUpdateEvent :: constructor
+P CharacterBoundsUpdateEvent :: constructor,rangeEnd,rangeStart
 P CharacterData :: after,appendData,before,constructor,data,deleteData,insertData,length,nextElementSibling,previousElementSibling,remove,replaceData,replaceWith,substringData
 P Clipboard :: constructor
 P ClipboardChangeEvent :: changeId,constructor,types
@@ -1484,7 +1484,7 @@ P DocumentTimeline :: constructor
 P DocumentType :: constructor,name,nodeName,nodeType,nodeValue,ownerDocument,publicId,systemId
 P DragEvent :: constructor
 P DynamicsCompressorNode :: constructor
-P EditContext :: constructor
+P EditContext :: attachedElements,characterBounds,characterBoundsRangeStart,constructor,oncharacterboundsupdate,oncompositionend,oncompositionstart,ontextformatupdate,ontextupdate,selectionEnd,selectionStart,text,updateCharacterBounds,updateControlBounds,updateSelection,updateSelectionBounds,updateText
 P Element :: _checkPopoverValidity,_dialogClose,_ditingExtent,_ditingScrollExtent,_elemScrollMax,_elemScrollMirror,_fireScroll,_inputType,_isNativeScrollContainer,_isViewportRoot,_loadIframeSrc,_navigateSubmit,_popoverAttrValue,_popoverRemoveAttr,_popoverTypeMaybeChanged,_resolveInlineHandler,_rootScrollMax,_rootScroller,_stepBy,action,add,after,animate,append,ariaActiveDescendantElement,ariaAtomic,ariaAutoComplete,ariaBrailleLabel,ariaBrailleRoleDescription,ariaBusy,ariaChecked,ariaColCount,ariaColIndex,ariaColIndexText,ariaColSpan,ariaControlsElements,ariaCurrent,ariaDescribedByElements,ariaDescription,ariaDetailsElements,ariaDisabled,ariaErrorMessageElements,ariaExpanded,ariaFlowToElements,ariaHasPopup,ariaHidden,ariaInvalid,ariaKeyShortcuts,ariaLabel,ariaLabelledByElements,ariaLevel,ariaLive,ariaModal,ariaMultiLine,ariaMultiSelectable,ariaNotify,ariaOrientation,ariaPlaceholder,ariaPosInSet,ariaPressed,ariaReadOnly,ariaRelevant,ariaRequired,ariaRoleDescription,ariaRowCount,ariaRowIndex,ariaRowIndexText,ariaRowSpan,ariaSelected,ariaSetSize,ariaSort,ariaValueMax,ariaValueMin,ariaValueNow,ariaValueText,assignedSlot,assignedSlots,attachShadow,attributes,before,caption,cellIndex,cells,checkVisibility,checked,childElementCount,children,classList,className,clientHeight,clientLeft,clientTop,clientWidth,close,closedBy,closest,cols,computedStyleMap,constructor,content,contentDocument,contentWindow,control,createCaption,createTBody,createTFoot,createTHead,currentCSSZoom,deleteCaption,deleteCell,deleteRow,deleteTFoot,deleteTHead,disabled,elementTiming,files,firstElementChild,form,getAnimations,getAttribute,getAttributeNS,getAttributeNames,getAttributeNode,getAttributeNodeNS,getBoundingClientRect,getClientRects,getElementsByClassName,getElementsByTagName,getElementsByTagNameNS,getHTML,hasAttribute,hasAttributeNS,hasAttributes,hasPointerCapture,hash,host,hostname,href,htmlFor,id,indeterminate,innerHTML,insertAdjacentElement,insertAdjacentHTML,insertAdjacentText,insertCell,insertRow,isConnected,labels,lastElementChild,localName,matches,max,maxLength,method,min,minLength,moveBefore,multiple,name,namespaceURI,nextElementSibling,onbeforecopy,onbeforecut,onbeforepaste,onfullscreenchange,onfullscreenerror,onsearch,onwebkitfullscreenchange,onwebkitfullscreenerror,open,options,origin,outerHTML,part,password,pathname,placeholder,port,prefix,prepend,previousElementSibling,protocol,querySelector,querySelectorAll,rel,relList,releasePointerCapture,remove,removeAttribute,removeAttributeNS,removeAttributeNode,replaceChildren,replaceWith,requestClose,requestFullscreen,requestPointerLock,requestSubmit,reset,returnValue,rev,role,rowIndex,rows,sandbox,scheme,scroll,scrollBy,scrollHeight,scrollIntoView,scrollIntoViewIfNeeded,scrollLeft,scrollTo,scrollTop,scrollWidth,search,sectionRowIndex,select,selected,selectedIndex,selectedOptions,selectionDirection,selectionEnd,selectionStart,setAttribute,setAttributeNS,setAttributeNode,setAttributeNodeNS,setHTMLUnsafe,setPointerCapture,setRangeText,setSelectionRange,shadowRoot,sheet,show,showModal,size,sizes,slot,src,srcdoc,step,stepDown,stepUp,submit,tBodies,tFoot,tHead,tagName,toggleAttribute,type,username,value,valueAsDate,valueAsNumber,viewBox,webkitMatchesSelector,webkitRequestFullScreen,webkitRequestFullscreen,wrap
 P ElementInternals :: checkValidity,constructor,form,labels,reportValidity,setFormValue,setValidity,shadowRoot,states,validationMessage,validity,willValidate
 P EncodedAudioChunk :: constructor
@@ -2097,14 +2097,14 @@ P TextDecoderStream :: constructor
 P TextEncoder :: constructor,encode,encodeInto,encoding
 P TextEncoderStream :: constructor,encoding
 P TextEvent :: constructor
-P TextFormat :: constructor
-P TextFormatUpdateEvent :: constructor
+P TextFormat :: constructor,rangeEnd,rangeStart,underlineStyle,underlineThickness
+P TextFormatUpdateEvent :: constructor,getTextFormats
 P TextMetrics :: constructor
 P TextTrack :: constructor
 P TextTrackCue :: constructor,endTime,id,pauseOnExit,startTime,track
 P TextTrackCueList :: constructor
 P TextTrackList :: constructor
-P TextUpdateEvent :: constructor
+P TextUpdateEvent :: constructor,selectionEnd,selectionStart,text,updateRangeEnd,updateRangeStart
 P TimeRanges :: constructor
 P TimelineTrigger :: constructor
 P TimelineTriggerRange :: constructor

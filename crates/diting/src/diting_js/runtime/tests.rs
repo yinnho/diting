@@ -27252,3 +27252,33 @@ async fn animation_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 18: EditContext family (editctx-probe.js, 49 keys, real Chrome 145):
+/// shape of EditContext / TextFormat / TextUpdateEvent / TextFormatUpdateEvent /
+/// CharacterBoundsUpdateEvent, EditContextInit conversions, updateText (reversed
+/// range swapped, ends clamped), updateSelection (clamped, order kept), read-only
+/// text/selection, fresh characterBounds copies, DOMRect argument checks, the five
+/// handler accessors, HTMLElement.editContext attach rules (one element per
+/// context, NotSupportedError for unsupported elements, conversion TypeError).
+#[tokio::test(flavor = "current_thread")]
+async fn editcontext_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/editctx-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/editctx-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}

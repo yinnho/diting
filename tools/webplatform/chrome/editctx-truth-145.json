@@ -1,0 +1,361 @@
+{
+ "attach.bad": "TypeError: Failed to set the 'editContext' property on 'HTMLElement': Failed to convert value to 'EditContext'.",
+ "attach.el": [
+  1,
+  true,
+  true,
+  0,
+  null
+ ],
+ "attach.inherit": [
+  "undefined",
+  true,
+  null
+ ],
+ "attach.invalid": "NotSupportedError: Failed to set the 'editContext' property on 'HTMLElement': This element does not support EditContext",
+ "attach.twice": "NotSupportedError: Failed to set the 'editContext' property on 'HTMLElement': An EditContext can be only be associated with a single element",
+ "bounds.args": "TypeError: Failed to execute 'updateCharacterBounds' on 'EditContext': 2 arguments required, but only 1 present.",
+ "bounds.bad": "TypeError: Failed to execute 'updateCharacterBounds' on 'EditContext': Failed to convert value to 'DOMRect'.",
+ "bounds.fresh": [
+  false,
+  true
+ ],
+ "bounds.update": [
+  1,
+  [
+   [
+    1,
+    2,
+    3,
+    4
+   ],
+   [
+    5,
+    6,
+    7,
+    8
+   ]
+  ]
+ ],
+ "brand": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "call": "TypeError: Failed to construct 'EditContext': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "cbue.ctor": [
+  2,
+  5,
+  true
+ ],
+ "cbue.defaults": [
+  0,
+  0
+ ],
+ "control.bounds": "ok",
+ "control.bounds.bad": [
+  "TypeError: Failed to execute 'updateControlBounds' on 'EditContext': 1 argument required, but only 0 present.",
+  "TypeError: Failed to execute 'updateControlBounds' on 'EditContext': parameter 1 is not of type 'DOMRect'.",
+  "TypeError: Failed to execute 'updateSelectionBounds' on 'EditContext': parameter 1 is not of type 'DOMRect'."
+ ],
+ "defaults": {
+  "attached": [],
+  "cb": [],
+  "cbrs": 0,
+  "onblur": "#undef",
+  "oncompositionstart": null,
+  "ontextupdate": null,
+  "se": 0,
+  "ss": 0,
+  "text": ""
+ },
+ "ev.getters": [
+  "TypeError: Illegal invocation",
+  "TypeError: Illegal invocation"
+ ],
+ "events.handlers": {
+  "onblur": [
+   false,
+   "#undef",
+   true,
+   5
+  ],
+  "oncharacterboundsupdate": [
+   true,
+   null,
+   true,
+   null
+  ],
+  "oncompositionend": [
+   true,
+   null,
+   true,
+   null
+  ],
+  "oncompositionstart": [
+   true,
+   null,
+   true,
+   null
+  ],
+  "ontextformatupdate": [
+   true,
+   null,
+   true,
+   null
+  ],
+  "ontextupdate": [
+   true,
+   null,
+   true,
+   null
+  ]
+ },
+ "init": [
+  "hello",
+  1,
+  3
+ ],
+ "init.bad": [
+  "TypeError: Failed to construct 'EditContext': The provided value is not of type 'EditContextInit'.",
+  "TypeError: Failed to construct 'EditContext': The provided value is not of type 'EditContextInit'.",
+  [
+   "",
+   0,
+   0
+  ],
+  [
+   "",
+   0,
+   0
+  ],
+  [
+   "5",
+   0,
+   0
+  ],
+  [
+   "",
+   0,
+   0
+  ]
+ ],
+ "init.null": [
+  "",
+  0
+ ],
+ "inst": [
+  true,
+  "[object EditContext]",
+  []
+ ],
+ "selection.set": [
+  [
+   0,
+   0
+  ],
+  0,
+  0
+ ],
+ "selection.set.beyond": [
+  0,
+  0
+ ],
+ "shape.CharacterBoundsUpdateEvent": {
+  "kinds": {
+   "constructor": "function:1",
+   "rangeEnd": "ro",
+   "rangeStart": "ro"
+  },
+  "len": 1,
+  "order": [
+   "rangeStart",
+   "rangeEnd",
+   "constructor"
+  ],
+  "proto": "Event",
+  "statics": [],
+  "tag": "[object CharacterBoundsUpdateEvent]"
+ },
+ "shape.EditContext": {
+  "kinds": {
+   "attachedElements": "function:0",
+   "characterBounds": "function:0",
+   "characterBoundsRangeStart": "ro",
+   "constructor": "function:0",
+   "oncharacterboundsupdate": "rw",
+   "oncompositionend": "rw",
+   "oncompositionstart": "rw",
+   "ontextformatupdate": "rw",
+   "ontextupdate": "rw",
+   "selectionEnd": "ro",
+   "selectionStart": "ro",
+   "text": "ro",
+   "updateCharacterBounds": "function:2",
+   "updateControlBounds": "function:1",
+   "updateSelection": "function:2",
+   "updateSelectionBounds": "function:1",
+   "updateText": "function:3"
+  },
+  "len": 0,
+  "order": [
+   "text",
+   "selectionStart",
+   "selectionEnd",
+   "characterBoundsRangeStart",
+   "ontextupdate",
+   "ontextformatupdate",
+   "oncharacterboundsupdate",
+   "oncompositionstart",
+   "oncompositionend",
+   "attachedElements",
+   "characterBounds",
+   "updateCharacterBounds",
+   "updateControlBounds",
+   "updateSelection",
+   "updateSelectionBounds",
+   "updateText",
+   "constructor"
+  ],
+  "proto": "EventTarget",
+  "statics": [],
+  "tag": "[object EditContext]"
+ },
+ "shape.TextFormat": {
+  "kinds": {
+   "constructor": "function:0",
+   "rangeEnd": "ro",
+   "rangeStart": "ro",
+   "underlineStyle": "ro",
+   "underlineThickness": "ro"
+  },
+  "len": 0,
+  "order": [
+   "rangeStart",
+   "rangeEnd",
+   "underlineStyle",
+   "underlineThickness",
+   "constructor"
+  ],
+  "proto": "Object",
+  "statics": [],
+  "tag": "[object TextFormat]"
+ },
+ "shape.TextFormatUpdateEvent": {
+  "kinds": {
+   "constructor": "function:1",
+   "getTextFormats": "function:0"
+  },
+  "len": 1,
+  "order": [
+   "getTextFormats",
+   "constructor"
+  ],
+  "proto": "Event",
+  "statics": [],
+  "tag": "[object TextFormatUpdateEvent]"
+ },
+ "shape.TextUpdateEvent": {
+  "kinds": {
+   "constructor": "function:1",
+   "selectionEnd": "ro",
+   "selectionStart": "ro",
+   "text": "ro",
+   "updateRangeEnd": "ro",
+   "updateRangeStart": "ro"
+  },
+  "len": 1,
+  "order": [
+   "updateRangeStart",
+   "updateRangeEnd",
+   "text",
+   "selectionStart",
+   "selectionEnd",
+   "constructor"
+  ],
+  "proto": "Event",
+  "statics": [],
+  "tag": "[object TextUpdateEvent]"
+ },
+ "text.readonly": "abc",
+ "tf.bad": [
+  "TypeError: Failed to construct 'TextFormat': Failed to read the 'underlineStyle' property from 'TextFormatInit': The provided value 'zz' is not a valid enum value of type UnderlineStyle.",
+  "TypeError: Failed to construct 'TextFormat': Failed to read the 'underlineThickness' property from 'TextFormatInit': The provided value 'zz' is not a valid enum value of type UnderlineThickness.",
+  "ok",
+  "TypeError: Failed to construct 'TextFormat': The provided value is not of type 'TextFormatInit'."
+ ],
+ "tf.call": "TypeError: Failed to construct 'TextFormat': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "tf.ctor": [
+  0,
+  0,
+  "#undef",
+  "#undef",
+  "#undef",
+  "none",
+  "none"
+ ],
+ "tf.init": [
+  1,
+  4,
+  "dotted",
+  "thick",
+  "#undef"
+ ],
+ "tf.set": [
+  0,
+  "none",
+  "blue"
+ ],
+ "tfue.ctor": [
+  1,
+  true,
+  false
+ ],
+ "tfue.empty": [],
+ "tue.ctor": [
+  "textupdate",
+  "hi",
+  1,
+  2,
+  3,
+  4,
+  true,
+  false
+ ],
+ "tue.defaults": [
+  "",
+  0,
+  0,
+  0,
+  0
+ ],
+ "tue.noargs": "TypeError: Failed to construct 'TextUpdateEvent': 1 argument required, but only 0 present.",
+ "updateSelection": [
+  2,
+  4
+ ],
+ "updateSelection.args": "TypeError: Failed to execute 'updateSelection' on 'EditContext': 2 arguments required, but only 1 present.",
+ "updateSelection.beyond": [
+  3,
+  3
+ ],
+ "updateSelection.reverse": [
+  4,
+  1
+ ],
+ "updateText": [
+  "aXYZdef"
+ ],
+ "updateText.args": "TypeError: Failed to execute 'updateText' on 'EditContext': 3 arguments required, but only 2 present.",
+ "updateText.beyond": [
+  "abZ",
+  "abZQ"
+ ],
+ "updateText.conv": "a5c",
+ "updateText.reverse": "aZef"
+}
