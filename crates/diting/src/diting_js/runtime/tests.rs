@@ -1151,8 +1151,10 @@
         assert_eq!(
             v["tblFace"],
             serde_json::json!(["align", "bgColor", "border", "caption", "cellPadding",
-                               "cellSpacing", "frame", "rows", "rules", "summary",
-                               "tBodies", "tFoot", "tHead", "width"]),
+                               "cellSpacing", "createCaption", "createTBody", "createTFoot",
+                               "createTHead", "deleteCaption", "deleteRow", "deleteTFoot",
+                               "deleteTHead", "frame", "insertRow", "rows", "rules",
+                               "summary", "tBodies", "tFoot", "tHead", "width"]),
             "table prototype carries the legacy family + table DOM members"
         );
         assert_eq!(v["parsed"], serde_json::json!(["#eeeeee", "navy"]),
@@ -1222,12 +1224,13 @@
         "#).unwrap();
         let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
         let faces = v["faces"].as_array().unwrap();
-        assert_eq!(faces[0], serde_json::json!(["align", "ch", "chOff", "vAlign"]),
+        assert_eq!(faces[0], serde_json::json!(["align", "ch", "chOff", "deleteRow", "insertRow", "rows", "vAlign"]),
             "section prototype face");
         assert_eq!(
             faces[1],
             serde_json::json!(["align", "bgColor", "cells", "ch", "chOff",
-                               "rowIndex", "sectionRowIndex", "vAlign"]),
+                               "deleteCell", "insertCell", "rowIndex",
+                               "sectionRowIndex", "vAlign"]),
             "row prototype face: legacy five + the DOM members"
         );
         assert_eq!(
@@ -2438,7 +2441,10 @@
     /// obscura #930 family: slot assignment APIs exist. A slot OUTSIDE any
     /// shadow tree has no assignment and no fallback — the spec-correct
     /// answer is empty, which keeps feature-detect code on its slot-aware
-    /// path instead of crashing on `undefined`.
+    /// path instead of crashing on `undefined`. `assignedSlots` itself is
+    /// NOT a member anywhere on Chrome 145's surface (shape audit: the
+    /// engine's Element-level ghost left with the 刀55 kitchen sink), so a
+    /// light child answers undefined there.
     #[test]
     fn slot_assignment_apis_are_present_and_empty() {
         let mut rt = setup_runtime(r#"<slot id="s"><span id="c"></span></slot>"#);
@@ -2447,10 +2453,10 @@
                 "const s = document.getElementById('s'); \
                  [typeof s.assignedElements, s.assignedElements().length, \
                   typeof s.assignedNodes, s.assignedNodes().length, \
-                  JSON.stringify(document.getElementById('c').assignedSlots)].join('|')",
+                  String(document.getElementById('c').assignedSlots)].join('|')",
             )
             .unwrap();
-        assert_eq!(assigned, serde_json::json!("function|0|function|0|[]"));
+        assert_eq!(assigned, serde_json::json!("function|0|function|0|undefined"));
         let is_slot = rt
             .evaluate("document.getElementById('s') instanceof HTMLSlotElement")
             .unwrap();
@@ -2602,8 +2608,8 @@
                    named.assignedNodes().length, \
                    named.assignedNodes()[0] === sa, \
                    named.assignedElements().length, \
-                   JSON.stringify(sa.assignedSlots.map(s => s.getAttribute('name'))), \
-                   JSON.stringify(nb.assignedSlots), \
+                   typeof sa.assignedSlots, \
+                   sa.assignedSlot === null, \
                    def.assignedNodes().length, \
                    def.assignedNodes()[0] === anon, \
                    def.assignedElements().length, \
@@ -2615,7 +2621,7 @@
             .unwrap();
         assert_eq!(
             out,
-            serde_json::json!("1|true|1|[\"a\"]|[]|1|true|1|1|fallback|0")
+            serde_json::json!("1|true|1|undefined|true|1|true|1|1|fallback|0")
         );
     }
 
@@ -8807,8 +8813,10 @@
         let result = rt.evaluate(r#"
             const $ = (id) => document.getElementById(id);
             return [
-                // non-labelable: empty NodeList, property present
-                $('d').labels.length, $('h').labels.length,
+                // non-labelable: labels is undefined (Chrome keeps it on the
+                // labelable interfaces only — 刀55 took the Element ghost off);
+                // hidden input keeps the property
+                typeof $('d').labels, $('h').labels.length,
                 // for-linked: BOTH for=a labels associate (la and lc), tree order
                 $('a').labels.length, $('a').labels[0] === $('la'), $('la').control === $('a'),
                 // wrapping: only the FIRST labelable descendant associates
@@ -8825,7 +8833,7 @@
         assert_eq!(
             result,
             serde_json::json!([
-                0, 0,
+                "undefined", 0,
                 2, true, true,
                 1, true, 0,
                 0, true,
@@ -27689,4 +27697,63 @@ async fn own_enumerable_keys_match_chrome_truth() {
         }
     }
     assert!(bad.is_empty(), "{} object(s) off:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// M4 刀55: Element.prototype's own member set == Chrome 145's exactly
+/// (shape-audit-truth-145.json, Element entry, string keys). The engine
+/// historically reflected every HTML/SVG member onto Element.prototype
+/// with localName guards ("the kitchen sink"): a <div> answered .value/
+/// .rows/.href, for-in over any element exposed all of them, and Chrome
+/// has none of it. The sink moved to the interfaces that own it (the
+/// bootstrap _interfaceProps MOVE table + SVG homes in element_sink.js);
+/// this pins the graveyard shut — a new Element member Chrome doesn't
+/// have fails here, and belongs in element_sink.js's delete list instead.
+#[tokio::test(flavor = "current_thread")]
+async fn element_prototype_members_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate("JSON.stringify(Object.getOwnPropertyNames(Element.prototype).sort())")
+        .unwrap();
+    let engine: Vec<String> = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let chrome: Vec<&str> = [
+        "after", "animate", "append", "ariaActiveDescendantElement", "ariaAtomic",
+        "ariaAutoComplete", "ariaBrailleLabel", "ariaBrailleRoleDescription", "ariaBusy",
+        "ariaChecked", "ariaColCount", "ariaColIndex", "ariaColIndexText", "ariaColSpan",
+        "ariaControlsElements", "ariaCurrent", "ariaDescribedByElements", "ariaDescription",
+        "ariaDetailsElements", "ariaDisabled", "ariaErrorMessageElements", "ariaExpanded",
+        "ariaFlowToElements", "ariaHasPopup", "ariaHidden", "ariaInvalid", "ariaKeyShortcuts",
+        "ariaLabel", "ariaLabelledByElements", "ariaLevel", "ariaLive", "ariaModal",
+        "ariaMultiLine", "ariaMultiSelectable", "ariaNotify", "ariaOrientation",
+        "ariaPlaceholder", "ariaPosInSet", "ariaPressed", "ariaReadOnly", "ariaRelevant",
+        "ariaRequired", "ariaRoleDescription", "ariaRowCount", "ariaRowIndex",
+        "ariaRowIndexText", "ariaRowSpan", "ariaSelected", "ariaSetSize", "ariaSort",
+        "ariaValueMax", "ariaValueMin", "ariaValueNow", "ariaValueText", "assignedSlot",
+        "attachShadow", "attributes", "before", "checkVisibility", "childElementCount",
+        "children", "classList", "className", "clientHeight", "clientLeft", "clientTop",
+        "clientWidth", "closest", "computedStyleMap", "constructor", "currentCSSZoom",
+        "elementTiming", "firstElementChild", "getAnimations", "getAttribute", "getAttributeNS",
+        "getAttributeNames", "getAttributeNode", "getAttributeNodeNS", "getBoundingClientRect",
+        "getClientRects", "getElementsByClassName", "getElementsByTagName",
+        "getElementsByTagNameNS", "getHTML", "hasAttribute", "hasAttributeNS", "hasAttributes",
+        "hasPointerCapture", "id", "innerHTML", "insertAdjacentElement", "insertAdjacentHTML",
+        "insertAdjacentText", "lastElementChild", "localName", "matches", "moveBefore",
+        "namespaceURI", "nextElementSibling", "onbeforecopy", "onbeforecut", "onbeforepaste",
+        "onfullscreenchange", "onfullscreenerror", "onsearch", "onwebkitfullscreenchange",
+        "onwebkitfullscreenerror", "outerHTML", "part", "prefix", "prepend",
+        "previousElementSibling", "querySelector", "querySelectorAll", "releasePointerCapture",
+        "remove", "removeAttribute", "removeAttributeNS", "removeAttributeNode",
+        "replaceChildren", "replaceWith", "requestFullscreen", "requestPointerLock", "role",
+        "scroll", "scrollBy", "scrollHeight", "scrollIntoView", "scrollIntoViewIfNeeded",
+        "scrollLeft", "scrollTo", "scrollTop", "scrollWidth", "setAttribute", "setAttributeNS",
+        "setAttributeNode", "setAttributeNodeNS", "setHTMLUnsafe", "setPointerCapture",
+        "shadowRoot", "slot", "tagName", "toggleAttribute", "webkitMatchesSelector",
+        "webkitRequestFullScreen", "webkitRequestFullscreen",
+    ]
+    .to_vec();
+    let extra: Vec<&String> = engine.iter().filter(|k| !chrome.contains(&k.as_str())).collect();
+    let missing: Vec<&&str> = chrome.iter().filter(|k| !engine.contains(&k.to_string())).collect();
+    assert!(
+        extra.is_empty() && missing.is_empty(),
+        "Element.prototype member set drifted from Chrome 145: extra {extra:?} missing {missing:?}"
+    );
 }
