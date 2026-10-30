@@ -1416,3 +1416,14 @@ nodeType/nodeName/nodeValue 并入刀23 的 Node.prototype 分派表（`nodeleve
 **已知局限**：HTML 文档的属性 DOM 不记录命名空间，所以由解析器产生的 `xlink:href` 之类属性的 `namespaceURI` 仍为 null；内部 JS 之外（Rust 侧解析/innerHTML 重建）造成的属性移除不会让已缓存的 Attr 脱离（元素被替换，旧 Attr 持有旧元素）。
 验收：全量（跳两个毒化页面测试）998 过/30 败，失败集与干净 HEAD 相同；ratchet OK；契约零违；check_fresh 7 件鲜（47 真值）；实例审计带泄漏对象 18/127。
 
+
+## M4 刀45：实例自有键泄漏清扫（2026-10-30）
+
+实例审计带泄漏对象 18→14（127 个对象）。`TextDecoder` 不再用 `defineProperty` 在实例上造 `encoding/fatal/ignoreBOM`，改普通赋值，由 `lift_own.js` 提升到原型存取器；
+`measureText` 返回真正的 `TextMetrics` 实例（原先是普通对象字面量）；`lift_own.js` 纳入 `RTCPeerConnection`（10 个状态/回调属性）、`CSSStyleSheet`（`cssRules/ownerRule`）、
+`MediaQueryList.media`、`TextMetrics.actualBoundingBoxLeft/Right`。`gen_lift_own.py` 现在重跑时并入输出文件里已有的 DATA（审计看到的是已提升状态，只会列出新增残余，覆盖会丢旧项）。
+仍泄漏（需逐类处理）：`CSSStyleDeclaration`（383 个属性名，策略：只补引擎真支持的）、`Image`（`defineProperty` 造的属性）、`PluginArray/MimeTypeArray`（具名属性）、`WebSocket`（动态 `_` 名）、
+`Location`、`Window`、`ServiceWorkerContainer`、`FileReader`（`_result/_error`）、`NodeList/HTMLCollection.length`、`HTMLOptionElement.text`、`Document.location`。
+验收：全量 998 过/30 败，失败集与干净 HEAD 相同；surface 快照 fixture 按预期更新（四个类的原型成员增加）。
+
+**工具坑**：探针服务器 `target/debug/diting` 属于包 `diting-browser`，重建必须 `cargo build -p diting-browser --bin diting`（`-p diting` 只建库，二进制不更新，审计会读到旧代码）。

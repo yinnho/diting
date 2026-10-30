@@ -8815,9 +8815,8 @@ if (typeof TextDecoder === 'undefined') {
         if (!name) throw new RangeError("Failed to construct 'TextDecoder': The encoding label provided ('" + label + "') is invalid.");
       }
       const o = options || {};
-      Object.defineProperty(this, 'encoding', { value: name, enumerable: true });
-      Object.defineProperty(this, 'fatal', { value: !!o.fatal, enumerable: true });
-      Object.defineProperty(this, 'ignoreBOM', { value: !!o.ignoreBOM, enumerable: true });
+      // Plain assignment: lift_own.js turns these into prototype accessors.
+      this.encoding = name; this.fatal = !!o.fatal; this.ignoreBOM = !!o.ignoreBOM;
       // Bytes carried over between decode(..., {stream:true}) calls
       // (TextDecoderStream splits chunks at arbitrary byte offsets).
       this._pending = new Uint8Array(0);
@@ -12389,7 +12388,7 @@ class _Canvas2D {
       if (f !== null) { factor = f; break; }
     }
     const w = String(t).length * 6 * scale * factor;
-    return { width: Math.round(w * 100) / 100, actualBoundingBoxAscent: 7*scale, actualBoundingBoxDescent: 2*scale };
+    return Object.assign(new globalThis.TextMetrics(), { width: Math.round(w * 100) / 100, actualBoundingBoxAscent: 7*scale, actualBoundingBoxDescent: 2*scale });
   }
   getImageData(x, y, w, h) {
     x=Math.round(x); y=Math.round(y); w=Math.round(w); h=Math.round(h);

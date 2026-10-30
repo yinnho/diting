@@ -1341,7 +1341,7 @@ P CSSSkewY :: ay,constructor
 P CSSStartingStyleRule :: constructor
 P CSSStyleDeclaration :: constructor,cssText,getPropertyPriority,getPropertyValue,item,length,removeProperty,setProperty
 P CSSStyleRule :: constructor,cssRules,deleteRule,insertRule,selectorText,style
-P CSSStyleSheet :: addRule,constructor,deleteRule,insertRule,removeRule,replace,replaceSync,rules
+P CSSStyleSheet :: addRule,constructor,cssRules,deleteRule,insertRule,ownerRule,removeRule,replace,replaceSync,rules
 S CSSStyleValue :: parse,parseAll
 P CSSStyleValue :: constructor,toString
 P CSSSupportsRule :: conditionText,constructor
@@ -1862,7 +1862,7 @@ P RTCError :: constructor
 P RTCErrorEvent :: constructor,error
 P RTCIceCandidate :: address,candidate,component,constructor,foundation,port,priority,protocol,relatedAddress,relatedPort,relayProtocol,sdpMLineIndex,sdpMid,tcpType,toJSON,type,url,usernameFragment
 P RTCIceTransport :: constructor,gatheringState,getLocalCandidates,getLocalParameters,getRemoteCandidates,getRemoteParameters,getSelectedCandidatePair,ongatheringstatechange,onselectedcandidatepairchange,onstatechange,role,state
-P RTCPeerConnection :: addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
+P RTCPeerConnection :: addIceCandidate,close,connectionState,constructor,createAnswer,createDataChannel,createOffer,getStats,iceConnectionState,iceGatheringState,localDescription,onconnectionstatechange,onicecandidate,onicegatheringstatechange,onsignalingstatechange,remoteDescription,setLocalDescription,setRemoteDescription,signalingState
 P RTCPeerConnectionIceErrorEvent :: address,constructor,port,url
 P RTCPeerConnectionIceEvent :: constructor
 S RTCRtpReceiver :: getCapabilities
@@ -2089,7 +2089,7 @@ P TextEncoderStream :: constructor,encoding
 P TextEvent :: constructor,data,initTextEvent
 P TextFormat :: constructor,rangeEnd,rangeStart,underlineStyle,underlineThickness
 P TextFormatUpdateEvent :: constructor,getTextFormats
-P TextMetrics :: actualBoundingBoxAscent,actualBoundingBoxDescent,constructor,width
+P TextMetrics :: actualBoundingBoxAscent,actualBoundingBoxDescent,actualBoundingBoxLeft,actualBoundingBoxRight,constructor,width
 P TextTrack :: activeCues,addCue,constructor,cues,id,kind,label,language,mode,oncuechange,removeCue
 P TextTrackCue :: constructor,endTime,id,pauseOnExit,startTime,track
 P TextTrackCueList :: constructor,getCueById,length
@@ -2274,7 +2274,7 @@ P scrollBy :: constructor
 P scrollTo :: constructor
 P stop :: constructor
 P webkitMediaStream :: active,addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,id,removeTrack
-P webkitRTCPeerConnection :: addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
+P webkitRTCPeerConnection :: addIceCandidate,close,connectionState,constructor,createAnswer,createDataChannel,createOffer,getStats,iceConnectionState,iceGatheringState,localDescription,onconnectionstatechange,onicecandidate,onicegatheringstatechange,onsignalingstatechange,remoteDescription,setLocalDescription,setRemoteDescription,signalingState
 P webkitSpeechGrammar :: constructor,src,weight
 P webkitSpeechGrammarList :: addFromString,addFromUri,constructor,item,length
 S webkitSpeechRecognition :: available,install
