@@ -1637,3 +1637,18 @@ ratchet **54→55** 第三次垫（刀55/刀59 先例）：新边=web_api_gaps�
 
 数字：missing 接口 108→**107**（GPUSupportedLimits 毕业），same 762→**763**，extra 0/order 28/kind 65/len 0/statics 14 全不动。枚举审计 204/211（7 已知缺口不变）。internal_names 356→**357**（`_lim`）。surface_snapshot 重生成（GPUSupportedLimits 一行 1→32 名）。
 测试：`knife60_gpu_supported_limits_face`（新：32 名全序 ctor 末位、ro:ec 四旗、裸读 undefined、`_lim` 管道 8192、31 getter 各佩己名、ctor 无 statics）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，932 过=931+1）。
+
+## M4 刀61：RTCPeerConnection 四十六件全面 + 七接口 kind 修（missing 方向第四刀）（2026-10-31）
+
+missing 方向第四刀，最大户 RTCPeerConnection：**46 原型件**（12 状态 getter + 11 on* 处理器 + 23 方法）+ **generateCertificate static**（ctor 面长 0、四 static 名）。顺刀清 kind 差七接口（RTCRtpSender.track/transport、RTCRtpReceiver.track、RTCDTMFSender 三件、MediaStreamTrack.kind、RTCDataChannel.label、RTCCertificate.expires）与 RTCRtpTransceiver 四缺件。kind/statics/missing 计**接口**不计成员——本刀七个 kind 差 + 28 缺成员各只折 1。
+
+**构造器重写为「一切状态进隐藏槽」**：Chrome 新鲜 pc `Object.keys(pc)===[]`、全部状态是原型 getter。`__rtc` 单槽装 desc×6/signaling/ice×2/conn/sctp/canTrickle/收发器五数组/cfg，`__on` 装 on* 处理器，close 后 iceGatheringState 停在 **'new'**（探针）。on* 从 own 数据属性改**原型 accessor**——这不只是形状：event_hooks 的 isHandlerSlot 只对 accessor 描述符点火，旧 `this.onicecandidate=null` 数据属性会影子杀掉处理器，本刀后 ontrack 真火、null 真清（探针 fire=1）。
+
+**两颗雷**：①**加载序陷阱**——webrtc.js 是第 5 个脚本，global_surface.js（铸 RTCRtpSender/Receiver/DTMFSender/Certificate 壳）第 32 个，face 块裸引用那些 prototype 即载入时 TypeError；解=lazy `fillSats()` 挂在各 mint 工厂顶。②**死桩陷阱**——stub_members 已给七接口装了**形对读死**的桩（audit missing:0 但 mint 实例读垃圾）；解=`force()`（delete+define）强换 mint 关键读，RTCRtpTransceiver 四件才用 fill-if-missing。
+
+**行为=三轮 Chrome 对拍 50/50 腿零差额**（k61-chrome/2/4/5 ↔ eng/eng2/eng5），全套报文逐字：WebIDL 参数类型 TypeError 先于一切（addTrack/removeTrack/createDTMFSender 非 track/sender、addTransceiver 非 'audio'/'video'——含 `{}` 也拒，dict overload 不存在）；close 门五处同款 InvalidStateError「The RTCPeerConnection's signalingState is 'closed'.」（addTrack/addTransceiver/removeTrack/createDTMFSender/setConfiguration）；**setConfiguration 可变性三分**——bundlePolicy/rtcpMuxPolicy/encodedInsertableStreams 构造时定格（InvalidModificationError 同文案），iceServers/iceCandidatePoolSize/iceTransportPolicy 可改且**整字典替换**（连改三键后前两键归零——探针 mutIce 逐位同答）；iceServers 条目归一化 **credential/urls/username 恒在场**（数字强转 "7"/"8"）且键序字母序；`'stun:'` 空主机与 'not a url' 同文案 SyntaxError「The given configuration has a syntax error.」；removeTrack 外来 sender=InvalidAccessError。mint 家族（sender/receiver/transceiver/DTMF/datachannel）+ legacy addStream/removeStream/getLocalStreams + getConfiguration 六键字典 + ctor 满参全反照（junkKey 丢弃）。
+
+数字：missing 接口 107→**106**（RTCPeerConnection 毕业），same 763→**764**，extra 0/order 28/kind 65→**64**/len 0/statics 14→**13**/parent 6。枚举审计 204/211（7 已知缺口不变）。ratchet **55 平**（同文件面零新边——刀60 起同类同家策略见效）。internal_names 357→**365**（+__rtc/__on/__closed/__ufrag/__pwd/__host/__port/__cfg 收编）。shape_fix 648→**647** 条（RTCPeerConnection ORDER 条目消失——ctor 挪尾配方第三用：raw 序=truth 序，gen 不发条目）。surface_snapshot 重生成。hide_priv 重生成（RTCPeerConnection 槽清单换血）。
+行为验证另有记档分歧三条：①gOPN(pc) 见 8 个不可枚举 `__` 槽 vs Chrome 空全量（引擎级模式，较旧版 16 个可枚举已收敛）；②fireOrder 引擎 handler 先于 listener（['H','L'] vs ['L','H']，event_hooks 全局语义，另行立案）；③createOffer on closed 异步拒绝形状未探（两侧均不同步抛）。
+测试：`knife61_rtc_peer_connection_face`（新，20 组断言：desc×6/states/cfg 六键/keys 空/品牌/afterAdd/tr1/senderTrack 管道/recvTrack/15 连发错误分类学/mutEntry 归一化/mutReplace/dtmf/genCert/ctor/fire/proto=46/roFlags/closed 四态）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，933 过=932+1）。
+**教训**：①`MediaStreamTrack.kind` 两侧都是只读 getter——探针别想赋值绕行，要用被测面自己的 mint 工厂取真轨道；②Chrome 探针没跑过的腿（setCfgGood）不能拿引擎答案对旧 Chrome 腿充数——**补探再对**，本刀 InvalidModificationError 三锁全靠补探翻案（初版引擎 ok 是错的）；③enum/instance 两审计各有专属探针（enum-probe.js/instance-audit-probe.js）与真源（enum-truth-145.json），别拿 shape-audit 捕获喂错工具。
