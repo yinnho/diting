@@ -1,0 +1,728 @@
+{
+ "brand.entries": "THROW TypeError: Illegal invocation",
+ "brand.get": "THROW TypeError: Illegal invocation",
+ "c.arr.empty": [
+  [],
+  []
+ ],
+ "c.arrval": [
+  [
+   [
+    "a",
+    "1,2"
+   ]
+  ],
+  [
+   [
+    "a",
+    "1,2"
+   ]
+  ]
+ ],
+ "c.bad.pair1": "THROW TypeError: Failed to construct 'Headers': Invalid value",
+ "c.bad.pair3": "THROW TypeError: Failed to construct 'Headers': Invalid value",
+ "c.bad.pairstr": "THROW TypeError: Failed to construct 'Headers': The provided value cannot be converted to a sequence.",
+ "c.badname": "THROW TypeError: Failed to construct 'Headers': Invalid name",
+ "c.badname.colon": "THROW TypeError: Failed to construct 'Headers': Invalid name",
+ "c.badname.empty": "THROW TypeError: Failed to construct 'Headers': Invalid name",
+ "c.badvalue.nl": "THROW TypeError: Failed to construct 'Headers': Invalid value",
+ "c.badvalue.nul": "THROW TypeError: Failed to construct 'Headers': Invalid value",
+ "c.bool": "THROW TypeError: Failed to construct 'Headers': The provided value is not of type '(record<ByteString, ByteString> or sequence<sequence<ByteString>>)'.",
+ "c.cookie": [
+  [
+   [
+    "set-cookie",
+    "a=1"
+   ],
+   [
+    "set-cookie",
+    "b=2"
+   ]
+  ],
+  [
+   [
+    "set-cookie",
+    "a=1"
+   ],
+   [
+    "set-cookie",
+    "b=2"
+   ]
+  ]
+ ],
+ "c.dupe.pairs": [
+  [
+   [
+    "a",
+    "1, 2"
+   ]
+  ],
+  [
+   [
+    "a",
+    "1, 2"
+   ]
+  ]
+ ],
+ "c.empty": [
+  [],
+  []
+ ],
+ "c.fn": [
+  [],
+  []
+ ],
+ "c.headers": [
+  [
+   [
+    "x",
+    "1"
+   ],
+   [
+    "y",
+    "2"
+   ]
+  ],
+  [
+   [
+    "x",
+    "1"
+   ],
+   [
+    "y",
+    "2"
+   ]
+  ]
+ ],
+ "c.iterable": [
+  [
+   [
+    "g",
+    "1"
+   ]
+  ],
+  [
+   [
+    "g",
+    "1"
+   ]
+  ]
+ ],
+ "c.map": [
+  [
+   [
+    "m",
+    "1"
+   ]
+  ],
+  [
+   [
+    "m",
+    "1"
+   ]
+  ]
+ ],
+ "c.name.wide": "THROW TypeError: Failed to construct 'Headers': String contains non ISO-8859-1 code point.",
+ "c.null": "THROW TypeError: Failed to construct 'Headers': The provided value is not of type '(record<ByteString, ByteString> or sequence<sequence<ByteString>>)'.",
+ "c.num": "THROW TypeError: Failed to construct 'Headers': The provided value is not of type '(record<ByteString, ByteString> or sequence<sequence<ByteString>>)'.",
+ "c.numval": [
+  [
+   [
+    "a",
+    "5"
+   ],
+   [
+    "b",
+    "null"
+   ],
+   [
+    "c",
+    "undefined"
+   ],
+   [
+    "d",
+    "true"
+   ]
+  ],
+  [
+   [
+    "a",
+    "5"
+   ],
+   [
+    "b",
+    "null"
+   ],
+   [
+    "c",
+    "undefined"
+   ],
+   [
+    "d",
+    "true"
+   ]
+  ]
+ ],
+ "c.obj": [
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ],
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ]
+ ],
+ "c.pairs": [
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ],
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ]
+ ],
+ "c.proto": [
+  [],
+  []
+ ],
+ "c.set-cookie.obj": [
+  [
+   [
+    "set-cookie",
+    "a=1"
+   ]
+  ],
+  [
+   "a=1"
+  ]
+ ],
+ "c.str": "THROW TypeError: Failed to construct 'Headers': The provided value is not of type '(record<ByteString, ByteString> or sequence<sequence<ByteString>>)'.",
+ "c.symkey": "THROW TypeError: Failed to construct 'Headers': Cannot convert a Symbol value to a string",
+ "c.undef": [
+  [],
+  []
+ ],
+ "c.value.empty": [
+  [
+   [
+    "a",
+    ""
+   ]
+  ],
+  [
+   [
+    "a",
+    ""
+   ]
+  ]
+ ],
+ "c.value.inner": [
+  [
+   [
+    "a",
+    "x  y"
+   ]
+  ],
+  [
+   [
+    "a",
+    "x  y"
+   ]
+  ]
+ ],
+ "c.value.latin1": [
+  [
+   [
+    "a",
+    "é"
+   ]
+  ],
+  [
+   [
+    "a",
+    "é"
+   ]
+  ]
+ ],
+ "c.value.tab": [
+  [
+   [
+    "a",
+    "x"
+   ]
+  ],
+  [
+   [
+    "a",
+    "x"
+   ]
+  ]
+ ],
+ "c.value.trim": [
+  [
+   [
+    "a",
+    "x"
+   ]
+  ],
+  [
+   [
+    "a",
+    "x"
+   ]
+  ]
+ ],
+ "c.value.wide": "THROW TypeError: Failed to construct 'Headers': String contains non ISO-8859-1 code point.",
+ "call": "THROW TypeError: Failed to construct 'Headers': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+ "headers.from.request": [
+  true,
+  [
+   [
+    "x-a",
+    "1"
+   ]
+  ],
+  false
+ ],
+ "headers.from.response": [
+  true,
+  [
+   [
+    "content-type",
+    "text/plain;charset=UTF-8"
+   ],
+   [
+    "x-b",
+    "2"
+   ]
+  ],
+  false
+ ],
+ "headers.response.ct": [
+  [
+   [
+    "content-type",
+    "text/plain;charset=UTF-8"
+   ]
+  ],
+  [
+   [
+    "content-type",
+    "text/x"
+   ]
+  ],
+  [
+   [
+    "content-type",
+    "application/x-www-form-urlencoded;charset=UTF-8"
+   ]
+  ],
+  [
+   [
+    "content-type",
+    "application/json"
+   ]
+  ]
+ ],
+ "iter.forEach": [
+  [
+   "1",
+   "a",
+   true,
+   true
+  ],
+  [
+   "2",
+   "b",
+   true,
+   true
+  ]
+ ],
+ "iter.forEach.bad": [
+  "TypeError: Failed to execute 'forEach' on 'Headers': parameter 1 is not of type 'Function'.",
+  "TypeError: Failed to execute 'forEach' on 'Headers': parameter 1 is not of type 'Function'.",
+  "TypeError: Failed to execute 'forEach' on 'Headers': parameter 1 is not of type 'Function'."
+ ],
+ "iter.forEach.mutate": [
+  "a",
+  "b",
+  "c"
+ ],
+ "iter.kinds": [
+  [
+   "a",
+   "b"
+  ],
+  [
+   "1",
+   "2"
+  ],
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ],
+  [
+   [
+    "a",
+    "1"
+   ],
+   [
+    "b",
+    "2"
+   ]
+  ],
+  "[object Headers Iterator]",
+  "[object Headers Iterator]"
+ ],
+ "iter.live": [
+  "a",
+  "b",
+  "c"
+ ],
+ "iter.live.delete": [
+  "a",
+  "c",
+  true
+ ],
+ "iter.shape": [
+  "[object Headers Iterator]",
+  "function",
+  true,
+  true,
+  [
+   "next"
+  ],
+  {
+   "done": false,
+   "value": [
+    "a",
+    "1"
+   ]
+  },
+  {
+   "done": true,
+   "value": "#undef"
+  },
+  {
+   "done": true,
+   "value": "#undef"
+  }
+ ],
+ "iter.spread": [
+  "a",
+  "1",
+  [
+   "a"
+  ],
+  {
+   "a": "1"
+  }
+ ],
+ "json": [
+  "{}",
+  [],
+  [],
+  "[object Headers]"
+ ],
+ "op.append.combine": [
+  "1, 2, 3",
+  "1, 2, 3",
+  [
+   [
+    "a",
+    "1, 2, 3"
+   ]
+  ]
+ ],
+ "op.args": {
+  "append": "Failed to execute 'append' on 'Headers': 2 arguments required, but only 0 present.",
+  "append1": "Failed to execute 'append' on 'Headers': 2 arguments required, but only 1 present.",
+  "delete": "Failed to execute 'delete' on 'Headers': 1 argument required, but only 0 present.",
+  "forEach": "Failed to execute 'forEach' on 'Headers': 1 argument required, but only 0 present.",
+  "get": "Failed to execute 'get' on 'Headers': 1 argument required, but only 0 present.",
+  "getSetCookie": "ok",
+  "has": "Failed to execute 'has' on 'Headers': 1 argument required, but only 0 present.",
+  "set": "Failed to execute 'set' on 'Headers': 2 arguments required, but only 0 present.",
+  "set1": "Failed to execute 'set' on 'Headers': 2 arguments required, but only 1 present."
+ },
+ "op.badname": {
+  "append": "TypeError: Failed to execute 'append' on 'Headers': Invalid name",
+  "delete": "TypeError: Failed to execute 'delete' on 'Headers': Invalid name",
+  "get": "TypeError: Failed to execute 'get' on 'Headers': Invalid name",
+  "has": "TypeError: Failed to execute 'has' on 'Headers': Invalid name",
+  "set": "TypeError: Failed to execute 'set' on 'Headers': Invalid name"
+ },
+ "op.badvalue": {
+  "append": "TypeError: Failed to execute 'append' on 'Headers': Invalid value",
+  "set": "TypeError: Failed to execute 'set' on 'Headers': Invalid value"
+ },
+ "op.conv": [
+  [
+   "5",
+   "6"
+  ],
+  [
+   "null",
+   "undefined"
+  ]
+ ],
+ "op.delete": [
+  "#undef",
+  [
+   [
+    "b",
+    "2"
+   ]
+  ],
+  "#undef"
+ ],
+ "op.get.missing": [
+  null,
+  false
+ ],
+ "op.has.case": [
+  true,
+  true,
+  false
+ ],
+ "op.lens": {
+  "append": 2,
+  "delete": 1,
+  "entries": 0,
+  "forEach": 1,
+  "get": 1,
+  "getSetCookie": 0,
+  "has": 1,
+  "keys": 0,
+  "set": 2,
+  "values": 0
+ },
+ "op.set.order": [
+  [
+   [
+    "a",
+    "2"
+   ],
+   [
+    "b",
+    "4"
+   ],
+   [
+    "c",
+    "3"
+   ]
+  ],
+  [
+   "a",
+   "b",
+   "c"
+  ],
+  [
+   "2",
+   "4",
+   "3"
+  ]
+ ],
+ "op.set.replace": [
+  "9",
+  [
+   [
+    "a",
+    "9"
+   ]
+  ]
+ ],
+ "op.sort": [
+  "9n",
+  "_u",
+  "a-b",
+  "a.b",
+  "a_b",
+  "alpha",
+  "beta",
+  "zeta"
+ ],
+ "op.sym": "TypeError: Failed to execute 'append' on 'Headers': Cannot convert a Symbol value to a string",
+ "op.value.norm": [
+  [
+   "a",
+   "x"
+  ],
+  [
+   "b",
+   "y"
+  ]
+ ],
+ "op.wide": "TypeError: Failed to execute 'append' on 'Headers': String contains non ISO-8859-1 code point.",
+ "own": [
+  [],
+  0,
+  true
+ ],
+ "sc.basic": [
+  [
+   "a=1",
+   "b=2; Path=/"
+  ],
+  "a=1, b=2; Path=/",
+  [
+   [
+    "set-cookie",
+    "a=1"
+   ],
+   [
+    "set-cookie",
+    "b=2; Path=/"
+   ],
+   [
+    "x-a",
+    "1"
+   ]
+  ],
+  [
+   [
+    "set-cookie",
+    "a=1"
+   ],
+   [
+    "set-cookie",
+    "b=2; Path=/"
+   ],
+   [
+    "x-a",
+    "1"
+   ]
+  ]
+ ],
+ "sc.brand": "THROW TypeError: Illegal invocation",
+ "sc.copy": [
+  [
+   "a=1",
+   "b=2"
+  ],
+  [
+   [
+    "set-cookie",
+    "a=1"
+   ],
+   [
+    "set-cookie",
+    "b=2"
+   ]
+  ]
+ ],
+ "sc.delete": [],
+ "sc.empty": [],
+ "sc.order": [
+  [
+   [
+    "a",
+    "2"
+   ],
+   [
+    "b",
+    "1"
+   ],
+   [
+    "set-cookie",
+    "x"
+   ],
+   [
+    "set-cookie",
+    "y"
+   ]
+  ],
+  [
+   "x",
+   "y"
+  ],
+  [
+   "a",
+   "b",
+   "set-cookie",
+   "set-cookie"
+  ]
+ ],
+ "sc.response": [
+  [],
+  null
+ ],
+ "sc.set": [
+  [
+   "z=9"
+  ],
+  true
+ ],
+ "shape": {
+  "iterIsEntries": true,
+  "kinds": {
+   "append": "function:2:true",
+   "constructor": "function:0:false",
+   "delete": "function:1:true",
+   "entries": "function:0:true",
+   "forEach": "function:1:true",
+   "get": "function:1:true",
+   "getSetCookie": "function:0:true",
+   "has": "function:1:true",
+   "keys": "function:0:true",
+   "set": "function:2:true",
+   "values": "function:0:true"
+  },
+  "len": 0,
+  "order": [
+   "append",
+   "delete",
+   "get",
+   "getSetCookie",
+   "has",
+   "set",
+   "entries",
+   "forEach",
+   "keys",
+   "values",
+   "constructor"
+  ],
+  "statics": [
+   "length",
+   "name",
+   "prototype"
+  ],
+  "symbols": [
+   "Symbol(Symbol.toStringTag)",
+   "Symbol(Symbol.iterator)"
+  ],
+  "tag": "[object Headers]"
+ }
+}

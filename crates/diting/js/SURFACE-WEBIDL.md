@@ -23,7 +23,7 @@
 
 ## 成员级缺口（Chrome 已发布 · 已探到实例的接口）
 
-已核 198 个接口；有缺口 42 个；缺口成员合计 188。
+已核 198 个接口；有缺口 41 个；缺口成员合计 187。
 
 | 接口 | 探法 | 缺/标准成员 | 缺失成员 |
 |---|---|---|---|
@@ -58,7 +58,6 @@
 | CaptureController | new | 1/13 | setFocusBehavior |
 | File | new | 1/11 | webkitRelativePath |
 | HTMLIFrameElement | createElement | 1/388 | privateToken |
-| Headers | new | 1/6 | getSetCookie |
 | ImageData | new | 1/5 | colorSpace |
 | MediaMetadata | new | 1/5 | chapterInfo |
 | MediaSource | new | 1/18 | handle |

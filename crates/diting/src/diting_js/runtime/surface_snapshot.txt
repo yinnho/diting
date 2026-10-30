@@ -1665,7 +1665,7 @@ P HTMLUnknownElement :: constructor
 P HTMLUserMediaElement :: constructor
 P HTMLVideoElement :: cancelVideoFrameCallback,constructor,disablePictureInPicture,getVideoPlaybackQuality,height,onenterpictureinpicture,onleavepictureinpicture,playsInline,poster,requestPictureInPicture,requestVideoFrameCallback,videoHeight,videoWidth,webkitDecodedFrameCount,webkitDroppedFrameCount,width
 P HashChangeEvent :: constructor,newURL,oldURL
-P Headers :: append,constructor,delete,entries,forEach,get,has,keys,set,values
+P Headers :: append,constructor,delete,entries,forEach,get,getSetCookie,has,keys,set,values
 P Highlight :: constructor
 P HighlightRegistry :: constructor
 P History :: constructor

@@ -18,7 +18,7 @@
 
 `SURFACE-WEBIDL.md`（生成件，脚本 `scripts/surface_webidl_diff.py`）：有/缺/多三表 + 成员级缺口（Chrome 已发布判据）。
 2026-10-29 首版：标准 Window 接口 428，有 357，缺 71（全部是 Chrome 未发布/实验接口，已发布者零缺）；
-成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→**188**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
+成员级已核 196 接口。同日晚刷新（M3 事件线+M4 刀1 几何族落表）：缺口 163→142 接口、2631→2471 成员（M4 刀2 再收：2471→1043；刀3 继收：1043→992；刀4 继收：992→652；刀5 继收：652→575；刀6 继收：575→478；刀7 继收：478→370；刀8 继收：370→321；刀9 继收：321→275；刀10 继收：275→262；刀11 继收：262→233；刀12 继收：233→224；刀13 继收：224→208；刀14 继收：208→188；刀15 继收：188→**187**，见文末）；出表的=M3 原生事件核的 cancelBubble/returnValue 等全线 + 几何六件（见差集表）。已确认的真缺口样例：
 ~~`DOMRectReadOnly`/`DOMMatrixReadOnly` 仅空壳 constructor~~（2026-10-29 M4 刀1 全族补齐）、
 `Element.clientLeft/clientTop` 缺、`ClipboardChangeEvent` 等未继承 Event 成员。
 
@@ -937,3 +937,31 @@ Node.prototype）；`DocumentFragment`/`ProcessingInstruction` 构造器 `length
 验收：探针 51 键 0 差异；tests **1447/0**（新增 smallmembers_match_chrome_truth）；快照漂移 13 行；
 check_fresh 7 件鲜（34 真值）；analyze 零违。下一刀顺位：Headers/Request/Response 整族、
 Animation 19、EditContext 11、ImageData/Highlight/FontFace、VideoFrame 10。
+
+## M4 刀15：Headers（2026-10-30）
+
+`platform/headers.impl.js`（模块 `headers`，L2）整类换真身。旧 Headers 是以小写名为键的对象表，
+`append` 会**覆盖**重复值、不校验名/值、迭代按插入序、没有 `getSetCookie`。探针
+`headers-probe.js`（75 键，真 Chrome 145，`headers-truth-145.json`）：构造语料（record/序列/
+Headers-like/坏形状及逐字措辞）、名/值合法性与归一化、同名合并、排序且**活**迭代、
+set-cookie 分列 + `getSetCookie`、迭代器协议、JSON/own 形状。
+
+- 头列表按插入序存 `{name(小写), value}`；`get` 同名以 `', '` 合并；迭代走「排序后合并」视图，
+  set-cookie 条目永不合并；迭代器/`forEach` 每步重算视图并按下标取（迭代中追加的头会被访问、
+  删除会让后续前移——与 Chrome 一致）。
+- ByteString 转换拒 >255 字符（`String contains non ISO-8859-1 code point.`）；名须匹配 token
+  （`Invalid name`）；值先裁 HTTP 空白，再遇 NUL/CR/LF 抛 `Invalid value`。
+- 迭代器原型 toStringTag=`Headers Iterator`，只有 `next`，接在 %IteratorPrototype% 上。
+
+**本刀入账的 KNOWN（Request/Response 族，下一刀）**：`headers.from.request`、
+`headers.from.response`、`headers.response.ct`、`sc.response` 四键——Request/Response 把
+`headers` 做成**自有属性**而 Chrome 是原型 getter；Response 对 string/Blob/URLSearchParams
+体不补默认 content-type；Response 守卫不滤 Set-Cookie。另 Request 缺 7 个成员：bodyUsed、
+destination、duplex、integrity、isHistoryNavigation、keepalive、targetAddressSpace。
+
+验收：探针 75 键中 71 键 0 差异、4 键 KNOWN；新增 headers_match_chrome_truth 过；缺口 188→187
+（Headers.getSetCookie 出表）；check_fresh 7 件鲜；analyze 零违。**环境备注**：本机 diting lib
+全量 908 过/110 败，失败集与干净 HEAD（36bfac4）逐条相同——根因是 font_size_zero_text_occupies_nothing
+与 viewport_override_drives_media_queries_and_survives_navigation 两个页面测试先败后毒化共享锁
+（PoisonError 连带），与本刀无关；待单独查。下一刀顺位：Request/Response 整族、Animation 19、
+EditContext 11、ImageData/Highlight/FontFace、VideoFrame 10。

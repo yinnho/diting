@@ -27161,3 +27161,44 @@ async fn smallmembers_match_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 15: Headers (headers-probe.js, 75 keys, real Chrome 145): the
+/// construction corpus (record / sequence / Headers-like / bad shapes with
+/// exact wording), name/value validity and normalization, same-name combining,
+/// sorted LIVE iteration, set-cookie separation + getSetCookie, the iterator
+/// protocol, JSON/own shape.
+/// KNOWN (the Request/Response knife): Request/Response keep `headers` as an
+/// own property instead of a prototype getter, Response does not add the
+/// default content-type for string/Blob/URLSearchParams bodies, and the
+/// response guard does not filter Set-Cookie.
+#[tokio::test(flavor = "current_thread")]
+async fn headers_match_chrome_truth() {
+    const KNOWN: &[&str] = &[
+        "headers.from.request",
+        "headers.from.response",
+        "headers.response.ct",
+        "sc.response",
+    ];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/headers-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
+    let engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/headers-truth-145.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if KNOWN.contains(&k.as_str()) {
+            continue;
+        }
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
+}
