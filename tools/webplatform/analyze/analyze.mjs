@@ -9,7 +9,7 @@
 //   - hide-list leak candidates: top-level `_`/diting function/var declarations in
 //     scripts that load AFTER interface_sweep.js (its final refresh re-scans the list)
 //
-// usage: node analyze.mjs [--json out.json] [--md out.md] [--check baseline.json]
+// usage: node analyze.mjs [--json out.json] [--md out.md] [--check baseline.json] [--gen-exports]
 //        node analyze.mjs --write-baseline baseline.json
 import fs from 'node:fs';
 import path from 'node:path';
@@ -251,8 +251,28 @@ function checkModules() {
 // ---- main analysis ---------------------------------------------------------
 const order = loadOrder();
 const files = {};
+// A script whose top level is wrapped in a function scope (`(function () { // @@SCOPE` ... `}).call(globalThis); // @@SCOPE-END`) keeps
+// its top-level bindings OFF the window (top-level function/var declarations are non-configurable, enumerable window properties that
+// no defineProperty can hide). The analysis sees it as if it were unwrapped: the wrapper line is blanked (line numbers unchanged) and
+// the generated exports block + closer are cut. The exports block is what other scripts / Rust may rely on.
+const SCOPE_OPEN = '(function () { // @@SCOPE';
+const EXPORTS_BEGIN = '// @@EXPORTS-BEGIN';
+const EXPORTS_END = '// @@EXPORTS-END';
+const SCOPE_CLOSE = '}).call(globalThis); // @@SCOPE-END';
+function unwrapped(src) {
+  const i = src.indexOf(SCOPE_OPEN);
+  if (i < 0) return { src, wrapped: false };
+  const j = src.indexOf(EXPORTS_BEGIN);
+  if (j < 0) throw new Error('scope-wrapped file without an exports block');
+  return { src: src.slice(0, i) + src.slice(i + SCOPE_OPEN.length) + '', cut: j, wrapped: true,
+    text: src.slice(0, i) + src.slice(i + SCOPE_OPEN.length, j) };
+}
+const wrappedFiles = new Set();
 for (const f of order) {
-  const src = fs.readFileSync(path.join(JS_DIR, f), 'utf8');
+  const raw = fs.readFileSync(path.join(JS_DIR, f), 'utf8');
+  const U = unwrapped(raw);
+  if (U.wrapped) wrappedFiles.add(f);
+  const src = U.wrapped ? U.text : raw;
   const ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', locations: true, ranges: true, allowHashBang: true });
   const parents = parentMap(ast);
   const sm = eslintScope.analyze(ast, { ecmaVersion: 2024, sourceType: 'script', ignoreEval: true, childVisitorKeys: null });
@@ -336,7 +356,7 @@ let loadEdges = 0, callEdges = 0;
 for (const f of order) {
   const F = files[f];
   const idx = fileIdx[f];
-  const loadReq = {}, callReq = {}; // provider file -> Set(names)
+  const loadReq = {}, callReq = {}, fwdCall = {}; // provider file -> Set(names); fwdCall = call-time uses of names a LATER script defines
   const external = new Set();
   for (const r of F.refs) {
     if (isBuiltin(r.name)) continue;
@@ -354,6 +374,7 @@ for (const f of order) {
       hubCount.set(r.name, (hubCount.get(r.name) || 0) + 1);
     } else if (cross.length && !earlier.length) {
       // defined only by a LATER script
+      if (!r.load) for (const p of cross) (fwdCall[p.file] ||= new Set()).add(r.name);
       if (r.load && !r.write) {
         report.violations.push({ kind: 'forward-load-ref', file: f, line: r.line, name: r.name, provider: cross[0].file });
       }
@@ -372,10 +393,11 @@ for (const f of order) {
   leaks.forEach((l) => report.leaks.push({ file: f, name: l.name, line: l.line, kind: l.kind }));
   report.files[f] = {
     lines: F.lines,
+    declList: F.decl.map((d) => [d.name, d.kind]),
     defines: { total: F.decl.length, byKind: F.decl.reduce((a, d) => (a[d.kind] = (a[d.kind] || 0) + 1, a), {}),
                globalPropWrites: F.writes.filter((w) => w.load).length, lateGlobalWrites: F.writes.filter((w) => !w.load).length,
                implicitGlobals: F.implicit.length },
-    loadRequires: lr, callRequires: cr,
+    loadRequires: lr, callRequires: cr, forwardCallRequires: flat(fwdCall),
     external: [...external].sort(),
   };
   external.forEach((n) => { (report.external[n] ||= []).push(f); });
@@ -441,6 +463,46 @@ function markdown() {
   return L.join('\n');
 }
 
+// ---- exports blocks of scope-wrapped scripts ---------------------------------
+// The names other scripts (and the Rust host, listed by hand in exports-extra.json: its JS snippets are strings no parser sees) use
+// from a wrapped script are re-exported on globalThis as NON-ENUMERABLE configurable properties by a generated block at the end of
+// the file. function/const/class bindings never change after load -> data property; let/var can be reassigned -> accessor.
+const EXTRA = JSON.parse(fs.readFileSync(path.join(HERE, 'exports-extra.json'), 'utf8'));
+function neededFrom(file) {
+  const names = new Set(EXTRA[file] || []);
+  for (const f2 of order) {
+    if (f2 === file) continue;
+    for (const kind of ['loadRequires', 'callRequires', 'forwardCallRequires']) for (const n of (report.files[f2][kind][file] || [])) names.add(n);
+  }
+  return [...names].sort();
+}
+function exportsBlock(file) {
+  const kinds = new Map(report.files[file].declList);
+  const L = [EXPORTS_BEGIN + ' generated by tools/webplatform/analyze/analyze.mjs --gen-exports - do not edit', '{',
+    '  // Only names the window does not already carry are defined (hidden, non-enumerable) - a Chrome-visible global keeps its value.',
+    '  const own = (n) => Object.prototype.hasOwnProperty.call(globalThis, n);',
+    '  const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));',
+    '  const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };',
+    '  const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };'];
+  for (const n of neededFrom(file)) {
+    const k = kinds.get(n);
+    if (!k) {
+      if (!(EXTRA[file] || []).includes(n)) continue; // a name another script defines as a window global itself
+      L.push(`  d('${n}', ${n}); // block-level function (Annex B hoisting): a var binding of the wrapper function`);
+      continue;
+    }
+    L.push(k === 'let' || k === 'var' ? `  a('${n}', () => ${n}, (v) => { ${n} = v; });` : `  d('${n}', ${n});`);
+  }
+  L.push('}', EXPORTS_END);
+  return L.join('\n');
+}
+const staleExports = [];
+for (const f of wrappedFiles) {
+  const fp = path.join(JS_DIR, f), raw = fs.readFileSync(fp, 'utf8');
+  const i = raw.indexOf(EXPORTS_BEGIN), j = raw.indexOf(EXPORTS_END);
+  const fresh = raw.slice(0, i) + exportsBlock(f) + raw.slice(j + EXPORTS_END.length);
+  if (fresh !== raw) { if (process.argv.includes('--gen-exports')) fs.writeFileSync(fp, fresh); else staleExports.push(f); }
+}
 if (arg('--json')) fs.writeFileSync(arg('--json'), JSON.stringify(report, null, 1));
 if (arg('--md')) fs.writeFileSync(arg('--md'), markdown());
 if (arg('--write-baseline')) {
@@ -459,6 +521,7 @@ if (arg('--check')) {
     if (report.totals[k] > base[k]) bad.push(`${k}: ${report.totals[k]} > baseline ${base[k]}`);
   }
   if (report.moduleViolations.length) bad.push('module contract violations: ' + report.moduleViolations.length);
+  if (staleExports.length) bad.push('exports block stale (run analyze.mjs --gen-exports): ' + staleExports.join(', '));
   if (bad.length) { report.moduleViolations.forEach((v) => console.error('  ', JSON.stringify(v)));
     console.error('FAIL dependency ratchet:\n  ' + bad.join('\n  ')); report.violations.slice(0, 20).forEach((v) => console.error('  ', JSON.stringify(v))); process.exit(1); }
   console.log('dependency ratchet OK', JSON.stringify(report.totals));

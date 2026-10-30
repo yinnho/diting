@@ -18,6 +18,12 @@ body += '(function () {\n  const ORDER = %s;\n  const run = function () {\n' % j
 body += '''  // capture every primitive first: the loop deletes `Object` / `Reflect` / `Set` themselves from the global
   const g = globalThis, gopd = Object.getOwnPropertyDescriptor, def = Object.defineProperty, del = Reflect.deleteProperty;
   const hasOwn = Object.prototype.hasOwnProperty, gopn = Object.getOwnPropertyNames;
+  // engine state the Rust host / parser assign at run time (globalThis.x = ...): declared hidden up front so the later plain
+  // assignments keep the non-enumerable attributes (an assignment to an absent name would mint an enumerable property)
+  for (const n of ["__diting_objects", "__diting_oid", "__diting_hw", "__diting_mem", "__diting_hw_plat", "__diting_gopn_patched", "__diting_ua",
+    "__diting_lang", "__documentReadyState__", "__parserScriptOrder", "__parserScriptIdx", "__parserScriptCeiling", "__currentScriptNid", "__diting_click_target"]) {
+    if (!hasOwn.call(g, n)) def(g, n, { value: undefined, writable: true, enumerable: false, configurable: true });
+  }
   const want = new Set(ORDER);
   const have = gopn(g);
   // engine-only configurable names first (they are hidden from enumeration anyway), then Chrome's order
@@ -25,6 +31,8 @@ body += '''  // capture every primitive first: the loop deletes `Object` / `Refl
   for (const n of seq) {
     const d = gopd(g, n);
     if (!d || !d.configurable) continue;
+    // a name Chrome's window does not have is engine-internal: it must not show up in for-in / JSON / spread either
+    if (d.enumerable && !want.has(n)) d.enumerable = false;
     del(g, n);
     def(g, n, d);
   }

@@ -1,0 +1,61 @@
+{
+ "bootstrap.js": [
+  "_DOM_MUTATION_COMMANDS",
+  "_MQ_PERSONA_BOOL",
+  "_WINDOW_EVENT_NAMES",
+  "__ditingBrandList",
+  "__ditingLangList",
+  "__ditingLocaleArg",
+  "__ditingPlatformFromUA",
+  "__locParts",
+  "__prepareInitialStylesheets",
+  "_elementClassFor",
+  "_fetchRing",
+  "_formValues",
+  "_fpCache",
+  "_fpSeed",
+  "_mirrorSelectLabel",
+  "_mtQueue",
+  "_mtWindow",
+  "_namedBoot",
+  "_namedScanned",
+  "_parserVisibleIds",
+  "_shallowCloneNode",
+  "_timerArmNext",
+  "_timerArmed",
+  "_timerHeap",
+  "_timerPatrol"
+ ],
+ "crypto_subtle.js": [
+  "b64urlToBytes",
+  "bytesToB64url",
+  "checkKeyUsages",
+  "checkUsageStrings",
+  "ecMaterial",
+  "ecUsagesFor",
+  "ecdsaUnflat",
+  "jwkMemberBytes",
+  "jwkRequire",
+  "jwkValidateCommon",
+  "keyAlgorithmFor",
+  "keyBytes",
+  "makeKey",
+  "normalizeAlgo",
+  "normalizeHash",
+  "requireEcdsaUsages",
+  "requireHashParam",
+  "rsaFace",
+  "rsaGenerateKey",
+  "rsaImportKey",
+  "rsaMaterial",
+  "rsaUnflat",
+  "runOp",
+  "subtleCipher"
+ ],
+ "fetch.js": [
+  "__ditingFetchShim"
+ ],
+ "iframe_realm.js": [
+  "_IframeWindow"
+ ]
+}
