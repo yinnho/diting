@@ -1134,3 +1134,22 @@ document 里追加的节点会累积（`//li` 翻倍），探针必须开头清�
 验收：探针 583 键 0 差；新增 xpath_matches_chrome_truth；缺口 107→102（XPathEvaluator 3、Document 2 出表）；check_fresh 7 件鲜（41 真值）；analyze 零违。
 全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同。下一刀候选：次级文档升格为真 Document（解锁 XML 上的 XPath 与大量 DOMParser 用法）、
 VideoFrame 10 + VideoColorSpace 5、RTCPeerConnection 15、XSLTProcessor 8。
+
+## M4 刀22：整面形状审计 + 内部辅助成员不再外泄（2026-10-30）
+
+**新工具**：`chrome/shape-audit-probe.js` 抓 Chrome 145 的全部 936 个接口对象的形状（原型自有成员序与种类 `ro/rw/function:len` + e/c/w 标志、
+构造器 length、静态成员、父原型、Symbol 成员），真值 `chrome/shape-audit-truth-145.json`；`tools/webplatform/shape_audit.py <engine.json>`
+做记分牌（absent/missing/extra/order/kind/len/statics/parent/syms 分类，`--iface NAME` 看单个接口）。基线（刀22前）：936 个里**只有 115 个完全一致**；
+7 缺失、622 缺成员、53 带多余成员、155 序不同、220 种类不同、124 构造器 length 不同、195 父原型不同、82 个 Symbol 成员不同。缺口表（SURFACE-WEBIDL）只量
+「实例上有无成员」，这份才是真实待办规模。引擎侧用 `probe_run.py engine tools/webplatform/chrome/shape-audit-probe.js out.json` 抓取。
+
+**修复**：平台接口对象及其原型上的 `_` 前缀引擎辅助成员（`_signalAbort`、`BroadcastChannel._fire`、`MessagePort._pump`、`XMLHttpRequest._setReadyState`、
+`Performance._navTiming` …）会被 `Object.getOwnPropertyNames`/`Reflect.ownKeys`/`Object.keys`/`getOwnPropertyDescriptors` 列出，Chrome 没有——指纹可见。
+bootstrap 里原有的「只过滤 globalThis」枚举补丁扩展为：receiver 是**平台接口构造器或其 prototype**（init 时按大写全局建 WeakSet，排除 JS 内建如 Object/Array/Error）时同样过滤 `_` 开头名字；
+页面后来定义的类不在集合里，其 `_x` 保持可见。带多余成员的接口 53→38（余下是 Element 的按标签成员、Option 继承的 HTMLElement 成员、Attr/Text/Comment 的节点级成员、
+EventTarget 方法自带副本等，属**placement 族**，须逐类搬到 Chrome 的原型层）。
+
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生（22 行漂移，均为隐藏的 `_` 成员）。
+**下一步建议顺序**：①placement 族（节点级 nodeName/nodeType/cloneNode 搬回 Node.prototype；Range/StaticRange 的 start*/end* 搬到 AbstractRange；EventTarget 副本去重）；
+②155 个「序不同」与 220 个「种类不同」多半可由生成器/重排一把清；③195 个「父原型不同」查链；④再回到按接口的功能刀（RTCPeerConnection、VideoFrame、XSLTProcessor）。
+

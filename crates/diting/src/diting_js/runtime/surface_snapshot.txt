@@ -1261,7 +1261,7 @@ G webkitURL
 G window
 P AbortController :: abort,constructor
 S AbortSignal :: abort,any,timeout
-P AbortSignal :: _signalAbort,aborted,constructor,onabort,reason,throwIfAborted
+P AbortSignal :: aborted,constructor,onabort,reason,throwIfAborted
 P AbsoluteOrientationSensor :: constructor
 P AbstractRange :: constructor
 P Accelerometer :: constructor,x,y,z
@@ -1327,7 +1327,7 @@ P BluetoothRemoteGATTServer :: constructor
 P BluetoothRemoteGATTService :: constructor
 P BluetoothUUID :: constructor
 P Boolean :: constructor,toString,valueOf
-P BroadcastChannel :: _fire,addEventListener,close,constructor,dispatchEvent,name,onmessage,onmessageerror,postMessage,removeEventListener
+P BroadcastChannel :: addEventListener,close,constructor,dispatchEvent,name,onmessage,onmessageerror,postMessage,removeEventListener
 P BrowserCaptureMediaStreamTrack :: constructor
 P ByteLengthQueuingStrategy :: constructor
 P CDATASection :: cloneNode,constructor,nodeName,nodeType,nodeValue
@@ -1382,9 +1382,9 @@ P CSSSkew :: constructor
 P CSSSkewX :: constructor
 P CSSSkewY :: constructor
 P CSSStartingStyleRule :: constructor
-P CSSStyleDeclaration :: _pull,_push,constructor,cssText,getPropertyPriority,getPropertyValue,item,length,removeProperty,setProperty
+P CSSStyleDeclaration :: constructor,cssText,getPropertyPriority,getPropertyValue,item,length,removeProperty,setProperty
 P CSSStyleRule :: constructor,cssRules,deleteRule,insertRule,selectorText,style
-P CSSStyleSheet :: _cssomChanged,addRule,constructor,deleteRule,insertRule,removeRule,replace,replaceSync,rules
+P CSSStyleSheet :: addRule,constructor,deleteRule,insertRule,removeRule,replace,replaceSync,rules
 P CSSStyleValue :: constructor
 P CSSSupportsRule :: conditionText,constructor
 P CSSTransformComponent :: constructor
@@ -1433,7 +1433,7 @@ S CropTarget :: fromElement
 P CropTarget :: constructor
 P Crypto :: constructor
 P CryptoKey :: constructor
-P CustomElementRegistry :: _defineInner,_upgradeElement,constructor,define,get,getName,upgrade,whenDefined
+P CustomElementRegistry :: constructor,define,get,getName,upgrade,whenDefined
 P CustomEvent :: constructor,detail,initCustomEvent
 P CustomStateSet :: add,clear,constructor,delete,entries,forEach,has,keys,size,values
 P DOMError :: constructor
@@ -1458,7 +1458,7 @@ S DOMRectReadOnly :: fromRect
 P DOMRectReadOnly :: bottom,constructor,height,left,right,toJSON,top,width,x,y
 P DOMStringList :: constructor
 P DOMStringMap :: constructor
-P DOMTokenList :: _tokens,_write,add,constructor,contains,entries,forEach,item,keys,length,remove,replace,supports,toString,toggle,value,values
+P DOMTokenList :: add,constructor,contains,entries,forEach,item,keys,length,remove,replace,supports,toString,toggle,value,values
 P DataTransfer :: clearData,constructor,dropEffect,effectAllowed,files,getData,items,setData,setDragImage,types
 P DataTransferItem :: constructor
 P DataTransferItemList :: constructor
@@ -1485,7 +1485,7 @@ P DocumentType :: constructor,name,nodeName,nodeType,nodeValue,ownerDocument,pub
 P DragEvent :: constructor
 P DynamicsCompressorNode :: constructor
 P EditContext :: attachedElements,characterBounds,characterBoundsRangeStart,constructor,oncharacterboundsupdate,oncompositionend,oncompositionstart,ontextformatupdate,ontextupdate,selectionEnd,selectionStart,text,updateCharacterBounds,updateControlBounds,updateSelection,updateSelectionBounds,updateText
-P Element :: _checkPopoverValidity,_dialogClose,_ditingExtent,_ditingScrollExtent,_elemScrollMax,_elemScrollMirror,_fireScroll,_inputType,_isNativeScrollContainer,_isViewportRoot,_loadIframeSrc,_navigateSubmit,_popoverAttrValue,_popoverRemoveAttr,_popoverTypeMaybeChanged,_resolveInlineHandler,_rootScrollMax,_rootScroller,_stepBy,action,add,after,animate,append,ariaActiveDescendantElement,ariaAtomic,ariaAutoComplete,ariaBrailleLabel,ariaBrailleRoleDescription,ariaBusy,ariaChecked,ariaColCount,ariaColIndex,ariaColIndexText,ariaColSpan,ariaControlsElements,ariaCurrent,ariaDescribedByElements,ariaDescription,ariaDetailsElements,ariaDisabled,ariaErrorMessageElements,ariaExpanded,ariaFlowToElements,ariaHasPopup,ariaHidden,ariaInvalid,ariaKeyShortcuts,ariaLabel,ariaLabelledByElements,ariaLevel,ariaLive,ariaModal,ariaMultiLine,ariaMultiSelectable,ariaNotify,ariaOrientation,ariaPlaceholder,ariaPosInSet,ariaPressed,ariaReadOnly,ariaRelevant,ariaRequired,ariaRoleDescription,ariaRowCount,ariaRowIndex,ariaRowIndexText,ariaRowSpan,ariaSelected,ariaSetSize,ariaSort,ariaValueMax,ariaValueMin,ariaValueNow,ariaValueText,assignedSlot,assignedSlots,attachShadow,attributes,before,caption,cellIndex,cells,checkVisibility,checked,childElementCount,children,classList,className,clientHeight,clientLeft,clientTop,clientWidth,close,closedBy,closest,cols,computedStyleMap,constructor,content,contentDocument,contentWindow,control,createCaption,createTBody,createTFoot,createTHead,currentCSSZoom,deleteCaption,deleteCell,deleteRow,deleteTFoot,deleteTHead,disabled,elementTiming,files,firstElementChild,form,getAnimations,getAttribute,getAttributeNS,getAttributeNames,getAttributeNode,getAttributeNodeNS,getBoundingClientRect,getClientRects,getElementsByClassName,getElementsByTagName,getElementsByTagNameNS,getHTML,hasAttribute,hasAttributeNS,hasAttributes,hasPointerCapture,hash,host,hostname,href,htmlFor,id,indeterminate,innerHTML,insertAdjacentElement,insertAdjacentHTML,insertAdjacentText,insertCell,insertRow,isConnected,labels,lastElementChild,localName,matches,max,maxLength,method,min,minLength,moveBefore,multiple,name,namespaceURI,nextElementSibling,onbeforecopy,onbeforecut,onbeforepaste,onfullscreenchange,onfullscreenerror,onsearch,onwebkitfullscreenchange,onwebkitfullscreenerror,open,options,origin,outerHTML,part,password,pathname,placeholder,port,prefix,prepend,previousElementSibling,protocol,querySelector,querySelectorAll,rel,relList,releasePointerCapture,remove,removeAttribute,removeAttributeNS,removeAttributeNode,replaceChildren,replaceWith,requestClose,requestFullscreen,requestPointerLock,requestSubmit,reset,returnValue,rev,role,rowIndex,rows,sandbox,scheme,scroll,scrollBy,scrollHeight,scrollIntoView,scrollIntoViewIfNeeded,scrollLeft,scrollTo,scrollTop,scrollWidth,search,sectionRowIndex,select,selected,selectedIndex,selectedOptions,selectionDirection,selectionEnd,selectionStart,setAttribute,setAttributeNS,setAttributeNode,setAttributeNodeNS,setHTMLUnsafe,setPointerCapture,setRangeText,setSelectionRange,shadowRoot,sheet,show,showModal,size,sizes,slot,src,srcdoc,step,stepDown,stepUp,submit,tBodies,tFoot,tHead,tagName,toggleAttribute,type,username,value,valueAsDate,valueAsNumber,viewBox,webkitMatchesSelector,webkitRequestFullScreen,webkitRequestFullscreen,wrap
+P Element :: action,add,after,animate,append,ariaActiveDescendantElement,ariaAtomic,ariaAutoComplete,ariaBrailleLabel,ariaBrailleRoleDescription,ariaBusy,ariaChecked,ariaColCount,ariaColIndex,ariaColIndexText,ariaColSpan,ariaControlsElements,ariaCurrent,ariaDescribedByElements,ariaDescription,ariaDetailsElements,ariaDisabled,ariaErrorMessageElements,ariaExpanded,ariaFlowToElements,ariaHasPopup,ariaHidden,ariaInvalid,ariaKeyShortcuts,ariaLabel,ariaLabelledByElements,ariaLevel,ariaLive,ariaModal,ariaMultiLine,ariaMultiSelectable,ariaNotify,ariaOrientation,ariaPlaceholder,ariaPosInSet,ariaPressed,ariaReadOnly,ariaRelevant,ariaRequired,ariaRoleDescription,ariaRowCount,ariaRowIndex,ariaRowIndexText,ariaRowSpan,ariaSelected,ariaSetSize,ariaSort,ariaValueMax,ariaValueMin,ariaValueNow,ariaValueText,assignedSlot,assignedSlots,attachShadow,attributes,before,caption,cellIndex,cells,checkVisibility,checked,childElementCount,children,classList,className,clientHeight,clientLeft,clientTop,clientWidth,close,closedBy,closest,cols,computedStyleMap,constructor,content,contentDocument,contentWindow,control,createCaption,createTBody,createTFoot,createTHead,currentCSSZoom,deleteCaption,deleteCell,deleteRow,deleteTFoot,deleteTHead,disabled,elementTiming,files,firstElementChild,form,getAnimations,getAttribute,getAttributeNS,getAttributeNames,getAttributeNode,getAttributeNodeNS,getBoundingClientRect,getClientRects,getElementsByClassName,getElementsByTagName,getElementsByTagNameNS,getHTML,hasAttribute,hasAttributeNS,hasAttributes,hasPointerCapture,hash,host,hostname,href,htmlFor,id,indeterminate,innerHTML,insertAdjacentElement,insertAdjacentHTML,insertAdjacentText,insertCell,insertRow,isConnected,labels,lastElementChild,localName,matches,max,maxLength,method,min,minLength,moveBefore,multiple,name,namespaceURI,nextElementSibling,onbeforecopy,onbeforecut,onbeforepaste,onfullscreenchange,onfullscreenerror,onsearch,onwebkitfullscreenchange,onwebkitfullscreenerror,open,options,origin,outerHTML,part,password,pathname,placeholder,port,prefix,prepend,previousElementSibling,protocol,querySelector,querySelectorAll,rel,relList,releasePointerCapture,remove,removeAttribute,removeAttributeNS,removeAttributeNode,replaceChildren,replaceWith,requestClose,requestFullscreen,requestPointerLock,requestSubmit,reset,returnValue,rev,role,rowIndex,rows,sandbox,scheme,scroll,scrollBy,scrollHeight,scrollIntoView,scrollIntoViewIfNeeded,scrollLeft,scrollTo,scrollTop,scrollWidth,search,sectionRowIndex,select,selected,selectedIndex,selectedOptions,selectionDirection,selectionEnd,selectionStart,setAttribute,setAttributeNS,setAttributeNode,setAttributeNodeNS,setHTMLUnsafe,setPointerCapture,setRangeText,setSelectionRange,shadowRoot,sheet,show,showModal,size,sizes,slot,src,srcdoc,step,stepDown,stepUp,submit,tBodies,tFoot,tHead,tagName,toggleAttribute,type,username,value,valueAsDate,valueAsNumber,viewBox,webkitMatchesSelector,webkitRequestFullScreen,webkitRequestFullscreen,wrap
 P ElementInternals :: checkValidity,constructor,form,labels,reportValidity,setFormValue,setValidity,shadowRoot,states,validationMessage,validity,willValidate
 P EncodedAudioChunk :: constructor
 P EncodedVideoChunk :: constructor
@@ -1509,7 +1509,7 @@ P FetchLaterResult :: constructor
 P File :: constructor
 P FileList :: constructor
 S FileReader :: DONE,EMPTY,LOADING
-P FileReader :: DONE,EMPTY,LOADING,_fire,_read,abort,constructor,error,onabort,onerror,onload,onloadend,onloadstart,onprogress,readAsArrayBuffer,readAsBinaryString,readAsDataURL,readAsText,readyState,result
+P FileReader :: DONE,EMPTY,LOADING,abort,constructor,error,onabort,onerror,onload,onloadend,onloadstart,onprogress,readAsArrayBuffer,readAsBinaryString,readAsDataURL,readAsText,readyState,result
 P FileSystemDirectoryHandle :: constructor
 P FileSystemFileHandle :: constructor
 P FileSystemHandle :: constructor
@@ -1590,7 +1590,6 @@ P HTMLBodyElement :: aLink,background,bgColor,constructor,link,onafterprint,onbe
 P HTMLButtonElement :: checkValidity,command,commandForElement,constructor,disabled,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,labels,name,popoverTargetAction,popoverTargetElement,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
 P HTMLCameraElement :: constructor
 P HTMLCanvasElement :: constructor,getContext,height,toBlob,toDataURL,width
-S HTMLCollection :: _from
 P HTMLCollection :: constructor,item,namedItem
 P HTMLDListElement :: compact,constructor
 P HTMLDataElement :: constructor
@@ -1759,7 +1758,7 @@ S MediaRecorder :: isTypeSupported
 P MediaRecorder :: constructor
 P MediaSession :: constructor
 S MediaSource :: isTypeSupported
-P MediaSource :: _afterAppend,_attachToElement,_unionBuffered,addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,onsourceclose,onsourceended,onsourceopen,readyState,removeSourceBuffer,setLiveSeekableRange
+P MediaSource :: addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,onsourceclose,onsourceended,onsourceopen,readyState,removeSourceBuffer,setLiveSeekableRange
 P MediaSourceHandle :: constructor
 P MediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
 P MediaStreamAudioDestinationNode :: constructor
@@ -1773,7 +1772,7 @@ P MediaStreamTrackProcessor :: constructor
 P MediaStreamTrackVideoStats :: constructor
 P MessageChannel :: constructor
 P MessageEvent :: constructor,data,initMessageEvent,lastEventId,origin,ports,source,userActivation
-P MessagePort :: _armEntry,_dispatch,_enqueue,_fire,_recoverStalled,addEventListener,close,constructor,onmessage,onmessageerror,postMessage,removeEventListener,start
+P MessagePort :: addEventListener,close,constructor,onmessage,onmessageerror,postMessage,removeEventListener,start
 P MimeType :: constructor,description,enabledPlugin,suffixes,type
 P MimeTypeArray :: constructor,item,length,namedItem
 P MouseEvent :: altKey,button,buttons,clientX,clientY,constructor,ctrlKey,fromElement,getModifierState,initMouseEvent,layerX,layerY,metaKey,movementX,movementY,offsetX,offsetY,pageX,pageY,relatedTarget,screenX,screenY,shiftKey,toElement,x,y
@@ -1824,14 +1823,14 @@ P PageSwapEvent :: constructor
 P PageTransitionEvent :: constructor
 P PannerNode :: constructor
 P PasswordCredential :: constructor,iconURL,id,name,password,type
-P Path2D :: _ellipse,_svg,_svgArc,addPath,arc,arcTo,bezierCurveTo,closePath,constructor,ellipse,lineTo,moveTo,quadraticCurveTo,rect
+P Path2D :: addPath,arc,arcTo,bezierCurveTo,closePath,constructor,ellipse,lineTo,moveTo,quadraticCurveTo,rect
 P PaymentAddress :: constructor
 P PaymentManager :: constructor
 P PaymentMethodChangeEvent :: constructor
 P PaymentRequest :: constructor
 P PaymentRequestUpdateEvent :: constructor
 P PaymentResponse :: constructor
-P Performance :: _all,_lastMark,_navTiming,_paintTimings,_recordResource,_resetDerived,_resolveTimeRef,_resourcesAll,_rustResources,clearMarks,clearMeasures,clearResourceTimings,constructor,eventCounts,getEntries,getEntriesByName,getEntriesByType,mark,measure,memory,navigation,now,setResourceTimingBufferSize,timeOrigin,timing
+P Performance :: clearMarks,clearMeasures,clearResourceTimings,constructor,eventCounts,getEntries,getEntriesByName,getEntriesByType,mark,measure,memory,navigation,now,setResourceTimingBufferSize,timeOrigin,timing
 P PerformanceElementTiming :: constructor
 P PerformanceEntry :: constructor,detail,duration,entryType,name,startTime,toJSON
 P PerformanceEventTiming :: constructor
@@ -1897,7 +1896,7 @@ P RTCError :: constructor
 P RTCErrorEvent :: constructor
 P RTCIceCandidate :: address,candidate,component,constructor,foundation,port,priority,protocol,relatedAddress,relatedPort,relayProtocol,sdpMLineIndex,sdpMid,tcpType,toJSON,type,url,usernameFragment
 P RTCIceTransport :: constructor
-P RTCPeerConnection :: __emitCand,__mkOfferSdp,__setGather,addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
+P RTCPeerConnection :: addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
 P RTCPeerConnectionIceErrorEvent :: address,constructor,port,url
 P RTCPeerConnectionIceEvent :: constructor
 P RTCRtpReceiver :: constructor
@@ -1926,7 +1925,7 @@ P RemotePlayback :: constructor
 P ReportBody :: constructor
 P ReportingObserver :: constructor
 P Request :: arrayBuffer,blob,body,bodyUsed,bytes,cache,clone,constructor,credentials,destination,duplex,formData,headers,integrity,isHistoryNavigation,json,keepalive,method,mode,redirect,referrer,referrerPolicy,signal,targetAddressSpace,text,url
-P ResizeObserver :: _fireFor,constructor,disconnect,observe,takeRecords,unobserve
+P ResizeObserver :: constructor,disconnect,observe,takeRecords,unobserve
 P ResizeObserverEntry :: constructor
 P ResizeObserverSize :: constructor
 S Response :: error,json,redirect
@@ -2039,7 +2038,7 @@ P ScreenOrientation :: constructor
 P ScriptProcessorNode :: constructor
 P ScrollTimeline :: constructor
 P SecurityPolicyViolationEvent :: constructor
-P Selection :: _anchor,_focus,_inDoc,_setRange,addRange,anchorNode,anchorOffset,collapse,collapseToEnd,collapseToStart,constructor,containsNode,deleteFromDocument,empty,extend,focusNode,focusOffset,getRangeAt,isCollapsed,modify,rangeCount,removeAllRanges,removeRange,selectAllChildren,setBaseAndExtent,setPosition,toString,type
+P Selection :: addRange,anchorNode,anchorOffset,collapse,collapseToEnd,collapseToStart,constructor,containsNode,deleteFromDocument,empty,extend,focusNode,focusOffset,getRangeAt,isCollapsed,modify,rangeCount,removeAllRanges,removeRange,selectAllChildren,setBaseAndExtent,setPosition,toString,type
 P Sensor :: activated,constructor,hasReading,onactivate,onerror,onreading,start,stop,timestamp
 P SensorErrorEvent :: constructor,error
 P Serial :: constructor
@@ -2051,7 +2050,7 @@ P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersectio
 P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,cloneNode,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
 P SharedWorker :: constructor
 P SnapEvent :: constructor
-P SourceBuffer :: _applyAppend,abort,appendBuffer,buffered,changeType,constructor,onabort,onerror,onupdate,onupdateend,onupdatestart,remove
+P SourceBuffer :: abort,appendBuffer,buffered,changeType,constructor,onabort,onerror,onupdate,onupdateend,onupdatestart,remove
 P SourceBufferList :: constructor
 P SpeechGrammar :: constructor,src,weight
 P SpeechGrammarList :: addFromString,addFromUri,constructor,item,length
@@ -2127,10 +2126,10 @@ P TrustedTypePolicyFactory :: constructor
 P TypeError :: constructor,message,name
 P UIEvent :: constructor,detail,initUIEvent,sourceCapabilities,view,which
 P URIError :: constructor,message,name
-S URL :: __diting,canParse,createObjectURL,parse,revokeObjectURL
-P URL :: _refreshSP,_set,_updateSearch,constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username
+S URL :: canParse,createObjectURL,parse,revokeObjectURL
+P URL :: constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username
 P URLPattern :: constructor,exec,hasRegExpGroups,hash,hostname,password,pathname,port,protocol,search,test,username
-P URLSearchParams :: _decode,_notify,_parseString,_setFromString,append,constructor,delete,entries,forEach,get,getAll,has,keys,set,size,sort,toString,values
+P URLSearchParams :: append,constructor,delete,entries,forEach,get,getAll,has,keys,set,size,sort,toString,values
 P USB :: constructor
 P USBAlternateInterface :: constructor
 P USBConfiguration :: constructor
@@ -2197,7 +2196,7 @@ S WebKitCSSMatrix :: fromFloat32Array,fromFloat64Array,fromMatrix
 P WebKitCSSMatrix :: a,b,c,constructor,d,e,f,invertSelf,m11,m12,m13,m14,m21,m22,m23,m24,m31,m32,m33,m34,m41,m42,m43,m44,multiplySelf,preMultiplySelf,rotateAxisAngleSelf,rotateFromVectorSelf,rotateSelf,scale3dSelf,scaleSelf,setMatrixValue,skewXSelf,skewYSelf,translateSelf
 P WebKitMutationObserver :: constructor,disconnect,observe,takeRecords
 S WebSocket :: CLOSED,CLOSING,CONNECTING,OPEN
-P WebSocket :: _emit,_fail,_finish,_fireCloseEvent,_pump,addEventListener,binaryType,bufferedAmount,close,constructor,dispatchEvent,extensions,onclose,onerror,onmessage,onopen,protocol,readyState,removeEventListener,send,url
+P WebSocket :: addEventListener,binaryType,bufferedAmount,close,constructor,dispatchEvent,extensions,onclose,onerror,onmessage,onopen,protocol,readyState,removeEventListener,send,url
 P WebSocketError :: constructor
 P WebSocketStream :: close,constructor
 P WebTransport :: close,closed,congestionControl,constructor,createBidirectionalStream,createUnidirectionalStream,datagrams,ready
@@ -2216,7 +2215,7 @@ P WritableStreamDefaultController :: constructor,error
 P WritableStreamDefaultWriter :: constructor
 P XMLDocument :: constructor
 S XMLHttpRequest :: DONE,HEADERS_RECEIVED,LOADING,OPENED,UNSENT
-P XMLHttpRequest :: _fireEvent,_setReadyState,abort,constructor,getAllResponseHeaders,getResponseHeader,onreadystatechange,open,overrideMimeType,send,setRequestHeader
+P XMLHttpRequest :: abort,constructor,getAllResponseHeaders,getResponseHeader,onreadystatechange,open,overrideMimeType,send,setRequestHeader
 P XMLHttpRequestEventTarget :: constructor,onabort,onerror,onload,onloadend,onloadstart,onprogress,ontimeout
 P XMLHttpRequestUpload :: constructor
 P XMLSerializer :: constructor,serializeToString
@@ -2320,7 +2319,7 @@ P scrollTo :: constructor
 P stop :: constructor
 P subtleCipher :: constructor
 P webkitMediaStream :: addTrack,clone,constructor,getAudioTracks,getTracks,getVideoTracks,removeTrack
-P webkitRTCPeerConnection :: __emitCand,__mkOfferSdp,__setGather,addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
+P webkitRTCPeerConnection :: addIceCandidate,close,constructor,createAnswer,createDataChannel,createOffer,getStats,setLocalDescription,setRemoteDescription
 P webkitSpeechGrammar :: constructor,src,weight
 P webkitSpeechGrammarList :: addFromString,addFromUri,constructor,item,length
 S webkitSpeechRecognition :: available,install

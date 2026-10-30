@@ -15383,25 +15383,33 @@ globalThis.__diting_init = function() {
       try { Object.defineProperty(impl, 'name', { value: key }); } catch(e) {}
       try { Object.defineProperty(obj, key, { value: impl, writable: true, enumerable: false, configurable: true }); } catch(e) {}
     };
-    _patch(Object, 'getOwnPropertyNames', function(o) {
-      const names = _gopn(o);
-      if (o !== globalThis) return names;
-      return names.filter(n => !_isInternal(n));
-    });
-    _patch(Reflect, 'ownKeys', function(o) {
-      const names = _ownKeys(o);
-      if (o !== globalThis) return names;
-      return names.filter(n => !_isInternal(n));
-    });
-    _patch(Object, 'keys', function(o) {
-      const names = _keys(o);
-      if (o !== globalThis) return names;
-      return names.filter(n => !_isInternal(n));
-    });
+    // Engine helpers living on PLATFORM interface objects (`_pump`, `_fire`, `_signalAbort` ...) are
+    // not Chrome members; Chrome's own-name list for those prototypes never has them. Hide `_`-prefixed
+    // names whenever the receiver is a platform interface constructor or its prototype (page classes
+    // defined later are not in the set, so a page's own `_x` stays visible).
+    const _ifaceObjs = new WeakSet();
+    const _jsBuiltin = /^(Object|Function|Array|String|Number|Boolean|Symbol|BigInt|Date|RegExp|Promise|Proxy|Map|Set|WeakMap|WeakSet|WeakRef|FinalizationRegistry|ArrayBuffer|SharedArrayBuffer|DataView|Atomics|Intl|WebAssembly|(Eval|Range|Reference|Syntax|Type|URI|Aggregate)?Error|(Big)?(Int|Uint|Float)(8|16|32|64)(Clamped)?Array|Iterator)$/;
+    for (const n of _gopn(globalThis)) {
+      if (!/^[A-Z]/.test(n) || _jsBuiltin.test(n)) continue;
+      let d; try { d = Object.getOwnPropertyDescriptor(globalThis, n); } catch (e) { continue; }
+      const C = d && d.value;
+      if (typeof C === 'function') {
+        _ifaceObjs.add(C);
+        if (C.prototype && typeof C.prototype === 'object') _ifaceObjs.add(C.prototype);
+      }
+    }
+    const _hideOn = (o, names) => {
+      if (o === globalThis) return names.filter(n => !_isInternal(n));
+      if (_ifaceObjs.has(o)) return names.filter(n => typeof n !== 'string' || n.charCodeAt(0) !== 95);
+      return names;
+    };
+    _patch(Object, 'getOwnPropertyNames', function(o) { return _hideOn(o, _gopn(o)); });
+    _patch(Reflect, 'ownKeys', function(o) { return _hideOn(o, _ownKeys(o)); });
+    _patch(Object, 'keys', function(o) { return _hideOn(o, _keys(o)); });
     _patch(Object, 'getOwnPropertyDescriptors', function(o) {
       const all = _gopds(o);
-      if (o !== globalThis) return all;
-      for (const n of _gopn(all)) { if (_isInternal(n)) delete all[n]; }
+      if (o === globalThis) { for (const n of _gopn(all)) { if (_isInternal(n)) delete all[n]; } }
+      else if (_ifaceObjs.has(o)) { for (const n of _gopn(all)) { if (n.charCodeAt(0) === 95) delete all[n]; } }
       return all;
     });
     globalThis.__diting_gopn_patched = true;
