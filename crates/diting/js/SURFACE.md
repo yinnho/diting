@@ -1186,3 +1186,10 @@ CSSTransformComponent/Credential/DOMException/HTMLElement… 。`global_surface.
 **顺带纠正一个旧测试**：canvas_blank_readout_face_p3 曾断言 `toDataURL.length === 2`、`toBlob.length === 3`，真 Chrome 145 是 0 和 1（IDL 里 toDataURL 两个参数皆可选，toBlob 只有 callback 必填），测试已改为 Chrome 值。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。余下审计项：缺成员 622、顺序 155、种类 40、多余 33、statics 59、父原型 15、Symbol 82。
 
+## M4 刀26：自有成员顺序（2026-10-30）
+
+shape_fix.js 增加 ORDER 表（审计里「序不同」的接口，只含两边共有成员的 Chrome 序）。应用方式：引擎独有成员保持原相对序排在最前，其后按 Chrome 序，
+每个 configurable 键 delete 再按序 defineProperty（JS 自有键序即创建序）。不可配置键无法移动，尽力而为。序不同 155→10，完全一致接口 194→236（共 936）。
+余下审计项：缺成员 622、种类 40、多余 33、statics 59、父原型 15、Symbol 82、序 10。验收：全量（跳两个毒化页面测试）991–992 过/30 败（test_local_fetch_resolves_on_task_boundary 为已知时序型偶发，单跑 2/2 过），
+失败集与干净 HEAD 相同；快照重生。
+
