@@ -1452,3 +1452,11 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 自有 `Symbol.toPrimitive`（undefined，冻结），去掉实例上的 `fragmentDirective`，补 `ancestorOrigins`（空 DOMStringList）。对拍探针 `q2`：descriptor/名序/同一性与 Chrome 一致。
 **坑**：模块里用 `{}` 当描述符表时 `D.valueOf` 继承自 Object.prototype，`if (!D.valueOf)` 恒假——键名可能撞 Object.prototype 时用 `Object.create(null)`。
 剩余：CSSStyleDeclaration(383)、Window(FontFaceSet/CSSPseudoElement)、ServiceWorkerContainer、HTMLCollection.length、Document.location。验收：全量 998 过/30 败同干净 HEAD。
+
+## M4 刀49：Document.location 自有化与 ServiceWorkerContainer 去空桩（2026-10-30）
+
+泄漏对象 5→3（127 个）。`document.location` 现在是主文档实例上的自有不可配置访问器（Chrome：[LegacyUnforgeable]），`Document.prototype.location` 删除；描述符由隐藏全局 `__diting_docLocDesc` 保存，
+`document` 全局 getter 首次包装主文档时挂到实例上。`navigator.serviceWorker` 去掉三个空操作的自有 `addEventListener/removeEventListener/dispatchEvent`，改走 EventTarget 原型链（真实现）：
+`dispatchEvent(new Event('x'))` 现在返回 `true`（Chrome 行为；旧桩返回 false），`test_issue_81_service_worker_event_target` 的期望按 Chrome 真值改为 true。
+剩余泄漏：`CSSStyleDeclaration`(383 属性名)、`Window`(FontFaceSet/CSSPseudoElement 引擎内部使用)、`HTMLCollection.length`(继承 Array)。
+注意：iframe 等非主文档的 Document 包装对象不再有 `location`（它们原先靠原型）；全量测试无回归。验收：全量 998 过/30 败同干净 HEAD。

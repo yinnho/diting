@@ -6500,6 +6500,9 @@ class Document extends Node {
   }
 }
 
+// document.location lives on the main document instance (see the `document` getter); keep the descriptor, drop the prototype member.
+Object.defineProperty(globalThis, '__diting_docLocDesc', { value: Object.getOwnPropertyDescriptor(Document.prototype, 'location'), writable: true, enumerable: false, configurable: true });
+delete Document.prototype.location;
 class DocumentFragment extends Node {
   // `new DocumentFragment()` is legal in real browsers (creates a fresh
   // detached fragment). Bot detectors' domrect fixtures use it; without this
@@ -6670,6 +6673,12 @@ Object.defineProperty(globalThis, 'document', {
       const nid = +_dom("document_node_id"); // NaN while no DOM is attached
       if (isNaN(nid) || nid < 0) return null;
       _documentInstance = _wrap(nid);
+      // Chrome: Document.location is [LegacyUnforgeable] - an OWN, non-configurable accessor of the document instance
+      // (not a prototype member). The class accessor stays as the fallback for other Document wrappers.
+      try {
+        const ld = globalThis.__diting_docLocDesc || Object.getOwnPropertyDescriptor(Document.prototype, 'location');
+        if (ld && !Object.prototype.hasOwnProperty.call(_documentInstance, 'location')) Object.defineProperty(_documentInstance, 'location', { get: ld.get, set: ld.set, enumerable: true, configurable: false });
+      } catch (e) {}
       // First touch of `document` is also the moment the parser-built tree
       // becomes reachable (#48): mutation hooks never saw it, so pay the
       // one-time named-property scan here. Later changes all flow through
@@ -7912,7 +7921,6 @@ const __navStore = {
       getRegistrations(){ return Promise.resolve([]); },
       getRegistration(){ return Promise.resolve(undefined); },
       controller: null,
-      addEventListener(){}, removeEventListener(){}, dispatchEvent(){ return false; },
     };
   })(),
   virtualKeyboard: {

@@ -9510,7 +9510,8 @@
             serde_json::json!([
                 "object", "function", "function", "function",
                 "function", "function", "function",
-                true, false, true,
+                // dispatchEvent of an unhandled event returns true in Chrome (the container is a real EventTarget since M4 knife 49)
+                true, true, true,
             ]),
             "serviceWorker container must survive X's optional-chained addEventListener"
         );
