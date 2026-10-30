@@ -1220,3 +1220,17 @@ shape_fix.js 增加 ORDER 表（审计里「序不同」的接口，只含两边
 结果：Symbol 差异 82→1，缺失接口 7→0，完全一致接口 659→728（共 936）。验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
 余下审计项：缺成员 140、序 27、种类 40、多余 33、statics 15、父原型 15、Symbol 1。
 
+## M4 刀29：MathMLElement 与「真类缺成员」的剩余盘点（2026-10-30）
+
+`mixin_fix.js`（手写后冻结，排在 stub_members 之前）：Chrome 的 MathMLElement 带有 HTMLOrSVGElement/GlobalEventHandlers 的 110 个成员（全部 on* 处理器属性 + dataset/style/attributeStyleMap/tabIndex/autofocus/nonce/blur/focus），
+引擎的 MathMLElement 是空壳。HTMLElement.prototype 已经按节点 id 实现了这些成员，缺的直接按**描述符共享**（同一 getter/setter/方法函数对象）。MathMLElement 完全一致。完全一致接口 728→729。
+**再生成链现为三级**：mixin_fix → stub_members → sym_fix（均先于 shape_fix 生效，shape_fix 的顺序表须在它们之后的抓取上生成）。
+
+**剩余缺成员的分布**（139 个接口、约 860 个成员）已无法靠数据表补齐，原因统一：这些是**有真实现的类**，其成员当前是**实例自有属性**（构造器里 `this.x = …`），Chrome 里是原型上的访问器。
+典型：CanvasRenderingContext2D 73、ElementInternals 51、RTCPeerConnection 37、SVGSVGElement 35、GPUSupportedLimits 31、Document 24、PerformanceResourceTiming 19、XMLHttpRequest 18、MediaStreamTrack 17、
+SVGMarkerElement 17、RTCDataChannel 16、PerformanceNavigationTiming 15、SpeechSynthesisUtterance 13、VideoFrame 13、SubtleCrypto 12、Touch 12、TextMetrics 10、Attr 7…
+第 27 刀已证明：给这类类直接加原型只读访问器会让构造器里的 `this.x = v` 在严格模式下抛错。正确做法是**逐类**把「自有数据属性」转成「原型访问器 + 私有槽」（WeakMap/私有字段），并同时保证
+`JSON.stringify`/`toJSON`/`Object.keys` 等依赖自有枚举属性的路径（Touch、TextMetrics、PerformanceEntry 家族）仍按 Chrome 行为工作——这是每类一刀、带探针的工作，不是批处理。
+这同时会清掉另一个指纹面：**实例上不该有的自有属性**（Chrome 里这些接口的实例没有自有属性），当前审计只量原型，尚未量实例。建议下一步先给审计加「实例自有键」维度，再按「引擎自有键数 × 被探测频率」排序逐类转换。
+验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+
