@@ -28259,3 +28259,110 @@ fn knife60_gpu_supported_limits_face() {
     assert_eq!(v["named"], serde_json::json!(31), "every getter carries its limit's own name");
     assert_eq!(v["statics"], serde_json::json!(["length", "name", "prototype"]), "no statics");
 }
+
+/// 刀61: RTCPeerConnection face — 46 truth members (12 state getters, 11
+/// on*-handlers as proto accessors, methods) + generateCertificate static +
+/// Chrome's error taxonomy: WebIDL type checks (TypeError) before closed
+/// guards (InvalidStateError) before algorithm errors; setConfiguration
+/// locks bundlePolicy/rtcpMuxPolicy/encodedInsertableStreams at construction
+/// (InvalidModificationError) while iceServers/iceCandidatePoolSize/
+/// iceTransportPolicy stay mutable with full replace semantics; iceServers
+/// entries normalize with credential/urls/username keys always present as
+/// strings. All probed against Chrome for Testing 145. Known divergence,
+/// engine-wide (event_hooks): handler fires before listeners (['H','L'] vs
+/// Chrome ['L','H']).
+#[test]
+fn knife61_rtc_peer_connection_face() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const out = {};
+          const pc = new RTCPeerConnection();
+          out.desc = [pc.localDescription, pc.currentLocalDescription, pc.pendingLocalDescription, pc.remoteDescription, pc.currentRemoteDescription, pc.pendingRemoteDescription];
+          out.states = [pc.signalingState, pc.iceGatheringState, pc.iceConnectionState, pc.connectionState];
+          out.cfg = pc.getConfiguration();
+          out.keys = Object.keys(pc);
+          const src = new RTCPeerConnection();
+          const tr = src.addTransceiver('video').receiver.track;
+          const ms = new MediaStream();
+          const sender = pc.addTrack(tr, ms);
+          out.senderBrand = Object.prototype.toString.call(sender);
+          out.afterAdd = [pc.getSenders().length, pc.getTransceivers().length, pc.getLocalStreams().length];
+          const t1 = pc.getTransceivers()[0];
+          out.tr1 = [t1.mid, t1.direction, t1.currentDirection, t1.stopped, Object.prototype.toString.call(t1.sender), Object.prototype.toString.call(t1.receiver)];
+          out.senderTrack = [sender.track === tr, sender.track instanceof MediaStreamTrack];
+          const pc2 = new RTCPeerConnection();
+          const t2 = pc2.addTransceiver('audio');
+          out.recvTrack = [t2.receiver.track.kind, t2.receiver.track instanceof MediaStreamTrack];
+          out.errors = [];
+          const f = (fn) => { try { fn(); out.errors.push('no-throw'); } catch (e) { out.errors.push(e.name); } };
+          f(() => pc.addTrack());
+          f(() => pc.addTrack({}));
+          f(() => pc.removeTrack());
+          f(() => pc.removeTrack({}));
+          f(() => pc2.removeTrack(sender));
+          f(() => pc.addTransceiver('bogus'));
+          f(() => pc.addTransceiver({}));
+          f(() => pc.setConfiguration({ iceServers: [{ urls: 'not a url' }] }));
+          f(() => pc.setConfiguration({ iceServers: [{ urls: 'stun:' }] }));
+          f(() => pc.setConfiguration({ bundlePolicy: 'max-bundle' }));
+          f(() => pc.setConfiguration({ rtcpMuxPolicy: 'negotiate' }));
+          f(() => pc.setConfiguration({ encodedInsertableStreams: true }));
+          const mut = new RTCPeerConnection();
+          mut.setConfiguration({ iceServers: [{ urls: 'stun:stun.example.net', username: 7, credential: 8 }] });
+          const g = mut.getConfiguration();
+          out.mutEntry = [JSON.stringify(g.iceServers), Object.keys(g.iceServers[0]).join(',')];
+          mut.setConfiguration({ iceCandidatePoolSize: 5 });
+          out.mutReplace = [JSON.stringify(mut.getConfiguration().iceServers), mut.getConfiguration().iceCandidatePoolSize];
+          const atr = t2.receiver.track;
+          pc.addTrack(atr);
+          const dtmf = pc.createDTMFSender(atr);
+          out.dtmf = [dtmf instanceof RTCDTMFSender, dtmf.canInsertLetter, dtmf.duration, dtmf.interToneGap, dtmf.toneBuffer];
+          f(() => pc.createDTMFSender(tr));
+          out.genCert = [Object.prototype.toString.call(RTCPeerConnection.generateCertificate({ name: 'ECDSA', namedCurve: 'P-256' })), typeof RTCPeerConnection.generateCertificate];
+          out.ctor = [RTCPeerConnection.length, Object.getOwnPropertyNames(RTCPeerConnection).join(',')];
+          out.fire = (() => { let n = 0; pc.ontrack = function () { n++; }; pc.dispatchEvent(new Event('track')); pc.ontrack = null; pc.dispatchEvent(new Event('track')); return n; })();
+          out.proto = Object.getOwnPropertyNames(RTCPeerConnection.prototype).length;
+          out.roFlags = (() => { const d = Object.getOwnPropertyDescriptor(RTCPeerConnection.prototype, 'connectionState'); return [d.set === undefined, d.enumerable, d.configurable]; })();
+          const closed = new RTCPeerConnection();
+          closed.close();
+          out.closed = [closed.signalingState, closed.iceConnectionState, closed.connectionState, closed.iceGatheringState];
+          f(() => closed.addTransceiver('audio'));
+          f(() => closed.setConfiguration({}));
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["desc"], serde_json::json!([null, null, null, null, null, null]), "fresh pc: all six descriptions null");
+    assert_eq!(v["states"], serde_json::json!(["stable", "new", "new", "new"]), "fresh states");
+    assert_eq!(v["cfg"], serde_json::json!({
+        "bundlePolicy": "balanced", "encodedInsertableStreams": false, "iceCandidatePoolSize": 0,
+        "iceServers": [], "iceTransportPolicy": "all", "rtcpMuxPolicy": "require"
+    }), "six-key default dictionary");
+    assert_eq!(v["keys"], serde_json::json!([]), "Chrome's pc carries no own enumerable keys");
+    assert_eq!(v["senderBrand"], serde_json::json!("[object RTCRtpSender]"));
+    assert_eq!(v["afterAdd"], serde_json::json!([1, 1, 1]), "sender+transceiver minted, stream recorded");
+    assert_eq!(v["tr1"], serde_json::json!([null, "sendrecv", null, false, "[object RTCRtpSender]", "[object RTCRtpReceiver]"]));
+    assert_eq!(v["senderTrack"], serde_json::json!([true, true]), "sender.track plumbs the given track");
+    assert_eq!(v["recvTrack"], serde_json::json!(["audio", true]), "addTransceiver('audio') receiver track");
+    assert_eq!(v["errors"], serde_json::json!([
+        "TypeError", "TypeError",                       // addTrack: missing arg, non-track
+        "TypeError", "TypeError",                       // removeTrack: missing arg, non-sender
+        "InvalidAccessError",                           // foreign sender
+        "TypeError", "TypeError",                       // addTransceiver: bogus string, non-kind object
+        "SyntaxError", "SyntaxError",                   // setConfiguration: non-url, hostless stun:
+        "InvalidModificationError", "InvalidModificationError", "InvalidModificationError", // bundle/rtcpMux/eis locked
+        "SyntaxError",                                  // createDTMFSender on a video track
+        "InvalidStateError", "InvalidStateError"        // closed pc: addTransceiver + setConfiguration
+    ]), "Chrome's error taxonomy: WebIDL type checks, then algorithm errors, then immutability locks, then closed guards");
+    assert_eq!(v["mutEntry"], serde_json::json!(["[{\"credential\":\"8\",\"urls\":[\"stun:stun.example.net\"],\"username\":\"7\"}]", "credential,urls,username"]), "entries normalize: keys always present, numbers coerced, alphabetical order");
+    assert_eq!(v["mutReplace"], serde_json::json!(["[]", 5]), "setConfiguration replaces the whole dictionary (probed Chrome)");
+    assert_eq!(v["dtmf"], serde_json::json!([true, null, null, null, ""]), "DTMF sender face");
+    assert_eq!(v["genCert"], serde_json::json!(["[object Promise]", "function"]), "static generateCertificate");
+    assert_eq!(v["ctor"], serde_json::json!([0, "length,name,prototype,generateCertificate"]));
+    assert_eq!(v["fire"], serde_json::json!(1), "ontrack fires via the proto accessor; null clears");
+    assert_eq!(v["proto"], serde_json::json!(46), "truth member count");
+    assert_eq!(v["roFlags"], serde_json::json!([true, true, true]), "state getters are ro:ec");
+    assert_eq!(v["closed"], serde_json::json!(["closed", "closed", "closed", "new"]), "close() leaves iceGatheringState at 'new'");
+    assert_eq!(v["errors"].as_array().map(|a| a.len()), Some(15), "closed guards: addTransceiver + setConfiguration both InvalidStateError");
+}

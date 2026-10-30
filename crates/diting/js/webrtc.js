@@ -18,12 +18,17 @@ globalThis.MediaStreamTrack = class MediaStreamTrack { constructor(){this.kind='
 const __RTCPCImpl = class RTCPeerConnection extends EventTarget {
   constructor(config){
     super();
-    this.localDescription=null; this.remoteDescription=null;
-    this.iceConnectionState='new'; this.iceGatheringState='new';
-    this.signalingState='stable'; this.connectionState='new';
-    this.onicecandidate=null; this.onicegatheringstatechange=null;
-    this.onsignalingstatechange=null; this.onconnectionstatechange=null;
-    this.__cfg = config || null;
+    // 刀61: all live state into two hidden slots — Chrome's fresh pc answers
+    // Object.keys(pc) === [] and every state member is a prototype getter.
+    // (Previously these were own enumerable data properties: visible to
+    // for-in/JSON.stringify AND shadowing the lift_own accessors, so the
+    // on* handlers could never fire — dispatch's isHandlerSlot only honors
+    // accessor slots.)
+    this.__rtc = { ld: null, rd: null, cld: null, pld: null, crd: null, prd: null,
+      sig: 'stable', igs: 'new', ics: 'new', cs: 'new', ctc: null, sctp: null,
+      senders: [], receivers: [], transceivers: [], lstreams: [], rstreams: [],
+      cfg: __rtcNormConfig(config) };
+    this.__on = {};
     this.__closed = false;
     this.__ufrag = __rtcToken(4); this.__pwd = __rtcToken(24);
     const a = 1 + Math.floor(_fpRand(710) * 254);
@@ -32,8 +37,8 @@ const __RTCPCImpl = class RTCPeerConnection extends EventTarget {
     this.__port = 40000 + Math.floor(_fpRand(712) * 20000);
   }
   __setGather(s){
-    if (this.iceGatheringState === s) return;
-    this.iceGatheringState = s;
+    if (this.__rtc.igs === s) return;
+    this.__rtc.igs = s;
     try { this.dispatchEvent(new Event('icegatheringstatechange')); } catch (e) {}
   }
   __emitCand(candStr){
@@ -74,8 +79,9 @@ const __RTCPCImpl = class RTCPeerConnection extends EventTarget {
     const self = this;
     if (self.__closed) return Promise.reject(new DOMException('The RTCPeerConnection\'s signalingState is \'closed\'.', 'InvalidStateError'));
     const d = desc || { type: 'offer', sdp: self.__mkOfferSdp() };
-    self.localDescription = (d instanceof RTCSessionDescription) ? d : new RTCSessionDescription(d);
-    self.signalingState = self.localDescription.type === 'answer' ? 'stable' : 'have-local-offer';
+    self.__rtc.ld = (d instanceof RTCSessionDescription) ? d : new RTCSessionDescription(d);
+    self.__rtc.cld = self.__rtc.ld;
+    self.__rtc.sig = self.__rtc.ld.type === 'answer' ? 'stable' : 'have-local-offer';
     self.__setGather('gathering');
     return Promise.resolve().then(function () {
       if (self.__closed) return;
@@ -90,24 +96,27 @@ const __RTCPCImpl = class RTCPeerConnection extends EventTarget {
   }
   setRemoteDescription(desc){
     if (this.__closed) return Promise.reject(new DOMException('The RTCPeerConnection\'s signalingState is \'closed\'.', 'InvalidStateError'));
-    this.remoteDescription = (desc instanceof RTCSessionDescription) ? desc : new RTCSessionDescription(desc || {});
+    this.__rtc.rd = (desc instanceof RTCSessionDescription) ? desc : new RTCSessionDescription(desc || {});
+    this.__rtc.crd = this.__rtc.rd;
     return Promise.resolve();
   }
   addIceCandidate(){ return Promise.resolve(); }
   close(){
     this.__closed = true;
-    this.iceConnectionState = 'closed';
-    this.connectionState = 'closed';
-    this.signalingState = 'closed';
+    // 刀61 probed: close flips sig/ics/cs to 'closed' but LEAVES
+    // iceGatheringState at 'new'.
+    this.__rtc.ics = 'closed';
+    this.__rtc.cs = 'closed';
+    this.__rtc.sig = 'closed';
   }
   createDataChannel(label){
-    return {
-      label: label == null ? '' : String(label),
-      readyState: 'connecting',
-      close(){ this.readyState = 'closed'; },
-      send(){},
-      addEventListener(){}, removeEventListener(){},
-    };
+    // 刀61: a branded instance, not a plain object — Object.create keeps the
+    // RTCDataChannel shell's toStringTag brand and readyState getter (the
+    // channel's own member face is its own audit line).
+    const ch = Object.create(globalThis.RTCDataChannel.prototype);
+    Object.defineProperty(ch, '__label', { value: label == null ? '' : String(label), writable: true, configurable: true });
+    ch.close = function close(){ this.readyState = 'closed'; };
+    return ch;
   }
   getStats(){ return Promise.resolve(new Map()); }
 };
@@ -117,6 +126,46 @@ function __rtcToken(n){
   for (let i = 0; i < n; i++) s += alpha[Math.floor(_fpRand(740 + i) * alpha.length)];
   return s;
 }
+// 刀61: Chrome's getConfiguration dictionary — exactly six keys with these
+// defaults (probed; note encodedInsertableStreams:false and NO certificates
+// key on a fresh pc). Every iceServers entry normalizes with username and
+// credential ALWAYS present as strings (7→"7" probed); a scheme-correct but
+// hostless url ('stun:') is as dead as a non-url — both throw the same
+// SyntaxError text (probed).
+function __rtcNormConfig(cfg){
+  const d = { bundlePolicy: 'balanced', encodedInsertableStreams: false, iceCandidatePoolSize: 0,
+    iceServers: [], iceTransportPolicy: 'all', rtcpMuxPolicy: 'require' };
+  if (cfg && typeof cfg === 'object') {
+    if (['balanced', 'max-compat', 'max-bundle'].includes(cfg.bundlePolicy)) d.bundlePolicy = cfg.bundlePolicy;
+    if (typeof cfg.encodedInsertableStreams === 'boolean') d.encodedInsertableStreams = cfg.encodedInsertableStreams;
+    if (Number.isInteger(cfg.iceCandidatePoolSize) && cfg.iceCandidatePoolSize >= 0) d.iceCandidatePoolSize = cfg.iceCandidatePoolSize;
+    if (cfg.iceTransportPolicy === 'relay') d.iceTransportPolicy = cfg.iceTransportPolicy;
+    if (cfg.rtcpMuxPolicy === 'negotiate') d.rtcpMuxPolicy = cfg.rtcpMuxPolicy;
+    if (Array.isArray(cfg.iceServers)) d.iceServers = cfg.iceServers.map((s) => {
+      const urls = Array.isArray(s && s.urls) ? s.urls.slice() : (s && s.urls != null ? [s.urls] : []).flatMap((u) => Array.isArray(u) ? u : [u]);
+      for (const u of urls) {
+        let ok = false;
+        try {
+          const str = String(u);
+          const url = new URL(str, 'http://example.invalid');
+          ok = ['stun:', 'stuns:', 'turn:', 'turns:'].includes(url.protocol) && str.split(/[?#]/)[0].length > url.protocol.length;
+        } catch (e) {}
+        if (!ok) throw new DOMException("Failed to execute 'setConfiguration' on 'RTCPeerConnection': The given configuration has a syntax error.", 'SyntaxError');
+      }
+      return { credential: s && s.credential !== undefined ? String(s.credential) : '',
+        urls,
+        username: s && s.username !== undefined ? String(s.username) : '' };
+    });
+  }
+  return d;
+}
+// 刀61: generateCertificate resolves to a branded RTCCertificate (its own
+// audit line owns the rest of that face).
+function __rtcMintCert(){
+  const c = Object.create(globalThis.RTCCertificate.prototype);
+  Object.defineProperty(c, '__expires', { value: Math.floor(Date.now() / 1000) + 2592000, writable: true, configurable: true });
+  return c;
+}
 globalThis.RTCPeerConnection = function RTCPeerConnection() {
   if (!new.target) {
     throw new TypeError("Failed to construct 'RTCPeerConnection': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
@@ -124,6 +173,215 @@ globalThis.RTCPeerConnection = function RTCPeerConnection() {
   return Reflect.construct(__RTCPCImpl, arguments, new.target);
 };
 globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
+// ---- 刀61: RTCPeerConnection's Chrome-true face --------------------------------
+// Chrome 145 lists 46 proto members (6 description/state getters, 11 on*
+// handler accessors, canTrickleIceCandidates, sctp, 28 methods, constructor
+// LAST) plus one static (generateCertificate). The mint carried 19; the six
+// state getters were lift_own rw stubs reading nothing, and the four on* the
+// ctor wrote as own data props never fired (dispatch's isHandlerSlot honors
+// accessor slots only — an own data prop shadows the chain). Everything here
+// reads the two hidden slots the impl ctor mints (__rtc/__on). All probed
+// against CfT 145 headless (fresh-pc defaults, getConfiguration's 6-key
+// dictionary, addTrack's sender/transceiver/legacy-stream effects, the DTMF
+// and removeTrack error family, close leaving iceGatheringState at 'new').
+(function () {
+  const PC = globalThis.RTCPeerConnection;
+  const P = PC.prototype;
+  const mark = (f) => { _markNative(f); return f; };
+  const dg = (obj, name, get) => Object.defineProperty(obj, name, { get: mark(get), enumerable: true, configurable: true });
+  // state getters — ro:ec per truth, named after themselves like Chrome's
+  dg(P, 'localDescription', function localDescription() { return this.__rtc.ld; });
+  dg(P, 'currentLocalDescription', function currentLocalDescription() { return this.__rtc.cld; });
+  dg(P, 'pendingLocalDescription', function pendingLocalDescription() { return this.__rtc.pld; });
+  dg(P, 'remoteDescription', function remoteDescription() { return this.__rtc.rd; });
+  dg(P, 'currentRemoteDescription', function currentRemoteDescription() { return this.__rtc.crd; });
+  dg(P, 'pendingRemoteDescription', function pendingRemoteDescription() { return this.__rtc.prd; });
+  dg(P, 'signalingState', function signalingState() { return this.__rtc.sig; });
+  dg(P, 'iceGatheringState', function iceGatheringState() { return this.__rtc.igs; });
+  dg(P, 'iceConnectionState', function iceConnectionState() { return this.__rtc.ics; });
+  dg(P, 'connectionState', function connectionState() { return this.__rtc.cs; });
+  dg(P, 'canTrickleIceCandidates', function canTrickleIceCandidates() { return this.__rtc.ctc; });
+  dg(P, 'sctp', function sctp() { return this.__rtc.sctp; });
+  // on* handler accessors — rw:ec; a function assignment now FIRES on dispatch
+  for (const name of ['onnegotiationneeded', 'onicecandidate', 'onsignalingstatechange',
+    'oniceconnectionstatechange', 'onconnectionstatechange', 'onicegatheringstatechange',
+    'onicecandidateerror', 'ontrack', 'ondatachannel', 'onaddstream', 'onremovestream']) {
+    const get = mark({ ['get ' + name]: function () { const s = this.__on; return s && typeof s[name] === 'function' ? s[name] : null; } }['get ' + name]);
+    const set = mark({ ['set ' + name]: function (v) { (this.__on || (this.__on = {}))[name] = typeof v === 'function' ? v : null; } }['set ' + name]);
+    Object.defineProperty(P, name, { get, set, enumerable: true, configurable: true });
+  }
+  // mints: branded, zero-own-prop instances off the shell prototypes. Those
+  // shells (RTCRtpSender/Receiver, RTCDTMFSender, RTCCertificate) are minted
+  // by global_surface LATER in the load order, so the per-instance reads are
+  // installed lazily on first mint, fill-if-missing.
+  let satsFilled = false;
+  const fillSats = () => {
+    if (satsFilled) return;
+    satsFilled = true;
+    const RSP = globalThis.RTCRtpSender && globalThis.RTCRtpSender.prototype;
+    const RRP = globalThis.RTCRtpReceiver && globalThis.RTCRtpReceiver.prototype;
+    const RTP = globalThis.RTCRtpTransceiver && globalThis.RTCRtpTransceiver.prototype;
+    const DSP = globalThis.RTCDTMFSender && globalThis.RTCDTMFSender.prototype;
+    const RDC = globalThis.RTCDataChannel.prototype, CERT = globalThis.RTCCertificate && globalThis.RTCCertificate.prototype;
+    const has = (o, n) => Object.prototype.hasOwnProperty.call(o, n);
+    // force: these were stub_members' undefined-returning stubs (the audit
+    // sees the right kind, the reads were dead) or the satellite's constant
+    // getter — the mints' per-instance reads must be REAL.
+    const force = (o, name, get) => { try { delete o[name]; } catch (e) {} dg(o, name, get); };
+    if (RSP) {
+      force(RSP, 'track', function track() { return this.__t === undefined ? undefined : (this.__t || null); });
+      force(RSP, 'transport', function transport() { return null; });
+    }
+    if (RRP) force(RRP, 'track', function track() { return this.__t === undefined ? undefined : (this.__t || null); });
+    if (DSP) {
+      force(DSP, 'canInsertLetter', function canInsertLetter() { return null; });
+      force(DSP, 'duration', function duration() { return null; });
+      force(DSP, 'interToneGap', function interToneGap() { return null; });
+      force(DSP, 'toneBuffer', function toneBuffer() { return ''; });
+    }
+    force(globalThis.MediaStreamTrack.prototype, 'kind', function kind() { return this.__kind || ''; });
+    force(RDC, 'label', function label() { return this.__label || ''; });
+    if (CERT) force(CERT, 'expires', function expires() { return this.__expires == null ? 0 : this.__expires; });
+    // fill-if-missing: the transceiver satellite owns real members; these
+    // four are absent everywhere and its own knife owns the rest.
+    if (RTP) {
+      if (!has(RTP, 'currentDirection')) dg(RTP, 'currentDirection', function currentDirection() { return null; });
+      if (!has(RTP, 'stopped')) dg(RTP, 'stopped', function stopped() { return !!this.__stopped; });
+      if (!has(RTP, 'sender')) dg(RTP, 'sender', function sender() { return this.__sender || null; });
+      if (!has(RTP, 'receiver')) dg(RTP, 'receiver', function receiver() { return this.__receiver || null; });
+    }
+  };
+  const mintTrack = (kind) => {
+    fillSats();
+    const t = Object.create(globalThis.MediaStreamTrack.prototype);
+    Object.defineProperty(t, '__kind', { value: kind, writable: true, configurable: true });
+    return t;
+  };
+  const mintSender = (track) => {
+    fillSats();
+    const s = Object.create(globalThis.RTCRtpSender.prototype);
+    Object.defineProperty(s, '__t', { value: track || null, writable: true, configurable: true });
+    return s;
+  };
+  const mintReceiver = (track) => {
+    fillSats();
+    const r = Object.create(globalThis.RTCRtpReceiver.prototype);
+    Object.defineProperty(r, '__t', { value: track || null, writable: true, configurable: true });
+    return r;
+  };
+  const mintTransceiver = (sender, receiver) => {
+    fillSats();
+    const t = Object.create(globalThis.RTCRtpTransceiver.prototype);
+    Object.defineProperties(t, {
+      __sender: { value: sender, writable: true, configurable: true },
+      __receiver: { value: receiver, writable: true, configurable: true },
+      __stopped: { value: false, writable: true, configurable: true },
+    });
+    return t;
+  };
+  const dm = (obj, name, fn, len) => {
+    if (len !== undefined) Object.defineProperty(fn, 'length', { value: len, configurable: true });
+    Object.defineProperty(obj, name, { value: mark(fn), writable: true, enumerable: true, configurable: true });
+  };
+  const argErr = (m, n) => new TypeError("Failed to execute '" + m + "' on 'RTCPeerConnection': " + n + " argument required, but only 0 present.");
+  const typeErr = (m, t) => new TypeError("Failed to execute '" + m + "' on 'RTCPeerConnection': parameter 1 is not of type '" + t + "'.");
+  const closedErr = (m) => new DOMException("Failed to execute '" + m + "' on 'RTCPeerConnection': The RTCPeerConnection's signalingState is 'closed'.", 'InvalidStateError');
+  dm(P, 'getConfiguration', function getConfiguration() {
+    const c = this.__rtc.cfg;
+    return { bundlePolicy: c.bundlePolicy, encodedInsertableStreams: c.encodedInsertableStreams,
+      iceCandidatePoolSize: c.iceCandidatePoolSize, iceServers: c.iceServers.map((s) => ({
+        credential: s.credential, urls: Array.isArray(s.urls) ? s.urls.slice() : s.urls, username: s.username })),
+      iceTransportPolicy: c.iceTransportPolicy, rtcpMuxPolicy: c.rtcpMuxPolicy };
+  }, 0);
+  // 刀61 Chrome truth: bundlePolicy / rtcpMuxPolicy / encodedInsertableStreams
+  // are fixed at construction — setConfiguration changing any of them throws
+  // InvalidModificationError; iceServers / iceCandidatePoolSize /
+  // iceTransportPolicy stay mutable; a closed pc rejects the call outright.
+  dm(P, 'setConfiguration', function setConfiguration(cfg) {
+    if (this.__closed) throw closedErr('setConfiguration');
+    const d = __rtcNormConfig(cfg), o = this.__rtc.cfg;
+    if (d.bundlePolicy !== o.bundlePolicy || d.rtcpMuxPolicy !== o.rtcpMuxPolicy || d.encodedInsertableStreams !== o.encodedInsertableStreams)
+      throw new DOMException("Failed to execute 'setConfiguration' on 'RTCPeerConnection': Attempted to modify the PeerConnection's configuration in an unsupported way.", 'InvalidModificationError');
+    this.__rtc.cfg = d;
+  }, 0);
+  dm(P, 'getSenders', function getSenders() { return this.__rtc.senders.slice(); }, 0);
+  dm(P, 'getReceivers', function getReceivers() { return this.__rtc.receivers.slice(); }, 0);
+  dm(P, 'getTransceivers', function getTransceivers() { return this.__rtc.transceivers.slice(); }, 0);
+  dm(P, 'getLocalStreams', function getLocalStreams() { return this.__rtc.lstreams.slice(); }, 0);
+  dm(P, 'getRemoteStreams', function getRemoteStreams() { return this.__rtc.rstreams.slice(); }, 0);
+  dm(P, 'addStream', function addStream(stream) {
+    if (stream && !this.__rtc.lstreams.includes(stream)) this.__rtc.lstreams.push(stream);
+  }, 1);
+  dm(P, 'removeStream', function removeStream(stream) {
+    const i = this.__rtc.lstreams.indexOf(stream);
+    if (i >= 0) this.__rtc.lstreams.splice(i, 1);
+  }, 1);
+  dm(P, 'addTrack', function addTrack(track, ...streams) {
+    if (arguments.length < 1) throw argErr('addTrack', 1);
+    if (!(track instanceof globalThis.MediaStreamTrack)) throw typeErr('addTrack', 'MediaStreamTrack');
+    if (this.__closed) throw closedErr('addTrack');
+    const kind = track && track.__kind === 'audio' ? 'audio' : 'video';
+    const sender = mintSender(track), recv = mintReceiver(mintTrack(kind)), tr = mintTransceiver(sender, recv);
+    this.__rtc.senders.push(sender); this.__rtc.receivers.push(recv); this.__rtc.transceivers.push(tr);
+    for (const s of streams) if (s && !this.__rtc.lstreams.includes(s)) this.__rtc.lstreams.push(s);
+    return sender;
+  }, 1);
+  dm(P, 'addTransceiver', function addTransceiver(kindOrTrack, init) {
+    const isTrack = kindOrTrack instanceof globalThis.MediaStreamTrack;
+    if (!isTrack && kindOrTrack !== 'audio' && kindOrTrack !== 'video')
+      throw new TypeError("Failed to execute 'addTransceiver' on 'RTCPeerConnection': The argument provided as parameter 1 is not a valid MediaStreamTrack kind ('audio' or 'video').");
+    if (this.__closed) throw closedErr('addTransceiver');
+    const kind = isTrack ? (kindOrTrack.__kind === 'audio' ? 'audio' : 'video') : kindOrTrack;
+    const recv = mintReceiver(mintTrack(kind === 'audio' ? 'audio' : 'video'));
+    const sender = mintSender(isTrack ? kindOrTrack : null);
+    const tr = mintTransceiver(sender, recv);
+    this.__rtc.senders.push(sender); this.__rtc.receivers.push(recv); this.__rtc.transceivers.push(tr);
+    return tr;
+  }, 1);
+  dm(P, 'removeTrack', function removeTrack(sender) {
+    if (arguments.length < 1) throw argErr('removeTrack', 1);
+    if (!(sender instanceof globalThis.RTCRtpSender)) throw typeErr('removeTrack', 'RTCRtpSender');
+    if (this.__closed) throw closedErr('removeTrack');
+    const i = this.__rtc.senders.indexOf(sender);
+    if (i < 0) throw new DOMException("Failed to execute 'removeTrack' on 'RTCPeerConnection': The RTCRtpSender is not owned by this RTCPeerConnection.", 'InvalidAccessError');
+    this.__rtc.senders[i].__t = null;
+  }, 1);
+  dm(P, 'restartIce', function restartIce() {}, 0);
+  dm(P, 'createDTMFSender', function createDTMFSender(track) {
+    if (arguments.length < 1) throw argErr('createDTMFSender', 1);
+    if (!(track instanceof globalThis.MediaStreamTrack)) throw typeErr('createDTMFSender', 'MediaStreamTrack');
+    if (this.__closed) throw closedErr('createDTMFSender');
+    if (!track || track.kind !== 'audio') throw new DOMException("Failed to execute 'createDTMFSender' on 'RTCPeerConnection': track.kind is not 'audio'.", 'SyntaxError');
+    if (!this.__rtc.senders.some((s) => s.__t === track)) throw new DOMException("Failed to execute 'createDTMFSender' on 'RTCPeerConnection': No RTCRtpSender is available for the track provided.", 'SyntaxError');
+    fillSats();
+    const d = Object.create(globalThis.RTCDTMFSender.prototype);
+    Object.defineProperty(d, '__track', { value: track, writable: true, configurable: true });
+    return d;
+  }, 1);
+  // static: generateCertificate — returns a promise; the no-arg call does not
+  // throw synchronously in Chrome (probed).
+  Object.defineProperty(PC, 'generateCertificate', { value: mark(function generateCertificate(keygen) {
+    return Promise.resolve(__rtcMintCert());
+  }), writable: true, enumerable: true, configurable: true });
+  // Chrome's prototype order: accessors (truth sequence above), then methods
+  // alphabetically, constructor LAST. Reorder in-file so the raw capture
+  // order already equals truth — gen_shape_fix then emits no ORDER entry and
+  // nothing reorders against this prototype later.
+  const ORDER = ['localDescription', 'currentLocalDescription', 'pendingLocalDescription', 'remoteDescription',
+    'currentRemoteDescription', 'pendingRemoteDescription', 'signalingState', 'iceGatheringState',
+    'iceConnectionState', 'connectionState', 'canTrickleIceCandidates', 'onnegotiationneeded',
+    'onicecandidate', 'onsignalingstatechange', 'oniceconnectionstatechange', 'onconnectionstatechange',
+    'onicegatheringstatechange', 'onicecandidateerror', 'ontrack', 'sctp', 'ondatachannel', 'onaddstream',
+    'onremovestream', 'addIceCandidate', 'addStream', 'addTrack', 'addTransceiver', 'close', 'createAnswer',
+    'createDTMFSender', 'createDataChannel', 'createOffer', 'getConfiguration', 'getLocalStreams',
+    'getReceivers', 'getRemoteStreams', 'getSenders', 'getStats', 'getTransceivers', 'removeStream',
+    'removeTrack', 'restartIce', 'setConfiguration', 'setLocalDescription', 'setRemoteDescription', 'constructor'];
+  Object.defineProperty(P, 'constructor', { value: PC, writable: true, enumerable: false, configurable: true });
+  for (const n of ORDER) {
+    const d = Object.getOwnPropertyDescriptor(P, n);
+    if (d && d.configurable) { delete P[n]; Object.defineProperty(P, n, d); }
+  }
+})();
 globalThis.RTCSessionDescription = class RTCSessionDescription { constructor(d){this.type=d?.type;this.sdp=d?.sdp;} };
 globalThis.RTCIceCandidate = class RTCIceCandidate { constructor(d){this.candidate=d?.candidate||'';} };
 // RTC satellite interfaces — DataDome-class audits walk the whole RTCPeerConnection
