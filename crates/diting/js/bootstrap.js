@@ -276,9 +276,13 @@ function __listenerGate(h) {
 // instances carry nothing (Object.keys(new WebSocket(...)) is [] in Chrome).
 // Constructors keep their plain `this.x = ...` writes — those route through
 // the setters below and land in hidden `_x` fields, so both faces match.
+// Private `_x` slot names minted by __acc; the instance enumeration patch hides them (they are not in the generated internal_names).
+const __accPrivs = new Set();
+Object.defineProperty(globalThis, '__diting_accPrivs', { value: __accPrivs, writable: true, enumerable: false, configurable: true });
 function __acc(C, names) {
   for (const k of names) {
     const priv = '_' + k;
+    __accPrivs.add(priv);
     Object.defineProperty(C.prototype, k, {
       get() { return this[priv]; },
       set(v) { __def(this, priv, v); },
@@ -13741,51 +13745,33 @@ if (typeof Image === 'undefined') {
   // `new Image().style` was `undefined` and libraries that touch it on a
   // detached image threw (upstream issue #350). Build a real element so
   // `.style`, attribute reflection, and event dispatch all come for free.
-  const _imgSrcDesc = Object.getOwnPropertyDescriptor(globalThis.HTMLImageElement.prototype, 'src');
+  // Per-image emulation state lives in a WeakMap, NOT on the instance: Chrome's <img> has no own properties. The prototype
+  // accessors for complete/naturalWidth/naturalHeight/width/height/src are wrapped below to consult it.
+  const _imgState = new WeakMap();
+  Object.defineProperty(globalThis, '__diting_imgState', { value: _imgState, writable: true, enumerable: false, configurable: true });
   globalThis.Image = function Image(width, height) {
     const img = document.createElement('img');
-    img.onload = null; img.onerror = null;
     // complete/naturalWidth/naturalHeight are prototype getter-ONLY
     // accessors now (platform gen/htmlmedia.gen.js, M4 knife 5): internal
     // emulation state writes go through the hidden-slot channel, the same
     // one _playing uses. An own (non-enumerable) slot shadows the getter.
-    __def(img, 'complete', false); __def(img, 'naturalWidth', 0); __def(img, 'naturalHeight', 0);
     // #236: width/height are accessors, not data props. The HTML spec has
     // the IDL getter fall back to the natural size when no value was ever
     // set — `new Image()` with a decoded 1×1 src must read 1, not the
     // constructor-era 0 (SDKs gate uploads on image.width and saw a
     // phantom zero). A page or constructor assignment pins the value.
-    const _imgDims = {
+    const st = { complete: false, naturalWidth: 0, naturalHeight: 0,
       w: width !== undefined ? (width >>> 0) : null,
-      h: height !== undefined ? (height >>> 0) : null,
-    };
-    Object.defineProperty(img, 'width', {
-      configurable: true, enumerable: true,
-      get() { return _imgDims.w !== null ? _imgDims.w : (img.naturalWidth || 0); },
-      set(v) { _imgDims.w = v >>> 0; },
-    });
-    Object.defineProperty(img, 'height', {
-      configurable: true, enumerable: true,
-      get() { return _imgDims.h !== null ? _imgDims.h : (img.naturalHeight || 0); },
-      set(v) { _imgDims.h = v >>> 0; },
-    });
+      h: height !== undefined ? (height >>> 0) : null, load: null };
+    _imgState.set(img, st);
     // There is no real image decoder, so emulate a successful decode: assigning
     // `.src` flips `complete` and fires `load` on a later tick. Lazy loaders
     // and preloaders that create `new Image()`, set `.src`, and wait for
     // `onload` (or addEventListener('load')) would hang forever otherwise.
-    // Anti-bot scripts (Booking.com, upstream #394) pre-define a
-    // non-configurable own `src` on <img> elements; redefining it throws
-    // "Cannot redefine property: src" and kills the constructor. Skip the
-    // emulation then: a page that owns `src` is instrumenting loads itself.
-    const ownSrc = Object.getOwnPropertyDescriptor(img, 'src');
-    if (!ownSrc || ownSrc.configurable) {
-      Object.defineProperty(img, 'src', {
-        configurable: true, enumerable: true,
-        get() { return _imgSrcDesc.get.call(img); },
-        set(v) {
-          _imgSrcDesc.set.call(img, v);
+    // A page-owned own `src` (Booking.com, upstream #394) shadows the prototype accessor, so the emulation simply never runs.
+    st.load = function () {
           if (!img.getAttribute('src')) return;
-          __def(img, 'complete', false);
+          st.complete = false;
           // (#41) Real load semantics: the fetch attempt decides load vs
           // error. The old stub fired `load` unconditionally, so probes
           // pinning load faces to unroutable hosts read fake success.
@@ -13802,23 +13788,23 @@ if (typeof Image === 'undefined') {
           // load/error decision (#41: transport status) stays with the
           // caller, this only fills in numbers.
           const succeed = function (dimsJson) {
-            __def(img, 'complete', true);
+            st.complete = true;
             try {
               const d = JSON.parse(dimsJson || '{}');
               if (d && d.width > 0) {
-                __def(img, 'naturalWidth', d.width);
-                __def(img, 'naturalHeight', d.height);
+                st.naturalWidth = d.width;
+                st.naturalHeight = d.height;
               }
             } catch (e) {}
-            __def(img, 'naturalWidth', img.naturalWidth || img.width || 0);
-            __def(img, 'naturalHeight', img.naturalHeight || img.height || 0);
+            st.naturalWidth = img.naturalWidth || img.width || 0;
+            st.naturalHeight = img.naturalHeight || img.height || 0;
             try { img.dispatchEvent(new Event('load')); } catch (e) {}
           };
           const dimsFromBase64 = function (b64) {
             try { return _OPS.op_image_info(String(b64 || '')); } catch (e) { return '{}'; }
           };
           const fail = function () {
-            __def(img, 'complete', false);
+            st.complete = false;
             try { img.dispatchEvent(new Event('error')); } catch (e) {}
           };
           if (fullUrl.startsWith('data:')) {
@@ -13859,9 +13845,7 @@ if (typeof Image === 'undefined') {
               if (ok) { succeed(dimsFromBase64(bodyB64)); } else { fail(); }
             }).catch(fail);
           }
-        },
-      });
-    }
+    };
     return img;
   };
   globalThis.Image.prototype = globalThis.HTMLImageElement.prototype;
@@ -15208,8 +15192,8 @@ globalThis.__diting_init = function() {
     // instances: only the names the engine's own scripts use (internal_names.js, generated) - a page's own `_x`
     // expando on document / performance / any platform object stays visible like in Chrome.
     const _hideInternalOnInstance = (names) => {
-      const set = globalThis.__diting_internal_names;
-      return set ? names.filter(n => typeof n !== 'string' || !(set.has(n) || /^_on[a-z]+$/.test(n))) : names;
+      const set = globalThis.__diting_internal_names, ap = globalThis.__diting_accPrivs;
+      return set ? names.filter(n => typeof n !== 'string' || !(set.has(n) || (ap && ap.has(n)) || /^_on[a-z]+$/.test(n))) : names;
     };
     const _hideOn = (o, names) => {
       if (o === globalThis) return names.filter(n => !_isInternal(n));

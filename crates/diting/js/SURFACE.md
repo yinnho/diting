@@ -1427,3 +1427,12 @@ nodeType/nodeName/nodeValue 并入刀23 的 Node.prototype 分派表（`nodeleve
 验收：全量 998 过/30 败，失败集与干净 HEAD 相同；surface 快照 fixture 按预期更新（四个类的原型成员增加）。
 
 **工具坑**：探针服务器 `target/debug/diting` 属于包 `diting-browser`，重建必须 `cargo build -p diting-browser --bin diting`（`-p diting` 只建库，二进制不更新，审计会读到旧代码）。
+
+## M4 刀46：Image 与 __acc 私有槽（2026-10-30）
+
+泄漏对象 14→11。`new Image()` 不再在实例上造 `complete/naturalWidth/naturalHeight/width/height/src` 自有属性与 `__onHandlers`：每图状态进 bootstrap 持有的 WeakMap（隐藏全局 `__diting_imgState`），
+新模块 `platform/imagestate.impl.js` 包装 `HTMLImageElement.prototype` 上的这六个访问器——有状态的 Image() 元素先读状态，其余 `<img>` 回落原访问器；给 Image() 元素设 `src` 时启动加载模拟（`state.load`）。
+页面自己在元素上定义的 `src` 自然遮蔽原型访问器，模拟不再运行（原先要显式探测 ownSrc）。`__acc`（WebSocket/FileReader/EventSource/BroadcastChannel 的原型访问器）
+登记它造出的 `_x` 私有槽名到隐藏集 `__diting_accPrivs`，实例枚举补丁一并隐藏 → `WebSocket._bufferedAmount…`、`FileReader._result/_error` 不再外泄。
+剩余：CSSStyleDeclaration(383)、PluginArray/MimeTypeArray 具名属性、Location、Window、ServiceWorkerContainer、MediaQueryList(matches/media 由 matchMedia 返回物 defineProperty 造)、NodeList/HTMLCollection.length、HTMLOptionElement.text、Document.location。
+验收：全量 998 过/30 败（失败集同干净 HEAD）；ratchet/契约/check_fresh 过。
