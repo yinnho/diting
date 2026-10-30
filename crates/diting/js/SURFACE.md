@@ -1503,3 +1503,18 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 - `shape_fix.js`/`internal_names.js` 按新引擎重新生成（`regen_shape.sh`、`gen_internal_names.py`；FontFace 的成员顺序原先按旧引擎写死）；`check_fresh --update` 把 coll/fonts 真值登记进 MANIFEST。
 **行为变化（有意，对齐 Chrome）**：`document.fonts.check('12px "不存在的字体"')` 现在是 true；`document.fonts.size` 为 0；遍历默认无元素。依赖"字体探测"的指纹脚本在 Chrome 上读到的就是这些值。
 验收：engine 全量 1001 过/30 败（同干净 HEAD）；diting-browser 464 过/46 败（同干净 HEAD）；ratchet/契约/check_fresh 过。
+
+## M4 刀53a：window 的可枚举自有键对齐 Chrome（300 → 0）（2026-10-30）
+
+新审计维度 `chrome/enum-probe.js` + `tools/webplatform/enum_audit.py`：每个对象的**自有可枚举键**（`for-in`+`hasOwnProperty`，即 `for-in`、`JSON.stringify`、`Object.assign`、展开看到的集合）。
+引擎对 `Object.keys/getOwnPropertyNames/Reflect.ownKeys` 打了补丁来藏内部名字，**补丁遮住了真实泄漏**——此前"实例审计 127/127 干净"只对补丁后的视图成立。
+`window` 原本有 537 个自有可枚举键（Chrome 237），多出 300 个：顶层 `function`/`var` 声明（`_wrap`、`_idbStore`、`makeKey`…）是**不可配置、可枚举**的 window 属性，`defineProperty` 改不了。
+根治：**每个脚本的顶层都放进函数作用域**，只把别的脚本/Rust 真正用到的名字重新导出到 globalThis（不可枚举、可配置、登记进隐藏名单）：
+- 17 个脚本（bootstrap + 16 个有顶层 function/var 的）以 `(function () { // @@SCOPE` … `}).call(globalThis); // @@SCOPE-END` 包起，尾部有生成的 `// @@EXPORTS-BEGIN … // @@EXPORTS-END` 块。
+- 块由 `node tools/webplatform/analyze/analyze.mjs --gen-exports` 生成：名字 = 依赖分析里别的文件对它的 load/call/**前向 call** 引用（分析工具原先漏掉了「早加载脚本调用时引用晚加载脚本」，已补 `forwardCallRequires`）∪ `exports-extra.json`（Rust 字符串里引用的名字，解析器看不到）。
+  function/const/class → 数据属性；let/var → 访问器（Rust 的 `globalThis._fpCache = null` 要写穿到局部变量）；已存在的 window 属性不动（Chrome 可见全局保持原值）；`--check` 在块过期时失败。
+- Rust PRELUDE 的 `function __diting_register` 改 `const`（脚本级词法绑定，所有后续脚本可见但不是 window 属性）。
+- 运行时才赋值的内部状态（`__diting_objects/oid/hw/mem/ua/lang…`、`__parserScript*`、`__currentScriptNid`、`__diting_click_target`、`__documentReadyState__`）由 `window_order.js` 预声明为隐藏占位，后续赋值保留不可枚举；window 上 Chrome 没有的可配置键在重排时一律置为不可枚举。
+- 枚举补丁的 `_isInternal` 现在对所有名字查隐藏名单（导出的非下划线内部名如 `REFERRER_POLICIES`）。
+测试 `window_enumerable_own_keys_match_chrome_truth`（`enum-truth-145.json`，237 键）。验收：engine 1001 过/30 败、diting-browser 464/46 败、diting_runtime 全过（均同干净 HEAD）；ratchet/契约/check_fresh 过。
+**仍待做（刀53b）**：实例上的 `_x` 私有字段（`_nid/_style/_templateContent`、Range/Blob/XHR/WebSocket/ReadableStream/…）、单例对象的自有方法（speechSynthesis/mediaDevices/caches/rs reader/AudioNode…）、DOMRect/PerformanceTiming 自有数据属性、getComputedStyle 的索引键。

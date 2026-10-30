@@ -27631,3 +27631,32 @@ async fn fonts_matches_chrome_truth() {
     }
     assert!(bad.is_empty(), "{} probe(s) off:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// M4 knife 53 - the window's own ENUMERABLE keys (for-in + hasOwnProperty: what for-in, JSON.stringify, Object.assign and spread see;
+/// Object.keys / getOwnPropertyNames are patched by the engine and cannot be trusted for this) must be exactly Chrome 145's 237.
+/// Top-level function/var declarations are non-configurable enumerable window properties that no defineProperty can hide, so every
+/// script keeps its top level in a function scope and re-exports only the names others need (hidden); see analyze.mjs --gen-exports.
+#[tokio::test(flavor = "current_thread")]
+async fn window_enumerable_own_keys_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"(function () { var ks = []; for (var k in globalThis) { if (Object.prototype.hasOwnProperty.call(globalThis, k)) ks.push(k); } return JSON.stringify(ks.sort()); })()"#,
+        )
+        .unwrap();
+    let engine: Vec<String> = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/enum-truth-145.json"
+    ))
+    .unwrap();
+    let mut chrome: Vec<String> = truth["selfWin"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    chrome.sort();
+    let extra: Vec<&String> = engine.iter().filter(|k| !chrome.contains(k)).collect();
+    let missing: Vec<&String> = chrome.iter().filter(|k| !engine.contains(k)).collect();
+    assert!(extra.is_empty() && missing.is_empty(), "extra {extra:?} missing {missing:?}");
+}

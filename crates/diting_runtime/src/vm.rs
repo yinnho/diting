@@ -68,7 +68,9 @@ let nextPromiseId = 0;
 const promiseRing = new Array(RING_SIZE).fill(null);
 const promiseMap = new Map();
 
-function __diting_register() {
+// const, not a function declaration: a top-level declaration would mint a NON-configurable, enumerable window property
+// (visible to for-in / JSON / spread); a script-scope lexical stays reachable to every later script without being one.
+const __diting_register = function () {
   const id = nextPromiseId;
   nextPromiseId = (id + 1) & 0x7fffffff;
   const idx = id % RING_SIZE;
@@ -78,7 +80,7 @@ function __diting_register() {
     promiseRing[idx] = [resolve, reject, id];
   });
   return { id: id, promise: promise };
-}
+};
 
 globalThis.__diting_lastResolved = null;
 globalThis.__diting_lastRejected = null;
