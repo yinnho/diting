@@ -109,6 +109,7 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("event_hooks.js", include_str!("js/event_hooks.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("stub_members.js", include_str!("js/stub_members.js")),
+    ("sym_fix.js", include_str!("js/sym_fix.js")),
     ("shape_fix.js", include_str!("js/shape_fix.js")),
 ];
 

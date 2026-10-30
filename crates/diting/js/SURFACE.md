@@ -1205,3 +1205,18 @@ shape_fix.js 增加 ORDER 表（审计里「序不同」的接口，只含两边
 再生成流程（两步，均需暂时从 build.rs 注释掉被生成的脚本）：①注释 stub_members.js 与 shape_fix.js → 抓取 → gen_stub_members.py；②启用 stub_members.js、注释 shape_fix.js → 抓取 → gen_shape_fix.py。
 验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。余下审计项：缺成员 140、序 27、种类 40、多余 33、statics 15、父原型 15、Symbol 82。
 
+## M4 刀28：Symbol 成员与缺失接口（2026-10-30）
+
+**sym_fix.js**（`gen_sym_fix.py` 生成）：审计里 82 个接口的 well-known Symbol 成员不同。
+- **Symbol.iterator 缺失（49 个）**：CSSRuleList/NodeList/CSSStyleDeclaration/…这些索引集合在 Chrome 里 `[Symbol.iterator] === Array.prototype.values`（同一函数对象），maplike/setlike
+  的则别名到自己的 entries/values（AudioParamMap、FormData、CustomStateSet…）。补上后 `for (const r of sheet.cssRules)` 等真正可用（已与 Chrome 逐项对拍）；
+- **多余的 toStringTag（19 个）**：JS 内建 Error 家族与 BigInt64Array/BigUint64Array 的 prototype 上被引擎误加了 `Symbol.toStringTag`，Chrome 没有——已删除；
+- **Symbol.unscopables（5 个）**：Element/CharacterData/Document/DocumentFragment/DocumentType 补上空原型对象（键集合取自真值，例如 Element 的
+  after/append/before/prepend/remove/replaceChildren/replaceWith/slot）；
+- **asyncIterator**（ReadableStream、FileSystemDirectoryHandle）与 4 个接口的 Symbol 相对次序，一并按 Chrome 重建。
+**缺失的 7 个接口**（SharedStorage 及其 Append/Clear/Delete/Modifier/Set 方法类与 SharedStorageWorklet）：stub_members.js 生成器新增 CREATE 段，铸造惰性构造器（`Illegal constructor`、登记 `__diting_stubs`、
+接上 Chrome 的父原型）再装成员。
+再生成顺序（依赖链）：①注释 stub_members/sym_fix/shape_fix → 抓取 → gen_stub_members + gen_sym_fix；②启用这两个、注释 shape_fix → 抓取 → gen_shape_fix（顺序表须在桩与符号之后）。
+结果：Symbol 差异 82→1，缺失接口 7→0，完全一致接口 659→728（共 936）。验收：全量（跳两个毒化页面测试）992 过/30 败，失败集与干净 HEAD 逐条相同；快照重生。
+余下审计项：缺成员 140、序 27、种类 40、多余 33、statics 15、父原型 15、Symbol 1。
+

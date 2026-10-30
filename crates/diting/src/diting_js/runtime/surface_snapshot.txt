@@ -1,4 +1,4 @@
-[globals] 1260
+[globals] 1267
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -759,6 +759,13 @@ G ServiceWorkerContainer
 G ServiceWorkerRegistration
 G Set
 G ShadowRoot
+G SharedStorage
+G SharedStorageAppendMethod
+G SharedStorageClearMethod
+G SharedStorageDeleteMethod
+G SharedStorageModifierMethod
+G SharedStorageSetMethod
+G SharedStorageWorklet
 G SharedWorker
 G SnapEvent
 G SourceBuffer
@@ -2086,6 +2093,13 @@ P ServiceWorkerContainer :: constructor,getRegistrations,register
 P ServiceWorkerRegistration :: active,backgroundFetch,constructor,cookies,getNotifications,installing,navigationPreload,onupdatefound,paymentManager,periodicSync,pushManager,scope,showNotification,sync,unregister,update,updateViaCache,waiting
 P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersection,isDisjointFrom,isSubsetOf,isSupersetOf,keys,size,symmetricDifference,union,values
 P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
+P SharedStorage :: append,batchUpdate,clear,constructor,createWorklet,delete,get,run,selectURL,set,worklet
+P SharedStorageAppendMethod :: constructor
+P SharedStorageClearMethod :: constructor
+P SharedStorageDeleteMethod :: constructor
+P SharedStorageModifierMethod :: constructor
+P SharedStorageSetMethod :: constructor
+P SharedStorageWorklet :: addModule,constructor,run,selectURL
 P SharedWorker :: constructor
 P SnapEvent :: constructor,snapTargetBlock,snapTargetInline
 P SourceBuffer :: abort,appendBuffer,buffered,changeType,constructor,onabort,onerror,onupdate,onupdateend,onupdatestart,remove

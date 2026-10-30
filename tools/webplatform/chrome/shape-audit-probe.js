@@ -23,6 +23,19 @@
     s.statics.forEach(function (m) { try { s.skinds[m] = kind(C, m); } catch (e) { s.skinds[m] = 'err'; } });
     s.order.forEach(function (m) { var d = Object.getOwnPropertyDescriptor(P, m); if (d && !d.get && !d.set && (typeof d.value === 'number' || typeof d.value === 'string' || typeof d.value === 'boolean')) s.vals[m] = d.value; });
     s.statics.forEach(function (m) { var d = Object.getOwnPropertyDescriptor(C, m); if (d && !d.get && !d.set && (typeof d.value === 'number' || typeof d.value === 'string' || typeof d.value === 'boolean')) s.svals[m] = d.value; });
+    s.symdesc = {};
+    Object.getOwnPropertySymbols(P).forEach(function (sy) {
+      var d = Object.getOwnPropertyDescriptor(P, sy), key = String(sy), o = { f: (d.enumerable ? 'e' : '-') + (d.configurable ? 'c' : '-') + (d.get || d.set ? '' : (d.writable ? 'w' : '-')) };
+      if (d.get || d.set) { o.k = 'acc'; }
+      else if (typeof d.value === 'function') {
+        o.k = 'fn';
+        if (d.value === Array.prototype.values) o.ref = 'Array.values';
+        else if (d.value === Array.prototype[Symbol.iterator]) o.ref = 'Array.values';
+        else { var hit = s.order.filter(function (m) { var dd = Object.getOwnPropertyDescriptor(P, m); return dd && dd.value === d.value; })[0]; if (hit) o.ref = hit; o.fname = d.value.name; o.flen = d.value.length; }
+      } else if (typeof d.value === 'string') { o.k = 'str'; o.v = d.value; }
+      else if (d.value && typeof d.value === 'object') { o.k = 'obj'; o.keys = Object.keys(d.value); o.np = Object.getPrototypeOf(d.value) === null; }
+      s.symdesc[key] = o;
+    });
     R[n] = s;
   });
   return JSON.stringify(R);
