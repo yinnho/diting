@@ -11586,16 +11586,19 @@ globalThis.HTMLProgressElement = _htmlInterface('HTMLProgressElement', ['progres
 globalThis.HTMLDetailsElement = _htmlInterface('HTMLDetailsElement', ['details']);
 globalThis.HTMLDialogElement = _htmlInterface('HTMLDialogElement', ['dialog']);
 
-// (#27) Element carries the whole kitchen sink of accessors (everything the
-// bootstrap reflects lives on Element.prototype), but Chrome spreads them
-// across the interfaces — `indeterminate` on HTMLInputElement.prototype,
-// `src` on HTMLImageElement.prototype, table geometry on the table family.
-// With shared prototypes nobody noticed; now each interface owns its level,
-// code that looks up a property ON the interface (getOwnPropertyDescriptor,
-// for-in over a direct prototype, zone.js patchProperty) must find it there.
-// MIRROR, don't move: the same descriptor (same getter/setter functions) is
-// re-defined one level down, so Element-level behavior for every other tag
-// and bootstrap-internal reads are untouched.
+// (#27 → 刀55) Element used to carry the whole kitchen sink of accessors
+// (everything the bootstrap reflects lived on Element.prototype), but Chrome
+// spreads them across the interfaces — `indeterminate` on
+// HTMLInputElement.prototype, `src` on HTMLImageElement.prototype, table
+// geometry on the table family. Each interface owns its level; code that
+// looks up a property ON the interface (getOwnPropertyDescriptor, for-in
+// over a direct prototype, zone.js patchProperty) finds it there. 刀55
+// inverted the old MIRROR into a MOVE: the same descriptors (same
+// getter/setter functions) are defined one level down — behavior on the
+// owning tags and bootstrap-internal reads are untouched — and then
+// element_sink.js (after the platform bundle) DELETES them from
+// Element.prototype, where Chrome has none of them (a <div> used to answer
+// .value/.rows/.href with guard-rejected ghosts).
 {
   const _interfaceProps = {
     HTMLAnchorElement: ['href', 'hash', 'host', 'hostname', 'origin', 'password', 'pathname', 'port', 'protocol', 'search', 'username', 'rel', 'rev', 'relList', 'type', 'name'],
@@ -11605,15 +11608,17 @@ globalThis.HTMLDialogElement = _htmlInterface('HTMLDialogElement', ['dialog']);
     HTMLOptionElement: ['selected', 'value', 'form', 'disabled'],
     HTMLTextAreaElement: ['value', 'placeholder', 'form', 'disabled', 'name', 'type', 'maxLength', 'minLength', 'rows', 'cols', 'wrap'],
     HTMLButtonElement: ['form', 'disabled', 'name', 'type', 'value'],
-    HTMLTableElement: ['caption', 'rows', 'tBodies', 'tFoot', 'tHead'],
-    HTMLTableRowElement: ['cells', 'rowIndex', 'sectionRowIndex'],
+    HTMLTableElement: ['caption', 'rows', 'tBodies', 'tFoot', 'tHead', 'createCaption', 'createTBody', 'createTFoot', 'createTHead', 'deleteCaption', 'deleteRow', 'deleteTFoot', 'deleteTHead', 'insertRow'],
+    HTMLTableRowElement: ['cells', 'rowIndex', 'sectionRowIndex', 'deleteCell', 'insertCell'],
+    HTMLTableSectionElement: ['rows', 'deleteRow', 'insertRow'],
     HTMLTableCellElement: ['cellIndex'],
     HTMLLinkElement: ['rel', 'rev', 'relList', 'sizes', 'disabled', 'sheet'],
     HTMLStyleElement: ['sheet'],
     HTMLMetaElement: ['content', 'scheme'],
-    HTMLLabelElement: ['htmlFor', 'form'],
+    HTMLLabelElement: ['htmlFor', 'form', 'control'],
+    HTMLDataListElement: ['options'],
     HTMLIFrameElement: ['sandbox', 'contentDocument', 'contentWindow', 'src', 'srcdoc'],
-    HTMLDialogElement: ['open', 'returnValue', 'closedBy'],
+    HTMLDialogElement: ['open', 'returnValue', 'closedBy', 'close', 'requestClose', 'show', 'showModal'],
     HTMLFieldSetElement: ['disabled', 'form', 'name', 'type'],
     HTMLProgressElement: ['max', 'value'],
     HTMLMeterElement: ['max', 'min', 'value'],
@@ -15483,9 +15488,10 @@ globalThis.__diting_dateDraftBase = function(el, fallback) {
   return _ns_dateDraft.has(el) ? _ns_dateDraft.get(el) : fallback;
 };
 
-// Element.prototype.selectionStart - get/set selection start position
-if (!Element.prototype.selectionStart) {
-  Object.defineProperty(Element.prototype, 'selectionStart', {
+// selectionStart/End/Direction live on the two text-entry interfaces in
+// Chrome (刀55: they left Element.prototype with the rest of the sink).
+for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.selectionStart) {
+  Object.defineProperty(_C.prototype, 'selectionStart', {
     get: function() {
       return _ns_selectionStart.get(this) ?? null;
     },
@@ -15498,9 +15504,8 @@ if (!Element.prototype.selectionStart) {
   });
 }
 
-// Element.prototype.selectionEnd - get/set selection end position
-if (!Element.prototype.selectionEnd) {
-  Object.defineProperty(Element.prototype, 'selectionEnd', {
+for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.selectionEnd) {
+  Object.defineProperty(_C.prototype, 'selectionEnd', {
     get: function() {
       return _ns_selectionEnd.get(this) ?? null;
     },
@@ -15513,9 +15518,8 @@ if (!Element.prototype.selectionEnd) {
   });
 }
 
-// Element.prototype.selectionDirection - get/set selection direction
-if (!Element.prototype.selectionDirection) {
-  Object.defineProperty(Element.prototype, 'selectionDirection', {
+for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.selectionDirection) {
+  Object.defineProperty(_C.prototype, 'selectionDirection', {
     get: function() {
       return _ns_selectionDir.get(this) ?? 'none';
     },
@@ -15527,9 +15531,10 @@ if (!Element.prototype.selectionDirection) {
   });
 }
 
-// Element.prototype.setSelectionRange - set text selection range
-if (!Element.prototype.setSelectionRange) {
-  Element.prototype.setSelectionRange = function setSelectionRange(start, end, direction) {
+// setSelectionRange - set text selection range (input/textarea, 刀55)
+for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.setSelectionRange) {
+  _C.prototype.setSelectionRange = function setSelectionRange(start, end) {
+    let direction = arguments[2];
     start = Math.max(0, parseInt(start, 10) || 0);
     end = Math.max(0, parseInt(end, 10) || 0);
     direction = direction === 'forward' || direction === 'backward' ? direction : 'none';
@@ -15538,20 +15543,20 @@ if (!Element.prototype.setSelectionRange) {
     _ns_selectionDir.set(this, direction);
     _ns_mirrorSelection(this);
   };
-  _markNative(Element.prototype.setSelectionRange);
+  _markNative(_C.prototype.setSelectionRange);
 }
 
-// Element.prototype.setRangeText - replace selection with text
-if (!Element.prototype.setRangeText) {
-  Element.prototype.setRangeText = function setRangeText(replacement, start, end, selectMode) {
+// setRangeText - replace selection with text (input/textarea, 刀55)
+for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.setRangeText) {
+  _C.prototype.setRangeText = function setRangeText(replacement) {
     const val = this.value;
     if (!val) return;
     const strVal = String(val);
-    start = start === undefined ? (this.selectionStart ?? 0) : Math.max(0, parseInt(start, 10) || 0);
-    end = end === undefined ? (this.selectionEnd ?? 0) : Math.max(0, parseInt(end, 10) || 0);
+    const start = arguments[1] === undefined ? (this.selectionStart ?? 0) : Math.max(0, parseInt(arguments[1], 10) || 0);
+    const end = arguments[2] === undefined ? (this.selectionEnd ?? 0) : Math.max(0, parseInt(arguments[2], 10) || 0);
     const newValue = strVal.slice(0, start) + String(replacement) + strVal.slice(end);
     this.value = newValue;
-    selectMode = selectMode || 'preserve';
+    const selectMode = arguments[3] || 'preserve';
     if (selectMode === 'select') {
       const replLen = String(replacement).length;
       _ns_selectionStart.set(this, start);
@@ -15569,12 +15574,12 @@ if (!Element.prototype.setRangeText) {
     }
     _ns_mirrorSelection(this);
   };
-  _markNative(Element.prototype.setRangeText);
+  _markNative(_C.prototype.setRangeText);
 }
 
-// Element.prototype.select - select all text in the element
-if (!Element.prototype.select) {
-  Element.prototype.select = function select() {
+// select - select all text in the element (input/textarea, 刀55)
+for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.select) {
+  _C.prototype.select = function select() {
     const val = this.value;
     if (val === undefined || val === null) return;
     const len = String(val).length;
@@ -15583,7 +15588,7 @@ if (!Element.prototype.select) {
     _ns_selectionDir.set(this, 'none');
     _ns_mirrorSelection(this);
   };
-  _markNative(Element.prototype.select);
+  _markNative(_C.prototype.select);
 }
 
 

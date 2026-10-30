@@ -1546,3 +1546,20 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 `element_staged_members_match_chrome_truth` 的 KNOWN_GAPS 清空（`gcs.len` 现在等于 Chrome 的 413）；`own_enumerable_keys_match_chrome_truth` 不再跳过 `computed`。
 枚举审计：211 个对象 204 个干净；剩 `newdoc`（createHTMLDocument/DOMParser 文档是普通对象）、`gain`/`ctxDest`（Web Audio 节点）、`gl`（WebGL，待拍板）和三个依赖宿主页面计数的噪声键。
 验收：engine 1002 过/31 败中，唯一多出的 `docmisc_matches_chrome_truth` 是 `lastModified` 两次读取跨秒的时间型偶发（单独跑三次全过）；其余失败集同干净 HEAD；diting-browser 同基线；ratchet/契约/check_fresh 过。
+
+## M4 刀55：Element 厨房水槽搬离（94 个鬼成员清零）（2026-10-31）
+
+整面形状审计（`shape_audit.py` + `shape-audit-truth-145.json`）的口径从「缺」转「多」：**Element.prototype 上有 94 个 Chrome 在任何接口上都没有的成员**——
+引擎历史设计把全部 HTML/SVG 反射成员带 localName 守卫装在 Element.prototype（#27「厨房水槽」，再镜像到子接口），于是 `<div>.value` 答空串、`<div>.rows` 答 undefined 之外的鬼、
+for-in 一览无余、`getOwnPropertyDescriptor(Element.prototype,'requestSubmit')` 撒谎。本刀把 #27 的 MIRROR 翻成 **MOVE**：
+- **`_interfaceProps` 扩表**（bootstrap）：镜像表补方法家族——dialog（close/requestClose/show/showModal）、表格十二件（create*/delete*/insertRow…落 HTMLTableElement/Row/Section）、label.control、datalist.options；同名描述符定义到子接口（守卫体不变，行为保持），随后 `element_sink.js` 把 94 个名字从 Element.prototype **delete**。
+- **`element_sink.js`（新，挂在 platform_bundle 之后）**：SVG 落家（SVGAElement: href/rel/relList/type，SVGUse/Image/Pattern/Gradient: href，SVGStyle: sheet/disabled/type，SVGSVG/Marker/Pattern: viewBox——描述符守卫本来就认这些 localName，搬=行为保持）+ 94 删单（冻结自审计，防后来者回填）。SVG 成员的 Chrome 真形（SVGAnimatedString 等）归 SVG 家族刀。
+- **selection 家族改挂真家**：selectionStart/End/Direction、setSelectionRange/setRangeText/select 从 Element.prototype 改装 HTMLInputElement+HTMLTextAreaElement（Chrome 真位）；`setSelectionRange.length`=2、`setRangeText.length`=1 对齐（可选参数走 `arguments`）。坑：中途把 `direction` 声明成 `const` 又重赋——运行时才炸「Assignment to constant variable」，改 `let`。
+- `assignedSlots`（复数）Chrome 145 全表面无此成员（只有 `assignedSlot` 单数），直接删除；`isConnected` Node 已有，删 Element 冗余副本。
+- shape_fix.js 再生循环收敛搬迁后的 order/kind 噪声。
+
+数字：整面 extra 成员 152 → **58**（Element 94 清零），missing 637 → 603（SVG/表格落家补缺 34），same 接口 740 → 748。表格式枚举审计 204/211 干净（7 个已知缺口不变）。
+表格/dialog/label/datalist 家族成员集与 Chrome **逐名全等**（对拍脚本验证）。`div.value`/`div.rows`/`div.type` 现答 undefined（Chrome 真）。
+测试改动：`element_prototype_members_match_chrome_truth`（新，钉死 147 名单=Chrome）；4 个钉旧发明的测试改钉真值（slot 的 assignedSlots、div.labels=undefined、section/row/table 面名单）。
+验收：`cargo test -p diting` 失败集与干净 HEAD **逐名全等**（110 个既有环境败）；ratchet（baseline 51→52，element_sink→bootstrap:Element 一条合法新边）/契约/check_fresh 过。
+**教训**：取基线用 `git stash` 前先想清楚未跟踪文件——`stash push` 带不存在路径会失败，随后误弹上一会话的旧 stash；已原样存回。
