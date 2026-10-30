@@ -1626,3 +1626,14 @@ missing 方向第二刀，最大户 SVGSVGElement：**34 原型件 + 3 zoom 静�
 行为验证：三轮 Chrome 对拍探针 **72/72 腿逐位全等** + 两轮补探（写回单位保留/序列依赖）10/10 全等；唯一记档分歧=**百分写回基数**（Chrome 用布局宽、随探针窗口变——本例 121.61528015136719/'40.5405%'；引擎恒用固有 300/150 基数、环境无关），不入测不入账为缺陷。
 测试：`knife59_svg_root_face_and_value_types`（新，36 面全序+静态+13 组行为断言）。surface_snapshot 重生成（+3 行）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，931 过=930+1）。
 **教训**：①测试断言两次想当然被 Chrome 打脸（attrOut 以为写 '3' 实为保单位 '2.25pt'；parOut 以为重置 meet 实为保留 slice）——**探针要探测试的精确序列**，不是探相似序列；②`pkill -f` 看不见环境变量（DITING_BIND 只在 env）——杀服务用 `lsof -ti :端口` 拿 PID；③shape_fix 的重排对不可配置成员全盲——新接口带 e-- 常量时，要么让 raw 序天生=truth 序（本刀正解），要么别让它进 ORDER 表。
+
+## M4 刀60：GPUSupportedLimits 三十一限位读面（2026-10-31）
+
+missing 方向第三刀，小刀清户：GPUSupportedLimits 原型 **31 个 ro:ec 限位 getter**（maxTextureDimension1D…maxComputeWorkgroupsPerDimension），引擎铸壳只有 `constructor`。
+
+**纯原型形状刀，零发明**：两个世界都拿不到实例——Chrome for Testing 145 headless `requestAdapter()` 返 **null**（探针 k60-chrome0），引擎同答 null。所以 getter 只读内部 `_lim` 槽、裸对象上读答 undefined（与未开槽读数一致），别的不装（无 statics、无 toStringTag 改动——审计只缺这 31 件）。ctor 挪尾配方（刀59）直接复用：raw 序=truth 序→gen 不发 ORDER 条目。
+
+ratchet **54→55** 第三次垫（刀55/刀59 先例）：新边=web_api_gaps→bootstrap 的 `GPUSupportedLimits` 一名。解剖：该类在 bootstrap 是**直写** `globalThis.GPUSupportedLimits = class`（静态可见 provider）→裸引用即成边；同文件 Credential 不成边因其为动态铸名（分析器归 external）、Blob 不成边因 node 全局表滤掉。同形边（Document/Element/XMLSerializer/_markNative）本就挂在该文件 loadRequires 里——合法、同构、照旧例顶基线，不玩 `globalThis.X` 语法躲表。
+
+数字：missing 接口 108→**107**（GPUSupportedLimits 毕业），same 762→**763**，extra 0/order 28/kind 65/len 0/statics 14 全不动。枚举审计 204/211（7 已知缺口不变）。internal_names 356→**357**（`_lim`）。surface_snapshot 重生成（GPUSupportedLimits 一行 1→32 名）。
+测试：`knife60_gpu_supported_limits_face`（新：32 名全序 ctor 末位、ro:ec 四旗、裸读 undefined、`_lim` 管道 8192、31 getter 各佩己名、ctor 无 statics）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，932 过=931+1）。

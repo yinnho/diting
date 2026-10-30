@@ -28210,3 +28210,52 @@ fn knife59_svg_root_face_and_value_types() {
     assert_eq!(v["gebi"], serde_json::json!([true, true]));
     assert_eq!(v["hidden"], serde_json::json!(""), "engine helper state stays hidden on the element");
 }
+
+/// 刀60: GPUSupportedLimits is pure prototype shape — 31 ro:ec limit getters,
+/// `constructor` moved LAST in-file so the raw capture order already equals
+/// Chrome truth (no ORDER entry, no reorder). No instance is reachable in
+/// either world (Chrome for Testing 145 headless and the engine both answer
+/// requestAdapter() with null — probed), so the getters read an internal
+/// `_lim` store and answer undefined on bare objects, exactly what an
+/// un-slotted read would show.
+#[test]
+fn knife60_gpu_supported_limits_face() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const TRUTH = ['maxTextureDimension1D', 'maxTextureDimension2D', 'maxTextureDimension3D',
+            'maxTextureArrayLayers', 'maxBindGroups', 'maxBindGroupsPlusVertexBuffers',
+            'maxBindingsPerBindGroup', 'maxDynamicUniformBuffersPerPipelineLayout',
+            'maxDynamicStorageBuffersPerPipelineLayout', 'maxSampledTexturesPerShaderStage',
+            'maxSamplersPerShaderStage', 'maxStorageBuffersPerShaderStage',
+            'maxStorageTexturesPerShaderStage', 'maxUniformBuffersPerShaderStage',
+            'maxUniformBufferBindingSize', 'maxStorageBufferBindingSize',
+            'minUniformBufferOffsetAlignment', 'minStorageBufferOffsetAlignment',
+            'maxVertexBuffers', 'maxBufferSize', 'maxVertexAttributes',
+            'maxVertexBufferArrayStride', 'maxInterStageShaderVariables', 'maxColorAttachments',
+            'maxColorAttachmentBytesPerSample', 'maxComputeWorkgroupStorageSize',
+            'maxComputeInvocationsPerWorkgroup', 'maxComputeWorkgroupSizeX',
+            'maxComputeWorkgroupSizeY', 'maxComputeWorkgroupSizeZ',
+            'maxComputeWorkgroupsPerDimension'].concat(['constructor']);
+          const P = GPUSupportedLimits.prototype;
+          const names = Object.getOwnPropertyNames(P);
+          const order = names.length === 32 && names.every((n, i) => n === TRUTH[i]);
+          const d = Object.getOwnPropertyDescriptor(P, 'maxTextureDimension1D');
+          const flags = [!!d && typeof d.get === 'function', d.set === undefined, !!d && d.enumerable, !!d && d.configurable];
+          const bare = Object.create(P).maxTextureDimension2D;
+          const o = Object.create(P);
+          o._lim = { maxTextureDimension2D: 8192 };
+          const plumb = o.maxTextureDimension2D;
+          const named = TRUTH.slice(0, 31).filter((n) => Object.getOwnPropertyDescriptor(P, n).get.name === n).length;
+          const statics = Object.getOwnPropertyNames(GPUSupportedLimits).sort();
+          return JSON.stringify({ order, flags, bare, plumb, named, statics });
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["order"], serde_json::json!(true), "32 own names, constructor LAST, truth order");
+    assert_eq!(v["flags"], serde_json::json!([true, true, true, true]), "ro:ec — getter, no setter");
+    assert_eq!(v["bare"], serde_json::json!(null), "un-slotted read answers undefined");
+    assert_eq!(v["plumb"], serde_json::json!(8192), "getters read the internal _lim store");
+    assert_eq!(v["named"], serde_json::json!(31), "every getter carries its limit's own name");
+    assert_eq!(v["statics"], serde_json::json!(["length", "name", "prototype"]), "no statics");
+}

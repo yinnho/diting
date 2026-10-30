@@ -133,4 +133,39 @@
     Object.defineProperty(Credential.prototype, 'id', { get: gid, enumerable: true, configurable: true });
     Object.defineProperty(Credential.prototype, 'type', { get: gtype, enumerable: true, configurable: true });
   }
+
+  // ---- GPUSupportedLimits 31 limit getters (刀60) --------------------------
+  // Chrome 145 lists 31 ro:ec limit getters on GPUSupportedLimits.prototype;
+  // the engine's mint carried only `constructor`. No instance is reachable in
+  // EITHER world — Chrome for Testing 145 headless answers requestAdapter()
+  // with null (probed), and so does the engine — so this face is pure
+  // prototype shape: the getters read an internal _lim store and answer
+  // undefined on bare objects, exactly what an un-slotted read would show.
+  // Order follows truth with `constructor` moved LAST in-file (刀59 trick:
+  // the raw order then equals truth, gen_shape_fix emits no ORDER entry, and
+  // nothing ever reorders against this prototype).
+  if (typeof GPUSupportedLimits === 'function') {
+    const LIM = ['maxTextureDimension1D', 'maxTextureDimension2D', 'maxTextureDimension3D',
+      'maxTextureArrayLayers', 'maxBindGroups', 'maxBindGroupsPlusVertexBuffers',
+      'maxBindingsPerBindGroup', 'maxDynamicUniformBuffersPerPipelineLayout',
+      'maxDynamicStorageBuffersPerPipelineLayout', 'maxSampledTexturesPerShaderStage',
+      'maxSamplersPerShaderStage', 'maxStorageBuffersPerShaderStage',
+      'maxStorageTexturesPerShaderStage', 'maxUniformBuffersPerShaderStage',
+      'maxUniformBufferBindingSize', 'maxStorageBufferBindingSize',
+      'minUniformBufferOffsetAlignment', 'minStorageBufferOffsetAlignment',
+      'maxVertexBuffers', 'maxBufferSize', 'maxVertexAttributes',
+      'maxVertexBufferArrayStride', 'maxInterStageShaderVariables', 'maxColorAttachments',
+      'maxColorAttachmentBytesPerSample', 'maxComputeWorkgroupStorageSize',
+      'maxComputeInvocationsPerWorkgroup', 'maxComputeWorkgroupSizeX',
+      'maxComputeWorkgroupSizeY', 'maxComputeWorkgroupSizeZ',
+      'maxComputeWorkgroupsPerDimension'];
+    const P = GPUSupportedLimits.prototype;
+    for (const k of LIM) {
+      const g = new Function('k', 'return function ' + k + '() { const l = this._lim; return l ? l[k] : undefined; };')(k);
+      _markNative(g);
+      Object.defineProperty(P, k, { get: g, enumerable: true, configurable: true });
+    }
+    const cd = Object.getOwnPropertyDescriptor(P, 'constructor');
+    if (cd && cd.configurable) { delete P.constructor; Object.defineProperty(P, 'constructor', cd); }
+  }
 })();
