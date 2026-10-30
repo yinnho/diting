@@ -11786,9 +11786,12 @@ globalThis.SVGGraphicsElement = class SVGGraphicsElement extends globalThis.SVGE
 // shape in user units through the Rust-side PathMeasure — ovals as Skia's
 // exact conic chord measure, explicit d beziers analytically (Chrome's own
 // numbers, not the analytic perimeters).
+// 刀59: storage moved to the hidden _ps object — x/y are prototype
+// accessors now (Chrome truth rw:ec), and matrixTransform COMPUTES
+// (installed in svg_root.js; the old stub returned `this`). Sharing one
+// _ps object is how currentTranslate keeps writes across fresh wrappers.
 globalThis.SVGPoint = class SVGPoint {
-  constructor(x = 0, y = 0) { this.x = x; this.y = y; }
-  matrixTransform() { return this; }
+  constructor(x = 0, y = 0) { this._ps = { x: Number(x) || 0, y: Number(y) || 0 }; }
 };
 globalThis.SVGGeometryElement = class SVGGeometryElement extends globalThis.SVGGraphicsElement {
   getTotalLength() { return _OPS.op_svg_path_len(this._nid | 0); }

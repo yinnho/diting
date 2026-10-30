@@ -1975,7 +1975,7 @@ P SVGNumber :: constructor,value
 P SVGNumberList :: appendItem,clear,constructor,getItem,initialize,insertItemBefore,length,numberOfItems,removeItem,replaceItem
 P SVGPathElement :: constructor
 P SVGPatternElement :: constructor,href,viewBox
-P SVGPoint :: constructor,matrixTransform
+P SVGPoint :: constructor,matrixTransform,x,y
 P SVGPointList :: appendItem,clear,constructor,getItem,initialize,insertItemBefore,length,numberOfItems,removeItem,replaceItem
 P SVGPolygonElement :: constructor
 P SVGPolylineElement :: constructor
@@ -1984,7 +1984,8 @@ P SVGPreserveAspectRatio :: SVG_MEETORSLICE_MEET,SVG_MEETORSLICE_SLICE,SVG_MEETO
 P SVGRadialGradientElement :: constructor
 P SVGRect :: constructor,height,width,x,y
 P SVGRectElement :: constructor
-P SVGSVGElement :: constructor,viewBox
+S SVGSVGElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN
+P SVGSVGElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN,animationsPaused,checkEnclosure,checkIntersection,constructor,createSVGAngle,createSVGLength,createSVGMatrix,createSVGNumber,createSVGPoint,createSVGRect,createSVGTransform,createSVGTransformFromMatrix,currentScale,currentTranslate,deselectAll,forceRedraw,getCurrentTime,getElementById,getEnclosureList,getIntersectionList,height,pauseAnimations,preserveAspectRatio,setCurrentTime,suspendRedraw,unpauseAnimations,unsuspendRedraw,unsuspendRedrawAll,viewBox,width,x,y,zoomAndPan
 P SVGScriptElement :: async,constructor,href,type
 P SVGSetElement :: constructor
 P SVGStopElement :: constructor
