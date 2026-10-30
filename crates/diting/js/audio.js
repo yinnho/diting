@@ -296,13 +296,9 @@ globalThis.speechSynthesis = {
         setTimeout(() => {
           this._loaded = true;
           try {
-            const ev = { type: 'voiceschanged', target: this };
+            const ev = new Event('voiceschanged');
             if (typeof this.onvoiceschanged === 'function') this.onvoiceschanged(ev);
-            if (this._vcListeners) {
-              for (const fn of this._vcListeners) {
-                try { fn(ev); } catch (e) {}
-              }
-            }
+            this.dispatchEvent(ev);
           } catch (e) {}
         }, 40);
       }
@@ -349,14 +345,6 @@ globalThis.speechSynthesis = {
     return this._voices;
   },
   speak() {}, cancel() {}, pause() {}, resume() {},
-  addEventListener(t, fn) {
-    if (t === 'voiceschanged' && typeof fn === 'function') {
-      (this._vcListeners = this._vcListeners || []).push(fn);
-    }
-  },
-  removeEventListener(t, fn) {
-    if (this._vcListeners) this._vcListeners = this._vcListeners.filter((f) => f !== fn);
-  },
   onvoiceschanged: null,
 };
 

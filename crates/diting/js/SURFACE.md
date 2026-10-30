@@ -1518,3 +1518,21 @@ surface 快照按预期更新（`NodeList` 多 `length`，`Option` 原型改指�
 - 枚举补丁的 `_isInternal` 现在对所有名字查隐藏名单（导出的非下划线内部名如 `REFERRER_POLICIES`）。
 测试 `window_enumerable_own_keys_match_chrome_truth`（`enum-truth-145.json`，237 键）。验收：engine 1001 过/30 败、diting-browser 464/46 败、diting_runtime 全过（均同干净 HEAD）；ratchet/契约/check_fresh 过。
 **仍待做（刀53b）**：实例上的 `_x` 私有字段（`_nid/_style/_templateContent`、Range/Blob/XHR/WebSocket/ReadableStream/…）、单例对象的自有方法（speechSynthesis/mediaDevices/caches/rs reader/AudioNode…）、DOMRect/PerformanceTiming 自有数据属性、getComputedStyle 的索引键。
+
+## M4 刀53b：实例的自有可枚举键与类身份（泄漏对象 127 → 11 的审计口径）（2026-10-31）
+
+审计口径（刀53a 起）= `for-in`+`hasOwnProperty`，覆盖 211 个对象（每个元素标签、各类节点、Range、事件、XHR/WebSocket/流、单例、画布、观察者、URL 家族……）。
+本刀处理 **实例上的 `_x` 私有字段** 与 **类身份错误的对象**：
+- **隐藏型访问器 `hide_priv.js`（生成，`gen_hide_priv.py`）**：engine 的类把私有状态当普通自有属性（`this._nid = nid`），for-in/JSON/spread 全看得见。不改几十个构造器，而是给每个这样的字段名在**最近的公共原型**上放一对访问器：
+  setter 把第一次赋值变成实例上**不可枚举**的自有数据属性，之后读写直接命中自有属性；getter 返回 undefined（与字段缺失时一致）。名单来自 `enum-probe.js` 抓取的 `#chains`（每个对象的原型链）取最深公共祖先；
+  `hide_priv_extra.json` 补探针走不到的路径（`Node._ownerDocument`）；生成器合并已有名单（隐藏后的抓取已看不到被隐藏的字段）。
+- **单例并入类原型**（`demote_own.js` TARGETS）：`navigator.storage`→StorageManager、`mediaSession`、`mediaDevices`、`speechSynthesis`、`caches`→CacheStorage、`document.implementation`→DOMImplementation（现在每文档一个缓存实例，原先每次读都是新对象字面量）、
+  `performance.timing`→PerformanceTiming；自有 `_x` 在单例上置为不可枚举；mediaDevices/speechSynthesis 的空操作 EventTarget 三件套删除，走真 EventTarget（voiceschanged 用 `dispatchEvent`）。
+- **类身份**：`getBoundingClientRect()` 返回真 `DOMRect`（原为带 `toJSON` 自有属性的字面量，`[object Object]`）；`getClientRects()` 返回 `DOMRectList`（`domrectlist.impl.js`，原为数组+自有 `item`）；
+  `document.styleSheets` 返回 `StyleSheetList`（`stylesheetlist.impl.js`）；MutationObserver 记录是 `MutationRecord` 实例、`addedNodes/removedNodes` 是 NodeList（`mutationrecord.impl.js`）；
+  ReadableStream 的 reader/controller 成员移到各自原型（状态在 WeakMap）；`new Audio(url)` 是真 `<audio>` 元素且 `Audio.prototype === HTMLAudioElement.prototype`（原来直接抛 Illegal invocation）；`DragEvent` 可构造（`dragevent.impl.js`，原为忽略参数的桩）；
+  `OffscreenCanvas.width/height` 提升到原型；`console` 按 Chrome 顺序补齐 `dirxml/profile/profileEnd/timeStamp/memory`，`@@toStringTag` 为 `'console'`；样式对象的 `epub*` 名字不可枚举。
+- `performance.measure` 解析 PerformanceTiming 名字改用 `name in timing`（成员已在原型上）。
+测试 `own_enumerable_keys_match_chrome_truth`（`enum-truth-145.json`）：~200 个对象逐个对拍，**已知缺口显式列出且只能缩不能涨**：
+`computed`（getComputedStyle 枚举 690 个名字，Chrome 枚举索引）、`newdoc`（createHTMLDocument/DOMParser 文档是普通对象）、`gain/ctxDest`（Web Audio 节点是普通对象）、`gl`（无头 Chrome 的 WebGL 是 null，引擎给假上下文）。
+验收：engine 1003 过/30 败、diting-browser 464/46 败、diting_runtime 全过（均同干净 HEAD）；ratchet/契约/check_fresh 过。

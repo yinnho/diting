@@ -66,3 +66,26 @@
     if (Object.getOwnPropertyDescriptor(globalThis, Symbol.toStringTag) && Object.getOwnPropertyDescriptor(globalThis.Window.prototype, Symbol.toStringTag)) delete globalThis[Symbol.toStringTag];
   } catch (e) {}
 })();
+
+// `console` in Chrome 145: own members in this order (all enumerable methods except the `memory` accessor), @@toStringTag
+// 'console' (not 'Console'); the engine lacked dirxml/profile/profileEnd/timeStamp/memory and listed the rest in another order.
+(function () {
+  try {
+    const c = globalThis.console;
+    if (!c || typeof c !== 'object') return;
+    const ORDER = ['debug', 'error', 'info', 'log', 'warn', 'dir', 'dirxml', 'table', 'trace', 'group', 'groupCollapsed', 'groupEnd', 'clear',
+      'count', 'countReset', 'assert', 'profile', 'profileEnd', 'time', 'timeLog', 'timeEnd', 'timeStamp', 'context', 'createTask', 'memory'];
+    const mark = globalThis.__diting_markNative || ((f) => f);
+    const keep = Object.create(null);
+    for (const k of ORDER) { const d = Object.getOwnPropertyDescriptor(c, k); if (d) keep[k] = d; }
+    const noop = (name) => mark({ [name]: function () {} }[name]);
+    for (const k of ORDER) {
+      if (k === 'memory') continue;
+      if (!keep[k]) keep[k] = { value: noop(k), writable: true, enumerable: true, configurable: true };
+    }
+    keep.memory = { get: mark({ get memory() { return globalThis.performance && globalThis.performance.memory; } }.__lookupGetter__('memory')), set: undefined, enumerable: true, configurable: true };
+    for (const k of ORDER) { if (Object.getOwnPropertyDescriptor(c, k)) delete c[k]; }
+    for (const k of ORDER) Object.defineProperty(c, k, keep[k]);
+    Object.defineProperty(c, Symbol.toStringTag, { value: 'console', writable: false, enumerable: false, configurable: true });
+  } catch (e) {}
+})();

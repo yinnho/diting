@@ -1,0 +1,6 @@
+{
+ "_comment": "private fields the enum probe cannot reach on every run (set only on some code paths); merged into hide_priv.js",
+ "Node": [
+  "_ownerDocument"
+ ]
+}

@@ -111,6 +111,7 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),
     ("internal_names.js", include_str!("js/internal_names.js")),
+    ("hide_priv.js", include_str!("js/hide_priv.js")),
     ("mixin_fix.js", include_str!("js/mixin_fix.js")),
     ("stub_members.js", include_str!("js/stub_members.js")),
     ("sym_fix.js", include_str!("js/sym_fix.js")),

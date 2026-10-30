@@ -6,6 +6,7 @@ import json, sys
 E = json.load(open(sys.argv[1])); C = json.load(open(sys.argv[2]))
 rows = []
 for n, c in C.items():
+    if n.startswith('#'): continue
     e = E.get(n)
     if not isinstance(c, list) or not isinstance(e, list):
         if c != e: rows.append((999, n, ['<%s vs %s>' % (str(e)[:30], str(c)[:30])], []))
@@ -13,5 +14,6 @@ for n, c in C.items():
     extra = [k for k in e if k not in c]; miss = [k for k in c if k not in e]
     if extra or miss: rows.append((len(extra) + len(miss), n, extra, miss))
 rows.sort(reverse=True)
-print('objects', len(C), 'clean', len(C) - len(rows), 'leaky', len(rows))
+nobj = len([k for k in C if not k.startswith('#')])
+print('objects', nobj, 'clean', nobj - len(rows), 'leaky', len(rows))
 for k, n, ex, ms in rows: print('%3d %-14s extra=%s missing=%s' % (k, n, ex[:12], ms[:6]))

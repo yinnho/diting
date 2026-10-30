@@ -4,7 +4,9 @@
 (function () {
   var R = {};
   function keys(x) { var ks = []; for (var k in x) { if (Object.prototype.hasOwnProperty.call(x, k)) ks.push(k); } return ks; }
-  function k(n, f) { try { var x = f(); R[n] = (x !== null && (typeof x === 'object' || typeof x === 'function')) ? keys(x) : 'primitive'; } catch (e) { R[n] = 'THROW ' + e.name; } }
+  var CH = {};
+  function chain(x) { var c = [], p = Object.getPrototypeOf(x), n = 0; while (p && n++ < 12) { var d = Object.getOwnPropertyDescriptor(p, 'constructor'); c.push(d && typeof d.value === 'function' ? d.value.name : '?'); p = Object.getPrototypeOf(p); } return c; }
+  function k(n, f) { try { var x = f(); var ok = x !== null && (typeof x === 'object' || typeof x === 'function'); R[n] = ok ? keys(x) : 'primitive'; if (ok) CH[n] = chain(x); } catch (e) { R[n] = 'THROW ' + e.name; } }
   var h = document.createElement('div'); h.id = 'enumhold'; document.body.appendChild(h);
   ['div', 'span', 'a', 'input', 'select', 'option', 'textarea', 'form', 'img', 'canvas', 'video', 'audio', 'table', 'tr', 'td', 'button', 'label', 'iframe', 'script', 'style', 'link', 'body', 'html', 'head', 'li', 'ul', 'p', 'h1', 'details', 'dialog', 'template', 'slot', 'object', 'embed', 'meter', 'progress', 'fieldset', 'output', 'map', 'area', 'svg', 'optgroup', 'legend', 'caption', 'col', 'base', 'meta', 'title', 'noscript', 'source', 'track', 'param', 'picture', 'menu', 'data', 'time', 'br', 'hr', 'pre', 'blockquote'].forEach(function (t) { k('el.' + t, function () { return document.createElement(t); }); });
   k('el.styled', function () { var d = document.createElement('div'); d.style.color = 'red'; return d; });
@@ -66,5 +68,6 @@
   k('opt', function () { return new Option('a', 'b'); }); k('img2', function () { return new Image(); }); k('aud', function () { return new Audio(); });
   k('selfWin', function () { return window; }); k('globalThis', function () { return globalThis; });
   var out = {}; Object.keys(R).sort().forEach(function (n) { out[n] = Array.isArray(R[n]) ? R[n].slice().sort() : R[n]; });
+  out['#chains'] = CH;
   return JSON.stringify(out);
 })()
