@@ -105,6 +105,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("css_rules.js", include_str!("js/css_rules.js")),
     ("adopted_sheets.js", include_str!("js/adopted_sheets.js")),
     ("web_api_gaps.js", include_str!("js/web_api_gaps.js")),
+    // 刀59: the SVG root face — SVGSVGElement's 34 missing members + 3 zoom
+    // statics, and the real storage the face reaches through (the legacy SVG
+    // value types were stub shells). After web_api_gaps so the minted shells
+    // exist; before stub_members so the fill-if-missing pass stays out.
+    ("svg_root.js", include_str!("js/svg_root.js")),
     // 刀56: after global_surface minted AbstractRange and wired the Range
     // chains, the shared boundary getters land on AbstractRange.prototype
     // and leave the two class prototypes (before stub_members' fill).

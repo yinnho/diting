@@ -28072,3 +28072,141 @@ fn knife58_element_internals_aria_reflection_family() {
     assert_eq!(v["hidden"], serde_json::json!(""), "_aria/_refs and ctor state stay hidden on the instance");
     assert_eq!(v["tag"], serde_json::json!("[object ElementInternals]"));
 }
+
+/// M4 刀59 (2026-10-31): the SVG root face — SVGSVGElement's 34 missing
+/// members + 3 zoom statics (audit 37 -> 0), SVGPoint's x/y, and the real
+/// storage the face reaches through: the legacy SVG value types were
+/// stub shells returning undefined. All semantics probed against Chrome
+/// 145: x/y default 0-number while width/height default 100% resolving
+/// against the 300x150 default viewport; attached lengths are a live VIEW
+/// of the attribute (write-back both ways); animVal writes throw
+/// NoModificationAllowedError; SVG numbers are float32 (5pt reads
+/// 6.666666507720947); SVGMatrix ops are PURE (receiver never mutated);
+/// zoomAndPan defaults 2, invalid setters land on 0, never sync the
+/// attribute; suspendRedraw always returns 1; the redraw/animation clock
+/// no-ops; hit-testing lists from attribute geometry.
+#[test]
+fn knife59_svg_root_face_and_value_types() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const NS = 'http://www.w3.org/2000/svg';
+          const svg = document.createElementNS(NS, 'svg');
+          document.body.appendChild(svg);
+          const mkc = (cx, cy, r, id) => {
+            const c = document.createElementNS(NS, 'circle');
+            c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+            if (id) c.id = id;
+            svg.appendChild(c);
+            return c;
+          };
+          const near = mkc(10, 10, 5, 'near');
+          mkc(500, 500, 2, 'far');
+          const rect = svg.createSVGRect();
+          rect.x = 0; rect.y = 0; rect.width = 100; rect.height = 100;
+          const out = {};
+          out.proto = Object.getOwnPropertyNames(Object.getPrototypeOf(svg));
+          out.statics = [SVGSVGElement.SVG_ZOOMANDPAN_DISABLE, SVGSVGElement.SVG_ZOOMANDPAN_MAGNIFY, SVGSVGElement.SVG_ZOOMANDPAN_UNKNOWN,
+                         SVGSVGElement.prototype.SVG_ZOOMANDPAN_DISABLE];
+          out.xyw = [svg.x.baseVal.value, svg.x.baseVal.unitType, svg.x.baseVal.valueAsString,
+                     svg.width.baseVal.value, svg.width.baseVal.unitType, svg.width.baseVal.valueAsString,
+                     svg.height.baseVal.value, svg.y.baseVal.value];
+          out.live = [svg.x === svg.x, svg.x.baseVal === svg.x.baseVal, svg.x.baseVal === svg.x.animVal];
+          out.attrIn = (() => { svg.setAttribute('width', '100'); svg.setAttribute('x', '5pt');
+                                return [svg.width.baseVal.value, svg.x.baseVal.value, svg.width.animVal.value]; })();
+          out.attrOut = (() => { svg.x.baseVal.value = 3; return [svg.x.baseVal.value, svg.getAttribute('x')]; })();
+          out.animWrite = (() => { try { svg.width.animVal.value = 5; return 'no-throw'; } catch (e) { return e.name; } })();
+          out.par = [svg.preserveAspectRatio.baseVal.align, svg.preserveAspectRatio.baseVal.meetOrSlice,
+                     svg.preserveAspectRatio === svg.preserveAspectRatio,
+                     svg.preserveAspectRatio.baseVal === svg.preserveAspectRatio.animVal];
+          out.parAttr = (() => { svg.setAttribute('preserveAspectRatio', 'xMinYMax slice');
+                                 return [svg.preserveAspectRatio.baseVal.align, svg.preserveAspectRatio.baseVal.meetOrSlice]; })();
+          out.parOut = (() => { svg.preserveAspectRatio.baseVal.align = 7; return svg.getAttribute('preserveAspectRatio'); })();
+          out.zoom = [svg.zoomAndPan, (svg.zoomAndPan = 1, svg.zoomAndPan), svg.getAttribute('zoomAndPan'),
+                      (svg.zoomAndPan = 5, svg.zoomAndPan), (svg.zoomAndPan = 0, svg.zoomAndPan)];
+          out.scale = [svg.currentScale, (svg.currentScale = 2, svg.currentScale)];
+          out.ct = (() => { const p = svg.currentTranslate; p.x = 5; return [svg.currentTranslate === p, svg.currentTranslate.x]; })();
+          out.factories = ['createSVGAngle','createSVGLength','createSVGMatrix','createSVGNumber','createSVGPoint','createSVGRect','createSVGTransform']
+            .map((n) => svg[n]().constructor.name);
+          out.angle = (() => { const a = svg.createSVGAngle(); return [a.value, a.valueAsString, a.unitType, a.valueInSpecifiedUnits]; })();
+          out.angleSet = (() => { const a = svg.createSVGAngle(); a.newValueSpecifiedUnits(2, 90); return [a.unitType, a.value, a.valueInSpecifiedUnits, a.valueAsString]; })();
+          out.angleValue = (() => { const a = svg.createSVGAngle(); a.value = 30; return [a.value, a.valueAsString, a.unitType]; })();
+          out.len = (() => { const l = svg.createSVGLength(); l.valueAsString = '10mm'; return [l.value, l.valueAsString, l.unitType]; })();
+          out.lenBad = (() => { try { svg.createSVGLength().valueAsString = 'abc'; return 'no-throw'; } catch (e) { return e.name; } })();
+          out.lenPct = (() => { const l = svg.createSVGLength(); l.valueAsString = '50%'; try { l.value; return 'read-ok'; } catch (e) { return e.name; } })();
+          out.lenConv = (() => { const l = svg.createSVGLength(); l.newValueSpecifiedUnits(9, 72); return [l.value, l.unitType]; })();
+          out.lenConvert = (() => { const l = svg.createSVGLength(); l.newValueSpecifiedUnits(9, 72); l.convertToSpecifiedUnits(10); return [l.value, l.unitType, l.valueAsString]; })();
+          out.num = (() => { const n = svg.createSVGNumber(); n.value = 7; return n.value; })();
+          out.pt = (() => { const p = svg.createSVGPoint(); p.x = 3; p.y = 4; return [p.x, p.y, p.matrixTransform(svg.createSVGMatrix()).x]; })();
+          out.ptProto = [Object.getOwnPropertyNames(SVGPoint.prototype).join(','), new SVGPoint(1, 2).x];
+          out.rect0 = (() => { const r = svg.createSVGRect(); r.width = 9; return [r.x, r.width]; })();
+          out.matrix = (() => { const m = svg.createSVGMatrix(); return [m.a, m.d, m.e, m.f]; })();
+          out.matrixPure = (() => { const m = svg.createSVGMatrix(); m.a = 2; const t = m.translate(1, 2);
+                                    return [m.a, m.e, m.f, t.a, t.e, t.f, t === m]; })();
+          out.matrixInv = (() => { const m = svg.createSVGMatrix(); m.a = 2; m.d = 2; return m.inverse().a; })();
+          out.tfm = (() => { const t = svg.createSVGTransform(); return [t.type, t.angle, t.matrix === t.matrix, t.matrix.a]; })();
+          out.tfmCopy = (() => { const m = svg.createSVGMatrix(); m.e = 4; const t = svg.createSVGTransformFromMatrix(m);
+                                 m.e = 9; return [t.type, t.matrix.e]; })();
+          out.tfmRot = (() => { const t = svg.createSVGTransform(); t.setRotate(90, 0, 0);
+                                return [t.type, t.angle, t.matrix.a, t.matrix.d]; })();
+          out.clock = [svg.getCurrentTime(), (svg.setCurrentTime(1.5), svg.getCurrentTime()), svg.animationsPaused()];
+          out.redraw = [svg.suspendRedraw(10), svg.suspendRedraw(1), svg.unsuspendRedraw(0), svg.unsuspendRedrawAll(), svg.forceRedraw(), svg.deselectAll()];
+          out.hit = [svg.getIntersectionList(rect, null).length, svg.getEnclosureList(rect, null).length,
+                     svg.checkIntersection(near, rect), svg.checkEnclosure(near, rect)];
+          out.hitNone = (() => { const z = svg.createSVGRect(); const l = svg.getIntersectionList(z, null);
+                                 return [l === null, l.length]; })();
+          out.hitRef = (() => { const g = document.createElementNS(NS, 'g'); svg.appendChild(g); g.appendChild(near);
+                                return svg.getIntersectionList(rect, g).length; })();
+          out.gebi = [svg.getElementById('near') === near, svg.getElementById('nope') === null];
+          out.hidden = Object.getOwnPropertyNames(svg).filter((k) => k[0] === '_').join(',');
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let want = serde_json::json!(["x","y","width","height","currentScale","currentTranslate","viewBox","preserveAspectRatio","zoomAndPan",
+        "SVG_ZOOMANDPAN_UNKNOWN","SVG_ZOOMANDPAN_DISABLE","SVG_ZOOMANDPAN_MAGNIFY","animationsPaused","checkEnclosure","checkIntersection",
+        "createSVGAngle","createSVGLength","createSVGMatrix","createSVGNumber","createSVGPoint","createSVGRect","createSVGTransform",
+        "createSVGTransformFromMatrix","deselectAll","forceRedraw","getCurrentTime","getElementById","getEnclosureList","getIntersectionList",
+        "pauseAnimations","setCurrentTime","suspendRedraw","unpauseAnimations","unsuspendRedraw","unsuspendRedrawAll","constructor"]);
+    assert_eq!(v["proto"], want, "Chrome's exact 36-member order");
+    assert_eq!(v["statics"], serde_json::json!([1, 2, 0, 1]), "zoom constants on ctor and proto");
+    assert_eq!(v["xyw"], serde_json::json!([0, 1, "0", 300, 2, "100%", 150, 0]),
+        "x/y default 0-number; width/height default 100% against the 300x150 viewport");
+    assert_eq!(v["live"], serde_json::json!([true, true, false]), "live wrapper, stable baseVal, distinct animVal");
+    assert_eq!(v["attrIn"], serde_json::json!([100, 6.666666507720947, 100]), "attribute feeds the view; float32 storage");
+    assert_eq!(v["attrOut"], serde_json::json!([3, "2.25pt"]), "baseVal.value writes back in the CURRENT unit (probed: 3px on a pt length -> 2.25pt)");
+    assert_eq!(v["animWrite"], serde_json::json!("NoModificationAllowedError"));
+    assert_eq!(v["par"], serde_json::json!([6, 1, true, false]), "default xMidYMid meet, live wrapper");
+    assert_eq!(v["parAttr"], serde_json::json!([8, 2]), "attribute parses into align/meetOrSlice");
+    assert_eq!(v["parOut"], serde_json::json!("xMaxYMid slice"), "align setter writes the full keyword back, KEEPING meetOrSlice (probed after a slice attr)");
+    assert_eq!(v["zoom"], serde_json::json!([2, 1, null, 0, 0]), "default 2, valid stored, invalid lands 0, no attribute sync");
+    assert_eq!(v["scale"], serde_json::json!([1, 2]));
+    assert_eq!(v["ct"], serde_json::json!([false, 5]), "fresh SVGPoint each read, shared storage keeps writes");
+    assert_eq!(v["factories"], serde_json::json!(["SVGAngle","SVGLength","SVGMatrix","SVGNumber","SVGPoint","SVGRect","SVGTransform"]));
+    assert_eq!(v["angle"], serde_json::json!([0, "0", 1, 0]));
+    assert_eq!(v["angleSet"], serde_json::json!([2, 90, 90, "90deg"]));
+    assert_eq!(v["angleValue"], serde_json::json!([30, "30", 1]));
+    assert_eq!(v["len"], serde_json::json!([37.7952766418457, "10mm", 7]), "float32 mm conversion");
+    assert_eq!(v["lenBad"], serde_json::json!("SyntaxError"));
+    assert_eq!(v["lenPct"], serde_json::json!("NotSupportedError"), "detached % has no resolution context");
+    assert_eq!(v["lenConv"], serde_json::json!([96, 9]), "72pt = 96px");
+    assert_eq!(v["lenConvert"], serde_json::json!([96, 10, "6pc"]), "convert keeps px, reformats string");
+    assert_eq!(v["num"], serde_json::json!(7));
+    assert_eq!(v["pt"], serde_json::json!([3, 4, 3]), "matrixTransform computes");
+    assert_eq!(v["ptProto"], serde_json::json!(["x,y,matrixTransform,constructor", 1]), "x/y now prototype accessors");
+    assert_eq!(v["rect0"], serde_json::json!([0, 9]));
+    assert_eq!(v["matrix"], serde_json::json!([1, 1, 0, 0]), "identity default");
+    assert_eq!(v["matrixPure"], serde_json::json!([2, 0, 0, 2, 2, 2, false]),
+        "translate returns a NEW matrix; receiver untouched");
+    assert_eq!(v["matrixInv"], serde_json::json!(0.5));
+    assert_eq!(v["tfm"], serde_json::json!([1, 0, true, 1]), "MATRIX type, cached identity matrix");
+    assert_eq!(v["tfmCopy"], serde_json::json!([1, 4]), "createSVGTransformFromMatrix copies");
+    assert_eq!(v["tfmRot"], serde_json::json!([4, 90, 6.123233995736766e-17, 6.123233995736766e-17]), "Chrome's exact cos(90°)");
+    assert_eq!(v["clock"], serde_json::json!([0, 0, false]), "no SMIL: clock reads 0 even after setCurrentTime");
+    assert_eq!(v["redraw"], serde_json::json!([1, 1, null, null, null, null]), "suspendRedraw always 1; the rest undefined");
+    assert_eq!(v["hit"], serde_json::json!([1, 1, true, true]), "circle in rect: one hit, enclosed");
+    assert_eq!(v["hitNone"], serde_json::json!([false, 0]), "empty result is an empty NodeList, not null");
+    assert_eq!(v["hitRef"], serde_json::json!(1), "reference element scopes the walk");
+    assert_eq!(v["gebi"], serde_json::json!([true, true]));
+    assert_eq!(v["hidden"], serde_json::json!(""), "engine helper state stays hidden on the element");
+}

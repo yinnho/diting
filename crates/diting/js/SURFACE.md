@@ -1607,3 +1607,22 @@ extra 清零后转 missing 方向，最大户 ElementInternals：Chrome 145 有�
 数字：missing 接口 111→**110**（ElementInternals 毕业），same 759→**760**，extra 0/order 28/kind 65 不变；枚举审计 204/211（7 缺口不变）；ratchet 过（crossFileLoadTimeNames 52）。shape_fix 正规再生恰一条 diff（ORDER.ElementInternals 全 Chrome 序）。surface_snapshot 重生成。
 测试：`knife58_element_internals_aria_reflection_family`（新，63 面+13 组断言：缺省 null/属性不喂/setter 不碰/双面独立/强转/null 清/role/ref 三态/rw:ec/隐藏槽/toStringTag）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，930 过=929+1）。
 **教训**：对拍探针的每一步都可能被前一步污染——同页连续赋值/设属性后，下一腿的读数要先排除前腿残留；customElements 名字在同一 /eval 页里跨调用持久（脚本双注入即撞名），探针一律 `if (!customElements.get(...))` 守卫。
+
+## M4 刀59：SVGSVGElement 三十七件 + SVG 值类型真存储（missing 方向第二刀）（2026-10-31）
+
+missing 方向第二刀，最大户 SVGSVGElement：**34 原型件 + 3 zoom 静态**（37 mismatch），顺带 SVGPoint 的 x/y 两件（引擎原型只有 matrixTransform）。刀前该接口只有 viewBox——还是 element_sink 从 Element 厨房水槽搬来的守卫版。
+
+**刀芯不止装面——面够到的存储全是空的**：八个工厂方法返回的 SVGAngle/SVGLength/SVGMatrix/SVGNumber/SVGPoint/SVGRect/SVGTransform 与 x/y/width/height 的 SVGAnimatedLength、preserveAspectRatio 的 SVGAnimatedPreserveAspectRatio，全是 global_surface 铸壳+stub_members 桩（成员在、返回 undefined）。新文件 **`svg_root.js`**（挂 web_api_gaps 之后、stub_members 之前——壳已铸、fill-if-missing 让位真体）一揽子装真：
+- **SVGLength 属性视图模型**：挂靠长度（svg 的 x/y/width/height）是属性的 VIEW——读=parse 属性、写=序列化回写（探针：`baseVal.value=42`→属性 "42"；属性 '5pt'→值 fround(20/3)）。x/y 缺省 0-number；width/height 缺省 '100%' 对 **300×150 固有视口**解析（探针：width '100%'→300、height→150）。animVal 与 baseVal **分体对象**（`baseVal!==animVal`）但写一律 NoModificationAllowedError。脱挂长度纯存储；**脱挂 % 读 value 抛 NotSupportedError**（"Could not resolve relative length"，探针）。**float32 存储**：Chrome 存 f32——5pt=6.666666507720947、10mm=37.7952766418457，引擎 `Math.fround` 补齐。单位换算 96dpi 表（pt=4/3、pc=16、mm=96/25.4…）；convertToSpecifiedUnits 保 px 值换单位重排串（72pt→96px→'6pc'，探针）。
+- **SVGMatrix 全纯函数**：探针 `m.a=2; m.translate(1,2)` 后原矩阵 e/f 仍 0——Chrome 145 的 translate/scale/rotate/inverse 等全返**新矩阵**不动自身（mutation 版当场翻案）。inverse 奇异抛 InvalidStateError。
+- **SVGTransform**：type/matrix/angle 三 ro + set 族；matrix 每 transform 缓存恒等（`t.matrix===t.matrix`）；setMatrix/createSVGTransformFromMatrix **复制**（探针：源后改不影响）；setRotate(90,0,0) 答 Chrome 精确 cos90=6.123233995736766e-17。
+- **SVGPreserveAspectRatio 属性视图**：align/meetOrSlice 双 rw，写回**全关键字串**（align=7→"xMaxYMid meet"，且**保留当前 meetOrSlice**——先设过 slice 再改 align 写回 "xMaxYMid slice"，探针定案）。缺省 6/1（xMidYMid meet）。
+- **SVGPoint**：bootstrap 手搓类存自有数据属性 x/y 改隐藏 `_ps` 槽+原型 accessor（Chrome rw:ec）；matrixTransform 从「返 this」改真算 `a·x+c·y+e`；currentTranslate 每读**新包装共享存储**（探针：恒 false 身份、写跨读持久）。
+- **SVGSVGElement 34 面**：几何四件（缓存 SVGAnimatedLength 活包装）、currentScale rw 缺省 1、currentTranslate、preserveAspectRatio、**zoomAndPan 缺省 2**（DISABLE=1/MAGNIFY=2/UNKNOWN=0，静态 proto+ctor 双挂 e--）——set 5 落 **0**、**不同步属性**（探针）；SMIL/redraw 全 no-op 但形对：getCurrentTime 恒 0（setCurrentTime 后仍 0，Chrome 探针同答）、animationsPaused 恒 false、**suspendRedraw 恒返 1**（两次调用都 1，探针——非自增）、unsuspend*/forceRedraw/deselectAll undefined；getElementById 子树走 id 属性；命中测试（getIntersectionList/getEnclosureList/check×2）走**属性几何 bbox**（circle/ellipse/rect/image/line/polyline/polygon 精确、path 取 d 坐标对近似、text/use 零盒），空结果=空 NodeList 非 null（探针）、ref 元素收窄子树。
+
+**shape_fix 新雷（本刀最值钱的一坑）**：装齐后 order 28→29。根因链——类语法把 `constructor` 铸在原型**首位**而 Chrome 序在**末位**→gen_shape_fix 因此发 ORDER 条目→shape_fix 的重排循环只搬得动 configurable 成员，而 zoom 常量按 truth e-- 是**不可配置**的搬不动→重排把一切可搬的挪到常量后面、constructor 又被搬到尾，序反而全错。正解=**svg_root 自己把 constructor 挪到末位**：raw 序=truth 序→gen 不发 ORDER 条目→不重排→常量保住 e-- 真形。ORDER 表 649→648 条。
+
+数字：missing 接口 110→**108**（SVGSVGElement+SVGPoint 毕业，SVGSVGElement 37→0），same 760→**762**，extra 0/order 28（收雷后归位）/kind 65/len 0；statics 15→**14**。枚举审计 204/211（7 已知缺口不变）。ratchet **52→54**（刀55 先例：新文件入链的合法新边——svg_root→bootstrap 的 `_markNative` 与 `SVGPoint`，同提交顶基线）。
+行为验证：三轮 Chrome 对拍探针 **72/72 腿逐位全等** + 两轮补探（写回单位保留/序列依赖）10/10 全等；唯一记档分歧=**百分写回基数**（Chrome 用布局宽、随探针窗口变——本例 121.61528015136719/'40.5405%'；引擎恒用固有 300/150 基数、环境无关），不入测不入账为缺陷。
+测试：`knife59_svg_root_face_and_value_types`（新，36 面全序+静态+13 组行为断言）。surface_snapshot 重生成（+3 行）。验收：`cargo test -p diting` 失败集与基线**逐名全等**（110 环境败，931 过=930+1）。
+**教训**：①测试断言两次想当然被 Chrome 打脸（attrOut 以为写 '3' 实为保单位 '2.25pt'；parOut 以为重置 meet 实为保留 slice）——**探针要探测试的精确序列**，不是探相似序列；②`pkill -f` 看不见环境变量（DITING_BIND 只在 env）——杀服务用 `lsof -ti :端口` 拿 PID；③shape_fix 的重排对不可配置成员全盲——新接口带 e-- 常量时，要么让 raw 序天生=truth 序（本刀正解），要么别让它进 ORDER 表。
