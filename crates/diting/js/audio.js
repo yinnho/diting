@@ -361,11 +361,76 @@ globalThis.speechSynthesis = {
     }
     return this._voices.slice();
   },
+  // (M4 刀77) A real utterance queue. The persona advertises voices, so speech "plays":
+  // speak() queues, the head utterance fires `start`, `end` follows after a duration
+  // modelled on the text (60ms/char at rate 1, clamped [60ms, 5s]); cancel() fires an
+  // `error` (error:'canceled') on the running and every queued utterance and empties the
+  // queue; pause()/resume() freeze/continue the running one and fire pause/resume.
+  // speaking/pending/paused track the queue. (No audio is produced.)
   speak(utterance) {
     if (arguments.length < 1) throw new TypeError("Failed to execute 'speak' on 'SpeechSynthesis': 1 argument required, but only 0 present.");
     if (!globalThis.__diting_isUtterance(utterance)) throw new TypeError("Failed to execute 'speak' on 'SpeechSynthesis': parameter 1 is not of type 'SpeechSynthesisUtterance'.");
+    const q = this._q || (this._q = { list: [], cur: null, timer: null, t0: 0, left: 0 });
+    q.list.push(utterance);
+    this.pending = q.list.length > (q.cur ? 0 : 1) || (!q.cur && q.list.length > 1);
+    if (!q.cur) this._next();
   },
-  cancel() {}, pause() {}, resume() {},
+  _fire(u, type, extra) {
+    try {
+      const Ev = (extra && extra.error) ? globalThis.SpeechSynthesisErrorEvent : globalThis.SpeechSynthesisEvent;
+      u.dispatchEvent(new Ev(type, Object.assign({ utterance: u, charIndex: 0, charLength: 0, elapsedTime: 0, name: '' }, extra || {})));
+    } catch (e) {}
+  },
+  _next() {
+    const q = this._q;
+    if (!q || q.cur || q.list.length === 0) { this.speaking = false; this.pending = false; return; }
+    const u = q.list.shift();
+    q.cur = u; this.speaking = true; this.pending = q.list.length > 0;
+    const rate = u.rate > 0 ? u.rate : 1;
+    q.left = Math.min(5000, Math.max(60, String(u.text).length * 60 / rate));
+    setTimeout(() => {
+      if (q.cur !== u) return;
+      this._fire(u, 'start');
+      this._arm();
+    }, 0);
+  },
+  _arm() {
+    const q = this._q; const u = q.cur;
+    if (!u || this.paused) return;
+    q.t0 = Date.now();
+    q.timer = setTimeout(() => {
+      if (q.cur !== u) return;
+      q.timer = null; q.cur = null;
+      this.speaking = false; this.pending = q.list.length > 0;
+      this._fire(u, 'end', { elapsedTime: q.left / 1000 });
+      this._next();
+    }, q.left);
+  },
+  cancel() {
+    const q = this._q;
+    if (!q) return;
+    if (q.timer) { clearTimeout(q.timer); q.timer = null; }
+    const all = (q.cur ? [q.cur] : []).concat(q.list);
+    q.cur = null; q.list = [];
+    this.speaking = false; this.pending = false; this.paused = false;
+    // events are queued, never synchronous inside cancel()
+    for (const u of all) setTimeout(() => this._fire(u, 'error', { error: 'canceled' }), 0);
+  },
+  pause() {
+    const q = this._q;
+    if (this.paused) return;
+    this.paused = true;
+    if (q && q.cur) {
+      if (q.timer) { clearTimeout(q.timer); q.timer = null; q.left = Math.max(0, q.left - (Date.now() - q.t0)); }
+      this._fire(q.cur, 'pause');
+    }
+  },
+  resume() {
+    const q = this._q;
+    if (!this.paused) return;
+    this.paused = false;
+    if (q && q.cur) { this._fire(q.cur, 'resume'); this._arm(); }
+  },
   onvoiceschanged: null,
 };
 

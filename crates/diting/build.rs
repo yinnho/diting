@@ -139,6 +139,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("interest_for.js", include_str!("js/interest_for.js")),
     // 刀75: the missing-member tail (handlers, legacy constants, small reflections).
     ("tail_members.js", include_str!("js/tail_members.js")),
+    // 刀77: SVG tags the engine still wrapped as bare SVGElement get their interface prototype.
+    ("svg_tags.js", include_str!("js/svg_tags.js")),
+    // 刀77: real reflectors for the SVG interfaces that were pure stubs (GENERATED from the Chrome capture).
+    ("svg_filters.js", include_str!("js/svg_filters.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),

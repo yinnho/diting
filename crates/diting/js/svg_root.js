@@ -695,12 +695,12 @@
     const P = SVGStringList.prototype;
     const stoks = function () {
       const cur = this._attEl ? (this._attEl.getAttribute(this._attName) || '') : '';
-      if (!this._arr || this._lastS !== cur) { this._arr = cur === '' ? [] : cur.trim().split(/\s+/).filter(Boolean); this._lastS = cur; } // attr is truth: live re-parse
+      if (!this._arr || this._lastS !== cur) { this._arr = cur === '' ? [] : (this._attName === 'systemLanguage' ? cur.split(',').map((x) => x.trim()) : cur.trim().split(/\s+/)).filter(Boolean); this._lastS = cur; } // systemLanguage is comma-separated (Chrome: 'en, fr' -> ['en','fr']) // attr is truth: live re-parse
       return this._arr;
     };
     const ssync = function () {
       if (this._attEl && this._attName) {
-        this._attEl.setAttribute(this._attName, (this._arr || []).join(' ')); // GUESS
+        this._attEl.setAttribute(this._attName, (this._arr || []).join(this._attName === 'systemLanguage' ? ', ' : ' ')); // GUESS
         this._lastS = this._attEl.getAttribute(this._attName) || '';
       }
     };
@@ -728,10 +728,18 @@
       a[i] = String(sv); this._arr = a; ssync.call(this);
       return String(sv);
     });
+    // (刀77) SVGStringList is an indexed platform object: list[0] reads the token (Chrome 145 gives 'en'
+    // for systemLanguage 'en, fr'); the Proxy serves the index keys live from the attribute tokens.
     globalThis.__diting_svgStringList = (el, name) => {
       const o = Object.create(P);
       o._attEl = el || null; o._attName = name;
-      return o;
+      const isIdx = (k) => typeof k === 'string' && /^(0|[1-9]\d*)$/.test(k);
+      return new Proxy(o, {
+        get(t, k, r) { if (isIdx(k)) { const a = stoks.call(t); return +k < a.length ? a[+k] : undefined; } return Reflect.get(t, k, k === '_attEl' || k === '_attName' || k === '_arr' || k === '_lastS' ? t : r); },
+        has(t, k) { return isIdx(k) ? +k < stoks.call(t).length : Reflect.has(t, k); },
+        ownKeys(t) { const n = stoks.call(t).length, ks = []; for (let i = 0; i < n; i++) ks.push(String(i)); return ks.concat(Reflect.ownKeys(t)); },
+        getOwnPropertyDescriptor(t, k) { if (isIdx(k)) { const a = stoks.call(t); return +k < a.length ? { value: a[+k], writable: false, enumerable: true, configurable: true } : undefined; } return Reflect.getOwnPropertyDescriptor(t, k); },
+      });
     };
   }
 
