@@ -3438,7 +3438,8 @@
             ("document.getElementById('sv') instanceof SVGSVGElement", true),
             ("document.getElementById('sv') instanceof SVGGraphicsElement", true),
             ("document.getElementById('sv') instanceof SVGElement", true),
-            ("document.getElementById('sv') instanceof HTMLElement", true),
+            // (刀72) Chrome 145: the SVG chain has no HTMLElement level (the #28 claim was wrong).
+            ("document.getElementById('sv') instanceof HTMLElement", false),
             ("document.getElementById('sv') instanceof Element", true),
             ("document.getElementById('pa') instanceof SVGGeometryElement", true),
             // svg is graphics but NOT geometry; shapes are both.
@@ -3459,8 +3460,9 @@
                 "Object.getPrototypeOf(SVGGraphicsElement.prototype) === SVGElement.prototype",
                 true,
             ),
+            // (刀72) Chrome 145: SVGElement sits directly on Element.
             (
-                "Object.getPrototypeOf(SVGElement.prototype) === HTMLElement.prototype",
+                "Object.getPrototypeOf(SVGElement.prototype) === Element.prototype",
                 true,
             ),
             // Parsed SVG children inherit the namespace from the tree; HTML
@@ -29468,4 +29470,110 @@ async fn knife71_svg_gradient_anchor_family() {
     );
     assert_eq!(o["interestHtml"], serde_json::json!([true, true, true]));
     assert_eq!(o["interestHtmlRoundTrip"], serde_json::json!(["", true]));
+}
+
+/// M4 刀72: the SVG parent chain is Element, not HTMLElement (Chrome 145 truth,
+/// k72 probes): SVGElement owns className (read-only SVGAnimatedString) /
+/// ownerSVGElement / viewportElement / autofocus / attributeStyleMap, none of
+/// HTMLElement's 30 members (hidden/click/innerText/title/lang/...) reach an SVG
+/// element, SVGClipPathElement is a plain SVGElement while SVGSymbolElement is
+/// a graphics element, SVGGraphicsElement carries transform /
+/// nearest+farthestViewportElement / requiredExtensions / systemLanguage, the
+/// illegal-constructor messages name the interface constructed; CSS side: no
+/// CSS2Properties level under CSSStyleDeclaration (whose constructor is
+/// illegal), CSSStyleRule sits directly on CSSRule, and the style attribute
+/// serializes `name: value;` space-joined.
+#[tokio::test(flavor = "current_thread")]
+async fn knife72_svg_parent_chain() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const NS = 'http://www.w3.org/2000/svg'; const mk = (n) => document.createElementNS(NS, n);
+        const host = document.createElement('div'); document.body.appendChild(host);
+        const svg = mk('svg'); host.appendChild(svg); const g = mk('g'); svg.appendChild(g); const inner = mk('svg'); g.appendChild(inner);
+        const rect = mk('rect'); inner.appendChild(rect); const sym = mk('symbol'); svg.appendChild(sym); const sr = mk('rect'); sym.appendChild(sr);
+        const det = mk('rect'); const img = mk('image'); svg.appendChild(img); const ir = mk('rect'); img.appendChild(ir);
+        const mrk = mk('marker'); svg.appendChild(mrk); const mr = mk('rect'); mrk.appendChild(mr);
+        const chain = (e) => { const c = []; let p = Object.getPrototypeOf(e); while (p && c.length < 7) { c.push(p.constructor.name); p = Object.getPrototypeOf(p); } return c.join('>'); };
+        t('chains', () => ['svg', 'rect', 'clipPath', 'symbol', 'linearGradient', 'a', 'g'].map(n => chain(mk(n))));
+        t('ctor', () => ['SVGElement', 'SVGGraphicsElement', 'SVGGradientElement', 'SVGClipPathElement', 'SVGSymbolElement'].map(n => { try { new window[n](); return 'NO'; } catch (e) { return e.name + ':' + e.message; } }));
+        t('className', () => [rect.className.constructor.name, rect.className.baseVal, rect.className === rect.className]);
+        t('classNameSet', () => { rect.setAttribute('class', 'a b'); const r = [rect.className.baseVal, rect.className.animVal]; rect.className.baseVal = 'z'; r.push(rect.getAttribute('class')); rect.className = 'q'; r.push(typeof rect.className, rect.getAttribute('class')); return r; });
+        t('owner', () => [svg.ownerSVGElement, g.ownerSVGElement === svg, inner.ownerSVGElement === svg, rect.ownerSVGElement === inner, det.ownerSVGElement, sr.ownerSVGElement === svg]);
+        t('viewport', () => [svg.viewportElement, g.viewportElement === svg, rect.viewportElement === inner, sr.viewportElement === sym, sym.viewportElement === svg, ir.viewportElement === img, mr.viewportElement === svg, det.viewportElement]);
+        t('nearFar', () => [rect.nearestViewportElement === inner, rect.farthestViewportElement === svg, sr.nearestViewportElement === sym, sr.farthestViewportElement === svg, svg.nearestViewportElement, det.farthestViewportElement]);
+        t('autofocus', () => { const r = [rect.autofocus]; rect.autofocus = true; r.push(rect.getAttribute('autofocus')); rect.autofocus = false; r.push(rect.hasAttribute('autofocus')); return r; });
+        t('asm', () => { rect.removeAttribute('style'); rect.attributeStyleMap.set('opacity', '0.5'); return [Object.prototype.toString.call(rect.attributeStyleMap), rect.attributeStyleMap === rect.attributeStyleMap, rect.getAttribute('style')]; });
+        t('absentHtml', () => ['title', 'lang', 'translate', 'dir', 'hidden', 'inert', 'accessKey', 'draggable', 'spellcheck', 'innerText', 'outerText', 'offsetWidth', 'offsetParent', 'click', 'contentEditable', 'popover', 'attachInternals', 'showPopover', 'enterKeyHint', 'inputMode'].map(k => typeof rect[k]));
+        t('present', () => ['dataset', 'nonce', 'tabIndex', 'style', 'blur', 'focus', 'onclick', 'getBoundingClientRect', 'innerHTML', 'children', 'classList', 'ariaLabel', 'matches'].map(k => typeof rect[k]));
+        t('instanceof', () => [rect instanceof SVGElement, rect instanceof Element, rect instanceof HTMLElement, mk('clipPath') instanceof SVGGraphicsElement, mk('symbol') instanceof SVGGraphicsElement, mk('linearGradient') instanceof SVGGraphicsElement]);
+        t('graphics', () => ['rect', 'g', 'svg', 'symbol', 'path', 'a', 'use', 'text', 'image', 'foreignObject'].map(n => { const e = mk(n); return typeof e.transform + typeof e.nearestViewportElement + typeof e.requiredExtensions + typeof e.systemLanguage + typeof e.getBBox; }).join('|'));
+        t('transform', () => { rect.setAttribute('transform', 'rotate(45) translate(1 2)'); const l = rect.transform.baseVal; return [rect.transform.constructor.name, l.numberOfItems, l.getItem(0).type, l.getItem(1).type, rect.transform === rect.transform]; });
+        t('strLists', () => { rect.setAttribute('systemLanguage', 'en, fr'); return [rect.requiredExtensions.constructor.name, rect.systemLanguage.constructor.name, rect.systemLanguage.length, rect.systemLanguage === rect.systemLanguage]; });
+        t('clipSymbol', () => { const c = mk('clipPath'), s = mk('symbol'); return [typeof c.transform, typeof c.getBBox, typeof c.getCTM, typeof s.transform, typeof s.getBBox, typeof s.getCTM, typeof s.nearestViewportElement]; });
+        t('getters', () => ['transform', 'nearestViewportElement', 'farthestViewportElement', 'requiredExtensions', 'systemLanguage'].map(k => { const d = Object.getOwnPropertyDescriptor(SVGGraphicsElement.prototype, k); return [d.get.name, !!d.set, d.enumerable, d.configurable]; }));
+        t('foreign', () => { const r = []; for (const recv of [{}, mk('clipPath')]) { try { Object.getOwnPropertyDescriptor(SVGGraphicsElement.prototype, 'transform').get.call(recv); r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('own', () => Reflect.ownKeys(rect).length + ':' + Object.keys(rect).length);
+        t('cssChain', () => chain(document.body.style));
+        t('cssCtor', () => { try { new CSSStyleDeclaration(); return 'NO'; } catch (e) { return e.name + ':' + e.message; } });
+        t('cssGlobal', () => typeof CSS2Properties);
+        t('ruleChain', () => { const s = document.createElement('style'); s.textContent = 'a{color:red}'; document.head.appendChild(s); return chain(s.sheet.cssRules[0]); });
+        t('styleSer', () => { const d = document.createElement('div'); d.style.opacity = '0.5'; d.style.color = 'red'; const a = [d.style.cssText, d.getAttribute('style')]; d.removeAttribute('style'); d.attributeStyleMap.set('opacity', '0.5'); a.push(d.getAttribute('style')); return a; });
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(
+        o["chains"],
+        serde_json::json!([
+            "SVGSVGElement>SVGGraphicsElement>SVGElement>Element>Node>EventTarget>Object",
+            "SVGRectElement>SVGGeometryElement>SVGGraphicsElement>SVGElement>Element>Node>EventTarget",
+            "SVGClipPathElement>SVGElement>Element>Node>EventTarget>Object",
+            "SVGSymbolElement>SVGGraphicsElement>SVGElement>Element>Node>EventTarget>Object",
+            "SVGLinearGradientElement>SVGGradientElement>SVGElement>Element>Node>EventTarget>Object",
+            "SVGAElement>SVGGraphicsElement>SVGElement>Element>Node>EventTarget>Object",
+            "SVGGElement>SVGGraphicsElement>SVGElement>Element>Node>EventTarget>Object"
+        ])
+    );
+    assert_eq!(
+        o["ctor"],
+        serde_json::json!([
+            "TypeError:Failed to construct 'SVGElement': Illegal constructor",
+            "TypeError:Failed to construct 'SVGGraphicsElement': Illegal constructor",
+            "TypeError:Failed to construct 'SVGGradientElement': Illegal constructor",
+            "TypeError:Failed to construct 'SVGClipPathElement': Illegal constructor",
+            "TypeError:Failed to construct 'SVGSymbolElement': Illegal constructor"
+        ])
+    );
+    assert_eq!(o["className"], serde_json::json!(["SVGAnimatedString", "", true]));
+    assert_eq!(o["classNameSet"], serde_json::json!(["a b", "a b", "z", "object", "z"]));
+    assert_eq!(o["owner"], serde_json::json!([null, true, true, true, null, true]));
+    assert_eq!(o["viewport"], serde_json::json!([null, true, true, true, true, true, true, null]));
+    assert_eq!(o["nearFar"], serde_json::json!([true, true, true, true, null, null]));
+    assert_eq!(o["autofocus"], serde_json::json!([false, "", false]));
+    assert_eq!(o["asm"], serde_json::json!(["[object StylePropertyMap]", true, "opacity: 0.5;"]));
+    assert_eq!(o["absentHtml"], serde_json::json!(vec!["undefined"; 20]));
+    assert_eq!(
+        o["present"],
+        serde_json::json!(["object", "string", "number", "object", "function", "function", "object", "function", "string", "object", "object", "object", "function"])
+    );
+    assert_eq!(o["instanceof"], serde_json::json!([true, true, false, false, true, false]));
+    assert_eq!(
+        o["graphics"],
+        serde_json::json!(vec!["objectobjectobjectobjectfunction"; 10].join("|"))
+    );
+    assert_eq!(o["transform"], serde_json::json!(["SVGAnimatedTransformList", 2, 4, 2, true]));
+    assert_eq!(o["strLists"], serde_json::json!(["SVGStringList", "SVGStringList", 2, true]));
+    assert_eq!(o["clipSymbol"], serde_json::json!(["object", "undefined", "undefined", "object", "function", "function", "object"]));
+    assert_eq!(
+        o["getters"],
+        serde_json::json!([["get transform", false, true, true], ["get nearestViewportElement", false, true, true], ["get farthestViewportElement", false, true, true], ["get requiredExtensions", false, true, true], ["get systemLanguage", false, true, true]])
+    );
+    assert_eq!(o["foreign"], serde_json::json!(["Illegal invocation", "Illegal invocation"]));
+    assert_eq!(o["own"], "0:0");
+    assert_eq!(o["cssChain"], "CSSStyleDeclaration>Object");
+    assert_eq!(o["cssCtor"], "TypeError:Failed to construct 'CSSStyleDeclaration': Illegal constructor");
+    assert_eq!(o["cssGlobal"], "undefined");
+    assert_eq!(o["ruleChain"], "CSSStyleRule>CSSRule>Object");
+    assert_eq!(o["styleSer"], serde_json::json!(["opacity: 0.5; color: red;", "opacity: 0.5; color: red;", "opacity: 0.5;"]));
 }

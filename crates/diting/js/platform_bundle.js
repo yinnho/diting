@@ -2126,8 +2126,9 @@ function writeAttr(o, fn) {
   const d = data(o, fn);
   if (d.el) {
     const parts = [];
-    d.map.forEach(function (v, k) { parts.push(k + ': ' + v); });
-    d.el.setAttribute('style', parts.join('; '));
+    // Chrome's style serialization: `name: value;` per declaration, space-joined (trailing ';' included)
+    d.map.forEach(function (v, k) { parts.push(k + ': ' + v + ';'); });
+    d.el.setAttribute('style', parts.join(' '));
   }
 }
 P.method(MP, 'append', 2, function __f(k, v) { const d = data(this, __f); d.map.set(norm(d.map, k), String(v)); writeAttr(this, __f); });
