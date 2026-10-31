@@ -1906,3 +1906,9 @@ ctor_ladders 的 ILLEGAL0 表加 19 类（BaseAudioContext/CustomElementRegistry
 **Document 真实例线（DOMParser/`new Document()`/createDocument）判定暂缓**：`Document` 的 documentElement/head/body 等 getter 直接打主文档 op（`_dom("document_element")` 无节点参数），做真实例要把一批 op 按文档参数化，改动面大；账本保留。
 数字：cargo test 953 通过 + 110 基线逐名全等；shape 889/936 不变；enum 211/204/7；instance 127/127；ratchet 65。
 **教训**：多个 `cargo test` 脚本不能并行跑在同一工作树（共享被改的 JS 文件，结果互相污染）。
+
+## M4 刀83：NodeList/ImageBitmap 铸币封口——构造器账清零（2026-10-31）
+
+Chrome 对 NodeList/ImageBitmap **任何参数表**都抛 Illegal constructor（k79-ctor-c），零参封口不够。内部只有两个铸造点（`_nodeList` 工厂、`createImageBitmap` 的 `fromDims`），改传隐藏全局 `__diting_ctorMint`（Symbol）；ctor_ladders 新增 MINT 表：首参≠token 一律 Illegal constructor，token 走 Reflect.construct 透传给忽略参数的真构造器。**936 接口的构造器行为至此全部对齐 Chrome**（ImageBitmap/NodeList 是最后两个页面可 new 的）。
+数字：cargo test 954 通过 + 110 基线逐名全等（docmisc 全量跑抖一次、单跑过，已知共享锁家族）；shape 889/936 不变；enum 211/204/8——第 8 个 `ls`=IDB localStorage 双跑抖动（nodeList/htmlColl 的 4-div 差在 k82 前就在 7 个基线里）；instance 127/127；ratchet 65。
+**教训**：enum 审计的 `ls`（`__diting_idb__mini*`）随捕获时序闪烁——判新泄漏先 diff 上一份捕获，别只看 leaky 计数。
