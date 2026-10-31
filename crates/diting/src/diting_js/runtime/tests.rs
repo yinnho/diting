@@ -30387,3 +30387,114 @@ async fn knife86_idb_cross_connection_open_protocol() {
          deleteDatabase carries null newVersion; same-version open is silent"
     );
 }
+
+/// 刀87 — constructor parameter-validation ladders (Chrome 145 truth:
+/// k87-ctor-e / k87-ctor-f / k87-fp probes). Chrome reports argc, interface
+/// type, dictionary member read ORDER, sequence-vs-double conversion and
+/// range violations as distinct messages — CSSMath* (variadic empty =
+/// SyntaxError, N-present TypeErrors, CSSNumberish double coercion),
+/// IIRFilterNode (feedback read before feedforward, fb[0]=0 / all-zero-ff
+/// InvalidStateErrors), BiquadFilterNode, OfflineAudioContext (0-arg /
+/// 2-arg overload / required members / [1,32]+[3000,768000] ranges),
+/// ReadableStreamDefaultReader, RTCEncodedAudioFrame, URL (base validated
+/// first with its own message), WebSocket (http→ws conversion, 4-scheme
+/// message, subprotocol token check) and StaticRange (endContainer read
+/// BEFORE startContainer, DocumentType/Attr endpoints).
+#[tokio::test(flavor = "current_thread")]
+async fn knife87_ctor_validation_ladders() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', (v && typeof v === 'object') ? (v.constructor && v.constructor.name) : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        // CSSMath*: variadic empty = SyntaxError; fixed arity = N-present;
+        // non-finite coercion; success mints the instance.
+        T('max0', () => new CSSMathMax());
+        T('inv0', () => new CSSMathInvert());
+        T('invbad', () => new CSSMathInvert('x'));
+        T('clamp2', () => new CSSMathClamp(1, 2));
+        T('sumok', () => new CSSMathSum(1, 2));
+        T('lens', () => [CSSMathClamp.length, CSSMathInvert.length, CSSMathMax.length].join(','));
+        // IIRFilterNode: argc → ctx → dict (feedback BEFORE feedforward) →
+        // sequence/non-finite → fb[0]=0 / all-zero ff.
+        const ac = new OfflineAudioContext(1, 128, 8000);
+        T('iir0', () => new IIRFilterNode(ac));
+        T('iirseq1', () => new IIRFilterNode(ac, [1]));
+        T('iirfbstr', () => new IIRFilterNode(ac, { feedforward: [1], feedback: 'x' }));
+        T('iirfb0', () => new IIRFilterNode(ac, { feedforward: [1], feedback: [0] }));
+        T('iirff0', () => new IIRFilterNode(ac, { feedforward: [0], feedback: [1] }));
+        T('iirok', () => new IIRFilterNode(ac, { feedforward: [1], feedback: [1, 0.5] }));
+        T('bq0', () => new BiquadFilterNode());
+        T('bqctx', () => new BiquadFilterNode({}));
+        T('bqok', () => new BiquadFilterNode(ac));
+        // OfflineAudioContext: argc / overload / required members / ranges.
+        T('oac0', () => new OfflineAudioContext());
+        T('oac2', () => new OfflineAudioContext(1, 128));
+        T('oacch33', () => new OfflineAudioContext(33, 128, 8000));
+        T('oacpart', () => new OfflineAudioContext({ length: 128 }));
+        // Reader / frame / URL / WebSocket / StaticRange ladders.
+        T('rsr0', () => new ReadableStreamDefaultReader());
+        T('rsrbad', () => new ReadableStreamDefaultReader({}));
+        T('reaf0', () => new RTCEncodedAudioFrame());
+        T('url0', () => new URL());
+        T('urlbad', () => new URL('notaurl'));
+        T('urlbase', () => new URL('a', 'b'));
+        T('urlok', () => new URL('a', 'http://x.example/'));
+        T('ws0', () => new WebSocket());
+        T('wsftp', () => new WebSocket('ftp://h/x'));
+        T('wsdup', () => new WebSocket('ws://127.0.0.1:1/x', ['a', 'a']));
+        T('wshttp', () => { const w = new WebSocket('http://127.0.0.1:1/x'); const u = w.url; w.close(); return u; });
+        T('sr0', () => new StaticRange());
+        T('srempty', () => new StaticRange({}));
+        T('srsc', () => new StaticRange({ startContainer: 'x', endContainer: document, startOffset: 0, endOffset: 0 }));
+        T('srdoct', () => { const dt = document.implementation.createDocumentType('html', '', ''); return new StaticRange({ startContainer: dt, endContainer: dt, startOffset: 0, endOffset: 0 }); });
+        T('srok', () => new StaticRange({ startContainer: document.body, endContainer: document.body, startOffset: 0, endOffset: 0 }));
+    "#,
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(100).await;
+    let log = rt.evaluate("globalThis.__log").unwrap();
+    assert_eq!(
+        log,
+        serde_json::json!([
+            ["max0", "SyntaxError", "Failed to construct 'CSSMathMax': Arguments can't be empty"],
+            ["inv0", "TypeError", "Failed to construct 'CSSMathInvert': 1 argument required, but only 0 present."],
+            ["invbad", "TypeError", "Failed to construct 'CSSMathInvert': The provided double value is non-finite."],
+            ["clamp2", "TypeError", "Failed to construct 'CSSMathClamp': 3 arguments required, but only 2 present."],
+            ["sumok", "ok", "CSSMathSum"],
+            ["lens", "ok", "3,1,0"],
+            ["iir0", "TypeError", "Failed to construct 'IIRFilterNode': 2 arguments required, but only 1 present."],
+            ["iirseq1", "TypeError", "Failed to construct 'IIRFilterNode': Failed to read the 'feedback' property from 'IIRFilterOptions': Required member is undefined."],
+            ["iirfbstr", "TypeError", "Failed to construct 'IIRFilterNode': Failed to read the 'feedback' property from 'IIRFilterOptions': The provided value cannot be converted to a sequence."],
+            ["iirfb0", "InvalidStateError", "Failed to construct 'IIRFilterNode': First feedback coefficient cannot be zero."],
+            ["iirff0", "InvalidStateError", "Failed to construct 'IIRFilterNode': At least one feedforward coefficient must be non-zero."],
+            ["iirok", "ok", "IIRFilterNode"],
+            ["bq0", "TypeError", "Failed to construct 'BiquadFilterNode': 1 argument required, but only 0 present."],
+            ["bqctx", "TypeError", "Failed to construct 'BiquadFilterNode': parameter 1 is not of type 'BaseAudioContext'."],
+            ["bqok", "ok", "BiquadFilterNode"],
+            ["oac0", "TypeError", "Failed to construct 'OfflineAudioContext': 1 argument required, but only 0 present."],
+            ["oac2", "TypeError", "Failed to construct 'OfflineAudioContext': Overload resolution failed."],
+            ["oacch33", "NotSupportedError", "Failed to construct 'OfflineAudioContext': The number of channels provided (33) is outside the range [1, 32]."],
+            ["oacpart", "TypeError", "Failed to construct 'OfflineAudioContext': Failed to read the 'sampleRate' property from 'OfflineAudioContextOptions': Required member is undefined."],
+            ["rsr0", "TypeError", "Failed to construct 'ReadableStreamDefaultReader': 1 argument required, but only 0 present."],
+            ["rsrbad", "TypeError", "Failed to construct 'ReadableStreamDefaultReader': parameter 1 is not of type 'ReadableStream'."],
+            ["reaf0", "TypeError", "Failed to construct 'RTCEncodedAudioFrame': 1 argument required, but only 0 present."],
+            ["url0", "TypeError", "Failed to construct 'URL': 1 argument required, but only 0 present."],
+            ["urlbad", "TypeError", "Failed to construct 'URL': Invalid URL"],
+            ["urlbase", "TypeError", "Failed to construct 'URL': Invalid base URL"],
+            ["urlok", "ok", "URL"],
+            ["ws0", "TypeError", "Failed to construct 'WebSocket': 1 argument required, but only 0 present."],
+            ["wsftp", "SyntaxError", "Failed to construct 'WebSocket': The URL's scheme must be either 'http', 'https', 'ws', or 'wss'. 'ftp' is not allowed."],
+            ["wsdup", "SyntaxError", "Failed to construct 'WebSocket': The subprotocol 'a' is duplicated."],
+            ["wshttp", "ok", "ws://127.0.0.1:1/x"],
+            ["sr0", "TypeError", "Failed to construct 'StaticRange': 1 argument required, but only 0 present."],
+            ["srempty", "TypeError", "Failed to construct 'StaticRange': Failed to read the 'endContainer' property from 'StaticRangeInit': Required member is undefined."],
+            ["srsc", "TypeError", "Failed to construct 'StaticRange': Failed to read the 'startContainer' property from 'StaticRangeInit': Failed to convert value to 'Node'."],
+            ["srdoct", "InvalidNodeTypeError", "Failed to construct 'StaticRange': Neither startContainer nor endContainer can be a DocumentType or Attribute node."],
+            ["srok", "ok", "StaticRange"]
+        ]),
+        "ctor ladders: argc/ctx/dict-read-order/sequence/range messages, \
+         http→ws conversion, endContainer-before-startContainer"
+    );
+}

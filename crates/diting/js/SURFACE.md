@@ -1944,3 +1944,21 @@ Chrome 145 真值（k86-idb 七案 + k86-idb2 事件类）钉死的跨连接协�
 数字：k86-idb 21 条全 SAME、k86-idb2 6 条全 SAME；shape 936/936 全 0；enum 212/204/8 与 k85 逐名全等；instance 127/127；ratchet 66/0；cargo test **110 基线逐名全等零新增**（另有环境摊：root crate `knobs_report_geometry` 布局案 + 45 条 PoisonError 连坐——stash 实证在刀85 提交 ded368a 上同样失败，非本刀所致）。
 测试：`knife86_idb_cross_connection_open_protocol`（四段：blocker 不关→vc[1,2]+blocked[instanceof,1,2,'pending']+still-blocked 标记+close 后 upg/ok；vc 内 close→无 blocked 直升；deleteDatabase→vc[1,null]+blocked+del[1,null,instanceof]；同版 open 静默 success）。
 **教训**：①probe_run.py 的 engine 腿把探针嵌进所服页面的 `<script>`——导航即先跑一遍、/eval 再跑一遍，**有状态探针（IDB 跨连接）自己和自己赛跑**（两遍执行同库竞态→VersionError 拒绝→/eval 回 null）；单执行捕获走 blank 页 + 裸 /eval（capture_engine_once.py），Chrome 腿本就单执行（读 #o）不受影响；②engine 的 localStorage 跨页跨源共享（IDB 元数据全局可见）——探针开头用 `indexedDB.databases()` 清同名残留，两腿通用且幂等；③enum 探针是**页面敏感**的（htmlColl/nodeList/sheets 数页面节点）——blank 页捕获会假报少键，页面敏感探针必须用原 probe_run 页面；④测试跑前先杀 18199 探针伺服——常驻伺服占共享 store，root crate 的 session/server 测试整族连坐 PoisonError，别误判成回归。
+
+## M4 刀87：构造器参数梯（argc/类型/字典读序/序列/range 全消息位）（2026-10-31）
+
+Chrome 145 真值（k87-ctor-e 57 案 + k87-ctor-f 46 案 + k87-fp 8 案）钉死的九族构造器验证梯，引擎原先整族缺失或消息错位：
+
+- **CSSMath\***（生成件 mkCssMath）：变长四族（Max/Min/Product/Sum）零参 = **SyntaxError「Arguments can't be empty」**；定元族（Invert/Negate=1、Clamp=3）N-present TypeError 插值计数；每参 CSSNumberish 双 coercion，非有限 = TypeError「The provided double value is non-finite.」；成功铸 Object.create(C.prototype) 实例。CSSMathRound/Abs/Sign/Pow/Log/Exp/Hypot 145 不存在（表里本来就没有）。
+- **IIRFilterNode**（audio.js 真身，length 2）：argc → ctx instanceof BaseAudioContext → 字典读序 **feedback 先于 feedforward**（两者都缺也只报 feedback）→ 序列转换（WebIDL 首步要求 Object——**原始值含可迭代字符串 'x' 一律「cannot be converted to a sequence」**）→ 元素非有限 → fb[0]===0 / ff 全零两条 InvalidStateError。getFrequencyResponse 落**原型**（length 3, ecw，constructor 居尾——P4 惯例 delete+re-define 挪尾）。
+- **BiquadFilterNode**（audio.js 真身，length 1）：argc → ctx 检查 → 成功；工厂 createBiquadFilter/createIIRFilter 改走真构造器。
+- **OfflineAudioContext**：0 参「1 argument required, but only 0 present.」；2 参「Overload resolution failed.」；1 参字典读序 **length 先于 sampleRate**（required member 逐名报）；ch [1,32] / frames ≥1 / sampleRate [3000,768000] NotSupportedError 带插值值。
+- **ReadableStreamDefaultReader**（bootstrap.js）：argc → 「parameter 1 is not of type 'ReadableStream'.」→ locked 专属文案 → 成功登记 `_rsStream`+`_locked`。
+- **RTCEncodedAudioFrame**（webrtc.js）：argc → 只认同类实例（「parameter 1 is not of type 'RTCEncodedAudioFrame'.」），从同类复制 _timestamp/_data。
+- **URL**（bootstrap.js）：argc → **base 先单独验**（base 不可解析 = 「Invalid base URL」，首参是绝对 URL 也照样）→ 组合解析失败 = 「Invalid URL」。
+- **WebSocket**（bootstrap.js）：0 参 TypeError（非 DOMException）；**http/https 转 ws/wss**（WHATWG 记录换scheme 后的 URL）；scheme 白名单四选文案「must be either 'http', 'https', 'ws', or 'wss'. 'X' is not allowed.」；子协议 token 校验（`^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$`，'{}'→'[object Object]' invalid）先于重复检查。
+- **StaticRange**（range_selection.js）：argc → 字典读序 **endContainer 先于 startContainer**（四案一致）→ required/convert 双文案 → Attr(2)+DocumentType(10) 端点 → InvalidNodeTypeError 新文案。
+
+数字：k87-ctor-e 57/57 SAME、k87-fp 8/8 SAME、k87-ctor-f 42/46 SAME（余 4 案单根因 = 引擎全缺 **CSS.px/CSS.em 单位工厂**——`CSS.px(1)` 抛 is not a function，梯子根本没跑到；typed-om 单位族整族缺，另刀挂账）；shape 936/936 全 0（IIR 原型 getFrequencyResponse+constructor 挪尾后归零）；enum 204/211 与 k86 逐行全等；instance 127/127；ratchet 66/0 违约 0；cargo test **110 基线逐名全等零新增**（46 环境摊同刀86）。
+测试：`knife87_ctor_validation_ladders`（37 行日志：CSSMath 五案+lens、IIR 六案、Biquad 三案、OAC 四案、RSR/REAF/URL/WS/SR 各三至四案，消息逐字断言）。
+**教训**：①生成件数据位错——CSSMATH 表变长族 min 填 0，`arguments.length < 0` 永假→零参不抛；生成器里 min 语义 = 「最少几个参数才算非空」，变长族空参案要 min=1 才进 SyntaxError 支；②WebIDL 序列转换首步「Type(V) is not Object」在 Chrome 145 真跑——可迭代字符串也拒，先对象后迭代器；③shape 真源把接口操作记在**原型**（kinds+order），真构造器把操作塞实例成员会报 missing——照 truth 的 order 落原型并把 constructor 挪尾；④Rust 侧测试文档是 `<html><body></body></html>` 裸页，**没有 doctype**——DocumentType 端点案要用 `document.implementation.createDocumentType` 现造。

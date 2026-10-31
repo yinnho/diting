@@ -473,8 +473,15 @@ globalThis.RTCStatsReport = class RTCStatsReport {
   get size() { return 0; }
 };
 globalThis.RTCEncodedAudioFrame = class RTCEncodedAudioFrame {
-  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
-  get timestamp() { return 0; }
+  // (刀87) Chrome 145: only constructible from another RTCEncodedAudioFrame
+  // (k87-ctor-e) — argc then brand check, both TypeError.
+  constructor(init) {
+    if (arguments.length < 1) throw new TypeError("Failed to construct 'RTCEncodedAudioFrame': 1 argument required, but only 0 present.");
+    if (!(init instanceof globalThis.RTCEncodedAudioFrame)) throw new TypeError("Failed to construct 'RTCEncodedAudioFrame': parameter 1 is not of type 'RTCEncodedAudioFrame'.");
+    this._timestamp = init._timestamp;
+    this._data = init._data;
+  }
+  get timestamp() { return this._timestamp || 0; }
   // Chrome 145: `data` is a read/write ArrayBuffer attribute (the engine had a method by that name)
   get data() { return this._data || (this._data = new ArrayBuffer(0)); }
   set data(v) { this._data = v; }

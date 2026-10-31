@@ -8880,6 +8880,10 @@ function _urlResolveOp(href, base) {
 if (typeof URL === 'undefined' || !URL.prototype || !URL.__diting) {
   const _URL = class URL {
     constructor(url, base) {
+      // 刀87: Chrome 145 messages (k87-ctor-e/f) — argc first, then an
+      // unparseable base is its own error (even when url itself is absolute).
+      if (arguments.length < 1) throw new TypeError("Failed to construct 'URL': 1 argument required, but only 0 present.");
+      if (base !== undefined && base !== null && !_urlParseOp(String(base), undefined)) throw new TypeError("Failed to construct 'URL': Invalid base URL");
       const c = _urlParseOp(url, base);
       if (!c) throw new TypeError("Failed to construct 'URL': Invalid URL");
       this._c = c;
@@ -14009,7 +14013,14 @@ globalThis.ReadableStreamDefaultController = class ReadableStreamDefaultControll
 };
 _markNativeProto(globalThis.ReadableStreamDefaultController.prototype);
 globalThis.ReadableStreamDefaultReader = class ReadableStreamDefaultReader {
-  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
+  // 刀87: Chrome 145 ctor ladder (k87-ctor-e) — argc, stream type, lock.
+  constructor(stream) {
+    if (arguments.length < 1) throw new TypeError("Failed to construct 'ReadableStreamDefaultReader': 1 argument required, but only 0 present.");
+    if (!(typeof ReadableStream === 'function' && stream instanceof ReadableStream)) throw new TypeError("Failed to construct 'ReadableStreamDefaultReader': parameter 1 is not of type 'ReadableStream'.");
+    if (stream._locked) throw new TypeError("Failed to construct 'ReadableStreamDefaultReader': ReadableStreamDefaultReader constructor can only accept readable streams that are not yet locked to a reader");
+    stream._locked = true;
+    _rsStream.set(this, stream);
+  }
   read() {
     const stream = _rsStream.get(this);
     if (stream._queue.length > 0) return Promise.resolve({ value: stream._queue.shift(), done: false });
@@ -14346,15 +14357,23 @@ if (typeof WebSocket === 'undefined') {
   // stub that fires `open` from a microtask and drops `send` can never finish.
   globalThis.WebSocket = class WebSocket {
     constructor(url, protocols) {
+      // 刀87: Chrome 145 ladder (k87-ctor-e/f) — argc TypeError; http(s)
+      // converts to ws(s) per WHATWG; 4-scheme message; subprotocol token
+      // validation runs before the duplicate check.
+      if (arguments.length < 1) throw new TypeError("Failed to construct 'WebSocket': 1 argument required, but only 0 present.");
       let parsed;
       try {
         parsed = new URL(url, (globalThis.location && globalThis.location.href) || undefined);
       } catch (e) {
         throw new DOMException("Failed to construct 'WebSocket': The URL '" + url + "' is invalid.", 'SyntaxError');
       }
-      const scheme = (parsed.protocol || '').replace(/:$/, '').toLowerCase();
+      let scheme = (parsed.protocol || '').replace(/:$/, '').toLowerCase();
+      if (scheme === 'http' || scheme === 'https') {
+        parsed = new URL(parsed.href.replace(/^https?:/i, scheme === 'http' ? 'ws:' : 'wss:'));
+        scheme = scheme === 'http' ? 'ws' : 'wss';
+      }
       if (scheme !== 'ws' && scheme !== 'wss') {
-        throw new DOMException("Failed to construct 'WebSocket': The URL's scheme must be either 'ws' or 'wss'. '" + scheme + "' is not allowed.", 'SyntaxError');
+        throw new DOMException("Failed to construct 'WebSocket': The URL's scheme must be either 'http', 'https', 'ws', or 'wss'. '" + scheme + "' is not allowed.", 'SyntaxError');
       }
       if (parsed.hash) {
         throw new DOMException("Failed to construct 'WebSocket': The URL contains a fragment identifier ('" + parsed.hash.slice(1) + "'). Fragment identifiers are not allowed in WebSocket URLs.", 'SyntaxError');
@@ -14362,8 +14381,12 @@ if (typeof WebSocket === 'undefined') {
       let list = [];
       if (protocols !== undefined && protocols !== null) {
         list = Array.isArray(protocols) ? protocols.map(String) : [String(protocols)];
+        const tok = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
         const seen = new Set();
         for (const p of list) {
+          if (!tok.test(p)) {
+            throw new DOMException("Failed to construct 'WebSocket': The subprotocol '" + p + "' is invalid.", 'SyntaxError');
+          }
           if (seen.has(p)) {
             throw new DOMException("Failed to construct 'WebSocket': The subprotocol '" + p + "' is duplicated.", 'SyntaxError');
           }

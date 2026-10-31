@@ -131,10 +131,33 @@ function tagged(tag) {
 const MARK = (f) => { try { if (typeof _markNative === 'function') _markNative(f); } catch (e) {} };
 """)
 
-# ctor-throw table
+# (M4 刀87) CSSMath* typed-om constructors need a real argument ladder, not the
+# zero-arg throw message: truth = Chrome-for-Testing 145 probes k87-ctor-e/f
+# (variadic Sum/Product/Max/Min throw SyntaxError "Arguments can't be empty";
+# Invert/Negate/Clamp enforce N-present TypeErrors; every present arg is
+# CSSNumberish double-coerced, non-finite -> TypeError; success -> instance).
+CSSMATH = {
+    "CSSMathClamp": (3, False),
+    "CSSMathInvert": (1, False),
+    "CSSMathMax": (1, True),
+    "CSSMathMin": (1, True),
+    "CSSMathNegate": (1, False),
+    "CSSMathProduct": (1, True),
+    "CSSMathSum": (1, True),
+}
+for _n in CSSMATH:
+    for _k in ("throw", "ok"):
+        if _n in groups[_k]:
+            groups[_k].remove(_n)
+
+# ctor-throw table. Chrome-145 message overrides where the frozen 155 capture
+# diverges (FeaturePolicy: 145 names the legacy alias, 155 the canonical class).
+MSG145 = {"FeaturePolicy": "Failed to construct 'FeaturePolicy': Illegal constructor"}
 rows = []
 for n in groups["throw"]:
-    m = shapes[n].get("m") or "Illegal constructor"
+    if n in CSSMATH:
+        continue
+    m = MSG145.get(n) or shapes[n].get("m") or "Illegal constructor"
     # (M4 刀78) Chrome's message has no trailing period
     m = m.rstrip(".") if "Illegal constructor" in m else m
     rows.append("[%s,%d,%s]" % (json.dumps(n), shapes[n].get("ln") or 0, json.dumps(m)))
@@ -148,6 +171,40 @@ for (const [name, len, msg] of THROW) {
   Object.defineProperty(globalThis, name, { value: C, writable: true, enumerable: false, configurable: true });
 }
 """ % ",\n  ".join(rows))
+
+js.append("""
+// ---- CSSMath* typed-om constructors (刀87): argument ladder + CSSNumberish
+// double coercion per Chrome 145 probes; success mints a branded instance.
+function mkCssMath(name, len, min, variadic) {
+  const C = function () {
+    if (arguments.length < min) {
+      if (variadic) throw new SyntaxError("Failed to construct '" + name + "': Arguments can't be empty");
+      throw new TypeError("Failed to construct '" + name + "': " + min + " argument" + (min > 1 ? "s" : "") + " required, but only " + arguments.length + " present.");
+    }
+    for (let i = 0; i < arguments.length; i++) {
+      const v = arguments[i];
+      let n;
+      if (typeof v === 'object' && v !== null) {
+        if (typeof CSSNumericValue === 'function' && v instanceof CSSNumericValue) continue;
+        n = Number(v);
+      } else n = Number(v);
+      if (!isFinite(n)) throw new TypeError("Failed to construct '" + name + "': The provided double value is non-finite.");
+    }
+    return Object.create(C.prototype);
+  };
+  try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
+  try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
+  globalThis.__diting_stubs.add(C);
+  return C;
+}
+const CSSMATH = [%s];
+for (const [name, len, min, variadic] of CSSMATH) {
+  if (SKIP(name)) continue;
+  const C = mkCssMath(name, len, min, variadic);
+  Object.defineProperty(globalThis, name, { value: C, writable: true, enumerable: false, configurable: true });
+}
+""" % ",\n  ".join("[%s,%d,%d,%s]" % (json.dumps(n), shapes[n].get("ln") or 0, mn, "true" if var_ else "false")
+                   for n, (mn, var_) in sorted(CSSMATH.items())))
 
 rows = [("[%s,%d]" % (json.dumps(n), shapes[n].get("ln") or 0)) for n in groups["ok"]]
 js.append("""
