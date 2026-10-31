@@ -1899,3 +1899,10 @@ audit 全零后转向**行为**账。抓 63 个 SVG 标签的 `createElementNS(.
 ①XMLDocument 加入 nid 型节点类的零参封口表（`new XMLDocument()` Illegal constructor）。②**试错一（已回退）**：把 `new Document()` 做成「DOMParser 空文档」——DOMParser 的 XML 文档是**普通 Object**（`constructor.name==='Object'`、`instanceof Document` 为 false、带多余 documentElement），反而比现状更差；`new Document()` 的真修法需要先把 DOMParser/`createDocument` 产出的分离文档做成**真 Document/XMLDocument 实例**（独立大工程，挂账）。③**试错二（已回退）**：把 22 个「Chrome 为 Illegal constructor 而引擎仍可 `new`」的接口（BaseAudioContext/CustomElementRegistry/DOMTokenList/ElementInternals/GPU/GPUAdapter/ImageBitmap/MediaQueryList/MessagePort/MimeType(Array)/NodeList/PerformanceEntry/PerformanceObserverEntryList/Plugin(Array)/SVGPoint/Selection/ServiceWorkerContainer/SourceBuffer/Window/XMLHttpRequestEventTarget）整体换成「总是抛 Illegal」的全局包装——**310 个测试同时回归**（引擎内部大量经 `globalThis.X`/裸全局名铸造这些类，Window、NodeList、Selection 尤甚）；回退。结论：这 22 个只能**逐个把铸造点改成「铸造 flag」**，且要先逐类核对内部创建路径，不能靠全局替换。
 数字：构造器对账 183→**42**；shape audit 不变；cargo test **952 通过 + 110 基线逐名全等**（回退后复验）。
 **教训**：①**「页面可见的全局」与「引擎内部引用」在这个代码库里常是同一个绑定**——全局替换只对「内部用词法绑定或已捕获引用」的类安全（刀78 的 20+6 个恰好如此），否则灾难性回归；②试错后**先回退再验基线**，别带着半截改动往前走；③DOMParser 的分离文档不是真 Document，是 Document/XML 家族的深坑，需单开一刀。
+
+## M4 刀82：零参封口扩 19 类；Document 真实例线判定暂缓（2026-10-31）
+
+ctor_ladders 的 ILLEGAL0 表加 19 类（BaseAudioContext/CustomElementRegistry/DOMTokenList/ElementInternals/GPU/GPUAdapter/MediaQueryList/MessagePort/MimeType/MimeTypeArray/PerformanceEntry/PerformanceObserverEntryList/Plugin/PluginArray/SVGPoint/Selection/ServiceWorkerContainer/SourceBuffer/XMLHttpRequestEventTarget），`new X()` 抛 Illegal constructor。**二分筛出两个不能加**：ImageBitmap（createImageBitmap 内部无参创建）、NodeList（引擎内部无参创建，加了引发整片 page 测试级联失败）——需要先给内部创建者改传 mint 参数才能封。
+**Document 真实例线（DOMParser/`new Document()`/createDocument）判定暂缓**：`Document` 的 documentElement/head/body 等 getter 直接打主文档 op（`_dom("document_element")` 无节点参数），做真实例要把一批 op 按文档参数化，改动面大；账本保留。
+数字：cargo test 953 通过 + 110 基线逐名全等；shape 889/936 不变；enum 211/204/7；instance 127/127；ratchet 65。
+**教训**：多个 `cargo test` 脚本不能并行跑在同一工作树（共享被改的 JS 文件，结果互相污染）。
