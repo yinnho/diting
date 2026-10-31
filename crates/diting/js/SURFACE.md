@@ -2104,3 +2104,21 @@ Chrome 真值要点：
 
 数字：别名 21/21、DM 构造面 12/12、webkit sweep 8/8 SAME 全对；URL 对象事实（length/name/protoCtor/descriptor/静态四件/无 __diting 泄漏）全同；shape **936/936 全 0**；enum 204/211（7 已知：gl 真值伪影+newdoc+sheets+nodeList+htmlColl+gain+ctxDest）；instance 127/127；快照变 1 处（webkitURL 行从「P :: constructor」换成 URL 真身的 S+P 双行=正确形状）；cargo test **967 通过/110 失败=基线精确**；测试 `knife96_legacy_alias_identity` 17 行。
 **教训**：①**wrapper 固定参数表吃 argc**——`Reflect.construct(_URL, [url, base])` 让 class 的 `arguments.length` 恒为 2，0 参梯永不触发（knife87 url0 行当场抓获）；包装必须 `...args` rest 转发；②**测试期望别拿直觉写**——`new webkitURL('scale(2)')` 期望过 matrix 解析（把它当 CSSMatrix 了），Chrome 真值是 Invalid URL（它就是 WHATWG URL）；先探后写；③**别名线的前缀扫描有盲区**——WebKitCSSMatrix 的孪生名不是去前缀（CSSMatrix 不存在），穷尽扫描须配已知 LegacyAlias 清单兜底；④孪生与真身同形时（共享 prototype、同名），对拍全绿≠身份对——恒等比较要单独立行。
+
+## M4 刀97 — 字体指纹线刀1：measureText 真逐字步进模型（2026-11-01）
+
+canvas measureText 从 `length*6*scale*factor` 均匀步进换成**捕获的 Chrome 145 逐字步进真值表**（macOS arm64 zh persona），fontBoundingBox 从三族比例类换成**逐字体 asc/desc 比例+逐尺寸覆写**。字体在场枚举（font fingerprinting 的经典面）从此对拍真浏览器。
+
+**数据**（`chrome/fonts-metrics-truth-145.json` + 8 个 probe 源）：69 名字×95 ASCII 字符@100px 逐字步进（50 张唯一表内联）；210 个非 ASCII 码位（Latin-1+General Punctuation+符号）逐字体行；vert1000/vert100/vertspot 垂直锚（10/12/16/20/32px）；presence 面（61 persona 字体实测 51 个可区分、10 个=默认表——**PingFang 六兄弟/YaHei/SimSun/STHeiti Light 在 Chrome 里就是量成默认**，引擎同构）；kern 9 对样本（证明 kern 残差∝px 恰线性）。
+
+**三条机制腿**（probe 揭示，皆非均匀模型可表达）：
+1. **system-ui=SF Pro 连续光学轴**：逐字符 em 随 px 连续漂移（H：8px 时 0.768em→100px 时 0.699em），不是 Text/Display 二档切换——22 个 knot 尺寸（8..24 逐 px+28/32/40/64/100）逐字分段线性插值（奇数尺寸验证最大误差 0.006em）。EXT 列同样漂（em-dash 0.886@10 vs 0.831@100），xk knot 同构。
+2. **Apple Color Emoji 位图阶梯**：13 个 keycap 源字符（space/#/*/0-9）8..24px 走**整数 px 阶梯**（10,11,13,14,…,24px 处恰 1em），≥24px 回 1em 表；其余 82 字符=默认表线性（H 恰 0.72em 恒定）。
+3. **引号里外的 generic 不是一家**：不带引号 `monospace`=Menlo（步进+垂直 15/4）、`serif`=Songti SC、`cursive`=Kaiti SC、`fantasy`=Papyrus（15/10）；带引号 `"monospace"` 命中**另一张隐藏脸**（m=0.684em、17/5）——GENERIC 表只对不带引号 token 生效，带引号走 lookup 落到捕获的引号行。ui-sans-serif/ui-serif/ui-monospace 在 canvas font shorthand 里**不被识别**（全量成默认，k97 发现）。
+
+**规则腿**：CJK 表意=恰 1em/字（按 code point 计，astral 代理对算一字——sum 显式解码）；Hangul=0.865em/字；缺字体族=默认表（Chrome absent 行为）；persona 声称但捕获机没有的脸（YaHei/SimSun）随 Chrome 一起量成默认；垂直=round(px×em比) 主模型+vertspot/vert100 覆写锚（CoreText 小尺寸量化与 .5 舍入异向处，10 字体）。
+
+**模型外残差（挂账刀98 候选）**：①kerning 不建模——26/69 字体 LIN 串差=kern 总量（∝px 恰线性；system-ui 的 kern 还随光学轴变，31/69 字体 kern 对非零）；②≤6e-4 px 浮点累加噪声（真值 1e-6em 量化所限）；③非 EXT 非 CJK 非 Hangul 的非常见字符仍走 'o'-类步进。ink bounds（actualBoundingBox*）维持刀74 启发式。
+
+**数字**：adv 69 表全对（system-ui 差 1e-4=存储噪声）；vert 三腿（v100/v1000/vspot）**0 格差**；vert16 69/69；lin=3 精确+39 噪声+26 kern+1 system-ui(kern)；presence 可区分性 9/9 同构（同 9 张脸在两引擎都量成 base）；cjk/Hangul/astral/EXT 全对；26 行测试行对真 Chrome 全同（1e-3 容差）；shape **936/936 全 0**；enum 204/211（7 已知不变）；instance 127/127；快照无漂移（`__ditingFontMetrics` 不泄漏）；cargo test **968/110=基线+1**；workspace **1514/156=基线+1**；测试 `knife97_font_metrics_model` 26 行。
+**教训**：①**generator 别 zip 字典**——truth 文件 sort_keys 后 `adv` 键按字符串序（'10'<'100'<'11'），zip(sizes, values()) 配错行，system-ui 当场炸出 -71px；按键索引；②**Python round 是银行家舍入、JS Math.round 是半上**——恰 .5 处生成器判「无需覆写」而运行时差 1px，覆写判定必须用 jsround(floor(x+0.5))；③**探针引号即语义**——metrics/vert probe 全带引号设 font，引号 generic 与裸 generic 在 Chrome 是两家，generic 真值必须单独裸跑一腿；④**probe 校验别用对象相等**——Chrome 返回 raw float64（1270.800048828125），引擎量化 1e-6，数值腿必须带容差比；⑤**连续漂移>二档模型**——SF Pro 光学轴不是 Text/Display 开关，捕获 22 knot 插值才是正法。

@@ -12561,13 +12561,12 @@ globalThis.SVGFEDropShadowElement = class SVGFEDropShadowElement extends globalT
 // Illegal constructor, measureText mints through the hidden factory. Chrome
 // 145 (k74): width + actualBoundingBox{Left,Right,Ascent,Descent} +
 // fontBoundingBox{Ascent,Descent} + {hanging,alphabetic,ideographic}Baseline.
-// The ink bounds and font metrics are a MODEL, not glyph geometry (the engine
-// has no rasterizer): font ascent/descent = round(size * per-family ratio),
-// baselines/shifts follow the relations measured on Chrome (alphabetic 0,
-// hanging 0.8*ascent, ideographic -descent, top/middle/bottom shifted by the
-// em-box ratios of the 16px Arial capture), ink left/right = width minus a
-// side-bearing fraction, aligned by textAlign. `width` keeps the engine's
-// persona-font model untouched.
+// 刀97: `width` and fontBoundingBox come from the captured per-glyph tables
+// (font_metrics.js, Chrome 145 macOS truth); the ink bounds and baselines
+// stay the 刀74 heuristic MODEL (no rasterizer): shifts follow the relations
+// measured on Chrome (alphabetic 0, hanging 0.8*ascent, ideographic -descent,
+// top/middle/bottom by the 16px Arial em-box ratios), ink left/right = width
+// minus a side-bearing fraction, aligned by textAlign.
 (() => {
   const st = new WeakMap();
   const TM = class TextMetrics {
@@ -12588,11 +12587,14 @@ globalThis.SVGFEDropShadowElement = class SVGFEDropShadowElement extends globalT
   globalThis.TextMetrics = TM;
   const r4 = (n) => Math.round(n * 1e4) / 1e4;
   Object.defineProperty(globalThis, '__diting_newTextMetrics', {
-    // m = { width, size (px), family ('arial'|'times'|'mono'), text, baseline, align }
+    // m = { width, size (px), family ('arial'|'times'|'mono'), text, baseline, align,
+    //       vmet: [A, D] from the captured table (刀97) — present whenever the
+    //       font resolved to a real table; absent keeps the 刀74 ratio classes }
     value(m) {
       const S = m.size, W = m.width;
       const ratio = m.family === 'mono' ? [0.928, 0.236] : m.family === 'times' ? [0.891, 0.216] : [0.905, 0.212];
-      const A = Math.round(S * ratio[0]), D = Math.round(S * ratio[1]);
+      const A = m.vmet ? m.vmet[0] : Math.round(S * ratio[0]);
+      const D = m.vmet ? m.vmet[1] : Math.round(S * ratio[1]);
       // shift = distance the chosen textBaseline sits ABOVE the alphabetic baseline
       const hang = 0.8 * A;
       const shift = { top: 0.77539 * S, hanging: hang, middle: 0.77539 * S / 2 - (D + 0.03711 * S) / 2, alphabetic: 0, ideographic: -D, bottom: -(D + 0.03711 * S) }[m.baseline] || 0;
@@ -13042,37 +13044,59 @@ class _Canvas2D {
   }
   strokeText(text, x, y) { this.fillText(text, x, y); }
   measureText(t) {
-    const fontSize = parseInt(this.font) || 10;
-    const scale = Math.max(1, Math.round(fontSize / 10));
-    // Per-font width factor so font-presence probes (measure the same
-    // string across many family names; available fonts change the width,
-    // missing ones fall back to the default) see a realistic spread.
-    // Shares the persona's installed-font table with _ditingFontBox so
-    // canvas probing and offsetWidth probing agree on which faces exist.
-    // CSS font shorthand is "style weight 72px Family" — strip tokens up to
-    // and including the size so "72px Arial" resolves Arial (not "72px Arial").
+    // (刀97) width = Σ per-glyph advances from the captured Chrome 145
+    // tables (font_metrics.js). Generic families resolve to the default
+    // port's mapping; persona-installed fonts carry their real table;
+    // fonts the persona claims but the capture Mac lacks keep the stable
+    // spread factor on top of the DEFAULT table (still ≥1% off the
+    // fallback, like a real installed face); everything else falls back
+    // to the default table — Chrome's absent-family behavior, not a
+    // uniform per-character step. Kerning pairs are NOT modeled (the
+    // kern rows in fonts-metrics-truth-145.json document the residue).
     let famPart = String(this.font || '');
     const sizeHit = famPart.match(/(?:^|\s)(\d+(?:\.\d+)?)(px|pt|em|rem|%)\b/i);
     if (sizeHit) {
       famPart = famPart.slice(sizeHit.index + sizeHit[0].length).replace(/^\s*\/\s*[\d.]+(?:px|pt|em|rem|%)?\s*/, ' ').trim();
     }
-    let factor = 1;
-    for (const name of famPart.split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean)) {
-      if (_GENERIC_FONT[name]) continue;
-      const f = _installedFontFactor(name);
-      if (f !== null) { factor = f; break; }
-    }
     if (arguments.length < 1) throw new TypeError("Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.");
     const text = String(t);
-    const w = text.length * 6 * scale * factor;
     // (刀74) real font size for the metrics model (px/pt/em/rem; 0 -> all-zero metrics)
     let px = 10;
     const mm = String(this.font || '').match(/(?:^|\s)(\d+(?:\.\d+)?|\.\d+)(px|pt|em|rem)\b/i);
     if (mm) px = parseFloat(mm[1]) * ({ px: 1, pt: 4 / 3, em: 16, rem: 16 }[mm[2].toLowerCase()]);
+    const FM = globalThis.__ditingFontMetrics;
+    let tbl = null, factor = 1;
+    if (FM) {
+      // (k97) quoted vs unquoted matters for generic names in Chrome: the
+      // unquoted generic resolves to its real face (monospace=Menlo…), a
+      // quoted "monospace" matches a different hidden face — the quoted
+      // rows live in the metrics tables as plain name entries, so generic()
+      // only fires for unquoted tokens and lookup() serves the rest.
+      for (const tok of famPart.split(',')) {
+        const raw = tok.trim();
+        const name = raw.replace(/^['"]|['"]$/g, '');
+        if (!name) continue;
+        const quoted = raw.length > 0 && raw[0] !== name[0];
+        if (!quoted) {
+          const g = FM.generic(name);
+          if (g) { tbl = g; break; }
+        }
+        const t2 = FM.lookup(name);
+        if (t2) { tbl = t2; break; }
+        const f = _installedFontFactor(name);
+        if (f !== null) { factor = f; break; }
+      }
+      if (!tbl) tbl = FM.generic('sans-serif');
+    }
     const fl = famPart.toLowerCase();
     const family = /mono|courier|menlo|consolas/.test(fl) ? 'mono' : /times|serif(?!.*sans)|georgia/.test(fl) && !/sans/.test(fl) ? 'times' : 'arial';
     const zero = px <= 0;
-    return globalThis.__diting_newTextMetrics({ width: zero ? 0 : Math.round(w * 100) / 100, size: zero ? 0 : px, family, text, baseline: this.textBaseline, align: this.textAlign });
+    let w = 0;
+    if (!zero) {
+      if (FM) w = Math.round(FM.sum(tbl, text, px) * factor * 1e6) / 1e6;
+      else { const fontSize = parseInt(this.font) || 10; const scale = Math.max(1, Math.round(fontSize / 10)); w = Math.round(text.length * 6 * scale * factor * 100) / 100; }
+    }
+    return globalThis.__diting_newTextMetrics({ width: zero ? 0 : w, size: zero ? 0 : px, family, text, baseline: this.textBaseline, align: this.textAlign, vmet: FM && !zero ? FM.vertical(tbl, px) : null });
   }
   getImageData(x, y, w, h) {
     x=Math.round(x); y=Math.round(y); w=Math.round(w); h=Math.round(h);
