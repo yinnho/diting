@@ -2051,7 +2051,7 @@ P SpeechRecognitionPhrase :: boost,constructor,phrase
 P SpeechSynthesis :: cancel,constructor,getVoices,onvoiceschanged,pause,paused,pending,resume,speak,speaking
 P SpeechSynthesisErrorEvent :: constructor,error
 P SpeechSynthesisEvent :: charIndex,charLength,constructor,elapsedTime,name,utterance
-P SpeechSynthesisUtterance :: constructor,lang,pitch,rate,text,volume
+P SpeechSynthesisUtterance :: constructor,lang,onboundary,onend,onerror,onmark,onpause,onresume,onstart,pitch,rate,text,voice,volume
 P SpeechSynthesisVoice :: constructor,default,lang,localService,name,voiceURI
 P StaticRange :: constructor
 P StereoPannerNode :: constructor,pan

@@ -29278,3 +29278,96 @@ async fn knife69_webgl_surface() {
     assert_eq!(o["own"], serde_json::json!([0, ["__x"], 5]));
     assert_eq!(o["tag"], serde_json::json!(["[object WebGLRenderingContext]", true, true, true, 64, 32, 32856]));
 }
+
+/// M4 刀70: SpeechSynthesisUtterance + voice/event faces against Chrome 145
+/// (k70 probes): EventTarget instances with zero own keys, Chrome defaults
+/// (lang ''), ToString text/lang (Symbol throws), finite-checked clamped
+/// float32 volume/rate/pitch, voice only a real SpeechSynthesisVoice or null,
+/// on* attributes keep functions/objects and null the rest, speak() argument
+/// ladder, and the SpeechSynthesisEvent required-member ctor.
+#[tokio::test(flavor = "current_thread")]
+async fn knife70_speech_utterance_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const U = SpeechSynthesisUtterance;
+        t('shape', () => [U.length, U.name, Reflect.ownKeys(new U()).length, Object.prototype.toString.call(new U()), new U() instanceof EventTarget]);
+        t('chain', () => { const c = []; let p = Object.getPrototypeOf(new U()); while (p) { c.push(p.constructor.name); p = Object.getPrototypeOf(p); } return c; });
+        t('defaults', () => { const u = new U(); return [u.text, u.lang, u.voice, u.volume, u.rate, u.pitch, u.onstart, u.onboundary]; });
+        t('ctorText', () => [new U('hi').text, new U(undefined).text, new U(null).text, new U(5).text]);
+        t('noNew', () => { try { U('x'); return 'NO'; } catch (e) { return e.message; } });
+        t('strings', () => { const u = new U(); u.text = 7; u.lang = null; return [u.text, u.lang]; });
+        t('symbol', () => { const u = new U(); const r = []; for (const f of [() => { u.text = Symbol(); }, () => { u.volume = Symbol(); }]) { try { f(); r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('floats', () => { const u = new U(); const r = []; for (const [k, vs] of [['volume', [0.5, 2, -1, '0.3', null]], ['rate', [0.05, 11, 2]], ['pitch', [2.5, -1, 1.5]]]) for (const x of vs) { u[k] = x; r.push(u[k]); } return r; });
+        t('nonFinite', () => { const u = new U(); const r = []; for (const [k, x] of [['volume', NaN], ['rate', Infinity], ['pitch', 'x']]) { try { u[k] = x; r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('voice', () => { const u = new U(); const r = []; u.voice = null; r.push(u.voice); for (const x of [{}, 'x', 5]) { try { u.voice = x; r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('handlers', () => { const u = new U(); const f = () => 1; u.onend = f; const a = u.onend === f; u.onstart = 5; const b = u.onstart; const obj = {}; u.onerror = obj; return [a, b, u.onerror === obj]; });
+        t('dispatch', () => { const u = new U(); let n = 0; u.onstart = () => n++; u.addEventListener('start', () => n++); u.dispatchEvent(new Event('start')); return n; });
+        t('names', () => ['text', 'voice', 'onstart'].map(k => { const d = Object.getOwnPropertyDescriptor(U.prototype, k); return [d.get.name, d.set.name, d.set.length, d.enumerable, d.configurable]; }));
+        t('foreign', () => { const d = Object.getOwnPropertyDescriptor(U.prototype, 'text'); const r = []; for (const f of [() => d.get.call({}), () => d.set.call({}, 'x')]) { try { f(); r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('speak', () => { const r = []; for (const f of [() => speechSynthesis.speak(), () => speechSynthesis.speak({}), () => speechSynthesis.speak(new U('x'))]) { try { f(); r.push('ok'); } catch (e) { r.push(e.message); } } return r; });
+        t('evCtor', () => { const u = new U(); const e = new SpeechSynthesisEvent('x', { utterance: u, charIndex: 3.7, name: 'n' }); return [e.type, e.utterance === u, e.charIndex, e.charLength, e.elapsedTime, e.name, e instanceof Event, SpeechSynthesisEvent.length]; });
+        t('evErrs', () => { const r = []; for (const f of [() => new SpeechSynthesisEvent('x'), () => new SpeechSynthesisEvent('x', {}), () => new SpeechSynthesisErrorEvent('x', { utterance: new U() })]) { try { f(); r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('errEv', () => { const e = new SpeechSynthesisErrorEvent('error', { utterance: new U(), error: 'not-allowed' }); return [e.error, e instanceof SpeechSynthesisEvent, e instanceof Event, SpeechSynthesisErrorEvent.length]; });
+        t('voices', () => { const vs = speechSynthesis.getVoices(); return [Array.isArray(vs), Object.prototype.toString.call(vs[0]), speechSynthesis.getVoices() !== vs]; });
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["shape"], serde_json::json!([0, "SpeechSynthesisUtterance", 0, "[object SpeechSynthesisUtterance]", true]));
+    assert_eq!(o["chain"], serde_json::json!(["SpeechSynthesisUtterance", "EventTarget", "Object"]));
+    assert_eq!(o["defaults"], serde_json::json!(["", "", null, 1, 1, 1, null, null]));
+    assert_eq!(o["ctorText"], serde_json::json!(["hi", "", "null", "5"]));
+    assert_eq!(o["noNew"], "Failed to construct 'SpeechSynthesisUtterance': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    assert_eq!(o["strings"], serde_json::json!(["7", "null"]));
+    assert_eq!(
+        o["symbol"],
+        serde_json::json!([
+            "Failed to set the 'text' property on 'SpeechSynthesisUtterance': Cannot convert a Symbol value to a string",
+            "Failed to set the 'volume' property on 'SpeechSynthesisUtterance': Cannot convert a Symbol value to a number"
+        ])
+    );
+    assert_eq!(
+        o["floats"],
+        serde_json::json!([0.5, 1, 0, 0.30000001192092896, 0, 0.10000000149011612, 10, 2, 2, 0, 1.5])
+    );
+    assert_eq!(
+        o["nonFinite"],
+        serde_json::json!([
+            "Failed to set the 'volume' property on 'SpeechSynthesisUtterance': The provided float value is non-finite.",
+            "Failed to set the 'rate' property on 'SpeechSynthesisUtterance': The provided float value is non-finite.",
+            "Failed to set the 'pitch' property on 'SpeechSynthesisUtterance': The provided float value is non-finite."
+        ])
+    );
+    assert_eq!(
+        o["voice"],
+        serde_json::json!([
+            null,
+            "Failed to set the 'voice' property on 'SpeechSynthesisUtterance': Failed to convert value to 'SpeechSynthesisVoice'.",
+            "Failed to set the 'voice' property on 'SpeechSynthesisUtterance': Failed to convert value to 'SpeechSynthesisVoice'.",
+            "Failed to set the 'voice' property on 'SpeechSynthesisUtterance': Failed to convert value to 'SpeechSynthesisVoice'."
+        ])
+    );
+    assert_eq!(o["handlers"], serde_json::json!([true, null, true]));
+    assert_eq!(o["dispatch"], 2);
+    assert_eq!(o["names"], serde_json::json!([["get text", "set text", 1, true, true], ["get voice", "set voice", 1, true, true], ["get onstart", "set onstart", 1, true, true]]));
+    assert_eq!(o["foreign"], serde_json::json!(["Illegal invocation", "Illegal invocation"]));
+    assert_eq!(
+        o["speak"],
+        serde_json::json!([
+            "Failed to execute 'speak' on 'SpeechSynthesis': 1 argument required, but only 0 present.",
+            "Failed to execute 'speak' on 'SpeechSynthesis': parameter 1 is not of type 'SpeechSynthesisUtterance'.",
+            "ok"
+        ])
+    );
+    assert_eq!(o["evCtor"], serde_json::json!(["x", true, 3, 0, 0, "n", true, 2]));
+    assert_eq!(
+        o["evErrs"],
+        serde_json::json!([
+            "Failed to construct 'SpeechSynthesisEvent': 2 arguments required, but only 1 present.",
+            "Failed to construct 'SpeechSynthesisEvent': Failed to read the 'utterance' property from 'SpeechSynthesisEventInit': Required member is undefined.",
+            "Failed to construct 'SpeechSynthesisErrorEvent': Failed to read the 'error' property from 'SpeechSynthesisErrorEventInit': Required member is undefined."
+        ])
+    );
+    assert_eq!(o["errEv"], serde_json::json!(["not-allowed", true, true, 2]));
+}
