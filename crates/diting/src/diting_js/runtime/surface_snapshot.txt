@@ -2285,4 +2285,5 @@ S webkitSpeechRecognition :: available,install
 P webkitSpeechRecognition :: abort,constructor,continuous,grammars,interimResults,lang,maxAlternatives,onaudioend,onaudiostart,onend,onerror,onnomatch,onresult,onsoundend,onsoundstart,onspeechend,onspeechstart,onstart,phrases,processLocally,start,stop
 P webkitSpeechRecognitionError :: constructor,error,message
 P webkitSpeechRecognitionEvent :: constructor,resultIndex,results
-P webkitURL :: constructor
+S webkitURL :: canParse,createObjectURL,parse,revokeObjectURL
+P webkitURL :: constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username

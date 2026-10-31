@@ -4909,46 +4909,15 @@ exports.set = set;
 exports.call = call;
 exports.stat = stat;
 
-// ---- WebKitCSSMatrix: DOMMatrix's legacy factory function --------------
-// Chrome 145 facts (truth wkcm.*): NOT a subclass — it SHARES
-// DOMMatrix.prototype, its own [[Prototype]] is the PARENT interface object
-// (DOMMatrixReadOnly), its name is "DOMMatrix", and it carries the three
-// statics. Constructed from an optional transform-list string ('' default).
-// The wiring needs globalThis.DOMMatrix, which the generated module exposes
-// AFTER this module loads — so it happens in ready(), called at the gen
-// module's tail.
-function WebKitCSSMatrix() {
-  if (!new.target) {
-    P.fail(WebKitCSSMatrix, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'WebKitCSSMatrix'");
-  }
-  CTX = "Failed to construct 'WebKitCSSMatrix'";
-  const s = arguments.length > 0 && arguments[0] !== undefined ? num2str(arguments[0]) : '';
-  BAG.matrix.set(this, parseTransformList(s));
-}
-P.expose('WebKitCSSMatrix', WebKitCSSMatrix);
-
-let wired = false;
-function ready() {
-  if (wired) return;
-  wired = true;
-  const DM = globalThis.DOMMatrix, DMR = globalThis.DOMMatrixReadOnly;
-  if (!DM || !DMR) return;
-  Object.defineProperty(WebKitCSSMatrix, 'name', { value: 'DOMMatrix', configurable: true });
-  WebKitCSSMatrix.prototype = DM.prototype;
-  Object.setPrototypeOf(WebKitCSSMatrix, DMR);
-  const wk = (op) => "Failed to execute '" + op + "' on 'WebKitCSSMatrix'";
-  P.stat(WebKitCSSMatrix, 'fromMatrix', 1, function fromMatrix(init) {
-    return stat('DOMMatrix', 'fromMatrix', wk('fromMatrix'), arguments);
-  });
-  P.stat(WebKitCSSMatrix, 'fromFloat32Array', 1, function fromFloat32Array(arr) {
-    return stat('DOMMatrix', 'fromFloat32Array', wk('fromFloat32Array'), arguments);
-  });
-  P.stat(WebKitCSSMatrix, 'fromFloat64Array', 1, function fromFloat64Array(arr) {
-    return stat('DOMMatrix', 'fromFloat64Array', wk('fromFloat64Array'), arguments);
-  });
-  _markNative(WebKitCSSMatrix);
-}
-exports.ready = ready;
+// ---- WebKitCSSMatrix: DOMMatrix's legacy alias (刀96) ------------------
+// Chrome 145 truth (k96 probe): WebKitCSSMatrix === DOMMatrix — ONE
+// interface object ([LegacyAlias]). The engine's DOMMatrix ctor already
+// parses transform-list strings AND sequences with Chrome's unified
+// 'DOMMatrix' error context (dm_str/dm_seq/dm_bad/dm_num all green), so
+// the legacy-factory twin (separate identity, 'WebKitCSSMatrix' error
+// prefix, sequence-blind) is deleted. The alias itself is pinned by
+// global_surface's ET_ALIAS, which loads after gen/geometry exposes
+// DOMMatrix; gen/geometry's `if (B.ready) B.ready()` tail call just no-ops.
 });
 
 // ---- module gen/geometry (L2) ----

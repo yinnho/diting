@@ -2089,3 +2089,18 @@ Chrome 真值要点：
 实现：`gen_method_ladders.py` 并读两份真值（ladders-truth-145.json + 新 ladders-inst-truth-145.json）合并 262 sync+16 promise；生成器加 OWNOF 实例安装腿。
 数字：probe 对拍 **0 diff**（268 行+54 接口）；shape **936/936 全 0**；enum 204/211（6 已知漏 + gl=**真值侧伪影**：真值捕获日 Chrome GL 未起，引擎 `[]` 与刀92 活 GL Chrome 腿同形）；instance 127/127；cargo test 全量与基线 156 行逐名全等（110 lib+46 环境）+快照变（6 行 window 法 wrap 后无 .prototype=更近 Chrome 原生形状）；测试 `knife95_instance_method_ladders` 27 行+3 promise 断言。
 **教训**：①**diff 分类器别只看 Chrome 侧**——TTPF 六行引擎侧是「inst[k] is not a function」（实例没接原型），被 argc 正则吸进 SYNC 表差点漏判；分类要看双侧；②**单例接线有连带**——把裸 Object 链上原型会改变「实例自有 vs 原型」的旧落点（scheduler postTask 当场回归），接线后必跑 shape 门；③**构造器 new 检查先于 argc**（webkitURL/URL 案）——ctor ladder 表的报文要按这个序；④**别拿 length 猜必参数**（getUserMedia=3 非 1）——一律从真值报文解析；⑤probe 值行 join 前先想 undefined→''。
+
+## M4 刀96 — [LegacyAlias] 身份对齐（webkitURL/WebKitCSSMatrix）
+
+刀95 挂账的 `webkitURL === URL` 别名身份 + 刀78 先例（WebKitMutationObserver 别名须跟随真身）的全家清账。
+
+**穷尽法**：`alias-sweep-probe.js` 扫 window 全部 webkit/WebKit 前缀键与去前缀孪生做恒等比较（真值 `alias-sweep-truth-145.json`）——Chrome 145 **恰好 8 个 SAME 别名**：webkitURL/URL、webkitMediaStream/MediaStream、webkitRTCPeerConnection/RTCPeerConnection、WebKitMutationObserver/MutationObserver、webkitSpeechRecognition(+Event)/SpeechRecognition(+Event)、webkitSpeechGrammar(+List)/SpeechGrammar(+List)。webkitCancelAnimationFrame/webkitRequestAnimationFrame 与 cancelAnimationFrame 是**分开的函数**（两引擎一致 DIFF）；Image/Audio/Option 恒为独立 legacy 构造器（两引擎一致 DIFF）；webkitAudioContext 已从 window 移除。对拍引擎 6 对已真、缺 2：webkitURL、WebKitCSSMatrix（后者孪生名 CSSMatrix 不存在，前缀扫描抓不到，靠手工对清单补擒）。
+
+修法：
+1. **webkitURL**：撤出 global_surface THROW 表（mkThrow 是独立函数），进 ET_ALIAS 别名族指 URL 真身。
+2. **URL 无 new 调用报文**（真差，别名化后暴露）：引擎 URL 是 JS class，无 new 调用报 V8 自然报文「Class constructor URL cannot be invoked without 'new'」；Chrome 报 DOM new-check「Failed to construct 'URL': Please use the 'new' operator…」。bootstrap 加**函数构造器包装**（`...args` rest 转发保真 argc→Reflect.construct(_URL, args, new.target)；静态按 SORDER 序拷贝；prototype 共享同一对象、constructor 回指包装；length 钉 1；_markNative）。
+3. **WebKitCSSMatrix**：platform_bundle 的 legacy-factory 孪生整个删除，ET_ALIAS 指 DOMMatrix 真身。孪生自带三缺口一并修掉：wk_seq 拒序列（Chrome 统一 ctor 吃 `[1,2,3,4,5,6]`）、wk_bad/wk_num 报文前缀 'WebKitCSSMatrix'（Chrome 因同对象恒报 'DOMMatrix'）——引擎 DM 本尊的 ctor 面（字符串/序列/报文）早已全对（dm_str/dm_seq/dm_bad/dm_num 四行全同），孪生纯冗余。
+4. 连带清 global_surface AUDIT_CHAIN 的 `["WebKitCSSMatrix","DOMMatrixReadOnly"]` 行（1106 行已有诚实的 DOMMatrix 行；别名后该行打的还是同一对象，纯重复）。
+
+数字：别名 21/21、DM 构造面 12/12、webkit sweep 8/8 SAME 全对；URL 对象事实（length/name/protoCtor/descriptor/静态四件/无 __diting 泄漏）全同；shape **936/936 全 0**；enum 204/211（7 已知：gl 真值伪影+newdoc+sheets+nodeList+htmlColl+gain+ctxDest）；instance 127/127；快照变 1 处（webkitURL 行从「P :: constructor」换成 URL 真身的 S+P 双行=正确形状）；cargo test **967 通过/110 失败=基线精确**；测试 `knife96_legacy_alias_identity` 17 行。
+**教训**：①**wrapper 固定参数表吃 argc**——`Reflect.construct(_URL, [url, base])` 让 class 的 `arguments.length` 恒为 2，0 参梯永不触发（knife87 url0 行当场抓获）；包装必须 `...args` rest 转发；②**测试期望别拿直觉写**——`new webkitURL('scale(2)')` 期望过 matrix 解析（把它当 CSSMatrix 了），Chrome 真值是 Invalid URL（它就是 WHATWG URL）；先探后写；③**别名线的前缀扫描有盲区**——WebKitCSSMatrix 的孪生名不是去前缀（CSSMatrix 不存在），穷尽扫描须配已知 LegacyAlias 清单兜底；④孪生与真身同形时（共享 prototype、同名），对拍全绿≠身份对——恒等比较要单独立行。
