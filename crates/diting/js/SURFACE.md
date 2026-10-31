@@ -1882,3 +1882,14 @@ audit 全零后转向**行为**账。抓 63 个 SVG 标签的 `createElementNS(.
 记档分歧（余 10）：AudioContext.baseLatency（persona/机器相关）、MediaStream.id（随机）、CSSStyleSheet.cssRules/rules 与 DataTransfer.items 的**对象构造器名**（引擎返回 Array/Object 而非 CSSRuleList/DataTransferItemList）、`new Document()`（引擎返回的像主文档而非空文档：URL/activeElement/body 都不同——需把 Document 构造器做成真新文档）、XRRay/XRRigidTransform/ScrollTimeline.source 的对象值默认、SharedStorageClearMethod 缺失。
 测试：`knife79_default_values`（16 组默认值断言，覆盖上述 12 个桩接口与其余五处修复）。
 **教训**：①**对账的第三维是「默认值」**——结构、构造器报文之后，`new X()` 后逐 getter 对账能一次抓出成片的 undefined 谎言；②桩接口的 getter 设计成「答 undefined」是占位，应随真值表补默认（本刀用一张从 Chrome 捕获派生的表）；③包装桩 getter 而不是重写，才能保住既有品牌校验与 Illegal invocation 行为。
+
+## M4 刀80：方法必需参数梯（76 同步 TypeError + 4 Promise 拒绝）（2026-10-31）
+
+对账第四维：**方法无参调用**。对 115 个无参可构造接口，逐个调用原型上每个方法（无参），与 Chrome 逐项比：**30 接口 121 项不同**，主因是引擎方法缺 WebIDL 必需参数梯（`Failed to execute 'm' on 'I': N argument(s) required, but only 0 present.`——Chrome 在碰接收者前就抛；Promise 返回操作改为**拒绝**而非同步抛）。
+
+**先试了「按 Chrome length>0 全量包装 1219 个方法」，被否决**：全量包装与既有的细致实现冲突——EditContext 的品牌检查先于参数检查（foreign receiver 应得 Illegal invocation 而不是参数错）、platform_errors 测试钉的**错误对象形状**（栈帧数、message 属性标志）、已经手工做对的梯、`history.pushState` 家族的旧行为等 5 个测试同时回归。改为**精确表**：`chrome/ladders-truth-145.json`（Chrome-vs-引擎逐项差异：sync 76 / promise 4，探针 ladders-probe.js 入库）→ `gen_method_ladders.py` → **method_ladders.js（生成件）**：仅对这 80 个方法包一层 method-shorthand 薄包装（无 `prototype`、非构造、native 标记、保留原描述符 flag 与 Chrome length），参数不足时抛/拒绝 Chrome 的 TypeError，否则 `Reflect.apply` 直通。覆盖：FormData/URLSearchParams(append/delete/get/getAll/forEach)、Path2D(arc/arcTo/ellipse/bezierCurveTo/lineTo/addPath…)、XMLHttpRequest(open/setRequestHeader/overrideMimeType/getResponseHeader)、DocumentFragment(getElementById/querySelector(All))、Range(selectNode/comparePoint/insertNode/…)、CSSStyleSheet、FileReader、Highlight、MediaSource、MediaStream、Origin、DOMParser、ReadableStream、TaskController、Text、TextEncoder、RTCPeerConnection、CaptureController、DataTransfer 等；Promise 四个：BarcodeDetector.detect、CSSStyleSheet.replace、CaptureController.forwardWheel、ReadableStream.pipeTo。
+
+数字：无参方法对账残余 arity 差异 121 → **1**（RTCPeerConnection.setRemoteDescription：Chrome 先报参数、引擎先报 closed 状态）；shape audit 保持 same 889/其余全零/kind 47；枚举 211/204/7；实例 127/127；ratchet 65；快照变；cargo test **952 通过 + 110 基线逐名全等**。
+记档分歧：覆盖仅限「无参可构造」接口的方法（元素/文档/窗口等需要实例的接口未入表——宽探针在 Chrome 里因个别方法挂起而放弃，改用精确表）；品牌先于参数的顺序对被包装的方法不成立（foreign receiver 先得参数错）；方法的**非参数**行为差异（InvalidStateError 时序、返回值类型如 FormData.entries 返回 Iterator 对象的构造器名、ReadableStream.tee 等）未处理。
+测试：`knife80_method_argument_ladders`（FormData/URLSearchParams/Path2D/XHR/DocumentFragment/Range 的逐方法报文含复数规则、两个 Promise 拒绝、包装形状与直通正常调用）。
+**教训**：①**「全量机械包装」是反模式**——它覆盖了所有手工做对的细节（品牌序、错误对象形状），应只补**经差异探针证明缺失**的点；②Promise 返回操作的参数错误是**拒绝**不是抛出，表要分开记；③宽探针（调用所有方法）会碰到会导航/挂起的方法，探针要么限定对象集、要么带超时分片，别指望一次扫全；④生成件的输入应是「差异表」而不是「完整真值表」。
