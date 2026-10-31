@@ -8456,8 +8456,10 @@ const _GL_RET = {
   getTransformFeedbackVarying: function() { return null; },
   getVertexAttrib: function() { return 0; }, getVertexAttribOffset: function() { return 0; },
   getFramebufferStatus: function() { return 0x8CD5; }, checkFramebufferStatus: function() { return 0x8CD5; },
-  getError: function() { return 0; },
-  isContextLost: function() { return false; },
+  // (刀92) getError reads-and-clears the per-context sticky error; while lost it is
+  // the CONTEXT_LOST_WEBGL constant, forever. isContextLost mirrors the sync flag.
+  getError: function() { const b = _glBaseOf.get(this) || this; if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation'); const st = _glX(b); if (st.lost) return 37442; const e = st.err; st.err = 0; return e; },
+  isContextLost: function() { const b = _glBaseOf.get(this) || this; if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation'); return _glX(b).lost; },
   isBuffer: function() { return false; }, isFramebuffer: function() { return false; },
   isProgram: function() { return false; }, isQuery: function() { return false; },
   isRenderbuffer: function() { return false; }, isSampler: function() { return false; },
@@ -8484,6 +8486,34 @@ const _glBaseOf = new WeakMap();      // context Proxy -> its base (the WeakMap 
 const _glColorSpace = new WeakMap();  // base -> { drawingBufferColorSpace, unpackColorSpace }
 const _glAttrs = new WeakMap();       // base -> the normalized WebGLContextAttributes getContext received
 const _glXrPromise = new WeakMap();   // base -> the cached makeXRCompatible() promise
+// (刀92) Per-context extension-method state (Chrome 145 truth, k92-p* probes): sticky GL
+// error, context-loss machine, the ext-parameter readback state (clip origin/depth,
+// polygon mode, provoking vertex), the current timer query, and the activation sets.
+// Cross-context object TYPING lives in the two global WeakSets below — a VAO minted on
+// context A passes the parameter check on context B (is → false there), it never
+// becomes a TypeError.
+const _glXSt = new WeakMap();
+const _glX = (b) => {
+  let s = _glXSt.get(b);
+  if (!s) { s = { err: 0, lost: false, lostPrevented: false, restoring: false, clipO: 36001, clipD: 37726,
+                  polyMode: 6913, provoking: 36429, curQ: null, en: new Set(),
+                  vAct: new WeakSet(), qAct: new WeakSet() }; _glXSt.set(b, s); }
+  return s;
+};
+const _GLX_VALL = new WeakSet();      // every minted WebGLVertexArrayObjectOES, any context
+const _GLX_QALL = new WeakSet();      // every minted WebGLTimerQueryEXT, any context
+const _glShSrc = new WeakMap();       // core shader -> its shaderSource() string (debug-shaders face)
+const _glShCompiled = new WeakSet();  // core shaders that went through compileShader()
+// Ext-owned pnames answer on getParameter ONLY after that extension was fetched on
+// this context (enable-on-getExtension, k92-p5/p6) — before that they read null.
+const _GL_XPN = new Map([
+  [34047, { ext: 'EXT_texture_filter_anisotropic', get: function() { return 16; } }],
+  [37724, { ext: 'EXT_clip_control', get: function(st) { return st.clipO; } }],
+  [37725, { ext: 'EXT_clip_control', get: function(st) { return st.clipD; } }],
+  [2880, { ext: 'WEBGL_polygon_mode', get: function(st) { return st.polyMode; } }],
+  [36431, { ext: 'WEBGL_provoking_vertex', get: function(st) { return st.provoking; } }],
+  [36795, { ext: null, get: function() { return false; } }],  // GPU_DISJOINT: either timer ext enables
+]);
 for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [globalThis.WebGL2RenderingContext, true]]) {
   const P = _GLC.prototype;
   const isGL2 = _isGL2;
@@ -8500,16 +8530,42 @@ for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [global
   }
   // Introspection faces keep real implementations (#117 lineage) — installed
   // BEFORE the table fill so the generic pass sees them as already-present.
-  P.getParameter = function(pname) { return _glParam(pname, isGL2); };
+  // (刀92) All four introspection faces are receiver-strict (foreign `this` →
+  // bare "Illegal invocation"), ext-pname reads gate on enable-on-getExtension,
+  // and loss gates getExtension→null / getParameter→null / list→[].
+  P.getParameter = function(pname) {
+    const b = _glBaseOf.get(this) || this;
+    if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation');
+    const st = _glX(b);
+    if (st.lost) return null;
+    const xp = _GL_XPN.get(pname);
+    if (xp !== undefined) {
+      const on = xp.ext === null
+        ? (st.en.has('EXT_disjoint_timer_query') || st.en.has('EXT_disjoint_timer_query_webgl2'))
+        : st.en.has(xp.ext);
+      return on ? xp.get(st) : null;
+    }
+    return _glParam(pname, isGL2);
+  };
   P.getExtension = function(name) {
     if (arguments.length < 1) throw new TypeError("Failed to execute 'getExtension' on '" + _GLC.name + "': 1 argument required, but only 0 present.");
+    const b = _glBaseOf.get(this) || this;
+    if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation');
     // Chrome matches extension names case-insensitively.
     const want = String(name).toLowerCase();
     let hit = null;
     for (const e of exts) { if (e.toLowerCase() === want) { hit = e; break; } }
-    return hit === null ? null : globalThis.__diting_glExt(hit, _glBaseOf.get(this) || this);
+    if (hit === null) return null;
+    const st = _glX(b);
+    if (st.lost) return null;
+    st.en.add(hit);
+    return globalThis.__diting_glExt(hit, b);
   };
-  P.getSupportedExtensions = function() { return exts.slice(); };
+  P.getSupportedExtensions = function() {
+    const b = _glBaseOf.get(this) || this;
+    if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation');
+    return _glX(b).lost ? [] : exts.slice();
+  };
   P.getShaderPrecisionFormat = function() { return { rangeMin: 127, rangeMax: 127, precision: 23 }; };
   P.bufferData = function() {};
   P.readPixels = function(x,y,w,h,f,t,d) { if(d) for(let i=0;i<d.length;i++) d[i]=0; };
@@ -8559,6 +8615,204 @@ for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [global
   }, writable: true, enumerable: true, configurable: true });
   Object.defineProperty(P, 'drawingBufferFormat', _acc(function() { return 0x8058; }));
 }
+// ---------- (刀92) WebGL extension method behavior ----------
+// webgl_ext.js forwards every extension method here carrying (iface, method, nreq);
+// this block owns the WebIDL argc ladder, receiver strictness (bare "Illegal
+// invocation", k92-p4) and the per-method Chrome-145 behavior (k92-glxt/p1-p6).
+// The block loads before webgl_ext.js but is only ever CALLED after both, so the
+// late __diting_glExtBaseOf reference is safe at runtime.
+const _glxType = function(v, ws, meth, iface, param, tname) {
+  if (v === null || v === undefined || typeof v !== 'object' || !ws.has(v))
+    throw new TypeError("Failed to execute '" + meth + "' on '" + iface + "': parameter " + param + " is not of type '" + tname + "'.");
+};
+const _glObjProtos = new Map();
+const _glObjProto = function(tag) {
+  let p = _glObjProtos.get(tag);
+  if (p) return p;
+  p = {};
+  Object.defineProperty(p, Symbol.toStringTag, { value: tag, configurable: true });
+  Object.setPrototypeOf(p, globalThis.WebGLObject.prototype);   // k92-p1: the mint chain ends at [object WebGLObject], not Object
+  _glObjProtos.set(tag, p);
+  return p;
+};
+const _glMint = function(tag, ws) { const o = Object.create(_glObjProto(tag)); ws.add(o); return o; };
+const _GLX_H = {
+  // ---- OESVertexArrayObject: GL-name activation — fresh/deleted objects fail is*,
+  //      bind activates, the TYPE outlives deletion (global typing set). ----
+  'OESVertexArrayObject.createVertexArrayOES': function(st) { return st.lost ? null : _glMint('WebGLVertexArrayObjectOES', _GLX_VALL); },
+  'OESVertexArrayObject.bindVertexArrayOES': function(st, b, a) { const v = a[0]; if (v === null || v === undefined) return; _glxType(v, _GLX_VALL, 'bindVertexArrayOES', 'OESVertexArrayObject', 1, 'WebGLVertexArrayObjectOES'); st.vAct.add(v); },
+  'OESVertexArrayObject.deleteVertexArrayOES': function(st, b, a) { const v = a[0]; if (v === null || v === undefined) return; _glxType(v, _GLX_VALL, 'deleteVertexArrayOES', 'OESVertexArrayObject', 1, 'WebGLVertexArrayObjectOES'); st.vAct.delete(v); },
+  'OESVertexArrayObject.isVertexArrayOES': function(st, b, a) { const v = a[0]; if (v === null || v === undefined) return false; _glxType(v, _GLX_VALL, 'isVertexArrayOES', 'OESVertexArrayObject', 1, 'WebGLVertexArrayObjectOES'); return st.vAct.has(v); },
+  // ---- EXTDisjointTimerQuery: TIME_ELAPSED is the only begin target, activation
+  //      survives endQuery and only delete clears it; results never complete (persona
+  //      machine truth: AVAILABLE false / RESULT 0, zero error). ----
+  'EXTDisjointTimerQuery.createQueryEXT': function(st) { return st.lost ? null : _glMint('WebGLTimerQueryEXT', _GLX_QALL); },
+  'EXTDisjointTimerQuery.beginQueryEXT': function(st, b, a) {
+    _glxType(a[1], _GLX_QALL, 'beginQueryEXT', 'EXTDisjointTimerQuery', 2, 'WebGLTimerQueryEXT');
+    if ((a[0] >>> 0) !== 35007) { st.err = 1280; return; }
+    if (st.curQ) { st.err = 1282; return; }
+    st.curQ = a[1]; st.qAct.add(a[1]);
+  },
+  'EXTDisjointTimerQuery.endQueryEXT': function(st, b, a) {
+    if ((a[0] >>> 0) !== 35007) { st.err = 1280; return; }
+    if (!st.curQ) { st.err = 1282; return; }
+    st.curQ = null;
+  },
+  'EXTDisjointTimerQuery.getQueryEXT': function(st, b, a) {
+    const t = a[0] >>> 0, p = a[1] >>> 0;
+    if (t === 35007) return p === 34917 ? (st.curQ || null) : (p === 34916 ? 64 : null);
+    if (t === 36392) return p === 34917 ? null : (p === 34916 ? 0 : null);
+    return null;
+  },
+  'EXTDisjointTimerQuery.getQueryObjectEXT': function(st, b, a) {
+    _glxType(a[0], _GLX_QALL, 'getQueryObjectEXT', 'EXTDisjointTimerQuery', 1, 'WebGLTimerQueryEXT');
+    const p = a[1] >>> 0;
+    if (p === 34919) return false;
+    if (p === 34918) return 0;
+    st.err = 1280; return null;
+  },
+  'EXTDisjointTimerQuery.queryCounterEXT': function(st, b, a) {
+    _glxType(a[0], _GLX_QALL, 'queryCounterEXT', 'EXTDisjointTimerQuery', 1, 'WebGLTimerQueryEXT');
+    if ((a[1] >>> 0) !== 36392) { st.err = 1280; return; }
+    st.qAct.add(a[0]);
+  },
+  'EXTDisjointTimerQuery.isQueryEXT': function(st, b, a) { const q = a[0]; if (q === null || q === undefined) return false; _glxType(q, _GLX_QALL, 'isQueryEXT', 'EXTDisjointTimerQuery', 1, 'WebGLTimerQueryEXT'); return st.qAct.has(q); },
+  'EXTDisjointTimerQuery.deleteQueryEXT': function(st, b, a) { const q = a[0]; if (q === null || q === undefined) return; _glxType(q, _GLX_QALL, 'deleteQueryEXT', 'EXTDisjointTimerQuery', 1, 'WebGLTimerQueryEXT'); st.qAct.delete(q); if (st.curQ === q) st.curQ = null; },
+  // ---- EXTDisjointTimerQueryWebGL2: the lone method, typed against CORE
+  //      WebGLQuery. ----
+  'EXTDisjointTimerQueryWebGL2.queryCounterEXT': function(st, b, a) {
+    const q = a[0];
+    if (!(q instanceof globalThis.WebGLQuery))
+      throw new TypeError("Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': parameter 1 is not of type 'WebGLQuery'.");
+    if ((a[1] >>> 0) !== 36392) { st.err = 1280; return; }
+  },
+  // ---- WEBGLDebugShaders: the translated source is the shader's own text, and only
+  //      once compileShader() has run — sourced-but-uncompiled reads "". ----
+  'WebGLDebugShaders.getTranslatedShaderSource': function(st, b, a) {
+    const s = a[0];
+    if (!(s instanceof globalThis.WebGLShader))
+      throw new TypeError("Failed to execute 'getTranslatedShaderSource' on 'WebGLDebugShaders': parameter 1 is not of type 'WebGLShader'.");
+    return _glShCompiled.has(s) ? (_glShSrc.get(s) || '') : '';
+  },
+  'WebGLCompressedTextureASTC.getSupportedProfiles': function() { return ['ldr', 'hdr']; },
+  // ---- ANGLEInstancedArrays: on the programless persona every draw fails first
+  //      (1282 beats mode/count validation); divisor bounds are the attrib count. ----
+  'ANGLEInstancedArrays.drawArraysInstancedANGLE': function(st) { st.err = 1282; },
+  'ANGLEInstancedArrays.drawElementsInstancedANGLE': function(st) { st.err = 1282; },
+  'ANGLEInstancedArrays.vertexAttribDivisorANGLE': function(st, b, a) { if ((a[0] >>> 0) >= 16) st.err = 1281; },
+  // ---- WebGLDrawBuffers: length before element ([]→1282, len>1→1280, bad elem→1282);
+  //      non-object / non-iterable is the WebIDL sequence TypeError. ----
+  'WebGLDrawBuffers.drawBuffersWEBGL': function(st, b, a) {
+    const bufs = a[0];
+    if (bufs === null || typeof bufs !== 'object' || typeof bufs[Symbol.iterator] !== 'function')
+      throw new TypeError("Failed to execute 'drawBuffersWEBGL' on 'WebGLDrawBuffers': The provided value cannot be converted to a sequence.");
+    const arr = Array.from(bufs);
+    if (arr.length === 0) { st.err = 1282; return; }
+    if (arr.length > 1) { st.err = 1280; return; }
+    const e = arr[0] >>> 0;
+    if (e !== 1029 && e !== 0) st.err = 1282;
+  },
+  // ---- OESDrawBuffersIndexed: draw-buffer index OOB → 1281; indexed enable takes
+  //      BLEND only (anything else 1280). Valid calls are silent. ----
+  'OESDrawBuffersIndexed.blendFunciOES': function(st, b, a) { if ((a[0] >>> 0) >= 8) st.err = 1281; },
+  'OESDrawBuffersIndexed.blendFuncSeparateiOES': function(st, b, a) { if ((a[0] >>> 0) >= 8) st.err = 1281; },
+  'OESDrawBuffersIndexed.blendEquationiOES': function(st, b, a) { if ((a[0] >>> 0) >= 8) st.err = 1281; },
+  'OESDrawBuffersIndexed.blendEquationSeparateiOES': function(st, b, a) { if ((a[0] >>> 0) >= 8) st.err = 1281; },
+  'OESDrawBuffersIndexed.colorMaskiOES': function(st, b, a) { if ((a[0] >>> 0) >= 8) st.err = 1281; },
+  'OESDrawBuffersIndexed.enableiOES': function(st, b, a) { if ((a[0] >>> 0) !== 3042) { st.err = 1280; return; } if ((a[1] >>> 0) >= 8) st.err = 1281; },
+  'OESDrawBuffersIndexed.disableiOES': function(st, b, a) { if ((a[0] >>> 0) !== 3042) { st.err = 1280; return; } if ((a[1] >>> 0) >= 8) st.err = 1281; },
+  // ---- EXTClipControl / WEBGL_polygon_mode / WEBGL_provoking_vertex: enum
+  //      validation + the state getParameter reads back. polygonMode takes
+  //      FRONT_AND_BACK (1032) ONLY — a FRONT face is an error (pm.ok → 1280). ----
+  'EXTClipControl.clipControlEXT': function(st, b, a) {
+    const o = a[0] >>> 0, d = a[1] >>> 0;
+    if (o !== 36001 && o !== 36002) { st.err = 1280; return; }
+    if (d !== 37726 && d !== 37727) { st.err = 1280; return; }
+    st.clipO = o; st.clipD = d;
+  },
+  'WebGLPolygonMode.polygonModeWEBGL': function(st, b, a) {
+    const f = a[0] >>> 0, m = a[1] >>> 0;
+    if (f !== 1032) { st.err = 1280; return; }
+    if (m !== 6913 && m !== 6914) { st.err = 1280; return; }
+    st.polyMode = m;
+  },
+  'WebGLProvokingVertex.provokingVertexWEBGL': function(st, b, a) {
+    const c = a[0] >>> 0;
+    if (c !== 36429 && c !== 36430) { st.err = 1280; return; }
+    st.provoking = c;
+  },
+  'EXTPolygonOffsetClamp.polygonOffsetClampEXT': function() {},
+  // ---- WebGLMultiDraw: draws on the programless persona — 1282, plain arrays accepted. ----
+  'WebGLMultiDraw.multiDrawArraysWEBGL': function(st) { st.err = 1282; },
+  'WebGLMultiDraw.multiDrawArraysInstancedWEBGL': function(st) { st.err = 1282; },
+  'WebGLMultiDraw.multiDrawElementsWEBGL': function(st) { st.err = 1282; },
+  'WebGLMultiDraw.multiDrawElementsInstancedWEBGL': function(st) { st.err = 1282; },
+  // ---- WebGLLoseContext: sync flag + async WebGLContextEvent on the CANVAS;
+  //      restore only arms when the lost event's preventDefault ran, then the
+  //      restored event lands async with fully reset per-context state. ----
+  'WebGLLoseContext.loseContext': function(st, b) {
+    if (st.lost) return;
+    st.lost = true; st.lostPrevented = false;
+    const c = _glCanvasMap.get(b);
+    if (c) setTimeout(function() {
+      const e = new globalThis.WebGLContextEvent('webglcontextlost', { cancelable: true });
+      c.dispatchEvent(e);
+      if (e.defaultPrevented) st.lostPrevented = true;
+    }, 0);
+  },
+  'WebGLLoseContext.restoreContext': function(st, b) {
+    if (!st.lost || st.restoring || !st.lostPrevented) return;
+    st.restoring = true;
+    const c = _glCanvasMap.get(b);
+    setTimeout(function() {
+      st.lost = false; st.restoring = false; st.lostPrevented = false;
+      st.err = 0; st.curQ = null; st.clipO = 36001; st.clipD = 37726; st.polyMode = 6913; st.provoking = 36429;
+      st.en = new Set(); st.vAct = new WeakSet(); st.qAct = new WeakSet();
+      if (c) c.dispatchEvent(new globalThis.WebGLContextEvent('webglcontextrestored'));
+    }, 0);
+  },
+};
+Object.defineProperty(globalThis, '__diting_glExtCall', {
+  value: function(iface, meth, nreq, self, args) {
+    if (args.length < nreq)
+      throw new TypeError("Failed to execute '" + meth + "' on '" + iface + "': " + nreq + " argument" + (nreq > 1 ? "s" : "") + " required, but only " + args.length + " present.");
+    const b = globalThis.__diting_glExtBaseOf(self);
+    if (b === null || !_glCanvasMap.has(b)) throw new TypeError('Illegal invocation');
+    const h = _GLX_H[iface + '.' + meth];
+    return h ? h(_glX(b), b, args) : undefined;
+  },
+  writable: true, enumerable: false, configurable: true,
+});
+// Core shader tracking for the debug-shaders face (the old no-ops): shaderSource
+// remembers the text, compileShader stamps the shader — getTranslatedShaderSource
+// reads exactly that pair back.
+Object.defineProperty(globalThis.WebGLRenderingContext.prototype, 'shaderSource', { value: function shaderSource(shader, source) { _glShSrc.set(shader, String(source)); }, writable: true, enumerable: true, configurable: true });
+Object.defineProperty(globalThis.WebGL2RenderingContext.prototype, 'shaderSource', { value: function shaderSource(shader, source) { _glShSrc.set(shader, String(source)); }, writable: true, enumerable: true, configurable: true });
+Object.defineProperty(globalThis.WebGLRenderingContext.prototype, 'compileShader', { value: function compileShader(shader) { _glShCompiled.add(shader); }, writable: true, enumerable: true, configurable: true });
+Object.defineProperty(globalThis.WebGL2RenderingContext.prototype, 'compileShader', { value: function compileShader(shader) { _glShCompiled.add(shader); }, writable: true, enumerable: true, configurable: true });
+// (k92-p6) WebGLContextEvent is a CONSTRUCTIBLE Event subclass, not one of the
+// inert stubs (global_surface's THROW table SKIPs it — we are here first): mint
+// through the real Event via Reflect.construct, statusMessage from the init dict,
+// prototype own-name order [statusMessage, constructor] exactly as Chrome.
+const _glCE_SM = new WeakMap();
+globalThis.WebGLContextEvent = function WebGLContextEvent(type, init) {
+  if (!new.target) throw new TypeError("Failed to construct 'WebGLContextEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+  const e = Reflect.construct(globalThis.Event, [type, init || {}], new.target);
+  _glCE_SM.set(e, String((init && init.statusMessage) || ''));
+  return e;
+};
+Object.defineProperty(globalThis.WebGLContextEvent, 'length', { value: 1, configurable: true });
+(function () {
+  const p = globalThis.WebGLContextEvent.prototype;
+  const ctor = Object.getOwnPropertyDescriptor(p, 'constructor');
+  delete p.constructor;
+  Object.defineProperty(p, 'statusMessage', { get: function statusMessage() { return _glCE_SM.has(this) ? _glCE_SM.get(this) : ''; }, enumerable: true, configurable: true });
+  Object.defineProperty(p, 'constructor', ctor);
+})();
+// (k92-p6) WebGLObject.prototype carries the interface's own toStringTag — the
+// minted-object chain ([object WebGLVertexArrayObjectOES] → [object WebGLObject])
+// ends in a tagged prototype, not a bare Object.prototype.
+__def(globalThis.WebGLObject.prototype, Symbol.toStringTag, 'WebGLObject');
 
 // (#117) Chrome's screen carries ZERO own enumerable props — every field is
 // a getter on Screen.prototype (probe ground truth: Object.keys(screen) ===
