@@ -125,6 +125,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("native_clone.js", include_str!("js/native_clone.js")),
     // Host hooks for the native EventTarget core (needs Node/Event from bootstrap).
     ("event_hooks.js", include_str!("js/event_hooks.js")),
+    // 刀67: VideoColorSpace behavior takeover — must run after the surface
+    // mint (the class exists) and before stub_members/lift_own (the fill
+    // skips what's installed here; the minted prototype identity is kept).
+    ("videoframe_gaps.js", include_str!("js/videoframe_gaps.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),

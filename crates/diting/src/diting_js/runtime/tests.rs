@@ -28922,3 +28922,115 @@ fn knife66_counter_style_and_shadowroot() {
     assert_eq!(g("srSelRange"), serde_json::json!([1, "Range", true]));
     assert_eq!(g("srIllegal"), serde_json::json!(["E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation"]));
 }
+
+// 刀67: VideoFrame 13 件（WebCodecs 值类型大户）——Chrome 145 真值四轮探针
+// （k67-chrome{,2,3,4}）：双 ctor 路（canvas 真 BGRA 像素 / BufferSource+
+// VideoFrameBufferInit 验证梯）、平面数学（allocationSize/copyTo layouts）、
+// closed 矩阵（ts/duration 存活、几何归零、rects null、colorSpace 全 null）、
+// visibleRect 收缩（帧塌到可见矩形、原点重锚、数据尺寸按解析态 coded 验）、
+// VideoColorSpace 行为接管（ctor 存 init、成员默认 null、toJSON 序）。
+#[test]
+fn knife67_videoframe_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const t = (f) => { try { const v = f(); return v === undefined ? 'undef' : (v === null ? 'null' : v); } catch (e) { return 'E:' + e.name + ':' + e.message; } };
+          const out = {};
+          const P = VideoFrame.prototype;
+          out.has13 = ['format','timestamp','duration','codedWidth','codedHeight','codedRect','visibleRect','displayWidth','displayHeight','colorSpace','rotation','flip','allocationSize','clone','copyTo','metadata','close'].filter((n) => Object.getOwnPropertyNames(P).indexOf(n) < 0);
+          out.ctorLens = [VideoFrame.length, VideoColorSpace.length];
+          const cv = document.createElement('canvas'); cv.width = 4; cv.height = 2;
+          // ---- ctor ladder: exact Chrome messages --------------------------
+          out.noarg = t(() => new VideoFrame());
+          out.garbage = t(() => new VideoFrame(42));
+          out.bufNoOpts = t(() => new VideoFrame(new Uint8Array(32)));
+          out.bufNullOpts = t(() => new VideoFrame(new Uint8Array(32), null));
+          out.noCh = t(() => new VideoFrame(new Uint8Array(32), {}));
+          out.noFmt = t(() => new VideoFrame(new Uint8Array(32), { codedWidth: 4, codedHeight: 2, timestamp: 0 }));
+          out.badFmt = t(() => new VideoFrame(new Uint8Array(32), { format: 'ZZZ', codedWidth: 4, codedHeight: 2, timestamp: 0 }));
+          out.cw0 = t(() => new VideoFrame(new Uint8Array(0), { format: 'RGBA', codedWidth: 0, codedHeight: 2, timestamp: 0 }));
+          out.badBuf = t(() => new VideoFrame(new Uint8Array(3), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0 }));
+          out.visRight = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, visibleRect: { x: 0, y: 0, width: 9, height: 2 } }));
+          out.visBottom = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, visibleRect: { x: 0, y: 0, width: 4, height: 9 } }));
+          out.visYNeg = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, visibleRect: { x: 0, y: -1, width: 2, height: 2 } }));
+          out.visW0 = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, visibleRect: { x: 0, y: 0, width: 0, height: 2 } }));
+          out.dispWOnly = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, displayWidth: 8 }));
+          out.dispHNeg = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, displayWidth: -1, displayHeight: 2 }));
+          out.durNeg = t(() => new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, duration: -1 }));
+          out.noTsCanvas = t(() => new VideoFrame(cv));
+          // ---- happy paths ---------------------------------------------------
+          const vf = new VideoFrame(cv, { timestamp: 7, duration: 9 });
+          out.canvas = [vf.format, vf.codedWidth, vf.codedHeight, vf.displayWidth, vf.displayHeight, vf.rotation, vf.flip, vf.timestamp, vf.duration];
+          out.alloc = [vf.allocationSize(), new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0 }).allocationSize(), new VideoFrame(new Uint8Array(12), { format: 'I420', codedWidth: 4, codedHeight: 2, timestamp: 0 }).allocationSize(), new VideoFrame(new Uint8Array(12), { format: 'NV12', codedWidth: 4, codedHeight: 2, timestamp: 0 }).allocationSize()];
+          out.rects = [vf.codedRect.constructor.name, vf.codedRect.x, vf.codedRect.width, vf.visibleRect === vf.visibleRect, vf.codedRect === vf.codedRect, vf.colorSpace === vf.colorSpace];
+          out.cs = JSON.parse(JSON.stringify(vf.colorSpace));
+          out.csCtor = [vf.colorSpace.constructor.name, JSON.stringify(new VideoColorSpace({ primaries: 'bt709' })), JSON.stringify(new VideoColorSpace({ fullRange: 'x' })), JSON.stringify(new VideoColorSpace()), Object.getOwnPropertyNames(new VideoColorSpace()).length];
+          const csd = Object.getOwnPropertyDescriptor(VideoColorSpace.prototype, 'primaries');
+          out.csDsc = [!!csd.get, csd.get.name, csd.enumerable, csd.configurable];
+          out.csTag = VideoColorSpace.prototype[Symbol.toStringTag];
+          // visibleRect collapse: frame shrinks to the visible rect, re-anchored
+          const v2 = new VideoFrame(new Uint8Array(48), { format: 'RGBA', codedWidth: 6, codedHeight: 2, timestamp: 0, visibleRect: { x: 3, y: 0, width: 2, height: 1 } });
+          out.collapse = [v2.codedWidth, v2.codedHeight, v2.visibleRect.x, v2.visibleRect.y, v2.visibleRect.width, v2.displayWidth, v2.allocationSize()];
+          out.snap = (() => { const f = new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, visibleRect: { x: 1, y: 1.9, width: 2.9, height: 1 } }); return [f.visibleRect.x, f.visibleRect.y, f.visibleRect.width]; })();
+          out.rot = [new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, rotation: 45 }).rotation, new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, rotation: '90' }).rotation, new VideoFrame(new Uint8Array(32), { format: 'RGBA', codedWidth: 4, codedHeight: 2, timestamp: 0, flip: 'yes' }).flip, new VideoFrame(cv, { timestamp: '5' }).timestamp, new VideoFrame(cv, { timestamp: -5 }).timestamp];
+          out.alpha = new VideoFrame(cv, { timestamp: 0, alpha: 'discard' }).format;
+          out.fromFrame = (() => { const a = new VideoFrame(cv, { timestamp: 3, duration: 4 }); const b = new VideoFrame(a); return [b.format, b.codedWidth, b.timestamp, b.duration]; })();
+          out.clone = (() => { const c = vf.clone(); a: { } return [c.constructor.name, c.format, c.timestamp === vf.timestamp, c === vf, (() => { vf.close(); return [c.format, c.codedWidth]; })()]; })();
+          out.cloneI420 = (() => { const f = new VideoFrame(new Uint8Array(12), { format: 'I420', codedWidth: 4, codedHeight: 2, timestamp: 0 }); const c = f.clone(); return [c.format, c.allocationSize()]; })();
+          const mf = new VideoFrame(cv, { timestamp: 0 });
+          out.meta = [typeof mf.metadata(), mf.metadata().constructor === Object, Object.keys(mf.metadata()).length, mf.metadata() === mf.metadata()];
+          // copyTo: promise identity, sync-NO-THROW on bad/small (async rejections)
+          out.copyKind = [Object.prototype.toString.call(new VideoFrame(cv, { timestamp: 0 }).copyTo(new ArrayBuffer(64))), t(() => { new VideoFrame(cv, { timestamp: 0 }).copyTo({}); return 'NO-THROW'; }), t(() => { new VideoFrame(cv, { timestamp: 0 }).copyTo(new ArrayBuffer(4)); return 'NO-THROW'; })];
+          // ---- closed matrix -------------------------------------------------
+          const cf = new VideoFrame(cv, { timestamp: 7, duration: 9 });
+          cf.close();
+          out.closed = [cf.format, cf.timestamp, cf.duration, cf.codedWidth, cf.codedHeight, cf.displayWidth, cf.visibleRect, cf.codedRect, JSON.parse(JSON.stringify(cf.colorSpace)), cf.rotation, cf.flip];
+          out.closedOps = [t(() => cf.allocationSize()), t(() => cf.clone()), t(() => cf.metadata()), t(() => { cf.copyTo(new ArrayBuffer(64)); return 'NO-THROW'; }), t(() => { cf.close(); return 'NO-THROW'; })];
+          out.closedTwice = cf.format;
+          // ---- illegal invocation ---------------------------------------------
+          out.illegal = [t(() => Object.getOwnPropertyDescriptor(P, 'codedWidth').get.call({})), t(() => P.clone.call({})), t(() => P.copyTo.call({}, new ArrayBuffer(8)))];
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let g = |k: &str| v.get(k).cloned().unwrap_or(serde_json::Value::Null);
+    assert_eq!(g("has13"), serde_json::json!([]));
+    assert_eq!(g("ctorLens"), serde_json::json!([1, 0]));
+    assert_eq!(g("noarg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': 1 argument required, but only 0 present."));
+    assert_eq!(g("garbage"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."));
+    assert_eq!(g("bufNoOpts"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."));
+    assert_eq!(g("bufNullOpts"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type 'VideoFrameBufferInit'."));
+    assert_eq!(g("noCh"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'codedHeight' property from 'VideoFrameBufferInit': Required member is undefined."));
+    assert_eq!(g("noFmt"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'format' property from 'VideoFrameBufferInit': Required member is undefined."));
+    assert_eq!(g("badFmt"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'format' property from 'VideoFrameBufferInit': The provided value 'ZZZ' is not a valid enum value of type VideoPixelFormat."));
+    assert_eq!(g("cw0"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': codedWidth must be nonzero."));
+    assert_eq!(g("badBuf"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': data is not large enough."));
+    assert_eq!(g("visRight"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. right 9 exceeds codedWidth 4."));
+    assert_eq!(g("visBottom"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. bottom 9 exceeds codedHeight 2."));
+    assert_eq!(g("visYNeg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. y cannot be negative."));
+    assert_eq!(g("visW0"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. width must be nonzero."));
+    assert_eq!(g("dispWOnly"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': displayWidth specified without displayHeight."));
+    assert_eq!(g("dispHNeg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'displayWidth' property from 'VideoFrameBufferInit': Value is outside the 'unsigned long' value range."));
+    assert_eq!(g("durNeg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'duration' property from 'VideoFrameBufferInit': Value is outside the 'unsigned long long' value range."));
+    assert_eq!(g("noTsCanvas"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': VideoFrameInit must provide timestamp"));
+    assert_eq!(g("canvas"), serde_json::json!(["BGRA", 4, 2, 4, 2, 0, false, 7, 9]));
+    assert_eq!(g("alloc"), serde_json::json!([32, 32, 12, 12]));
+    assert_eq!(g("rects"), serde_json::json!(["DOMRectReadOnly", 0, 4, true, true, true]));
+    assert_eq!(g("cs"), serde_json::json!({"fullRange": true, "matrix": "rgb", "primaries": "bt709", "transfer": "iec61966-2-1"}));
+    assert_eq!(g("csCtor"), serde_json::json!(["VideoColorSpace", "{\"fullRange\":null,\"matrix\":null,\"primaries\":\"bt709\",\"transfer\":null}", "{\"fullRange\":true,\"matrix\":null,\"primaries\":null,\"transfer\":null}", "{\"fullRange\":null,\"matrix\":null,\"primaries\":null,\"transfer\":null}", 0]));
+    assert_eq!(g("csDsc"), serde_json::json!([true, "get primaries", true, true]));
+    assert_eq!(g("csTag"), serde_json::json!("VideoColorSpace"));
+    assert_eq!(g("collapse"), serde_json::json!([2, 1, 0, 0, 2, 2, 8]));
+    assert_eq!(g("snap"), serde_json::json!([0, 0, 2]));
+    assert_eq!(g("rot"), serde_json::json!([90, 90, true, 5, -5]));
+    assert_eq!(g("alpha"), serde_json::json!("BGRX"));
+    assert_eq!(g("fromFrame"), serde_json::json!(["BGRA", 4, 3, 4]));
+    assert_eq!(g("clone"), serde_json::json!(["VideoFrame", "BGRA", true, false, ["BGRA", 4]]));
+    assert_eq!(g("cloneI420"), serde_json::json!(["I420", 12]));
+    assert_eq!(g("meta"), serde_json::json!(["object", true, 0, false]));
+    assert_eq!(g("copyKind"), serde_json::json!(["[object Promise]", "NO-THROW", "NO-THROW"]));
+    assert_eq!(g("closed"), serde_json::json!([null, 7, 9, 0, 0, 0, null, null, {"fullRange": null, "matrix": null, "primaries": null, "transfer": null}, 0, false]));
+    assert_eq!(g("closedOps"), serde_json::json!(["E:InvalidStateError:Failed to execute 'allocationSize' on 'VideoFrame': VideoFrame is closed.", "E:InvalidStateError:Failed to execute 'clone' on 'VideoFrame': Cannot clone closed VideoFrame.", "E:InvalidStateError:Failed to execute 'metadata' on 'VideoFrame': VideoFrame is closed.", "NO-THROW", "NO-THROW"]));
+    assert_eq!(g("closedTwice"), serde_json::json!(null));
+    assert_eq!(g("illegal"), serde_json::json!(["E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation"]));
+}

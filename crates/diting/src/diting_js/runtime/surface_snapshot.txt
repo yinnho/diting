@@ -2148,7 +2148,7 @@ S VideoDecoder :: isConfigSupported
 P VideoDecoder :: close,configure,constructor,decode,decodeQueueSize,flush,ondequeue,reset,state
 S VideoEncoder :: isConfigSupported
 P VideoEncoder :: close,configure,constructor,encode,encodeQueueSize,flush,ondequeue,reset,state
-P VideoFrame :: close,constructor,duration,format,timestamp
+P VideoFrame :: allocationSize,clone,close,codedHeight,codedRect,codedWidth,colorSpace,constructor,copyTo,displayHeight,displayWidth,duration,flip,format,metadata,rotation,timestamp,visibleRect
 P VideoPlaybackQuality :: constructor
 P ViewTimeline :: constructor,endOffset,startOffset,subject
 P ViewTransition :: constructor,finished,ready,skipTransition,updateCallbackDone
