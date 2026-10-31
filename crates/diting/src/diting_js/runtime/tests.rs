@@ -30768,3 +30768,101 @@ async fn knife89_css_numeric_arithmetic() {
          source-string retention"
     );
 }
+
+/// M4 刀90: Selection/Range across shadow boundaries + Selection.toString
+/// block newlines (k90-xshadow/str4/text7/8/9 vs Chrome 145). Range keeps
+/// later-set-endpoint-wins on cross-root setStart/setEnd (already in since
+/// 刀73); this knife pins the String() extraction: Selection.toString is
+/// layout-flavored (margin blocks "\n\n", plain blocks "\n", BR "\n", tail
+/// emits only when the end container still has later children), while
+/// Range.toString stays pure concatenation. Cross-tree setBaseAndExtent
+/// keeps the raw base/extent in a module WeakMap — displayed collapsed,
+/// String() walks the BASE's tree toward the boundary on the extent's side;
+/// extend() and addRange collapse for real (empty String).
+#[tokio::test]
+async fn knife90_cross_shadow_selection_and_plain_text() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        const J = (v) => JSON.stringify(String(v));
+        const w = document.createElement('div');
+        w.innerHTML = '<div id=da>aaa</div><div id=db>bbb</div><p id=pa>ccc</p><p id=pb>ddd</p><span id=sa>eee</span><span id=sb>fff</span><div id=bc>ab<br>cd</div><div id=nw><p id=np>ab</p></div>';
+        document.body.appendChild(w);
+        const $ = (i) => w.querySelector('#' + i);
+        const sel = getSelection();
+        const S = (r) => { sel.removeAllRanges(); sel.addRange(r); return J(sel); };
+        const P = (x, y) => { const r = document.createRange(); r.setStart(x.firstChild, 1); r.setEnd(y.firstChild, 2); return S(r); };
+        T('blk:div', () => P($('da'), $('db')));
+        T('blk:p', () => P($('pa'), $('pb')));
+        T('blk:span', () => P($('sa'), $('sb')));
+        T('blk:br', () => { const r = document.createRange(); r.selectNodeContents($('bc')); return S(r); });
+        T('blk:n1', () => { const r = document.createRange(); r.selectNodeContents($('nw')); return S(r); });
+        T('blk:n6', () => { const r = document.createRange(); r.setStart($('pa').firstChild, 0); r.setEndBefore($('pb')); return S(r); });
+        T('blk:full2', () => { const r = document.createRange(); r.setStartBefore($('pa')); r.setEndAfter($('pa')); return S(r); });
+        T('blk:tailin', () => { const r = document.createRange(); r.setStart($('pa').firstChild, 0); r.setEnd($('pa').firstChild, 3); return S(r); });
+        T('range:plain', () => { const r = document.createRange(); r.setStart($('da').firstChild, 1); r.setEnd($('db').firstChild, 2); return J(r); });
+        const lh = document.createElement('div'); lh.textContent = 'light text';
+        const host = document.createElement('div');
+        document.body.appendChild(lh); document.body.appendChild(host);
+        const sr = host.attachShadow({ mode: 'open' });
+        sr.innerHTML = '<p id=sp>shadow text</p>';
+        const lt = lh.firstChild, st = sr.getElementById('sp').firstChild;
+        T('x:anchor', () => { sel.setBaseAndExtent(lt, 1, st, 3); return (sel.anchorNode === st) + '/' + sel.anchorOffset + '/' + sel.direction; });
+        T('x:fwd', () => { sel.setBaseAndExtent(lt, 1, st, 3); return J(sel); });
+        T('x:rev', () => { sel.setBaseAndExtent(st, 3, lt, 1); return (sel.anchorNode === st) + '/' + J(sel); });
+        T('x:add', () => { const r = document.createRange(); r.setStart(lt, 1); r.setEnd(st, 3); sel.removeAllRanges(); sel.addRange(r); return (sel.anchorNode === st) + '/' + J(sel); });
+        T('x:ext', () => { sel.collapse(lt, 1); sel.extend(st, 3); return J(sel); });
+        T('rg:set', () => { const r = document.createRange(); r.setStart(lt, 1); r.setEnd(st, 3); return (r.startContainer === st) + '/' + r.collapsed + '/' + r.cloneContents().childNodes.length; });
+        T('rg:rev', () => { const r = document.createRange(); r.setStart(st, 3); r.setEnd(lt, 1); return r.startContainer === lt; });
+        T('rg:cmp', () => { const r = document.createRange(); r.setStart(lt, 1); r.setEnd(st, 3); return r.compareBoundaryPoints(Range.START_TO_START, r); });
+        T('gcr:delta', () => { sel.collapse(st, 1); const a = sel.getComposedRanges(); const g = a[0]; const hi = Array.from(document.body.childNodes).indexOf(host); return a.length + '/body@+' + (g.startOffset - hi) + '>body@+' + (g.endOffset - hi); });
+        const h2 = document.createElement('div'); document.body.appendChild(h2);
+        const sr2 = h2.attachShadow({ mode: 'closed' });
+        sr2.innerHTML = '<p>closed text</p>';
+        const st2 = sr2.querySelector('p').firstChild;
+        T('cs:anchor', () => { sel.setBaseAndExtent(st2, 0, st2, 3); return (sel.anchorNode === st2) + '/' + sel.anchorOffset; });
+        T('cs:dict', () => { const a = sel.getComposedRanges({ shadowRoots: [sr2] }); const g = a[0]; return (g.startContainer === st2) + '/' + g.startOffset + '>' + g.endOffset; });
+        const h3 = document.createElement('div'); document.body.appendChild(h3);
+        const s3 = h3.attachShadow({ mode: 'open' }); s3.innerHTML = '<p>one</p>';
+        const n1 = s3.querySelector('p').firstChild;
+        T('two:shadow', () => { sel.setBaseAndExtent(n1, 0, st2, 1); return (sel.anchorNode === n1) + '/' + sel.direction; });
+        T('two:rev', () => { sel.setBaseAndExtent(st2, 1, n1, 0); return (sel.anchorNode === n1) + '/' + sel.direction; });
+        T('own', () => { sel.setBaseAndExtent(lt, 1, st, 3); sel.extend(st, 3); return Reflect.ownKeys(sel).length; });
+    "#,
+    )
+    .unwrap();
+    let v = rt.evaluate("JSON.stringify(globalThis.__log)").unwrap();
+    let log: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(
+        log,
+        serde_json::json!([
+            ["blk:div", "ok", "\"aa\\nbb\""],
+            ["blk:p", "ok", "\"cc\\n\\ndd\""],
+            ["blk:span", "ok", "\"eeff\""],
+            ["blk:br", "ok", "\"ab\\ncd\""],
+            ["blk:n1", "ok", "\"ab\""],
+            ["blk:n6", "ok", "\"ccc\\n\\n\""],
+            ["blk:full2", "ok", "\"ccc\\n\\n\""],
+            ["blk:tailin", "ok", "\"ccc\""],
+            ["range:plain", "ok", "\"aabb\""],
+            ["x:anchor", "ok", "true/3/forward"],
+            ["x:fwd", "ok", "\"ight text\\n\""],
+            ["x:rev", "ok", "true/\"sha\""],
+            ["x:add", "ok", "true/\"\""],
+            ["x:ext", "ok", "\"\""],
+            ["rg:set", "ok", "true/true/0"],
+            ["rg:rev", "ok", "true"],
+            ["rg:cmp", "ok", "0"],
+            ["gcr:delta", "ok", "1/body@+0>body@+1"],
+            ["cs:anchor", "ok", "true/0"],
+            ["cs:dict", "ok", "true/0>3"],
+            ["two:shadow", "ok", "true/backward"],
+            ["two:rev", "ok", "true/forward"],
+            ["own", "ok", "0"]
+        ]),
+        "block newlines (margin=p double, plain div single, span none, br one, tail by end-container children), cross-tree raw String in the base tree, Range later-endpoint collapse, normalized composed lift"
+    );
+}

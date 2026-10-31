@@ -8,6 +8,11 @@
 // correct tree-order comparison passes them. Mutating ops (extract/delete/
 // insert/surround) are kept minimal: they do not throw, but do not rewrite the
 // tree (that is the editing mega-bucket, out of scope).
+// (刀90) raw cross-tree base/extent for Selection.toString — kept in a
+// module WeakMap, not an own property: Chrome instances carry zero own keys
+// and the engine's native slot only takes scalar values (an array leaks
+// into Reflect.ownKeys; k73's `own` case catches exactly that).
+const SEL_RAW = new WeakMap();
 function _rngNodeLength(n) {
   const t = n.nodeType;
   if (t === 3 || t === 4 || t === 8 || t === 7) return (n.data || n.nodeValue || "").length;
@@ -45,6 +50,155 @@ function _rngCmp(nA, oA, nB, oB) {
 function _rngCheckOffset(n, o) {
   if (n && n.nodeType === 10) throw new DOMException("Range boundary cannot be a DocumentType", "InvalidNodeTypeError");
   if (o < 0 || o > _rngNodeLength(n)) throw new DOMException("Range offset out of bounds", "IndexSizeError");
+}
+// (刀90) Selection.toString text extraction — Chrome's Selection uses a
+// layout-flavored plain text (block boundaries emit '\n'), unlike
+// Range.toString's pure concatenation (k90-text5/6: Range side has NO
+// newlines and already matches). Newline counts from Chrome 145 probes
+// (k90-text7/8/9): a block with UA vertical margin (p, h1-h6, blockquote,
+// ul, ol, dl, dd, figure, pre) emits "\n\n" when the selection leaves it,
+// a plain block (div, li, table, section...) emits one '\n', inline nodes
+// emit nothing, <br> emits one. The leaving-block set is the INNERMOST
+// block on the exit chain. Tail rule: the last segment's innermost block
+// emits when its exit position is strictly before the range end, or equal
+// to the end while the end container still has later children (n6: p1 at
+// end-of-range emits because p2 follows; n1: no sibling -> silent).
+function _selIsBlock(n) {
+  if (!n || n.nodeType !== 1) return false;
+  const t = n.nodeName;
+  return t === 'DIV' || t === 'P' || t === 'UL' || t === 'OL' || t === 'LI' || t === 'DL' ||
+    t === 'DT' || t === 'DD' || t === 'TABLE' || t === 'SECTION' || t === 'ARTICLE' ||
+    t === 'ASIDE' || t === 'HEADER' || t === 'FOOTER' || t === 'MAIN' || t === 'NAV' ||
+    t === 'BLOCKQUOTE' || t === 'PRE' || t === 'FIGURE' || t === 'FIGCAPTION' || t === 'FORM' ||
+    t === 'FIELDSET' || t === 'ADDRESS' || t === 'DETAILS' || t === 'SUMMARY' || t === 'BODY' ||
+    t === 'HTML' || (t >= 'H1' && t <= 'H6');
+}
+function _selBlockNewlines(n) {
+  const t = n.nodeName;
+  const margined = t === 'P' || t === 'BLOCKQUOTE' || t === 'PRE' || t === 'FIGURE' ||
+    t === 'FIGCAPTION' || t === 'UL' || t === 'OL' || t === 'DL' || t === 'DD' || t === 'DT' ||
+    t === 'FORM' || t === 'FIELDSET' || (t >= 'H1' && t <= 'H6');
+  return margined ? 2 : 1;
+}
+// text segments of the range in DFS order: [node, from, to] plus a flag when
+// a <br> sits between two segments.
+function _selSegments(r) {
+  const sc = r._sc, ec = r._ec;
+  if (!sc) return [];
+  const segs = [];
+  if (_rngSame(sc, ec) && (sc.nodeType === 3 || sc.nodeType === 4)) {
+    if (r._so < r._eo) segs.push([sc, r._so, r._eo]);
+    return segs;
+  }
+  if (sc.nodeType === 3 || sc.nodeType === 4) segs.push([sc, r._so, -1]);
+  const cac = r.commonAncestorContainer;
+  if (cac) {
+    const walk = (node) => {
+      if (node.nodeType === 3 || node.nodeType === 4) {
+        if (!_rngSame(node, sc) && !_rngSame(node, ec) &&
+            _rngCmp(node, 0, sc, r._so) >= 0 && _rngCmp(node, _rngNodeLength(node), ec, r._eo) <= 0) {
+          segs.push([node, 0, -1]);
+        }
+      } else if (node.nodeName === 'BR') {
+        // a BR only separates text the range actually covers (k90-text7 part:
+        // an out-of-range <br> in a sibling div must not emit).
+        if (_rngCmp(node, 0, sc, r._so) >= 0 && _rngCmp(node, 1, ec, r._eo) <= 0) segs.push([node, -1, -1]);
+      }
+      const kids = node.childNodes;
+      for (let i = 0; i < kids.length; i++) if (kids[i]) walk(kids[i]);
+    };
+    walk(cac);
+  }
+  if (!_rngSame(sc, ec) && (ec.nodeType === 3 || ec.nodeType === 4)) segs.push([ec, 0, r._eo]);
+  return segs;
+}
+// innermost block exited when going from node A up to (not including) stop.
+function _selExitBlock(a, stopNid) {
+  let n = a;
+  while (n && n._nid !== stopNid) {
+    if (_selIsBlock(n)) return n;
+    n = n.parentNode;
+  }
+  return null;
+}
+function _selPlainText(r) {
+  const segs = _selSegments(r);
+  if (!segs.length) return '';
+  // LCA nid of two nodes, for the between-segments exit-chain walk below.
+  const lcaNid = (a, b) => {
+    const set = new Set(_rngAncestors(a).map(n => n._nid));
+    let n = b;
+    while (n) { if (set.has(n._nid)) return n._nid; n = n.parentNode; }
+    return null;
+  };
+  const isText = (n) => n.nodeType === 3 || n.nodeType === 4;
+  let s = '';
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    if (isText(seg[0])) {
+      // newline before this segment: BR -> one, or the innermost block on
+      // the previous segment's exit chain toward the LCA.
+      if (i > 0 && isText(segs[i - 1][0])) {
+        const blk = _selExitBlock(segs[i - 1][0], lcaNid(segs[i - 1][0], seg[0]));
+        if (blk) s += '\n'.repeat(_selBlockNewlines(blk));
+      }
+      s += seg[1] < 0 ? String(seg[0].data || '') : String(seg[0].data || '').slice(seg[1], seg[2] < 0 ? undefined : seg[2]);
+    } else if (seg[0].nodeName === 'BR') { // BR between segments: exactly one newline
+      if (s.length && i + 1 < segs.length) s += '\n';
+    }
+  }
+  // tail: the last text segment's innermost block on the exit chain toward
+  // the root of the range's tree.
+  const last = segs[segs.length - 1][0];
+  if (isText(last) && !(_rngSame(r._sc, r._ec) && r._so === r._eo)) {
+    const rootNid = _rngRoot(r._sc)._nid;
+    const blk = _selExitBlock(last, rootNid);
+    if (blk) {
+      const par = blk.parentNode;
+      const exitEqEnd = par && _rngCmp(par, _rngNodeIndex(blk) + 1, r._ec, r._eo) === 0;
+      const exitBeforeEnd = par && _rngCmp(par, _rngNodeIndex(blk) + 1, r._ec, r._eo) < 0;
+      // equal-to-end emits only when the END container still has children
+      // after the end offset (n6/n7: later sibling exists -> emit; n1/n4:
+      // end sits at the container's last child -> silent).
+      const siblingAfter = r._ec && r._ec.nodeType === 1 && r._eo < _rngNodeLength(r._ec);
+      if (exitBeforeEnd || (exitEqEnd && siblingAfter)) s += '\n'.repeat(_selBlockNewlines(blk));
+    }
+  }
+  return s;
+}
+// (刀90) a cross-tree setBaseAndExtent keeps the raw base/extent for
+// String(): Chrome extracts within the BASE's tree only, walking toward the
+// tree boundary on the extent's side (k90-str4 fwd: "ight text\nmid text\n"
+// stops before the host; rev: from the shadow tree head down to base "sha").
+// extend() collapses for real instead (ext:str is ""), and addRange sees a
+// Range that setStart/setEnd already collapsed — both stay empty.
+function _selCrossTreeRange(self) {
+  const raw = SEL_RAW.get(self);
+  if (!raw) return null;
+  const b = raw[0], bO = raw[1], x = raw[2];
+  const tb = b.getRootNode ? b.getRootNode() : null;
+  const xr = x.getRootNode ? x.getRootNode() : null;
+  if (!tb || !xr || _rngRoot(b)._nid === _rngRoot(x)._nid) return null;
+  const tbIsShadow = tb.nodeType === 11 && !!tb.host;
+  const xIsShadow = xr.nodeType === 11 && !!xr.host;
+  let after;
+  if (tbIsShadow && xIsShadow) after = _rngOrder(xr.host, tb.host) > 0;
+  else if (tbIsShadow) after = _rngOrder(x, tb.host) > 0;
+  else if (xIsShadow) after = _rngOrder(xr.host, b) > 0;
+  else return null;
+  // The extraction Range lives entirely inside the base's tree: fields are
+  // written directly — setStart/setEnd would collapse a cross-tree pair.
+  const r = new Range();
+  if (after) {
+    r._sc = b; r._so = bO;
+    if (tbIsShadow) { r._ec = tb; r._eo = _rngNodeLength(tb); }
+    else { const h = xr.host; r._ec = h.parentNode; r._eo = _rngNodeIndex(h); }
+  } else {
+    r._ec = b; r._eo = bO;
+    if (tbIsShadow) { r._sc = tb; r._so = 0; }
+    else { const h = xr.host; r._sc = h.parentNode; r._so = _rngNodeIndex(h) + 1; }
+  }
+  return r;
 }
 globalThis.Range = class Range {
   constructor() {
@@ -194,7 +348,7 @@ globalThis.StaticRange = class StaticRange {
 function _selChk(self) { if (!(self instanceof globalThis.Selection) || !self._doc) throw new TypeError('Illegal invocation'); }
 globalThis.Selection = class Selection {
   constructor(doc) { this._doc = doc; this._range = null; this._direction = 'none';  __hideOwn(this);}
-  _setRange(r, dir) { this._range = r; this._direction = dir; }
+  _setRange(r, dir) { this._range = r; this._direction = dir; SEL_RAW.delete(this); }
   // (刀73) shadow-including containment: a node inside an open/closed shadow tree is
   // in the document through its host chain (Chrome lets a selection live there).
   _inDoc(node) {
@@ -266,11 +420,11 @@ globalThis.Selection = class Selection {
   collapseToStart() { if (!this._range) throw new DOMException('There is no selection to collapse.', 'InvalidStateError'); const r = new Range(); r.setStart(this._range.startContainer, this._range.startOffset); r.setEnd(this._range.startContainer, this._range.startOffset); this._setRange(r, 'none'); }
   collapseToEnd() { if (!this._range) throw new DOMException('There is no selection to collapse.', 'InvalidStateError'); const r = new Range(); r.setStart(this._range.endContainer, this._range.endOffset); r.setEnd(this._range.endContainer, this._range.endOffset); this._setRange(r, 'none'); }
   extend(node, offset) { if (!this._range) throw new DOMException('There is no selection to extend.', 'InvalidStateError'); if (!this._inDoc(node)) return; offset = offset >>> 0; _rngCheckOffset(node, offset); const a = this._anchor; const r = new Range(); if (_rngRoot(node)._nid !== _rngRoot(a[0])._nid) { r.setStart(node, offset); r.setEnd(node, offset); this._setRange(r, 'forwards'); return; } if (_rngCmp(a[0], a[1], node, offset) <= 0) { r.setStart(a[0], a[1]); r.setEnd(node, offset); this._setRange(r, 'forwards'); } else { r.setStart(node, offset); r.setEnd(a[0], a[1]); this._setRange(r, 'backwards'); } }
-  setBaseAndExtent(aN, aO, fN, fO) { if (arguments.length < 4) throw new TypeError("Failed to execute 'setBaseAndExtent' on 'Selection': 4 arguments required."); if (aN == null || fN == null) throw new TypeError("Failed to execute 'setBaseAndExtent' on 'Selection': nodes must not be null."); aO = +aO; fO = +fO; if (aO < 0 || aO > _rngNodeLength(aN)) throw new DOMException('anchor offset out of range', 'IndexSizeError'); if (fO < 0 || fO > _rngNodeLength(fN)) throw new DOMException('focus offset out of range', 'IndexSizeError'); if (!this._inDoc(aN) || !this._inDoc(fN)) { this.removeAllRanges(); return; } const r = new Range(); if (_rngCmp(aN, aO, fN, fO) <= 0) { r.setStart(aN, aO); r.setEnd(fN, fO); this._setRange(r, 'forwards'); } else { r.setStart(fN, fO); r.setEnd(aN, aO); this._setRange(r, 'backwards'); } }
+  setBaseAndExtent(aN, aO, fN, fO) { if (arguments.length < 4) throw new TypeError("Failed to execute 'setBaseAndExtent' on 'Selection': 4 arguments required."); if (aN == null || fN == null) throw new TypeError("Failed to execute 'setBaseAndExtent' on 'Selection': nodes must not be null."); aO = +aO; fO = +fO; if (aO < 0 || aO > _rngNodeLength(aN)) throw new DOMException('anchor offset out of range', 'IndexSizeError'); if (fO < 0 || fO > _rngNodeLength(fN)) throw new DOMException('focus offset out of range', 'IndexSizeError'); if (!this._inDoc(aN) || !this._inDoc(fN)) { this.removeAllRanges(); return; } const r = new Range(); if (_rngCmp(aN, aO, fN, fO) <= 0) { r.setStart(aN, aO); r.setEnd(fN, fO); this._setRange(r, 'forwards'); } else { r.setStart(fN, fO); r.setEnd(aN, aO); this._setRange(r, 'backwards'); } if (_rngRoot(aN)._nid !== _rngRoot(fN)._nid) SEL_RAW.set(this, [aN, aO, fN, fO]); }
   selectAllChildren(node) { if (node && node.nodeType === 10) throw new DOMException('cannot selectAllChildren of a DocumentType', 'InvalidNodeTypeError'); if (!this._inDoc(node)) return; const len = _rngNodeLength(node); const r = new Range(); r.setStart(node, 0); r.setEnd(node, len); this._setRange(r, 'forwards'); }
   containsNode(node, allowPartial) { const r = this._range; if (!r || !node) return false; if (_rngRoot(node)._nid !== _rngRoot(r.startContainer)._nid) return false; const len = _rngNodeLength(node); if (allowPartial) return _rngCmp(node, len, r.startContainer, r.startOffset) > 0 && _rngCmp(node, 0, r.endContainer, r.endOffset) < 0; return _rngCmp(node, 0, r.startContainer, r.startOffset) >= 0 && _rngCmp(node, len, r.endContainer, r.endOffset) <= 0; }
   deleteFromDocument() { if (this._range) this._range.deleteContents(); }
-  toString() { return this._range ? this._range.toString() : ''; }
+  toString() { if (!this._range) return ''; return _selPlainText(_selCrossTreeRange(this) || this._range); }
   modify() {}
 };
 _markNative(globalThis.Selection);

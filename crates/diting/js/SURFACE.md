@@ -1989,3 +1989,16 @@ Chrome 145 真值（k89-math 81 案）钉死 CSSNumericValue 算术全族与 CSS
 数字：k89-math 81/81 SAME；shape 936/936 全 0（CSSNumericArray forEach length 1 修正后归零）；enum 204/211 与 k86–k88 逐行全等；instance 127/127；ratchet 66/0；cargo test **156 与刀88 逐名全等**（110 基线+46 环境摊）。
 测试：`knife89_css_numeric_arithmetic`（60 行日志断言，json! 宏 59 嵌套行爆递归上限→拆两半断言；31+29）。
 **教训**：①Chrome 的单位换算浮点指纹是**实现细节非规范值**——探针钉点拿不全时统一公式假设要先用暴力拟合证伪（本刀 1100 万组合证伪后才敢走钉值对+数学正 fallback，未探点不编造）；②实例内部状态宁可全入 WeakMap——非枚举 own 键躲得过 Object.keys 躲不过 getOwnPropertyNames；③`serde_json::json!` 嵌套数组行数有宏递归上限（35 行内安全，59 行爆）——长断言拆半；④zsh 里 `echo ===` 会当裸 `=` 词报错——分隔符用别的写法。
+
+## M4 刀90：Selection/Range 跨 shadow + Selection.toString 块级换行（2026-10-31）
+
+Chrome 145 真值（k90-xshadow/xshadow2/str4/text5–text9 六轮 80+案）钉死两侧：
+
+- **结构层（刀73 已对，本刀补证）**：Range setStart/setEnd 跨 root = **后设端点胜**（另一端搬来 collapsed；cloneContents 0 子、''、compareBoundaryPoints 0）；Selection 跨树显示收拢——light↔shadow 双向都收在 **shadow 端**，两 shadow 之间收在 **host 文档序靠后**的那个（引擎经 Rust compare_order 的 host 透传已自然达成）；anchorNode **不 retarget**（closed shadow 内文本直接可见）；getComposedRanges 的提升 offset 恒等于 host 在父容器中的 index（位置参数 ShadowRoot 不授予、`{shadowRoots:[closedRoot]}` 正形授予原样范围——刀73 结论再证）。
+- **String 层（本刀主战场）**：**Range.toString 纯拼接无换行**（text5/6 全 SAME）；**Selection.toString 是 layout 味提取**——块级边界发 `\n`：**UA 垂直 margin 块（p/h1-h6/blockquote/ul/ol/dl/dd/figure/pre/form）发 `\n\n`、普通块（div/li/table…）发 `\n`、inline 零、`<br>` 恰一个**；发的是相邻文本段之间**退出链最内层块**；尾部：末段最内块 exit 位置**严格早于** range 端点必发，**等于**端点时看 **end 容器** end offset 之后还有子才发（n6「one\n\n」p2 在后 vs n1「ab」p 是末子；n7 端点在祖父层也发「in\n\n」）；范围外兄弟 div 里的 `<br>` 不许发（准入判定）。
+- **跨树 String**：setBaseAndExtent 跨树时**显示收拢但 String() 按原始 base/extent 提取**——只在 **base 所在树**内、朝 extent 方向走到树边界（fwd: lt@1→host 前 = "ight text\nmid text\n"；rev: shadow 树头→st@3 = "sha"）；**extend() 与 addRange 是真收拢**（String 空——Range 层已收，extent 也不留 raw）。
+
+实现（`range_selection.js`）：`_selSegments`（DFS 文本段+准入 BR 段）、`_selPlainText`（段拼接+段间最内块换行+尾部规则）、`_selCrossTreeRange`（raw 四元组→base 树内单树 range，**直写 `_sc/_so` 字段**绕过 setStart/setEnd 的跨树收拢）、`SEL_RAW` 模块级 WeakMap 存 raw（`_setRange` 清、setBaseAndExtent 跨树才设）；Selection.toString 分流；Range.toString 一字未动。
+数字：六轮 probe 引擎腿全 0 diff（gcr 三案按 hostIdx 归一化后 0 diff——原 ±1 是 harness 页 body 前置子差异，算法 delta=0 已证）；shape 936/936 全 0；enum 204/211、instance 127/127、ratchet 66/0 与 k89 全等；cargo test lib 110 失败与 fail-base **逐字节相同**、workspace 46 个 server/session 失败与 k89 基线逐字全等、无任何新失败。
+测试：`knife90_cross_shadow_selection_and_plain_text`（23 行日志断言）。
+**教训**：①**Range.toString 与 Selection.toString 是两条提取路**——同构 range 一个带块换行一个纯拼接，先分清再动手（本刀先拿 text5/6 全 SAME 排除了 Range 侧，避免白改）；②块换行数来自 **UA margin**（div 对 1 个、p 对 2 个）不是「块」本身——无 layout 引擎按标签近似表走，未探标签不编造；③probe 对拍若两侧 harness 页面结构不同（body 前置子），**断言量要归一化**（offset−hostIdx），别把环境差当算法差修；④引擎 native slot 只收标量——**实例上存数组会漏进 Reflect.ownKeys**（k73 own 案当场抓获），非标量状态一律进模块 WeakMap。
