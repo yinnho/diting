@@ -1919,3 +1919,19 @@ shape audit 的 kind 维（Chrome ro 访问器 vs 引擎 rw 数据/访问器对�
 数字：shape **same 889→912，kind 47→24**（余 24=另一侧类，刀85 账：PerformanceTiming 16、TouchEvent 7、ErrorEvent/MessageEvent/StyleSheet/WebSocket 各 5…）；enum 211/204/7；instance 127/127；ratchet 65（attributes.impl.js 补声明 `legacy:__diting_liftSlot`）；cargo test **954 通过 + 110 基线逐名全等**（test_local_fetch_resolves_on_task_boundary 全量抖、单跑过，共享锁家族）。
 测试：`knife84_sealed_ro_accessors`（RO 成员描述符 getter-only、rw 仍成对；sloppy 页面写=静默 no-op 值不变、strict 写抛 TypeError；封口成员经引擎内部状态变化仍活——sync data-URL XHR 的 readyState/status/responseText、createAttributeNS 的 name/localName/prefix）。
 **教训**：①类体/构造器里的赋值是 strict 模式——「先造后改」（构造完再 `obj.x=v` 补字段）在封口后是**必炸**模式，同账移交槽；②写点转换的精确范围=audit kind 差 ∩（DATA∪RO）按最新捕获重算，别拿 RO 超集硬转（Image/TextMetrics 已在别处封好，无需再动）；③一个抛点藏一个整族测试：`createImageBitmap` 内部构造抛 TypeError 时，`.then` 链无人接 → 外层 Promise 永不落定 → 测试表现为 **EVAL_TIMEOUT 而非 Promise rejected**——超时不一定是挂起，先查内层同步抛；④`#<W>` 这类无名实例=ctor_ladders 包装函数的内名（`const W = function...`），报文落在包装层不代表抛点在包装层。
+
+## M4 刀85：kind 归零——余 24 类只读面收口（2026-10-31）
+
+shape audit kind 维清账：余 24 接口 / 77 成员全部 `eng=rw:ec vs ch=ro:ec`，按机制分六摊逐一收口，**shape audit 936/936 全同、kind 0**——原型面（名、kind、序、statics）与 Chrome 145 逐位全等。
+
+六摊与手法：
+1. **`_evxRo(C, keys)`**（bootstrap.js，`_evxProps` 旁新 getter-only 变体）：9 事件类 33 成员——TouchEvent 7（pointer_touch.js:100）、ErrorEvent 5、MessageEvent 5、AnimationEvent/TransitionEvent/CloseEvent/ProgressEvent 各 3、ToggleEvent 2、PromiseRejectionEvent 2（**同文两处定义**，10276 与 10472 都换，后者胜出但两处一致才不埋雷）。构造走 `_evx.set(this,{...})` 直写槽、不经访问器，天然安全。
+2. **`__accRo(C, names)`**（`__acc` 旁新变体，同 `_x` 隐字段、同进 `__accPrivs` 隐藏账）：WebSocket 5（url/readyState/bufferedAmount/extensions/protocol；binaryType+on* 仍 rw）、EventSource 3、FileReader 3、BroadcastChannel 1。类体内状态写全部 `this.x = v` → `__def(this,'_x',v)`（旧 setter 的落点，行为等价）：FileReader 构造/_read/异步完成/abort、EventSource 构造/微任务 open/close、WebSocket 构造 5 写/_fail/_finish（`readyState=3` 同文两处）/pump open/send 缓冲/close、BC 构造 name。
+3. **demote_own.js 换单道**：局部 slot WeakMap → 全局 `__diting_liftSlot` 道 + RO 覆盖表（PerformanceTiming=null 全封 16、SpeechSynthesis pending/speaking/paused、Crypto.subtle、ServiceWorkerContainer.controller）——引擎后写（audio.js 语音队列 7 处 `this.pending/speaking/paused` → `__diting_liftSlot(this)`）可达 RO 成员存储。
+4. **_interfaceProps 复制去 set 腿**：HTMLDataListElement.options、HTMLSelectElement.options、HTMLTableElement.rows、HTMLTableSectionElement.rows、**HTMLTemplateElement.content（新入表**——content 的 Element 访问器 set 腿只认 meta，template 本就 no-op；入表后 htmlreflect.gen 的 `delegate()` 因 `has()` 跳过，不会装回双腿版）。
+5. **NodeList.length**：删 set；工厂 `_nodeList` 写 `nl._len = els.length`（ctor 的 defineProperty 仍造非枚举 `_len`）。
+6. **StyleSheet 基类**（cssom_sheets.js，**该文件带 5 个原始 NUL 字节（缓存键字面量）——grep/Read/Edit 全当二进制拒收，只能 python 读写**）：href/ownerNode/parentStyleSheet/title/type 去 set（media/disabled Chrome 本 rw 留双腿）；`_sheetFromCssText` 5 写改直写 `_href` 等字段（hide_priv 静态表已登记这些名）。
+
+**教训**：①bootstrap.js 是 `// @@SCOPE` IIFE + 尾部 `d('_name', fn)` 显式导出账——新助手**必须在 @@EXPORTS 块补一行**，否则后文件加载期 ReferenceError 直接崩快照（`_evxRo is not defined`）；②新跨文件加载期名（pointer_touch 用 `_evxRo`）进 ratchet 记账：`--write-baseline` 有意升（65→66），violation 必须 0；③k84 的「另一侧 24 类」= 机制账而不是漏网——每类先追访问器来源（_evxProps/__acc/demote/_interfaceProps/gen delegate/类体），来源决定封法与写点改道，不追来源直接封必炸类体写。
+数字：shape **same 912→936，kind 24→0**（order/statics/len/proto/svals 全 0；symdesc 18 与 k84 逐名相同=历史存账）；enum 212/204/8（8 键与 k84 逐名全等，含已知 ls IDB 抖动）；instance 127/127；ratchet 66/violations 0；cargo test **955 通过 + 110 基线逐名全等，零新增零修复**。
+测试：`knife85_readonly_state_faces`（六摊各验：事件字典构造值可读+双写 no-op；状态类构造默认与引擎转移仍活——ws.close()→3、es.close()→2、style.sheet.type/ownerNode；demote 四单例 getter-only 且值可读；反射五+NodeList.length+StyleSheet.href 描述符 [get,set]=[1,0]；strict 写五族全 TypeError）。

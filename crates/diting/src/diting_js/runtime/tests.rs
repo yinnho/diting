@@ -30187,3 +30187,99 @@ async fn knife84_sealed_ro_accessors() {
     assert_eq!(o["strictThrows"], serde_json::json!("TypeError"));
     assert_eq!(o["live"], serde_json::json!([4, 200, "hi", "p:k", "k", "p"]));
 }
+
+#[tokio::test]
+async fn knife85_readonly_state_faces() {
+    // 刀85: the last 24 Chrome-ro faces the engine still served rw are sealed
+    // (_evxRo event dicts, __accRo state classes, demoted singletons, the
+    // reflected five, NodeList.length, StyleSheet base). Values stay live —
+    // engine writes go straight to the hidden slots — while page writes no-op.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"(function () {
+        const r = {};
+        const d = (C, k) => { const g = Object.getOwnPropertyDescriptor(C.prototype, k); return [!!g && !!g.get, !!g && !!g.set]; };
+        // 1) event dicts: ctor values readable, sloppy writes no-op
+        r.evxDesc = [d(ErrorEvent, 'message'), d(MessageEvent, 'data'), d(ToggleEvent, 'oldState')];
+        const ee = new ErrorEvent('e', { message: 'm', filename: 'f', lineno: 3, colno: 7 });
+        ee.message = 'x'; ee.lineno = 9;
+        r.errEvt = [ee.message, ee.filename, ee.lineno, ee.colno];
+        const me = new MessageEvent('m', { data: 42, origin: 'urn:o' });
+        me.data = 'z'; r.msgEvt = [me.data, me.origin];
+        const te = new ToggleEvent('toggle', { oldState: 'closed', newState: 'open' });
+        te.newState = 'zzz'; r.tglEvt = [te.oldState, te.newState];
+        // 2) state classes: ctor defaults + engine transitions stay live
+        r.stateDesc = [d(WebSocket, 'url'), d(EventSource, 'readyState'), d(FileReader, 'result'), d(BroadcastChannel, 'name')];
+        const bc = new BroadcastChannel('k85');
+        bc.name = 'other'; r.bcName = bc.name;
+        const ws = new WebSocket('ws://127.0.0.1:1/x', ['chat']);
+        r.wsInit = [ws.url, ws.readyState, ws.bufferedAmount, ws.extensions, ws.protocol];
+        ws.url = 'zzz'; ws.readyState = 9;
+        ws.close(); r.wsClosed = [ws.url, ws.readyState];
+        const es = new EventSource('/feed');
+        es.close(); es.readyState = 9; r.esStates = [es.readyState, es.withCredentials];
+        const fr = new FileReader();
+        r.frInit = [fr.result, fr.error, fr.readyState];
+        // 3) demoted singletons: getter-only, values readable
+        r.demoDesc = [d(PerformanceTiming, 'navigationStart'), d(Crypto, 'subtle'), d(SpeechSynthesis, 'pending'), d(ServiceWorkerContainer, 'controller')];
+        const ns = performance.timing.navigationStart;
+        performance.timing.navigationStart = 1; r.pt = [performance.timing.navigationStart === ns, typeof performance.timing.toJSON === 'function'];
+        r.swc = [navigator.serviceWorker.controller, typeof crypto.subtle.encrypt];
+        speechSynthesis.pending = true; r.ssPending = speechSynthesis.pending;
+        // 4) reflected five + NodeList.length + StyleSheet base
+        r.reflDesc = [d(HTMLTemplateElement, 'content'), d(HTMLSelectElement, 'options'), d(HTMLDataListElement, 'options'), d(HTMLTableElement, 'rows'), d(HTMLTableSectionElement, 'rows'), d(NodeList, 'length'), d(StyleSheet, 'href')];
+        const tpl = document.createElement('template');
+        r.tplContent = tpl.content instanceof DocumentFragment;
+        const sel = document.createElement('select');
+        document.body.appendChild(sel);
+        sel.options = 'zzz'; r.selOpts = sel.options instanceof HTMLOptionsCollection;
+        const p = document.createElement('p'); document.body.appendChild(p);
+        const nl = document.querySelectorAll('p');
+        nl.length = 9; r.nlLen = [nl.length, nl.item(0) === p];
+        const st = document.createElement('style'); st.textContent = 'p{color:red}'; document.head.appendChild(st);
+        const sheet = st.sheet;
+        r.sheet = [sheet.type, sheet.ownerNode === st, sheet.href];
+        sheet.type = 'zzz'; r.sheetSloppy = sheet.type;
+        // strict mode still throws on every family
+        let threw = [];
+        try { (function () { 'use strict'; ee.message = 'x'; })(); } catch (e) { threw.push(e.name); }
+        try { (function () { 'use strict'; ws.url = 'x'; })(); } catch (e) { threw.push(e.name); }
+        try { (function () { 'use strict'; nl.length = 1; })(); } catch (e) { threw.push(e.name); }
+        try { (function () { 'use strict'; sheet.type = 'x'; })(); } catch (e) { threw.push(e.name); }
+        try { (function () { 'use strict'; performance.timing.navigationStart = 1; })(); } catch (e) { threw.push(e.name); }
+        r.strictThrows = threw;
+        return JSON.stringify(r);
+    })()"#,
+        )
+        .unwrap();
+    let o: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let gf = serde_json::json!([true, false]);
+    assert_eq!(o["evxDesc"], serde_json::json!([[true, false], [true, false], [true, false]]));
+    assert_eq!(o["errEvt"], serde_json::json!(["m", "f", 3, 7]));
+    assert_eq!(o["msgEvt"], serde_json::json!([42, "urn:o"]));
+    assert_eq!(o["tglEvt"], serde_json::json!(["closed", "open"]));
+    assert_eq!(o["stateDesc"], serde_json::json!([gf, gf, gf, gf]));
+    assert_eq!(o["bcName"], serde_json::json!("k85"));
+    assert_eq!(o["wsInit"], serde_json::json!(["ws://127.0.0.1:1/x", 0, 0, "", "chat"]));
+    assert_eq!(o["wsClosed"], serde_json::json!(["ws://127.0.0.1:1/x", 3]));
+    assert_eq!(o["esStates"], serde_json::json!([2, false]));
+    assert_eq!(o["frInit"], serde_json::json!([null, null, 0]));
+    assert_eq!(o["demoDesc"], serde_json::json!([gf, gf, gf, gf]));
+    assert_eq!(o["pt"], serde_json::json!([true, true]));
+    assert_eq!(o["swc"], serde_json::json!([null, "function"]));
+    assert_eq!(o["ssPending"], serde_json::json!(false));
+    assert_eq!(
+        o["reflDesc"],
+        serde_json::json!([gf, gf, gf, gf, gf, gf, gf])
+    );
+    assert_eq!(o["tplContent"], serde_json::json!(true));
+    assert_eq!(o["selOpts"], serde_json::json!(true));
+    assert_eq!(o["nlLen"], serde_json::json!([1, true]));
+    assert_eq!(o["sheet"], serde_json::json!(["text/css", true, null]));
+    assert_eq!(o["sheetSloppy"], serde_json::json!("text/css"));
+    assert_eq!(
+        o["strictThrows"],
+        serde_json::json!(["TypeError", "TypeError", "TypeError", "TypeError", "TypeError"])
+    );
+}

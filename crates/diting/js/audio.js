@@ -372,7 +372,7 @@ globalThis.speechSynthesis = {
     if (!globalThis.__diting_isUtterance(utterance)) throw new TypeError("Failed to execute 'speak' on 'SpeechSynthesis': parameter 1 is not of type 'SpeechSynthesisUtterance'.");
     const q = this._q || (this._q = { list: [], cur: null, timer: null, t0: 0, left: 0 });
     q.list.push(utterance);
-    this.pending = q.list.length > (q.cur ? 0 : 1) || (!q.cur && q.list.length > 1);
+    __diting_liftSlot(this).pending = q.list.length > (q.cur ? 0 : 1) || (!q.cur && q.list.length > 1);
     if (!q.cur) this._next();
   },
   _fire(u, type, extra) {
@@ -383,9 +383,9 @@ globalThis.speechSynthesis = {
   },
   _next() {
     const q = this._q;
-    if (!q || q.cur || q.list.length === 0) { this.speaking = false; this.pending = false; return; }
+    if (!q || q.cur || q.list.length === 0) { const ss = __diting_liftSlot(this); ss.speaking = false; ss.pending = false; return; }
     const u = q.list.shift();
-    q.cur = u; this.speaking = true; this.pending = q.list.length > 0;
+    q.cur = u; { const ss = __diting_liftSlot(this); ss.speaking = true; ss.pending = q.list.length > 0; }
     const rate = u.rate > 0 ? u.rate : 1;
     q.left = Math.min(5000, Math.max(60, String(u.text).length * 60 / rate));
     setTimeout(() => {
@@ -401,7 +401,7 @@ globalThis.speechSynthesis = {
     q.timer = setTimeout(() => {
       if (q.cur !== u) return;
       q.timer = null; q.cur = null;
-      this.speaking = false; this.pending = q.list.length > 0;
+      { const ss = __diting_liftSlot(this); ss.speaking = false; ss.pending = q.list.length > 0; }
       this._fire(u, 'end', { elapsedTime: q.left / 1000 });
       this._next();
     }, q.left);
@@ -412,14 +412,14 @@ globalThis.speechSynthesis = {
     if (q.timer) { clearTimeout(q.timer); q.timer = null; }
     const all = (q.cur ? [q.cur] : []).concat(q.list);
     q.cur = null; q.list = [];
-    this.speaking = false; this.pending = false; this.paused = false;
+    { const ss = __diting_liftSlot(this); ss.speaking = false; ss.pending = false; ss.paused = false; }
     // events are queued, never synchronous inside cancel()
     for (const u of all) setTimeout(() => this._fire(u, 'error', { error: 'canceled' }), 0);
   },
   pause() {
     const q = this._q;
     if (this.paused) return;
-    this.paused = true;
+    __diting_liftSlot(this).paused = true;
     if (q && q.cur) {
       if (q.timer) { clearTimeout(q.timer); q.timer = null; q.left = Math.max(0, q.left - (Date.now() - q.t0)); }
       this._fire(q.cur, 'pause');
@@ -428,7 +428,7 @@ globalThis.speechSynthesis = {
   resume() {
     const q = this._q;
     if (!this.paused) return;
-    this.paused = false;
+    __diting_liftSlot(this).paused = false;
     if (q && q.cur) { this._fire(q.cur, 'resume'); this._arm(); }
   },
   onvoiceschanged: null,

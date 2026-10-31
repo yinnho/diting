@@ -303,6 +303,20 @@ function __acc(C, names) {
     });
   }
 }
+// 刀85: Chrome-ro members get the same hidden `_x` backing but a
+// getter-only face. Engine writes land straight in the field via __def —
+// the setter's old destination — so construction/state legs are unchanged.
+function __accRo(C, names) {
+  for (const k of names) {
+    const priv = '_' + k;
+    __accPrivs.add(priv);
+    Object.defineProperty(C.prototype, k, {
+      get() { return this[priv]; },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+}
 // (M4 刀56) __lboxProto — the minimal per-instance listener-box trio for
 // socket-like shims — is RETIRED. Its classes (EventSource / WebSocket /
 // BroadcastChannel) have chained to EventTarget.prototype since the
@@ -10233,6 +10247,17 @@ function _evxProps(C, keys) {
     });
   }
 }
+// 刀85: Chrome marks every event-dict member ro — the ctor's `_evx.set` is
+// the only writer, so the public setter was a shape lie. Getter-only face;
+// sloppy writes silently no-op like a Chrome readonly attribute.
+function _evxRo(C, keys) {
+  for (const k of keys) {
+    Object.defineProperty(C.prototype, k, {
+      get() { return _evxGuard(_evx.get(this))[k]; },
+      enumerable: true, configurable: true,
+    });
+  }
+}
 // Chrome surfaces every unhandled promise rejection on the window as a
 // cancelable `unhandledrejection` PromiseRejectionEvent (`promise` + `reason`);
 // `rejectionhandled` follows when a handler is attached late. deno_core routes
@@ -10248,7 +10273,7 @@ globalThis.PromiseRejectionEvent = class extends Event {
     _evx.set(this, { promise: o.promise !== undefined ? o.promise : null, reason: o.reason });
   }
 };
-_evxProps(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
+_evxRo(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
 (function () {
   const core = globalThis.Deno && globalThis.Deno.core;
   if (!core || typeof core.setUnhandledPromiseRejectionHandler !== 'function') return;
@@ -10343,7 +10368,7 @@ _evxProps(globalThis.FocusEvent, ['relatedTarget']);
 globalThis.InputEvent = class extends UIEvent { constructor(t,o={}) { super(t,o);_evx.set(this,{data:o.data||null,inputType:o.inputType||""}); } };
 _evxProps(globalThis.InputEvent, ['data', 'inputType']);
 globalThis.ErrorEvent = class extends Event { constructor(t,o={}) { super(t,o);_evx.set(this,{message:o.message||"",filename:o.filename||"",lineno:o.lineno||0,colno:o.colno||0,error:o.error||null}); } };
-_evxProps(globalThis.ErrorEvent, ['message','filename','lineno','colno','error']);
+_evxRo(globalThis.ErrorEvent, ['message','filename','lineno','colno','error']);
 globalThis.AnimationEvent = class AnimationEvent extends Event {
   // WebIDL AnimationEventInit: animationName "" / elapsedTime 0 /
   // pseudoElement "" defaults.
@@ -10357,7 +10382,7 @@ globalThis.AnimationEvent = class AnimationEvent extends Event {
     });
   }
 };
-_evxProps(globalThis.AnimationEvent, ['animationName', 'elapsedTime', 'pseudoElement']);
+_evxRo(globalThis.AnimationEvent, ['animationName', 'elapsedTime', 'pseudoElement']);
 globalThis.TransitionEvent = class TransitionEvent extends Event {
   // WebIDL TransitionEventInit: propertyName "" / elapsedTime 0 /
   // pseudoElement "" defaults (blitz#863 family 2). Was an empty Event
@@ -10372,7 +10397,7 @@ globalThis.TransitionEvent = class TransitionEvent extends Event {
     });
   }
 };
-_evxProps(globalThis.TransitionEvent, ['propertyName', 'elapsedTime', 'pseudoElement']);
+_evxRo(globalThis.TransitionEvent, ['propertyName', 'elapsedTime', 'pseudoElement']);
 globalThis.WheelEvent = class extends MouseEvent {
   constructor(t,o={}) {
     super(t,o);
@@ -10410,9 +10435,9 @@ globalThis.MessageEvent = class extends Event {
     _evx.set(this,{data:o.data,origin:o.origin===undefined?'':String(o.origin),lastEventId:o.lastEventId===undefined?'':String(o.lastEventId),source:o.source===undefined?null:o.source,ports:o.ports===undefined?[]:o.ports});
   }
 };
-_evxProps(globalThis.MessageEvent, ['data', 'origin', 'lastEventId', 'source', 'ports']);
+_evxRo(globalThis.MessageEvent, ['data', 'origin', 'lastEventId', 'source', 'ports']);
 globalThis.CloseEvent = class extends Event { constructor(t,o={}) { super(t,o);_evx.set(this,{wasClean:!!o.wasClean,code:o.code===undefined?0:(o.code|0),reason:o.reason===undefined?'':String(o.reason)}); } };
-_evxProps(globalThis.CloseEvent, ['wasClean', 'code', 'reason']);
+_evxRo(globalThis.CloseEvent, ['wasClean', 'code', 'reason']);
 globalThis.ProgressEvent = class ProgressEvent extends Event {
   constructor(type, init) {
     super(type, init || {});
@@ -10424,7 +10449,7 @@ globalThis.ProgressEvent = class ProgressEvent extends Event {
     });
   }
 };
-_evxProps(globalThis.ProgressEvent, ['lengthComputable', 'loaded', 'total']);
+_evxRo(globalThis.ProgressEvent, ['lengthComputable', 'loaded', 'total']);
 globalThis.ClipboardEvent = class extends Event {};
 globalThis.SubmitEvent = class extends Event {};
 
@@ -10441,7 +10466,7 @@ globalThis.ToggleEvent = class ToggleEvent extends Event {
     });
   }
 };
-_evxProps(globalThis.ToggleEvent, ['oldState', 'newState']);
+_evxRo(globalThis.ToggleEvent, ['oldState', 'newState']);
 _markNative(globalThis.ToggleEvent);
 
 // Fires when an auto content-visibility box skips in/out of rendering.
@@ -10469,7 +10494,7 @@ globalThis.PromiseRejectionEvent = class PromiseRejectionEvent extends Event {
     _evx.set(this, { promise: init.promise, reason: init.reason });
   }
 };
-_evxProps(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
+_evxRo(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
 _markNative(globalThis.PromiseRejectionEvent);
 
 
@@ -11972,19 +11997,29 @@ globalThis.HTMLDialogElement = _htmlInterface('HTMLDialogElement', ['dialog']);
     HTMLMetaElement: ['content', 'scheme'],
     HTMLLabelElement: ['htmlFor', 'form', 'control'],
     HTMLDataListElement: ['options'],
+    HTMLTemplateElement: ['content'],
     HTMLIFrameElement: ['sandbox', 'contentDocument', 'contentWindow', 'src', 'srcdoc'],
     HTMLDialogElement: ['open', 'returnValue', 'closedBy', 'close', 'requestClose', 'show', 'showModal'],
     HTMLFieldSetElement: ['disabled', 'form', 'name', 'type'],
     HTMLProgressElement: ['max', 'value'],
     HTMLMeterElement: ['max', 'min', 'value'],
   };
+  // 刀85: these five land Chrome-ro (shape-audit kind diff) — the Element
+  // descriptor is copied WITHOUT its set leg; none of those setters did
+  // anything for these tags anyway, so sloppy writes now no-op like a
+  // Chrome readonly attribute. Defining content here also keeps the
+  // htmlreflect gen's delegate() from re-installing the both-legs version.
+  const _roOnly = new Set(['HTMLDataListElement.options', 'HTMLSelectElement.options',
+    'HTMLTableElement.rows', 'HTMLTableSectionElement.rows', 'HTMLTemplateElement.content']);
   for (const [iname, props] of Object.entries(_interfaceProps)) {
     const C = globalThis[iname];
     if (!C || !C.prototype) continue;
     for (const p of props) {
       if (Object.prototype.hasOwnProperty.call(C.prototype, p)) continue;
       const d = Object.getOwnPropertyDescriptor(Element.prototype, p);
-      if (d) Object.defineProperty(C.prototype, p, d);
+      if (!d) continue;
+      if (_roOnly.has(iname + '.' + p) && d.get) Object.defineProperty(C.prototype, p, { get: d.get, enumerable: d.enumerable, configurable: d.configurable });
+      else Object.defineProperty(C.prototype, p, d);
     }
   }
 }
@@ -12352,7 +12387,7 @@ globalThis.__diting_ctorMint = Symbol('ctor-mint');
 function _nodeList(els) {
   const nl = new NodeList(globalThis.__diting_ctorMint);
   for (let i = 0; i < els.length; i++) nl[i] = els[i];
-  nl.length = els.length;
+  nl._len = els.length;
   return nl;
 }
 globalThis.DOMTokenList = DOMTokenList;
@@ -12366,9 +12401,9 @@ __accPrivs.add('_len');
 globalThis.NodeList = class NodeList {
   // (`_len` is registered in __accPrivs below so instance enumeration hides it.)
   // `length` is a prototype accessor over a hidden `_len` slot (Chrome: instances own only their indices).
+  // 刀85: getter-only — Chrome's NodeList.length is ro; the factory writes `_len` directly.
   constructor() { Object.defineProperty(this, '_len', { value: 0, writable: true, configurable: true }); }
   get length() { return this._len; }
-  set length(v) { if (this._len === undefined) Object.defineProperty(this, '_len', { value: v, writable: true, configurable: true }); else this._len = v; }
   item(i) { i = i >>> 0; return this[i] != null ? this[i] : null; }
   forEach(cb, thisArg) {
     for (let i = 0; i < this.length; i++) cb.call(thisArg, this[i], i, this);
@@ -14224,7 +14259,7 @@ if (typeof FileReader === 'undefined') {
   globalThis.FileReader = class FileReader extends EventTarget {
     constructor() {
       super();
-      this.result = null; this.error = null; this.readyState = 0; // EMPTY
+      __def(this, '_result', null); __def(this, '_error', null); __def(this, '_readyState', 0); // EMPTY
       this.onloadstart = null; this.onprogress = null; this.onload = null;
       this.onabort = null; this.onerror = null; this.onloadend = null;
       __hideOwn(this);
@@ -14233,20 +14268,20 @@ if (typeof FileReader === 'undefined') {
     _read(blob, kind, encoding) {
       // Spec: reading while LOADING throws InvalidStateError.
       if (this.readyState === 1) throw new DOMException("The object is already busy reading Blobs.", "InvalidStateError");
-      this.readyState = 1; // LOADING
-      this.result = null; this.error = null;
+      __def(this, '_readyState', 1); // LOADING
+      __def(this, '_result', null); __def(this, '_error', null);
       this._fire("loadstart");
       const self = this;
       Promise.resolve().then(function () {
         if (self.readyState !== 1) return; // aborted before completion
         const bytes = (blob && blob._bytes) ? blob._bytes : new Uint8Array(0);
         try {
-          if (kind === "text") self.result = new TextDecoder(encoding || "utf-8").decode(bytes);
-          else if (kind === "binary") self.result = _bytesToBinaryString(bytes);
-          else if (kind === "dataurl") self.result = "data:" + ((blob && blob.type) || "application/octet-stream") + ";base64," + btoa(_bytesToBinaryString(bytes));
-          else self.result = _arrayBufferFromBytes(bytes);
-        } catch (e) { self.error = e; }
-        self.readyState = 2; // DONE
+          if (kind === "text") __def(self, '_result', new TextDecoder(encoding || "utf-8").decode(bytes));
+          else if (kind === "binary") __def(self, '_result', _bytesToBinaryString(bytes));
+          else if (kind === "dataurl") __def(self, '_result', "data:" + ((blob && blob.type) || "application/octet-stream") + ";base64," + btoa(_bytesToBinaryString(bytes)));
+          else __def(self, '_result', _arrayBufferFromBytes(bytes));
+        } catch (e) { __def(self, '_error', e); }
+        __def(self, '_readyState', 2); // DONE
         self._fire("progress"); self._fire("load"); self._fire("loadend");
       });
     }
@@ -14256,7 +14291,7 @@ if (typeof FileReader === 'undefined') {
     readAsBinaryString(blob) { this._read(blob, "binary"); }
     abort() {
       const wasReading = this.readyState === 1;
-      this.readyState = 0; this.result = null;
+      __def(this, '_readyState', 0); __def(this, '_result', null);
       if (wasReading) { this._fire("abort"); this._fire("loadend"); }
     }
     // M3 B2b: one real ProgressEvent through the native core — the ctor
@@ -14270,8 +14305,9 @@ if (typeof FileReader === 'undefined') {
   };
   globalThis.FileReader.EMPTY = 0; globalThis.FileReader.LOADING = 1; globalThis.FileReader.DONE = 2;
   Object.assign(globalThis.FileReader.prototype, { EMPTY: 0, LOADING: 1, DONE: 2 });
-  __acc(globalThis.FileReader, ['result', 'error', 'readyState',
-    'onloadstart', 'onprogress', 'onload', 'onabort', 'onerror', 'onloadend']);
+  __accRo(globalThis.FileReader, ['result', 'error', 'readyState']);
+  __acc(globalThis.FileReader, ['onloadstart', 'onprogress', 'onload',
+    'onabort', 'onerror', 'onloadend']);
 }
 
 // Real network sockets aren't implemented; we don't have a runtime WS / SSE
@@ -14284,24 +14320,24 @@ if (typeof FileReader === 'undefined') {
 if (typeof EventSource === 'undefined') {
   globalThis.EventSource = class EventSource {
     constructor(url, init) {
-      this.url = url;
-      this.readyState = 0; // CONNECTING
-      this.withCredentials = !!(init && init.withCredentials);
+      __def(this, '_url', url);
+      __def(this, '_readyState', 0); // CONNECTING
+      __def(this, '_withCredentials', !!(init && init.withCredentials));
       this.onopen = null; this.onmessage = null; this.onerror = null;
       Promise.resolve().then(() => {
         if (this.readyState !== 0) return;
-        this.readyState = 1; // OPEN
+        __def(this, '_readyState', 1); // OPEN
         // 刀56: the native dispatch fires on* itself (handler hook) — the
         // manual onopen call is gone or it would fire twice.
         try { this.dispatchEvent(new Event('open')); } catch (e) {}
       });
       __hideOwn(this);
     }
-    close() { this.readyState = 2; }
+    close() { __def(this, '_readyState', 2); }
     static CONNECTING = 0; static OPEN = 1; static CLOSED = 2;
   };
-  __acc(globalThis.EventSource, ['url', 'readyState', 'withCredentials',
-    'onopen', 'onmessage', 'onerror']);
+  __accRo(globalThis.EventSource, ['url', 'readyState', 'withCredentials']);
+  __acc(globalThis.EventSource, ['onopen', 'onmessage', 'onerror']);
 }
 
 if (typeof WebSocket === 'undefined') {
@@ -14334,12 +14370,12 @@ if (typeof WebSocket === 'undefined') {
           seen.add(p);
         }
       }
-      this.url = parsed.href;
-      this.readyState = 0; // CONNECTING
-      this.bufferedAmount = 0;
+      __def(this, '_url', parsed.href);
+      __def(this, '_readyState', 0); // CONNECTING
+      __def(this, '_bufferedAmount', 0);
       this.binaryType = 'blob';
-      this.extensions = '';
-      this.protocol = list[0] || '';
+      __def(this, '_extensions', '');
+      __def(this, '_protocol', list[0] || '');
       this.onopen = null; this.onmessage = null; this.onerror = null; this.onclose = null;
       this._id = undefined;
       this._terminal = false; // close event fired; no further events
@@ -14376,7 +14412,7 @@ if (typeof WebSocket === 'undefined') {
     _fail() {
       if (this._terminal) return;
       this._terminal = true;
-      this.readyState = 3; // CLOSED
+      __def(this, '_readyState', 3); // CLOSED
       this._id = undefined;
       this._sendQueue.length = 0; // queued CONNECTING sends die with the attempt
       this._emit(new Event('error'));
@@ -14385,7 +14421,7 @@ if (typeof WebSocket === 'undefined') {
     _finish(code, reason, wasClean) {
       if (this._terminal) return;
       this._terminal = true;
-      this.readyState = 3; // CLOSED
+      __def(this, '_readyState', 3); // CLOSED
       this._id = undefined;
       this._sendQueue.length = 0;
       this._fireCloseEvent(code, reason, wasClean);
@@ -14403,11 +14439,11 @@ if (typeof WebSocket === 'undefined') {
         if (!ev || !ev.kind) break;
         if (ev.kind === 'open') {
           if (this._terminal || this._id !== id) break;
-          this.readyState = 1; // OPEN
+          __def(this, '_readyState', 1); // OPEN
           for (const item of this._sendQueue.splice(0)) {
             try { _OPS.op_ws_send(id, item[0], item[1]); } catch (e) { break; }
           }
-          this.bufferedAmount = 0;
+          __def(this, '_bufferedAmount', 0);
           this._emit(new Event('open'));
         } else if (ev.kind === 'message') {
           if (this._terminal) break;
@@ -14457,7 +14493,7 @@ if (typeof WebSocket === 'undefined') {
         // open; only CLOSING/CLOSED throw (#161). bufferedAmount tracks
         // the queued bytes like Chrome's.
         this._sendQueue.push([kind, payload]);
-        this.bufferedAmount += byteLen;
+        __def(this, '_bufferedAmount', this._bufferedAmount + byteLen);
         return;
       }
       _OPS.op_ws_send(this._id, kind, payload);
@@ -14483,12 +14519,14 @@ if (typeof WebSocket === 'undefined') {
         this._finish(c2, r, true);
         return;
       }
-      this.readyState = 2; // CLOSING; pump delivers the negotiated close later
+      __def(this, '_readyState', 2); // CLOSING; pump delivers the negotiated close later
     }
     static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
   };
-  __acc(globalThis.WebSocket, ['url', 'readyState', 'bufferedAmount', 'binaryType',
-    'extensions', 'protocol', 'onopen', 'onmessage', 'onerror', 'onclose']);
+  __accRo(globalThis.WebSocket, ['url', 'readyState', 'bufferedAmount',
+    'extensions', 'protocol']);
+  __acc(globalThis.WebSocket, ['binaryType',
+    'onopen', 'onmessage', 'onerror', 'onclose']);
 }
 
 if (typeof BroadcastChannel === 'undefined') {
@@ -14506,7 +14544,7 @@ if (typeof BroadcastChannel === 'undefined') {
   const _bcReg = new Map();
   globalThis.BroadcastChannel = class BroadcastChannel {
     constructor(name) {
-      this.name = String(name);
+      __def(this, '_name', String(name));
       this.onmessage = null;
       this.onmessageerror = null;
       this._closed = false;
@@ -14543,7 +14581,8 @@ if (typeof BroadcastChannel === 'undefined') {
       if (set) { set.delete(this); if (!set.size) _bcReg.delete(this.name); }
     }
   };
-  __acc(globalThis.BroadcastChannel, ['name', 'onmessage', 'onmessageerror']);
+  __accRo(globalThis.BroadcastChannel, ['name']);
+  __acc(globalThis.BroadcastChannel, ['onmessage', 'onmessageerror']);
 }
 
 if (typeof ImageData === 'undefined') {
@@ -16449,6 +16488,7 @@ try {
   d('_evx', _evx);
   d('_evxGuard', _evxGuard);
   d('_evxProps', _evxProps);
+  d('_evxRo', _evxRo);
   a('_fetchRing', () => _fetchRing, (v) => { _fetchRing = v; });
   d('_fetchStage', _fetchStage);
   d('_formValues', _formValues);
