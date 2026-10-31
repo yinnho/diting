@@ -357,10 +357,128 @@
 // CSSStyleValue.prototype so CSSUnitValue keeps its truth member set.
 (function () {
   if (!globalThis.CSS) return;
-  Object.defineProperty(globalThis.CSS, 'highlights', { value: Object.create(globalThis.HighlightRegistry.prototype), writable: true, enumerable: true, configurable: true });
-  // (刀88) empty registry: size is a getter counting zero highlights
-  // (installed before stub_members' fill, so the getter survives).
-  Object.defineProperty(globalThis.HighlightRegistry.prototype, 'size', { get() { return 0; }, enumerable: true, configurable: true });
+  const mark = (f) => { try { if (typeof _markNative === 'function') _markNative(f); } catch (e) {} };
+  const dprop = (o, k, a) => Object.defineProperty(o, k, a);
+  // (刀94) HighlightRegistry/Highlight real bodies — Map-like / Set-like over
+  // module WeakMaps (Chrome 145 truth, k94-hl/hl2). This block runs before
+  // stub_members' fill-if-missing, so these win and the minted shape faces
+  // (member ORDER, descs, tags — shape-audit green already) stay untouched.
+  // Probed Chrome quirks: has/delete TYPE-CHECK the argument (h.has(999)
+  // throws, unlike Map); the `type` attribute is write-proof in practice
+  // (reads stay 'highlight' for ANY assignment, never throws); set()
+  // overwrites in place keeping insertion order; highlightsFromPoint answers
+  // [] for every point (nothing is painted for ::highlight in this engine).
+  const RBRAND = new WeakSet();  // registry objects minted here
+  const HBRAND = new WeakSet();  // Highlight instances minted by the W ctor
+  const REGM = new WeakMap();    // registry -> Map(stringKey -> Highlight)
+  const HLS = new WeakMap();     // highlight -> Set(AbstractRange)
+  const HPRIO = new WeakMap();   // highlight -> priority (default 0)
+  const ABS = globalThis.AbstractRange;
+  const isRange = (v) => !!ABS && v instanceof ABS;
+  const rmap = (o) => { let m = REGM.get(o); if (!m) { m = new Map(); REGM.set(o, m); } return m; };
+  const hset = (o) => { let s = HLS.get(o); if (!s) { s = new Set(); HLS.set(o, s); } return s; };
+  const illegal = () => { throw new TypeError('Illegal invocation'); };
+  const argc = (iface, meth, nreq, n) => {
+    throw new TypeError("Failed to execute '" + meth + "' on '" + iface + "': " + nreq + " argument" + (nreq > 1 ? "s" : "") + " required, but only " + n + " present.");
+  };
+
+  // ---- Highlight: Set-like of AbstractRanges ------------------------------
+  const OrigH = globalThis.Highlight;
+  const HP = OrigH.prototype;
+  const W = function Highlight() {
+    if (!new.target) throw new TypeError("Failed to construct 'Highlight': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    for (let i = 0; i < arguments.length; i++) {
+      if (!isRange(arguments[i])) throw new TypeError("Failed to construct 'Highlight': parameter " + (i + 1) + " is not of type 'AbstractRange'.");
+    }
+    const o = Reflect.construct(Object, [], new.target);
+    HBRAND.add(o);
+    const s = hset(o);
+    for (let i = 0; i < arguments.length; i++) s.add(arguments[i]);
+    return o;
+  };
+  Object.defineProperty(W, 'length', { value: 0, configurable: true });
+  Object.defineProperty(W, 'prototype', { value: HP, writable: false, enumerable: false, configurable: false });
+  for (const k of Reflect.ownKeys(OrigH)) {
+    if (k === 'length' || k === 'name' || k === 'prototype') continue;
+    try { Object.defineProperty(W, k, Object.getOwnPropertyDescriptor(OrigH, k)); } catch (e) {}
+  }
+  Object.setPrototypeOf(W, Object.getPrototypeOf(OrigH));
+  try { Object.defineProperty(HP, 'constructor', { value: W, writable: true, enumerable: false, configurable: true }); } catch (e) {}
+  mark(W);
+  const Hdw = Object.getOwnPropertyDescriptor(globalThis, 'Highlight');
+  Object.defineProperty(globalThis, 'Highlight', { value: W, writable: Hdw ? Hdw.writable : true, enumerable: Hdw ? Hdw.enumerable : false, configurable: true });
+  const isH = (v) => v instanceof W;
+  const hmeth = (k, nreq, f) => {
+    const fn = function () {
+      if (!HBRAND.has(this)) illegal();
+      if (arguments.length < nreq) argc('Highlight', k, nreq, arguments.length);
+      return f.apply(this, arguments);
+    };
+    try { Object.defineProperty(fn, 'name', { value: k }); } catch (e) {}
+    try { Object.defineProperty(fn, 'length', { value: nreq, configurable: true }); } catch (e) {}
+    mark(fn);
+    dprop(HP, k, { value: fn, writable: true, enumerable: true, configurable: true });
+  };
+  hmeth('add', 1, function (v) { if (!isRange(v)) throw new TypeError("Failed to execute 'add' on 'Highlight': parameter 1 is not of type 'AbstractRange'."); hset(this).add(v); return this; });
+  hmeth('has', 1, function (v) { if (!isRange(v)) throw new TypeError("Failed to execute 'has' on 'Highlight': parameter 1 is not of type 'AbstractRange'."); return hset(this).has(v); });
+  hmeth('delete', 1, function (v) { if (!isRange(v)) throw new TypeError("Failed to execute 'delete' on 'Highlight': parameter 1 is not of type 'AbstractRange'."); return hset(this).delete(v); });
+  hmeth('clear', 0, function () { hset(this).clear(); });
+  hmeth('keys', 0, function () { return hset(this).keys(); });
+  hmeth('values', 0, function () { return hset(this).values(); });
+  hmeth('entries', 0, function () { return hset(this).entries(); });
+  hmeth('forEach', 1, function (cb, ta) { const reg = this; hset(this).forEach((v) => cb.call(ta, v, v, reg)); });
+  const hSize = function size() { if (!HBRAND.has(this)) illegal(); return hset(this).size; };
+  mark(hSize);
+  dprop(HP, 'size', { get: hSize, enumerable: true, configurable: true });
+  const hPrio = function priority() { if (!HBRAND.has(this)) illegal(); return HPRIO.get(this) || 0; };
+  const hPrioS = function priority(v) { if (!HBRAND.has(this)) illegal(); HPRIO.set(this, v >>> 0); };
+  mark(hPrio); mark(hPrioS);
+  dprop(HP, 'priority', { get: hPrio, set: hPrioS, enumerable: true, configurable: true });
+  const hType = function type() { if (!HBRAND.has(this)) illegal(); return 'highlight'; };
+  const hTypeS = function type() { /* (刀94) Chrome 145: type writes never land, never throw */ };
+  mark(hType); mark(hTypeS);
+  dprop(HP, 'type', { get: hType, set: hTypeS, enumerable: true, configurable: true });
+  // Set-like iterator: Symbol.iterator === values (WebIDL setlike forwards the
+  // %SetIterator% — the tag Chrome shows too).
+  dprop(HP, Symbol.iterator, { value: HP.values, writable: true, enumerable: false, configurable: true });
+
+  // ---- HighlightRegistry: Map-like of string -> Highlight -----------------
+  const RP = globalThis.HighlightRegistry.prototype;
+  const mkReg = () => { const o = Object.create(RP); RBRAND.add(o); rmap(o); return o; };
+  const rmeth = (k, nreq, f) => {
+    const fn = function () {
+      if (!RBRAND.has(this)) illegal();
+      if (arguments.length < nreq) argc('HighlightRegistry', k, nreq, arguments.length);
+      return f.apply(this, arguments);
+    };
+    try { Object.defineProperty(fn, 'name', { value: k }); } catch (e) {}
+    try { Object.defineProperty(fn, 'length', { value: nreq, configurable: true }); } catch (e) {}
+    mark(fn);
+    dprop(RP, k, { value: fn, writable: true, enumerable: true, configurable: true });
+  };
+  rmeth('set', 2, function (k, v) {
+    if (!isH(v)) throw new TypeError("Failed to execute 'set' on 'HighlightRegistry': parameter 2 is not of type 'Highlight'.");
+    rmap(this).set(String(k), v);
+    return this;
+  });
+  rmeth('get', 1, function (k) { return rmap(this).get(String(k)); });
+  rmeth('has', 1, function (k) { return rmap(this).has(String(k)); });
+  rmeth('delete', 1, function (k) { return rmap(this).delete(String(k)); });
+  rmeth('clear', 0, function () { rmap(this).clear(); });
+  rmeth('keys', 0, function () { return rmap(this).keys(); });
+  rmeth('values', 0, function () { return rmap(this).values(); });
+  rmeth('forEach', 1, function (cb, ta) { const reg = this; rmap(this).forEach((v, k) => cb.call(ta, v, k, reg)); });
+  rmeth('highlightsFromPoint', 2, function () { return []; });
+  const rEntries = function () { return rmap(this).entries(); };
+  try { Object.defineProperty(rEntries, 'name', { value: 'entries' }); } catch (e) {}
+  mark(rEntries);
+  dprop(RP, 'entries', { value: rEntries, writable: true, enumerable: true, configurable: true });
+  dprop(RP, Symbol.iterator, { value: rEntries, writable: true, enumerable: false, configurable: true });
+  const rSize = function size() { if (!RBRAND.has(this)) illegal(); return rmap(this).size; };
+  mark(rSize);
+  dprop(RP, 'size', { get: rSize, enumerable: true, configurable: true });
+
+  Object.defineProperty(globalThis.CSS, 'highlights', { value: mkReg(), writable: true, enumerable: true, configurable: true });
   Object.defineProperty(globalThis.CSS, 'paintWorklet', { value: Object.create(globalThis.Worklet.prototype), writable: true, enumerable: true, configurable: true });
   Object.defineProperty(globalThis.CSSStyleValue.prototype, 'toString', {
     value: function toString() {

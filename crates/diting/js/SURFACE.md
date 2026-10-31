@@ -2053,3 +2053,17 @@ Chrome 145 真值（k93-fire/fire2/fire3 三轮 39 案）钉死——本刀与�
 数字：三轮 probe 引擎腿 39/39 全 0 diff；shape 936/936 全 0；enum 205/211（6 既有环境漏）；instance 127/127；cargo lib 110 失败与基线逐字节相同、workspace 156（110 lib+46 ws）逐名全等零新增。
 测试：`knife93_unload_dead_and_webkit_handler_attributes`（24 行断言）。
 **教训**：①**对拍是双向的——引擎「太活」也是错**：tail 真火扫出来引擎 124/119 领先 Chrome，两处死区（unload 类型级、onwebkit* 处理器级）都是 Chrome 的历史包袱，规范文档不会告诉你，只有真 Chrome 探针能钉；②**卸载类事件的注册表是单列的**——Chrome 的 unload 监听器走页面生命周期注册表、合成派发永远读不到，修法选「派发侧类型门」而非「注册侧转移」（后者要动 add/remove/once/abort 全路径，且观测等价）；③死属性的死法有层次——**存储腿活（get/set 正常）、火腿死**，先探 desc+存取再动火腿，别把属性面一起拆了。
+
+## M4 刀94：HighlightRegistry/Highlight 真身——Map-like/Set-like 全环（2026-10-31）
+
+Chrome 145 真值（k94-hl/hl2 两轮 64 案）钉死（此前 shape 全对、行为全空壳）：
+
+- **HighlightRegistry=Map-like（string→Highlight）**：set/get/has/delete/clear/keys/values/entries/forEach/Symbol.iterator 全活、插入序、set 原位覆盖保位；get 缺键→undefined、delete 缺键→false、**键 String 强转不抛**（get(999)→undefined）；set 参数2 类型门（`parameter 2 is not of type 'Highlight'.`）、argc 梯（set 2 参/get/has/delete 1 参）；**Symbol.iterator===entries**；size getter（e/c、无 setter）；外来 this 裸 Illegal invocation。**highlightsFromPoint(x,y) 恒 []**（argc 2；引擎无 ::highlight 绘制，任何点都无命中=Chrome 无布局点同答）。
+- **Highlight=Set-like（AbstractRange）**：ctor 变参逐个类型门（`parameter N is not of type 'AbstractRange'.`，零参合法空集）；add/has/delete 同类型门、**has(999)/delete(999) 抛 TypeError**（Set-like has 是类型化的，与 Map 不同）；add 返 this、去重；clear 清空；**Symbol.iterator===values**；keys/values/entries/forEach 走 %SetIterator%（标签同 Chrome）。
+- **两属性quirk**：`priority` 默认 0、rw（`>>>0`）；`type` **只读实践**——desc 有 setter，但任何赋值（'text-highlight'/'zzz'）都不落地也不抛、读恒 'highlight'（Chrome 145 实测）。
+- 身份：registry 实例 own keys 恒 0（键在内部 Map）；CSS.highlights 跨读同对象；实例 HBRAND/RBRAND WeakSet 品牌（页面 Object.create(proto) 不入品牌→方法裸 Illegal invocation）。
+
+实现（`web_api_gaps.js` 刀88 块重写）：RBRAND/HBRAND 品牌 + REGM/HLS/HPRIO WeakMap + hmeth/rmeth 安装器（argc 梯+Illegal invocation+**fn.length=nreq**——shape kind 串内嵌 value.length，wrapper 零参函数会破 kind）；Highlight ctor W 包装（SVGPoint 家法：prototype 接线+constructor 回写+globalThis 换装）；Set/Map 原生迭代器直返。
+数字：两轮 probe 引擎腿 64/64 全 0 diff；shape 936/936 全 0；enum 205/211（6 既有环境漏）；instance 127/127；lib 110 与基线逐字节相同、workspace 156 逐名全等零新增。
+测试：`knife94_highlight_registry_map_like`（26 行断言）。
+**教训**：①**method wrapper 必须补 .length**——shape 审计的 kind 串内嵌函数 length，包装函数零参声明会把 kind 打回（本刀 2 接口 10 方法当场抓获，defineProperty length 修复）；②**箭头回调吃 receiver**——hmeth 安装器给 f 传 apply(this)，但箭头函数忽略 apply 的 thisArg，hset(this) 落到模块作用域（size 对、has 错的分裂症状）；凡经 apply 转发的方法体一律 function 声明；③**forEach 第三参传本尊**——Map/Set.prototype.forEach 的第三参是内部 Map/Set，WebIDL Map-like 要传接口对象本身（reg.forEachArgs m===reg 案）；④join(undefined)→'' 又一次（reg.miss 案）——**数组行断言先在脑内跑一遍 join**。

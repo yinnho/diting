@@ -31255,3 +31255,81 @@ async fn knife93_unload_dead_and_webkit_handler_attributes() {
         "knife93: synthetic unload fires nothing on any target; onwebkit* four attributes stored-but-dead; the rest of the tail stays alive"
     );
 }
+
+#[tokio::test]
+async fn knife94_highlight_registry_map_like() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        const reg = CSS.highlights;
+        const rg = document.createRange();
+        // ---- Highlight: Set-like of AbstractRanges ----
+        T('h.ctor', () => [new Highlight(rg).size, new Highlight().size, new Highlight(rg, document.createRange()).size].join('/'));
+        T('h.ctorBad', () => new Highlight(rg, {}));
+        T('h.ctorBad1', () => new Highlight({}));
+        T('h.add', () => { const h = new Highlight(); h.add(rg); return [h.size, h.has(rg), h.add(rg) === h, h.size].join('/'); });
+        T('h.addBad', () => { const h = new Highlight(); h.add({}); return 'no'; });
+        T('h.hasBad', () => { const h = new Highlight(rg); return h.has(999); });
+        T('h.del', () => { const h = new Highlight(rg); return [h.delete(rg), h.size, h.delete(rg)].join('/'); });
+        T('h.clear', () => { const h = new Highlight(rg); h.clear(); return h.size; });
+        T('h.type', () => { const h = new Highlight(rg); const t0 = h.type; h.type = 'text-highlight'; return [t0, h.type].join('/'); });
+        T('h.priority', () => { const h = new Highlight(rg); const p0 = h.priority; h.priority = 7; return [p0, h.priority].join('/'); });
+        T('h.iter', () => { const h = new Highlight(rg); let s = ''; for (const x of h) s += (x === rg); return s; });
+        T('h.symIsValues', () => Highlight.prototype[Symbol.iterator] === Highlight.prototype.values);
+        T('h.rx', () => Highlight.prototype.add.call({}, rg));
+        // ---- HighlightRegistry: Map-like ----
+        const h = new Highlight(rg);
+        T('reg.setGet', () => { reg.set('k1', h); return [reg.size, reg.get('k1') === h, reg.has('k1')].join('/'); });
+        T('reg.overwrite', () => { const h2 = new Highlight(); reg.set('k1', h2); return [reg.size, reg.get('k1') === h2].join('/'); });
+        T('reg.order', () => { reg.set('b', h); reg.set('a', h); const ks = [...reg.keys()].join(','); reg.delete('k1'); reg.delete('b'); reg.delete('a'); return ks; });
+        T('reg.miss', () => [reg.get('nosuch'), reg.has('nosuch'), reg.delete('nosuch')].join('/'));
+        T('reg.clear', () => { reg.set('x', h); reg.clear(); return reg.size; });
+        T('reg.iter', () => { reg.set('i1', h); let s = ''; for (const [k, v] of reg) s += k + '=' + (v === h) + ';'; reg.delete('i1'); return s; });
+        T('reg.forEach', () => { reg.set('fa', h); let out = ''; reg.forEach((v, k, m) => { out = [v === h, k, m === reg].join('/'); }); reg.delete('fa'); return out; });
+        T('reg.symIsEntries', () => reg[Symbol.iterator] === reg.entries);
+        T('reg.hfp', () => { reg.set('fp', h); const v = reg.highlightsFromPoint(0, 0); reg.delete('fp'); return Array.isArray(v) ? 'arr:' + v.length : typeof v; });
+        T('reg.rx', () => HighlightRegistry.prototype.get.call({}, 'x'));
+        T('reg.setBadVal', () => reg.set('x', {}));
+        T('reg.set1', () => reg.set('a'));
+        T('reg.get0', () => reg.get());
+        return JSON.stringify(__log);
+    "#).unwrap();
+    let log = rt
+        .evaluate("JSON.stringify(__log)")
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["h.ctor", "ok", "1/0/2"],
+            ["h.ctorBad", "TypeError", "Failed to construct 'Highlight': parameter 2 is not of type 'AbstractRange'."],
+            ["h.ctorBad1", "TypeError", "Failed to construct 'Highlight': parameter 1 is not of type 'AbstractRange'."],
+            ["h.add", "ok", "1/true/true/1"],
+            ["h.addBad", "TypeError", "Failed to execute 'add' on 'Highlight': parameter 1 is not of type 'AbstractRange'."],
+            ["h.hasBad", "TypeError", "Failed to execute 'has' on 'Highlight': parameter 1 is not of type 'AbstractRange'."],
+            ["h.del", "ok", "true/0/false"],
+            ["h.clear", "ok", "0"],
+            ["h.type", "ok", "highlight/highlight"],
+            ["h.priority", "ok", "0/7"],
+            ["h.iter", "ok", "true"],
+            ["h.symIsValues", "ok", "true"],
+            ["h.rx", "TypeError", "Illegal invocation"],
+            ["reg.setGet", "ok", "1/true/true"],
+            ["reg.overwrite", "ok", "1/true"],
+            ["reg.order", "ok", "k1,b,a"],
+            ["reg.miss", "ok", "/false/false"],
+            ["reg.clear", "ok", "0"],
+            ["reg.iter", "ok", "i1=true;"],
+            ["reg.forEach", "ok", "true/fa/true"],
+            ["reg.symIsEntries", "ok", "true"],
+            ["reg.hfp", "ok", "arr:0"],
+            ["reg.rx", "TypeError", "Illegal invocation"],
+            ["reg.setBadVal", "TypeError", "Failed to execute 'set' on 'HighlightRegistry': parameter 2 is not of type 'Highlight'."],
+            ["reg.set1", "TypeError", "Failed to execute 'set' on 'HighlightRegistry': 2 arguments required, but only 1 present."],
+            ["reg.get0", "TypeError", "Failed to execute 'get' on 'HighlightRegistry': 1 argument required, but only 0 present."]
+        ]),
+        "knife94: HighlightRegistry Map-like + Highlight Set-like real bodies (Chrome 145 truth)"
+    );
+}
