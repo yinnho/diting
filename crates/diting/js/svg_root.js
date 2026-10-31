@@ -40,6 +40,10 @@
   {
     const P = SVGLength.prototype;
     const raw = function () {
+      if (this._lstO) { // 刀64: list item — token view (TextPositioning x/y/dx/dy)
+        const t = this._lstO._toks();
+        return this._lstI < t.length ? t[this._lstI] : [0, 1];
+      }
       if (this._attEl) {
         const a = this._attEl.getAttribute(this._attName);
         if (a == null) {
@@ -55,6 +59,7 @@
     };
     const write = function (s) {
       if (this._ro) throw new DOMException("Failed to set the value: the object is read-only.", 'NoModificationAllowedError');
+      if (this._lstO) { this._lstO._setTok(this._lstI, s); return; }
       if (this._attEl) this._attEl.setAttribute(this._attName, s);
       else { const m = LEN_RX.exec(String(s)); if (m) { this._v = Number(m[1]); this._u = m[2] ? SUF2U[m[2]] : 1; } }
     };
@@ -78,17 +83,19 @@
         px = Number(px);
         const [v, u] = raw.call(this);
         let s;
-        if (u === 2 && this._attEl) s = (px / pctBase(this._attName) * 100) + '%';
+        if (u === 2 && (this._attEl || this._lstO)) s = (px / pctBase(this._attName) * 100) + '%';
         else if (u >= 3 && USUF[u]) s = (px / (PXF[u] || 1)) + USUF[u];
         else s = String(px);
-        if (this._attEl) this._attEl.setAttribute(this._attName, s);
+        if (this._lstO) this._lstO._setTok(this._lstI, s);
+        else if (this._attEl) this._attEl.setAttribute(this._attName, s);
         else this._v = u === 2 ? v : px / (PXF[u] || 1);
       });
     dacc(P, 'valueInSpecifiedUnits',
       function valueInSpecifiedUnits() { return raw.call(this)[0]; },
       function valueInSpecifiedUnits(v) {
         if (this._ro) throw new DOMException("Failed to set the 'valueInSpecifiedUnits' property: the object is read-only.", 'NoModificationAllowedError');
-        if (this._attEl) this._attEl.setAttribute(this._attName, v + (USUF[raw.call(this)[1]] || ''));
+        if (this._lstO) this._lstO._setTok(this._lstI, v + (USUF[raw.call(this)[1]] || ''));
+        else if (this._attEl) this._attEl.setAttribute(this._attName, v + (USUF[raw.call(this)[1]] || ''));
         else this._v = Number(v);
       });
     dacc(P, 'valueAsString',
@@ -101,7 +108,8 @@
     dmth(P, 'newValueSpecifiedUnits', function newValueSpecifiedUnits(u, v) {
       if (this._ro) throw new DOMException("Failed to execute 'newValueSpecifiedUnits': the object is read-only.", 'NoModificationAllowedError');
       const s = Number(v) + (USUF[u] || '');
-      if (this._attEl) this._attEl.setAttribute(this._attName, s); else { this._v = Number(v); this._u = u; }
+      if (this._lstO) this._lstO._setTok(this._lstI, s);
+      else if (this._attEl) this._attEl.setAttribute(this._attName, s); else { this._v = Number(v); this._u = u; }
     });
     dmth(P, 'convertToSpecifiedUnits', function convertToSpecifiedUnits(u2) {
       if (this._ro) throw new DOMException("Failed to execute 'convertToSpecifiedUnits': the object is read-only.", 'NoModificationAllowedError');
@@ -109,7 +117,8 @@
       const [v, u] = raw.call(this);
       if (u === 2) { if (!this._attEl) return; this._u = u2; return; } // GUESS: detached % stays
       const px = toPx.call(this, v, u);
-      if (this._attEl) this._attEl.setAttribute(this._attName, (px / (PXF[u2] || 1)) + (USUF[u2] || ''));
+      if (this._lstO) this._lstO._setTok(this._lstI, (px / (PXF[u2] || 1)) + (USUF[u2] || ''));
+      else if (this._attEl) this._attEl.setAttribute(this._attName, (px / (PXF[u2] || 1)) + (USUF[u2] || ''));
       else { this._v = px / (PXF[u2] || 1); this._u = u2; }
     });
     globalThis.__diting_svgLength = (el, name, ro, def, noPct) => {
@@ -176,16 +185,45 @@
 
   // ---------- SVGNumber / SVGRect -------------------------------------------
   if (typeof SVGNumber === 'function') {
-    dacc(SVGNumber.prototype, 'value', function value() { return this._v || 0; }, function value(v) { this._v = Number(v); });
+    dacc(SVGNumber.prototype, 'value',
+      function value() {
+        if (this._lstO) { // 刀64: list item — token view (TextPositioning rotate)
+          const t = this._lstO._toks();
+          return this._lstI < t.length ? t[this._lstI] : 0;
+        }
+        return this._v || 0;
+      },
+      function value(v) {
+        if (this._lstO) { this._lstO._setTok(this._lstI, Number(v)); return; }
+        this._v = Number(v);
+      });
     globalThis.__diting_svgNumber = () => { const o = Object.create(SVGNumber.prototype); o._v = 0; return o; };
   }
   if (typeof SVGRect === 'function') {
     const P = SVGRect.prototype;
-    for (const k of ['x', 'y', 'width', 'height']) {
-      dacc(P, k, new Function('k', 'return function ' + k + '() { return this._r ? this._r.' + k + ' : 0; };')(k),
-        new Function('k', 'return function ' + k + '(v) { if (!this._r) this._r = { x: 0, y: 0, width: 0, height: 0 }; this._r.' + k + ' = Number(v); };')(k));
+    const RKS = ['x', 'y', 'width', 'height'];
+    // 刀64: attached rects view an attribute (viewBox 'min-x min-y w h'):
+    // absent/partial/junk tokens read 0 (probed: absent w/h 0, '0 0 10 20'
+    // -> 10/20); writes re-serialize all four (GUESS). Detached rects keep
+    // 刀59 semantics (_r store).
+    const rparse = function () {
+      const s = this._attEl ? String(this._attEl.getAttribute(this._attName) || '') : '';
+      const t = s.trim() === '' ? [] : s.trim().split(/[\s,]+/);
+      return RKS.map((_, i) => { const v = Number(t[i]); return isNaN(v) ? 0 : v; });
+    };
+    const rwrite = function (i, v) {
+      const cur = rparse.call(this);
+      cur[i] = Number(v);
+      this._attEl.setAttribute(this._attName, cur.join(' ')); // GUESS: full 'x y w h'
+    };
+    for (let i = 0; i < RKS.length; i++) {
+      const k = RKS[i];
+      dacc(P, k,
+        new Function('rparse', 'i', 'return function ' + k + '() { if (this._attEl) return rparse.call(this)[i]; return this._r ? this._r.' + k + ' : 0; };')(rparse, i),
+        new Function('rwrite', 'i', 'return function ' + k + '(v) { if (this._attEl) { rwrite.call(this, i, v); return; } if (!this._r) this._r = { x: 0, y: 0, width: 0, height: 0 }; this._r.' + k + ' = Number(v); };')(rwrite, i));
     }
     globalThis.__diting_svgRect = (r) => { const o = Object.create(P); o._r = r || { x: 0, y: 0, width: 0, height: 0 }; return o; };
+    globalThis.__diting_svgRectAttach = (el, name) => { const o = Object.create(P); o._attEl = el || null; o._attName = name; return o; };
   }
 
   // ---------- SVGPoint -------------------------------------------------------
@@ -471,6 +509,10 @@
       if (ov) return this._pair === 1 ? ov[1] : ov[0];
       const a = this._attEl.getAttribute(this._attName);
       if (a == null) return this._def == null ? 0 : this._def; // absent -> default (probed: dx 2)
+      if (this._pctDiv) { // 刀64: stop offset — '50%' reads value/100 (probed), unclamped either way
+        const pm = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*%$/.exec(String(a).trim());
+        if (pm) return Number(pm[1]) / 100;
+      }
       if (this._pair != null) { // stdDeviation is a 'x y' pair (probed: '4 6' -> 4/6, single -> both)
         const t = String(a).trim().split(/[\s,]+/);
         const x = NUMRX.test(t[0] || '') ? Number(t[0]) : (this._def == null ? 0 : this._def);
@@ -485,9 +527,9 @@
         else this._v = Number(v);
       });
     dacc(P, 'animVal', function animVal() { return nread.call(this); }); // GUESS: mirrors baseVal (string animVal probed to mirror)
-    globalThis.__diting_svgAnimNumber = (el, name, def, pair) => {
+    globalThis.__diting_svgAnimNumber = (el, name, def, pair, pctDiv) => {
       const o = Object.create(P);
-      o._attEl = el || null; o._attName = name; o._def = def == null ? null : def; o._pair = pair == null ? null : (pair ? 1 : 0);
+      o._attEl = el || null; o._attName = name; o._def = def == null ? null : def; o._pair = pair == null ? null : (pair ? 1 : 0); o._pctDiv = !!pctDiv;
       return o;
     };
   }
@@ -860,6 +902,309 @@
     animGet(P, 'href', (el) => __diting_svgAnimString(el, 'href')); // truth ro:ec — Chrome returns an SVGAnimatedString view (was a stale rw shell)
     animGet(P, 'requiredExtensions', (el) => __diting_svgStringList(el, 'requiredExtensions'));
     animGet(P, 'systemLanguage', (el) => __diting_svgStringList(el, 'systemLanguage'));
+    ctorLast(P);
+  }
+
+  // ========== 刀64: SVG geometry reflector family ============================
+  // The 13 element faces' missing own members: the x/y/radius reflectors
+  // (rect/circle/ellipse/line/foreignObject/image/use), the gradients' length
+  // legs, stop offset, symbol viewBox, clipPath and TextPositioning's five
+  // LIST reflectors — plus working internals for the three list types and
+  // SVGAnimatedRect, which were mint shells. Defaults probed on Chrome 145
+  // (receipts SURFACE.md 刀64): geometry lengths absent -> [0, number] (NOT
+  // the 刀59 width/height heuristic — rect itself reads 0) and '50%' .value
+  // throws NotSupportedError like the FE regions; linear x1/y1/y2 -> [0, %],
+  // x2 -> [100, %]; radial cx/cy/r/fx/fy -> [50, %] with fx INDEPENDENT of
+  // cx, fr -> [0, %]; stop offset '50%' reads 0.5 unclamped; clipPathUnits
+  // defaults 1 (userSpaceOnUse) — pattern's patternUnits default is 2, this
+  // one is NOT; image decoding defaults 'auto' lowercased, crossOrigin ''
+  // -> null. SVGTextPathElement stays order-only this layer: its TEXTPATH_*
+  // constants are e-- from the mint and sit FIRST while Chrome wants them
+  // 5th–10th — non-configurable, unmovable outside a mint-layer knife.
+
+  // ---- SVGLengthList: length-token attr view (TextPositioning x/y/dx/dy) --
+  if (typeof SVGLengthList === 'function') {
+    const P = SVGLengthList.prototype;
+    const parseL = (s) => {
+      const t = String(s).trim();
+      if (t === '') return [];
+      return t.split(/[\s,]+/).map((tk) => {
+        const m = LEN_RX.exec(tk);
+        return m ? [Number(m[1]), m[2] ? SUF2U[m[2]] : 1] : [0, 1]; // junk token -> 0 (GUESS)
+      });
+    };
+    const ltoks = function () {
+      const cur = this._attEl ? (this._attEl.getAttribute(this._attName) || '') : '';
+      if (this._lastS !== cur) { this._tA = parseL(cur); this._itA = null; this._lastS = cur; } // attr is truth: live re-parse
+      return this._tA;
+    };
+    const lser = function () {
+      if (this._attEl && this._attName) {
+        this._attEl.setAttribute(this._attName, (this._tA || []).map((tv) => tv[0] + (USUF[tv[1]] || '')).join(' ')); // GUESS: same shape the number list was probed serializing
+        this._lastS = this._attEl.getAttribute(this._attName) || '';
+        this._itA = null;
+      }
+    };
+    const litems = function () {
+      const t = ltoks.call(this);
+      if (!this._itA || this._itA.length !== t.length) {
+        this._itA = t.map((_, i) => { const o = __diting_svgLength(null, '', false); o._lstO = this; o._lstI = i; return o; });
+      }
+      return this._itA;
+    };
+    const oorL = (m, i) => new DOMException("Failed to execute '" + m + "' on 'SVGLengthList': The index provided (" + i + ") is out of range.", 'IndexSizeError'); // throw probed, message GUESS
+    const tokOf = (t) => (t && typeof t === 'object' && typeof t.valueAsString === 'string') ? t.valueAsString : (t && typeof t === 'object' && typeof t.value === 'number' ? String(t.value) : String(t));
+    dacc(P, 'length', function length() { return ltoks.call(this).length; });
+    dacc(P, 'numberOfItems', function numberOfItems() { return ltoks.call(this).length; });
+    dmth(P, 'appendItem', function appendItem(t) { // GUESS: serializes (sibling type probed)
+      ltoks.call(this).push(parseL(tokOf(t))[0] || [0, 1]);
+      lser.call(this);
+      return litems.call(this)[litems.call(this).length - 1];
+    });
+    dmth(P, 'clear', function clear() { this._tA = []; lser.call(this); }); // GUESS
+    dmth(P, 'getItem', function getItem(i) {
+      const a = litems.call(this);
+      if (i < 0 || i >= a.length) throw oorL('getItem', i); // probed: empty list getItem(0) -> IndexSizeError
+      return a[i];
+    });
+    dmth(P, 'initialize', function initialize(t) { // GUESS
+      this._tA = [parseL(tokOf(t))[0] || [0, 1]];
+      lser.call(this);
+      return litems.call(this)[0];
+    });
+    dmth(P, 'insertItemBefore', function insertItemBefore(t, i) { // GUESS
+      const at = Math.min(Math.max(i, 0), ltoks.call(this).length);
+      ltoks.call(this).splice(at, 0, parseL(tokOf(t))[0] || [0, 1]);
+      lser.call(this);
+      return litems.call(this)[at];
+    });
+    dmth(P, 'removeItem', function removeItem(i) { // GUESS
+      const a = ltoks.call(this);
+      if (i < 0 || i >= a.length) throw oorL('removeItem', i);
+      const gone = litems.call(this)[i];
+      a.splice(i, 1); lser.call(this);
+      return gone;
+    });
+    dmth(P, 'replaceItem', function replaceItem(t, i) { // GUESS
+      const a = ltoks.call(this);
+      if (i < 0 || i >= a.length) throw oorL('replaceItem', i);
+      a[i] = parseL(tokOf(t))[0] || [0, 1];
+      lser.call(this);
+      return litems.call(this)[i];
+    });
+    globalThis.__diting_svgLengthList = (el, name) => {
+      const o = Object.create(P);
+      o._attEl = el || null; o._attName = name;
+      o._toks = () => ltoks.call(o);
+      o._setTok = (i, s) => {
+        ltoks.call(o);
+        if (i < o._tA.length) { const m = LEN_RX.exec(String(s)); o._tA[i] = m ? [Number(m[1]), m[2] ? SUF2U[m[2]] : 1] : [0, 1]; }
+        lser.call(o);
+      };
+      return o;
+    };
+  }
+
+  // ---- SVGNumberList: number-token attr view (TextPositioning rotate) -----
+  // Probed: items are SVGNumber views; item.value=90 serializes the whole
+  // list ('90 60'); appendItem serializes; empty getItem(0) -> IndexSizeError.
+  if (typeof SVGNumberList === 'function') {
+    const P = SVGNumberList.prototype;
+    const parseN = (s) => {
+      const t = String(s).trim();
+      if (t === '') return [];
+      return t.split(/[\s,]+/).map((tk) => NUMRX.test(tk) ? Number(tk) : 0); // junk token -> 0 (GUESS)
+    };
+    const ntoks = function () {
+      const cur = this._attEl ? (this._attEl.getAttribute(this._attName) || '') : '';
+      if (this._lastS !== cur) { this._tA = parseN(cur); this._itA = null; this._lastS = cur; }
+      return this._tA;
+    };
+    const nser = function () {
+      if (this._attEl && this._attName) {
+        this._attEl.setAttribute(this._attName, (this._tA || []).join(' ')); // probed: '90 60'
+        this._lastS = this._attEl.getAttribute(this._attName) || '';
+        this._itA = null;
+      }
+    };
+    const nitems = function () {
+      const t = ntoks.call(this);
+      if (!this._itA || this._itA.length !== t.length) {
+        this._itA = t.map((_, i) => { const o = __diting_svgNumber(); o._lstO = this; o._lstI = i; return o; });
+      }
+      return this._itA;
+    };
+    const oorN = (m, i) => new DOMException("Failed to execute '" + m + "' on 'SVGNumberList': The index provided (" + i + ") is out of range.", 'IndexSizeError'); // throw probed, message GUESS
+    const valOf = (t) => (t && typeof t === 'object' && typeof t.value === 'number') ? t.value : Number(t);
+    dacc(P, 'length', function length() { return ntoks.call(this).length; });
+    dacc(P, 'numberOfItems', function numberOfItems() { return ntoks.call(this).length; });
+    dmth(P, 'appendItem', function appendItem(t) { // probed: serializes
+      ntoks.call(this).push(Number(valOf(t)) || 0);
+      nser.call(this);
+      return nitems.call(this)[nitems.call(this).length - 1];
+    });
+    dmth(P, 'clear', function clear() { this._tA = []; nser.call(this); }); // GUESS
+    dmth(P, 'getItem', function getItem(i) {
+      const a = nitems.call(this);
+      if (i < 0 || i >= a.length) throw oorN('getItem', i); // probed
+      return a[i];
+    });
+    dmth(P, 'initialize', function initialize(t) { // GUESS
+      this._tA = [Number(valOf(t)) || 0];
+      nser.call(this);
+      return nitems.call(this)[0];
+    });
+    dmth(P, 'insertItemBefore', function insertItemBefore(t, i) { // GUESS
+      const at = Math.min(Math.max(i, 0), ntoks.call(this).length);
+      ntoks.call(this).splice(at, 0, Number(valOf(t)) || 0);
+      nser.call(this);
+      return nitems.call(this)[at];
+    });
+    dmth(P, 'removeItem', function removeItem(i) { // GUESS
+      const a = ntoks.call(this);
+      if (i < 0 || i >= a.length) throw oorN('removeItem', i);
+      const gone = nitems.call(this)[i];
+      a.splice(i, 1); nser.call(this);
+      return gone;
+    });
+    dmth(P, 'replaceItem', function replaceItem(t, i) { // GUESS
+      const a = ntoks.call(this);
+      if (i < 0 || i >= a.length) throw oorN('replaceItem', i);
+      a[i] = Number(valOf(t)) || 0;
+      nser.call(this);
+      return nitems.call(this)[i];
+    });
+    globalThis.__diting_svgNumberList = (el, name) => {
+      const o = Object.create(P);
+      o._attEl = el || null; o._attName = name;
+      o._toks = () => ntoks.call(o);
+      o._setTok = (i, v) => { ntoks.call(o); if (i < o._tA.length) o._tA[i] = Number(v); nser.call(o); };
+      return o;
+    };
+  }
+
+  // ---- SVGAnimatedLengthList / NumberList / Rect wiring --------------------
+  if (typeof SVGAnimatedLengthList === 'function') {
+    const P = SVGAnimatedLengthList.prototype;
+    dacc(P, 'baseVal', function baseVal() { return this._b || (this._b = __diting_svgLengthList(this._attEl, this._attName)); });
+    dacc(P, 'animVal', function animVal() { return this._a || (this._a = __diting_svgLengthList(this._attEl, this._attName)); }); // two objects (probed on sibling types)
+    globalThis.__diting_svgAnimLengthList = (el, name) => { const o = Object.create(P); o._attEl = el || null; o._attName = name; return o; };
+  }
+  if (typeof SVGAnimatedNumberList === 'function') {
+    const P = SVGAnimatedNumberList.prototype;
+    dacc(P, 'baseVal', function baseVal() { return this._b || (this._b = __diting_svgNumberList(this._attEl, this._attName)); });
+    dacc(P, 'animVal', function animVal() { return this._a || (this._a = __diting_svgNumberList(this._attEl, this._attName)); });
+    globalThis.__diting_svgAnimNumberList = (el, name) => { const o = Object.create(P); o._attEl = el || null; o._attName = name; return o; };
+  }
+  if (typeof SVGAnimatedRect === 'function') {
+    const P = SVGAnimatedRect.prototype;
+    dacc(P, 'baseVal', function baseVal() { return this._b || (this._b = __diting_svgRectAttach(this._attEl, this._attName)); });
+    dacc(P, 'animVal', function animVal() { return this._a || (this._a = __diting_svgRectAttach(this._attEl, this._attName)); });
+    globalThis.__diting_svgAnimRect = (el, name) => { const o = Object.create(P); o._attEl = el || null; o._attName = name; return o; };
+  }
+
+  // ---- geometry faces (rect/circle/ellipse/line/foreignObject) -------------
+  // Probed on rect; the siblings take the same defaults (family GUESS).
+  const geo = (P, names) => {
+    for (const n of names) animGet(P, n, (el) => __diting_svgAnimLength(el, n, [0, 1], true));
+    ctorLast(P);
+  };
+  if (typeof SVGRectElement === 'function') geo(SVGRectElement.prototype, ['x', 'y', 'width', 'height', 'rx', 'ry']);
+  if (typeof SVGCircleElement === 'function') geo(SVGCircleElement.prototype, ['cx', 'cy', 'r']);
+  if (typeof SVGEllipseElement === 'function') geo(SVGEllipseElement.prototype, ['cx', 'cy', 'rx', 'ry']);
+  if (typeof SVGLineElement === 'function') geo(SVGLineElement.prototype, ['x1', 'y1', 'x2', 'y2']);
+  if (typeof SVGForeignObjectElement === 'function') geo(SVGForeignObjectElement.prototype, ['x', 'y', 'width', 'height']);
+
+  // ---- gradients: the % reflectors (enums/transform live on the parent) ----
+  if (typeof SVGLinearGradientElement === 'function') {
+    const P = SVGLinearGradientElement.prototype;
+    animGet(P, 'x1', (el) => __diting_svgAnimLength(el, 'x1', [0, 2], true));
+    animGet(P, 'y1', (el) => __diting_svgAnimLength(el, 'y1', [0, 2], true));
+    animGet(P, 'x2', (el) => __diting_svgAnimLength(el, 'x2', [100, 2], true)); // probed: x2 alone defaults 100%
+    animGet(P, 'y2', (el) => __diting_svgAnimLength(el, 'y2', [0, 2], true));
+    ctorLast(P);
+  }
+  if (typeof SVGRadialGradientElement === 'function') {
+    const P = SVGRadialGradientElement.prototype;
+    const H = [50, 2];
+    animGet(P, 'cx', (el) => __diting_svgAnimLength(el, 'cx', H, true));
+    animGet(P, 'cy', (el) => __diting_svgAnimLength(el, 'cy', H, true));
+    animGet(P, 'r', (el) => __diting_svgAnimLength(el, 'r', H, true));
+    animGet(P, 'fx', (el) => __diting_svgAnimLength(el, 'fx', H, true)); // probed: fx independent of cx
+    animGet(P, 'fy', (el) => __diting_svgAnimLength(el, 'fy', H, true));
+    animGet(P, 'fr', (el) => __diting_svgAnimLength(el, 'fr', [0, 2], true));
+    ctorLast(P);
+  }
+
+  // ---- SVGStopElement -------------------------------------------------------
+  if (typeof SVGStopElement === 'function') {
+    const P = SVGStopElement.prototype;
+    animGet(P, 'offset', (el) => __diting_svgAnimNumber(el, 'offset', 0, null, true)); // probed: default 0, '0.5'->0.5, '50%'->0.5, junk->0, write serializes, never clamped
+    ctorLast(P);
+  }
+
+  // ---- SVGSymbolElement -----------------------------------------------------
+  if (typeof SVGSymbolElement === 'function') {
+    const P = SVGSymbolElement.prototype;
+    animGet(P, 'viewBox', (el) => __diting_svgAnimRect(el, 'viewBox')); // probed: absent -> 0s, '0 0 10 20' -> 10/20
+    animGet(P, 'preserveAspectRatio', (el) => __diting_svgAnimPAR(el));
+    ctorLast(P);
+  }
+
+  // ---- SVGClipPathElement ---------------------------------------------------
+  if (typeof SVGClipPathElement === 'function') {
+    const P = SVGClipPathElement.prototype;
+    animGet(P, 'clipPathUnits', (el) => __diting_svgAnimEnum(el, 'clipPathUnits', { userSpaceOnUse: 1, objectBoundingBox: 2 }, 1)); // probed: default 1
+    animGet(P, 'transform', (el) => __diting_svgAnimTransformList(el, 'transform')); // probed: SVGAnimatedTransformList
+    ctorLast(P);
+  }
+
+  // ---- SVGImageElement ------------------------------------------------------
+  if (typeof SVGImageElement === 'function') {
+    const P = SVGImageElement.prototype;
+    wipeFace(P); // drops the stale rw href shell; re-added as a view below
+    animGet(P, 'x', (el) => __diting_svgAnimLength(el, 'x', [0, 1], true));
+    animGet(P, 'y', (el) => __diting_svgAnimLength(el, 'y', [0, 1], true));
+    animGet(P, 'width', (el) => __diting_svgAnimLength(el, 'width', [0, 1], true));
+    animGet(P, 'height', (el) => __diting_svgAnimLength(el, 'height', [0, 1], true));
+    animGet(P, 'preserveAspectRatio', (el) => __diting_svgAnimPAR(el));
+    dacc(P, 'decoding',
+      function decoding() {
+        const s = this.getAttribute('decoding') == null ? 'auto' : String(this.getAttribute('decoding')).toLowerCase(); // probed: absent/junk -> 'auto', 'ASYNC' -> 'async'
+        return s === 'sync' || s === 'async' ? s : 'auto';
+      },
+      function decoding(v) { this.setAttribute('decoding', String(v)); }); // probed: property write -> attr
+    dacc(P, 'crossOrigin',
+      function crossOrigin() {
+        const v = this.getAttribute('crossorigin'); // mapped attribute (probed)
+        return v == null || v === '' ? null : String(v).toLowerCase(); // probed: '' -> null, 'USE-CREDENTIALS' -> lowercased
+      },
+      function crossOrigin(v) {
+        if (v == null) this.removeAttribute('crossorigin'); // GUESS: HTML nullable reflection clears
+        else this.setAttribute('crossorigin', String(v));
+      });
+    animGet(P, 'href', (el) => __diting_svgAnimString(el, 'href')); // probed: SVGAnimatedString, baseVal write serializes, animVal mirrors
+    dmth(P, 'decode', function decode() { return Promise.resolve(); }); // probed: resolves
+    ctorLast(P);
+  }
+
+  // ---- SVGUseElement --------------------------------------------------------
+  if (typeof SVGUseElement === 'function') {
+    const P = SVGUseElement.prototype;
+    wipeFace(P); // drops the stale href shell; re-added as a view below
+    animGet(P, 'x', (el) => __diting_svgAnimLength(el, 'x', [0, 1], true));
+    animGet(P, 'y', (el) => __diting_svgAnimLength(el, 'y', [0, 1], true));
+    animGet(P, 'width', (el) => __diting_svgAnimLength(el, 'width', [0, 1], true));
+    animGet(P, 'height', (el) => __diting_svgAnimLength(el, 'height', [0, 1], true));
+    animGet(P, 'href', (el) => __diting_svgAnimString(el, 'href'));
+    ctorLast(P);
+  }
+
+  // ---- SVGTextPositioningElement -------------------------------------------
+  if (typeof SVGTextPositioningElement === 'function') {
+    const P = SVGTextPositioningElement.prototype;
+    for (const n of ['x', 'y', 'dx', 'dy']) animGet(P, n, (el) => __diting_svgAnimLengthList(el, n)); // probed: SVGAnimatedLengthList
+    animGet(P, 'rotate', (el) => __diting_svgAnimNumberList(el, 'rotate')); // probed: SVGAnimatedNumberList
     ctorLast(P);
   }
 

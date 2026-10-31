@@ -28581,3 +28581,151 @@ fn knife63_svg_family_five_faces() {
     assert_eq!(v["ptLists"], serde_json::json!([0,0]), "pattern string lists");
     assert_eq!(v["ptHrefKind"], serde_json::json!([true,"[object SVGAnimatedString]"]), "href ro:ec + animated-string view");
 }
+
+#[test]
+fn knife64_svg_geometry_reflector_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const NS = 'http://www.w3.org/2000/svg';
+          const E = (t) => document.createElementNS(NS, t);
+          const t = (f) => { try { return f(); } catch (e) { return 'E:' + e.name; } };
+          const out = {};
+          // rect: defaults are [0, number] on the whole family — NOT the 刀59 width/height heuristic
+          const rc = E('rect');
+          out.rcOrder = Object.getOwnPropertyNames(SVGRectElement.prototype);
+          out.rcDef = [rc.x.baseVal.value, rc.x.baseVal.unitType, rc.width.baseVal.value, rc.rx.baseVal.unitType];
+          rc.setAttribute('x', '50%');
+          out.rcPct = t(() => rc.x.baseVal.value);
+          rc.setAttribute('x', '7'); rc.setAttribute('width', '3.5em');
+          out.rcRead = [rc.x.baseVal.value, rc.x.baseVal.valueAsString, rc.width.baseVal.valueInSpecifiedUnits, rc.width.baseVal.unitType];
+          rc.x.baseVal.value = 42;
+          out.rcWrite = [rc.getAttribute('x'), rc.x.baseVal.value];
+          out.rcIdent = [rc.x === rc.x, rc.x.baseVal !== rc.x.animVal];
+          const ci = E('circle'), el = E('ellipse'), ln = E('line'), fo = E('foreignObject');
+          out.famDef = [ci.cx.baseVal.value, ci.r.baseVal.value, el.cy.baseVal.value, el.ry.baseVal.value,
+                        ln.x1.baseVal.value, ln.y2.baseVal.value, fo.x.baseVal.value, fo.width.baseVal.value];
+          // gradients: % defaults, % .value unresolvable, fx independent of cx
+          const lg = E('linearGradient');
+          out.lgOrder = Object.getOwnPropertyNames(SVGLinearGradientElement.prototype);
+          out.lgDef = [lg.x1.baseVal.unitType, lg.x1.baseVal.valueInSpecifiedUnits, lg.x2.baseVal.valueInSpecifiedUnits,
+                       lg.y1.baseVal.valueInSpecifiedUnits, lg.y2.baseVal.valueInSpecifiedUnits];
+          lg.setAttribute('x1', '50%');
+          out.lgPct = t(() => lg.x1.baseVal.value);
+          lg.setAttribute('x1', '7');
+          out.lgNum = lg.x1.baseVal.value;
+          const rg = E('radialGradient');
+          out.rgOrder = Object.getOwnPropertyNames(SVGRadialGradientElement.prototype);
+          out.rgDef = [rg.cx.baseVal.unitType, rg.cx.baseVal.valueInSpecifiedUnits, rg.fx.baseVal.valueInSpecifiedUnits, rg.fr.baseVal.valueInSpecifiedUnits];
+          rg.setAttribute('cx', '30%');
+          out.rgFx = rg.fx.baseVal.valueInSpecifiedUnits;
+          // stop: '%' reads /100, junk->0, writes serialize, never clamped
+          const st = E('stop');
+          out.stOrder = Object.getOwnPropertyNames(SVGStopElement.prototype);
+          out.stOff = [st.offset.baseVal];
+          st.setAttribute('offset', '0.5'); out.stOff.push(st.offset.baseVal);
+          st.setAttribute('offset', '50%'); out.stOff.push(st.offset.baseVal);
+          st.setAttribute('offset', 'junk'); out.stOff.push(st.offset.baseVal);
+          st.setAttribute('offset', '-0.5'); out.stOff.push(st.offset.baseVal);
+          st.setAttribute('offset', '1.5'); out.stOff.push(st.offset.baseVal);
+          st.offset.baseVal = 0.75;
+          out.stWrite = st.getAttribute('offset');
+          // symbol: SVGAnimatedRect view of viewBox + PAR
+          const sy = E('symbol');
+          out.syOrder = Object.getOwnPropertyNames(SVGSymbolElement.prototype);
+          out.syVB = [sy.viewBox.baseVal.width, sy.viewBox.baseVal.height, Object.prototype.toString.call(sy.viewBox)];
+          sy.setAttribute('viewBox', '0 0 10 20');
+          out.syVB2 = [sy.viewBox.baseVal.x, sy.viewBox.baseVal.width, sy.viewBox.baseVal.height, sy.viewBox === sy.viewBox];
+          out.syPAR = sy.preserveAspectRatio.baseVal.align;
+          // clipPath: units enum default 1 (NOT pattern's 2), transform list view
+          const cp = E('clipPath');
+          out.cpOrder = Object.getOwnPropertyNames(SVGClipPathElement.prototype);
+          out.cpU = [cp.clipPathUnits.baseVal];
+          cp.setAttribute('clipPathUnits', 'objectBoundingBox'); out.cpU.push(cp.clipPathUnits.baseVal);
+          cp.setAttribute('clipPathUnits', 'junk'); out.cpU.push(cp.clipPathUnits.baseVal);
+          cp.setAttribute('transform', 'rotate(30)');
+          out.cpT = [Object.prototype.toString.call(cp.transform), cp.transform.baseVal.numberOfItems, cp.transform.baseVal.getItem(0).type];
+          // textPositioning: length/number list views
+          const tp = E('text');
+          out.tpOrder = Object.getOwnPropertyNames(SVGTextPositioningElement.prototype);
+          out.tpDef = [tp.x.baseVal.numberOfItems, tp.rotate.baseVal.numberOfItems, tp.x.baseVal !== tp.x.animVal];
+          out.tpOOR = t(() => tp.x.baseVal.getItem(0));
+          tp.setAttribute('x', '1 2 3');
+          out.tpX = [tp.x.baseVal.length, tp.x.baseVal.numberOfItems];
+          tp.setAttribute('y', '10px 5');
+          out.tpY = [tp.y.baseVal.getItem(0).value, tp.y.baseVal.getItem(0).unitType, tp.y.baseVal.getItem(1).value, Object.prototype.toString.call(tp.y.baseVal.getItem(0))];
+          tp.setAttribute('rotate', '90 60');
+          out.tpRot = [Object.prototype.toString.call(tp.rotate.baseVal.getItem(0)), tp.rotate.baseVal.getItem(0).value, tp.rotate.baseVal.getItem(1).value];
+          tp.rotate.baseVal.getItem(0).value = 45;
+          out.tpRotW = tp.getAttribute('rotate');
+          tp.setAttribute('x', '');
+          out.tpClear = tp.x.baseVal.numberOfItems;
+          // image: decoding/crossOrigin reflected legs, href view, decode()
+          const im = E('image');
+          out.imOrder = Object.getOwnPropertyNames(SVGImageElement.prototype);
+          out.imDef = [im.decoding, im.crossOrigin, im.x.baseVal.value, im.preserveAspectRatio.baseVal.align];
+          im.setAttribute('decoding', 'ASYNC'); out.imDec = [im.decoding];
+          im.setAttribute('decoding', 'junk'); out.imDec.push(im.decoding);
+          im.decoding = 'sync'; out.imDec.push([im.decoding, im.getAttribute('decoding')]);
+          im.setAttribute('crossorigin', 'USE-CREDENTIALS'); out.imCo = [im.crossOrigin];
+          im.setAttribute('crossorigin', ''); out.imCo.push(im.crossOrigin);
+          im.crossOrigin = 'anonymous'; out.imCo.push([im.crossOrigin, im.getAttribute('crossorigin')]);
+          im.removeAttribute('crossorigin'); out.imCo.push(im.crossOrigin);
+          im.href.baseVal = 'a.png';
+          out.imHref = [Object.prototype.toString.call(im.href), im.getAttribute('href'), im.href.animVal];
+          out.imDecode = im.decode() instanceof Promise;
+          // use: geometry + href view
+          const us = E('use');
+          out.usOrder = Object.getOwnPropertyNames(SVGUseElement.prototype);
+          out.usDef = [us.x.baseVal.value, us.width.baseVal.value];
+          us.href.baseVal = '#t';
+          out.usHref = [Object.prototype.toString.call(us.href), us.getAttribute('href')];
+          // value-type list brands
+          out.brands = [Object.prototype.toString.call(tp.x), Object.prototype.toString.call(tp.x.baseVal), Object.prototype.toString.call(tp.rotate.baseVal)];
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["rcOrder"], serde_json::json!(["x","y","width","height","rx","ry","constructor"]), "rect truth raw order");
+    assert_eq!(v["rcDef"], serde_json::json!([0,1,0,1]), "rect defaults [0, number] (probed — NOT [100,%])");
+    assert_eq!(v["rcPct"], serde_json::json!("E:NotSupportedError"), "rect % never resolves (probed)");
+    assert_eq!(v["rcRead"], serde_json::json!([7,"7",3.5,3]), "rect unitless + em reads");
+    assert_eq!(v["rcWrite"], serde_json::json!(["42",42]), "rect write-through");
+    assert_eq!(v["rcIdent"], serde_json::json!([true,true]), "rect reflector identity");
+    assert_eq!(v["famDef"], serde_json::json!([0,0,0,0,0,0,0,0]), "circle/ellipse/line/foreignObject defaults (probed family)");
+    assert_eq!(v["lgOrder"], serde_json::json!(["x1","y1","x2","y2","constructor"]), "linearGradient truth raw order");
+    assert_eq!(v["lgDef"], serde_json::json!([2,0,100,0,0]), "linear x2 alone defaults 100% (probed)");
+    assert_eq!(v["lgPct"], serde_json::json!("E:NotSupportedError"), "gradient % .value unresolvable (probed)");
+    assert_eq!(v["lgNum"], serde_json::json!(7), "gradient unitless reads through (probed)");
+    assert_eq!(v["rgOrder"], serde_json::json!(["cx","cy","r","fx","fy","fr","constructor"]), "radialGradient truth raw order");
+    assert_eq!(v["rgDef"], serde_json::json!([2,50,50,0]), "radial cx/cy/r/fx/fy 50%, fr 0% (probed)");
+    assert_eq!(v["rgFx"], serde_json::json!(50), "fx independent of cx (probed)");
+    assert_eq!(v["stOrder"], serde_json::json!(["offset","constructor"]), "stop truth raw order");
+    assert_eq!(v["stOff"], serde_json::json!([0,0.5,0.5,0,-0.5,1.5]), "stop offset: default/number/%/junk/unclamped (all probed)");
+    assert_eq!(v["stWrite"], serde_json::json!("0.75"), "stop write serializes (probed)");
+    assert_eq!(v["syOrder"], serde_json::json!(["viewBox","preserveAspectRatio","constructor"]), "symbol truth raw order");
+    assert_eq!(v["syVB"], serde_json::json!([0,0,"[object SVGAnimatedRect]"]), "symbol viewBox absent -> zeros + brand");
+    assert_eq!(v["syVB2"], serde_json::json!([0,10,20,true]), "symbol viewBox parse '0 0 10 20' (probed) + identity");
+    assert_eq!(v["syPAR"], serde_json::json!(6), "symbol PAR default");
+    assert_eq!(v["cpOrder"], serde_json::json!(["clipPathUnits","transform","constructor"]), "clipPath truth raw order");
+    assert_eq!(v["cpU"], serde_json::json!([1,2,1]), "clipPathUnits default 1 + obb + junk->default (probed; pattern's default is 2, this one is NOT)");
+    assert_eq!(v["cpT"], serde_json::json!(["[object SVGAnimatedTransformList]",1,4]), "clipPath transform list view (probed)");
+    assert_eq!(v["tpOrder"], serde_json::json!(["x","y","dx","dy","rotate","constructor"]), "textPositioning truth raw order");
+    assert_eq!(v["tpDef"], serde_json::json!([0,0,true]), "text lists empty by default, base/anim distinct");
+    assert_eq!(v["tpOOR"], serde_json::json!("E:IndexSizeError"), "empty getItem throws (probed)");
+    assert_eq!(v["tpX"], serde_json::json!([3,3]), "x '1 2 3' -> 3 items (probed)");
+    assert_eq!(v["tpY"], serde_json::json!([10,5,5,"[object SVGLength]"]), "y '10px 5' -> SVGLength items with units (probed)");
+    assert_eq!(v["tpRot"], serde_json::json!(["[object SVGNumber]",90,60]), "rotate items are SVGNumber (probed)");
+    assert_eq!(v["tpRotW"], serde_json::json!("45 60"), "rotate item write serializes the list (probed '90 60' shape)");
+    assert_eq!(v["tpClear"], serde_json::json!(0), "attr cleared -> list empties (live re-parse)");
+    assert_eq!(v["imOrder"], serde_json::json!(["x","y","width","height","preserveAspectRatio","decoding","crossOrigin","href","decode","constructor"]), "image truth raw order");
+    assert_eq!(v["imDef"], serde_json::json!(["auto",null,0,6]), "image decoding 'auto', crossOrigin null, geometry 0, PAR 6 (probed)");
+    assert_eq!(v["imDec"], serde_json::json!(["async","auto",["sync","sync"]]), "decoding case-insensitive + junk + write-through (probed)");
+    assert_eq!(v["imCo"], serde_json::json!(["use-credentials",null,["anonymous","anonymous"],null]), "crossOrigin lowercase mapped attr, ''->null (probed)");
+    assert_eq!(v["imHref"], serde_json::json!(["[object SVGAnimatedString]","a.png","a.png"]), "image href view + animVal mirror (probed)");
+    assert_eq!(v["imDecode"], serde_json::json!(true), "decode() returns a Promise (probed)");
+    assert_eq!(v["usOrder"], serde_json::json!(["x","y","width","height","href","constructor"]), "use truth raw order");
+    assert_eq!(v["usDef"], serde_json::json!([0,0]), "use geometry defaults");
+    assert_eq!(v["usHref"], serde_json::json!(["[object SVGAnimatedString]","#t"]), "use href view serializes");
+    assert_eq!(v["brands"], serde_json::json!(["[object SVGAnimatedLengthList]","[object SVGLengthList]","[object SVGNumberList]"]), "list type brands");
+}
