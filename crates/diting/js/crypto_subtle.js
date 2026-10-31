@@ -16,7 +16,7 @@ if (!globalThis.crypto.subtle) {
   const keyMaterial = new WeakMap();
 
   class CryptoKey {
-    constructor() { throw new TypeError("Illegal constructor"); }
+    constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
     get [Symbol.toStringTag]() { return "CryptoKey"; }
   }
   function makeKey(type, extractable, algorithm, usages, bytes) {
@@ -797,7 +797,7 @@ if (!globalThis.crypto.subtle) {
   }
 
   globalThis.CryptoKey = CryptoKey;
-  globalThis.SubtleCrypto = function SubtleCrypto() { throw new TypeError("Illegal constructor"); };
+  globalThis.SubtleCrypto = function SubtleCrypto() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); };
   Object.setPrototypeOf(subtle, globalThis.SubtleCrypto.prototype);
   globalThis.crypto.subtle = subtle;
   globalThis.__diting_subtle_hooks = { makeKey, keyBytes, toBytes, bufferOf, b64urlToBytes, bytesToB64url, runOp };

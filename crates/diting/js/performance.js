@@ -49,7 +49,7 @@ const _RT_INTERNAL = Symbol();
 globalThis.PerformanceEntry = PerformanceEntry;
 globalThis.PerformanceResourceTiming = class PerformanceResourceTiming extends PerformanceEntry {
   constructor(rec, tok) {
-    if (tok !== _RT_INTERNAL) throw new TypeError("Illegal constructor");
+    if (tok !== _RT_INTERNAL) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     super(rec.name, 'resource', rec.startTime, rec.duration);
     this._prt = rec;
     __hideOwn(this);
@@ -123,7 +123,7 @@ globalThis.PerformanceMark = class PerformanceMark extends PerformanceEntry {
 _markNativeProto(globalThis.PerformanceMark.prototype);
 globalThis.PerformanceMeasure = class PerformanceMeasure extends PerformanceEntry {
   constructor(name, startTime, duration, tok) {
-    if (tok !== _RT_INTERNAL) throw new TypeError("Illegal constructor");
+    if (tok !== _RT_INTERNAL) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     super(String(name), 'measure', startTime, duration);
   }
   get detail() { return this._peDetail; }
@@ -131,14 +131,14 @@ globalThis.PerformanceMeasure = class PerformanceMeasure extends PerformanceEntr
 _markNativeProto(globalThis.PerformanceMeasure.prototype);
 globalThis.PerformancePaintTiming = class PerformancePaintTiming extends PerformanceEntry {
   constructor(name, startTime, tok) {
-    if (tok !== _RT_INTERNAL) throw new TypeError("Illegal constructor");
+    if (tok !== _RT_INTERNAL) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     super(String(name), 'paint', startTime, 0);
   }
 };
 _markNativeProto(globalThis.PerformancePaintTiming.prototype);
 globalThis.PerformanceNavigationTiming = class PerformanceNavigationTiming extends globalThis.PerformanceResourceTiming {
   constructor(name, duration, extra, tok) {
-    if (tok !== _RT_INTERNAL) throw new TypeError("Illegal constructor");
+    if (tok !== _RT_INTERNAL) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     // Chrome: PerformanceNavigationTiming IS a PerformanceResourceTiming. The record carries the navigation phase
     // timestamps; the Resource Timing getters and the navigation-only getters below both read it (no own data props).
     super(Object.assign({ name: String(name), startTime: 0, duration, initiatorType: 'navigation' }, extra), _RT_INTERNAL);
@@ -170,7 +170,7 @@ globalThis.PerformanceNavigationTiming = class PerformanceNavigationTiming exten
 _markNativeProto(globalThis.PerformanceNavigationTiming.prototype);
 globalThis.PerformanceServerTiming = class PerformanceServerTiming {
   // Chrome: a standalone interface (name / duration / description / toJSON), NOT a PerformanceEntry.
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get name() { return ""; }
   get duration() { return 0; }
   get description() { return ""; }
@@ -178,7 +178,7 @@ globalThis.PerformanceServerTiming = class PerformanceServerTiming {
 };
 _markNativeProto(globalThis.PerformanceServerTiming.prototype);
 globalThis.EventCounts = class EventCounts {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get size() { return 0; }
   has() { return false; }
   get() { return 0; }

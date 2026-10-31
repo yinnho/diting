@@ -232,7 +232,7 @@ const THROW = [["AbstractRange",0,"Failed to construct 'AbstractRange': Illegal 
   ["EncodedAudioChunk",1,"Failed to construct 'EncodedAudioChunk': 1 argument required, but only 0 present."],
   ["EncodedVideoChunk",1,"Failed to construct 'EncodedVideoChunk': 1 argument required, but only 0 present."],
   ["External",0,"Failed to construct 'External': Illegal constructor"],
-  ["FeaturePolicy",0,"Failed to construct 'PermissionsPolicy': Illegal constructor"],
+  ["FeaturePolicy",0,"Failed to construct 'FeaturePolicy': Illegal constructor"],
   ["FederatedCredential",1,"Failed to construct 'FederatedCredential': 1 argument required, but only 0 present."],
   ["Fence",0,"Failed to construct 'Fence': Illegal constructor"],
   ["FencedFrameConfig",0,"Failed to construct 'FencedFrameConfig': Illegal constructor"],
