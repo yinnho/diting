@@ -110,6 +110,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // value types were stub shells). After web_api_gaps so the minted shells
     // exist; before stub_members so the fill-if-missing pass stays out.
     ("svg_root.js", include_str!("js/svg_root.js")),
+    // 刀65: Document's 24 missing members + body setter + FeaturePolicy
+    // instance machinery. After web_api_gaps (wraps startViewTransition);
+    // BEFORE stub_members so the FeaturePolicy method takeover wins the
+    // fill-if-missing pass.
+    ("document_gaps.js", include_str!("js/document_gaps.js")),
     // 刀56: after global_surface minted AbstractRange and wired the Range
     // chains, the shared boundary getters land on AbstractRange.prototype
     // and leave the two class prototypes (before stub_members' fill).

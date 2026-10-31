@@ -28729,3 +28729,103 @@ fn knife64_svg_geometry_reflector_family() {
     assert_eq!(v["usHref"], serde_json::json!(["[object SVGAnimatedString]","#t"]), "use href view serializes");
     assert_eq!(v["brands"], serde_json::json!(["[object SVGAnimatedLengthList]","[object SVGLengthList]","[object SVGNumberList]"]), "list type brands");
 }
+
+#[test]
+fn knife65_document_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const D = Document.prototype;
+          const names = Object.getOwnPropertyNames(D);
+          const t = (f) => { try { const v = f(); return v === undefined ? 'undef' : (v === null ? 'null' : v); } catch (e) { return 'E:' + e.name + ':' + e.message; } };
+          const out = {};
+          out.has24 = ['xmlEncoding','xmlVersion','xmlStandalone','onreadystatechange','onpointerlockchange','onpointerlockerror','featurePolicy','webkitVisibilityState','webkitHidden','onfreeze','onprerenderingchange','onresume','onvisibilitychange','webkitIsFullScreen','webkitCurrentFullScreenElement','webkitFullscreenEnabled','webkitFullscreenElement','caretRangeFromPoint','requestStorageAccessFor','webkitCancelFullScreen','webkitExitFullscreen','browsingTopics','activeViewTransition','ariaNotify'].filter((n) => names.indexOf(n) < 0);
+          // xml trio (probed: null/null/false; '1.0' sticks; others NotSupportedError; standalone coerces)
+          out.xml = [document.xmlEncoding, document.xmlVersion, document.xmlStandalone];
+          document.xmlVersion = '1.0';
+          out.xml10 = [document.xmlVersion, document.xmlEncoding, document.xmlStandalone];
+          out.xmlBad = t(() => { document.xmlVersion = '1.1'; });
+          out.xmlNull = t(() => { document.xmlVersion = null; });
+          document.xmlVersion = '1.0'; document.xmlStandalone = 'nope';
+          out.xmlBool = document.xmlStandalone;
+          // on* seven: null default, round trip, names
+          const f = () => {};
+          document.onvisibilitychange = f;
+          out.onRT = [document.onvisibilitychange === f];
+          document.onvisibilitychange = null;
+          out.onRT.push(document.onvisibilitychange === null, document.onfreeze, document.onreadystatechange);
+          const od = Object.getOwnPropertyDescriptor(D, 'onvisibilitychange');
+          out.onDsc = [od.enumerable, od.configurable, !!od.get, !!od.set, od.get.name, od.set.length];
+          // webkit mirrors (probed values)
+          out.webkit = [document.webkitVisibilityState, document.webkitHidden, document.webkitIsFullScreen,
+                        document.webkitCurrentFullScreenElement, document.webkitFullscreenEnabled, document.webkitFullscreenElement];
+          // featurePolicy: cached singleton + working stub takeover
+          const fp = document.featurePolicy;
+          out.fp = [typeof fp, fp === document.featurePolicy, fp.constructor.name, Object.prototype.toString.call(fp), Object.getOwnPropertyNames(fp).length];
+          out.fpM = [fp.allowedFeatures().length, fp.features().length, fp.allowedFeatures() !== fp.allowedFeatures(),
+                     fp.allowsFeature('geolocation'), fp.allowsFeature('zzz'), fp.allowsFeature(''), JSON.stringify(fp.getAllowlistForFeature('camera')), JSON.stringify(fp.getAllowlistForFeature('zzz'))];
+          out.fpErr = [t(() => fp.allowsFeature()), t(() => FeaturePolicy.prototype.allowedFeatures.call({}))];
+          // activeViewTransition: null at rest, === during
+          out.avtRest = document.activeViewTransition;
+          const vt = document.startViewTransition(() => {});
+          out.avtDuring = document.activeViewTransition === vt;
+          // caretRangeFromPoint (probed: element anchor, collapsed, offset 0; OOR null; arity 0)
+          const r = document.caretRangeFromPoint(5, 5);
+          out.crfp = [r.constructor.name, Object.prototype.toString.call(r), r.collapsed, r.startContainer.nodeType, r.startOffset, document.caretRangeFromPoint(-9999, -9999), D.caretRangeFromPoint.length];
+          // requestStorageAccessFor (probed messages)
+          out.rsaf = [t(() => document.requestStorageAccessFor()), t(() => document.requestStorageAccessFor(123)), document.requestStorageAccessFor('https://example.com').constructor.name, D.requestStorageAccessFor.length];
+          // webkit verbs: undefined return, meta
+          out.wv = [document.webkitCancelFullScreen(), document.webkitExitFullscreen(), D.webkitCancelFullScreen.name, D.webkitCancelFullScreen.length, D.webkitExitFullscreen.name, D.webkitExitFullscreen.length];
+          // browsingTopics / ariaNotify (probed: promise [] / void + arity messages)
+          out.bt = [document.browsingTopics().constructor.name, D.browsingTopics.length];
+          out.an = [t(() => document.ariaNotify('hi', { role: 'polite' })), t(() => document.ariaNotify()), t(() => document.ariaNotify('a', 'b')), D.ariaNotify.length, D.ariaNotify.name];
+          // body rw (probed exact messages; swaps read through; frameset counts as body)
+          const b0 = document.body;
+          out.bodyDsc = (d => [d.enumerable, d.configurable, !!d.get, !!d.set, d.get.name, d.set.name, d.set.length])(Object.getOwnPropertyDescriptor(D, 'body'));
+          out.bodyErr = [t(() => { document.body = document.createElement('div'); }), t(() => { document.body = null; }), t(() => { document.body = 'x'; })];
+          document.body = b0;
+          out.bodySelf = document.body === b0;
+          const nb = document.createElement('body');
+          document.body = nb;
+          out.bodyNew = [document.body === nb, document.body.tagName];
+          document.body = b0;
+          const fs = document.createElement('frameset');
+          document.body = fs;
+          out.bodyFs = [document.body === fs, document.body.tagName];
+          document.body = b0;
+          out.bodyBack = document.body === b0;
+          // adoptedStyleSheets ec fix + round trip
+          const ad = Object.getOwnPropertyDescriptor(D, 'adoptedStyleSheets');
+          document.adoptedStyleSheets = [];
+          out.adopted = [ad.enumerable, ad.configurable, !!ad.get, !!ad.set, JSON.stringify(document.adoptedStyleSheets)];
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["has24"], serde_json::json!([]), "all 24 members present");
+    assert_eq!(v["xml"], serde_json::json!([null, null, false]), "xml trio defaults (probed)");
+    assert_eq!(v["xml10"], serde_json::json!(["1.0", null, false]), "xmlVersion '1.0' sticks (probed)");
+    assert_eq!(v["xmlBad"], serde_json::json!("E:NotSupportedError:Failed to set the 'xmlVersion' property on 'Document': This document does not support the XML version '1.1'."), "xmlVersion '1.1' exact message (probed)");
+    assert_eq!(v["xmlNull"], serde_json::json!("E:NotSupportedError:Failed to set the 'xmlVersion' property on 'Document': This document does not support the XML version ''."), "xmlVersion null -> '' message (probed)");
+    assert_eq!(v["xmlBool"], serde_json::json!(true), "xmlStandalone coerces (probed: 'nope' -> true)");
+    assert_eq!(v["onRT"], serde_json::json!([true, true, null, null]), "on* round trip + null defaults (probed)");
+    assert_eq!(v["onDsc"], serde_json::json!([true, true, true, true, "get onvisibilitychange", 1]), "on* descriptor ec + names (probed)");
+    assert_eq!(v["webkit"], serde_json::json!(["visible", false, false, null, true, null]), "webkit mirrors (probed)");
+    assert_eq!(v["fp"], serde_json::json!(["object", true, "FeaturePolicy", "[object FeaturePolicy]", 0]), "featurePolicy singleton, brand, no own props (probed)");
+    assert_eq!(v["fpM"], serde_json::json!([80, 81, true, true, false, false, "[\"http://example.com\"]", "[]"]), "FeaturePolicy methods Chrome-145 lists (probed 80/81) + allowlist (origin = test page origin)");
+    assert_eq!(v["fpErr"], serde_json::json!(["E:TypeError:Failed to execute 'allowsFeature' on 'FeaturePolicy': 1 argument required, but only 0 present.", "E:TypeError:Illegal invocation"]), "FeaturePolicy arity + illegal invocation (probed)");
+    assert_eq!(v["avtRest"], serde_json::json!(null), "activeViewTransition null at rest (probed)");
+    assert_eq!(v["avtDuring"], serde_json::json!(true), "activeViewTransition === transition object (probed)");
+    assert_eq!(v["crfp"], serde_json::json!(["Range", "[object Range]", true, 1, 0, null, 0]), "caretRangeFromPoint element anchor + OOR + arity 0 (probed)");
+    assert_eq!(v["rsaf"], serde_json::json!(["E:TypeError:Failed to execute 'requestStorageAccessFor' on 'Document': 1 argument required, but only 0 present.", "E:TypeError:Invalid origin", "Promise", 1]), "requestStorageAccessFor errors + promise + arity (probed)");
+    assert_eq!(v["wv"], serde_json::json!([null, null, "webkitCancelFullScreen", 0, "webkitExitFullscreen", 0]), "webkit verbs undefined + meta (probed)");
+    assert_eq!(v["bt"], serde_json::json!(["Promise", 0]), "browsingTopics promise + arity (probed)");
+    assert_eq!(v["an"], serde_json::json!(["undef", "E:TypeError:Failed to execute 'ariaNotify' on 'Document': 1 argument required, but only 0 present.", "E:TypeError:Failed to execute 'ariaNotify' on 'Document': The provided value is not of type 'AriaNotificationOptions'.", 1, "ariaNotify"]), "ariaNotify void + messages + arity 1 (probed)");
+    assert_eq!(v["bodyDsc"], serde_json::json!([true, true, true, true, "get body", "set body", 1]), "body rw:ec descriptor + names");
+    assert_eq!(v["bodyErr"], serde_json::json!(["E:HierarchyRequestError:Failed to set the 'body' property on 'Document': The new body element is of type 'DIV'. It must be either a 'BODY' or 'FRAMESET' element.", "E:HierarchyRequestError:Failed to set the 'body' property on 'Document': The 1st argument provided is either null, or an invalid HTMLElement object.", "E:TypeError:Failed to set the 'body' property on 'Document': Failed to convert value to 'HTMLElement'."]), "body setter exact messages (probed)");
+    assert_eq!(v["bodySelf"], serde_json::json!(true), "body self-assignment no-op");
+    assert_eq!(v["bodyNew"], serde_json::json!([true, "BODY"]), "body swap to new body element (probed)");
+    assert_eq!(v["bodyFs"], serde_json::json!([true, "FRAMESET"]), "body swap to frameset reads through (probed)");
+    assert_eq!(v["bodyBack"], serde_json::json!(true), "body restore");
+    assert_eq!(v["adopted"], serde_json::json!([true, true, true, true, "[]"]), "adoptedStyleSheets ec descriptor (kind fix)");
+}
