@@ -133,6 +133,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("idb_gaps.js", include_str!("js/idb_gaps.js")),
     // 刀69: WebGL extension objects (GENERATED from the Chrome capture; getExtension reads it at call time).
     ("webgl_ext.js", include_str!("js/webgl_ext.js")),
+    // 刀70: SpeechSynthesis voice instances + event ctor ladders (takeover of the minted faces).
+    ("speech_gaps.js", include_str!("js/speech_gaps.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),

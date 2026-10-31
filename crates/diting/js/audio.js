@@ -308,7 +308,8 @@ globalThis.speechSynthesis = {
     // network voices across dozens of languages. A single synthetic voice
     // is a fingerprint outlier (Castle voices collector).
     if (!this._voices) {
-      const mk = (name, lang, local, def) => ({ name, lang, default: !!def, localService: !!local, voiceURI: name });
+      // (刀70) real SpeechSynthesisVoice instances (speech_gaps.js owns the factory)
+      const mk = (name, lang, local, def) => globalThis.__diting_speechVoice(name, lang, local, def);
       this._voices = [
         mk('Alex', 'en-US', true, true), mk('Ava', 'en-US', true), mk('Ayumi', 'ja-JP', true),
         mk('Bad News', 'en-US', true), mk('Bahh', 'en-US', true), mk('Bells', 'en-US', true),
@@ -342,9 +343,13 @@ globalThis.speechSynthesis = {
       ];
       __hideOwn(this);
     }
-    return this._voices;
+    return this._voices.slice();
   },
-  speak() {}, cancel() {}, pause() {}, resume() {},
+  speak(utterance) {
+    if (arguments.length < 1) throw new TypeError("Failed to execute 'speak' on 'SpeechSynthesis': 1 argument required, but only 0 present.");
+    if (!globalThis.__diting_isUtterance(utterance)) throw new TypeError("Failed to execute 'speak' on 'SpeechSynthesis': parameter 1 is not of type 'SpeechSynthesisUtterance'.");
+  },
+  cancel() {}, pause() {}, resume() {},
   onvoiceschanged: null,
 };
 

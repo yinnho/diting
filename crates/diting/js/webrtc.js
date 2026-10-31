@@ -537,7 +537,60 @@ if (typeof Document !== 'undefined' && typeof Document.parseHTMLUnsafe !== 'func
   _markNative(Document.parseHTMLUnsafe);
 }
 
-globalThis.SpeechSynthesisUtterance = class SpeechSynthesisUtterance { constructor(t){this.text=t;this.lang='en-US';this.rate=1;this.pitch=1;this.volume=1;} };
+// (M4 刀70) SpeechSynthesisUtterance: an EventTarget whose instances carry NO own
+// state (WeakMap slots), attributes are prototype accessors with pinned names;
+// text/lang ToString, volume/rate/pitch ToNumber -> finite check -> clamp
+// ([0,1]/[0.1,10]/[0,2]) -> float32; voice only takes a SpeechSynthesisVoice or
+// null; on* handlers keep functions only. Defaults are Chrome's (lang '').
+const __ssuState = new WeakMap();
+function SpeechSynthesisUtterance(text) {
+  if (!new.target) throw new TypeError("Failed to construct 'SpeechSynthesisUtterance': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+  const self = Reflect.construct(EventTarget, [], new.target);
+  let t = '';
+  if (arguments.length > 0 && text !== undefined) {
+    try { t = `${text}`; } catch (e) { throw new TypeError("Failed to construct 'SpeechSynthesisUtterance': " + e.message); }
+  }
+  __ssuState.set(self, { text: t, lang: '', voice: null, volume: 1, rate: 1, pitch: 1, h: Object.create(null) });
+  return self;
+}
+{
+  const P = Object.create(EventTarget.prototype);
+  Object.defineProperty(P, 'constructor', { value: SpeechSynthesisUtterance, writable: true, configurable: true });
+  SpeechSynthesisUtterance.prototype = P;
+  Object.defineProperty(SpeechSynthesisUtterance, 'length', { value: 0 });
+  const st = (self) => { const s = (self !== null && typeof self === 'object') ? __ssuState.get(self) : undefined; if (!s) throw new TypeError('Illegal invocation'); return s; };
+  const pin = (f, n) => { Object.defineProperty(f, 'name', { value: n }); return f; };
+  const acc = (name, get, set) => Object.defineProperty(P, name, { get: pin(get, 'get ' + name), set: pin(set, 'set ' + name), enumerable: true, configurable: true });
+  const setErr = (name, msg) => new TypeError("Failed to set the '" + name + "' property on 'SpeechSynthesisUtterance': " + msg);
+  for (const k of ['text', 'lang']) {
+    acc(k, function () { return st(this)[k]; }, function (v) {
+      const s = st(this);
+      try { s[k] = `${v}`; } catch (e) { throw setErr(k, e.message); }
+    });
+  }
+  for (const [k, lo, hi] of [['volume', 0, 1], ['rate', 0.1, 10], ['pitch', 0, 2]]) {
+    acc(k, function () { return st(this)[k]; }, function (v) {
+      const s = st(this);
+      let n;
+      try { n = Number(v); } catch (e) { throw setErr(k, e.message); }
+      if (!Number.isFinite(n)) throw setErr(k, 'The provided float value is non-finite.');
+      s[k] = Math.fround(Math.min(hi, Math.max(lo, n)));
+    });
+  }
+  acc('voice', function () { return st(this).voice; }, function (v) {
+    const s = st(this);
+    if (v === null || v === undefined) { s.voice = null; return; }
+    const isVoice = globalThis.__diting_isSpeechVoice;
+    if (typeof isVoice !== 'function' || !isVoice(v)) throw setErr('voice', "Failed to convert value to 'SpeechSynthesisVoice'.");
+    s.voice = v;
+  });
+  for (const type of ['start', 'end', 'error', 'pause', 'resume', 'mark', 'boundary']) {
+    acc('on' + type, function () { return st(this).h[type] || null; }, function (v) { st(this).h[type] = (typeof v === 'function' || (v !== null && typeof v === 'object')) ? v : null; });
+  }
+  Object.defineProperty(P, Symbol.toStringTag, { value: 'SpeechSynthesisUtterance', configurable: true });
+  Object.defineProperty(globalThis, '__diting_isUtterance', { value: (o) => o !== null && typeof o === 'object' && __ssuState.has(o), enumerable: false, configurable: true, writable: true });
+}
+globalThis.SpeechSynthesisUtterance = SpeechSynthesisUtterance;
 
 
 globalThis.caches = {
@@ -554,6 +607,7 @@ globalThis.caches = {
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
+  d('SpeechSynthesisUtterance', SpeechSynthesisUtterance);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END
