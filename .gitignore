@@ -78,3 +78,4 @@ web/zcode*
 
 # JS platform dependency analyzer deps (package-lock.json is committed)
 /tools/webplatform/analyze/node_modules/
+__pycache__/
