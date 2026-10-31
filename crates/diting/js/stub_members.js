@@ -13,7 +13,9 @@
     for (const [name, kind, x, fl] of ents) {
       try {
         if (Object.prototype.hasOwnProperty.call(obj, name)) continue;
-        if (kind === 'd') { Object.defineProperty(obj, name, Object.assign({ value: x }, flg(fl, true))); continue; }
+        // (M4 刀76) constants install CONFIGURABLE: a non-configurable e-- constant cannot be moved by the shape pass's
+        // ORDER step, so constants-first stuck 20 interfaces out of Chrome's member order; the flag pass seals them afterwards.
+        if (kind === 'd') { Object.defineProperty(obj, name, Object.assign({ value: x }, flg(fl, true), { configurable: true })); continue; }
         if (kind === 'f') {
           const f = mark(fname(function () { if (!inst(this)) illegal(); }, name));
           Object.defineProperty(f, 'length', { value: x, configurable: true });

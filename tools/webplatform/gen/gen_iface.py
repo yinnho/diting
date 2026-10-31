@@ -965,7 +965,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
                     PW("  if (!has(%s, '%s')) delegateFn(%s, '%s', %d);" % (v, m, v, m, HR["fnlen"][iface].get(m, 0)))
                 continue
             if k == "number" and key in CONSTANTS:
-                PW("  if (!has(%s, '%s')) { Object.defineProperty(%s, '%s', { value: %d, enumerable: true }); Object.defineProperty(G.%s, '%s', { value: %d, enumerable: true }); }" % (v, m, v, m, CONSTANTS[key], iface, m, CONSTANTS[key]))
+                PW("  if (!has(%s, '%s')) { Object.defineProperty(%s, '%s', { value: %d, enumerable: true, configurable: true }); Object.defineProperty(G.%s, '%s', { value: %d, enumerable: true }); }" % (v, m, v, m, CONSTANTS[key], iface, m, CONSTANTS[key]))
                 continue
             if k != "rw" and k != "ro":
                 unaccounted.append((iface, m, k))

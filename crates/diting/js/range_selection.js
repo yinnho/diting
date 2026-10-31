@@ -160,11 +160,9 @@ globalThis.Range = class Range {
   detach() {}
   getBoundingClientRect() { return new DOMRect(); }
   getClientRects() { return []; }
-  static get START_TO_START() { return 0; }
-  static get START_TO_END() { return 1; }
-  static get END_TO_END() { return 2; }
-  static get END_TO_START() { return 3; }
 };
+// (刀76) the four comparison constants are DATA statics (e--) in Chrome, not static getters
+for (const [k, v] of [['START_TO_START', 0], ['START_TO_END', 1], ['END_TO_END', 2], ['END_TO_START', 3]]) Object.defineProperty(globalThis.Range, k, { value: v, enumerable: true });
 Object.assign(globalThis.Range.prototype, { START_TO_START: 0, START_TO_END: 1, END_TO_END: 2, END_TO_START: 3 });
 globalThis.StaticRange = class StaticRange {
   constructor(init) {

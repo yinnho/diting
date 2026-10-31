@@ -1279,6 +1279,7 @@ P BluetoothRemoteGATTCharacteristic :: constructor,getDescriptor,getDescriptors,
 P BluetoothRemoteGATTDescriptor :: characteristic,constructor,readValue,uuid,value,writeValue
 P BluetoothRemoteGATTServer :: connect,connected,constructor,device,disconnect,getPrimaryService,getPrimaryServices
 P BluetoothRemoteGATTService :: constructor,device,getCharacteristic,getCharacteristics,isPrimary,uuid
+S BluetoothUUID :: canonicalUUID,getCharacteristic,getDescriptor,getService
 P BluetoothUUID :: constructor
 P Boolean :: constructor,toString,valueOf
 P BroadcastChannel :: close,constructor,name,onmessage,onmessageerror,postMessage
@@ -1579,6 +1580,7 @@ P HTMLLegendElement :: align,constructor,form
 P HTMLLinkElement :: as,blocking,charset,constructor,crossOrigin,disabled,fetchPriority,href,hreflang,imageSizes,imageSrcset,integrity,media,referrerPolicy,rel,relList,rev,sheet,sizes,target,type
 P HTMLMapElement :: areas,constructor,name
 P HTMLMarqueeElement :: behavior,bgColor,constructor,direction,height,hspace,loop,scrollAmount,scrollDelay,start,stop,trueSpeed,vspace,width
+S HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_METADATA,HAVE_NOTHING,NETWORK_EMPTY,NETWORK_IDLE,NETWORK_LOADING,NETWORK_NO_SOURCE
 P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_METADATA,HAVE_NOTHING,NETWORK_EMPTY,NETWORK_IDLE,NETWORK_LOADING,NETWORK_NO_SOURCE,addTextTrack,autoplay,buffered,canPlayType,captureStream,constructor,controls,controlsList,crossOrigin,currentSrc,currentTime,defaultMuted,defaultPlaybackRate,disableRemotePlayback,duration,ended,error,load,loop,mediaKeys,muted,networkState,onencrypted,onwaitingforkey,pause,paused,play,playbackRate,played,preload,preservesPitch,readyState,remote,seekable,seeking,setMediaKeys,setSinkId,sinkId,src,srcObject,textTracks,volume,webkitAudioDecodedByteCount,webkitVideoDecodedByteCount
 P HTMLMenuElement :: compact,constructor
 P HTMLMetaElement :: constructor,content,httpEquiv,media,name,scheme
@@ -1596,6 +1598,7 @@ P HTMLPictureElement :: constructor
 P HTMLPreElement :: constructor,width
 P HTMLProgressElement :: constructor,labels,max,position,value
 P HTMLQuoteElement :: cite,constructor
+S HTMLScriptElement :: supports
 P HTMLScriptElement :: async,attributionSrc,blocking,charset,constructor,crossOrigin,defer,event,fetchPriority,htmlFor,innerText,integrity,noModule,referrerPolicy,src,text,textContent,type
 P HTMLSelectElement :: add,autocomplete,checkValidity,constructor,disabled,form,item,labels,length,multiple,name,namedItem,options,remove,reportValidity,required,selectedIndex,selectedOptions,setCustomValidity,showPicker,size,type,validationMessage,validity,value,willValidate
 P HTMLSelectedContentElement :: constructor
@@ -1640,6 +1643,7 @@ P IIRFilterNode :: constructor,getFrequencyResponse
 S IdentityCredential :: disconnect
 P IdentityCredential :: configURL,constructor,isAutoSelected,token
 P IdentityCredentialError :: code,constructor,error,url
+S IdentityProvider :: close,getUserInfo,resolve
 P IdentityProvider :: constructor
 P IdleDeadline :: constructor,didTimeout,timeRemaining
 S IdleDetector :: requestPermission
@@ -1667,7 +1671,7 @@ P IntegrityViolationReportBody :: blockedURL,constructor,destination,documentURL
 P InterestEvent :: constructor,source
 P IntersectionObserver :: constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
 P IntersectionObserverEntry :: boundingClientRect,constructor,intersectionRatio,intersectionRect,isIntersecting,isVisible,rootBounds,target,time
-S Iterator :: concat,from
+S Iterator :: from
 P Iterator :: constructor,drop,every,filter,find,flatMap,forEach,map,reduce,some,take,toArray
 P Keyboard :: constructor,getLayoutMap,lock,unlock
 S KeyboardEvent :: DOM_KEY_LOCATION_LEFT,DOM_KEY_LOCATION_NUMPAD,DOM_KEY_LOCATION_RIGHT,DOM_KEY_LOCATION_STANDARD
@@ -1715,7 +1719,7 @@ P MediaQueryListEvent :: constructor,matches,media
 S MediaRecorder :: isTypeSupported
 P MediaRecorder :: audioBitrateMode,audioBitsPerSecond,constructor,mimeType,ondataavailable,onerror,onpause,onresume,onstart,onstop,pause,requestData,resume,start,state,stop,stream,videoBitsPerSecond
 P MediaSession :: constructor,metadata,playbackState,setActionHandler,setCameraActive,setMicrophoneActive,setPositionState
-S MediaSource :: isTypeSupported
+S MediaSource :: canConstructInDedicatedWorker,isTypeSupported
 P MediaSource :: activeSourceBuffers,addSourceBuffer,clearLiveSeekableRange,constructor,duration,endOfStream,onsourceclose,onsourceended,onsourceopen,readyState,removeSourceBuffer,setLiveSeekableRange,sourceBuffers
 P MediaSourceHandle :: constructor
 P MediaStream :: active,addTrack,clone,constructor,getAudioTracks,getTrackById,getTracks,getVideoTracks,id,onactive,onaddtrack,oninactive,onremovetrack,removeTrack
@@ -1895,6 +1899,7 @@ P ResizeObserverEntry :: borderBoxSize,constructor,contentBoxSize,contentRect,de
 P ResizeObserverSize :: blockSize,constructor,inlineSize
 S Response :: error,json,redirect
 P Response :: arrayBuffer,blob,body,bodyUsed,bytes,clone,constructor,formData,headers,json,ok,redirected,status,statusText,text,type,url
+S RestrictionTarget :: fromElement
 P RestrictionTarget :: constructor
 P SVGAElement :: constructor,download,href,hreflang,interestForElement,ping,referrerPolicy,rel,relList,target,type
 S SVGAngle :: SVG_ANGLETYPE_DEG,SVG_ANGLETYPE_GRAD,SVG_ANGLETYPE_RAD,SVG_ANGLETYPE_UNKNOWN,SVG_ANGLETYPE_UNSPECIFIED

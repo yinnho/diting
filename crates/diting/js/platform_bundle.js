@@ -6846,10 +6846,10 @@ if (P_Track) {
   if (!has(P_Track, 'default') && !delegate(P_Track, 'default')) P.reflector(P_Track, 'default', {"attr": "default", "iface": "HTMLTrackElement", "kind": "boolean-presence"});
   if (!has(P_Track, 'readyState') && !delegate(P_Track, 'readyState')) P.getter(P_Track, 'readyState', function __f() { return B.get('Track.readyState', this); });
   if (!has(P_Track, 'track') && !delegate(P_Track, 'track')) P.getter(P_Track, 'track', function __f() { return B.get('Track.track', this); });
-  if (!has(P_Track, 'NONE')) { Object.defineProperty(P_Track, 'NONE', { value: 0, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'NONE', { value: 0, enumerable: true }); }
-  if (!has(P_Track, 'LOADING')) { Object.defineProperty(P_Track, 'LOADING', { value: 1, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'LOADING', { value: 1, enumerable: true }); }
-  if (!has(P_Track, 'LOADED')) { Object.defineProperty(P_Track, 'LOADED', { value: 2, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'LOADED', { value: 2, enumerable: true }); }
-  if (!has(P_Track, 'ERROR')) { Object.defineProperty(P_Track, 'ERROR', { value: 3, enumerable: true }); Object.defineProperty(G.HTMLTrackElement, 'ERROR', { value: 3, enumerable: true }); }
+  if (!has(P_Track, 'NONE')) { Object.defineProperty(P_Track, 'NONE', { value: 0, enumerable: true, configurable: true }); Object.defineProperty(G.HTMLTrackElement, 'NONE', { value: 0, enumerable: true }); }
+  if (!has(P_Track, 'LOADING')) { Object.defineProperty(P_Track, 'LOADING', { value: 1, enumerable: true, configurable: true }); Object.defineProperty(G.HTMLTrackElement, 'LOADING', { value: 1, enumerable: true }); }
+  if (!has(P_Track, 'LOADED')) { Object.defineProperty(P_Track, 'LOADED', { value: 2, enumerable: true, configurable: true }); Object.defineProperty(G.HTMLTrackElement, 'LOADED', { value: 2, enumerable: true }); }
+  if (!has(P_Track, 'ERROR')) { Object.defineProperty(P_Track, 'ERROR', { value: 3, enumerable: true, configurable: true }); Object.defineProperty(G.HTMLTrackElement, 'ERROR', { value: 3, enumerable: true }); }
   reseat(P_Track, ["kind", "src", "srclang", "label", "default", "readyState", "track", "NONE", "LOADING", "LOADED", "ERROR", "constructor"]);
 }
 });

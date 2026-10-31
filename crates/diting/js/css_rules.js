@@ -178,8 +178,9 @@
   const R = globalThis.CSSRule;
   if (R) {
     for (const [k, v] of Object.entries({ STYLE_RULE: 1, CHARSET_RULE: 2, IMPORT_RULE: 3, MEDIA_RULE: 4, FONT_FACE_RULE: 5, PAGE_RULE: 6, KEYFRAMES_RULE: 7, KEYFRAME_RULE: 8, MARGIN_RULE: 9, NAMESPACE_RULE: 10, COUNTER_STYLE_RULE: 11, SUPPORTS_RULE: 12, FONT_FEATURE_VALUES_RULE: 14 })) {
-      Object.defineProperty(R, k, { value: v, enumerable: true });
-      Object.defineProperty(R.prototype, k, { value: v, enumerable: true });
+      // configurable so the shape pass can order them; its flag pass seals them e-- afterwards
+      Object.defineProperty(R, k, { value: v, enumerable: true, configurable: true });
+      Object.defineProperty(R.prototype, k, { value: v, enumerable: true, configurable: true });
     }
     acc(R, 'type', function () { return TYPE[rec(this).kind] || 0; });
     acc(R, 'cssText', function () { return ser(this); }, function () {});

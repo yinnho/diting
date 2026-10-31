@@ -326,7 +326,7 @@ _nativeFnAdd(_functionToString);
 [Error, TypeError, ReferenceError, SyntaxError, RangeError, URIError, EvalError].forEach(E => {
   try {
     Object.defineProperty(E.prototype, 'name', {
-      value: E.name, writable: true, enumerable: false, configurable: false,
+      value: E.name, writable: true, enumerable: false, configurable: true, // Chrome: -cw
     });
   } catch(e) {}
 });
@@ -5115,6 +5115,26 @@ class Element extends Node {
   get caption() {
     if (this.localName !== 'table') return undefined;
     return Array.from(this.children).find((c) => c.localName === 'caption') || null;
+  }
+  // (刀76) caption/tHead/tFoot are rw in Chrome: the setter swaps the element in (null removes it);
+  // a wrong element type is a TypeError (caption) / HierarchyRequestError (tHead, tFoot)
+  set caption(v) {
+    if (this.localName !== 'table') return;
+    if (v !== null && !(v && v.localName === 'caption')) throw new TypeError("Failed to set the 'caption' property on 'HTMLTableElement': The provided value is not of type 'HTMLTableCaptionElement'.");
+    const old = this.caption; if (old) old.remove();
+    if (v) this.insertBefore(v, this.firstChild);
+  }
+  set tHead(v) {
+    if (this.localName !== 'table') return;
+    if (v !== null && !(v && v.localName === 'thead')) throw new DOMException("Failed to set the 'tHead' property on 'HTMLTableElement': Not a thead element.", 'HierarchyRequestError');
+    const old = this.tHead; if (old) old.remove();
+    if (v) { const ref = Array.from(this.children).find((c) => c.localName !== 'caption' && c.localName !== 'colgroup'); this.insertBefore(v, ref || null); }
+  }
+  set tFoot(v) {
+    if (this.localName !== 'table') return;
+    if (v !== null && !(v && v.localName === 'tfoot')) throw new DOMException("Failed to set the 'tFoot' property on 'HTMLTableElement': Not a tfoot element.", 'HierarchyRequestError');
+    const old = this.tFoot; if (old) old.remove();
+    if (v) this.appendChild(v);
   }
   createTHead() {
     if (this.localName !== 'table') return undefined;
@@ -13181,10 +13201,17 @@ Object.defineProperties(HTMLMediaElement.prototype, {
 // HTMLMediaElement readiness/network constants — Chrome exposes them on
 // instances (players write `video.readyState === video.HAVE_ENOUGH_DATA`);
 // keep them non-enumerable like native.
-Object.defineProperties(HTMLMediaElement.prototype, {
-  HAVE_NOTHING: { value: 0 }, HAVE_METADATA: { value: 1 }, HAVE_CURRENT_DATA: { value: 2 }, HAVE_FUTURE_DATA: { value: 3 }, HAVE_ENOUGH_DATA: { value: 4 },
-  NETWORK_EMPTY: { value: 0 }, NETWORK_IDLE: { value: 1 }, NETWORK_LOADING: { value: 2 }, NETWORK_NO_SOURCE: { value: 3 },
-});
+// (刀76) Chrome 145 carries all nine on the prototype AND the constructor (e--); the prototype copy installs
+// configurable so the shape pass can order it (flag pass seals it), the static copy is final.
+for (const [k, v] of Object.entries({ HAVE_NOTHING: 0, HAVE_METADATA: 1, HAVE_CURRENT_DATA: 2, HAVE_FUTURE_DATA: 3, HAVE_ENOUGH_DATA: 4,
+    NETWORK_EMPTY: 0, NETWORK_IDLE: 1, NETWORK_LOADING: 2, NETWORK_NO_SOURCE: 3 })) {
+  Object.defineProperty(HTMLMediaElement.prototype, k, { value: v, enumerable: true, configurable: true });
+}
+// statics in Chrome's own order (NETWORK_* before HAVE_*)
+for (const [k, v] of Object.entries({ NETWORK_EMPTY: 0, NETWORK_IDLE: 1, NETWORK_LOADING: 2, NETWORK_NO_SOURCE: 3,
+    HAVE_NOTHING: 0, HAVE_METADATA: 1, HAVE_CURRENT_DATA: 2, HAVE_FUTURE_DATA: 3, HAVE_ENOUGH_DATA: 4 })) {
+  Object.defineProperty(HTMLMediaElement, k, { value: v, enumerable: true });
+}
 HTMLMediaElement.prototype.play = function() {
   const wasPaused = this._playing !== true;
   __def(this, '_playing', true);

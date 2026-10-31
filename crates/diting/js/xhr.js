@@ -616,7 +616,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
 };
 // Chrome: the readyState constants live on the prototype (and the constructor, via the statics above), not on instances.
 for (const [k, v] of [['UNSENT', 0], ['OPENED', 1], ['HEADERS_RECEIVED', 2], ['LOADING', 3], ['DONE', 4]]) {
-  Object.defineProperty(XMLHttpRequest.prototype, k, { value: v, writable: false, enumerable: true, configurable: false });
+  Object.defineProperty(XMLHttpRequest.prototype, k, { value: v, writable: false, enumerable: true, configurable: true }); // sealed e-- by the shape flag pass
 }
 // (see the __acc block above — readystatechange lands on this prototype)
 __acc(globalThis.XMLHttpRequest, ['onreadystatechange']);
