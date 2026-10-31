@@ -165,13 +165,20 @@ globalThis.Range = class Range {
 for (const [k, v] of [['START_TO_START', 0], ['START_TO_END', 1], ['END_TO_END', 2], ['END_TO_START', 3]]) Object.defineProperty(globalThis.Range, k, { value: v, enumerable: true });
 Object.assign(globalThis.Range.prototype, { START_TO_START: 0, START_TO_END: 1, END_TO_END: 2, END_TO_START: 3 });
 globalThis.StaticRange = class StaticRange {
+  // (刀87) Chrome 145 dict ladder (k87-ctor-e/f): endContainer is read
+  // BEFORE startContainer; Attr (2) joins DocumentType (10) as rejected.
   constructor(init) {
-    if (!init || init.startContainer == null || init.endContainer == null)
-      throw new TypeError("Failed to construct 'StaticRange': required members are undefined");
-    const sc = init.startContainer, ec = init.endContainer;
-    if (sc.nodeType === 10 || ec.nodeType === 10 || sc.nodeType === 7 || ec.nodeType === 7)
-      throw new DOMException("StaticRange endpoints cannot be DocumentType or ProcessingInstruction", "InvalidNodeTypeError");
-    this._sc = sc; this._so = init.startOffset >>> 0; this._ec = ec; this._eo = init.endOffset >>> 0;
+    if (arguments.length < 1) throw new TypeError("Failed to construct 'StaticRange': 1 argument required, but only 0 present.");
+    const readNode = (v, name) => {
+      if (v === undefined) throw new TypeError("Failed to construct 'StaticRange': Failed to read the '" + name + "' property from 'StaticRangeInit': Required member is undefined.");
+      if (!(v instanceof globalThis.Node)) throw new TypeError("Failed to construct 'StaticRange': Failed to read the '" + name + "' property from 'StaticRangeInit': Failed to convert value to 'Node'.");
+      return v;
+    };
+    const ec = readNode(init && init.endContainer, 'endContainer');
+    const sc = readNode(init && init.startContainer, 'startContainer');
+    if (ec.nodeType === 10 || ec.nodeType === 2 || sc.nodeType === 10 || sc.nodeType === 2)
+      throw new DOMException("Failed to construct 'StaticRange': Neither startContainer nor endContainer can be a DocumentType or Attribute node.", 'InvalidNodeTypeError');
+    this._sc = sc; this._so = (init && init.startOffset) >>> 0; this._ec = ec; this._eo = (init && init.endOffset) >>> 0;
     __hideOwn(this);
   }
   get startContainer() { return this._sc; }

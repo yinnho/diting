@@ -150,8 +150,7 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
       getFloatTimeDomainData(a){for(let i=0;i<a.length;i++)a[i]=0;}
     });
   }
-  createBiquadFilter() { return _audioNode(this, {type:'lowpass',frequency:_audioParam(350,0,24000),Q:_audioParam(1),detune:_audioParam(0),gain:_audioParam(0,-40,40),
-    getFrequencyResponse(){}}); }
+  createBiquadFilter() { return new globalThis.BiquadFilterNode(this); }
   createBuffer(ch,len,rate) { return new AudioBuffer({numberOfChannels:ch,length:len,sampleRate:rate||this.sampleRate}); }
   createBufferSource() { return _audioNode(this, {buffer:null,playbackRate:_audioParam(1),detune:_audioParam(0),loop:false,loopStart:0,loopEnd:0,start(){},stop(){},onended:null}); }
   createChannelMerger(n) { return _audioNode(this, {numberOfInputs:n||6,numberOfOutputs:1}); }
@@ -161,7 +160,7 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
   createDelay() { return _audioNode(this, {delayTime:_audioParam(0,0,1)}); }
   createDynamicsCompressor() { return _audioNode(this, {threshold:_audioParam(_fp('compThreshold'),-100,0),knee:_audioParam(_fp('compKnee'),0,40),ratio:_audioParam(_fp('compRatio'),1,20),attack:_audioParam(0.003,0,1),release:_audioParam(0.25,0,1),reduction:0}); }
   createGain() { return _audioNode(this, {gain:_audioParam(1)}); }
-  createIIRFilter(feedforward, feedback) { return _audioNode(this, {feedforward:feedforward||null,feedback:feedback||null,getFrequencyResponse(){}}); }
+  createIIRFilter(feedforward, feedback) { return new globalThis.IIRFilterNode(this, { feedforward: feedforward, feedback: feedback }); }
   createOscillator() { return _audioNode(this, {type:'sine',frequency:_audioParam(440),detune:_audioParam(0),start(){},stop(){},onended:null}); }
   createPanner() { return _audioNode(this, {panningModel:'equalpower',distanceModel:'inverse',refDistance:1,maxDistance:10000,rolloffFactor:1,coneInnerAngle:360,coneOuterAngle:360,coneOuterGain:0,setPosition(){},setOrientation(){}}); }
   createPeriodicWave(real, imag) {
@@ -198,19 +197,31 @@ globalThis.AudioContext = class AudioContext extends BaseAudioContext {
   // 刀57: playbackStats deleted — invented face Chrome never had.
 };
 globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioContext {
+  // 刀87: Chrome 145 ladder (k87-ctor-e/f) — 0 args / 1 non-object / exactly 2
+  // are TypeErrors; the 1-arg dict reads length then sampleRate (required);
+  // the 3-arg path range-checks channels → frames → sampleRate.
   constructor(ch, len, rate) {
     super();
-    if (ch == null && len == null && rate == null) {
-      throw new TypeError("Failed to construct 'OfflineAudioContext': 3 arguments required, or use OfflineAudioContext(options).");
+    const PRE = "Failed to construct 'OfflineAudioContext': ";
+    if (arguments.length === 0) throw new TypeError(PRE + "1 argument required, but only 0 present.");
+    if (arguments.length === 2) throw new TypeError(PRE + "Overload resolution failed.");
+    if (arguments.length === 1) {
+      if (ch === null || typeof ch !== 'object') throw new TypeError(PRE + "The provided value is not of type 'OfflineAudioContextOptions'.");
+      len = ch.length;
+      rate = ch.sampleRate;
+      if (len === undefined) throw new TypeError(PRE + "Failed to read the 'length' property from 'OfflineAudioContextOptions': Required member is undefined.");
+      if (rate === undefined) throw new TypeError(PRE + "Failed to read the 'sampleRate' property from 'OfflineAudioContextOptions': Required member is undefined.");
+      ch = ch.numberOfChannels === undefined ? 1 : ch.numberOfChannels;
     }
-    if (ch && typeof ch === 'object') {
-      const o = ch;
-      ch = o.numberOfChannels; len = o.length; rate = o.sampleRate;
-    }
+    const dbl = (v) => { const n = Number(v); if (!isFinite(n)) throw new TypeError(PRE + "The provided double value is non-finite."); return n; };
+    const cn = dbl(ch), ln = dbl(len), rn = dbl(rate);
+    if (cn < 1 || cn > 32) throw new DOMException(PRE + "The number of channels provided (" + cn + ") is outside the range [1, 32].", 'NotSupportedError');
+    if (ln < 1) throw new DOMException(PRE + "The number of frames provided (" + ln + ") is less than the minimum bound (1).", 'NotSupportedError');
+    if (rn < 3000 || rn > 768000) throw new DOMException(PRE + "The sampleRate provided (" + rn + ") is outside the range [3000, 768000].", 'NotSupportedError');
     const b = _ctxBag(this);
-    b.numberOfChannels = Math.max(1, ch | 0 || 1);
-    b.length = Math.max(0, len | 0 || 0);
-    b.sampleRate = rate || 44100;
+    b.numberOfChannels = cn;
+    b.length = ln;
+    b.sampleRate = rn;
     b.oncomplete = null;
   }
   get oncomplete() { return _ctxBag(this).oncomplete; }
@@ -277,6 +288,55 @@ globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioCont
 _markNativeProto(globalThis.BaseAudioContext.prototype);
 _markNativeProto(globalThis.AudioContext.prototype);
 _markNativeProto(globalThis.OfflineAudioContext.prototype);
+// 刀87: real constructor faces for BiquadFilterNode / IIRFilterNode (Chrome 145
+// ladders, k87-ctor-e/f). The instance stays the _audioNode product (native
+// EventTarget core + own working members) wearing the interface prototype, so
+// stub_members' member install, the anState accessors and instanceof all line
+// up. Chrome reads the IIRFilterOptions dict feedback-first (a missing
+// required member names 'feedback' even when feedforward is missing too).
+globalThis.BiquadFilterNode = function BiquadFilterNode(ctx) {
+  if (arguments.length < 1) throw new TypeError("Failed to construct 'BiquadFilterNode': 1 argument required, but only 0 present.");
+  if (!(ctx instanceof globalThis.BaseAudioContext)) throw new TypeError("Failed to construct 'BiquadFilterNode': parameter 1 is not of type 'BaseAudioContext'.");
+  const o = _audioNode(ctx, { type: 'lowpass', frequency: _audioParam(350, 0, 24000), Q: _audioParam(1), detune: _audioParam(0), gain: _audioParam(0, -40, 40), getFrequencyResponse() {} });
+  Object.setPrototypeOf(o, BiquadFilterNode.prototype);
+  return o;
+};
+Object.setPrototypeOf(globalThis.BiquadFilterNode.prototype, globalThis.AudioNode.prototype);
+try { Object.defineProperty(globalThis.BiquadFilterNode, 'length', { value: 1, configurable: true }); } catch (e) {}
+globalThis.IIRFilterNode = function IIRFilterNode(ctx, options) {
+  if (arguments.length < 2) throw new TypeError("Failed to construct 'IIRFilterNode': 2 arguments required, but only " + arguments.length + " present.");
+  if (!(ctx instanceof globalThis.BaseAudioContext)) throw new TypeError("Failed to construct 'IIRFilterNode': parameter 1 is not of type 'BaseAudioContext'.");
+  const PRE = "Failed to construct 'IIRFilterNode': Failed to read the '";
+  const seq = (v, name) => {
+    if (v === undefined) throw new TypeError(PRE + name + "' property from 'IIRFilterOptions': Required member is undefined.");
+    // WebIDL sequence conversion demands an Object first — a primitive
+    // (even an iterable string like 'x') is "cannot be converted to a sequence".
+    let a = null;
+    if (Array.isArray(v)) a = v;
+    else if (v !== null && (typeof v === 'object' || typeof v === 'function') && typeof v[Symbol.iterator] === 'function') { try { a = Array.from(v); } catch (e) { a = null; } }
+    if (!a) throw new TypeError(PRE + name + "' property from 'IIRFilterOptions': The provided value cannot be converted to a sequence.");
+    for (const x of a) { if (!isFinite(Number(x))) throw new TypeError(PRE + name + "' property from 'IIRFilterOptions': The provided double value is non-finite."); }
+    return a.map(Number);
+  };
+  const fb = seq(options && options.feedback, 'feedback');
+  const ff = seq(options && options.feedforward, 'feedforward');
+  if (fb[0] === 0) throw new DOMException("Failed to construct 'IIRFilterNode': First feedback coefficient cannot be zero.", 'InvalidStateError');
+  if (!ff.some((x) => x !== 0)) throw new DOMException("Failed to construct 'IIRFilterNode': At least one feedforward coefficient must be non-zero.", 'InvalidStateError');
+  const o = _audioNode(ctx, { feedforward: ff, feedback: fb });
+  Object.setPrototypeOf(o, IIRFilterNode.prototype);
+  return o;
+};
+Object.setPrototypeOf(globalThis.IIRFilterNode.prototype, globalThis.AudioNode.prototype);
+// (刀87) shape truth 145: getFrequencyResponse lives on the PROTOTYPE
+// (length 3, ecw) with constructor LAST in own-name order.
+Object.defineProperty(globalThis.IIRFilterNode.prototype, 'getFrequencyResponse', { value: function getFrequencyResponse(frequencyHz, magResponse, phaseResponse) {}, writable: true, enumerable: true, configurable: true });
+{
+  const P = globalThis.IIRFilterNode.prototype;
+  const c = P.constructor;
+  delete P.constructor;
+  Object.defineProperty(P, 'constructor', { value: c, writable: true, configurable: true });
+}
+try { Object.defineProperty(globalThis.IIRFilterNode, 'length', { value: 2, configurable: true }); } catch (e) {}
 // (300015 P4) V8 class syntax puts `constructor` FIRST in the prototype's
 // own-names order; Chrome's IDL prototypes list it LAST (audio truth
 // capture). Class prototype members are configurable, so delete +

@@ -144,13 +144,6 @@ const THROW = [["AbstractRange",0,"Failed to construct 'AbstractRange': Illegal 
   ["CSSLayerBlockRule",0,"Failed to construct 'CSSLayerBlockRule': Illegal constructor"],
   ["CSSLayerStatementRule",0,"Failed to construct 'CSSLayerStatementRule': Illegal constructor"],
   ["CSSMarginRule",0,"Failed to construct 'CSSMarginRule': Illegal constructor"],
-  ["CSSMathClamp",3,"Failed to construct 'CSSMathClamp': 3 arguments required, but only 0 present."],
-  ["CSSMathInvert",1,"Failed to construct 'CSSMathInvert': 1 argument required, but only 0 present."],
-  ["CSSMathMax",0,"Failed to construct 'CSSMathMax': Arguments can't be empty"],
-  ["CSSMathMin",0,"Failed to construct 'CSSMathMin': Arguments can't be empty"],
-  ["CSSMathNegate",1,"Failed to construct 'CSSMathNegate': 1 argument required, but only 0 present."],
-  ["CSSMathProduct",0,"Failed to construct 'CSSMathProduct': Arguments can't be empty"],
-  ["CSSMathSum",0,"Failed to construct 'CSSMathSum': Arguments can't be empty"],
   ["CSSMathValue",0,"Failed to construct 'CSSMathValue': Illegal constructor"],
   ["CSSMatrixComponent",1,"Failed to construct 'CSSMatrixComponent': 1 argument required, but only 0 present."],
   ["CSSMediaRule",0,"Failed to construct 'CSSMediaRule': Illegal constructor"],
@@ -684,6 +677,43 @@ const THROW = [["AbstractRange",0,"Failed to construct 'AbstractRange': Illegal 
 for (const [name, len, msg] of THROW) {
   if (SKIP(name)) continue;
   const C = mkThrow(name, len, msg);
+  Object.defineProperty(globalThis, name, { value: C, writable: true, enumerable: false, configurable: true });
+}
+
+// ---- CSSMath* typed-om constructors (刀87): argument ladder + CSSNumberish
+// double coercion per Chrome 145 probes; success mints a branded instance.
+function mkCssMath(name, len, min, variadic) {
+  const C = function () {
+    if (arguments.length < min) {
+      if (variadic) throw new SyntaxError("Failed to construct '" + name + "': Arguments can't be empty");
+      throw new TypeError("Failed to construct '" + name + "': " + min + " argument" + (min > 1 ? "s" : "") + " required, but only " + arguments.length + " present.");
+    }
+    for (let i = 0; i < arguments.length; i++) {
+      const v = arguments[i];
+      let n;
+      if (typeof v === 'object' && v !== null) {
+        if (typeof CSSNumericValue === 'function' && v instanceof CSSNumericValue) continue;
+        n = Number(v);
+      } else n = Number(v);
+      if (!isFinite(n)) throw new TypeError("Failed to construct '" + name + "': The provided double value is non-finite.");
+    }
+    return Object.create(C.prototype);
+  };
+  try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
+  try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
+  globalThis.__diting_stubs.add(C);
+  return C;
+}
+const CSSMATH = [["CSSMathClamp",3,3,false],
+  ["CSSMathInvert",1,1,false],
+  ["CSSMathMax",0,1,true],
+  ["CSSMathMin",0,1,true],
+  ["CSSMathNegate",1,1,false],
+  ["CSSMathProduct",0,1,true],
+  ["CSSMathSum",0,1,true]];
+for (const [name, len, min, variadic] of CSSMATH) {
+  if (SKIP(name)) continue;
+  const C = mkCssMath(name, len, min, variadic);
   Object.defineProperty(globalThis, name, { value: C, writable: true, enumerable: false, configurable: true });
 }
 
