@@ -9187,7 +9187,24 @@ if (typeof URL === 'undefined' || !URL.prototype || !URL.__diting) {
     static canParse(url, base) { return _urlParseOp(url, base) !== null; }
   };
   _URL.__diting = true;
-  globalThis.URL = _URL;
+  // (刀96) Chrome's URL is a legacy DOM ctor: calling it without new throws
+  // the new-check message, NOT V8's natural class message (k96 probe). Expose
+  // a function ctor wrapping the class — same prototype object, statics
+  // copied in Chrome's SORDER, new.target routed through Reflect.construct
+  // so subclasses keep their own prototype.
+  const _URLw = function URL(...args) {
+    if (!new.target) throw new TypeError("Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    // rest → spread keeps the REAL argument count: the class's argc ladder
+    // ("1 argument required, but only 0 present.") reads arguments.length.
+    return Reflect.construct(_URL, args, new.target);
+  };
+  for (const s of ['canParse', 'parse', 'createObjectURL', 'revokeObjectURL']) _URLw[s] = _URL[s];
+  _URLw.prototype = _URL.prototype;
+  _URL.prototype.constructor = _URLw;
+  _URLw.__diting = true;
+  Object.defineProperty(_URLw, 'length', { value: 1, configurable: true });
+  _markNative(_URLw);
+  globalThis.URL = _URLw;
 }
 
 globalThis.requestIdleCallback = globalThis.requestIdleCallback || function requestIdleCallback(cb, opts) {

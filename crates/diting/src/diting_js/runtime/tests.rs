@@ -31421,3 +31421,62 @@ async fn knife95_instance_method_ladders() {
     let out = rt.evaluate("JSON.stringify(__r95)").unwrap();
     assert_eq!(out.as_str().unwrap(), r#"["F:TypeError:Failed to execute 'fetch' on 'Window': 1 argument required, but only 0 present.","R:TypeError:Failed to execute 'requestStorageAccessFor' on 'Document': 1 argument required, but only 0 present.","C:TypeError:Failed to execute 'createImageBitmap' on 'Window': 1 argument required, but only 0 present."]"#);
 }
+
+#[tokio::test]
+async fn knife96_legacy_alias_identity() {
+    // (刀96) [LegacyAlias] names are the SAME interface object in Chrome:
+    // webkitURL === URL, WebKitCSSMatrix === DOMMatrix (k96 sweep found
+    // exactly these two missing; the webkitMediaStream/Speech family and
+    // WebKitMutationObserver were already true, Image/Audio/Option stay
+    // separate in both engines). The URL function ctor wraps the class so
+    // the no-new call throws Chrome's DOM new-check message, and the
+    // WebKitCSSMatrix legacy-factory twin is deleted — DOMMatrix's ctor
+    // already parses transform-list strings AND sequences with the unified
+    // 'DOMMatrix' error context.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const T = (k, f) => { try { const v = f(); L.push([k, 'ok', v === undefined ? '' : String(v)]); } catch (e) { L.push([k, 'E', e.name + ':' + e.message]); } };
+        T('alias.url', () => webkitURL === URL);
+        T('alias.cssm', () => WebKitCSSMatrix === DOMMatrix);
+        T('alias.ms', () => webkitMediaStream === MediaStream);
+        T('alias.mo', () => WebKitMutationObserver === MutationObserver);
+        T('url.call', () => URL('x'));
+        T('wkurl.call', () => webkitURL('x'));
+        T('url.new0', () => new URL());
+        T('wkurl.str', () => new webkitURL('http://a.b/p').href);
+        T('wkurl.statics', () => Object.getOwnPropertyNames(webkitURL).filter((n) => n !== 'name' && n !== 'length' && n !== 'prototype').join(','));
+        T('url.len', () => URL.length + '/' + URL.name + '/' + (URL.prototype.constructor === URL) + '/' + String(URL).slice(0, 30));
+        T('cssm.seq', () => { const m = new WebKitCSSMatrix([1, 2, 3, 4, 5, 6]); return m.a + ',' + m.f; });
+        T('cssm.bad', () => new WebKitCSSMatrix('garbage('));
+        T('cssm.num', () => new WebKitCSSMatrix(5));
+        T('cssm.empty', () => new WebKitCSSMatrix().toString());
+        T('cssm.statics', () => Object.getOwnPropertyNames(WebKitCSSMatrix).filter((n) => n !== 'name' && n !== 'length' && n !== 'prototype').join(','));
+        T('url.sub', () => { class X extends URL {}; const x = new X('http://a.b/p'); return x.href + '/' + (x instanceof X) + '/' + (x instanceof URL); });
+        T('wkurl.parse', () => webkitURL.parse('http://a.b/') !== null);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["alias.url", "ok", "true"],
+            ["alias.cssm", "ok", "true"],
+            ["alias.ms", "ok", "true"],
+            ["alias.mo", "ok", "true"],
+            ["url.call", "E", "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."],
+            ["wkurl.call", "E", "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."],
+            ["url.new0", "E", "TypeError:Failed to construct 'URL': 1 argument required, but only 0 present."],
+            ["wkurl.str", "ok", "http://a.b/p"],
+            ["wkurl.statics", "ok", "canParse,parse,createObjectURL,revokeObjectURL"],
+            ["url.len", "ok", "1/URL/true/function URL() { [native code]"],
+            ["cssm.seq", "ok", "1,6"],
+            ["cssm.bad", "E", "SyntaxError:Failed to construct 'DOMMatrix': Failed to parse 'garbage('."],
+            ["cssm.num", "E", "SyntaxError:Failed to construct 'DOMMatrix': Failed to parse '5'."],
+            ["cssm.empty", "ok", "matrix(1, 0, 0, 1, 0, 0)"],
+            ["cssm.statics", "ok", "fromFloat32Array,fromFloat64Array,fromMatrix"],
+            ["url.sub", "ok", "http://a.b/p/true/true"],
+            ["wkurl.parse", "ok", "true"]
+        ]),
+        "knife96: LegacyAlias identity (webkitURL/WebKitCSSMatrix) + unified ctor faces (Chrome 145 truth)"
+    );
+}

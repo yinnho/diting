@@ -672,11 +672,10 @@ const THROW = [["AbstractRange",0,"Failed to construct 'AbstractRange': Illegal 
   ["XRWebGLLayer",2,"Failed to construct 'XRWebGLLayer': 2 arguments required, but only 0 present."],
   ["XRWebGLSubImage",0,"Failed to construct 'XRWebGLSubImage': Illegal constructor"],
   ["webkitSpeechRecognitionError",1,"Failed to construct 'SpeechRecognitionErrorEvent': 1 argument required, but only 0 present."],
-  ["webkitSpeechRecognitionEvent",1,"Failed to construct 'SpeechRecognitionEvent': 1 argument required, but only 0 present."],
-  // (刀95) Chrome's webkitURL() rejects the no-new call with the DOM
-  // new-check message BEFORE any argument count (k95 probe); the alias
-  // identity webkitURL === URL stays a separate ledger item.
-  ["webkitURL",1,"Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."]];
+  ["webkitSpeechRecognitionEvent",1,"Failed to construct 'SpeechRecognitionEvent': 1 argument required, but only 0 present."]];
+  // (刀96) webkitURL moved out of the THROW table: it is the SAME interface
+  // object as URL in Chrome ([LegacyAlias]) — ET_ALIAS pins the identity and
+  // the real URL ctor (bootstrap 刀96 wrapper) supplies the new-check message.
 for (const [name, len, msg] of THROW) {
   if (SKIP(name)) continue;
   const C = mkThrow(name, len, msg);
@@ -1400,7 +1399,6 @@ const AUDIT_CHAIN = [["AggregateError","Error"],
   ["WebGLTexture","WebGLObject"],
   ["WebGLTransformFeedback","WebGLObject"],
   ["WebGLVertexArrayObject","WebGLObject"],
-  ["WebKitCSSMatrix","DOMMatrixReadOnly"],
   ["WebSocketError","DOMException"],
   ["WebTransportError","DOMException"],
   ["WheelEvent","MouseEvent"],
@@ -1425,10 +1423,14 @@ for (const [name, parent] of AUDIT_CHAIN) {
   } catch (e) {}
 }
 // [LegacyAlias] names are the SAME interface object in Chrome, not separate
-// stubs: webkitMediaStream === MediaSource-family twins of real classes.
+// stubs (k96 sweep: exactly webkitURL + the webkitMediaStream/Speech family
+// + WebKitMutationObserver + WebKitCSSMatrix; Image/Audio/Option stay
+// separate legacy ctors in BOTH engines).
 const ET_ALIAS = [["webkitMediaStream","MediaStream"],
   ["webkitRTCPeerConnection","RTCPeerConnection"],
-  ["webkitSpeechRecognition","SpeechRecognition"]];
+  ["webkitSpeechRecognition","SpeechRecognition"],
+  ["webkitURL","URL"],
+  ["WebKitCSSMatrix","DOMMatrix"]];
 for (const [alias, of] of ET_ALIAS) {
   try {
     const C = globalThis[of];

@@ -1,0 +1,34 @@
+{
+ "aliases": {
+  "WebKitCSSMatrix===DOMMatrix": "SAME",
+  "WebKitMutationObserver": "SAME",
+  "webkitMediaStream": "SAME",
+  "webkitRTCPeerConnection": "SAME",
+  "webkitSpeechGrammar": "SAME",
+  "webkitSpeechGrammarList": "SAME",
+  "webkitSpeechRecognition": "SAME",
+  "webkitSpeechRecognitionEvent": "SAME",
+  "webkitURL": "SAME",
+  "webkitURL===URL": "SAME"
+ },
+ "dmx": {
+  "DMR": "fromFloat32Array,fromFloat64Array,fromMatrix",
+  "DOMMatrix": {
+   "call": "TypeError:Failed to construct 'DOMMatrix': Please use the 'new' operator, this DOM object constructor cannot b",
+   "len": 0,
+   "name": "DOMMatrix",
+   "own": "fromFloat32Array,fromFloat64Array,fromMatrix",
+   "protoCtor": "self"
+  }
+ },
+ "url": {
+  "URL": {
+   "call": "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be call",
+   "len": 1,
+   "name": "URL",
+   "own": "canParse,createObjectURL,parse,revokeObjectURL",
+   "protoCtor": "self"
+  },
+  "urlStatics": "canParse,createObjectURL,parse,revokeObjectURL"
+ }
+}
