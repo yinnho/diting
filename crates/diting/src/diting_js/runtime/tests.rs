@@ -29992,3 +29992,90 @@ async fn knife79_default_values() {
     assert_eq!(o["xhr"], "");
     assert_eq!(o["mediaSource"], serde_json::json!([null, null, null, "SourceBufferList", "SourceBufferList"]));
 }
+
+/// M4 刀80: WebIDL required-argument ladders on the methods whose no-argument call differed from Chrome
+/// (76 sync TypeErrors + 4 promise rejections, derived from a Chrome-vs-engine probe over every no-arg
+/// constructible interface): message text, plural rule, rejection for promise-returning operations, wrapper
+/// shape (no prototype, native, Chrome length), and that normal calls still pass straight through.
+#[tokio::test(flavor = "current_thread")]
+async fn knife80_method_argument_ladders() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(r#"
+        globalThis.__r = {};
+        const t = (k, f) => { try { __r[k] = f(); } catch (e) { __r[k] = e.name + ':' + e.message; } };
+        t('formdata', () => { const f = new FormData(); const out = []; for (const m of ['append', 'delete', 'get', 'getAll', 'forEach']) { try { f[m](); out.push('NO'); } catch (e) { out.push(e.message); } } return out; });
+        t('usp', () => { const u = new URLSearchParams(); const out = []; for (const m of ['append', 'delete', 'get', 'getAll']) { try { u[m](); out.push('NO'); } catch (e) { out.push(e.message); } } return out; });
+        t('path2d', () => { const p = new Path2D(); const out = []; for (const m of ['arc', 'lineTo', 'ellipse', 'addPath']) { try { p[m](); out.push('NO'); } catch (e) { out.push(e.message); } } return out; });
+        t('xhr', () => { const x = new XMLHttpRequest(); const out = []; for (const m of ['open', 'setRequestHeader', 'overrideMimeType', 'getResponseHeader']) { try { x[m](); out.push('NO'); } catch (e) { out.push(e.message); } } return out; });
+        t('frag', () => { const f = document.createDocumentFragment(); const out = []; for (const m of ['getElementById', 'querySelector', 'querySelectorAll']) { try { f[m](); out.push('NO'); } catch (e) { out.push(e.message); } } return out; });
+        t('range', () => { const r = document.createRange(); const out = []; for (const m of ['selectNode', 'comparePoint', 'insertNode']) { try { r[m](); out.push('NO'); } catch (e) { out.push(e.message); } } return out; });
+        t('shape', () => { const d = Object.getOwnPropertyDescriptor(FormData.prototype, 'append'); const f = d.value; return [f.length, f.name, 'prototype' in f, d.writable, d.enumerable, d.configurable, Function.prototype.toString.call(f).indexOf('[native code]') > 0]; });
+        t('passthrough', () => { const f = new FormData(); f.append('a', '1'); const u = new URLSearchParams(); u.append('x', 'y'); const x = new XMLHttpRequest(); x.open('GET', 'http://example.invalid/'); return [f.get('a'), u.get('x'), x.readyState, f.getAll('a').length]; });
+        globalThis.__p = (async () => {
+            const out = [];
+            for (const f of [() => new CSSStyleSheet().replace(), () => new ReadableStream().pipeTo()]) { try { const p = f(); out.push(p instanceof Promise); await p; out.push('resolved'); } catch (e) { out.push(e.message); } }
+            return out;
+        })();
+    "#).unwrap();
+    let _ = rt.run_event_loop_bounded(200).await;
+    let v = rt.evaluate("JSON.stringify([globalThis.__r])").unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    let r = &o[0];
+    assert_eq!(
+        r["formdata"],
+        serde_json::json!([
+            "Failed to execute 'append' on 'FormData': 2 arguments required, but only 0 present.",
+            "Failed to execute 'delete' on 'FormData': 1 argument required, but only 0 present.",
+            "Failed to execute 'get' on 'FormData': 1 argument required, but only 0 present.",
+            "Failed to execute 'getAll' on 'FormData': 1 argument required, but only 0 present.",
+            "Failed to execute 'forEach' on 'FormData': 1 argument required, but only 0 present."
+        ])
+    );
+    assert_eq!(
+        r["usp"],
+        serde_json::json!([
+            "Failed to execute 'append' on 'URLSearchParams': 2 arguments required, but only 0 present.",
+            "Failed to execute 'delete' on 'URLSearchParams': 1 argument required, but only 0 present.",
+            "Failed to execute 'get' on 'URLSearchParams': 1 argument required, but only 0 present.",
+            "Failed to execute 'getAll' on 'URLSearchParams': 1 argument required, but only 0 present."
+        ])
+    );
+    assert_eq!(
+        r["path2d"],
+        serde_json::json!([
+            "Failed to execute 'arc' on 'Path2D': 5 arguments required, but only 0 present.",
+            "Failed to execute 'lineTo' on 'Path2D': 2 arguments required, but only 0 present.",
+            "Failed to execute 'ellipse' on 'Path2D': 7 arguments required, but only 0 present.",
+            "Failed to execute 'addPath' on 'Path2D': 1 argument required, but only 0 present."
+        ])
+    );
+    assert_eq!(
+        r["xhr"],
+        serde_json::json!([
+            "Failed to execute 'open' on 'XMLHttpRequest': 2 arguments required, but only 0 present.",
+            "Failed to execute 'setRequestHeader' on 'XMLHttpRequest': 2 arguments required, but only 0 present.",
+            "Failed to execute 'overrideMimeType' on 'XMLHttpRequest': 1 argument required, but only 0 present.",
+            "Failed to execute 'getResponseHeader' on 'XMLHttpRequest': 1 argument required, but only 0 present."
+        ])
+    );
+    assert_eq!(
+        r["frag"],
+        serde_json::json!([
+            "Failed to execute 'getElementById' on 'DocumentFragment': 1 argument required, but only 0 present.",
+            "Failed to execute 'querySelector' on 'DocumentFragment': 1 argument required, but only 0 present.",
+            "Failed to execute 'querySelectorAll' on 'DocumentFragment': 1 argument required, but only 0 present."
+        ])
+    );
+    assert_eq!(
+        r["range"],
+        serde_json::json!([
+            "Failed to execute 'selectNode' on 'Range': 1 argument required, but only 0 present.",
+            "Failed to execute 'comparePoint' on 'Range': 2 arguments required, but only 0 present.",
+            "Failed to execute 'insertNode' on 'Range': 1 argument required, but only 0 present."
+        ])
+    );
+    assert_eq!(r["shape"], serde_json::json!([2, "append", false, true, true, true, true]));
+    assert_eq!(r["passthrough"], serde_json::json!(["1", "y", 1, 1]));
+    let p = rt.evaluate("globalThis.__p.then ? 'promise' : 'other'").unwrap();
+    assert_eq!(p, "promise");
+}

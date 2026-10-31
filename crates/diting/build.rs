@@ -154,6 +154,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("stub_members.js", include_str!("js/stub_members.js")),
     // 刀79: primitive/null defaults for the pure-stub getters (loaded right after the stubs exist).
     ("stub_defaults.js", include_str!("js/stub_defaults.js")),
+    // 刀80: WebIDL required-argument ladders for every interface method (GENERATED from the Chrome lengths).
+    ("method_ladders.js", include_str!("js/method_ladders.js")),
     ("sym_fix.js", include_str!("js/sym_fix.js")),
     ("window_extras.js", include_str!("js/window_extras.js")),
     ("shape_fix.js", include_str!("js/shape_fix.js")),
