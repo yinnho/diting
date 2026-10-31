@@ -2002,3 +2002,20 @@ Chrome 145 真值（k90-xshadow/xshadow2/str4/text5–text9 六轮 80+案）钉�
 数字：六轮 probe 引擎腿全 0 diff（gcr 三案按 hostIdx 归一化后 0 diff——原 ±1 是 harness 页 body 前置子差异，算法 delta=0 已证）；shape 936/936 全 0；enum 204/211、instance 127/127、ratchet 66/0 与 k89 全等；cargo test lib 110 失败与 fail-base **逐字节相同**、workspace 46 个 server/session 失败与 k89 基线逐字全等、无任何新失败。
 测试：`knife90_cross_shadow_selection_and_plain_text`（23 行日志断言）。
 **教训**：①**Range.toString 与 Selection.toString 是两条提取路**——同构 range 一个带块换行一个纯拼接，先分清再动手（本刀先拿 text5/6 全 SAME 排除了 Range 侧，避免白改）；②块换行数来自 **UA margin**（div 对 1 个、p 对 2 个）不是「块」本身——无 layout 引擎按标签近似表走，未探标签不编造；③probe 对拍若两侧 harness 页面结构不同（body 前置子），**断言量要归一化**（offset−hostIdx），别把环境差当算法差修；④引擎 native slot 只收标量——**实例上存数组会漏进 Reflect.ownKeys**（k73 own 案当场抓获），非标量状态一律进模块 WeakMap。
+
+## M4 刀91：SVGPointList 真身——points/animatedPoints 活视图 + SVGPoint 铸币正典（2026-10-31）
+
+Chrome 145 真值（k91-points/points2/points3/points4/ctor 五轮 104 案全 0 diff + k91-priv 引擎侧隐私检查）钉死：
+
+- **对象身份**：`points`/`animatedPoints` 是每元素**两个独立缓存对象**（跨读各自自同、互不同）；表本体是 **Proxy 活视图**——裸拿引用后再 `setAttribute`，held 引用上的 ownKeys/index 读全部跟随（attr-change-ownkeys 案）。`getItem(i)` 与 `list[i]` **每次读铸新鲜 SVGPoint 壳**（item-ident/idx-vs-getitem 均 false），但同一槽所有壳**共享一个 plain store** `{x,y,lst}`——读侧身份与数据侧身份是两层。
+- **item 写穿**：`p.x=99` 把属性提交回**空格对**形（"x y" 分隔）；外部 `setAttribute` 后旧壳保旧值、**其写静默丢失**，但提交仍触发并把属性规整为空格形（set `'5,5 6,6'` 读回 `"5 5 6 6"`）——flush 必须 **sync 先于 commit**。
+- **收养别名**：appendItem/insertItemBefore/initialize/replaceItem **按引用收养**传入 point 的 store（detach 后 `s.x=55` 经 insert 可见；同一 item 追加两次=一个 store 两个槽 `"7 8 4 5 7 8"`；跨表 insert 共享直到源表重解析）。
+- **OOB 阶梯**：insertItemBefore 对越界 index（含 `-1`→4294967295）**钳到末尾不报错**；getItem/replaceItem/removeItem 抛 IndexSizeError **两变体消息**——N>M `"The index provided (N) is greater than the maximum bound (M)."`、N===M 加 `or equal to`；显示 index 是 `>>>0` 强制。**参数序=WebIDL**：argc → 类型转换 → 方法检查（类型梯 `"parameter 1 is not of type 'SVGPoint'."`）。
+- **序列化/解析**：`clear()` 和**移除最后一项**都 removeAttribute（getAttribute→null）；其余提交经 Number→String。解析 all-or-nothing：一个非数字 token 杀整表归 0；奇尾数丢；`/[\s,]+/` 切+空片滤。
+- **animatedPoints 全只读面**：所有 mutator 抛 NoModificationAllowedError `"...on 'SVGPointList': This object is read-only."`；其 item 的 x/y setter 抛 `Failed to set the 'x' property on 'SVGPoint': This object is read-only.`；读保持 live。
+- **SVGPoint 构造面**：`new SVGPoint()` **任意参数表**抛 TypeError `"Failed to construct 'SVGPoint': Illegal constructor"`；length=0；globalThis desc writable:true/enumerable:false/configurable:true；prototype.constructor 保留（instanceof 仍真）。Symbol.iterator=Array.prototype.values（sym_fix 已装，Proxy 迭代自动通）。prototype own 序 length→numberOfItems→appendItem→clear→getItem→initialize→insertItemBefore→removeItem→replaceItem→constructor（shape_fix ORDER 精确一致）；getter 名 `'get points'`/`'get length'`。
+
+实现（`svg_root.js`）：SVGPoint 改 `_ps` store 壳+`__diting_svgPoint(store, ro)` 铸币（x/y accessor 经 `__diting_plItemFlush` 写穿，matrixTransform 改走铸币）；SVGPointList 段——`PLST`（proxy→state）/`PLELC`（element→两缓存）WeakMap、`plParse/plCommit/plSync/plMk`、四 trap Proxy（get/has/ownKeys/getOwnPropertyDescriptor，刀77 SVGStringList 家法）、七方法按 ORDER 序 dacc/dmeth、`SVGPolygonElement/SVGPolylineElement` 的 points/animatedPoints 双 getter；ctor face 段常抛 `W` 壳。连带：`ctor_ladders.js` ILLEGAL0 除名、`tail_members.js` 惰性桩删净（同属性两处定义先清场）、`bootstrap.js` getPointAtLength 改走 `__diting_svgPoint`。
+数字：五轮 probe 引擎腿全 0 diff（104 案）；shape 936/936 全 0；enum **207/211**（4 漏=刀90 七漏之子集，tail 桩删除白赚 3 项）；instance 127/127；ratchet 66/0；cargo test lib 110 失败与 fail-base **逐字节相同**、workspace 46 个 server/session 失败逐名全等、无任何新失败。
+测试：`knife91_svg_point_lists`（28 行日志断言）。
+**教训**：①**读侧身份≠数据侧身份**——每次新壳+共享 store 两层分开建模，先探 item-ident 再定结构，别让壳的临时性污染数据的别名性（收养别名案全靠这一分层才对齐）；②**写穿别缓存序列化结果**——flush 若先 commit 后 sync 会把陈旧 stores 数组写出去（iter-spread `2/77`、reattr-write `77 9 8 8` 两案当场抓获），顺序=sync→commit；③**同属性先清场再装**——tail_members 的 fill-if-missing 桩会永久挡住 svg_root 的真装，本刀删桩后 enum 白赚 3 项；④**拔 Illegal-constructor 前先迁内部铸币**——getPointAtLength/matrixTransform 两处 `new SVGPoint()` 全改走 `__diting_svgPoint` 后 ctor 才敢常抛，否则自家先炸。

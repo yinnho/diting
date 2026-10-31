@@ -28141,7 +28141,7 @@ fn knife59_svg_root_face_and_value_types() {
           out.lenConvert = (() => { const l = svg.createSVGLength(); l.newValueSpecifiedUnits(9, 72); l.convertToSpecifiedUnits(10); return [l.value, l.unitType, l.valueAsString]; })();
           out.num = (() => { const n = svg.createSVGNumber(); n.value = 7; return n.value; })();
           out.pt = (() => { const p = svg.createSVGPoint(); p.x = 3; p.y = 4; return [p.x, p.y, p.matrixTransform(svg.createSVGMatrix()).x]; })();
-          out.ptProto = [Object.getOwnPropertyNames(SVGPoint.prototype).join(','), new SVGPoint(1, 2).x];
+          out.ptProto = [Object.getOwnPropertyNames(SVGPoint.prototype).join(','), SVGPoint.length, (() => { try { new SVGPoint(1, 2); return 'no-throw'; } catch (e) { return e.name; } })()];
           out.rect0 = (() => { const r = svg.createSVGRect(); r.width = 9; return [r.x, r.width]; })();
           out.matrix = (() => { const m = svg.createSVGMatrix(); return [m.a, m.d, m.e, m.f]; })();
           out.matrixPure = (() => { const m = svg.createSVGMatrix(); m.a = 2; const t = m.translate(1, 2);
@@ -28196,7 +28196,7 @@ fn knife59_svg_root_face_and_value_types() {
     assert_eq!(v["lenConvert"], serde_json::json!([96, 10, "6pc"]), "convert keeps px, reformats string");
     assert_eq!(v["num"], serde_json::json!(7));
     assert_eq!(v["pt"], serde_json::json!([3, 4, 3]), "matrixTransform computes");
-    assert_eq!(v["ptProto"], serde_json::json!(["x,y,matrixTransform,constructor", 1]), "x/y now prototype accessors");
+    assert_eq!(v["ptProto"], serde_json::json!(["x,y,matrixTransform,constructor", 0, "TypeError"]), "x/y prototype accessors; 刀91 ctor always Illegal constructor, length 0");
     assert_eq!(v["rect0"], serde_json::json!([0, 9]));
     assert_eq!(v["matrix"], serde_json::json!([1, 1, 0, 0]), "identity default");
     assert_eq!(v["matrixPure"], serde_json::json!([2, 0, 0, 2, 2, 2, false]),
@@ -30864,5 +30864,92 @@ async fn knife90_cross_shadow_selection_and_plain_text() {
             ["own", "ok", "0"]
         ]),
         "block newlines (margin=p double, plain div single, span none, br one, tail by end-container children), cross-tree raw String in the base tree, Range later-endpoint collapse, normalized composed lift"
+    );
+}
+
+#[tokio::test]
+async fn knife91_svg_point_lists() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        poly.setAttribute('points', '10,20 30,40 50,60');
+        svg.appendChild(poly); document.body.appendChild(svg);
+        const P = poly.points, AP = poly.animatedPoints;
+        const pt = (x, y) => { const s = svg.createSVGPoint(); s.x = x; s.y = y; return s; };
+        T('shape', () => [P.constructor.name, P.length, P.numberOfItems, P.getItem(2).x + ',' + P.getItem(2).y].join('/'));
+        T('cache', () => [poly.points === P, P === AP, poly.animatedPoints === AP].join('/'));
+        T('fresh', () => [P.getItem(0) === P.getItem(0), P[0] === P.getItem(0), P[0].x].join('/'));
+        T('ownkeys', () => Object.getOwnPropertyNames(P).join(','));
+        T('writethru', () => { const p = P.getItem(0); p.x = 99; return JSON.stringify(poly.getAttribute('points')); });
+        T('live', () => { poly.setAttribute('points', '5,6 7,8'); return P.getItem(1).x + '/' + Object.getOwnPropertyNames(P).join(','); });
+        T('reattr', () => { const p = P.getItem(0); poly.setAttribute('points', '9,9 8,8'); p.x = 77; return p.x + '/' + P.getItem(0).x + '/' + JSON.stringify(poly.getAttribute('points')); });
+        T('oor-gt', () => P.getItem(5));
+        T('oor-neg', () => P.getItem(-1));
+        T('oor-eq', () => P.getItem(2));
+        T('argc', () => P.getItem());
+        T('type', () => P.appendItem({ x: 1, y: 2 }));
+        T('clamp', () => { const r = P.insertItemBefore(pt(1, 1), -1); return r.x + '/' + P.numberOfItems + '/' + P.getItem(P.numberOfItems - 1).x; });
+        T('alias', () => { const s = pt(42, 43); P.insertItemBefore(s, 0); s.x = 55; return P.getItem(0).x; });
+        T('mut', () => { const r = P.replaceItem(pt(7, 7), 0); return [r.x, P.removeItem(0).x, P.initialize(pt(5, 5)).x, P.numberOfItems].join('/'); });
+        T('clear', () => { P.clear(); return P.numberOfItems + '/' + JSON.stringify(poly.getAttribute('points')) + '/' + Object.getOwnPropertyNames(P).join(','); });
+        T('parse', () => { poly.setAttribute('points', '1,x 3 4'); const a = P.numberOfItems; poly.setAttribute('points', '1,2 3'); const b = P.numberOfItems;
+                           poly.setAttribute('points', ' 1e2,3 +4,5'); return a + '/' + b + '/' + P.numberOfItems + '/' + P.getItem(1).x; });
+        T('ap-ro', () => AP.appendItem(pt(1, 1)));
+        T('ap-item', () => { const p = AP.getItem(0); try { p.x = 9; return 'no-throw'; } catch (e) { return e.name; } });
+        T('ap-read', () => AP.numberOfItems + '/' + AP.getItem(0).x);
+        T('serialize', () => { poly.setAttribute('points', '1,2'); P.appendItem(pt(1.5, 2.5)); return JSON.stringify(poly.getAttribute('points')); });
+        T('iter', () => [...P].length + '/' + [...P][0].x);
+        T('polyline', () => { const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); pl.setAttribute('points', '1,2 3,4');
+                              return [pl.points.numberOfItems, pl.animatedPoints.numberOfItems, pl.points === pl.animatedPoints].join('/'); });
+        T('noattr', () => document.createElementNS('http://www.w3.org/2000/svg', 'polygon').points.numberOfItems);
+        T('desc', () => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(poly), 'points');
+                          const e = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(P), 'numberOfItems');
+                          return [d.get.name, !!d.set, d.enumerable, d.configurable, e.get.name].join('/'); });
+        T('ctorface', () => [SVGPoint.length, SVGPoint.name, (() => { try { new SVGPoint(1, 2); return 'no-throw'; } catch (e2) { return e2.name; } })(),
+                             pt(1, 1) instanceof SVGPoint, svg.createSVGPoint().constructor.name].join('/'));
+        T('mt', () => { const s = pt(3, 4); const m = svg.createSVGMatrix(); return s.matrixTransform(m).x; });
+        T('brand', () => { const g = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(P), 'getItem').get; try { g.call({}); return 'no-throw'; } catch (e) { return e.name; } });
+        return JSON.stringify(__log);
+    "#).unwrap();
+    let out = rt.evaluate("JSON.stringify(__log)").unwrap();
+    let log: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        log,
+        serde_json::json!([
+            ["shape", "ok", "SVGPointList/3/3/50,60"],
+            ["cache", "ok", "true/false/true"],
+            ["fresh", "ok", "false/false/10"],
+            ["ownkeys", "ok", "0,1,2"],
+            ["writethru", "ok", "\"99 20 30 40 50 60\""],
+            ["live", "ok", "7/0,1"],
+            ["reattr", "ok", "77/9/\"9 9 8 8\""],
+            ["oor-gt", "IndexSizeError", "Failed to execute 'getItem' on 'SVGPointList': The index provided (5) is greater than the maximum bound (2)."],
+            ["oor-neg", "IndexSizeError", "Failed to execute 'getItem' on 'SVGPointList': The index provided (4294967295) is greater than the maximum bound (2)."],
+            ["oor-eq", "IndexSizeError", "Failed to execute 'getItem' on 'SVGPointList': The index provided (2) is greater than or equal to the maximum bound (2)."],
+            ["argc", "TypeError", "Failed to execute 'getItem' on 'SVGPointList': 1 argument required, but only 0 present."],
+            ["type", "TypeError", "Failed to execute 'appendItem' on 'SVGPointList': parameter 1 is not of type 'SVGPoint'."],
+            ["clamp", "ok", "1/3/1"],
+            ["alias", "ok", "55"],
+            ["mut", "ok", "7/7/5/1"],
+            ["clear", "ok", "0/null/"],
+            ["parse", "ok", "0/1/2/4"],
+            ["ap-ro", "NoModificationAllowedError", "Failed to execute 'appendItem' on 'SVGPointList': This object is read-only."],
+            ["ap-item", "ok", "NoModificationAllowedError"],
+            ["ap-read", "ok", "2/100"],
+            ["serialize", "ok", "\"1 2 1.5 2.5\""],
+            ["iter", "ok", "2/1"],
+            ["polyline", "ok", "2/2/false"],
+            ["noattr", "ok", "0"],
+            ["desc", "ok", "get points/false/true/true/get numberOfItems"],
+            ["ctorface", "ok", "0/SVGPoint/TypeError/true/SVGPoint"],
+            ["mt", "ok", "3"],
+            ["brand", "ok", "TypeError"]
+        ]),
+        "SVGPointList live attribute view: fresh wrappers over shared stores, two OOB message variants, clamp inserts, store aliasing, clear removes the attribute, all-or-nothing parse, animatedPoints read-only + ro item setters, ctor always Illegal constructor"
     );
 }
