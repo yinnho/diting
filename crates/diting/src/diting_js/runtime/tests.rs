@@ -9222,7 +9222,7 @@
             out.uniform2f = typeof gl.uniform2f === 'function';
             out.getContextAttributes = typeof gl.getContextAttributes === 'function' && !!gl.getContextAttributes();
             out.getError = gl.getError() === 0;
-            out.unknownMethod = (function(){ try { return typeof gl.someUnknownMethod === 'function' && gl.someUnknownMethod(1,2) === 0; } catch(e) { return 'threw:' + e.message; } })();
+            out.unknownMethod = (function(){ try { return typeof gl.someUnknownMethod === 'undefined' && (function(){ try { gl.someUnknownMethod(1,2); return false; } catch(e) { return e instanceof TypeError; } })(); } catch(e) { return 'threw:' + e.message; } })();
             return JSON.stringify(out);
         "#).unwrap();
         let v = serde_json::from_str::<serde_json::Value>(res.as_str().unwrap()).unwrap();
@@ -9255,7 +9255,7 @@
         assert_eq!(v["uniform2f"], true, "uniform2f must exist");
         assert_eq!(v["getContextAttributes"], true);
         assert_eq!(v["getError"], true);
-        assert_eq!(v["unknownMethod"], true, "unknown WebGL methods must not throw");
+        assert_eq!(v["unknownMethod"], true, "(刀69) a name Chrome lacks is undefined and calling it is a TypeError — the number-ish Proxy fallback is gone");
     }
 
     #[test]
@@ -9322,23 +9322,23 @@
         assert_eq!(v["instNames1"], 0, "GL1 instance must carry ZERO own props of any kind (only hidden _canvas)");
         assert_eq!(
             v["protoNames1"].as_i64().unwrap(),
-            442,
-            "GL1 prototype own-name count must be exactly Chrome 154's 442 (298 consts + 138 methods + 6 accessors)"
+            443,
+            "GL1 prototype own-name count must be exactly Chrome 145's 443 (298 consts + 138 methods + 6 accessors + makeXRCompatible)"
         );
         assert_eq!(
             v["protoNames2"].as_i64().unwrap(),
-            791,
-            "GL2 prototype own-name count must be exactly Chrome 154's 791 (559 + 226 + 6)"
+            792,
+            "GL2 prototype own-name count must be exactly Chrome 145's 792 (559 + 226 + 6 + makeXRCompatible)"
         );
         assert_eq!(
             v["protoKeys1"].as_i64().unwrap(),
-            441,
-            "GL1 enumerable proto keys = 441 (constructor is non-enumerable)"
+            442,
+            "GL1 enumerable proto keys = 442 (constructor is non-enumerable)"
         );
         assert_eq!(
             v["protoKeys2"].as_i64().unwrap(),
-            790,
-            "GL2 enumerable proto keys = 790"
+            791,
+            "GL2 enumerable proto keys = 791"
         );
         assert_eq!(
             v["constDesc"], serde_json::json!([35633, false, true, false]),
@@ -29188,4 +29188,93 @@ async fn knife68_idb_family() {
     );
     assert_eq!(row(24), serde_json::json!(["closed", "Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing."]));
     assert_eq!(row(25), serde_json::json!(["del", "IDBVersionChangeEvent", 1, null, true]));
+}
+
+/// M4 刀69: the WebGL context surface against Chrome 145 (real software-WebGL
+/// captures, k69 probes): every GL constant exists TWICE (prototype + static,
+/// both e--), the member order is Chrome's (constants after the colorSpace
+/// faces, makeXRCompatible after `constructor`), `new` is an illegal
+/// constructor, the colorSpace faces are per-context rw attributes that
+/// silently ignore bad values, makeXRCompatible is one cached never-settling
+/// promise, creators are distinct functions returning real resource classes,
+/// getExtension is case-insensitive and cached with Chrome's interface tags,
+/// getContextAttributes echoes the requested dictionary in alphabetical order,
+/// and a name the tables lack is undefined (no number-ish Proxy fallback).
+#[tokio::test(flavor = "current_thread")]
+async fn knife69_webgl_surface() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const cv = document.createElement('canvas'); cv.width = 64; cv.height = 32;
+        const gl = cv.getContext('webgl'); const gl2 = document.createElement('canvas').getContext('webgl2');
+        const G1 = WebGLRenderingContext, G2 = WebGL2RenderingContext;
+        t('statics', () => [Object.keys(G1).length, Object.getOwnPropertyNames(G1).length, Object.keys(G2).length, Object.getOwnPropertyNames(G2).length]);
+        t('staticDesc', () => { const d = Object.getOwnPropertyDescriptor(G1, 'DEPTH_TEST'); return [d.value, d.writable, d.enumerable, d.configurable]; });
+        t('staticTail', () => [Object.getOwnPropertyNames(G1).slice(-2), Object.getOwnPropertyNames(G2).slice(-1)]);
+        t('rgb8', () => [G1.RGB8, G1.prototype.RGB8, G2.RGB8, G2.prototype.RGBA8]);
+        t('protoDesc', () => { const d = Object.getOwnPropertyDescriptor(G2.prototype, 'DEPTH_TEST'); return [d.writable, d.enumerable, d.configurable]; });
+        t('orderHead', () => Object.getOwnPropertyNames(G1.prototype).slice(0, 7));
+        t('orderTail', () => Object.getOwnPropertyNames(G1.prototype).slice(-4));
+        t('orderTail2', () => Object.getOwnPropertyNames(G2.prototype).slice(-3));
+        t('illegal', () => { try { new G1(); return 'NO'; } catch (e) { return e.message; } });
+        t('mxrShape', () => { const d = Object.getOwnPropertyDescriptor(G1.prototype, 'makeXRCompatible'); return [d.value.length, d.value.name, d.writable, d.enumerable, d.configurable]; });
+        t('mxrSame', () => [gl.makeXRCompatible() === gl.makeXRCompatible(), gl.makeXRCompatible() !== gl2.makeXRCompatible(), gl.makeXRCompatible() instanceof Promise]);
+        t('cs', () => { const r = [gl.drawingBufferColorSpace, gl.unpackColorSpace]; gl.drawingBufferColorSpace = 'display-p3'; gl.unpackColorSpace = 'display-p3'; r.push(gl.drawingBufferColorSpace, gl.unpackColorSpace); gl.drawingBufferColorSpace = 'bogus'; gl.unpackColorSpace = null; r.push(gl.drawingBufferColorSpace, gl.unpackColorSpace, gl2.drawingBufferColorSpace); return r; });
+        t('csNames', () => ['drawingBufferColorSpace', 'unpackColorSpace'].map(k => { const d = Object.getOwnPropertyDescriptor(G1.prototype, k); return [d.get.name, d.set.name, d.set.length]; }));
+        t('csForeign', () => { try { Object.getOwnPropertyDescriptor(G1.prototype, 'drawingBufferColorSpace').set.call({}, 'srgb'); return 'NO'; } catch (e) { return e.message; } });
+        t('lens', () => ['createBuffer', 'createFramebuffer', 'createProgram', 'createRenderbuffer', 'createTexture', 'createShader'].map(k => gl[k].length).concat(['createQuery', 'fenceSync'].map(k => gl2[k].length)));
+        t('handles', () => [gl.createBuffer(), gl.createTexture(), gl.createShader(gl.VERTEX_SHADER), gl2.createVertexArray(), gl2.fenceSync(gl2.SYNC_GPU_COMMANDS_COMPLETE, 0)].map(h => Object.prototype.toString.call(h)));
+        t('fenceGl1', () => [typeof gl.fenceSync, 'fenceSync' in gl, typeof gl.nonsense, typeof gl.TEXTURE_3D, typeof gl.then, typeof gl2.fenceSync]);
+        t('extTags', () => ['WEBGL_debug_renderer_info', 'EXT_texture_filter_anisotropic', 'WEBGL_lose_context', 'OES_vertex_array_object', 'ANGLE_instanced_arrays'].map(n => Object.prototype.toString.call(gl.getExtension(n))));
+        t('extCache', () => [gl.getExtension('WEBGL_lose_context') === gl.getExtension('WEBGL_lose_context'), gl.getExtension('webgl_lose_context') === gl.getExtension('WEBGL_lose_context'), gl.getExtension('WEBGL_lose_context') !== gl2.getExtension('WEBGL_lose_context'), gl.getExtension('NOPE')]);
+        t('extShape', () => { const e = gl.getExtension('OES_vertex_array_object'); const p = Object.getPrototypeOf(e); return [Reflect.ownKeys(e).length, Object.getOwnPropertyNames(p), p.VERTEX_ARRAY_BINDING_OES, p.createVertexArrayOES.length, Object.prototype.hasOwnProperty.call(p, 'constructor'), Object.getPrototypeOf(p) === Object.prototype]; });
+        t('extConst', () => { const e = gl.getExtension('WEBGL_debug_renderer_info'); const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e), 'UNMASKED_VENDOR_WEBGL'); return [e.UNMASKED_VENDOR_WEBGL, e.UNMASKED_RENDERER_WEBGL, d.writable, d.configurable]; });
+        t('extNoArg', () => { try { gl.getExtension(); return 'NO'; } catch (e) { return e.message; } });
+        t('attrs', () => Object.keys(gl.getContextAttributes()));
+        t('attrsReq', () => JSON.stringify(document.createElement('canvas').getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }).getContextAttributes()));
+        t('attrsBad', () => { try { document.createElement('canvas').getContext('webgl', { powerPreference: 'x' }); return 'NO'; } catch (e) { return e.name; } });
+        t('strict', () => { 'use strict'; const r = []; for (const f of [() => { G1.DEPTH_TEST = 1; }, () => { G1.prototype.DEPTH_TEST = 1; }, () => { gl.DEPTH_TEST = 1; }]) { try { f(); r.push('silent'); } catch (e) { r.push(e.name); } } return r; });
+        t('own', () => { gl.__x = 5; return [Reflect.ownKeys(gl2).length, Reflect.ownKeys(gl), gl.__x]; });
+        t('tag', () => [Object.prototype.toString.call(gl), gl instanceof G1, gl2 instanceof G2, gl.canvas === cv, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.drawingBufferFormat]);
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["statics"], serde_json::json!([298, 301, 559, 562]));
+    assert_eq!(o["staticDesc"], serde_json::json!([2929, false, true, false]));
+    assert_eq!(o["staticTail"], serde_json::json!([["RGB8", "RGBA8"], ["MAX_CLIENT_WAIT_TIMEOUT_WEBGL"]]));
+    assert_eq!(o["rgb8"], serde_json::json!([32849, 32849, 32849, 32856]));
+    assert_eq!(o["protoDesc"], serde_json::json!([false, true, false]));
+    assert_eq!(o["orderHead"], serde_json::json!(["canvas", "drawingBufferWidth", "drawingBufferHeight", "drawingBufferColorSpace", "unpackColorSpace", "DEPTH_BUFFER_BIT", "STENCIL_BUFFER_BIT"]));
+    assert_eq!(o["orderTail"], serde_json::json!(["RGBA8", "drawingBufferStorage", "constructor", "makeXRCompatible"]));
+    assert_eq!(o["orderTail2"], serde_json::json!(["drawingBufferStorage", "constructor", "makeXRCompatible"]));
+    assert_eq!(o["illegal"], "Failed to construct 'WebGLRenderingContext': Illegal constructor");
+    assert_eq!(o["mxrShape"], serde_json::json!([0, "makeXRCompatible", true, true, true]));
+    assert_eq!(o["mxrSame"], serde_json::json!([true, true, true]));
+    assert_eq!(o["cs"], serde_json::json!(["srgb", "srgb", "display-p3", "display-p3", "display-p3", "display-p3", "srgb"]));
+    assert_eq!(o["csNames"], serde_json::json!([["get drawingBufferColorSpace", "set drawingBufferColorSpace", 1], ["get unpackColorSpace", "set unpackColorSpace", 1]]));
+    assert_eq!(o["csForeign"], "Illegal invocation");
+    assert_eq!(o["lens"], serde_json::json!([0, 0, 0, 0, 0, 1, 0, 2]));
+    assert_eq!(o["handles"], serde_json::json!(["[object WebGLBuffer]", "[object WebGLTexture]", "[object WebGLShader]", "[object WebGLVertexArrayObject]", "[object WebGLSync]"]));
+    assert_eq!(o["fenceGl1"], serde_json::json!(["undefined", false, "undefined", "undefined", "undefined", "function"]));
+    assert_eq!(o["extTags"], serde_json::json!(["[object WebGLDebugRendererInfo]", "[object EXTTextureFilterAnisotropic]", "[object WebGLLoseContext]", "[object OESVertexArrayObject]", "[object ANGLEInstancedArrays]"]));
+    assert_eq!(o["extCache"], serde_json::json!([true, true, true, null]));
+    assert_eq!(
+        o["extShape"],
+        serde_json::json!([0, ["VERTEX_ARRAY_BINDING_OES", "bindVertexArrayOES", "createVertexArrayOES", "deleteVertexArrayOES", "isVertexArrayOES"], 34229, 0, false, true])
+    );
+    assert_eq!(o["extConst"], serde_json::json!([37445, 37446, false, false]));
+    assert_eq!(o["extNoArg"], "Failed to execute 'getExtension' on 'WebGLRenderingContext': 1 argument required, but only 0 present.");
+    assert_eq!(
+        o["attrs"],
+        serde_json::json!(["alpha", "antialias", "depth", "desynchronized", "failIfMajorPerformanceCaveat", "powerPreference", "premultipliedAlpha", "preserveDrawingBuffer", "stencil", "xrCompatible"])
+    );
+    assert_eq!(
+        o["attrsReq"],
+        serde_json::json!("{\"alpha\":false,\"antialias\":false,\"depth\":false,\"desynchronized\":false,\"failIfMajorPerformanceCaveat\":false,\"powerPreference\":\"high-performance\",\"premultipliedAlpha\":true,\"preserveDrawingBuffer\":true,\"stencil\":true,\"xrCompatible\":false}")
+    );
+    assert_eq!(o["attrsBad"], "TypeError");
+    assert_eq!(o["strict"], serde_json::json!(["TypeError", "TypeError", "TypeError"]));
+    assert_eq!(o["own"], serde_json::json!([0, ["__x"], 5]));
+    assert_eq!(o["tag"], serde_json::json!(["[object WebGLRenderingContext]", true, true, true, 64, 32, 32856]));
 }

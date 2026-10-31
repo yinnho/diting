@@ -67,9 +67,8 @@ body += '''  const apply = (obj, ent) => {
       } catch (e) {}
     }
   };
-  for (const n of Object.keys(PROTO)) { const C = globalThis[n]; if (typeof C === 'function' && C.prototype) apply(C.prototype, PROTO[n]); }
-  for (const n of Object.keys(STAT)) { const C = globalThis[n]; if (typeof C === 'function') apply(C, STAT[n]); }
-  // own-key order: engine-only members first (current order), then Chrome's order for the common members;
+  // own-key order (M4 刀69: BEFORE the flag pass — a member the flag pass seals non-configurable can no longer be
+  // re-added, so sealing last lets every member reach Chrome's position first): engine-only members first (current order), then Chrome's order for the common members;
   // every configurable key is deleted and re-added so the property creation order becomes the target order.
   for (const n of Object.keys(ORDER)) {
     const C = globalThis[n];
@@ -84,6 +83,8 @@ body += '''  const apply = (obj, ent) => {
       }
     } catch (e) {}
   }
+  for (const n of Object.keys(PROTO)) { const C = globalThis[n]; if (typeof C === 'function' && C.prototype) apply(C.prototype, PROTO[n]); }
+  for (const n of Object.keys(STAT)) { const C = globalThis[n]; if (typeof C === 'function') apply(C, STAT[n]); }
   for (const n of Object.keys(CTOR)) {
     const C = globalThis[n];
     try { if (typeof C === 'function') Object.defineProperty(C, 'length', { value: CTOR[n], configurable: true }); } catch (e) {}

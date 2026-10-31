@@ -1,0 +1,2392 @@
+{
+ "gl1": {
+  "ANGLE_instanced_arrays": {
+   "hasCtor": false,
+   "members": [
+    [
+     "VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE",
+     "n",
+     35070,
+     "e--"
+    ],
+    [
+     "drawArraysInstancedANGLE",
+     "f",
+     4,
+     "ecw"
+    ],
+    [
+     "drawElementsInstancedANGLE",
+     "f",
+     5,
+     "ecw"
+    ],
+    [
+     "vertexAttribDivisorANGLE",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object ANGLEInstancedArrays]",
+   "same": true,
+   "tag": "[object ANGLEInstancedArrays]"
+  },
+  "EXT_blend_minmax": {
+   "hasCtor": false,
+   "members": [
+    [
+     "MIN_EXT",
+     "n",
+     32775,
+     "e--"
+    ],
+    [
+     "MAX_EXT",
+     "n",
+     32776,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTBlendMinMax]",
+   "same": true,
+   "tag": "[object EXTBlendMinMax]"
+  },
+  "EXT_clip_control": {
+   "hasCtor": false,
+   "members": [
+    [
+     "LOWER_LEFT_EXT",
+     "n",
+     36001,
+     "e--"
+    ],
+    [
+     "UPPER_LEFT_EXT",
+     "n",
+     36002,
+     "e--"
+    ],
+    [
+     "NEGATIVE_ONE_TO_ONE_EXT",
+     "n",
+     37726,
+     "e--"
+    ],
+    [
+     "ZERO_TO_ONE_EXT",
+     "n",
+     37727,
+     "e--"
+    ],
+    [
+     "CLIP_ORIGIN_EXT",
+     "n",
+     37724,
+     "e--"
+    ],
+    [
+     "CLIP_DEPTH_MODE_EXT",
+     "n",
+     37725,
+     "e--"
+    ],
+    [
+     "clipControlEXT",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTClipControl]",
+   "same": true,
+   "tag": "[object EXTClipControl]"
+  },
+  "EXT_color_buffer_half_float": {
+   "hasCtor": false,
+   "members": [
+    [
+     "RGBA16F_EXT",
+     "n",
+     34842,
+     "e--"
+    ],
+    [
+     "RGB16F_EXT",
+     "n",
+     34843,
+     "e--"
+    ],
+    [
+     "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT",
+     "n",
+     33297,
+     "e--"
+    ],
+    [
+     "UNSIGNED_NORMALIZED_EXT",
+     "n",
+     35863,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTColorBufferHalfFloat]",
+   "same": true,
+   "tag": "[object EXTColorBufferHalfFloat]"
+  },
+  "EXT_depth_clamp": {
+   "hasCtor": false,
+   "members": [
+    [
+     "DEPTH_CLAMP_EXT",
+     "n",
+     34383,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTDepthClamp]",
+   "same": true,
+   "tag": "[object EXTDepthClamp]"
+  },
+  "EXT_disjoint_timer_query": {
+   "hasCtor": false,
+   "members": [
+    [
+     "QUERY_COUNTER_BITS_EXT",
+     "n",
+     34916,
+     "e--"
+    ],
+    [
+     "CURRENT_QUERY_EXT",
+     "n",
+     34917,
+     "e--"
+    ],
+    [
+     "QUERY_RESULT_EXT",
+     "n",
+     34918,
+     "e--"
+    ],
+    [
+     "QUERY_RESULT_AVAILABLE_EXT",
+     "n",
+     34919,
+     "e--"
+    ],
+    [
+     "TIME_ELAPSED_EXT",
+     "n",
+     35007,
+     "e--"
+    ],
+    [
+     "TIMESTAMP_EXT",
+     "n",
+     36392,
+     "e--"
+    ],
+    [
+     "GPU_DISJOINT_EXT",
+     "n",
+     36795,
+     "e--"
+    ],
+    [
+     "beginQueryEXT",
+     "f",
+     2,
+     "ecw"
+    ],
+    [
+     "createQueryEXT",
+     "f",
+     0,
+     "ecw"
+    ],
+    [
+     "deleteQueryEXT",
+     "f",
+     1,
+     "ecw"
+    ],
+    [
+     "endQueryEXT",
+     "f",
+     1,
+     "ecw"
+    ],
+    [
+     "getQueryEXT",
+     "f",
+     2,
+     "ecw"
+    ],
+    [
+     "getQueryObjectEXT",
+     "f",
+     2,
+     "ecw"
+    ],
+    [
+     "isQueryEXT",
+     "f",
+     1,
+     "ecw"
+    ],
+    [
+     "queryCounterEXT",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTDisjointTimerQuery]",
+   "same": true,
+   "tag": "[object EXTDisjointTimerQuery]"
+  },
+  "EXT_float_blend": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTFloatBlend]",
+   "same": true,
+   "tag": "[object EXTFloatBlend]"
+  },
+  "EXT_frag_depth": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTFragDepth]",
+   "same": true,
+   "tag": "[object EXTFragDepth]"
+  },
+  "EXT_polygon_offset_clamp": {
+   "hasCtor": false,
+   "members": [
+    [
+     "POLYGON_OFFSET_CLAMP_EXT",
+     "n",
+     36379,
+     "e--"
+    ],
+    [
+     "polygonOffsetClampEXT",
+     "f",
+     3,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTPolygonOffsetClamp]",
+   "same": true,
+   "tag": "[object EXTPolygonOffsetClamp]"
+  },
+  "EXT_sRGB": {
+   "hasCtor": false,
+   "members": [
+    [
+     "SRGB_EXT",
+     "n",
+     35904,
+     "e--"
+    ],
+    [
+     "SRGB_ALPHA_EXT",
+     "n",
+     35906,
+     "e--"
+    ],
+    [
+     "SRGB8_ALPHA8_EXT",
+     "n",
+     35907,
+     "e--"
+    ],
+    [
+     "FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT",
+     "n",
+     33296,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTsRGB]",
+   "same": true,
+   "tag": "[object EXTsRGB]"
+  },
+  "EXT_shader_texture_lod": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTShaderTextureLOD]",
+   "same": true,
+   "tag": "[object EXTShaderTextureLOD]"
+  },
+  "EXT_texture_compression_bptc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGBA_BPTC_UNORM_EXT",
+     "n",
+     36492,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT",
+     "n",
+     36493,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB_BPTC_SIGNED_FLOAT_EXT",
+     "n",
+     36494,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_EXT",
+     "n",
+     36495,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureCompressionBPTC]",
+   "same": true,
+   "tag": "[object EXTTextureCompressionBPTC]"
+  },
+  "EXT_texture_compression_rgtc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RED_RGTC1_EXT",
+     "n",
+     36283,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_RED_RGTC1_EXT",
+     "n",
+     36284,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RED_GREEN_RGTC2_EXT",
+     "n",
+     36285,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT",
+     "n",
+     36286,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureCompressionRGTC]",
+   "same": true,
+   "tag": "[object EXTTextureCompressionRGTC]"
+  },
+  "EXT_texture_filter_anisotropic": {
+   "hasCtor": false,
+   "members": [
+    [
+     "TEXTURE_MAX_ANISOTROPY_EXT",
+     "n",
+     34046,
+     "e--"
+    ],
+    [
+     "MAX_TEXTURE_MAX_ANISOTROPY_EXT",
+     "n",
+     34047,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureFilterAnisotropic]",
+   "same": true,
+   "tag": "[object EXTTextureFilterAnisotropic]"
+  },
+  "EXT_texture_mirror_clamp_to_edge": {
+   "hasCtor": false,
+   "members": [
+    [
+     "MIRROR_CLAMP_TO_EDGE_EXT",
+     "n",
+     34627,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureMirrorClampToEdge]",
+   "same": true,
+   "tag": "[object EXTTextureMirrorClampToEdge]"
+  },
+  "OES_element_index_uint": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESElementIndexUint]",
+   "same": true,
+   "tag": "[object OESElementIndexUint]"
+  },
+  "OES_fbo_render_mipmap": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESFboRenderMipmap]",
+   "same": true,
+   "tag": "[object OESFboRenderMipmap]"
+  },
+  "OES_standard_derivatives": {
+   "hasCtor": false,
+   "members": [
+    [
+     "FRAGMENT_SHADER_DERIVATIVE_HINT_OES",
+     "n",
+     35723,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESStandardDerivatives]",
+   "same": true,
+   "tag": "[object OESStandardDerivatives]"
+  },
+  "OES_texture_float": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESTextureFloat]",
+   "same": true,
+   "tag": "[object OESTextureFloat]"
+  },
+  "OES_texture_float_linear": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESTextureFloatLinear]",
+   "same": true,
+   "tag": "[object OESTextureFloatLinear]"
+  },
+  "OES_texture_half_float": {
+   "hasCtor": false,
+   "members": [
+    [
+     "HALF_FLOAT_OES",
+     "n",
+     36193,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESTextureHalfFloat]",
+   "same": true,
+   "tag": "[object OESTextureHalfFloat]"
+  },
+  "OES_texture_half_float_linear": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESTextureHalfFloatLinear]",
+   "same": true,
+   "tag": "[object OESTextureHalfFloatLinear]"
+  },
+  "OES_vertex_array_object": {
+   "hasCtor": false,
+   "members": [
+    [
+     "VERTEX_ARRAY_BINDING_OES",
+     "n",
+     34229,
+     "e--"
+    ],
+    [
+     "bindVertexArrayOES",
+     "f",
+     0,
+     "ecw"
+    ],
+    [
+     "createVertexArrayOES",
+     "f",
+     0,
+     "ecw"
+    ],
+    [
+     "deleteVertexArrayOES",
+     "f",
+     0,
+     "ecw"
+    ],
+    [
+     "isVertexArrayOES",
+     "f",
+     0,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESVertexArrayObject]",
+   "same": true,
+   "tag": "[object OESVertexArrayObject]"
+  },
+  "WEBGL_color_buffer_float": {
+   "hasCtor": false,
+   "members": [
+    [
+     "RGBA32F_EXT",
+     "n",
+     34836,
+     "e--"
+    ],
+    [
+     "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT",
+     "n",
+     33297,
+     "e--"
+    ],
+    [
+     "UNSIGNED_NORMALIZED_EXT",
+     "n",
+     35863,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLColorBufferFloat]",
+   "same": true,
+   "tag": "[object WebGLColorBufferFloat]"
+  },
+  "WEBGL_compressed_texture_astc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGBA_ASTC_4x4_KHR",
+     "n",
+     37808,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_5x4_KHR",
+     "n",
+     37809,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_5x5_KHR",
+     "n",
+     37810,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_6x5_KHR",
+     "n",
+     37811,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_6x6_KHR",
+     "n",
+     37812,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_8x5_KHR",
+     "n",
+     37813,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_8x6_KHR",
+     "n",
+     37814,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_8x8_KHR",
+     "n",
+     37815,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x5_KHR",
+     "n",
+     37816,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x6_KHR",
+     "n",
+     37817,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x8_KHR",
+     "n",
+     37818,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x10_KHR",
+     "n",
+     37819,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_12x10_KHR",
+     "n",
+     37820,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_12x12_KHR",
+     "n",
+     37821,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR",
+     "n",
+     37840,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR",
+     "n",
+     37841,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR",
+     "n",
+     37842,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR",
+     "n",
+     37843,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR",
+     "n",
+     37844,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR",
+     "n",
+     37845,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR",
+     "n",
+     37846,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR",
+     "n",
+     37847,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR",
+     "n",
+     37848,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR",
+     "n",
+     37849,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR",
+     "n",
+     37850,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR",
+     "n",
+     37851,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR",
+     "n",
+     37852,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR",
+     "n",
+     37853,
+     "e--"
+    ],
+    [
+     "getSupportedProfiles",
+     "f",
+     0,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureASTC]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureASTC]"
+  },
+  "WEBGL_compressed_texture_etc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_R11_EAC",
+     "n",
+     37488,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_R11_EAC",
+     "n",
+     37489,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RG11_EAC",
+     "n",
+     37490,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_RG11_EAC",
+     "n",
+     37491,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB8_ETC2",
+     "n",
+     37492,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ETC2",
+     "n",
+     37493,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2",
+     "n",
+     37494,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2",
+     "n",
+     37495,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA8_ETC2_EAC",
+     "n",
+     37496,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ETC2_EAC",
+     "n",
+     37497,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureETC]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureETC]"
+  },
+  "WEBGL_compressed_texture_etc1": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGB_ETC1_WEBGL",
+     "n",
+     36196,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureETC1]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureETC1]"
+  },
+  "WEBGL_compressed_texture_s3tc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGB_S3TC_DXT1_EXT",
+     "n",
+     33776,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_S3TC_DXT1_EXT",
+     "n",
+     33777,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_S3TC_DXT3_EXT",
+     "n",
+     33778,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_S3TC_DXT5_EXT",
+     "n",
+     33779,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureS3TC]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureS3TC]"
+  },
+  "WEBGL_compressed_texture_s3tc_srgb": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_SRGB_S3TC_DXT1_EXT",
+     "n",
+     35916,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT",
+     "n",
+     35917,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT",
+     "n",
+     35918,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT",
+     "n",
+     35919,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureS3TCsRGB]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureS3TCsRGB]"
+  },
+  "WEBGL_debug_renderer_info": {
+   "hasCtor": false,
+   "members": [
+    [
+     "UNMASKED_VENDOR_WEBGL",
+     "n",
+     37445,
+     "e--"
+    ],
+    [
+     "UNMASKED_RENDERER_WEBGL",
+     "n",
+     37446,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLDebugRendererInfo]",
+   "same": true,
+   "tag": "[object WebGLDebugRendererInfo]"
+  },
+  "WEBGL_debug_shaders": {
+   "hasCtor": false,
+   "members": [
+    [
+     "getTranslatedShaderSource",
+     "f",
+     1,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLDebugShaders]",
+   "same": true,
+   "tag": "[object WebGLDebugShaders]"
+  },
+  "WEBGL_depth_texture": {
+   "hasCtor": false,
+   "members": [
+    [
+     "UNSIGNED_INT_24_8_WEBGL",
+     "n",
+     34042,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLDepthTexture]",
+   "same": true,
+   "tag": "[object WebGLDepthTexture]"
+  },
+  "WEBGL_draw_buffers": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COLOR_ATTACHMENT0_WEBGL",
+     "n",
+     36064,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT1_WEBGL",
+     "n",
+     36065,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT2_WEBGL",
+     "n",
+     36066,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT3_WEBGL",
+     "n",
+     36067,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT4_WEBGL",
+     "n",
+     36068,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT5_WEBGL",
+     "n",
+     36069,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT6_WEBGL",
+     "n",
+     36070,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT7_WEBGL",
+     "n",
+     36071,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT8_WEBGL",
+     "n",
+     36072,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT9_WEBGL",
+     "n",
+     36073,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT10_WEBGL",
+     "n",
+     36074,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT11_WEBGL",
+     "n",
+     36075,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT12_WEBGL",
+     "n",
+     36076,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT13_WEBGL",
+     "n",
+     36077,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT14_WEBGL",
+     "n",
+     36078,
+     "e--"
+    ],
+    [
+     "COLOR_ATTACHMENT15_WEBGL",
+     "n",
+     36079,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER0_WEBGL",
+     "n",
+     34853,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER1_WEBGL",
+     "n",
+     34854,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER2_WEBGL",
+     "n",
+     34855,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER3_WEBGL",
+     "n",
+     34856,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER4_WEBGL",
+     "n",
+     34857,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER5_WEBGL",
+     "n",
+     34858,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER6_WEBGL",
+     "n",
+     34859,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER7_WEBGL",
+     "n",
+     34860,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER8_WEBGL",
+     "n",
+     34861,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER9_WEBGL",
+     "n",
+     34862,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER10_WEBGL",
+     "n",
+     34863,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER11_WEBGL",
+     "n",
+     34864,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER12_WEBGL",
+     "n",
+     34865,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER13_WEBGL",
+     "n",
+     34866,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER14_WEBGL",
+     "n",
+     34867,
+     "e--"
+    ],
+    [
+     "DRAW_BUFFER15_WEBGL",
+     "n",
+     34868,
+     "e--"
+    ],
+    [
+     "MAX_COLOR_ATTACHMENTS_WEBGL",
+     "n",
+     36063,
+     "e--"
+    ],
+    [
+     "MAX_DRAW_BUFFERS_WEBGL",
+     "n",
+     34852,
+     "e--"
+    ],
+    [
+     "drawBuffersWEBGL",
+     "f",
+     1,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLDrawBuffers]",
+   "same": true,
+   "tag": "[object WebGLDrawBuffers]"
+  },
+  "WEBGL_lose_context": {
+   "hasCtor": false,
+   "members": [
+    [
+     "loseContext",
+     "f",
+     0,
+     "ecw"
+    ],
+    [
+     "restoreContext",
+     "f",
+     0,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLLoseContext]",
+   "same": true,
+   "tag": "[object WebGLLoseContext]"
+  },
+  "WEBGL_multi_draw": {
+   "hasCtor": false,
+   "members": [
+    [
+     "multiDrawArraysInstancedWEBGL",
+     "f",
+     8,
+     "ecw"
+    ],
+    [
+     "multiDrawArraysWEBGL",
+     "f",
+     6,
+     "ecw"
+    ],
+    [
+     "multiDrawElementsInstancedWEBGL",
+     "f",
+     9,
+     "ecw"
+    ],
+    [
+     "multiDrawElementsWEBGL",
+     "f",
+     7,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLMultiDraw]",
+   "same": true,
+   "tag": "[object WebGLMultiDraw]"
+  },
+  "WEBGL_polygon_mode": {
+   "hasCtor": false,
+   "members": [
+    [
+     "POLYGON_MODE_WEBGL",
+     "n",
+     2880,
+     "e--"
+    ],
+    [
+     "POLYGON_OFFSET_LINE_WEBGL",
+     "n",
+     10754,
+     "e--"
+    ],
+    [
+     "LINE_WEBGL",
+     "n",
+     6913,
+     "e--"
+    ],
+    [
+     "FILL_WEBGL",
+     "n",
+     6914,
+     "e--"
+    ],
+    [
+     "polygonModeWEBGL",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLPolygonMode]",
+   "same": true,
+   "tag": "[object WebGLPolygonMode]"
+  }
+ },
+ "gl1_supported": [
+  "ANGLE_instanced_arrays",
+  "EXT_blend_minmax",
+  "EXT_clip_control",
+  "EXT_color_buffer_half_float",
+  "EXT_depth_clamp",
+  "EXT_disjoint_timer_query",
+  "EXT_float_blend",
+  "EXT_frag_depth",
+  "EXT_polygon_offset_clamp",
+  "EXT_shader_texture_lod",
+  "EXT_texture_compression_bptc",
+  "EXT_texture_compression_rgtc",
+  "EXT_texture_filter_anisotropic",
+  "EXT_texture_mirror_clamp_to_edge",
+  "EXT_sRGB",
+  "OES_element_index_uint",
+  "OES_fbo_render_mipmap",
+  "OES_standard_derivatives",
+  "OES_texture_float",
+  "OES_texture_float_linear",
+  "OES_texture_half_float",
+  "OES_texture_half_float_linear",
+  "OES_vertex_array_object",
+  "WEBGL_color_buffer_float",
+  "WEBGL_compressed_texture_astc",
+  "WEBGL_compressed_texture_etc",
+  "WEBGL_compressed_texture_etc1",
+  "WEBGL_compressed_texture_s3tc",
+  "WEBGL_compressed_texture_s3tc_srgb",
+  "WEBGL_debug_renderer_info",
+  "WEBGL_debug_shaders",
+  "WEBGL_depth_texture",
+  "WEBGL_draw_buffers",
+  "WEBGL_lose_context",
+  "WEBGL_multi_draw",
+  "WEBGL_polygon_mode"
+ ],
+ "gl1_unknown": null,
+ "gl2": {
+  "EXT_clip_control": {
+   "hasCtor": false,
+   "members": [
+    [
+     "LOWER_LEFT_EXT",
+     "n",
+     36001,
+     "e--"
+    ],
+    [
+     "UPPER_LEFT_EXT",
+     "n",
+     36002,
+     "e--"
+    ],
+    [
+     "NEGATIVE_ONE_TO_ONE_EXT",
+     "n",
+     37726,
+     "e--"
+    ],
+    [
+     "ZERO_TO_ONE_EXT",
+     "n",
+     37727,
+     "e--"
+    ],
+    [
+     "CLIP_ORIGIN_EXT",
+     "n",
+     37724,
+     "e--"
+    ],
+    [
+     "CLIP_DEPTH_MODE_EXT",
+     "n",
+     37725,
+     "e--"
+    ],
+    [
+     "clipControlEXT",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTClipControl]",
+   "same": true,
+   "tag": "[object EXTClipControl]"
+  },
+  "EXT_color_buffer_float": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTColorBufferFloat]",
+   "same": true,
+   "tag": "[object EXTColorBufferFloat]"
+  },
+  "EXT_color_buffer_half_float": {
+   "hasCtor": false,
+   "members": [
+    [
+     "RGBA16F_EXT",
+     "n",
+     34842,
+     "e--"
+    ],
+    [
+     "RGB16F_EXT",
+     "n",
+     34843,
+     "e--"
+    ],
+    [
+     "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT",
+     "n",
+     33297,
+     "e--"
+    ],
+    [
+     "UNSIGNED_NORMALIZED_EXT",
+     "n",
+     35863,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTColorBufferHalfFloat]",
+   "same": true,
+   "tag": "[object EXTColorBufferHalfFloat]"
+  },
+  "EXT_conservative_depth": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTConservativeDepth]",
+   "same": true,
+   "tag": "[object EXTConservativeDepth]"
+  },
+  "EXT_depth_clamp": {
+   "hasCtor": false,
+   "members": [
+    [
+     "DEPTH_CLAMP_EXT",
+     "n",
+     34383,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTDepthClamp]",
+   "same": true,
+   "tag": "[object EXTDepthClamp]"
+  },
+  "EXT_disjoint_timer_query_webgl2": {
+   "hasCtor": false,
+   "members": [
+    [
+     "QUERY_COUNTER_BITS_EXT",
+     "n",
+     34916,
+     "e--"
+    ],
+    [
+     "TIME_ELAPSED_EXT",
+     "n",
+     35007,
+     "e--"
+    ],
+    [
+     "TIMESTAMP_EXT",
+     "n",
+     36392,
+     "e--"
+    ],
+    [
+     "GPU_DISJOINT_EXT",
+     "n",
+     36795,
+     "e--"
+    ],
+    [
+     "queryCounterEXT",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTDisjointTimerQueryWebGL2]",
+   "same": true,
+   "tag": "[object EXTDisjointTimerQueryWebGL2]"
+  },
+  "EXT_float_blend": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTFloatBlend]",
+   "same": true,
+   "tag": "[object EXTFloatBlend]"
+  },
+  "EXT_polygon_offset_clamp": {
+   "hasCtor": false,
+   "members": [
+    [
+     "POLYGON_OFFSET_CLAMP_EXT",
+     "n",
+     36379,
+     "e--"
+    ],
+    [
+     "polygonOffsetClampEXT",
+     "f",
+     3,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTPolygonOffsetClamp]",
+   "same": true,
+   "tag": "[object EXTPolygonOffsetClamp]"
+  },
+  "EXT_texture_compression_bptc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGBA_BPTC_UNORM_EXT",
+     "n",
+     36492,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT",
+     "n",
+     36493,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB_BPTC_SIGNED_FLOAT_EXT",
+     "n",
+     36494,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_EXT",
+     "n",
+     36495,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureCompressionBPTC]",
+   "same": true,
+   "tag": "[object EXTTextureCompressionBPTC]"
+  },
+  "EXT_texture_compression_rgtc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RED_RGTC1_EXT",
+     "n",
+     36283,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_RED_RGTC1_EXT",
+     "n",
+     36284,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RED_GREEN_RGTC2_EXT",
+     "n",
+     36285,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT",
+     "n",
+     36286,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureCompressionRGTC]",
+   "same": true,
+   "tag": "[object EXTTextureCompressionRGTC]"
+  },
+  "EXT_texture_filter_anisotropic": {
+   "hasCtor": false,
+   "members": [
+    [
+     "TEXTURE_MAX_ANISOTROPY_EXT",
+     "n",
+     34046,
+     "e--"
+    ],
+    [
+     "MAX_TEXTURE_MAX_ANISOTROPY_EXT",
+     "n",
+     34047,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureFilterAnisotropic]",
+   "same": true,
+   "tag": "[object EXTTextureFilterAnisotropic]"
+  },
+  "EXT_texture_mirror_clamp_to_edge": {
+   "hasCtor": false,
+   "members": [
+    [
+     "MIRROR_CLAMP_TO_EDGE_EXT",
+     "n",
+     34627,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object EXTTextureMirrorClampToEdge]",
+   "same": true,
+   "tag": "[object EXTTextureMirrorClampToEdge]"
+  },
+  "NV_shader_noperspective_interpolation": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object NVShaderNoperspectiveInterpolation]",
+   "same": true,
+   "tag": "[object NVShaderNoperspectiveInterpolation]"
+  },
+  "OES_draw_buffers_indexed": {
+   "hasCtor": false,
+   "members": [
+    [
+     "blendEquationSeparateiOES",
+     "f",
+     3,
+     "ecw"
+    ],
+    [
+     "blendEquationiOES",
+     "f",
+     2,
+     "ecw"
+    ],
+    [
+     "blendFuncSeparateiOES",
+     "f",
+     5,
+     "ecw"
+    ],
+    [
+     "blendFunciOES",
+     "f",
+     3,
+     "ecw"
+    ],
+    [
+     "colorMaskiOES",
+     "f",
+     5,
+     "ecw"
+    ],
+    [
+     "disableiOES",
+     "f",
+     2,
+     "ecw"
+    ],
+    [
+     "enableiOES",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESDrawBuffersIndexed]",
+   "same": true,
+   "tag": "[object OESDrawBuffersIndexed]"
+  },
+  "OES_sample_variables": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESSampleVariables]",
+   "same": true,
+   "tag": "[object OESSampleVariables]"
+  },
+  "OES_shader_multisample_interpolation": {
+   "hasCtor": false,
+   "members": [
+    [
+     "MIN_FRAGMENT_INTERPOLATION_OFFSET_OES",
+     "n",
+     36443,
+     "e--"
+    ],
+    [
+     "MAX_FRAGMENT_INTERPOLATION_OFFSET_OES",
+     "n",
+     36444,
+     "e--"
+    ],
+    [
+     "FRAGMENT_INTERPOLATION_OFFSET_BITS_OES",
+     "n",
+     36445,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESShaderMultisampleInterpolation]",
+   "same": true,
+   "tag": "[object OESShaderMultisampleInterpolation]"
+  },
+  "OES_texture_float_linear": {
+   "hasCtor": false,
+   "members": [],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OESTextureFloatLinear]",
+   "same": true,
+   "tag": "[object OESTextureFloatLinear]"
+  },
+  "OVR_multiview2": {
+   "hasCtor": false,
+   "members": [
+    [
+     "FRAMEBUFFER_ATTACHMENT_TEXTURE_NUM_VIEWS_OVR",
+     "n",
+     38448,
+     "e--"
+    ],
+    [
+     "FRAMEBUFFER_ATTACHMENT_TEXTURE_BASE_VIEW_INDEX_OVR",
+     "n",
+     38450,
+     "e--"
+    ],
+    [
+     "MAX_VIEWS_OVR",
+     "n",
+     38449,
+     "e--"
+    ],
+    [
+     "FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR",
+     "n",
+     38451,
+     "e--"
+    ],
+    [
+     "framebufferTextureMultiviewOVR",
+     "f",
+     6,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object OVRMultiview2]",
+   "same": true,
+   "tag": "[object OVRMultiview2]"
+  },
+  "WEBGL_clip_cull_distance": {
+   "hasCtor": false,
+   "members": [
+    [
+     "MAX_CLIP_DISTANCES_WEBGL",
+     "n",
+     3378,
+     "e--"
+    ],
+    [
+     "MAX_CULL_DISTANCES_WEBGL",
+     "n",
+     33529,
+     "e--"
+    ],
+    [
+     "MAX_COMBINED_CLIP_AND_CULL_DISTANCES_WEBGL",
+     "n",
+     33530,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE0_WEBGL",
+     "n",
+     12288,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE1_WEBGL",
+     "n",
+     12289,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE2_WEBGL",
+     "n",
+     12290,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE3_WEBGL",
+     "n",
+     12291,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE4_WEBGL",
+     "n",
+     12292,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE5_WEBGL",
+     "n",
+     12293,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE6_WEBGL",
+     "n",
+     12294,
+     "e--"
+    ],
+    [
+     "CLIP_DISTANCE7_WEBGL",
+     "n",
+     12295,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLClipCullDistance]",
+   "same": true,
+   "tag": "[object WebGLClipCullDistance]"
+  },
+  "WEBGL_compressed_texture_astc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGBA_ASTC_4x4_KHR",
+     "n",
+     37808,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_5x4_KHR",
+     "n",
+     37809,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_5x5_KHR",
+     "n",
+     37810,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_6x5_KHR",
+     "n",
+     37811,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_6x6_KHR",
+     "n",
+     37812,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_8x5_KHR",
+     "n",
+     37813,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_8x6_KHR",
+     "n",
+     37814,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_8x8_KHR",
+     "n",
+     37815,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x5_KHR",
+     "n",
+     37816,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x6_KHR",
+     "n",
+     37817,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x8_KHR",
+     "n",
+     37818,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_10x10_KHR",
+     "n",
+     37819,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_12x10_KHR",
+     "n",
+     37820,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_ASTC_12x12_KHR",
+     "n",
+     37821,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR",
+     "n",
+     37840,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR",
+     "n",
+     37841,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR",
+     "n",
+     37842,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR",
+     "n",
+     37843,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR",
+     "n",
+     37844,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR",
+     "n",
+     37845,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR",
+     "n",
+     37846,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR",
+     "n",
+     37847,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR",
+     "n",
+     37848,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR",
+     "n",
+     37849,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR",
+     "n",
+     37850,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR",
+     "n",
+     37851,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR",
+     "n",
+     37852,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR",
+     "n",
+     37853,
+     "e--"
+    ],
+    [
+     "getSupportedProfiles",
+     "f",
+     0,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureASTC]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureASTC]"
+  },
+  "WEBGL_compressed_texture_etc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_R11_EAC",
+     "n",
+     37488,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_R11_EAC",
+     "n",
+     37489,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RG11_EAC",
+     "n",
+     37490,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SIGNED_RG11_EAC",
+     "n",
+     37491,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB8_ETC2",
+     "n",
+     37492,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ETC2",
+     "n",
+     37493,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2",
+     "n",
+     37494,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2",
+     "n",
+     37495,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA8_ETC2_EAC",
+     "n",
+     37496,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB8_ALPHA8_ETC2_EAC",
+     "n",
+     37497,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureETC]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureETC]"
+  },
+  "WEBGL_compressed_texture_etc1": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGB_ETC1_WEBGL",
+     "n",
+     36196,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureETC1]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureETC1]"
+  },
+  "WEBGL_compressed_texture_s3tc": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_RGB_S3TC_DXT1_EXT",
+     "n",
+     33776,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_S3TC_DXT1_EXT",
+     "n",
+     33777,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_S3TC_DXT3_EXT",
+     "n",
+     33778,
+     "e--"
+    ],
+    [
+     "COMPRESSED_RGBA_S3TC_DXT5_EXT",
+     "n",
+     33779,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureS3TC]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureS3TC]"
+  },
+  "WEBGL_compressed_texture_s3tc_srgb": {
+   "hasCtor": false,
+   "members": [
+    [
+     "COMPRESSED_SRGB_S3TC_DXT1_EXT",
+     "n",
+     35916,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT",
+     "n",
+     35917,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT",
+     "n",
+     35918,
+     "e--"
+    ],
+    [
+     "COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT",
+     "n",
+     35919,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLCompressedTextureS3TCsRGB]",
+   "same": true,
+   "tag": "[object WebGLCompressedTextureS3TCsRGB]"
+  },
+  "WEBGL_debug_renderer_info": {
+   "hasCtor": false,
+   "members": [
+    [
+     "UNMASKED_VENDOR_WEBGL",
+     "n",
+     37445,
+     "e--"
+    ],
+    [
+     "UNMASKED_RENDERER_WEBGL",
+     "n",
+     37446,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLDebugRendererInfo]",
+   "same": true,
+   "tag": "[object WebGLDebugRendererInfo]"
+  },
+  "WEBGL_debug_shaders": {
+   "hasCtor": false,
+   "members": [
+    [
+     "getTranslatedShaderSource",
+     "f",
+     1,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLDebugShaders]",
+   "same": true,
+   "tag": "[object WebGLDebugShaders]"
+  },
+  "WEBGL_lose_context": {
+   "hasCtor": false,
+   "members": [
+    [
+     "loseContext",
+     "f",
+     0,
+     "ecw"
+    ],
+    [
+     "restoreContext",
+     "f",
+     0,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLLoseContext]",
+   "same": true,
+   "tag": "[object WebGLLoseContext]"
+  },
+  "WEBGL_multi_draw": {
+   "hasCtor": false,
+   "members": [
+    [
+     "multiDrawArraysInstancedWEBGL",
+     "f",
+     8,
+     "ecw"
+    ],
+    [
+     "multiDrawArraysWEBGL",
+     "f",
+     6,
+     "ecw"
+    ],
+    [
+     "multiDrawElementsInstancedWEBGL",
+     "f",
+     9,
+     "ecw"
+    ],
+    [
+     "multiDrawElementsWEBGL",
+     "f",
+     7,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLMultiDraw]",
+   "same": true,
+   "tag": "[object WebGLMultiDraw]"
+  },
+  "WEBGL_polygon_mode": {
+   "hasCtor": false,
+   "members": [
+    [
+     "POLYGON_MODE_WEBGL",
+     "n",
+     2880,
+     "e--"
+    ],
+    [
+     "POLYGON_OFFSET_LINE_WEBGL",
+     "n",
+     10754,
+     "e--"
+    ],
+    [
+     "LINE_WEBGL",
+     "n",
+     6913,
+     "e--"
+    ],
+    [
+     "FILL_WEBGL",
+     "n",
+     6914,
+     "e--"
+    ],
+    [
+     "polygonModeWEBGL",
+     "f",
+     2,
+     "ecw"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLPolygonMode]",
+   "same": true,
+   "tag": "[object WebGLPolygonMode]"
+  },
+  "WEBGL_stencil_texturing": {
+   "hasCtor": false,
+   "members": [
+    [
+     "DEPTH_STENCIL_TEXTURE_MODE_WEBGL",
+     "n",
+     37098,
+     "e--"
+    ],
+    [
+     "STENCIL_INDEX_WEBGL",
+     "n",
+     6401,
+     "e--"
+    ]
+   ],
+   "ownKeys": 0,
+   "protoProto": true,
+   "protoTag": "[object WebGLStencilTexturing]",
+   "same": true,
+   "tag": "[object WebGLStencilTexturing]"
+  }
+ },
+ "gl2_supported": [
+  "EXT_clip_control",
+  "EXT_color_buffer_float",
+  "EXT_color_buffer_half_float",
+  "EXT_conservative_depth",
+  "EXT_depth_clamp",
+  "EXT_disjoint_timer_query_webgl2",
+  "EXT_float_blend",
+  "EXT_polygon_offset_clamp",
+  "EXT_texture_compression_bptc",
+  "EXT_texture_compression_rgtc",
+  "EXT_texture_filter_anisotropic",
+  "EXT_texture_mirror_clamp_to_edge",
+  "NV_shader_noperspective_interpolation",
+  "OES_draw_buffers_indexed",
+  "OES_sample_variables",
+  "OES_shader_multisample_interpolation",
+  "OES_texture_float_linear",
+  "OVR_multiview2",
+  "WEBGL_clip_cull_distance",
+  "WEBGL_compressed_texture_astc",
+  "WEBGL_compressed_texture_etc",
+  "WEBGL_compressed_texture_etc1",
+  "WEBGL_compressed_texture_s3tc",
+  "WEBGL_compressed_texture_s3tc_srgb",
+  "WEBGL_debug_renderer_info",
+  "WEBGL_debug_shaders",
+  "WEBGL_lose_context",
+  "WEBGL_multi_draw",
+  "WEBGL_polygon_mode",
+  "WEBGL_stencil_texturing"
+ ],
+ "gl2_unknown": null
+}

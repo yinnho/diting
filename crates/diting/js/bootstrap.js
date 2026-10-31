@@ -8268,8 +8268,10 @@ globalThis.Notification = class Notification {
   get image() { return null; }
 };
 
-globalThis.WebGLRenderingContext = class WebGLRenderingContext {};
-globalThis.WebGL2RenderingContext = class WebGL2RenderingContext {};
+// (刀69) Chrome: `new WebGLRenderingContext()` is an illegal constructor — the
+// contexts come out of canvas.getContext (Object.create over the prototype).
+globalThis.WebGLRenderingContext = class WebGLRenderingContext { constructor() { throw new TypeError("Failed to construct 'WebGLRenderingContext': Illegal constructor"); } };
+globalThis.WebGL2RenderingContext = class WebGL2RenderingContext { constructor() { throw new TypeError("Failed to construct 'WebGL2RenderingContext': Illegal constructor"); } };
 // Bot detectors verify these methods exist on the PROTOTYPE (they grab
 // `WebGLRenderingContext.prototype.getParameter` etc. to test for API
 // tampering); the per-canvas instance methods alone are not enough.
@@ -8360,14 +8362,20 @@ const _GL_METHODS2 = ['activeTexture', 'attachShader', 'beginQuery', 'beginTrans
 // Return values for the handful of methods detectors actually chain-read;
 // everything else in the tables is a true void no-op (undefined — Chrome
 // methods that "return nothing" give undefined, never 0).
-const _GL_CREATE = function() { return {}; };
+// (刀69) Resource handles are instances of Chrome's resource classes (minted
+// illegal-ctor interfaces, read at call time), and every creator is its OWN
+// function object: they used to share one function, so the shape pass's
+// `.length` fix for createShader (1) leaked onto createBuffer/createProgram/
+// fenceSync (Chrome: 0/0/2).
+const _glHandle = function(cls) { const C = globalThis[cls]; return (C && C.prototype) ? Object.create(C.prototype) : {}; };
+const _glCreator = function(cls) { return function() { return _glHandle(cls); }; };
 const _GL_RET = {
-  createBuffer: _GL_CREATE, createShader: _GL_CREATE, createProgram: _GL_CREATE,
-  createTexture: _GL_CREATE, createFramebuffer: _GL_CREATE, createRenderbuffer: _GL_CREATE,
-  createQuery: _GL_CREATE, createSampler: _GL_CREATE, createTransformFeedback: _GL_CREATE,
-  createVertexArray: _GL_CREATE, fenceSync: _GL_CREATE,
+  createBuffer: _glCreator('WebGLBuffer'), createShader: _glCreator('WebGLShader'), createProgram: _glCreator('WebGLProgram'),
+  createTexture: _glCreator('WebGLTexture'), createFramebuffer: _glCreator('WebGLFramebuffer'), createRenderbuffer: _glCreator('WebGLRenderbuffer'),
+  createQuery: _glCreator('WebGLQuery'), createSampler: _glCreator('WebGLSampler'), createTransformFeedback: _glCreator('WebGLTransformFeedback'),
+  createVertexArray: _glCreator('WebGLVertexArrayObject'), fenceSync: _glCreator('WebGLSync'),
   getProgramParameter: function() { return true; }, getShaderParameter: function() { return true; },
-  getUniformLocation: function() { return {}; },
+  getUniformLocation: function() { return _glHandle('WebGLUniformLocation'); },
   getAttribLocation: function() { return 0; },
   getActiveUniform: function() { return null; }, getActiveAttrib: function() { return null; },
   getActiveUniforms: function() { return []; }, getUniform: function() { return null; },
@@ -8388,40 +8396,50 @@ const _GL_RET = {
   isShader: function() { return false; }, isSync: function() { return false; },
   isTexture: function() { return false; }, isTransformFeedback: function() { return false; },
   isVertexArray: function() { return false; }, isEnabled: function() { return false; },
-  getContextAttributes: function() { return { alpha: true, antialias: true, depth: true, stencil: false, failIfMajorPerformanceCaveat: false, powerPreference: 'default', preserveDrawingBuffer: false, desynchronized: false, premultipliedAlpha: true }; },
+  // (刀69) Per-context attributes: the dictionary getContext was handed, defaulted
+  // and ToBoolean-coerced, in Chrome's alphabetical key order, plus xrCompatible.
+  getContextAttributes: function() {
+    const a = _glAttrs.get(_glBaseOf.get(this) || this) || {};
+    return { alpha: a.alpha !== false, antialias: a.antialias !== false, depth: a.depth !== false, desynchronized: !!a.desynchronized,
+      failIfMajorPerformanceCaveat: !!a.failIfMajorPerformanceCaveat, powerPreference: a.powerPreference || 'default',
+      premultipliedAlpha: a.premultipliedAlpha !== false, preserveDrawingBuffer: !!a.preserveDrawingBuffer, stencil: !!a.stencil, xrCompatible: !!a.xrCompatible };
+  },
 };
-// Chrome's extension objects expose their constants through the PROTOTYPE,
-// never as own props (Object.keys(ext) === []; for..in sees them). ctor name
-// stays "Object" because the carrier proto has no own constructor.
-function _glExtCarrier(consts) {
-  const p = {};
-  for (const k in consts) Object.defineProperty(p, k, { value: consts[k], enumerable: true });
-  return Object.create(p);
-}
-const _GL_EXT_DEBUG = _glExtCarrier({ UNMASKED_VENDOR_WEBGL: 0x9245, UNMASKED_RENDERER_WEBGL: 0x9246 });
-const _GL_EXT_ANISO = _glExtCarrier({ MAX_TEXTURE_MAX_ANISOTROPY_EXT: 0x84FF });
-const _GL_EXT_LOSE = _glExtCarrier({});
-Object.defineProperty(Object.getPrototypeOf(_GL_EXT_LOSE), 'loseContext', { value: function() {}, enumerable: true });
-Object.defineProperty(Object.getPrototypeOf(_GL_EXT_LOSE), 'restoreContext', { value: function() {}, enumerable: true });
+// (刀69) Extension objects come from the generated webgl_ext.js table (Chrome interface
+// tags + prototype members, one cached bare carrier per context and extension).
 // The canvas→context link lives in a WeakMap, not an own property — even a
 // non-enumerable own prop would show in getOwnPropertyNames(gl), and Chrome's
 // instance has exactly zero own props of any kind. Keyed on the Proxy (the
 // public identity) so the prototype accessors' `this` resolves it.
 const _glCanvasMap = new WeakMap();
+const _glBaseOf = new WeakMap();      // context Proxy -> its base (the WeakMap key space)
+const _glColorSpace = new WeakMap();  // base -> { drawingBufferColorSpace, unpackColorSpace }
+const _glAttrs = new WeakMap();       // base -> the normalized WebGLContextAttributes getContext received
+const _glXrPromise = new WeakMap();   // base -> the cached makeXRCompatible() promise
 for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [globalThis.WebGL2RenderingContext, true]]) {
   const P = _GLC.prototype;
   const isGL2 = _isGL2;
   const consts = isGL2 ? _GL_CONSTS2 : _GL_CONSTS1;
   const exts = isGL2 ? _GL_EXTS2 : _GL_EXTS1;
-  for (const k in consts) Object.defineProperty(P, k, { value: consts[k], enumerable: true });
+  // (刀69) Chrome carries every GL constant TWICE: on the prototype and as a
+  // static on the constructor (both e--). The prototype copy installs
+  // configurable here so the shape pass can put it in Chrome's member order,
+  // and it seals the flags afterwards; the static copy has no ordering
+  // concern and is final on creation (table order = Chrome's static order).
+  for (const k in consts) {
+    Object.defineProperty(P, k, { value: consts[k], enumerable: true, configurable: true });
+    Object.defineProperty(_GLC, k, { value: consts[k], enumerable: true });
+  }
   // Introspection faces keep real implementations (#117 lineage) — installed
   // BEFORE the table fill so the generic pass sees them as already-present.
   P.getParameter = function(pname) { return _glParam(pname, isGL2); };
   P.getExtension = function(name) {
-    if (name === 'WEBGL_debug_renderer_info') return _GL_EXT_DEBUG;
-    if (name === 'EXT_texture_filter_anisotropic') return _GL_EXT_ANISO;
-    if (name === 'WEBGL_lose_context') return _GL_EXT_LOSE;
-    return exts.includes(name) ? _glExtCarrier({}) : null;
+    if (arguments.length < 1) throw new TypeError("Failed to execute 'getExtension' on '" + _GLC.name + "': 1 argument required, but only 0 present.");
+    // Chrome matches extension names case-insensitively.
+    const want = String(name).toLowerCase();
+    let hit = null;
+    for (const e of exts) { if (e.toLowerCase() === want) { hit = e; break; } }
+    return hit === null ? null : globalThis.__diting_glExt(hit, _glBaseOf.get(this) || this);
   };
   P.getSupportedExtensions = function() { return exts.slice(); };
   P.getShaderPrecisionFormat = function() { return { rangeMin: 127, rangeMax: 127, precision: 23 }; };
@@ -8439,8 +8457,38 @@ for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [global
   Object.defineProperty(P, 'canvas', _acc(function() { return _glCanvasMap.get(this) || null; }));
   Object.defineProperty(P, 'drawingBufferWidth', _acc(function() { const c = _glCanvasMap.get(this); return c ? c.width : 300; }));
   Object.defineProperty(P, 'drawingBufferHeight', _acc(function() { const c = _glCanvasMap.get(this); return c ? c.height : 150; }));
-  Object.defineProperty(P, 'drawingBufferColorSpace', _acc(function() { return 'srgb'; }));
-  Object.defineProperty(P, 'unpackColorSpace', _acc(function() { return 'srgb'; }));
+  // (刀69) The two colorSpace faces are read/write PredefinedColorSpace
+  // attributes: per-context state, an invalid value is silently IGNORED (not a
+  // TypeError), a foreign receiver throws Illegal invocation (Chrome 145 truth).
+  const _csFace = (name) => {
+    const get = function() { const b = _glBaseOf.get(this) || this; if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation'); const st = _glColorSpace.get(b); return st && st[name] || 'srgb'; };
+    const set = function(v) {
+      const b = _glBaseOf.get(this) || this;
+      if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation');
+      const sv = String(v);
+      if (sv !== 'srgb' && sv !== 'display-p3') return;
+      let st = _glColorSpace.get(b);
+      if (!st) { st = {}; _glColorSpace.set(b, st); }
+      st[name] = sv;
+    };
+    Object.defineProperty(get, 'name', { value: 'get ' + name });
+    Object.defineProperty(set, 'name', { value: 'set ' + name });
+    Object.defineProperty(P, name, { get, set, enumerable: true, configurable: true });
+  };
+  _csFace('drawingBufferColorSpace');
+  _csFace('unpackColorSpace');
+  // (刀69) makeXRCompatible: one cached Promise per context that never
+  // settles on a machine without an XR runtime (Chrome 145 headless truth:
+  // pending after 9s, the SAME promise on every call, xrCompatible stays
+  // false); a foreign receiver REJECTS (not throws) with the Illegal
+  // invocation TypeError.
+  Object.defineProperty(P, 'makeXRCompatible', { value: function makeXRCompatible() {
+    const b = _glBaseOf.get(this) || this;
+    if (!_glCanvasMap.has(b)) return Promise.reject(new TypeError("Failed to execute 'makeXRCompatible' on '" + _GLC.name + "': Illegal invocation"));
+    let pr = _glXrPromise.get(b);
+    if (!pr) { pr = new Promise(function() {}); _glXrPromise.set(b, pr); }
+    return pr;
+  }, writable: true, enumerable: true, configurable: true });
   Object.defineProperty(P, 'drawingBufferFormat', _acc(function() { return 0x8058; }));
 }
 
@@ -12826,25 +12874,38 @@ HTMLCanvasElement.prototype.getContext = function getContext(type) {
     Object.setPrototypeOf(base, (type === 'webgl2')
       ? globalThis.WebGL2RenderingContext.prototype
       : globalThis.WebGLRenderingContext.prototype);
-    // Proxy fallback: any WebGL method a library calls that we didn't
-    // enumerate becomes a number-ish no-op instead of throwing TypeError.
-    const numNoop = function() { return 0; };
-    numNoop.valueOf = () => 0;
-    numNoop.toString = () => "0";
+    // (刀69) The Proxy only exists to hand accessors the base as `this`. It
+    // used to also turn every name the tables lack into a number-ish no-op;
+    // the tables are complete against Chrome now (member order/kinds all
+    // match), so a missing name is undefined exactly like Chrome — webgl1 has
+    // no fenceSync, `gl.fenceSync` is falsy, feature detection works.
     const gl = new Proxy(base, {
       get(target, prop) {
-        // Symbols (Symbol.iterator, Symbol.toPrimitive, ...) must fall through
-        // to the real value, and 'then' must stay undefined — returning
-        // numNoop for it would make the context thenable and break
-        // await/Promise.resolve on it. Reflect.get keeps the accessor receiver
-        // on `target`, so the canvas/drawingBuffer* getters resolve their
-        // WeakMap entry (keyed on base).
-        if (typeof prop === 'symbol' || prop === 'then' || prop === 'toJSON') return target[prop];
-        if (prop in target) return Reflect.get(target, prop, target);
-        return numNoop;
+        // Reflect.get keeps the accessor receiver on `target`, so the
+        // canvas/drawingBuffer* getters resolve their WeakMap entry (keyed on base).
+        return Reflect.get(target, prop, target);
       },
     });
+    _glBaseOf.set(gl, base);
     _glCanvasMap.set(base, this);
+    {
+      // WebGLContextAttributes: booleans coerce through ToBoolean (undefined = the
+      // member's default), powerPreference is an enum whose bad value is a TypeError.
+      const o = arguments[1], a = {};
+      if (o !== null && o !== undefined && typeof o === 'object') {
+        for (const k of ['alpha', 'antialias', 'depth', 'desynchronized', 'failIfMajorPerformanceCaveat', 'premultipliedAlpha', 'preserveDrawingBuffer', 'stencil', 'xrCompatible']) {
+          if (o[k] !== undefined) a[k] = !!o[k];
+        }
+        if (o.powerPreference !== undefined) {
+          const pp = String(o.powerPreference);
+          if (pp !== 'default' && pp !== 'high-performance' && pp !== 'low-power') {
+            throw new TypeError("Failed to execute 'getContext' on 'HTMLCanvasElement': Failed to read the 'powerPreference' property from 'WebGLContextAttributes': The provided value '" + pp + "' is not a valid enum value of type WebGLPowerPreference.");
+          }
+          a.powerPreference = pp;
+        }
+      }
+      _glAttrs.set(base, a);
+    }
     __def(this, '_ctxType', _ctxNorm);
     __def(this, '_glCtx', gl);
     return gl;
