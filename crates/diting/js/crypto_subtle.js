@@ -23,10 +23,11 @@ if (!globalThis.crypto.subtle) {
     const k = Object.create(CryptoKey.prototype);
     // (刀75) plain assignments: type/extractable/algorithm/usages are prototype accessors
     // (lift_own) over hidden slots, so the instance carries no own keys like Chrome's.
-    k.type = type;
-    k.extractable = !!extractable;
-    k.algorithm = algorithm;
-    k.usages = Object.freeze((usages || []).slice());
+    const ks = __diting_liftSlot(k);
+    ks.type = type;
+    ks.extractable = !!extractable;
+    ks.algorithm = algorithm;
+    ks.usages = Object.freeze((usages || []).slice());
     keyMaterial.set(k, bytes);
     return k;
   }

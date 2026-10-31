@@ -3,6 +3,17 @@
 
 globalThis.__diting_errors = [];
 
+// 刀84: the shared hidden-slot channel for sealed (Chrome-readonly) prototype
+// accessors. lift_own.js installs the getters; every internal writer calls
+// __diting_liftSlot(obj).member = v. Defined here — platform_bundle constructs
+// sealed classes (TransformStream family) during snapshot, before lift_own runs.
+globalThis.__diting_liftSlots = new WeakMap();
+globalThis.__diting_liftSlot = function (o) {
+  let s = globalThis.__diting_liftSlots.get(o);
+  if (s === undefined) { s = Object.create(null); globalThis.__diting_liftSlots.set(o, s); }
+  return s;
+};
+
 globalThis.onerror = function(msg, src, line, col, error) {
   globalThis.__diting_errors.push({msg: String(msg), src: String(src||""), line, error: String(error||"")});
 };
@@ -7827,9 +7838,10 @@ globalThis.WebTransport = class WebTransport {
 globalThis.WebSocketStream = class WebSocketStream {
   constructor(url, protocols) {
     if (arguments.length === 0) throw new TypeError("Failed to construct 'WebSocketStream': 1 argument required, but only 0 present.");
-    this.url = String(url);
-    this.opened = new Promise(() => {});   // Chrome 145: `opened` (the old `opening` name was the pre-ship draft)
-    this.closed = new Promise(() => {});
+    const wss = __diting_liftSlot(this);
+    wss.url = String(url);
+    wss.opened = new Promise(() => {});   // Chrome 145: `opened` (the old `opening` name was the pre-ship draft)
+    wss.closed = new Promise(() => {});
   }
   close() {}
 };
@@ -9103,7 +9115,7 @@ if (typeof TextDecoder === 'undefined') {
       }
       const o = options || {};
       // Plain assignment: lift_own.js turns these into prototype accessors.
-      this.encoding = name; this.fatal = !!o.fatal; this.ignoreBOM = !!o.ignoreBOM;
+      const ds = __diting_liftSlot(this); ds.encoding = name; ds.fatal = !!o.fatal; ds.ignoreBOM = !!o.ignoreBOM;
       // Bytes carried over between decode(..., {stream:true}) calls
       // (TextDecoderStream splits chunks at arbitrary byte offsets).
       this._pending = new Uint8Array(0);
@@ -9188,8 +9200,9 @@ if (typeof TextEncoderStream === 'undefined') {
           if (pending) controller.enqueue(enc.encode(pending));
         }
       });
-      this.readable = ts.readable;
-      this.writable = ts.writable;
+      const es = __diting_liftSlot(this);
+      es.readable = ts.readable;
+      es.writable = ts.writable;
     }
     get encoding() { return 'utf-8'; }
   };
@@ -9206,12 +9219,13 @@ if (typeof TextEncoderStream === 'undefined') {
           if (out) controller.enqueue(out);
         }
       });
-      this.readable = ts.readable;
-      this.writable = ts.writable;
-      // plain assignments: lift_own turned these into prototype accessors (no own keys)
-      this.encoding = dec.encoding;
-      this.fatal = dec.fatal;
-      this.ignoreBOM = dec.ignoreBOM;
+      const ds2 = __diting_liftSlot(this);
+      ds2.readable = ts.readable;
+      ds2.writable = ts.writable;
+      // 刀84: sealed ro members — internal writes go through the shared lift slot
+      ds2.encoding = dec.encoding;
+      ds2.fatal = dec.fatal;
+      ds2.ignoreBOM = dec.ignoreBOM;
     }
   };
 }
@@ -10521,7 +10535,7 @@ class AbortSignal extends EventTarget {
 }
 globalThis.AbortSignal = AbortSignal;
 globalThis.AbortController = class AbortController {
-  constructor() { _abortSignalConstructionKey = true; this.signal = new AbortSignal(); }
+  constructor() { _abortSignalConstructionKey = true; __diting_liftSlot(this).signal = new AbortSignal(); }
   abort(reason) { this.signal._signalAbort(reason); }
 };
 _markNative(AbortSignal);
@@ -10565,10 +10579,10 @@ if (typeof Blob === "undefined") globalThis.Blob = class Blob {
     const data = new Uint8Array(total); let off = 0;
     for (const c of chunks) { data.set(c, off); off += c.length; }
     this._bytes = data;
-    this.size = total;
+    __diting_liftSlot(this).size = total;
     const typeRaw = opts.type;
     const t = typeRaw != null ? String(typeRaw) : "";
-    this.type = /^[\x20-\x7e]*$/.test(t) ? t.toLowerCase() : "";
+    __diting_liftSlot(this).type = /^[\x20-\x7e]*$/.test(t) ? t.toLowerCase() : "";
     __hideOwn(this);
   }
   get [Symbol.toStringTag]() { return "Blob"; }
@@ -10591,8 +10605,9 @@ if (typeof File === "undefined") globalThis.File = class File extends Blob {
     if (arguments.length < 2) throw new TypeError("Failed to construct 'File': 2 arguments required, but only " + arguments.length + " present.");
     opts = opts || {};
     super(parts, opts);
-    this.name = String(name);
-    this.lastModified = opts.lastModified != null ? Number(opts.lastModified) : Date.now();
+    const fs = __diting_liftSlot(this);
+    fs.name = String(name);
+    fs.lastModified = opts.lastModified != null ? Number(opts.lastModified) : Date.now();
   }
   get [Symbol.toStringTag]() { return "File"; }
 };
@@ -12427,7 +12442,7 @@ _markNative(NodeList.prototype.forEach);
 class _Canvas2D {
   constructor(canvas) {
     if (canvas === undefined || canvas === null || typeof canvas !== 'object') throw new TypeError("Failed to construct 'CanvasRenderingContext2D': Illegal constructor");
-    this.canvas = canvas;
+    __diting_liftSlot(this).canvas = canvas;
     this._w = canvas.width || 300;
     this._h = canvas.height || 150;
     // (#117) Pristine canvas = fully transparent black, like Chrome — the
@@ -14040,8 +14055,8 @@ if (typeof TransformStream === 'undefined') {
         close: () => { if (rc) rc.close(); },
         error: (e) => { if (rc) rc.error(e); },
       };
-      this.readable = new ReadableStream({ start(c) { rc = c; } });
-      this.writable = new WritableStream({
+      __diting_liftSlot(this).readable = new ReadableStream({ start(c) { rc = c; } });
+      __diting_liftSlot(this).writable = new WritableStream({
         write(chunk) {
           try {
             if (transformer.transform) {
@@ -14534,8 +14549,14 @@ if (typeof BroadcastChannel === 'undefined') {
 if (typeof ImageData === 'undefined') {
   globalThis.ImageData = class ImageData {
     constructor(w, h) {
-      if (w instanceof Uint8ClampedArray) { this.data = w; this.width = h; this.height = w.length / (4 * h); }
-      else { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); }
+      const is = __diting_liftSlot(this);
+      if (w instanceof Uint8ClampedArray) {
+        Object.defineProperty(this, 'data', { value: w, writable: true, enumerable: true, configurable: true });
+        is.width = h; is.height = w.length / (4 * h);
+      } else {
+        is.width = w; is.height = h;
+        Object.defineProperty(this, 'data', { value: new Uint8ClampedArray(w * h * 4), writable: true, enumerable: true, configurable: true });
+      }
     }
   };
 }
@@ -14779,7 +14800,7 @@ if (typeof ImageBitmap === 'undefined') {
   // draft rejected those with TypeError and page capability probes read it
   // as "environment unsupported" and refused to mount the upload UI at all.
   globalThis.ImageBitmap = class ImageBitmap {
-    constructor() { this.width = 0; this.height = 0; }
+    constructor() { const ib = __diting_liftSlot(this); ib.width = 0; ib.height = 0; }
     close() {}
   };
   globalThis.createImageBitmap = function (source) {
@@ -14794,8 +14815,8 @@ if (typeof ImageBitmap === 'undefined') {
           return;
         }
         const bmp = new ImageBitmap(globalThis.__diting_ctorMint);
-        bmp.width = w;
-        bmp.height = h;
+        __diting_liftSlot(bmp).width = w;
+        __diting_liftSlot(bmp).height = h;
         resolve(bmp);
       };
       if (source && typeof source.arrayBuffer === 'function') {
@@ -14959,7 +14980,7 @@ if (typeof SharedWorker === 'undefined') {
       const [pageEnd, workerEnd] = _newPortPair();
       if (inst.ready && inst.scope) _connectSharedPort(inst, workerEnd);
       else inst.pendingPorts.push(workerEnd);
-      this.port = pageEnd;
+      __diting_liftSlot(this).port = pageEnd;
     }
   };
   try { _markNative(globalThis.SharedWorker); } catch (_) {}
@@ -15660,13 +15681,14 @@ if (!globalThis.Attr) {
   globalThis.Attr = class Attr {
     constructor(name, value = '', namespaceURI = null, prefix = null, tok) {
       if (tok !== _ATTR_TOK) throw new TypeError("Failed to construct 'Attr': Illegal constructor");
-      this.name = name;
-      this.localName = name;
+      const as = __diting_liftSlot(this);
+      as.name = name;
+      as.localName = name;
       this._v = String(value);
-      this.namespaceURI = namespaceURI;
-      this.prefix = prefix;
-      this.ownerElement = null;
-      this.specified = true;
+      as.namespaceURI = namespaceURI;
+      as.prefix = prefix;
+      as.ownerElement = null;
+      as.specified = true;
     }
     // Live while attached (Chrome: an Attr and its element's attribute are one thing): reads/writes go through the owner element.
     get value() {
@@ -15748,7 +15770,7 @@ if (!Document.prototype.createAttributeNS) {
       }
     }
     const attr = __diting_mkAttr(qn, '', ns, prefix);
-    attr.localName = localName;
+    __diting_liftSlot(attr).localName = localName;
     return attr;
   };
   _markNative(Document.prototype.createAttributeNS);
@@ -15760,7 +15782,7 @@ if (!Element.prototype.getAttributeNode) {
     const val = this.getAttribute(name);
     if (val === null) return null;
     const attr = __diting_mkAttr(name, val, null, null);
-    attr.ownerElement = this;
+    __diting_liftSlot(attr).ownerElement = this;
     return attr;
   };
   _markNative(Element.prototype.getAttributeNode);
@@ -15773,7 +15795,7 @@ if (!Element.prototype.getAttributeNodeNS) {
     if (val === null) return null;
     const name = String(localName || '');
     const attr = __diting_mkAttr(name, val, namespaceURI ? String(namespaceURI) : null, null);
-    attr.ownerElement = this;
+    __diting_liftSlot(attr).ownerElement = this;
     return attr;
   };
   _markNative(Element.prototype.getAttributeNodeNS);
@@ -15785,9 +15807,9 @@ if (!Element.prototype.setAttributeNode) {
     if (!attr || typeof attr.name !== 'string') return null;
     const prevVal = this.getAttribute(attr.name);
     const prevAttr = prevVal !== null ? __diting_mkAttr(attr.name, prevVal, null, null) : null;
-    if (prevAttr) prevAttr.ownerElement = this;
+    if (prevAttr) __diting_liftSlot(prevAttr).ownerElement = this;
     this.setAttribute(attr.name, attr.value);
-    attr.ownerElement = this;
+    __diting_liftSlot(attr).ownerElement = this;
     return prevAttr;
   };
   _markNative(Element.prototype.setAttributeNode);
@@ -15801,9 +15823,9 @@ if (!Element.prototype.setAttributeNodeNS) {
     const prevAttr = prevVal !== null 
       ? __diting_mkAttr(attr.name, prevVal, attr.namespaceURI || null, attr.prefix || null) 
       : null;
-    if (prevAttr) prevAttr.ownerElement = this;
+    if (prevAttr) __diting_liftSlot(prevAttr).ownerElement = this;
     this.setAttributeNS(attr.namespaceURI || null, attr.name, attr.value);
-    attr.ownerElement = this;
+    __diting_liftSlot(attr).ownerElement = this;
     return prevAttr;
   };
   _markNative(Element.prototype.setAttributeNodeNS);

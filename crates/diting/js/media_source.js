@@ -242,7 +242,7 @@ globalThis.SourceBuffer = class SourceBuffer extends EventTarget {
     this._ms = ms;
     this.mimeType = mime;
     this.mode = 'segments';
-    this.updating = false;
+    __diting_liftSlot(this).updating = false;
     this.timestampOffset = 0;
     this.appendWindowStart = 0;
     this.appendWindowEnd = Infinity;
@@ -262,11 +262,11 @@ globalThis.SourceBuffer = class SourceBuffer extends EventTarget {
       throw new TypeError("Failed to execute 'appendBuffer' on 'SourceBuffer': 1 argument required, but only 0 present.");
     }
     const bytes = data.buffer ? new Uint8Array(data.buffer, data.byteOffset || 0, data.byteLength) : new Uint8Array(data);
-    this.updating = true;
+    __diting_liftSlot(this).updating = true;
     // Chrome completes appends off-thread; a microtask keeps the
     // update/updateend contract without starving the player's loop.
     queueMicrotask(() => {
-      this.updating = false;
+      __diting_liftSlot(this).updating = false;
       this._applyAppend(bytes);
       this.dispatchEvent(new Event('update'));
       this.dispatchEvent(new Event('updateend'));
@@ -296,10 +296,10 @@ globalThis.SourceBuffer = class SourceBuffer extends EventTarget {
     if (this._ms.readyState !== 'open' || this.updating) {
       throw new DOMException("Failed to execute 'remove' on 'SourceBuffer'.", 'InvalidStateError');
     }
-    this.updating = true;
+    __diting_liftSlot(this).updating = true;
     const s = Number(start) || 0, e = Number(end) || 0;
     queueMicrotask(() => {
-      this.updating = false;
+      __diting_liftSlot(this).updating = false;
       this._ranges = this._ranges.filter(r => r[1] <= s + 0.001 || r[0] >= e - 0.001);
       this.dispatchEvent(new Event('update'));
       this.dispatchEvent(new Event('updateend'));
@@ -308,7 +308,7 @@ globalThis.SourceBuffer = class SourceBuffer extends EventTarget {
   changeType(mime) { this.mimeType = String(mime); }
   abort() {
     if (this.updating) {
-      this.updating = false;
+      __diting_liftSlot(this).updating = false;
       this.dispatchEvent(new Event('abort'));
       this.dispatchEvent(new Event('updateend'));
     }
@@ -320,12 +320,11 @@ globalThis.MediaSource = class MediaSource extends EventTarget {
     super();
     this._explicitDuration = undefined;
     this._mediaElement = null;
-    this.sourceBuffers = new _SourceBufferList();
-    this.activeSourceBuffers = new _SourceBufferList();
+    __diting_liftSlot(this).sourceBuffers = new _SourceBufferList();
+    __diting_liftSlot(this).activeSourceBuffers = new _SourceBufferList();
     __hideOwn(this);
   }
   get readyState() { return this._readyState || 'closed'; }
-  set readyState(v) { __def(this, '_readyState', v); }
   // Spec: with no explicit duration set, duration is the highest end
   // timestamp across source buffers.
   get duration() {
@@ -375,7 +374,7 @@ globalThis.MediaSource = class MediaSource extends EventTarget {
       throw new DOMException("Failed to execute 'endOfStream' on 'MediaSource': The MediaSource object is not attached", 'InvalidStateError');
     }
     if (this.readyState === 'open') {
-      this.readyState = 'ended';
+      __def(this, '_readyState', 'ended');
       this.dispatchEvent(new Event('sourceended'));
     }
   }
@@ -390,7 +389,7 @@ globalThis.MediaSource = class MediaSource extends EventTarget {
     this._mediaElement = el;
     el._mediaSource = this;
     el._mediaNetworkState = 2; // NETWORK_LOADING
-    this.readyState = 'open';
+    __def(this, '_readyState', 'open');
     setTimeout(() => {
       el.dispatchEvent(new Event('loadstart'));
       this.dispatchEvent(new Event('sourceopen'));

@@ -1134,8 +1134,8 @@ function attrOf(el, q) {
   const ns = (nsInfo.get(el) || new Map()).get(q) || null;
   const { prefix, local } = split(q);
   a = __diting_mkAttr(q, '', ns, ns === null ? null : prefix);
-  if (ns !== null) a.localName = local;
-  a.ownerElement = el;
+  if (ns !== null) __diting_liftSlot(a).localName = local;
+  __diting_liftSlot(a).ownerElement = el;
   m.set(q, a);
   return a;
 }
@@ -1145,7 +1145,7 @@ function detach(el, q) {
   const a = m.get(q);
   if (a === undefined) return;
   m.delete(q);
-  a.ownerElement = null;
+  __diting_liftSlot(a).ownerElement = null;
 }
 // capture the live value into the Attr, then detach it (called BEFORE the DOM attribute is removed)
 function detachWithValue(el, q) {
@@ -1274,7 +1274,7 @@ function put(el, attr, cls, method, fn) {
   const v = attr.value;
   if (attr.namespaceURI) origSetNS.call(el, attr.namespaceURI, q, v); else origSet.call(el, q, v);
   if (attr.namespaceURI) { let info = nsInfo.get(el); if (!info) { info = new Map(); nsInfo.set(el, info); } info.set(q, attr.namespaceURI); }
-  attr.ownerElement = el;
+  __diting_liftSlot(attr).ownerElement = el;
   m.set(q, attr);
   return old;
 }

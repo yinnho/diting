@@ -2,7 +2,7 @@
 // WebRTC / MediaStream / CacheStorage / setHTMLUnsafe faces — ratchet split
 // out of bootstrap.js. Top level
 // only declares bindings; nothing here is read before call time.
-globalThis.MediaStream = class MediaStream { constructor(){this.id=(globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : '');this.active=false;} getTracks(){return [];} getAudioTracks(){return [];} getVideoTracks(){return [];} addTrack(){} removeTrack(){} clone(){return new MediaStream();} };
+globalThis.MediaStream = class MediaStream { constructor(){const ms=__diting_liftSlot(this);ms.id=(globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : '');ms.active=false;} getTracks(){return [];} getAudioTracks(){return [];} getVideoTracks(){return [];} addTrack(){} removeTrack(){} clone(){return new MediaStream();} };
 // 刀62: MediaStreamTrack full Chrome face — 20 own prototype members in
 // Chrome's raw order (kind first, constructor LAST; probed), no statics,
 // getCapabilities on the PROTOTYPE (statics probed empty), `new` is an
@@ -482,12 +482,13 @@ globalThis.RTCEncodedAudioFrame = class RTCEncodedAudioFrame {
 globalThis.RTCError = class RTCError extends globalThis.DOMException {
   constructor(init, message) {
     super(message !== undefined ? String(message) : "RTCError", "OperationError");
-    this.errorDetail = init?.errorDetail ?? null;
-    this.sdpLineNumber = init?.sdpLineNumber ?? null;
-    this.httpRequestStatusCode = init?.httpRequestStatusCode ?? null;
-    this.sctpCauseCode = init?.sctpCauseCode ?? null;
-    this.receivedAlert = init?.receivedAlert ?? null;
-    this.sentAlert = init?.sentAlert ?? null;
+    const rs = __diting_liftSlot(this);
+    rs.errorDetail = init?.errorDetail ?? null;
+    rs.sdpLineNumber = init?.sdpLineNumber ?? null;
+    rs.httpRequestStatusCode = init?.httpRequestStatusCode ?? null;
+    rs.sctpCauseCode = init?.sctpCauseCode ?? null;
+    rs.receivedAlert = init?.receivedAlert ?? null;
+    rs.sentAlert = init?.sentAlert ?? null;
   }
 };
 globalThis.RTCPeerConnectionIceEvent = class RTCPeerConnectionIceEvent extends globalThis.Event {

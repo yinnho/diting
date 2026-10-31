@@ -131,11 +131,10 @@
     ro('File', 'webkitRelativePath', () => '');
     ro('ImageData', 'colorSpace', () => 'srgb');
     ro('ImageData', 'pixelFormat', () => 'rgba-unorm8');
-    // Chrome's ImageData instance owns `data` while the prototype also answers it; the
-    // setter turns the constructor's plain assignment into that own data property.
+    // Chrome's ImageData instance owns `data` while the prototype also answers it
+    // (getter-only, 刀84); the constructor creates the own property directly.
     def(proto('ImageData'), 'data', {
       get: pin(function () { const d = Object.getOwnPropertyDescriptor(obj(this), 'data'); return d ? d.value : undefined; }, 'get data'),
-      set: pin(function (v) { Object.defineProperty(obj(this), 'data', { value: v, writable: true, enumerable: true, configurable: true }); }, 'set data', 1),
       enumerable: true, configurable: true });
     ro('MediaMetadata', 'chapterInfo', (s) => s.v.ch || (s.v.ch = []));
     ro('VideoPlaybackQuality', 'creationTime', (s) => (s.v.t === undefined ? (s.v.t = (G.performance ? G.performance.now() : 0)) : s.v.t));
