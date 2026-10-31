@@ -515,15 +515,33 @@ const _fileInputs = globalThis._fileInputs;
 // #1232). Constructing throws like Chrome's; the list objects below stay
 // the same shape but now carry its prototype, so instanceof holds.
 function _FileList() { throw new TypeError('Illegal constructor'); }
+Object.defineProperty(_FileList, 'name', { value: 'FileList', configurable: true });
 if (typeof FileList === 'undefined') globalThis.FileList = _FileList;
+// (M4 刀75) length/item/@@iterator/@@toStringTag are PROTOTYPE members (Chrome 145);
+// the instance keeps only its indexed own entries. State rides a WeakMap.
+const _flState = new WeakMap();
 function _makeFileList(fs) {
   const list = Object.create(_FileList.prototype);
-  list.length = fs.length;
-  list.item = (i) => (i >= 0 && i < fs.length ? fs[i] : null);
+  _flState.set(list, fs);
   for (let i = 0; i < fs.length; i++) list[i] = fs[i];
-  list[Symbol.iterator] = function* () { for (let i = 0; i < this.length; i++) yield this[i]; };
-  Object.defineProperty(list, Symbol.toStringTag, { value: 'FileList' });
   return list;
+}
+{
+  const P = _FileList.prototype;
+  const st = (o) => { const s = (o !== null && typeof o === 'object') ? _flState.get(o) : undefined; if (!s) throw new TypeError('Illegal invocation'); return s; };
+  const lenGet = function () { return st(this).length; };
+  Object.defineProperty(lenGet, 'name', { value: 'get length' });
+  Object.defineProperty(P, 'length', { get: lenGet, enumerable: true, configurable: true });
+  const item = function item(index) {
+    const s = st(this);
+    if (arguments.length < 1) throw new TypeError("Failed to execute 'item' on 'FileList': 1 argument required, but only 0 present.");
+    const i = Number(index) >>> 0;
+    return i < s.length ? s[i] : null;
+  };
+  Object.defineProperty(item, 'length', { value: 1 });
+  Object.defineProperty(P, 'item', { value: item, writable: true, enumerable: true, configurable: true });
+  Object.defineProperty(P, Symbol.iterator, { value: function values() { const s = st(this); return Array.prototype.values.call(s); }, writable: true, enumerable: false, configurable: true });
+  Object.defineProperty(P, Symbol.toStringTag, { value: 'FileList', configurable: true });
 }
 const _domParse = (cmd, a1, a2) => { try { return JSON.parse(_dom(cmd, a1, a2)); } catch { return null; } };
 
@@ -1234,7 +1252,7 @@ const _CSS_PROPERTY_NAMES = [
   "boxSizing","breakAfter","breakBefore","breakInside","captionSide","caretColor","clear","clip",
   "clipPath","color","colorScheme","columnCount","columnFill","columnGap","columnRule","columnRuleColor",
   "columnRuleStyle","columnRuleWidth","columnSpan","columnWidth","columns","contain","container",
-  "containerName","containerType","content","counterIncrement","counterReset","counterSet","cssFloat",
+  "containerName","containerType","content","counterIncrement","counterReset","counterSet",
   "cursor","direction","display","emptyCells","filter","flex","flexBasis","flexDirection","flexFlow",
   "flexGrow","flexShrink","flexWrap","float","font","fontFamily","fontFeatureSettings","fontKerning",
   "fontOpticalSizing","fontSize","fontSizeAdjust","fontStretch","fontStyle","fontVariant",
@@ -1389,7 +1407,16 @@ const _styleProxy = (decl) => new Proxy(decl, {
   set(t, p, v) {
     if (typeof p === "symbol") { t[p] = v; return true; }
     if (p === "cssText") { t.cssText = v; return true; }
-    if (/^\d+$/.test(p) || p in Object.getPrototypeOf(t)) return true;
+    if (/^\d+$/.test(p)) return true;
+    if (p in Object.getPrototypeOf(t)) {
+      // (刀75) prototype ACCESSORS with a setter (cssFloat) run it against the declaration;
+      // every other prototype member (methods, readonly names) stays a silent no-op.
+      for (let o = Object.getPrototypeOf(t); o; o = Object.getPrototypeOf(o)) {
+        const d = Object.getOwnPropertyDescriptor(o, p);
+        if (d) { if (d.set) d.set.call(t, v); break; }
+      }
+      return true;
+    }
     t.setProperty(p, v);
     return true;
   },
@@ -7779,7 +7806,7 @@ globalThis.WebSocketStream = class WebSocketStream {
   constructor(url, protocols) {
     if (arguments.length === 0) throw new TypeError("Failed to construct 'WebSocketStream': 1 argument required, but only 0 present.");
     this.url = String(url);
-    this.opening = new Promise(() => {});
+    this.opened = new Promise(() => {});   // Chrome 145: `opened` (the old `opening` name was the pre-ship draft)
     this.closed = new Promise(() => {});
   }
   close() {}
@@ -9159,9 +9186,10 @@ if (typeof TextEncoderStream === 'undefined') {
       });
       this.readable = ts.readable;
       this.writable = ts.writable;
-      Object.defineProperty(this, 'encoding', { value: dec.encoding, enumerable: true });
-      Object.defineProperty(this, 'fatal', { value: dec.fatal, enumerable: true });
-      Object.defineProperty(this, 'ignoreBOM', { value: dec.ignoreBOM, enumerable: true });
+      // plain assignments: lift_own turned these into prototype accessors (no own keys)
+      this.encoding = dec.encoding;
+      this.fatal = dec.fatal;
+      this.ignoreBOM = dec.ignoreBOM;
     }
   };
 }

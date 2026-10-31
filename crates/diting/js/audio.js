@@ -35,12 +35,28 @@ const _audioNodeBase = {
     return dest || this;
   },
   disconnect(){},
-  addEventListener(){}, removeEventListener(){},
-  channelCount: 2, channelCountMode: 'max', channelInterpretation: 'speakers', numberOfInputs: 1, numberOfOutputs: 1
 };
-// Every AudioNode exposes `.context` back to its AudioContext — fingerprint
-// probes read `analyser.context.sampleRate`.
-function _audioNode(ctx, extra) { return Object.assign({ context: ctx }, _audioNodeBase, extra); }
+// (M4 刀75) The six AudioNode attributes (context, numberOfInputs/Outputs,
+// channelCount/Mode/Interpretation) are PROTOTYPE accessors over a WeakMap slot
+// (tail_members.js reads __diting_anState): nodes inherit AudioNode.prototype and
+// carry no own `context`/`channel*` keys. Fingerprint probes still read
+// `analyser.context.sampleRate` through the accessor.
+// connect/disconnect live on AudioNode.prototype (tail_members.js installs them from here).
+Object.defineProperty(globalThis, '__diting_anConnect', { value: _audioNodeBase.connect, writable: true, enumerable: false, configurable: true });
+const _anState = new WeakMap();
+Object.defineProperty(globalThis, '__diting_anState', { value: _anState, writable: true, enumerable: false, configurable: true });
+const _AN_KEYS = ['context', 'channelCount', 'channelCountMode', 'channelInterpretation', 'numberOfInputs', 'numberOfOutputs'];
+function _audioNode(ctx, extra) {
+  const AN = globalThis.AudioNode;
+  // A real EventTarget (native listener core) wearing the AudioNode prototype, so
+  // add/removeEventListener/dispatchEvent are inherited exactly like Chrome's.
+  const o = Reflect.construct(EventTarget, [], Object);
+  Object.setPrototypeOf(o, AN && AN.prototype ? AN.prototype : EventTarget.prototype);
+  const st = { context: ctx, channelCount: 2, channelCountMode: 'max', channelInterpretation: 'speakers', numberOfInputs: 1, numberOfOutputs: 1 };
+  if (extra) for (const k of Object.keys(extra)) { if (_AN_KEYS.indexOf(k) >= 0) st[k] = extra[k]; else o[k] = extra[k]; }
+  _anState.set(o, st);
+  return o;
+}
 // Real AudioBuffer: detectors check `"copyFromChannel" in AudioBuffer.prototype`
 // (ReferenceError if the global is missing) and verify copyFromChannel copies
 // what getChannelData exposes — one backing Float32Array per channel.

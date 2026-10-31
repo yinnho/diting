@@ -482,6 +482,7 @@ globalThis.RTCError = class RTCError extends globalThis.DOMException {
     super(message !== undefined ? String(message) : "RTCError", "OperationError");
     this.errorDetail = init?.errorDetail ?? null;
     this.sdpLineNumber = init?.sdpLineNumber ?? null;
+    this.httpRequestStatusCode = init?.httpRequestStatusCode ?? null;
     this.sctpCauseCode = init?.sctpCauseCode ?? null;
     this.receivedAlert = init?.receivedAlert ?? null;
     this.sentAlert = init?.sentAlert ?? null;
