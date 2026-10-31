@@ -3322,6 +3322,10 @@ class DOMTokenList {
     return this._supported.includes(String(token).toLowerCase());
   }
   forEach(cb, thisArg) {
+    // (刀95) Chrome throws on a missing callback BEFORE iterating (even an
+    // empty list) — the natural V8 call shape, "undefined is not a function",
+    // not a WebIDL coercion message.
+    if (typeof cb !== "function") throw new TypeError(String(cb) + " is not a function");
     const t = this._tokens();
     for (let i = 0; i < t.length; i++) cb.call(thisArg, t[i], i, this);
   }

@@ -18170,9 +18170,11 @@
         let mut rt = setup_runtime("<html><body></body></html>");
         let result = rt.evaluate(r#"
             const first = history.pushState({}, '', '/dashboard');
-            const afterReplace = (history.replaceState({scroll:1}), location.pathname);
+            // (刀95) 2 args minimum is Chrome's ladder — the url stays omitted,
+            // which is the case under test.
+            const afterReplace = (history.replaceState({scroll:1}, ''), location.pathname);
             history.pushState({}, '', '/a');
-            const afterPush = (history.pushState({b:1}), location.pathname);
+            const afterPush = (history.pushState({b:1}, ''), location.pathname);
             return [afterReplace, afterPush];
         "#).unwrap();
         assert_eq!(result, serde_json::json!(["/dashboard", "/a"]));
@@ -28776,7 +28778,9 @@ fn knife65_document_family() {
           const r = document.caretRangeFromPoint(5, 5);
           out.crfp = [r.constructor.name, Object.prototype.toString.call(r), r.collapsed, r.startContainer.nodeType, r.startOffset, document.caretRangeFromPoint(-9999, -9999), D.caretRangeFromPoint.length];
           // requestStorageAccessFor (probed messages)
-          out.rsaf = [t(() => document.requestStorageAccessFor()), t(() => document.requestStorageAccessFor(123)), document.requestStorageAccessFor('https://example.com').constructor.name, D.requestStorageAccessFor.length];
+          // (刀95) the zero-arg case now REJECTS with Chrome's argc TypeError (see
+          // knife95) — a sync catch can no longer see it; keep the sync-visible rows.
+          out.rsaf = [t(() => document.requestStorageAccessFor(123)), document.requestStorageAccessFor('https://example.com').constructor.name, D.requestStorageAccessFor.length];
           // webkit verbs: undefined return, meta
           out.wv = [document.webkitCancelFullScreen(), document.webkitExitFullscreen(), D.webkitCancelFullScreen.name, D.webkitCancelFullScreen.length, D.webkitExitFullscreen.name, D.webkitExitFullscreen.length];
           // browsingTopics / ariaNotify (probed: promise [] / void + arity messages)
@@ -28820,7 +28824,7 @@ fn knife65_document_family() {
     assert_eq!(v["avtRest"], serde_json::json!(null), "activeViewTransition null at rest (probed)");
     assert_eq!(v["avtDuring"], serde_json::json!(true), "activeViewTransition === transition object (probed)");
     assert_eq!(v["crfp"], serde_json::json!(["Range", "[object Range]", true, 1, 0, null, 0]), "caretRangeFromPoint element anchor + OOR + arity 0 (probed)");
-    assert_eq!(v["rsaf"], serde_json::json!(["E:TypeError:Failed to execute 'requestStorageAccessFor' on 'Document': 1 argument required, but only 0 present.", "E:TypeError:Invalid origin", "Promise", 1]), "requestStorageAccessFor errors + promise + arity (probed)");
+    assert_eq!(v["rsaf"], serde_json::json!(["E:TypeError:Invalid origin", "Promise", 1]), "requestStorageAccessFor error + promise + arity (zero-arg rejection asserted in knife95)");
     assert_eq!(v["wv"], serde_json::json!([null, null, "webkitCancelFullScreen", 0, "webkitExitFullscreen", 0]), "webkit verbs undefined + meta (probed)");
     assert_eq!(v["bt"], serde_json::json!(["Promise", 0]), "browsingTopics promise + arity (probed)");
     assert_eq!(v["an"], serde_json::json!(["undef", "E:TypeError:Failed to execute 'ariaNotify' on 'Document': 1 argument required, but only 0 present.", "E:TypeError:Failed to execute 'ariaNotify' on 'Document': The provided value is not of type 'AriaNotificationOptions'.", 1, "ariaNotify"]), "ariaNotify void + messages + arity 1 (probed)");
@@ -31332,4 +31336,88 @@ async fn knife94_highlight_registry_map_like() {
         ]),
         "knife94: HighlightRegistry Map-like + Highlight Set-like real bodies (Chrome 145 truth)"
     );
+}
+
+#[tokio::test]
+async fn knife95_instance_method_ladders() {
+    // (刀95) required-argument ladders reach the INSTANCE-REQUIRING interfaces
+    // (elements/document/window/storage/observers/2d-canvas…): every message
+    // below is a k95 Chrome-probe truth row. Plus the three hand finds: the
+    // forEach pre-iteration throw, the eight Chrome length-0 window methods,
+    // webkitURL's new-check-first message, the trustedTypes prototype link
+    // and scheduler's prototype landing with Chrome's descriptor shape.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const T = (k, f) => { try { const v = f(); L.push([k, 'ok', v === undefined ? '' : String(v)]); } catch (e) { L.push([k, 'E', e.name + ':' + e.message]); } };
+        const div = document.createElement('div');
+        T('el.setAttribute', () => div.setAttribute());
+        T('el.closest', () => div.closest());
+        T('el.animate', () => div.animate());
+        T('el.attachShadow', () => div.attachShadow());
+        T('doc.createElement', () => document.createElement());
+        T('doc.querySelector', () => document.querySelector());
+        T('doc.createElementNS', () => document.createElementNS());
+        T('node.appendChild', () => div.appendChild());
+        T('node.insertBefore', () => div.insertBefore());
+        T('cd.appendData', () => document.createTextNode('x').appendData());
+        T('sel.collapse', () => getSelection().collapse());
+        T('sel.setBaseAndExtent', () => getSelection().setBaseAndExtent());
+        T('hist.pushState', () => history.pushState());
+        T('ctx.measureText', () => document.createElement('canvas').getContext('2d').measureText());
+        T('ctx.drawImage', () => document.createElement('canvas').getContext('2d').drawImage());
+        T('nav.getUserMedia', () => navigator.getUserMedia());
+        T('mo.observe', () => new MutationObserver(function(){}).observe());
+        T('win.setTimeout', () => setTimeout());
+        T('win.matchMedia', () => matchMedia());
+        T('win.getComputedStyle', () => getComputedStyle());
+        T('loc.assign', () => location.assign());
+        T('port.postMessage', () => new MessageChannel().port1.postMessage());
+        T('svg.getPointAtLength', () => document.createElementNS('http://www.w3.org/2000/svg', 'path').getPointAtLength());
+        T('classList.forEach', () => document.body.classList.forEach());
+        L.push(['winLen0', 'ok', [alert, confirm, prompt, scroll, scrollBy, scrollTo, clearInterval, clearTimeout].map((f) => f.length).join(',')]);
+        T('webkitURL', () => webkitURL());
+        L.push(['ttpf', 'ok', [trustedTypes instanceof TrustedTypePolicyFactory, (function(){try{trustedTypes.createPolicy();return 'no'}catch(e){return e.name}})()].join('/')]);
+        L.push(['sched', 'ok', [scheduler instanceof Scheduler, Scheduler.prototype.postTask.length, Object.getOwnPropertyDescriptor(Scheduler.prototype, 'postTask').enumerable].join('/')]);
+        globalThis.__r95 = null;
+        Promise.all([fetch().catch((e) => 'F:' + e.name + ':' + e.message),
+                     document.requestStorageAccessFor().catch((e) => 'R:' + e.name + ':' + e.message),
+                     createImageBitmap().catch((e) => 'C:' + e.name + ':' + e.message)])
+          .then((a) => { globalThis.__r95 = a; });
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(), serde_json::json!([
+        ["el.setAttribute", "E", "TypeError:Failed to execute 'setAttribute' on 'Element': 2 arguments required, but only 0 present."],
+        ["el.closest", "E", "TypeError:Failed to execute 'closest' on 'Element': 1 argument required, but only 0 present."],
+        ["el.animate", "E", "TypeError:Failed to execute 'animate' on 'Element': 1 argument required, but only 0 present."],
+        ["el.attachShadow", "E", "TypeError:Failed to execute 'attachShadow' on 'Element': 1 argument required, but only 0 present."],
+        ["doc.createElement", "E", "TypeError:Failed to execute 'createElement' on 'Document': 1 argument required, but only 0 present."],
+        ["doc.querySelector", "E", "TypeError:Failed to execute 'querySelector' on 'Document': 1 argument required, but only 0 present."],
+        ["doc.createElementNS", "E", "TypeError:Failed to execute 'createElementNS' on 'Document': 2 arguments required, but only 0 present."],
+        ["node.appendChild", "E", "TypeError:Failed to execute 'appendChild' on 'Node': 1 argument required, but only 0 present."],
+        ["node.insertBefore", "E", "TypeError:Failed to execute 'insertBefore' on 'Node': 2 arguments required, but only 0 present."],
+        ["cd.appendData", "E", "TypeError:Failed to execute 'appendData' on 'CharacterData': 1 argument required, but only 0 present."],
+        ["sel.collapse", "E", "TypeError:Failed to execute 'collapse' on 'Selection': 1 argument required, but only 0 present."],
+        ["sel.setBaseAndExtent", "E", "TypeError:Failed to execute 'setBaseAndExtent' on 'Selection': 4 arguments required, but only 0 present."],
+        ["hist.pushState", "E", "TypeError:Failed to execute 'pushState' on 'History': 2 arguments required, but only 0 present."],
+        ["ctx.measureText", "E", "TypeError:Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present."],
+        ["ctx.drawImage", "E", "TypeError:Failed to execute 'drawImage' on 'CanvasRenderingContext2D': 3 arguments required, but only 0 present."],
+        ["nav.getUserMedia", "E", "TypeError:Failed to execute 'getUserMedia' on 'Navigator': 3 arguments required, but only 0 present."],
+        ["mo.observe", "E", "TypeError:Failed to execute 'observe' on 'MutationObserver': 1 argument required, but only 0 present."],
+        ["win.setTimeout", "E", "TypeError:Failed to execute 'setTimeout' on 'Window': 1 argument required, but only 0 present."],
+        ["win.matchMedia", "E", "TypeError:Failed to execute 'matchMedia' on 'Window': 1 argument required, but only 0 present."],
+        ["win.getComputedStyle", "E", "TypeError:Failed to execute 'getComputedStyle' on 'Window': 1 argument required, but only 0 present."],
+        ["loc.assign", "E", "TypeError:Failed to execute 'assign' on 'Location': 1 argument required, but only 0 present."],
+        ["port.postMessage", "E", "TypeError:Failed to execute 'postMessage' on 'MessagePort': 1 argument required, but only 0 present."],
+        ["svg.getPointAtLength", "E", "TypeError:Failed to execute 'getPointAtLength' on 'SVGGeometryElement': 1 argument required, but only 0 present."],
+        ["classList.forEach", "E", "TypeError:undefined is not a function"],
+        ["winLen0", "ok", "0,0,0,0,0,0,0,0"],
+        ["webkitURL", "E", "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."],
+        ["ttpf", "ok", "true/TypeError"],
+        ["sched", "ok", "true/1/true"]
+    ]));
+    // promise legs: Chrome REJECTS with the same argc TypeErrors
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+    let out = rt.evaluate("JSON.stringify(__r95)").unwrap();
+    assert_eq!(out.as_str().unwrap(), r#"["F:TypeError:Failed to execute 'fetch' on 'Window': 1 argument required, but only 0 present.","R:TypeError:Failed to execute 'requestStorageAccessFor' on 'Document': 1 argument required, but only 0 present.","C:TypeError:Failed to execute 'createImageBitmap' on 'Window': 1 argument required, but only 0 present."]"#);
 }

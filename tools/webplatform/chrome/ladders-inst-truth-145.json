@@ -1,0 +1,278 @@
+{
+ "promise": {
+  "Document": {
+   "requestStorageAccessFor": 1
+  },
+  "HTMLMediaElement": {
+   "setMediaKeys": 1,
+   "setSinkId": 1
+  },
+  "Navigator": {
+   "clearOriginJoinedAdInterestGroups": 1,
+   "deprecatedReplaceInURN": 2,
+   "deprecatedURNToURL": 1,
+   "getInterestGroupAdAuctionData": 1,
+   "joinAdInterestGroup": 1,
+   "requestMediaKeySystemAccess": 2,
+   "runAdAuction": 1
+  },
+  "Window": {
+   "createImageBitmap": 1,
+   "fetch": 1
+  }
+ },
+ "sync": {
+  "AudioNode": {
+   "connect": 1
+  },
+  "BroadcastChannel": {
+   "postMessage": 1
+  },
+  "CSSStyleDeclaration": {
+   "getPropertyPriority": 1,
+   "getPropertyValue": 1,
+   "item": 1,
+   "removeProperty": 1,
+   "setProperty": 2
+  },
+  "CanvasRenderingContext2D": {
+   "arc": 5,
+   "arcTo": 5,
+   "bezierCurveTo": 6,
+   "clearRect": 4,
+   "createImageData": 1,
+   "drawImage": 3,
+   "ellipse": 7,
+   "fillRect": 4,
+   "fillText": 3,
+   "getImageData": 4,
+   "isPointInPath": 2,
+   "isPointInStroke": 2,
+   "lineTo": 2,
+   "moveTo": 2,
+   "putImageData": 3,
+   "quadraticCurveTo": 4,
+   "rect": 4,
+   "rotate": 1,
+   "scale": 2,
+   "strokeRect": 4,
+   "strokeText": 3,
+   "transform": 6,
+   "translate": 2
+  },
+  "CharacterData": {
+   "appendData": 1,
+   "deleteData": 2,
+   "insertData": 2,
+   "replaceData": 3,
+   "substringData": 2
+  },
+  "DOMTokenList": {
+   "contains": 1,
+   "item": 1,
+   "replace": 2,
+   "supports": 1,
+   "toggle": 1
+  },
+  "Document": {
+   "adoptNode": 1,
+   "createAttribute": 1,
+   "createAttributeNS": 2,
+   "createCDATASection": 1,
+   "createComment": 1,
+   "createElement": 1,
+   "createElementNS": 2,
+   "createEvent": 1,
+   "createProcessingInstruction": 2,
+   "createTextNode": 1,
+   "execCommand": 1,
+   "getElementById": 1,
+   "getElementsByClassName": 1,
+   "getElementsByName": 1,
+   "getElementsByTagName": 1,
+   "getElementsByTagNameNS": 2,
+   "importNode": 1,
+   "queryCommandEnabled": 1,
+   "queryCommandIndeterm": 1,
+   "queryCommandState": 1,
+   "queryCommandSupported": 1,
+   "queryCommandValue": 1,
+   "querySelector": 1,
+   "querySelectorAll": 1
+  },
+  "Element": {
+   "animate": 1,
+   "attachShadow": 1,
+   "closest": 1,
+   "getAttribute": 1,
+   "getElementsByClassName": 1,
+   "getElementsByTagName": 1,
+   "getElementsByTagNameNS": 2,
+   "hasAttribute": 1,
+   "hasPointerCapture": 1,
+   "insertAdjacentElement": 2,
+   "insertAdjacentHTML": 2,
+   "insertAdjacentText": 2,
+   "matches": 1,
+   "querySelector": 1,
+   "querySelectorAll": 1,
+   "releasePointerCapture": 1,
+   "setAttribute": 2,
+   "setAttributeNS": 3,
+   "setHTMLUnsafe": 1,
+   "setPointerCapture": 1
+  },
+  "HTMLButtonElement": {
+   "setCustomValidity": 1
+  },
+  "HTMLCanvasElement": {
+   "getContext": 1,
+   "toBlob": 1
+  },
+  "HTMLInputElement": {
+   "setCustomValidity": 1,
+   "setRangeText": 1,
+   "setSelectionRange": 2
+  },
+  "HTMLMediaElement": {
+   "canPlayType": 1
+  },
+  "HTMLSelectElement": {
+   "add": 1,
+   "setCustomValidity": 1
+  },
+  "HTMLTableElement": {
+   "deleteRow": 1
+  },
+  "HTMLTableRowElement": {
+   "deleteCell": 1
+  },
+  "HTMLTableSectionElement": {
+   "deleteRow": 1
+  },
+  "HTMLTextAreaElement": {
+   "setCustomValidity": 1,
+   "setRangeText": 1,
+   "setSelectionRange": 2
+  },
+  "History": {
+   "pushState": 2,
+   "replaceState": 2
+  },
+  "Location": {
+   "assign": 1,
+   "replace": 1
+  },
+  "MessagePort": {
+   "postMessage": 1
+  },
+  "MutationObserver": {
+   "observe": 1
+  },
+  "Navigator": {
+   "adAuctionComponents": 1,
+   "getUserMedia": 3,
+   "registerProtocolHandler": 2,
+   "sendBeacon": 1,
+   "unregisterProtocolHandler": 2,
+   "vibrate": 1,
+   "webkitGetUserMedia": 3
+  },
+  "Node": {
+   "appendChild": 1,
+   "compareDocumentPosition": 1,
+   "contains": 1,
+   "insertBefore": 2,
+   "isDefaultNamespace": 1,
+   "isEqualNode": 1,
+   "isSameNode": 1,
+   "lookupNamespaceURI": 1,
+   "lookupPrefix": 1,
+   "removeChild": 1,
+   "replaceChild": 2
+  },
+  "Performance": {
+   "getEntriesByName": 1,
+   "getEntriesByType": 1,
+   "setResourceTimingBufferSize": 1
+  },
+  "ResizeObserver": {
+   "observe": 1,
+   "unobserve": 1
+  },
+  "SVGGeometryElement": {
+   "getPointAtLength": 1
+  },
+  "SVGSVGElement": {
+   "checkEnclosure": 2,
+   "checkIntersection": 2,
+   "createSVGTransformFromMatrix": 1,
+   "getElementById": 1,
+   "getEnclosureList": 2,
+   "getIntersectionList": 2,
+   "setCurrentTime": 1,
+   "suspendRedraw": 1,
+   "unsuspendRedraw": 1
+  },
+  "SVGTextContentElement": {
+   "getEndPositionOfChar": 1,
+   "getExtentOfChar": 1,
+   "getRotationOfChar": 1,
+   "getStartPositionOfChar": 1,
+   "getSubStringLength": 2,
+   "selectSubString": 2
+  },
+  "Selection": {
+   "addRange": 1,
+   "collapse": 1,
+   "containsNode": 1,
+   "extend": 1,
+   "getRangeAt": 1,
+   "removeRange": 1,
+   "selectAllChildren": 1,
+   "setBaseAndExtent": 4,
+   "setPosition": 1
+  },
+  "ShadowRoot": {
+   "elementFromPoint": 2,
+   "elementsFromPoint": 2,
+   "setHTMLUnsafe": 1
+  },
+  "TrustedTypePolicyFactory": {
+   "createPolicy": 1,
+   "getAttributeType": 2,
+   "getPropertyType": 2,
+   "isHTML": 1,
+   "isScript": 1,
+   "isScriptURL": 1
+  },
+  "WebSocket": {
+   "send": 1
+  },
+  "Window": {
+   "atob": 1,
+   "btoa": 1,
+   "cancelAnimationFrame": 1,
+   "cancelIdleCallback": 1,
+   "fetchLater": 1,
+   "getComputedStyle": 1,
+   "matchMedia": 1,
+   "moveBy": 2,
+   "moveTo": 2,
+   "postMessage": 1,
+   "queueMicrotask": 1,
+   "reportError": 1,
+   "requestAnimationFrame": 1,
+   "requestIdleCallback": 1,
+   "resizeBy": 2,
+   "resizeTo": 2,
+   "setInterval": 1,
+   "setTimeout": 1,
+   "structuredClone": 1,
+   "webkitCancelAnimationFrame": 1,
+   "webkitRequestAnimationFrame": 1,
+   "webkitRequestFileSystem": 3,
+   "webkitResolveLocalFileSystemURL": 2
+  }
+ }
+}
