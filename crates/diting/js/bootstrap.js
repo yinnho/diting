@@ -9679,6 +9679,38 @@ Object.defineProperty(globalThis.ShadowRoot.prototype, 'adoptedStyleSheets', {
   set(sheets) { this._adoptedStyleSheets = globalThis.__adoptedSet(this, sheets); },
   configurable: true,
 });
+// 刀66: ShadowRoot's five Chrome-145 members (probes k66-*): the three
+// element getters answer null on this engine (it never enters fullscreen,
+// pointer lock or picture-in-picture — fullscreenElement keeps Chrome's rw
+// shape with a no-throw no-op setter); onslotchange is the __onHandlers
+// on* pattern; getSelection returns a Selection CACHED PER ROOT, distinct
+// from the document's and from other roots' (same reference every call),
+// starting empty (anchorNode null, type 'None').
+(() => {
+  const SRP = globalThis.ShadowRoot.prototype;
+  const guard = function () { if (!(this instanceof globalThis.ShadowRoot)) throw new TypeError('Illegal invocation'); };
+  const g = (name, get, set) => {
+    Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });
+    if (set) { Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true }); Object.defineProperty(set, 'length', { value: 1, configurable: true }); }
+    const d = { enumerable: true, configurable: true, get };
+    if (set) d.set = set;
+    Object.defineProperty(SRP, name, d);
+  };
+  g('fullscreenElement', function () { guard.call(this); return null; }, function (v) { guard.call(this); });
+  g('pictureInPictureElement', function () { guard.call(this); return null; }, null);
+  g('pointerLockElement', function () { guard.call(this); return null; }, null);
+  g('onslotchange',
+    function () { guard.call(this); const s = this.__onHandlers; return s && Object.prototype.hasOwnProperty.call(s, 'onslotchange') ? s.onslotchange : null; },
+    function (fn) { guard.call(this); if (typeof fn !== 'function') fn = null; const s = this.__onHandlers || (this.__onHandlers = {}); s.onslotchange = fn; });
+  const sels = new WeakMap();
+  const gs = function getSelection() {
+    guard.call(this);
+    let s = sels.get(this);
+    if (!s) { s = new Selection(this); sels.set(this, s); }
+    return s;
+  };
+  Object.defineProperty(SRP, 'getSelection', { value: gs, writable: true, enumerable: true, configurable: true });
+})();
 globalThis.__diting_shadowHostNames = new Set(['article','aside','blockquote','body','div','footer','h1','h2','h3','h4','h5','h6','header','main','nav','p','section','span']);
 function _isConstructorCE(v) {
   if (typeof v !== 'function') return false;

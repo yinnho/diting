@@ -114,7 +114,11 @@
     }
     if (name === 'font-face' || name === 'page' || name === 'property' || name === 'counter-style' || name === 'font-feature-values' || name === 'position-try' || name === 'font-palette-values' || name === 'view-transition') {
       const cls = { 'font-face': 'CSSFontFaceRule', page: 'CSSPageRule', property: 'CSSPropertyRule', 'counter-style': 'CSSCounterStyleRule', 'position-try': 'CSSPositionTryRule', 'font-palette-values': 'CSSFontPaletteValuesRule' }[name] || 'CSSRule';
-      return mk(cls, { kind: name, prelude: rest, parent, sheet, style: decl(scan(item.body).filter((x) => !x.block).map((x) => x.head).join('; ')) });
+      // 刀66: @counter-style parses descriptors through the same grammar the
+      // setters use — Chrome drops invalid ones at parse time (probed:
+      // `negative: (-)(-)` never reaches cssText nor the getter).
+      const heads = scan(item.body).filter((x) => !x.block).map((x) => x.head);
+      return mk(cls, { kind: name, prelude: rest, parent, sheet, style: decl((name === 'counter-style' ? heads.filter(csValid) : heads).join('; ')) });
     }
     if (name === 'keyframes') {
       const r = mk('CSSKeyframesRule', { kind: 'keyframes', name: rest.replace(/^["']|["']$/g, ''), parent, sheet, children: list([]) });
@@ -152,6 +156,15 @@
       case 'namespace': return '@namespace ' + (d.prefix ? d.prefix + ' ' : '') + 'url("' + d.uri + '");';
       case 'keyframes': return `@keyframes ${d.name} { \n${kids(d)}\n}`;
       case 'keyframe': return `${d.keyText} { ${declText(d.style)} }`;
+      // 刀66: @counter-style serialises its present descriptors in spec
+      // order (CS_ORDER) regardless of parse/set order — probed: setting
+      // negative on a rule whose suffix was already there lands negative
+      // BEFORE suffix, and a scrambled set of ten round-trips canonical.
+      case 'counter-style': {
+        const parts = [];
+        for (const k of CS_ORDER) { const v = d.style.getPropertyValue(k); if (v) parts.push(k + ': ' + v + ';'); }
+        return `@counter-style ${d.prelude}${parts.length ? ' { ' + parts.join(' ') + ' }' : ' { }'}`;
+      }
       default: return `@${d.kind}${d.prelude ? ' ' + d.prelude : ''} { ${d.style ? declText(d.style) : ''} }`;
     }
   };
@@ -239,7 +252,62 @@
   acc(globalThis.CSSPropertyRule, 'syntax', function () { return propDesc('syntax').call(this).replace(/^["']|["']$/g, ''); });
   acc(globalThis.CSSPropertyRule, 'inherits', function () { return propDesc('inherits').call(this).trim() === 'true'; });
   acc(globalThis.CSSPropertyRule, 'initialValue', function () { const v = propDesc('initial-value').call(this); return v === '' ? null : v; });
-  acc(globalThis.CSSCounterStyleRule, 'name', function () { return rec(this).prelude; });
+  // 刀66: @counter-style's eleven rw descriptors (Chrome 145 probes k66-*).
+  // Getters read the decl store raw — source spelling preserved (symbols
+  // keeps its quotes: '"A" b'), absent descriptor reads ''. Setters validate
+  // against the descriptor grammar and silently ignore invalid values
+  // (Chrome never throws; '' is always invalid too, it clears nothing).
+  // system's setter is a FULL NO-OP on Chrome 145: parse accepts a value,
+  // CSSOM cannot change it afterwards (six valid spellings all no-op'd —
+  // numeric/fixed/fixed 3/extends decimal/CYCLIC/zzz!!).
+  const CS_ORDER = ['system', 'symbols', 'additive-symbols', 'negative', 'prefix', 'suffix', 'pad', 'range', 'fallback', 'speak-as'];
+  const CS_SYS = /^(cyclic|numeric|alphabetic|symbolic|additive|fixed(?:\s+-?\d+)?|extends\s+-?[A-Za-z_\u0080-￿][-A-Za-z0-9_\u0080-￿]*)$/i;
+  const CS_IDENT = /^-?[A-Za-z_\u0080-￿][-A-Za-z0-9_\u0080-￿]*$/;
+  const csSym = (s) => CS_IDENT.test(s) && s !== 'none' || /^("[^"]*"|'[^']*')$/.test(s);
+  // CSS-wide keywords are never valid descriptor values (probed: suffix =
+  // 'initial' is rejected whole; 'a initial' as two idents stays fine).
+  const CS_WIDE = /^(initial|inherit|unset|revert|revert-layer)$/i;
+  const csList = (s) => splitTop(String(s), ',').map((x) => x.trim()).filter(Boolean);
+  // whitespace tokens with quote awareness — `symbols: "A" b` is TWO symbols
+  const csTokens = (s) => { const out = []; let cur = '', q = ''; for (const ch of String(s).trim()) { if (q) { cur += ch; if (ch === q) q = ''; } else if (ch === '"' || ch === "'") { q = ch; cur += ch; } else if (/\s/.test(ch)) { if (cur) { out.push(cur); cur = ''; } } else cur += ch; } if (cur) out.push(cur); return out; };
+  const CS_VALIDATE = {
+    system: (v) => CS_SYS.test(v.trim()),
+    symbols: (v) => { const l = csTokens(v); return l.length > 0 && l.every(csSym); },
+    'additive-symbols': (v) => { const l = csList(v); return l.length > 0 && l.every((p) => { const m = /^(-?\d+)\s+(.+)$/.exec(p); const t = m && csTokens(m[2]); return !!m && t.length === 1 && csSym(t[0]); }); },
+    negative: (v) => { const p = csTokens(v); return p.length > 0 && p.length <= 2 && p.every(csSym); },
+    prefix: csSym, suffix: csSym, fallback: csSym,
+    range: (v) => { const t = v.trim(); if (t === 'auto') return true; const B = /^(-?\d+|infinite)$/; return csList(t).length > 0 && csList(t).every((seg) => { const b = seg.split(/\s+/); return b.length === 2 && B.test(b[0]) && B.test(b[1]) && !(b[0] === 'infinite' && b[1] === 'infinite'); }); },
+    pad: (v) => { const m = /^(-?\d+)\s+(.+)$/.exec(v.trim()); const t = m && csTokens(m[2]); return !!m && t.length === 1 && csSym(t[0]); },
+    'speak-as': (v) => { const t = v.trim(); return /^(auto|bullets|numbers|words|spell-out)$/.test(t) || (CS_IDENT.test(t) && t !== 'none'); },
+  };
+  const csValid = (head) => {
+    const i = head.indexOf(':');
+    if (i < 0) return false;
+    const k = head.slice(0, i).trim().toLowerCase();
+    const f = CS_VALIDATE[k];
+    return !!f && !CS_WIDE.test(head.slice(i + 1).trim()) && f(head.slice(i + 1).trim());
+  };
+  const CSR = globalThis.CSSCounterStyleRule;
+  const csChanged = (r) => { const sh = rec(r).sheet; if (sh && sh._cssomChanged) sh._cssomChanged(); };
+  const csGuard = (r) => { if (!D.has(r)) throw new TypeError('Illegal invocation'); };
+  // Chrome pins accessor names ('get symbols') and setter arity — install
+  // with the pinning the shared acc() does not do.
+  const csAcc = (name, get, set) => {
+    Object.defineProperty(get, 'name', { value: 'get ' + name, configurable: true });
+    if (set) { Object.defineProperty(set, 'name', { value: 'set ' + name, configurable: true }); Object.defineProperty(set, 'length', { value: 1, configurable: true }); }
+    const d = { enumerable: true, configurable: true, get };
+    if (set) d.set = set;
+    Object.defineProperty(CSR.prototype, name, d);
+  };
+  const csGet = (kebab) => function () { csGuard(this); return rec(this).style.getPropertyValue(kebab); };
+  const csSet = (kebab) => function (v) { csGuard(this); const s = String(v); if (!CS_WIDE.test(s.trim()) && CS_VALIDATE[kebab](s)) { rec(this).style.setProperty(kebab, s); csChanged(this); } };
+  csAcc('name',
+    function () { csGuard(this); return rec(this).prelude; },
+    function (v) { csGuard(this); const s = String(v); if (CS_IDENT.test(s) && s !== 'none') { rec(this).prelude = s; csChanged(this); } });
+  csAcc('system', csGet('system'), function (v) { csGuard(this); });
+  for (const kebab of ['symbols', 'additive-symbols', 'negative', 'prefix', 'suffix', 'range', 'pad', 'fallback', 'speak-as']) {
+    csAcc(kebab === 'additive-symbols' ? 'additiveSymbols' : kebab === 'speak-as' ? 'speakAs' : kebab, csGet(kebab), csSet(kebab));
+  }
 
   // ---- the sheet --------------------------------------------------------
   const parseList = (text, sheet) => {

@@ -27991,7 +27991,8 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     assert_eq!(v["scopeOwn"], serde_json::json!("constructor"));
     assert_eq!(v["condOwn"], serde_json::json!("conditionText,constructor"));
     assert_eq!(v["propOwn"], serde_json::json!("name,syntax,inherits,initialValue,constructor"));
-    assert_eq!(v["counterOwn"], serde_json::json!("name,constructor"));
+    // 刀66 grew the face to Chrome's eleven rw descriptors (+shape_fix order).
+    assert_eq!(v["counterOwn"], serde_json::json!("name,system,symbols,additiveSymbols,negative,prefix,suffix,range,pad,speakAs,fallback,constructor"));
     assert_eq!(v["credOwn"], serde_json::json!("id,type,constructor"));
     assert_eq!(v["pcOwn"], serde_json::json!("password,name,iconURL,constructor"));
     assert_eq!(v["dfHas"], serde_json::json!(true), "DocumentFragment.prototype has no innerHTML");
@@ -28828,4 +28829,96 @@ fn knife65_document_family() {
     assert_eq!(v["bodyFs"], serde_json::json!([true, "FRAMESET"]), "body swap to frameset reads through (probed)");
     assert_eq!(v["bodyBack"], serde_json::json!(true), "body restore");
     assert_eq!(v["adopted"], serde_json::json!([true, true, true, true, "[]"]), "adoptedStyleSheets ec descriptor (kind fix)");
+}
+
+#[test]
+fn knife66_counter_style_and_shadowroot() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt.evaluate(r#"
+        (function () {
+          const t = (f) => { try { const v = f(); return v === undefined ? 'undef' : (v === null ? 'null' : v); } catch (e) { return 'E:' + e.name + ':' + e.message; } };
+          const out = {};
+          // ---- CSSCounterStyleRule: 11 rw descriptors ----------------------
+          const P = CSSCounterStyleRule.prototype;
+          const names = Object.getOwnPropertyNames(P);
+          out.has11 = ['name','system','symbols','additiveSymbols','negative','prefix','suffix','range','pad','fallback','speakAs'].filter((n) => names.indexOf(n) < 0);
+          const sd = Object.getOwnPropertyDescriptor(P, 'symbols');
+          out.dsc = [sd.enumerable, sd.configurable, !!sd.get, !!sd.set, sd.get.name, sd.set.length];
+          const st = document.createElement('style');
+          st.textContent = '@counter-style thumbs { system: cyclic; symbols: "A" b; suffix: " "; additive-symbols: 3 "a", 2 b; negative: (-)(-) }';
+          document.head.appendChild(st);
+          const r = st.sheet.cssRules[0];
+          out.reads = [r.name, r.system, r.symbols, r.additiveSymbols, r.suffix, r.negative, r.prefix, r.range, r.pad, r.fallback, r.speakAs];
+          out.cssText0 = r.cssText;
+          // setters: accept valid, silently ignore invalid (Chrome never throws)
+          r.symbols = 'x "y"'; r.system = 'numeric'; r.range = '2 5'; r.pad = '3 "0"';
+          r.suffix = ''; r.negative = '"-"';
+          out.sets = [r.symbols, r.system, r.range, r.pad, r.suffix, r.negative];
+          r.name = 'renamed';
+          out.name = [r.name, r.cssText.slice(0, 22)];
+          r.name = 'none'; r.name = '123bad';
+          out.nameBad = r.name;
+          out.badSets = [t(() => { r.pad = '"0"'; }), t(() => { r.speakAs = 'numbers spell-out'; }), t(() => { r.suffix = 'initial'; }), t(() => { r.range = 'infinite'; })];
+          out.badAfter = [r.pad, r.speakAs, r.suffix, r.range];
+          // canonical serialisation order regardless of set order
+          const st2 = document.createElement('style');
+          st2.textContent = '@counter-style ord { system: cyclic; symbols: "A"; }';
+          document.head.appendChild(st2);
+          const o = st2.sheet.cssRules[0];
+          o.speakAs = 'numbers'; o.fallback = 'decimal'; o.pad = '2 "0"'; o.range = '1 9';
+          o.suffix = '"s"'; o.prefix = '"p"'; o.negative = '"-"'; o.additiveSymbols = '3 "x"'; o.name = 'ord2';
+          out.canon = o.cssText;
+          // foreign receiver -> Illegal invocation (Chrome truth)
+          out.illegal = [t(() => P.symbols), t(() => { P.suffix = '"x"'; })];
+          // ---- ShadowRoot: five members -----------------------------------
+          const SP = ShadowRoot.prototype;
+          const sn = Object.getOwnPropertyNames(SP);
+          out.has5 = ['fullscreenElement','pictureInPictureElement','pointerLockElement','onslotchange','getSelection'].filter((n) => sn.indexOf(n) < 0);
+          const host = document.createElement('div');
+          document.body.appendChild(host);
+          const sr = host.attachShadow({ mode: 'open' });
+          sr.innerHTML = '<p>hi</p>';
+          out.srNulls = [sr.fullscreenElement, sr.pictureInPictureElement, sr.pointerLockElement];
+          out.srFsSet = t(() => { sr.fullscreenElement = 1; return sr.fullscreenElement; });
+          const fn = () => {};
+          sr.onslotchange = fn;
+          out.srOn = [sr.onslotchange === fn];
+          sr.onslotchange = 'nope';
+          out.srOn.push(sr.onslotchange);
+          const ond = Object.getOwnPropertyDescriptor(SP, 'onslotchange');
+          out.srOnDsc = [ond.enumerable, ond.configurable, ond.get.name, ond.set.length];
+          const sel = sr.getSelection();
+          const host2 = document.createElement('div');
+          document.body.appendChild(host2);
+          const sr2 = host2.attachShadow({ mode: 'open' });
+          out.srSel = [sel.constructor.name, sr.getSelection() === sel, sel === sr2.getSelection(), sel === document.getSelection(), sel.type, sel.rangeCount, sel.anchorNode];
+          const rg = document.createRange();
+          rg.selectNodeContents(sr.querySelector('p'));
+          sel.removeAllRanges(); sel.addRange(rg);
+          out.srSelRange = [sel.rangeCount, sel.type, sel.anchorNode === sr.querySelector('p')];
+          out.srIllegal = [t(() => SP.fullscreenElement), t(() => SP.getSelection())];
+          return JSON.stringify(out);
+        })()
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let g = |k: &str| v.get(k).cloned().unwrap_or(serde_json::Value::Null);
+    assert_eq!(g("has11"), serde_json::json!([]));
+    assert_eq!(g("dsc"), serde_json::json!([true, true, true, true, "get symbols", 1]));
+    assert_eq!(g("reads"), serde_json::json!(["thumbs", "cyclic", "\"A\" b", "3 \"a\", 2 b", "\" \"", "", "", "", "", "", ""]));
+    assert_eq!(g("cssText0"), serde_json::json!("@counter-style thumbs { system: cyclic; symbols: \"A\" b; additive-symbols: 3 \"a\", 2 b; suffix: \" \"; }"));
+    assert_eq!(g("sets"), serde_json::json!(["x \"y\"", "cyclic", "2 5", "3 \"0\"", "\" \"", "\"-\""]));
+    assert_eq!(g("name"), serde_json::json!(["renamed", "@counter-style renamed"]));
+    assert_eq!(g("nameBad"), serde_json::json!("renamed"));
+    assert_eq!(g("badSets"), serde_json::json!(["undef", "undef", "undef", "undef"]));
+    assert_eq!(g("badAfter"), serde_json::json!(["3 \"0\"", "", "\" \"", "2 5"]));
+    assert_eq!(g("canon"), serde_json::json!("@counter-style ord2 { system: cyclic; symbols: \"A\"; additive-symbols: 3 \"x\"; negative: \"-\"; prefix: \"p\"; suffix: \"s\"; pad: 2 \"0\"; range: 1 9; fallback: decimal; speak-as: numbers; }"));
+    assert_eq!(g("illegal"), serde_json::json!(["E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation"]));
+    assert_eq!(g("has5"), serde_json::json!([]));
+    assert_eq!(g("srNulls"), serde_json::json!([null, null, null]));
+    assert_eq!(g("srFsSet"), serde_json::json!("null"));
+    assert_eq!(g("srOn"), serde_json::json!([true, null]));
+    assert_eq!(g("srOnDsc"), serde_json::json!([true, true, "get onslotchange", 1]));
+    assert_eq!(g("srSel"), serde_json::json!(["Selection", true, false, false, "None", 0, null]));
+    assert_eq!(g("srSelRange"), serde_json::json!([1, "Range", true]));
+    assert_eq!(g("srIllegal"), serde_json::json!(["E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation"]));
 }

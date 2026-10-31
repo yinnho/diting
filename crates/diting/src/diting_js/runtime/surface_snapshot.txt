@@ -1289,7 +1289,7 @@ P CSPViolationReportBody :: blockedURL,columnNumber,constructor,disposition,docu
 P CSSAnimation :: animationName,constructor
 P CSSConditionRule :: conditionText,constructor
 P CSSContainerRule :: constructor,containerName,containerQuery
-P CSSCounterStyleRule :: constructor,name
+P CSSCounterStyleRule :: additiveSymbols,constructor,fallback,name,negative,pad,prefix,range,speakAs,suffix,symbols,system
 P CSSFontFaceRule :: constructor,style
 P CSSFontFeatureValuesRule :: annotation,characterVariant,constructor,fontFamily,ornaments,styleset,stylistic,swash
 P CSSFontPaletteValuesRule :: constructor,name
@@ -2029,7 +2029,7 @@ P ServiceWorker :: constructor,onerror,onstatechange,postMessage,scriptURL,state
 P ServiceWorkerContainer :: constructor,controller,getRegistration,getRegistrations,ready,register
 P ServiceWorkerRegistration :: active,backgroundFetch,constructor,cookies,getNotifications,installing,navigationPreload,onupdatefound,paymentManager,periodicSync,pushManager,scope,showNotification,sync,unregister,update,updateViaCache,waiting
 P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersection,isDisjointFrom,isSubsetOf,isSupersetOf,keys,size,symmetricDifference,union,values
-P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,getAnimations,getHTML,host,innerHTML,mode,serializable,setHTMLUnsafe,slotAssignment,styleSheets
+P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,fullscreenElement,getAnimations,getHTML,getSelection,host,innerHTML,mode,onslotchange,pictureInPictureElement,pointerLockElement,serializable,setHTMLUnsafe,slotAssignment,styleSheets
 P SharedStorage :: append,batchUpdate,clear,constructor,createWorklet,delete,get,run,selectURL,set,worklet
 P SharedStorageAppendMethod :: constructor
 P SharedStorageClearMethod :: constructor
