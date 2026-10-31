@@ -185,10 +185,23 @@ globalThis.StaticRange = class StaticRange {
 // Live Selection over the real Range: at most one range + a direction, one
 // instance per document. Everything except modify() (needs visual line/word
 // layout) is layout-free, built on the Range boundary-point helpers above.
+// (刀73) brand check for the new accessors: foreign receivers are Illegal invocation.
+function _selChk(self) { if (!(self instanceof globalThis.Selection) || !self._doc) throw new TypeError('Illegal invocation'); }
 globalThis.Selection = class Selection {
   constructor(doc) { this._doc = doc; this._range = null; this._direction = 'none';  __hideOwn(this);}
   _setRange(r, dir) { this._range = r; this._direction = dir; }
-  _inDoc(node) { return !!(node && this._doc && this._doc.contains && this._doc.contains(node)); }
+  // (刀73) shadow-including containment: a node inside an open/closed shadow tree is
+  // in the document through its host chain (Chrome lets a selection live there).
+  _inDoc(node) {
+    if (!node || !this._doc) return false;
+    for (let n = node, i = 0; n && i < 256; i++) {
+      if (this._doc.contains && this._doc.contains(n)) return true;
+      let up = n.parentNode;
+      if (!up && n.nodeType === 11 && n.host) up = n.host;
+      n = up;
+    }
+    return false;
+  }
   get rangeCount() { return this._range ? 1 : 0; }
   get isCollapsed() { return !this._range || this._range.collapsed; }
   get type() { return !this._range ? 'None' : (this._range.collapsed ? 'Caret' : 'Range'); }
@@ -198,15 +211,55 @@ globalThis.Selection = class Selection {
   get anchorOffset() { return this._anchor ? this._anchor[1] : 0; }
   get focusNode() { return this._focus ? this._focus[0] : null; }
   get focusOffset() { return this._focus ? this._focus[1] : 0; }
+  // (刀73) Chrome 145 (k73): direction is 'none' (also after addRange / collapse),
+  // 'forward' or 'backward'; baseNode/baseOffset/extentNode/extentOffset are the
+  // legacy aliases of anchor/focus.
+  get direction() { _selChk(this); return this._direction === 'backwards' ? 'backward' : this._direction === 'forwards' ? 'forward' : 'none'; }
+  get baseNode() { _selChk(this); return this.anchorNode; }
+  get baseOffset() { _selChk(this); return this.anchorOffset; }
+  get extentNode() { _selChk(this); return this.focusNode; }
+  get extentOffset() { _selChk(this); return this.focusOffset; }
+  // getComposedRanges({shadowRoots}) -> StaticRange[]: the range with endpoints inside a
+  // shadow tree the caller did not name moved out around its host (start before the host,
+  // end after it); undefined/null/arrays/ShadowRoots as the argument are accepted and
+  // grant nothing (Chrome 145 treats a non-dictionary object as an empty options dict).
+  getComposedRanges(options) {
+    _selChk(this);
+    let roots = [];
+    if (options !== undefined && options !== null) {
+      if (typeof options !== 'object' && typeof options !== 'function') throw new TypeError("Failed to execute 'getComposedRanges' on 'Selection': The provided value is not of type 'GetComposedRangesOptions'.");
+      const sr = options.shadowRoots;
+      if (sr !== undefined) {
+        const bad = (m) => new TypeError("Failed to execute 'getComposedRanges' on 'Selection': Failed to read the 'shadowRoots' property from 'GetComposedRangesOptions': " + m);
+        if (sr === null || typeof sr !== 'object' || typeof sr[Symbol.iterator] !== 'function') throw bad('The provided value cannot be converted to a sequence.');
+        roots = Array.from(sr);
+        for (const r of roots) if (!(r instanceof ShadowRoot)) throw bad("Failed to convert value to 'ShadowRoot'.");
+      }
+    }
+    const rg = this._range;
+    if (!rg) return [];
+    const lift = (node, offset, end) => {
+      for (let i = 0; i < 64; i++) {
+        const root = node && typeof node.getRootNode === 'function' ? node.getRootNode() : null;
+        if (!root || root.nodeType !== 11 || !root.host || roots.indexOf(root) >= 0) break;
+        const host = root.host, par = host.parentNode;
+        if (!par) break;
+        node = par; offset = Array.prototype.indexOf.call(par.childNodes, host) + (end ? 1 : 0);
+      }
+      return [node, offset];
+    };
+    const a = lift(rg.startContainer, rg.startOffset, false), b = lift(rg.endContainer, rg.endOffset, true);
+    return [new StaticRange({ startContainer: a[0], startOffset: a[1], endContainer: b[0], endOffset: b[1] })];
+  }
   getRangeAt(i) { i = +i; if (!this._range || i < 0 || i > 0) throw new DOMException('The index provided is out of range.', 'IndexSizeError'); return this._range; }
-  addRange(range) { if (this._range) return; if (!(range instanceof Range)) return; if (!this._inDoc(range.startContainer) || !this._inDoc(range.endContainer)) return; this._setRange(range, 'forwards'); }
+  addRange(range) { if (this._range) return; if (!(range instanceof Range)) return; if (!this._inDoc(range.startContainer) || !this._inDoc(range.endContainer)) return; this._setRange(range, 'none'); }
   removeRange(range) { if (!(range instanceof Range)) throw new TypeError("Failed to execute 'removeRange' on 'Selection': parameter 1 is not a Range."); if (this._range === range) this._setRange(null, 'none'); else throw new DOMException('The range was not found.', 'NotFoundError'); }
   removeAllRanges() { this._setRange(null, 'none'); }
   empty() { this.removeAllRanges(); }
-  collapse(node, offset) { if (node == null) { this.removeAllRanges(); return; } offset = offset >>> 0; _rngCheckOffset(node, offset); if (!this._inDoc(node)) return; const r = new Range(); r.setStart(node, offset); r.setEnd(node, offset); this._setRange(r, 'forwards'); }
+  collapse(node, offset) { if (node == null) { this.removeAllRanges(); return; } offset = offset >>> 0; _rngCheckOffset(node, offset); if (!this._inDoc(node)) return; const r = new Range(); r.setStart(node, offset); r.setEnd(node, offset); this._setRange(r, 'none'); }
   setPosition(node, offset) { this.collapse(node, offset); }
-  collapseToStart() { if (!this._range) throw new DOMException('There is no selection to collapse.', 'InvalidStateError'); const r = new Range(); r.setStart(this._range.startContainer, this._range.startOffset); r.setEnd(this._range.startContainer, this._range.startOffset); this._setRange(r, 'forwards'); }
-  collapseToEnd() { if (!this._range) throw new DOMException('There is no selection to collapse.', 'InvalidStateError'); const r = new Range(); r.setStart(this._range.endContainer, this._range.endOffset); r.setEnd(this._range.endContainer, this._range.endOffset); this._setRange(r, 'forwards'); }
+  collapseToStart() { if (!this._range) throw new DOMException('There is no selection to collapse.', 'InvalidStateError'); const r = new Range(); r.setStart(this._range.startContainer, this._range.startOffset); r.setEnd(this._range.startContainer, this._range.startOffset); this._setRange(r, 'none'); }
+  collapseToEnd() { if (!this._range) throw new DOMException('There is no selection to collapse.', 'InvalidStateError'); const r = new Range(); r.setStart(this._range.endContainer, this._range.endOffset); r.setEnd(this._range.endContainer, this._range.endOffset); this._setRange(r, 'none'); }
   extend(node, offset) { if (!this._range) throw new DOMException('There is no selection to extend.', 'InvalidStateError'); if (!this._inDoc(node)) return; offset = offset >>> 0; _rngCheckOffset(node, offset); const a = this._anchor; const r = new Range(); if (_rngRoot(node)._nid !== _rngRoot(a[0])._nid) { r.setStart(node, offset); r.setEnd(node, offset); this._setRange(r, 'forwards'); return; } if (_rngCmp(a[0], a[1], node, offset) <= 0) { r.setStart(a[0], a[1]); r.setEnd(node, offset); this._setRange(r, 'forwards'); } else { r.setStart(node, offset); r.setEnd(a[0], a[1]); this._setRange(r, 'backwards'); } }
   setBaseAndExtent(aN, aO, fN, fO) { if (arguments.length < 4) throw new TypeError("Failed to execute 'setBaseAndExtent' on 'Selection': 4 arguments required."); if (aN == null || fN == null) throw new TypeError("Failed to execute 'setBaseAndExtent' on 'Selection': nodes must not be null."); aO = +aO; fO = +fO; if (aO < 0 || aO > _rngNodeLength(aN)) throw new DOMException('anchor offset out of range', 'IndexSizeError'); if (fO < 0 || fO > _rngNodeLength(fN)) throw new DOMException('focus offset out of range', 'IndexSizeError'); if (!this._inDoc(aN) || !this._inDoc(fN)) { this.removeAllRanges(); return; } const r = new Range(); if (_rngCmp(aN, aO, fN, fO) <= 0) { r.setStart(aN, aO); r.setEnd(fN, fO); this._setRange(r, 'forwards'); } else { r.setStart(fN, fO); r.setEnd(aN, aO); this._setRange(r, 'backwards'); } }
   selectAllChildren(node) { if (node && node.nodeType === 10) throw new DOMException('cannot selectAllChildren of a DocumentType', 'InvalidNodeTypeError'); if (!this._inDoc(node)) return; const len = _rngNodeLength(node); const r = new Range(); r.setStart(node, 0); r.setEnd(node, len); this._setRange(r, 'forwards'); }
