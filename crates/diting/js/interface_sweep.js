@@ -307,13 +307,15 @@ try { (function () {
 // undetectable object's own call handler always yields null; that is all
 // V8 offers and the loader tolerates it.
 globalThis.__diting_install_all = function (u) {
+  // Chrome 145 has no Iterator.concat (V8 here ships it); this late install is the first point after the engine's own setup
+  try { if (globalThis.Iterator && Object.prototype.hasOwnProperty.call(globalThis.Iterator, 'concat')) delete globalThis.Iterator.concat; } catch (e) {}
   var P = globalThis.HTMLAllCollection && HTMLAllCollection.prototype;
   // `u` is falsy by design (undetectable): never test it for truthiness.
   if (!P) return;
   var all = function () { return document.getElementsByTagName('*'); };
   var members = {
     length: { get: function () { return all().length; } },
-    item: { value: function item(i) { return all()[i >>> 0] || null; } },
+    item: { value: (function () { var f = function item(i) { return all()[i >>> 0] || null; }; Object.defineProperty(f, 'length', { value: 0 }); return f; })() },
     namedItem: { value: function namedItem(n) {
       n = String(n);
       return document.getElementById(n) || document.getElementsByName(n)[0] || null;
@@ -327,12 +329,20 @@ globalThis.__diting_install_all = function (u) {
     else { d.value = m.value; d.writable = true; _markNative(m.value); }
     try { Object.defineProperty(P, k, d); } catch (e) {}
   }
+  // constructor last (this install runs after the shape pass, so it orders HTMLAllCollection itself)
+  try { var cd = Object.getOwnPropertyDescriptor(P, 'constructor'); if (cd && cd.configurable) { delete P.constructor; Object.defineProperty(P, 'constructor', cd); } } catch (e) {}
   Object.setPrototypeOf(u, P);
   var getter = { get all() { return u; } };
   var g = Object.getOwnPropertyDescriptor(getter, 'all').get;
   _markNative(g);
   try {
     Object.defineProperty(Document.prototype, 'all', { get: g, set: undefined, enumerable: true, configurable: true });
+    // Chrome puts `all` just before scrollingElement: re-add the members from there on AFTER it (shape pass already ran)
+    var D = Document.prototype, nm = Object.getOwnPropertyNames(D), si = nm.indexOf('scrollingElement');
+    if (si >= 0) {
+      var tail = nm.slice(si).filter(function (n) { return n !== 'all'; });
+      for (var ti = 0; ti < tail.length; ti++) { var td = Object.getOwnPropertyDescriptor(D, tail[ti]); if (td && td.configurable) { delete D[tail[ti]]; Object.defineProperty(D, tail[ti], td); } }
+    }
   } catch (e) {}
 };
 

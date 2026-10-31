@@ -475,7 +475,9 @@ globalThis.RTCStatsReport = class RTCStatsReport {
 globalThis.RTCEncodedAudioFrame = class RTCEncodedAudioFrame {
   constructor() { throw new TypeError("Illegal constructor"); }
   get timestamp() { return 0; }
-  data() { return new ArrayBuffer(0); }
+  // Chrome 145: `data` is a read/write ArrayBuffer attribute (the engine had a method by that name)
+  get data() { return this._data || (this._data = new ArrayBuffer(0)); }
+  set data(v) { this._data = v; }
 };
 globalThis.RTCError = class RTCError extends globalThis.DOMException {
   constructor(init, message) {

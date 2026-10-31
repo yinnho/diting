@@ -201,6 +201,54 @@
     }
   });
 
+  // ---- PutForwards / replaceable setters (Chrome rw where the engine kept a getter) ----
+  section('putforwards', () => {
+    const addSetter = (cn, name, set) => {
+      const P = proto(cn); const d = P && Object.getOwnPropertyDescriptor(P, name);
+      if (d && d.get && !d.set) Object.defineProperty(P, name, { get: d.get, set: pin(function (v) { set.call(obj(this), v); }, 'set ' + name, 1), enumerable: true, configurable: true });
+    };
+    addSetter('CSSImportRule', 'media', function (v) { this.media.mediaText = String(v); });
+    addSetter('CSSMediaRule', 'media', function (v) { this.media.mediaText = String(v); });
+    for (const cn of ['CSSKeyframeRule', 'CSSPageRule', 'CSSStyleRule']) addSetter(cn, 'style', function (v) { this.style.cssText = String(v); });
+    addSetter('CSSPageRule', 'selectorText', function (v) { String(v); });
+    addSetter('SVGAElement', 'relList', function (v) { this.relList.value = String(v); });
+  });
+
+  // ---- statics --------------------------------------------------------------------
+  section('statics', () => {
+    const sdef = (cn, name, d) => { const C = G[cn]; if (typeof C === 'function' && !Object.prototype.hasOwnProperty.call(C, name)) Object.defineProperty(C, name, d); };
+    const sfn = (cn, name, len, f) => sdef(cn, name, { value: pin(f, name, len), writable: true, enumerable: true, configurable: true });
+    sfn('HTMLScriptElement', 'supports', 1, function supports(type) {
+      if (arguments.length < 1) throw new TypeError("Failed to execute 'supports' on 'HTMLScriptElement': 1 argument required, but only 0 present.");
+      const t = String(type); return t === 'classic' || t === 'module' || t === 'importmap' || t === 'speculationrules';
+    });
+    // BluetoothUUID: 16/32-bit aliases canonicalize onto the Bluetooth base UUID; full UUIDs lowercase through
+    const UU = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    const canon = (alias, m) => {
+      if (typeof alias === 'number' || (typeof alias === 'string' && /^\d+$/.test(alias) === false && false)) { /* numeric path below */ }
+      if (typeof alias === 'number') { const n = alias >>> 0; return n.toString(16).padStart(8, '0') + '-0000-1000-8000-00805f9b34fb'; }
+      const str = String(alias);
+      if (UU.test(str)) return str;
+      throw new TypeError("Failed to execute '" + m + "' on 'BluetoothUUID': Invalid UUID: '" + str + "'.");
+    };
+    sfn('BluetoothUUID', 'canonicalUUID', 1, function canonicalUUID(alias) { argc(arguments, 1, 'canonicalUUID', 'BluetoothUUID'); return canon(Number(alias) >>> 0 === Number(alias) ? Number(alias) : alias, 'canonicalUUID'); });
+    for (const m of ['getService', 'getCharacteristic', 'getDescriptor']) sfn('BluetoothUUID', m, 1, function (name) { argc(arguments, 1, m, 'BluetoothUUID'); return canon(typeof name === 'number' ? name : name, m); });
+    sfn('IdentityProvider', 'close', 0, function close() {});
+    sfn('IdentityProvider', 'getUserInfo', 1, function getUserInfo(config) {
+      if (arguments.length < 1) return Promise.reject(new TypeError("Failed to execute 'getUserInfo' on 'IdentityProvider': 1 argument required, but only 0 present."));
+      return Promise.reject(new DOMException('Failed to execute getUserInfo: not signed in', 'NetworkError'));
+    });
+    sfn('IdentityProvider', 'resolve', 1, function resolve(token) { argc(arguments, 1, 'resolve', 'IdentityProvider'); });
+    sdef('MediaSource', 'canConstructInDedicatedWorker', { get: pin(function () { return true; }, 'get canConstructInDedicatedWorker'), enumerable: true, configurable: true });
+    sfn('RestrictionTarget', 'fromElement', 1, function fromElement(el) {
+      if (arguments.length < 1) return Promise.reject(new TypeError("Failed to execute 'fromElement' on 'RestrictionTarget': 1 argument required, but only 0 present."));
+      const C = G.RestrictionTarget;
+      return (el instanceof G.Element) ? Promise.resolve(Object.create(C.prototype)) : Promise.reject(new TypeError("Failed to execute 'fromElement' on 'RestrictionTarget': parameter 1 is not of type 'Element'."));
+    });
+    // Chrome 145 has no Iterator.concat (it shipped later)
+    if (G.Iterator && Object.prototype.hasOwnProperty.call(G.Iterator, 'concat')) { try { delete G.Iterator.concat; } catch (e) {} }
+  });
+
   // ---- workers / transports / streams --------------------------------------------
   section('transports', () => {
     ro('RTCDtlsTransport', 'iceTransport', () => null);
