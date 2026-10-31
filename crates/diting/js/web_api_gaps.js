@@ -349,3 +349,26 @@
     if (cd && cd.configurable) { delete P.constructor; Object.defineProperty(P, 'constructor', cd); }
   }
 })();
+
+// 刀88: the CSS namespace's two object faces + real typed-om serialization.
+// The unit factories and CSSUnitValue ctor live in bootstrap.js (they need
+// nothing late); highlights/paintWorklet need the global_surface minted
+// HighlightRegistry/Worklet prototypes, and toString rides the shared
+// CSSStyleValue.prototype so CSSUnitValue keeps its truth member set.
+(function () {
+  if (!globalThis.CSS) return;
+  Object.defineProperty(globalThis.CSS, 'highlights', { value: Object.create(globalThis.HighlightRegistry.prototype), writable: true, enumerable: true, configurable: true });
+  // (刀88) empty registry: size is a getter counting zero highlights
+  // (installed before stub_members' fill, so the getter survives).
+  Object.defineProperty(globalThis.HighlightRegistry.prototype, 'size', { get() { return 0; }, enumerable: true, configurable: true });
+  Object.defineProperty(globalThis.CSS, 'paintWorklet', { value: Object.create(globalThis.Worklet.prototype), writable: true, enumerable: true, configurable: true });
+  Object.defineProperty(globalThis.CSSStyleValue.prototype, 'toString', {
+    value: function toString() {
+      if (this && typeof this === 'object' && this._u !== undefined && this._v !== undefined) {
+        return this._u === 'number' ? String(this._v) : this._u === 'percent' ? this._v + '%' : this._v + this._u;
+      }
+      return Object.prototype.toString.call(this);
+    },
+    writable: true, enumerable: true, configurable: true,
+  });
+})();

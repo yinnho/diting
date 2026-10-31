@@ -30498,3 +30498,105 @@ async fn knife87_ctor_validation_ladders() {
          http→ws conversion, endContainer-before-startContainer"
     );
 }
+
+/// 刀88 — typed-om unit family (Chrome 145 truth: k88-typedom / k88-mini).
+/// The CSS namespace carries the full 69-key surface: 64 unit factories whose
+/// canonical unit is the LOWERCASED factory name (Hz→hz, kHz→khz, Q→q),
+/// each a plain double coercion ("The provided double value is non-finite."
+/// for NaN/'x'/{} — CSS.px(CSS.px(3)) too, 145 has no numeric bypass on the
+/// factories); CSSUnitValue is a real constructible value object (2-arg
+/// ladder, "Invalid unit: X", value rw / unit ro as prototype accessors,
+/// zero own keys, instanceof chain through CSSNumericValue/CSSStyleValue);
+/// serialization rides CSSStyleValue.prototype.toString (number bare,
+/// percent %, else value+unit); registerProperty reads `inherits` before
+/// `name` with the property-read message form; CSS.highlights is an empty
+/// HighlightRegistry (size 0), CSS.paintWorklet a bare Worklet.
+#[tokio::test(flavor = "current_thread")]
+async fn knife88_css_unit_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : (v && typeof v === 'object') ? (v.constructor && v.constructor.name) : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        T('keys', () => Object.getOwnPropertyNames(CSS).length);
+        T('px', () => { const v = CSS.px(1); return v.value + '/' + v.unit; });
+        T('px:nan', () => CSS.px(NaN));
+        T('px:str', () => CSS.px('x'));
+        T('px:0', () => CSS.px());
+        T('px:5', () => CSS.px('5').value);
+        T('px:self', () => CSS.px(CSS.px(3)));
+        T('u:Hz', () => CSS.Hz(1).unit);
+        T('u:kHz', () => CSS.kHz(1).unit);
+        T('u:Q', () => CSS.Q(1).unit);
+        T('u:cqw', () => CSS.cqw(1).unit);
+        T('u:number', () => CSS.number(2).unit);
+        T('uv:0', () => new CSSUnitValue());
+        T('uv:1', () => new CSSUnitValue(1));
+        T('uv:bogus', () => new CSSUnitValue(1, 'bogus'));
+        T('uv:nan', () => new CSSUnitValue(NaN, 'px'));
+        T('uv:ok', () => new CSSUnitValue(1, 'px').unit);
+        T('uv:rw', () => { const v = new CSSUnitValue(1, 'px'); v.value = 5; v.unit = 'em'; return v.value + '/' + v.unit; });
+        T('uv:own', () => Object.getOwnPropertyNames(new CSSUnitValue(1, 'px')).length);
+        T('uv:i1', () => new CSSUnitValue(1, 'px') instanceof CSSUnitValue);
+        T('uv:i2', () => new CSSUnitValue(1, 'px') instanceof CSSNumericValue);
+        T('uv:i3', () => new CSSUnitValue(1, 'px') instanceof CSSStyleValue);
+        T('str:px', () => String(CSS.px(1)));
+        T('str:number', () => String(CSS.number(2)));
+        T('str:percent', () => String(CSS.percent(50)));
+        T('str:neg', () => String(CSS.px(-1.5)));
+        T('str:deg', () => String(CSS.deg(90)));
+        T('hl', () => CSS.highlights instanceof HighlightRegistry);
+        T('hl:size', () => CSS.highlights.size);
+        T('pw', () => Object.getOwnPropertyNames(CSS.paintWorklet).length);
+        T('rp:0', () => CSS.registerProperty());
+        T('rp:empty', () => CSS.registerProperty({}));
+        T('rp:ok', () => CSS.registerProperty({ name: '--x88', syntax: '*', inherits: false }));
+        T('rp:dup', () => CSS.registerProperty({ name: '--x88', syntax: '*', inherits: false }));
+    "#,
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(50).await;
+    let log = rt.evaluate("globalThis.__log").unwrap();
+    assert_eq!(
+        log,
+        serde_json::json!([
+            ["keys", "ok", "69"],
+            ["px", "ok", "1/px"],
+            ["px:nan", "TypeError", "Failed to execute 'px' on 'CSS': The provided double value is non-finite."],
+            ["px:str", "TypeError", "Failed to execute 'px' on 'CSS': The provided double value is non-finite."],
+            ["px:0", "TypeError", "Failed to execute 'px' on 'CSS': 1 argument required, but only 0 present."],
+            ["px:5", "ok", "5"],
+            ["px:self", "TypeError", "Failed to execute 'px' on 'CSS': The provided double value is non-finite."],
+            ["u:Hz", "ok", "hz"],
+            ["u:kHz", "ok", "khz"],
+            ["u:Q", "ok", "q"],
+            ["u:cqw", "ok", "cqw"],
+            ["u:number", "ok", "number"],
+            ["uv:0", "TypeError", "Failed to construct 'CSSUnitValue': 2 arguments required, but only 0 present."],
+            ["uv:1", "TypeError", "Failed to construct 'CSSUnitValue': 2 arguments required, but only 1 present."],
+            ["uv:bogus", "TypeError", "Failed to construct 'CSSUnitValue': Invalid unit: bogus"],
+            ["uv:nan", "TypeError", "Failed to construct 'CSSUnitValue': The provided double value is non-finite."],
+            ["uv:ok", "ok", "px"],
+            ["uv:rw", "ok", "5/px"],
+            ["uv:own", "ok", "0"],
+            ["uv:i1", "ok", "true"],
+            ["uv:i2", "ok", "true"],
+            ["uv:i3", "ok", "true"],
+            ["str:px", "ok", "1px"],
+            ["str:number", "ok", "2"],
+            ["str:percent", "ok", "50%"],
+            ["str:neg", "ok", "-1.5px"],
+            ["str:deg", "ok", "90deg"],
+            ["hl", "ok", "true"],
+            ["hl:size", "ok", "0"],
+            ["pw", "ok", "0"],
+            ["rp:0", "TypeError", "Failed to execute 'registerProperty' on 'CSS': 1 argument required, but only 0 present."],
+            ["rp:empty", "TypeError", "Failed to execute 'registerProperty' on 'CSS': Failed to read the 'inherits' property from 'PropertyDefinition': Required member is undefined."],
+            ["rp:ok", "ok", "undef"],
+            ["rp:dup", "InvalidModificationError", "Failed to execute 'registerProperty' on 'CSS': The name provided has already been registered."]
+        ]),
+        "unit factories lowercase the name, CSSUnitValue rw value / ro unit, \
+         serialization via CSSStyleValue.toString, registerProperty inherits-first"
+    );
+}
