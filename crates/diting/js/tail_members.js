@@ -46,6 +46,7 @@
     on('TextTrackCue', 'enter', 'exit');
     on('VisualViewport', 'resize', 'scroll', 'scrollend');
     on('AudioContext', 'sinkchange');
+    on('MediaSource', 'sourceopen', 'sourceended', 'sourceclose');
   });
 
   // ---- legacy constants ---------------------------------------------------------

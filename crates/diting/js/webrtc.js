@@ -2,7 +2,7 @@
 // WebRTC / MediaStream / CacheStorage / setHTMLUnsafe faces — ratchet split
 // out of bootstrap.js. Top level
 // only declares bindings; nothing here is read before call time.
-globalThis.MediaStream = class MediaStream { constructor(){this.id='';this.active=true;} getTracks(){return [];} getAudioTracks(){return [];} getVideoTracks(){return [];} addTrack(){} removeTrack(){} clone(){return new MediaStream();} };
+globalThis.MediaStream = class MediaStream { constructor(){this.id=(globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : '');this.active=false;} getTracks(){return [];} getAudioTracks(){return [];} getVideoTracks(){return [];} addTrack(){} removeTrack(){} clone(){return new MediaStream();} };
 // 刀62: MediaStreamTrack full Chrome face — 20 own prototype members in
 // Chrome's raw order (kind first, constructor LAST; probed), no statics,
 // getCapabilities on the PROTOTYPE (statics probed empty), `new` is an

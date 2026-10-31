@@ -14081,7 +14081,7 @@ if (typeof Image === 'undefined') {
     // set — `new Image()` with a decoded 1×1 src must read 1, not the
     // constructor-era 0 (SDKs gate uploads on image.width and saw a
     // phantom zero). A page or constructor assignment pins the value.
-    const st = { complete: false, naturalWidth: 0, naturalHeight: 0,
+    const st = { complete: true, naturalWidth: 0, naturalHeight: 0, // Chrome: `new Image().complete` is true until a src starts loading
       w: width !== undefined ? (width >>> 0) : null,
       h: height !== undefined ? (height >>> 0) : null, load: null };
     _imgState.set(img, st);

@@ -159,7 +159,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     this.responseXML = null;
     this.responseURL = "";
     this.responseType = "";
-    this.response = null;
+    this.response = ""; // Chrome: '' for the default (text) responseType before any data
     this.timeout = 0;
     this.withCredentials = false;
     // upload is the XMLHttpRequestUpload interface: an EventTarget through
