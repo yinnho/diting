@@ -23911,7 +23911,7 @@ fn document_evaluate_xpath_subset() {
             serde_json::json!(["RTCSessionDescription", "RTCDataChannel", "RTCStatsReport", "RTCRtpTransceiver"]),
             "RTC orbit carries per-interface tags"
         );
-        assert_eq!(v["dataChannelCtor"], serde_json::json!("Illegal constructor"), "satellite stubs still throw Illegal constructor");
+        assert_eq!(v["dataChannelCtor"], serde_json::json!("Failed to construct 'RTCDataChannel': Illegal constructor"), "satellite stubs still throw Illegal constructor (刀78: Chrome's message names the interface)");
     }
 
     /// #160 / obscura#1067: the deprecated IDL spellings — visibilityProperty
@@ -29888,3 +29888,60 @@ async fn knife77_svg_tags_and_filter_reflectors() {
     assert_eq!(o["strlist"], serde_json::json!([2, "en", "fr", null, "0,1", true]));
 }
 const TAGS: &str = r#"{"a":"SVGAElement>SVGGraphicsElement","animate":"SVGAnimateElement>SVGAnimationElement","animateMotion":"SVGAnimateMotionElement>SVGAnimationElement","animateTransform":"SVGAnimateTransformElement>SVGAnimationElement","circle":"SVGCircleElement>SVGGeometryElement","clipPath":"SVGClipPathElement>SVGElement","defs":"SVGDefsElement>SVGGraphicsElement","desc":"SVGDescElement>SVGElement","ellipse":"SVGEllipseElement>SVGGeometryElement","feBlend":"SVGFEBlendElement>SVGElement","feColorMatrix":"SVGFEColorMatrixElement>SVGElement","feComponentTransfer":"SVGFEComponentTransferElement>SVGElement","feComposite":"SVGFECompositeElement>SVGElement","feConvolveMatrix":"SVGFEConvolveMatrixElement>SVGElement","feDiffuseLighting":"SVGFEDiffuseLightingElement>SVGElement","feDisplacementMap":"SVGFEDisplacementMapElement>SVGElement","feDistantLight":"SVGFEDistantLightElement>SVGElement","feDropShadow":"SVGFEDropShadowElement>SVGElement","feFlood":"SVGFEFloodElement>SVGElement","feFuncA":"SVGFEFuncAElement>SVGComponentTransferFunctionElement","feFuncB":"SVGFEFuncBElement>SVGComponentTransferFunctionElement","feFuncG":"SVGFEFuncGElement>SVGComponentTransferFunctionElement","feFuncR":"SVGFEFuncRElement>SVGComponentTransferFunctionElement","feGaussianBlur":"SVGFEGaussianBlurElement>SVGElement","feImage":"SVGFEImageElement>SVGElement","feMerge":"SVGFEMergeElement>SVGElement","feMergeNode":"SVGFEMergeNodeElement>SVGElement","feMorphology":"SVGFEMorphologyElement>SVGElement","feOffset":"SVGFEOffsetElement>SVGElement","fePointLight":"SVGFEPointLightElement>SVGElement","feSpecularLighting":"SVGFESpecularLightingElement>SVGElement","feSpotLight":"SVGFESpotLightElement>SVGElement","feTile":"SVGFETileElement>SVGElement","feTurbulence":"SVGFETurbulenceElement>SVGElement","filter":"SVGFilterElement>SVGElement","foreignObject":"SVGForeignObjectElement>SVGGraphicsElement","g":"SVGGElement>SVGGraphicsElement","image":"SVGImageElement>SVGGraphicsElement","line":"SVGLineElement>SVGGeometryElement","linearGradient":"SVGLinearGradientElement>SVGGradientElement","marker":"SVGMarkerElement>SVGElement","mask":"SVGMaskElement>SVGElement","metadata":"SVGMetadataElement>SVGElement","mpath":"SVGMPathElement>SVGElement","path":"SVGPathElement>SVGGeometryElement","pattern":"SVGPatternElement>SVGElement","polygon":"SVGPolygonElement>SVGGeometryElement","polyline":"SVGPolylineElement>SVGGeometryElement","radialGradient":"SVGRadialGradientElement>SVGGradientElement","rect":"SVGRectElement>SVGGeometryElement","script":"SVGScriptElement>SVGElement","set":"SVGSetElement>SVGAnimationElement","stop":"SVGStopElement>SVGElement","style":"SVGStyleElement>SVGElement","svg":"SVGSVGElement>SVGGraphicsElement","switch":"SVGSwitchElement>SVGGraphicsElement","symbol":"SVGSymbolElement>SVGGraphicsElement","text":"SVGTextElement>SVGTextPositioningElement","textPath":"SVGTextPathElement>SVGTextContentElement","title":"SVGTitleElement>SVGElement","tspan":"SVGTSpanElement>SVGTextPositioningElement","use":"SVGUseElement>SVGGraphicsElement","view":"SVGViewElement>SVGElement"}"#;
+
+/// M4 刀78: constructor fidelity (Chrome 145 `new X()` probe over all 936 interfaces): Illegal-constructor
+/// messages carry the constructed interface's name and no trailing period (and are real TypeErrors, not
+/// DOMExceptions named TypeError), twenty interfaces enforce Chrome's "N argument(s) required" ladder, the
+/// nid-based node classes reject the zero-argument page form, and 15 legacy HTML tags wrap as their interface.
+#[tokio::test(flavor = "current_thread")]
+async fn knife78_constructor_ladders_and_html_tags() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = e.name + ':' + e.message; } };
+        const ctor = (n, ...a) => { try { new globalThis[n](...a); return 'ok'; } catch (e) { return (e instanceof TypeError ? 'TypeError' : e.name) + ':' + e.message; } };
+        t('illegal', () => ['Blob', 'AudioNode', 'CryptoKey', 'FileList', 'StyleSheet', 'HTMLFormElement', 'FeaturePolicy', 'GeolocationCoordinates', 'HTMLMediaElement', 'HTMLUnknownElement', 'CSSStyleDeclaration', 'TextMetrics'].map(n => ctor(n)).filter(r => r !== 'ok'));
+        t('ladders', () => ['AudioBuffer', 'BroadcastChannel', 'CloseEvent', 'ErrorEvent', 'EventSource', 'ImageData', 'MessageEvent', 'MutationObserver', 'OffscreenCanvas', 'PerformanceMark', 'ProgressEvent', 'RTCError', 'ResizeObserver', 'SharedWorker', 'ToggleEvent', 'Touch', 'TouchEvent', 'Worker'].map(n => ctor(n)));
+        t('ladderOk', () => [ctor('ProgressEvent', 'x'), ctor('MutationObserver', () => {}), ctor('ErrorEvent', 'error'), ctor('ImageData', 1, 1), ctor('MessageEvent', 'message')]);
+        t('nodes', () => ['Node', 'Element', 'CharacterData', 'CDATASection', 'DocumentType', 'ProcessingInstruction'].map(n => ctor(n)));
+        t('stillWorks', () => { const d = document.createElement('div'); d.appendChild(document.createTextNode('x')); const c = document.createComment('c'); return [d.firstChild.data, c.nodeType, d instanceof Element, d instanceof Node, Node.prototype.constructor === Node, ProgressEvent.prototype.constructor === ProgressEvent]; });
+        t('subclass', () => { class MyEv extends ProgressEvent {} const e = new MyEv('x'); return [e.type, e instanceof ProgressEvent, e instanceof MyEv, ProgressEvent.length, ProgressEvent.name]; });
+        t('htmlTags', () => ['applet', 'bgsound', 'blink', 'data', 'frameset', 'image', 'isindex', 'keygen', 'listing', 'menuitem', 'multicol', 'nextid', 'picture', 'spacer', 'xmp'].map(tag => document.createElement(tag).constructor.name));
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(
+        o["illegal"],
+        serde_json::json!([
+            "TypeError:Failed to construct 'AudioNode': Illegal constructor",
+            "TypeError:Failed to construct 'CryptoKey': Illegal constructor",
+            "TypeError:Failed to construct 'FileList': Illegal constructor",
+            "TypeError:Failed to construct 'StyleSheet': Illegal constructor",
+            "TypeError:Failed to construct 'HTMLFormElement': Illegal constructor",
+            "TypeError:Failed to construct 'FeaturePolicy': Illegal constructor",
+            "TypeError:Failed to construct 'GeolocationCoordinates': Illegal constructor",
+            "TypeError:Failed to construct 'HTMLMediaElement': Illegal constructor",
+            "TypeError:Failed to construct 'HTMLUnknownElement': Illegal constructor",
+            "TypeError:Failed to construct 'CSSStyleDeclaration': Illegal constructor",
+            "TypeError:Failed to construct 'TextMetrics': Illegal constructor"
+        ])
+    );
+    let lad: Vec<String> = serde_json::from_value(o["ladders"].clone()).unwrap();
+    let want = [("AudioBuffer", 1), ("BroadcastChannel", 1), ("CloseEvent", 1), ("ErrorEvent", 1), ("EventSource", 1), ("ImageData", 2), ("MessageEvent", 1), ("MutationObserver", 1), ("OffscreenCanvas", 2), ("PerformanceMark", 1), ("ProgressEvent", 1), ("RTCError", 1), ("ResizeObserver", 1), ("SharedWorker", 1), ("ToggleEvent", 1), ("Touch", 1), ("TouchEvent", 1), ("Worker", 1)];
+    for (got, (name, n)) in lad.iter().zip(want.iter()) {
+        let w = format!("TypeError:Failed to construct '{}': {} argument{} required, but only 0 present.", name, n, if *n > 1 { "s" } else { "" });
+        assert_eq!(got, &w);
+    }
+    assert_eq!(o["ladderOk"], serde_json::json!(["ok", "ok", "ok", "ok", "ok"]));
+    assert_eq!(
+        o["nodes"],
+        serde_json::json!(["Node", "Element", "CharacterData", "CDATASection", "DocumentType", "ProcessingInstruction"]
+            .iter().map(|n| format!("TypeError:Failed to construct '{}': Illegal constructor", n)).collect::<Vec<_>>())
+    );
+    assert_eq!(o["stillWorks"], serde_json::json!(["x", 8, true, true, true, true]));
+    assert_eq!(o["subclass"], serde_json::json!(["x", true, true, 1, "ProgressEvent"]));
+    assert_eq!(
+        o["htmlTags"],
+        serde_json::json!(["HTMLUnknownElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLDataElement", "HTMLFrameSetElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLPreElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLPictureElement", "HTMLUnknownElement", "HTMLPreElement"])
+    );
+}

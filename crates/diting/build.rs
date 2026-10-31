@@ -143,6 +143,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("svg_tags.js", include_str!("js/svg_tags.js")),
     // 刀77: real reflectors for the SVG interfaces that were pure stubs (GENERATED from the Chrome capture).
     ("svg_filters.js", include_str!("js/svg_filters.js")),
+    // 刀78: constructor argument ladders + zero-arg Illegal constructor for the nid-based node classes.
+    ("ctor_ladders.js", include_str!("js/ctor_ladders.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),

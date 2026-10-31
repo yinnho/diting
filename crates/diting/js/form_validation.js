@@ -186,7 +186,7 @@
     return '';
   };
   class ValidityState {
-    constructor(el, key) { if (key !== KEY) throw new TypeError('Illegal constructor'); this._el = el; __hideOwn(this); }
+    constructor(el, key) { if (key !== KEY) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); this._el = el; __hideOwn(this); }
     get valid() { const s = state(this._el); return !Object.values(s).some(Boolean); }
   }
   const KEY = {};

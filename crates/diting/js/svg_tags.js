@@ -17,3 +17,21 @@
     map.set(tag, W);
   }
 })();
+
+// (刀77) The HTML half: 15 legacy/rare tags the engine wrapped as a bare HTMLElement. Same factory trick through
+// HTMLElement's node-id gate. Names from Chrome 145 (k79-tags: createElement(tag).constructor.name).
+(() => {
+  const map = globalThis.__diting_htmlTagMap;
+  const HTMLEl = globalThis.HTMLElement;
+  if (!map || typeof HTMLEl !== 'function') return;
+  const TAGS = {"applet":"HTMLUnknownElement","bgsound":"HTMLUnknownElement","blink":"HTMLUnknownElement","data":"HTMLDataElement","frameset":"HTMLFrameSetElement","image":"HTMLUnknownElement","isindex":"HTMLUnknownElement","keygen":"HTMLUnknownElement","listing":"HTMLPreElement","menuitem":"HTMLUnknownElement","multicol":"HTMLUnknownElement","nextid":"HTMLUnknownElement","picture":"HTMLPictureElement","spacer":"HTMLUnknownElement","xmp":"HTMLPreElement"};
+  for (const tag of Object.keys(TAGS)) {
+    const C = globalThis[TAGS[tag]];
+    if (typeof C !== 'function' || !C.prototype) continue;
+    const existing = map.get(tag);
+    if (existing && existing.prototype === C.prototype) continue;
+    const W = function (nid) { return Reflect.construct(HTMLEl, [nid], W); };
+    W.prototype = C.prototype;
+    map.set(tag, W);
+  }
+})();

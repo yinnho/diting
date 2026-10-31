@@ -450,30 +450,30 @@ globalThis.RTCIceCandidate = class RTCIceCandidate { constructor(d){this.candida
 // abstract ones throw Illegal constructor like Chrome, the two events derive from
 // Event, RTCRtpTransceiver carries the probed stop() method.
 globalThis.RTCDataChannel = class RTCDataChannel {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get label() { return ""; }
   get readyState() { return "connecting"; }
   close() {}
   send() { throw new TypeError("Failed to execute 'send' on 'RTCDataChannel'"); }
 };
 globalThis.RTCDtlsTransport = class RTCDtlsTransport {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get state() { return "new"; }
 };
 globalThis.RTCSctpTransport = class RTCSctpTransport {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get state() { return "connecting"; }
   get maxMessageSize() { return 65536; }
 };
 globalThis.RTCStatsReport = class RTCStatsReport {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   forEach() {}
   get() { return undefined; }
   has() { return false; }
   get size() { return 0; }
 };
 globalThis.RTCEncodedAudioFrame = class RTCEncodedAudioFrame {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get timestamp() { return 0; }
   // Chrome 145: `data` is a read/write ArrayBuffer attribute (the engine had a method by that name)
   get data() { return this._data || (this._data = new ArrayBuffer(0)); }
@@ -506,7 +506,7 @@ globalThis.RTCTrackEvent = class RTCTrackEvent extends globalThis.Event {
   constructor(type, init) { super(type || "track", init); this.receiver = init?.receiver ?? null; this.track = init?.track ?? null; this.streams = init?.streams ?? []; this.transceiver = init?.transceiver ?? null; }
 };
 globalThis.RTCRtpTransceiver = class RTCRtpTransceiver {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get mid() { return null; }
   get direction() { return "sendrecv"; }
   stop() {}

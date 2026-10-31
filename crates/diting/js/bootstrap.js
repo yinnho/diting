@@ -514,7 +514,7 @@ const _fileInputs = globalThis._fileInputs;
 // and `x instanceof FileList` guards ReferenceError without it (obscura
 // #1232). Constructing throws like Chrome's; the list objects below stay
 // the same shape but now carry its prototype, so instanceof holds.
-function _FileList() { throw new TypeError('Illegal constructor'); }
+function _FileList() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 Object.defineProperty(_FileList, 'name', { value: 'FileList', configurable: true });
 if (typeof FileList === 'undefined') globalThis.FileList = _FileList;
 // (M4 刀75) length/item/@@iterator/@@toStringTag are PROTOTYPE members (Chrome 145);
@@ -6610,6 +6610,7 @@ const _cache = new Map();
 // filled by _htmlInterface below; until bootstrap reaches that block the
 // callers fall back to Element exactly like before.
 const _tagInterfaces = new Map();
+Object.defineProperty(globalThis, '__diting_htmlTagMap', { value: _tagInterfaces, writable: true, enumerable: false, configurable: true });
 // (#28) SVG local names → interface, keyed by the EXACT local name (Rust
 // keeps XML-namespace tags in source case), so SVG <a> and HTML <A> never
 // collide — the HTML table above is only consulted for uppercase tags.
@@ -6649,7 +6650,7 @@ class HTMLDocument extends Document {
     if (typeof nid !== "number") {
       // Chrome: `new HTMLDocument()` throws; `new Document()` (an XML
       // document) is the legal WHATWG constructor face.
-      throw new TypeError("Illegal constructor");
+      throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     }
     super(nid);
   }
@@ -7427,19 +7428,19 @@ globalThis.NetworkInformation = NetworkInformation;
 // standalone (no DOM base classes) so definition order stays independent.
 
 globalThis.FragmentDirective = class FragmentDirective {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 };
 const __diting_fragmentDirective = Object.create(globalThis.FragmentDirective.prototype);
 
 globalThis.UserActivation = class UserActivation {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get hasBeenActive() { return this._hasBeenActive === true; }
   get isActive() { return this._isActive === true; }
 };
 const __diting_userActivation = Object.create(globalThis.UserActivation.prototype);
 
 globalThis.Keyboard = class Keyboard {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   getLayoutMap() { return Promise.resolve(new Map()); }
   lock() { return Promise.resolve(); }
   unlock() {}
@@ -7447,13 +7448,13 @@ globalThis.Keyboard = class Keyboard {
 const __diting_keyboard = Object.create(globalThis.Keyboard.prototype);
 
 globalThis.LaunchQueue = class LaunchQueue {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   setConsumer(callback) { this._consumer = callback; }
 };
 const __diting_launchQueue = Object.create(globalThis.LaunchQueue.prototype);
 
 globalThis.BatteryManager = class BatteryManager {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get charging() { return this._charging; }
   get chargingTime() { return this._chargingTime; }
   get dischargingTime() { return this._dischargingTime; }
@@ -7461,7 +7462,7 @@ globalThis.BatteryManager = class BatteryManager {
 };
 
 globalThis.AudioSinkInfo = class AudioSinkInfo {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get type() { return "default"; }
 };
 
@@ -7472,11 +7473,11 @@ globalThis.EyeDropper = class EyeDropper {
 };
 
 globalThis.GPUSupportedLimits = class GPUSupportedLimits {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 };
 
 globalThis.GeolocationCoordinates = class GeolocationCoordinates {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get latitude() { return this._latitude ?? 0; }
   get longitude() { return this._longitude ?? 0; }
   get accuracy() { return this._accuracy ?? 0; }
@@ -7486,7 +7487,7 @@ globalThis.GeolocationCoordinates = class GeolocationCoordinates {
   get speed() { return this._speed ?? null; }
 };
 globalThis.GeolocationPosition = class GeolocationPosition {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get coords() { return this._coords; }
   get timestamp() { return this._timestamp ?? 0; }
 };
@@ -7502,7 +7503,7 @@ globalThis.__diting_makeGeolocationPosition = function (lat, lon, acc) {
 };
 
 globalThis.MediaDeviceInfo = class MediaDeviceInfo {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get deviceId() { return this._deviceId || ""; }
   get kind() { return this._kind || ""; }
   get label() { return this._label || ""; }
@@ -7529,7 +7530,7 @@ globalThis.MediaMetadata = class MediaMetadata {
 };
 
 globalThis.MediaSourceHandle = class MediaSourceHandle {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 };
 
 globalThis.PasswordCredential = class PasswordCredential {
@@ -7551,18 +7552,18 @@ globalThis.PasswordCredential = class PasswordCredential {
 };
 
 globalThis.PushSubscriptionOptions = class PushSubscriptionOptions {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get userVisibleOnly() { return this._userVisibleOnly === true; }
   get applicationServerKey() { return this._applicationServerKey ?? null; }
 };
 
 globalThis.Scheduling = class Scheduling {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   isInputPending() { return false; }
 };
 
 globalThis.TextTrackCue = class TextTrackCue {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get track() { return this._track ?? null; }
   get id() { return this._id || ""; }
   set id(v) { this._id = String(v); }
@@ -7782,7 +7783,7 @@ globalThis.VideoFrame = class VideoFrame {
 };
 
 globalThis.VideoPlaybackQuality = class VideoPlaybackQuality {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get creationTime() { return this._creationTime ?? 0; }
   get totalVideoFrames() { return this._totalVideoFrames ?? 0; }
   get droppedVideoFrames() { return this._droppedVideoFrames ?? 0; }
@@ -7790,7 +7791,7 @@ globalThis.VideoPlaybackQuality = class VideoPlaybackQuality {
 };
 
 globalThis.ViewTransition = class ViewTransition {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get updateCallbackDone() { if (!this._ucd) this._ucd = Promise.resolve(); return this._ucd; }
   get ready() { if (!this._readyP) this._readyP = Promise.resolve(); return this._readyP; }
   get finished() { if (!this._fin) this._fin = Promise.resolve(); return this._fin; }
@@ -7798,7 +7799,7 @@ globalThis.ViewTransition = class ViewTransition {
 };
 
 globalThis.WebGLObject = class WebGLObject {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 };
 
 globalThis.WebTransport = class WebTransport {
@@ -7834,22 +7835,22 @@ globalThis.WebSocketStream = class WebSocketStream {
 };
 
 globalThis.CSSCounterStyleRule = class CSSCounterStyleRule {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get name() { return this._name || ""; }
 };
 
 globalThis.CSSFontPaletteValuesRule = class CSSFontPaletteValuesRule {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get name() { return this._name || ""; }
 };
 
 globalThis.CropTarget = class CropTarget {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   static fromElement(element) { return Object.create(globalThis.CropTarget.prototype); }
 };
 
 globalThis.CustomStateSet = class CustomStateSet {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get size() { return 0; }
   add() { return this; }
   has() { return false; }
@@ -7864,13 +7865,13 @@ globalThis.CustomStateSet = class CustomStateSet {
 
 if (typeof globalThis.AudioNode === "undefined") {
   globalThis.AudioNode = class AudioNode {
-    constructor() { throw new TypeError("Illegal constructor"); }
+    constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
     connect(dest) { return dest; }
     disconnect() {}
   };
 }
 globalThis.IIRFilterNode = class IIRFilterNode {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   getFrequencyResponse() {}
 };
 
@@ -8220,7 +8221,7 @@ const __navStore = {
 // instanceof/getPrototypeOf/key-parity all match Chrome. Prototype accessors
 // survive the V8 snapshot (#37).
 globalThis.Navigator = class Navigator {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 };
 for (const _nk of Object.getOwnPropertyNames(__navStore)) {
   const _d = Object.getOwnPropertyDescriptor(__navStore, _nk);
@@ -8538,7 +8539,7 @@ for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [global
 // []). The persona refresh writes the hidden store via
 // __diting_screenApply, so `screen` (and its orientation object) keeps one
 // identity for the context's whole life, like Chrome's.
-globalThis.Screen = class Screen { constructor() { throw new TypeError("Illegal constructor"); } };
+globalThis.Screen = class Screen { constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); } };
 const __scrStore = {
   width: 1920, height: 1080, availWidth: 1920, availHeight: 1040,
   colorDepth: 24, pixelDepth: 24, availTop: 0, availLeft: 0, isExtended: false,
@@ -8562,7 +8563,7 @@ globalThis.__diting_screenApply = function(sw, sh) {
 // Object.getPrototypeOf(visualViewport).constructor.name sees "VisualViewport",
 // and width/height are prototype getters, not own enumerable data props.
 globalThis.VisualViewport = class VisualViewport {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get offsetLeft() { return this._offsetLeft || 0; }
   get offsetTop() { return this._offsetTop || 0; }
   get pageLeft() { return globalThis.scrollX || 0; }
@@ -9929,7 +9930,7 @@ globalThis.__notifyMutation = function(type, target_nid, addedNodes, removedNode
 // by Element.prototype.attachShadow; there is no public constructor.
 globalThis.ShadowRoot = class ShadowRoot extends DocumentFragment {
   constructor(nid, host, options) {
-    if (host == null) throw new TypeError('Illegal constructor.');
+    if (host == null) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     super(nid);
     this._host = host;
     this._mode = options && options.mode === 'closed' ? 'closed' : 'open';
@@ -10473,7 +10474,7 @@ let _abortSignalConstructionKey = false;
 class AbortSignal extends EventTarget {
   constructor() {
     super();
-    if (!_abortSignalConstructionKey) throw new TypeError("Illegal constructor");
+    if (!_abortSignalConstructionKey) throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor");
     _abortSignalConstructionKey = false;
     this._aborted = false;
     this._reason = undefined;
@@ -11534,10 +11535,7 @@ globalThis.HTMLElement = {
           return fresh;
         }
       }
-      throw new DOMException(
-        "Failed to construct 'HTMLElement': Illegal constructor.",
-        "TypeError",
-      );
+      throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "HTMLElement") + "': Illegal constructor");
     }
   },
 }.HTMLElement;
@@ -11560,7 +11558,7 @@ function _htmlInterface(name, tags, attrs, Base) {
   const C = { [name]: class extends (Base || globalThis.HTMLElement) {
     constructor(nid) {
       if (typeof nid !== "number") {
-        throw new DOMException("Failed to construct '" + name + "': Illegal constructor.", "TypeError");
+        throw new TypeError("Failed to construct '" + name + "': Illegal constructor");
       }
       super(nid);
     }
@@ -11682,7 +11680,7 @@ globalThis.HTMLUnknownElement = {
   HTMLUnknownElement: class HTMLUnknownElement extends globalThis.HTMLElement {
     constructor(nid) {
       if (typeof nid !== "number") {
-        throw new DOMException("Failed to construct 'HTMLUnknownElement': Illegal constructor.", "TypeError");
+        throw new TypeError("Failed to construct 'HTMLUnknownElement': Illegal constructor");
       }
       super(nid);
     }
@@ -11837,7 +11835,7 @@ globalThis.HTMLCanvasElement = _htmlInterface('HTMLCanvasElement', ['canvas']);
 globalThis.HTMLMediaElement = class HTMLMediaElement extends globalThis.HTMLElement {
   constructor(nid) {
     if (typeof nid !== "number") {
-      throw new DOMException("Failed to construct 'HTMLMediaElement': Illegal constructor.", "TypeError");
+      throw new TypeError("Failed to construct 'HTMLMediaElement': Illegal constructor");
     }
     super(nid);
   }
@@ -12300,7 +12298,7 @@ Document.prototype.requestStorageAccess = function requestStorageAccess() {
 // MathML elements ride the Element tree like SVG does; the interface itself
 // rejects construction (instances only come from the parser).
 globalThis.MathMLElement = class MathMLElement extends Element {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
 };
 // ParentNode mixin: Document and DocumentFragment are ParentNodes too, so they
 // share Element's append / prepend / replaceChildren.
@@ -13928,7 +13926,7 @@ if (typeof ReadableStream === 'undefined') {
 // the live instances created by the shims above get their prototypes attached
 // so getReader().constructor.name and instanceof read like the real thing.
 globalThis.ReadableStreamDefaultController = class ReadableStreamDefaultController {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   get desiredSize() { return 1; }
   close() {
     const stream = _rsStream.get(this);
@@ -13958,7 +13956,7 @@ globalThis.ReadableStreamDefaultController = class ReadableStreamDefaultControll
 };
 _markNativeProto(globalThis.ReadableStreamDefaultController.prototype);
 globalThis.ReadableStreamDefaultReader = class ReadableStreamDefaultReader {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   read() {
     const stream = _rsStream.get(this);
     if (stream._queue.length > 0) return Promise.resolve({ value: stream._queue.shift(), done: false });
@@ -14002,7 +14000,7 @@ globalThis.ReadableStreamDefaultReader = class ReadableStreamDefaultReader {
 };
 _markNativeProto(globalThis.ReadableStreamDefaultReader.prototype);
 globalThis.WritableStreamDefaultController = class WritableStreamDefaultController {
-  constructor() { throw new TypeError("Illegal constructor"); }
+  constructor() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
   error() {}
 };
 _markNativeProto(globalThis.WritableStreamDefaultController.prototype);

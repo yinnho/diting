@@ -135,6 +135,8 @@ const MARK = (f) => { try { if (typeof _markNative === 'function') _markNative(f
 rows = []
 for n in groups["throw"]:
     m = shapes[n].get("m") or "Illegal constructor"
+    # (M4 刀78) Chrome's message has no trailing period
+    m = m.rstrip(".") if "Illegal constructor" in m else m
     rows.append("[%s,%d,%s]" % (json.dumps(n), shapes[n].get("ln") or 0, json.dumps(m)))
 js.append("""
 // ---- interfaces whose constructor throws (Chrome's own message verbatim —
