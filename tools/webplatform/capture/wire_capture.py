@@ -48,13 +48,18 @@ def page_server():
 
 
 def chrome_dom(binary, url, pre_selector="pre"):
+    import os
     """Drive a headless Chrome over CDP (--dump-dom does not return reliably on every
     Chrome-for-Testing build): navigate, wait for the <pre> to be filled, read it, quit."""
     import asyncio, socket, time, urllib.request
     import websockets
     s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
     prof = tempfile.mkdtemp()
-    proc = subprocess.Popen([binary, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+    # DITING_CHROME_WEBGL=1: software WebGL (SwiftShader) instead of --disable-gpu, so probes can read
+    # real WebGLRenderingContext instances (M4 刀69); the default capture stays GPU-less and unchanged.
+    gpu = (["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
+           if os.environ.get("DITING_CHROME_WEBGL") == "1" else ["--disable-gpu"])
+    proc = subprocess.Popen([binary, "--headless=new"] + gpu + ["--no-first-run", "--no-default-browser-check",
                              "--use-mock-keychain", "--password-store=basic", "--disable-background-networking",
                              "--disable-component-update", "--disable-sync", "--remote-debugging-port=%d" % port,
                              "--user-data-dir=" + prof, "about:blank"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

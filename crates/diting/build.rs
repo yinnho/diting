@@ -131,6 +131,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("videoframe_gaps.js", include_str!("js/videoframe_gaps.js")),
     // 刀68: IDBVersionChangeEvent behavior takeover (indexeddb.js loads before Event exists).
     ("idb_gaps.js", include_str!("js/idb_gaps.js")),
+    // 刀69: WebGL extension objects (GENERATED from the Chrome capture; getExtension reads it at call time).
+    ("webgl_ext.js", include_str!("js/webgl_ext.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),
