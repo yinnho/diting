@@ -97,6 +97,6 @@ globalThis.TouchEvent = class TouchEvent extends UIEvent {
     });
   }
 };
-_evxProps(globalThis.TouchEvent, ['touches', 'targetTouches', 'changedTouches', 'altKey', 'ctrlKey', 'metaKey', 'shiftKey']);
+_evxRo(globalThis.TouchEvent, ['touches', 'targetTouches', 'changedTouches', 'altKey', 'ctrlKey', 'metaKey', 'shiftKey']);
 
 globalThis.__diting_hide_list.push('__diting_ptrCaps', '__diting_pointerCaptureFor', '__diting_pointerCaptureRelease');

@@ -23,13 +23,22 @@
     ['performance.timing', () => globalThis.performance && globalThis.performance.timing, 'PerformanceTiming'],
   ];
   const gopn = Object.getOwnPropertyNames, gopd = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
+  // 刀85: Chrome-ro singleton members demote to a getter-only face (a `null`
+  // entry seals every data member of that interface). Storage rides the
+  // global __diting_liftSlot channel so engine-side writes
+  // (audio.js's speech queue flips pending/speaking/paused) reach it.
+  const RO = {
+    PerformanceTiming: null,
+    SpeechSynthesis: ['pending', 'speaking', 'paused'],
+    Crypto: ['subtle'],
+    ServiceWorkerContainer: ['controller'],
+  };
   for (const [label, get, cn] of TARGETS) {
     try {
       const obj = get(), C = globalThis[cn];
       if (obj === null || typeof obj !== 'object' || typeof C !== 'function' || !C.prototype) continue;
       const P = C.prototype;
       if (Object.getPrototypeOf(obj) !== P) { try { Object.setPrototypeOf(obj, P); } catch (e) { continue; } }
-      const slot = new WeakMap();
       for (const name of gopn(obj)) {
         // engine-private `_x` fields stay own but must not be enumerable (for-in / JSON / spread)
         if (name.charCodeAt(0) === 95) { const pd = gopd(obj, name); if (pd && pd.configurable && pd.enumerable && 'value' in pd) def(obj, name, { value: pd.value, writable: pd.writable, enumerable: false, configurable: true }); continue; }
@@ -41,12 +50,17 @@
         const d = gopd(obj, name);
         if (!d || !d.configurable) continue;
         if ('value' in d && typeof d.value !== 'function') {
-          slot.set(obj, Object.assign(slot.get(obj) || Object.create(null), { [name]: d.value }));
-          def(P, name, {
-            get() { const s = slot.get(this); return s === undefined ? undefined : s[name]; },
-            set(v) { let s = slot.get(this); if (s === undefined) { s = Object.create(null); slot.set(this, s); } s[name] = v; },
+          const slotObj = __diting_liftSlot(obj);
+          slotObj[name] = d.value;
+          const acc = {
+            get() { return __diting_liftSlot(this)[name]; },
             enumerable: true, configurable: true,
-          });
+          };
+          const roList = RO[cn];
+          if (!(roList === null || (roList !== undefined && roList.indexOf(name) >= 0))) {
+            acc.set = function (v) { __diting_liftSlot(this)[name] = v; };
+          }
+          def(P, name, acc);
         } else {
           def(P, name, d);
         }
