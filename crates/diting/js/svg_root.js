@@ -912,6 +912,70 @@
     ctorLast(P);
   }
 
+  // ---- SVGElement own members (刀72) --------------------------------------
+  // The parent chain is Element (no HTMLElement level), so the five members the
+  // audit listed as missing — and autofocus/attributeStyleMap, which the SVG
+  // elements used to inherit through HTMLElement — are SVGElement's own.
+  // Chrome 145 (k72): className is a READ-ONLY SVGAnimatedString of the class
+  // attribute (assignment is silently dropped); ownerSVGElement = nearest svg
+  // ancestor (null for the outermost svg and for an svg directly inside a
+  // foreignObject); viewportElement = nearest svg/symbol/image ancestor
+  // (symbol and image establish viewports, marker/pattern/foreignObject do not).
+  if (typeof globalThis.SVGElement === 'function') {
+    const C = globalThis.SVGElement, P = C.prototype;
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const nm = (f, n) => { Object.defineProperty(f, 'name', { value: n }); return f; };
+    const ok = (self) => { if (!(self instanceof C)) throw new TypeError('Illegal invocation'); };
+    const isSvg = (e, tags) => e && e.namespaceURI === SVGNS && tags.indexOf(e.localName) >= 0;
+    const up = (el, tags) => { for (let p = el.parentNode; p; p = p.parentNode) if (isSvg(p, tags)) return p; return null; };
+    dacc(P, 'className', nm(function () {
+      ok(this);
+      const c = this._a63 || (this._a63 = {});
+      return c.className || (c.className = __diting_svgAnimString(this, 'class'));
+    }, 'get className'));
+    dacc(P, 'ownerSVGElement', nm(function () {
+      ok(this);
+      if (isSvg(this, ['svg']) && isSvg(this.parentNode, ['foreignObject'])) return null;
+      return up(this, ['svg']);
+    }, 'get ownerSVGElement'));
+    dacc(P, 'viewportElement', nm(function () { ok(this); return up(this, ['svg', 'symbol', 'image']); }, 'get viewportElement'));
+    dacc(P, 'autofocus', nm(function () { ok(this); return this.hasAttribute('autofocus'); }, 'get autofocus'),
+      nm(function (v) { ok(this); if (v) this.setAttribute('autofocus', ''); else this.removeAttribute('autofocus'); }, 'set autofocus'));
+    const hd = globalThis.HTMLElement && Object.getOwnPropertyDescriptor(globalThis.HTMLElement.prototype, 'attributeStyleMap');
+    if (hd && hd.get) {
+      const hget = hd.get;
+      dacc(P, 'attributeStyleMap', nm(function () { ok(this); return hget.call(this); }, 'get attributeStyleMap'));
+    }
+  }
+
+  // ---- SVGGraphicsElement own members (刀72) ------------------------------
+  // transform (SVGAnimatedTransformList), nearest/farthestViewportElement
+  // (nearest = first svg/symbol/image ancestor, farthest = the outermost one),
+  // requiredExtensions/systemLanguage (SVGStringList views) — Chrome 145 gives
+  // these to EVERY SVGGraphicsElement (rect/g/symbol/a/text/...); the engine had
+  // them nowhere, so `rect.transform` was undefined. clipPath/gradient/etc. are
+  // not graphics elements and (clipPath: own transform aside) do not inherit them.
+  if (typeof globalThis.SVGGraphicsElement === 'function') {
+    const C = globalThis.SVGGraphicsElement, P = C.prototype;
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const nm = (f, n) => { Object.defineProperty(f, 'name', { value: n }); return f; };
+    const ok = (self) => { if (!(self instanceof C)) throw new TypeError('Illegal invocation'); };
+    const chain = (el) => { const r = []; for (let p = el.parentNode; p; p = p.parentNode) if (p.namespaceURI === SVGNS && (p.localName === 'svg' || p.localName === 'symbol' || p.localName === 'image')) r.push(p); return r; };
+    const view = (n, mk) => dacc(P, n, nm(function () {
+      ok(this);
+      const c = this._a63 || (this._a63 = {});
+      return c[n] || (c[n] = mk(this));
+    }, 'get ' + n));
+    const save = wipeFace(P, ['getBBox', 'getCTM', 'getScreenCTM']);
+    view('transform', (el) => __diting_svgAnimTransformList(el, 'transform'));
+    dacc(P, 'nearestViewportElement', nm(function () { ok(this); return chain(this)[0] || null; }, 'get nearestViewportElement'));
+    dacc(P, 'farthestViewportElement', nm(function () { ok(this); const c = chain(this); return c.length ? c[c.length - 1] : null; }, 'get farthestViewportElement'));
+    view('requiredExtensions', (el) => __diting_svgStringList(el, 'requiredExtensions'));
+    view('systemLanguage', (el) => __diting_svgStringList(el, 'systemLanguage'));
+    for (const k of ['getBBox', 'getCTM', 'getScreenCTM']) if (save[k]) Object.defineProperty(P, k, save[k]);
+    ctorLast(P);
+  }
+
   // ---- SVGGradientElement (刀71) -------------------------------------------
   // Chrome 145 (k71 probes): gradientUnits default 2 (objectBoundingBox) /
   // spreadMethod default 1 (pad), junk/empty/wrong-case keyword -> default,

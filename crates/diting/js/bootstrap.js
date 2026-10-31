@@ -1290,8 +1290,15 @@ function _serializeCss(props) {
 }
 
 
+// (刀72) `new CSSStyleDeclaration()` is an Illegal constructor in Chrome; the
+// engine's own mints (element.style, rule styles, the computed fallback) go
+// through _newCssDecl, which raises a one-shot flag around the construction.
+let _cssDeclMint = false;
+function _newCssDecl(owner) { _cssDeclMint = true; try { return new CSSStyleDeclaration(owner); } finally { _cssDeclMint = false; } }
+Object.defineProperty(globalThis, '__diting_newCssDecl', { value: _newCssDecl, writable: true, enumerable: false, configurable: true });
 class CSSStyleDeclaration {
   constructor(owner) {
+    if (!_cssDeclMint) throw new TypeError("Failed to construct 'CSSStyleDeclaration': Illegal constructor");
     // Non-enumerable so they never leak through the proxy's own-key traps.
     Object.defineProperty(this, "_props", { value: {}, writable: true, enumerable: false, configurable: true });
     // The owner Element, if any. A live declaration reflects that element's
@@ -1355,25 +1362,11 @@ class CSSStyleDeclaration {
   get length() { this._pull(); return Object.keys(this._props).length; }
   item(i) { this._pull(); return Object.keys(this._props)[i] || ""; }
 }
-// Legacy Blink interface: real Chrome exposes `CSS2Properties` with style
-// property accessors living on its prototype, chained BELOW
-// CSSStyleDeclaration.prototype. Bot detectors (Castle) probe
-// `CSSStyleDeclaration.prototype` for it — a missing global is flagged as a
-// tampered API, which flips their iframe fallback and runs destructive DOM
-// probes in the main document.
-(() => { // chrome-155 truth: no window.CSS2Properties global (typeof probe must
-// see undefined), but the prototype chain under CSSStyleDeclaration survives.
-const CSS2Properties = class CSS2Properties {};
-Object.setPrototypeOf(CSSStyleDeclaration.prototype, CSS2Properties.prototype);
-for (const _m of ["setProperty", "getPropertyValue", "getPropertyPriority", "removeProperty", "item"]) {
-  if (typeof CSSStyleDeclaration.prototype[_m] === "function") {
-    CSS2Properties.prototype[_m] = CSSStyleDeclaration.prototype[_m];
-  }
-}
-_markNative(CSS2Properties);
+// (刀72) The CSS2Properties intermediate prototype is gone: the Chrome 145
+// captures (shape-audit-truth-145, k72) show CSSStyleDeclaration straight over
+// Object and no CSS2Properties interface at all (that level appears in later
+// Chromes — the old comment cited a 155 capture; the target here is 145).
 _markNativeProto(CSSStyleDeclaration.prototype);
-_markNativeProto(CSS2Properties.prototype);
-})();
 
 // DOMStringMap backs Element.dataset. Chrome throws on `new DOMStringMap()`;
 // the construction key keeps instances engine-only (upstream ec05ed0).
@@ -3598,7 +3591,7 @@ const _innerTextCollect = (node, out, st) => {
 class Element extends Node {
   constructor(nid) {
     super(nid);
-    this._style = _styleProxy(new CSSStyleDeclaration(this));
+    this._style = _styleProxy(_newCssDecl(this));
     __hideOwn(this);
   }
   get tagName() { return _domParse("tag_name", this._nid) || ""; }
@@ -9462,7 +9455,7 @@ const _normalizePseudoElt = (pseudoElt) => {
 globalThis.getComputedStyle = (el, pseudoElt) => {
   const pseudoName = _normalizePseudoElt(pseudoElt);
   if (!el) el = document.body || {};
-  const style = el?.style || el?._style || new CSSStyleDeclaration();
+  const style = el?.style || el?._style || _newCssDecl();
   const cacheable = (typeof el === 'object' && el !== null) || typeof el === 'function';
   let snapshot;
   if (pseudoName) {
@@ -12003,13 +11996,21 @@ globalThis.__diting_tabNavigate = function (shift) {
   order[next].focus();
   return true;
 };
-// (#28) Real SVG interface chain. Chrome routes SVG through HTMLElement
-// (SVGSVGElement → SVGGraphicsElement → SVGElement → HTMLElement → Element),
-// so `svg instanceof HTMLElement` is true there — matching that keeps every
-// Element-level accessor reachable AND instanceof discriminating. The old
-// bare aliases made every node instanceof SVGSVGElement and constructor.name
-// read "Element".
-globalThis.SVGElement = class SVGElement extends globalThis.HTMLElement {};
+// (#28 → M4 刀72) Real SVG interface chain. The #28 comment here claimed Chrome
+// routes SVG through HTMLElement; the Chrome 145 captures say otherwise: the
+// chain is SVGSVGElement → SVGGraphicsElement → SVGElement → Element (no
+// HTMLElement level — `svg.hidden`, `svg.click`, `svg.innerText`, `svg.title`
+// are all undefined there, and `svg instanceof HTMLElement` is false). SVGElement
+// owns the GlobalEventHandlers/dataset/style/focus members itself. The
+// constructor is the same node-id gate the HTML classes have, minus the
+// custom-element faces (there are no SVG custom elements), and names the
+// interface actually constructed in its Illegal constructor message.
+globalThis.SVGElement = class SVGElement extends Element {
+  constructor(nid) {
+    if (typeof nid === "number") { super(nid); return; }
+    throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "SVGElement") + "': Illegal constructor");
+  }
+};
 
 // (#184) Pages may legally replace the interface globals — the
 // webcomponents-era HTMLElement "native shim"
@@ -12097,7 +12098,7 @@ globalThis.SVGFEDropShadowElement = class SVGFEDropShadowElement extends globalT
     ["SVGUseElement", SVGGraphicsElement, ["use"]],
     ["SVGAElement", SVGGraphicsElement, ["a"]],
     ["SVGForeignObjectElement", SVGGraphicsElement, ["foreignObject"]],
-    ["SVGClipPathElement", SVGGraphicsElement, ["clipPath"]],
+    ["SVGClipPathElement", SVGElement, ["clipPath"]], // Chrome 145: SVGElement, NOT SVGGraphicsElement (no getBBox/getCTM)
     ["SVGPathElement", SVGGeometryElement, ["path"]],
     ["SVGRectElement", SVGGeometryElement, ["rect"]],
     ["SVGCircleElement", SVGGeometryElement, ["circle"]],
@@ -12112,7 +12113,7 @@ globalThis.SVGFEDropShadowElement = class SVGFEDropShadowElement extends globalT
     ["SVGTitleElement", SVGElement, ["title"]],
     ["SVGDescElement", SVGElement, ["desc"]],
     ["SVGStyleElement", SVGElement, ["style"]],
-    ["SVGSymbolElement", SVGElement, ["symbol"]],
+    ["SVGSymbolElement", SVGGraphicsElement, ["symbol"]], // Chrome 145: graphics (transform/getBBox/getCTM/nearestViewportElement)
     ["SVGMarkerElement", SVGElement, ["marker"]],
     ["SVGPatternElement", SVGElement, ["pattern"]],
     ["SVGStopElement", SVGElement, ["stop"]],
@@ -16251,7 +16252,6 @@ try {
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   d('CDATASection', CDATASection);
-  d('CSSStyleDeclaration', CSSStyleDeclaration);
   d('CharacterData', CharacterData);
   d('Comment', Comment);
   d('DOMTokenList', DOMTokenList);

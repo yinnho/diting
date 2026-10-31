@@ -66,7 +66,7 @@
   const normCondition = (s) => s.trim().replace(/\s+/g, ' ').replace(/\(\s*([\w-]+)\s*:\s*/g, '($1: ').replace(/\s*\)/g, ')').replace(/\bAND\b/g, 'and');
   const normKeyText = (s) => splitTop(s, ',').map((x) => { const t = x.trim().toLowerCase(); return t === 'from' ? '0%' : t === 'to' ? '100%' : t; }).join(', ');
 
-  const decl = (text) => { const s = _styleProxy(new CSSStyleDeclaration(null)); s.cssText = text; return s; };
+  const decl = (text) => { const s = _styleProxy(globalThis.__diting_newCssDecl(null)); s.cssText = text; return s; };
   // Chrome serialises url() arguments quoted.
   const declText = (s) => s.cssText.replace(/url\(\s*([^"')\s][^)]*?)\s*\)/g, 'url("$1")');
 
@@ -172,7 +172,7 @@
   // ---- prototypes -------------------------------------------------------
   // Chrome's interface chain (the sweep minted these flat).
   const chain = (child, parent) => { const C = globalThis[child], P = globalThis[parent]; if (C && P && Object.getPrototypeOf(C.prototype) !== P.prototype) { Object.setPrototypeOf(C.prototype, P.prototype); Object.setPrototypeOf(C, P); } };
-  for (const [c, p] of [['CSSGroupingRule', 'CSSRule'], ['CSSConditionRule', 'CSSGroupingRule'], ['CSSStyleRule', 'CSSGroupingRule'], ['CSSMediaRule', 'CSSConditionRule'], ['CSSSupportsRule', 'CSSConditionRule'], ['CSSContainerRule', 'CSSConditionRule'], ['CSSLayerBlockRule', 'CSSGroupingRule'], ['CSSScopeRule', 'CSSGroupingRule'], ['CSSStartingStyleRule', 'CSSGroupingRule'], ['CSSPageRule', 'CSSGroupingRule'], ['CSSKeyframesRule', 'CSSRule'], ['CSSKeyframeRule', 'CSSRule'], ['CSSFontFaceRule', 'CSSRule'], ['CSSImportRule', 'CSSRule'], ['CSSNamespaceRule', 'CSSRule'], ['CSSPropertyRule', 'CSSRule'], ['CSSCounterStyleRule', 'CSSRule'], ['CSSLayerStatementRule', 'CSSRule']]) chain(c, p);
+  for (const [c, p] of [['CSSGroupingRule', 'CSSRule'], ['CSSConditionRule', 'CSSGroupingRule'], ['CSSStyleRule', 'CSSRule'], ['CSSMediaRule', 'CSSConditionRule'], ['CSSSupportsRule', 'CSSConditionRule'], ['CSSContainerRule', 'CSSConditionRule'], ['CSSLayerBlockRule', 'CSSGroupingRule'], ['CSSScopeRule', 'CSSGroupingRule'], ['CSSStartingStyleRule', 'CSSGroupingRule'], ['CSSPageRule', 'CSSGroupingRule'], ['CSSKeyframesRule', 'CSSRule'], ['CSSKeyframeRule', 'CSSRule'], ['CSSFontFaceRule', 'CSSRule'], ['CSSImportRule', 'CSSRule'], ['CSSNamespaceRule', 'CSSRule'], ['CSSPropertyRule', 'CSSRule'], ['CSSCounterStyleRule', 'CSSRule'], ['CSSLayerStatementRule', 'CSSRule']]) chain(c, p);
   const acc = (C, name, get, set) => { if (C) Object.defineProperty(C.prototype, name, { get, set, enumerable: true, configurable: true }); };
   const TYPE = { style: 1, charset: 2, import: 3, media: 4, 'font-face': 5, page: 6, keyframes: 7, keyframe: 8, namespace: 10, 'counter-style': 11, supports: 12, 'font-feature-values': 14 };
   const R = globalThis.CSSRule;
