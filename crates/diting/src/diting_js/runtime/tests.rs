@@ -31480,3 +31480,87 @@ async fn knife96_legacy_alias_identity() {
         "knife96: LegacyAlias identity (webkitURL/WebKitCSSMatrix) + unified ctor faces (Chrome 145 truth)"
     );
 }
+
+#[tokio::test]
+async fn knife97_font_metrics_model() {
+    // (刀97) canvas measureText = real per-glyph advances from the captured
+    // Chrome 145 tables (font_metrics.js): per-font ASCII rows, EXT rows for
+    // non-ASCII (·/—/…/quotes), CJK exactly 1em/char by code point (astral
+    // pairs count once), Hangul 0.865em, system-ui = SF Pro's continuous
+    // optical axis (interpolated per-char em over knots — H is WIDER at small
+    // sizes), Apple Color Emoji's 13 keycap-source chars take the bitmap
+    // integer ladder below 24px, generic families resolve unquoted
+    // (monospace=Menlo, vert 15/4) while quoted "monospace" keeps the hidden
+    // face rows, absent families fall back to the default table, and
+    // fontBoundingBox comes from per-font asc/desc ratios with per-size
+    // overrides. Kerning is NOT modeled (documented residue; the un-kerned
+    // rows here are exact Chrome parity, verified against the live browser).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const T = (k, f) => { try { const v = f(); L.push([k, 'ok', v === undefined ? '' : String(v)]); } catch (e) { L.push([k, 'E', e.name + ':' + e.message]); } };
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        const V = (font) => { x.font = font; const m = x.measureText('Hg'); return m.fontBoundingBoxAscent + '/' + m.fontBoundingBoxDescent; };
+        T('menlo.lin10', () => W('10px Menlo', 'Hello World gjpq 123'));
+        T('courier.lin16', () => W('16px "Courier New"', 'Hello World gjpq 123'));
+        T('mono.face', () => W('100px monospace', 'mnmn_mnmn'));
+        T('menlo.face', () => W('100px Menlo', 'mnmn_mnmn'));
+        T('generic.equal', () => W('100px sans-serif', 'Hello') === W('100px -apple-system', 'Hello') && W('100px ui-sans-serif', 'Hello') === W('100px __absent__', 'Hello') && W('100px ui-monospace', 'Hello') === W('100px __absent__', 'Hello'));
+        T('systemui.differs', () => W('100px system-ui', 'Hello') !== W('100px sans-serif', 'Hello'));
+        T('systemui.H10', () => W('10px system-ui', 'H'));
+        T('systemui.H100', () => W('100px system-ui', 'H'));
+        T('emoji.one16', () => W('16px "Apple Color Emoji"', '1'));
+        T('emoji.one32', () => W('32px "Apple Color Emoji"', '1'));
+        T('emoji.H16', () => W('16px "Apple Color Emoji"', 'H'));
+        T('ext.middot.arial', () => W('100px Arial', '·'));
+        T('ext.middot.def', () => W('100px __absent__', '·'));
+        T('ext.quote.arial', () => W('100px Arial', '“'));
+        T('ext.emdash', () => W('100px Times New Roman', '—'));
+        T('cjk', () => W('100px __absent__', '你好'));
+        T('hangul', () => W('100px __absent__', '한국'));
+        T('astral', () => W('100px __absent__', '𠀀'));
+        T('missing.font', () => W('100px NoSuchFontHere', 'Hello') === W('100px __absent__', 'Hello'));
+        T('pingfang.default', () => W('72px "PingFang SC"', 'Hello World gjpq 123') === W('72px __absent__', 'Hello World gjpq 123'));
+        T('zapfino.differs', () => W('72px Zapfino', 'Hello World gjpq 123') !== W('72px __absent__', 'Hello World gjpq 123'));
+        T('vert.menlo16', () => V('16px Menlo'));
+        T('vert.mono16', () => V('16px monospace'));
+        T('vert.arial32', () => V('32px Arial'));
+        T('vert.emoji100', () => V('100px "Apple Color Emoji"'));
+        T('vert.systemui10', () => V('10px system-ui'));
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["menlo.lin10", "ok", "120.4102"],
+            ["courier.lin16", "ok", "192.0314"],
+            ["mono.face", "ok", "541.8459"],
+            ["menlo.face", "ok", "541.8459"],
+            ["generic.equal", "ok", "true"],
+            ["systemui.differs", "ok", "true"],
+            ["systemui.H10", "ok", "7.539"],
+            ["systemui.H100", "ok", "69.922"],
+            ["emoji.one16", "ok", "20"],
+            ["emoji.one32", "ok", "32"],
+            ["emoji.H16", "ok", "11.52"],
+            ["ext.middot.arial", "ok", "33.3008"],
+            ["ext.middot.def", "ok", "50"],
+            ["ext.quote.arial", "ok", "33.3008"],
+            ["ext.emdash", "ok", "100"],
+            ["cjk", "ok", "200"],
+            ["hangul", "ok", "173"],
+            ["astral", "ok", "100"],
+            ["missing.font", "ok", "true"],
+            ["pingfang.default", "ok", "true"],
+            ["zapfino.differs", "ok", "true"],
+            ["vert.menlo16", "ok", "15/4"],
+            ["vert.mono16", "ok", "15/4"],
+            ["vert.arial32", "ok", "29/7"],
+            ["vert.emoji100", "ok", "100/31"],
+            ["vert.systemui10", "ok", "10/2"]
+        ]),
+        "knife97: per-glyph measureText model (Chrome 145 font-metrics truth)"
+    );
+}

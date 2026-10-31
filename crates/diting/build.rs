@@ -23,6 +23,9 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // (刀97) generated per-glyph canvas advance tables (Chrome 145 macOS
+    // truth); measureText reads globalThis.__ditingFontMetrics at call time.
+    ("font_metrics.js", include_str!("js/font_metrics.js")),
     // Ratchet split (JS-SURFACE-PLAN step 3): CSSOM sheet objects. Must stay
     // first after bootstrap — global_surface and the sweep walk CSSStyleSheet.
     ("cssom_sheets.js", include_str!("js/cssom_sheets.js")),
