@@ -206,6 +206,26 @@ function _idbRecord(name) {
 }
 function _idbSortedNames(it) { return Array.from(it).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)); }
 
+// ---- cross-connection open protocol (刀86) --------------------------------
+// Chrome: a version-changing open (or deleteDatabase) first fires
+// `versionchange` (IDBVersionChangeEvent, oldVersion/newVersion — null for a
+// delete) at every OTHER live connection; if any is still open after those
+// handlers ran, the waiting request fires `blocked` (also an
+// IDBVersionChangeEvent; readyState still 'pending') and parks. The last
+// close() releases the parked run (its upgradeneeded fires with readyState
+// already 'done' — probed, k86-idb2-chrome.json).
+function _idbLiveConns(rec) { return (rec.conns || []).filter((c) => !c.closed); }
+function _idbPark(rec, run) {
+  (rec.parked || (rec.parked = [])).push(run);
+  // last close already happened while nobody was parked: run straight away
+  if (!_idbLiveConns(rec).length) _idbDrain(rec);
+}
+function _idbDrain(rec) {
+  if (_idbLiveConns(rec).length || !rec.parked || !rec.parked.length) return;
+  const run = rec.parked.shift();
+  Promise.resolve().then(run);
+}
+
 // ---- ranges ---------------------------------------------------------------
 function _idbNewRange(lo, hi, loOpen, hiOpen, hasLo, hasHi) {
   const r = Object.create(IDBKeyRange.prototype);
@@ -575,7 +595,10 @@ _idbAttr(IDBDatabase, 'objectStoreNames', function () {
   return _idbStrList(() => _idbSortedNames(d.rec.stores.keys()));
 });
 _idbHandlers(IDBDatabase, _Db, ['abort', 'close', 'error', 'versionchange']);
-_idbMethod(IDBDatabase, 'close', 0, function close() { _idbBrand(_Db, this).closed = true; });
+_idbMethod(IDBDatabase, 'close', 0, function close() {
+  const d = _idbBrand(_Db, this);
+  if (!d.closed) { d.closed = true; _idbDrain(d.rec); }
+});
 function _idbNeedVtx(d, meth, iface) {
   if (!d.vtx || _Tx.get(d.vtx).done) throw _idbEx('InvalidStateError', meth, iface, 'The database is not running a version change transaction.');
   return _Tx.get(d.vtx);
@@ -1024,20 +1047,24 @@ _idbMethod(IDBFactory, 'open', 1, function open(name, version) {
     const rec = _idbRecord(nm);
     const current = rec.version;
     const tv = target === undefined ? (current || 1) : target;
-    rs.done = true;
     if (tv < current) {
+      rs.done = true;
       rs.error = _idbErr('VersionError', 'The requested version (' + tv + ') is less than the existing version (' + current + ').');
       _idbFire(req, _idbErrEvent());
       return;
     }
     const db = _idbNew(IDBDatabase);
-    const d = { rec, closed: false, vtx: null, h: Object.create(null) };
+    const d = { rec, db, closed: false, vtx: null, h: Object.create(null) };
     _Db.set(db, d);
     const succeed = () => {
+      // the new connection is live only once success fires
+      if (!d.closed) (rec.conns || (rec.conns = [])).push(d);
+      rs.done = true;
       rs.result = db; rs.tx = null; rs.error = null;
       _idbFire(req, new Event('success'));
     };
-    if (tv > current) {
+    const startUpgrade = () => {
+      rs.done = true;
       const snapStores = new Map(rec.stores);
       const snapIdx = new Map();
       rec.stores.forEach((sr, n) => snapIdx.set(n, new Map(sr.indexes)));
@@ -1056,6 +1083,7 @@ _idbMethod(IDBFactory, 'open', 1, function open(name, version) {
           rs.result = undefined; rs.tx = null;
           rs.error = _idbErr('AbortError', 'The transaction was aborted.');
           _idbFire(req, _idbErrEvent());
+          _idbDrain(rec); // a queued opener behind an aborted upgrade can run
         }
       };
       rs.result = db; rs.tx = vtx;
@@ -1069,6 +1097,21 @@ _idbMethod(IDBFactory, 'open', 1, function open(name, version) {
         tap.active--;
         if (tap.err !== null) { tap.err = null; _idbAbort(vtx, _idbErr('AbortError', 'Version change transaction was aborted in upgradeneeded event handler.')); }
       }
+    };
+    if (tv > current) {
+      // 刀86: a version-changing open first fires versionchange on every
+      // other live connection; if any is still open after those handlers
+      // ran, the request fires `blocked` and parks until the last close().
+      const blockers = _idbLiveConns(rec);
+      if (blockers.length) {
+        for (const c of blockers) _idbFire(c.db, new globalThis.IDBVersionChangeEvent('versionchange', { oldVersion: current, newVersion: tv }));
+        if (_idbLiveConns(rec).length) {
+          _idbPark(rec, startUpgrade);
+          _idbFire(req, new globalThis.IDBVersionChangeEvent('blocked', { oldVersion: current, newVersion: tv }));
+          return;
+        }
+      }
+      startUpgrade();
     } else {
       succeed();
     }
@@ -1082,11 +1125,26 @@ _idbMethod(IDBFactory, 'deleteDatabase', 1, function deleteDatabase(name) {
   const req = _idbNewReq(IDBOpenDBRequest, null, null);
   const rs = _Rq.get(req);
   Promise.resolve().then(() => {
-    const old = _idbRecord(nm).version;
-    try { globalThis.localStorage.removeItem('__diting_idb__' + nm); } catch (e) {}
-    _idbRegistryMap.delete(nm);
-    rs.done = true; rs.result = undefined;
-    _idbFire(req, new globalThis.IDBVersionChangeEvent('success', { oldVersion: old, newVersion: null }));
+    const rec = _idbRecord(nm);
+    const old = rec.version;
+    const doDelete = () => {
+      try { globalThis.localStorage.removeItem('__diting_idb__' + nm); } catch (e) {}
+      _idbRegistryMap.delete(nm);
+      rs.done = true; rs.result = undefined;
+      _idbFire(req, new globalThis.IDBVersionChangeEvent('success', { oldVersion: old, newVersion: null }));
+    };
+    // 刀86: same versionchange→blocked park as open(); the delete fires it
+    // with newVersion null.
+    const blockers = _idbLiveConns(rec);
+    if (blockers.length) {
+      for (const c of blockers) _idbFire(c.db, new globalThis.IDBVersionChangeEvent('versionchange', { oldVersion: old, newVersion: null }));
+      if (_idbLiveConns(rec).length) {
+        _idbPark(rec, doDelete);
+        _idbFire(req, new globalThis.IDBVersionChangeEvent('blocked', { oldVersion: old, newVersion: null }));
+        return;
+      }
+    }
+    doDelete();
   });
   return req;
 });

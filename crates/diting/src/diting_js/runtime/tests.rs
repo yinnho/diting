@@ -30283,3 +30283,107 @@ async fn knife85_readonly_state_faces() {
         serde_json::json!(["TypeError", "TypeError", "TypeError", "TypeError", "TypeError"])
     );
 }
+
+/// 刀86: the cross-connection open protocol. A version-changing `open` (or
+/// `deleteDatabase`) against a database with live connections must first fire
+/// `versionchange` (an IDBVersionChangeEvent) on each of them; if any is still
+/// open afterwards the request fires `blocked` — itself an IDBVersionChangeEvent
+/// carrying oldVersion/newVersion, with readyState still "pending" — and waits;
+/// the last `close()` releases it into `upgradeneeded`+`success`. A handler
+/// that closes inside `versionchange` skips `blocked` entirely; a same-version
+/// open runs no protocol; `deleteDatabase` success is an IDBVersionChangeEvent
+/// with newVersion null. All pinned against Chrome 145 (k86-idb/k86-idb2).
+#[tokio::test(flavor = "current_thread")]
+async fn knife86_idb_cross_connection_open_protocol() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    for n in ["k86-a", "k86-b", "k86-c", "k86-d"] {
+        rt.evaluate(&format!("localStorage.removeItem('__diting_idb__{}')", n))
+            .unwrap();
+    }
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const wait = () => new Promise(r => setTimeout(r, 0));
+        function openDb(n, v, onvc) {
+          return new Promise(function (resolve, reject) {
+            const q = indexedDB.open(n, v);
+            q.onupgradeneeded = function (e) {
+              if (!e.target.result.objectStoreNames.contains('kv'))
+                e.target.result.createObjectStore('kv', { keyPath: 'k' });
+            };
+            q.onsuccess = function () {
+              if (onvc) q.result.onversionchange = onvc;
+              resolve(q.result);
+            };
+            q.onerror = function () { reject(q.error); };
+          });
+        }
+        globalThis.__p = (async function () {
+          // 1) blocker stays open: versionchange, blocked (pending), release on close
+          const db1 = await openDb('k86-a', 1, function (e) {
+            __log.push(['vc-a', e.oldVersion, e.newVersion, e instanceof IDBVersionChangeEvent]);
+          });
+          const q2 = indexedDB.open('k86-a', 2);
+          q2.onblocked = function (e) {
+            __log.push(['blocked-a', e instanceof IDBVersionChangeEvent, e.oldVersion, e.newVersion, q2.readyState]);
+          };
+          q2.onupgradeneeded = function (e) { __log.push(['upg-a', e.oldVersion, e.newVersion]); };
+          q2.onsuccess = function () { __log.push(['ok-a', q2.result.version]); };
+          await wait();
+          __log.push(['a-still-blocked']);
+          db1.close();
+          await wait();
+          // 2) versionchange handler closes: no blocked at all
+          let db3;
+          db3 = await openDb('k86-b', 1, function (e) { __log.push(['vc-b', e.oldVersion, e.newVersion]); db3.close(); });
+          const q4 = indexedDB.open('k86-b', 3);
+          q4.onblocked = function () { __log.push(['blocked-b']); };
+          q4.onupgradeneeded = function () { __log.push(['upg-b']); };
+          q4.onsuccess = function () { __log.push(['ok-b', q4.result.version]); };
+          await wait();
+          // 3) deleteDatabase against a live connection
+          const db5 = await openDb('k86-c', 1, function (e) { __log.push(['vc-c', e.oldVersion, e.newVersion]); });
+          const q6 = indexedDB.deleteDatabase('k86-c');
+          q6.onblocked = function () { __log.push(['blocked-c']); };
+          q6.onsuccess = function (e) {
+            __log.push(['del-c', e.oldVersion, e.newVersion, e instanceof IDBVersionChangeEvent]);
+          };
+          await wait();
+          db5.close();
+          await wait();
+          // 4) same-version open with a live connection: silent success
+          const db7 = await openDb('k86-d', 2);
+          const q8 = indexedDB.open('k86-d', 2);
+          q8.onblocked = function () { __log.push(['blocked-d']); };
+          q8.onupgradeneeded = function () { __log.push(['upg-d']); };
+          q8.onsuccess = function () { __log.push(['ok-d', q8.result.version]); };
+          await wait();
+          db7.close();
+        })().then(function () { __log.push(['done']); },
+                  function (e) { __log.push(['ERR', String(e)]); });
+    "#,
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(400).await;
+    let log = rt.evaluate("globalThis.__log").unwrap();
+    assert_eq!(
+        log,
+        serde_json::json!([
+            ["vc-a", 1, 2, true],
+            ["blocked-a", true, 1, 2, "pending"],
+            ["a-still-blocked"],
+            ["upg-a", 1, 2],
+            ["ok-a", 2],
+            ["vc-b", 1, 3],
+            ["upg-b"],
+            ["ok-b", 3],
+            ["vc-c", 1, null],
+            ["blocked-c"],
+            ["del-c", 1, null, true],
+            ["ok-d", 2],
+            ["done"],
+        ]),
+        "versionchange→blocked→release on close; close-in-handler skips blocked; \
+         deleteDatabase carries null newVersion; same-version open is silent"
+    );
+}
