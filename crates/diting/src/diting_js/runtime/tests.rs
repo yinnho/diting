@@ -29577,3 +29577,81 @@ async fn knife72_svg_parent_chain() {
     assert_eq!(o["ruleChain"], "CSSStyleRule>CSSRule>Object");
     assert_eq!(o["styleSer"], serde_json::json!(["opacity: 0.5; color: red;", "opacity: 0.5; color: red;", "opacity: 0.5;"]));
 }
+
+/// M4 刀73: Selection direction / base* / extent* / getComposedRanges against
+/// Chrome 145 (k73 probes): direction is 'none' for empty/collapsed/addRange'd
+/// selections and forward/backward otherwise, base*/extent* alias anchor/focus,
+/// getComposedRanges takes an options dict (arrays/ShadowRoots/null are empty
+/// options, primitives are a TypeError, bad shadowRoots have their own
+/// messages), returns fresh normalized StaticRanges and lifts endpoints out of
+/// unlisted shadow trees to just around the host.
+#[tokio::test(flavor = "current_thread")]
+async fn knife73_selection_direction_and_composed() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const box = document.createElement('div'); box.innerHTML = '<p id="p">hello <b id="b">big</b> world</p>'; document.body.appendChild(box);
+        const tn = box.querySelector('#p').firstChild;
+        const host = document.createElement('div'); box.appendChild(host); const sr = host.attachShadow({ mode: 'open' }); sr.innerHTML = '<span id="sp">in shadow</span>'; const st = sr.getElementById('sp').firstChild;
+        const s = getSelection(); s.removeAllRanges();
+        t('none', () => [s.direction, s.type, s.baseNode, s.baseOffset, s.extentNode, s.extentOffset]);
+        t('collapse', () => { s.collapse(tn, 2); return [s.direction, s.type, s.baseNode === tn, s.baseOffset, s.extentNode === tn, s.extentOffset]; });
+        t('forward', () => { s.setBaseAndExtent(tn, 1, tn, 4); return [s.direction, s.baseOffset, s.extentOffset, s.anchorOffset, s.focusOffset]; });
+        t('backward', () => { s.setBaseAndExtent(tn, 4, tn, 1); return [s.direction, s.baseOffset, s.extentOffset, s.anchorOffset, s.focusOffset]; });
+        t('range', () => { const r = document.createRange(); r.setStart(tn, 0); r.setEnd(tn, 3); s.removeAllRanges(); s.addRange(r); return [s.direction, s.baseOffset, s.extentOffset]; });
+        t('extend', () => { s.collapse(tn, 3); s.extend(tn, 1); return [s.direction, s.baseOffset, s.extentOffset]; });
+        t('selectAll', () => { s.selectAllChildren(box.querySelector('#p')); return [s.direction, s.type]; });
+        t('removed', () => { s.removeAllRanges(); return [s.direction, s.baseNode]; });
+        t('getters', () => ['direction', 'baseNode', 'baseOffset', 'extentNode', 'extentOffset'].map(k => { const d = Object.getOwnPropertyDescriptor(Selection.prototype, k); return [d.get.name, !!d.set, d.enumerable, d.configurable]; }));
+        t('foreign', () => { try { Object.getOwnPropertyDescriptor(Selection.prototype, 'baseNode').get.call({}); return 'NO'; } catch (e) { return e.name + ':' + e.message; } });
+        t('gcrLen', () => [Selection.prototype.getComposedRanges.length, Selection.prototype.getComposedRanges.name]);
+        t('empty', () => { s.removeAllRanges(); const r = s.getComposedRanges(); return [Array.isArray(r), r.length]; });
+        t('range1', () => { s.setBaseAndExtent(tn, 1, tn, 4); const r = s.getComposedRanges(); return [r.length, r[0].constructor.name, r[0].startContainer === tn, r[0].startOffset, r[0].endOffset, r[0].collapsed]; });
+        t('backNorm', () => { s.setBaseAndExtent(tn, 4, tn, 1); const r = s.getComposedRanges()[0]; return [r.startOffset, r.endOffset, s.direction]; });
+        t('fresh', () => { const a = s.getComposedRanges(), b = s.getComposedRanges(); return [a !== b, a[0] !== b[0]]; });
+        t('collapsedRange', () => { s.collapse(tn, 2); const a = s.getComposedRanges(); return [a.length, a[0].collapsed, a[0].startOffset]; });
+        t('badArgs', () => { s.setBaseAndExtent(tn, 1, tn, 2); const r = []; for (const a of [5, 'x', null, undefined, [1], [], sr, { shadowRoots: [1] }, { shadowRoots: 5 }, { shadowRoots: [sr] }, { shadowRoots: null }]) { try { s.getComposedRanges(a); r.push('ok'); } catch (e) { r.push(e.message.replace("Failed to execute 'getComposedRanges' on 'Selection': ", '')); } } return r; });
+        t('retarget', () => { s.setBaseAndExtent(st, 1, st, 4); const a = s.getComposedRanges(); const r = a[0]; const idx = Array.prototype.indexOf.call(box.childNodes, host); return [a.length, r.startContainer === box, r.startOffset === idx, r.endContainer === box, r.endOffset === idx + 1, r.collapsed]; });
+        t('withRoot', () => { s.setBaseAndExtent(st, 1, st, 4); const r = s.getComposedRanges({ shadowRoots: [sr] })[0]; return [r.startContainer === st, r.startOffset, r.endContainer === st, r.endOffset]; });
+        t('positional', () => { s.setBaseAndExtent(st, 1, st, 4); const r = s.getComposedRanges(sr)[0]; return [r.startContainer === st, r.startContainer === box]; });
+        t('own', () => Reflect.ownKeys(s).length);
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["none"], serde_json::json!(["none", "None", null, 0, null, 0]));
+    assert_eq!(o["collapse"], serde_json::json!(["none", "Caret", true, 2, true, 2]));
+    assert_eq!(o["forward"], serde_json::json!(["forward", 1, 4, 1, 4]));
+    assert_eq!(o["backward"], serde_json::json!(["backward", 4, 1, 4, 1]));
+    assert_eq!(o["range"], serde_json::json!(["none", 0, 3]));
+    assert_eq!(o["extend"], serde_json::json!(["backward", 3, 1]));
+    assert_eq!(o["selectAll"], serde_json::json!(["forward", "Range"]));
+    assert_eq!(o["removed"], serde_json::json!(["none", null]));
+    assert_eq!(
+        o["getters"],
+        serde_json::json!([["get direction", false, true, true], ["get baseNode", false, true, true], ["get baseOffset", false, true, true], ["get extentNode", false, true, true], ["get extentOffset", false, true, true]])
+    );
+    assert_eq!(o["foreign"], "TypeError:Illegal invocation");
+    assert_eq!(o["gcrLen"], serde_json::json!([0, "getComposedRanges"]));
+    assert_eq!(o["empty"], serde_json::json!([true, 0]));
+    assert_eq!(o["range1"], serde_json::json!([1, "StaticRange", true, 1, 4, false]));
+    assert_eq!(o["backNorm"], serde_json::json!([1, 4, "backward"]));
+    assert_eq!(o["fresh"], serde_json::json!([true, true]));
+    assert_eq!(o["collapsedRange"], serde_json::json!([1, true, 2]));
+    assert_eq!(
+        o["badArgs"],
+        serde_json::json!([
+            "The provided value is not of type 'GetComposedRangesOptions'.",
+            "The provided value is not of type 'GetComposedRangesOptions'.",
+            "ok", "ok", "ok", "ok", "ok",
+            "Failed to read the 'shadowRoots' property from 'GetComposedRangesOptions': Failed to convert value to 'ShadowRoot'.",
+            "Failed to read the 'shadowRoots' property from 'GetComposedRangesOptions': The provided value cannot be converted to a sequence.",
+            "ok",
+            "Failed to read the 'shadowRoots' property from 'GetComposedRangesOptions': The provided value cannot be converted to a sequence."
+        ])
+    );
+    assert_eq!(o["retarget"], serde_json::json!([1, true, true, true, true, false]));
+    assert_eq!(o["withRoot"], serde_json::json!([true, 1, true, 4]));
+    assert_eq!(o["positional"], serde_json::json!([false, true]));
+    assert_eq!(o["own"], 0);
+}

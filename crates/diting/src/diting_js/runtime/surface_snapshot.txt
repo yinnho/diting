@@ -2021,7 +2021,7 @@ P ScreenOrientation :: angle,constructor,lock,onchange,type,unlock
 P ScriptProcessorNode :: bufferSize,constructor,onaudioprocess
 P ScrollTimeline :: axis,constructor,source
 P SecurityPolicyViolationEvent :: blockedURI,columnNumber,constructor,disposition,documentURI,effectiveDirective,lineNumber,originalPolicy,referrer,sample,sourceFile,statusCode,violatedDirective
-P Selection :: addRange,anchorNode,anchorOffset,collapse,collapseToEnd,collapseToStart,constructor,containsNode,deleteFromDocument,empty,extend,focusNode,focusOffset,getRangeAt,isCollapsed,modify,rangeCount,removeAllRanges,removeRange,selectAllChildren,setBaseAndExtent,setPosition,toString,type
+P Selection :: addRange,anchorNode,anchorOffset,baseNode,baseOffset,collapse,collapseToEnd,collapseToStart,constructor,containsNode,deleteFromDocument,direction,empty,extend,extentNode,extentOffset,focusNode,focusOffset,getComposedRanges,getRangeAt,isCollapsed,modify,rangeCount,removeAllRanges,removeRange,selectAllChildren,setBaseAndExtent,setPosition,toString,type
 P Sensor :: activated,constructor,hasReading,onactivate,onerror,onreading,start,stop,timestamp
 P SensorErrorEvent :: constructor,error
 P Serial :: constructor,getPorts,onconnect,ondisconnect,requestPort
