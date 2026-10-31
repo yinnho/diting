@@ -30094,3 +30094,40 @@ async fn knife82_illegal_zero_arg_constructors() {
     }
     assert!(!r.contains(":ok"), "{r}");
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn knife83_mint_sealed_constructors() {
+    let mut rt = setup_runtime("<html><body><div>a</div><div>b</div></body></html>");
+    rt.evaluate(r#"
+        globalThis.__r = {};
+        const t = (k, f) => { try { __r[k] = f(); } catch (e) { __r[k] = e.name + ':' + e.message; } };
+        t('nl0', () => new NodeList());
+        t('nl1', () => new NodeList(1));
+        t('ib0', () => new ImageBitmap());
+        t('ib1', () => new ImageBitmap(undefined));
+        t('subclass', () => { class A extends NodeList {}; return new A(); });
+        t('qsa', () => { const l = document.querySelectorAll('div'); return [l.length, l instanceof NodeList, Object.prototype.toString.call(l), l.item(0).textContent]; });
+        t('cn', () => { const l = document.body.childNodes; return [l instanceof NodeList, Object.prototype.toString.call(l)]; });
+        t('cib', () => { const c = document.createElement('canvas'); c.width = 3; c.height = 4; return createImageBitmap(c); });
+    "#).unwrap();
+    let r = rt.evaluate("globalThis.__r").unwrap();
+    for k in ["nl0", "nl1", "ib0", "ib1", "subclass"] {
+        let v = r[k].as_str().unwrap_or_default();
+        let name = if k.starts_with("ib") { "ImageBitmap" } else { "NodeList" };
+        assert_eq!(v, format!("TypeError:Failed to construct '{name}': Illegal constructor"), "{k}={v}");
+    }
+    assert_eq!(r["qsa"], serde_json::json!([2, true, "[object NodeList]", "a"]));
+    assert_eq!(r["cn"], serde_json::json!([true, "[object NodeList]"]));
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => { const b = await globalThis.__r.cib; return b.width + 'x' + b.height + ':' + (b instanceof ImageBitmap); }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let dims = result.value.unwrap();
+    assert_eq!(dims, serde_json::json!("3x4:true"));
+}

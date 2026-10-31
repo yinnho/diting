@@ -8,6 +8,12 @@
   const G = globalThis;
   const mark = G.__diting_markNative || ((f) => f);
   const ARGS = {"AudioBuffer":1,"BroadcastChannel":1,"CloseEvent":1,"ContentVisibilityAutoStateChangeEvent":1,"ErrorEvent":1,"EventSource":1,"ImageData":2,"MessageEvent":1,"MutationObserver":1,"OffscreenCanvas":2,"PerformanceMark":1,"ProgressEvent":1,"RTCError":1,"ResizeObserver":1,"SharedWorker":1,"ToggleEvent":1,"Touch":1,"TouchEvent":1,"Worker":1};
+  // 刀83: interfaces Chrome refuses to construct with ANY argument list
+  // (k79-ctor-c: "Failed to construct 'X': Illegal constructor" for both
+  // zero and non-zero args). The engine still needs to mint them internally,
+  // so the wrapper admits exactly one caller — the holder of the hidden
+  // __diting_ctorMint token — and throws for everything the page can write.
+  const MINT = ['NodeList', 'ImageBitmap'];
   const ILLEGAL0 = ['Node', 'Element', 'CharacterData', 'CDATASection', 'DocumentType', 'ProcessingInstruction', 'XMLDocument', 'BaseAudioContext', 'CustomElementRegistry', 'DOMTokenList', 'ElementInternals', 'GPU', 'GPUAdapter', 'MediaQueryList', 'MessagePort', 'MimeType', 'MimeTypeArray', 'PerformanceEntry', 'PerformanceObserverEntryList', 'Plugin', 'PluginArray', 'SVGPoint', 'Selection', 'ServiceWorkerContainer', 'SourceBuffer', 'XMLHttpRequestEventTarget'];
   const wrap = (name, check) => {
     const Orig = G[name];
@@ -39,4 +45,6 @@
     wrap(name, (a) => { if (a.length < n) throw new TypeError("Failed to construct '" + name + "': " + n + ' argument' + (n > 1 ? 's' : '') + ' required, but only ' + a.length + ' present.'); });
   }
   for (const name of ILLEGAL0) wrap(name, (a) => { if (a.length === 0) throw new TypeError("Failed to construct '" + name + "': Illegal constructor"); });
+  const M = globalThis.__diting_ctorMint;
+  for (const name of MINT) wrap(name, (a) => { if (a.length === 0 || a[0] !== M) throw new TypeError("Failed to construct '" + name + "': Illegal constructor"); });
 })();

@@ -12331,8 +12331,11 @@ Object.setPrototypeOf(globalThis.BatteryManager.prototype, _EventTarget.prototyp
 // Build a NodeList (no named access, per spec) for querySelectorAll and
 // childNodes. Kept light on purpose: querySelectorAll is the hottest query API.
 globalThis.__diting_mkNodeList = (els) => _nodeList(els); // addedNodes/removedNodes are NodeLists in Chrome (Array before)
+// 刀83: ctor_ladders seals NodeList behind a mint token (Chrome: any `new NodeList()`
+// is an Illegal constructor); this factory is the engine's only legal minter.
+globalThis.__diting_ctorMint = Symbol('ctor-mint');
 function _nodeList(els) {
-  const nl = new NodeList();
+  const nl = new NodeList(globalThis.__diting_ctorMint);
   for (let i = 0; i < els.length; i++) nl[i] = els[i];
   nl.length = els.length;
   return nl;
@@ -14790,7 +14793,7 @@ if (typeof ImageBitmap === 'undefined') {
           fail('InvalidStateError', 'The source image could not be decoded');
           return;
         }
-        const bmp = new ImageBitmap();
+        const bmp = new ImageBitmap(globalThis.__diting_ctorMint);
         bmp.width = w;
         bmp.height = h;
         resolve(bmp);
