@@ -6614,6 +6614,7 @@ const _tagInterfaces = new Map();
 // keeps XML-namespace tags in source case), so SVG <a> and HTML <A> never
 // collide — the HTML table above is only consulted for uppercase tags.
 const _svgTagInterfaces = new Map();
+Object.defineProperty(globalThis, '__diting_svgTagMap', { value: _svgTagInterfaces, writable: true, enumerable: false, configurable: true });
 function _elementClassFor(nid) {
   const tag = _domParse("tag_name", nid);
   if (tag === "FORM" && _HTMLFormElementNative) return _HTMLFormElementNative;

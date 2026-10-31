@@ -29789,3 +29789,102 @@ async fn knife75_tail_members() {
     assert_eq!(o["sourceBuffer"], serde_json::json!([[true, true], [true, true], [true, true], [true, true], [true, true]]));
     assert_eq!(o["cryptoKey"], serde_json::json!(["function", "function", "function", "function"]));
 }
+
+/// M4 刀77: speechSynthesis is a real utterance queue (the persona advertises
+/// voices, so speech "plays"): speak() queues and the head utterance fires
+/// start then end (SpeechSynthesisEvent), speaking/pending track the queue,
+/// cancel() fires error:'canceled' on the running and every queued utterance,
+/// pause()/resume() freeze/continue the running one.
+#[tokio::test(flavor = "current_thread")]
+async fn knife77_speech_queue_lifecycle() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(r#"
+        globalThis.__log = [];
+        const mk = (name, text) => { const u = new SpeechSynthesisUtterance(text); for (const ty of ['start', 'end', 'error', 'pause', 'resume']) u.addEventListener(ty, (e) => __log.push([name, e.type, e.constructor.name, e.utterance === u, e.error || null])); return u; };
+        const a = mk('a', 'hi'), b = mk('b', 'yo'), c = mk('c', 'later'), d = mk('d', 'dropped');
+        speechSynthesis.speak(a); speechSynthesis.speak(b);
+        __log.push(['state0', speechSynthesis.speaking, speechSynthesis.pending, speechSynthesis.paused]);
+        globalThis.__done = new Promise((res) => {
+          b.addEventListener('end', () => {
+            __log.push(['state1', speechSynthesis.speaking, speechSynthesis.pending]);
+            speechSynthesis.speak(c); speechSynthesis.speak(d);
+            c.addEventListener('start', () => {
+              speechSynthesis.pause(); __log.push(['paused', speechSynthesis.paused]);
+              speechSynthesis.resume(); __log.push(['resumed', speechSynthesis.paused]);
+              speechSynthesis.cancel();
+              __log.push(['state2', speechSynthesis.speaking, speechSynthesis.pending]);
+              setTimeout(res, 50);
+            });
+          });
+        });
+    "#).unwrap();
+    let _ = rt.run_event_loop_bounded(2500).await;
+    let log = rt.evaluate("JSON.stringify(globalThis.__log)").unwrap();
+    let l: serde_json::Value = serde_json::from_str(log.as_str().unwrap()).unwrap();
+    assert_eq!(l[0], serde_json::json!(["state0", true, true, false]));
+    assert_eq!(l[1], serde_json::json!(["a", "start", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[2], serde_json::json!(["a", "end", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[3], serde_json::json!(["b", "start", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[4], serde_json::json!(["b", "end", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[5], serde_json::json!(["state1", false, false]));
+    assert_eq!(l[6], serde_json::json!(["c", "start", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[7], serde_json::json!(["c", "pause", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[8], serde_json::json!(["paused", true]));
+    assert_eq!(l[9], serde_json::json!(["c", "resume", "SpeechSynthesisEvent", true, null]));
+    assert_eq!(l[10], serde_json::json!(["resumed", false]));
+    assert_eq!(l[11], serde_json::json!(["state2", false, false]));
+    assert_eq!(l[12], serde_json::json!(["c", "error", "SpeechSynthesisErrorEvent", true, "canceled"]));
+    assert_eq!(l[13], serde_json::json!(["d", "error", "SpeechSynthesisErrorEvent", true, "canceled"]));
+}
+
+/// M4 刀77: every SVG tag wraps as its Chrome interface (63 tags, captured from Chrome 145), the formerly
+/// pure-stub SVG interfaces (mask/filter/fe*/light sources/transfer functions/textPath/view/script/mpath)
+/// answer real defaults through animated views, SVGStringList is indexed and systemLanguage is
+/// comma-separated.
+#[tokio::test(flavor = "current_thread")]
+async fn knife77_svg_tags_and_filter_reflectors() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const NS = 'http://www.w3.org/2000/svg'; const mk = (n) => document.createElementNS(NS, n);
+        const want = TAGS_JSON;
+        t('tags', () => { const bad = []; for (const [tag, w] of Object.entries(want)) { const e = mk(tag); const got = e.constructor.name + '>' + Object.getPrototypeOf(Object.getPrototypeOf(e)).constructor.name; if (got !== w) bad.push([tag, got, w]); } return bad; });
+        t('mask', () => { const m = mk('mask'); return [m.maskUnits.baseVal, m.maskContentUnits.baseVal, m.maskUnits.constructor.name, m.requiredExtensions.constructor.name, m.x.constructor.name]; });
+        t('maskLen', () => { const m = mk('mask'); try { return m.x.baseVal.value; } catch (e) { return e.name; } });
+        t('filter', () => { const f = mk('filter'); f.setAttribute('filterUnits', 'userSpaceOnUse'); return [f.filterUnits.baseVal, f.primitiveUnits.baseVal, f.href.constructor.name]; });
+        t('feBlend', () => { const e = mk('feBlend'); const r = [e.mode.baseVal, e.in1.baseVal]; e.setAttribute('mode', 'multiply'); e.setAttribute('in', 'SourceGraphic'); r.push(e.mode.baseVal, e.in1.baseVal); e.setAttribute('mode', 'junk'); r.push(e.mode.baseVal); return r; });
+        t('feColorMatrix', () => { const e = mk('feColorMatrix'); const r = [e.type.baseVal, e.values.baseVal.numberOfItems]; e.setAttribute('type', 'hueRotate'); r.push(e.type.baseVal); return r; });
+        t('feComposite', () => { const e = mk('feComposite'); const r = [e.operator.baseVal, e.k1.baseVal, e.k2.baseVal]; e.setAttribute('operator', 'arithmetic'); e.setAttribute('k1', '2.5'); r.push(e.operator.baseVal, e.k1.baseVal); return r; });
+        t('feConvolve', () => { const e = mk('feConvolveMatrix'); const r = [e.orderX.baseVal, e.orderY.baseVal, e.divisor.baseVal, e.edgeMode.baseVal, e.preserveAlpha.baseVal, e.orderX.constructor.name, e.preserveAlpha.constructor.name]; e.setAttribute('order', '5 7'); r.push(e.orderX.baseVal, e.orderY.baseVal); e.setAttribute('preserveAlpha', 'true'); r.push(e.preserveAlpha.baseVal); return r; });
+        t('feTurbulence', () => { const e = mk('feTurbulence'); const r = [e.type.baseVal, e.stitchTiles.baseVal, e.numOctaves.baseVal, e.seed.baseVal, e.baseFrequencyX.baseVal]; e.setAttribute('baseFrequency', '0.5 0.25'); r.push(e.baseFrequencyX.baseVal, e.baseFrequencyY.baseVal); return r; });
+        t('feBlur', () => { const e = mk('feGaussianBlur'); e.setAttribute('stdDeviation', '3 4'); return [e.stdDeviationX.baseVal, e.stdDeviationY.baseVal, typeof e.setStdDeviation]; });
+        t('feFunc', () => { const e = mk('feFuncR'); return [e.type.baseVal, e.slope.baseVal, e.exponent.baseVal, e.tableValues.baseVal.numberOfItems, e instanceof SVGComponentTransferFunctionElement]; });
+        t('light', () => [mk('feDistantLight').azimuth.baseVal, mk('feSpotLight').limitingConeAngle.baseVal, mk('fePointLight').z.baseVal]);
+        t('textPath', () => { const e = mk('textPath'); return [e.method.baseVal, e.spacing.baseVal, e.href.baseVal, e.startOffset.baseVal.unitType]; });
+        t('script', () => { const s = mk('script'); const r = [s.type, s.async]; s.type = 'text/x'; s.async = true; r.push(s.getAttribute('type'), s.hasAttribute('async'), s.async); return r; });
+        t('view', () => { const v = mk('view'); const r = [v.zoomAndPan]; v.zoomAndPan = 1; r.push(v.zoomAndPan); return r; });
+        t('foreign', () => { try { Object.getOwnPropertyDescriptor(SVGFEBlendElement.prototype, 'mode').get.call(mk('rect')); return 'NO'; } catch (e) { return e.message; } });
+        t('strlist', () => { const r = mk('rect'); r.setAttribute('systemLanguage', 'en, fr'); const l = r.systemLanguage; return [l.length, l[0], l[1], l[2], Object.keys(l).join(','), 1 in l]; });
+        return JSON.stringify(o);
+    })()"#.replace("TAGS_JSON", TAGS);
+    let v = rt.evaluate(&script).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["tags"], serde_json::json!([]));
+    assert_eq!(o["mask"], serde_json::json!([2, 1, "SVGAnimatedEnumeration", "SVGStringList", "SVGAnimatedLength"]));
+    assert_eq!(o["maskLen"], "NotSupportedError");
+    assert_eq!(o["filter"], serde_json::json!([1, 1, "SVGAnimatedString"]));
+    assert_eq!(o["feBlend"], serde_json::json!([1, "", 2, "SourceGraphic", 1]));
+    assert_eq!(o["feColorMatrix"], serde_json::json!([1, 0, 3]));
+    assert_eq!(o["feComposite"], serde_json::json!([1, 0, 0, 6, 2.5]));
+    assert_eq!(o["feConvolve"], serde_json::json!([3, 3, 1, 1, false, "SVGAnimatedInteger", "SVGAnimatedBoolean", 5, 7, true]));
+    assert_eq!(o["feTurbulence"], serde_json::json!([2, 2, 1, 0, 0, 0.5, 0.25]));
+    assert_eq!(o["feBlur"], serde_json::json!([3, 4, "function"]));
+    assert_eq!(o["feFunc"], serde_json::json!([1, 1, 1, 0, true]));
+    assert_eq!(o["textPath"], serde_json::json!([1, 2, "", 1]));
+    assert_eq!(o["script"], serde_json::json!(["", false, "text/x", true, true]));
+    assert_eq!(o["view"], serde_json::json!([2, 1]));
+    assert_eq!(o["foreign"], "Illegal invocation");
+    assert_eq!(o["strlist"], serde_json::json!([2, "en", "fr", null, "0,1", true]));
+}
+const TAGS: &str = r#"{"a":"SVGAElement>SVGGraphicsElement","animate":"SVGAnimateElement>SVGAnimationElement","animateMotion":"SVGAnimateMotionElement>SVGAnimationElement","animateTransform":"SVGAnimateTransformElement>SVGAnimationElement","circle":"SVGCircleElement>SVGGeometryElement","clipPath":"SVGClipPathElement>SVGElement","defs":"SVGDefsElement>SVGGraphicsElement","desc":"SVGDescElement>SVGElement","ellipse":"SVGEllipseElement>SVGGeometryElement","feBlend":"SVGFEBlendElement>SVGElement","feColorMatrix":"SVGFEColorMatrixElement>SVGElement","feComponentTransfer":"SVGFEComponentTransferElement>SVGElement","feComposite":"SVGFECompositeElement>SVGElement","feConvolveMatrix":"SVGFEConvolveMatrixElement>SVGElement","feDiffuseLighting":"SVGFEDiffuseLightingElement>SVGElement","feDisplacementMap":"SVGFEDisplacementMapElement>SVGElement","feDistantLight":"SVGFEDistantLightElement>SVGElement","feDropShadow":"SVGFEDropShadowElement>SVGElement","feFlood":"SVGFEFloodElement>SVGElement","feFuncA":"SVGFEFuncAElement>SVGComponentTransferFunctionElement","feFuncB":"SVGFEFuncBElement>SVGComponentTransferFunctionElement","feFuncG":"SVGFEFuncGElement>SVGComponentTransferFunctionElement","feFuncR":"SVGFEFuncRElement>SVGComponentTransferFunctionElement","feGaussianBlur":"SVGFEGaussianBlurElement>SVGElement","feImage":"SVGFEImageElement>SVGElement","feMerge":"SVGFEMergeElement>SVGElement","feMergeNode":"SVGFEMergeNodeElement>SVGElement","feMorphology":"SVGFEMorphologyElement>SVGElement","feOffset":"SVGFEOffsetElement>SVGElement","fePointLight":"SVGFEPointLightElement>SVGElement","feSpecularLighting":"SVGFESpecularLightingElement>SVGElement","feSpotLight":"SVGFESpotLightElement>SVGElement","feTile":"SVGFETileElement>SVGElement","feTurbulence":"SVGFETurbulenceElement>SVGElement","filter":"SVGFilterElement>SVGElement","foreignObject":"SVGForeignObjectElement>SVGGraphicsElement","g":"SVGGElement>SVGGraphicsElement","image":"SVGImageElement>SVGGraphicsElement","line":"SVGLineElement>SVGGeometryElement","linearGradient":"SVGLinearGradientElement>SVGGradientElement","marker":"SVGMarkerElement>SVGElement","mask":"SVGMaskElement>SVGElement","metadata":"SVGMetadataElement>SVGElement","mpath":"SVGMPathElement>SVGElement","path":"SVGPathElement>SVGGeometryElement","pattern":"SVGPatternElement>SVGElement","polygon":"SVGPolygonElement>SVGGeometryElement","polyline":"SVGPolylineElement>SVGGeometryElement","radialGradient":"SVGRadialGradientElement>SVGGradientElement","rect":"SVGRectElement>SVGGeometryElement","script":"SVGScriptElement>SVGElement","set":"SVGSetElement>SVGAnimationElement","stop":"SVGStopElement>SVGElement","style":"SVGStyleElement>SVGElement","svg":"SVGSVGElement>SVGGraphicsElement","switch":"SVGSwitchElement>SVGGraphicsElement","symbol":"SVGSymbolElement>SVGGraphicsElement","text":"SVGTextElement>SVGTextPositioningElement","textPath":"SVGTextPathElement>SVGTextContentElement","title":"SVGTitleElement>SVGElement","tspan":"SVGTSpanElement>SVGTextPositioningElement","use":"SVGUseElement>SVGGraphicsElement","view":"SVGViewElement>SVGElement"}"#;

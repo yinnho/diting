@@ -1,0 +1,1588 @@
+{
+ "SVGComponentTransferFunctionElement": {
+  "SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE": {
+   "const": 3
+  },
+  "SVG_FECOMPONENTTRANSFER_TYPE_GAMMA": {
+   "const": 5
+  },
+  "SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY": {
+   "const": 1
+  },
+  "SVG_FECOMPONENTTRANSFER_TYPE_LINEAR": {
+   "const": 4
+  },
+  "SVG_FECOMPONENTTRANSFER_TYPE_TABLE": {
+   "const": 2
+  },
+  "SVG_FECOMPONENTTRANSFER_TYPE_UNKNOWN": {
+   "const": 0
+  },
+  "amplitude": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "exponent": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "intercept": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "offset": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "slope": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "tableValues": {
+   "b": [
+    "list",
+    0
+   ],
+   "c": "SVGAnimatedNumberList"
+  },
+  "type": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  }
+ },
+ "SVGFEBlendElement": {
+  "SVG_FEBLEND_MODE_COLOR": {
+   "const": 15
+  },
+  "SVG_FEBLEND_MODE_COLOR_BURN": {
+   "const": 8
+  },
+  "SVG_FEBLEND_MODE_COLOR_DODGE": {
+   "const": 7
+  },
+  "SVG_FEBLEND_MODE_DARKEN": {
+   "const": 4
+  },
+  "SVG_FEBLEND_MODE_DIFFERENCE": {
+   "const": 11
+  },
+  "SVG_FEBLEND_MODE_EXCLUSION": {
+   "const": 12
+  },
+  "SVG_FEBLEND_MODE_HARD_LIGHT": {
+   "const": 9
+  },
+  "SVG_FEBLEND_MODE_HUE": {
+   "const": 13
+  },
+  "SVG_FEBLEND_MODE_LIGHTEN": {
+   "const": 5
+  },
+  "SVG_FEBLEND_MODE_LUMINOSITY": {
+   "const": 16
+  },
+  "SVG_FEBLEND_MODE_MULTIPLY": {
+   "const": 2
+  },
+  "SVG_FEBLEND_MODE_NORMAL": {
+   "const": 1
+  },
+  "SVG_FEBLEND_MODE_OVERLAY": {
+   "const": 6
+  },
+  "SVG_FEBLEND_MODE_SATURATION": {
+   "const": 14
+  },
+  "SVG_FEBLEND_MODE_SCREEN": {
+   "const": 3
+  },
+  "SVG_FEBLEND_MODE_SOFT_LIGHT": {
+   "const": 10
+  },
+  "SVG_FEBLEND_MODE_UNKNOWN": {
+   "const": 0
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "in2": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "mode": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEColorMatrixElement": {
+  "SVG_FECOLORMATRIX_TYPE_HUEROTATE": {
+   "const": 3
+  },
+  "SVG_FECOLORMATRIX_TYPE_LUMINANCETOALPHA": {
+   "const": 4
+  },
+  "SVG_FECOLORMATRIX_TYPE_MATRIX": {
+   "const": 1
+  },
+  "SVG_FECOLORMATRIX_TYPE_SATURATE": {
+   "const": 2
+  },
+  "SVG_FECOLORMATRIX_TYPE_UNKNOWN": {
+   "const": 0
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "type": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "values": {
+   "b": [
+    "list",
+    0
+   ],
+   "c": "SVGAnimatedNumberList"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEComponentTransferElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFECompositeElement": {
+  "SVG_FECOMPOSITE_OPERATOR_ARITHMETIC": {
+   "const": 6
+  },
+  "SVG_FECOMPOSITE_OPERATOR_ATOP": {
+   "const": 4
+  },
+  "SVG_FECOMPOSITE_OPERATOR_IN": {
+   "const": 2
+  },
+  "SVG_FECOMPOSITE_OPERATOR_OUT": {
+   "const": 3
+  },
+  "SVG_FECOMPOSITE_OPERATOR_OVER": {
+   "const": 1
+  },
+  "SVG_FECOMPOSITE_OPERATOR_UNKNOWN": {
+   "const": 0
+  },
+  "SVG_FECOMPOSITE_OPERATOR_XOR": {
+   "const": 5
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "in2": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "k1": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "k2": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "k3": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "k4": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "operator": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEConvolveMatrixElement": {
+  "SVG_EDGEMODE_DUPLICATE": {
+   "const": 1
+  },
+  "SVG_EDGEMODE_NONE": {
+   "const": 3
+  },
+  "SVG_EDGEMODE_UNKNOWN": {
+   "const": 0
+  },
+  "SVG_EDGEMODE_WRAP": {
+   "const": 2
+  },
+  "bias": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "divisor": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "edgeMode": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "kernelMatrix": {
+   "b": [
+    "list",
+    0
+   ],
+   "c": "SVGAnimatedNumberList"
+  },
+  "kernelUnitLengthX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "kernelUnitLengthY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "orderX": {
+   "b": [
+    "val",
+    3
+   ],
+   "c": "SVGAnimatedInteger"
+  },
+  "orderY": {
+   "b": [
+    "val",
+    3
+   ],
+   "c": "SVGAnimatedInteger"
+  },
+  "preserveAlpha": {
+   "b": [
+    "val",
+    false
+   ],
+   "c": "SVGAnimatedBoolean"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "targetX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedInteger"
+  },
+  "targetY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedInteger"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEDiffuseLightingElement": {
+  "diffuseConstant": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "kernelUnitLengthX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "kernelUnitLengthY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "surfaceScale": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEDisplacementMapElement": {
+  "SVG_CHANNEL_A": {
+   "const": 4
+  },
+  "SVG_CHANNEL_B": {
+   "const": 3
+  },
+  "SVG_CHANNEL_G": {
+   "const": 2
+  },
+  "SVG_CHANNEL_R": {
+   "const": 1
+  },
+  "SVG_CHANNEL_UNKNOWN": {
+   "const": 0
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "in2": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "scale": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "xChannelSelector": {
+   "b": [
+    "val",
+    4
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  },
+  "yChannelSelector": {
+   "b": [
+    "val",
+    4
+   ],
+   "c": "SVGAnimatedEnumeration"
+  }
+ },
+ "SVGFEDistantLightElement": {
+  "azimuth": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "elevation": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  }
+ },
+ "SVGFEFloodElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEFuncAElement": {},
+ "SVGFEGaussianBlurElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "stdDeviationX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "stdDeviationY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEImageElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "href": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "preserveAspectRatio": {
+   "b": [
+    "par",
+    6,
+    1
+   ],
+   "c": "SVGAnimatedPreserveAspectRatio"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEMergeElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEMergeNodeElement": {
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  }
+ },
+ "SVGFEMorphologyElement": {
+  "SVG_MORPHOLOGY_OPERATOR_DILATE": {
+   "const": 2
+  },
+  "SVG_MORPHOLOGY_OPERATOR_ERODE": {
+   "const": 1
+  },
+  "SVG_MORPHOLOGY_OPERATOR_UNKNOWN": {
+   "const": 0
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "operator": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "radiusX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "radiusY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEOffsetElement": {
+  "dx": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "dy": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFEPointLightElement": {
+  "x": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "y": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "z": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  }
+ },
+ "SVGFESpecularLightingElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "kernelUnitLengthX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "kernelUnitLengthY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "specularConstant": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "specularExponent": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "surfaceScale": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFESpotLightElement": {
+  "limitingConeAngle": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "pointsAtX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "pointsAtY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "pointsAtZ": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "specularExponent": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "x": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "y": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "z": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  }
+ },
+ "SVGFETileElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "in1": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFETurbulenceElement": {
+  "SVG_STITCHTYPE_NOSTITCH": {
+   "const": 2
+  },
+  "SVG_STITCHTYPE_STITCH": {
+   "const": 1
+  },
+  "SVG_STITCHTYPE_UNKNOWN": {
+   "const": 0
+  },
+  "SVG_TURBULENCE_TYPE_FRACTALNOISE": {
+   "const": 1
+  },
+  "SVG_TURBULENCE_TYPE_TURBULENCE": {
+   "const": 2
+  },
+  "SVG_TURBULENCE_TYPE_UNKNOWN": {
+   "const": 0
+  },
+  "baseFrequencyX": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "baseFrequencyY": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "numOctaves": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedInteger"
+  },
+  "result": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "seed": {
+   "b": [
+    "val",
+    0
+   ],
+   "c": "SVGAnimatedNumber"
+  },
+  "stitchTiles": {
+   "b": [
+    "val",
+    2
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "type": {
+   "b": [
+    "val",
+    2
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGFilterElement": {
+  "filterUnits": {
+   "b": [
+    "val",
+    2
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "href": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "primitiveUnits": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGMPathElement": {
+  "href": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  }
+ },
+ "SVGMaskElement": {
+  "height": {
+   "err": "NotSupportedError"
+  },
+  "maskContentUnits": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "maskUnits": {
+   "b": [
+    "val",
+    2
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "requiredExtensions": {
+   "c": "SVGStringList"
+  },
+  "systemLanguage": {
+   "c": "SVGStringList"
+  },
+  "width": {
+   "err": "NotSupportedError"
+  },
+  "x": {
+   "err": "NotSupportedError"
+  },
+  "y": {
+   "err": "NotSupportedError"
+  }
+ },
+ "SVGScriptElement": {
+  "async": {
+   "t": "boolean",
+   "v": false
+  },
+  "href": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "type": {
+   "t": "string",
+   "v": ""
+  }
+ },
+ "SVGTextPathElement": {
+  "TEXTPATH_METHODTYPE_ALIGN": {
+   "const": 1
+  },
+  "TEXTPATH_METHODTYPE_STRETCH": {
+   "const": 2
+  },
+  "TEXTPATH_METHODTYPE_UNKNOWN": {
+   "const": 0
+  },
+  "TEXTPATH_SPACINGTYPE_AUTO": {
+   "const": 1
+  },
+  "TEXTPATH_SPACINGTYPE_EXACT": {
+   "const": 2
+  },
+  "TEXTPATH_SPACINGTYPE_UNKNOWN": {
+   "const": 0
+  },
+  "href": {
+   "b": [
+    "val",
+    ""
+   ],
+   "c": "SVGAnimatedString"
+  },
+  "method": {
+   "b": [
+    "val",
+    1
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "spacing": {
+   "b": [
+    "val",
+    2
+   ],
+   "c": "SVGAnimatedEnumeration"
+  },
+  "startOffset": {
+   "b": [
+    "len",
+    1,
+    0
+   ],
+   "c": "SVGAnimatedLength"
+  }
+ },
+ "SVGViewElement": {
+  "SVG_ZOOMANDPAN_DISABLE": {
+   "const": 1
+  },
+  "SVG_ZOOMANDPAN_MAGNIFY": {
+   "const": 2
+  },
+  "SVG_ZOOMANDPAN_UNKNOWN": {
+   "const": 0
+  },
+  "preserveAspectRatio": {
+   "b": [
+    "par",
+    6,
+    1
+   ],
+   "c": "SVGAnimatedPreserveAspectRatio"
+  },
+  "viewBox": {
+   "b": [
+    "obj"
+   ],
+   "c": "SVGAnimatedRect"
+  },
+  "zoomAndPan": {
+   "t": "number",
+   "v": 2
+  }
+ },
+ "__consts": {
+  "SVGComponentTransferFunctionElement": {
+   "SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE": 3,
+   "SVG_FECOMPONENTTRANSFER_TYPE_GAMMA": 5,
+   "SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY": 1,
+   "SVG_FECOMPONENTTRANSFER_TYPE_LINEAR": 4,
+   "SVG_FECOMPONENTTRANSFER_TYPE_TABLE": 2,
+   "SVG_FECOMPONENTTRANSFER_TYPE_UNKNOWN": 0
+  },
+  "SVGFEBlendElement": {
+   "SVG_FEBLEND_MODE_COLOR": 15,
+   "SVG_FEBLEND_MODE_COLOR_BURN": 8,
+   "SVG_FEBLEND_MODE_COLOR_DODGE": 7,
+   "SVG_FEBLEND_MODE_DARKEN": 4,
+   "SVG_FEBLEND_MODE_DIFFERENCE": 11,
+   "SVG_FEBLEND_MODE_EXCLUSION": 12,
+   "SVG_FEBLEND_MODE_HARD_LIGHT": 9,
+   "SVG_FEBLEND_MODE_HUE": 13,
+   "SVG_FEBLEND_MODE_LIGHTEN": 5,
+   "SVG_FEBLEND_MODE_LUMINOSITY": 16,
+   "SVG_FEBLEND_MODE_MULTIPLY": 2,
+   "SVG_FEBLEND_MODE_NORMAL": 1,
+   "SVG_FEBLEND_MODE_OVERLAY": 6,
+   "SVG_FEBLEND_MODE_SATURATION": 14,
+   "SVG_FEBLEND_MODE_SCREEN": 3,
+   "SVG_FEBLEND_MODE_SOFT_LIGHT": 10,
+   "SVG_FEBLEND_MODE_UNKNOWN": 0
+  },
+  "SVGFEColorMatrixElement": {
+   "SVG_FECOLORMATRIX_TYPE_HUEROTATE": 3,
+   "SVG_FECOLORMATRIX_TYPE_LUMINANCETOALPHA": 4,
+   "SVG_FECOLORMATRIX_TYPE_MATRIX": 1,
+   "SVG_FECOLORMATRIX_TYPE_SATURATE": 2,
+   "SVG_FECOLORMATRIX_TYPE_UNKNOWN": 0
+  },
+  "SVGFECompositeElement": {
+   "SVG_FECOMPOSITE_OPERATOR_ARITHMETIC": 6,
+   "SVG_FECOMPOSITE_OPERATOR_ATOP": 4,
+   "SVG_FECOMPOSITE_OPERATOR_IN": 2,
+   "SVG_FECOMPOSITE_OPERATOR_OUT": 3,
+   "SVG_FECOMPOSITE_OPERATOR_OVER": 1,
+   "SVG_FECOMPOSITE_OPERATOR_UNKNOWN": 0,
+   "SVG_FECOMPOSITE_OPERATOR_XOR": 5
+  },
+  "SVGFEConvolveMatrixElement": {
+   "SVG_EDGEMODE_DUPLICATE": 1,
+   "SVG_EDGEMODE_NONE": 3,
+   "SVG_EDGEMODE_UNKNOWN": 0,
+   "SVG_EDGEMODE_WRAP": 2
+  },
+  "SVGFEDisplacementMapElement": {
+   "SVG_CHANNEL_A": 4,
+   "SVG_CHANNEL_B": 3,
+   "SVG_CHANNEL_G": 2,
+   "SVG_CHANNEL_R": 1,
+   "SVG_CHANNEL_UNKNOWN": 0
+  },
+  "SVGFEMorphologyElement": {
+   "SVG_MORPHOLOGY_OPERATOR_DILATE": 2,
+   "SVG_MORPHOLOGY_OPERATOR_ERODE": 1,
+   "SVG_MORPHOLOGY_OPERATOR_UNKNOWN": 0
+  },
+  "SVGFETurbulenceElement": {
+   "SVG_STITCHTYPE_NOSTITCH": 2,
+   "SVG_STITCHTYPE_STITCH": 1,
+   "SVG_STITCHTYPE_UNKNOWN": 0,
+   "SVG_TURBULENCE_TYPE_FRACTALNOISE": 1,
+   "SVG_TURBULENCE_TYPE_TURBULENCE": 2,
+   "SVG_TURBULENCE_TYPE_UNKNOWN": 0
+  },
+  "SVGTextPathElement": {
+   "TEXTPATH_METHODTYPE_ALIGN": 1,
+   "TEXTPATH_METHODTYPE_STRETCH": 2,
+   "TEXTPATH_METHODTYPE_UNKNOWN": 0,
+   "TEXTPATH_SPACINGTYPE_AUTO": 1,
+   "TEXTPATH_SPACINGTYPE_EXACT": 2,
+   "TEXTPATH_SPACINGTYPE_UNKNOWN": 0
+  },
+  "SVGViewElement": {
+   "SVG_ZOOMANDPAN_DISABLE": 1,
+   "SVG_ZOOMANDPAN_MAGNIFY": 2,
+   "SVG_ZOOMANDPAN_UNKNOWN": 0
+  }
+ },
+ "__kw": {
+  "SVGFEBlendElement.mode": [
+   [
+    "normal",
+    1
+   ],
+   [
+    "multiply",
+    2
+   ],
+   [
+    "screen",
+    3
+   ],
+   [
+    "darken",
+    4
+   ],
+   [
+    "lighten",
+    5
+   ],
+   [
+    "overlay",
+    6
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGFEColorMatrixElement.type": [
+   [
+    "matrix",
+    1
+   ],
+   [
+    "saturate",
+    2
+   ],
+   [
+    "hueRotate",
+    3
+   ],
+   [
+    "luminanceToAlpha",
+    4
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGFECompositeElement.operator": [
+   [
+    "over",
+    1
+   ],
+   [
+    "in",
+    2
+   ],
+   [
+    "out",
+    3
+   ],
+   [
+    "atop",
+    4
+   ],
+   [
+    "xor",
+    5
+   ],
+   [
+    "arithmetic",
+    6
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGFEConvolveMatrixElement.edgeMode": [
+   [
+    "duplicate",
+    1
+   ],
+   [
+    "wrap",
+    2
+   ],
+   [
+    "none",
+    3
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGFEDisplacementMapElement.xChannelSelector": [
+   [
+    "R",
+    1
+   ],
+   [
+    "G",
+    2
+   ],
+   [
+    "B",
+    3
+   ],
+   [
+    "A",
+    4
+   ],
+   [
+    "junk",
+    4
+   ]
+  ],
+  "SVGFEMorphologyElement.operator": [
+   [
+    "erode",
+    1
+   ],
+   [
+    "dilate",
+    2
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGFETurbulenceElement.stitchTiles": [
+   [
+    "stitch",
+    1
+   ],
+   [
+    "noStitch",
+    2
+   ],
+   [
+    "junk",
+    2
+   ]
+  ],
+  "SVGFETurbulenceElement.type": [
+   [
+    "fractalNoise",
+    1
+   ],
+   [
+    "turbulence",
+    2
+   ],
+   [
+    "junk",
+    2
+   ]
+  ],
+  "SVGFilterElement.filterUnits": [
+   [
+    "userSpaceOnUse",
+    1
+   ],
+   [
+    "objectBoundingBox",
+    2
+   ],
+   [
+    "junk",
+    2
+   ]
+  ],
+  "SVGFilterElement.primitiveUnits": [
+   [
+    "userSpaceOnUse",
+    1
+   ],
+   [
+    "objectBoundingBox",
+    2
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGMaskElement.maskUnits": [
+   [
+    "userSpaceOnUse",
+    1
+   ],
+   [
+    "objectBoundingBox",
+    2
+   ],
+   [
+    "junk",
+    2
+   ]
+  ],
+  "SVGTextPathElement.method": [
+   [
+    "align",
+    1
+   ],
+   [
+    "stretch",
+    2
+   ],
+   [
+    "junk",
+    1
+   ]
+  ],
+  "SVGTextPathElement.spacing": [
+   [
+    "auto",
+    1
+   ],
+   [
+    "exact",
+    2
+   ],
+   [
+    "junk",
+    2
+   ]
+  ]
+ },
+ "__script": [
+  "",
+  false,
+  "text/x",
+  true,
+  true
+ ],
+ "__view": [
+  2,
+  null,
+  1
+ ]
+}
