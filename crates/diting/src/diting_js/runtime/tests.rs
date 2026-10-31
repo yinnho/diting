@@ -1869,8 +1869,8 @@
             v["ac_proto"],
             serde_json::json!(["baseLatency","outputLatency","onerror","close",
                 "createMediaElementSource","createMediaStreamDestination","createMediaStreamSource",
-                "getOutputTimestamp","resume","suspend","constructor"]),
-            "AudioContext.prototype names (刀57: playbackStats deleted)"
+                "getOutputTimestamp","resume","suspend","constructor","sinkId","onsinkchange","setSinkId"]),
+            "AudioContext.prototype names (刀57: playbackStats deleted; 刀75: sinkId/onsinkchange/setSinkId per Chrome 145 truth)"
         );
         assert_eq!(
             v["oac_proto"],
@@ -1884,7 +1884,7 @@
                 "createChannelMerger","createChannelSplitter","createConstantSource","createConvolver",
                 "createDelay","createDynamicsCompressor","createGain","createIIRFilter","createOscillator",
                 "createPanner","createPeriodicWave","createScriptProcessor","createStereoPanner",
-                "createWaveShaper","decodeAudioData","constructor"]),
+                "createWaveShaper","decodeAudioData","constructor","audioWorklet"]),
             "BaseAudioContext.prototype names (no resume/suspend — they moved up a level; 刀57: renderQuantumSize deleted)"
         );
         assert_eq!(
@@ -27987,10 +27987,10 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     "#).unwrap();
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
     // ---- shape truths (extra class = 0) ----
-    assert_eq!(v["acOwn"], serde_json::json!("baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor"));
+    assert_eq!(v["acOwn"], serde_json::json!("baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor,sinkId,onsinkchange,setSinkId"));
     assert_eq!(v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"), false);
     assert_eq!(v["mediaOwn"], serde_json::json!("media,constructor"));
-    assert_eq!(v["scopeOwn"], serde_json::json!("constructor"));
+    assert_eq!(v["scopeOwn"], serde_json::json!("start,end,constructor")); // 刀75: Chrome 145 CSSScopeRule.start/end
     assert_eq!(v["condOwn"], serde_json::json!("conditionText,constructor"));
     assert_eq!(v["propOwn"], serde_json::json!("name,syntax,inherits,initialValue,constructor"));
     // 刀66 grew the face to Chrome's eleven rw descriptors (+shape_fix order).
@@ -28001,7 +28001,7 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     assert_eq!(v["srHas"], serde_json::json!("function"), "ShadowRoot owns its innerHTML pair");
     assert_eq!(v["roOwn"], serde_json::json!("disconnect,observe,unobserve,constructor"));
     assert_eq!(v["lqOwn"], serde_json::json!("setConsumer,constructor"));
-    assert_eq!(v["gpuOwn"], serde_json::json!("requestDevice,constructor"));
+    assert_eq!(v["gpuOwn"], serde_json::json!("features,limits,info,requestDevice,constructor"));
     assert_eq!(v["wtOwn"].as_str().unwrap().contains("congestionControl"), false);
     assert_eq!(v["navCPU"], serde_json::json!("undefined"));
     assert_eq!(v["docRP"], serde_json::json!("undefined"));
@@ -29716,4 +29716,76 @@ async fn knife74_text_metrics() {
     assert_eq!(o["zero"], serde_json::json!(vec![0; 10]));
     assert_eq!(o["args"], "Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.");
     assert_eq!(o["lens"], serde_json::json!([1]));
+}
+
+/// M4 刀75: the missing-member tail (audit missing 58 -> 0). One test over the
+/// families: handler attributes round-trip, legacy constants on prototype+ctor,
+/// AudioNode state as prototype accessors over real EventTarget nodes, FileList
+/// with prototype length/item/iterator, ImageData/MediaSource/TextDecoderStream/
+/// CryptoKey/RTCError lifted to accessors without own keys, cssFloat through the
+/// style proxy, and the small reflections/methods.
+#[tokio::test(flavor = "current_thread")]
+async fn knife75_tail_members() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const own = (x) => Reflect.ownKeys(x).map(String).filter(k => k !== 'Symbol(Symbol.toStringTag)').join(',');
+        t('tailErrors', () => (globalThis.__diting_tailErrors || []).length);
+        t('handlers', () => { const r = []; for (const [C, ty] of [[MediaStream, 'onaddtrack'], [VisualViewport, 'onresize'], [ServiceWorkerContainer, 'oncontrollerchange'], [TextTrackCue, 'onenter'], [OffscreenCanvas, 'oncontextlost']]) { const d = Object.getOwnPropertyDescriptor(C.prototype, ty); const f = () => 1; r.push([d.get.name, d.set.name, d.set.length, typeof d.get.call.bind]); } return r.length; });
+        t('handlerRoundTrip', () => { const m = new MediaStream(); const f = () => 1; m.onaddtrack = f; const a = m.onaddtrack === f; m.onaddtrack = 5; return [a, m.onaddtrack, Object.keys(m).length]; });
+        t('constants', () => [WebSocket.CONNECTING, WebSocket.prototype.CLOSING, EventSource.prototype.CLOSED, EventSource.OPEN, Window.TEMPORARY, Window.prototype.PERSISTENT]);
+        t('constDesc', () => { const d = Object.getOwnPropertyDescriptor(WebSocket.prototype, 'OPEN'); const s = Object.getOwnPropertyDescriptor(WebSocket, 'OPEN'); return [d.writable, d.enumerable, d.configurable, s.writable, s.enumerable, s.configurable]; });
+        t('audioNode', () => { const c = new AudioContext(); const g = c.createGain(); return [own(g), g.context === c, g.numberOfInputs, g.numberOfOutputs, g.channelCount, g.channelCountMode, g.channelInterpretation, g instanceof AudioNode, g instanceof EventTarget]; });
+        t('audioSet', () => { const c = new AudioContext(); const g = c.createGain(); g.channelCount = 4; g.channelCountMode = 'explicit'; g.channelCountMode = 'bogus'; g.channelInterpretation = 'discrete'; let e; try { g.channelCount = 0; } catch (x) { e = x.name; } return [g.channelCount, g.channelCountMode, g.channelInterpretation, e]; });
+        t('audioConnect', () => { const c = new AudioContext(); const g = c.createGain(); const r = g.connect(c.destination); return [r === c.destination, typeof g.disconnect, AudioNode.prototype.connect.length, Object.prototype.hasOwnProperty.call(g, 'connect')]; });
+        t('audioEvents', () => { const c = new AudioContext(); const g = c.createGain(); let n = 0; g.addEventListener('x', () => n++); g.dispatchEvent(new Event('x')); return n; });
+        t('sink', () => { const c = new AudioContext(); return [c.sinkId, typeof c.setSinkId, c.setSinkId.length, c.onsinkchange, typeof c.audioWorklet]; });
+        t('fileList', () => { const i = document.createElement('input'); i.type = 'file'; const fl = i.files; return [fl.constructor.name, fl.length, own(fl), Object.getOwnPropertyDescriptor(FileList.prototype, 'length').get.name, FileList.prototype.item.length, Object.prototype.toString.call(fl), [...fl].length]; });
+        t('fileListFoo', () => { const dt = new DataTransfer(); dt.items.add(new File(['a'], 'a.txt')); const fl = dt.files; return [fl.length, fl.item(0).name, fl[0].name, own(fl), fl.item(5), [...fl].length]; });
+        t('file', () => { const f = new File(['a'], 'a.txt', { lastModified: 5000 }); return [f.lastModifiedDate.getTime(), f.webkitRelativePath, own(f)]; });
+        t('imageData', () => { const d = new ImageData(2, 2); return [d.colorSpace, d.pixelFormat, Object.keys(d), d.width, d.height, d.data.length]; });
+        t('lifted', () => [own(new TextDecoderStream()), own(new TextEncoderStream()), own(new MediaSource()), own(new RTCError({ errorDetail: 'data-channel-failure' }))]);
+        t('liftedValues', () => { const s = new TextDecoderStream('utf-8', { fatal: true }); const e = new RTCError({ errorDetail: 'dtls-failure', sdpLineNumber: 3 }); return [s.encoding, s.fatal, s.ignoreBOM, typeof s.readable, e.errorDetail, e.sdpLineNumber, e.httpRequestStatusCode]; });
+        t('cssFloat', () => { const d = document.createElement('div'); d.style.cssFloat = 'left'; const r = [d.style.cssFloat, d.style.float, d.getAttribute('style').replace(/\s/g, '')]; d.style.float = 'right'; r.push(d.style.cssFloat, 'cssFloat' in d.style, Object.prototype.hasOwnProperty.call(d.style, 'cssFloat'), d.style.parentRule); return r; });
+        t('html', () => { const h = document.documentElement; h.version = '1'; const f = document.createElement('iframe'); f.privateToken = 'x'; f.browsingTopics = true; return [h.version, h.getAttribute('version'), f.privateToken, f.browsingTopics, f.hasAttribute('browsingtopics'), typeof f.featurePolicy]; });
+        t('doctype', () => { const dt = document.implementation.createDocumentType('html', '', ''); const d2 = document.implementation.createDocument(null, null, dt); const r = [typeof dt.after, typeof dt.before, typeof dt.remove, typeof dt.replaceWith, DocumentType.prototype.remove.length]; return r; });
+        t('svg', () => { const NS = 'http://www.w3.org/2000/svg'; const s = document.createElementNS(NS, 'style'); s.media = 'print'; s.title = 'T'; const p = document.createElementNS(NS, 'polygon'); return [s.getAttribute('media'), s.title, p.pathLength.constructor.name, typeof p.points, typeof p.animatedPoints, p.isPointInFill.length, p.isPointInFill(new DOMPoint(0, 0))]; });
+        t('xhr', () => { const x = new XMLHttpRequest(); let e1, e2; try { x.setPrivateToken({}); } catch (e) { e1 = e.name; } try { x.setAttributionReporting(); } catch (e) { e2 = e.message; } return [e1, e2]; });
+        t('geo', () => [typeof GeolocationPosition.prototype.toJSON, typeof GeolocationCoordinates.prototype.toJSON]);
+        t('perf', () => { const j = performance.toJSON(); return [typeof j.timeOrigin, typeof j.timing, typeof performance.interactionCount, typeof performance.onresourcetimingbufferfull]; });
+        t('misc', () => [typeof Path2D.prototype.roundRect, Path2D.prototype.roundRect.length, typeof Range.prototype.expand, typeof HTMLCanvasElement.prototype.captureStream, typeof HTMLCanvasElement.prototype.transferControlToOffscreen, typeof CSSStyleRule.prototype.styleMap]);
+        t('sourceBuffer', () => { const d = k => Object.getOwnPropertyDescriptor(SourceBuffer.prototype, k); return ['mode', 'updating', 'timestampOffset', 'appendWindowStart', 'appendWindowEnd'].map(k => [!!d(k).get, !!d(k).set]); });
+        t('cryptoKey', () => { const d = k => Object.getOwnPropertyDescriptor(CryptoKey.prototype, k); return ['type', 'extractable', 'algorithm', 'usages'].map(k => typeof d(k).get); });
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["tailErrors"], 0);
+    assert_eq!(o["handlerRoundTrip"], serde_json::json!([true, null, 0]));
+    assert_eq!(o["constants"], serde_json::json!([0, 2, 2, 1, 0, 1]));
+    assert_eq!(o["constDesc"], serde_json::json!([false, true, false, false, true, false]));
+    assert_eq!(o["audioNode"], serde_json::json!(["gain", true, 1, 1, 2, "max", "speakers", true, true]));
+    assert_eq!(o["audioSet"], serde_json::json!([4, "explicit", "discrete", "NotSupportedError"]));
+    assert_eq!(o["audioConnect"], serde_json::json!([true, "function", 1, false]));
+    assert_eq!(o["audioEvents"], 1);
+    assert_eq!(o["sink"], serde_json::json!(["", "function", 1, null, "object"]));
+    assert_eq!(o["fileList"], serde_json::json!(["FileList", 0, "", "get length", 1, "[object FileList]", 0]));
+    assert_eq!(o["fileListFoo"], serde_json::json!([1, "a.txt", "a.txt", "0", null, 1]));
+    assert_eq!(o["file"], serde_json::json!([5000, "", ""]));
+    assert_eq!(o["imageData"], serde_json::json!(["srgb", "rgba-unorm8", ["data"], 2, 2, 16]));
+    assert_eq!(o["lifted"], serde_json::json!(["", "", "", ""]));
+    assert_eq!(o["liftedValues"], serde_json::json!(["utf-8", true, false, "object", "dtls-failure", 3, null]));
+    assert_eq!(o["cssFloat"], serde_json::json!(["left", "left", "float:left;", "right", true, false, null]));
+    assert_eq!(o["html"], serde_json::json!(["1", "1", "x", true, true, "object"]));
+    assert_eq!(o["doctype"], serde_json::json!(["function", "function", "function", "function", 0]));
+    assert_eq!(o["svg"], serde_json::json!(["print", "T", "SVGAnimatedNumber", "object", "object", 0, false]));
+    assert_eq!(
+        o["xhr"],
+        serde_json::json!(["InvalidStateError", "Failed to execute 'setAttributionReporting' on 'XMLHttpRequest': 1 argument required, but only 0 present."])
+    );
+    assert_eq!(o["geo"], serde_json::json!(["function", "function"]));
+    assert_eq!(o["perf"], serde_json::json!(["number", "object", "number", "object"]));
+    assert_eq!(o["misc"], serde_json::json!(["function", 4, "function", "function", "function", "object"]));
+    assert_eq!(o["sourceBuffer"], serde_json::json!([[true, true], [true, true], [true, true], [true, true], [true, true]]));
+    assert_eq!(o["cryptoKey"], serde_json::json!(["function", "function", "function", "function"]));
 }

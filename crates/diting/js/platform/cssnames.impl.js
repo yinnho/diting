@@ -8,7 +8,7 @@
 // bootstrap.js; that list had 309 of Chrome 145's 690 camelCase property names (alphabetical, as the instance enumerates them).
 // Unknown properties were already stored/read back/serialised by setProperty and `style.xxx = v` - only the enumeration and the
 // `in` test were short, so every name Chrome lists is now enumerated too (layout still ignores the ones it does not implement).
-// `cssFloat` is not an own key in Chrome 145 (it is not enumerated), but stays recognised for get/set/has.
+// `cssFloat` is not an own key in Chrome 145: it is a prototype accessor (tail_members.js) that routes to the `float` property.
 // Truth: instance own names of a CSSStyleDeclaration captured from Chrome for Testing 145.0.7632.117 (instance-audit probe).
 
 const NAMES = [
@@ -126,4 +126,3 @@ const NAMES = [
 const { list, set } = __diting_cssNames;
 list.length = 0;
 for (const n of NAMES) { list.push(n); set.add(n); }
-set.add('cssFloat');
