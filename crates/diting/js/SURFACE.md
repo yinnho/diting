@@ -1893,3 +1893,9 @@ audit 全零后转向**行为**账。抓 63 个 SVG 标签的 `createElementNS(.
 记档分歧：覆盖仅限「无参可构造」接口的方法（元素/文档/窗口等需要实例的接口未入表——宽探针在 Chrome 里因个别方法挂起而放弃，改用精确表）；品牌先于参数的顺序对被包装的方法不成立（foreign receiver 先得参数错）；方法的**非参数**行为差异（InvalidStateError 时序、返回值类型如 FormData.entries 返回 Iterator 对象的构造器名、ReadableStream.tee 等）未处理。
 测试：`knife80_method_argument_ladders`（FormData/URLSearchParams/Path2D/XHR/DocumentFragment/Range 的逐方法报文含复数规则、两个 Promise 拒绝、包装形状与直通正常调用）。
 **教训**：①**「全量机械包装」是反模式**——它覆盖了所有手工做对的细节（品牌序、错误对象形状），应只补**经差异探针证明缺失**的点；②Promise 返回操作的参数错误是**拒绝**不是抛出，表要分开记；③宽探针（调用所有方法）会碰到会导航/挂起的方法，探针要么限定对象集、要么带超时分片，别指望一次扫全；④生成件的输入应是「差异表」而不是「完整真值表」。
+
+## M4 刀81：构造器收尾——XMLDocument 零参封口；两条路线试错记档（2026-10-31）
+
+①XMLDocument 加入 nid 型节点类的零参封口表（`new XMLDocument()` Illegal constructor）。②**试错一（已回退）**：把 `new Document()` 做成「DOMParser 空文档」——DOMParser 的 XML 文档是**普通 Object**（`constructor.name==='Object'`、`instanceof Document` 为 false、带多余 documentElement），反而比现状更差；`new Document()` 的真修法需要先把 DOMParser/`createDocument` 产出的分离文档做成**真 Document/XMLDocument 实例**（独立大工程，挂账）。③**试错二（已回退）**：把 22 个「Chrome 为 Illegal constructor 而引擎仍可 `new`」的接口（BaseAudioContext/CustomElementRegistry/DOMTokenList/ElementInternals/GPU/GPUAdapter/ImageBitmap/MediaQueryList/MessagePort/MimeType(Array)/NodeList/PerformanceEntry/PerformanceObserverEntryList/Plugin(Array)/SVGPoint/Selection/ServiceWorkerContainer/SourceBuffer/Window/XMLHttpRequestEventTarget）整体换成「总是抛 Illegal」的全局包装——**310 个测试同时回归**（引擎内部大量经 `globalThis.X`/裸全局名铸造这些类，Window、NodeList、Selection 尤甚）；回退。结论：这 22 个只能**逐个把铸造点改成「铸造 flag」**，且要先逐类核对内部创建路径，不能靠全局替换。
+数字：构造器对账 183→**42**；shape audit 不变；cargo test **952 通过 + 110 基线逐名全等**（回退后复验）。
+**教训**：①**「页面可见的全局」与「引擎内部引用」在这个代码库里常是同一个绑定**——全局替换只对「内部用词法绑定或已捕获引用」的类安全（刀78 的 20+6 个恰好如此），否则灾难性回归；②试错后**先回退再验基线**，别带着半截改动往前走；③DOMParser 的分离文档不是真 Document，是 Document/XML 家族的深坑，需单开一刀。
