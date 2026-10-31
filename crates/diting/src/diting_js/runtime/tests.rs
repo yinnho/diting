@@ -29786,7 +29786,8 @@ async fn knife75_tail_members() {
     assert_eq!(o["geo"], serde_json::json!(["function", "function"]));
     assert_eq!(o["perf"], serde_json::json!(["number", "object", "number", "object"]));
     assert_eq!(o["misc"], serde_json::json!(["function", 4, "function", "function", "function", "object"]));
-    assert_eq!(o["sourceBuffer"], serde_json::json!([[true, true], [true, true], [true, true], [true, true], [true, true]]));
+    // 刀84: SourceBuffer.updating is read-only in Chrome (sealed by the lift RO table); the other four stay rw.
+    assert_eq!(o["sourceBuffer"], serde_json::json!([[true, true], [true, false], [true, true], [true, true], [true, true]]));
     assert_eq!(o["cryptoKey"], serde_json::json!(["function", "function", "function", "function"]));
 }
 
@@ -30130,4 +30131,59 @@ async fn knife83_mint_sealed_constructors() {
         .unwrap();
     let dims = result.value.unwrap();
     assert_eq!(dims, serde_json::json!("3x4:true"));
+}
+
+/// M4 刀84: the lift tables seal Chrome's ro/rw split. Every member Chrome exposes as a
+/// read-only accessor is a getter-only accessor on the engine prototype too: page writes are
+/// silent no-ops in sloppy mode (never "Cannot set property"), strict writes throw TypeError,
+/// and the engine's own state changes still land — internal write sites go through the hidden
+/// lift slot, so sealed members keep living values.
+#[tokio::test(flavor = "current_thread")]
+async fn knife84_sealed_ro_accessors() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"(function () {
+        const r = {};
+        // 1) descriptor shape: RO members carry a getter, no setter (rw members keep both)
+        const d = (C, k) => { const g = Object.getOwnPropertyDescriptor(C.prototype, k); return [!!g && !!g.get, !!g && !!g.set]; };
+        r.sbUpdating = d(SourceBuffer, 'updating');
+        r.sbMode = d(SourceBuffer, 'mode');
+        r.decEncoding = d(TextDecoder, 'encoding');
+        r.attrName = d(Attr, 'name');
+        r.blobSize = d(Blob, 'size');
+        r.fileLast = d(File, 'lastModified');
+        // 2) sloppy-mode page writes are silent no-ops, value unchanged
+        const td = new TextDecoder();
+        td.encoding = 'windows-1252';
+        r.sloppyEncoding = td.encoding;
+        const b = new Blob(['abc'], { type: 'text/x-k' });
+        b.size = 99;
+        b.type = 'text/other';
+        r.sloppyBlob = [b.size, b.type];
+        // strict mode still throws
+        let threw = '';
+        try { (function () { 'use strict'; b.size = 1; })(); } catch (e) { threw = e.name; }
+        r.strictThrows = threw;
+        // 3) engine state changes land through the slot (sealed members stay live)
+        const x = new XMLHttpRequest();
+        x.open('GET', 'data:text/plain,hi', false);
+        x.send();
+        const a = document.createAttributeNS('urn:x', 'p:k');
+        r.live = [x.readyState, x.status, x.responseText, a.name, a.localName, a.prefix];
+        return JSON.stringify(r);
+    })()"#,
+        )
+        .unwrap();
+    let o: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(o["sbUpdating"], serde_json::json!([true, false]));
+    assert_eq!(o["sbMode"], serde_json::json!([true, true]));
+    assert_eq!(o["decEncoding"], serde_json::json!([true, false]));
+    assert_eq!(o["attrName"], serde_json::json!([true, false]));
+    assert_eq!(o["blobSize"], serde_json::json!([true, false]));
+    assert_eq!(o["fileLast"], serde_json::json!([true, false]));
+    assert_eq!(o["sloppyEncoding"], serde_json::json!("utf-8"));
+    assert_eq!(o["sloppyBlob"], serde_json::json!([3, "text/x-k"]));
+    assert_eq!(o["strictThrows"], serde_json::json!("TypeError"));
+    assert_eq!(o["live"], serde_json::json!([4, 200, "hi", "p:k", "k", "p"]));
 }

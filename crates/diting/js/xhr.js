@@ -152,14 +152,15 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
 
   constructor() {
     super();
-    this.readyState = 0;
-    this.status = 0;
-    this.statusText = "";
-    this.responseText = "";
-    this.responseXML = null;
-    this.responseURL = "";
+    const s = __diting_liftSlot(this);
+    s.readyState = 0;
+    s.status = 0;
+    s.statusText = "";
+    s.responseText = "";
+    s.responseXML = null;
+    s.responseURL = "";
     this.responseType = "";
-    this.response = ""; // Chrome: '' for the default (text) responseType before any data
+    __diting_liftSlot(this).response = ""; // Chrome: '' for the default (text) responseType before any data
     this.timeout = 0;
     this.withCredentials = false;
     // upload is the XMLHttpRequestUpload interface: an EventTarget through
@@ -167,7 +168,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     // has no incremental network leg), so the prototype shape is the whole
     // contract. Read at ctor time — the interface is defined by
     // global_surface.js, which runs after this file in the snapshot bake.
-    this.upload = Object.create(globalThis.XMLHttpRequestUpload.prototype);
+    __diting_liftSlot(this).upload = Object.create(globalThis.XMLHttpRequestUpload.prototype);
     this._method = "GET";
     this._url = "";
     this._headers = {};
@@ -203,10 +204,11 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     this._headers = {};
     this._responseHeaders = {};
     this._aborted = false;
-    this.status = 0;
-    this.statusText = "";
-    this.responseText = "";
-    this.response = null;
+    const s2 = __diting_liftSlot(this);
+    s2.status = 0;
+    s2.statusText = "";
+    s2.responseText = "";
+    s2.response = null;
     this._setReadyState(1);
   }
 
@@ -240,6 +242,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     if (this._aborted) return;
 
     const xhr = this;
+    const xs = __diting_liftSlot(xhr);
 
     let url = this._url;
     // (#106) guard the crash site: an open()'d XHR whose _url got cleared or
@@ -282,23 +285,23 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
         } catch (e) { bytes = null; }
         if (!bytes) {
           __recordFetchTiming(_rtT0, url, 'xmlhttprequest', null);
-          xhr.status = 0;
-          xhr.statusText = '';
+          xs.status = 0;
+          xs.statusText = '';
           xhr._responseHeaders = {};
-          xhr.responseText = '';
-          xhr.response = '';
+          xs.responseText = '';
+          xs.response = '';
           if (xhr._async) {
             xhr._setReadyState(4);
             xhr._fireEvent('error');
             xhr._fireEvent('loadend');
           } else {
-            xhr.readyState = 4;
+            xs.readyState = 4;
           }
           return;
         }
-        xhr.responseURL = url;
-        xhr.status = 200;
-        xhr.statusText = '';
+        xs.responseURL = url;
+        xs.status = 200;
+        xs.statusText = '';
         xhr._responseHeaders = ctype ? { 'content-type': ctype } : {};
         __recordFetchTiming(_rtT0, url, 'xmlhttprequest', { status: 200 }, {
           encodedBodySize: bytes.length, decodedBodySize: bytes.length, transferSize: 0,
@@ -312,33 +315,33 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
             return null;
           },
         });
-        xhr.responseText = text;
+        xs.responseText = text;
         switch (xhr.responseType) {
           case 'json':
-            try { xhr.response = JSON.parse(text); } catch(e) { xhr.response = null; }
+            try { xs.response = JSON.parse(text); } catch(e) { xs.response = null; }
             break;
           case 'text':
           case '':
-            xhr.response = text;
+            xs.response = text;
             break;
           case 'arraybuffer':
-            xhr.response = bytes.slice().buffer;
+            xs.response = bytes.slice().buffer;
             break;
           case 'blob':
-            xhr.response = new Blob([bytes]);
+            xs.response = new Blob([bytes]);
             break;
           case 'document':
-            xhr.response = text; // simplified
+            xs.response = text; // simplified
             break;
           default:
-            xhr.response = text;
+            xs.response = text;
         }
         if (xhr._async) {
           xhr._setReadyState(4);
           xhr._fireEvent('load');
           xhr._fireEvent('loadend');
         } else {
-          xhr.readyState = 4;
+          xs.readyState = 4;
         }
       };
       if (this._async) { setTimeout(applyLocal, 0); } else { applyLocal(); }
@@ -373,10 +376,10 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
           } else if (body instanceof Blob) {
             // v1: Blob bodies ride the async path only.
             console.warn('Synchronous XHR does not support Blob bodies');
-            xhr.status = 0;
-            xhr.responseText = '';
-            xhr.response = '';
-            xhr.readyState = 4;
+            xs.status = 0;
+            xs.responseText = '';
+            xs.response = '';
+            xs.readyState = 4;
             return;
           } else {
             bodyStr = String(body);
@@ -389,14 +392,14 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
         const raw = _OPS.op_fetch_url_sync(url, this._method, JSON.stringify(hdrs), bodyStr, pageOrigin, 'cors', this.withCredentials ? 'include' : 'same-origin');
         const parsed = JSON.parse(raw);
         __recordFetchTiming(_rtT0, url, 'xmlhttprequest', parsed);
-        xhr.responseURL = parsed.final_url || parsed.url || url;
+        xs.responseURL = parsed.final_url || parsed.url || url;
         if (parsed.blocked || parsed.corsBlocked) {
-          xhr.status = 0;
-          xhr.statusText = '';
+          xs.status = 0;
+          xs.statusText = '';
           xhr._responseHeaders = {};
-          xhr.responseText = '';
-          xhr.response = '';
-          xhr.readyState = 4;
+          xs.responseText = '';
+          xs.response = '';
+          xs.readyState = 4;
           // Chrome pins (headless, 2026-10-11): a sync XHR network error
           // surfaces as a NetworkError DOMException with readyState already
           // DONE and status 0 — not a silent return. SDKs that branch on
@@ -404,8 +407,8 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
           // success-shaped.
           throw new DOMException("A network error occurred.", "NetworkError");
         }
-        xhr.status = parsed.status;
-        xhr.statusText = '';
+        xs.status = parsed.status;
+        xs.statusText = '';
         xhr._responseHeaders = parsed.headers || {};
         const bytes = _base64ToUint8Array(parsed.bodyBase64 || '');
         const text = _decodeBodyWithCharset(bytes, {
@@ -417,34 +420,34 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
             return null;
           },
         });
-        xhr.responseText = text;
+        xs.responseText = text;
         switch (xhr.responseType) {
           case 'json':
-            try { xhr.response = JSON.parse(text); } catch(e) { xhr.response = null; }
+            try { xs.response = JSON.parse(text); } catch(e) { xs.response = null; }
             break;
           case 'text':
           case '':
-            xhr.response = text;
+            xs.response = text;
             break;
           case 'arraybuffer':
-            xhr.response = bytes.slice().buffer;
+            xs.response = bytes.slice().buffer;
             break;
           case 'blob':
-            xhr.response = new Blob([bytes]);
+            xs.response = new Blob([bytes]);
             break;
           case 'document':
-            xhr.response = text; // simplified
+            xs.response = text; // simplified
             break;
           default:
-            xhr.response = text;
+            xs.response = text;
         }
-        xhr.readyState = 4;
+        xs.readyState = 4;
       } catch (e) {
-        xhr.status = 0;
-        xhr.statusText = '';
-        xhr.responseText = '';
-        xhr.response = '';
-        xhr.readyState = 4;
+        xs.status = 0;
+        xs.statusText = '';
+        xs.responseText = '';
+        xs.response = '';
+        xs.readyState = 4;
         // Same Chrome face as the blocked branch above: send() throws
         // NetworkError once state is DONE, responseText empty.
         throw new DOMException("A network error occurred.", "NetworkError");
@@ -461,15 +464,16 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     // EVAL_TIMEOUT with zero events (tmall publish report).
     if (this.timeout > 0) {
       const xhr = this;
+      const xs = __diting_liftSlot(xhr);
       this._timeoutTimer = setTimeout(function () {
-        if (xhr._aborted || xhr.readyState === 4) return;
+        if (xhr._aborted || xs.readyState === 4) return;
         xhr._timedOut = true;
         xhr._aborted = true; // then/catch heads ignore the late settlement
-        xhr.status = 0;
-        xhr.statusText = '';
+        xs.status = 0;
+        xs.statusText = '';
         xhr._responseHeaders = {};
-        xhr.responseText = '';
-        xhr.response = '';
+        xs.responseText = '';
+        xs.response = '';
         // _setReadyState, not a raw assignment + _fireEvent: _fireEvent
         // deliberately skips the onreadystatechange property, so a raw DONE
         // here leaves property-awaiting code waiting forever (#248).
@@ -518,9 +522,9 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     delegated.then(async (resp) => {
       if (xhr._aborted) return;
 
-      xhr.status = resp.status;
-      xhr.statusText = resp.statusText || '';
-      xhr.responseURL = resp.url || url;
+      xs.status = resp.status;
+      xs.statusText = resp.statusText || '';
+      xs.responseURL = resp.url || url;
 
       if (resp.headers) {
         resp.headers.forEach((v, k) => { xhr._responseHeaders[k] = v; });
@@ -536,28 +540,28 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
       const text = _decodeBodyWithCharset(new Uint8Array(bodyBuf), resp.headers);
       if (xhr._aborted) return;
 
-      xhr.responseText = text;
+      xs.responseText = text;
       xhr._setReadyState(3); // LOADING
 
       switch (xhr.responseType) {
         case 'json':
-          try { xhr.response = JSON.parse(text); } catch(e) { xhr.response = null; }
+          try { xs.response = JSON.parse(text); } catch(e) { xs.response = null; }
           break;
         case 'text':
         case '':
-          xhr.response = text;
+          xs.response = text;
           break;
         case 'arraybuffer':
-          xhr.response = bodyBuf;
+          xs.response = bodyBuf;
           break;
         case 'blob':
-          xhr.response = new Blob([bodyBuf]);
+          xs.response = new Blob([bodyBuf]);
           break;
         case 'document':
-          xhr.response = text; // simplified
+          xs.response = text; // simplified
           break;
         default:
-          xhr.response = text;
+          xs.response = text;
       }
 
       xhr._setReadyState(4); // DONE
@@ -567,7 +571,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
     }).catch((err) => {
       if (xhr._timeoutTimer) { clearTimeout(xhr._timeoutTimer); xhr._timeoutTimer = null; }
       if (xhr._aborted) return;
-      xhr.status = 0;
+      xs.status = 0;
       // _setReadyState so property onreadystatechange sees DONE too —
       // _fireEvent skips that property on purpose (#248)
       xhr._setReadyState(4);
@@ -590,7 +594,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
       this._fireEvent('abort');
       this._fireEvent('loadend');
     }
-    this.readyState = 0;
+    __diting_liftSlot(this).readyState = 0;
   }
 
   // M3 B2: the EventTarget trio resolves through XMLHttpRequestEventTarget
@@ -599,7 +603,7 @@ globalThis.XMLHttpRequest = class XMLHttpRequest extends XMLHttpRequestEventTarg
   // run through the core's listener loop and handler leg.
 
   _setReadyState(state) {
-    this.readyState = state;
+    __diting_liftSlot(this).readyState = state;
     // One dispatch carries both legs: the core's handler leg fires
     // onreadystatechange with the event as its argument (the old direct
     // `this.onreadystatechange()` call after _fireEvent would now

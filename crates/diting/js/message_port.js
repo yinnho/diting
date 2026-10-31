@@ -167,8 +167,9 @@ class MessageChannel {
     // and per _runAsMacrotask it also refuses to fire inside another
     // task's synchronous window (the #327 guard above).
     const [p1, p2] = _newPortPair((fn) => _runAsMacrotask(fn));
-    this.port1 = p1;
-    this.port2 = p2;
+    const ps = __diting_liftSlot(this);
+    ps.port1 = p1;
+    ps.port2 = p2;
   }
 }
 globalThis.MessageChannel = MessageChannel;

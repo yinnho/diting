@@ -68,18 +68,19 @@ if (typeof Element !== 'undefined' && Element.prototype && !Element.prototype.se
 // lists (touches / targetTouches / changedTouches).
 globalThis.Touch = class Touch {
   constructor(opts = {}) {
-    this.identifier = opts.identifier || 0;
-    this.target = opts.target || null;
-    this.clientX = opts.clientX || 0;
-    this.clientY = opts.clientY || 0;
-    this.screenX = opts.screenX !== undefined ? opts.screenX : this.clientX;
-    this.screenY = opts.screenY !== undefined ? opts.screenY : this.clientY;
-    this.pageX = opts.pageX !== undefined ? opts.pageX : this.clientX;
-    this.pageY = opts.pageY !== undefined ? opts.pageY : this.clientY;
-    this.radiusX = opts.radiusX || 1;
-    this.radiusY = opts.radiusY || 1;
-    this.rotationAngle = opts.rotationAngle || 0;
-    this.force = opts.force || 0;
+    const s = __diting_liftSlot(this);
+    s.identifier = opts.identifier || 0;
+    s.target = opts.target || null;
+    s.clientX = opts.clientX || 0;
+    s.clientY = opts.clientY || 0;
+    s.screenX = opts.screenX !== undefined ? opts.screenX : s.clientX;
+    s.screenY = opts.screenY !== undefined ? opts.screenY : s.clientY;
+    s.pageX = opts.pageX !== undefined ? opts.pageX : s.clientX;
+    s.pageY = opts.pageY !== undefined ? opts.pageY : s.clientY;
+    s.radiusX = opts.radiusX || 1;
+    s.radiusY = opts.radiusY || 1;
+    s.rotationAngle = opts.rotationAngle || 0;
+    s.force = opts.force || 0;
   }
 };
 globalThis.TouchEvent = class TouchEvent extends UIEvent {
