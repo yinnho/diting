@@ -29945,3 +29945,50 @@ async fn knife78_constructor_ladders_and_html_tags() {
         serde_json::json!(["HTMLUnknownElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLDataElement", "HTMLFrameSetElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLPreElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLUnknownElement", "HTMLPictureElement", "HTMLUnknownElement", "HTMLPreElement"])
     );
 }
+
+/// M4 刀79: default-value reconciliation (every no-arg constructible interface, Chrome 145 vs engine): pure-stub
+/// getters answer Chrome's primitive/null defaults instead of undefined, Animation.rangeStart/End are 'normal',
+/// MediaStream has an uuid id and starts inactive, `new Image().complete` is true, XHR.response is '' by default,
+/// MediaSource has the three source* handlers, SourceBufferList has Chrome's constructor name.
+#[tokio::test(flavor = "current_thread")]
+async fn knife79_default_values() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        t('highlight', () => { const h = new Highlight(); return [h.priority, h.size, h.type]; });
+        t('idle', () => { const d = new IdleDetector(); return [d.onchange, d.screenState, d.userState]; });
+        t('closeWatcher', () => { const c = new CloseWatcher(); return [c.oncancel, c.onclose]; });
+        t('captureController', () => { const c = new CaptureController(); return [c.zoomLevel, c.onzoomlevelchange]; });
+        t('origin', () => new Origin().opaque);
+        t('scroll', () => new ScrollTimeline().axis);
+        t('view', () => { const v = new ViewTimeline(); return [v.startOffset, v.endOffset, v.subject]; });
+        t('wsError', () => { const e = new WebSocketError(); return [e.closeCode, e.reason]; });
+        t('wtError', () => { const e = new WebTransportError(); return [e.source, e.streamErrorCode]; });
+        t('quota', () => { const e = new QuotaExceededError(); return [e.quota, e.requested]; });
+        t('idcred', () => { const e = new IdentityCredentialError(); return [e.code, e.error, e.url]; });
+        t('anim', () => { const a = new Animation(); return [a.rangeStart, a.rangeEnd]; });
+        t('stream', () => { const s = new MediaStream(); return [s.active, /^[0-9a-f-]{36}$/.test(s.id), new MediaStream().id !== s.id]; });
+        t('image', () => { const i = new Image(); const r = [i.complete]; return r; });
+        t('xhr', () => new XMLHttpRequest().response);
+        t('mediaSource', () => { const m = new MediaSource(); return [m.onsourceopen, m.onsourceended, m.onsourceclose, m.sourceBuffers.constructor.name, m.activeSourceBuffers.constructor.name]; });
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["highlight"], serde_json::json!([0, 0, "highlight"]));
+    assert_eq!(o["idle"], serde_json::json!([null, null, null]));
+    assert_eq!(o["closeWatcher"], serde_json::json!([null, null]));
+    assert_eq!(o["captureController"], serde_json::json!([null, null]));
+    assert_eq!(o["origin"], true);
+    assert_eq!(o["scroll"], "block");
+    assert_eq!(o["view"], serde_json::json!([null, null, null]));
+    assert_eq!(o["wsError"], serde_json::json!([null, ""]));
+    assert_eq!(o["wtError"], serde_json::json!(["stream", null]));
+    assert_eq!(o["quota"], serde_json::json!([null, null]));
+    assert_eq!(o["idcred"], serde_json::json!(["", "", ""]));
+    assert_eq!(o["anim"], serde_json::json!(["normal", "normal"]));
+    assert_eq!(o["stream"], serde_json::json!([false, true, true]));
+    assert_eq!(o["image"], serde_json::json!([true]));
+    assert_eq!(o["xhr"], "");
+    assert_eq!(o["mediaSource"], serde_json::json!([null, null, null, "SourceBufferList", "SourceBufferList"]));
+}

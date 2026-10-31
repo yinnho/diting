@@ -224,6 +224,7 @@ function _mp4Scan(u8, knownTracks) {
 class _SourceBufferList extends Array {
   item(i) { return this[i] || null; }
 }
+Object.defineProperty(_SourceBufferList, 'name', { value: 'SourceBufferList', configurable: true }); // Chrome's constructor name
 
 // MSE objects are EventTargets but NOT Nodes — Chrome says
 // `new MediaSource() instanceof Node` is false. The chain is DIRECT:

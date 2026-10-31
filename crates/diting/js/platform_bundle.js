@@ -896,7 +896,7 @@ function documentTimeline() { if (docTimeline === null) docTimeline = Reflect.co
 function makeAnimation(newTarget, effect, timeline) {
   const self = Reflect.construct(EventTarget, [], newTarget);
   const a = { self, effect, timeline, startTime: null, hold: null, rate: 1, pendingRate: null, task: null, frame: 0, timer: 0, ready: deferred(true), finished: deferred(false),
-    id: '', replace: 'active', finishNotified: false, seq: ++seq, handlers: {}, rangeStart: null, rangeEnd: null };
+    id: '', replace: 'active', finishNotified: false, seq: ++seq, handlers: {}, rangeStart: 'normal', rangeEnd: 'normal' };
   a.ready.resolve(self);
   animSlots.set(self, a);
   if (effect !== null) { const old = effSlots.get(effect); if (old.animation !== null) old.animation.effect = null; old.animation = a; }
@@ -951,7 +951,7 @@ P.accessor(AP, 'playbackRate', function __f() { return aSlot(this, __f).rate; },
   changed(a);
 });
 for (const k of ['rangeStart', 'rangeEnd']) {
-  P.accessor(AP, k, function __f() { aSlot(this, __f); return null; }, function __f(v) { aSlot(this, __f); });
+  P.accessor(AP, k, function __f() { return aSlot(this, __f)[k]; }, function __f(v) { aSlot(this, __f)[k] = (typeof v === 'string' || v === undefined || v === null) ? (v == null ? 'normal' : v) : String(v); });
 }
 P.getter(AP, 'playState', function __f() { return playStateOf(aSlot(this, __f)); });
 P.getter(AP, 'replaceState', function __f() { return aSlot(this, __f).replace; });
