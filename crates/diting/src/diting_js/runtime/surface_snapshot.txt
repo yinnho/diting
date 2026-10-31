@@ -1538,13 +1538,13 @@ P HIDConnectionEvent :: constructor,device
 P HIDDevice :: close,collections,constructor,forget,oninputreport,open,opened,productId,productName,receiveFeatureReport,sendFeatureReport,sendReport,vendorId
 P HIDInputReportEvent :: constructor,data,device,reportId
 P HTMLAllCollection :: constructor,item,length,namedItem
-P HTMLAnchorElement :: attributionSrc,charset,constructor,coords,download,hash,host,hostname,href,hrefTranslate,hreflang,name,origin,password,pathname,ping,port,protocol,referrerPolicy,rel,relList,rev,search,shape,target,text,toString,type,username
-P HTMLAreaElement :: alt,attributionSrc,constructor,coords,download,hash,host,hostname,href,noHref,origin,password,pathname,ping,port,protocol,referrerPolicy,rel,relList,search,shape,target,toString,username
+P HTMLAnchorElement :: attributionSrc,charset,constructor,coords,download,hash,host,hostname,href,hrefTranslate,hreflang,interestForElement,name,origin,password,pathname,ping,port,protocol,referrerPolicy,rel,relList,rev,search,shape,target,text,toString,type,username
+P HTMLAreaElement :: alt,attributionSrc,constructor,coords,download,hash,host,hostname,href,interestForElement,noHref,origin,password,pathname,ping,port,protocol,referrerPolicy,rel,relList,search,shape,target,toString,username
 P HTMLAudioElement :: constructor
 P HTMLBRElement :: clear,constructor
 P HTMLBaseElement :: constructor,href,target
 P HTMLBodyElement :: aLink,background,bgColor,constructor,link,onafterprint,onbeforeprint,onbeforeunload,onblur,onerror,onfocus,ongamepadconnected,ongamepaddisconnected,onhashchange,onlanguagechange,onload,onmessage,onmessageerror,onoffline,ononline,onpagehide,onpageshow,onpopstate,onrejectionhandled,onresize,onscroll,onstorage,onunhandledrejection,onunload,text,vLink
-P HTMLButtonElement :: checkValidity,command,commandForElement,constructor,disabled,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,labels,name,popoverTargetAction,popoverTargetElement,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
+P HTMLButtonElement :: checkValidity,command,commandForElement,constructor,disabled,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,interestForElement,labels,name,popoverTargetAction,popoverTargetElement,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
 P HTMLCanvasElement :: constructor,getContext,height,toBlob,toDataURL,width
 P HTMLCollection :: constructor,item,length,namedItem
 P HTMLDListElement :: compact,constructor
@@ -1896,7 +1896,7 @@ P ResizeObserverSize :: blockSize,constructor,inlineSize
 S Response :: error,json,redirect
 P Response :: arrayBuffer,blob,body,bodyUsed,bytes,clone,constructor,formData,headers,json,ok,redirected,status,statusText,text,type,url
 P RestrictionTarget :: constructor
-P SVGAElement :: constructor,href,rel,relList,type
+P SVGAElement :: constructor,download,href,hreflang,interestForElement,ping,referrerPolicy,rel,relList,target,type
 S SVGAngle :: SVG_ANGLETYPE_DEG,SVG_ANGLETYPE_GRAD,SVG_ANGLETYPE_RAD,SVG_ANGLETYPE_UNKNOWN,SVG_ANGLETYPE_UNSPECIFIED
 P SVGAngle :: SVG_ANGLETYPE_DEG,SVG_ANGLETYPE_GRAD,SVG_ANGLETYPE_RAD,SVG_ANGLETYPE_UNKNOWN,SVG_ANGLETYPE_UNSPECIFIED,constructor,convertToSpecifiedUnits,newValueSpecifiedUnits,unitType,value,valueAsString,valueInSpecifiedUnits
 P SVGAnimateElement :: constructor
@@ -1959,7 +1959,8 @@ P SVGFilterElement :: constructor,filterUnits,height,href,primitiveUnits,width,x
 P SVGForeignObjectElement :: constructor,height,width,x,y
 P SVGGElement :: constructor
 P SVGGeometryElement :: constructor,getPointAtLength,getTotalLength
-P SVGGradientElement :: constructor,href
+S SVGGradientElement :: SVG_SPREADMETHOD_PAD,SVG_SPREADMETHOD_REFLECT,SVG_SPREADMETHOD_REPEAT,SVG_SPREADMETHOD_UNKNOWN
+P SVGGradientElement :: SVG_SPREADMETHOD_PAD,SVG_SPREADMETHOD_REFLECT,SVG_SPREADMETHOD_REPEAT,SVG_SPREADMETHOD_UNKNOWN,constructor,gradientTransform,gradientUnits,href,spreadMethod
 P SVGGraphicsElement :: constructor,getBBox,getCTM,getScreenCTM
 P SVGImageElement :: constructor,crossOrigin,decode,decoding,height,href,preserveAspectRatio,width,x,y
 S SVGLength :: SVG_LENGTHTYPE_CM,SVG_LENGTHTYPE_EMS,SVG_LENGTHTYPE_EXS,SVG_LENGTHTYPE_IN,SVG_LENGTHTYPE_MM,SVG_LENGTHTYPE_NUMBER,SVG_LENGTHTYPE_PC,SVG_LENGTHTYPE_PERCENTAGE,SVG_LENGTHTYPE_PT,SVG_LENGTHTYPE_PX,SVG_LENGTHTYPE_UNKNOWN

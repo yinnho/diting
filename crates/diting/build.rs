@@ -135,6 +135,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("webgl_ext.js", include_str!("js/webgl_ext.js")),
     // 刀70: SpeechSynthesis voice instances + event ctor ladders (takeover of the minted faces).
     ("speech_gaps.js", include_str!("js/speech_gaps.js")),
+    // 刀71: interestForElement on the four interfaces Chrome carries it on.
+    ("interest_for.js", include_str!("js/interest_for.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),
