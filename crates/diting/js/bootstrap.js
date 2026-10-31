@@ -12135,10 +12135,68 @@ globalThis.SVGFEDropShadowElement = class SVGFEDropShadowElement extends globalT
   // The svg root itself.
   _svgTagInterfaces.set("svg", globalThis.SVGSVGElement);
 })();
-globalThis.TextMetrics = class TextMetrics {
-  constructor() { this.width = 0; this.actualBoundingBoxLeft = 0; this.actualBoundingBoxRight = 0;
-    this.actualBoundingBoxAscent = 0; this.actualBoundingBoxDescent = 0; }
-};
+// (M4 刀74) TextMetrics: instances carry NO own state (WeakMap slots), ten
+// read-only prototype accessors with pinned names, `new TextMetrics()` is an
+// Illegal constructor, measureText mints through the hidden factory. Chrome
+// 145 (k74): width + actualBoundingBox{Left,Right,Ascent,Descent} +
+// fontBoundingBox{Ascent,Descent} + {hanging,alphabetic,ideographic}Baseline.
+// The ink bounds and font metrics are a MODEL, not glyph geometry (the engine
+// has no rasterizer): font ascent/descent = round(size * per-family ratio),
+// baselines/shifts follow the relations measured on Chrome (alphabetic 0,
+// hanging 0.8*ascent, ideographic -descent, top/middle/bottom shifted by the
+// em-box ratios of the 16px Arial capture), ink left/right = width minus a
+// side-bearing fraction, aligned by textAlign. `width` keeps the engine's
+// persona-font model untouched.
+(() => {
+  const st = new WeakMap();
+  const TM = class TextMetrics {
+    constructor() { throw new TypeError("Failed to construct 'TextMetrics': Illegal constructor"); }
+  };
+  const keys = ['width', 'actualBoundingBoxLeft', 'actualBoundingBoxRight', 'fontBoundingBoxAscent', 'fontBoundingBoxDescent',
+    'actualBoundingBoxAscent', 'actualBoundingBoxDescent', 'hangingBaseline', 'alphabeticBaseline', 'ideographicBaseline'];
+  for (const k of keys) {
+    const get = function () {
+      const v = (this !== null && typeof this === 'object') ? st.get(this) : undefined;
+      if (!v) throw new TypeError('Illegal invocation');
+      return v[k];
+    };
+    Object.defineProperty(get, 'name', { value: 'get ' + k });
+    Object.defineProperty(TM.prototype, k, { get, enumerable: true, configurable: true });
+  }
+  Object.defineProperty(TM.prototype, Symbol.toStringTag, { value: 'TextMetrics', configurable: true });
+  globalThis.TextMetrics = TM;
+  const r4 = (n) => Math.round(n * 1e4) / 1e4;
+  Object.defineProperty(globalThis, '__diting_newTextMetrics', {
+    // m = { width, size (px), family ('arial'|'times'|'mono'), text, baseline, align }
+    value(m) {
+      const S = m.size, W = m.width;
+      const ratio = m.family === 'mono' ? [0.928, 0.236] : m.family === 'times' ? [0.891, 0.216] : [0.905, 0.212];
+      const A = Math.round(S * ratio[0]), D = Math.round(S * ratio[1]);
+      // shift = distance the chosen textBaseline sits ABOVE the alphabetic baseline
+      const hang = 0.8 * A;
+      const shift = { top: 0.77539 * S, hanging: hang, middle: 0.77539 * S / 2 - (D + 0.03711 * S) / 2, alphabetic: 0, ideographic: -D, bottom: -(D + 0.03711 * S) }[m.baseline] || 0;
+      const ink = S > 0 && /\S/.test(m.text);
+      const base = m.align === 'center' ? W / 2 : (m.align === 'right' || m.align === 'end') ? W : 0;
+      const lsb = 0.08008 * S, rsb = 0.03711 * S;
+      const desc = /[gjpqy,;()\[\]{}|]/.test(m.text) ? 0.21045 * S : 0.01172 * S;
+      const o = Object.create(TM.prototype);
+      st.set(o, {
+        width: W,
+        actualBoundingBoxLeft: ink ? r4(base - lsb) : 0,
+        actualBoundingBoxRight: ink ? r4(W - base - rsb) : 0,
+        fontBoundingBoxAscent: r4(A - shift) + 0,
+        fontBoundingBoxDescent: r4(D + shift) + 0,
+        actualBoundingBoxAscent: ink ? r4(0.71582 * S - shift) : 0,
+        actualBoundingBoxDescent: ink ? r4(desc + shift) : 0,
+        hangingBaseline: S > 0 ? r4(hang - shift) : 0,
+        alphabeticBaseline: r4(-shift) + 0,
+        ideographicBaseline: S > 0 ? r4(-D - shift) : 0,
+      });
+      return o;
+    },
+    enumerable: false, configurable: true, writable: true,
+  });
+})();
 globalThis.GPUAdapter = class GPUAdapter {
   requestDevice() { return Promise.reject(new Error('GPUDevice unavailable')); }
 };
@@ -12580,8 +12638,17 @@ class _Canvas2D {
       const f = _installedFontFactor(name);
       if (f !== null) { factor = f; break; }
     }
-    const w = String(t).length * 6 * scale * factor;
-    return Object.assign(new globalThis.TextMetrics(), { width: Math.round(w * 100) / 100, actualBoundingBoxAscent: 7*scale, actualBoundingBoxDescent: 2*scale });
+    if (arguments.length < 1) throw new TypeError("Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.");
+    const text = String(t);
+    const w = text.length * 6 * scale * factor;
+    // (刀74) real font size for the metrics model (px/pt/em/rem; 0 -> all-zero metrics)
+    let px = 10;
+    const mm = String(this.font || '').match(/(?:^|\s)(\d+(?:\.\d+)?|\.\d+)(px|pt|em|rem)\b/i);
+    if (mm) px = parseFloat(mm[1]) * ({ px: 1, pt: 4 / 3, em: 16, rem: 16 }[mm[2].toLowerCase()]);
+    const fl = famPart.toLowerCase();
+    const family = /mono|courier|menlo|consolas/.test(fl) ? 'mono' : /times|serif(?!.*sans)|georgia/.test(fl) && !/sans/.test(fl) ? 'times' : 'arial';
+    const zero = px <= 0;
+    return globalThis.__diting_newTextMetrics({ width: zero ? 0 : Math.round(w * 100) / 100, size: zero ? 0 : px, family, text, baseline: this.textBaseline, align: this.textAlign });
   }
   getImageData(x, y, w, h) {
     x=Math.round(x); y=Math.round(y); w=Math.round(w); h=Math.round(h);
