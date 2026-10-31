@@ -234,14 +234,234 @@
   // (probed: fresh wrapper each read, writes persist).
   {
     const P = SVGPoint.prototype;
-    dacc(P, 'x', function x() { return this._ps ? this._ps.x : 0; }, function x(v) { if (this._ps) this._ps.x = Number(v); });
-    dacc(P, 'y', function y() { return this._ps ? this._ps.y : 0; }, function y(v) { if (this._ps) this._ps.y = Number(v); });
+    // 刀91: item wrappers minted from an animatedPoints list are read-only —
+    // their x/y setters throw (k91-points4 ap-item-write); a write through a
+    // store still attached to a points-list slot commits the attribute back
+    // through __diting_plItemFlush (installed by the SVGPointList section).
+    const roPt = (k) => new DOMException("Failed to set the '" + k + "' property on 'SVGPoint': This object is read-only.", 'NoModificationAllowedError');
+    dacc(P, 'x', function x() { return this._ps ? this._ps.x : 0; }, function x(v) {
+      if (this._ro) throw roPt('x');
+      const s = this._ps; if (!s) return;
+      s.x = Number(v); globalThis.__diting_plItemFlush(s);
+    });
+    dacc(P, 'y', function y() { return this._ps ? this._ps.y : 0; }, function y(v) {
+      if (this._ro) throw roPt('y');
+      const s = this._ps; if (!s) return;
+      s.y = Number(v); globalThis.__diting_plItemFlush(s);
+    });
     dmth(P, 'matrixTransform', function matrixTransform(m) {
       const x = this._ps ? this._ps.x : 0, y = this._ps ? this._ps.y : 0;
       const g = (k) => Number(m && m[k]) || 0;
-      return new SVGPoint(g('a') * x + g('c') * y + g('e'), g('b') * x + g('d') * y + g('f'));
+      return __diting_svgPoint({ x: g('a') * x + g('c') * y + g('e'), y: g('b') * x + g('d') * y + g('f') });
     });
-    globalThis.__diting_svgPoint = (store) => { const o = Object.create(P); o._ps = store || { x: 0, y: 0 }; return o; };
+    globalThis.__diting_svgPoint = (store, ro) => { const o = Object.create(P); o._ps = store || { x: 0, y: 0 }; if (ro) o._ro = 1; return o; };
+  }
+
+  // ---------- SVGPointList (刀91) --------------------------------------------
+  // polygon/polyline points: a live attribute view behind TWO cached list
+  // objects (points writable, animatedPoints read-only). Truths pinned to
+  // Chrome 145 (k91-points*.js, four rounds, 99 cases):
+  //  - points/animatedPoints are distinct cached objects per element, each
+  //    self-identical across reads (ident/ap-ident/ap-same/newlist).
+  //  - getItem and `list[i]` mint a FRESH SVGPoint each read (item-ident,
+  //    idx-vs-getitem false) but all wrappers of one slot share a store:
+  //    item.x=99 writes the attribute ("99 20 30 40"); after an external
+  //    setAttribute the OLD wrappers keep their old values and their writes
+  //    stop landing (reattr-item/reattr-write).
+  //  - appendItem/insertItemBefore/initialize adopt the PASSED point's store
+  //    by reference: mutating a detached point after insert shows through
+  //    (insert-copy 55), appending the same item twice puts one store in two
+  //    slots ("7 8 4 5 7 8"), a cross-list insert shares until the source
+  //    list re-parses (cross-list).
+  //  - insertItemBefore clamps OOB indices (incl. -1 -> 4294967295) to the
+  //    end (insert-return/insert-neg); getItem/replaceItem/removeItem throw
+  //    IndexSizeError with TWO variants: index > bound "greater than", index
+  //    === bound "greater than or equal to" (oob/neg/getitem-float/
+  //    empty-getitem0), the shown index is the ToUint32-coerced value.
+  //  - clear() AND removing the last item REMOVE the attribute (null); every
+  //    other commit serializes space-separated "x y" pairs (set-attr-reflect,
+  //    *-fmt).
+  //  - parsing is all-or-nothing: one non-number token kills the whole list
+  //    ('1,x 3 4' -> 0 items, parse-garbage/parse-mixed); an odd trailing
+  //    number is dropped (parse-odd); exponent and leading-plus parse.
+  //  - every animatedPoints mutator throws "This object is read-only."
+  //    (animated-mut, anim-*), its reads stay live (anim-getitem/noi).
+  // The list itself is a Proxy (the 刀77 SVGStringList pattern) so bare
+  // getOwnPropertyNames on a HELD reference tracks later setAttribute calls
+  // (attr-change-ownkeys) and index reads mint fresh wrappers. GUESS corners:
+  // a store sitting in two slots/lists flushes only its most recent adopter;
+  // serialization rides Number->String (NaN/Infinity would pass through).
+  if (typeof SVGPointList === 'function') {
+    const PL = SVGPointList.prototype;
+    const PLST = new WeakMap();  // list proxy -> { el, ro, stores, last }
+    const PLELC = new WeakMap(); // element -> { pts, anim }
+    const NUMRX = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+    const plParse = (a) => {
+      if (a == null) return [];
+      const toks = String(a).trim().split(/[\s,]+/).filter(Boolean);
+      const vals = [];
+      for (const tk of toks) { if (!NUMRX.test(tk)) return []; vals.push(Number(tk)); }
+      const out = [];
+      for (let i = 0; i + 1 < vals.length; i += 2) out.push({ x: vals[i], y: vals[i + 1], lst: null });
+      return out;
+    };
+    const plCommit = (st) => {
+      if (!st.stores.length) { st.el.removeAttribute('points'); st.last = null; return; }
+      const s = st.stores.map((p) => p.x + ' ' + p.y).join(' ');
+      st.el.setAttribute('points', s);
+      st.last = s;
+    };
+    // item write-through: sync FIRST — if the attribute changed since this
+    // store was attached, sync detaches it (the write is silently lost, the
+    // attribute keeps its new value — k91-points3 reattr-write) and the
+    // commit then serializes the current content.
+    globalThis.__diting_plItemFlush = (store) => { const st = store.lst; if (st) { plSync(st); plCommit(st); } };
+    const plSync = (st) => {
+      const a = st.el.getAttribute('points');
+      if (a === st.last) return;
+      for (const s of st.stores) s.lst = null; // old wrappers keep old values, writes detach
+      st.stores = plParse(a);
+      for (const s of st.stores) s.lst = st;
+      st.last = a;
+    };
+    const plMk = (el, ro) => {
+      const st = { el, ro, stores: [], last: undefined };
+      const target = Object.create(PL);
+      const isIdx = (k) => typeof k === 'string' && /^(0|[1-9]\d*)$/.test(k);
+      const px = new Proxy(target, {
+        get(t, k, r) { plSync(st); if (isIdx(k)) return +k < st.stores.length ? __diting_svgPoint(st.stores[+k], ro) : undefined; return Reflect.get(t, k, r); },
+        has(t, k) { plSync(st); if (isIdx(k)) return +k < st.stores.length; return Reflect.has(t, k); },
+        ownKeys(t) { plSync(st); const ks = []; for (let i = 0; i < st.stores.length; i++) ks.push(String(i)); return ks; },
+        getOwnPropertyDescriptor(t, k) { plSync(st); if (isIdx(k)) return +k < st.stores.length ? { value: __diting_svgPoint(st.stores[+k], ro), writable: true, enumerable: true, configurable: true } : undefined; return Reflect.getOwnPropertyDescriptor(t, k); },
+      });
+      PLST.set(px, st);
+      return px;
+    };
+    const stOf = (self) => { const s = PLST.get(self); if (!s) throw new TypeError('Illegal invocation'); return s; };
+    const argN = (a, n, m) => { if (a.length < n) throw new TypeError("Failed to execute '" + m + "' on 'SVGPointList': " + n + ' argument' + (n > 1 ? 's' : '') + ' required, but only ' + a.length + ' present.'); };
+    const oor = (i, st, m) => new DOMException("Failed to execute '" + m + "' on 'SVGPointList': The index provided (" + i + ") is greater than " + (i === st.stores.length ? 'or equal to ' : '') + "the maximum bound (" + st.stores.length + ").", 'IndexSizeError');
+    const roLst = (m) => new DOMException("Failed to execute '" + m + "' on 'SVGPointList': This object is read-only.", 'NoModificationAllowedError');
+    // WebIDL argument order: count -> type conversion -> the method's own checks
+    const storeOf = (v, m) => {
+      if (!(v instanceof SVGPoint)) throw new TypeError("Failed to execute '" + m + "' on 'SVGPointList': parameter 1 is not of type 'SVGPoint'.");
+      return v._ps;
+    };
+    const gnm = (f, n) => { Object.defineProperty(f, 'name', { value: n, configurable: true }); return f; };
+    dacc(PL, 'length', gnm(function length() { const st = stOf(this); plSync(st); return st.stores.length; }, 'get length'));
+    dacc(PL, 'numberOfItems', gnm(function numberOfItems() { const st = stOf(this); plSync(st); return st.stores.length; }, 'get numberOfItems'));
+    dmth(PL, 'appendItem', function appendItem(it) {
+      const st = stOf(this);
+      argN(arguments, 1, 'appendItem');
+      const store = storeOf(it, 'appendItem');
+      if (st.ro) throw roLst('appendItem');
+      plSync(st);
+      st.stores.push(store); store.lst = st;
+      plCommit(st);
+      return __diting_svgPoint(store);
+    });
+    dmth(PL, 'clear', function clear() {
+      const st = stOf(this);
+      if (st.ro) throw roLst('clear');
+      plSync(st);
+      for (const s of st.stores) s.lst = null;
+      st.stores = [];
+      plCommit(st); // attribute removed (probed: null)
+    });
+    dmth(PL, 'getItem', function getItem(i) {
+      const st = stOf(this);
+      argN(arguments, 1, 'getItem');
+      plSync(st);
+      const idx = i >>> 0;
+      if (idx >= st.stores.length) throw oor(idx, st, 'getItem');
+      return __diting_svgPoint(st.stores[idx], st.ro);
+    });
+    dmth(PL, 'initialize', function initialize(it) {
+      const st = stOf(this);
+      argN(arguments, 1, 'initialize');
+      const store = storeOf(it, 'initialize');
+      if (st.ro) throw roLst('initialize');
+      plSync(st);
+      for (const s of st.stores) s.lst = null;
+      st.stores = [store]; store.lst = st;
+      plCommit(st);
+      return __diting_svgPoint(store);
+    });
+    dmth(PL, 'insertItemBefore', function insertItemBefore(it, i) {
+      const st = stOf(this);
+      argN(arguments, 2, 'insertItemBefore');
+      const store = storeOf(it, 'insertItemBefore');
+      if (st.ro) throw roLst('insertItemBefore');
+      plSync(st);
+      let idx = i >>> 0;
+      if (idx > st.stores.length) idx = st.stores.length; // clamp (probed)
+      st.stores.splice(idx, 0, store); store.lst = st;
+      plCommit(st);
+      return __diting_svgPoint(store);
+    });
+    dmth(PL, 'removeItem', function removeItem(i) {
+      const st = stOf(this);
+      argN(arguments, 1, 'removeItem');
+      if (st.ro) throw roLst('removeItem');
+      plSync(st);
+      const idx = i >>> 0;
+      if (idx >= st.stores.length) throw oor(idx, st, 'removeItem');
+      const store = st.stores.splice(idx, 1)[0];
+      store.lst = null;
+      plCommit(st);
+      return __diting_svgPoint(store);
+    });
+    dmth(PL, 'replaceItem', function replaceItem(it, i) {
+      const st = stOf(this);
+      argN(arguments, 2, 'replaceItem');
+      const store = storeOf(it, 'replaceItem');
+      if (st.ro) throw roLst('replaceItem');
+      plSync(st);
+      const idx = i >>> 0;
+      if (idx >= st.stores.length) throw oor(idx, st, 'replaceItem');
+      st.stores[idx].lst = null;
+      st.stores[idx] = store; store.lst = st;
+      plCommit(st);
+      return __diting_svgPoint(store);
+    });
+    const plGet = (el, ro) => {
+      let c = PLELC.get(el);
+      if (!c) PLELC.set(el, c = {});
+      return ro ? (c.anim || (c.anim = plMk(el, true))) : (c.pts || (c.pts = plMk(el, false)));
+    };
+    for (const cn of ['SVGPolygonElement', 'SVGPolylineElement']) {
+      const C = globalThis[cn];
+      if (typeof C !== 'function' || !C.prototype) continue;
+      dacc(C.prototype, 'points', gnm(function points() {
+        if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+        return plGet(this, false);
+      }, 'get points'));
+      dacc(C.prototype, 'animatedPoints', gnm(function animatedPoints() {
+        if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+        return plGet(this, true);
+      }, 'get animatedPoints'));
+    }
+  }
+
+  // ---------- SVGPointList ctor face -----------------------------------------
+  // 刀91: Chrome refuses `new SVGPoint()` for ANY argument list
+  // (k91-points3 newpoint/newpoint-args both "Illegal constructor"; ctor
+  // length 0). Internal minting moved to __diting_svgPoint, so the ctor can
+  // throw outright — prototype and instanceof carry over; ctor_ladders'
+  // ILLEGAL0 entry retired in the same commit.
+  if (typeof SVGPoint === 'function') {
+    const Orig = SVGPoint;
+    const W = function SVGPoint() { throw new TypeError("Failed to construct 'SVGPoint': Illegal constructor"); };
+    Object.defineProperty(W, 'length', { value: 0, configurable: true });
+    Object.defineProperty(W, 'prototype', { value: Orig.prototype, writable: false, enumerable: false, configurable: false });
+    for (const k of Reflect.ownKeys(Orig)) {
+      if (k === 'length' || k === 'name' || k === 'prototype') continue;
+      try { Object.defineProperty(W, k, Object.getOwnPropertyDescriptor(Orig, k)); } catch (e) {}
+    }
+    Object.setPrototypeOf(W, Object.getPrototypeOf(Orig));
+    try { Object.defineProperty(Orig.prototype, 'constructor', { value: W, writable: true, enumerable: false, configurable: true }); } catch (e) {}
+    mark(W);
+    const d = Object.getOwnPropertyDescriptor(globalThis, 'SVGPoint');
+    Object.defineProperty(globalThis, 'SVGPoint', { value: W, writable: d ? d.writable : true, enumerable: d ? d.enumerable : false, configurable: true });
   }
 
   // ---------- SVGMatrix ------------------------------------------------------

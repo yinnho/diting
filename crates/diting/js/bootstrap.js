@@ -12216,7 +12216,10 @@ globalThis.SVGGeometryElement = class SVGGeometryElement extends globalThis.SVGG
   getPointAtLength(len) {
     const r = String(_OPS.op_svg_path_point(this._nid | 0, Number(len) || 0));
     const z = r.indexOf("\0");
-    return new SVGPoint(z < 0 ? 0 : Number(r.slice(0, z)), z < 0 ? 0 : Number(r.slice(z + 1)));
+    // 刀91: minted through __diting_svgPoint — the SVGPoint global is an
+    // always-throwing ctor now (Chrome: `new SVGPoint()` is Illegal
+    // constructor for every argument list).
+    return globalThis.__diting_svgPoint({ x: z < 0 ? 0 : Number(r.slice(0, z)), y: z < 0 ? 0 : Number(r.slice(z + 1)) });
   }
 };
 globalThis.SVGSVGElement = class SVGSVGElement extends globalThis.SVGGraphicsElement {};

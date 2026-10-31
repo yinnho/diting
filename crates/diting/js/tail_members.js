@@ -190,15 +190,8 @@
     ro(G2, 'pathLength', function (s) { return s.v.pl || (s.v.pl = G.__diting_svgAnimNumber(this, 'pathLength', 0)); });
     fn(G2, 'isPointInFill', 0, function isPointInFill(pt) { obj(this); return false; });
     fn(G2, 'isPointInStroke', 0, function isPointInStroke(pt) { obj(this); return false; });
-    for (const cn of ['SVGPolygonElement', 'SVGPolylineElement']) {
-      const list = function (s) {
-        if (s.v.pts) return s.v.pts;
-        const C = G.SVGPointList, o = (C && C.prototype) ? Object.create(C.prototype) : {};
-        return (s.v.pts = o);
-      };
-      ro(cn, 'points', function (s) { return list(s); });
-      ro(cn, 'animatedPoints', function (s) { return list(s); });
-    }
+    // (points/animatedPoints moved to svg_root.js at 刀91 — real SVGPointList
+    // views over the attribute; this stub returned an inert object.)
   });
 
   // ---- PutForwards / replaceable setters (Chrome rw where the engine kept a getter) ----
