@@ -44,6 +44,14 @@
   // EventTarget, `window.onzzzprobe = f`, or shadowing an accessor with
   // defineProperty) is NOT a handler — Chrome never fires it. The first
   // descriptor found on the chain decides.
+  // (刀93) The four webkit-prefixed animation/transition handler attributes
+  // are INERT in Chrome: assignment stores (get returns the function, null
+  // default — k93-fire2 wk.store) but the handler fires on NO dispatch,
+  // prefixed or unprefixed (wk.hdl=0, wk.hdlOnUnpref=0, window/document
+  // legs too), while addEventListener of the prefixed TYPE still fires
+  // (wk.lsn=1). Dead at the handler leg only — the attribute face stays.
+  const DEAD_HANDLERS = new Set(['onwebkitanimationend', 'onwebkitanimationiteration',
+                                 'onwebkitanimationstart', 'onwebkittransitionend']);
   function isHandlerSlot(t, key) {
     let o = t;
     for (let i = 0; i < 12 && o; i++) {
@@ -107,6 +115,7 @@
     handler(target, ev) {
       const type = ev.type;
       const key = 'on' + type;
+      if (DEAD_HANDLERS.has(key)) return undefined;
       if (target === globalThis) {
         // (#37) 'error' is pipeline-only in Chrome: onerror runs from the
         // uncaught-error pipeline (__diting_reportUncaught), never from a

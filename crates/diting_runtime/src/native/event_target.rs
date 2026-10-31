@@ -493,6 +493,19 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
 
     let ty = match ev.get(scope, S_TYPE).to_string(scope) { Some(t) => t, None => { return } };
     ev.set(scope, S_TARGET, target.into());
+    // (刀93) Chrome: a synthetic `unload` dispatch fires NOTHING. Unload
+    // listeners live in Chrome's separate unload registry — window, document,
+    // a div, a bare EventTarget, all zero on dispatchEvent (k93-fire3) — and
+    // the onunload handler attribute is equally dead (k93-fire2 ul.hdl=0);
+    // only the real page-unload pipeline reads that registry. The dispatch
+    // itself still runs: target stamp, epilogue resets, true return.
+    let dead_unload = {
+        let u: Local<v8::Value> = s(scope, "unload").into();
+        let t: Local<v8::Value> = ty.into();
+        t.strict_equals(u)
+    };
+    let mut flip: Option<Local<v8::Value>> = None;
+    if !dead_unload {
     // Origin observation: fires once per dispatch, right after the target is
     // stamped (mouse offsetX/Y resolution for Nodes).
     if let Some(h) = h { if let Some(f) = hook_fn(scope, h, "origin") {
@@ -519,7 +532,7 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
     ev.set_bool(scope, S_PATH_DONE, false);
     // Activation pre-pass (the click pre-flip): an opaque token handed back
     // to activationPost in the epilogue. undefined = no activation arm.
-    let flip: Option<Local<v8::Value>> = h.and_then(|h| hook_fn(scope, h, "activationPre")).and_then(|f| {
+    flip = h.and_then(|h| hook_fn(scope, h, "activationPre")).and_then(|f| {
         let u = v8::undefined(scope);
         f.call(scope, u.into(), &[target.into(), ty.into()])
     }).filter(|v| !v.is_undefined() && !v.is_null());
@@ -543,6 +556,7 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
             invoke(scope, h, &ev, path[i], ty, 3, false);
         }
     }
+    } // !dead_unload
     // dispatch epilogue: the spec clears the path; composedPath() returns
     // [] from here on (pathDone), not a recomputed walk.
     let nul = v8::null(scope);
