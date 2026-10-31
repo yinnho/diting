@@ -105,6 +105,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("css_rules.js", include_str!("js/css_rules.js")),
     ("adopted_sheets.js", include_str!("js/adopted_sheets.js")),
     ("web_api_gaps.js", include_str!("js/web_api_gaps.js")),
+    // 刀89: typed-om arithmetic — CSSNumericValue add/sub/mul/div/min/max/
+    // equals/to/toSum/type + parse statics + CSSMath instance members + the
+    // CSSNumericArray face. After global_surface (reads its CSSNumericValue/
+    // CSSMath* stubs and the mkCssMath kids storage); before stub_members so
+    // these takeovers survive the fill-if-missing pass.
+    ("typedom_math.js", include_str!("js/typedom_math.js")),
     // 刀59: the SVG root face — SVGSVGElement's 34 missing members + 3 zoom
     // statics, and the real storage the face reaches through (the legacy SVG
     // value types were stub shells). After web_api_gaps so the minted shells

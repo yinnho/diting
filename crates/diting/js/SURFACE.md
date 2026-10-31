@@ -1971,3 +1971,21 @@ Chrome 145 真值（k88-typedom 44 案 + k88-mini 49 案）钉死：CSS 命名�
 数字：k88-mini 49/49 SAME、k88-typedom 23/44 SAME（余 21 案=CSSNumericValue 算术 add/sub/mul/div/to/equals/parse + CSSMath 实例成员 value/values/operator + calc 序列化 = **刀89**）；shape 936/936 全 0；enum 204/211 与 k86/k87 逐行全等；instance 127/127；ratchet 66/0；cargo test 110 基线逐名全等零新增（46 环境摊同前）。
 测试：`knife88_css_unit_family`（35 行：键数/工厂梯/大小写回程/ctor 梯/rw-ro/own 键/instanceof 三级/五序列化/两对象脸/registerProperty 四案）。
 **教训**：①动手前先搜存量——registerProperty 已有整模块 css_register.js（注册表+语法验证+Rust 级联镜像），bootstrap 里再造一份只会被它覆盖（引擎腿抓到的旧消息就是这么漏的）；②真身类想链到「global_surface 桩的原型」上不必等桩——**早装载让 SKIP 顶掉桩 + ET_CHAIN 现有行动态解析 globalThis 自动接链**（Biquad 同法）；③Chrome 的字典读序不按 IDL 声明序（registerProperty 是 inherits 先）——每个家族都得实测，别从规范推。
+
+## M4 刀89：typed-om 算术族——CSSNumericValue 六则运算/换算/解析 + CSSMath 实例成员（2026-10-31）
+
+Chrome 145 真值（k89-math 81 案）钉死 CSSNumericValue 算术全族与 CSSMath 实例成员：
+
+- **四则**：同单位 add/sub/mul/div 折叠回 CSSUnitValue（1px+2px=3px、0px、6px、2px）；混单位 mint CSSMathSum 且**链式 add 摊平**（Sum[1px,2em].add(px3) → 三员）；sub 混单位 = 结构性减加形「calc(1px + -2em)」；mul 遇单位值**永不折叠**（2px*3px 也是 CSSMathProduct）；div 遇单位值 = Product 的 **div 序列化模式**「calc(4px / 2px)」；number 混 dimension = TypeError「Incompatible types」；add() 零参返回自身。
+- **min/max**：全员同单位折叠（1px/2px），否则 CSSMathMin/Max「min(1px, 2em)」。
+- **equals**：单位+值严格比较（in(1) vs px(96) = false，**无规范化**）；number 参与比较 false；**零参 = true**。
+- **to()**：argc / 「Invalid unit for conversion」(SyntaxError) / 「Cannot convert to deg」(族不配) / 「Cannot convert to em」(相对单位) 三梯；换算值**带 Chrome 实现的浮点指纹**——96px→cm=2.5400000000000005、1in→mm=25.400000000000006、1cm→Q=40.00000000000001（统一公式被暴力证伪：px/cm/mm/Q/in/pt/pc 七单位常数表×字面量位数×四种公式形态 1100 万组合无一全中，钉值对以因子直书 `PAIR_FIX`，其余对走 v*(F[from]/F[to]) 数学正——角度 rad/grad、时间 s/ms、分辨率 dpi 全部逐位过）。
+- **CSSMath 实例成员**：ctor 铸币时把 coercion 后的 kids（CSSNumericValue 直通、数字包 UV(n,'number')）与 operator 标记存进**全局 WeakMap**；value/values/lower/upper/operator 全是原型 getter 读该表——实例**零 own 键**（getOwnPropertyNames(values)='0,1'）。
+- **CSSNumericArray**：ctor 保持 THROW 桩（Chrome 亦非法构造）；真脸 = own 索引键 '0'..'n' + 原型 length getter（ro:ec）+ entries/keys/values/forEach（forEach length=1）+ @@iterator=values 语义，for-of 可迭代。
+- **parse()**：裸数+单位正则（''→number、%→percent）；calc() 单位齐同则**求值**折叠 Sum[Unit]（'calc(1px + 2px)'→'calc(3px)'、'calc(2 * 3px)'→'calc(6px)'），混单位**保源串**（'calc(100% - 10px)' 原样——结构形会是 '100% + -10px'）；min/max/clamp(...) 铸对应节点保源串；空串 SyntaxError「Invalid math expression」、零参 argc TypeError。CSSStyleValue.parse：css-wide 关键字 → CSSKeywordValue 实例、数值形 → CSSUnitValue、其余 → CSSStyleValue 裸实例（toString 回原值），零参「2 arguments required, but only 0 present.」。
+- **序列化**：CSSStyleValue.prototype.toString 权威版收编全族——UV（number 裸/percent %/value+unit）、节点按 operator（Sum ' + '、Product ' \* '/' / '、Invert 'calc(1 / v)'、Negate 'calc(-v)'、Max/Min/Clamp 逗号串）、_src 源串覆盖（刀88 的 UV-only 版被顶替）。
+
+实现：新模块 `crates/diting/js/typedom_math.js`（web_api_gaps 后、stub_members 前）；生成器 mkCssMath 成功路径改存 kids+op（globalSurface 重生成，diff 仅该段）；典型坑两修：①实例 own 内部键被 getOwnPropertyNames 暴露（Chrome 零 own）→ 状态全数入 WeakMap；②calc 单项（'2 * 3px'）被「必须见加减号」守卫误拒 → 撤守卫。
+数字：k89-math 81/81 SAME；shape 936/936 全 0（CSSNumericArray forEach length 1 修正后归零）；enum 204/211 与 k86–k88 逐行全等；instance 127/127；ratchet 66/0；cargo test **156 与刀88 逐名全等**（110 基线+46 环境摊）。
+测试：`knife89_css_numeric_arithmetic`（60 行日志断言，json! 宏 59 嵌套行爆递归上限→拆两半断言；31+29）。
+**教训**：①Chrome 的单位换算浮点指纹是**实现细节非规范值**——探针钉点拿不全时统一公式假设要先用暴力拟合证伪（本刀 1100 万组合证伪后才敢走钉值对+数学正 fallback，未探点不编造）；②实例内部状态宁可全入 WeakMap——非枚举 own 键躲得过 Object.keys 躲不过 getOwnPropertyNames；③`serde_json::json!` 嵌套数组行数有宏递归上限（35 行内安全，59 行爆）——长断言拆半；④zsh 里 `echo ===` 会当裸 `=` 词报错——分隔符用别的写法。
