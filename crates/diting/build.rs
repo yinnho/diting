@@ -129,6 +129,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // mint (the class exists) and before stub_members/lift_own (the fill
     // skips what's installed here; the minted prototype identity is kept).
     ("videoframe_gaps.js", include_str!("js/videoframe_gaps.js")),
+    // 刀68: IDBVersionChangeEvent behavior takeover (indexeddb.js loads before Event exists).
+    ("idb_gaps.js", include_str!("js/idb_gaps.js")),
     // LAST of all: descriptor-level conformance table (generated from the shape audit).
     ("lift_own.js", include_str!("js/lift_own.js")),
     ("demote_own.js", include_str!("js/demote_own.js")),

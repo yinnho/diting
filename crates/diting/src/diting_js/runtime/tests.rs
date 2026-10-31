@@ -1523,7 +1523,7 @@
             assert_eq!(obj[k], true, "{} leaked onto the window face", k);
         }
         assert_eq!(obj["throw_iface"], "function");
-        assert_eq!(obj["throw_msg"], "Illegal constructor");
+        assert_eq!(obj["throw_msg"], "Failed to construct 'IDBCursor': Illegal constructor");
         assert_eq!(obj["throw_enum"], false);
         assert_eq!(obj["ok_iface"], "function");
         assert_eq!(obj["ok_new"], true);
@@ -22703,7 +22703,7 @@ async fn idb_open_dispatches_upgrade_then_success_and_skips_on_reopen() {
           return new Promise(function (resolve, reject) {
             const req = indexedDB.open('probe-db', v);
             req.onupgradeneeded = function (e) {
-              __log.push(['upgrade', e.oldVersion, e.newVersion, e.transaction && e.transaction.mode]);
+              __log.push(['upgrade', e.oldVersion, e.newVersion, e.target.transaction && e.target.transaction.mode]);
               if (!e.target.result.objectStoreNames.contains('drafts')) {
                 e.target.result.createObjectStore('drafts', { keyPath: 'id' });
                 e.target.result.createObjectStore('markers');
@@ -22778,7 +22778,7 @@ async fn idb_close_is_per_connection_not_per_database() {
     let log = rt.evaluate("globalThis.__log").unwrap();
     assert_eq!(
         log,
-        serde_json::json!(["b-tx-ok", "a-tx-throw:InvalidStateError:database is closed"]),
+        serde_json::json!(["b-tx-ok", "a-tx-throw:InvalidStateError:Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing."]),
         "closing one connection must leave sibling connections transacting; only the closed one throws"
     );
 }
@@ -22906,8 +22906,8 @@ async fn idb_error_contracts_version_constraint_and_keypath() {
           const p1 = st.put({ k: 'a', v: 1 });
           const dup = st.add({ k: 'a', v: 2 });
           dup.onerror = function (e) { out.dupAdd = dup.error && dup.error.name; e.preventDefault && e.preventDefault(); };
-          const bad = st.put({ nope: 'x' });
-          bad.onerror = function (e) { out.missingKeyPath = bad.error && bad.error.name; e.preventDefault && e.preventDefault(); };
+          // Chrome rejects a value missing its in-line key synchronously
+          try { st.put({ nope: 'x' }); out.missingKeyPath = 'NO-THROW (wrong)'; } catch (e) { out.missingKeyPath = e.name; }
           wtx.oncomplete = function () {
             const rtx = db.transaction('kv', 'readonly');
             const g = rtx.objectStore('kv').getAll();
@@ -22953,10 +22953,10 @@ async fn idb_interfaces_are_exposed_with_prototypes() {
           r.onupgradeneeded = function (e) {
             const db = e.target.result;
             out.inst.db = (db instanceof IDBDatabase);
-            out.inst.tx = (e.transaction instanceof IDBTransaction);
+            out.inst.tx = (e.target.transaction instanceof IDBTransaction);
             const st = db.createObjectStore('s', { keyPath: 'id' });
             out.inst.storeFromCreate = (st instanceof IDBObjectStore);
-            out.inst.storeFromTx = (e.transaction.objectStore('s') instanceof IDBObjectStore);
+            out.inst.storeFromTx = (e.target.transaction.objectStore('s') instanceof IDBObjectStore);
             out.inst.index = (st.createIndex('byN', 'n') instanceof IDBIndex);
             out.inst.keyRange = (IDBKeyRange.only(3) instanceof IDBKeyRange);
             out.inst.tag = Object.prototype.toString.call(r);
@@ -29033,4 +29033,159 @@ fn knife67_videoframe_family() {
     assert_eq!(g("closedOps"), serde_json::json!(["E:InvalidStateError:Failed to execute 'allocationSize' on 'VideoFrame': VideoFrame is closed.", "E:InvalidStateError:Failed to execute 'clone' on 'VideoFrame': Cannot clone closed VideoFrame.", "E:InvalidStateError:Failed to execute 'metadata' on 'VideoFrame': VideoFrame is closed.", "NO-THROW", "NO-THROW"]));
     assert_eq!(g("closedTwice"), serde_json::json!(null));
     assert_eq!(g("illegal"), serde_json::json!(["E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation", "E:TypeError:Illegal invocation"]));
+}
+
+/// M4 刀68: the IndexedDB family — state in private slots, attributes as
+/// prototype accessors with pinned names, real EventTarget requests /
+/// transactions / databases firing real Event / IDBVersionChangeEvent objects
+/// with request → tx → db error bubbling, Chrome's error ladders and
+/// transaction lifecycle (abort rolls back, a request error aborts unless
+/// prevented), index cursors and the getAll/getAllRecords family.
+#[tokio::test(flavor = "current_thread")]
+async fn knife68_idb_family() {
+    // The schema meta mirrors into localStorage (disk-backed, process-global):
+    // hold the storage locks so this long-running test cannot flush into the
+    // temp dir the localStorage persistence test points the store at.
+    let _ephemeral = crate::env_knobs::EPHEMERAL_ENV_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let _env = STORAGE_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate("localStorage.removeItem('__diting_idb__k68-db')").unwrap();
+    rt.evaluate(r#"
+        globalThis.__out = {};
+        const o = __out;
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        t('illegal', () => { try { new IDBRequest(); return 'NO'; } catch (e) { return e.message; } });
+        t('names', () => ['result', 'onsuccess'].map(k => { const d = Object.getOwnPropertyDescriptor(IDBRequest.prototype, k); return [d.get.name, d.set ? d.set.name : null]; }));
+        t('foreign', () => { try { Object.getOwnPropertyDescriptor(IDBObjectStore.prototype, 'name').get.call({}); return 'NO'; } catch (e) { return e.message; } });
+        t('range', () => { const k = IDBKeyRange.bound(1, 5, false, true); return [k.lower, k.upper, k.lowerOpen, k.upperOpen, k.includes(1), k.includes(5), Reflect.ownKeys(k).length]; });
+        t('rangeErr', () => { try { IDBKeyRange.bound(5, 1); return 'NO'; } catch (e) { return e.message; } });
+        t('cmp', () => [indexedDB.cmp(1, 2), indexedDB.cmp([1], [1, 0]), indexedDB.cmp('a', 1)]);
+        t('vce', () => { const e = new IDBVersionChangeEvent('x', { oldVersion: 1, newVersion: 2 }); return [e.type, e.oldVersion, e.newVersion, e.dataLoss, e instanceof Event, IDBVersionChangeEvent.length]; });
+        const r0 = indexedDB.open('k68-db', 1);
+        t('req0', () => [r0.constructor.name, r0.readyState, Reflect.ownKeys(r0).length, r0 instanceof EventTarget]);
+        t('pendingResult', () => { try { return r0.result; } catch (e) { return e.message; } });
+        const log = [];
+        function wait(r) { return new Promise((res) => { r.onsuccess = () => res(r.result); r.onerror = (e) => { e.preventDefault(); res('ERR:' + r.error.name + ':' + r.error.message); }; }); }
+        r0.onupgradeneeded = (e) => {
+          const d = r0.result;
+          log.push(['up', e.constructor.name, e.oldVersion, e.newVersion, r0.transaction.mode, r0.readyState]);
+          const s = d.createObjectStore('s', { keyPath: 'id', autoIncrement: true });
+          s.createIndex('byU', 'u', { unique: true });
+          s.createIndex('byG', 'g');
+          d.createObjectStore('plain');
+          log.push(['attrs', s.name, s.keyPath, s.autoIncrement, [...s.indexNames], s.transaction === r0.transaction, [...d.objectStoreNames], d.objectStoreNames.constructor.name]);
+          try { d.transaction('s'); } catch (x) { log.push(x.message); }
+          try { d.createObjectStore('s'); } catch (x) { log.push(x.name); }
+        };
+        r0.oncomplete = null;
+        globalThis.__p = new Promise((res) => { r0.onsuccess = () => res(r0.result); }).then(async (db) => {
+          log.push(['open', db.version, [...db.objectStoreNames], Reflect.ownKeys(db).length]);
+          try { db.createObjectStore('z'); } catch (x) { log.push(x.name); }
+          const x = db.transaction('s', 'readwrite'); const s = x.objectStore('s');
+          log.push(['tx', x.mode, x.durability, x.objectStore('s') === s, s.transaction === x]);
+          const pre = s.put({ u: 'a', g: 1 });
+          log.push(['pre', pre.readyState]);
+          x.oncomplete = (e) => log.push(['complete', e.constructor.name, e.bubbles]);
+          log.push(['put1', await wait(pre)]);
+          log.push(['put2', await wait(s.put({ u: 'b', g: 0 })), await wait(s.put({ u: 'c', g: 1 }))]);
+          log.push(['get', JSON.stringify(await wait(s.get(1)))]);
+          const dup = await wait(s.add({ id: 1, u: 'zz' }));
+          log.push(['dup', dup]);
+          log.push(['uniq', await wait(s.put({ u: 'a' }))]);
+          log.push(['count', await wait(s.count()), await wait(s.getAllKeys())]);
+          log.push(['cur', await new Promise((res) => { const out = []; const r = s.index('byG').openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return res(out); out.push([c.key, c.primaryKey, c.constructor.name]); c.continue(); }; })]);
+          log.push(['uniqueDir', await new Promise((res) => { const out = []; const r = s.index('byG').openKeyCursor(null, 'nextunique'); r.onsuccess = () => { const c = r.result; if (!c) return res(out); out.push([c.key, c.primaryKey, c.constructor.name]); c.continue(); }; })]);
+          log.push(['recs', (await wait(s.getAllRecords({ count: 2 }))).map(r => [r.constructor.name, r.key, r.primaryKey])]);
+          log.push(['opts', JSON.stringify(await wait(s.getAll({ query: IDBKeyRange.lowerBound(2), count: 1 })))]);
+          await new Promise(r => setTimeout(r, 30));
+          log.push(['afterDone', (() => { try { s.get(1); return 'NO'; } catch (e) { return e.name; } })()]);
+          // abort rolls back + request error bubbles to db.onerror
+          const x2 = db.transaction('s', 'readwrite'); const s2 = x2.objectStore('s');
+          const bub = [];
+          db.onerror = (e) => bub.push(['db', e.target === dupReq, e.eventPhase]);
+          x2.onerror = (e) => bub.push(['tx', e.target === dupReq, e.eventPhase]);
+          x2.onabort = (e) => bub.push(['abort', e.bubbles, x2.error && x2.error.name]);
+          const dupReq = s2.add({ id: 1, u: 'q' });
+          await new Promise(r => setTimeout(r, 50));
+          log.push(['bubble', bub.slice()]); db.onerror = null;
+          const x3 = db.transaction('plain', 'readwrite'); const p3 = x3.objectStore('plain');
+          p3.put(1, 'k');
+          x3.abort();
+          try { x3.abort(); } catch (e) { log.push(['abort2', e.name]); }
+          await new Promise(r => setTimeout(r, 30));
+          log.push(['rolledBack', await wait(db.transaction('plain').objectStore('plain').get('k'))]);
+          const bad = [];
+          for (const f of [
+            () => db.transaction('nope'), () => db.transaction([]), () => db.transaction('s', 'bogus'),
+            () => db.transaction('s').objectStore('s').put({}),
+            () => db.transaction('s').objectStore('s').get(),
+            () => db.transaction('s').objectStore('s').get({}),
+            () => db.transaction('s').objectStore('s').index('zz'),
+            () => db.transaction('plain', 'readwrite').objectStore('plain').put(1),
+            () => db.transaction('s').objectStore('s').openCursor(null, 'sideways'),
+          ]) { try { f(); bad.push('NO'); } catch (e) { bad.push(e.name + ':' + e.message); } }
+          log.push(['errs', bad]);
+          db.close();
+          try { db.transaction('s'); } catch (e) { log.push(['closed', e.message]); }
+          const del = indexedDB.deleteDatabase('k68-db');
+          await new Promise((res) => { del.onsuccess = (e) => { log.push(['del', e.constructor.name, e.oldVersion, e.newVersion, del.result === undefined]); res(); }; });
+        });
+        globalThis.__log = log;
+    "#).unwrap();
+    let _ = rt.run_event_loop_bounded(1200).await;
+    let out = rt.evaluate("JSON.stringify(globalThis.__out)").unwrap();
+    let o: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(o["illegal"], "Failed to construct 'IDBRequest': Illegal constructor");
+    assert_eq!(o["names"], serde_json::json!([["get result", null], ["get onsuccess", "set onsuccess"]]));
+    assert_eq!(o["foreign"], "Illegal invocation");
+    assert_eq!(o["range"], serde_json::json!([1, 5, false, true, true, false, 0]));
+    assert_eq!(o["rangeErr"], "Failed to execute 'bound' on 'IDBKeyRange': The lower key is greater than the upper key.");
+    assert_eq!(o["cmp"], serde_json::json!([-1, -1, 1]));
+    assert_eq!(o["vce"], serde_json::json!(["x", 1, 2, "none", true, 1]));
+    assert_eq!(o["req0"], serde_json::json!(["IDBOpenDBRequest", "pending", 0, true]));
+    assert_eq!(o["pendingResult"], "Failed to read the 'result' property from 'IDBRequest': The request has not finished.");
+    let log = rt.evaluate("JSON.stringify(globalThis.__log)").unwrap();
+    let l: serde_json::Value = serde_json::from_str(log.as_str().unwrap()).unwrap();
+    let row = |i: usize| l[i].clone();
+    assert_eq!(row(0), serde_json::json!(["up", "IDBVersionChangeEvent", 0, 1, "versionchange", "done"]));
+    assert_eq!(row(1), serde_json::json!(["attrs", "s", "id", true, ["byG", "byU"], true, ["plain", "s"], "DOMStringList"]));
+    assert_eq!(row(2), "Failed to execute 'transaction' on 'IDBDatabase': A version change transaction is running.");
+    assert_eq!(row(3), "ConstraintError");
+    assert_eq!(row(4), serde_json::json!(["open", 1, ["plain", "s"], 0]));
+    assert_eq!(row(5), "InvalidStateError");
+    assert_eq!(row(6), serde_json::json!(["tx", "readwrite", "default", true, true]));
+    assert_eq!(row(7), serde_json::json!(["pre", "pending"]));
+    assert_eq!(row(8), serde_json::json!(["put1", 1]));
+    assert_eq!(row(9), serde_json::json!(["put2", 2, 3]));
+    assert_eq!(row(10), serde_json::json!(["get", "{\"u\":\"a\",\"g\":1,\"id\":1}"]));
+    assert_eq!(row(11), serde_json::json!(["dup", "ERR:ConstraintError:Key already exists in the object store."]));
+    assert_eq!(row(12), serde_json::json!(["uniq", "ERR:ConstraintError:Unable to add key to index 'byU': at least one key does not satisfy the uniqueness requirements."]));
+    assert_eq!(row(13), serde_json::json!(["count", 3, [1, 2, 3]]));
+    assert_eq!(row(14), serde_json::json!(["cur", [[0, 2, "IDBCursorWithValue"], [1, 1, "IDBCursorWithValue"], [1, 3, "IDBCursorWithValue"]]]));
+    assert_eq!(row(15), serde_json::json!(["uniqueDir", [[0, 2, "IDBCursor"], [1, 1, "IDBCursor"]]]));
+    assert_eq!(row(16), serde_json::json!(["recs", [["IDBRecord", 1, 1], ["IDBRecord", 2, 2]]]));
+    assert_eq!(row(17), serde_json::json!(["opts", "[{\"u\":\"b\",\"g\":0,\"id\":2}]"]));
+    assert_eq!(row(18), serde_json::json!(["complete", "Event", false]));
+    assert_eq!(row(19), serde_json::json!(["afterDone", "TransactionInactiveError"]));
+    assert_eq!(row(20), serde_json::json!(["bubble", [["tx", true, 3], ["db", true, 3], ["abort", true, "ConstraintError"]]]));
+    assert_eq!(row(21), serde_json::json!(["abort2", "InvalidStateError"]));
+    assert_eq!(row(22), serde_json::json!(["rolledBack", null]));
+    assert_eq!(
+        row(23),
+        serde_json::json!(["errs", [
+            "NotFoundError:Failed to execute 'transaction' on 'IDBDatabase': One of the specified object stores was not found.",
+            "InvalidAccessError:Failed to execute 'transaction' on 'IDBDatabase': The storeNames parameter was empty.",
+            "TypeError:Failed to execute 'transaction' on 'IDBDatabase': The provided value 'bogus' is not a valid enum value of type IDBTransactionMode.",
+            "ReadOnlyError:Failed to execute 'put' on 'IDBObjectStore': The transaction is read-only.",
+            "TypeError:Failed to execute 'get' on 'IDBObjectStore': 1 argument required, but only 0 present.",
+            "DataError:Failed to execute 'get' on 'IDBObjectStore': The parameter is not a valid key.",
+            "NotFoundError:Failed to execute 'index' on 'IDBObjectStore': The specified index was not found.",
+            "DataError:Failed to execute 'put' on 'IDBObjectStore': The object store uses out-of-line keys and has no key generator and the key parameter was not provided.",
+            "TypeError:Failed to execute 'openCursor' on 'IDBObjectStore': The provided value 'sideways' is not a valid enum value of type IDBCursorDirection.",
+        ]])
+    );
+    assert_eq!(row(24), serde_json::json!(["closed", "Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing."]));
+    assert_eq!(row(25), serde_json::json!(["del", "IDBVersionChangeEvent", 1, null, true]));
 }

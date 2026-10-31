@@ -57,13 +57,22 @@
     // the timer-deferral window (#327) around a target's listener loop
     enter() { _mtDepth++; },
     exit() { _mtDepth--; },
-    report(err) { globalThis.__diting_reportUncaughtError(err); },
+    report(err) {
+      // (刀68) IndexedDB's upgradeneeded dispatch records a throwing handler.
+      const tap = globalThis.__diting_etErrTap;
+      if (tap && tap.active > 0 && tap.err === null) tap.err = err === undefined || err === null ? new Error('handler threw') : err;
+      globalThis.__diting_reportUncaughtError(err);
+    },
     // next target on the event path; plain EventTargets have none. The
     // document → window edge is explicit (document.parentNode is null, but
     // Chrome's propagation path continues into the Window — bubbled element
     // events reach window listeners); it terminates there, the global is
     // not a Node.
     parent(target) {
+      // (刀68) IndexedDB's request -> transaction -> database bubbling hops
+      // (hop table owned by indexeddb.js; plain EventTargets, not Nodes).
+      const hop = globalThis.__diting_etParents;
+      if (hop) { const p = hop.get(target); if (p) return p; }
       if (!(target instanceof NodeC)) return null;
       if (target.parentNode) return target.parentNode;
       // The document is the only null-parent Node that still propagates.
