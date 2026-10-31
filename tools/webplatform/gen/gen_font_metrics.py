@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate crates/diting/js/font_metrics.js from
-tools/webplatform/chrome/fonts-metrics-truth-145.json.
+tools/webplatform/chrome/fonts-metrics-truth-145.json (+ fonts-kern-truth-145.json).
 
 (刀97) canvas measureText per-glyph advance tables. Each name: `t` = index
 into ADV (95 advance values in em, index = charCode - 32; tables identical
@@ -10,6 +10,14 @@ overrides for the spot sizes where CoreText quantization deviates from the
 ratio model. Generic CSS families map to the table Chrome's default port
 resolves them to.
 
+(刀98) pairwise kerning: `kr` = index into KERN (adjacent-pair table in
+px@100 ints, interned across fonts — the quoted-generic hidden faces carry
+their own), `k3` = index into TRI (triple exceptions: ligature chains and
+script contextual joins the pair model cannot express). system-ui
+additionally carries optical kern knots (kkM: em@16/20/24 in 1e-4em) with
+per-integer band overrides (krbM: px*100 at sizes 6..23) where GPOS device
+tables make a pair oscillate at small sizes.
+
 Usage: python3 tools/webplatform/gen/gen_font_metrics.py
 """
 import json
@@ -17,6 +25,7 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-metrics-truth-145.json')
+KTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-kern-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -52,6 +61,7 @@ def jsround(x):
 
 def main():
     d = json.load(open(TRUTH))
+    kd = json.load(open(KTRUTH))
     tables = {}
     canon = []
 
@@ -61,6 +71,20 @@ def main():
                 return i
         canon.append(vals)
         return len(canon) - 1
+
+    # (k98) kern + triple canons: values as px@100 ints, dicts interned.
+    kcanon = []
+    tcanon = []
+
+    def kintern(lst, dct):
+        for i, c in enumerate(lst):
+            if c == dct:
+                return i
+        lst.append(dct)
+        return len(lst) - 1
+
+    def to_int_table(m):
+        return {k: int(round(v * 100)) for k, v in m.items()} if m else None
 
     names = {}
     for name, advs in sorted(d['adv'].items()):
@@ -77,6 +101,13 @@ def main():
         for px, (A, D) in anchors:
             if jsround(px * entry['asc']) != A or jsround(px * entry['desc']) != D:
                 spots[str(px)] = [A, D]
+        # (k98) system-ui box at 5/6/7 (r5 bx leg): CoreText quantizes the
+        # bounding box below the k97 spot ladder too — same jsround rule.
+        if name == 'system-ui' and 'bx' in kd.get('su', {}):
+            for px_s, AD in kd['su']['bx'].items():
+                px = float(px_s)
+                if jsround(px * entry['asc']) != AD[0] or jsround(px * entry['desc']) != AD[1]:
+                    spots[px_s] = AD
         if spots:
             entry['s'] = spots
         # optical legs (k97): system-ui's variable optical axis = per-char em
@@ -94,7 +125,15 @@ def main():
             else:
                 entry['es'] = {'l': o['ladder'], 'f': o['sizes'][0], 'x': [1 if i in set(o['idx']) else 0 for i in range(95)]}
         names[name.lower()] = entry
-    generic = {k: names[v.lower()] for k, v in GENERIC.items()}
+        krn = to_int_table(kd['kern'].get(name, {}))
+        if krn:
+            entry['kr'] = kintern(kcanon, krn)
+        tr = to_int_table(kd['tri'].get(name, {}))
+        if tr:
+            entry['k3'] = kintern(tcanon, tr)
+    # generic entries resolve through NAMES at runtime so the resolved object is
+    # the single NAMES entry (k98 attaches the system-ui kern maps onto it).
+    generic = dict(GENERIC)
 
     # EXT: 210 non-ASCII codepoints, per-font rows at 100px (interned into the
     # same canon — different lengths never collide); the optical-axis font
@@ -119,6 +158,10 @@ def main():
     lines.append('// ADV (tables identical to the default are shared), index = charCode - 32;')
     lines.append('// `s` = per-size Ascent/Descent overrides where CoreText small-size')
     lines.append('// quantization deviates from round(px*ratio).')
+    lines.append('// (刀98) pairwise kern tables KERN/TRI (px@100 ints) + system-ui optical')
+    lines.append('// kern knots and small-size band overrides; sum() adds kern and triple')
+    lines.append('// terms — see chrome/fonts-kern-truth-145.json for the model and its')
+    lines.append('// measured boundaries.')
     lines.append('(function () {')
     lines.append('  const ADV = %s;' % json.dumps(canon, separators=(',', ':')))
     lines.append('  const NAMES = %s;' % json.dumps(names, separators=(',', ':'), sort_keys=True))
@@ -128,6 +171,56 @@ def main():
     lines.append("  const isHangul = (c) => c >= 0xAC00 && c <= 0xD7A3;")
     lines.append('  const def = NAMES["__absent__"];')
     lines.append("  const FALLBACK = 79; // 'o'-class advance for non-ASCII chars without a rule")
+    if kcanon:
+        lines.append('  // (k98) pairwise kerning: KERN[i] = {pair: px@100 int}; KMAP keys are')
+        lines.append('  // numeric (cp0*65536 + cp1). system-ui additionally carries kkM (optical')
+        lines.append('  // kern knots [em@16, em@20, em@24] in 1e-4em, linear >=28) and krbM')
+        lines.append('  // (per-integer band overrides, px*100 at sizes 6..23) for the pairs where')
+        lines.append('  // GPOS device tables oscillate at small sizes.')
+        lines.append('  const KERN = %s;' % json.dumps(kcanon, separators=(',', ':')))
+        lines.append('  const numKey = (s) => s.charCodeAt(0) * 65536 + s.charCodeAt(1);')
+        lines.append('  const KMAP = KERN.map((o) => { const m = new Map(); for (const k in o) m.set(numKey(k), o[k]); return m; });')
+    if tcanon:
+        lines.append('  // (k98) triple exceptions (ligature chains, script joins): px@100 ints.')
+        lines.append('  const TRI = %s;' % json.dumps(tcanon, separators=(',', ':')))
+        lines.append('  const TMAP = TRI.map((o) => { const m = new Map(); for (const k in o) m.set(k.charCodeAt(0) * 4294967296 + k.charCodeAt(1) * 65536 + k.charCodeAt(2), o[k]); return m; });')
+    if kd.get('su'):
+        lines.append('  const SU = %s;' % json.dumps(kd['su'], separators=(',', ':')))
+        lines.append('  NAMES["system-ui"].kkM = new Map(Object.entries(SU.kk).map(([k, v]) => [numKey(k), v]));')
+        lines.append('  NAMES["system-ui"].krbM = new Map(Object.entries(SU.kb).map(([k, v]) => [numKey(k), v]));')
+    if kcanon:
+        lines.append('  // kern of an adjacent pair (px at the given size); band overrides win')
+        lines.append('  // below 24, optical knots blend 16..28, >=28 is exact linear.')
+        lines.append('  const kernOf = (m, kkM, kbM, a, b, px) => {')
+        lines.append('    const key = a * 65536 + b;')
+        lines.append('    const v = m.get(key);')
+        lines.append('    if (v === undefined) return 0;')
+        lines.append('    if (kbM) {')
+        lines.append('      const B = kbM.get(key);')
+        lines.append('      if (B !== undefined && px < 24) {')
+        lines.append('        if (px <= 6) return B[0] * px / 600;')
+        lines.append('        const t = px - 6, lo = Math.floor(t);')
+        lines.append('        if (lo >= B.length - 1) {')
+        lines.append('          const K = kkM.get(key);')
+        lines.append('          const k23 = B[B.length - 1] / 100;')
+        lines.append('          const k24 = K ? K[2] * 24 / 10000 : v * 24 / 10000;')
+        lines.append('          return k23 + (k24 - k23) * (px - 23);')
+        lines.append('        }')
+        lines.append('        return (B[lo] + (B[lo + 1] - B[lo]) * (t - lo)) / 100;')
+        lines.append('      }')
+        lines.append('    }')
+        lines.append('    if (kkM) {')
+        lines.append('      const K = kkM.get(key);')
+        lines.append('      if (K !== undefined) {')
+        lines.append('        if (px >= 28) return v * px / 10000;')
+        lines.append('        if (px >= 24) return (K[2] + (v - K[2]) * (px - 24) / 4) * px / 10000;')
+        lines.append('        if (px >= 20) return (K[1] + (K[2] - K[1]) * (px - 20) / 4) * px / 10000;')
+        lines.append('        if (px >= 16) return (K[0] + (K[1] - K[0]) * (px - 16) / 4) * px / 10000;')
+        lines.append('        return K[0] * px / 10000;')
+        lines.append('      }')
+        lines.append('    }')
+        lines.append('    return v * px / 10000;')
+        lines.append('  };')
     if ext_cp:
         lines.append('  // EXT: non-ASCII codepoints with per-font advances (Latin-1 + General')
         lines.append('  // Punctuation + symbols). XI maps codepoint -> row index.')
@@ -176,9 +269,14 @@ def main():
     lines.append('  };')
     lines.append('  globalThis.__ditingFontMetrics = {')
     lines.append('    lookup(name) { return NAMES[String(name).toLowerCase()] || null; },')
-    lines.append('    generic(name) { return GENERIC[String(name).toLowerCase()] || null; },')
+    lines.append('    generic(name) { const g = GENERIC[String(name).toLowerCase()]; return g ? NAMES[g] : null; },')
     lines.append('    sum(tbl, text, px) {')
     lines.append('      let w = 0;')
+    if kcanon:
+        lines.append('      const m = tbl.kr === undefined ? null : KMAP[tbl.kr];')
+        lines.append('      const kkM = tbl.kkM || null, kbM = tbl.krbM || null;')
+        lines.append('      const tm = tbl.k3 === undefined ? null : TMAP[tbl.k3];')
+        lines.append('      let p1 = -1, p2 = -1;')
     lines.append('      for (let i = 0; i < text.length; i++) {')
     lines.append('        let c = text.charCodeAt(i);')
     lines.append('        if (c >= 0xD800 && c <= 0xDBFF && i + 1 < text.length) {')
@@ -186,6 +284,10 @@ def main():
     lines.append('          if (lo >= 0xDC00 && lo <= 0xDFFF) { c = 0x10000 + ((c - 0xD800) << 10) + (lo - 0xDC00); i++; }')
     lines.append('        }')
     lines.append('        w += adv(tbl, c, px);')
+    if kcanon:
+        lines.append('        if (p1 >= 0 && m) w += kernOf(m, kkM, kbM, p1, c, px);')
+        lines.append('        if (p2 >= 0 && tm) { const tv = tm.get(p2 * 4294967296 + p1 * 65536 + c); if (tv !== undefined) w += tv * px / 10000; }')
+        lines.append('        p2 = p1; p1 = c;')
     lines.append('      }')
     lines.append('      return w;')
     lines.append('    },')
@@ -198,8 +300,11 @@ def main():
     src = '\n'.join(lines) + '\n'
     open(OUT, 'w', encoding='utf8').write(src)
     spots_n = sum(1 for n in names.values() if 's' in n)
-    print('wrote %s: %d unique tables, %d names, %d generics, %d fonts with size overrides' % (
-        os.path.relpath(OUT, ROOT), len(canon), len(names), len(generic), spots_n))
+    print('wrote %s: %d unique tables, %d names, %d generics, %d fonts with size overrides, '
+          '%d kern tables (%d pairs), %d triple tables (%d), %d su knots, %d su bands' % (
+              os.path.relpath(OUT, ROOT), len(canon), len(names), len(generic), spots_n,
+              len(kcanon), sum(len(t) for t in kcanon), len(tcanon), sum(len(t) for t in tcanon),
+              len(kd.get('su', {}).get('kk', {})), len(kd.get('su', {}).get('kb', {}))))
 
 
 if __name__ == '__main__':

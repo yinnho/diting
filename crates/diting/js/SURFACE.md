@@ -2122,3 +2122,18 @@ canvas measureText 从 `length*6*scale*factor` 均匀步进换成**捕获的 Chr
 
 **数字**：adv 69 表全对（system-ui 差 1e-4=存储噪声）；vert 三腿（v100/v1000/vspot）**0 格差**；vert16 69/69；lin=3 精确+39 噪声+26 kern+1 system-ui(kern)；presence 可区分性 9/9 同构（同 9 张脸在两引擎都量成 base）；cjk/Hangul/astral/EXT 全对；26 行测试行对真 Chrome 全同（1e-3 容差）；shape **936/936 全 0**；enum 204/211（7 已知不变）；instance 127/127；快照无漂移（`__ditingFontMetrics` 不泄漏）；cargo test **968/110=基线+1**；workspace **1514/156=基线+1**；测试 `knife97_font_metrics_model` 26 行。
 **教训**：①**generator 别 zip 字典**——truth 文件 sort_keys 后 `adv` 键按字符串序（'10'<'100'<'11'），zip(sizes, values()) 配错行，system-ui 当场炸出 -71px；按键索引；②**Python round 是银行家舍入、JS Math.round 是半上**——恰 .5 处生成器判「无需覆写」而运行时差 1px，覆写判定必须用 jsround(floor(x+0.5))；③**探针引号即语义**——metrics/vert probe 全带引号设 font，引号 generic 与裸 generic 在 Chrome 是两家，generic 真值必须单独裸跑一腿；④**probe 校验别用对象相等**——Chrome 返回 raw float64（1270.800048828125），引擎量化 1e-6，数值腿必须带容差比；⑤**连续漂移>二档模型**——SF Pro 光学轴不是 Text/Display 开关，捕获 22 knot 插值才是正法。
+
+## M4 刀98 — 字体指纹线刀2：kern 全矩阵捕获（2026-11-01）
+
+刀97 挂账的 kerning 全建模：measureText = Σ逐字步进 + **Σ相邻对 kern** + **Σ三元组例外**。真源 `chrome/fonts-kern-truth-145.json`（1.5MB，_meta 记模型与全部实测边界），生成器扩 `kr/kkM/krbM/k3` 四字段，r5/r6 两轮十九支探针共 ~2,000 万次 measureText。
+
+**四层模型**：
+1. **固定字体 pair 矩阵恰线性**：kern(px)=value_px@100·px/100（39 表 28,907 对=ascii 95×95+ext 双向+ext×ext；AV Arial -7.42@100→-1.1872@16，8-32px 实测零差）。连字吸收为普通对（quoted mono ff=-6、Songti fi=-4.1、Kaiti fi=-7.3）。
+2. **system-ui 光学 kern**：kk 结点 [em@16,em@20,em@24]（1e-4em），≤16 平、16→28 分段混合（端点单位=1e-4em，v 恰同单位）、≥28 恰线性。**光学独占对**是本轮最大发现：2,362 对 @100≈0（旧磁铁 |kern@100|>0.05 丢弃）但文本尺寸 kern 到 -0.02em（'wo' -0.313px@16、最强 '7_' -0.161em@16）——r5 四尺寸（16/20/24/100）全字符集扫（ascii+210 ext 双向+ext×ext）补磁铁。
+3. **GPOS device 表 band**：奇数小尺寸对宽震荡（ascii ±1.7px、extext 最差 2.35）——kb=px·100@整数 6..23 全量重捕 7,716 对（旧 830 对仅磁铁对；23→24 边界与 kk[2] 缝合、≤6 按 B[0] 线性钳制）。
+4. **三元组矩阵**：tri(abc)=w(abc)-w(ab)-w(bc)+w(b)，36,943 例外/51 字体——4 脚本字体（Marker Felt/Zapfino/Hoefler/Hiragino Maru）ascii **95³ 全扫** + 全 69 字体**单侧全字符集**（每个 kern 对×305 字符两向，16.2M 测量）+ 49 连字字体链扫（X+ff/fi/fl 两向）。Zapfino ffi +10.25/0th -24.25、MF fib -4.1 与脚本连写链、default fff +6。非 su 严格线性（72 行独立复测残差≤0.001）；su 7,063 条**零 ascii 字母**（全是 ⁝⁏♠上标链）按 px@100 线性并入，光学残差≤0.47px@16（≥28 收敛，_meta 挂账）。
+
+**规则腿**：CJK/Hangul/astral 的 kern=triples=0（实测）；Cf 格式符（bidi 覆盖/ZW*）剔出三元组——其宽度是重排伪影非 kern（‮ 链假 kern 12px 当场识破）；xk 结点地板 8→5px（s67 腿：H 3.9111@5 精确）；extext 分数尺寸 24-28 线性插值（分数处未验，边界挂账）；4+ 字符窗口不建模（MF/Zapfino 长脚本串累积误差）；bold/italic 面不建模（k97 遗留）。
+
+**数字**：160 行 verify 探针（12 组场景：结点/band 边界/固定线性/连字/脚本三元组/ext/extext/CJK）Chrome vs 引擎**最差 0.0405px、>0.05 零件**；shape **936/936 全 0**；enum 204/211（7 已知不变）；instance 127/127；快照无漂移；cargo test **968/111**（失败集与 k98 前两侧逐件 diff **零新增**——font_size_zero 在 HEAD 上同挂=先前存在，与刀97 收据 110 的差一件为记账口径）；workspace **1514/157**；测试 `knife98_kern_matrix_model` 31 行（期望=引擎指纹，先探后写，对 Chrome ≤0.0405）。
+**教训**：①**单位三连坑**——kern 真值 centi-px（runtime ×px/10000）、kk 是 1e-4em、kb 是 px·100@尺寸；24-28 混合端点把 v 写成 v*100 当场炸出 Ta@26=-172.98（v 换到 1e-4em 恰是 v 本身）；②**GENERIC JSON 复制品陷阱**——kkM 挂在 NAMES 正主上，generic() 返回 GENERIC 里的 JSON 复制品永远拿不到；改 GENERIC 存 persona 键、运行时查 NAMES 单一对象；③**磁铁阈值漏光学独占对**——'Wa wo'@16 差 0.31 而 @100 归零就是指纹（@100≈0 的对在文本尺寸可 kern 到 -0.02em），全尺寸扫才是全矩阵；④**探针公式验尸**——set.add(p.slice(1)) 把单字符混进对集，产出 2 字符垃圾 key（w('undefinedz') 级噪声）；按 key 长度+码点类分诊才识破；⑤**bidi 覆盖符的宽度是伪 kern**——Cf 类字符必须从三元组剔除；⑥**一探针一表达式**——`;` 拼接多 IIFE 会挂 probe_run 的取页等待；⑦zsh 裸 `==` 词雷再现（echo === 炸，引号包好）。

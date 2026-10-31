@@ -31564,3 +31564,101 @@ async fn knife97_font_metrics_model() {
         "knife97: per-glyph measureText model (Chrome 145 font-metrics truth)"
     );
 }
+
+#[tokio::test]
+async fn knife98_kern_matrix_model() {
+    // (刀98) measureText kern: the full pair matrix (28,907 pairs over 39
+    // fonts, px@100 exactly linear for fixed fonts — Arial AV -7.42@100 =
+    // -1.1872@16), system-ui's optical axis on TOP of it (knots em@16/20/24,
+    // flat <=16, blends to exactly-linear >=28: Ta -13.18/-1.64/-3.6904 at
+    // 100/16/28) including the 2,362 optical-only pairs that kern ~0 at 100
+    // but track at text sizes ('wo' -0.313px@16), GPOS device-table bands
+    // (px*100 at integer sizes 6..23 for every kern/optical pair — '¬Ý' at 7
+    // is exact to 4dp), ligature pairs absorbed as ordinary pairs (quoted
+    // "monospace" ff -6, Songti/Kaiti fi/fl), and the triple matrix
+    // (36,943 contextual exceptions over 51 fonts: Zapfino ffi +10.25 / 0th
+    // -24.25, Marker Felt fib -4.1 and script-join chains, default fff +6,
+    // system-ui's exotic punctuation chains px@100-linear with optical
+    // residue <=0.47px). CJK/Hangul kern and triples = 0 (widths are pure
+    // per-glyph sums). xk knot floor extended to 5px (H 3.9111@5). All rows
+    // verified against live Chrome 145 within 0.0405px (worst leg: 24px
+    // knot-region text); expectations pin the model, not Chrome's float.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const T = (k, f) => { try { const v = f(); L.push([k, 'ok', v === undefined ? '' : String(v)]); } catch (e) { L.push([k, 'E', e.name + ':' + e.message]); } };
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        const R = (font, a, b) => +(W(font, a + b) - W(font, a) - W(font, b)).toFixed(4);
+        T('pair.arial100', () => R('100px Arial', 'A', 'V'));
+        T('pair.arial16', () => R('16px Arial', 'A', 'V'));
+        T('pair.suTa100', () => R('100px system-ui', 'T', 'a'));
+        T('pair.suTa16', () => R('16px system-ui', 'T', 'a'));
+        T('pair.suTa28', () => R('28px system-ui', 'T', 'a'));
+        T('pair.monoFF', () => R('100px "monospace"', 'f', 'f'));
+        T('su.tavern16', () => W('16px system-ui', 'Tavern'));
+        T('su.avatar18', () => W('18px system-ui', 'AVATAR'));
+        T('su.tavern24', () => W('24px system-ui', 'Tavern'));
+        T('su.optical8', () => W('8px system-ui', 'Wa wo'));
+        T('su.band7', () => W('7px system-ui', '¬Ý'));
+        T('su.band17', () => W('17px system-ui', '&V'));
+        T('su.band23', () => W('23px system-ui', '"Æ'));
+        T('su.s67', () => W('5px system-ui', 'H') + '/' + W('6px system-ui', 'H') + '/' + W('7px system-ui', 'H'));
+        T('lig.songti16', () => W('16px "Songti SC"', 'office fluff waffle'));
+        T('lig.kaiti24', () => W('24px "Kaiti SC"', 'office fluff'));
+        T('tri.zapf32', () => W('32px Zapfino', 'ffi ffl Age Te. office'));
+        T('tri.zap0th100', () => W('100px Zapfino', '0th'));
+        T('tri.zap0th16', () => W('16px Zapfino', '0th'));
+        T('tri.bask16', () => W('16px Baskerville', 'office ffl ffi'));
+        T('tri.mf16', () => W('16px "Marker Felt"', 'a fib flub office "fi fi!'));
+        T('tri.mf40', () => W('40px "Marker Felt"', 'a fib flub office "fi fi!'));
+        T('tri.fff100', () => W('100px __absent__', 'waffle office fff'));
+        T('tri.suExotic100', () => W('100px system-ui', '⁏²Æ'));
+        T('tri.suExotic16', () => W('16px system-ui', '⁏²Æ'));
+        T('cjk.zero', () => W('100px "PingFang SC"', '你好吗'));
+        T('hangul.zero', () => W('16px "PingFang SC"', '한국'));
+        T('monoQ.flat8', () => W('8px "monospace"', 'Tavern AV ff fi'));
+        T('monoQ.flat100', () => W('100px "monospace"', 'Tavern AV ff fi'));
+        T('fix.georgia33', () => W('33px Georgia', 'AVATAR. To. wo'));
+        T('fix.times32', () => W('32px "Times New Roman"', 'A’’s barn —— To.'));
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["pair.arial100", "ok", "-7.42"],
+            ["pair.arial16", "ok", "-1.1873"],
+            ["pair.suTa100", "ok", "-13.18"],
+            ["pair.suTa16", "ok", "-1.64"],
+            ["pair.suTa28", "ok", "-3.6904"],
+            ["pair.monoFF", "ok", "-6"],
+            ["su.tavern16", "ok", "48.235"],
+            ["su.avatar18", "ok", "63.497"],
+            ["su.tavern24", "ok", "68.283"],
+            ["su.optical8", "ok", "25.807"],
+            ["su.band7", "ok", "9.4564"],
+            ["su.band17", "ok", "21.606"],
+            ["su.band23", "ok", "29.418"],
+            ["su.s67", "ok", "3.9111/4.6934/5.4255"],
+            ["lig.songti16", "ok", "111.664"],
+            ["lig.kaiti24", "ok", "101.664"],
+            ["tri.zapf32", "ok", "427.6"],
+            ["tri.zap0th100", "ok", "196.75"],
+            ["tri.zap0th16", "ok", "31.48"],
+            ["tri.bask16", "ok", "67.3451"],
+            ["tri.mf16", "ok", "118.688"],
+            ["tri.mf40", "ok", "296.72"],
+            ["tri.fff100", "ok", "712.4"],
+            ["tri.suExotic100", "ok", "152.458"],
+            ["tri.suExotic16", "ok", "24.4082"],
+            ["cjk.zero", "ok", "300"],
+            ["hangul.zero", "ok", "27.68"],
+            ["monoQ.flat8", "ok", "53.824"],
+            ["monoQ.flat100", "ok", "672.8"],
+            ["fix.georgia33", "ok", "246.0175"],
+            ["fix.times32", "ok", "235.3613"]
+        ]),
+        "knife98: full kern matrix model (Chrome 145 fonts-kern truth)"
+    );
+}
