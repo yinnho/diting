@@ -673,7 +673,10 @@ const THROW = [["AbstractRange",0,"Failed to construct 'AbstractRange': Illegal 
   ["XRWebGLSubImage",0,"Failed to construct 'XRWebGLSubImage': Illegal constructor"],
   ["webkitSpeechRecognitionError",1,"Failed to construct 'SpeechRecognitionErrorEvent': 1 argument required, but only 0 present."],
   ["webkitSpeechRecognitionEvent",1,"Failed to construct 'SpeechRecognitionEvent': 1 argument required, but only 0 present."],
-  ["webkitURL",1,"Failed to construct 'URL': 1 argument required, but only 0 present."]];
+  // (刀95) Chrome's webkitURL() rejects the no-new call with the DOM
+  // new-check message BEFORE any argument count (k95 probe); the alias
+  // identity webkitURL === URL stays a separate ledger item.
+  ["webkitURL",1,"Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."]];
 for (const [name, len, msg] of THROW) {
   if (SKIP(name)) continue;
   const C = mkThrow(name, len, msg);
@@ -832,7 +835,18 @@ const OBJ_GETTERS = [["clientInformation","[object Navigator]"],
 for (const [name, tag] of OBJ_GETTERS) {
   if (SKIP(name)) continue;
   const tag2 = tag === '[object Navigator]' ? null : tag;
-  const single = name === 'clientInformation' ? null : tagged(tag2 ? tag2.slice(8, -1) || name : name);
+  const cls = tag2 ? (tag2.slice(8, -1) || name) : name;
+  const single = name === 'clientInformation' ? null : tagged(tag2 ? cls : name);
+  // (刀95) every one of these singletons is an INSTANCE of its interface in
+  // Chrome (trustedTypes instanceof TrustedTypePolicyFactory etc. — the class
+  // methods must be reachable from the object). Link the prototype when the
+  // class exists; the own toStringTag keeps the captured tag string.
+  if (single) {
+    const C = globalThis[cls] || globalThis[name];
+    if (typeof C === 'function' && C.prototype && C.prototype !== Object.prototype) {
+      try { Object.setPrototypeOf(single, C.prototype); } catch (e) {}
+    }
+  }
   Object.defineProperty(globalThis, name, {
     get() { return name === 'clientInformation' ? globalThis.navigator : single; },
     enumerable: true, configurable: true,

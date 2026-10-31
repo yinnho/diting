@@ -10,7 +10,13 @@
   const PRIORITY_DELAY = { 'user-blocking': 0, 'user-visible': 1, background: 4 };
   const sched = globalThis.scheduler && typeof globalThis.scheduler === 'object' ? globalThis.scheduler : null;
   if (sched && typeof sched.postTask !== 'function') {
-    def(Object.getPrototypeOf(sched) !== Object.prototype ? Object.getPrototypeOf(sched) : sched, 'postTask', function postTask(callback, options) {
+    // (刀95) the scheduler singleton is linked to Scheduler.prototype now
+    // (global_surface OBJ_GETTERS), so the real methods land ON THE PROTOTYPE
+    // — keep Chrome's descriptor shape: enumerable, postTask.length 1
+    // (the callback; options is optional).
+    const home = Object.getPrototypeOf(sched) !== Object.prototype ? Object.getPrototypeOf(sched) : sched;
+    const defE = (obj, name, value) => Object.defineProperty(obj, name, { value, writable: true, enumerable: true, configurable: true });
+    const post = function postTask(callback, options) {
       if (typeof callback !== 'function') return Promise.reject(new TypeError("Failed to execute 'postTask' on 'Scheduler': parameter 1 is not of type 'Function'."));
       const o = options || {};
       const signal = o.signal;
@@ -32,8 +38,10 @@
           }, { once: true });
         }
       });
-    });
-    def(Object.getPrototypeOf(sched) !== Object.prototype ? Object.getPrototypeOf(sched) : sched, 'yield', function () {
+    };
+    try { Object.defineProperty(post, 'length', { value: 1, configurable: true }); } catch (e) {}
+    defE(home, 'postTask', post);
+    defE(home, 'yield', function yield() {
       return new Promise((resolve) => setTimeout(resolve, 0));
     });
   }
@@ -489,4 +497,16 @@
     },
     writable: true, enumerable: true, configurable: true,
   });
+
+  // (刀95) Chrome window methods with fn.length 0 (alert/confirm/prompt take no
+  // WebIDL args; scroll/scrollBy/scrollTo are overloaded with an all-optional
+  // signature; clearInterval/clearTimeout take an optional handle) — the engine
+  // faces declare a parameter. Length is metadata; pin it to the Chrome value.
+  for (const n of ['alert', 'clearInterval', 'clearTimeout', 'confirm', 'prompt',
+                   'scroll', 'scrollBy', 'scrollTo']) {
+    const f = globalThis[n];
+    if (typeof f === 'function' && f.length !== 0) {
+      try { Object.defineProperty(f, 'length', { value: 0, configurable: true }); } catch (e) {}
+    }
+  }
 })();

@@ -2067,3 +2067,25 @@ Chrome 145 真值（k94-hl/hl2 两轮 64 案）钉死（此前 shape 全对、�
 数字：两轮 probe 引擎腿 64/64 全 0 diff；shape 936/936 全 0；enum 205/211（6 既有环境漏）；instance 127/127；lib 110 与基线逐字节相同、workspace 156 逐名全等零新增。
 测试：`knife94_highlight_registry_map_like`（26 行断言）。
 **教训**：①**method wrapper 必须补 .length**——shape 审计的 kind 串内嵌函数 length，包装函数零参声明会把 kind 打回（本刀 2 接口 10 方法当场抓获，defineProperty length 修复）；②**箭头回调吃 receiver**——hmeth 安装器给 f 传 apply(this)，但箭头函数忽略 apply 的 thisArg，hset(this) 落到模块作用域（size 对、has 错的分裂症状）；凡经 apply 转发的方法体一律 function 声明；③**forEach 第三参传本尊**——Map/Set.prototype.forEach 的第三参是内部 Map/Set，WebIDL Map-like 要传接口对象本身（reg.forEachArgs m===reg 案）；④join(undefined)→'' 又一次（reg.miss 案）——**数组行断言先在脑内跑一遍 join**。
+
+## M4 刀95：需实例接口的 method ladder——186 sync+12 promise 全落 + 五件顺手修（2026-11-01）
+
+刀80 挂账清账：元素/文档/窗口等需实例接口的方法参数梯（宽探针当年因副作用法挂死而放弃）。**破局法：只探 `fn.length>=1` 的原型方法**——Chrome 的 argc TypeError 先于一切副作用与接收者检查，挂起雷天然排除。探针 `ladders-inst-probe.js`（54 接口真实例：Element/Document/Window/Location/Storage/Selection/ShadowRoot/observers/MessagePort/WebSocket/BroadcastChannel/2D canvas/GL/AudioNode/TTPF/History/Navigator/Performance/表单/表格/SVG 五面），Chrome 268 行全擒（几乎全为 argc 报文；WebGL 两腿因当日 CFT GL 起不来砍掉，gl 核心 argc 归 gen_gl_tables 线）。对拍：**186 sync（33 接口）+ 12 promise（4 接口）缺梯**+5 类手工案。
+
+Chrome 真值要点：
+- **Window/Location 方法是实例自有属性**（两 prototype 只有 constructor）——ladder 安装腿必须落实例（生成器 OWNOF 表：Window→globalThis、Location→location）。
+- `getUserMedia` 3 参（legacy 签名，非直觉 1）；`setBaseAndExtent` 4；`drawImage` 3；`createElementNS` 2。
+- promise 梯 12 条：fetch/createImageBitmap/requestStorageAccessFor/setMediaKeys/setSinkId + Navigator 广告拍卖族 7 条。
+- `PerformanceObserver.observe` length=0、零参抛**自定义报文**「An observe() call must include either entryTypes or type…」（非 argc 梯，不入表）。
+- `DOMTokenList.forEach()` 零参抛「undefined is not a function」——**先于迭代**（空表也抛），非 WebIDL coercion 报文。
+
+五件顺手修（对拍暴露的老伤）：
+1. **forEach 先抛后迭代**（bootstrap.js）：`if (typeof cb !== 'function') throw new TypeError(String(cb) + ' is not a function')`。
+2. **八个 window 方法 length 钉 0**（alert/confirm/prompt/scroll/scrollBy/scrollTo/clearInterval/clearTimeout——引擎脸多声明了一个参数；WebIDL 全可选参）。
+3. **webkitURL 报文换 new-check 形**（global_surface THROW 表）：Chrome 的构造器 new 检查先于 argc；`webkitURL===URL` 别名身份仍挂账。
+4. **OBJ_GETTERS 单例全批接原型**：trustedTypes/cookieStore/navigation/scheduler/styleMedia/viewport/external/fence/launchQueue/crashReport/documentPictureInPicture/六 bar——Chrome 里每个都是其接口实例（`trustedTypes instanceof TrustedTypePolicyFactory`），引擎原是裸 tagged Object，类方法全不可达。
+5. **scheduler.postTask 真身落原型**（连带修）：单例接线后 web_api_gaps 的真身从「实例自有」变「落原型」——保 Chrome 描述符形（enumerable、postTask.length=1），否则覆写 shape 桩（当场抓获 kind 2 行回归后修正）。
+
+实现：`gen_method_ladders.py` 并读两份真值（ladders-truth-145.json + 新 ladders-inst-truth-145.json）合并 262 sync+16 promise；生成器加 OWNOF 实例安装腿。
+数字：probe 对拍 **0 diff**（268 行+54 接口）；shape **936/936 全 0**；enum 204/211（6 已知漏 + gl=**真值侧伪影**：真值捕获日 Chrome GL 未起，引擎 `[]` 与刀92 活 GL Chrome 腿同形）；instance 127/127；cargo test 全量与基线 156 行逐名全等（110 lib+46 环境）+快照变（6 行 window 法 wrap 后无 .prototype=更近 Chrome 原生形状）；测试 `knife95_instance_method_ladders` 27 行+3 promise 断言。
+**教训**：①**diff 分类器别只看 Chrome 侧**——TTPF 六行引擎侧是「inst[k] is not a function」（实例没接原型），被 argc 正则吸进 SYNC 表差点漏判；分类要看双侧；②**单例接线有连带**——把裸 Object 链上原型会改变「实例自有 vs 原型」的旧落点（scheduler postTask 当场回归），接线后必跑 shape 门；③**构造器 new 检查先于 argc**（webkitURL/URL 案）——ctor ladder 表的报文要按这个序；④**别拿 length 猜必参数**（getUserMedia=3 非 1）——一律从真值报文解析；⑤probe 值行 join 前先想 undefined→''。
