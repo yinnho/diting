@@ -29371,3 +29371,101 @@ async fn knife70_speech_utterance_family() {
     );
     assert_eq!(o["errEv"], serde_json::json!(["not-allowed", true, true, 2]));
 }
+
+/// M4 刀71: SVGGradientElement 7 + SVGAElement 6 + interestForElement on the
+/// four interfaces Chrome carries it on (k71 probes, Chrome 145): enum views
+/// with default/junk/range ladder and keyword-serializing baseVal writes,
+/// gradientTransform list view, href SVGAnimatedString with xlink fallback,
+/// four SVG_SPREADMETHOD_* constants on prototype AND constructor, plain
+/// reflected download/ping/hreflang/referrerPolicy, target view, and the
+/// Element-reference reflection with property assignment, id lookup, and
+/// the Element conversion TypeError.
+#[tokio::test(flavor = "current_thread")]
+async fn knife71_svg_gradient_anchor_family() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const NS = 'http://www.w3.org/2000/svg';
+        const mk = (n) => document.createElementNS(NS, n);
+        const d = document.createElement('div'); document.body.appendChild(d);
+        const svg = mk('svg'); d.appendChild(svg);
+        const g = mk('linearGradient'); svg.appendChild(g);
+        const G = SVGGradientElement;
+        t('defaults', () => [g.gradientUnits.baseVal, g.spreadMethod.baseVal, g.gradientTransform.baseVal.numberOfItems, g.gradientUnits.constructor.name, g.gradientTransform.constructor.name, g.href.constructor.name, g.href.baseVal]);
+        t('units', () => { const r = []; for (const v of ['userSpaceOnUse', 'objectBoundingBox', 'junk', '', 'USERSPACEONUSE']) { g.setAttribute('gradientUnits', v); r.push(g.gradientUnits.baseVal); } return r; });
+        t('spread', () => { const r = []; for (const v of ['pad', 'reflect', 'repeat', 'junk', '', 'REFLECT']) { g.setAttribute('spreadMethod', v); r.push(g.spreadMethod.baseVal); } return r; });
+        t('setUnits', () => { g.setAttribute('gradientUnits', 'objectBoundingBox'); g.gradientUnits.baseVal = 1; const a = [g.getAttribute('gradientUnits'), g.gradientUnits.baseVal]; for (const x of [5, 0]) { try { g.gradientUnits.baseVal = x; a.push('nothrow'); } catch (e) { a.push(e.message); } } return a; });
+        t('setSpread', () => { g.spreadMethod.baseVal = 3; const a = [g.getAttribute('spreadMethod'), g.spreadMethod.baseVal]; try { g.spreadMethod.baseVal = 9; a.push('nothrow'); } catch (e) { a.push(e.message); } return a; });
+        t('transform', () => { g.setAttribute('gradientTransform', 'translate(10 20) scale(2)'); const l = g.gradientTransform.baseVal; return [l.numberOfItems, l.getItem(0).type, l.getItem(0).matrix.e, l.getItem(1).type, l.getItem(1).matrix.a, l.consolidate().matrix.e]; });
+        t('transformJunk', () => { g.setAttribute('gradientTransform', 'junk'); return g.gradientTransform.baseVal.numberOfItems; });
+        t('href', () => { g.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#a'); const a = [g.href.baseVal, g.href.animVal]; g.setAttribute('href', '#b'); a.push(g.href.baseVal); return a; });
+        t('consts', () => [G.SVG_SPREADMETHOD_UNKNOWN, G.SVG_SPREADMETHOD_PAD, G.SVG_SPREADMETHOD_REFLECT, G.SVG_SPREADMETHOD_REPEAT, G.prototype.SVG_SPREADMETHOD_REPEAT]);
+        t('constDesc', () => { const x = Object.getOwnPropertyDescriptor(G, 'SVG_SPREADMETHOD_PAD'); const y = Object.getOwnPropertyDescriptor(G.prototype, 'SVG_SPREADMETHOD_PAD'); return [x.writable, x.enumerable, x.configurable, y.writable, y.enumerable, y.configurable]; });
+        t('getters', () => ['gradientUnits', 'gradientTransform', 'spreadMethod', 'href'].map(k => { const x = Object.getOwnPropertyDescriptor(G.prototype, k); return [x.get.name, !!x.set, x.enumerable, x.configurable]; }));
+        t('foreign', () => { const r = []; for (const recv of [{}, mk('rect')]) { try { Object.getOwnPropertyDescriptor(G.prototype, 'spreadMethod').get.call(recv); r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        const a = mk('a'); svg.appendChild(a);
+        t('aDefaults', () => [a.target.constructor.name, a.target.baseVal, a.download, a.ping, a.hreflang, a.type, a.referrerPolicy, a.rel, a.interestForElement, a.href.baseVal, a.relList.length]);
+        t('aSet', () => { a.download = 'f.txt'; a.ping = 'http://x/p'; a.hreflang = 'en'; a.type = 'text/html'; a.rel = 'noopener'; return [a.getAttribute('download'), a.getAttribute('ping'), a.getAttribute('hreflang'), a.getAttribute('type'), a.getAttribute('rel'), a.relList.contains('noopener')]; });
+        t('aNullish', () => { a.download = null; a.hreflang = undefined; return [a.getAttribute('download'), a.getAttribute('hreflang')]; });
+        t('aReferrer', () => { const r = []; for (const v of ['no-referrer', 'ORIGIN', 'junk', '']) { a.referrerPolicy = v; r.push([a.getAttribute('referrerpolicy'), a.referrerPolicy]); } a.setAttribute('referrerpolicy', 'Same-Origin'); r.push(a.referrerPolicy); return r; });
+        t('aTarget', () => { a.setAttribute('target', '_blank'); const x = [a.target.baseVal, a.target.animVal, a.target === a.target]; a.target.baseVal = '_self'; x.push(a.getAttribute('target')); return x; });
+        t('aGetters', () => ['target', 'download', 'ping', 'hreflang', 'referrerPolicy', 'interestForElement'].map(k => { const x = Object.getOwnPropertyDescriptor(SVGAElement.prototype, k); return [x.get.name, x.set ? x.set.name : null, x.set ? x.set.length : null, x.enumerable, x.configurable]; }));
+        t('aForeign', () => { const r = []; for (const f of [() => Object.getOwnPropertyDescriptor(SVGAElement.prototype, 'download').get.call({}), () => Object.getOwnPropertyDescriptor(SVGAElement.prototype, 'ping').set.call(mk('rect'), 'x')]) { try { f(); r.push('NO'); } catch (e) { r.push(e.message); } } return r; });
+        t('aOwn', () => Reflect.ownKeys(a).length);
+        t('interest', () => { const r = [a.interestForElement]; const tgt = document.createElement('div'); tgt.id = 'tg'; d.appendChild(tgt); a.setAttribute('interestfor', 'tg'); r.push(a.interestForElement === tgt); a.setAttribute('interestfor', 'nope'); r.push(a.interestForElement); a.interestForElement = tgt; r.push(a.getAttribute('interestfor')); r.push(a.interestForElement === tgt); try { a.interestForElement = {}; r.push('nothrow'); } catch (e) { r.push(e.message); } a.interestForElement = null; r.push(a.hasAttribute('interestfor')); return r; });
+        t('interestHtml', () => ['HTMLAnchorElement', 'HTMLAreaElement', 'HTMLButtonElement'].map(n => 'interestForElement' in globalThis[n].prototype));
+        t('interestHtmlRoundTrip', () => { const h = document.createElement('a'); const tgt = document.createElement('div'); h.interestForElement = tgt; return [h.getAttribute('interestfor'), h.interestForElement === tgt]; });
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["defaults"], serde_json::json!([2, 1, 0, "SVGAnimatedEnumeration", "SVGAnimatedTransformList", "SVGAnimatedString", ""]));
+    assert_eq!(o["units"], serde_json::json!([1, 2, 2, 2, 2]));
+    assert_eq!(o["spread"], serde_json::json!([1, 2, 3, 1, 1, 1]));
+    assert_eq!(
+        o["setUnits"],
+        serde_json::json!([
+            "userSpaceOnUse", 1,
+            "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided (5) is larger than the largest allowed value (2).",
+            "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided is 0, which is not settable."
+        ])
+    );
+    assert_eq!(
+        o["setSpread"],
+        serde_json::json!(["repeat", 3, "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided (9) is larger than the largest allowed value (3)."])
+    );
+    assert_eq!(o["transform"], serde_json::json!([2, 2, 10, 3, 2, 10]));
+    assert_eq!(o["transformJunk"], 0);
+    assert_eq!(o["href"], serde_json::json!(["#a", "#a", "#b"]));
+    assert_eq!(o["consts"], serde_json::json!([0, 1, 2, 3, 3]));
+    assert_eq!(o["constDesc"], serde_json::json!([false, true, false, false, true, false]));
+    assert_eq!(
+        o["getters"],
+        serde_json::json!([["get gradientUnits", false, true, true], ["get gradientTransform", false, true, true], ["get spreadMethod", false, true, true], ["get href", false, true, true]])
+    );
+    assert_eq!(o["foreign"], serde_json::json!(["Illegal invocation", "Illegal invocation"]));
+    assert_eq!(o["aDefaults"], serde_json::json!(["SVGAnimatedString", "", "", "", "", "", "", "", null, "", 0]));
+    assert_eq!(o["aSet"], serde_json::json!(["f.txt", "http://x/p", "en", "text/html", "noopener", true]));
+    assert_eq!(o["aNullish"], serde_json::json!(["null", "undefined"]));
+    assert_eq!(
+        o["aReferrer"],
+        serde_json::json!([["no-referrer", "no-referrer"], ["ORIGIN", "ORIGIN"], ["junk", "junk"], ["", ""], "Same-Origin"])
+    );
+    assert_eq!(o["aTarget"], serde_json::json!(["_blank", "_blank", true, "_self"]));
+    assert_eq!(
+        o["aGetters"],
+        serde_json::json!([
+            ["get target", null, null, true, true], ["get download", "set download", 1, true, true], ["get ping", "set ping", 1, true, true],
+            ["get hreflang", "set hreflang", 1, true, true], ["get referrerPolicy", "set referrerPolicy", 1, true, true],
+            ["get interestForElement", "set interestForElement", 1, true, true]
+        ])
+    );
+    assert_eq!(o["aForeign"], serde_json::json!(["Illegal invocation", "Illegal invocation"]));
+    assert_eq!(o["aOwn"], 0);
+    assert_eq!(
+        o["interest"],
+        serde_json::json!([null, true, null, "", true, "Failed to set the 'interestForElement' property on 'SVGAElement': Failed to convert value to 'Element'.", false])
+    );
+    assert_eq!(o["interestHtml"], serde_json::json!([true, true, true]));
+    assert_eq!(o["interestHtmlRoundTrip"], serde_json::json!(["", true]));
+}

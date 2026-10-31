@@ -547,6 +547,11 @@
     };
     dacc(P, 'baseVal', function baseVal() { return eread.call(this); },
       function baseVal(v) { // GUESS: reverse-map serialize (write path unprobed)
+        if (this._max) { // 刀71 probed (gradientUnits/spreadMethod): 0 unsettable, > max rejected
+          const n = Number(v);
+          if (n === 0) throw new TypeError("Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided is 0, which is not settable.");
+          if (n > this._max) throw new TypeError("Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided (" + n + ") is larger than the largest allowed value (" + this._max + ').');
+        }
         if (this._attEl && this._kw && !this._custom) {
           let rk = null;
           for (const k in this._kw) if (this._kw[k] === Number(v)) { rk = k; break; }
@@ -555,9 +560,9 @@
         this._ov = Number(v);
       });
     dacc(P, 'animVal', function animVal() { return eread.call(this); });
-    globalThis.__diting_svgAnimEnum = (el, name, kw, def, custom) => {
+    globalThis.__diting_svgAnimEnum = (el, name, kw, def, custom, max) => {
       const o = Object.create(P);
-      o._attEl = el || null; o._attName = name; o._kw = kw || null; o._def = def || 0; o._custom = custom || null;
+      o._attEl = el || null; o._attName = name; o._kw = kw || null; o._def = def || 0; o._custom = custom || null; o._max = max || 0;
       return o;
     };
   }
@@ -567,7 +572,9 @@
     const P = SVGAnimatedString.prototype;
     const sread = function () {
       if (!this._attEl) return this._v == null ? '' : this._v;
-      const a = this._attEl.getAttribute(this._attName);
+      let a = this._attEl.getAttribute(this._attName);
+      // 刀71 probed: `href` falls back to xlink:href (the plain attr wins when both exist)
+      if (a == null && this._attName === 'href') a = this._attEl.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
       return a == null ? '' : a;
     };
     dacc(P, 'baseVal', function baseVal() { return sread.call(this); },
@@ -902,6 +909,58 @@
     animGet(P, 'href', (el) => __diting_svgAnimString(el, 'href')); // truth ro:ec — Chrome returns an SVGAnimatedString view (was a stale rw shell)
     animGet(P, 'requiredExtensions', (el) => __diting_svgStringList(el, 'requiredExtensions'));
     animGet(P, 'systemLanguage', (el) => __diting_svgStringList(el, 'systemLanguage'));
+    ctorLast(P);
+  }
+
+  // ---- SVGGradientElement (刀71) -------------------------------------------
+  // Chrome 145 (k71 probes): gradientUnits default 2 (objectBoundingBox) /
+  // spreadMethod default 1 (pad), junk/empty/wrong-case keyword -> default,
+  // baseVal write serializes the keyword (1 -> userSpaceOnUse, 3 -> repeat) and
+  // rejects 0 / above-max; gradientTransform is the pattern-style transform
+  // list view; href is an SVGAnimatedString that falls back to xlink:href; the
+  // four SVG_SPREADMETHOD_* constants sit on prototype AND constructor (e--),
+  // foreign receivers (plain objects AND other SVG elements) are illegal.
+  if (typeof globalThis.SVGGradientElement === 'function') {
+    const C = globalThis.SVGGradientElement, P = C.prototype;
+    const nm = (f, n) => { Object.defineProperty(f, 'name', { value: n }); return f; };
+    const gAnim = (n, mk) => dacc(P, n, nm(function () {
+      if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+      const c = this._a63 || (this._a63 = {});
+      return c[n] || (c[n] = mk(this));
+    }, 'get ' + n));
+    const save = wipeFace(P, []);
+    gAnim('gradientUnits', (el) => __diting_svgAnimEnum(el, 'gradientUnits', { userSpaceOnUse: 1, objectBoundingBox: 2 }, 2, null, 2));
+    gAnim('gradientTransform', (el) => __diting_svgAnimTransformList(el, 'gradientTransform'));
+    gAnim('spreadMethod', (el) => __diting_svgAnimEnum(el, 'spreadMethod', { pad: 1, reflect: 2, repeat: 3 }, 1, null, 3));
+    gAnim('href', (el) => __diting_svgAnimString(el, 'href'));
+    [['SVG_SPREADMETHOD_UNKNOWN', 0], ['SVG_SPREADMETHOD_PAD', 1], ['SVG_SPREADMETHOD_REFLECT', 2], ['SVG_SPREADMETHOD_REPEAT', 3]].forEach(([k, v]) => {
+      Object.defineProperty(P, k, { value: v, enumerable: true });
+      Object.defineProperty(C, k, { value: v, enumerable: true });
+    });
+    void save;
+    ctorLast(P);
+  }
+
+  // ---- SVGAElement (刀71) ----------------------------------------------------
+  // target/href are SVGAnimatedString views; download/ping/hreflang/
+  // referrerPolicy are PLAIN reflected DOMStrings (set -> String(v): null ->
+  // 'null', undefined -> 'undefined'; referrerPolicy is NOT enum-limited here,
+  // 'bogus' reads back 'bogus'); rel/relList/type stay on the existing homes.
+  if (typeof globalThis.SVGAElement === 'function') {
+    const C = globalThis.SVGAElement, P = C.prototype;
+    const nm = (f, n) => { Object.defineProperty(f, 'name', { value: n }); return f; };
+    const ok = (self) => { if (!(self instanceof C)) throw new TypeError('Illegal invocation'); };
+    const sAnim = (n, attr) => dacc(P, n, nm(function () {
+      ok(this);
+      const c = this._a63 || (this._a63 = {});
+      return c[n] || (c[n] = __diting_svgAnimString(this, attr));
+    }, 'get ' + n));
+    sAnim('target', 'target');
+    sAnim('href', 'href');
+    for (const [n, attr] of [['download', 'download'], ['ping', 'ping'], ['hreflang', 'hreflang'], ['referrerPolicy', 'referrerpolicy']]) {
+      dacc(P, n, nm(function () { ok(this); const v = this.getAttribute(attr); return v == null ? '' : v; }, 'get ' + n),
+        nm(function (v) { ok(this); this.setAttribute(attr, String(v)); }, 'set ' + n));
+    }
     ctorLast(P);
   }
 
