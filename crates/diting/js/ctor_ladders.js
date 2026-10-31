@@ -8,7 +8,7 @@
   const G = globalThis;
   const mark = G.__diting_markNative || ((f) => f);
   const ARGS = {"AudioBuffer":1,"BroadcastChannel":1,"CloseEvent":1,"ContentVisibilityAutoStateChangeEvent":1,"ErrorEvent":1,"EventSource":1,"ImageData":2,"MessageEvent":1,"MutationObserver":1,"OffscreenCanvas":2,"PerformanceMark":1,"ProgressEvent":1,"RTCError":1,"ResizeObserver":1,"SharedWorker":1,"ToggleEvent":1,"Touch":1,"TouchEvent":1,"Worker":1};
-  const ILLEGAL0 = ['Node', 'Element', 'CharacterData', 'CDATASection', 'DocumentType', 'ProcessingInstruction', 'XMLDocument'];
+  const ILLEGAL0 = ['Node', 'Element', 'CharacterData', 'CDATASection', 'DocumentType', 'ProcessingInstruction', 'XMLDocument', 'BaseAudioContext', 'CustomElementRegistry', 'DOMTokenList', 'ElementInternals', 'GPU', 'GPUAdapter', 'MediaQueryList', 'MessagePort', 'MimeType', 'MimeTypeArray', 'PerformanceEntry', 'PerformanceObserverEntryList', 'Plugin', 'PluginArray', 'SVGPoint', 'Selection', 'ServiceWorkerContainer', 'SourceBuffer', 'XMLHttpRequestEventTarget'];
   const wrap = (name, check) => {
     const Orig = G[name];
     if (typeof Orig !== 'function' || !Orig.prototype) return;

@@ -30079,3 +30079,18 @@ async fn knife80_method_argument_ladders() {
     let p = rt.evaluate("globalThis.__p.then ? 'promise' : 'other'").unwrap();
     assert_eq!(p, "promise");
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn knife82_illegal_zero_arg_constructors() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"(() => { const out = [];
+      for (const n of ['BaseAudioContext','CustomElementRegistry','DOMTokenList','ElementInternals','GPU','GPUAdapter','MediaQueryList','MessagePort','MimeType','MimeTypeArray','PerformanceEntry','PerformanceObserverEntryList','Plugin','PluginArray','SVGPoint','Selection','ServiceWorkerContainer','SourceBuffer','XMLHttpRequestEventTarget']) {
+        try { new globalThis[n](); out.push(n + ':ok'); } catch (e) { out.push(n + ':' + e.message); }
+      }
+      return out.join('|'); })()"#;
+    let r = rt.evaluate(script).unwrap().as_str().unwrap_or_default().to_string();
+    for n in ["BaseAudioContext", "Selection", "SVGPoint", "MessagePort"] {
+        assert!(r.contains(&format!("{n}:Failed to construct '{n}': Illegal constructor")), "{r}");
+    }
+    assert!(!r.contains(":ok"), "{r}");
+}
