@@ -30953,3 +30953,206 @@ async fn knife91_svg_point_lists() {
         "SVGPointList live attribute view: fresh wrappers over shared stores, two OOB message variants, clamp inserts, store aliasing, clear removes the attribute, all-or-nothing parse, animatedPoints read-only + ro item setters, ctor always Illegal constructor"
     );
 }
+
+#[tokio::test]
+async fn knife92_webgl_ext_behavior() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        const gl = document.createElement('canvas').getContext('webgl');
+        const gl2 = document.createElement('canvas').getContext('webgl2');
+        const vao = gl.getExtension('OES_vertex_array_object');
+        const v1 = vao.createVertexArrayOES();
+        T('vao.mint', () => [Object.prototype.toString.call(v1), Reflect.ownKeys(v1).length,
+                              Object.prototype.toString.call(Object.getPrototypeOf(v1)),
+                              Object.prototype.toString.call(Object.getPrototypeOf(Object.getPrototypeOf(v1))),
+                              Object.getPrototypeOf(Object.getPrototypeOf(Object.getPrototypeOf(v1))) === Object.prototype].join('/'));
+        T('vao.is0', () => vao.isVertexArrayOES(v1));
+        T('vao.is0args', () => vao.isVertexArrayOES());
+        T('vao.isnull', () => vao.isVertexArrayOES(null));
+        T('vao.isbad', () => vao.isVertexArrayOES({}));
+        T('vao.bind', () => { vao.bindVertexArrayOES(v1); return vao.isVertexArrayOES(v1); });
+        T('vao.bindnull', () => { vao.bindVertexArrayOES(null); return gl.getError(); });
+        T('vao.bindbad', () => vao.bindVertexArrayOES({}));
+        T('vao.del', () => { vao.deleteVertexArrayOES(v1); return [vao.isVertexArrayOES(v1), vao.isVertexArrayOES(null)].join('/'); });
+        T('vao.argc', () => vao.createVertexArrayOES());
+        const tq = gl.getExtension('EXT_disjoint_timer_query');
+        const q = tq.createQueryEXT();
+        T('tq.is0', () => tq.isQueryEXT(q));
+        T('tq.beginBad', () => { tq.beginQueryEXT(9999, q); return gl.getError(); });
+        T('tq.beginNull', () => tq.beginQueryEXT(tq.TIME_ELAPSED_EXT, null));
+        T('tq.beginNotQ', () => tq.beginQueryEXT(tq.TIME_ELAPSED_EXT, {}));
+        T('tq.flow', () => { tq.beginQueryEXT(tq.TIME_ELAPSED_EXT, q);
+                             const cur = tq.getQueryEXT(tq.TIME_ELAPSED_EXT, tq.CURRENT_QUERY_EXT) === q;
+                             tq.endQueryEXT(tq.TIME_ELAPSED_EXT);
+                             return [cur, tq.isQueryEXT(q), tq.getQueryEXT(tq.TIME_ELAPSED_EXT, tq.CURRENT_QUERY_EXT),
+                                     tq.getQueryEXT(tq.TIMESTAMP_EXT, tq.QUERY_COUNTER_BITS_EXT)].join('/'); });
+        T('tq.bits', () => tq.getQueryEXT(tq.TIME_ELAPSED_EXT, tq.QUERY_COUNTER_BITS_EXT));
+        T('tq.obj', () => { gl.getError(); const av = tq.getQueryObjectEXT(q, tq.QUERY_RESULT_AVAILABLE_EXT);
+                            const rs = tq.getQueryObjectEXT(q, tq.QUERY_RESULT_EXT); return [av, rs, gl.getError()].join('/'); });
+        T('tq.objBadPname', () => { gl.getError(); const v = tq.getQueryObjectEXT(q, 9999); return [v, gl.getError()].join('/'); });
+        T('tq.objBadType', () => tq.getQueryObjectEXT({}, 0));
+        T('tq.counter', () => { const q2 = tq.createQueryEXT(); gl.getError(); tq.queryCounterEXT(q2, tq.TIMESTAMP_EXT);
+                                const e1 = gl.getError(); tq.queryCounterEXT(q2, 9999);
+                                return [e1, gl.getError(), tq.isQueryEXT(q2)].join('/'); });
+        T('tq.beginTwice', () => { tq.beginQueryEXT(tq.TIME_ELAPSED_EXT, q); gl.getError(); const q3 = tq.createQueryEXT();
+                                   tq.beginQueryEXT(tq.TIME_ELAPSED_EXT, q3); const e = gl.getError(); tq.endQueryEXT(tq.TIME_ELAPSED_EXT); return e; });
+        T('tq.gpuDisjoint', () => { gl.getError(); return [gl.getParameter(tq.GPU_DISJOINT_EXT), gl.getError()].join('/'); });
+        T('tq.delete', () => { tq.deleteQueryEXT(null); tq.deleteQueryEXT(q); return [tq.isQueryEXT(q)].join('/'); });
+        const ds = gl.getExtension('WEBGL_debug_shaders');
+        T('ds.uncompiled', () => { const s = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(s, 'void main(){}'); return ds.getTranslatedShaderSource(s); });
+        T('ds.compiled', () => { const s = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(s, 'void main(){}'); gl.compileShader(s);
+                                 const t = ds.getTranslatedShaderSource(s); return [typeof t, t.length].join('/'); });
+        T('ds.badtype', () => ds.getTranslatedShaderSource({}));
+        T('astc', () => gl.getExtension('WEBGL_compressed_texture_astc').getSupportedProfiles().join(','));
+        const ia = gl.getExtension('ANGLE_instanced_arrays');
+        T('ia.draw', () => { ia.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 3, 1); return gl.getError(); });
+        T('ia.divisorOOB', () => { ia.vertexAttribDivisorANGLE(9999, 1); return gl.getError(); });
+        T('ia.divisorNeg', () => { ia.vertexAttribDivisorANGLE(-1, 1); return gl.getError(); });
+        T('ia.argc', () => ia.drawArraysInstancedANGLE());
+        const db = gl.getExtension('WEBGL_draw_buffers');
+        T('db.ok', () => { db.drawBuffersWEBGL([gl.BACK]); return gl.getError(); });
+        T('db.bad', () => { db.drawBuffersWEBGL([9999]); return gl.getError(); });
+        T('db.empty', () => { db.drawBuffersWEBGL([]); return gl.getError(); });
+        T('db.double', () => { db.drawBuffersWEBGL([gl.BACK, gl.BACK]); return gl.getError(); });
+        T('db.seq', () => db.drawBuffersWEBGL('ab'));
+        const oi = gl2.getExtension('OES_draw_buffers_indexed');
+        T('oi.ok', () => { oi.blendFunciOES(0, gl2.ONE, gl2.ZERO); return gl2.getError(); });
+        T('oi.oob', () => { oi.blendFunciOES(99, gl2.ONE, gl2.ZERO); return gl2.getError(); });
+        T('oi.badCap', () => { oi.enableiOES(9999, 0); return gl2.getError(); });
+        const cc = gl2.getExtension('EXT_clip_control');
+        T('cc.gate', () => gl2.getParameter(37724));
+        T('cc.set', () => { cc.clipControlEXT(36002, 37727); return [gl2.getParameter(37724), gl2.getParameter(37725), gl2.getError()].join('/'); });
+        T('cc.bad', () => { cc.clipControlEXT(9999, 37726); return gl2.getError(); });
+        const pm = gl2.getExtension('WEBGL_polygon_mode');
+        T('pm.face', () => { pm.polygonModeWEBGL(gl2.FRONT, pm.FILL_WEBGL); return gl2.getError(); });
+        T('pm.ok', () => { pm.polygonModeWEBGL(gl2.FRONT_AND_BACK, pm.LINE_WEBGL); return [gl2.getError(), gl2.getParameter(2880)].join('/'); });
+        const pv = gl2.getExtension('WEBGL_provoking_vertex');
+        T('pv', () => { pv.provokingVertexWEBGL(36430); return [gl2.getError(), gl2.getParameter(36431)].join('/'); });
+        const md = gl2.getExtension('WEBGL_multi_draw');
+        T('md', () => { md.multiDrawArraysWEBGL(gl2.TRIANGLES, new Int32Array([0]), 0, new Int32Array([3]), 0, 1); return gl2.getError(); });
+        T('md.argc', () => md.multiDrawArraysWEBGL());
+        const tq2 = gl2.getExtension('EXT_disjoint_timer_query_webgl2');
+        T('tq2.core', () => { const q2 = gl2.createQuery(); gl2.getError(); tq2.queryCounterEXT(q2, tq2.TIMESTAMP_EXT);
+                              return [gl2.getError(), Object.prototype.toString.call(q2)].join('/'); });
+        T('tq2.bad', () => tq2.queryCounterEXT({}, tq2.TIMESTAMP_EXT));
+        T('tq2.argc', () => tq2.queryCounterEXT());
+        T('rx.getParam', () => WebGLRenderingContext.prototype.getParameter.call({}, 1));
+        T('rx.getExt', () => WebGLRenderingContext.prototype.getExtension.call({}, 'x'));
+        T('rx.getErr', () => WebGLRenderingContext.prototype.getError.call({}));
+        T('rx.extMeth', () => vao.isVertexArrayOES.call({}, null));
+        T('ext.argc', () => vao.bindVertexArrayOES());
+        T('aniso.gate', () => [gl.getParameter(34047), gl2.getParameter(34047)].join('/'));
+        T('aniso.on', () => { gl.getExtension('EXT_texture_filter_anisotropic'); return gl.getParameter(34047); });
+        T('ev.ctor', () => { const e = new WebGLContextEvent('webglcontextlost', { cancelable: true, statusMessage: 'x' });
+                             return [typeof WebGLContextEvent, e.constructor.name, e.cancelable, e.statusMessage,
+                                     Object.getOwnPropertyNames(Object.getPrototypeOf(e)).join(','),
+                                     Object.prototype.toString.call(e)].join('/'); });
+        T('ev.length', () => WebGLContextEvent.length);
+        T('wo', () => [Object.prototype.toString.call(WebGLObject.prototype), Reflect.ownKeys(WebGLObject.prototype).filter((x) => typeof x === 'string').join(','), !!WebGLObject.prototype[Symbol.toStringTag]].join('/'));
+        // context-loss machine (sync flags now, events pumped below)
+        const lc = document.createElement('canvas');
+        globalThis.__lgl = lc.getContext('webgl');
+        globalThis.__evts = [];
+        lc.addEventListener('webglcontextlost', (e) => { e.preventDefault(); __evts.push('lost'); }, false);
+        lc.addEventListener('webglcontextrestored', () => __evts.push('restored'), false);
+        const wlc = __lgl.getExtension('WEBGL_lose_context');
+        wlc.loseContext();
+        T('lost.sync', () => [__lgl.isContextLost(), __lgl.getExtension('OES_element_index_uint'), __lgl.getParameter(__lgl.VERSION),
+                              __lgl.getError(), __lgl.getSupportedExtensions().length].join('/'));
+        globalThis.__wlc = wlc;
+        return JSON.stringify(__log);
+    "#).unwrap();
+    let out = rt.evaluate("JSON.stringify(__log)").unwrap();
+    let log: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let arr = log.as_array().unwrap();
+    assert_eq!(
+        serde_json::Value::Array(arr[..30].to_vec()),
+        serde_json::json!([
+            ["vao.mint", "ok", "[object WebGLVertexArrayObjectOES]/0/[object WebGLVertexArrayObjectOES]/[object WebGLObject]/true"],
+            ["vao.is0", "ok", "false"],
+            ["vao.is0args", "ok", "false"],
+            ["vao.isnull", "ok", "false"],
+            ["vao.isbad", "TypeError", "Failed to execute 'isVertexArrayOES' on 'OESVertexArrayObject': parameter 1 is not of type 'WebGLVertexArrayObjectOES'."],
+            ["vao.bind", "ok", "true"],
+            ["vao.bindnull", "ok", "0"],
+            ["vao.bindbad", "TypeError", "Failed to execute 'bindVertexArrayOES' on 'OESVertexArrayObject': parameter 1 is not of type 'WebGLVertexArrayObjectOES'."],
+            ["vao.del", "ok", "false/false"],
+            ["vao.argc", "ok", "[object WebGLVertexArrayObjectOES]"],
+            ["tq.is0", "ok", "false"],
+            ["tq.beginBad", "ok", "1280"],
+            ["tq.beginNull", "TypeError", "Failed to execute 'beginQueryEXT' on 'EXTDisjointTimerQuery': parameter 2 is not of type 'WebGLTimerQueryEXT'."],
+            ["tq.beginNotQ", "TypeError", "Failed to execute 'beginQueryEXT' on 'EXTDisjointTimerQuery': parameter 2 is not of type 'WebGLTimerQueryEXT'."],
+            ["tq.flow", "ok", "true/true//0"],
+            ["tq.bits", "ok", "64"],
+            ["tq.obj", "ok", "false/0/0"],
+            ["tq.objBadPname", "ok", "/1280"],
+            ["tq.objBadType", "TypeError", "Failed to execute 'getQueryObjectEXT' on 'EXTDisjointTimerQuery': parameter 1 is not of type 'WebGLTimerQueryEXT'."],
+            ["tq.counter", "ok", "0/1280/true"],
+            ["tq.beginTwice", "ok", "1282"],
+            ["tq.gpuDisjoint", "ok", "false/0"],
+            ["tq.delete", "ok", "false"],
+            ["ds.uncompiled", "ok", ""],
+            ["ds.compiled", "ok", "string/13"],
+            ["ds.badtype", "TypeError", "Failed to execute 'getTranslatedShaderSource' on 'WebGLDebugShaders': parameter 1 is not of type 'WebGLShader'."],
+            ["astc", "ok", "ldr,hdr"],
+            ["ia.draw", "ok", "1282"],
+            ["ia.divisorOOB", "ok", "1281"],
+            ["ia.divisorNeg", "ok", "1281"],
+        ]),
+        "WebGL extension method behavior (刀92) part 1: mint chains through [object WebGLObject], VAO activation semantics, timer-query family (begin/end/counter activation, error ladder, never-completing results), debug shaders compile gate, ANGLE draw/divisor errors"
+    );
+    assert_eq!(
+        serde_json::Value::Array(arr[30..].to_vec()),
+        serde_json::json!([
+            ["ia.argc", "TypeError", "Failed to execute 'drawArraysInstancedANGLE' on 'ANGLEInstancedArrays': 4 arguments required, but only 0 present."],
+            ["db.ok", "ok", "0"],
+            ["db.bad", "ok", "1282"],
+            ["db.empty", "ok", "1282"],
+            ["db.double", "ok", "1280"],
+            ["db.seq", "TypeError", "Failed to execute 'drawBuffersWEBGL' on 'WebGLDrawBuffers': The provided value cannot be converted to a sequence."],
+            ["oi.ok", "ok", "0"],
+            ["oi.oob", "ok", "1281"],
+            ["oi.badCap", "ok", "1280"],
+            ["cc.gate", "ok", "36001"],
+            ["cc.set", "ok", "36002/37727/0"],
+            ["cc.bad", "ok", "1280"],
+            ["pm.face", "ok", "1280"],
+            ["pm.ok", "ok", "0/6913"],
+            ["pv", "ok", "0/36430"],
+            ["md", "ok", "1282"],
+            ["md.argc", "TypeError", "Failed to execute 'multiDrawArraysWEBGL' on 'WebGLMultiDraw': 6 arguments required, but only 0 present."],
+            ["tq2.core", "ok", "0/[object WebGLQuery]"],
+            ["tq2.bad", "TypeError", "Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': parameter 1 is not of type 'WebGLQuery'."],
+            ["tq2.argc", "TypeError", "Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': 2 arguments required, but only 0 present."],
+            ["rx.getParam", "TypeError", "Illegal invocation"],
+            ["rx.getExt", "TypeError", "Illegal invocation"],
+            ["rx.getErr", "TypeError", "Illegal invocation"],
+            ["rx.extMeth", "TypeError", "Illegal invocation"],
+            ["ext.argc", "ok", "undef"],
+            ["aniso.gate", "ok", "/"],
+            ["aniso.on", "ok", "16"],
+            ["ev.ctor", "ok", "function/WebGLContextEvent/true/x/statusMessage,constructor/[object WebGLContextEvent]"],
+            ["ev.length", "ok", "1"],
+            ["wo", "ok", "[object WebGLObject]/constructor/true"],
+            ["lost.sync", "ok", "true///37442/0"]
+        ]),
+        "part 2: drawBuffers length-before-element, blend-index family, clip/polygon/provoking state + enable-on-getExtension gating, multiDraw 1282, webgl2 timer typed against core WebGLQuery, receiver strictness (bare Illegal invocation), constructible WebGLContextEvent, lose/restore machine sync flags"
+    );
+    // pump 1: async lost event dispatch -> preventDefault observed -> restore legal (restoreContext before the
+    // canceled lost event is a no-op, chrome truth k92-p3evt2)
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+    let out2 = rt.evaluate("JSON.stringify([JSON.stringify(__evts), __lgl.isContextLost()])").unwrap();
+    assert_eq!(out2.as_str().unwrap(), "[\"[\\\"lost\\\"]\",true]");
+    // restore stays async: sync isContextLost still true, restored event lands on the next pump
+    let out3 = rt.evaluate("__wlc.restoreContext(); String(__lgl.isContextLost())").unwrap();
+    assert_eq!(out3.as_str().unwrap(), "true");
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+    let out4 = rt
+        .evaluate("JSON.stringify([JSON.stringify(__evts), __lgl.isContextLost(), __lgl.getSupportedExtensions().length > 0, __lgl.getError()])")
+        .unwrap();
+    assert_eq!(out4.as_str().unwrap(), "[\"[\\\"lost\\\",\\\"restored\\\"]\",false,true,0]");
+}

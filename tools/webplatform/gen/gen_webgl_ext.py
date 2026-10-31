@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/webgl_ext.js from the Chrome 145 extension-object capture.
+"""Generate crates/diting/js/webgl_ext.js from the Chrome 145 extension-object captures.
 
   gen_webgl_ext.py [truth.json] [out.js]
     truth  default: tools/webplatform/chrome/webgl-ext-truth-145.json (webgl-ext-probe.js via probe_run.py chrome,
-           DITING_CHROME_WEBGL=1 — software WebGL)
+           DITING_CHROME_WEBGL=1 — software WebGL) folded with webgl-ext-truth-145-metal.json (DITING_CHROME_WEBGL=metal,
+           the persona machine's real-GPU leg, 刀92) — shared extensions must agree byte-for-byte or the generator dies.
     out    default: crates/diting/js/webgl_ext.js
 
 Per extension name: the interface toStringTag + the prototype members (constants e--, methods ecw, with .length).
 The table is GPU-independent interface data; WHICH extensions a context supports stays the persona's choice
-(bootstrap.js _GL_EXTS1/_GL_EXTS2), so names the capture machine lacks are filled from GUESS below (interface
-names + registry tokens, NOT probed — each is marked in the SURFACE.md GUESS ledger).
+(bootstrap.js _GL_EXTS1/_GL_EXTS2). 刀92: the GUESS dict is gone — the 7 extensions the SwiftShader capture lacked
+(KHR_parallel_shader_compile, WEBGL_blend_func_extended, WEBGL_compressed_texture_pvrtc, EXT_render_snorm,
+EXT_texture_norm16, WEBGL_provoking_vertex, WEBGL_render_shared_exponent) are captured on the metal leg, and every
+member matched the old guesses exactly.
+
+Methods are no longer empty: each one forwards to globalThis.__diting_glExtCall (installed by bootstrap.js, which
+loads before this file and is only invoked at call time) carrying its interface name, method name and required-arg
+count — the WebIDL argc ladder plus the per-method behavior (Chrome 145 truth, k92-glxt*/p* probes). OPTIONAL lists
+methods whose table .length overstates the required count (Chrome's 0-arg sweep, k92-p5): an optional trailing
+interface parameter coerces undefined→null instead of throwing.
 """
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -17,39 +26,31 @@ ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 truth_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'tools/webplatform/chrome/webgl-ext-truth-145.json')
 out_p = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'crates/diting/js/webgl_ext.js')
 d = json.load(open(truth_p))
-GUESS = {  # name -> (tag, [[member, kind, value, flags]])
-    'KHR_parallel_shader_compile': ('KHRParallelShaderCompile', [['COMPLETION_STATUS_KHR', 'n', 37297, 'e--']]),
-    'WEBGL_blend_func_extended': ('WebGLBlendFuncExtended', [['SRC1_COLOR_WEBGL', 'n', 35065, 'e--'], ['SRC1_ALPHA_WEBGL', 'n', 34185, 'e--'],
-        ['ONE_MINUS_SRC1_COLOR_WEBGL', 'n', 35066, 'e--'], ['ONE_MINUS_SRC1_ALPHA_WEBGL', 'n', 35067, 'e--'], ['MAX_DUAL_SOURCE_DRAW_BUFFERS_WEBGL', 'n', 35068, 'e--']]),
-    'WEBGL_compressed_texture_pvrtc': ('WebGLCompressedTexturePVRTC', [['COMPRESSED_RGB_PVRTC_4BPPV1_IMG', 'n', 35840, 'e--'], ['COMPRESSED_RGB_PVRTC_2BPPV1_IMG', 'n', 35841, 'e--'],
-        ['COMPRESSED_RGBA_PVRTC_4BPPV1_IMG', 'n', 35842, 'e--'], ['COMPRESSED_RGBA_PVRTC_2BPPV1_IMG', 'n', 35843, 'e--']]),
-    'EXT_render_snorm': ('EXTRenderSnorm', []),
-    'EXT_texture_norm16': ('EXTTextureNorm16', [['R16_EXT', 'n', 33322, 'e--'], ['RG16_EXT', 'n', 33324, 'e--'], ['RGB16_EXT', 'n', 32852, 'e--'], ['RGBA16_EXT', 'n', 32859, 'e--'],
-        ['R16_SNORM_EXT', 'n', 36760, 'e--'], ['RG16_SNORM_EXT', 'n', 36761, 'e--'], ['RGB16_SNORM_EXT', 'n', 36762, 'e--'], ['RGBA16_SNORM_EXT', 'n', 36763, 'e--']]),
-    'WEBGL_provoking_vertex': ('WebGLProvokingVertex', [['FIRST_VERTEX_CONVENTION_WEBGL', 'n', 36429, 'e--'], ['LAST_VERTEX_CONVENTION_WEBGL', 'n', 36430, 'e--'],
-        ['PROVOKING_VERTEX_WEBGL', 'n', 36431, 'e--'], ['provokingVertexWEBGL', 'f', 1, 'ecw']]),
-    'WEBGL_render_shared_exponent': ('WebGLRenderSharedExponent', []),
-}
+metal_p = os.path.join(os.path.dirname(truth_p), 'webgl-ext-truth-145-metal.json')
+d2 = json.load(open(metal_p)) if os.path.exists(metal_p) else None
+# (iface, method) pairs where the trailing parameter is OPTIONAL: 0-arg calls do not throw (k92-p5 sweep).
+OPTIONAL = {('OESVertexArrayObject', 'bindVertexArrayOES'), ('OESVertexArrayObject', 'deleteVertexArrayOES'),
+            ('OESVertexArrayObject', 'isVertexArrayOES')}
 table = {}
-for key in ('gl1', 'gl2'):
-    for name, v in d[key].items():
-        ent = [v['tag'][len('[object '):-1], v['members']]
-        if name in table and table[name] != ent:
-            sys.exit('extension %s differs between gl1 and gl2 captures' % name)
-        table[name] = ent
-for name, (tag, members) in GUESS.items():
-    if name in table:
-        sys.exit('GUESS entry %s is now captured - drop it from GUESS' % name)
-    table[name] = [tag, members]
+for src in [d] + ([d2] if d2 else []):
+    for key in ('gl1', 'gl2'):
+        for name, v in src[key].items():
+            ent = [v['tag'][len('[object '):-1], v['members']]
+            if name in table and table[name] != ent:
+                sys.exit('extension %s differs between capture legs' % name)
+            table[name] = ent
 table = {k: table[k] for k in sorted(table)}
-body = '''// GENERATED by tools/webplatform/gen/gen_webgl_ext.py from chrome/webgl-ext-truth-145.json - do not edit.
+body = '''// GENERATED by tools/webplatform/gen/gen_webgl_ext.py from chrome/webgl-ext-truth-145{,-metal}.json - do not edit.
 // WebGL extension objects (M4 刀69): per extension name the Chrome interface tag + prototype members. Chrome's
 // carriers are bare: an object with ZERO own keys inheriting a constructor-less prototype that holds the members
 // and the toStringTag, one cached instance per (context, extension) - getExtension(n) === getExtension(n).
+// (刀92) Methods forward to __diting_glExtCall(iface, method, nreq, this, arguments) — bootstrap.js owns the
+// WebIDL argc ladder and the Chrome-145 behavior; the metal leg removed the last GUESS entries.
 (function () {
   const T = %s;
   const protos = new Map();
   const caches = new WeakMap();
+  const links = new WeakMap();
   const mark = globalThis.__diting_markNative;
   const protoFor = (name) => {
     let p = protos.get(name);
@@ -60,7 +61,8 @@ body = '''// GENERATED by tools/webplatform/gen/gen_webgl_ext.py from chrome/web
       if (kind === 'n') {
         Object.defineProperty(p, k, { value: val, enumerable: true });
       } else {
-        const f = function () {};
+        const nreq = OPT.has(ent[0] + '.' + k) ? 0 : val;
+        const f = function () { return globalThis.__diting_glExtCall(ent[0], k, nreq, this, arguments); };
         Object.defineProperty(f, 'name', { value: k });
         Object.defineProperty(f, 'length', { value: val });
         if (typeof mark === 'function') mark(f);
@@ -78,12 +80,20 @@ body = '''// GENERATED by tools/webplatform/gen/gen_webgl_ext.py from chrome/web
       let m = keyed ? caches.get(key) : undefined;
       if (m && m.has(name)) return m.get(name);
       const ext = Object.create(protoFor(name));
-      if (keyed) { if (!m) { m = new Map(); caches.set(key, m); } m.set(name, ext); }
+      if (keyed) { if (!m) { m = new Map(); caches.set(key, m); } m.set(name, ext); links.set(ext, key); }
       return ext;
     },
     writable: true, enumerable: false, configurable: true,
   });
+  Object.defineProperty(globalThis, '__diting_glExtBaseOf', {
+    value(e) { return links.get(e) || null; },
+    writable: true, enumerable: false, configurable: true,
+  });
 })();
-''' % json.dumps(table, separators=(',', ':'))
+'''
+opt_json = json.dumps(sorted(a + '.' + b for (a, b) in OPTIONAL), separators=(',', ':'))
+body = body.replace('const mark = globalThis.__diting_markNative;',
+                    'const OPT = new Set(%s);\n  const mark = globalThis.__diting_markNative;' % opt_json)
+body = body % json.dumps(table, separators=(',', ':'))
 open(out_p, 'w').write(body)
-print('extensions', len(table), 'guess', len(GUESS), 'bytes', len(body))
+print('extensions', len(table), 'legs', 1 + (1 if d2 else 0), 'bytes', len(body))

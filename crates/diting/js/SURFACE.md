@@ -2019,3 +2019,23 @@ Chrome 145 真值（k91-points/points2/points3/points4/ctor 五轮 104 案全 0 
 数字：五轮 probe 引擎腿全 0 diff（104 案）；shape 936/936 全 0；enum **207/211**（4 漏=刀90 七漏之子集，tail 桩删除白赚 3 项）；instance 127/127；ratchet 66/0；cargo test lib 110 失败与 fail-base **逐字节相同**、workspace 46 个 server/session 失败逐名全等、无任何新失败。
 测试：`knife91_svg_point_lists`（28 行日志断言）。
 **教训**：①**读侧身份≠数据侧身份**——每次新壳+共享 store 两层分开建模，先探 item-ident 再定结构，别让壳的临时性污染数据的别名性（收养别名案全靠这一分层才对齐）；②**写穿别缓存序列化结果**——flush 若先 commit 后 sync 会把陈旧 stores 数组写出去（iter-spread `2/77`、reattr-write `77 9 8 8` 两案当场抓获），顺序=sync→commit；③**同属性先清场再装**——tail_members 的 fill-if-missing 桩会永久挡住 svg_root 的真装，本刀删桩后 enum 白赚 3 项；④**拔 Illegal-constructor 前先迁内部铸币**——getPointAtLength/matrixTransform 两处 `new SVGPoint()` 全改走 `__diting_svgPoint` 后 ctor 才敢常抛，否则自家先炸。
+
+## M4 刀92：WebGL 扩展方法真身——dispatcher 转发 + Chrome 145 行为表 + 丢机全环（2026-10-31）
+
+Chrome 145 真值（metal 腿=真 GPU persona 机；k92-glxt-e/p1/p2/p3min/p3evt2/p4/p5/p6/p7 九轮 186 案全 0 diff）钉死：
+
+- **结构分层**：生成器 `gen_webgl_ext.py` 只管形状+argc（两腿合并、共享扩展逐字节一致性检查、GUESS 字典删除——SwiftShader 腿缺的 7 个扩展 metal 腿补齐且与旧猜全同）；方法体一律转发 `__diting_glExtCall(iface, meth, nreq, this, arguments)`，**bootstrap.js 先装后调、装序安全**，行为+状态全在行为侧。OPTIONAL 集=OESVertexArrayObject 三法（bind/delete/isVertexArray，nreq 实为 0，0 参调用不抛、undefined→null 宽容）——其余方法 .length 即必需 argc。
+- **铸币链（p1）**：VAO/TimerQuery mint=Object.create(proto)（proto 带 Symbol.toStringTag）+ setPrototypeOf(WebGLObject.prototype)→`[object WebGLVertexArrayObjectOES]`；实例 ownKeys=0；**跨 context 类型身份走全局 WeakSet**（_GLX_VALL/_GLX_QALL）、**每 context 激活走 st.vAct/st.qAct**——VAO：bind 激活、激活活过 delete、fresh/deleted 不过 is*；Timer：begin 或 queryCounter 激活、激活活过 endQueryEXT、唯 deleteQueryEXT 清；isQueryEXT(null)=false、delete(null) 不抛。
+- **错误梯**：programless draw→1282 恒先；beginQuery 坏 target/TIMESTAMP→1280、活跃中再 begin→1282；divisor 索引 (>>>0)≥16→1281；drawBuffersWEBGL **先 sequence 检查**（null/非对象/不可迭代含字符串→TypeError）后 []→1282、len>1→1280、坏元素→1282；blend-index buf (>>>0)≥8→1281、enablei/disablei cap≠3042→1280；clipControl origin∈{36001,36002} depth∈{37726,37727}、polygonMode **face 必须 1032**（FRONT 也 1280）mode∈{6913,6914}、provoking∈{36429,36430}；multiDraw→1282 吃普通数组；getQueryEXT/getQueryObjectEXT 阶梯（CURRENT_QUERY 活跃中→q、已 end→null；RESULT_AVAILABLE→false、RESULT→0、坏 pname→null+1280）。
+- **读回反直觉（p2）**：polygonMode 成功设 LINE 后 **getParameter(POLYGON_MODE) 仍回 6913 FILL**——Chrome 读回不回显所设值。
+- **ext-pname 门禁**：getParameter 只在该 context getExtension 过后才答 ext pname：34047→16、37724/37725→clip 状态、2880→polyMode、36431→provoking、36795(GPU_DISJOINT)→false（两个 timer 扩展任一开启即答）；未开启→null。
+- **receiver 严查**：getParameter/getExtension/getSupportedExtensions/getError/isContextLost 及一切 ext 方法，外来 this 裸抛 `TypeError: Illegal invocation`（无 Failed to execute 前缀）；getExtension 大小写不敏感、数字→null。
+- **丢机全环**：loseContext() 同步置 lost + setTimeout 0 异步派 WebGLContextEvent('webglcontextlost',{cancelable:true})；**preventDefault 在派发时才观测**（lostPrevented）；restoreContext **门槛=lostPrevented**（lost 事件未派发前调 restore=no-op）；restored 异步派发+全状态重置；丢机中 getError→37442 恒、getExtension→null、getParameter→null、getSupportedExtensions→[]。
+- **WebGLContextEvent 真构造器**：Reflect.construct(Event,[type,init||{}],new.target) 的 Event 子类，statusMessage 经 WeakMap，proto ownNames=[statusMessage,constructor]（delete/re-add constructor 技），length=1；global_surface THROW 表的 SKIP 机制（已 in globalThis 的名字不铸桩）让 bootstrap 先装胜出——THROW 表条目自动失效。
+- **WebGLObject.prototype**：补 Symbol.toStringTag 'WebGLObject'（writable+configurable），字符串 ownKeys=['constructor']。
+- **debug shaders**：shaderSource/compileShader 双原型 override 记 _glShSrc/_glShCompiled——uncompiled 已 sourced→''、compiled→译文、非 WebGLShader→TypeError；ASTC getSupportedProfiles→['ldr','hdr']。
+
+实现（`bootstrap.js` _glX 状态机+_GLX_H 处理器表+__diting_glExtCall 分发器；`webgl_ext.js` 重生成 53 扩展转发；`gen_webgl_ext.py` 两腿合并；`wire_capture.py` DITING_CHROME_WEBGL=None/1/metal 梯）。
+数字：九轮 probe 引擎腿全 0 diff（186 案）；shape 936/936 全 0；enum **205/211**（6 漏全为既有环境漏 newdoc/sheets/nodeList/htmlColl/gain/ctxDest——k91 的 207/211 系 GPU-less 腿口径，同腿对拍无回归、gl artifact 反愈）；instance 127/127；cargo test lib 110 失败与 fail-base **逐字节相同**、workspace 46 个 server/session 失败逐名全等、无任何新失败。
+测试：`knife92_webgl_ext_behavior`（61 行日志断言+丢机两段 pump 三断言）。
+**教训**：①**pname 常量≠取值枚举**——门禁 Map 的键是 CLIP_ORIGIN_EXT=37724/CLIP_DEPTH_MODE_EXT=37725（pname），不是 36001/37726（值枚举），truth JSON 两种都存，抄前先认清哪边；②**toStringTag≠接口名**——消息里的 'EXTDisjointTimerQueryWebGL2' 大写稳定（疑似小写是误读），双捕获定谳再写死；③**桩构造器在异步回调里抛=静默断链**——setTimeout 里 new 桩 WebGLContextEvent 抛掉则 lost 事件永不派发、lostPrevented 永不置、probe 整腿 None；真构造器一到手全环即通；④**期望行抄 probe 不抄脑内模型**——polygonMode 读回 6913、cc 门禁开着 36001、join(null)=''、restore 须在 lost 派发后——四案全是引擎已对 Chrome 而测试作者想当然；⑤serde_json json! 宏递归上限约 30 行，长断言拆段；⑥**丢机测试必须分段 pump**——restoreContext 在 lost 事件派发前调是 no-op，lose→pump→restore→pump 才是 Chrome 语义。

@@ -57,9 +57,13 @@ def chrome_dom(binary, url, pre_selector="pre"):
     prof = tempfile.mkdtemp()
     # DITING_CHROME_WEBGL=1: software WebGL (SwiftShader) instead of --disable-gpu, so probes can read
     # real WebGLRenderingContext instances (M4 刀69); the default capture stays GPU-less and unchanged.
-    gpu = (["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
-           if os.environ.get("DITING_CHROME_WEBGL") == "1" else ["--disable-gpu"])
-    proc = subprocess.Popen([binary, "--headless=new"] + gpu + ["--no-first-run", "--no-default-browser-check",
+    # =metal (刀92): real GPU (no gpu flags at all) — exposes GPU-dependent extensions SwiftShader lacks.
+    # DITING_CHROME_EXTRA: extra launch flags, whitespace-separated, appended after the gpu block.
+    gpu = (["--disable-gpu"] if os.environ.get("DITING_CHROME_WEBGL") is None
+           else [] if os.environ.get("DITING_CHROME_WEBGL") == "metal"
+           else ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
+    extra = os.environ.get("DITING_CHROME_EXTRA", "").split()
+    proc = subprocess.Popen([binary, "--headless=new"] + gpu + extra + ["--no-first-run", "--no-default-browser-check",
                              "--use-mock-keychain", "--password-store=basic", "--disable-background-networking",
                              "--disable-component-update", "--disable-sync", "--remote-debugging-port=%d" % port,
                              "--user-data-dir=" + prof, "about:blank"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
