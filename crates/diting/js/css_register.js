@@ -65,9 +65,11 @@
     if (definition === null || typeof definition !== 'object' && typeof definition !== 'function') {
       throw new TypeError("Failed to execute 'registerProperty' on 'CSS': The provided value is not of type 'PropertyDefinition'.");
     }
+    // (刀88) Chrome 145 reads `inherits` before `name` ({} reports
+    // inherits), with the property-read message form (k88-mini).
+    if (definition.inherits === undefined) throw new TypeError("Failed to execute 'registerProperty' on 'CSS': Failed to read the 'inherits' property from 'PropertyDefinition': Required member is undefined.");
     const name = definition.name === undefined ? undefined : String(definition.name);
-    if (name === undefined) throw new TypeError("Failed to execute 'registerProperty' on 'CSS': required member name is undefined.");
-    if (definition.inherits === undefined) throw new TypeError("Failed to execute 'registerProperty' on 'CSS': required member inherits is undefined.");
+    if (name === undefined) throw new TypeError("Failed to execute 'registerProperty' on 'CSS': Failed to read the 'name' property from 'PropertyDefinition': Required member is undefined.");
     const syntax = definition.syntax === undefined ? '*' : String(definition.syntax);
     const inherits = !!definition.inherits;
     if (!/^--(?:[^\s\u0000-\u001f]|\\.)+$/.test(name) || name === '--') {
