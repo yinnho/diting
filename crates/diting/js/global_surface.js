@@ -682,28 +682,34 @@ for (const [name, len, msg] of THROW) {
 
 // ---- CSSMath* typed-om constructors (刀87): argument ladder + CSSNumberish
 // double coercion per Chrome 145 probes; success mints a branded instance.
+// (刀89) the instance keeps its coerced kids (CSSNumericValue passes through,
+// numbers wrap as CSSUnitValue(n,'number')) + operator tag — typedom_math.js
+// installs the value/values/lower/upper/operator prototype getters that read them.
 function mkCssMath(name, len, min, variadic) {
   const C = function () {
     if (arguments.length < min) {
       if (variadic) throw new SyntaxError("Failed to construct '" + name + "': Arguments can't be empty");
       throw new TypeError("Failed to construct '" + name + "': " + min + " argument" + (min > 1 ? "s" : "") + " required, but only " + arguments.length + " present.");
     }
+    const kids = [];
     for (let i = 0; i < arguments.length; i++) {
       const v = arguments[i];
-      let n;
-      if (typeof v === 'object' && v !== null) {
-        if (typeof CSSNumericValue === 'function' && v instanceof CSSNumericValue) continue;
-        n = Number(v);
-      } else n = Number(v);
+      if (v !== null && typeof v === 'object' && typeof globalThis.CSSNumericValue === 'function' && v instanceof globalThis.CSSNumericValue) { kids.push(v); continue; }
+      const n = Number(v);
       if (!isFinite(n)) throw new TypeError("Failed to construct '" + name + "': The provided double value is non-finite.");
+      kids.push(new globalThis.CSSUnitValue(n, 'number'));
     }
-    return Object.create(C.prototype);
+    const o = Object.create(C.prototype);
+    (globalThis.__ditingTOM || (globalThis.__ditingTOM = new WeakMap())).set(o,
+      { kids: kids, op: CSSMATH_OP[name] || '' });
+    return o;
   };
   try { Object.defineProperty(C, 'name', { value: name, configurable: true }); } catch (e) {}
   try { Object.defineProperty(C, 'length', { value: len, configurable: true }); } catch (e) {}
   globalThis.__diting_stubs.add(C);
   return C;
 }
+const CSSMATH_OP = {"CSSMathClamp":"clamp","CSSMathInvert":"invert","CSSMathMax":"max","CSSMathMin":"min","CSSMathNegate":"negate","CSSMathProduct":"product","CSSMathSum":"sum"};
 const CSSMATH = [["CSSMathClamp",3,3,false],
   ["CSSMathInvert",1,1,false],
   ["CSSMathMax",0,1,true],

@@ -30600,3 +30600,171 @@ async fn knife88_css_unit_family() {
          serialization via CSSStyleValue.toString, registerProperty inherits-first"
     );
 }
+
+/// 刀89 — typed-om arithmetic family (Chrome 145 truth: k89-math, 81 cases).
+/// Same-unit add/sub/mul/div fold to CSSUnitValue; mixed units mint CSSMathSum
+/// with FLATTENING chained adds (Sum.add(px3) appends a third term) and the
+/// structural minus-plus form "calc(1px + -2em)"; mul by a unit value never
+/// folds, div by one serializes in div mode "calc(4px / 2px)"; min/max fold
+/// only on uniform units; equals is strict unit+value with no-args true;
+/// to() carries Chrome's pinned float artifacts (96px→cm
+/// 2.5400000000000005, 1in→mm 25.400000000000006, 1cm→Q 40.00000000000001)
+/// and rejects relative units / cross-families with distinct messages;
+/// CSSMath value/values/lower/upper/operator read the ctor-minted kids;
+/// CSSNumericArray owns indexed keys with a prototype length getter and zero
+/// other own properties; parse() evaluates single-unit calc() to Sum[Unit]
+/// while mixed units keep the SOURCE string; CSSStyleValue.parse splits
+/// keywords (CSSKeywordValue) / numerics (CSSUnitValue) / plain values.
+#[tokio::test(flavor = "current_thread")]
+async fn knife89_css_numeric_arithmetic() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : (v && typeof v === 'object') ? (v.constructor && v.constructor.name) : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        const N = (v) => v && v.constructor && v.constructor.name === 'CSSUnitValue' ? (v.value + '/' + v.unit) : String(v);
+        const NS = (f) => { const v = f(); return v.constructor.name + '/' + String(v); };
+        T('add:fold', () => N(CSS.px(1).add(CSS.px(2))));
+        T('add:0', () => CSS.px(1).add().constructor.name);
+        T('add:num', () => CSS.px(1).add(2));
+        T('add:str', () => CSS.px(1).add('x'));
+        T('add:mix', () => NS(() => CSS.px(1).add(CSS.em(2))));
+        T('add:node', () => { const v = CSS.px(1).add(CSS.em(2)).add(CSS.px(3)); return v.constructor.name + '/' + String(v) + '/' + v.values.length; });
+        T('sub:fold', () => N(CSS.px(5).sub(CSS.px(2))));
+        T('sub:mix', () => NS(() => CSS.px(1).sub(CSS.em(2))));
+        T('mul:num', () => N(CSS.px(2).mul(CSS.number(3))));
+        T('mul:unit', () => NS(() => CSS.px(2).mul(CSS.px(3))));
+        T('div:num', () => N(CSS.px(4).div(CSS.number(2))));
+        T('div:unit', () => String(CSS.px(4).div(CSS.px(2))));
+        T('min:same', () => N(CSS.px(1).min(CSS.px(2))));
+        T('max:same', () => N(CSS.px(1).max(CSS.px(2))));
+        T('min:mix', () => NS(() => CSS.px(1).min(CSS.em(2))));
+        T('eq:same', () => CSS.px(1).equals(CSS.px(1)));
+        T('eq:diff', () => CSS.px(1).equals(CSS.em(1)));
+        T('eq:num', () => CSS.px(1).equals(1));
+        T('eq:0', () => CSS.px(1).equals());
+        T('to:cm', () => N(CSS.px(96).to('cm')));
+        T('to:mm', () => N(CSS.in(1).to('mm')));
+        T('to:Q', () => N(CSS.cm(1).to('Q')));
+        T('to:pt', () => N(CSS.px(96).to('pt')));
+        T('to:rad', () => N(CSS.deg(180).to('rad')));
+        T('to:grad', () => N(CSS.deg(90).to('grad')));
+        T('to:s', () => N(CSS.ms(1000).to('s')));
+        T('to:dpi', () => N(CSS.dppx(1).to('dpi')));
+        T('to:0', () => CSS.px(1).to());
+        T('to:bogus', () => CSS.px(1).to('bogus'));
+        T('to:incompat', () => CSS.px(1).to('deg'));
+        T('to:em', () => CSS.px(1).to('em'));
+        T('toSum:1', () => NS(() => CSS.px(1).toSum('px')));
+        T('toSum:2', () => { const v = CSS.in(1).toSum('px', 'in'); return v.constructor.name + '/' + String(v) + '/' + v.values.length; });
+        T('inv:val', () => N(new CSSMathInvert(CSS.px(1)).value));
+        T('inv:str', () => String(new CSSMathInvert(CSS.px(1))));
+        T('neg:str', () => String(new CSSMathNegate(CSS.px(1))));
+        T('sum:vals', () => { const a = new CSSMathSum(CSS.px(1), CSS.px(2)).values; return a.constructor.name + '/' + a.length + '/' + N(a[0]) + '/' + N(a[1]); });
+        T('sum:str', () => String(new CSSMathSum(CSS.px(1), CSS.px(2))));
+        T('prod:str', () => String(new CSSMathProduct(CSS.px(1), CSS.em(2))));
+        T('clamp:m', () => { const c = new CSSMathClamp(CSS.px(1), CSS.px(2), CSS.px(3)); return N(c.lower) + '/' + N(c.value) + '/' + N(c.upper); });
+        T('clamp:op', () => new CSSMathClamp(CSS.px(1), CSS.px(2), CSS.px(3)).operator);
+        T('sum:op', () => new CSSMathSum(CSS.px(1)).operator);
+        T('na:own', () => Object.getOwnPropertyNames(new CSSMathSum(CSS.px(1), CSS.px(2)).values).join(','));
+        T('na:for', () => { let s = ''; for (const v of new CSSMathSum(CSS.px(1), CSS.px(2)).values) s += v.unit; return s; });
+        T('parse:1px', () => N(CSSNumericValue.parse('1px')));
+        T('parse:pct', () => N(CSSNumericValue.parse('50%')));
+        T('parse:calc', () => NS(() => CSSNumericValue.parse('calc(1px + 2px)')));
+        T('parse:calc2', () => NS(() => CSSNumericValue.parse('calc(100% - 10px)')));
+        T('parse:calc3', () => NS(() => CSSNumericValue.parse('calc(2 * 3px)')));
+        T('parse:max', () => NS(() => CSSNumericValue.parse('max(1px, 2em)')));
+        T('parse:clamp', () => NS(() => CSSNumericValue.parse('clamp(1px, 2vw, 3px)')));
+        T('parse:empty', () => CSSNumericValue.parse(''));
+        T('parse:0', () => CSSNumericValue.parse());
+        T('sparse', () => NS(() => CSSStyleValue.parse('width', '1px')));
+        T('sparse:color', () => NS(() => CSSStyleValue.parse('color', 'red')));
+        T('sparse:unset', () => NS(() => CSSStyleValue.parse('width', 'inherit')));
+        T('sparse:0', () => CSSStyleValue.parse());
+        T('type:deg', () => JSON.stringify(CSS.deg(1).type()));
+        T('type:px', () => CSS.px(1).type().constructor.name);
+    "#,
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(50).await;
+    let log = rt.evaluate("globalThis.__log").unwrap();
+    // (split assertion — a single json! over 59 nested rows blows the macro
+    // recursion limit; 刀88's 35 was the working ceiling)
+    assert_eq!(
+        log.as_array().unwrap()[..31],
+        serde_json::json!([
+            ["add:fold", "ok", "3/px"],
+            ["add:0", "ok", "CSSUnitValue"],
+            ["add:num", "TypeError", "Failed to execute 'add' on 'CSSNumericValue': Incompatible types"],
+            ["add:str", "TypeError", "Failed to execute 'add' on 'CSSNumericValue': The provided double value is non-finite."],
+            ["add:mix", "ok", "CSSMathSum/calc(1px + 2em)"],
+            ["add:node", "ok", "CSSMathSum/calc(1px + 2em + 3px)/3"],
+            ["sub:fold", "ok", "3/px"],
+            ["sub:mix", "ok", "CSSMathSum/calc(1px + -2em)"],
+            ["mul:num", "ok", "6/px"],
+            ["mul:unit", "ok", "CSSMathProduct/calc(2px * 3px)"],
+            ["div:num", "ok", "2/px"],
+            ["div:unit", "ok", "calc(4px / 2px)"],
+            ["min:same", "ok", "1/px"],
+            ["max:same", "ok", "2/px"],
+            ["min:mix", "ok", "CSSMathMin/min(1px, 2em)"],
+            ["eq:same", "ok", "true"],
+            ["eq:diff", "ok", "false"],
+            ["eq:num", "ok", "false"],
+            ["eq:0", "ok", "true"],
+            ["to:cm", "ok", "2.5400000000000005/cm"],
+            ["to:mm", "ok", "25.400000000000006/mm"],
+            ["to:Q", "ok", "40.00000000000001/q"],
+            ["to:pt", "ok", "72/pt"],
+            ["to:rad", "ok", "3.141592653589793/rad"],
+            ["to:grad", "ok", "100/grad"],
+            ["to:s", "ok", "1/s"],
+            ["to:dpi", "ok", "96/dpi"],
+            ["to:0", "TypeError", "Failed to execute 'to' on 'CSSNumericValue': 1 argument required, but only 0 present."],
+            ["to:bogus", "SyntaxError", "Failed to execute 'to' on 'CSSNumericValue': Invalid unit for conversion"],
+            ["to:incompat", "TypeError", "Failed to execute 'to' on 'CSSNumericValue': Cannot convert to deg"],
+            ["to:em", "TypeError", "Failed to execute 'to' on 'CSSNumericValue': Cannot convert to em"]
+        ])
+        .as_array()
+        .unwrap()[..],
+        "same-unit folds, Sum flatten/minus-plus, div-mode Product, pinned to() artifacts"
+    );
+    assert_eq!(
+        log.as_array().unwrap()[31..],
+        serde_json::json!([
+            ["toSum:1", "ok", "CSSMathSum/calc(1px)"],
+            ["toSum:2", "ok", "CSSMathSum/calc(96px + 0in)/2"],
+            ["inv:val", "ok", "1/px"],
+            ["inv:str", "ok", "calc(1 / 1px)"],
+            ["neg:str", "ok", "calc(-1px)"],
+            ["sum:vals", "ok", "CSSNumericArray/2/1/px/2/px"],
+            ["sum:str", "ok", "calc(1px + 2px)"],
+            ["prod:str", "ok", "calc(1px * 2em)"],
+            ["clamp:m", "ok", "1/px/2/px/3/px"],
+            ["clamp:op", "ok", "clamp"],
+            ["sum:op", "ok", "sum"],
+            ["na:own", "ok", "0,1"],
+            ["na:for", "ok", "pxpx"],
+            ["parse:1px", "ok", "1/px"],
+            ["parse:pct", "ok", "50/percent"],
+            ["parse:calc", "ok", "CSSMathSum/calc(3px)"],
+            ["parse:calc2", "ok", "CSSMathSum/calc(100% - 10px)"],
+            ["parse:calc3", "ok", "CSSMathSum/calc(6px)"],
+            ["parse:max", "ok", "CSSMathMax/max(1px, 2em)"],
+            ["parse:clamp", "ok", "CSSMathClamp/clamp(1px, 2vw, 3px)"],
+            ["parse:empty", "SyntaxError", "Failed to execute 'parse' on 'CSSNumericValue': Invalid math expression"],
+            ["parse:0", "TypeError", "Failed to execute 'parse' on 'CSSNumericValue': 1 argument required, but only 0 present."],
+            ["sparse", "ok", "CSSUnitValue/1px"],
+            ["sparse:color", "ok", "CSSStyleValue/red"],
+            ["sparse:unset", "ok", "CSSKeywordValue/inherit"],
+            ["sparse:0", "TypeError", "Failed to execute 'parse' on 'CSSStyleValue': 2 arguments required, but only 0 present."],
+            ["type:deg", "ok", "{\"angle\":1}"],
+            ["type:px", "ok", "Object"]
+        ])
+        .as_array()
+        .unwrap()[..],
+        "ctor-kid members, zero-own CSSNumericArray, parse evaluation vs \
+         source-string retention"
+    );
+}
