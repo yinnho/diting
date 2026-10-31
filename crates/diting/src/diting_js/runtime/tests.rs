@@ -29655,3 +29655,65 @@ async fn knife73_selection_direction_and_composed() {
     assert_eq!(o["positional"], serde_json::json!([false, true]));
     assert_eq!(o["own"], 0);
 }
+
+/// M4 刀74: TextMetrics against Chrome 145 (k74 probes): ten read-only
+/// prototype accessors with pinned names over WeakMap state (instances carry no
+/// own keys and cannot be written), `new TextMetrics()` illegal, foreign
+/// receivers illegal, measureText's argument ladder and zero-size font, and the
+/// metrics model's relations measured on Chrome (default alphabetic baseline,
+/// hanging = 0.8*ascent, ideographic = -descent, top/middle/bottom shifts, ink
+/// bounds aligned by textAlign, whitespace/empty text without ink). `width`
+/// keeps the engine's persona-font model, so it is not compared to Chrome here.
+#[tokio::test(flavor = "current_thread")]
+async fn knife74_text_metrics() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { o[k] = f(); } catch (e) { o[k] = 'THROW:' + e.name + ':' + e.message; } };
+        const c = document.createElement('canvas'); const x = c.getContext('2d');
+        const props = ['width', 'actualBoundingBoxLeft', 'actualBoundingBoxRight', 'fontBoundingBoxAscent', 'fontBoundingBoxDescent', 'actualBoundingBoxAscent', 'actualBoundingBoxDescent', 'hangingBaseline', 'alphabeticBaseline', 'ideographicBaseline'];
+        const M = (font, text, base, align) => { x.font = font; x.textBaseline = base || 'alphabetic'; x.textAlign = align || 'start'; return x.measureText(text); };
+        const rest = (m) => props.slice(3).map(k => +m[k].toFixed(3));
+        t('shape', () => { const m = M('10px sans-serif', 'abc'); return [m.constructor.name, Reflect.ownKeys(m).length, Object.prototype.toString.call(m), Object.getPrototypeOf(m) === TextMetrics.prototype, JSON.stringify(m)]; });
+        t('ctor', () => { try { new TextMetrics(); return 'NO'; } catch (e) { return e.name + ':' + e.message; } });
+        t('getters', () => props.map(k => { const d = Object.getOwnPropertyDescriptor(TextMetrics.prototype, k); return [d.get.name, !!d.set, d.enumerable, d.configurable]; }));
+        t('foreign', () => { try { Object.getOwnPropertyDescriptor(TextMetrics.prototype, 'width').get.call({}); return 'NO'; } catch (e) { return e.name + ':' + e.message; } });
+        t('frozen', () => { const m = x.measureText('a'); const w = m.width; m.width = 99; return [m.width === w, Object.keys(m).length, x.measureText('a') !== x.measureText('a')]; });
+        t('arial16', () => rest(M('16px Arial', 'Hello')));
+        t('arial32', () => rest(M('32px Arial', 'Hello')));
+        t('tall', () => rest(M('16px Arial', 'Hgjpq')));
+        t('top', () => rest(M('16px Arial', 'Hello', 'top')));
+        t('hanging', () => rest(M('16px Arial', 'Hello', 'hanging')));
+        t('middle', () => rest(M('16px Arial', 'Hello', 'middle')));
+        t('ideo', () => rest(M('16px Arial', 'Hello', 'ideographic')));
+        t('bottom', () => rest(M('16px Arial', 'Hello', 'bottom')));
+        t('empty', () => { const m = M('16px Arial', ''); return [m.width, m.actualBoundingBoxLeft, m.actualBoundingBoxRight, m.actualBoundingBoxAscent, m.actualBoundingBoxDescent, m.fontBoundingBoxAscent]; });
+        t('space', () => { const m = M('16px Arial', ' '); return [m.actualBoundingBoxLeft, m.actualBoundingBoxRight, m.actualBoundingBoxAscent]; });
+        t('align', () => { const w = M('16px Arial', 'Hello').width; return ['start', 'center', 'right', 'end'].map(a => { const m = M('16px Arial', 'Hello', 'alphabetic', a); return [+(m.actualBoundingBoxLeft - (a === 'center' ? w / 2 : a === 'right' || a === 'end' ? w : 0)).toFixed(3), +(m.actualBoundingBoxRight - (w - (a === 'center' ? w / 2 : a === 'right' || a === 'end' ? w : 0))).toFixed(3)]; }); });
+        t('zero', () => props.map(k => M('0px Arial', 'Hello')[k]));
+        t('args', () => { try { x.measureText(); return 'NO'; } catch (e) { return e.message; } });
+        t('lens', () => [CanvasRenderingContext2D.prototype.measureText.length]);
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["shape"], serde_json::json!(["TextMetrics", 0, "[object TextMetrics]", true, "{}"]));
+    assert_eq!(o["ctor"], "TypeError:Failed to construct 'TextMetrics': Illegal constructor");
+    let names = ["get width", "get actualBoundingBoxLeft", "get actualBoundingBoxRight", "get fontBoundingBoxAscent", "get fontBoundingBoxDescent", "get actualBoundingBoxAscent", "get actualBoundingBoxDescent", "get hangingBaseline", "get alphabeticBaseline", "get ideographicBaseline"];
+    assert_eq!(o["getters"], serde_json::json!(names.iter().map(|n| serde_json::json!([n, false, true, true])).collect::<Vec<_>>()));
+    assert_eq!(o["foreign"], "TypeError:Illegal invocation");
+    assert_eq!(o["frozen"], serde_json::json!([true, 0, true]));
+    assert_eq!(o["arial16"], serde_json::json!([14, 3, 11.453, 0.188, 11.2, 0, -3]));
+    assert_eq!(o["arial32"], serde_json::json!([29, 7, 22.906, 0.375, 23.2, 0, -7]));
+    assert_eq!(o["tall"], serde_json::json!([14, 3, 11.453, 3.367, 11.2, 0, -3]));
+    assert_eq!(o["top"], serde_json::json!([1.594, 15.406, -0.953, 12.594, -1.206, -12.406, -15.406]));
+    assert_eq!(o["hanging"], serde_json::json!([2.8, 14.2, 0.253, 11.387, 0, -11.2, -14.2]));
+    assert_eq!(o["middle"], serde_json::json!([9.594, 7.406, 7.047, 4.594, 6.794, -4.406, -7.406]));
+    assert_eq!(o["ideo"], serde_json::json!([17, 0, 14.453, -2.813, 14.2, 3, 0]));
+    assert_eq!(o["bottom"], serde_json::json!([17.594, -0.594, 15.047, -3.406, 14.794, 3.594, 0.594]));
+    assert_eq!(o["empty"], serde_json::json!([0, 0, 0, 0, 0, 14]));
+    assert_eq!(o["space"], serde_json::json!([0, 0, 0]));
+    assert_eq!(o["align"], serde_json::json!([[-1.281, -0.594], [-1.281, -0.594], [-1.281, -0.594], [-1.281, -0.594]]));
+    assert_eq!(o["zero"], serde_json::json!(vec![0; 10]));
+    assert_eq!(o["args"], "Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.");
+    assert_eq!(o["lens"], serde_json::json!([1]));
+}

@@ -2090,7 +2090,7 @@ P TextEncoderStream :: constructor,encoding
 P TextEvent :: constructor,data,initTextEvent
 P TextFormat :: constructor,rangeEnd,rangeStart,underlineStyle,underlineThickness
 P TextFormatUpdateEvent :: constructor,getTextFormats
-P TextMetrics :: actualBoundingBoxAscent,actualBoundingBoxDescent,actualBoundingBoxLeft,actualBoundingBoxRight,constructor,width
+P TextMetrics :: actualBoundingBoxAscent,actualBoundingBoxDescent,actualBoundingBoxLeft,actualBoundingBoxRight,alphabeticBaseline,constructor,fontBoundingBoxAscent,fontBoundingBoxDescent,hangingBaseline,ideographicBaseline,width
 P TextTrack :: activeCues,addCue,constructor,cues,id,kind,label,language,mode,oncuechange,removeCue
 P TextTrackCue :: constructor,endTime,id,pauseOnExit,startTime,track
 P TextTrackCueList :: constructor,getCueById,length
