@@ -2039,3 +2039,17 @@ Chrome 145 真值（metal 腿=真 GPU persona 机；k92-glxt-e/p1/p2/p3min/p3evt
 数字：九轮 probe 引擎腿全 0 diff（186 案）；shape 936/936 全 0；enum **205/211**（6 漏全为既有环境漏 newdoc/sheets/nodeList/htmlColl/gain/ctxDest——k91 的 207/211 系 GPU-less 腿口径，同腿对拍无回归、gl artifact 反愈）；instance 127/127；cargo test lib 110 失败与 fail-base **逐字节相同**、workspace 46 个 server/session 失败逐名全等、无任何新失败。
 测试：`knife92_webgl_ext_behavior`（61 行日志断言+丢机两段 pump 三断言）。
 **教训**：①**pname 常量≠取值枚举**——门禁 Map 的键是 CLIP_ORIGIN_EXT=37724/CLIP_DEPTH_MODE_EXT=37725（pname），不是 36001/37726（值枚举），truth JSON 两种都存，抄前先认清哪边；②**toStringTag≠接口名**——消息里的 'EXTDisjointTimerQueryWebGL2' 大写稳定（疑似小写是误读），双捕获定谳再写死；③**桩构造器在异步回调里抛=静默断链**——setTimeout 里 new 桩 WebGLContextEvent 抛掉则 lost 事件永不派发、lostPrevented 永不置、probe 整腿 None；真构造器一到手全环即通；④**期望行抄 probe 不抄脑内模型**——polygonMode 读回 6913、cc 门禁开着 36001、join(null)=''、restore 须在 lost 派发后——四案全是引擎已对 Chrome 而测试作者想当然；⑤serde_json json! 宏递归上限约 30 行，长断言拆段；⑥**丢机测试必须分段 pump**——restoreContext 在 lost 事件派发前调是 no-op，lose→pump→restore→pump 才是 Chrome 语义。
+
+## M4 刀93：合成 unload 全哑 + onwebkit* 四死属性——处理器 tail 的「过度真火」收敛（2026-10-31）
+
+Chrome 145 真值（k93-fire/fire2/fire3 三轮 39 案）钉死——本刀与惯常方向相反：引擎 tail **全火**，Chrome 反而有两处死区，引擎过度真火：
+
+- **合成 `unload` 零火（类型级）**：`dispatchEvent(new Event('unload'))` 在 Chrome 上**任何 target 都不触发任何回调**——window/document 的 listener 与 handler、body 的 handler（含冒泡到 window）、div/span/svg 的 listener、**裸 EventTarget 的 listener 全 0**（k93-fire3）。机制=Chrome 把 unload 监听器放进**独立 unload 注册表**（页面生命周期机制专用，bfcache 统计那套），dispatchEvent 永远读不到它；派发本身照常跑（返回 true、type/eventPhase 可读）。onunload 属性同死（ul.hdl=0）。
+- **邻居全活**：beforeunload/pagehide 合成派发照火（1/1）——死区只有 error（#37 pipeline-only）+unload 两个类型；body.onclick 恰火一次（无双重火）。引擎 body.onunload 曾火两次（body 腿+window 腿），本刀一并治。
+- **onwebkit* 四属性=死属性**：onwebkitanimationend/iteration/start + onwebkittransitionend——desc 正常（get/set/enumerable/configurable 全 true、默认 null）、**赋值照存取**（get 回函数、置 null 复原），但处理器**任何类型派发都不火**（自身前缀类型 0、非前缀 0、window/document 腿也 0）；同前缀类型的 **addEventListener 照火**（wk.lsn=1）——死的是处理器腿，不是类型。
+- **tail 全景**：window 119/document 113/div 106/video 110/svg 106 个 on* 属性合成派发全火（k93-fire 扫描，除上述死区）——引擎侧除死区外已全对。
+
+实现：`event_target.rs` dispatch 里类型级 `dead_unload` 门（unload 跳过整条 listener 走廊+handler 腿+activation 腿，epilogue 状态复位与 true 返回照走——Chrome「派发照常、回调全哑」语义）；`event_hooks.js` handler() 头部 DEAD_HANDLERS 集（四 onwebkit* 名 → undefined，属性面不动）。
+数字：三轮 probe 引擎腿 39/39 全 0 diff；shape 936/936 全 0；enum 205/211（6 既有环境漏）；instance 127/127；cargo lib 110 失败与基线逐字节相同、workspace 156（110 lib+46 ws）逐名全等零新增。
+测试：`knife93_unload_dead_and_webkit_handler_attributes`（24 行断言）。
+**教训**：①**对拍是双向的——引擎「太活」也是错**：tail 真火扫出来引擎 124/119 领先 Chrome，两处死区（unload 类型级、onwebkit* 处理器级）都是 Chrome 的历史包袱，规范文档不会告诉你，只有真 Chrome 探针能钉；②**卸载类事件的注册表是单列的**——Chrome 的 unload 监听器走页面生命周期注册表、合成派发永远读不到，修法选「派发侧类型门」而非「注册侧转移」（后者要动 add/remove/once/abort 全路径，且观测等价）；③死属性的死法有层次——**存储腿活（get/set 正常）、火腿死**，先探 desc+存取再动火腿，别把属性面一起拆了。

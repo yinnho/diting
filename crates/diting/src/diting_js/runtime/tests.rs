@@ -31156,3 +31156,102 @@ async fn knife92_webgl_ext_behavior() {
         .unwrap();
     assert_eq!(out4.as_str().unwrap(), "[\"[\\\"lost\\\",\\\"restored\\\"]\",false,true,0]");
 }
+
+#[tokio::test]
+async fn knife93_unload_dead_and_webkit_handler_attributes() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        r#"
+        globalThis.__log = [];
+        const T = (n, f) => { try { const v = f(); __log.push([n, 'ok', v === undefined ? 'undef' : String(v)]); }
+                              catch (e) { __log.push([n, e.name, e.message]); } };
+        const div = document.createElement('div');
+        // ---- synthetic unload fires NOTHING: listeners AND handlers, every target (k93-fire/fire2/fire3) ----
+        T('ul.winLsn', () => { let n = 0; const f = () => n++; window.addEventListener('unload', f);
+                               window.dispatchEvent(new Event('unload')); window.removeEventListener('unload', f); return n; });
+        T('ul.winHdl', () => { let n = 0; window.onunload = () => n++; window.dispatchEvent(new Event('unload'));
+                               window.onunload = null; return n; });
+        T('ul.docLsn', () => { let n = 0; const f = () => n++; document.addEventListener('unload', f);
+                               document.dispatchEvent(new Event('unload')); document.removeEventListener('unload', f); return n; });
+        T('ul.docHdl', () => { let n = 0; document.onunload = () => n++; document.dispatchEvent(new Event('unload'));
+                               document.onunload = null; return n; });
+        T('ul.bodyHdl', () => { let n = 0; document.body.onunload = () => n++;
+                                document.body.dispatchEvent(new Event('unload', { bubbles: true })); document.body.onunload = null; return n; });
+        T('ul.divLsn', () => { let n = 0; const f = () => n++; div.addEventListener('unload', f);
+                               div.dispatchEvent(new Event('unload')); div.removeEventListener('unload', f); return n; });
+        T('ul.etLsn', () => { const et = new EventTarget(); let n = 0; const f = () => n++;
+                              et.addEventListener('unload', f); et.dispatchEvent(new Event('unload')); return n; });
+        T('ul.spanLsn', () => { const sp = document.createElement('span'); let n = 0; const f = () => n++;
+                                sp.addEventListener('unload', f); sp.dispatchEvent(new Event('unload')); return n; });
+        T('ul.ret', () => window.dispatchEvent(new Event('unload')));
+        T('ul.bubBodyToWin', () => { let n = 0; window.addEventListener('unload', () => n++);
+                                     document.body.dispatchEvent(new Event('unload', { bubbles: true })); return n; });
+        // neighbors stay alive: beforeunload/pagehide fire on synthetic (the pipeline-only ones are error+unload only)
+        T('bu.hdl', () => { let n = 0; window.onbeforeunload = () => n++; window.dispatchEvent(new Event('beforeunload'));
+                            window.onbeforeunload = null; return n; });
+        T('ph.hdl', () => { let n = 0; window.onpagehide = () => n++; window.dispatchEvent(new Event('pagehide'));
+                            window.onpagehide = null; return n; });
+        T('body.click', () => { let n = 0; document.body.onclick = () => n++;
+                                document.body.dispatchEvent(new Event('click', { bubbles: true })); document.body.onclick = null; return n; });
+        // ---- the four webkit-prefixed handler attributes: stored but NEVER fired (listener of the type still fires) ----
+        T('wk.hdl', () => { let n = 0; div.onwebkitanimationend = () => n++; div.dispatchEvent(new Event('webkitanimationend'));
+                            div.onwebkitanimationend = null; return n; });
+        T('wk.lsn', () => { let n = 0; const f = () => n++; div.addEventListener('webkitanimationend', f);
+                            div.dispatchEvent(new Event('webkitanimationend')); div.removeEventListener('webkitanimationend', f); return n; });
+        T('wk.cross', () => { let n = 0; div.onwebkitanimationend = () => n++; div.dispatchEvent(new Event('animationend'));
+                              div.onwebkitanimationend = null; return n; });
+        T('wk.store', () => { const f = function zz() {}; div.onwebkitanimationend = f;
+                              const back = div.onwebkitanimationend === f; div.onwebkitanimationend = null;
+                              return [back, div.onwebkitanimationend === null].join('/'); });
+        T('wk.win', () => { let n = 0; window.onwebkitanimationstart = () => n++;
+                            window.dispatchEvent(new Event('webkitanimationstart')); window.onwebkitanimationstart = null; return n; });
+        T('wk.doc', () => { let n = 0; document.onwebkitanimationiteration = () => n++;
+                            document.dispatchEvent(new Event('webkitanimationiteration'));
+                            document.onwebkitanimationiteration = null; return n; });
+        T('wktrans', () => { let n = 0; div.onwebkittransitionend = () => n++;
+                             div.dispatchEvent(new Event('webkittransitionend')); div.onwebkittransitionend = null; return n; });
+        T('wk.desc', () => { const d = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'onwebkitanimationend');
+                             return d ? [!!d.get, !!d.set, d.enumerable, d.configurable].join('/') : 'MISSING'; });
+        // std handlers keep firing (the tail at large is alive — k93-fire div/document/video/svg/window sweeps)
+        T('std.anim', () => { let n = 0; div.onanimationend = () => n++; div.dispatchEvent(new Event('animationend'));
+                              div.onanimationend = null; return n; });
+        T('std.video', () => { const v = document.createElement('video'); let n = 0; v.onpause = () => n++;
+                               v.dispatchEvent(new Event('pause')); v.onpause = null; return n; });
+        T('std.win', () => { let n = 0; window.onresize = () => n++; window.dispatchEvent(new Event('resize'));
+                             window.onresize = null; return n; });
+        return JSON.stringify(__log);
+    "#).unwrap();
+    let log = rt
+        .evaluate("JSON.stringify(__log)")
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["ul.winLsn", "ok", "0"],
+            ["ul.winHdl", "ok", "0"],
+            ["ul.docLsn", "ok", "0"],
+            ["ul.docHdl", "ok", "0"],
+            ["ul.bodyHdl", "ok", "0"],
+            ["ul.divLsn", "ok", "0"],
+            ["ul.etLsn", "ok", "0"],
+            ["ul.spanLsn", "ok", "0"],
+            ["ul.ret", "ok", "true"],
+            ["ul.bubBodyToWin", "ok", "0"],
+            ["bu.hdl", "ok", "1"],
+            ["ph.hdl", "ok", "1"],
+            ["body.click", "ok", "1"],
+            ["wk.hdl", "ok", "0"],
+            ["wk.lsn", "ok", "1"],
+            ["wk.cross", "ok", "0"],
+            ["wk.store", "ok", "true/true"],
+            ["wk.win", "ok", "0"],
+            ["wk.doc", "ok", "0"],
+            ["wktrans", "ok", "0"],
+            ["wk.desc", "ok", "true/true/true/true"],
+            ["std.anim", "ok", "1"],
+            ["std.video", "ok", "1"],
+            ["std.win", "ok", "1"]
+        ]),
+        "knife93: synthetic unload fires nothing on any target; onwebkit* four attributes stored-but-dead; the rest of the tail stays alive"
+    );
+}
