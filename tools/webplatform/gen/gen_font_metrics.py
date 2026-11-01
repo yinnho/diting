@@ -938,7 +938,7 @@ def main():
                 for tag, anchors in tags.items():
                     ss = sorted(anchors, key=lambda s: int(s))
                     per.setdefault(tag, {})[int(pk)] = [
-                        [int(s) for s in ss], [int(anchors[s]) for s in ss]]
+                        [int(s) for s in ss], [float(anchors[s]) for s in ss]]
             return per
         lines.append('  // (刀105) armed kernel: FIRE chars (⁏ ⁚ 202B … Persian digits) arm')
         lines.append('  // a GPOS walk that cancels/adds kern the plain pair tables cannot')
