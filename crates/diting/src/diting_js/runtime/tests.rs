@@ -31584,13 +31584,15 @@ async fn knife98_kern_matrix_model() {
     // (刀100 repin) 14 rows moved with the 刀100 truth upgrades (composite full-
         // matrix kern, su triple baseline, 4dp S rows) and were re-verified against
         // live Chrome 2026-11-01 — 13 within 0.0051 (several now exact);
-        // tri.suExotic16 stays 0.23 under live Chrome (su small-px non-linearity,
-        // 刀101 backlog) and pins the model, not Chrome.
+        // tri.suExotic16 stayed 0.23 off under live Chrome (su small-px
+        // non-linearity, 刀101 backlog) until 刀103's triSpot anchors landed.
         // verified against live Chrome 145 within 0.0405px (worst leg: 24px
     // knot-region text); expectations pin the model, not Chrome's float.
     // (刀101 repin) six rows moved with the kb 0.002 re-gate + as 0.002 gate
         // and were re-verified against live Chrome (all ≤0.0012; suTa16's new
-        // -1.64 IS chrome to 0.0006); tri.suExotic16 keeps its 0.23 model pin.
+        // -1.64 IS chrome to 0.0006); (刀103 repin) tri.suExotic16 24.4092 →
+        // 24.6433 — the triSpot curve IS chrome exactly; the 0.23 model pin
+        // retired with the backlog it was holding.
     let mut rt = setup_runtime("<html><body></body></html>");
     let log = rt.evaluate(r#"
         const L = [];
@@ -31659,7 +31661,7 @@ async fn knife98_kern_matrix_model() {
             ["tri.mf40", "ok", "296.72"],
             ["tri.fff100", "ok", "712.4"],
             ["tri.suExotic100", "ok", "152.458"],
-            ["tri.suExotic16", "ok", "24.4092"],
+            ["tri.suExotic16", "ok", "24.643"],
             ["cjk.zero", "ok", "300"],
             ["hangul.zero", "ok", "27.68"],
             ["monoQ.flat8", "ok", "53.824"],
@@ -31995,5 +31997,77 @@ fn knife102_systemui_shared_bands() {
             ["u2028", 4.932]
         ]),
         "knife102: upright shared bump/arch bands + region B + cliff tails + quarters (Chrome 145 fonts truth)"
+    );
+}
+
+#[test]
+fn knife103_triple_small_size_spots() {
+    // (k103) 三元组小尺寸非线性: su triple values are NOT linear-from-@100
+    // below ~28px — GPOS pixel-snap families: threshold turn-on (S ⁝“a: 0 to
+    // 16, fires from 17), non-monotonic peak-then-dip (900 †9…), sign-flip
+    // (B ⁏&™ negative small, positive large), reverse-decay (B 7:Ì killed
+    // @100 but real 5..24). 102,497/150,863 su keys deviate > 0.002 at some
+    // integer size 5..28 (worst 2.11px @16, face 900 ♦^,). triSpot truth:
+    // per-key integer anchor rows [px@100*100 at 5..28], emitted as k3s Maps
+    // (TSP/TSPM, R on the base entry + 21 faces by entry tag); the sum()
+    // kernel consults k3s BEFORE the kill path — spot beats mod/kill/inherit
+    // inside [5,28], linear interp between integer anchors (half sizes
+    // verified worst 0.0008 on the worst keys — no half grid needed, unlike
+    // k101's kern bands), <5 clamps to v(5), >=28 falls back to the resolved
+    // linear value (curves converge by ~28). Round 2 added the R-ext
+    // INHERITED keys (163–637/face; face mods alone don't cover the inherit
+    // universe). Residue after the layer: c3v2 37→5 bad @0.0015 (2 @0.002),
+    // worst 0.0028 — all flank-context deltas (flanked 'nv‥zt' vs standalone
+    // window), the c5 mid-layer's small-size extension = 刀104 candidate.
+    // knife98 tri.suExotic16 re-pinned 24.4092 → 24.643 (the 0.23 model pin
+    // retired with its backlog). Rows below verified against live Chrome
+    // (worst 0.0018 = R@27.5 interp cell; string widths carry three glyphs'
+    // 4dp accumulation).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        x.font = '21px system-ui'; x.measureText('‗').width;
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        const L = [];
+        L.push(['spot.R_5', W('5px system-ui', '⁏…“')]);
+        L.push(['spot.R_16', W('16px system-ui', '⁏…“')]);
+        L.push(['spot.R_275', W('27.5px system-ui', '⁏…“')]);
+        L.push(['spot.R_28', W('28px system-ui', '⁏…“')]);
+        L.push(['spot.R_285', W('28.5px system-ui', '⁏…“')]);
+        L.push(['spot.R_32', W('32px system-ui', '⁏…“')]);
+        L.push(['spot.R_4clamp', W('4px system-ui', '⁏…“')]);
+        L.push(['spot.900_16', W('900 16px system-ui', '♦^,')]);
+        L.push(['spot.B_inh_16', W('bold 16px system-ui', '♥*T')]);
+        L.push(['spot.S_turn_12', W('small-caps 12px system-ui', '⁝“a')]);
+        L.push(['spot.S_turn_16', W('small-caps 16px system-ui', '⁝“a')]);
+        L.push(['spot.S_turn_21', W('small-caps 21px system-ui', '⁝“a')]);
+        L.push(['spot.B_revive_16', W('bold 16px system-ui', '7:Ì')]);
+        L.push(['spot.B_flip_16', W('bold 16px system-ui', '⁏&™')]);
+        L.push(['spot.M_half_165', W('500 16.5px system-ui', '♦^.')]);
+        L.push(['spot.100_8', W('100 8px system-ui', '⁝×T')]);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["spot.R_5", 7.4987],
+            ["spot.R_16", 22.09],
+            ["spot.R_275", 31.5616],
+            ["spot.R_28", 32.0232],
+            ["spot.R_285", 32.5888],
+            ["spot.R_32", 36.5369],
+            ["spot.R_4clamp", 5.999],
+            ["spot.900_16", 29.336],
+            ["spot.B_inh_16", 33.352],
+            ["spot.S_turn_12", 15.846],
+            ["spot.S_turn_16", 20.502],
+            ["spot.S_turn_21", 25.854],
+            ["spot.B_revive_16", 19.2332],
+            ["spot.B_flip_16", 30.759],
+            ["spot.M_half_165", 27.4486],
+            ["spot.100_8", 12.456]
+        ]),
+        "knife103: triple small-size spot anchors (Chrome 145 fonts truth)"
     );
 }

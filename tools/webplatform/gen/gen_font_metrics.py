@@ -27,6 +27,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-metrics-truth-145.json')
 KTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-kern-truth-145.json')
 FTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-faces-truth-145.json')
+# (刀103) triSpot lives in its own file: appending it to fonts-faces-truth
+# pushed that file past GitHub's 100MB hard limit (108.5MB); the spot
+# universe is ~26MB on its own. Same pattern as fonts-kern vs fonts-faces.
+SPTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-trispot-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -193,6 +197,18 @@ def main():
             gt = to_int_table(spec)
             if gt:
                 trif[key]['g'] = gt
+    # (刀103) small-size triple spots: chrome tri(px) curves are NOT
+    # linear-from-@100 below ~28px — GPOS pixel-snap families (threshold
+    # turn-on, non-monotonic peak-then-dip, sign-flip, reverse-decay; worst
+    # 2.11px @16, 92,400/140,766 su keys deviate > 0.002 at some integer
+    # size 5..28). Per-key integer anchor rows [px@100*100 at 5..28];
+    # linear interp inside [5,28] — half-size integer-interp verified worst
+    # 0.0008 on the worst keys, so NO half grid (unlike k101's kern bands);
+    # <5 clamps to v(5), >=28 falls back to the resolved linear value.
+    # Split file (fonts-trispot-truth-145.json) — see SPTRUTH note above.
+    tspot = {}
+    if os.path.exists(SPTRUTH):
+        tspot = json.load(open(SPTRUTH))
 
     def build_faces(rk, entry):
         # attach entry['f'] = {tag: face table entry} for every face that is
@@ -660,6 +676,19 @@ def main():
         lines.append('      }')
         lines.append('    }')
         lines.append('  }')
+    if tspot:
+        lines.append('  // (刀103) small-size triple spots: chrome tri(px) curves are NOT')
+        lines.append('  // linear-from-@100 below ~28px (GPOS pixel-snap: turn-on, non-')
+        lines.append('  // monotonic, sign-flip, reverse-decay; worst 2.11px @16). k3s =')
+        lines.append('  // per-key integer anchor rows (px@100*100 at 5..28), linear interp')
+        lines.append('  // inside [5,28], >=28 falls back to the resolved linear value.')
+        lines.append('  const TSP = %s;' % json.dumps(tspot, separators=(',', ':')))
+        lines.append('  const TSPM = new Map();')
+        lines.append('  for (const tag in TSP) TSPM.set(tag, new Map(Object.entries(TSP[tag]).map(([t, v]) => [t3key(t), v])));')
+        lines.append("  const tspR = TSPM.get('R');")
+        lines.append("  if (tspR) NAMES['system-ui'].k3s = tspR;")
+        lines.append("  const suF4 = NAMES['system-ui'].f;")
+        lines.append("  for (const [tag, mm] of TSPM) { if (tag !== 'R' && suF4 && suF4[tag]) suF4[tag].k3s = mm; }")
     if triMid:
         lines.append('  // (刀100 c5) triple mid-value layer: MIDF[fam] = {window: px@100')
         lines.append('  // int} replaces the RESOLVED triple value (face override, kill or R')
@@ -966,7 +995,7 @@ def main():
         lines.append('      const m = tbl.kr === undefined ? (tbl.krR === undefined || tbl.kr0 ? null : KMAP[tbl.krR]) : KMAP[tbl.kr];')
         lines.append('      const kkM = tbl.kkM || null, kbM = tbl.krbM || null;')
         lines.append('      const tm = tbl.k3 === undefined ? null : TMAP[tbl.k3];')
-        lines.append('      const k3m = tbl.k3m || null, k3k = tbl.k3k || null, k3g = tbl.k3g || null;')
+        lines.append('      const k3m = tbl.k3m || null, k3k = tbl.k3k || null, k3g = tbl.k3g || null, k3s = tbl.k3s || null;')
         lines.append('      const mid3M = tbl.midM || null;')
         lines.append('      const fmM = tbl.kfmM || null;')
         lines.append('      const frM = tbl.krR === undefined ? null : KMAP[tbl.krR];')
@@ -983,10 +1012,18 @@ def main():
         lines.append('        if (p1 >= 0 && m) w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM);')
         if fd and fd.get('suKern'):
             lines.append('        else if (p1 >= 0 && faceSu) w += kernFace(kkM, tbl.vM, kbM, p1, c, px);')
-        lines.append('        if (p2 >= 0 && (tm || k3m || k3k)) { const q = p2 * 4294967296 + p1 * 65536 + c;')
+        lines.append('        if (p2 >= 0 && (tm || k3m || k3k || k3s)) { const q = p2 * 4294967296 + p1 * 65536 + c;')
         lines.append('          const ov = k3m ? k3m.get(q) : undefined;')
         lines.append('          let tv = ov !== undefined ? ov')
         lines.append('            : (k3k && k3k.has(q)) ? undefined : (tm ? tm.get(q) : undefined);')
+        # (刀103) spot anchors beat the resolved linear value inside [5,28]
+        # (incl. reviving killed keys); the c5 mid layer still overrides for
+        # flanked whitespace windows after this, unchanged.
+        lines.append('          if (k3s) { const sp = k3s.get(q);')
+        lines.append('            if (sp !== undefined && px <= 28) {')
+        lines.append('              const fi = px - 5, ii = fi | 0;')
+        lines.append('              tv = fi <= 0 ? sp[0] : ii >= 23 ? sp[23] : sp[ii] + (sp[ii + 1] - sp[ii]) * (fi - ii);')
+        lines.append('            } }')
         lines.append('          if (tv !== undefined && text.length !== 3) {')
         lines.append('            const gv = k3g ? k3g.get(q) : undefined;')
         lines.append('            const fv = gv !== undefined ? gv : (mid3M ? mid3M.get(q) : undefined);')
@@ -1009,12 +1046,13 @@ def main():
     spots_n = sum(1 for n in names.values() if 's' in n)
     print('wrote %s: %d unique tables, %d names, %d generics, %d fonts with size overrides, '
           '%d kern tables (%d pairs), %d triple tables (%d), %d su knots, %d su bands, '
-          '%d trif combos (%d mods, %d kills)' % (
+          '%d trif combos (%d mods, %d kills), %d triSpot faces (%d keys)' % (
               os.path.relpath(OUT, ROOT), len(canon), len(names), len(generic), spots_n,
               len(kcanon), sum(len(t) for t in kcanon), len(tcanon), sum(len(t) for t in tcanon),
               len(kd.get('su', {}).get('kk', {})), len(kd.get('su', {}).get('kb', {})),
               len(trif), sum(len(v.get('m', {})) for v in trif.values()),
-              sum(len(v.get('k', [])) for v in trif.values())))
+              sum(len(v.get('k', [])) for v in trif.values()),
+              len(tspot), sum(len(v) for v in tspot.values())))
 
 
 if __name__ == '__main__':
