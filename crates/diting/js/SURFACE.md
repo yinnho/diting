@@ -2137,3 +2137,25 @@ canvas measureText 从 `length*6*scale*factor` 均匀步进换成**捕获的 Chr
 
 **数字**：160 行 verify 探针（12 组场景：结点/band 边界/固定线性/连字/脚本三元组/ext/extext/CJK）Chrome vs 引擎**最差 0.0405px、>0.05 零件**；shape **936/936 全 0**；enum 204/211（7 已知不变）；instance 127/127；快照无漂移；cargo test **968/111**（失败集与 k98 前两侧逐件 diff **零新增**——font_size_zero 在 HEAD 上同挂=先前存在，与刀97 收据 110 的差一件为记账口径）；workspace **1514/157**；测试 `knife98_kern_matrix_model` 31 行（期望=引擎指纹，先探后写，对 Chrome ≤0.0405）。
 **教训**：①**单位三连坑**——kern 真值 centi-px（runtime ×px/10000）、kk 是 1e-4em、kb 是 px·100@尺寸；24-28 混合端点把 v 写成 v*100 当场炸出 Ta@26=-172.98（v 换到 1e-4em 恰是 v 本身）；②**GENERIC JSON 复制品陷阱**——kkM 挂在 NAMES 正主上，generic() 返回 GENERIC 里的 JSON 复制品永远拿不到；改 GENERIC 存 persona 键、运行时查 NAMES 单一对象；③**磁铁阈值漏光学独占对**——'Wa wo'@16 差 0.31 而 @100 归零就是指纹（@100≈0 的对在文本尺寸可 kern 到 -0.02em），全尺寸扫才是全矩阵；④**探针公式验尸**——set.add(p.slice(1)) 把单字符混进对集，产出 2 字符垃圾 key（w('undefinedz') 级噪声）；按 key 长度+码点类分诊才识破；⑤**bidi 覆盖符的宽度是伪 kern**——Cf 类字符必须从三元组剔除；⑥**一探针一表达式**——`;` 拼接多 IIFE 会挂 probe_run 的取页等待；⑦zsh 裸 `==` 词雷再现（echo === 炸，引号包好）。
+
+## M4 刀99 — 字体指纹线刀3：ctx.font 面轴（bold/italic/weight/small-caps）（2026-11-01）
+
+k97/k98 只建模 R（regular）面；本刀收 font 串的 [style||variant||weight] 腿：`bold 100px Arial`、`small-caps 24px Times`、`900 13px system-ui` 各解析到**每字体独立 FACE 表**（B/I/Z/M/S/100/200/300/600/800/900），纯查表零合成——Chrome 不合成（bold Menlo ≠ R 放大，每面自有被捕获的步进表）。真源=`chrome/fonts-faces-truth-145.json`（面表+逐面 kern），生成器经 FTRUTH 读取。
+
+**面模型**：
+1. **per-font 面表**：res 键=字体名或 `g:<generic>`，每字体 B/I/Z/M/S+数字面各有 ADV 表（与 R 共享 canon，同表自动 intern 合一）；`build_faces` 按真源逐面挂。
+2. **system-ui=可变字体全家**：suFaces 证明**面差非常数 em**（不是 R 的缩放），每面带全套 k/xk 光学结点梯（尺寸 6..100 全档）；kern 取 suKern 逐面映射。
+3. **带引号 generic**（`"serif"`/`"monospace"`/`"cursive"`）解析到与不带引号**不同的隐藏面**（GENQ 独立盒）；名字恰是真族名的引号对=同表（r8 验 1060/340 全等）。
+4. **small-caps**：S 面表 + scspot 小尺寸 CoreText 量化点 + scKernBands（27-整数带 6..32）。
+
+**kern 闭合**（k98 遗留的 su 面与全字体面）：
+- **suKern 扩到 8 面**（B/I/Z/M/S/600/800/900），每面 kk 结点+v100 线性锚+kb 稀疏带覆盖；**kb 偏差闸 0.02→0.0075px** 重灌 ~195k 条（B 8879对/30087条、600 9377/33183、800 9195/33322、900 8824/29744、M 9313/32691、I 3726/11265、Z 3849/11711、S 4229/12582）。
+- **band-only 对猎补**：阈 |kern|≥2(0.02px) 得 224 对、≥1 再得 23 对——900 'st' 类真结点在旧捕截断之下（仅 kk 即修：梯 -0.0104≈Chrome -0.0106）；**band-only 对必须补 kk 零结点**，否则 kernFace 早退 `K===undefined→0` 把带整个吞掉。
+- **kernOf 带分支改长度驱动**：`px < 6 + B.length`——18 宽=su 带 6..23（24 起线性），27 宽=sc 带 6..32；末格向 lastPx+1 处梯值混出（小尺寸量化住到 32）。
+- **一属性两形状**：NAMES 的 S 面 krbM=Map(numKey→27整数组)（kernOf 消费=sc 带）；su 面 krbM=Map(numKey→Map(px→val))（kernFace O 支消费，px<24 锚点命中胜、分数插值 lo/lo+1）。system-ui 基座条目的 krbM（dict 形）在 kernOf 中**休眠**（B.length undefined→NaN 比较→落穿）——已知不动，挂账。
+- **kernFaces 4dp 重捕**：196 条 font#face、76,234 对 @100px——旧 2dp 每对至多损 0.005px，kern 密集 100px 行（Times sc 'lavatory fi fl'）累积破 0.011 容差；to_int_table 升为保 2 位小数（×100 缩放值）。
+- **scKernBands 重建**：25 字体/2,520 对（旧 1,475），全 27 整数带。
+
+**数字**：verify 30/30；sweep 81/84（余 3=Kefa/Lao MN 出真源宇宙→默认表，k97 已记边界）；测试 `knife99_face_axis_model` 32 行钉死（先探后写，对 Chrome 最差 0.0051）；shape **936/936**；instance **127/127**；enum 204/211（基线不变）；font_metrics.js 11,759,053 字节（ADV canon 1,003 表、KERN 175、TRI 34）。cargo test -p diting **970/110**（失败集=102 行 k98 基线+8 件网络环境件——隔离全过、旧指标 A/B 同挂双证，非本刀回归）；workspace **1516/156**（diting lib 失败集与既定 k99 集逐件全等，browser-bin 46 件=k98 原状；与 k98 的 1514/157 差=新测试+1 过、knife97 治愈 +1 过−1 挂）；A/B 顺带抓获 **k98 提交版指标本就带 knife97 钉值的隐性回归**（旧指标隔离复挂，本刀 4dp 重灌治愈，97/99 双绿）。
+**教训**：①**真源键大小写判例**——res/scspot/scKernBands/kernFaces 键**全是显示形**（'Arial'、'Times New Roman'），NAMES 键是小写；生成器名字环传显示形 rk，任何小写查询**静默零操作**（首灌 `"krb"` 零挂当场暴露；修=`SCB.get(rk) or SCB.get(rk.lower())`）——与 k98 的 GENERIC 复制品陷阱同族：**查表落空先查键域，静默 no-op 比报错更贵**；②**带宇宙=结点宇宙的并集**——kernFace 先查 kk 早退，带数据再全也到不了；修带必须先补 kk（真结点或零）；③**偏差闸是有理数的工程取舍**——0.02 砍掉真带差 0.008-0.018 的对，0.0075 全收代价 ~2.6× 条目（74k→195k），对 4dp 重捕的 kernFaces 是必要配套；④**4dp 截断债**——2dp 真值单对损失有界（0.005px）但行内无界累积（对数×债），容差判据要按行最坏对数算不按单对算。
+**挂账（刀100 候选）**：面×tri 组合（三元组现继承 R 面）；sc×face 复合面（bold small-caps）；kd['kern']/kd['tri']/qRkern 仍 2dp；band-only 对 ≥24px 残差 ≤0.018px；system-ui 基座 krbM 在 kernOf 中休眠；3 sweep 行出宇宙。

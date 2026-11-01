@@ -31662,3 +31662,103 @@ async fn knife98_kern_matrix_model() {
         "knife98: full kern matrix model (Chrome 145 fonts-kern truth)"
     );
 }
+
+#[tokio::test]
+async fn knife99_face_axis_model() {
+    // (刀99) ctx.font face axis: the style/variant/weight tokens before the
+    // size resolve to per-font FACE tables (B/I/Z/M/S/100/200/300/600/800/900)
+    // — pure lookup, no synthesis. Quoted generics are hidden faces
+    // (quoted bold monospace = DEFBOLD PingFang Semibold 814.6; quoted serif
+    // italic == system-ui italic 790.7) while unquoted generics resolve
+    // through the generic table (bold serif = Songti bold 853.3). Near-R
+    // numeric weights inherit the R table + R kern + ext overrides (bold
+    // Zapfino == regular 117.09, w100 Menlo 144.4922). Small-caps quantizes:
+    // advance spots 6..96 (non-multiples of 10) and kern bands 6..32
+    // (scKernBands 2,520 pairs, band-length-driven cap in kernOf — 'lavatory
+    // fi' at 24px is band-exact 108.0699). su numeric weights are real faces
+    // with own kk knots + v100 + GPOS band overrides at the 0.008px deviation
+    // gate (600@18 = 169.774, incl. fractional 14.5/10.5px), and band-only
+    // pairs (zero at the old knot capture's cutoff, e.g. 900 'st' knots
+    // [-8,-6,-1]) are swept in. kernFaces tables carry 4dp @100 anchors.
+    // All rows verified against live Chrome 145 within 0.0051px; expectations
+    // pin the model, not Chrome's float.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const T = (k, f) => { try { const v = f(); L.push([k, 'ok', v === undefined ? '' : String(v)]); } catch (e) { L.push([k, 'E', e.name + ':' + e.message]); } };
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        T('face.boldArial100', () => W('bold 100px Arial', 'Hamburgefonstiv m AV P. Y,'));
+        T('face.italBask100', () => W('italic 100px Baskerville', 'Hamburgefonstiv rt av'));
+        T('face.boldItalTimes100', () => W('bold italic 100px Times New Roman', 'Hamburgefonstiv AV Ta'));
+        T('face.scArial100', () => W('small-caps 100px Arial', 'hello world Ham'));
+        T('face.w500helv32', () => W('500 32px Helvetica', 'Hamburgefonstiv'));
+        T('face.w300songti24', () => W('300 24px Songti SC', 'Hamburgefonstiv'));
+        T('face.w100menlo16', () => W('100 16px Menlo', 'Hamburgefonstiv'));
+        T('face.w900su40', () => W('900 40px system-ui', 'Hamburgefonstiv Ta'));
+        T('face.boldSu16', () => W('bold 16px system-ui', 'Ta To Tr av rt'));
+        T('face.boldItalSu24', () => W('bold italic 24px system-ui', 'Hamburgefonstiv'));
+        T('face.scSu16', () => W('small-caps 16px system-ui', 'hello small caps'));
+        T('face.w500su16', () => W('500 16px system-ui', 'Ta Ham m'));
+        T('face.boldSimSun16', () => W('bold 16px SimSun', 'Hamburgefonstiv'));
+        T('face.boldZapf12', () => W('bold 12px Zapfino', 'Hamburgefonstiv'));
+        T('genq.monoBold100', () => W('bold 100px "monospace"', 'Hamburgefonstiv'));
+        T('genq.serifItal100', () => W('italic 100px "serif"', 'Hamburgefonstiv'));
+        T('genq.cursive100', () => W('100px "cursive"', 'Hamburgefonstiv'));
+        T('unq.serifBold100', () => W('bold 100px serif', 'Hamburgefonstiv Ta'));
+        T('unq.monoSc100', () => W('small-caps 100px monospace', 'hello world Ham'));
+        T('sc.spot8', () => W('small-caps 8px Arial', 'hello'));
+        T('sc.spot32', () => W('small-caps 32px Arial', 'hello'));
+        T('sc.kern24arial', () => W('small-caps 24px Arial', 'lavatory fi'));
+        T('sc.kern24times', () => W('small-caps 24px Times New Roman', 'lavatory'));
+        T('su.w600_18', () => W('600 18px system-ui', 'Hamburgefonstiv Ta'));
+        T('su.w800_16', () => W('800 16px system-ui', 'Hamburgefonstiv Ta'));
+        T('su.w900_13', () => W('900 13px system-ui', 'Hamburgefonstiv'));
+        T('su.bold13', () => W('bold 13px system-ui', 'Hamburgefonstiv'));
+        T('su.w900_145', () => W('900 14.5px system-ui', 'Hamburgefonstiv'));
+        T('su.w800_105', () => W('800 10.5px system-ui', 'Ta av'));
+        T('face.genBold', () => W('bold 100px Geneva', 'Hamburgefonstiv m'));
+        T('face.w600futura100', () => W('600 100px Futura', 'Hamburgefonstiv'));
+        T('face.boldMenloFix', () => W('bold 100px Menlo', '⁄ fix'));
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["face.boldArial100", "ok", "1318.8455"],
+            ["face.italBask100", "ok", "757.3234"],
+            ["face.boldItalTimes100", "ok", "1000.1454"],
+            ["face.scArial100", "ok", "722.886"],
+            ["face.w500helv32", "ok", "241.8906"],
+            ["face.w300songti24", "ok", "172.56"],
+            ["face.w100menlo16", "ok", "144.4922"],
+            ["face.w900su40", "ok", "392.866"],
+            ["face.boldSu16", "ok", "98.5494"],
+            ["face.boldItalSu24", "ok", "196.87"],
+            ["face.scSu16", "ok", "130.627"],
+            ["face.w500su16", "ok", "73.6012"],
+            ["face.boldSimSun16", "ok", "130.336"],
+            ["face.boldZapf12", "ok", "117.09"],
+            ["genq.monoBold100", "ok", "814.6"],
+            ["genq.serifItal100", "ok", "790.7"],
+            ["genq.cursive100", "ok", "790.7"],
+            ["unq.serifBold100", "ok", "853.3"],
+            ["unq.monoSc100", "ok", "686.343"],
+            ["sc.spot8", "ok", "19.676"],
+            ["sc.spot32", "ok", "72.144"],
+            ["sc.kern24arial", "ok", "108.0699"],
+            ["sc.kern24times", "ok", "85.982"],
+            ["su.w600_18", "ok", "169.774"],
+            ["su.w800_16", "ok", "160.4564"],
+            ["su.w900_13", "ok", "117.9721"],
+            ["su.bold13", "ok", "112.4413"],
+            ["su.w900_145", "ok", "129.9904"],
+            ["su.w800_105", "ok", "27.9376"],
+            ["face.genBold", "ok", "946.0936"],
+            ["face.w600futura100", "ok", "936.4"],
+            ["face.boldMenloFix", "ok", "323.0204"]
+        ]),
+        "knife99: face axis model (Chrome 145 fonts-faces truth)"
+    );
+}
