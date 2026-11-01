@@ -78,6 +78,21 @@ def main():
     d = json.load(open(TRUTH))
     kd = json.load(open(KTRUTH))
     fd = json.load(open(FTRUTH)) if os.path.exists(FTRUTH) else None
+    # (刀107) @100 kern-capture escaping hole: 31 real pairs (backslash +
+    # µ-quote families — '\\T' −7.3243, '\\G' −2.4414, 'µ'' −1.4649 px @100)
+    # were dropped from the original @100 pair universe by probe JS escaping,
+    # so kern[system-ui] lacks them while kb/kk carry their sub-28 truth.
+    # Values here are px@100 direct (same units as kd['kern']; emission
+    # to_int_table does the ×100). v entries + kernOf's v=0 fallback (the
+    # other 372 members kern 0.0000 @100 and ≥28 — no entry needed, the
+    # kk ladder covers 16..24).
+    KF = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-kernfill-truth-145.json')
+    if os.path.exists(KF):
+        kf = json.load(open(KF))
+        for fam, pairs in kf.items():
+            if fam == '_meta':
+                continue
+            kd['kern'].setdefault(fam, {}).update(pairs)
     # (刀105) armed-kernel merge. kfill: kern knots for engine-missing pairs
     # — R lands in the base kern dict (v @100) + SU kk knots (em@16/20/24),
     # faces in fd.suKern (kk + v100, both required by kernFace). trow: plain
@@ -947,20 +962,32 @@ def main():
         lines.append('    let v = m.get(key);')
         lines.append('    if (v === undefined && fm) v = fm.get(key);')
         lines.append('    if (v === undefined && fr) v = fr.get(key);')
-        lines.append('    if (v === undefined) return 0;')
+        lines.append('    if (v === undefined) {')
+        lines.append('      // (刀107) sub-28-only pair: 403 base-R pairs kern nothing @100')
+        lines.append('      // (capture-zero) yet carry kk em knots 16..24 — v=0 + the ladder')
+        lines.append('      // is exact at BOTH ends (372 members; the 31 real-@100 escape')
+        lines.append('      // holes get v from fonts-kernfill-truth). Before 刀107 this')
+        lines.append('      // return zeroed their whole sub-28 truth (sweep worst 0.97px).')
+        lines.append('      const K0 = kkM ? kkM.get(key) : undefined;')
+        lines.append('      if (K0 === undefined) return 0;')
+        lines.append('      v = 0;')
+        lines.append('    }')
         lines.append('    if (kbM) {')
         lines.append('      const B = kbM.get(key);')
         lines.append('      if (B instanceof Map) {')
         lines.append('        // (刀101) SPARSE half-grid anchors ({px: px*100} keys at 0.5')
         lines.append('        // steps): the SU entry shape, same lookup kernFace runs —')
         lines.append('        // floor half-step hit wins, fractional interpolates, miss')
-        lines.append('        // falls to the kk ladder below.')
+        lines.append('        // falls to the kk ladder below. (刀107) the miss REALLY falls:')
+        lines.append('        // the 刀101 integer rescue returned a NEIGHBOR knot (t=1 upper,')
+        lines.append('        // else clamp at the floor knot) — a different size\'s value — at')
+        lines.append('        // anchor holes (em-dash 16/20/24: sites the 刀100 gate leaves')
+        lines.append('        // unpinned BECAUSE the kk fit is exact there) and run-gap edges')
+        lines.append('        // (colon pairs 19.5→24.5), off truth by up to 0.072px while the')
+        lines.append('        // ladder is ≤0.001 at every measured such site.')
         lines.append('        if (px < 81) {')
         lines.append('          const g = px * 2, lo = Math.floor(g);')
-        lines.append('          let A = B.get(lo / 2), B2 = B.get((lo + 1) / 2), t = g - lo;')
-        lines.append('          if (A === undefined && t === 0 && lo > 0) {')
-        lines.append('            A = B.get((lo - 1) / 2); B2 = B.get((lo + 1) / 2); t = 1;')
-        lines.append('          }')
+        lines.append('          const A = B.get(lo / 2), B2 = B.get((lo + 1) / 2), t = g - lo;')
         lines.append('          if (A !== undefined) {')
         lines.append('            if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
         lines.append('            return A / 100;')
@@ -1013,12 +1040,12 @@ def main():
             lines.append('      const O = kbM.get(key);')
             lines.append('      if (O) {')
             lines.append('        // half-grid anchors: g = px*2 so 0.5 keys are integral; a hit at')
-            lines.append('        // floor half-step wins, fractional interpolates to the next.')
+            lines.append('        // floor half-step wins, fractional interpolates to the next, and')
+            lines.append('        // a miss falls to the kk model (刀107: the 刀101 neighbor rescue')
+            lines.append('        // returned another size\'s knot at anchor holes / gap edges —')
+            lines.append('        // same fix as kernOf\'s sparse branch).')
             lines.append('        const g = px * 2, lo = Math.floor(g);')
-            lines.append('        let A = O.get(lo / 2), B2 = O.get((lo + 1) / 2), t = g - lo;')
-            lines.append('        if (A === undefined && t === 0 && lo > 0) {')
-            lines.append('          A = O.get((lo - 1) / 2); B2 = O.get((lo + 1) / 2); t = 1;')
-            lines.append('        }')
+            lines.append('        const A = O.get(lo / 2), B2 = O.get((lo + 1) / 2), t = g - lo;')
             lines.append('        if (A !== undefined) {')
             lines.append('          if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
             lines.append('          return A / 100;')
