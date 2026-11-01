@@ -824,6 +824,11 @@ def main():
     lines.append("  const isHangul = (c) => c >= 0xAC00 && c <= 0xD7A3;")
     lines.append('  const def = NAMES["__absent__"];')
     lines.append("  const FALLBACK = 79; // 'o'-class advance for non-ASCII chars without a rule")
+    # (刀113) chrome elides a Cf subset before shaping (kern/tri fire across
+    # them as if absent) — k113b measured the split; the rest are zero-width
+    # but stay in the stream as kern-pair breakers (k113a/k113b, CFT 145).
+    lines.append('  const CF_STRIP = /[\\u200C\\u200D\\u2060-\\u2064\\u2066\\u2068\\u2069]/g;')
+    lines.append('  const CF_ZW = new Set([0xAD, 0x61C, 0x180E, 0x200B, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2067, 0xFEFF]);')
     if kcanon:
         lines.append('  // (k98) pairwise kerning: KERN[i] = {pair: px@100 int}; KMAP keys are')
         lines.append('  // numeric (cp0*65536 + cp1). system-ui additionally carries kkM (optical')
@@ -1184,7 +1189,7 @@ def main():
     lines.append('    if (isCJK(c)) return px;')
     lines.append('    if (isHangul(c)) return 0.865 * px;')
     lines.append('    const i = c - 32;')
-    lines.append('    if (i < 0 || i >= 95) return ADV[def.t][FALLBACK] * px;')
+    lines.append('    if (i < 0 || i >= 95) return CF_ZW.has(c) ? 0 : ADV[def.t][FALLBACK] * px; // (刀113) zero-width Cf: tofu FALLBACK was wrong')
     # (刀101) as BEFORE the ladders — xAdv already checks as before xk, and
     # ladder faces (system-ui optical axis) carry as residues the ladder
     # cannot express (20xx-block size-window switches, sc small-px snaps);
@@ -1231,6 +1236,10 @@ def main():
     if GENQ:
         lines.append('    genq(name) { const q = GENQ[String(name).toLowerCase()]; return q || null; },')
     lines.append('    sum(tbl, text, px) {')
+    # (刀113) strip chrome-transparent Cf BEFORE the walk: shaping, kern and
+    # tri windows all see the elided string. replace() resets lastIndex of the
+    # shared /g regex, and a false test() also resets — safe to reuse.
+    lines.append('      if (CF_STRIP.test(text)) text = text.replace(CF_STRIP, \'\');')
     lines.append('      let w = 0;')
     if kcanon:
         # (刀100 c5g) faces without their own kern table (kr absent — 60

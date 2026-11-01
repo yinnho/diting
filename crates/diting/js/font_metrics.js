@@ -18,6 +18,8 @@
   const isHangul = (c) => c >= 0xAC00 && c <= 0xD7A3;
   const def = NAMES["__absent__"];
   const FALLBACK = 79; // 'o'-class advance for non-ASCII chars without a rule
+  const CF_STRIP = /[\u200C\u200D\u2060-\u2064\u2066\u2068\u2069]/g;
+  const CF_ZW = new Set([0xAD, 0x61C, 0x180E, 0x200B, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2067, 0xFEFF]);
   // (k98) pairwise kerning: KERN[i] = {pair: px@100 int}; KMAP keys are
   // numeric (cp0*65536 + cp1). system-ui additionally carries kkM (optical
   // kern knots [em@16, em@20, em@24] in 1e-4em, linear >=28) and krbM
@@ -312,7 +314,7 @@
     if (isCJK(c)) return px;
     if (isHangul(c)) return 0.865 * px;
     const i = c - 32;
-    if (i < 0 || i >= 95) return ADV[def.t][FALLBACK] * px;
+    if (i < 0 || i >= 95) return CF_ZW.has(c) ? 0 : ADV[def.t][FALLBACK] * px; // (刀113) zero-width Cf: tofu FALLBACK was wrong
     if (tbl.as) {
       const A = tbl.as[px];
       if (A && A[i] !== undefined) return A[i] * px;
@@ -350,6 +352,7 @@
     generic(name) { const g = GENERIC[String(name).toLowerCase()]; return g ? NAMES[g] : null; },
     genq(name) { const q = GENQ[String(name).toLowerCase()]; return q || null; },
     sum(tbl, text, px) {
+      if (CF_STRIP.test(text)) text = text.replace(CF_STRIP, '');
       let w = 0;
       const m = tbl.kr === undefined ? (tbl.krR === undefined || tbl.kr0 ? null : KMAP[tbl.krR]) : KMAP[tbl.kr];
       const kkM = tbl.kkM || null, kbM = tbl.krbM || null;
