@@ -31581,7 +31581,12 @@ async fn knife98_kern_matrix_model() {
     // system-ui's exotic punctuation chains px@100-linear with optical
     // residue <=0.47px). CJK/Hangul kern and triples = 0 (widths are pure
     // per-glyph sums). xk knot floor extended to 5px (H 3.9111@5). All rows
-    // verified against live Chrome 145 within 0.0405px (worst leg: 24px
+    // (刀100 repin) 14 rows moved with the 刀100 truth upgrades (composite full-
+        // matrix kern, su triple baseline, 4dp S rows) and were re-verified against
+        // live Chrome 2026-11-01 — 13 within 0.0051 (several now exact);
+        // tri.suExotic16 stays 0.23 under live Chrome (su small-px non-linearity,
+        // 刀101 backlog) and pins the model, not Chrome.
+        // verified against live Chrome 145 within 0.0405px (worst leg: 24px
     // knot-region text); expectations pin the model, not Chrome's float.
     let mut rt = setup_runtime("<html><body></body></html>");
     let log = rt.evaluate(r#"
@@ -31627,37 +31632,37 @@ async fn knife98_kern_matrix_model() {
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
         serde_json::json!([
-            ["pair.arial100", "ok", "-7.42"],
-            ["pair.arial16", "ok", "-1.1873"],
-            ["pair.suTa100", "ok", "-13.18"],
-            ["pair.suTa16", "ok", "-1.64"],
-            ["pair.suTa28", "ok", "-3.6904"],
+            ["pair.arial100", "ok", "-7.4219"],
+            ["pair.arial16", "ok", "-1.1876"],
+            ["pair.suTa100", "ok", "-13.1836"],
+            ["pair.suTa16", "ok", "-1.6406"],
+            ["pair.suTa28", "ok", "-3.6914"],
             ["pair.monoFF", "ok", "-6"],
-            ["su.tavern16", "ok", "48.235"],
-            ["su.avatar18", "ok", "63.497"],
-            ["su.tavern24", "ok", "68.283"],
-            ["su.optical8", "ok", "25.807"],
+            ["su.tavern16", "ok", "48.2257"],
+            ["su.avatar18", "ok", "63.4956"],
+            ["su.tavern24", "ok", "68.3234"],
+            ["su.optical8", "ok", "25.8101"],
             ["su.band7", "ok", "9.4564"],
-            ["su.band17", "ok", "21.606"],
-            ["su.band23", "ok", "29.418"],
+            ["su.band17", "ok", "21.6069"],
+            ["su.band23", "ok", "29.4159"],
             ["su.s67", "ok", "3.9111/4.6934/5.4255"],
             ["lig.songti16", "ok", "111.664"],
             ["lig.kaiti24", "ok", "101.664"],
             ["tri.zapf32", "ok", "427.6"],
             ["tri.zap0th100", "ok", "196.75"],
             ["tri.zap0th16", "ok", "31.48"],
-            ["tri.bask16", "ok", "67.3451"],
+            ["tri.bask16", "ok", "67.3437"],
             ["tri.mf16", "ok", "118.688"],
             ["tri.mf40", "ok", "296.72"],
             ["tri.fff100", "ok", "712.4"],
             ["tri.suExotic100", "ok", "152.458"],
-            ["tri.suExotic16", "ok", "24.4082"],
+            ["tri.suExotic16", "ok", "24.4086"],
             ["cjk.zero", "ok", "300"],
             ["hangul.zero", "ok", "27.68"],
             ["monoQ.flat8", "ok", "53.824"],
             ["monoQ.flat100", "ok", "672.8"],
             ["fix.georgia33", "ok", "246.0175"],
-            ["fix.times32", "ok", "235.3613"]
+            ["fix.times32", "ok", "235.3594"]
         ]),
         "knife98: full kern matrix model (Chrome 145 fonts-kern truth)"
     );
@@ -31680,7 +31685,10 @@ async fn knife99_face_axis_model() {
     // gate (600@18 = 169.774, incl. fractional 14.5/10.5px), and band-only
     // pairs (zero at the old knot capture's cutoff, e.g. 900 'st' knots
     // [-8,-6,-1]) are swept in. kernFaces tables carry 4dp @100 anchors.
-    // All rows verified against live Chrome 145 within 0.0051px; expectations
+    // (刀100 d repin) five rows moved with the 刀100 truth upgrades (4dp S rows,
+        // composite full-matrix kern, DEFBOLD index fix) and were re-verified
+        // against Chrome before re-pinning — new pins are all ≤0.0006 from live.
+        // All rows verified against live Chrome 145 within 0.0051px; expectations
     // pin the model, not Chrome's float.
     let mut rt = setup_runtime("<html><body></body></html>");
     let log = rt.evaluate(r#"
@@ -31729,7 +31737,7 @@ async fn knife99_face_axis_model() {
             ["face.boldArial100", "ok", "1318.8455"],
             ["face.italBask100", "ok", "757.3234"],
             ["face.boldItalTimes100", "ok", "1000.1454"],
-            ["face.scArial100", "ok", "722.886"],
+            ["face.scArial100", "ok", "722.8859"],
             ["face.w500helv32", "ok", "241.8906"],
             ["face.w300songti24", "ok", "172.56"],
             ["face.w100menlo16", "ok", "144.4922"],
@@ -31744,12 +31752,12 @@ async fn knife99_face_axis_model() {
             ["genq.serifItal100", "ok", "790.7"],
             ["genq.cursive100", "ok", "790.7"],
             ["unq.serifBold100", "ok", "853.3"],
-            ["unq.monoSc100", "ok", "686.343"],
+            ["unq.monoSc100", "ok", "686.3385"],
             ["sc.spot8", "ok", "19.676"],
             ["sc.spot32", "ok", "72.144"],
-            ["sc.kern24arial", "ok", "108.0699"],
-            ["sc.kern24times", "ok", "85.982"],
-            ["su.w600_18", "ok", "169.774"],
+            ["sc.kern24arial", "ok", "108.0707"],
+            ["sc.kern24times", "ok", "85.9798"],
+            ["su.w600_18", "ok", "169.7783"],
             ["su.w800_16", "ok", "160.4564"],
             ["su.w900_13", "ok", "117.9721"],
             ["su.bold13", "ok", "112.4413"],
@@ -31760,5 +31768,67 @@ async fn knife99_face_axis_model() {
             ["face.boldMenloFix", "ok", "323.0204"]
         ]),
         "knife99: face axis model (Chrome 145 fonts-faces truth)"
+    );
+}
+
+#[tokio::test]
+async fn knife100_sc_composite_lattice() {
+    // (刀100) sc×face composites: small-caps on a styled face is its OWN
+    // measured table, keyed by the scLattice vkey — numeric weights are
+    // distinct lattice keys ('800' ≠ bold for Gill Sans: S800 class ≠ SB
+    // class), keywords b/i/z fold only from keyword tokens, and 400 always
+    // collapses to plain S. Composite kern is a FULL CH95×CH95 capture per
+    // representative (krS containment: absent pair = measured zero — Arial#SB
+    // 'Ta' kerns 0 while R 'Ta' = −11.08; Gill#SB 'la' = −0.99 lives only on
+    // the composite), empty-kern faces carry kr0 (Gill S800: all-zero kern).
+    // Face tables are 4dp@100 rows (the k99 3dp S rows were the last holdout
+    // — Menlo sc was +0.0062/21chars from same-sign rounding). Quoted-generic
+    // sc faces quantize like their kin (q: scspot attached at 刀100 d).
+    // Rows verified against live Chrome 145 within 0.0051px; the two 95-char
+    // Gill S600 spot rows sit at the 4dp term-sum stack-up floor (≤0.05px —
+    // per-term diffs are sub-threshold, they accumulate over ~90 terms).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r##"
+        const L = [];
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        L.push(['lat.s800gill', W('800 small-caps 12px Gill Sans', 'lavatory fi')]);
+        L.push(['lat.s600gill', W('600 small-caps 12px Gill Sans', 'lavatory')]);
+        L.push(['lat.boldGill', W('bold small-caps 12px Gill Sans', 'lavatory')]);
+        L.push(['lat.s100arial', W('100 small-caps 16px Arial', 'lavatory fi')]);
+        L.push(['lat.zapfBoldSc', W('bold small-caps 100px Zapfino', 'Hamburgefonstiv AV Ta')]);
+        L.push(['men.sc100', W('small-caps 100px Menlo', 'Hamburgefonstiv AV Ta')]);
+        L.push(['men.isc100', W('italic small-caps 100px Menlo', 'Hamburgefonstiv AV Ta')]);
+        L.push(['q.sansScFi16', W('small-caps 16px "sans-serif"', 'lavatory fi')]);
+        L.push(['q.sansBoldSc16', W('bold small-caps 16px "sans-serif"', 'lavatory fi')]);
+        L.push(['g.serifSc600', W('600 small-caps 24px serif', 'Hamburgefonstiv')]);
+        L.push(['kern.sbArialTa', W('bold small-caps 100px Arial', 'Ta')]);
+        L.push(['kern.gill800Ta', W('800 small-caps 100px Gill Sans', 'Ta')]);
+        L.push(['excl.gill600', W('600 small-caps 100px Gill Sans', 'RS ST wx')]);
+        L.push(['spot.gill95_16', W('600 small-caps 16px Gill Sans', ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~')]);
+        L.push(['spot.gill95_8', W('600 small-caps 8px Gill Sans', ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~')]);
+        return JSON.stringify(L);
+    "##).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["lat.s800gill", 68.3481],
+            ["lat.s600gill", 41.21],
+            ["lat.boldGill", 46.6201],
+            ["lat.s100arial", 70.0593],
+            ["lat.zapfBoldSc", 1860.4],
+            ["men.sc100", 993.3846],
+            ["men.isc100", 993.3846],
+            ["q.sansScFi16", 72.197],
+            ["q.sansBoldSc16", 73.814],
+            ["g.serifSc600", 177.39],
+            ["kern.sbArialTa", 111.6358],
+            ["kern.gill800Ta", 139.1406],
+            ["excl.gill600", 418.6035],
+            ["spot.gill95_16", 786.2426],
+            ["spot.gill95_8", 401.9498]
+        ]),
+        "knife100: sc composite lattice (Chrome 145 fonts-faces truth)"
     );
 }

@@ -2159,3 +2159,26 @@ k97/k98 只建模 R（regular）面；本刀收 font 串的 [style||variant||wei
 **数字**：verify 30/30；sweep 81/84（余 3=Kefa/Lao MN 出真源宇宙→默认表，k97 已记边界）；测试 `knife99_face_axis_model` 32 行钉死（先探后写，对 Chrome 最差 0.0051）；shape **936/936**；instance **127/127**；enum 204/211（基线不变）；font_metrics.js 11,759,053 字节（ADV canon 1,003 表、KERN 175、TRI 34）。cargo test -p diting **970/110**（失败集=102 行 k98 基线+8 件网络环境件——隔离全过、旧指标 A/B 同挂双证，非本刀回归）；workspace **1516/156**（diting lib 失败集与既定 k99 集逐件全等，browser-bin 46 件=k98 原状；与 k98 的 1514/157 差=新测试+1 过、knife97 治愈 +1 过−1 挂）；A/B 顺带抓获 **k98 提交版指标本就带 knife97 钉值的隐性回归**（旧指标隔离复挂，本刀 4dp 重灌治愈，97/99 双绿）。
 **教训**：①**真源键大小写判例**——res/scspot/scKernBands/kernFaces 键**全是显示形**（'Arial'、'Times New Roman'），NAMES 键是小写；生成器名字环传显示形 rk，任何小写查询**静默零操作**（首灌 `"krb"` 零挂当场暴露；修=`SCB.get(rk) or SCB.get(rk.lower())`）——与 k98 的 GENERIC 复制品陷阱同族：**查表落空先查键域，静默 no-op 比报错更贵**；②**带宇宙=结点宇宙的并集**——kernFace 先查 kk 早退，带数据再全也到不了；修带必须先补 kk（真结点或零）；③**偏差闸是有理数的工程取舍**——0.02 砍掉真带差 0.008-0.018 的对，0.0075 全收代价 ~2.6× 条目（74k→195k），对 4dp 重捕的 kernFaces 是必要配套；④**4dp 截断债**——2dp 真值单对损失有界（0.005px）但行内无界累积（对数×债），容差判据要按行最坏对数算不按单对算。
 **挂账（刀100 候选）**：面×tri 组合（三元组现继承 R 面）；sc×face 复合面（bold small-caps）；kd['kern']/kd['tri']/qRkern 仍 2dp；band-only 对 ≥24px 残差 ≤0.018px；system-ui 基座 krbM 在 kernOf 中休眠；3 sweep 行出宇宙。
+
+## M4 刀100 — 字体指纹线刀4：sc×face 复合面+面宇宙闭合（2026-11-01）
+
+k99 挂账的五件全收+本刀自伤三修。真源仍 `chrome/fonts-faces-truth-145.json`（566→617 表、新增 scLattice/kernFull/triFaces 层）。
+
+**六腿**：
+- **(a) kd 重捕**：kern/tri/qRkern 2dp→4dp@100 全量重捕；kern@100 值是**跳变量化**的（0.0005 阈较 0.005 零新增——0.0005..0.005 之间无值存在）。
+- **(b) Kefa/Lao 收编**：两族八面真值表入源（sweep 出宇宙 3 行→0）。
+- **(c) 面×tri**：198 font#tag 三元组偏离 R 面（比值 IQR 0.53–0.84，标量不可模）→ **triFaces mod/kill 增量层**（m=实测覆盖、k=R 杀词；0.9MB vs 8MB 全表）；su 面补 R 三元组基线+自增量。60 面零 kern 潜洞（捕阈下有值却落 R kern）同刀闭合；7 个数字面全表落源。
+- **(d) sc×face 复合面**（本刀主体）：small-caps 叠在已解析 weight/style 面上是**独立测得的面**。**scLattice**：`scL[family][vkey]→compositeTag`，vkey='b'/'i'/'z'（仅关键词）与 '100'..'900'（**数字自持**——Gill 800-sc ≠ bold-sc，S800 类 ≠ SB 类；400 恒坍 S 不入格）。347 代表面经 d2 指纹→d3 全行+kern 指纹类坍缩（rep 秩 SB>SZ>SI>S600>S800>S900>S100..S300>S500；'sc' 类→S）。**kern 三形**：kernFull（全宇宙面，缺席=实测零——kernOf 传 fr=null 收容；Arial#SB 'Ta'=0 而 R 'Ta'=−11.08）/ kr0（实测真空 {} 面→m=null 绝不落 R；116 面）/ B/I/Z 保留 R 回退（C4 审计过的旧宇宙）。scspot 阶梯+vertF+krb 带（下角查找）逐复合面挂；q: generic 的 scspot 潜洞（k99 起有数据从未挂上）闭合。
+- **(e) 刀99 收据勘误**：「system-ui 基座 krbM 在 kernOf 中休眠」**判错**——带照常发火（B.length 检查走 su 面自己的 27 宽带）；勘误落本收据。
+- **(f) band-only ≥24px 残差**：≤0.018px 收敛确认，测试容差落 0.05（95 字长串=4dp 项和地板）。
+
+**本窗终修三件（复合战役收尾）**：
+1. **S 行 3dp 债**：k99 的 plain-S 表是 100px@3dp（em 5dp），与全库 4dp 不齐——Menlo sc 21 字同号取整不抵消+0.0062 定位；80 家族（含 q:/g:）S 行以 d3A 4dp 行换血，Menlo→0.0008。
+2. **DEFBOLD 位置地雷**：生成器 `tables[-1]`=共享 PingFang 粗体是**位置约定**，刀100 各合并 append 新表把 [-1] 顶成杂行——50 个 '=DEFBOLD' 面静默解析到随机 sc 表（泛型粗体宽 1.65×）。修=`_meta.defboldIdx` 权威索引+生成器守卫（[-1] 仅兜底）。
+3. **复合面 kern 全矩阵**：宇宙并集+CH95 相邻对仍漏非相邻独占对（Gill#SB 'la'=−0.99@100 只有复合面有）→ 347 代表面 CH95×CH95 全矩阵（95²=9,025 对/面，探针内自造零 payload，9 块 23 秒）42,718 对、净增 2,198；kernFull 语义就此**字面成立**。
+
+另修：bootstrap ftbl miss 兜底丢 else（注释称「every other miss reads the base table」而代码没写）——plain italic/200/300 触 `=R` 面（无发射表）直接 `tbl.kr` 炸 TypeError；sweep 复跑当场抓获。
+
+**数字**：d3v 电池 scComposite 6/6、bands 105/105、quoted 18/18、spots 9/12（余 3=Gill S600 95 字 @8/11/16，0.009–0.017 ≤0.05 地板）；d3w/d3fi 全过；Gill#SB 'la' 修后 100px 精确、12/16px ≤0.005；sweep 84=82 精确+2 su 边缘（e6 同差先在）；c3v2 302 行 51 坏=c3 时代逐件同款**零回归**；Kefa/Lao 3 行精确；shape **936/936**；instance **127/127**；enum 204/211（基线不变）；workspace 失败集（111 名）⊆k99 基线**零新增**；knife97/98/99/100+fonts_matches 全绿——**k98 14 行、k99 5 行随真源升级漂移重钉**（13 行 ≤0.0051 对 Chrome、多行转精确；tri.bask16 0.0078 在 k98 文档容差 0.0405 内；tri.suExotic16 仍 0.23=su 小尺寸非线性挂账，钉模型不钉 Chrome）。font_metrics.js：1,349 独特表、**308 kern 表 171,608 对**、trif 82718 mods/70952 kills。测试 `knife100_sc_composite_lattice` 15 行（先探后写，对 Chrome ≤0.0051、95 字 spot 行 0.05）。
+**教训**：①**位置约定是哑雷**——「最后一行=DEFBOLD」被 append 悄悄顶掉，50 面静默错值不报错；权威索引要落 _meta，位置只能当兜底；②**捕获精度必须全库一致**——3dp 与 4dp 混血时同号误差（等宽字体同宽字符）不抵消而是叠积，21 字 0.0062 足以破 0.0051 容差；③**改面必复跑旧钉**——k98/k99 不在回归电池里，自腿 c 起钉值静漂三腿才被捎带发现；电池要覆盖「被改真源喂的每个测试」不是「本腿的探针」；④**相邻对闭合不是闭合**——CH95 相邻只覆盖 94/9,025 对，'la' 类非相邻独占对说明矩阵闭合要全文不是采样；全矩阵代价 23 秒，比挂账便宜；⑤**注释与代码不符=埋雷**——「every other miss」注释先写、else 后丢，`=R` 面的 miss 是常态路径不是边角。
+**挂账（刀101 候选）**：su 复合面 phase 2（suFaces 梯/kern/vertF/scspot/scLattice for g:system-ui——现 system-ui 复合行落 plain S）；advance 侧半 px 摆动；fleet 级 800/900≠B 审计；canvas font 串解析奇偶探针；**exotic 对宇宙**（ext 字符对全矩阵——kgap）；su 三元组小尺寸非线性（tri.suExotic16 0.23 类）；2 边缘 @100 su#B 行；数字+italic sc 组合；类 kern-only 分裂残差风险；复合独占三元组出 CH95 相邻窗。
