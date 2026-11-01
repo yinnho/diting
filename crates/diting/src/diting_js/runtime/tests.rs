@@ -31588,6 +31588,9 @@ async fn knife98_kern_matrix_model() {
         // 刀101 backlog) and pins the model, not Chrome.
         // verified against live Chrome 145 within 0.0405px (worst leg: 24px
     // knot-region text); expectations pin the model, not Chrome's float.
+    // (刀101 repin) six rows moved with the kb 0.002 re-gate + as 0.002 gate
+        // and were re-verified against live Chrome (all ≤0.0012; suTa16's new
+        // -1.64 IS chrome to 0.0006); tri.suExotic16 keeps its 0.23 model pin.
     let mut rt = setup_runtime("<html><body></body></html>");
     let log = rt.evaluate(r#"
         const L = [];
@@ -31635,16 +31638,16 @@ async fn knife98_kern_matrix_model() {
             ["pair.arial100", "ok", "-7.4219"],
             ["pair.arial16", "ok", "-1.1876"],
             ["pair.suTa100", "ok", "-13.1836"],
-            ["pair.suTa16", "ok", "-1.6406"],
+            ["pair.suTa16", "ok", "-1.64"],
             ["pair.suTa28", "ok", "-3.6914"],
             ["pair.monoFF", "ok", "-6"],
-            ["su.tavern16", "ok", "48.2257"],
+            ["su.tavern16", "ok", "48.2278"],
             ["su.avatar18", "ok", "63.4956"],
-            ["su.tavern24", "ok", "68.3234"],
-            ["su.optical8", "ok", "25.8101"],
+            ["su.tavern24", "ok", "68.3238"],
+            ["su.optical8", "ok", "25.8106"],
             ["su.band7", "ok", "9.4564"],
             ["su.band17", "ok", "21.6069"],
-            ["su.band23", "ok", "29.4159"],
+            ["su.band23", "ok", "29.4164"],
             ["su.s67", "ok", "3.9111/4.6934/5.4255"],
             ["lig.songti16", "ok", "111.664"],
             ["lig.kaiti24", "ok", "101.664"],
@@ -31656,7 +31659,7 @@ async fn knife98_kern_matrix_model() {
             ["tri.mf40", "ok", "296.72"],
             ["tri.fff100", "ok", "712.4"],
             ["tri.suExotic100", "ok", "152.458"],
-            ["tri.suExotic16", "ok", "24.4086"],
+            ["tri.suExotic16", "ok", "24.4092"],
             ["cjk.zero", "ok", "300"],
             ["hangul.zero", "ok", "27.68"],
             ["monoQ.flat8", "ok", "53.824"],
@@ -31690,6 +31693,8 @@ async fn knife99_face_axis_model() {
         // against Chrome before re-pinning — new pins are all ≤0.0006 from live.
         // All rows verified against live Chrome 145 within 0.0051px; expectations
     // pin the model, not Chrome's float.
+    // (刀101 repin) three rows moved with the 刀101 truth re-pin, re-verified
+        // against live Chrome (all ≤0.0014).
     let mut rt = setup_runtime("<html><body></body></html>");
     let log = rt.evaluate(r#"
         const L = [];
@@ -31741,9 +31746,9 @@ async fn knife99_face_axis_model() {
             ["face.w500helv32", "ok", "241.8906"],
             ["face.w300songti24", "ok", "172.56"],
             ["face.w100menlo16", "ok", "144.4922"],
-            ["face.w900su40", "ok", "392.866"],
-            ["face.boldSu16", "ok", "98.5494"],
-            ["face.boldItalSu24", "ok", "196.87"],
+            ["face.w900su40", "ok", "392.8689"],
+            ["face.boldSu16", "ok", "98.5478"],
+            ["face.boldItalSu24", "ok", "196.8721"],
             ["face.scSu16", "ok", "130.627"],
             ["face.w500su16", "ok", "73.6012"],
             ["face.boldSimSun16", "ok", "130.336"],
@@ -31830,5 +31835,90 @@ async fn knife100_sc_composite_lattice() {
             ["spot.gill95_8", 401.9498]
         ]),
         "knife100: sc composite lattice (Chrome 145 fonts-faces truth)"
+    );
+}
+
+#[tokio::test]
+async fn knife101_systemui_kern_repin() {
+    // (刀101) system-ui truth re-pin, four layers. kb: the entry half-grid
+    // anchors were DEAD CODE (krbM bare dicts, B.length undefined) — now
+    // inner Maps with the same sparse lookup kernFace runs ('./' 0.6734 at
+    // 18.5, fractional 18.75 interpolates; '——' decay legs exact to 79.5).
+    // kb re-gate 0.002 + v100 FLOATS (4dp @100 px, not int-truncated).
+    // suSpot fills: 8 faces × 24 standard sizes + the as gate 0.005→0.002
+    // (the census arbiter is 0.003; rows@25 residues lived in the dropped
+    // band). SI/SZ double-synthesis (oblique×small-caps) quantizes per-glyph
+    // advances CHAOTICALLY at every unpinned size across the WHOLE axis
+    // (1.5px@13.5 … 0.5px@90 on 'hello' — the believed 43..63 window was
+    // just where integers were unpinned) → full 0.5-grid pin 5..99.5
+    // (×2 faces; warm-captured, 24.4k overlapping cells reproduce exactly).
+    // Italic small-caps KERN also curves above 32.5 where every upright face
+    // is exactly linear (s1 swept 150k cells: 0 flagged) → SI/SZ curvature
+    // bands 33..99.5 (691 pairs, worst 'ly' 0.0254@64), kernFace cutoff
+    // 81→100. Chrome-side gotchas this knife: sliced-string ToString is
+    // CORRUPT in Chrome 145 too (v1 truth rebuilt slice-free); italic
+    // fallback resolution is cold/warm racy — the warm key is U+2017 in
+    // face R at 21px (measured once, loads the fallback process-wide; cold
+    // is sticky per face×char; the engine bakes WARM = the steady state).
+    // Rows verified against live Chrome 145 within 0.0004px (most exact);
+    // expectations pin the model, not Chrome's float.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        const R = (font, a, b) => +(W(font, a + b) - W(font, a) - W(font, b)).toFixed(4);
+        L.push(['kb.dotslash185', R('18.5px system-ui', '.', '/')]);
+        L.push(['kb.dotslash1875', R('18.75px system-ui', '.', '/')]);
+        L.push(['kb.dotslash19', R('19px system-ui', '.', '/')]);
+        L.push(['kb.emdash50', R('50px system-ui', '—', '—')]);
+        L.push(['kb.emdash795', R('79.5px system-ui', '—', '—')]);
+        L.push(['band.stSI64', R('italic small-caps 64px system-ui', 's', 't')]);
+        L.push(['band.lySI64', R('italic small-caps 64px system-ui', 'l', 'y')]);
+        L.push(['band.stSZ64', R('bold italic small-caps 64px system-ui', 's', 't')]);
+        L.push(['band.lySZ80', R('bold italic small-caps 80px system-ui', 'l', 'y')]);
+        L.push(['band.stSI435', R('italic small-caps 43.5px system-ui', 's', 't')]);
+        L.push(['lin.stI100', R('italic 100px system-ui', 's', 't')]);
+        L.push(['as.w800_25', W('800 25px system-ui', ' !1')]);
+        L.push(['as.w900_25', W('900 25px system-ui', '$7')]);
+        L.push(['as.M_25', W('500 25px system-ui', ' $')]);
+        L.push(['as.S800_72', W('800 small-caps 72px system-ui', 'lavatory')]);
+        L.push(['as.SB_72', W('bold small-caps 72px system-ui', 'Hamburgefonstiv')]);
+        L.push(['as.SI43', W('italic small-caps 43px system-ui', 'hello small caps')]);
+        L.push(['as.SI575', W('italic small-caps 57.5px system-ui', 'hello')]);
+        L.push(['as.SZ61', W('bold italic small-caps 61px system-ui', 'small caps')]);
+        L.push(['lad.I40', W('italic 40px system-ui', 'Hamburgefonstiv')]);
+        L.push(['lad.Z55', W('bold italic 55px system-ui', 'Hamburgefonstiv')]);
+        L.push(['lad.SZ23', W('bold italic small-caps 23px system-ui', 'Hamburgefonstiv')]);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["kb.dotslash185", 0.6734],
+            ["kb.dotslash1875", 0.674],
+            ["kb.dotslash19", 0.6747],
+            ["kb.emdash50", -0.3417],
+            ["kb.emdash795", -0.0086],
+            ["band.stSI64", -1.3184],
+            ["band.lySI64", -5.7129],
+            ["band.stSZ64", -0.8789],
+            ["band.lySZ80", -6.6992],
+            ["band.stSI435", -0.8789],
+            ["lin.stI100", -0.9766],
+            ["as.w800_25", 26.3609],
+            ["as.w900_25", 32.1045],
+            ["as.M_25", 21.1425],
+            ["as.S800_72", 322.078],
+            ["as.SB_72", 619.1191],
+            ["as.SI43", 283.0598],
+            ["as.SI575", 120.2196],
+            ["as.SZ61", 270.1098],
+            ["lad.I40", 296.8165],
+            ["lad.Z55", 446.1906],
+            ["lad.SZ23", 164.5344]
+        ]),
+        "knife101: system-ui kern re-pin + SI/SZ grid (Chrome 145 fonts truth)"
     );
 }
