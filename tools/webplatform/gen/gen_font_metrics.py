@@ -48,6 +48,12 @@ CTTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-colon-truth-145.jso
 # bands for the 6,117-pair diff universe, all-zero pxv for the polluted
 # rows, and 14 hard zero-kills on R/B/I/M/S/900 (kfill's c\ family).
 LKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-lightkern-truth-145.json')
+# (刀114) px=16 kern band truth: every su face's kb band table starts at
+# 16.5 — px=16 misses the band and falls to K[0]*16/10000 (kk knots are
+# 4dp-em ints, half-quantum loss up to 0.0008px/pair vs chrome's exact
+# font-unit kerns). This layer pins measured @16 kerns (centi-px 2dp) as
+# '16' anchors for the offender pairs of all 22 faces.
+K16TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-k16band-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -208,6 +214,19 @@ def main():
                 else:
                     fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}}) \
                         .setdefault('kb', {})[key] = band
+    # (刀114) px=16 band anchors — AFTER LK so its whole-band REPLACE for
+    # non-R faces cannot erase the '16' key; update-merge everywhere so a
+    # face's existing band (16.5..) keeps its anchors and only gains 16.
+    K16 = json.load(open(K16TRUTH)) if os.path.exists(K16TRUTH) else None
+    if K16:
+        for tag, pairs in (K16.get('suKernBand') or {}).items():
+            for key, band in pairs.items():
+                if tag == 'R':
+                    kd.setdefault('su', {}).setdefault('kb', {}) \
+                        .setdefault(key, {}).update(band)
+                else:
+                    fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}}) \
+                        .setdefault('kb', {}).setdefault(key, {}).update(band)
     # scKernBands keys are display-case font names; index them by the
     # lowercase NAMES key once.
     SCB = ({k.lower(): v for k, v in fd['scKernBands'].items()}
