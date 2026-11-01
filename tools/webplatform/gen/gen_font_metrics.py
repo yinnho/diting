@@ -26,6 +26,7 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-metrics-truth-145.json')
 KTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-kern-truth-145.json')
+FTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-faces-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -36,10 +37,10 @@ GENERIC = {
     'sans-serif': '__absent__',
     '-apple-system': '__absent__',
     'system-ui': 'system-ui',
-    'serif': 'Songti SC',
-    'monospace': 'Menlo',
-    'cursive': 'Kaiti SC',
-    'fantasy': 'Papyrus',
+    'serif': 'songti sc',
+    'monospace': 'menlo',
+    'cursive': 'kaiti sc',
+    'fantasy': 'papyrus',
 }
 # canvas font shorthand in Chrome does NOT recognize ui-* generics (k97
 # probe: ui-sans-serif/ui-serif/ui-monospace all measure as the default
@@ -62,6 +63,11 @@ def jsround(x):
 def main():
     d = json.load(open(TRUTH))
     kd = json.load(open(KTRUTH))
+    fd = json.load(open(FTRUTH)) if os.path.exists(FTRUTH) else None
+    # scKernBands keys are display-case font names; index them by the
+    # lowercase NAMES key once.
+    SCB = ({k.lower(): v for k, v in fd['scKernBands'].items()}
+           if fd and fd.get('scKernBands') else {})
     tables = {}
     canon = []
 
@@ -84,7 +90,147 @@ def main():
         return len(lst) - 1
 
     def to_int_table(m):
-        return {k: int(round(v * 100)) for k, v in m.items()} if m else None
+        # px@100 ×100; keep 2 decimals of the scaled value when the truth
+        # carries them (k99 r6l: kernFaces recaptured at 4dp — the old int
+        # rounding cost up to 0.005px/pair at 100px). 2dp truths emit as
+        # plain ints unchanged.
+        if not m:
+            return None
+        out = {}
+        for k, v in m.items():
+            s = round(v * 100, 2)
+            out[k] = int(s) if s == int(s) else s
+        return out
+
+    # ---- (刀99) face axis: per-font face tables from the faces truth ----
+    FTAGS = ['B', 'I', 'Z', 'M', 'S', '100', '200', '300']
+    VSPOT = [10, 12, 16, 20, 32]
+
+    def build_vert(fe, vf):
+        # vertF row: '16'/'100' absolute, '1000' ratio ints, 'spot' = [A,D]
+        # at VSPOT[0,1,3,4] (16 lives under its own key).
+        a1000, d1000 = vf['1000']
+        fe['asc'] = round(a1000 / 1000.0, 6)
+        fe['desc'] = round(d1000 / 1000.0, 6)
+        vals = {10: vf['spot'][0], 12: vf['spot'][1], 16: vf['16'],
+                20: vf['spot'][2], 32: vf['spot'][3], 100: vf['100']}
+        spots = {}
+        for px, (A, D) in vals.items():
+            if jsround(px * fe['asc']) != A or jsround(px * fe['desc']) != D:
+                spots[str(px)] = [A, D]
+        if spots:
+            fe['s'] = spots
+
+    def face_entry(rk, tag):
+        # rk = res key of the font, tag = face tag; returns a standalone
+        # table entry or None when the face resolves to R.
+        v = fd['res'].get(rk, {}).get(tag)
+        if v is None or v == '=R':
+            return None
+        if v == '=DEFBOLD':
+            return dict(DEFBOLD)
+        row = fd['tables'][v]
+        return row
+
+    # the shared DEFBOLD table is the last tables entry (bold "PingFang SC").
+    DEFBOLD = {}
+    if fd:
+        dbrow = fd['tables'][-1]
+        DEFBOLD = {'t': intern([round(x, 6) for x in dbrow[:95]]),
+                   'x': intern([round(x, 6) for x in dbrow[95:]])}
+        vf = fd['vertF'].get('PingFang SC#B')
+        if vf:
+            build_vert(DEFBOLD, vf)
+        dbk = to_int_table(fd['kernFaces'].get('=DEFBOLD', {}))
+        if dbk:
+            DEFBOLD['kr'] = kintern(kcanon, dbk)
+
+    def build_faces(rk, entry):
+        # attach entry['f'] = {tag: face table entry} for every face that is
+        # NOT plain R. Near-R faces (ascii row == R, ext-fallback-only diffs)
+        # reference the base table + sparse `xp` ext overrides.
+        fmap = {}
+        for tag in FTAGS:
+            row = face_entry(rk, tag)
+            if row is None:
+                continue
+            if isinstance(row, dict):
+                fe = row  # DEFBOLD share
+            else:
+                fe = {}
+                ascii95 = [round(x, 6) for x in row[:95]]
+                base_t = entry.get('t')
+                # near-R with 1e-5 em tolerance: the w100/200/300 face rows
+                # captured at 5-decimal precision are ROUNDING variants of R
+                # (probed: Chrome resolves weight 100/200/300 to the regular
+                # face for these fonts — same table AND same kern).
+                if base_t is not None and all(
+                        abs(a - b) <= 1e-5 for a, b in zip(canon[base_t], ascii95)):
+                    fe['t'] = base_t
+                    # entry['x'] is attached in the ext pass AFTER this loop,
+                    # so diff the face ext row against the k97 truth directly.
+                    kd_name = rk[2:] if rk.startswith('g:') else rk
+                    extR = d['ext']['adv'].get(kd_name)
+                    if extR:
+                        xp = {i: round(row[95 + i], 6) for i in range(210)
+                              if i < len(extR) and abs(row[95 + i] - extR[i] / 100.0) > 1e-5}
+                        if xp:
+                            fe['xp'] = xp
+                    # near-R face: the primary face is the regular one, so
+                    # its kern (when unmeasured for this face) IS the R kern —
+                    # Zapfino bold kerns exactly like regular (probed).
+                    if (rk + '#' + tag) not in fd['kernFaces'] and entry.get('kr') is not None:
+                        fe['kr'] = entry['kr']
+                else:
+                    fe['t'] = intern(ascii95)
+                    fe['x'] = intern([round(x, 6) for x in row[95:]])
+                vf = fd['vertF'].get(rk + '#' + tag)
+                if vf:
+                    build_vert(fe, vf)
+                kf = fd['kernFaces'].get(rk + '#' + tag)
+                if kf:
+                    kt2 = to_int_table(kf)
+                    if kt2:
+                        fe['kr'] = kintern(kcanon, kt2)
+                # (刀99) small-caps px-quantization spots: CoreText snaps the
+                # synthesized sc glyph advances off the linear em*px model at
+                # small integer sizes (fixed ~1/3px pattern, 62 chars); store
+                # per-size sparse em overrides from the r4 capture.
+                if tag == 'S':
+                    asp = {}
+                    sizes = sorted({int(k.rsplit('@', 1)[1])
+                                    for k in fd['scspot'] if k.startswith(rk + '@')})
+                    for px in sizes:
+                        cap = fd['scspot'].get(rk + '@' + str(px))
+                        if not cap:
+                            continue
+                        fixes = {i: round(cap[i] / px, 6)
+                                 for i in range(min(len(cap), len(row)))
+                                 if abs(cap[i] - row[i] * px) > 0.005}
+                        if fixes:
+                            asp[str(px)] = fixes
+                    if asp:
+                        fe['as'] = asp
+                # (刀99 r6e/r6f) small-caps kern quantizes below ~32px like
+                # the advances: per-pair band arrays 6..32 (px*100 ints),
+                # consumed by kernOf's kbM branch (band length drives the
+                # cap). Truth keys are display-case; the res/scspot keys the
+                # caller passes are display-case too — normalize both ways.
+                if tag == 'S':
+                    # rk here is the display-case truth name (res/scspot keys);
+                    # scKernBands keys are display-case too but normalize both
+                    # ways to be safe.
+                    scb = SCB.get(rk) or SCB.get(rk.lower())
+                    if scb:
+                        fe['krb'] = scb
+                # face triples are unmeasured (刀100): inherit the R triple
+                # table as the documented approximation.
+                if entry.get('k3') is not None:
+                    fe['k3'] = entry['k3']
+            if fe:
+                fmap[tag] = fe
+        if fmap:
+            entry['f'] = fmap
 
     names = {}
     for name, advs in sorted(d['adv'].items()):
@@ -131,9 +277,86 @@ def main():
         tr = to_int_table(kd['tri'].get(name, {}))
         if tr:
             entry['k3'] = kintern(tcanon, tr)
+        # (刀99) faces: B/I/Z/M/S + numeric-weight tables for this font.
+        if fd:
+            rk = name if fd['res'].get(name) else ('g:' + name if fd['res'].get('g:' + name) else None)
+            if rk:
+                build_faces(rk, entry)
     # generic entries resolve through NAMES at runtime so the resolved object is
     # the single NAMES entry (k98 attaches the system-ui kern maps onto it).
     generic = dict(GENERIC)
+
+    # ---- (刀99) system-ui face ladders: every face is a variable-font ----
+    # instance with its OWN optical axis (verified: face-vs-R delta is NOT
+    # constant in em), so each carries the full k/xk knot set. Kern maps for
+    # the keyword faces come from suKern; numeric-weight kern is deferred
+    # (刀100) and approximated by the nearest keyword face at emission.
+    SUFACE_KEYS = [('B', 'B'), ('I', 'I'), ('Z', 'Z'), ('M', 'M'), ('S', 'S'),
+                   ('w100', '100'), ('w200', '200'), ('w300', '300'),
+                   ('w600', '600'), ('w800', '800'), ('w900', '900')]
+    if fd and 'system-ui' in names:
+        su = names['system-ui']
+        su.setdefault('f', {})
+        sizes = sorted(fd['suFaces']['B'], key=float)
+        for src, key in SUFACE_KEYS:
+            lad = fd['suFaces'][src]
+            fe = {
+                'k': {'s': [float(s) for s in sizes],
+                      't': [intern([round(v / float(s), 6) for v in lad[s][:95]]) for s in sizes]},
+                'xk': {'s': [float(s) for s in sizes],
+                       't': [intern([round(v / float(s), 6) for v in lad[s][95:]]) for s in sizes]},
+            }
+            vf = fd['vertF'].get('g:system-ui#' + src) or fd['vertF'].get('system-ui#' + src)
+            if vf:
+                build_vert(fe, vf)
+            su['f'][key] = fe
+
+    # ---- (刀99) quoted generics: serif/monospace/cursive/fantasy quoted ----
+    # resolve to hidden faces distinct from their unquoted tables.
+    GENQ = {}
+    if fd:
+        for g in GENERIC:
+            q = fd['res'].get('q:' + g)
+            u = fd['res'].get('g:' + g)
+            if not q or not u:
+                continue
+            if all(q.get(k) == u.get(k) for k in ['R'] + FTAGS):
+                continue  # quoted == unquoted (real family name)
+            row = fd['tables'][q['R']]
+            qe = {'t': intern([round(x, 6) for x in row[:95]]),
+                  'x': intern([round(x, 6) for x in row[95:]])}
+            # quoted generics share one hidden-face box (r8: all 1060/340
+            # except quoted system-ui, which never reaches GENQ).
+            qv = fd.get('qVert', {}).get(g)
+            if qv:
+                build_vert(qe, {'1000': qv['1000'], '16': qv['16'], '100': qv['100'],
+                                'spot': [qv['10'], qv['12'], qv['20'], qv['32']]})
+            qk = to_int_table(fd.get('qRkern', {}).get(g, {}))
+            if qk:
+                qe['kr'] = kintern(kcanon, qk)
+            fmap = {}
+            for tag in FTAGS:
+                v = q.get(tag)
+                if v is None or v == '=R':
+                    continue
+                if v == '=DEFBOLD':
+                    fmap[tag] = dict(DEFBOLD)
+                    continue
+                frow = fd['tables'][v]
+                fe = {'t': intern([round(x, 6) for x in frow[:95]]),
+                      'x': intern([round(x, 6) for x in frow[95:]])}
+                vf2 = fd['vertF'].get('q:' + g + '#' + tag)
+                if vf2:
+                    build_vert(fe, vf2)
+                kf = fd['kernFaces'].get('q:' + g + '#' + tag)
+                if kf:
+                    kt2 = to_int_table(kf)
+                    if kt2:
+                        fe['kr'] = kintern(kcanon, kt2)
+                fmap[tag] = fe
+            if fmap:
+                qe['f'] = fmap
+            GENQ[g] = qe
 
     # EXT: 210 non-ASCII codepoints, per-font rows at 100px (interned into the
     # same canon — different lengths never collide); the optical-axis font
@@ -188,6 +411,36 @@ def main():
         lines.append('  const SU = %s;' % json.dumps(kd['su'], separators=(',', ':')))
         lines.append('  NAMES["system-ui"].kkM = new Map(Object.entries(SU.kk).map(([k, v]) => [numKey(k), v]));')
         lines.append('  NAMES["system-ui"].krbM = new Map(Object.entries(SU.kb).map(([k, v]) => [numKey(k), v]));')
+    if fd and fd.get('suKern'):
+        SUK_TAGS = ['B', 'I', 'Z', 'M', 'S', '600', '800', '900']
+        suk = {tag: fd['suKern'][tag] for tag in SUK_TAGS if tag in fd['suKern']}
+        lines.append('  // (刀99) system-ui FACE kern: kk knots [em@16/20/24 in 1e-4em], v100')
+        lines.append('  // linear anchors, kb = SPARSE band overrides (px*100 at integer sizes')
+        lines.append('  // 6..23, only where |band - kkmodel| > 0.05px). Numeric-weight faces')
+        lines.append('  // 600/800/900 carry their OWN captured kern (r6d p3); the borrow')
+        lines.append("  // lines are fallbacks only for sections missing from the truth.")
+        lines.append('  const SUF = %s;' % json.dumps(suk, separators=(',', ':')))
+        lines.append("  const suF = NAMES['system-ui'].f;")
+        lines.append("  for (const t of %s) {" % json.dumps(SUK_TAGS))
+        lines.append('    if (!SUF[t]) continue;')
+        lines.append('    const e = suF[t]; if (!e) continue;')
+        lines.append('    e.kkM = new Map(Object.entries(SUF[t].kk).map(([k, v]) => [numKey(k), v]));')
+        lines.append('    e.vM = new Map(Object.entries(SUF[t].v100).map(([k, v]) => [numKey(k), v]));')
+        lines.append('    e.krbM = new Map(Object.entries(SUF[t].kb).map(([k, o]) => [numKey(k), new Map(Object.entries(o).map(([px, v]) => [+px, v]))]));')
+        lines.append('  }')
+        lines.append("  for (const w of ['100', '200', '300']) { const e = suF[w]; if (e && !e.kkM) { e.kr = NAMES['system-ui'].kr; e.kkM = NAMES['system-ui'].kkM; e.krbM = NAMES['system-ui'].krbM; } }")
+        lines.append("  for (const w of ['600', '800', '900']) { const e = suF[w]; if (e && !e.kkM && suF.B) { e.kkM = suF.B.kkM; e.vM = suF.B.vM; e.krbM = suF.B.krbM; } }")
+    if fd and fd.get('scKernBands'):
+        # sc kern bands: pair -> [px*100 at 6..23], same array shape kernOf's
+        # kbM branch already consumes for the base system-ui bands.
+        lines.append("  for (const k of Object.keys(NAMES)) { const S = NAMES[k].f && NAMES[k].f.S;")
+        lines.append("    if (S && S.krb) S.krbM = new Map(Object.entries(S.krb).map(([p, v]) => [numKey(p), v])); }")
+    if GENQ:
+        lines.append('  // (刀99) quoted generics resolve to hidden faces with their own')
+        lines.append('  // tables (quoted serif/monospace/cursive/fantasy differ from the')
+        lines.append('  // unquoted resolution; quoted real family names fall through to')
+        lines.append('  // lookup() and match the unquoted table).')
+        lines.append('  const GENQ = %s;' % json.dumps(GENQ, separators=(',', ':')))
     if kcanon:
         lines.append('  // kern of an adjacent pair (px at the given size); band overrides win')
         lines.append('  // below 24, optical knots blend 16..28, >=28 is exact linear.')
@@ -197,14 +450,17 @@ def main():
         lines.append('    if (v === undefined) return 0;')
         lines.append('    if (kbM) {')
         lines.append('      const B = kbM.get(key);')
-        lines.append('      if (B !== undefined && px < 24) {')
+        lines.append('      // band length drives the cap: 18-wide = 6..23 (base su, linear')
+        lines.append('      // from 24), 27-wide = 6..32 (small-caps quantization lives to 32).')
+        lines.append('      if (B !== undefined && px < 6 + B.length) {')
         lines.append('        if (px <= 6) return B[0] * px / 600;')
         lines.append('        const t = px - 6, lo = Math.floor(t);')
         lines.append('        if (lo >= B.length - 1) {')
-        lines.append('          const K = kkM.get(key);')
-        lines.append('          const k23 = B[B.length - 1] / 100;')
-        lines.append('          const k24 = K ? K[2] * 24 / 10000 : v * 24 / 10000;')
-        lines.append('          return k23 + (k24 - k23) * (px - 23);')
+        lines.append('          const K = kkM ? kkM.get(key) : undefined;')
+        lines.append('          const lastPx = 5 + B.length;')
+        lines.append('          const kB = B[B.length - 1] / 100;')
+        lines.append('          const kN = K ? K[2] * (lastPx + 1) / 10000 : v * (lastPx + 1) / 10000;')
+        lines.append('          return kB + (kN - kB) * (px - lastPx);')
         lines.append('        }')
         lines.append('        return (B[lo] + (B[lo + 1] - B[lo]) * (t - lo)) / 100;')
         lines.append('      }')
@@ -221,6 +477,34 @@ def main():
         lines.append('    }')
         lines.append('    return v * px / 10000;')
         lines.append('  };')
+        if fd and fd.get('suKern'):
+            lines.append('  // (刀99) su FACE kern: no fixed kr table — the linear anchor comes')
+            lines.append('  // from vM (px@100 ints); kbM is SPARSE ({pair: {px: px*100}}), an')
+            lines.append('  // anchor hit wins outright, a miss falls to the kk model (fractional')
+            lines.append('  // sizes interpolate only between two stored anchors).')
+            lines.append('  const kernFace = (kkM, vM, kbM, a, b, px) => {')
+            lines.append('    const key = a * 65536 + b;')
+            lines.append('    const K = kkM.get(key);')
+            lines.append('    if (K === undefined) return 0;')
+            lines.append('    if (px < 24 && kbM) {')
+            lines.append('      const O = kbM.get(key);')
+            lines.append('      if (O) {')
+            lines.append('        const lo = Math.floor(px);')
+            lines.append('        const A = O.get(lo);')
+            lines.append('        if (A !== undefined) {')
+            lines.append('          const B2 = O.get(lo + 1);')
+            lines.append('          if (B2 !== undefined && px % 1 !== 0) return (A + (B2 - A) * (px - lo)) / 100;')
+            lines.append('          return A / 100;')
+            lines.append('        }')
+            lines.append('      }')
+            lines.append('    }')
+            lines.append('    const v = vM.get(key) || 0;')
+            lines.append('    if (px >= 28) return v * px / 10000;')
+            lines.append('    if (px >= 24) return (K[2] + (v - K[2]) * (px - 24) / 4) * px / 10000;')
+            lines.append('    if (px >= 20) return (K[1] + (K[2] - K[1]) * (px - 20) / 4) * px / 10000;')
+            lines.append('    if (px >= 16) return (K[0] + (K[1] - K[0]) * (px - 16) / 4) * px / 10000;')
+            lines.append('    return K[0] * px / 10000;')
+            lines.append('  };')
     if ext_cp:
         lines.append('  // EXT: non-ASCII codepoints with per-font advances (Latin-1 + General')
         lines.append('  // Punctuation + symbols). XI maps codepoint -> row index.')
@@ -228,6 +512,9 @@ def main():
         lines.append('  const XI = new Map();')
         lines.append('  for (let i = 0; i < XP.length; i++) XI.set(XP[i], i);')
         lines.append('  const xAdv = (tbl, i, px) => {')
+        if fd:
+            lines.append('    if (tbl.xp && tbl.xp[i] !== undefined) return tbl.xp[i] * px;')
+            lines.append("    if (tbl.as) { const A = tbl.as[px]; if (A && A[95 + i] !== undefined) return A[95 + i] * px; }")
         lines.append('    if (tbl.xk) {')
         lines.append('      const S = tbl.xk.s, T = tbl.xk.t;')
         lines.append('      if (px <= S[0]) return ADV[T[0]][i] * px;')
@@ -265,17 +552,22 @@ def main():
     lines.append('      const lo = Math.floor(t);')
     lines.append('      return lo >= L.length - 1 ? L[L.length - 1] : L[lo] + (L[lo + 1] - L[lo]) * (t - lo);')
     lines.append('    }')
+    if fd:
+        lines.append("    if (tbl.as) { const A = tbl.as[px]; if (A && A[i] !== undefined) return A[i] * px; }")
     lines.append('    return ADV[tbl.t][i] * px;')
     lines.append('  };')
     lines.append('  globalThis.__ditingFontMetrics = {')
     lines.append('    lookup(name) { return NAMES[String(name).toLowerCase()] || null; },')
     lines.append('    generic(name) { const g = GENERIC[String(name).toLowerCase()]; return g ? NAMES[g] : null; },')
+    if GENQ:
+        lines.append('    genq(name) { const q = GENQ[String(name).toLowerCase()]; return q || null; },')
     lines.append('    sum(tbl, text, px) {')
     lines.append('      let w = 0;')
     if kcanon:
         lines.append('      const m = tbl.kr === undefined ? null : KMAP[tbl.kr];')
         lines.append('      const kkM = tbl.kkM || null, kbM = tbl.krbM || null;')
         lines.append('      const tm = tbl.k3 === undefined ? null : TMAP[tbl.k3];')
+        lines.append('      const faceSu = !m && kkM && tbl.vM;')
         lines.append('      let p1 = -1, p2 = -1;')
     lines.append('      for (let i = 0; i < text.length; i++) {')
     lines.append('        let c = text.charCodeAt(i);')
@@ -286,6 +578,8 @@ def main():
     lines.append('        w += adv(tbl, c, px);')
     if kcanon:
         lines.append('        if (p1 >= 0 && m) w += kernOf(m, kkM, kbM, p1, c, px);')
+        if fd and fd.get('suKern'):
+            lines.append('        else if (p1 >= 0 && faceSu) w += kernFace(kkM, tbl.vM, kbM, p1, c, px);')
         lines.append('        if (p2 >= 0 && tm) { const tv = tm.get(p2 * 4294967296 + p1 * 65536 + c); if (tv !== undefined) w += tv * px / 10000; }')
         lines.append('        p2 = p1; p1 = c;')
     lines.append('      }')

@@ -13055,6 +13055,9 @@ class _Canvas2D {
     // kern rows in fonts-metrics-truth-145.json document the residue).
     let famPart = String(this.font || '');
     const sizeHit = famPart.match(/(?:^|\s)(\d+(?:\.\d+)?)(px|pt|em|rem|%)\b/i);
+    // (刀99) face tokens live BEFORE the size token ('bold 100px Arial'):
+    // capture that prefix while famPart still holds the full string.
+    const prePart = sizeHit ? famPart.slice(0, sizeHit.index) : '';
     if (sizeHit) {
       famPart = famPart.slice(sizeHit.index + sizeHit[0].length).replace(/^\s*\/\s*[\d.]+(?:px|pt|em|rem|%)?\s*/, ' ').trim();
     }
@@ -13080,6 +13083,11 @@ class _Canvas2D {
         if (!quoted) {
           const g = FM.generic(name);
           if (g) { tbl = g; break; }
+        } else {
+          // (刀99) quoted generics resolve to hidden faces (quoted
+          // "monospace" is NOT Menlo) — GENQ carries those tables.
+          const q = FM.genq ? FM.genq(name) : null;
+          if (q) { tbl = q; break; }
         }
         const t2 = FM.lookup(name);
         if (t2) { tbl = t2; break; }
@@ -13088,15 +13096,38 @@ class _Canvas2D {
       }
       if (!tbl) tbl = FM.generic('sans-serif');
     }
+    // (刀99) face axis: style/variant/weight tokens select a per-font FACE
+    // table (bold/italic faces, small-caps substitution, numeric weights).
+    // small-caps wins (italic is swallowed under it; sc+bold composites are
+    // a documented 刀100 gap); 600..900 fall back to B for fixed fonts.
+    let face = null;
+    const preL = prePart.toLowerCase();
+    if (/\bsmall-caps\b/.test(preL)) face = 'S';
+    else {
+      const wm = preL.match(/(?:^|\s)(\d{3})\b/);
+      const wv = wm ? parseInt(wm[1], 10) : 0;
+      const boldTok = /\b(bold|bolder)\b/.test(preL) || wv >= 600;
+      const italTok = /\b(italic|oblique)\b/.test(preL);
+      if (wv === 500) face = 'M';
+      else if (wv >= 100 && wv <= 300) face = String(wv);
+      else if (wv >= 600) face = String(wv);
+      else if (boldTok && italTok) face = 'Z';
+      else if (boldTok) face = 'B';
+      else if (italTok) face = 'I';
+    }
+    let ftbl = tbl;
+    if (face && tbl && tbl.f) {
+      ftbl = tbl.f[face] || (+face >= 600 ? (tbl.f.B || tbl) : tbl);
+    }
     const fl = famPart.toLowerCase();
     const family = /mono|courier|menlo|consolas/.test(fl) ? 'mono' : /times|serif(?!.*sans)|georgia/.test(fl) && !/sans/.test(fl) ? 'times' : 'arial';
     const zero = px <= 0;
     let w = 0;
     if (!zero) {
-      if (FM) w = Math.round(FM.sum(tbl, text, px) * factor * 1e6) / 1e6;
+      if (FM) w = Math.round(FM.sum(ftbl, text, px) * factor * 1e6) / 1e6;
       else { const fontSize = parseInt(this.font) || 10; const scale = Math.max(1, Math.round(fontSize / 10)); w = Math.round(text.length * 6 * scale * factor * 100) / 100; }
     }
-    return globalThis.__diting_newTextMetrics({ width: zero ? 0 : w, size: zero ? 0 : px, family, text, baseline: this.textBaseline, align: this.textAlign, vmet: FM && !zero ? FM.vertical(tbl, px) : null });
+    return globalThis.__diting_newTextMetrics({ width: zero ? 0 : w, size: zero ? 0 : px, family, text, baseline: this.textBaseline, align: this.textAlign, vmet: FM && !zero ? FM.vertical(ftbl, px) : null });
   }
   getImageData(x, y, w, h) {
     x=Math.round(x); y=Math.round(y); w=Math.round(w); h=Math.round(h);
