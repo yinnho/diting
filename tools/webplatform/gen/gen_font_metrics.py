@@ -387,11 +387,69 @@ def main():
     # (刀100) and approximated by the nearest keyword face at emission.
     SUFACE_KEYS = [('B', 'B'), ('I', 'I'), ('Z', 'Z'), ('M', 'M'), ('S', 'S'),
                    ('w100', '100'), ('w200', '200'), ('w300', '300'),
-                   ('w600', '600'), ('w800', '800'), ('w900', '900')]
+                   ('w600', '600'), ('w800', '800'), ('w900', '900'),
+                   # (刀101) sc composites: every variant instance is its own
+                   # optical face (S700≡SB measured, 300≠200 — variable font).
+                   ('SB', 'SB'), ('SI', 'SI'), ('SZ', 'SZ'),
+                   ('S100', 'S100'), ('S200', 'S200'), ('S300', 'S300'),
+                   ('S500', 'S500'), ('S600', 'S600'), ('S800', 'S800'),
+                   ('S900', 'S900')]
     if fd and 'system-ui' in names:
         su = names['system-ui']
         su.setdefault('f', {})
         sizes = sorted(fd['suFaces']['B'], key=float)
+
+        def su_as(spot_rows, a_knots, x_knots=None, base_x=None):
+            # (刀101) advance-spot residues for a ladder face: gate each
+            # (not the linear em model — the fixed-font scspot gate), 0.002px
+            # — the census arbiter is 0.003px; the old 0.005 gate left the
+            # 0.0033–0.0035 rows@25 residues unanchored (s1 finding).
+            # a_knots/x_knots = [(px, row305_raw)]; base_x = fixed em ext row.
+            asp = {}
+            for px_s, row in spot_rows.items():
+                px = float(px_s)
+                ak = a_knots
+                xk = x_knots
+                fixes = {}
+                for i in range(95):
+                    em = None
+                    if ak:
+                        lo = ak[0]
+                        hi = None
+                        for k in ak:
+                            if k[0] < px: lo = k
+                            else: hi = k; break
+                        if hi is None or hi[0] == lo[0]:
+                            # (刀101 s3) px at/below the first knot (spot grid
+                            # now includes size 5): flat at that knot, no /0.
+                            em = lo[1][i] / lo[0]
+                        else:
+                            t = (px - lo[0]) / (hi[0] - lo[0])
+                            em = lo[1][i] / lo[0] + (hi[1][i] / hi[0] - lo[1][i] / lo[0]) * t
+                    if em is None or abs(row[i] - em * px) > 0.002:
+                        fixes[i] = round(row[i] / px, 6)
+                for j in range(95, len(row)):
+                    em = None
+                    if xk:
+                        lo = xk[0]
+                        hi = None
+                        for k in xk:
+                            if k[0] < px: lo = k
+                            else: hi = k; break
+                        if hi is None or hi[0] == lo[0]:
+                            em = lo[1][j] / lo[0]
+                        else:
+                            t = (px - lo[0]) / (hi[0] - lo[0])
+                            em = lo[1][j] / lo[0] + (hi[1][j] / hi[0] - lo[1][j] / lo[0]) * t
+                    elif base_x is not None:
+                        em = base_x[j - 95]
+                    if em is None or abs(row[j] - em * px) > 0.002:
+                        fixes[j] = round(row[j] / px, 6)
+                if fixes:
+                    asp[px_s] = fixes
+            return asp
+
+        SSP = fd.get('suSpot') or {}
         for src, key in SUFACE_KEYS:
             lad = fd['suFaces'][src]
             fe = {
@@ -400,6 +458,13 @@ def main():
                 'xk': {'s': [float(s) for s in sizes],
                        't': [intern([round(v / float(s), 6) for v in lad[s][95:]]) for s in sizes]},
             }
+            # (刀101) ladder-gated advance-spot residues (20xx window jumps,
+            # italic small-px drift); adv/xAdv consume as before the ladders.
+            if src in SSP:
+                knots = [(float(s), lad[s]) for s in sizes]
+                asp = su_as(SSP[src], knots, x_knots=knots)
+                if asp:
+                    fe['as'] = asp
             vf = fd['vertF'].get('g:system-ui#' + src) or fd['vertF'].get('system-ui#' + src)
             if vf:
                 build_vert(fe, vf)
@@ -410,6 +475,18 @@ def main():
             if ('system-ui#' + key) in triFaces:
                 fe['k3f'] = 'system-ui#' + key
             su['f'][key] = fe
+        # (刀101) R residue at entry level: ASCII gate vs the opt ladder,
+        # ext vs the entry xk ladder (d.ext.su) when present.
+        if 'R' in SSP:
+            o = d['opt']['system-ui']
+            rk = [(float(s), o['adv'][str(s)]) for s in o['sizes']]
+            xs = d['ext'].get('su') or {}
+            # pad ext rows to 305-form: su_as indexes knots rows at [j]
+            # over the full row (ASCII side reads a_knots only).
+            xk_r = [(float(s), [0.0] * 95 + xs[str(s)]) for s in o['sizes'] if str(s) in xs]
+            asp = su_as(SSP['R'], rk, x_knots=xk_r or None)
+            if asp:
+                su['as'] = asp
 
     # ---- (刀99) quoted generics: serif/monospace/cursive/fantasy quoted ----
     # resolve to hidden faces distinct from their unquoted tables.
@@ -584,9 +661,17 @@ def main():
     if kd.get('su'):
         lines.append('  const SU = %s;' % json.dumps(kd['su'], separators=(',', ':')))
         lines.append('  NAMES["system-ui"].kkM = new Map(Object.entries(SU.kk).map(([k, v]) => [numKey(k), v]));')
-        lines.append('  NAMES["system-ui"].krbM = new Map(Object.entries(SU.kb).map(([k, v]) => [numKey(k), v]));')
+        # (刀101) inner kb values are SPARSE dicts {px: px*100} — wrap as Map so
+        # kernOf can consume them; the old bare-dict pass made B.length undefined
+        # and the whole entry half-grid anchor layer was dead code (kk ladder only).
+        lines.append('  NAMES["system-ui"].krbM = new Map(Object.entries(SU.kb).map(([k, o]) => [numKey(k), new Map(Object.entries(o).map(([px, v]) => [+px, v]))]));')
     if fd and fd.get('suKern'):
-        SUK_TAGS = ['B', 'I', 'Z', 'M', 'S', '600', '800', '900']
+        # (刀101) full re-pin: every su face carries its OWN captured kern
+        # (kk/v100/kb) — numerics 100-300 stop borrowing the R maps, and the
+        # sc composites join the party (they previously fell to the R base
+        # map via krR, i.e. plain-R kern on an sc face).
+        SUK_TAGS = ['B', 'I', 'Z', 'M', 'S', '100', '200', '300', '600', '800', '900',
+                    'SB', 'SI', 'SZ', 'S100', 'S200', 'S300', 'S500', 'S600', 'S800', 'S900']
         suk = {tag: fd['suKern'][tag] for tag in SUK_TAGS if tag in fd['suKern']}
         lines.append('  // (刀99) system-ui FACE kern: kk knots [em@16/20/24 in 1e-4em], v100')
         lines.append('  // linear anchors, kb = SPARSE band overrides (px*100 at integer sizes')
@@ -639,13 +724,23 @@ def main():
         lines.append('    if (v === undefined) return 0;')
         lines.append('    if (kbM) {')
         lines.append('      const B = kbM.get(key);')
-        lines.append('      // half-grid bands (刀100): columns at 0.5px steps from 6 —')
-        lines.append('      // 37-wide = 6..23.5 (the >=24 kk ladder models the rest),')
-        lines.append('      // 54-wide = 6..32.5 (optical curve past the knots; the sc')
-        lines.append('      // quantization bands), 148-wide = 6..79.5 decay pairs (—— only:')
-        lines.append('      // chrome relaxes it to v-linear by ~80px, v itself 0. Exit')
-        lines.append('      // blends into the ladder at the half-step past the last column.')
-        lines.append('      if (B !== undefined && px < 6 + B.length / 2) {')
+        lines.append('      if (B instanceof Map) {')
+        lines.append('        // (刀101) SPARSE half-grid anchors ({px: px*100} keys at 0.5')
+        lines.append('        // steps): the SU entry shape, same lookup kernFace runs —')
+        lines.append('        // floor half-step hit wins, fractional interpolates, miss')
+        lines.append('        // falls to the kk ladder below.')
+        lines.append('        if (px < 81) {')
+        lines.append('          const g = px * 2, lo = Math.floor(g);')
+        lines.append('          let A = B.get(lo / 2), B2 = B.get((lo + 1) / 2), t = g - lo;')
+        lines.append('          if (A === undefined && t === 0 && lo > 0) {')
+        lines.append('            A = B.get((lo - 1) / 2); B2 = B.get((lo + 1) / 2); t = 1;')
+        lines.append('          }')
+        lines.append('          if (A !== undefined) {')
+        lines.append('            if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
+        lines.append('            return A / 100;')
+        lines.append('          }')
+        lines.append('        }')
+        lines.append('      } else if (B !== undefined && px < 6 + B.length / 2) {')
         lines.append('        if (px <= 6) return B[0] * px / 600;')
         lines.append('        const t = (px - 6) * 2, lo = Math.floor(t);')
         lines.append('        if (lo >= B.length - 1) {')
@@ -680,12 +775,15 @@ def main():
             lines.append('  // from vM (px@100 ints); kbM is SPARSE ({pair: {px: px*100}}), an')
             lines.append('  // anchor hit wins outright. 刀100 recaptures the anchors on the')
             lines.append('// half grid (0.5px keys 6..32.5, gated vs the kk ladder, plus the')
-            lines.append('  // —— decay legs to 79.5); a miss falls to the kk model.')
+            lines.append('  // —— decay legs to 79.5); 刀101 s2 adds the SI/SZ italic small-caps')
+            lines.append('  // curvature bands 33..99.5 (the 33..100 region is exactly linear')
+            lines.append('  // for every upright face — s1 swept 150k cells, 0 flagged), so the')
+            lines.append('  // cutoff moves 81→100; a miss still falls to the kk model.')
             lines.append('  const kernFace = (kkM, vM, kbM, a, b, px) => {')
             lines.append('    const key = a * 65536 + b;')
             lines.append('    const K = kkM.get(key);')
             lines.append('    if (K === undefined) return 0;')
-            lines.append('    if (px < 81 && kbM) {')
+            lines.append('    if (px < 100 && kbM) {')
             lines.append('      const O = kbM.get(key);')
             lines.append('      if (O) {')
             lines.append('        // half-grid anchors: g = px*2 so 0.5 keys are integral; a hit at')
@@ -740,6 +838,12 @@ def main():
     lines.append('    if (isHangul(c)) return 0.865 * px;')
     lines.append('    const i = c - 32;')
     lines.append('    if (i < 0 || i >= 95) return ADV[def.t][FALLBACK] * px;')
+    # (刀101) as BEFORE the ladders — xAdv already checks as before xk, and
+    # ladder faces (system-ui optical axis) carry as residues the ladder
+    # cannot express (20xx-block size-window switches, sc small-px snaps);
+    # the old k-first order left every ladder as entry dead code.
+    if fd:
+        lines.append("    if (tbl.as) { const A = tbl.as[px]; if (A && A[i] !== undefined) return A[i] * px; }")
     lines.append('    if (tbl.k) {')
     lines.append('      const S = tbl.k.s, T = tbl.k.t;')
     lines.append('      if (px <= S[0]) return ADV[T[0]][i] * px;')
@@ -755,8 +859,6 @@ def main():
     lines.append('      const lo = Math.floor(t);')
     lines.append('      return lo >= L.length - 1 ? L[L.length - 1] : L[lo] + (L[lo + 1] - L[lo]) * (t - lo);')
     lines.append('    }')
-    if fd:
-        lines.append("    if (tbl.as) { const A = tbl.as[px]; if (A && A[i] !== undefined) return A[i] * px; }")
     lines.append('    return ADV[tbl.t][i] * px;')
     lines.append('  };')
     lines.append('  globalThis.__ditingFontMetrics = {')
