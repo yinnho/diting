@@ -474,6 +474,19 @@ def main():
                 fe['k3'] = su['k3']
             if ('system-ui#' + key) in triFaces:
                 fe['k3f'] = 'system-ui#' + key
+            # (刀102) shared advance band flag: chrome deviates from the knot
+            # ladder identically per glyph in the 32.5–39.5 bump and 64.5–99.5
+            # arch across ALL upright faces (rank-1, residual = capture floor).
+            # SI/SZ stay off — their 190-size half pins + the new as-layer
+            # interpolation (below) cover every size directly. fixA = sparse
+            # per-face REPLACE amplitudes: italic U+2016 turns the band OFF
+            # (chrome = bare ladder there; upright carries a=-0.0229 bump).
+            if fd.get('suBand'):
+                if src not in ('SI', 'SZ'):
+                    fe['sb'] = 1
+                fxa = fd['suBand'].get('fixA', {}).get(src)
+                if fxa:
+                    fe['sba'] = fxa
             su['f'][key] = fe
         # (刀101) R residue at entry level: ASCII gate vs the opt ladder,
         # ext vs the entry xk ladder (d.ext.su) when present.
@@ -487,6 +500,9 @@ def main():
             asp = su_as(SSP['R'], rk, x_knots=xk_r or None)
             if asp:
                 su['as'] = asp
+        # (刀102) the R path rides the same shared bands as the faces.
+        if fd.get('suBand'):
+            su['sb'] = 1
 
     # ---- (刀99) quoted generics: serif/monospace/cursive/fantasy quoted ----
     # resolve to hidden faces distinct from their unquoted tables.
@@ -806,6 +822,44 @@ def main():
             lines.append('    if (px >= 16) return (K[0] + (K[1] - K[0]) * (px - 16) / 4) * px / 10000;')
             lines.append('    return K[0] * px / 10000;')
             lines.append('  };')
+    if fd and fd.get('suBand'):
+        # (刀102) system-ui shared advance bands: warm chrome deviates from
+        # the knot-ladder value identically PER GLYPH across every upright
+        # face at the same unpinned size — delta(g,s) = a[g]*f(s) exactly
+        # (power-iteration fit residual 0.0005px = the 4dp capture floor),
+        # in two windows: bump 32.5–39.5 (peak f=1 @36.5) and arch 64.5–99.5
+        # (peak @80.5, max delta 0.1495px). Pinned columns (R_PINS ∩ window)
+        # are zero in the delta matrix, so they were excluded from the fit
+        # and f there is a linear fill — as pins return before the ladder,
+        # the fill only feeds half-step interpolation through those columns.
+        # a[] is 305-wide in CS order (ascii 0..94, ext 95+i), 6dp; SI/SZ
+        # carry no sb flag until the windows are swept for them.
+        lines.append('  // (刀102) shared advance bands: sbAdd(i, px, tbl) = px delta vs the')
+        lines.append('  // knot ladder for CS index i, zero outside the windows; half-grid')
+        lines.append('  // f, linear between halves. Fires AFTER as pins and only on')
+        lines.append('  // entries flagged sb (upright system-ui faces + the base entry).')
+        lines.append('  // sba (sparse per-glyph REPLACE amplitudes, from suBand.fixA) lets a')
+        lines.append('  // face override one glyph: italic U+2016 zeroes the band there.')
+        lines.append('  const SBAND = %s;' % json.dumps(fd['suBand'], separators=(',', ':')))
+        lines.append('  const SBL = [SBAND.bump, SBAND.arch];')
+        lines.append('  const sbAdd = (i, px, tbl) => {')
+        lines.append('    let d = 0;')
+        lines.append('    for (let r = 0; r < 2; r++) {')
+        lines.append('      const B = SBL[r];')
+        lines.append('      if (px < B.lo || px > B.hi) continue;')
+        lines.append('      const t = (px - B.lo) * 2, j = Math.floor(t);')
+        lines.append('      const fi = j >= B.f.length - 1 ? B.f[B.f.length - 1]')
+        lines.append('        : B.f[j] + (B.f[j + 1] - B.f[j]) * (t - j);')
+        lines.append('      let a = B.a[i];')
+        lines.append('      if (tbl.sba) { const o = tbl.sba[r].get(i); if (o !== undefined) a = o; }')
+        lines.append('      d += a * fi;')
+        lines.append('    }')
+        lines.append('    return d;')
+        lines.append('  };')
+        lines.append('  const sfe = NAMES["system-ui"].f;')
+        lines.append('  for (const t in sfe) { const e = sfe[t];')
+        lines.append('    if (e && e.sba) e.sba = [new Map(Object.entries(e.sba.bump || {}).map(([k, v]) => [+k, v])), new Map(Object.entries(e.sba.arch || {}).map(([k, v]) => [+k, v]))];')
+        lines.append('  }')
     if ext_cp:
         lines.append('  // EXT: non-ASCII codepoints with per-font advances (Latin-1 + General')
         lines.append('  // Punctuation + symbols). XI maps codepoint -> row index.')
@@ -815,7 +869,22 @@ def main():
         lines.append('  const xAdv = (tbl, i, px) => {')
         if fd:
             lines.append('    if (tbl.xp && tbl.xp[i] !== undefined) return tbl.xp[i] * px;')
-            lines.append("    if (tbl.as) { const A = tbl.as[px]; if (A && A[95 + i] !== undefined) return A[95 + i] * px; }")
+            lines.append("    if (tbl.as) {")
+            lines.append("      const A = tbl.as[px];")
+            lines.append("      if (A && A[95 + i] !== undefined) return A[95 + i] * px;")
+            lines.append('      // (刀102) quarter coverage: interpolate between adjacent-half')
+            lines.append('      // anchors when both bracket the miss; a shape-switch jump')
+            lines.append('      // (+0.07px over proportional em growth — data gap 0.0001..0.14, k102-k)')
+            lines.append('      // until the boundary — chrome cliff semantics (k102-k).')
+            lines.append('      const g2 = px * 2, lo2 = Math.floor(g2);')
+            lines.append('      if (g2 > lo2) {')
+            lines.append('        const LO = tbl.as[lo2 / 2], HI = tbl.as[(lo2 + 1) / 2];')
+            lines.append('        if (LO && HI && LO[95 + i] !== undefined && HI[95 + i] !== undefined) {')
+            lines.append('          if (HI[95 + i] * ((lo2 + 1) / 2) - LO[95 + i] * (lo2 / 2) - LO[95 + i] * 0.5 > 0.07) return LO[95 + i] * (lo2 / 2);')
+            lines.append('          return (LO[95 + i] + (HI[95 + i] - LO[95 + i]) * (g2 - lo2)) * px;')
+            lines.append('        }')
+            lines.append('      }')
+            lines.append('    }')
         lines.append('    if (tbl.xk) {')
         lines.append('      const S = tbl.xk.s, T = tbl.xk.t;')
         lines.append('      if (px <= S[0]) return ADV[T[0]][i] * px;')
@@ -823,7 +892,12 @@ def main():
         lines.append('      if (px >= S[last]) return ADV[T[last]][i] * px;')
         lines.append('      let j = 1; while (S[j] < px) j++;')
         lines.append('      const a = ADV[T[j - 1]][i], b = ADV[T[j]][i];')
-        lines.append('      return (a + (b - a) * (px - S[j - 1]) / (S[j] - S[j - 1])) * px;')
+        lines.append('      let v = (a + (b - a) * (px - S[j - 1]) / (S[j] - S[j - 1])) * px;')
+        if fd and fd.get('suBand'):
+            # (刀102) ext glyph: shared band rides the xk ladder interp; the
+            # xp exact rows and as pins above return before this.
+            lines.append('      if (tbl.sb) v += sbAdd(95 + i, px, tbl);')
+        lines.append('      return v;')
         lines.append('    }')
         lines.append('    return tbl.x === undefined ? ADV[def.x][i] * px : ADV[tbl.x][i] * px;')
         lines.append('  };')
@@ -843,7 +917,19 @@ def main():
     # cannot express (20xx-block size-window switches, sc small-px snaps);
     # the old k-first order left every ladder as entry dead code.
     if fd:
-        lines.append("    if (tbl.as) { const A = tbl.as[px]; if (A && A[i] !== undefined) return A[i] * px; }")
+        lines.append("    if (tbl.as) {")
+        lines.append("      const A = tbl.as[px];")
+        lines.append("      if (A && A[i] !== undefined) return A[i] * px;")
+        lines.append('      // (刀102) quarter coverage, ascii side — same rule as xAdv.')
+        lines.append('      const g2 = px * 2, lo2 = Math.floor(g2);')
+        lines.append('      if (g2 > lo2) {')
+        lines.append('        const LO = tbl.as[lo2 / 2], HI = tbl.as[(lo2 + 1) / 2];')
+        lines.append('        if (LO && HI && LO[i] !== undefined && HI[i] !== undefined) {')
+        lines.append('          if (HI[i] * ((lo2 + 1) / 2) - LO[i] * (lo2 / 2) - LO[i] * 0.5 > 0.07) return LO[i] * (lo2 / 2);')
+        lines.append('          return (LO[i] + (HI[i] - LO[i]) * (g2 - lo2)) * px;')
+        lines.append('        }')
+        lines.append('      }')
+        lines.append('    }')
     lines.append('    if (tbl.k) {')
     lines.append('      const S = tbl.k.s, T = tbl.k.t;')
     lines.append('      if (px <= S[0]) return ADV[T[0]][i] * px;')
@@ -851,7 +937,12 @@ def main():
     lines.append('      if (px >= S[last]) return ADV[T[last]][i] * px;')
     lines.append('      let j = 1; while (S[j] < px) j++;')
     lines.append('      const a = ADV[T[j - 1]][i], b = ADV[T[j]][i];')
-    lines.append('      return (a + (b - a) * (px - S[j - 1]) / (S[j] - S[j - 1])) * px;')
+    lines.append('      let v = (a + (b - a) * (px - S[j - 1]) / (S[j] - S[j - 1])) * px;')
+    if fd and fd.get('suBand'):
+        # (刀102) ascii glyph: same shared band, CS index = i directly; the
+        # as pins above return before the ladder so pinned sizes win.
+        lines.append('      if (tbl.sb) v += sbAdd(i, px, tbl);')
+    lines.append('      return v;')
     lines.append('    }')
     lines.append('    if (tbl.es && tbl.es.x[i] && px < tbl.es.f + tbl.es.l.length) {')
     lines.append('      const L = tbl.es.l, t = px - tbl.es.f;')
