@@ -31900,7 +31900,9 @@ async fn knife101_systemui_kern_repin() {
             ["kb.dotslash1875", 0.674],
             ["kb.dotslash19", 0.6747],
             ["kb.emdash50", -0.3417],
-            ["kb.emdash795", -0.0086],
+            // 刀102: advance band now applies inside sum() at 79.5, shifting the
+            // toFixed(4) rounding of the derived pair value; kern anchors unchanged.
+            ["kb.emdash795", -0.0084],
             ["band.stSI64", -1.3184],
             ["band.lySI64", -5.7129],
             ["band.stSZ64", -0.8789],
@@ -31920,5 +31922,78 @@ async fn knife101_systemui_kern_repin() {
             ["lad.SZ23", 164.5344]
         ]),
         "knife101: system-ui kern re-pin + SI/SZ grid (Chrome 145 fonts truth)"
+    );
+}
+
+#[test]
+fn knife102_systemui_shared_bands() {
+    // (k102) 直立面共享梯包络: at unpinned sizes every upright face deviates
+    // from the ladder identically per glyph in two windows — bump 32.5–39.5
+    // (f peak 1.0 @36.5) and arch 64.5–99.5 (peak @80.5, max 0.1495px) — a
+    // rank-1 product delta(g,s) = a[g]·f(s), residual 0.0005 = capture floor.
+    // Emitted as SBAND + sb flag on the base entry and 19 upright faces (SI/SZ
+    // stay OFF: their 0.5-grid pin covers everything). fixA: italic turns the
+    // U+2016 amplitude OFF (I/Z run the bare ladder there — sba REPLACE rows).
+    // M-class cliff tails: the deep-punctuation glyph switch extends 28.5–31.5
+    // (not just ≤27.5), 84 tail rows merged into suSpot. Region B wobble:
+    // 17.5–27.5 halves pinned past the 0.002 as gate; under-gate cells keep
+    // the ladder (regB.w800_255H: chrome 19.2028, ladder 19.2043 — by gate).
+    // as-layer quarter interpolation: on exact-pin miss, interpolate between
+    // adjacent half anchors; excess-over-proportional > 0.07 = cliff, hold
+    // floor flat (q.SZ_cliff6625 = the 挂账 cell, chrome 58.9382 — cliff-
+    // interior quarter not expressible from two anchors, worst 0.0049).
+    // Rows verified against live Chrome 145 within the 0.002 gate (most
+    // 0.0000–0.0009); expectations pin the model, not Chrome's float.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const W = (font, text) => { x.font = font; return +x.measureText(text).width.toFixed(4); };
+        L.push(['band.R365', W('36.5px system-ui', ' !1')]);
+        L.push(['band.R805', W('80.5px system-ui', '$7')]);
+        L.push(['band.R7525', W('75.25px system-ui', 'Hamburgefonstiv')]);
+        L.push(['band.SB365', W('bold small-caps 36.5px system-ui', ' !1')]);
+        L.push(['band.w300_805', W('300 80.5px system-ui', ' $')]);
+        L.push(['edge.R405', W('40.5px system-ui', ' !1')]);
+        L.push(['regB.w800_255H', W('800 25.5px system-ui', 'H')]);
+        L.push(['regB.S200_225', W('200 small-caps 22.5px system-ui', 'lavatory')]);
+        L.push(['tail.M_295', W('500 29.5px system-ui', 'Hamburgefonstiv')]);
+        L.push(['tail.B_315', W('bold 31.5px system-ui', 'Hamburgefonstiv')]);
+        L.push(['tail.w900_305', W('900 30.5px system-ui', 'Hamburgefonstiv')]);
+        L.push(['fixA.I_365', W('italic 36.5px system-ui', '‖')]);
+        L.push(['fixA.Z_805', W('bold italic 80.5px system-ui', '‖')]);
+        L.push(['fixA.B_365', W('bold 36.5px system-ui', '‖')]);
+        L.push(['q.SI_3425_H', W('italic small-caps 34.25px system-ui', 'H')]);
+        L.push(['q.SI_8525_H', W('italic small-caps 85.25px system-ui', 'H')]);
+        L.push(['q.SZ_3325_H', W('bold italic small-caps 33.25px system-ui', 'H')]);
+        L.push(['q.SZ_cliff6625', W('bold italic small-caps 66.25px system-ui', 'ß')]);
+        L.push(['u2028', W('21px system-ui', '\u2028')]);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["band.R365", 34.5083],
+            ["band.R805", 92.685],
+            ["band.R7525", 541.6741],
+            ["band.SB365", 36.2015],
+            ["band.w300_805", 64.7386],
+            ["edge.R405", 38.1706],
+            ["regB.w800_255H", 19.2043],
+            ["regB.S200_225", 86.3252],
+            ["tail.M_295", 224.9028],
+            ["tail.B_315", 255.0501],
+            ["tail.w900_305", 261.5952],
+            ["fixA.I_365", 18.25],
+            ["fixA.Z_805", 40.25],
+            ["fixA.B_365", 16.0185],
+            ["q.SI_3425_H", 24.4029],
+            ["q.SI_8525_H", 59.7749],
+            ["q.SZ_3325_H", 24.8147],
+            ["q.SZ_cliff6625", 58.9431],
+            ["u2028", 4.932]
+        ]),
+        "knife102: upright shared bump/arch bands + region B + cliff tails + quarters (Chrome 145 fonts truth)"
     );
 }
