@@ -31,6 +31,11 @@ FTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-faces-truth-145.json
 # pushed that file past GitHub's 100MB hard limit (108.5MB); the spot
 # universe is ~26MB on its own. Same pattern as fonts-kern vs fonts-faces.
 SPTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-trispot-truth-145.json')
+# (刀105) armed-kernel truth: FIRE-char kern effects (quad('⁏&',X)-class)
+# that fire only when a leading FIRE char arms the GPOS walk. The runtime
+# kernel lives in sum(); the file also carries the plain-companion rows
+# (trow/tspot/kfill) merged into the kern/tri sources below.
+AKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-armed-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -68,6 +73,37 @@ def main():
     d = json.load(open(TRUTH))
     kd = json.load(open(KTRUTH))
     fd = json.load(open(FTRUTH)) if os.path.exists(FTRUTH) else None
+    # (刀105) armed-kernel merge. kfill: kern knots for engine-missing pairs
+    # — R lands in the base kern dict (v @100) + SU kk knots (em@16/20/24),
+    # faces in fd.suKern (kk + v100, both required by kernFace). trow: plain
+    # GPOS contextual triplet rows for the 36 walk X's (0-9A-Z — TA-head X's
+    # are kernel territory, their standalone tri IS the armed residual);
+    # base R into kd.tri, faces into triFaces mods (src-side key spelling).
+    AK = json.load(open(AKTRUTH)) if os.path.exists(AKTRUTH) else None
+    if AK:
+        ak_ta = {chr(c) for c in AK['ta']}
+        ak_tb = {chr(c) for c in AK['tb']}
+        for tag, pairs in (AK.get('kfill') or {}).items():
+            for key, pxv in pairs.items():
+                if tag == 'R':
+                    kd['kern'].setdefault('system-ui', {})[key] = pxv['100']
+                    kd.setdefault('su', {}).setdefault('kk', {})[key] = [
+                        round(pxv['16'] * 625), round(pxv['20'] * 500),
+                        round(pxv['24'] * 10000 / 24)]
+                else:
+                    su1 = fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}})
+                    su1['kk'][key] = [round(pxv['16'] * 625), round(pxv['20'] * 500),
+                                      round(pxv['24'] * 10000 / 24)]
+                    su1['v100'][key] = round(pxv['100'] * 100)
+        for tag, rows_ in (AK.get('trow') or {}).items():
+            if tag == 'R':
+                tri = kd['tri'].setdefault('system-ui', {})
+                for X, v in rows_.items():
+                    tri[X + ':T'] = v / 100.0
+            else:
+                mods = fd['triFaces'].setdefault('system-ui#' + tag, {}).setdefault('mod', {})
+                for X, v in rows_.items():
+                    mods[X + ':T'] = v / 100.0
     # scKernBands keys are display-case font names; index them by the
     # lowercase NAMES key once.
     SCB = ({k.lower(): v for k, v in fd['scKernBands'].items()}
@@ -209,6 +245,39 @@ def main():
     tspot = {}
     if os.path.exists(SPTRUTH):
         tspot = json.load(open(SPTRUTH))
+    # (刀105) armed-kernel rows ride the same spot layer (su-key-side face
+    # tags); then AKC/AKCE: windows whose existing standalone entry already
+    # carries the armed value (head in TA/TB — direct-armed at line start),
+    # where the runtime kernel must stay silent to avoid double-counting.
+    # Standalone layers only (tri/triFaces/tspot); triMid is EXCLUDED from
+    # AKC (flanked captures, no arming) but its ⁏-final windows go to AKCE —
+    # flanked = non-initial pair = endq baked in (E3: '&”⁏' carries no endq,
+    # 'v&”⁏' does — endq fires only when the pair is not at string start).
+    akc, akce = set(), set()
+    if AK:
+        def _wk(w):
+            return (ord(w[0]) << 32) | (ord(w[1]) << 16) | ord(w[2])
+        for w in (kd.get('tri') or {}).get('system-ui') or {}:
+            if len(w) == 3 and (w[0] in ak_ta or w[0] in ak_tb):
+                akc.add(_wk(w))
+        for key, spec in ((fd or {}).get('triFaces') or {}).items():
+            if not key.startswith('system-ui#'):
+                continue
+            for w in (spec.get('mod') or {}):
+                if len(w) == 3 and (w[0] in ak_ta or w[0] in ak_tb):
+                    akc.add(_wk(w))
+        for tag, rows_ in tspot.items():
+            for w in rows_:
+                if len(w) == 3 and (w[0] in ak_ta or w[0] in ak_tb):
+                    akc.add(_wk(w))
+        for fam, wins in (kd.get('triMid') or {}).items():
+            if fam.lower() != 'system-ui':
+                continue
+            for w in wins:
+                if len(w) == 3 and ord(w[2]) == 0x204F:
+                    akce.add(_wk(w))
+        for tag, rows_ in (AK.get('tspot') or {}).items():
+            tspot.setdefault(tag, {}).update(rows_)
 
     def build_faces(rk, entry):
         # attach entry['f'] = {tag: face table entry} for every face that is
@@ -749,6 +818,46 @@ def main():
         lines.append('  }')
         lines.append("  for (const w of ['100', '200', '300']) { const e = suF[w]; if (e && !e.kkM) { e.kr = NAMES['system-ui'].kr; e.kkM = NAMES['system-ui'].kkM; e.krbM = NAMES['system-ui'].krbM; } }")
         lines.append("  for (const w of ['600', '800', '900']) { const e = suF[w]; if (e && !e.kkM && suF.B) { e.kkM = suF.B.kkM; e.vM = suF.B.vM; e.krbM = suF.B.krbM; } }")
+    if AK:
+        # (刀105) armed kernel runtime data: AKS membership sets (codepoints),
+        # AKJ/AKE per-face kadj/endq anchor rows {pk: [sizes, px*100 vals]}
+        # (lerp between anchors, clamp outside), AKC/AKCE kernel-silent
+        # windows. Faces tagged via tbl.ak: R base + B/I/M/S/100/300/900.
+        def ak_tables(sec):
+            per = {}
+            for pk, tags in AK[sec].items():
+                for tag, anchors in tags.items():
+                    ss = sorted(anchors, key=lambda s: int(s))
+                    per.setdefault(tag, {})[int(pk)] = [
+                        [int(s) for s in ss], [int(anchors[s]) for s in ss]]
+            return per
+        lines.append('  // (刀105) armed kernel: FIRE chars (⁏ ⁚ 202B … Persian digits) arm')
+        lines.append('  // a GPOS walk that cancels/adds kern the plain pair tables cannot')
+        lines.append('  // see; the kernel fires only where the standalone window tables are')
+        lines.append('  // absent (AKC windows already carry the line-start-armed value).')
+        lines.append('  const AKS = { p: new Set(%s), ta: new Set(%s), tb: new Set(%s), dl: new Set(%s), dg: new Set(%s) };' % (
+            json.dumps(sorted(AK['pass'])), json.dumps(sorted(AK['ta'])),
+            json.dumps(sorted(AK['tb'])), json.dumps(sorted(AK['dlet'])),
+            json.dumps(sorted(AK['dig']))))
+        lines.append('  const AKJ = %s;' % json.dumps(ak_tables('kadj'), separators=(',', ':')))
+        lines.append('  const AKE = %s;' % json.dumps(ak_tables('endq'), separators=(',', ':')))
+        lines.append('  const AKJM = new Map(Object.entries(AKJ).map(([t, o]) => [t, new Map(Object.entries(o).map(([k, v]) => [+k, v]))]));')
+        lines.append('  const AKEM = new Map(Object.entries(AKE).map(([t, o]) => [t, new Map(Object.entries(o).map(([k, v]) => [+k, v]))]));')
+        lines.append('  const AKC = new Set(%s);' % json.dumps(sorted(akc)))
+        lines.append('  const AKCE = new Set(%s);' % json.dumps(sorted(akce)))
+        lines.append('  function akv(mp, pk, px) {')
+        lines.append('    const row = mp && mp.get(pk);')
+        lines.append('    if (!row) return 0;')
+        lines.append('    const s = row[0], v = row[1], n = s.length;')
+        lines.append('    if (px <= s[0]) return v[0] / 100;')
+        lines.append('    if (px >= s[n - 1]) return v[n - 1] / 100;')
+        lines.append('    let lo = 0;')
+        lines.append('    while (s[lo + 1] < px) lo++;')
+        lines.append('    return (v[lo] + (v[lo + 1] - v[lo]) * (px - s[lo]) / (s[lo + 1] - s[lo])) / 100;')
+        lines.append('  }')
+        lines.append("  NAMES['system-ui'].ak = 'R';")
+        lines.append("  const akF = NAMES['system-ui'].f;")
+        lines.append("  if (akF) for (const t of ['B', 'I', 'M', 'S', '100', '300', '900']) { if (akF[t]) akF[t].ak = t; }")
     if fd and fd.get('kernFaceMiss'):
         # kfm dicts ride the face entries as JSON; resolve to Maps once.
         lines.append('  // (刀100 C4) face-pair gap fill: kfmM beats the face table miss,')
@@ -1014,6 +1123,9 @@ def main():
         lines.append('      const fmM = tbl.kfmM || null;')
         lines.append('      const frM = tbl.krR === undefined ? null : KMAP[tbl.krR];')
         lines.append('      const faceSu = !m && kkM && tbl.vM;')
+        lines.append('      const akT = tbl.ak || null;')
+        lines.append('      let aA1 = false, aA2 = false, aB1 = false, aB2 = false;')
+        lines.append('      let akSkip = false, akAdd = 0, akSup = false;')
         lines.append('      let p1 = -1, p2 = -1;')
     lines.append('      for (let i = 0; i < text.length; i++) {')
     lines.append('        let c = text.charCodeAt(i);')
@@ -1023,9 +1135,36 @@ def main():
     lines.append('        }')
     lines.append('        w += adv(tbl, c, px);')
     if kcanon:
-        lines.append('        if (p1 >= 0 && m) w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM);')
+        # (刀105 C21) armed-kernel hook: per pair (p1,c) with b=p2, walk-armed
+        # states aA2/aB2 = armedA/B(p2). DLET cancel (skip kern + suppress
+        # the stale window) fires when armedA(p2) AND p1 ∈ PASS — the cancel
+        # only hits (pass,letter) pairs; dlet-dlet pairs like (T,z)/(T,a)/(v,T)
+        # are NEVER canceled by chrome (census 675-row regression taught this).
+        # TA-direct p2 whose standalone window already carries it is exempted
+        # (AKC). kadj (PASS-nd / DIG with PASS(p2)) mirrors that with TB-direct.
+        # endq adds for pair (p2,p1) when ⁏ follows AND the pair is not at
+        # string start (i >= 3 — E3: chrome fires no endq on an initial pair).
+        if AK:
+            lines.append('        akSkip = false; akAdd = 0; akSup = false;')
+            lines.append('        if (akT && p1 >= 0) {')
+            lines.append('          const wk3 = p2 >= 0 ? p2 * 4294967296 + p1 * 65536 + c : 0;')
+            lines.append('          if (AKS.dl.has(c) && aA2 && AKS.p.has(p1) && !(AKS.ta.has(p2) && AKC.has(wk3))) {')
+            lines.append('            akSkip = true; akSup = true;')
+            lines.append('          } else if (AKS.p.has(c) && !AKS.dg.has(c) && aB2 && !(AKS.tb.has(p2) && AKC.has(wk3))) {')
+            lines.append('            akAdd = akv(AKJM.get(akT), p1 * 65536 + c, px);')
+            lines.append('            akSup = !AKS.tb.has(p2);')
+            lines.append('          } else if (AKS.dg.has(c) && aB2 && AKS.p.has(p2) && !AKC.has(wk3)) {')
+            lines.append('            akAdd = akv(AKJM.get(akT), p1 * 65536 + c, px);')
+            lines.append('            akSup = !AKS.tb.has(p2);')
+            lines.append('          }')
+            lines.append('          if (c === 0x204F && i >= 3 && p2 >= 0 && !AKCE.has(wk3))')
+            lines.append('            akAdd += akv(AKEM.get(akT), p2 * 65536 + p1, px);')
+            lines.append('        }')
+        lines.append('        if (p1 >= 0 && m && !akSkip) w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM);')
         if fd and fd.get('suKern'):
-            lines.append('        else if (p1 >= 0 && faceSu) w += kernFace(kkM, tbl.vM, kbM, p1, c, px);')
+            lines.append('        else if (p1 >= 0 && faceSu && !akSkip) w += kernFace(kkM, tbl.vM, kbM, p1, c, px);')
+        if AK:
+            lines.append('        if (akAdd) w += akAdd;')
         lines.append('        if (p2 >= 0 && (tm || k3m || k3k || k3s)) { const q = p2 * 4294967296 + p1 * 65536 + c;')
         lines.append('          const ov = k3m ? k3m.get(q) : undefined;')
         lines.append('          let tv = ov !== undefined ? ov')
@@ -1043,8 +1182,20 @@ def main():
         lines.append('            const fv = gv !== undefined ? gv : (mid3M ? mid3M.get(q) : undefined);')
         lines.append('            if (fv !== undefined) tv = fv;')
         lines.append('          }')
+        if AK:
+            # armed kernel: a fired effect replaces the stale standalone
+            # window value for this position (walk-armed contexts only —
+            # AKC-covered windows never reach here)
+            lines.append('          if (akSup) tv = undefined;')
         lines.append('          if (tv !== undefined) w += tv * px / 10000;')
         lines.append('        }')
+        if AK:
+            # shift walk-armed states: nA/nB = armedA/B(c) — from armedA/B(p1)
+            lines.append('        if (akT) {')
+            lines.append('          const nA = AKS.ta.has(c) || (AKS.p.has(c) && aA1);')
+            lines.append('          const nB = AKS.tb.has(c) || (AKS.p.has(c) && aB1);')
+            lines.append('          aA2 = aA1; aA1 = nA; aB2 = aB1; aB1 = nB;')
+            lines.append('        }')
         lines.append('        p2 = p1; p1 = c;')
     lines.append('      }')
     lines.append('      return w;')
