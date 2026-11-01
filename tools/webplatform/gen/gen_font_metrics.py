@@ -41,6 +41,13 @@ AKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-armed-truth-145.jso
 # family (8 windows — tspot ladders all faces, I-face @100 mods), suKern
 # fill/band pairs, and kadjDrop (⁏-window values mis-attributed to pairs).
 CTTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-colon-truth-145.json')
+# (刀108) light-face kern truth: w100/w200/w300 never captured the Latin-1/
+# mu/prime pair universe (engine-missing real kerns) and 刀105's kfill faces
+# overlay wrote 21 reversed-key px rows per light face (engine false
+# positives — chrome fires zero on every one bare). Fills + 6..28 half-grid
+# bands for the 6,117-pair diff universe, all-zero pxv for the polluted
+# rows, and 14 hard zero-kills on R/B/I/M/S/900 (kfill's c\ family).
+LKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-lightkern-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -172,6 +179,35 @@ def main():
         for comp in CT.get('kadjDrop') or []:
             AK['kadj'].pop(comp, None)
         CT_SP = CT.get('tspot') or {}
+    # (刀108) light-face kern merge — AFTER AK+CT so the later assignment
+    # overwrites the kfill reversed-key rows. Same section shapes as CT
+    # (suKernFill px dicts, suKernBand band dicts); v100 at 2dp centi (the
+    # int quantization put 0.005px on the >=28 v-leg — spot-90 proof);
+    # each filled pair drops any stale kb row first so fill+band fully
+    # define the pair (band hit would otherwise shadow the new ladder).
+    LK = json.load(open(LKTRUTH)) if os.path.exists(LKTRUTH) else None
+    if LK:
+        for tag, pairs in (LK.get('suKernFill') or {}).items():
+            for key, pxv in pairs.items():
+                if tag == 'R':
+                    kd['kern'].setdefault('system-ui', {})[key] = pxv['100']
+                    kd.setdefault('su', {}).setdefault('kk', {})[key] = [
+                        round(pxv['16'] * 625), round(pxv['20'] * 500),
+                        round(pxv['24'] * 10000 / 24)]
+                    kd['su'].get('kb', {}).pop(key, None)
+                else:
+                    su1 = fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}})
+                    su1['kk'][key] = [round(pxv['16'] * 625), round(pxv['20'] * 500),
+                                      round(pxv['24'] * 10000 / 24)]
+                    su1['v100'][key] = round(pxv['100'] * 100, 2)
+                    su1['kb'].pop(key, None)
+        for tag, pairs in (LK.get('suKernBand') or {}).items():
+            for key, band in pairs.items():
+                if tag == 'R':
+                    kd['su'].setdefault('kb', {}).setdefault(key, {}).update(band)
+                else:
+                    fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}}) \
+                        .setdefault('kb', {})[key] = band
     # scKernBands keys are display-case font names; index them by the
     # lowercase NAMES key once.
     SCB = ({k.lower(): v for k, v in fd['scKernBands'].items()}
