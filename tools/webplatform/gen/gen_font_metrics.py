@@ -323,8 +323,15 @@ def main():
                 # k3m overrides beat TMAP, k3k kills R-only triples.
                 if entry.get('k3') is not None:
                     fe['k3'] = entry['k3']
-                if (rk + '#' + tag) in triFaces:
-                    fe['k3f'] = rk + '#' + tag
+                # (刀104) triFaces truth keys are mixed-spelled: w100/w200/w300
+                # carry the w prefix, 600/800/900 and letters are bare. The bare
+                # probe missed the w trio → k3f never set → w faces fell to the
+                # R table at every px ≥ 28 (own-mod keys off by the face-vs-R
+                # delta, worst 9.55px @100).
+                for k3fk in (rk + '#' + tag, rk + '#w' + tag):
+                    if k3fk in triFaces:
+                        fe['k3f'] = k3fk
+                        break
             if fe:
                 fmap[tag] = fe
         if fmap:
@@ -488,8 +495,15 @@ def main():
             # — faces were ladder+kern only) plus their own triFaces delta.
             if su.get('k3') is not None:
                 fe['k3'] = su['k3']
-            if ('system-ui#' + key) in triFaces:
-                fe['k3f'] = 'system-ui#' + key
+            # (刀104) triFaces truth spelling = src side of the pair ('w100'),
+            # entry tag = key side ('100') — the old bare probe missed the
+            # w trio, so w100/200/300 had NO k3f and every px ≥ 28 fell back
+            # to the R table (own-mod keys off by the face-vs-R delta,
+            # worst 9.55px @100; 293/1821 census rows >0.5px).
+            for k3fk in ('system-ui#' + key, 'system-ui#' + src):
+                if k3fk in triFaces:
+                    fe['k3f'] = k3fk
+                    break
             # (刀102) shared advance band flag: chrome deviates from the knot
             # ladder identically per glyph in the 32.5–39.5 bump and 64.5–99.5
             # arch across ALL upright faces (rank-1, residual = capture floor).
