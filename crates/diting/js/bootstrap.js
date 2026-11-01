@@ -13098,11 +13098,28 @@ class _Canvas2D {
     }
     // (刀99) face axis: style/variant/weight tokens select a per-font FACE
     // table (bold/italic faces, small-caps substitution, numeric weights).
-    // small-caps wins (italic is swallowed under it; sc+bold composites are
-    // a documented 刀100 gap); 600..900 fall back to B for fixed fonts.
+    // (刀100 d) under small-caps, weight/italic still select a face: chrome
+    // synthesizes caps on the resolved weight/italic instance, and most
+    // families' composites are DISTINCT (fonts-faces-truth scLattice maps
+    // each variant to the family's captured composite tag; variants whose
+    // lattice entry is absent collapse to S — that collapse is itself
+    // chrome-measured, not a fallback guess).
     let face = null;
     const preL = prePart.toLowerCase();
-    if (/\bsmall-caps\b/.test(preL)) face = 'S';
+    if (/\bsmall-caps\b/.test(preL)) {
+      const wm = preL.match(/(?:^|\s)(\d{3})\b/);
+      const wv = wm ? parseInt(wm[1], 10) : 0;
+      const italTok = /\b(italic|oblique)\b/.test(preL);
+      const boldTok = /\b(bold|bolder)\b/.test(preL);
+      // numeric weights are their OWN lattice keys — 800-sc ≠ bold-sc for
+      // Gill Sans (S800 class ≠ SB class), so never fold wv>=700 into 'b'.
+      let vkey = null;
+      if (wv >= 100 && wv <= 900 && wv !== 400) vkey = String(wv);
+      else if (boldTok) vkey = italTok ? 'z' : 'b';
+      else if (italTok) vkey = 'i';
+      // lattice carries only captured composites; everything else swallows
+      face = (tbl && tbl.scL ? tbl.scL[vkey] : null) || 'S';
+    }
     else {
       const wm = preL.match(/(?:^|\s)(\d{3})\b/);
       const wv = wm ? parseInt(wm[1], 10) : 0;
@@ -13117,7 +13134,14 @@ class _Canvas2D {
     }
     let ftbl = tbl;
     if (face && tbl && tbl.f) {
-      ftbl = tbl.f[face] || (+face >= 600 ? (tbl.f.B || tbl) : tbl);
+      ftbl = tbl.f[face];
+      if (!ftbl) {
+        // (刀100 d) sc tags fall back S-first; numeric >=600 keeps the old
+        // B fallback; every other miss (=R faces: I/200/300…) reads the base table.
+        if (face[0] === 'S') ftbl = tbl.f.S || tbl;
+        else if (+face >= 600) ftbl = tbl.f.B || tbl;
+        else ftbl = tbl;
+      }
     }
     const fl = famPart.toLowerCase();
     const family = /mono|courier|menlo|consolas/.test(fl) ? 'mono' : /times|serif(?!.*sans)|georgia/.test(fl) && !/sans/.test(fl) ? 'times' : 'arial';
