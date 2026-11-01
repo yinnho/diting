@@ -36,6 +36,11 @@ SPTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-trispot-truth-145.j
 # kernel lives in sum(); the file also carries the plain-companion rows
 # (trow/tspot/kfill) merged into the kern/tri sources below.
 AKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-armed-truth-145.json')
+# (刀106) colon-window truth: the (p2,':',c) GPOS contextual universe
+# (@100 firing rows, below-28-only keys, face mods/kills), the ⁏-quote-colon
+# family (8 windows — tspot ladders all faces, I-face @100 mods), suKern
+# fill/band pairs, and kadjDrop (⁏-window values mis-attributed to pairs).
+CTTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-colon-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -101,9 +106,57 @@ def main():
                 for X, v in rows_.items():
                     tri[X + ':T'] = v / 100.0
             else:
-                mods = fd['triFaces'].setdefault('system-ui#' + tag, {}).setdefault('mod', {})
+                # canonical triFaces spelling: w900's canonical key is the
+                # BARE '#900' — the naive 'system-ui#w900' created a shadow
+                # dict that face 900's k3f lookup hit FIRST, silently hiding
+                # the 6,288 canonical C3 mods (刀105 latent regression,
+                # caught 刀106). w100/w300 are w-prefixed in truth already.
+                ckey = 'system-ui#' + ('900' if tag == 'w900' else tag)
+                mods = fd['triFaces'].setdefault(ckey, {}).setdefault('mod', {})
                 for X, v in rows_.items():
                     mods[X + ':T'] = v / 100.0
+    # (刀106) colon-window merge. tri/triFaces land in the kern/faces sources
+    # BEFORE the AKC derivation so ⁏-headed windows auto-enter AKC (kernel
+    # stays silent where a standalone row exists); tspot rides the 刀103 spot
+    # layer (merged at its load site, also pre-AKC-scan); suKernFill reuses
+    # the kfill conversion; suKernBand is the per-px kb layer; kadjDrop
+    # deletes pair rows whose anchors were the ⁏-window values mis-read as
+    # pair adjustments (chrome fires nothing for the pairs at any px — G
+    # probe; akv extrapolated them to @10x error).
+    CT = json.load(open(CTTRUTH)) if os.path.exists(CTTRUTH) else None
+    if CT:
+        for key, v in (CT.get('tri') or {}).items():
+            kd['tri'].setdefault('system-ui', {})[key] = v
+        for key, spec in (CT.get('triFaces') or {}).items():
+            ent = fd['triFaces'].setdefault(key, {})
+            for w, v in (spec.get('mod') or {}).items():
+                ent.setdefault('mod', {})[w] = v
+            for w in spec.get('kill') or []:
+                ks = ent.setdefault('kill', [])
+                if w not in ks:
+                    ks.append(w)
+        for tag, pairs in (CT.get('suKernFill') or {}).items():
+            for key, pxv in pairs.items():
+                if tag == 'R':
+                    kd['kern'].setdefault('system-ui', {})[key] = pxv['100']
+                    kd.setdefault('su', {}).setdefault('kk', {})[key] = [
+                        round(pxv['16'] * 625), round(pxv['20'] * 500),
+                        round(pxv['24'] * 10000 / 24)]
+                else:
+                    su1 = fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}})
+                    su1['kk'][key] = [round(pxv['16'] * 625), round(pxv['20'] * 500),
+                                      round(pxv['24'] * 10000 / 24)]
+                    su1['v100'][key] = round(pxv['100'] * 100)
+        for tag, pairs in (CT.get('suKernBand') or {}).items():
+            for key, band in pairs.items():
+                if tag == 'R':
+                    kd.setdefault('su', {}).setdefault('kb', {}).setdefault(key, {}).update(band)
+                else:
+                    fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}}) \
+                        .setdefault('kb', {})[key] = band
+        for comp in CT.get('kadjDrop') or []:
+            AK['kadj'].pop(comp, None)
+        CT_SP = CT.get('tspot') or {}
     # scKernBands keys are display-case font names; index them by the
     # lowercase NAMES key once.
     SCB = ({k.lower(): v for k, v in fd['scKernBands'].items()}
@@ -245,6 +298,11 @@ def main():
     tspot = {}
     if os.path.exists(SPTRUTH):
         tspot = json.load(open(SPTRUTH))
+    # (刀106) colon tspot rows join the 刀103 layer BEFORE the AKC scan below
+    # — ⁏-headed ladder keys must enter AKC like their tri/triFaces siblings
+    # (a post-scan merge would leave the armed kernel double-firing sub-28).
+    for t_, rows_ in (CT_SP if CT else {}).items():
+        tspot.setdefault(t_, {}).update(rows_)
     # (刀105) armed-kernel rows ride the same spot layer (su-key-side face
     # tags); then AKC/AKCE: windows whose existing standalone entry already
     # carries the armed value (head in TA/TB — direct-armed at line start),
