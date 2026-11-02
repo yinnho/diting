@@ -54,6 +54,10 @@ LKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-lightkern-truth-145
 # font-unit kerns). This layer pins measured @16 kerns (centi-px 2dp) as
 # '16' anchors for the offender pairs of all 22 faces.
 K16TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-k16band-truth-145.json')
+# (刀115) interior half-grid anchors for integer-keyed bands (colon family
+# et al.): chrome kern at the half cells the integer captures skipped,
+# written only where it leaves the kk ladder by >0.0018.
+KHTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-khalfband-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -220,6 +224,23 @@ def main():
     K16 = json.load(open(K16TRUTH)) if os.path.exists(K16TRUTH) else None
     if K16:
         for tag, pairs in (K16.get('suKernBand') or {}).items():
+            for key, band in pairs.items():
+                if tag == 'R':
+                    kd.setdefault('su', {}).setdefault('kb', {}) \
+                        .setdefault(key, {}).update(band)
+                else:
+                    fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}}) \
+                        .setdefault('kb', {}).setdefault(key, {}).update(band)
+    # (刀115) interior half-grid band anchors: the sparse-band lookup
+    # only consults the floor and ceiling HALF keys of a cell, so a band
+    # captured on the integer grid (colon family et al.) served its half
+    # cells (16.5, 17.5 ... 19.5) from the kk ladder — chrome is up to
+    # 0.078px off that path (aT@18.5). These anchors pin the measured
+    # chrome kern wherever it leaves the ladder by >0.0018 (the 刀110
+    # swing-aware gate); merged AFTER LK/K16, update-merge everywhere.
+    KH = json.load(open(KHTRUTH)) if os.path.exists(KHTRUTH) else None
+    if KH:
+        for tag, pairs in (KH.get('suKernBand') or {}).items():
             for key, band in pairs.items():
                 if tag == 'R':
                     kd.setdefault('su', {}).setdefault('kb', {}) \
@@ -1032,6 +1053,17 @@ def main():
         lines.append('      if (K0 === undefined) return 0;')
         lines.append('      v = 0;')
         lines.append('    }')
+        lines.append("    // (刀115) the kk/v ladder as a callable so band-gap cells can follow")
+        lines.append("    // its slope — same legs this function's tail used to inline.")
+        lines.append('    const K = kkM ? kkM.get(key) : undefined;')
+        lines.append('    const lad = (p) => {')
+        lines.append('      if (K === undefined) return v * p / 10000;')
+        lines.append('      if (p >= 28) return v * p / 10000;')
+        lines.append('      if (p >= 24) return (K[2] + (v - K[2]) * (p - 24) / 4) * p / 10000;')
+        lines.append('      if (p >= 20) return (K[1] + (K[2] - K[1]) * (p - 20) / 4) * p / 10000;')
+        lines.append('      if (p >= 16) return (K[0] + (K[1] - K[0]) * (p - 16) / 4) * p / 10000;')
+        lines.append('      return K[0] * p / 10000;')
+        lines.append('    };')
         lines.append('    if (kbM) {')
         lines.append('      const B = kbM.get(key);')
         lines.append('      if (B instanceof Map) {')
@@ -1050,6 +1082,15 @@ def main():
         lines.append('          const A = B.get(lo / 2), B2 = B.get((lo + 1) / 2), t = g - lo;')
         lines.append('          if (A !== undefined) {')
         lines.append('            if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
+        lines.append("            // (刀115) upper half-anchor missing (band end, or a half-grid")
+        lines.append("            // hole the capture gate left to the ladder): hold the anchor's")
+        lines.append("            // deviation from the ladder at the cell start, decay it to zero")
+        lines.append("            // by the cell end — the cell follows the ladder slope instead")
+        lines.append("            // of clamping flat. The flat clamp held (:,T)@19.6-19.9 at the")
+        lines.append("            // 19.5 value (0.03 off truth) and the integer-band windows above")
+        lines.append("            // 20 flat for 0.5px (0.015 off) while chrome tracks the ladder")
+        lines.append("            // path within 0.001 immediately past the anchor.")
+        lines.append('            if (t > 0) return lad(px) + (A / 100 - lad(lo / 2)) * (1 - t);')
         lines.append('            return A / 100;')
         lines.append('          }')
         lines.append('        }')
@@ -1057,7 +1098,6 @@ def main():
         lines.append('        if (px <= 6) return B[0] * px / 600;')
         lines.append('        const t = (px - 6) * 2, lo = Math.floor(t);')
         lines.append('        if (lo >= B.length - 1) {')
-        lines.append('          const K = kkM ? kkM.get(key) : undefined;')
         lines.append('          const lastPx = 6 + (B.length - 1) / 2;')
         lines.append('          const kB = B[B.length - 1] / 100;')
         lines.append('          // exit target = the kk ladder value one half-step past the')
@@ -1071,17 +1111,7 @@ def main():
         lines.append('        return (B[lo] + (B[lo + 1] - B[lo]) * (t - lo)) / 100;')
         lines.append('      }')
         lines.append('    }')
-        lines.append('    if (kkM) {')
-        lines.append('      const K = kkM.get(key);')
-        lines.append('      if (K !== undefined) {')
-        lines.append('        if (px >= 28) return v * px / 10000;')
-        lines.append('        if (px >= 24) return (K[2] + (v - K[2]) * (px - 24) / 4) * px / 10000;')
-        lines.append('        if (px >= 20) return (K[1] + (K[2] - K[1]) * (px - 20) / 4) * px / 10000;')
-        lines.append('        if (px >= 16) return (K[0] + (K[1] - K[0]) * (px - 16) / 4) * px / 10000;')
-        lines.append('        return K[0] * px / 10000;')
-        lines.append('      }')
-        lines.append('    }')
-        lines.append('    return v * px / 10000;')
+        lines.append('    return lad(px);')
         lines.append('  };')
         if fd and fd.get('suKern'):
             lines.append('  // (刀99) su FACE kern: no fixed kr table — the linear anchor comes')
@@ -1096,6 +1126,15 @@ def main():
             lines.append('    const key = a * 65536 + b;')
             lines.append('    const K = kkM.get(key);')
             lines.append('    if (K === undefined) return 0;')
+            lines.append('    const v = vM.get(key) || 0;')
+            lines.append("    // (刀115) ladder as a callable (same legs as kernOf's lad).")
+            lines.append('    const lad = (p) => {')
+            lines.append('      if (p >= 28) return v * p / 10000;')
+            lines.append('      if (p >= 24) return (K[2] + (v - K[2]) * (p - 24) / 4) * p / 10000;')
+            lines.append('      if (p >= 20) return (K[1] + (K[2] - K[1]) * (p - 20) / 4) * p / 10000;')
+            lines.append('      if (p >= 16) return (K[0] + (K[1] - K[0]) * (p - 16) / 4) * p / 10000;')
+            lines.append('      return K[0] * p / 10000;')
+            lines.append('    };')
             lines.append('    if (px < 100 && kbM) {')
             lines.append('      const O = kbM.get(key);')
             lines.append('      if (O) {')
@@ -1103,21 +1142,19 @@ def main():
             lines.append('        // floor half-step wins, fractional interpolates to the next, and')
             lines.append('        // a miss falls to the kk model (刀107: the 刀101 neighbor rescue')
             lines.append('        // returned another size\'s knot at anchor holes / gap edges —')
-            lines.append('        // same fix as kernOf\'s sparse branch).')
+            lines.append("        // same fix as kernOf's sparse branch). 刀115: a present floor")
+            lines.append('        // anchor with a missing upper anchor decays its ladder deviation')
+            lines.append('        // across the cell instead of clamping flat (see kernOf).')
             lines.append('        const g = px * 2, lo = Math.floor(g);')
             lines.append('        const A = O.get(lo / 2), B2 = O.get((lo + 1) / 2), t = g - lo;')
             lines.append('        if (A !== undefined) {')
             lines.append('          if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
+            lines.append('          if (t > 0) return lad(px) + (A / 100 - lad(lo / 2)) * (1 - t);')
             lines.append('          return A / 100;')
             lines.append('        }')
             lines.append('      }')
             lines.append('    }')
-            lines.append('    const v = vM.get(key) || 0;')
-            lines.append('    if (px >= 28) return v * px / 10000;')
-            lines.append('    if (px >= 24) return (K[2] + (v - K[2]) * (px - 24) / 4) * px / 10000;')
-            lines.append('    if (px >= 20) return (K[1] + (K[2] - K[1]) * (px - 20) / 4) * px / 10000;')
-            lines.append('    if (px >= 16) return (K[0] + (K[1] - K[0]) * (px - 16) / 4) * px / 10000;')
-            lines.append('    return K[0] * px / 10000;')
+            lines.append('    return lad(px);')
             lines.append('  };')
     if fd and fd.get('suBand'):
         # (刀102) system-ui shared advance bands: warm chrome deviates from
