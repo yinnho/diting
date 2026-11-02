@@ -68,6 +68,17 @@ SQFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-scqfill-truth-145.
 # measured order-independent with the z delta governing). Indexes ride the
 # KERN/TRI table indexes of this checkout.
 CFKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-cfkill-truth-145.json')
+# (刀119) FM fill truth: the k119a presence sweep found 83 MORE resolvable
+# families (Skia, Didot, Rockwell, STIX Two Math/Text, Times, the Sangam MN
+# scripts, …) absent from the metrics truth. Rows live in this SPLIT file —
+# faces-truth is at the GitHub 100MB cap. fam.adv/ext px@100, vert ints,
+# tables = 305 ems rows (FMF-local indexes; the merge offsets them onto
+# fd.tables), kern nonzero pairs, generic = new GENERIC entries (math is an
+# unquoted-only keyword resolving to STIX Two Math — quoted "math" reads the
+# default font). Faces carry the QUOTED spelling leg; 6 families whose
+# quoted/unquoted legs resolve to different real faces have the unquoted
+# rows parked in _meta.qdiff for a later resolver knife.
+FMFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-fmfill-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -630,6 +641,50 @@ def main():
             rk = name if fd['res'].get(name) else ('g:' + name if fd['res'].get('g:' + name) else None)
             if rk:
                 build_faces(rk, entry)
+    # (刀119) FM fill merge — AFTER the main loop so kcanon/tcanon stay
+    # append-only: LIGAP/CFKT/trispot index truths ride this checkout's table
+    # order, and the main loop interns family kern dicts in sorted(d['adv'])
+    # order. New families therefore intern everything (R kern, face tables)
+    # strictly at the tail. faces fall back krR/R-tri (kernFaces/tri/sc layers
+    # deferred); ext rows merge into d['ext'] so the ext pass attaches x and
+    # near-R faces inherit the family ext base.
+    FMF = json.load(open(FMFTRUTH)) if os.path.exists(FMFTRUTH) else None
+    if FMF and fd:
+        fmf_base = len(fd['tables'])
+        fd['tables'].extend(FMF.get('tables') or [])
+        for rk2, spec in (FMF.get('res') or {}).items():
+            fd['res'][rk2] = {t: (v if isinstance(v, str) else v + fmf_base)
+                              for t, v in spec.items()}
+        fd['vertF'].update(FMF.get('vertF') or {})
+        for name, fx in (FMF.get('fam') or {}).items():
+            nk3 = name.lower()
+            assert nk3 not in names, 'FMF family collides: ' + name
+            ems = [round(v / 100.0, 6) for v in fx['adv']]
+            a1000, d1000 = fx['vert1000']
+            entry = {
+                't': intern(ems),
+                'asc': round(a1000 / 1000.0, 6),
+                'desc': round(d1000 / 1000.0, 6),
+            }
+            spots = {}
+            anchors = list(zip(SPOT, fx['vertspot'])) + [(100, tuple(fx['vert100']))]
+            for px, (A, D) in anchors:
+                if jsround(px * entry['asc']) != A or jsround(px * entry['desc']) != D:
+                    spots[str(px)] = [A, D]
+            if spots:
+                entry['s'] = spots
+            names[nk3] = entry
+            krn = to_int_table((FMF.get('kern') or {}).get(name, {}))
+            if krn:
+                entry['kr'] = kintern(kcanon, krn)
+            # ext rows must join d BEFORE build_faces: near-R faces derive
+            # their x base + xp overrides from d['ext']['adv'][name]
+            # (without it every non-override ext slot reads __absent__).
+            if 'ext' in d and name not in d['ext']['adv']:
+                d['ext']['adv'][name] = fx['ext']
+            build_faces(name, entry)
+        GENERIC.update(FMF.get('generic') or {})
+
     # (刀100 d) sc composite alias lattice: runtime variant key -> composite
     # tag. Keys missing from the lattice swallow to the plain S face (that IS
     # chrome's collapse for those variants — the lattice only carries rows
