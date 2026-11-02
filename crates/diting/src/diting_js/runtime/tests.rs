@@ -32074,3 +32074,141 @@ fn knife103_triple_small_size_spots() {
         "knife103: triple small-size spot anchors (Chrome 145 fonts truth)"
     );
 }
+
+#[tokio::test]
+async fn knife117_font_shorthand_parse_model() {
+    // (刀117) ctx.font full parse/serial/render model (Chrome 145 truth):
+    // invalid assignment IGNORED — getter and metrics keep the previous
+    // value ('bold 700 …' double-weight and 'zzz' keep '16px Arial').
+    // Canonical serial `italic bold small-caps <px>px <families>`; oblique
+    // bare→italic, oblique-with-angle→style dropped (face reads regular),
+    // lighter→100, 700→bold, 400 dropped. The keyword map fires only on the
+    // EXACT float — 700.5 serializes its truncated int '700', never 'bold'
+    // ('700.5 0.5px Arial' → '700 0.5px Arial'). Computed size is stored
+    // float32: serial = toPrecision(6) of Math.fround(px) (6.7199949px →
+    // '6.72px' because f32 snaps past the 6-sig half; '1e-7px' keeps the
+    // exponential form verbatim '1.00000e-7px'; decimal branch trims
+    // '100.000'→'100'; >10000 clamps to 10000). The RENDER size is a second,
+    // independent quantization: round to 6 decimals then truncate the
+    // decimal string to 2 places — 6.7199990 renders 6.71 (7th digit 0, no
+    // carry) while 6.7199999 renders 6.72 (carry); 9999.999 serializes
+    // '10000px' but renders 9999.99; 0.29/0.58 render at declared (string
+    // trunc survives the float traps); 0.145→0.14; 0.014/0.015 plateau at
+    // 0.01; 0.009→0. Face selection: only a NUMERIC weight owns a lattice
+    // key when the family captured that face (刀100 never-fold); a MISSING
+    // numeric ≥600 key folds to the class letters with the italic honored
+    // ('700 italic' Avenir Next renders Z — the old fallback dropped the
+    // italic and read B; numeric 700 roman == B because bold IS the 700
+    // face). Documented non-parse gaps (metrics line): FM table lacks
+    // math / Times / STIX Two Math faces, Avenir Next Demibold (600) and
+    // the 600-900 italic faces; small-caps synthesis curve diverges <4px.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const L = [];
+        const S = (f) => { x.font = 'bold 20px Arial'; x.font = f; return x.font; };
+        L.push(['ser.fr32w', S('6.7199949px Arial')]);
+        L.push(['ser.expo', S('1e-7px Arial')]);
+        L.push(['ser.clamp', S('12345678px Arial')]);
+        L.push(['ser.sixsig', S('1234.5678px Arial')]);
+        L.push(['ser.rnd6', S('99.99999px Arial')]);
+        L.push(['ser.fround1', S('1.0000005px Arial')]);
+        L.push(['ser.frac33', S('0.333333px Arial')]);
+        L.push(['ser.lighter', S('lighter 16px Arial')]);
+        L.push(['ser.obl', S('oblique 16px Arial')]);
+        L.push(['ser.oblang', S('oblique 20deg 16px Arial')]);
+        L.push(['ser.canon', S('bold italic 16px Arial')]);
+        L.push(['ser.n700', S('700 16px Arial')]);
+        L.push(['ser.n400', S('400 16px Arial')]);
+        L.push(['ser.wfrac', S('700.5 0.5px Arial')]);
+        L.push(['ser.w450', S('450.5 16px Arial')]);
+        L.push(['ser.qgen', S('16px "sans-serif"')]);
+        L.push(['ser.ex3', S('3ex Arial')]);
+        L.push(['ser.exmono', S('3ex monospace')]);
+        L.push(['ser.ch3', S('3ch Arial')]);
+        L.push(['ser.rem', S('2rem Arial')]);
+        L.push(['ser.em15', S('1.5em Arial')]);
+        L.push(['ser.xxxl', S('xxx-large Arial')]);
+        L.push(['ser.larger', S('larger Arial')]);
+        L.push(['ser.multidot', S('1.5.5px Arial')]);
+        x.font = '16px Arial'; x.font = 'bold 700 16px Arial';
+        L.push(['ser.reject', x.font]);
+        x.font = '16px Arial'; x.font = 'zzz'; x.font = 'qqq';
+        L.push(['ser.reject2', x.font]);
+        const W4 = (f) => { x.font = f; return +x.measureText('Hamburgefonstiv').width.toFixed(4); };
+        L.push(['w.trunc6', W4('6.7199990px Arial')]);
+        L.push(['w.carry6', W4('6.7199999px Arial')]);
+        L.push(['w.snr', W4('9999.999px Arial')]);
+        L.push(['w.clamp10k', W4('10000px Arial')]);
+        L.push(['w.trap029', W4('0.29px Arial')]);
+        L.push(['w.trap058', W4('0.58px Arial')]);
+        L.push(['w.trunc145', W4('0.145px Arial')]);
+        L.push(['w.q1', W4('1q Arial')]);
+        L.push(['w.px33', W4('0.333333px Arial')]);
+        L.push(['w.plateau014', W4('0.014px Arial')]);
+        L.push(['w.zero009', W4('0.009px Arial')]);
+        L.push(['w.rem20', W4('2rem Arial')]);
+        L.push(['w.ex15', W4('1.5ex Arial')]);
+        const WZ = (f, t) => { x.font = f; return +x.measureText(t).width.toFixed(4); };
+        const T = 'nv⁝‹Tzt';
+        L.push(['fc.Z', WZ('bold italic 100px Avenir Next', T)]);
+        L.push(['fc.w700i', WZ('700 italic 100px Avenir Next', T)]);
+        L.push(['fc.B', WZ('bold 100px Avenir Next', T)]);
+        L.push(['fc.w700', WZ('700 100px Avenir Next', T)]);
+        L.push(['fc.sc800', WZ('small-caps 800 100px Arial', T)]);
+        L.push(['fc.scbold', WZ('small-caps bold 100px Arial', T)]);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["ser.fr32w", "6.72px Arial"],
+            ["ser.expo", "1.00000e-7px Arial"],
+            ["ser.clamp", "10000px Arial"],
+            ["ser.sixsig", "1234.57px Arial"],
+            ["ser.rnd6", "100px Arial"],
+            ["ser.fround1", "1px Arial"],
+            ["ser.frac33", "0.333333px Arial"],
+            ["ser.lighter", "100 16px Arial"],
+            ["ser.obl", "italic 16px Arial"],
+            ["ser.oblang", "16px Arial"],
+            ["ser.canon", "italic bold 16px Arial"],
+            ["ser.n700", "bold 16px Arial"],
+            ["ser.n400", "16px Arial"],
+            ["ser.wfrac", "700 0.5px Arial"],
+            ["ser.w450", "450 16px Arial"],
+            ["ser.qgen", "16px \"sans-serif\""],
+            ["ser.ex3", "13.4619px Arial"],
+            ["ser.exmono", "10.9378px monospace"],
+            ["ser.ch3", "15px Arial"],
+            ["ser.rem", "20px Arial"],
+            ["ser.em15", "15px Arial"],
+            ["ser.xxxl", "48px Arial"],
+            ["ser.larger", "12px Arial"],
+            ["ser.multidot", "1 0.5px Arial"],
+            ["ser.reject", "16px Arial"],
+            ["ser.reject2", "16px Arial"],
+            ["w.trunc6", 50.7214],
+            ["w.carry6", 50.797],
+            ["w.snr", 75590.7244],
+            ["w.clamp10k", 75590.8],
+            ["w.trap029", 2.1921],
+            ["w.trap058", 4.3843],
+            ["w.trunc145", 1.0583],
+            ["w.q1", 7.1055],
+            ["w.px33", 2.4945],
+            ["w.plateau014", 0.0756],
+            ["w.zero009", 0],
+            ["w.rem20", 151.1816],
+            ["w.ex15", 50.8726],
+            ["fc.Z", 316.7008],
+            ["fc.w700i", 316.7008],
+            ["fc.B", 322.1008],
+            ["fc.w700", 322.1008],
+            ["fc.sc800", 310.4445],
+            ["fc.scbold", 310.4445]
+        ]),
+        "knife117: font shorthand parse/serial/render model (Chrome 145 truth)"
+    );
+}
