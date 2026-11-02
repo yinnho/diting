@@ -18019,22 +18019,47 @@
 
     #[test]
     fn test_performance_observer_supported_entry_types_is_honest() {
-        // PerformanceObserver.supportedEntryTypes (exposed upstream in the
-        // #840 batch) must list exactly the entry types the Performance
-        // timeline actually records — advertising LCP/CLS/longtask would push
-        // web-vitals wrappers into a wait that never resolves.
+        // PerformanceObserver.supportedEntryTypes must mirror real Chrome
+        // stable exactly — order included, the array order is a fingerprint
+        // (dumped from this host's Chrome 2026-11-02). Chrome accepts
+        // longtask/LCP observe() calls without throwing; the old 4-type
+        // "honest" list threw TypeError inside page monitors mid-init
+        // (tmall publish, 2026-11-02). Advertised types we don't record
+        // simply never deliver; getEntries types stay a subset of the list.
         let mut rt = setup_runtime("<html><body></body></html>");
         let result = rt.evaluate(r#"
             const listed = PerformanceObserver.supportedEntryTypes;
             performance.mark('probe');
             const recorded = performance.getEntries().map(e => e.entryType);
             const unrecorded = recorded.filter(t => !listed.includes(t));
-            return [listed, unrecorded, listed.includes('largest-contentful-paint')];
+            const accepted = (() => {
+              try {
+                const o = new PerformanceObserver(() => {});
+                o.observe({ entryTypes: ['longtask', 'largest-contentful-paint'] });
+                o.disconnect();
+                return true;
+              } catch (e) { return false; }
+            })();
+            const throwsUnknown = (() => {
+              try {
+                const o = new PerformanceObserver(() => {});
+                o.observe({ entryTypes: ['bogus-type'] });
+                return false;
+              } catch (e) { return true; }
+            })();
+            return [listed, unrecorded, listed.includes('largest-contentful-paint'), accepted, throwsUnknown];
         "#).unwrap();
         assert_eq!(result, serde_json::json!([
-            ["mark", "measure", "navigation", "paint"],
+            [
+                "element", "event", "first-input", "interaction-contentful-paint",
+                "largest-contentful-paint", "layout-shift", "long-animation-frame",
+                "longtask", "mark", "measure", "navigation", "paint", "resource",
+                "soft-navigation", "visibility-state",
+            ],
             [],
-            false
+            true,
+            true,
+            true
         ]));
     }
 
@@ -18073,7 +18098,12 @@
         assert_eq!(result["byType"], serde_json::json!(["m1"]));
         assert_eq!(
             result["supported"],
-            serde_json::json!(["mark", "measure", "navigation", "paint"])
+            serde_json::json!([
+                "element", "event", "first-input", "interaction-contentful-paint",
+                "largest-contentful-paint", "layout-shift", "long-animation-frame",
+                "longtask", "mark", "measure", "navigation", "paint", "resource",
+                "soft-navigation", "visibility-state",
+            ])
         );
     }
 
