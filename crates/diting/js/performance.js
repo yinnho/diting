@@ -511,8 +511,13 @@ if (!globalThis.performance) {
 }
 
 // Replace the bootstrap stub with a working observer. supportedEntryTypes
-// stays the honest set (mark/measure/navigation/paint) — never advertise
-// LCP/CLS/longtask we don't emit.
+// mirrors real Chrome stable exactly (dumped from this host's Chrome
+// 2026-11-02 — order included, the array order is itself a fingerprint).
+// Chrome accepts longtask/LCP/layout-shift observe() calls and delivers
+// entries; we register the interest but only the timeline types we record
+// (mark/measure/navigation/paint) ever deliver — an advertised-but-quiet
+// type is strictly better than the old throw, which crashed page monitors
+// mid-init (tmall publish's longtask/LCP observers, 2026-11-02).
 globalThis.PerformanceObserver = class PerformanceObserver {
   constructor(callback) {
     if (typeof callback !== 'function') {
@@ -595,7 +600,12 @@ globalThis.PerformanceObserver = class PerformanceObserver {
     return this._queue.splice(0, this._queue.length);
   }
   static get supportedEntryTypes() {
-    return ['mark', 'measure', 'navigation', 'paint'];
+    return [
+      'element', 'event', 'first-input', 'interaction-contentful-paint',
+      'largest-contentful-paint', 'layout-shift', 'long-animation-frame',
+      'longtask', 'mark', 'measure', 'navigation', 'paint', 'resource',
+      'soft-navigation', 'visibility-state',
+    ];
   }
 };
 _markNativeProto(globalThis.PerformanceObserver.prototype);
