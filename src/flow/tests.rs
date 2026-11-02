@@ -158,6 +158,38 @@ fn workflow_dir_lists_and_resolves_disk_flows() {
 }
 
 #[test]
+fn workflow_dir_defaults_to_app_data_not_cwd() {
+    let _guard = crate::test_support::workflow_dir_env_guard();
+    let data = crate::config::app_data_dir().expect("test box has a home");
+    assert_eq!(workflow_dir(), data.join("workflow"));
+}
+
+#[test]
+fn provision_refreshes_the_manual_and_keeps_agent_flows() {
+    use std::fs;
+    let dir = std::env::temp_dir().join(format!("diting-provision-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+
+    // First boot: directory and manual appear.
+    resolve::provision_into(&dir).unwrap();
+    let manual = fs::read_to_string(dir.join("README.md")).unwrap();
+    assert!(!manual.is_empty());
+
+    // An agent lands a flow; an older binary's manual is on disk.
+    let flow = dir.join("my-own").join("flow.json");
+    fs::create_dir_all(flow.parent().unwrap()).unwrap();
+    fs::write(&flow, r#"{"steps":[]}"#).unwrap();
+    fs::write(dir.join("README.md"), "stale").unwrap();
+
+    // Upgrade boot: manual refreshed, the agent's flow byte-identical.
+    resolve::provision_into(&dir).unwrap();
+    assert_eq!(fs::read_to_string(dir.join("README.md")).unwrap(), manual);
+    assert_eq!(fs::read_to_string(&flow).unwrap(), r#"{"steps":[]}"#);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn js_truthy_matches_js_semantics() {
     assert!(!js_truthy(&json!(0)));
     assert!(!js_truthy(&json!(0.0)));

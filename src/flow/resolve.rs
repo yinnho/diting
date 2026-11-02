@@ -7,13 +7,40 @@ use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
 
-/// Where on-disk `name`-addressed flows live: server-side assets, sibling
-/// of the binary's working directory by default — drop a directory in to
-/// deploy, no rebuild.
+/// The agent's manual: compiled in, so it reaches every install no matter
+/// how the binary got there.
+const WORKFLOW_MANUAL: &str = include_str!("../../workflow/README.md");
+
+/// Where on-disk `name`-addressed flows live: the app-data directory, so the
+/// flows an agent distills survive restarts from any working directory and
+/// binary upgrades — drop a directory in to deploy, no rebuild.
+/// `DITING_WORKFLOW_DIR` overrides; the bare cwd-relative path is only the
+/// fallback for a box with no resolvable home.
 pub fn workflow_dir() -> PathBuf {
     std::env::var_os("DITING_WORKFLOW_DIR")
         .map(PathBuf::from)
+        .or_else(|| crate::config::app_data_dir().map(|d| d.join("workflow")))
         .unwrap_or_else(|| PathBuf::from("workflow"))
+}
+
+/// Boot-time: make sure the workflow directory exists and carries this
+/// binary's manual. Ephemeral instances write nothing to disk.
+pub fn provision_workflow_dir() -> std::io::Result<()> {
+    if crate::config::ephemeral() {
+        return Ok(());
+    }
+    provision_into(&workflow_dir())
+}
+
+/// Only `README.md` is the engine's — every flow in the directory is the
+/// agent's and is never touched.
+pub(super) fn provision_into(dir: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let manual = dir.join("README.md");
+    if std::fs::read_to_string(&manual).ok().as_deref() != Some(WORKFLOW_MANUAL) {
+        std::fs::write(&manual, WORKFLOW_MANUAL)?;
+    }
+    Ok(())
 }
 
 /// A workflow name is a single path segment of lowercase/digits/dashes —

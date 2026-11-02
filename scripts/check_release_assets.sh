@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Gate: every diting-* file in the cwd must have an isomorphic name.
-#   diting-{version}-{target}[-screenshot][-debug][.tar.gz|.zip][.sha256]
+#   diting-{version}-{target}(.tar.gz|.zip)[.sha256]
 # Fails the job BEFORE upload, so a drifted name never reaches a release.
 set -euo pipefail
-re='^diting-(main-[0-9a-f]+|[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?)-(aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-gnu|x86_64-pc-windows-msvc|aarch64-unknown-linux-musl)(-screenshot)?(-debug)?(\.tar\.gz|\.zip)?(\.sha256)?$'
+re='^diting-(main-[0-9a-f]+|[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?)-(aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-gnu|x86_64-pc-windows-msvc|aarch64-unknown-linux-musl)(\.tar\.gz|\.zip)(\.sha256)?$'
 n=0; bad=0
 for f in diting-*; do
   [ -f "$f" ] || continue
