@@ -31656,7 +31656,7 @@ async fn knife98_kern_matrix_model() {
             ["tri.zapf32", "ok", "427.6"],
             ["tri.zap0th100", "ok", "196.75"],
             ["tri.zap0th16", "ok", "31.48"],
-            ["tri.bask16", "ok", "67.3437"],
+            ["tri.bask16", "ok", "67.3357"],
             ["tri.mf16", "ok", "118.688"],
             ["tri.mf40", "ok", "296.72"],
             ["tri.fff100", "ok", "712.4"],
@@ -32292,5 +32292,94 @@ async fn knife118_cf_insert_kill_truth() {
             ["zp.pp200C.p", 180.75]
         ]),
         "knife118: Cf-insert kill truth (Chrome 145 CFT)"
+    );
+}
+
+#[tokio::test]
+async fn knife119_fm_fill_truth() {
+    // (刀119) 83-family FM 缺脸填平, CFT Chrome 145 truth (k119b..p
+    // censuses, 983 legs engine==truth ±0.000). The fmfill truth
+    // (fonts-fmfill-truth-145.json, split file per the 100MB cap) merges
+    // as a post-pass so kcanon stays append-only; ext rows MUST join
+    // d['ext']['adv'] BEFORE build_faces — near-R faces (I/M/Z) derive
+    // their x base + xp overrides from it (pre-fix every non-override
+    // ext slot read __absent__). `math` unquoted resolves the STIX Two
+    // Math face; quoted "math" falls to the default generic. The 8
+    // filed base_tri cells were pair-universe holes, not FM 缺脸:
+    // zapfino ¡J/¡j/¡p/¿j/¿p pair kerns + baskerville fl. Residual
+    // (deferred, not this knife): kernFaces gap for B/I/M/Z faces of
+    // new families (81 legs) and contextual string kern/tri (15 legs).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const L = [];
+        const W = (f, t) => { x.font = f; return +x.measureText(t).width.toFixed(3); };
+        const V = (f) => { x.font = f; const m = x.measureText('Hg'); return [m.fontBoundingBoxAscent, m.fontBoundingBoxDescent]; };
+        const AS = 'AVWaTofiery.,72µ‑♥';
+        const MM = '100px "Malayalam MN"';
+        L.push(['math.kw', W('100px math', AS)]);
+        L.push(['math.q', W('100px "math"', AS)]);
+        L.push(['math.kw.itimes', W('100px math', 'x⁢y')]);
+        L.push(['math.kw.plus.itimes', W('100px math', 'x+⁢y')]);
+        L.push(['math.face', W('100px "STIX Two Math"', AS)]);
+        L.push(['stix.ftm', W('100px "STIX Two Math"', 'f™')]);
+        L.push(['stix.VA', W('100px "STIX Two Math"', 'VA')]);
+        L.push(['times', W('100px Times', AS)]);
+        L.push(['times.q', W('100px "Times"', AS)]);
+        L.push(['mal.adv', W(MM, AS)]);
+        L.push(['mal.ital', W('italic ' + MM, AS)]);
+        L.push(['mal.w500', W('500 ' + MM, AS)]);
+        L.push(['mal.bold', W('bold ' + MM, AS)]);
+        const v16 = V('16px "Malayalam MN"');
+        L.push(['mal.v16a', +v16[0]]);
+        L.push(['mal.v16d', +v16[1]]);
+        const v100 = V(MM);
+        L.push(['mal.v100a', +v100[0]]);
+        L.push(['mal.v100d', +v100[1]]);
+        L.push(['kan.fi', W('100px "Kannada MN"', 'fi')]);
+        L.push(['kan.adv', W('100px "Kannada MN"', AS)]);
+        L.push(['wd.adv', W('100px Wingdings', AS)]);
+        L.push(['zp.invp', W('100px Zapfino', '¡p')]);
+        L.push(['zp.qmp', W('100px Zapfino', '¿p')]);
+        L.push(['zp.invJ', W('100px Zapfino', '¡J')]);
+        L.push(['zp.tri', W('100px Zapfino', '¡pf')]);
+        L.push(['bas.fl', W('100px Baskerville', 'fl')]);
+        L.push(['bas.ffl', W('100px Baskerville', 'ffl')]);
+        L.push(['bas.flw', W('100px Baskerville', 'flw')]);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["math.kw", 863.4],
+            ["math.q", 958.2],
+            ["math.kw.itimes", 96.2],
+            ["math.kw.plus.itimes", 168.2],
+            ["math.face", 863.4],
+            ["stix.ftm", 129.8],
+            ["stix.VA", 129.3],
+            ["times", 843.555],
+            ["times.q", 843.555],
+            ["mal.adv", 915.668],
+            ["mal.ital", 915.668],
+            ["mal.w500", 917.368],
+            ["mal.bold", 958.005],
+            ["mal.v16a", 16],
+            ["mal.v16d", 4],
+            ["mal.v100a", 100],
+            ["mal.v100d", 25],
+            ["kan.fi", 66.016],
+            ["kan.adv", 916.693],
+            ["wd.adv", 1698.144],
+            ["zp.invp", 117.5],
+            ["zp.qmp", 127.5],
+            ["zp.invJ", 161.25],
+            ["zp.tri", 163.25],
+            ["bas.fl", 51.024],
+            ["bas.ffl", 78.124],
+            ["bas.flw", 118.749]
+        ]),
+        "knife119: FM 83-family fill truth (Chrome 145 CFT)"
     );
 }
