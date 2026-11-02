@@ -295,9 +295,21 @@ function __acc(C, names) {
   for (const k of names) {
     const priv = '_' + k;
     __accPrivs.add(priv);
+    // The backing must NOT be a page-reachable property name. The old
+    // `this._x` own-slot face collided with page wrapper conventions:
+    // baxia (g.alicdn.com/sd/baxia, tmall risk-control) saves the original
+    // handler as `this._onloadend` before wrapping `onloadend`, and our
+    // setter then clobbered that saved original with the wrapper — dispatch
+    // → wrapper → r._onloadend (= wrapper) → … RangeError, killing the
+    // page's whole module system (tmall publish/category, live 2026-11-02).
+    // In Chrome the IDL attribute backing is a native slot JS cannot name,
+    // so `x._onloadend` and the stored handler never meet. Same privacy via
+    // the 刀84 hidden-slot channel. (__accRo keeps the own-prop face: its
+    // writers are engine-side __def(o, priv, v) calls, and no page wrapper
+    // family saves originals under those ro names.)
     Object.defineProperty(C.prototype, k, {
-      get() { return this[priv]; },
-      set(v) { __def(this, priv, v); },
+      get() { const s = globalThis.__diting_liftSlots.get(this); return s === undefined ? undefined : s[priv]; },
+      set(v) { __diting_liftSlot(this)[priv] = v; },
       configurable: true,
       enumerable: true,
     });
