@@ -32212,3 +32212,85 @@ async fn knife117_font_shorthand_parse_model() {
         "knife117: font shorthand parse/serial/render model (Chrome 145 truth)"
     );
 }
+
+#[tokio::test]
+async fn knife118_cf_insert_kill_truth() {
+    // (刀118) transparent-Cf insert kills, CFT Chrome 145 truth (k118a..m
+    // censuses, 323,385-cell universe). Chrome elides {200C,200D,2060-2064,
+    // 2066,2068,2069} before shaping: GPOS pair kern PASSES through them,
+    // but the contextual kern/liga layer dies per (font, window, member
+    // class) — LIGAP kills the isolated pair by REPLACING the kern term
+    // (r=0 = pure drop; optical bands free), and a triple window with a
+    // CFKT entry governs its junctions via its measured total delta (mask
+    // 1=ZWNJ 2=WJ-class 4=ZWJ; junction precedence Z>J>W). An isolated
+    // pair kill NEVER extends into a flanking TMAP window (zapfino pp:
+    // 'p·C·p' kills to 110 but 'p·C·pp' stays 180.75) — and a kern-class
+    // font passes the same Cf untouched (TNR ff·200C). Opaque CF_ZW
+    // members (200B…) stay in-stream as junction breakers (arial ff·200B
+    // = f + f, no ligature kern). ZWJ rides ONLY where the mask carries
+    // bit 4 (kr=1 shared table is ZWNJ-only: -apple-system ff/fi die on
+    // 200C, not 200D; AT ffi j2 dies on 200C/2060, not 200D).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const c = document.createElement('canvas');
+        const x = c.getContext('2d');
+        const L = [];
+        const W = (f, t) => { x.font = f; return +x.measureText(t).width.toFixed(3); };
+        const AT = '100px "American Typewriter"';
+        L.push(['at.fi200C', W(AT, 'f‌i')]);
+        L.push(['at.fi2060', W(AT, 'f⁠i')]);
+        L.push(['at.fi200D', W(AT, 'f‍i')]);
+        L.push(['at.ffi', W(AT, 'ffi')]);
+        L.push(['at.ffi.j2z', W(AT, 'ff‌i')]);
+        L.push(['at.ffi.j2w', W(AT, 'ff⁠i')]);
+        L.push(['at.ffi.j2j', W(AT, 'ff‍i')]);
+        L.push(['at.ffi.j1z', W(AT, 'f‌fi')]);
+        L.push(['at.dag.j1z', W(AT, '†‌1,')]);
+        L.push(['at.dag.j2z', W(AT, '†1‌,')]);
+        L.push(['kt.fi2066', W('100px "Kaiti SC"', 'f\u2066i')]);
+        L.push(['kt.fi200C', W('100px "Kaiti SC"', 'f‌i')]);
+        L.push(['av.fi200C', W('100px Avenir', 'f‌i')]);
+        L.push(['gv.fl200C', W('100px Geneva', 'f‌l')]);
+        L.push(['gs.fi200C', W('100px "Gill Sans"', 'f‌i')]);
+        L.push(['tnr.ff200C', W('100px "Times New Roman"', 'f‌f')]);
+        L.push(['ar.ff200B', W('100px Arial', 'f​f')]);
+        L.push(['ar.ff', W('100px Arial', 'ff')]);
+        L.push(['aps.ff200C', W('100px -apple-system', 'f‌f')]);
+        L.push(['aps.fi200C', W('100px -apple-system', 'f‌i')]);
+        L.push(['aps.ff200D', W('100px -apple-system', 'f‍f')]);
+        L.push(['zp.pp200C', W('100px Zapfino', 'p‌p')]);
+        L.push(['zp.pp', W('100px Zapfino', 'pp')]);
+        L.push(['zp.pp200C.p', W('100px Zapfino', 'p‌pp')]);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["at.fi200C", 68.4],
+            ["at.fi2060", 68.4],
+            ["at.fi200D", 60],
+            ["at.ffi", 94.6],
+            ["at.ffi.j2z", 104.1],
+            ["at.ffi.j2w", 104.1],
+            ["at.ffi.j2j", 94.6],
+            ["at.ffi.j1z", 94.6],
+            ["at.dag.j1z", 150.1],
+            ["at.dag.j2z", 154.7],
+            ["kt.fi2066", 61.5],
+            ["kt.fi200C", 61.5],
+            ["av.fi200C", 53.6],
+            ["gv.fl200C", 62.5],
+            ["gs.fi200C", 46.924],
+            ["tnr.ff200C", 64.795],
+            ["ar.ff200B", 55.566],
+            ["ar.ff", 53.76],
+            ["aps.ff200C", 74.6],
+            ["aps.fi200C", 62.9],
+            ["aps.ff200D", 68.6],
+            ["zp.pp200C", 110],
+            ["zp.pp", 125.75],
+            ["zp.pp200C.p", 180.75]
+        ]),
+        "knife118: Cf-insert kill truth (Chrome 145 CFT)"
+    );
+}

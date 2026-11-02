@@ -59,6 +59,15 @@ K16TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-k16band-truth-145.
 # written only where it leaves the kk ladder by >0.0018.
 KHTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-khalfband-truth-145.json')
 SQFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-scqfill-truth-145.json')
+# (刀118) Cf-insert kill truth: chrome drops contextual kern/liga windows when
+# a transparent Cf sits at a junction — kern passes but the liga/context layer
+# dies (k118a/k118f censuses). pairs: {kr: {pair: [r, mask]}} (r = residual
+# kern px@100 int when the effect dies, mask 1=ZWNJ 2=WJ-class 4=ZWJ);
+# tris: {k3: {triple: [j1z,j1w,j1j,j2z,j2w,j2j]}} total-width deltas vs the
+# clean triple (px@100 ints; junction member precedence Z>J>W — mixed gaps
+# measured order-independent with the z delta governing). Indexes ride the
+# KERN/TRI table indexes of this checkout.
+CFKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-cfkill-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -925,6 +934,31 @@ def main():
         lines.append('  // (k98) triple exceptions (ligature chains, script joins): px@100 ints.')
         lines.append('  const TRI = %s;' % json.dumps(tcanon, separators=(',', ':')))
         lines.append('  const TMAP = TRI.map((o) => { const m = new Map(); for (const k in o) m.set(k.charCodeAt(0) * 4294967296 + k.charCodeAt(1) * 65536 + k.charCodeAt(2), o[k]); return m; });')
+    # (刀118) Cf-insert kill truth, aligned to the KERN/TRI canons above.
+    # Emitted unconditionally (all-null lists when the truth file is absent)
+    # so the sum() use sites need no presence guards.
+    CFK = json.load(open(CFKTRUTH)) if os.path.exists(CFKTRUTH) else None
+    cfkp = {int(k): v for k, v in ((CFK or {}).get('pairs') or {}).items()}
+    cfkt = {int(k): v for k, v in ((CFK or {}).get('tris') or {}).items()}
+    assert all(i < len(kcanon) for i in cfkp), 'cfkill pair table index out of KERN range'
+    assert all(i < len(tcanon) for i in cfkt), 'cfkill triple table index out of TRI range'
+    ligap = [cfkp.get(i) for i in range(len(kcanon))]
+    cfktl = [cfkt.get(i) for i in range(len(tcanon))]
+    lines.append('  // (刀118) Cf-kill pair truth: LIGAP[i] = {pair: [r, mask]} —')
+    lines.append('  // when a transparent Cf sits between the pair and its mask bit is')
+    lines.append('  // set, the kern term is REPLACED by r*px/10000 (r=0 = pure drop;')
+    lines.append('  // optical bands come free — where the base kern is 0 there is')
+    lines.append('  // nothing to drop). Mask 1=ZWNJ 2=WJ-class 4=ZWJ. A window with a')
+    lines.append('  // CFKT entry governs its junctions itself (no LIGAP double-fire).')
+    lines.append('  const LIGAP = %s;' % json.dumps(ligap, separators=(',', ':')))
+    lines.append('  const LIGAPM = LIGAP.map((o) => { if (!o) return null; const m = new Map(); for (const k in o) m.set(numKey(k), o[k]); return m; });')
+    lines.append('  // (刀118) Cf-kill triple truth: CFKT[i] = {triple: [j1z,j1w,j1j,')
+    lines.append('  // j2z,j2w,j2j]} — total-width deltas (px@100 ints) vs the clean')
+    lines.append('  // triple when a transparent Cf sits at junction 1 (p2|p1) or 2')
+    lines.append('  // (p1|c). Junction member precedence Z>J>W; the delta subsumes')
+    lines.append('  // pair-level kills inside the window.')
+    lines.append('  const CFKT = %s;' % json.dumps(cfktl, separators=(',', ':')))
+    lines.append('  const CFKTM = CFKT.map((o) => { if (!o) return null; const m = new Map(); for (const k in o) m.set(k.charCodeAt(0) * 4294967296 + k.charCodeAt(1) * 65536 + k.charCodeAt(2), o[k]); return m; });')
         # (刀100 c5b ladder) gate refined: ONLY U+202F at window first/last is
         # standalone-only (AN_l_11/AT_l_10/AT_f_c1/CB_f_q2/HT_f_74 all gate on
         # every flank; string-end is irrelevant). U+202F mid fires (’⁯A rows),
@@ -1495,10 +1529,29 @@ def main():
     if GENQ:
         lines.append('    genq(name) { const q = GENQ[String(name).toLowerCase()]; return q || null; },')
     lines.append('    sum(tbl, text, px) {')
-    # (刀113) strip chrome-transparent Cf BEFORE the walk: shaping, kern and
-    # tri windows all see the elided string. replace() resets lastIndex of the
-    # shared /g regex, and a false test() also resets — safe to reuse.
-    lines.append('      if (CF_STRIP.test(text)) text = text.replace(CF_STRIP, \'\');')
+    # (刀113) chrome elides a Cf subset before shaping — kern/tri windows see
+    # the elided string. (刀118) the elision now also records a junction gap
+    # flag per surviving position so the Cf-kill truth can fire: 1=ZWNJ
+    # 2=WJ-class 4=ZWJ, OR-accumulated when several Cfs share a junction.
+    # CF_STRIP is /g — reset lastIndex before the test() gate (the old
+    # replace() used to reset it implicitly; a bare test() would inherit it).
+    lines.append('      let gaps = null;')
+    lines.append('      CF_STRIP.lastIndex = 0;')
+    lines.append('      if (CF_STRIP.test(text)) {')
+    lines.append("        let t2 = ''; const gi = [0];")
+    lines.append('        for (let i = 0; i < text.length; i++) {')
+    lines.append('          const ch = text.charCodeAt(i);')
+    lines.append('          if (ch >= 0xD800 && ch <= 0xDBFF && i + 1 < text.length) {')
+    lines.append('            const lo = text.charCodeAt(i + 1);')
+    lines.append("            if (lo >= 0xDC00 && lo <= 0xDFFF) { t2 += text[i] + text[i + 1]; gi.push(0); i++; continue; }")
+    lines.append('          }')
+    lines.append('          if (ch === 0x200C) { gi[gi.length - 1] |= 1; continue; }')
+    lines.append('          if (ch === 0x200D) { gi[gi.length - 1] |= 4; continue; }')
+    lines.append('          if ((ch >= 0x2060 && ch <= 0x2064) || ch === 0x2066 || ch === 0x2068 || ch === 0x2069) { gi[gi.length - 1] |= 2; continue; }')
+    lines.append("          t2 += text[i]; gi.push(0);")
+    lines.append('        }')
+    lines.append('        text = t2; gaps = gi;')
+    lines.append('      }')
     lines.append('      let w = 0;')
     if kcanon:
         # (刀100 c5g) faces without their own kern table (kr absent — 60
@@ -1516,6 +1569,13 @@ def main():
         lines.append('      let aA1 = false, aA2 = false, aB1 = false, aB2 = false;')
         lines.append('      let akSkip = false, akAdd = 0, akSup = false;')
         lines.append('      let p1 = -1, p2 = -1;')
+        # (刀118) pair-kill map mirrors the m selection (own table, else the
+        # krR family fallback); ctm = the table's CFKT map. vp counts output
+        # CHARS (i counts UTF-16 units — gaps is char-indexed).
+        lines.append('      const liM = tbl.kr === undefined ? (tbl.krR === undefined || tbl.kr0 ? null : LIGAPM[tbl.krR]) : LIGAPM[tbl.kr];')
+        lines.append('      const liR = tbl.krR === undefined ? null : LIGAPM[tbl.krR];')
+        lines.append('      const ctm = tbl.k3 === undefined ? null : CFKTM[tbl.k3];')
+        lines.append('      let vp = 0;')
     lines.append('      for (let i = 0; i < text.length; i++) {')
     lines.append('        let c = text.charCodeAt(i);')
     lines.append('        if (c >= 0xD800 && c <= 0xDBFF && i + 1 < text.length) {')
@@ -1550,7 +1610,38 @@ def main():
             lines.append('            akAdd += akv(AKEM.get(akT), p2 * 65536 + p1, px);')
             lines.append('        }')
         lines.append("        const scq = tbl.scq && scqL(p1) && scqL(c) ? 1 : 0;")
-        lines.append('        if (p1 >= 0 && m && !akSkip) w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM, scq);')
+        # (刀118) junction gap flags around the current char: g1 = gap at
+        # p2|p1 (junction 1 of the window), g2 = gap at p1|c (junction 2 —
+        # also this pair's own gap). ctHit: an isolated-pair kill does NOT
+        # extend into a contextual chain — when either flanking triple window
+        # (p2,p1,c) or (p1,c,next) exists in TMAP, the pair LIGA is silenced
+        # (CFKT-entry windows take their measured delta instead; TMAP-only
+        # windows measured delta-0 in the t-census). NOTE p2 may be -1 here
+        # (pair at string start — the junction-1 pair of the first window);
+        # only the lookbehind branch requires it.
+        lines.append('        const g1 = gaps ? (vp > 0 ? gaps[vp - 1] : 0) : 0;')
+        lines.append('        const g2 = gaps ? gaps[vp] : 0;')
+        lines.append('        let ctHit = false;')
+        lines.append('        if (gaps && tm && p1 >= 0) {')
+        lines.append('          if (p2 >= 0 && tm.has(p2 * 4294967296 + p1 * 65536 + c)) ctHit = true;')
+        lines.append('          else if (g2) {')
+        lines.append('            let nk = i + 1 < text.length ? text.charCodeAt(i + 1) : -1;')
+        lines.append('            if (nk >= 0xD800 && nk <= 0xDBFF && i + 2 < text.length) {')
+        lines.append('              const lo2 = text.charCodeAt(i + 2);')
+        lines.append('              if (lo2 >= 0xDC00 && lo2 <= 0xDFFF) nk = 0x10000 + ((nk - 0xD800) << 10) + (lo2 - 0xDC00);')
+        lines.append('            }')
+        lines.append('            if (nk >= 0 && tm.has(p1 * 4294967296 + c * 65536 + nk)) ctHit = true;')
+        lines.append('          }')
+        lines.append('        }')
+        # (刀118) pair kill: replace the kern term with r*px/10000 when the
+        # junction's Cf member class is in the entry mask (kill = liga/context
+        # death; GPOS kern itself passes through transparent Cf).
+        lines.append('        if (p1 >= 0 && m && !akSkip) {')
+        lines.append('          let le;')
+        lines.append('          if (gaps && !ctHit) { const qk = p1 * 65536 + c; le = (liM && liM.get(qk)) || (liR && liR.get(qk)) || undefined; }')
+        lines.append('          if (le !== undefined && (g2 & le[1])) w += le[0] * px / 10000;')
+        lines.append('          else w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM, scq);')
+        lines.append('        }')
         if fd and fd.get('suKern'):
             lines.append('        else if (p1 >= 0 && faceSu && !akSkip) w += kernFace(kkM, tbl.vM, kbM, p1, c, px, scq);')
         if AK:
@@ -1577,7 +1668,23 @@ def main():
             # window value for this position (walk-armed contexts only —
             # AKC-covered windows never reach here)
             lines.append('          if (akSup) tv = undefined;')
+        # (刀118) CFKT total-delta: a window with a truth entry governs its
+        # junctions — d is the measured chrome(4-char) − chrome(clean) width
+        # delta and subsumes every pair-level kill inside the window (ctHit
+        # already stopped the LIGAP fire). Member precedence per junction
+        # Z>J>W (legs j1z,j1w,j1j | j2z,j2w,j2j).
+        lines.append('          let cd = 0;')
+        lines.append('          if (gaps && ctm && (g1 || g2)) {')
+        lines.append('            const ct = ctm.get(q);')
+        lines.append('            if (ct) {')
+        lines.append('              const l1 = (g1 & 1) ? 0 : (g1 & 4) ? 2 : (g1 & 2) ? 1 : -1;')
+        lines.append('              const l2 = (g2 & 1) ? 0 : (g2 & 4) ? 2 : (g2 & 2) ? 1 : -1;')
+        lines.append('              if (l1 >= 0) cd += ct[l1];')
+        lines.append('              if (l2 >= 0) cd += ct[3 + l2];')
+        lines.append('            }')
+        lines.append('          }')
         lines.append('          if (tv !== undefined) w += tv * px / 10000;')
+        lines.append('          if (cd) w += cd * px / 10000;')
         lines.append('        }')
         if AK:
             # shift walk-armed states: nA/nB = armedA/B(c) — from armedA/B(p1)
@@ -1586,7 +1693,7 @@ def main():
             lines.append('          const nB = AKS.tb.has(c) || (AKS.p.has(c) && aB1);')
             lines.append('          aA2 = aA1; aA1 = nA; aB2 = aB1; aB1 = nB;')
             lines.append('        }')
-        lines.append('        p2 = p1; p1 = c;')
+        lines.append('        p2 = p1; p1 = c; vp++;')
     lines.append('      }')
     lines.append('      return w;')
     lines.append('    },')
