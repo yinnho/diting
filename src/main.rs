@@ -304,6 +304,12 @@ async fn main() -> anyhow::Result<()> {
         std::process::exit(2);
     }
 
+    // The workflow directory is the agent's home for its own flows; a failure
+    // here costs the manual on disk, not the server.
+    if let Err(e) = flow::provision_workflow_dir() {
+        tracing::warn!("workflow dir {}: {e}", flow::workflow_dir().display());
+    }
+
     // UA/TLS coherence (taobao compat report ⑤): DITING_UA overrides
     // the UA while the stealth transport keeps its default chrome145-shaped
     // TLS handshake; fleet claim is Chrome/145 — warn when the UA major
@@ -830,6 +836,8 @@ async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse
         "screenshot": cfg!(feature = "screenshot"),
         "stealth": cfg!(feature = "stealth"),
         "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
+        // Where an agent lands the flows it distills (and reads README.md).
+        "workflow_dir": flow::workflow_dir().to_string_lossy(),
         // /video's one external dependency, visible here too (the agent-browser
         // #2011 lesson: a doctor silent about ffmpeg reads healthy on a box
         // where every recording dies with EPIPE). Null = not probed.

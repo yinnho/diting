@@ -9,7 +9,7 @@
 # with `diting doctor` so a broken environment says so immediately.
 #
 # Env overrides (namespaced and legacy spellings both accepted):
-#   DITING_VERSION / VERSION          pin a release (e.g. v0.2.3); default: latest
+#   DITING_VERSION / VERSION          pin a release (e.g. v0.8.4); default: latest
 #   DITING_BIN_DIR / PREFIX           install target; default: /usr/local/bin
 #                                           if writable, else ~/.local/bin
 #   DITING_GH_PROXY                   prefix mirror for github.com downloads,
@@ -36,21 +36,25 @@ case "$arch" in
     *) say "unsupported arch: $arch"; exit 1 ;;
 esac
 target="${cpu}-${vendor}"
+# Linux arm64 ships as one static musl build (no libc dependency).
 if [ "$target" = "aarch64-unknown-linux-gnu" ]; then
-    say "no prebuilt linux/arm64 binary yet — use the multi-arch Docker image instead:"
-    say "  docker run -d -p 8089:8089 ghcr.io/yinnho/diting:latest"
-    say "or build from source: cargo build --release --features stealth,screenshot"
-    exit 1
+    target="aarch64-unknown-linux-musl"
 fi
+case "$target" in
+    aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-gnu|x86_64-pc-windows-msvc|aarch64-unknown-linux-musl) ;;
+    *) say "no prebuilt binary for $target"; exit 1 ;;
+esac
 
 # ---- version ---------------------------------------------------------------
 version="${DITING_VERSION:-${VERSION:-}}"
 if [ -z "$version" ]; then
     version=$(curl -fsSL --connect-timeout 10 "https://api.github.com/repos/$repo/releases/latest" \
         | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -1)
-    [ -n "$version" ] || { say "could not resolve latest release (api.github.com unreachable?) — pin one: DITING_VERSION=v0.2.3 sh install.sh"; exit 1; }
+    [ -n "$version" ] || { say "could not resolve latest release (api.github.com unreachable?) — pin one: DITING_VERSION=v0.8.4 sh install.sh"; exit 1; }
 fi
-asset="diting-${version}-${target}.tar.gz"
+# The git tag carries the v, asset names never do (scripts/release_lib.sh).
+version="v${version#v}"
+asset="diting-${version#v}-${target}.tar.gz"
 say ">> diting $version for $target"
 
 # ---- download + verify -----------------------------------------------------
@@ -65,7 +69,7 @@ if ! fetch "$base/$asset" "$tmp/$asset"; then
     say "download failed from $gh"
     say "if GitHub is slow/blocked on your network, retry through a mirror:"
     say "  DITING_GH_PROXY=https://ghfast.top/ sh -c 'curl -fsSL <install-url> | sh'"
-    say "(mirrors are third-party; homebrew is an alternative: brew install yinnho/diting/diting)"
+    say "(mirrors are third-party)"
     exit 1
 fi
 fetch "$base/$asset.sha256" "$tmp/$asset.sha256"

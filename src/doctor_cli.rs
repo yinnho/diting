@@ -57,6 +57,11 @@ fn features_check() -> Check {
     check(Status::Ok, "features", detail)
 }
 
+/// Where flows live — the agent's manual is `README.md` in the same place.
+fn workflow_check() -> Check {
+    check(Status::Ok, "workflow", crate::flow::workflow_dir().display().to_string())
+}
+
 /// The robots.txt stance is a product decision made visible: it defaults to
 /// skipped (real-time acquisition layer, not a crawler), and the one env
 /// that turns it on should show up in doctor so a misconfigured instance
@@ -253,7 +258,8 @@ pub fn render(checks: &[Check]) -> String {
 
 /// Entry point from main's arg dispatch. Returns the process exit code.
 pub async fn run() -> i32 {
-    let mut checks = vec![features_check(), fonts_check(), ffmpeg_check(), robots_check()];
+    let mut checks =
+        vec![features_check(), workflow_check(), fonts_check(), ffmpeg_check(), robots_check()];
     checks.extend(env_checks());
     checks.push(egress_check().await);
     let code = if checks.iter().any(|c| c.status == Status::Fail) { 1 } else { 0 };

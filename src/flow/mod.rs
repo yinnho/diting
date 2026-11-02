@@ -13,11 +13,11 @@
 //!    calling agent can repair the flow or take the session over manually.
 //!    The engine itself stays LLM-free — the repair loop is the caller's.
 //!
-//! Flows live as data assets in `workflow/<name>/flow.json` beside the
-//! binary — the engine carries none of them inside the exe. A deployed
-//! instance gains or overrides a workflow by dropping a file into
-//! `workflow/` (or `DITING_WORKFLOW_DIR`); the repo's samples and
-//! the release tarball ship that directory as files.
+//! Flows live as data assets in `workflow/<name>/flow.json` under the
+//! app-data directory — the engine carries none of them inside the exe,
+//! only the agent's manual. A deployed instance gains or overrides a
+//! workflow by dropping a file into that directory (or
+//! `DITING_WORKFLOW_DIR`); `/doctor` reports the resolved path.
 
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -32,7 +32,9 @@ use tokio::sync::oneshot;
 mod condition;
 mod resolve;
 
-pub use resolve::{available_workflows, is_workflow_name, resolve_flow_doc, workflow_dir};
+pub use resolve::{
+    available_workflows, is_workflow_name, provision_workflow_dir, resolve_flow_doc, workflow_dir,
+};
 mod timing;
 use condition::{eval_condition, js_truthy, CONDITION_OPS};
 use timing::{with_timing, StepStarts};
