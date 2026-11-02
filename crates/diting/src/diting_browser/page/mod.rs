@@ -504,9 +504,20 @@ pub struct Page {
     busy_mark: Option<(tokio::time::Instant, u64)>,
     /// Set when the busy window tripped: the idle pump throttles to bounded
     /// 50ms bursts (≈25% duty) instead of free-running. Commands still run;
-    /// a cool burst clears this without a document swap (#240), and
-    /// Navigate/SetContent still rebuilds the realm and clears it.
+    /// a cool burst clears this without a document swap (#240), a session
+    /// command arms a full-speed probe window (2026-11-02, tmall publish),
+    /// and Navigate/SetContent still rebuilds the realm and clears it.
     busy_frozen: bool,
+    /// #66 command probe: armed by `note_command_arrived` while frozen; the
+    /// next pump slice lifts the freeze and runs at full speed for a fresh
+    /// duty window. A legitimately heavy editor (tmall publish.htm, 6.4s
+    /// flush() queues) re-feeds its work queue, so the #240 cool-burst never
+    /// fired and the realm sat at 25% for life — its dialogs dispatched but
+    /// never rendered (the operator's blank 图片空间 picker). Chrome never
+    /// throttles a page the user is driving; neither do we. A still-hot
+    /// realm re-freezes one window after the last command; a parked burner
+    /// (no commands) keeps the original containment.
+    busy_probe_pending: bool,
     #[cfg(feature = "stealth")]
     pub stealth_client: Option<Arc<StealthHttpClient>>,
 }
@@ -621,6 +632,7 @@ impl Page {
             storm_hot_until: None,
             busy_mark: None,
             busy_frozen: false,
+            busy_probe_pending: false,
             #[cfg(feature = "stealth")]
             stealth_client,
         }
@@ -855,6 +867,7 @@ impl Page {
         // previous realm must not follow the operator into the new page
         // (#66 — Navigate/SetContent is the documented unfreeze path).
         self.busy_frozen = false;
+        self.busy_probe_pending = false;
         self.busy_mark = None;
         self.restore_session_storage();
         self.apply_viewport_override();

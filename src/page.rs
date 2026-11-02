@@ -221,6 +221,13 @@ impl Page {
         self.inner.pump_event_loop_slice(ms).await
     }
 
+    /// Arm the #66 command probe on a busy-frozen realm (no-op otherwise).
+    /// The session actor calls this on every command arrival so the async
+    /// work a command starts runs the next pump slice at full speed.
+    pub fn note_command_arrived(&mut self) {
+        self.inner.note_command_arrived()
+    }
+
     /// Scroll the page by a relative offset.
     pub fn scroll_by(&mut self, dx: i32, dy: i32) {
         self.evaluate(&format!("window.scrollBy({}, {})", dx, dy));

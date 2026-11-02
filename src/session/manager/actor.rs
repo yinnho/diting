@@ -352,6 +352,11 @@ pub(super) fn session_thread(
                     };
                         cmd
                     };
+                    // #66 command probe: a command on a busy-frozen realm
+                    // buys the next pump slice at full speed — the dialog
+                    // mounts and module loads a click kicks off run in the
+                    // idle pump, not in the command handler itself.
+                    page.note_command_arrived();
                     match cmd {
                         SessionCommand::Navigate { url, reply } => {
                             // Budget first (local, free), then the per-domain
