@@ -3564,6 +3564,60 @@ ms.addEventListener('sourceopen', function(){ \
         assert_eq!(p.evaluate("window.__revived").as_f64(), Some(1.0));
     }
 
+    /// #66 command probe (2026-11-02, tmall publish): a legitimately heavy
+    /// editor trips the duty freeze with real work (publish.htm's flush()
+    /// queues run 6.4s per call, sustained >40% duty — five freezes in one
+    /// edit session) and re-feeds its queue, so the #240 cool-burst never
+    /// fired: the realm sat at 25% for life and the click-triggered
+    /// 图片空间 picker dispatched but never rendered. A session command
+    /// must lift the freeze for a full-speed slice (Chrome never throttles
+    /// a page the user is driving), and a still-hot realm must re-freeze
+    /// one duty window after the last command — the parked-burner
+    /// containment #66 was built for stays intact.
+    #[tokio::test(flavor = "current_thread")]
+    async fn busy_frozen_command_probe_lifts_then_hot_realm_refreezes() {
+        let _g = busy_limit_guard("2");
+        let mut p = test_page();
+        p.navigate(
+            "data:text/html,%3Cscript%3Evar%20mark%3D0%3Bfunction%20a%28n%29%7Bmark%2B%2B%3Bif%28n%3C%3D0%29return%200%3Breturn%20b%28n-1%29%7Dfunction%20b%28n%29%7Bmark%2B%2B%3Bif%28n%3C%3D0%29return%200%3Breturn%20a%28n-1%29%7DsetInterval%28function%28%29%7Bvar%20t%3DDate.now%28%29%3Bwhile%28Date.now%28%29-t%3C46%29%7Ba%28250%29%7D%7D%2C50%29%3C%2Fscript%3E",
+        )
+        .await
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while !p.js_busy_frozen() && t0.elapsed() < std::time::Duration::from_secs(6) {
+            p.pump_event_loop_slice(200).await;
+        }
+        assert!(p.js_busy_frozen(), "burner must trip the busy freeze first");
+
+        // A command arrives: the probe lifts the freeze and the slice runs
+        // at full speed — more V8 time than the 50ms-burst throttle could
+        // ever grant in a 300ms slice.
+        p.note_command_arrived();
+        let active = p.js.as_ref().unwrap().v8_active_ns();
+        p.pump_event_loop_slice(300).await;
+        let gained = p.js.as_ref().unwrap().v8_active_ns() - active;
+        assert!(
+            !p.js_busy_frozen(),
+            "a command must lift the freeze for the probe slice"
+        );
+        assert!(
+            gained > 150_000_000,
+            "probe slice must run full speed (>150ms of a 300ms slice), gained {}ms",
+            gained / 1_000_000
+        );
+
+        // No further commands: the fresh duty window re-freezes the
+        // still-hot realm — containment of an undriven burner is intact.
+        let t1 = std::time::Instant::now();
+        while !p.js_busy_frozen() && t1.elapsed() < std::time::Duration::from_secs(6) {
+            p.pump_event_loop_slice(200).await;
+        }
+        assert!(
+            p.js_busy_frozen(),
+            "a still-hot realm must re-freeze one window after the last command"
+        );
+    }
+
     /// False-positive guard: a page parked on a long timer is never idle,
     /// but its poll-execution time is ~zero — the busy window must not
     /// freeze it.

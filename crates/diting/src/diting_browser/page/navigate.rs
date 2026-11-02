@@ -275,7 +275,28 @@ impl Page {
             return;
         }
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(ms);
-        if self.busy_frozen {
+        if self.busy_frozen && self.busy_probe_pending {
+            // #66 command probe (2026-11-02, tmall publish): the freeze only
+            // throttles the idle pump, but a command's async afterlife —
+            // fetch → callback → setState → dialog render — runs entirely in
+            // these slices. tmall's publish editor (6.4s flush() queues,
+            // sustained >40% duty, five freezes in one edit session) re-feeds
+            // its queue, so the #240 cool-burst below never fired and the
+            // realm sat at 25% for life: clicks dispatched, the 图片空间
+            // picker never rendered. Chrome never throttles a page the user
+            // is driving; neither do we — a session command lifts the freeze
+            // for one fresh duty window. A still-hot realm re-freezes a
+            // window after the last command; a parked burner (no commands)
+            // keeps the original containment.
+            self.busy_probe_pending = false;
+            self.busy_frozen = false;
+            self.busy_mark = None;
+            tracing::info!(
+                "#66: command on a frozen realm — full-speed probe window \
+                 (re-freezes if duty stays hot)"
+            );
+            // Fall through to the unthrottled slice below on purpose.
+        } else if self.busy_frozen {
             // #66: the busy window tripped for this realm. Throttle, don't
             // park: a parking freeze turned heavy-but-legitimate SPAs into
             // vegetables (doudian's create page measures 83-88% duty for 30s+
@@ -410,8 +431,9 @@ impl Page {
                 js.push_console_entry(
                     "error",
                     "diting: JS throttled to 25% duty after sustained busy loop \
-                     (see DITING_JS_BUSY_LIMIT_SECS); navigate or \
-                     setContent to restart the page",
+                     (see DITING_JS_BUSY_LIMIT_SECS); navigate or setContent to \
+                     restart the page, or send another session command for a \
+                     full-speed window",
                 );
             }
         }
@@ -420,9 +442,21 @@ impl Page {
 
     /// Whether the busy window (#66) is throttling this realm's idle pump.
     /// Throttled realms run bounded 50ms bursts (≈25% duty); a cool burst
-    /// clears the flag, and a document swap still rebuilds the realm.
+    /// clears the flag, a session command arms a full-speed probe window,
+    /// and a document swap still rebuilds the realm.
     pub fn js_busy_frozen(&self) -> bool {
         self.busy_frozen
+    }
+
+    /// Arm the #66 command probe: the session actor calls this on every
+    /// command arrival. Cheap on a healthy realm (a flag check); on a
+    /// frozen one it buys the next pump slice at full speed, because the
+    /// async work a command kicks off (dialog mounts, module loads) runs in
+    /// the idle pump, not in the command itself.
+    pub fn note_command_arrived(&mut self) {
+        if self.busy_frozen {
+            self.busy_probe_pending = true;
+        }
     }
 
     /// Append the current URL to the history stack, truncating any forward
