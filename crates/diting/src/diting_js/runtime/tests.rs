@@ -31942,8 +31942,11 @@ fn knife102_systemui_shared_bands() {
     // the ladder (regB.w800_255H: chrome 19.2028, ladder 19.2043 — by gate).
     // as-layer quarter interpolation: on exact-pin miss, interpolate between
     // adjacent half anchors; excess-over-proportional > 0.07 = cliff, hold
-    // floor flat (q.SZ_cliff6625 = the 挂账 cell, chrome 58.9382 — cliff-
-    // interior quarter not expressible from two anchors, worst 0.0049).
+    // floor flat (q.SZ_cliff6625 = the old 挂账 cell, chrome 58.9382 — cliff-
+    // interior quarter not expressible from two anchors). 刀116: SI/SZ scq
+    // glyphs now mask cross-level as brackets and extrapolate along the
+    // level (66.0 anchor + 65.5 slope); miss 0.0026 vs the old cliff hold
+    // 0.0049 — idx158@66.25 cleared, expectation re-pinned to the new model.
     // Rows verified against live Chrome 145 within the 0.002 gate (most
     // 0.0000–0.0009); expectations pin the model, not Chrome's float.
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -31993,7 +31996,7 @@ fn knife102_systemui_shared_bands() {
             ["q.SI_3425_H", 24.4029],
             ["q.SI_8525_H", 59.7749],
             ["q.SZ_3325_H", 24.8147],
-            ["q.SZ_cliff6625", 58.9431],
+            ["q.SZ_cliff6625", 58.9356],
             ["u2028", 4.9321]
         ]),
         "knife102: upright shared bump/arch bands + region B + cliff tails + quarters (Chrome 145 fonts truth)"

@@ -58,6 +58,7 @@ K16TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-k16band-truth-145.
 # et al.): chrome kern at the half cells the integer captures skipped,
 # written only where it leaves the kk ladder by >0.0018.
 KHTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-khalfband-truth-145.json')
+SQFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-scqfill-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -241,6 +242,21 @@ def main():
     KH = json.load(open(KHTRUTH)) if os.path.exists(KHTRUTH) else None
     if KH:
         for tag, pairs in (KH.get('suKernBand') or {}).items():
+            for key, band in pairs.items():
+                if tag == 'R':
+                    kd.setdefault('su', {}).setdefault('kb', {}) \
+                        .setdefault(key, {}).update(band)
+                else:
+                    fd['suKern'].setdefault(tag, {'kk': {}, 'v100': {}, 'kb': {}}) \
+                        .setdefault('kb', {}).setdefault(key, {}).update(band)
+    # (刀116) scq level-walk fills: the synthesized small-caps italic kerns
+    # (SI/SZ lc-class pairs) step at the s=round-half-up(px*0.7) staircase
+    # boundaries, so the half-grid anchor layer needs in-level coverage the
+    # gated captures left holed (kk-knot integers 20/24/40..) plus exact-px
+    # strip pins. Merged AFTER KH, update-merge everywhere.
+    SQF = json.load(open(SQFTRUTH)) if os.path.exists(SQFTRUTH) else None
+    if SQF:
+        for tag, pairs in (SQF.get('suKernBand') or {}).items():
             for key, band in pairs.items():
                 if tag == 'R':
                     kd.setdefault('su', {}).setdefault('kb', {}) \
@@ -640,12 +656,15 @@ def main():
         su.setdefault('f', {})
         sizes = sorted(fd['suFaces']['B'], key=float)
 
-        def su_as(spot_rows, a_knots, x_knots=None, base_x=None):
+        def su_as(spot_rows, a_knots, x_knots=None, base_x=None, lc_keep=None):
             # (刀101) advance-spot residues for a ladder face: gate each
             # (not the linear em model — the fixed-font scspot gate), 0.002px
             # — the census arbiter is 0.003px; the old 0.005 gate left the
             # 0.0033–0.0035 rows@25 residues unanchored (s1 finding).
             # a_knots/x_knots = [(px, row305_raw)]; base_x = fixed em ext row.
+            # (刀116) lc_keep: scq glyph rows stored UCONDITIONALLY — the
+            # staircase decliner's in-level service needs every half key
+            # pinned, gate or not (SI/SZ only).
             asp = {}
             for px_s, row in spot_rows.items():
                 px = float(px_s)
@@ -667,7 +686,9 @@ def main():
                         else:
                             t = (px - lo[0]) / (hi[0] - lo[0])
                             em = lo[1][i] / lo[0] + (hi[1][i] / hi[0] - lo[1][i] / lo[0]) * t
-                    if em is None or abs(row[i] - em * px) > 0.002:
+                    if lc_keep is not None and i in lc_keep:
+                        fixes[i] = round(row[i] / px, 6)
+                    elif em is None or abs(row[i] - em * px) > 0.002:
                         fixes[i] = round(row[i] / px, 6)
                 for j in range(95, len(row)):
                     em = None
@@ -684,13 +705,25 @@ def main():
                             em = lo[1][j] / lo[0] + (hi[1][j] / hi[0] - lo[1][j] / lo[0]) * t
                     elif base_x is not None:
                         em = base_x[j - 95]
-                    if em is None or abs(row[j] - em * px) > 0.002:
+                    if lc_keep is not None and j in lc_keep:
+                        fixes[j] = round(row[j] / px, 6)
+                    elif em is None or abs(row[j] - em * px) > 0.002:
                         fixes[j] = round(row[j] / px, 6)
                 if fixes:
                     asp[px_s] = fixes
             return asp
 
         SSP = fd.get('suSpot') or {}
+        # (刀116) the measured sc synthesis-table stepper set (em-jump census
+        # over suSpot SI/SZ: a-z + µ ß ı œ + à-ÿ except ÷; Ext-A letters do
+        # NOT step). Same predicate as the emitted scqL. Advance service for
+        # these glyphs needs every half key stored, gate or no gate.
+        def _scq_lc(c):
+            return (97 <= c <= 122) or c in (0xB5, 0xDF, 0x131, 0x153) or \
+                   (0xE0 <= c <= 0xFF and c != 0xF7)
+        _extcp = (d.get('ext') or {}).get('cp') or []
+        SCQ_LC = {i for i in range(95) if _scq_lc(i + 32)} | \
+                 {95 + j for j, c in enumerate(_extcp) if _scq_lc(c)}
         for src, key in SUFACE_KEYS:
             lad = fd['suFaces'][src]
             fe = {
@@ -703,7 +736,8 @@ def main():
             # italic small-px drift); adv/xAdv consume as before the ladders.
             if src in SSP:
                 knots = [(float(s), lad[s]) for s in sizes]
-                asp = su_as(SSP[src], knots, x_knots=knots)
+                asp = su_as(SSP[src], knots, x_knots=knots,
+                            lc_keep=SCQ_LC if src in ('SI', 'SZ') else None)
                 if asp:
                     fe['as'] = asp
             vf = fd['vertF'].get('g:system-ui#' + src) or fd['vertF'].get('system-ui#' + src)
@@ -735,6 +769,13 @@ def main():
                 fxa = fd['suBand'].get('fixA', {}).get(src)
                 if fxa:
                     fe['sba'] = fxa
+            # (刀116) italic synthesized small-caps: flag the face so
+            # adv/xAdv mask cross-level as brackets and kernOf/kernFace
+            # walk the level (see the scqL comment at emission). Upright
+            # sc faces (S/SB/S###) measured SMOOTH — no synthesis steps —
+            # so they stay unflagged.
+            if src in ('SI', 'SZ'):
+                fe['scq'] = 1
             su['f'][key] = fe
         # (刀101) R residue at entry level: ASCII gate vs the opt ladder,
         # ext vs the entry xk ladder (d.ext.su) when present.
@@ -1035,10 +1076,23 @@ def main():
         lines.append('  // unquoted resolution; quoted real family names fall through to')
         lines.append('  // lookup() and match the unquoted table).')
         lines.append('  const GENQ = %s;' % json.dumps(GENQ, separators=(',', ':')))
+    if fd or kcanon:
+        # (刀116) synthesized small-caps class: on the ITALIC sc faces
+        # (system-ui SI/SZ) CoreText instantiates the scaled caps at
+        # s = round-half-up(px*0.7) — every glyph Chrome maps through the
+        # synthesis table steps at the boundaries low(n) = (10n-5)/7
+        # (measured: ß/œ/æ jump 0.03-0.066em, Ext-A letters do NOT step —
+        # the synthesis table covers Latin-1 + ı + œ only). scqL = the
+        # measured stepper set (em-jump census over suSpot SI/SZ, clean
+        # 0.0266|0.0166 gap); scqLv = the level; scqH1 = first half key
+        # inside px's level (the level's leftmost anchor slot).
+        lines.append('  const scqL = (c) => (c >= 97 && c <= 122) || c === 0xB5 || c === 0xDF || c === 0x131 || c === 0x153 || (c >= 0xE0 && c <= 0xFF && c !== 0xF7);')
+        lines.append('  const scqLv = (p) => Math.floor((p * 7 + 5) / 10);')
+        lines.append('  const scqH1 = (p) => Math.ceil(((10 * scqLv(p) - 5) / 7) * 2) / 2;')
     if kcanon:
         lines.append('  // kern of an adjacent pair (px at the given size); band overrides win')
         lines.append('  // below 24, optical knots blend 16..28, >=28 is exact linear.')
-        lines.append('  const kernOf = (m, kkM, kbM, a, b, px, fm, fr) => {')
+        lines.append('  const kernOf = (m, kkM, kbM, a, b, px, fm, fr, sc) => {')
         lines.append('    const key = a * 65536 + b;')
         lines.append('    let v = m.get(key);')
         lines.append('    if (v === undefined && fm) v = fm.get(key);')
@@ -1078,9 +1132,58 @@ def main():
         lines.append('        // (colon pairs 19.5→24.5), off truth by up to 0.072px while the')
         lines.append('        // ladder is ≤0.001 at every measured such site.')
         lines.append('        if (px < 81) {')
+        lines.append('          const D = B.get(px);')
+        lines.append('          if (D !== undefined) return D / 100;')
         lines.append('          const g = px * 2, lo = Math.floor(g);')
-        lines.append('          const A = B.get(lo / 2), B2 = B.get((lo + 1) / 2), t = g - lo;')
-        lines.append('          if (A !== undefined) {')
+        lines.append('          let A = B.get(lo / 2), B2 = B.get((lo + 1) / 2), t = g - lo;')
+        lines.append('          if (sc) {')
+        lines.append('            // (刀116) scq lc-class kern walks the LEVEL, not the cell:')
+        lines.append('            // CoreText instantiates the pair at s = round-half-up(px*0.7),')
+        lines.append('            // so the kern steps at (10n-5)/7 and blending brackets across')
+        lines.append('            // a boundary mixes two instances (k115j: 539 bad cells, worst')
+        lines.append('            // 0.0486). Half-key walk masked to px\'s own level (the kk-knot')
+        lines.append('            // integers 20/24/40.. are holes the capture gate left because')
+        lines.append('            // the ladder fit there — scqfill pins them); two in-level')
+        lines.append('            // anchors interpolate across any gap, one extrapolates along')
+        lines.append('            // its same-side neighbor, alone it holds flat (s>=24 kern is')
+        lines.append('            // level-flat; the declining small levels carry neighbors).')
+        lines.append('            const L = scqLv(px);')
+        lines.append('            let ia, ib;')
+        lines.append('            for (let s = 0; s < 5; s++) {')
+        lines.append('              const k = (lo - s) / 2;')
+        lines.append('              if (scqLv(k) !== L) break;')
+        lines.append('              if (B.has(k)) { ia = k; break; }')
+        lines.append('            }')
+        lines.append('            for (let s = 1; s < 6; s++) {')
+        lines.append('              const k = (lo + s) / 2;')
+        lines.append('              if (scqLv(k) !== L) break;')
+        lines.append('              if (B.has(k)) { ib = k; break; }')
+        lines.append('            }')
+        lines.append('            if (ia !== undefined && ib !== undefined)')
+        lines.append('              return (B.get(ia) + (B.get(ib) - B.get(ia)) * (px - ia) / (ib - ia)) / 100;')
+        lines.append('            if (ia !== undefined) {')
+        lines.append('              let ja;')
+        lines.append('              for (let s = 1; s < 5; s++) {')
+        lines.append('                const k = ia - s * 0.5;')
+        lines.append('                if (scqLv(k) !== L) break;')
+        lines.append('                if (B.has(k)) { ja = k; break; }')
+        lines.append('              }')
+        lines.append('              if (ja !== undefined)')
+        lines.append('                return (B.get(ia) + (B.get(ia) - B.get(ja)) * (px - ia) / (ia - ja)) / 100;')
+        lines.append('              return B.get(ia) / 100;')
+        lines.append('            }')
+        lines.append('            if (ib !== undefined) {')
+        lines.append('              let jb;')
+        lines.append('              for (let s = 1; s < 5; s++) {')
+        lines.append('                const k = ib + s * 0.5;')
+        lines.append('                if (scqLv(k) !== L) break;')
+        lines.append('                if (B.has(k)) { jb = k; break; }')
+        lines.append('              }')
+        lines.append('              if (jb !== undefined)')
+        lines.append('                return (B.get(ib) + (B.get(jb) - B.get(ib)) * (px - ib) / (jb - ib)) / 100;')
+        lines.append('              return B.get(ib) / 100;')
+        lines.append('            }')
+        lines.append('          } else if (A !== undefined) {')
         lines.append('            if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
         lines.append("            // (刀115) upper half-anchor missing (band end, or a half-grid")
         lines.append("            // hole the capture gate left to the ladder): hold the anchor's")
@@ -1122,7 +1225,7 @@ def main():
             lines.append('  // curvature bands 33..99.5 (the 33..100 region is exactly linear')
             lines.append('  // for every upright face — s1 swept 150k cells, 0 flagged), so the')
             lines.append('  // cutoff moves 81→100; a miss still falls to the kk model.')
-            lines.append('  const kernFace = (kkM, vM, kbM, a, b, px) => {')
+            lines.append('  const kernFace = (kkM, vM, kbM, a, b, px, sc) => {')
             lines.append('    const key = a * 65536 + b;')
             lines.append('    const K = kkM.get(key);')
             lines.append('    if (K === undefined) return 0;')
@@ -1146,8 +1249,52 @@ def main():
             lines.append('        // anchor with a missing upper anchor decays its ladder deviation')
             lines.append('        // across the cell instead of clamping flat (see kernOf).')
             lines.append('        const g = px * 2, lo = Math.floor(g);')
-            lines.append('        const A = O.get(lo / 2), B2 = O.get((lo + 1) / 2), t = g - lo;')
-            lines.append('        if (A !== undefined) {')
+            lines.append("        const D = O.get(px);")
+            lines.append('        if (D !== undefined) return D / 100;')
+            lines.append('        let A = O.get(lo / 2), B2 = O.get((lo + 1) / 2), t = g - lo;')
+            lines.append('        if (sc) {')
+            lines.append('          // (刀116) scq level walk — same service as kernOf\'s Map')
+            lines.append('          // branch (this is the live path for SU faces: m is null,')
+            lines.append('          // the pair rides the face\'s own kb). See kernOf for the')
+            lines.append('          // staircase model; anchors here are the curvature bands')
+            lines.append('          // 33..99.5 + the gated half grid + scqfill pins.')
+            lines.append('          const L = scqLv(px);')
+            lines.append('          let ia, ib;')
+            lines.append('          for (let s = 0; s < 5; s++) {')
+            lines.append('            const k = (lo - s) / 2;')
+            lines.append('            if (scqLv(k) !== L) break;')
+            lines.append('            if (O.has(k)) { ia = k; break; }')
+            lines.append('          }')
+            lines.append('          for (let s = 1; s < 6; s++) {')
+            lines.append('            const k = (lo + s) / 2;')
+            lines.append('            if (scqLv(k) !== L) break;')
+            lines.append('            if (O.has(k)) { ib = k; break; }')
+            lines.append('          }')
+            lines.append('          if (ia !== undefined && ib !== undefined)')
+            lines.append('            return (O.get(ia) + (O.get(ib) - O.get(ia)) * (px - ia) / (ib - ia)) / 100;')
+            lines.append('          if (ia !== undefined) {')
+            lines.append('            let ja;')
+            lines.append('            for (let s = 1; s < 5; s++) {')
+            lines.append('              const k = ia - s * 0.5;')
+            lines.append('              if (scqLv(k) !== L) break;')
+            lines.append('              if (O.has(k)) { ja = k; break; }')
+            lines.append('            }')
+            lines.append('            if (ja !== undefined)')
+            lines.append('              return (O.get(ia) + (O.get(ia) - O.get(ja)) * (px - ia) / (ia - ja)) / 100;')
+            lines.append('            return O.get(ia) / 100;')
+            lines.append('          }')
+            lines.append('          if (ib !== undefined) {')
+            lines.append('            let jb;')
+            lines.append('            for (let s = 1; s < 5; s++) {')
+            lines.append('              const k = ib + s * 0.5;')
+            lines.append('              if (scqLv(k) !== L) break;')
+            lines.append('              if (O.has(k)) { jb = k; break; }')
+            lines.append('            }')
+            lines.append('            if (jb !== undefined)')
+            lines.append('              return (O.get(ib) + (O.get(jb) - O.get(ib)) * (px - ib) / (jb - ib)) / 100;')
+            lines.append('            return O.get(ib) / 100;')
+            lines.append('          }')
+            lines.append('        } else if (A !== undefined) {')
             lines.append('          if (B2 !== undefined && t > 0) return (A + (B2 - A) * t) / 100;')
             lines.append('          if (t > 0) return lad(px) + (A / 100 - lad(lo / 2)) * (1 - t);')
             lines.append('          return A / 100;')
@@ -1212,7 +1359,33 @@ def main():
             lines.append('      // until the boundary — chrome cliff semantics (k102-k).')
             lines.append('      const g2 = px * 2, lo2 = Math.floor(g2);')
             lines.append('      if (g2 > lo2) {')
-            lines.append('        const LO = tbl.as[lo2 / 2], HI = tbl.as[(lo2 + 1) / 2];')
+            lines.append('        let LO = tbl.as[lo2 / 2], HI = tbl.as[(lo2 + 1) / 2];')
+            lines.append('        if (tbl.scq && scqL(XP[i])) {')
+            lines.append('          // (刀116) scq ext glyph (à-ÿ/ß/µ/ı/œ): level-aware brackets,')
+            lines.append('          // same masking/rebuild as adv\'s ascii side.')
+            lines.append('          const L = scqLv(px);')
+            lines.append('          if (LO !== undefined && scqLv(lo2 / 2) !== L) LO = undefined;')
+            lines.append('          if (HI !== undefined && scqLv((lo2 + 1) / 2) !== L) HI = undefined;')
+            lines.append('          if ((LO === undefined || LO[95 + i] === undefined) && (HI === undefined || HI[95 + i] === undefined)) {')
+            lines.append('            const h = scqH1(px);')
+            lines.append('            const P0 = tbl.as[h], P1 = tbl.as[h + 0.5];')
+            lines.append('            if (P0 && P1 && P0[95 + i] !== undefined && P1[95 + i] !== undefined)')
+            lines.append('              return (P0[95 + i] + (P1[95 + i] - P0[95 + i]) * ((px - h) / 0.5)) * px;')
+            lines.append('            if (P0 && P0[95 + i] !== undefined) return P0[95 + i] * px;')
+            lines.append('          } else if (LO === undefined || LO[95 + i] === undefined) {')
+            lines.append('            const P2 = tbl.as[(lo2 + 2) / 2];')
+            lines.append('            if (P2 && P2[95 + i] !== undefined && scqLv((lo2 + 2) / 2) === L)')
+            lines.append('              return (HI[95 + i] + (P2[95 + i] - HI[95 + i]) * ((px - (lo2 + 1) / 2) / 0.5)) * px;')
+            lines.append('            return HI[95 + i] * px;')
+            lines.append('          } else if (HI === undefined || HI[95 + i] === undefined) {')
+            lines.append('            const Pm = tbl.as[(lo2 - 1) / 2];')
+            lines.append('            if (Pm && Pm[95 + i] !== undefined && scqLv((lo2 - 1) / 2) === L)')
+            lines.append('              return (LO[95 + i] + (LO[95 + i] - Pm[95 + i]) * ((px - lo2 / 2) / 0.5)) * px;')
+            lines.append('            return LO[95 + i] * px;')
+            lines.append('          }')
+            lines.append('          if (LO !== undefined && HI !== undefined)')
+            lines.append('            return (LO[95 + i] + (HI[95 + i] - LO[95 + i]) * (g2 - lo2)) * px;')
+            lines.append('        }')
             lines.append('        if (LO && HI && LO[95 + i] !== undefined && HI[95 + i] !== undefined) {')
             lines.append('          if (HI[95 + i] * ((lo2 + 1) / 2) - LO[95 + i] * (lo2 / 2) - LO[95 + i] * 0.5 > 0.07) return LO[95 + i] * (lo2 / 2);')
             lines.append('          return (LO[95 + i] + (HI[95 + i] - LO[95 + i]) * (g2 - lo2)) * px;')
@@ -1257,7 +1430,37 @@ def main():
         lines.append('      // (刀102) quarter coverage, ascii side — same rule as xAdv.')
         lines.append('      const g2 = px * 2, lo2 = Math.floor(g2);')
         lines.append('      if (g2 > lo2) {')
-        lines.append('        const LO = tbl.as[lo2 / 2], HI = tbl.as[(lo2 + 1) / 2];')
+        lines.append('        let LO = tbl.as[lo2 / 2], HI = tbl.as[(lo2 + 1) / 2];')
+        lines.append('        if (tbl.scq && scqL(c)) {')
+        lines.append('          // (刀116) scq glyph: the advance stair-steps at (10n-5)/7 —')
+        lines.append('          // brackets must live in px\'s own level. The as layer carries')
+        lines.append('          // every half key for scq glyphs (su_as stores lc residues')
+        lines.append('          // unconditionally on SI/SZ), so a masked bracket rebuilds from')
+        lines.append('          // the level\'s first half-key pair; a strip below h extrapolates')
+        lines.append('          // down (in-level decline is linear, k116d).')
+        lines.append('          const L = scqLv(px);')
+        lines.append('          if (LO !== undefined && scqLv(lo2 / 2) !== L) LO = undefined;')
+        lines.append('          if (HI !== undefined && scqLv((lo2 + 1) / 2) !== L) HI = undefined;')
+        lines.append('          if ((LO === undefined || LO[i] === undefined) && (HI === undefined || HI[i] === undefined)) {')
+        lines.append('            const h = scqH1(px);')
+        lines.append('            const P0 = tbl.as[h], P1 = tbl.as[h + 0.5];')
+        lines.append('            if (P0 && P1 && P0[i] !== undefined && P1[i] !== undefined)')
+        lines.append('              return (P0[i] + (P1[i] - P0[i]) * ((px - h) / 0.5)) * px;')
+        lines.append('            if (P0 && P0[i] !== undefined) return P0[i] * px;')
+        lines.append('          } else if (LO === undefined || LO[i] === undefined) {')
+        lines.append('            const P2 = tbl.as[(lo2 + 2) / 2];')
+        lines.append('            if (P2 && P2[i] !== undefined && scqLv((lo2 + 2) / 2) === L)')
+        lines.append('              return (HI[i] + (P2[i] - HI[i]) * ((px - (lo2 + 1) / 2) / 0.5)) * px;')
+        lines.append('            return HI[i] * px;')
+        lines.append('          } else if (HI === undefined || HI[i] === undefined) {')
+        lines.append('            const Pm = tbl.as[(lo2 - 1) / 2];')
+        lines.append('            if (Pm && Pm[i] !== undefined && scqLv((lo2 - 1) / 2) === L)')
+        lines.append('              return (LO[i] + (LO[i] - Pm[i]) * ((px - lo2 / 2) / 0.5)) * px;')
+        lines.append('            return LO[i] * px;')
+        lines.append('          }')
+        lines.append('          if (LO !== undefined && HI !== undefined)')
+        lines.append('            return (LO[i] + (HI[i] - LO[i]) * (g2 - lo2)) * px;')
+        lines.append('        }')
         lines.append('        if (LO && HI && LO[i] !== undefined && HI[i] !== undefined) {')
         lines.append('          if (HI[i] * ((lo2 + 1) / 2) - LO[i] * (lo2 / 2) - LO[i] * 0.5 > 0.07) return LO[i] * (lo2 / 2);')
         lines.append('          return (LO[i] + (HI[i] - LO[i]) * (g2 - lo2)) * px;')
@@ -1346,9 +1549,10 @@ def main():
             lines.append('          if (c === 0x204F && i >= 3 && p2 >= 0 && !AKCE.has(wk3))')
             lines.append('            akAdd += akv(AKEM.get(akT), p2 * 65536 + p1, px);')
             lines.append('        }')
-        lines.append('        if (p1 >= 0 && m && !akSkip) w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM);')
+        lines.append("        const scq = tbl.scq && scqL(p1) && scqL(c) ? 1 : 0;")
+        lines.append('        if (p1 >= 0 && m && !akSkip) w += kernOf(m, kkM, kbM, p1, c, px, fmM, tbl.krS ? null : frM, scq);')
         if fd and fd.get('suKern'):
-            lines.append('        else if (p1 >= 0 && faceSu && !akSkip) w += kernFace(kkM, tbl.vM, kbM, p1, c, px);')
+            lines.append('        else if (p1 >= 0 && faceSu && !akSkip) w += kernFace(kkM, tbl.vM, kbM, p1, c, px, scq);')
         if AK:
             lines.append('        if (akAdd) w += akAdd;')
         lines.append('        if (p2 >= 0 && (tm || k3m || k3k || k3s)) { const q = p2 * 4294967296 + p1 * 65536 + c;')
