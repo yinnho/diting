@@ -32383,3 +32383,67 @@ async fn knife119_fm_fill_truth() {
         "knife119: FM 83-family fill truth (Chrome 145 CFT)"
     );
 }
+
+#[tokio::test]
+async fn knife120_acc_backing_no_page_collision() {
+    // (刀120) The __acc own-slot backing (`this._onloadend` etc.) collided
+    // with page wrapper conventions: baxia (g.alicdn.com/sd/baxia, tmall
+    // risk control) saves the original handler as `this._onloadend` before
+    // wrapping `onloadend`; our setter then clobbered that saved original
+    // with the wrapper itself — dispatch → wrapper → r._onloadend (= the
+    // wrapper) → … RangeError, killing the page's whole module system
+    // (tmall sell.publish.tmall.com category.htm, live 2026-11-02, the
+    // stack entirely inside the eval'd baxiaCommon.js blob). Chrome keeps
+    // the IDL attribute backing in a native slot JS cannot name, so
+    // `x._onloadend` never returns the stored handler. Fix: __acc backs
+    // its accessors with the 刀84 hidden-slot channel (__diting_liftSlots
+    // WeakMap); __accRo keeps the own-prop face (engine-side __def
+    // writers, no page wrapper family saves originals under ro names).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let log = rt.evaluate(r#"
+        const L = [];
+        // 1. Chrome parity: the page never sees the backing by name.
+        const x = new XMLHttpRequest();
+        x.onloadend = function orig() {};
+        L.push(['xhr.privHidden', x._onloadend === undefined]);
+        L.push(['xhr.propIsFn', typeof x.onloadend === 'function']);
+        // 2. The baxia wrap pattern must terminate: save → wrap → dispatch.
+        let calls = 0;
+        const H = () => { calls++; };
+        x.onloadend = H;
+        x._onloadend = x.onloadend;
+        x.onloadend = function W(e) { if (x._onloadend) x._onloadend(e); };
+        x.dispatchEvent(new ProgressEvent('loadend'));
+        L.push(['xhr.wrapHOnce', calls === 1]);
+        // 3. Same face on the other __acc classes a page wraps this way.
+        const fr = new FileReader();
+        fr.onload = function fl() {};
+        L.push(['fr.privHidden', fr._onload === undefined]);
+        let bcOk = null;
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('k120');
+          bc.onmessage = function bm() {};
+          bcOk = bc._onmessage === undefined;
+          bc.close();
+        }
+        L.push(['bc.privHidden', bcOk === null || bcOk === true]);
+        // 4. Round-trip through the setter still works (dispatch leg).
+        let got = null;
+        x.onloadend = function G(e) { got = e && e.type; };
+        x.dispatchEvent(new ProgressEvent('loadend'));
+        L.push(['xhr.dispatchType', got === 'loadend']);
+        return JSON.stringify(L);
+    "#).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            ["xhr.privHidden", true],
+            ["xhr.propIsFn", true],
+            ["xhr.wrapHOnce", true],
+            ["fr.privHidden", true],
+            ["bc.privHidden", true],
+            ["xhr.dispatchType", true]
+        ]),
+        "knife120: __acc backing unreachable by page names; baxia wrap terminates"
+    );
+}
