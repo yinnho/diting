@@ -13,10 +13,18 @@ curl -sS https://browser.aginx.net/health
 
 ## Option B — Self-host from a release binary
 
-1. Download the archive for your platform from https://github.com/yinnho/diting/releases/latest (`diting-<os>-<arch>.tar.gz`), then:
+1. Run the installer (macOS / Linux / Windows git-bash; it picks the platform, verifies the SHA-256 and runs `diting doctor`):
 
 ```bash
-tar xzf diting-*.tar.gz && chmod +x diting
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh && sh install.sh
+```
+
+   Or download `diting-<version>-<target>.tar.gz` for your platform from https://github.com/yinnho/diting/releases/latest
+   (targets: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-musl`,
+   `x86_64-pc-windows-msvc`) and unpack it:
+
+```bash
+tar xzf diting-*.tar.gz && cd diting-*/
 ```
 
 2. Run it:
@@ -54,4 +62,4 @@ curl -sS -X POST http://127.0.0.1:8089/session/create \
 
 ## Surfaces
 
-fetch, search, download, screenshot, eval, click, flow replay, and the stateful-session family (create/navigate/state/click/input/scroll/eval/screenshot/export/close). Full reference: [docs/API.md](docs/API.md).
+fetch, search, download, screenshot, eval, click, flow replay, and the stateful-session family (create/navigate/state/click/input/scroll/eval/screenshot/export/close). Route guide: [SKILL.md](SKILL.md); a running engine describes itself at `GET /doctor` and `GET /flow/info?name=<flow>`.

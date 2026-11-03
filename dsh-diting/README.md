@@ -83,11 +83,11 @@ Typical loop: `agx_fetch` for one-shot reads; for interaction, `agx_session_crea
 ## Self-hosting
 
 ```bash
-curl -fsSL https://browser.aginx.net/install.sh | sh   # single static binary
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh | sh   # single static binary
 DITING_BIND=127.0.0.1:8788 diting
 ```
 
-Homebrew also works (`brew install yinnho/tap/diting`). Then set `baseUrl: http://127.0.0.1:8788`.
+Prebuilt archives for every platform are on the [releases page](https://github.com/yinnho/diting/releases). Then set `baseUrl: http://127.0.0.1:8788`.
 
 ## Security notes
 

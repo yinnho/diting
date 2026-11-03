@@ -3,7 +3,7 @@
 **The browser engine built for agents.** One Rust binary, zero Chromium, zero Docker. See, read, find, act, remember.
 
 ```bash
-curl -fsSL https://browser.aginx.net/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh | sh
 diting  # → HTTP on :8089, everything below is plain REST
 ```
 
@@ -34,8 +34,9 @@ An agent's total cost is browser efficiency × model efficiency. This is the bro
 ## Quick start
 
 ```bash
-# Homebrew (macOS 7+ needs the trust line first)
-brew trust yinnho/diting && brew install yinnho/diting/diting
+# One-line installer: macOS (Apple Silicon / Intel), Linux (x86_64 / arm64), Windows (git-bash)
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh
+less install.sh && sh install.sh
 
 # Or build from source (full features)
 cargo build --release --features stealth,screenshot
@@ -55,7 +56,7 @@ Self-host under Apache-2.0, or use the hosted instance at [browser.aginx.net](ht
 
 ## Documentation
 
-- [API reference](docs/API.md) · [中文](docs/API.zh-CN.md) · [install for LLM agents](llms-install.md)
+- [Agent guide & route reference](SKILL.md) · [install for LLM agents](llms-install.md)
 - Works with existing Firecrawl clients (`/v1/scrape`) and any HTTP client — no SDK required
 
 ## Star History

@@ -15,11 +15,11 @@ curl -s http://127.0.0.1:8089/health
 ## 1. 安装（三选一，按序尝试）
 
 ```bash
-# macOS / Linux Homebrew（首选）
-brew install yinnho/diting/diting
+# 一行安装器（首选）：自动识别平台、下载、校验 sha256、放进 PATH、跑自检
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh && sh install.sh
 
 # 或预编译二进制：去 https://github.com/yinnho/diting/releases
-# 选对应平台（macOS arm64/x64、Linux、Windows），下载 -> 校验 sha256 -> 放进 PATH
+# 选对应平台（macOS arm64/x64、Linux x64/arm64、Windows x64），下载 -> 校验 sha256 -> 放进 PATH
 
 # 或源码（要 Rust 工具链）
 git clone https://github.com/yinnho/diting && cd diting && cargo build --release

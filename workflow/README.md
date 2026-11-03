@@ -45,4 +45,4 @@ curl -sS 'http://127.0.0.1:8089/flow/search?q=login'
 - 丢目录进去即部署，不用重编
 - 引擎保持通用——**不含**任何平台特定的业务逻辑或签名链；这里只放你自己（或你的 agent）
   生成的操作流
-- 完整 flow 文档格式见 `docs/API.md`
+- flow 文档格式见 [SKILL.md](https://github.com/yinnho/diting/blob/main/SKILL.md) 的 Flows 一节；`GET /flow/info?name=<名字>` 返回现成实例

@@ -5,7 +5,7 @@
  * default, or self-hosted) as DSH tools: read-side fetch/search, plus
  * interactive indexed sessions. Every session tool result carries a
  * live_view_url — open it in any browser to watch the agent work and take
- * over with the mouse. Wire contract: docs/API.md in the diting repo.
+ * over with the mouse. Wire contract: SKILL.md in the diting repo.
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import Schema from 'schemastery'
