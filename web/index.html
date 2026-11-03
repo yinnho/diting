@@ -213,10 +213,10 @@ footer a { color: var(--accent); }
     <div class="install-box">
       <div class="install-label">Install locally, start it, done — the HTTP API is the whole interface</div>
       <div class="install-cmd">
-        <code id="install-cmd">brew install yinnho/diting/diting &amp;&amp; diting</code>
+        <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh | sh &amp;&amp; diting</code>
         <button class="copy-btn" onclick="copyInstall()" id="copy-btn">Copy</button>
       </div>
-      <div class="install-hint">Or the prebuilt installer: <a href="https://raw.githubusercontent.com/yinnho/diting/main/install.sh">curl install.sh</a> · <a href="https://www.skills.sh">skills.sh directory</a> · <a href="#quickstart">call HTTP directly</a> · <a href="#tiers">build from source</a></div>
+      <div class="install-hint">Review it first: <a href="https://raw.githubusercontent.com/yinnho/diting/main/install.sh">install.sh</a> · <a href="https://github.com/yinnho/diting/releases">releases (macOS · Linux · Windows)</a> · <a href="https://www.skills.sh">skills.sh directory</a> · <a href="#quickstart">call HTTP directly</a> · <a href="#tiers">build from source</a></div>
     </div>
 
     <div class="stats">
@@ -434,7 +434,7 @@ footer a { color: var(--accent); }
         <tr>
           <td class="tier-name">🆓 Local install<br><span style="font-weight:400;font-size:12px;color:var(--text-dim)">Zero-config, free</span></td>
           <td>fetch / search / eval / click / session — the full interaction suite over plain HTTP, listening on <code>:8089</code></td>
-          <td class="tier-now">brew install, one binary, no config</td>
+          <td class="tier-now">one installer, one binary, no config</td>
         </tr>
         <tr>
           <td class="tier-name">⚡ Advanced<br><span style="font-weight:400;font-size:12px;color:var(--text-dim)">Feature flags</span></td>
@@ -458,8 +458,8 @@ footer a { color: var(--accent); }
 
     <div class="step">
       <div class="h"><span class="num">1</span> Install and start the server</div>
-      <pre><span class="c"># macOS / Linux via Homebrew (or: curl install.sh from the repo)</span>
-brew install yinnho/diting/diting
+      <pre><span class="c"># macOS / Linux / Windows git-bash — download, review, run</span>
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh &amp;&amp; sh install.sh
 diting &amp;              <span class="c"># listens on 0.0.0.0:8089</span>
 curl -sS http://<span class="k">127.0.0.1:8089/health</span></pre>
     </div>
@@ -498,7 +498,7 @@ npx skills add <span class="k">yinnho/diting</span></pre>
     <div class="brand"><span class="dot"></span>Diting</div>
     <p>The agent internet is taking shape. Agents need to collaborate with each other, access the world, and be accessible in turn.</p>
     <p>Diting is the "see the world" layer — eyes and hands for every agent.</p>
-    <p style="margin-top:14px;"><a href="https://github.com/yinnho/diting">GitHub</a> · <a href="https://x.com/diting">X</a> · <a href="/blog/en.html">Blog</a> · <a href="https://github.com/yinnho/diting/blob/main/docs/API.md">API docs</a> · <a href="https://github.com/yinnho/diting/blob/main/docs/install.md">Install guide</a> · <a href="https://github.com/yinnho/diting/blob/main/SKILL.md">SKILL.md</a> · <a href="https://raw.githubusercontent.com/yinnho/diting/main/skill.sh">skill.sh</a></p>
+    <p style="margin-top:14px;"><a href="https://github.com/yinnho/diting">GitHub</a> · <a href="https://x.com/diting">X</a> · <a href="/blog/en.html">Blog</a> · <a href="https://github.com/yinnho/diting/blob/main/SKILL.md">Agent guide</a> · <a href="https://github.com/yinnho/diting/blob/main/llms-install.md">Install</a> · <a href="https://github.com/yinnho/diting/blob/main/SKILL.md">SKILL.md</a> · <a href="https://raw.githubusercontent.com/yinnho/diting/main/skill.sh">skill.sh</a></p>
     <p style="margin-top:18px; font-size:13px; color:#5b6f85;">© 2026 OpenCarrier · Apache-2.0 open source</p>
   </div>
 </footer>

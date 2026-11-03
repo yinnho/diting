@@ -119,7 +119,7 @@ say "    start a server:   $bindir/$bin                # HTTP API on 0.0.0.0:808
 say "    try it:           curl -sS -X POST http://127.0.0.1:8089/fetch \\"
 say "                         -H 'Content-Type: application/json' \\"
 say "                         -d '{\"url\":\"https://example.com\"}'"
-say "    docs: https://github.com/$repo/blob/main/docs/API.md"
+say "    guide: https://github.com/$repo/blob/main/SKILL.md"
 case ":$PATH:" in
     *":$bindir:"*) ;;
     *) say ""

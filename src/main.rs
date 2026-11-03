@@ -804,7 +804,7 @@ async fn status_handler() -> axum::response::Html<String> {
 
   <footer>
     <a href="https://github.com/yinnho/diting">github.com/yinnho/diting</a>
-    &middot; <a href="https://github.com/yinnho/diting/blob/main/docs/API.md">API reference</a>
+    &middot; <a href="https://github.com/yinnho/diting/blob/main/SKILL.md">agent guide</a>
     &middot; Apache-2.0
   </footer>
 </main>

@@ -14,7 +14,7 @@
 > 人有 Chrome，Agent 有 Diting。
 
 ```bash
-curl -fsSL https://browser.aginx.net/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh | sh
 diting  # → HTTP 服务在 :8089，以下全部是普通 REST
 ```
 
@@ -47,8 +47,9 @@ Agent 的总成本 = 浏览器效率 × 模型效率。这里是浏览器那一�
 ## 快速开始
 
 ```bash
-# Homebrew（macOS 7+ 需先信任）
-brew trust yinnho/diting && brew install yinnho/diting/diting
+# 一行安装器：macOS（Apple Silicon / Intel）、Linux（x86_64 / arm64）、Windows（git-bash）
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh
+less install.sh && sh install.sh
 
 # 或源码构建（全特性）
 cargo build --release --features stealth,screenshot
@@ -68,7 +69,7 @@ Apache-2.0 自托管，或直接用 [browser.aginx.net](https://browser.aginx.ne
 
 ## 文档
 
-- [API 参考](docs/API.zh-CN.md) · [English](docs/API.md) · [LLM agent 安装指引](llms-install.md)
+- [Agent 指南与路由速查](SKILL.md) · [LLM agent 安装指引](llms-install.md)
 - 兼容 Firecrawl 客户端（`/v1/scrape`），任何 HTTP 客户端即接即用——无需 SDK
 
 ## Star History

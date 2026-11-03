@@ -55,7 +55,7 @@ print("  stealth:     ",c.get("stealth"))
     fi
   else
     echo "  [warn] could not reach $DOCTOR (instance down, or not installed here)."
-    echo "         install the server first: brew install yinnho/diting/diting"
+    echo "         install the server first: curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh && sh install.sh"
     echo "         then start it: diting"
   fi
 fi
@@ -63,4 +63,4 @@ fi
 echo ""
 echo "==> done."
 echo "    tell your agent: \"use diting to read / search / screenshot / interact with web pages\""
-echo "    docs: https://github.com/yinnho/diting/blob/main/docs/API.md"
+echo "    guide: https://github.com/yinnho/diting/blob/main/SKILL.md"

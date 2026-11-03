@@ -35,12 +35,10 @@ The routes below assume a local instance at `http://127.0.0.1:8089`. If not
 installed yet (or ask the user to):
 
 ```bash
-# macOS / Linux via Homebrew
-brew install yinnho/diting/diting
-
-# Or the prebuilt binary (download, review, then run — never blind-pipe)
-curl -fsSL https://browser.aginx.net/install.sh -o install.sh
-less install.sh && bash install.sh
+# Prebuilt binary for macOS / Linux / Windows git-bash
+# (download, review, then run — never blind-pipe)
+curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh -o install.sh
+less install.sh && sh install.sh
 ```
 
 Start and verify:
@@ -202,4 +200,4 @@ curl -sS -X POST $BASE/fetch -H "Content-Type: application/json" -d '{
   operations. Page-run JS executes in a sandboxed V8 bounded by a watchdog
   timeout and the SSRF guard.
 
-Full field reference: [docs/API.md](https://github.com/yinnho/diting/blob/main/docs/API.md).
+Field-level detail: the running engine answers `GET /doctor` (capabilities, workflow directory) and `GET /flow/info?name=<flow>` (a flow's args, vars and manual).
