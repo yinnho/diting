@@ -1285,9 +1285,36 @@ pub(crate) async fn session_close_handler(
     Ok((StatusCode::OK, Json(serde_json::json!({ "ok": closed }))))
 }
 
+/// "landed": the scan took and the page moved on. A page still showing a code
+/// has not landed, whatever its URL says — the WeChat store logs in on its bare
+/// root (`https://store.weixin.qq.com/`), which carries no login keyword, so the
+/// URL-only rule told /qr/live "logged in" and the person never saw the code
+/// (2026-11-03). With no code on the page, leaving a login/passport URL is the
+/// signal, as before.
+fn qr_landed(url: &str, has_qr: bool) -> bool {
+    if has_qr || url.is_empty() || url.starts_with("about:") {
+        return false;
+    }
+    !["login", "passport", "sso", "havana", "loginmyseller"]
+        .iter()
+        .any(|k| url.contains(k))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn qr_landed_needs_the_code_gone() {
+        // WeChat store: login page on the bare root, code showing → not landed.
+        assert!(!qr_landed("https://store.weixin.qq.com/", true));
+        // Same page after the scan: code gone, store home → landed.
+        assert!(qr_landed("https://store.weixin.qq.com/shop/home", false));
+        // Classic login URLs stay not-landed even while the code renews.
+        assert!(!qr_landed("https://login.taobao.com/member/login.jhtml", false));
+        assert!(!qr_landed("about:blank", false));
+        assert!(!qr_landed("", false));
+    }
 
     // 0.4.1 taobao report problem 1: an over-limit body must classify as a
     // structured 413 carrying the code and the limit in force, not axum's
@@ -1388,11 +1415,7 @@ pub(crate) async fn session_qr_handler(
     let url = v["u"].as_str().unwrap_or("").to_string();
     let b64 = v["qr"].as_str();
     if q.json.is_some() {
-        // "landed": the page left a login/passport URL — the scan took.
-        let on_login = ["login", "passport", "sso", "havana", "loginmyseller"]
-            .iter()
-            .any(|k| url.contains(k));
-        let landed = !url.is_empty() && !url.starts_with("about:") && !on_login;
+        let landed = qr_landed(&url, b64.is_some());
         return Ok(Json(serde_json::json!({ "url": url, "qr": b64.is_some(), "landed": landed })).into_response());
     }
     let (Some(b64), Some(mime)) = (b64, v["mime"].as_str()) else {
