@@ -24,7 +24,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: test-screenshot
+          # v2 (2026-11-03): the v2-key cache replayed the v8 build-script
+          # fingerprint without its OUT_DIR (librusty_v8.a) and every run
+          # since failed at link. Fresh key = fresh cache = fresh download;
+          # the release workflow builds the same crate uncached and is green,
+          # so the asset itself is fine.
+          key: test-screenshot-v2
       - name: Test
         # --workspace is load-bearing: the repo is a root-package workspace
         # (crates/diting), and without it cargo tests only the root package,
@@ -77,7 +82,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: check-stealth
+          # v2: same rusty_v8 OUT_DIR poisoning as the test job — see there.
+          key: check-stealth-v2
       - name: Check
         # --workspace: same reason as the test job — the engine crate must
         # compile under the feature combination too, not just the product.
