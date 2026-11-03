@@ -859,9 +859,12 @@
             assert!(bad.is_empty(), "prototype face {i} leaked internals: {bad:?}");
         }
         // The zone.js walk still finds the interface operations (that's the
-        // #27 face — ops must stay enumerable) and nothing else.
+        // #27 face — ops must stay enumerable) and nothing else. Order is
+        // Chrome's own-key truth (shape-audit-truth-145; re-probed on 156):
+        // Blink installs the legacy observer ops disconnect-first, not the
+        // IDL source order.
         assert_eq!(
-            faces[14], vec!["observe", "disconnect", "takeRecords"],
+            faces[14], vec!["disconnect", "observe", "takeRecords"],
             "for-in over a MutationObserver must see exactly the operations"
         );
     }
@@ -869,7 +872,8 @@
     /// Issue #31: public interface members must live on the PROTOTYPE as
     /// enumerable accessor pairs — instances carry nothing. In Chrome
     /// `Object.keys(new WebSocket(...))` is `[]` and
-    /// `Object.keys(WebSocket.prototype)` holds the 15 interface members;
+    /// `Object.keys(WebSocket.prototype)` holds the 16 interface members
+    /// (attributes + four state constants + the two operations);
     /// our shims used to put publics (url, readyState, onopen, ...) on the
     /// instance as plain data props, so both faces fingerprinted wrong.
     /// The constructors keep their `this.x = ...` writes — those now route
@@ -892,7 +896,10 @@
             wr.releaseLock(); wLock.push(wst.locked);
             var fired = 0;
             ws.addEventListener('error', function(){ fired++; });
-            ws.dispatchEvent({ type: 'error' });
+            // Chrome's dispatchEvent validates parameter 1 (plain objects
+            // throw "parameter 1 is not of type 'Event'"); a synthetic
+            // Event is the Chrome-legal way to fire the listener.
+            ws.dispatchEvent(new Event('error'));
             return JSON.stringify({
                 inst: [
                     Object.keys(new FileReader()),
@@ -909,7 +916,10 @@
                 desc: (function(){
                     var d = Object.getOwnPropertyDescriptor(
                         WebSocket.prototype, 'readyState');
-                    return !!(d && d.get && d.set && d.enumerable);
+                    // [hasGet, hasSet, enumerable] — Chrome pins a readonly
+                    // IDL attribute as a getter-only enumerable pair, and
+                    // assignment is silently ignored (wsWrite stays 0).
+                    return [!!(d && d.get), !!(d && d.set), !!d && d.enumerable];
                 })(),
             });
         "#).unwrap();
@@ -921,27 +931,29 @@
                 "instance face {i} must be [] (publics belong on the prototype)"
             );
         }
-        // WebSocket.prototype carries exactly Chrome's 15 members.
+        // WebSocket.prototype carries exactly Chrome's 16 members (probed:
+        // attributes in IDL order, the four state constants, then the two
+        // operations; the EventTarget trio lives on EventTarget.prototype).
         assert_eq!(
             v["wsProto"],
             serde_json::json!([
-                "send", "close",
-                "url", "readyState", "bufferedAmount", "binaryType",
-                "extensions", "protocol",
-                "onopen", "onmessage", "onerror", "onclose",
-                "addEventListener", "removeEventListener", "dispatchEvent",
+                "url", "readyState", "bufferedAmount",
+                "onopen", "onerror", "onclose",
+                "extensions", "protocol", "onmessage", "binaryType",
+                "CONNECTING", "OPEN", "CLOSING", "CLOSED",
+                "close", "send",
             ]),
             "WebSocket.prototype member set must match Chrome"
         );
         // Lock semantics survive the prototype-getter conversion.
         assert_eq!(v["rLock"], serde_json::json!([false, true, false]));
         assert_eq!(v["wLock"], serde_json::json!([false, true, false]));
-        // Ctor-style public writes route through the setter (no throw).
-        assert_eq!(v["wsWrite"], serde_json::json!(3));
+        // readyState is readonly (Chrome): the public write is ignored.
+        assert_eq!(v["wsWrite"], serde_json::json!(0));
         // Prototype listener methods actually fire.
         assert_eq!(v["fired"], serde_json::json!(1));
-        // The accessors are enumerable getter/setter pairs on the prototype.
-        assert_eq!(v["desc"], serde_json::json!(true));
+        // Getter-only enumerable accessor pair on the prototype (Chrome).
+        assert_eq!(v["desc"], serde_json::json!([true, false, true]));
     }
 
     /// Issue #32: legacy reflected attributes (align on div/p/h*) are real
@@ -4427,7 +4439,9 @@
             .call_function_on_remote(
                 r#"async () => {
                     const out = {};
-                    out.surface = document.referrerPolicy;
+                    // 刀57: Chrome 145's Document.prototype carries no
+                    // referrerPolicy — the meta policy shows on the wire only.
+                    out.surface = ('referrerPolicy' in Document.prototype) ? 'present' : 'gone';
                     // No init policy → document policy ("origin") → Referer is
                     // just the origin.
                     out.metaFirstValid = await (await fetch('/probe')).text();
@@ -4446,15 +4460,15 @@
         assert_eq!(
             result.value.unwrap(),
             serde_json::json!({
-                "surface": "origin",
+                "surface": "gone",
                 "metaFirstValid": format!("http://127.0.0.1:{}/", port),
                 "initOverridesDocument": "(none)",
             })
         );
 
-        // Page B: comma list keeps the LAST valid token ("no-referrer"); a
+        // Page B: comma list keeps the LAST valid token ("unsafe-url"); a
         // header-delivered policy (set_referrer_policy) then beats the meta
-        // outright — both on the surface and on the wire.
+        // outright — on the wire (the surface face is gone, 刀57).
         let mut rt = setup_runtime(
             r#"<html><head>
                 <meta name="referrer" content="unsafe-url, garbage">
@@ -4465,7 +4479,7 @@
             .call_function_on_remote(
                 r#"async () => {
                     const out = {};
-                    out.lastValidTokenSurface = document.referrerPolicy;
+                    out.lastValidTokenSurface = ('referrerPolicy' in Document.prototype) ? 'present' : 'gone';
                     out.lastValidToken = await (await fetch('/probe')).text();
                     return out;
                 }"#,
@@ -4479,7 +4493,7 @@
         assert_eq!(
             result.value.unwrap(),
             serde_json::json!({
-                "lastValidTokenSurface": "unsafe-url",
+                "lastValidTokenSurface": "gone",
                 "lastValidToken": format!("http://127.0.0.1:{}/test", port),
             })
         );
@@ -4488,7 +4502,7 @@
             .call_function_on_remote(
                 r#"async () => {
                     const out = {};
-                    out.headerBeatsMetaSurface = document.referrerPolicy;
+                    out.headerBeatsMetaSurface = ('referrerPolicy' in Document.prototype) ? 'present' : 'gone';
                     out.headerBeatsMeta = await (await fetch('/probe')).text();
                     return out;
                 }"#,
@@ -4502,7 +4516,7 @@
         assert_eq!(
             result.value.unwrap(),
             serde_json::json!({
-                "headerBeatsMetaSurface": "no-referrer",
+                "headerBeatsMetaSurface": "gone",
                 "headerBeatsMeta": "(none)",
             })
         );
@@ -26368,9 +26382,8 @@ fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
 ///
 /// - fn.length: resolved at knife 4 (moveBefore/requestFullscreen installed
 ///   with Chrome's arity); the dict now matches in full.
-/// - hasAttributeNS.cases: the engine's attribute storage drops
-///   namespaceURI (setAttributeNS(xlink,'href') stores no namespace), so
-///   null-namespace lookups match by local name. Cross-layer DOM-core gap.
+/// - hasAttributeNS.cases: resolved (namespace-aware attribute storage) —
+///   the engine now matches Chrome on the null-namespace lookups too.
 #[test]
 fn htmlelement_members_match_chrome_truth_except_known_gaps() {
     // Knife 4 landed all nine staged families (part/Typed OM/fullscreen
@@ -26378,7 +26391,7 @@ fn htmlelement_members_match_chrome_truth_except_known_gaps() {
     // element_staged_members_match_chrome_truth); the filter stays as the
     // mechanism for any future staging.
     const STAGED: &[&str] = &[];
-    const KNOWN_HTML_GAPS: &[&str] = &["hasAttributeNS.cases"];
+    const KNOWN_HTML_GAPS: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/htmlelement-probe.js");
     let engine: serde_json::Value =
@@ -26719,11 +26732,9 @@ async fn htmlreflect_members_match_chrome_truth() {
     const KNOWN_FP: &[&str] = &[
         "HTMLAnchorElement.protocol",
         "HTMLAreaElement.protocol",
-        "HTMLElement.editContext",
         "HTMLElement.innerText",
         "HTMLElement.outerText",
         "HTMLElement.style",
-        "HTMLFormElement.elements",
         "HTMLMediaElement.buffered",
         "HTMLMediaElement.currentTime",
         "HTMLMediaElement.played",
@@ -26737,24 +26748,14 @@ async fn htmlreflect_members_match_chrome_truth() {
         "HTMLInputElement.type",
         "HTMLInputElement.value",
         "HTMLInputElement.valueAsDate",
-        "HTMLSelectElement.options",
-        "HTMLTemplateElement.content",
         "HTMLTextAreaElement.selectionEnd",
         "HTMLTextAreaElement.selectionStart",
         "HTMLTextAreaElement.value",
     ];
-    // names Chrome 145 owns that the family deliberately does not install
-    // (experimental / origin-trial / flagged; SURFACE.md ledger)
-    const KNOWN_MISSING: &[&str] = &[
-        "HTMLAnchorElement.interestForElement",
-        "HTMLAreaElement.interestForElement",
-        "HTMLIFrameElement.featurePolicy",
-        "HTMLIFrameElement.privateToken",
-        "HTMLIFrameElement.adAuctionHeaders",
-        "HTMLIFrameElement.browsingTopics",
-        "HTMLIFrameElement.sharedStorageWritable",
-        "HTMLButtonElement.interestForElement",
-    ];
+    // Empty (2026-11-04): every previously-missing experimental name —
+    // interestForElement, the iframe ad/privacy cluster, form/select/
+    // template collections — now installs with Chrome's fingerprint.
+    const KNOWN_MISSING: &[&str] = &[];
     // bootstrap {value} constants are non-configurable and cannot be
     // re-seated (knife 5); strip them from the order comparison
     const IMMOVABLE: &[&str] = &[
