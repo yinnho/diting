@@ -2426,6 +2426,21 @@ function __customRegistry() {
 // foreign this). Save/restore, not clear: a constructor that appends another
 // custom element triggers a nested upgrade that must restore ours.
 let __ceUpgradeTarget = null;
+// attributeChangedCallback definitions captured at define(): class ->
+// { acc, observed:Set }. Only classes observing at least one name land here,
+// so attribute writes on everything else pay one map miss.
+const __ceAttrDefs = new Map();
+// Attribute-change reaction for an upgraded custom element (setAttribute,
+// removeAttribute and the NS forms — id/className/classList/Attr writers all
+// funnel through them). Chrome fires on every set, same value included, and
+// not for removing an absent attribute; the callers enforce the latter.
+function __ceAttrChanged(el, name, oldValue, newValue, ns) {
+  if (!el.__customUpgraded || !__ceAttrDefs.size) return;
+  const cls = customElements._registry.get(el.localName);
+  const def = cls && Object.prototype.isPrototypeOf.call(cls.prototype, el) ? __ceAttrDefs.get(cls) : null;
+  if (!def || !def.observed.has(name)) return;
+  try { def.acc.call(el, name, oldValue, newValue, ns == null || ns === '' ? null : String(ns)); } catch (e) {}
+}
 function __upgradeCustomElementsIn(root, includeRoot) {
   const reg = __customRegistry();
   if (!reg || !reg.size || !root) return;
@@ -2451,7 +2466,7 @@ function __upgradeCustomElementsIn(root, includeRoot) {
     if (!el.__customUpgraded) {
       // In-document: _upgradeElement fires connectedCallback itself.
       customElements._upgradeElement(el, cls);
-    } else if (!el.__customConnected && typeof el.connectedCallback === 'function') {
+    } else if (!el.__customConnected && typeof el.connectedCallback === 'function' && el.isConnected) {
       el.__customConnected = true;
       try { el.connectedCallback(); } catch (e) {}
     }
@@ -3077,7 +3092,11 @@ class Node {
   cloneNode(deep) {
     const t = this.nodeType;
     if (t === 1) {
-      return _wrap(+_dom("clone_node", this._nid, deep ? "true" : "false"));
+      const c = _wrap(+_dom("clone_node", this._nid, deep ? "true" : "false"));
+      // Cloned custom elements are born upgraded (constructor + attribute
+      // reactions; detached, so no connectedCallback).
+      if (c) { globalThis.__diting_cloneAttrNs?.(this, c); __upgradeCustomElementsIn(c, true); }
+      return c;
     }
     // Clone structurally via real DOM nodes rather than round-tripping through a
     // throwaway <div>.innerHTML: the fragment parser discards elements that are
@@ -3728,6 +3747,9 @@ class Element extends Node {
     _dom("set_inner_html", this._nid, String(v ?? ""));
     if (oldNamed) for (const pair of oldNamed) _namedUntrackBy(pair[0], pair[1]);
     if (_nodeInDocument(this)) _namedScanIn(this);
+    // Detached markup upgrades too (Chrome: constructor + attribute
+    // reactions at innerHTML time, connectedCallback waits for insertion).
+    else __upgradeCustomElementsIn(this, false);
     if (_nodeInDocument(this)) {
       _registerIframesIn(this);
       // Custom elements instanced by the markup upgrade as it enters the
@@ -3954,8 +3976,10 @@ class Element extends Node {
       if (ns.length) oldNamed = [this._nid, ns];
     }
     const __moOld = globalThis.__mutationObservers?.length ? this.getAttribute(n) : undefined;
+    const __ceOld = this.__customUpgraded ? this.getAttribute(n) : undefined;
     if (n === "open") globalThis.__detailsAttr?.(this);
     _dom("set_attribute", this._nid, n + "\0" + String(v));
+    if (this.__customUpgraded) __ceAttrChanged(this, n, __ceOld, String(v), null);
     if (oldNamed) _namedUntrackBy(oldNamed[0], oldNamed[1]);
     if ((n === "id" || n === "name") && this.isConnected) _namedTrack(this);
     if (popoverPrev !== undefined) this._popoverTypeMaybeChanged(popoverPrev);
@@ -3992,7 +4016,9 @@ class Element extends Node {
   setAttributeNS(ns, n, v) {
     n = String(n);
     const __moOld = globalThis.__mutationObservers?.length ? this.getAttributeNS(ns, n) : undefined;
+    const __ceOld = this.__customUpgraded ? this.getAttributeNS(ns, n) : undefined;
     _dom("set_attribute", this._nid, n + "\0" + String(v)); // exact name, no HTML folding
+    if (this.__customUpgraded) __ceAttrChanged(this, n.slice(n.indexOf(":") + 1), __ceOld, String(v), ns);
     if (globalThis.__mutationObservers?.length) globalThis.__notifyMutation('attributes', this._nid, [], [], n, __moOld, null, null);
     const ln = n.toLowerCase();
     if (ln === "class" || ln === "style") { _scheduleAnimationCheck(this); _scheduleTransitionCheck(this); }
@@ -4006,7 +4032,9 @@ class Element extends Node {
     const popoverPrev = (n === "popover") ? this.popover : undefined;
     if ((n === "id" || n === "name") && _namedEls.size && this.nodeType === 1) _namedUntrack(this);
     if (n === "open") globalThis.__detailsAttr?.(this);
+    const __ceOld = this.__customUpgraded ? this.getAttribute(n) : null;
     _dom("remove_attribute", this._nid, n);
+    if (__ceOld !== null) __ceAttrChanged(this, n, __ceOld, null, null);
     if (__moHad && globalThis.__mutationObservers?.length) globalThis.__notifyMutation('attributes', this._nid, [], [], n, __moOld, null, null);
     if (popoverPrev !== undefined) this._popoverTypeMaybeChanged(popoverPrev);
     if (n === "class" || n === "style") { _scheduleAnimationCheck(this); _scheduleTransitionCheck(this); }
@@ -4015,7 +4043,9 @@ class Element extends Node {
     n = String(n);
     const __moHad = globalThis.__mutationObservers?.length ? this.getAttributeNS(ns, n) !== null : false;
     const __moOld = __moHad ? this.getAttributeNS(ns, n) : undefined;
+    const __ceOld = this.__customUpgraded ? this.getAttributeNS(ns, n) : null;
     _dom("remove_attribute", this._nid, n);
+    if (__ceOld !== null) __ceAttrChanged(this, n, __ceOld, null, ns);
     if (__moHad && globalThis.__mutationObservers?.length) globalThis.__notifyMutation('attributes', this._nid, [], [], n, __moOld, null, null);
     const ln = n.toLowerCase();
     if (ln === "class" || ln === "style") { _scheduleAnimationCheck(this); _scheduleTransitionCheck(this); }
@@ -10335,7 +10365,21 @@ class CustomElementRegistry {
     if (this._registry.has(name)) throw new DOMException("Failed to execute 'define' on 'CustomElementRegistry': the name \"" + name + "\" has already been used with this registry", "NotSupportedError");
     if (this._byCtor.has(cls)) throw new DOMException("Failed to execute 'define' on 'CustomElementRegistry': the constructor has already been used with this registry", "NotSupportedError");
     this._defining = true;
-    try { this._byCtor.set(cls, name); this._defineInner(name, cls, opts); } finally { this._defining = false; }
+    try {
+      // attributeChangedCallback + observedAttributes are read ONCE, here
+      // (HTML "define" steps): a callback patched onto the prototype later is
+      // never called, and a getter or plain static field both count. Errors
+      // reading them abort the define, as in Chrome.
+      const acc = cls.prototype.attributeChangedCallback;
+      if (acc !== undefined && typeof acc !== 'function') throw new TypeError("Failed to execute 'define' on 'CustomElementRegistry': The \"attributeChangedCallback\" property of the provided constructor's prototype is not a function.");
+      let observed = null;
+      if (acc !== undefined) {
+        const oa = cls.observedAttributes;
+        if (oa !== undefined) observed = new Set(Array.from(oa, String));
+      }
+      if (observed && observed.size) __ceAttrDefs.set(cls, { acc, observed });
+      this._byCtor.set(cls, name); this._defineInner(name, cls, opts);
+    } finally { this._defining = false; }
   }
   _defineInner(name, cls, opts) {
     this._registry.set(name, cls);
@@ -10375,6 +10419,16 @@ class CustomElementRegistry {
       __ceUpgradeTarget = el;
       try { Reflect.construct(cls, []); } catch (e) {}
       finally { __ceUpgradeTarget = prev; }
+      // Upgrade reactions: one attributeChangedCallback(name, null, value)
+      // per observed attribute already present, in attribute order, before
+      // connectedCallback (Chrome probe: ctor, acc name, acc url, conn).
+      const def = __ceAttrDefs.get(cls);
+      if (def) {
+        for (const at of Array.from(el.attributes)) {
+          const n = at.localName || at.name;
+          if (def.observed.has(n)) { try { def.acc.call(el, n, null, at.value, at.namespaceURI || null); } catch (e) {} }
+        }
+      }
       if (typeof el.connectedCallback === 'function' && globalThis.document?.contains?.(el)) {
         // Mark the connection so the insertion/removal walks can cycle it
         // (Chrome fires connectedCallback again on every re-insertion).

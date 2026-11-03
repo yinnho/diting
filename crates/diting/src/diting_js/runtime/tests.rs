@@ -32574,3 +32574,26 @@ async fn vttcue_constructs_like_chrome() {
     assert_eq!(o["hls_probe"], "inf ok");
 }
 
+
+/// attributeChangedCallback never fired (upgrade, parser-created, setAttribute
+/// …), so micro-app's <micro-app name url> never learned its app name and the
+/// WeChat store goods page stayed blank (2026-11-03). The expected log is the
+/// real-Chrome answer (Chrome 156 headless, same script, line for line).
+#[tokio::test(flavor = "current_thread")]
+async fn custom_element_attribute_changed_like_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r##"(function () {
+        const log=[];class X extends HTMLElement{static get observedAttributes(){return ["name","url","class","id"]}constructor(){super();log.push("ctor:"+this.getAttribute("name"))}attributeChangedCallback(n,o,v,ns){log.push("acc:"+n+"="+o+">"+v+(ns?"@"+ns:""))}connectedCallback(){log.push("conn")}}
+var d=document.createElement("div");d.innerHTML="<x-pre name=a url=b other=q></x-pre>";document.body.appendChild(d);customElements.define("x-pre",X);log.push("#define");
+var d2=document.createElement("div");d2.innerHTML="<x-pre name=c></x-pre>";log.push("#innerHTML-detached");document.body.appendChild(d2);log.push("#append");
+var e=document.createElement("x-pre");log.push("#create");e.setAttribute("name","z");e.setAttribute("name","z");e.setAttribute("other","1");e.removeAttribute("name");e.removeAttribute("name");e.toggleAttribute("url");e.id="i1";e.className="k";e.classList.add("k2");e.setAttributeNS("urn:x","name","ns");log.push("#attrs");
+var a=document.createAttribute("url");a.value="v1";e.setAttributeNode(a);a.value="v2";log.push("#attrnode");
+var c=e.cloneNode();log.push("#clone");
+class Y extends HTMLElement{attributeChangedCallback(n){log.push("Y:"+n)}}Y.observedAttributes=["p"];customElements.define("y-el",Y);var y=document.createElement("y-el");y.setAttribute("p","1");
+class Z extends HTMLElement{static get observedAttributes(){return ["p"]}}customElements.define("z-el",Z);Z.prototype.attributeChangedCallback=function(n){log.push("Z-late:"+n)};var z=document.createElement("z-el");z.setAttribute("p","1");
+        return JSON.stringify(log);
+    })()"##).unwrap();
+    let got: Vec<String> = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    let want: Vec<&str> = vec!["ctor:a", "acc:name=null>a", "acc:url=null>b", "conn", "#define", "ctor:c", "acc:name=null>c", "#innerHTML-detached", "conn", "#append", "ctor:null", "#create", "acc:name=null>z", "acc:name=z>z", "acc:name=z>null", "acc:url=null>", "acc:id=null>i1", "acc:class=null>k", "acc:class=k>k k2", "acc:name=null>ns@urn:x", "#attrs", "acc:url=>v1", "acc:url=v1>v2", "#attrnode", "ctor:ns", "acc:url=null>v2", "acc:id=null>i1", "acc:class=null>k k2", "acc:name=null>ns@urn:x", "#clone", "Y:p"];
+    assert_eq!(got, want);
+}
