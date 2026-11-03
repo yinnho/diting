@@ -1,6 +1,6 @@
 //! module: attributes
 //! layer: L2
-//! exposes: NamedNodeMap
+//! exposes: NamedNodeMap, __diting_cloneAttrNs
 //! requires-load: -
 //! requires-call: legacy:Element, legacy:Attr, legacy:DOMException, legacy:__diting_mkAttr, legacy:__diting_liftSlot
 
@@ -240,6 +240,21 @@ P.method(EP, 'setAttributeNS', 3, function __f(ns, qname, value) {
   if (ns !== null && ns !== undefined && ns !== '') { let info = nsInfo.get(el); if (!info) { info = new Map(); nsInfo.set(el, info); } info.set(String(qname), String(ns)); }
   return r;
 });
+
+// cloneNode copies attributes WITH their namespaces (the DOM clone only carries names/values): bootstrap's
+// cloneNode calls this before upgrading the clone, so custom-element attribute reactions see the namespace too.
+P.expose('__diting_cloneAttrNs', function (src, dst) {
+  const a = [src], b = [dst];
+  for (let i = 0; i < a.length; i++) {
+    const info = nsInfo.get(a[i]);
+    if (info && info.size) nsInfo.set(b[i], new Map(info));
+    const ka = a[i].children, kb = b[i].children;
+    if (ka && kb) for (let j = 0; j < ka.length && j < kb.length; j++) { a.push(ka[j]); b.push(kb[j]); }
+  }
+});
+if (globalThis.__diting_hide_list && typeof globalThis.__diting_hide_list.push === 'function') {
+  globalThis.__diting_hide_list.push('__diting_cloneAttrNs');
+}
 
 // namespace-aware reads must find attributes by (namespace, localName) the way Chrome does
 P.method(EP, 'getAttributeNS', 2, function __f(ns, local) {
