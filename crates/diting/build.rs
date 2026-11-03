@@ -23,6 +23,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split: the canvas font shorthand parser (刀117), call-time only.
+    ("canvas_font.js", include_str!("js/canvas_font.js")),
+    // god-file split: VideoFrame (刀67) — before videoframe_gaps.js and the sweeps.
+    ("videoframe.js", include_str!("js/videoframe.js")),
+    // god-file split: the WebGL context machinery (tables, state, 刀92 extension methods).
+    ("webgl.js", include_str!("js/webgl.js")),
     // (刀97) generated per-glyph canvas advance tables (Chrome 145 macOS
     // truth); measureText reads globalThis.__ditingFontMetrics at call time.
     ("font_metrics.js", include_str!("js/font_metrics.js")),
