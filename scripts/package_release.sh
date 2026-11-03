@@ -7,11 +7,11 @@ target=$1; binpath=$2
 dir=diting-$(release_ver)-$target
 mkdir "$dir"
 cp "$binpath" "$dir/"
-cp README.md docs/install.md "$dir/"
-# The readable copy of the manual; the engine writes the compiled-in one to
-# its workflow directory at boot.
-cp -R workflow "$dir/"
-cp -R config "$dir/"
+# Only what the software reads: the binary and its runtime config data.
+# No docs — the workflow manual is compiled in and written to the workflow
+# directory at boot; guides live on GitHub (README / SKILL.md).
+mkdir "$dir/config"
+cp config/*.json "$dir/config/"
 tar czf "$dir.tar.gz" "$dir"
 sha256_of "$dir.tar.gz" > "$dir.tar.gz.sha256"
 # Windows hands get a zip too — same contents.

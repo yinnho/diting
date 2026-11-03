@@ -31,15 +31,10 @@ cache.db-wal
 # Local vendored source trees pulled for reference (e.g. deno_core during musl port)
 vendor/
 
-# Development docs stay local — only user-facing docs are tracked
-docs/**
-!docs/API.md
-!docs/API.zh-CN.md
-!docs/install.md
-!docs/install.zh-CN.md
-!docs/demo.gif
-!docs/peer-crawl-20261021.md
-!docs/peer-crawl-20261021.zh-CN.md
+# docs/ is local-only — design notes, feedback, references, guides: never
+# committed, never pushed, never packaged. What the software itself reads
+# lives next to the code that reads it (workflow/, config/, crates/…).
+docs/
 
 # localStorage persistence test artifact (runtime state, must never rsync to hosted instance)
 /localStorage/
@@ -74,7 +69,6 @@ recordings/
 templates/findings.html
 templates/gzh.html
 web/zcode*
-!docs/gzh-skill-20261027.md
 
 # JS platform dependency analyzer deps (package-lock.json is committed)
 /tools/webplatform/analyze/node_modules/

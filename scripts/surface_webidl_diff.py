@@ -11,7 +11,7 @@ Two-phase because member presence is probed on INSTANCES by the engine:
   1. python3 scripts/surface_webidl_diff.py WORK members   # writes WORK/stdmembers.json
   2. SURFACE_STD_MEMBERS=WORK/stdmembers.json SURFACE_STD_OUT=WORK/probe.json \
        cargo test -p diting --lib js_surface_webidl_member_probe -- --ignored
-  3. python3 scripts/surface_webidl_diff.py WORK report    # writes js/SURFACE-WEBIDL.md
+  3. python3 scripts/surface_webidl_diff.py WORK report    # writes docs/SURFACE-WEBIDL.md (local-only)
 
 "Gap" = standard member the engine lacks AND Chrome ships it (BCD chrome
 version_added set, no flags, not removed). Interfaces whose instance could not
@@ -22,7 +22,7 @@ import collections, glob, json, os, sys
 WORK, MODE = sys.argv[1], sys.argv[2]
 HERE = os.path.dirname(os.path.abspath(__file__))
 SNAP = os.path.join(HERE, '..', 'crates/diting/src/diting_js/runtime/surface_snapshot.txt')
-OUT = os.path.join(HERE, '..', 'crates/diting/js/SURFACE-WEBIDL.md')
+OUT = os.path.join(HERE, '..', 'docs/SURFACE-WEBIDL.md')  # docs/ is local-only
 
 ifaces, partials, includes, mixins = {}, collections.defaultdict(list), [], {}
 win = set()
