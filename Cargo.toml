@@ -2,7 +2,7 @@
 # Root package is diting-browser; the BINARY is `diting` ([[bin]] below) —
 # the engine crate owns the bare `diting` name (crates/diting).
 name = "diting-browser"
-version = "0.8.4"
+version = "0.9.0"
 edition = "2021"
 authors = ["OpenCarrier Team"]
 description = "Pure server-side browser engine with built-in V8. HTTP API for scraping, search, and interactive browsing. No Chromium required."
@@ -15,17 +15,11 @@ categories = ["web-programming", "network-programming", "command-line-utilities"
 
 # cargo-binstall: `cargo binstall diting-browser` grabs the GitHub release
 # binary (with stealth+Screenshot features) instead of compiling V8 locally.
-# Tar assets: diting-v{version}-{target}.tar.gz holding diting-v{version}-{target}/diting(.exe).
-# The aarch64 musl asset is a bare static binary (agpkg shape) — different
-# name pattern (no v) and no archive.
+# All five targets ship the same shape since 0.9.0: diting-{version}-{target}.tar.gz
+# holding diting-{version}-{target}/diting(.exe) (asset names carry no "v").
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }{ archive-suffix }"
 bin-dir = "diting-{ version }-{ target }/{ bin }{ binary-ext }"
-
-[package.metadata.binstall.aarch64-unknown-linux-musl]
-pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }"
-bin-dir = "{ bin }{ binary-ext }"
-archive-format = "raw"
 
 [workspace]
 members = ["crates/diting", "crates/diting_ops", "crates/diting_runtime",

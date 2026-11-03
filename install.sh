@@ -1,15 +1,13 @@
 #!/bin/sh
 # diting installer — the one-liner entry point:
-#   curl -fsSL https://browser.aginx.net/install.sh | sh
-# (GitHub raw works as a mirror:
-#   curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh | sh)
+#   curl -fsSL https://raw.githubusercontent.com/yinnho/diting/main/install.sh | sh
 #
 # Downloads the release binary for the running OS/arch, verifies its sha256
 # against the release-published checksum, installs to a bin dir, and finishes
 # with `diting doctor` so a broken environment says so immediately.
 #
 # Env overrides (namespaced and legacy spellings both accepted):
-#   DITING_VERSION / VERSION          pin a release (e.g. v0.8.4); default: latest
+#   DITING_VERSION / VERSION          pin a release (e.g. v0.9.0); default: latest
 #   DITING_BIN_DIR / PREFIX           install target; default: /usr/local/bin
 #                                           if writable, else ~/.local/bin
 #   DITING_GH_PROXY                   prefix mirror for github.com downloads,
@@ -50,7 +48,7 @@ version="${DITING_VERSION:-${VERSION:-}}"
 if [ -z "$version" ]; then
     version=$(curl -fsSL --connect-timeout 10 "https://api.github.com/repos/$repo/releases/latest" \
         | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -1)
-    [ -n "$version" ] || { say "could not resolve latest release (api.github.com unreachable?) — pin one: DITING_VERSION=v0.8.4 sh install.sh"; exit 1; }
+    [ -n "$version" ] || { say "could not resolve latest release (api.github.com unreachable?) — pin one: DITING_VERSION=v0.9.0 sh install.sh"; exit 1; }
 fi
 # The git tag carries the v, asset names never do (scripts/release_lib.sh).
 version="v${version#v}"
