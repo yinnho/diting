@@ -150,12 +150,16 @@ for _n in CSSMATH:
         if _n in groups[_k]:
             groups[_k].remove(_n)
 
+# (刀96) [LegacyAlias] twins the chain truth does not list: the k96 probe pins
+# webkitURL === URL and WebKitCSSMatrix === DOMMatrix (one interface object in
+# Chrome), so neither gets a stub or a chain repair of its own.
+K96_ALIAS = [("webkitURL", "URL"), ("WebKitCSSMatrix", "DOMMatrix")]
 # ctor-throw table. Chrome-145 message overrides where the frozen 155 capture
 # diverges (FeaturePolicy: 145 names the legacy alias, 155 the canonical class).
 MSG145 = {"FeaturePolicy": "Failed to construct 'FeaturePolicy': Illegal constructor"}
 rows = []
 for n in groups["throw"]:
-    if n in CSSMATH:
+    if n in CSSMATH or n in dict(K96_ALIAS):
         continue
     m = MSG145.get(n) or shapes[n].get("m") or "Illegal constructor"
     # (M4 刀78) Chrome's message has no trailing period
@@ -165,6 +169,9 @@ js.append("""
 // ---- interfaces whose constructor throws (Chrome's own message verbatim —
 // the message set is per-name, down to the trailing-period inconsistency)
 const THROW = [%s];
+  // (刀96) webkitURL moved out of the THROW table: it is the SAME interface
+  // object as URL in Chrome ([LegacyAlias]) — ET_ALIAS pins the identity and
+  // the real URL ctor (bootstrap 刀96 wrapper) supplies the new-check message.
 for (const [name, len, msg] of THROW) {
   if (SKIP(name)) continue;
   const C = mkThrow(name, len, msg);
@@ -244,7 +251,7 @@ for n in sorted(etc):
         "ET chain parent %r of %s is not a chained interface" % (parent, n)
     if parent != "Object":
         et_chain.append((n, parent))
-for a in et_alias:
+for a in list(et_alias) + [n for n, _ in K96_ALIAS]:
     for k in ("ok", "throw"):
         if a in groups[k]:
             groups[k].remove(a)
@@ -306,7 +313,18 @@ const OBJ_GETTERS = [%s];
 for (const [name, tag] of OBJ_GETTERS) {
   if (SKIP(name)) continue;
   const tag2 = tag === '[object Navigator]' ? null : tag;
-  const single = name === 'clientInformation' ? null : tagged(tag2 ? tag2.slice(8, -1) || name : name);
+  const cls = tag2 ? (tag2.slice(8, -1) || name) : name;
+  const single = name === 'clientInformation' ? null : tagged(tag2 ? cls : name);
+  // (刀95) every one of these singletons is an INSTANCE of its interface in
+  // Chrome (trustedTypes instanceof TrustedTypePolicyFactory etc. — the class
+  // methods must be reachable from the object). Link the prototype when the
+  // class exists; the own toStringTag keeps the captured tag string.
+  if (single) {
+    const C = globalThis[cls] || globalThis[name];
+    if (typeof C === 'function' && C.prototype && C.prototype !== Object.prototype) {
+      try { Object.setPrototypeOf(single, C.prototype); } catch (e) {}
+    }
+  }
   Object.defineProperty(globalThis, name, {
     get() { return name === 'clientInformation' ? globalThis.navigator : single; },
     enumerable: true, configurable: true,
@@ -319,7 +337,8 @@ _ET_NAMES = set(n for n, _ in et_chain)
 _AUDIT_SKIP = {"SVGElement", "SVGClipPathElement", "SVGSymbolElement", "SVGFEDropShadowElement", "PerformanceNavigationTiming",
                "PerformanceResourceTiming", "PerformanceMark", "PerformanceMeasure", "PerformancePaintTiming", "PerformanceServerTiming"}
 audit_chain = [(n, v["proto"]) for n, v in sorted(_AUDIT.items())
-               if v["proto"] not in ("Object", "null", "?") and n not in _ET_NAMES and n not in _AUDIT_SKIP and v["proto"] != n]
+               if v["proto"] not in ("Object", "null", "?") and n not in _ET_NAMES and n not in _AUDIT_SKIP and v["proto"] != n
+               and n not in dict(K96_ALIAS)]
 
 js.append("""
 // ---- scalar faces
@@ -360,7 +379,9 @@ for (const [name, parent] of AUDIT_CHAIN) {
   } catch (e) {}
 }
 // [LegacyAlias] names are the SAME interface object in Chrome, not separate
-// stubs: webkitMediaStream === MediaSource-family twins of real classes.
+// stubs (k96 sweep: exactly webkitURL + the webkitMediaStream/Speech family
+// + WebKitMutationObserver + WebKitCSSMatrix; Image/Audio/Option stay
+// separate legacy ctors in BOTH engines).
 const ET_ALIAS = [%s];
 for (const [alias, of] of ET_ALIAS) {
   try {
@@ -382,7 +403,7 @@ for (const [path, cls] of ET_SINGLETON) {
 })();
 """ % (",\n  ".join("[%s,%s]" % (json.dumps(n), json.dumps(p)) for n, p in et_chain),
        ",\n  ".join("[%s,%s]" % (json.dumps(n), json.dumps(p)) for n, p in audit_chain),
-       ",\n  ".join("[%s,%s]" % (json.dumps(a), json.dumps(b)) for a, b in sorted(et_alias.items())),
+       ",\n  ".join("[%s,%s]" % (json.dumps(a), json.dumps(b)) for a, b in sorted(et_alias.items()) + K96_ALIAS),
        ",\n  ".join("[%s,%s]" % (json.dumps(a), json.dumps(b)) for a, b in et_single)))
 
 open(os.path.join(OUT, "global_surface.js"), "w").write("".join(js))

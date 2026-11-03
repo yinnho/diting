@@ -267,9 +267,24 @@ function unwrapped(src) {
   return { src: src.slice(0, i) + src.slice(i + SCOPE_OPEN.length) + '', cut: j, wrapped: true,
     text: src.slice(0, i) + src.slice(i + SCOPE_OPEN.length, j) };
 }
+// Generated truth tables (font_metrics.js: ~90MB, one `const NAME = <JSON>;` per
+// line) blow acorn/eslint-scope past V8's Map and heap limits. A JSON value can
+// hold no identifier, so its right-hand side carries nothing this analysis
+// reads: swap it for `null` (same line, same declaration) when JSON.parse
+// proves the payload is pure data. Anything that is not JSON is left as is.
+function stripJsonPayloads(src) {
+  if (src.length < 4e6) return src;
+  return src.split('\n').map((l) => {
+    if (l.length < 1e5) return l;
+    const m = /^(\s*(?:const|let|var)\s+[\w$]+\s*=\s*)([\s\S]*?);\s*$/.exec(l);
+    if (!m) return l;
+    try { JSON.parse(m[2]); } catch (e) { return l; }
+    return m[1] + 'null;';
+  }).join('\n');
+}
 const wrappedFiles = new Set();
 for (const f of order) {
-  const raw = fs.readFileSync(path.join(JS_DIR, f), 'utf8');
+  const raw = stripJsonPayloads(fs.readFileSync(path.join(JS_DIR, f), 'utf8'));
   const U = unwrapped(raw);
   if (U.wrapped) wrappedFiles.add(f);
   const src = U.wrapped ? U.text : raw;
