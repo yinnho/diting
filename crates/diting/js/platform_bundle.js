@@ -1334,6 +1334,18 @@ P.method(EP, 'setAttributeNS', 3, function __f(ns, qname, value) {
   return r;
 });
 
+// cloneNode copies attributes WITH their namespaces (the DOM clone only carries names/values): bootstrap's
+// cloneNode calls this before upgrading the clone, so custom-element attribute reactions see the namespace too.
+Object.defineProperty(globalThis, '__diting_cloneAttrNs', { value: function (src, dst) {
+  const a = [src], b = [dst];
+  for (let i = 0; i < a.length; i++) {
+    const info = nsInfo.get(a[i]);
+    if (info && info.size) nsInfo.set(b[i], new Map(info));
+    const ka = a[i].children, kb = b[i].children;
+    if (ka && kb) for (let j = 0; j < ka.length && j < kb.length; j++) { a.push(ka[j]); b.push(kb[j]); }
+  }
+}, enumerable: false, configurable: true, writable: true });
+
 // namespace-aware reads must find attributes by (namespace, localName) the way Chrome does
 P.method(EP, 'getAttributeNS', 2, function __f(ns, local) {
   const el = elOk(this, __f); P.args(pre('Element', 'getAttributeNS'), arguments.length, 2, __f);
