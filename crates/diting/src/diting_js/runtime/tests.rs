@@ -32477,3 +32477,100 @@ async fn knife120_acc_backing_no_page_collision() {
         "knife120: __acc backing unreachable by page names; baxia wrap terminates"
     );
 }
+
+/// VTTCue was an inert stub that threw "3 arguments required, but only 0
+/// present." for every call, so hls.js (`new VTTCue(0, 0, "")` at module top
+/// level) killed whole pages (WeChat store, 2026-11-03). Expected values are
+/// real-Chrome probe answers (Chrome 156, headless, same script).
+#[tokio::test(flavor = "current_thread")]
+async fn vttcue_constructs_like_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt.evaluate(r#"(function () {
+        const o = {};
+        const t = (k, f) => { try { const v = f(); o[k] = v === undefined ? 'undefined' : v; } catch (e) { o[k] = 'THROW ' + e.name + ': ' + e.message; } };
+        t('noargs', () => new VTTCue());
+        t('two', () => new VTTCue(1, 2));
+        t('call', () => VTTCue(1, 2, 'x'));
+        t('nonfinite_start', () => new VTTCue(NaN, 2, 'x'));
+        t('inf_end', () => String(new VTTCue(0, Infinity, 'x').endTime));
+        t('nan_end', () => new VTTCue(0, NaN, 'x'));
+        t('neg', () => { const c = new VTTCue(-1, -2, 5); return [c.startTime, c.endTime, c.text]; });
+        const c = new VTTCue(1.5, 3, 'hi <b>x</b>');
+        t('defaults', () => [c.id, c.startTime, c.endTime, c.text, c.track, c.pauseOnExit, c.vertical, c.snapToLines, c.line, c.position, c.size, c.align, c.onenter, c.onexit]);
+        t('own', () => Reflect.ownKeys(c).length);
+        t('keys', () => { const k = []; for (const x in c) k.push(x); return k.slice(0, 15); });
+        t('proto', () => [Object.getPrototypeOf(c) === VTTCue.prototype, Object.getPrototypeOf(VTTCue.prototype) === TextTrackCue.prototype, String(c), c instanceof EventTarget]);
+        t('set_id', () => { c.id = 5; return c.id; });
+        t('set_start_nan', () => { c.startTime = NaN; });
+        t('set_end_inf', () => { c.endTime = Infinity; return String(c.endTime); });
+        t('set_pause', () => { c.pauseOnExit = 'a'; return c.pauseOnExit; });
+        t('vert', () => { c.vertical = 'zz'; const a = c.vertical; c.vertical = 'rl'; return [a, c.vertical]; });
+        t('snap', () => { c.snapToLines = 0; return c.snapToLines; });
+        t('line', () => { c.line = 3.5; const a = c.line; c.line = 'auto'; return [a, c.line]; });
+        t('line_str', () => { c.line = 'x'; });
+        t('line_nan', () => { c.line = NaN; });
+        t('line_obj', () => { c.line = {}; });
+        t('pos', () => { c.position = 50; const a = c.position; c.position = 'auto'; return [a, c.position]; });
+        t('pos_200', () => { c.position = 200; });
+        t('size', () => { c.size = 50; return c.size; });
+        t('size_neg', () => { c.size = -1; });
+        t('size_str', () => { c.size = 'auto'; });
+        t('align', () => { c.align = 'zz'; const a = c.align; c.align = 'left'; return [a, c.align]; });
+        t('text_set', () => { c.text = 7; return c.text; });
+        t('html', () => { const f = new VTTCue(0, 1, 'a <b>bold</b> &amp; c').getCueAsHTML(); return [String(f), f.childNodes.length, [...f.childNodes].map(n => n.nodeName + ':' + n.textContent)]; });
+        t('html_bad_this', () => VTTCue.prototype.getCueAsHTML.call({}));
+        t('get_bad_this', () => Object.getOwnPropertyDescriptor(VTTCue.prototype, 'text').get.call({}));
+        t('tt_bad_this', () => Object.getOwnPropertyDescriptor(TextTrackCue.prototype, 'startTime').get.call({}));
+        t('ttc_new', () => new TextTrackCue());
+        t('len', () => [VTTCue.length, VTTCue.name, String(VTTCue)]);
+        t('proto_keys', () => Object.getOwnPropertyNames(VTTCue.prototype));
+        t('tt_keys', () => Object.getOwnPropertyNames(TextTrackCue.prototype));
+        t('coerce', () => { const x = new VTTCue('2', '3', null); return [x.startTime, x.endTime, x.text, new VTTCue(0, 1, undefined).text]; });
+        t('sub', () => { class S extends VTTCue {} const s = new S(0, 1, 'q'); return [s instanceof S, s.text]; });
+        t('events', () => { const x = new VTTCue(0, 1, ''); let n = 0; x.onenter = () => n++; x.addEventListener('enter', () => n++); x.dispatchEvent(new Event('enter')); return n; });
+        t('hls_probe', () => { const e = VTTCue; try { new e(0, Number.POSITIVE_INFINITY, ''); return 'inf ok'; } catch (_) { return 'fallback'; } });
+        return JSON.stringify(o);
+    })()"#).unwrap();
+    let o: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(o["noargs"], "THROW TypeError: Failed to construct 'VTTCue': 3 arguments required, but only 0 present.");
+    assert_eq!(o["two"], "THROW TypeError: Failed to construct 'VTTCue': 3 arguments required, but only 2 present.");
+    assert_eq!(o["call"], "THROW TypeError: Failed to construct 'VTTCue': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    assert_eq!(o["nonfinite_start"], "THROW TypeError: Failed to construct 'VTTCue': The provided double value is non-finite.");
+    assert_eq!(o["inf_end"], "Infinity");
+    assert_eq!(o["nan_end"], "THROW TypeError: Failed to construct 'VTTCue': The endTime is not a number.");
+    assert_eq!(o["neg"], serde_json::json!([-1, -2, "5"]));
+    assert_eq!(o["defaults"], serde_json::json!(["", 1.5, 3, "hi <b>x</b>", null, false, "", true, "auto", "auto", 100, "center", null, null]));
+    assert_eq!(o["own"], 0);
+    assert_eq!(o["keys"], serde_json::json!(["vertical", "snapToLines", "line", "position", "size", "align", "text", "getCueAsHTML", "track", "id", "startTime", "endTime", "pauseOnExit", "onenter", "onexit"]));
+    assert_eq!(o["proto"], serde_json::json!([true, true, "[object VTTCue]", true]));
+    assert_eq!(o["set_id"], "5");
+    assert_eq!(o["set_start_nan"], "THROW TypeError: Failed to set the 'startTime' property on 'TextTrackCue': The provided double value is non-finite.");
+    assert_eq!(o["set_end_inf"], "Infinity");
+    assert_eq!(o["set_pause"], true);
+    assert_eq!(o["vert"], serde_json::json!(["", "rl"]));
+    assert_eq!(o["snap"], false);
+    assert_eq!(o["line"], serde_json::json!([3.5, "auto"]));
+    assert_eq!(o["line_str"], "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value 'x' is not a valid enum value of type AutoKeyword.");
+    assert_eq!(o["line_nan"], "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided double value is non-finite.");
+    assert_eq!(o["line_obj"], "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value '[object Object]' is not a valid enum value of type AutoKeyword.");
+    assert_eq!(o["pos"], serde_json::json!([50, "auto"]));
+    assert_eq!(o["pos_200"], "THROW IndexSizeError: Failed to set the 'position' property on 'VTTCue': The value provided (200) is outside the range [0, 100].");
+    assert_eq!(o["size"], 50);
+    assert_eq!(o["size_neg"], "THROW IndexSizeError: Failed to set the 'size' property on 'VTTCue': The value provided (-1) is outside the range [0, 100].");
+    assert_eq!(o["size_str"], "THROW TypeError: Failed to set the 'size' property on 'VTTCue': The provided double value is non-finite.");
+    assert_eq!(o["align"], serde_json::json!(["center", "left"]));
+    assert_eq!(o["text_set"], "7");
+    assert_eq!(o["html"], serde_json::json!(["[object DocumentFragment]", 3, ["#text:a ", "B:bold", "#text: & c"]]));
+    assert_eq!(o["html_bad_this"], "THROW TypeError: Illegal invocation");
+    assert_eq!(o["get_bad_this"], "THROW TypeError: Illegal invocation");
+    assert_eq!(o["tt_bad_this"], "THROW TypeError: Illegal invocation");
+    assert_eq!(o["ttc_new"], "THROW TypeError: Failed to construct 'TextTrackCue': Illegal constructor");
+    assert_eq!(o["len"], serde_json::json!([3, "VTTCue", "function VTTCue() { [native code] }"]));
+    assert_eq!(o["proto_keys"], serde_json::json!(["vertical", "snapToLines", "line", "position", "size", "align", "text", "getCueAsHTML", "constructor"]));
+    assert_eq!(o["tt_keys"], serde_json::json!(["track", "id", "startTime", "endTime", "pauseOnExit", "onenter", "onexit", "constructor"]));
+    assert_eq!(o["coerce"], serde_json::json!([2, 3, "null", "undefined"]));
+    assert_eq!(o["sub"], serde_json::json!([true, "q"]));
+    assert_eq!(o["events"], 2);
+    assert_eq!(o["hls_probe"], "inf ok");
+}
+

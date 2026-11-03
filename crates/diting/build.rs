@@ -163,6 +163,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("stub_members.js", include_str!("js/stub_members.js")),
     // 刀79: primitive/null defaults for the pure-stub getters (loaded right after the stubs exist).
     ("stub_defaults.js", include_str!("js/stub_defaults.js")),
+    // VTTCue/TextTrackCue behavior over the minted stubs (hls.js builds a cue at module top level).
+    ("text_cue.js", include_str!("js/text_cue.js")),
     // 刀80: WebIDL required-argument ladders for every interface method (GENERATED from the Chrome lengths).
     ("method_ladders.js", include_str!("js/method_ladders.js")),
     ("sym_fix.js", include_str!("js/sym_fix.js")),
