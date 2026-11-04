@@ -2525,18 +2525,6 @@ globalThis.matchMedia = _markNative(function matchMedia(q) {
   _mqlRegistry.push(mq);
   return mq;
 });
-// Returns the one Selection instance for a document (cached on the document),
-// so window.getSelection() === document.getSelection(). The real Selection
-// class is defined below, after Range. _selectionFor is hoisted.
-function _selectionFor(doc) {
-  if (!doc) return null;
-  if (!doc._selection) doc._selection = new Selection(doc);
-  return doc._selection;
-}
-globalThis.getSelection = _markNative(function getSelection() {
-  return _selectionFor(globalThis.document);
-});
-
 globalThis.__mutationObservers = [];
 globalThis.MutationObserver = class MutationObserver {
   constructor(callback) {
@@ -3628,7 +3616,7 @@ _markNative(NodeList.prototype.forEach);
 
 [
   globalThis.matchMedia,
-  globalThis.getSelection, globalThis.requestAnimationFrame,
+  globalThis.requestAnimationFrame,
   globalThis.cancelAnimationFrame, globalThis.setTimeout, globalThis.clearTimeout,
   globalThis.setInterval, globalThis.clearInterval, globalThis.queueMicrotask,
   globalThis.structuredClone, globalThis.reportError,
@@ -4597,7 +4585,6 @@ function __ditingReorderProto(proto, order) {
   d('_resolveUrl', _resolveUrl);
   d('_runAsMacrotask', _runAsMacrotask);
   d('_scheduleAfter', _scheduleAfter);
-  d('_selectionFor', _selectionFor);
   d('_shallowCloneNode', _shallowCloneNode);
   d('_styleProxy', _styleProxy);
   d('_timerArmNext', _timerArmNext);
