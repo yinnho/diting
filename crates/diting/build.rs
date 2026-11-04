@@ -281,6 +281,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // __diting_dateDraftBase engine hook. domcore consumes at runtime via
     // the auto-migrated d() rows. Validation lives in form_validation.js.
     ("input_selection.js", include_str!("js/input_selection.js")),
+    // god-file split (刀51, Response body methods): blob()/text()/json() on
+    // the real fetch path; Response is a host native, typeof guards read a
+    // host global in both homes - verbatim move. Marking travels (alias).
+    ("response_methods.js", include_str!("js/response_methods.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;

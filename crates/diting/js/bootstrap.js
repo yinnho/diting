@@ -3557,32 +3557,6 @@ globalThis.__diting_hide_list = Object.getOwnPropertyNames(globalThis).filter(k 
 
 
 
-// ---- Response.blob() on the real fetch path ----
-
-if (typeof Response !== 'undefined' && Response.prototype && !Response.prototype.blob) {
-  Response.prototype.blob = async function() {
-    const bytes = await this.arrayBuffer();
-    const contentType = this.headers && typeof this.headers.get === 'function' ? this.headers.get('content-type') : '';
-    return new Blob([new Uint8Array(bytes)], { type: contentType || '' });
-  };
-  _markNative(Response.prototype.blob);
-}
-if (typeof Response !== 'undefined' && Response.prototype && !Response.prototype.text) {
-  Response.prototype.text = async function() {
-    const buffer = await this.arrayBuffer();
-    return new TextDecoder().decode(new Uint8Array(buffer));
-  };
-  _markNative(Response.prototype.text);
-}
-if (typeof Response !== 'undefined' && Response.prototype && !Response.prototype.json) {
-  Response.prototype.json = async function() {
-    return JSON.parse(await this.text());
-  };
-  _markNative(Response.prototype.json);
-}
-// arrayBuffer is the body primitive that blob/text/json derive from; the
-// engine's Response provides it natively, so it is intentionally not shimmed
-// here (a JS fallback could only recurse into itself).
 
 // ---- GlobalEventHandlers `on*` IDL properties ----
 // Real browsers expose every `on<event>` as an accessor property on
