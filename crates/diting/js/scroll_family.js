@@ -2,7 +2,7 @@
 // god-file split (刀45, window scroll family): _scrollRoot + _windowScroll
 // (offset stored on the scrolling element; window.scrollY and
 // scrollingElement.scrollTop are two views of one value), the three plain
-// installs scrollTo/scrollBy/scroll (upstream #468 — the infinite-scroll
+// installs scrollTo/scrollBy/scroll (#468 — the infinite-scroll
 // idiom needs the offset to actually move), marking rows travel with the
 // installs (alias below, 刀33 form), and the read-only accessor loop
 // (scrollX/pageXOffset/scrollY/pageYOffset) that replaces bootstrap's
