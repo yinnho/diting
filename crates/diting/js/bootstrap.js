@@ -153,14 +153,6 @@ function __accRo(C, names) {
     });
   }
 }
-// (M4 刀56) __lboxProto — the minimal per-instance listener-box trio for
-// socket-like shims — is RETIRED. Its classes (EventSource / WebSocket /
-// BroadcastChannel) have chained to EventTarget.prototype since the
-// global_surface wiring; the trio was a redundant shadow with WEAKER
-// semantics than the native core (no options/once/capture, no on* firing).
-// The classes now inherit the native trio like every Chrome EventTarget,
-// and their delivery fires on* through the native dispatch's handler hook
-// (the accessors are prototype-level, so isHandlerSlot passes).
 
 function _markNative(fn) { if (typeof fn === 'function') _nativeFnAdd(fn); return fn; }
 // Flat post-bootstrap scripts (lift_own / stub_members / window_extras ...) reach it through this hidden global instead of a free
@@ -252,14 +244,6 @@ globalThis.reportError = globalThis.reportError || ((e) => console.error(e));
   // mutation_observer.js — its marking migrated there (刀22 precedent).
 ].forEach(fn => { if (typeof fn === 'function') _markNative(fn); });
 
-
-
-
-
-// Geometry family (DOMPoint/DOMRect/DOMQuad/DOMMatrix*/WebKitCSSMatrix):
-// generated shape + behavior module now owns this whole family
-// (platform/gen/geometry.gen.js + platform/geometry.impl.js, M4 knife 1).
-
 // Snapshot-time pre-computation of the hide list. Bootstrap.js runs once
 // during the V8 snapshot build (build.rs); this line captures the set of
 // globals defined by bootstrap that we want to hide and stashes them
@@ -271,17 +255,6 @@ globalThis.reportError = globalThis.reportError || ((e) => console.error(e));
 globalThis.__diting_hide_list = Object.getOwnPropertyNames(globalThis).filter(k =>
   k.startsWith('_') || k.includes('diting') || k.includes('Diting')
 );
-
-
-
-
-
-
-
-
-// (M3 B2c) Frames inherit Window.prototype — the link now lives in
-// iframe_realm.js, after the class definitions (this site ran at bootstrap
-// load time and died in the TDZ catch, so it never linked anything).
 
 // fp-diff-1014: prototype key ORDER. Chrome installs WebIDL attributes
 // first and `constructor` late; ours had constructor first (and Screen
