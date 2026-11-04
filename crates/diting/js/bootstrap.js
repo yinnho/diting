@@ -577,20 +577,6 @@ globalThis.__diting_shadowHostNames = new Set(['article','aside','blockquote','b
 // ResizeObserver is defined earlier with real per-target firing; the stub
 // that previously lived here was a no-op that clobbered the real class.
 //
-// Stub replaced by the real PerformanceObserver in performance.js (after
-// the Performance timeline is constructed). Kept here so early interface
-// sweeps see the name; observe/callback face is #217 / obscura #1166.
-globalThis.PerformanceObserver = class {
-  constructor(){}
-  observe(){}
-  disconnect(){}
-  takeRecords() { return []; }
-  // Honest set: exactly the entry types the Performance timeline records
-  // (mark/measure via user timing, navigation, paint). Web-vitals wrappers
-  // gate their LCP/CLS/longtask setup on this list — advertising types we
-  // never emit would push them into a wait that never resolves.
-  static get supportedEntryTypes() { return ['mark', 'measure', 'navigation', 'paint']; }
-};
 
 // Event and CustomEvent are native interfaces (crates/diting_runtime/src/
 // native/event.rs): state in a private slot, prototype accessors, the
@@ -632,7 +618,7 @@ globalThis.scrollX = 0; globalThis.scrollY = 0;
   // (刀22) Notification + chrome.csi/loadTimes moved to bchk_apis.js —
   // their native marking migrated there (bootstrap loads first and would
   // see undefined here; the member reads also hid from the analyzer).
-PerformanceObserver,
+  // (刀75) PerformanceObserver stub moved to performance_observer.js — the install self-marks there (刀22/刀54 precedent).
   // (刀70) ResizeObserver moved to resize_observer.js — its marking
   // migrated there (install site self-marks, 刀22/刀54 precedent);
   // (刀58) MutationObserver moved to mutation_observer.js — same.

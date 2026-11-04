@@ -335,6 +335,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // no d() row, no marking; later layers build module-local faces and
     // read the global guardedly. DOM cluster slot.
     ("node_filter.js", include_str!("js/node_filter.js")),
+    // god-file split (刀75, PerformanceObserver stub): the placeholder class
+    // performance.js replaces wholesale at its later slot; kept for the
+    // interface sweeps (#108 member read — far later). Observer cluster;
+    // the install self-marks (marking travels, 刀22/刀54).
+    ("performance_observer.js", include_str!("js/performance_observer.js")),
     // god-file split (刀60, form activation belt): the pre/post click
     // activation machinery — lazy prototype-setter cache (bypasses instance
     // traps like React's _valueTracker), flip/cancel/commit triplet,
