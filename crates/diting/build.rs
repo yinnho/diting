@@ -23,6 +23,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split (刀74, Location face): _resolveUrl + __virtualUrl +
+    // __currentUrl + the __locParts memo + the location object + the
+    // unforgeable accessor. FIRST slot after bootstrap (刀74 人肉审:
+    // method_ladders snapshots G.location at its later load; every other
+    // consumer is runtime) — the load window is empty by construction.
+    ("location_face.js", include_str!("js/location_face.js")),
     // god-file split (刀59, console argument formatter): _fmtVal + _peek +
     // the _FMT_* clamps — pure helpers, zero installs. First slot after
     // bootstrap: _consoleFn calls them at runtime via the published hidden
