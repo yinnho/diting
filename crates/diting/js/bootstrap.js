@@ -489,27 +489,6 @@ function _shallowCloneNode(node) {
   return el;
 }
 
-// Prepare a single script element for execution, unless it has already
-// started. The native flag (op_script_try_start) is authoritative and survives
-// moves and cloneNode(), so a script inserted a second time runs no more than
-// once (upstream 41a8e1c).
-
-// Hover/active tree mirrors (#152). The interaction layer (INPUT_HELPERS,
-// eval'd per interaction) owns the pointer markers and the transition
-// events; these bridges carry the same facts through _domRaw so the
-// mutation epoch — and with it the style snapshot — goes stale on every
-// hover/active move. Two-arg shape keeps them stateless: setting wins,
-// clearing names the node it is leaving (the Rust arm is identity-guarded,
-// like set_focused's clear leg).
-globalThis.__diting_setHoverTree = function (prevEl, nextEl) {
-  if (nextEl && nextEl._nid !== undefined) _domRaw("set_hover", String(nextEl._nid), "1");
-  else if (prevEl && prevEl._nid !== undefined) _domRaw("set_hover", String(prevEl._nid), "0");
-};
-globalThis.__diting_setActiveTree = function (prevEl, nextEl) {
-  if (nextEl && nextEl._nid !== undefined) _domRaw("set_active", String(nextEl._nid), "1");
-  else if (prevEl && prevEl._nid !== undefined) _domRaw("set_active", String(prevEl._nid), "0");
-};
-
 // Secure Contexts (W3C §is-origin-potentially-trustworthy): https/wss are
 // secure, plain http/ws only on the localhost family, data:/file:/blob:
 // inheriting a secure scheme. Computed per access off the live URL — the
