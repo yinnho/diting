@@ -6764,24 +6764,6 @@ globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function(id) { 
 
 
 
-if (typeof Selection === 'undefined') {
-  globalThis.Selection = class Selection {
-    constructor(){this.anchorNode=null;this.focusNode=null;this.rangeCount=0;this.isCollapsed=true;this.type='None';}
-    getRangeAt(){return null;} collapse(){} extend(){} selectAllChildren(){} deleteFromDocument(){}
-    addRange(){} removeRange(){} removeAllRanges(){} toString(){return '';}
-  };
-}
-
-if (typeof Range === 'undefined') {
-  globalThis.Range = class Range {
-    constructor(){this.startContainer=null;this.startOffset=0;this.endContainer=null;this.endOffset=0;this.collapsed=true;this.commonAncestorContainer=null;}
-    setStart(n,o){this.startContainer=n;this.startOffset=o;} setEnd(n,o){this.endContainer=n;this.endOffset=o;}
-    collapse(){} selectNode(){} selectNodeContents(){} cloneContents(){return document?.createDocumentFragment();}
-    deleteContents(){} insertNode(){} getBoundingClientRect(){return new DOMRect();}
-    getClientRects(){return [];} cloneRange(){return new Range();} toString(){return '';}
-  };
-}
-
 if (typeof ServiceWorkerContainer === 'undefined') {
   globalThis.ServiceWorkerContainer = class { register(){return Promise.resolve();} getRegistrations(){return Promise.resolve([]);} };
 }
