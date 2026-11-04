@@ -213,35 +213,10 @@ Object.defineProperty(globalThis.Window, Symbol.hasInstance, {
 // Window.prototype. global_surface.js moves it to the proto layer and points
 // it at Window so `self.constructor === Window` gates still pass.
 
-// ResizeObserver is defined earlier with real per-target firing; the stub
-// that previously lived here was a no-op that clobbered the real class.
-//
-
-// Event and CustomEvent are native interfaces (crates/diting_runtime/src/
-// native/event.rs): state in a private slot, prototype accessors, the
-// unforgeable own isTrusted, one dispatch-flag semantics for initEvent.
-// Installed with the faces before this script runs.
-
-// FontFace / FontFaceSet / document.fonts live in platform/fontfaceset.impl.js (M4 knife 52).
-
 globalThis.reportError = globalThis.reportError || ((e) => console.error(e));
 
 [
-  // (刀64) matchMedia moved to media_queries.js — the install wraps
-  // _markNative at its site (marking travels, 刀22/刀54 precedent).
-  // (刀54) the timer/raf faces moved to timer_belt.js — their native
-  // marking migrated there (bootstrap loads first; 刀22 precedent).
   globalThis.structuredClone, globalThis.reportError,
-  // (刀78) the console face moved to console_face.js — its seven members
-  // self-mark there (marking travels, 刀22/刀54 precedent).
-  // (刀22) Notification + chrome.csi/loadTimes moved to bchk_apis.js —
-  // their native marking migrated there (bootstrap loads first and would
-  // see undefined here; the member reads also hid from the analyzer).
-  // (刀75) PerformanceObserver stub moved to performance_observer.js — the install self-marks there (刀22/刀54 precedent).
-  // (刀70) ResizeObserver moved to resize_observer.js — its marking
-  // migrated there (install site self-marks, 刀22/刀54 precedent);
-  // (刀58) MutationObserver moved to mutation_observer.js — same.
-  // mutation_observer.js — its marking migrated there (刀22 precedent).
 ].forEach(fn => { if (typeof fn === 'function') _markNative(fn); });
 
 // Snapshot-time pre-computation of the hide list. Bootstrap.js runs once
