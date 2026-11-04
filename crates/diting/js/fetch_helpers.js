@@ -226,6 +226,7 @@ if (typeof Headers === "undefined") {
   d('_base64ToUint8Array', _base64ToUint8Array);
   d('_bodyToUint8Array', _bodyToUint8Array);
   d('_bytesToBase64', _bytesToBase64);
+  d('_bytesToBinaryString', _bytesToBinaryString);
   d('_concatBytes', _concatBytes);
   d('_dataUrlBytes', _dataUrlBytes);
   d('_installWasmStreamingFallback', _installWasmStreamingFallback);
