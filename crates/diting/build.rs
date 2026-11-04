@@ -36,6 +36,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // only document/node members read at call time; consumers (domcore
     // cloneNode) call through the d()-published binding. Any slot safe.
     ("shallow_clone.js", include_str!("js/shallow_clone.js")),
+    // god-file split (刀91, select label mirror): _mirrorSelectLabel — the
+    // live_value mirror write the form paint batch reads. Free names are
+    // member reads plus _domRaw, all call-time through the d()-published
+    // binding; consumers (domcore, htmlelem) call at call time. Any slot
+    // safe. Host pin flipped here from bootstrap in this knife.
+    ("mirror_select.js", include_str!("js/mirror_select.js")),
     // god-file split (刀83, event-state facade + native trio): _eventState
     // capture off the engine-installed bridge global (deleted in the same
     // breath) + the M3-B1 addEventListener/removeEventListener/dispatchEvent

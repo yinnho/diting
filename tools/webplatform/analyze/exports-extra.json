@@ -3,14 +3,16 @@
     "__acc",
     "__accRo",
     "__ditingReorderProto",
-    "_markNativeProto",
-    "_mirrorSelectLabel"
+    "_markNativeProto"
   ],
   "dom_op_tables.js": [
     "_DOM_MUTATION_COMMANDS"
   ],
   "shallow_clone.js": [
     "_shallowCloneNode"
+  ],
+  "mirror_select.js": [
+    "_mirrorSelectLabel"
   ],
   "domcore.js": [
     "_elementClassFor"
