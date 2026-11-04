@@ -70,5 +70,8 @@
   "__ditingNearestBuild",
   "__ditingPlatformFromUA",
   "__ditingUADataPlatformFromUA"
+ ],
+ "bchk_apis.js": [
+  "__diting_fragmentDirective"
  ]
 }
