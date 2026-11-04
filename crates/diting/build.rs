@@ -23,6 +23,15 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split (刀83, event-state facade + native trio): _eventState
+    // capture off the engine-installed bridge global (deleted in the same
+    // breath) + the M3-B1 addEventListener/removeEventListener/dispatchEvent
+    // install. FIRST slot after bootstrap: the capture+delete must run
+    // before any other file could observe the bridge global, and the trio
+    // reads only the host EventTarget (present before any JS). The d() row
+    // migrated with the declaration; consumers (domcore, platform_bundle)
+    // read at call time.
+    ("event_facade.js", include_str!("js/event_facade.js")),
     // god-file split (刀79, window identity): window/self/top/parent/frames
     // aliases + frameElement/length. Pure installs, zero reads. FIRST after
     // bootstrap, ahead of location_face — no location reads at load, so the
