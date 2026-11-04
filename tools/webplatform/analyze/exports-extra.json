@@ -9,7 +9,6 @@
   "__ditingPlatformFromUA",
   "__locParts",
   "__prepareInitialStylesheets",
-  "_elementClassFor",
   "_fetchRing",
   "_formValues",
   "_fpCache",
@@ -25,6 +24,9 @@
   "_timerArmed",
   "_timerHeap",
   "_timerPatrol"
+ ],
+ "domcore.js": [
+  "_elementClassFor"
  ],
  "crypto_subtle.js": [
   "b64urlToBytes",
