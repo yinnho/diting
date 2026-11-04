@@ -36,6 +36,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // EventTarget at load; early slot so later files extending these
     // classes (pointer_touch) and runtime dispatch all resolve.
     ("event_classes.js", include_str!("js/event_classes.js")),
+    // god-file split (刀66, abort family): AbortSignal/AbortController —
+    // abort reasons + event + static abort()/timeout()/any()/throwIfAborted
+    // replacing the dead stub; construction gate key is module-local.
+    // Extends host-native EventTarget; consumers (fetch family, worker,
+    // navigation) runtime or string tables — early slot for uniformity.
+    ("abort_signals.js", include_str!("js/abort_signals.js")),
     // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
     // the DOM core family bootstrap.js carried wholesale. Straight after it:
     // everything later (canvas, sweeps) needs these classes in scope.
