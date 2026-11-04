@@ -148,6 +148,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // + the guarded globalThis.structuredClone install. Self-contained —
     // free ids are builtins only; callers go through the installed global.
     ("structured_clone.js", include_str!("js/structured_clone.js")),
+    // god-file split (刀27, Intl/Date persona family): TZ/locale derivation
+    // + Intl.DateTimeFormat proxy + Date prototype wall-clock wraps + the
+    // __ditingNativeOf disguise map + the Function.prototype.toString
+    // proxy. The map is internal to this belt (_markNative's registry is
+    // _nativeFnAdd, a different mechanism). Load-time installs are member
+    // form; navigator_persona reads __ditingLangList at runtime.
+    ("intl_date_persona.js", include_str!("js/intl_date_persona.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;

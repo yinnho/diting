@@ -4,8 +4,6 @@
   "_MQ_PERSONA_BOOL",
   "_WINDOW_EVENT_NAMES",
   "_getFp",
-  "__ditingLangList",
-  "__ditingLocaleArg",
   "__ditingReorderProto",
   "__locParts",
   "__prepareInitialStylesheets",
@@ -79,5 +77,8 @@
   "__vpOH",
   "__vpOW",
   "__vpW"
+ ],
+ "intl_date_persona.js": [
+  "__ditingLocaleArg"
  ]
 }
