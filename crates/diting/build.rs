@@ -25,6 +25,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("bootstrap.js", include_str!("js/bootstrap.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
+    // god-file split: the canvas 2D family — TextMetrics, the _Canvas2D class
+    // (it IS CanvasRenderingContext2D), HTMLCanvasElement's canvas methods and
+    // the bitmap flush hook the host evaluates before a render.
+    ("canvas2d.js", include_str!("js/canvas2d.js")),
     // god-file split: VideoFrame (刀67) — before videoframe_gaps.js and the sweeps.
     ("videoframe.js", include_str!("js/videoframe.js")),
     // god-file split: the WebGL context machinery (tables, state, 刀92 extension methods).
