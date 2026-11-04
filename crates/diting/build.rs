@@ -71,6 +71,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (url, name) with real MessagePort pairs (#213), the SharedWorkerGlobal-
     // Scope shape, inline _markNative — the serializer head-alias device.
     ("sharedworker.js", include_str!("js/sharedworker.js")),
+    // god-file split (刀13, navigator persona): __navStore literal, langs
+    // memo, the Navigator class + prototype setup walk + singleton +
+    // __diting_navSet. The mark-list navigator cluster, the credentials
+    // fallback and the prototype reorder try-block migrate with it (they
+    // load-order-depend on the family). Load-time refs to the UA-data /
+    // NetworkInformation classes go through globalThis member reads;
+    // __ditingReorderProto rides the 刀5 alias + exports-extra pin.
+    ("navigator_persona.js", include_str!("js/navigator_persona.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split (刀7, Path2D family): the guarded install — subpaths in

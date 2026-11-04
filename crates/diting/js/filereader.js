@@ -67,7 +67,6 @@ if (typeof FileReader === 'undefined') {
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
-  d('__acc', __acc);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END

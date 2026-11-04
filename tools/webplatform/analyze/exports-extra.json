@@ -7,6 +7,7 @@
   "__ditingLangList",
   "__ditingLocaleArg",
   "__ditingPlatformFromUA",
+  "__ditingReorderProto",
   "__locParts",
   "__prepareInitialStylesheets",
   "_fetchRing",
