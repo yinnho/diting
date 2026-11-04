@@ -31,6 +31,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Slot right after bootstrap: zero load-time callers exist anywhere,
     // adjacency keeps the exposure window empty by construction.
     ("dom_op_tables.js", include_str!("js/dom_op_tables.js")),
+    // god-file split (刀90, shallow clone): _shallowCloneNode — the one-node
+    // clone primitive behind domcore's cloneNode deep path. Free names are
+    // only document/node members read at call time; consumers (domcore
+    // cloneNode) call through the d()-published binding. Any slot safe.
+    ("shallow_clone.js", include_str!("js/shallow_clone.js")),
     // god-file split (刀83, event-state facade + native trio): _eventState
     // capture off the engine-installed bridge global (deleted in the same
     // breath) + the M3-B1 addEventListener/removeEventListener/dispatchEvent
