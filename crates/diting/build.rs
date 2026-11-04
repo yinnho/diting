@@ -197,6 +197,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // family (刀22 Notification precedent) — this file marks its own
     // installs at its load tail.
     ("btoa_atob.js", include_str!("js/btoa_atob.js")),
+    // god-file split (刀34, CSSStyleDeclaration): style-attribute parse/
+    // serialize pair + the illegal-constructor class (mint door _newCssDecl)
+    // + native-proto marking. computed_style.js / domcore.js call
+    // _newCssDecl at runtime; the class name's other-file footprint is
+    // string tables only. Load-time marking via the streams.js member
+    // alias (globalThis._markNativeProto) — a bare load call would trip
+    // the crossFileLoadTimeNames ratchet.
+    ("css_style_decl.js", include_str!("js/css_style_decl.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
