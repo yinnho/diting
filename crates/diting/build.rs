@@ -263,6 +263,9 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // prompt via _OPS.op_dialog), self-targeted postMessage (#704). Plain
     // member installs; no marking, no export rows.
     ("window_misc.js", include_str!("js/window_misc.js")),
+    // god-file split (刀47, WebGPU constructor stubs): GPUAdapter/GPU - pages
+    // detect via navigator.gpu persona; constructors exist for the surface.
+    ("gpu_stubs.js", include_str!("js/gpu_stubs.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
