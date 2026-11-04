@@ -271,6 +271,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // reads bare NodeList for the RadioNodeList iface row). _nodeList d()
     // row auto-migrates here from bootstrap.
     ("nodelist.js", include_str!("js/nodelist.js")),
+    // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
+    // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
+    // (member-form writes; base statics copied in bootstrap, this
+    // overwrites later - order preserved). opener null folded in.
+    ("blob_urls.js", include_str!("js/blob_urls.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
