@@ -2,8 +2,8 @@
 // (#236 absorption split) The XMLHttpRequest subclass, moved out of
 // bootstrap.js (god-file ratchet: the file only shrinks). Runs right after
 // bootstrap.js in the same realm — execute_script calls concatenate — so the
-// XMLHttpRequestEventTarget base (left in bootstrap: AbortSignal extends it
-// mid-file at class-definition time), the engine's fetch shim closure
+// XMLHttpRequestEventTarget base (moved here at 刀69 — the bootstrap
+// residency reason died with 刀66), the engine's fetch shim closure
 // (__ditingFetchShim, #235: XHR rides it, never the page-overridable fetch)
 // and the _initiatorHint channel (#126) are the same globals the in-file
 // implementation always used.
@@ -132,6 +132,34 @@ function _xhrQueryInDocCharset(url) {
   try { q = m[2].replace(/[^\x00-\x7f]+/g, (run) => _OPS.op_url_encode_query(run, enc, true)); }
   catch (e) { return url; }
   return m[1] + '?' + q + (m[3] || '');
+}
+
+// XMLHttpRequestEventTarget — spec-required ancestor for XHR's EventTarget
+// face. M3 step B2: the trio resolves through the chain to the NATIVE core
+// (XHRET.prototype → EventTarget.prototype), exactly Chrome's chain — no
+// own dispatch code remains. zone.js walks XHRET.prototype for the trio
+// descriptors and falls through to EventTarget.prototype, where the native
+// methods live. The on* handler IDL attributes are installed as prototype
+// accessors by xhr.js (`__acc`) so the core's handler leg fires them.
+class XMLHttpRequestEventTarget extends EventTarget {}
+globalThis.XMLHttpRequestEventTarget = XMLHttpRequestEventTarget;
+_markNative(XMLHttpRequestEventTarget);
+
+// Decode a response body honoring the Content-Type charset, so fetch()/XHR
+// over non-UTF-8 resources (GBK, Shift_JIS, ISO-8859-x, ...) return correctly
+// decoded text instead of mojibake. The UTF-8 case (the overwhelming majority)
+// takes the plain TextDecoder fast path; only an explicit non-UTF-8 charset
+// routes through TextDecoder(label), which falls back to UTF-8 on a bad label.
+function _decodeBodyWithCharset(bytes, headers) {
+  let label = '';
+  try {
+    const ct = headers && typeof headers.get === 'function' ? (headers.get('content-type') || '') : '';
+    const m = /charset\s*=\s*"?([^";]+)"?/i.exec(ct);
+    if (m) label = m[1].trim();
+  } catch (e) {}
+  if (!label || /^utf-?8$/i.test(label)) return new TextDecoder().decode(bytes);
+  try { return new TextDecoder(label).decode(bytes); }
+  catch (e) { return new TextDecoder().decode(bytes); }
 }
 
 // (#31 / M3 B2) The on* handlers are IDL attributes — prototype ACCESSORS,
