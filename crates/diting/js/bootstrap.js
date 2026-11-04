@@ -1,8 +1,6 @@
 "use strict";
 (function () { // @@SCOPE
 
-globalThis.__diting_errors = [];
-
 // 刀84: the shared hidden-slot channel for sealed (Chrome-readonly) prototype
 // accessors. lift_own.js installs the getters; every internal writer calls
 // __diting_liftSlot(obj).member = v. Defined here — platform_bundle constructs
@@ -14,71 +12,6 @@ globalThis.__diting_liftSlot = function (o) {
   return s;
 };
 
-globalThis.onerror = function(msg, src, line, col, error) {
-  globalThis.__diting_errors.push({msg: String(msg), src: String(src||""), line, error: String(error||"")});
-};
-
-// Uncaught-exception reporting (Chrome parity): a classic script that
-// throws, or a listener/timer callback that throws, must surface on the
-// window error hooks — onerror + an ErrorEvent('error') dispatched on
-// window — and as an "Uncaught …" console entry, not just a host-side
-// log line. Error-monitoring SDKs (Sentry family) install through exactly
-// these hooks and otherwise see a silent page. Rust calls the string
-// form when a classic script's Err crosses the bridge; the in-JS catch
-// sites use the error-object wrapper below to preserve `error`.
-globalThis.__diting_reportUncaught = function(msg, src, line, err) {
-  try {
-    const message = String(msg == null ? '' : msg);
-    const source = String(src || '');
-    const label = /^Uncaught /.test(message) ? message : 'Uncaught ' + message;
-    if (globalThis.__diting_reporting) {
-      // An error-event listener (or onerror) threw while we were already
-      // reporting: Chrome does not re-enter the error pipeline for it.
-      try { console.error(err && err.stack ? err : label); } catch (_) {}
-      return;
-    }
-    globalThis.__diting_reporting = true;
-    try {
-      // (#37) window/body.onerror write through the reflecting accessor
-      // into __windowOnHandlers; the pre-install data prop above is the
-      // default capture. Store first, data prop as the default.
-      const _hs = globalThis.__windowOnHandlers;
-      const _onerr = (_hs && Object.prototype.hasOwnProperty.call(_hs, 'onerror'))
-        ? _hs.onerror : globalThis.onerror;
-      if (typeof _onerr === 'function') {
-        try { _onerr(message, source, line | 0, 0, err || null); } catch (_) {}
-      }
-      try {
-        globalThis.dispatchEvent(new ErrorEvent('error', {
-          message: message, filename: source, lineno: line | 0, error: err || null
-        }));
-      } catch (_) {}
-      try {
-        if (err && err.stack) console.error(err); else console.error(label);
-      } catch (_) {}
-    } finally { globalThis.__diting_reporting = false; }
-  } catch (_) {}
-};
-globalThis.__diting_reportUncaughtError = function(err, src) {
-  const message = (err && err.message)
-    ? ((err.name && err.name !== 'Error' && String(err.message).indexOf(err.name) !== 0)
-        ? err.name + ': ' + err.message : String(err.message))
-    : String(err);
-  var source = src || '';
-  var line = 0;
-  if (!source && err && err.stack) {
-    // Chrome reports the throw site's script URL and line; a callback we
-    // invoked runs eval'd code whose frames read "<anonymous>:L:C" (or
-    // "url:L:C"). The first stack frame after the message line is the
-    // honest analog — better than reporting no position at all.
-    var frames = String(err.stack).split('\n');
-    for (var i = 1; i < frames.length; i++) {
-      var m = /([^\s()]+):(\d+):\d+/.exec(frames[i]);
-      if (m) { source = m[1]; line = m[2] | 0; break; }
-    }
-  }
-  globalThis.__diting_reportUncaught(message, source, line, err);
-};
 // Event state facade: the native Event (crates/diting_runtime/src/native/
 // event.rs) keeps its state in a private slot - invisible and unwritable
 // from page JS. Its JS bridge `__diting_event_state` lost its last engine

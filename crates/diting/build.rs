@@ -29,6 +29,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // method_ladders snapshots G.location at its later load; every other
     // consumer is runtime) — the load window is empty by construction.
     ("location_face.js", include_str!("js/location_face.js")),
+    // god-file split (刀77, uncaught-error reporting): __diting_errors sink +
+    // default onerror capture + reportUncaught/reportUncaughtError pipeline.
+    // All consumers runtime (js member reads, Rust string bridge, console
+    // face lazy guard); after location_face to keep 刀74's first-slot law.
+    ("error_report.js", include_str!("js/error_report.js")),
     // god-file split (刀59, console argument formatter): _fmtVal + _peek +
     // the _FMT_* clamps — pure helpers, zero installs. First slot after
     // bootstrap: _consoleFn calls them at runtime via the published hidden
