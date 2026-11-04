@@ -252,6 +252,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // walks Chrome's focus order (#14). Plain member installs; consumers
     // are Rust (member form) and tests.
     ("interaction_handlers.js", include_str!("js/interaction_handlers.js")),
+    // god-file split (刀45, window scroll family): _scrollRoot/_windowScroll
+    // + scrollTo/scrollBy/scroll installs (marked, alias head) + the
+    // read-only scrollX/pageXOffset/scrollY/pageYOffset accessor loop that
+    // replaces bootstrap's hard-coded 0 data properties (bootstrap loads
+    // first, so accessor-after-data order holds). No export rows, no pins.
+    ("scroll_family.js", include_str!("js/scroll_family.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
