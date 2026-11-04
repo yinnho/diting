@@ -258,6 +258,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // replaces bootstrap's hard-coded 0 data properties (bootstrap loads
     // first, so accessor-after-data order holds). No export rows, no pins.
     ("scroll_family.js", include_str!("js/scroll_family.js")),
+    // god-file split (刀46, misc window methods): focus/blur/print + open/
+    // close/stop stubs, the never-blocking dialog family (alert/confirm/
+    // prompt via _OPS.op_dialog), self-targeted postMessage (#704). Plain
+    // member installs; no marking, no export rows.
+    ("window_misc.js", include_str!("js/window_misc.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
