@@ -160,6 +160,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // __diting_cssNames install. platform_bundle.js bare-reads
     // __diting_cssNames at ITS load — this file must precede it.
     ("css_names.js", include_str!("js/css_names.js")),
+    // god-file split (刀29, CSS animation/transition lifecycle): the
+    // timer-armed animation event engine + transition watcher family,
+    // state included. domcore.js / event_hooks.js call the schedulers at
+    // runtime from mutation hooks — order-free.
+    ("animation_lifecycle.js", include_str!("js/animation_lifecycle.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
