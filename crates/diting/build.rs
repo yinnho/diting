@@ -92,6 +92,16 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // at call time through the generated d() publishes. Loads before
     // plugins.js to keep the original bootstrap statement order.
     ("ua_helpers.js", include_str!("js/ua_helpers.js")),
+    // god-file split (刀21, font-presence tables + layout measurement):
+    // the per-OS installed-font tables + the font-box/local-box/layout-box
+    // measurement primitives + the offsetParent walk. Everything element
+    // geometry emulation reads at call time; external deps are the published
+    // _domRaw bridge and ua_helpers' __ditingPlatformFromUA; the four
+    // internal tables stay file-private. NOT the 刀97 generated advance
+    // tables (that artifact keeps the font_metrics.js name, loaded later).
+    // Original statement order puts this right after the UA helpers and
+    // before NetworkInformation.
+    ("font_presence.js", include_str!("js/font_presence.js")),
     // god-file split (刀20, NetworkInformation): the navigator.connection
     // class (illegal constructor + the five getters), its _markNative call,
     // the EventTarget chain relink and the WebIDL reorder — both migrated
