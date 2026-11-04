@@ -23,46 +23,6 @@ let _ditingMutationEpoch = 0;
 // Live epoch read for the split computed-style file (computed_style.js):
 // d() publishes values, not bindings — a closure keeps the read live.
 const _ditingEpochNow = () => _ditingMutationEpoch;
-const _DOM_MUTATION_COMMANDS = new Set([
-  "append_child", "insert_before", "remove_child",
-  "set_attribute", "remove_attribute",
-  "set_text_content", "set_inner_html", "document_write_reset",
-  // Not a tree mutation, but it lands a new stylesheet in the cascade —
-  // the getComputedStyle snapshot epoch must see it like any style write.
-  "ext_sheet_put",
-  // Media emulation and viewport changes re-evaluate @media arms without
-  // touching the tree — same staleness class as a new stylesheet, so the
-  // gCS snapshot epoch must go stale on them too (issue #29).
-  "set_media_env",
-  "set_viewport",
-  // The form-control dirty value mirror: paint reads it (Rust side drops
-  // the layout cache on the same command), so the snapshot epoch must
-  // count it too. set_live_checked is the same posture for the
-  // checkbox/radio dirty checkedness the widget paint reads.
-  "set_live_value",
-  "set_live_checked",
-  // Focus changes what :focus/:focus-within/:focus-visible rules resolve
-  // to — the getComputedStyle snapshot epoch must go stale on it (blitz#839).
-  "set_focused",
-  // Hover/active likewise (#152): a mousemove that changes the hit target
-  // or a press/release flips :hover/:active resolution.
-  "set_hover",
-  "set_active",
-]);
-  // #225: tree-edge memo. The only op_dom commands that change
-  // parent/child/sibling links are these — textContent and the children
-  // swap are built from remove_child/append_child loops, and the layout
-  // engine never mutates DomStore edges. Attribute churn does NOT clear
-  // it: the doudian storm's currency is set_attribute (dataset writes),
-  // and flushing the memo per write would re-pay the op crossing the memo
-  // exists to skip. The op costs a string-marshal round-trip per access
-  // (arg stringify, Rust parse, result String alloc, JS + conversion) —
-  // get parentNode alone ate 79.9% of a wedged boot's CPU.
-  const _TREE_EDGE_MUTATION_COMMANDS = new Set([
-    "append_child", "insert_before", "remove_child",
-    "set_inner_html", "document_write", "document_write_reset",
-  ]);
-  const _edgeMemo = new Map();
 const _domRaw = (cmd, a1, a2) => {
   if (_DOM_MUTATION_COMMANDS.has(cmd)) _ditingMutationEpoch++;
   if (_TREE_EDGE_MUTATION_COMMANDS.has(cmd)) _edgeMemo.clear();
@@ -92,17 +52,6 @@ function _mirrorSelectLabel(selectEl) {
     : '';
   _domRaw("set_live_value", String(selectEl._nid), label);
 }
-const _domStrA1 = new Set([
-  "create_element", "create_text_node", "create_comment_node",
-  "create_processing_instruction", "create_doctype",
-  "create_document_fragment",
-  "query_selector", "query_selector_all", "get_element_by_id",
-  "document_node_id", "document_title", "set_document_title", "document_referrer", "document_url", "document_base_url", "document_encoding", "document_content_type", "document_referrer_policy", "history_pos", "history_total",
-  "document_element", "document_doctype",
-  "document_write", "document_write_reset",
-  "add_css_transition",
-]);
-const _domNumA2 = new Set(["append_child", "insert_before", "compare_order"]);
 const _dom = (cmd, a1, a2) => {
   if (!_domStrA1.has(cmd) && (a1 === undefined || a1 === null || a1 === "" || isNaN(+a1))) {
     throw new TypeError("Illegal invocation");
@@ -479,7 +428,6 @@ function __ditingReorderProto(proto, order) {
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
-  d('_DOM_MUTATION_COMMANDS', _DOM_MUTATION_COMMANDS);
   d('_OPS', _OPS);
   d('__acc', __acc);
   d('__accRo', __accRo);
@@ -490,7 +438,6 @@ function __ditingReorderProto(proto, order) {
   a('_ditingMutationEpoch', () => _ditingMutationEpoch, (v) => { _ditingMutationEpoch = v; });
   d('_dom', _dom);
   d('_domRaw', _domRaw);
-  d('_edgeMemo', _edgeMemo);
   d('_markNativeProto', _markNativeProto);
   d('_mirrorSelectLabel', _mirrorSelectLabel);
   d('_shallowCloneNode', _shallowCloneNode);

@@ -23,14 +23,23 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split (刀89, dom op data tables): the op channel's five data
+    // tables (epoch-bump set, #225 tree-edge memo pair, receiver-validation
+    // id/arg tables). Consumers (bootstrap's _domRaw/_dom, domcore's
+    // parentNode getter) read at call time through d()-published bindings;
+    // the Set/Map bindings are never reassigned so value publish is correct.
+    // Slot right after bootstrap: zero load-time callers exist anywhere,
+    // adjacency keeps the exposure window empty by construction.
+    ("dom_op_tables.js", include_str!("js/dom_op_tables.js")),
     // god-file split (刀83, event-state facade + native trio): _eventState
     // capture off the engine-installed bridge global (deleted in the same
     // breath) + the M3-B1 addEventListener/removeEventListener/dispatchEvent
-    // install. FIRST slot after bootstrap: the capture+delete must run
-    // before any other file could observe the bridge global, and the trio
-    // reads only the host EventTarget (present before any JS). The d() row
-    // migrated with the declaration; consumers (domcore, platform_bundle)
-    // read at call time.
+    // install. First slot with load-time capture semantics, directly after
+    // bootstrap (the pure-data 刀89 table split intervenes harmlessly): the
+    // capture+delete must run before any other file could observe the bridge
+    // global, and the trio reads only the host EventTarget (present before
+    // any JS). The d() row migrated with the declaration; consumers
+    // (domcore, platform_bundle) read at call time.
     ("event_facade.js", include_str!("js/event_facade.js")),
     // god-file split (刀84, document membership + shadow host gate):
     // _nodeInDocument (the 200-step shadow-including document climb behind
