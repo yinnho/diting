@@ -143,6 +143,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // later in this order. __virtualUrl stays bootstrap's — Location and
     // __diting_init touch it via member form.
     ("history_api.js", include_str!("js/history_api.js")),
+    // god-file split (刀26, structuredClone family): the HTML structured-
+    // clone serializer (#389: buffers/typed arrays survive postMessage)
+    // + the guarded globalThis.structuredClone install. Self-contained —
+    // free ids are builtins only; callers go through the installed global.
+    ("structured_clone.js", include_str!("js/structured_clone.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
