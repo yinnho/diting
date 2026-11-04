@@ -23,6 +23,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
+    // the DOM core family bootstrap.js carried wholesale. Straight after it:
+    // everything later (canvas, sweeps) needs these classes in scope.
+    ("domcore.js", include_str!("js/domcore.js")),
+    // god-file split (刀3, HTML elements): the interface mints, SVG family,
+    // selection mirror, Image/Audio/Option factories and the body-window
+    // on* cluster. After domcore.js: its mints extend the core classes.
+    ("htmlelem.js", include_str!("js/htmlelem.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split: the canvas 2D family — TextMetrics, the _Canvas2D class
