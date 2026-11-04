@@ -199,6 +199,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // the live __ceUpgradeTarget (a() accessor), domcore.js insertion/removal
     // paths and bootstrap's __prepareInsertedSubtree call the walks, ce_attr
     // plugin module reached via optional __diting_ce* members. Order-free.
+    // god-file split (刀72, ElementInternals): form-associated custom
+    // element internals — validity/state faces + the 刀58 ARIAMixin belt
+    // (internal-only store, two independent stores from the element's
+    // own face). Synthetic: plain global install, no d() row, no native
+    // marking. attachInternals bodies consume at runtime. Custom-element
+    // cluster slot.
+    ("element_internals.js", include_str!("js/element_internals.js")),
     ("custom_elements.js", include_str!("js/custom_elements.js")),
     // god-file split (刀31, window named access #48): the _named* family +
     // the load-time _namedHolder IIFE (parks the gate proxy under

@@ -637,71 +637,7 @@ function _nodeInDocument(node) {
 }
 
 globalThis.__diting_shadowHostNames = new Set(['article','aside','blockquote','body','div','footer','h1','h2','h3','h4','h5','h6','header','main','nav','p','section','span']);
-// ElementInternals: form-associated custom element internals. Validity/state
-// are JS-observable; ARIA reflection that needs the accessibility tree is not.
-globalThis.ElementInternals = class ElementInternals {
-  constructor(el) { this._el = el; this._valid = true; this._flags = {}; this._message = ''; this._value = null; this._states = new Set();  __hideOwn(this);}
-  setFormValue(value, state) { this._value = value; }
-  setValidity(flags, message, anchor) {
-    flags = flags || {};
-    const bad = Object.keys(flags).some((k) => k !== 'valid' && flags[k]);
-    if (bad && (message == null || message === '')) throw new TypeError("Failed to execute 'setValidity' on 'ElementInternals': The second argument should not be empty if one or more flags in the first argument are true.");
-    this._flags = flags; this._valid = !bad; this._message = bad ? String(message) : '';
-  }
-  checkValidity() { return this._valid; }
-  reportValidity() { return this._valid; }
-  get validity() {
-    const f = this._flags || {};
-    return { valid: this._valid, valueMissing: !!f.valueMissing, typeMismatch: !!f.typeMismatch, patternMismatch: !!f.patternMismatch, tooLong: !!f.tooLong, tooShort: !!f.tooShort, rangeUnderflow: !!f.rangeUnderflow, rangeOverflow: !!f.rangeOverflow, stepMismatch: !!f.stepMismatch, badInput: !!f.badInput, customError: !!f.customError };
-  }
-  get validationMessage() { return this._message || ''; }
-  get willValidate() { return true; }
-  get form() { return this._el && this._el.closest ? this._el.closest('form') : null; }
-  get labels() { return this._el && this._el.labels ? this._el.labels : _nodeList([]); }
-  get shadowRoot() { return (this._el && this._el._shadowRoot) || null; }
-  get states() { return this._states; }
-};
-// 刀58 (M4): ElementInternals' ARIAMixin face — 51 members Chrome 145 lists
-// (role, 43 nullable-DOMString aria*, 7 element-ref aria*) that the engine
-// lacked entirely (the audit's biggest missing family). Chrome-truth storage
-// semantics, probed all three ways (attribute→getter, setter→attribute,
-// setter→element's own reflection face): the store is INTERNAL ONLY. The
-// host's aria-*/role content attributes never feed these getters, these
-// setters never touch the attributes, and the element's own ARIAMixin face
-// reads the attributes — two independent stores (el.ariaLabel='A' +
-// internals.ariaLabel='B' coexist). Element-ref faces store the array as-is
-// (no attribute sync either direction; null clears; [] stays an empty list).
-{
-  const STR = ['role', 'ariaAtomic', 'ariaAutoComplete', 'ariaBrailleLabel',
-    'ariaBrailleRoleDescription', 'ariaBusy', 'ariaChecked', 'ariaColCount',
-    'ariaColIndex', 'ariaColIndexText', 'ariaColSpan', 'ariaCurrent',
-    'ariaDescription', 'ariaDisabled', 'ariaExpanded', 'ariaHasPopup',
-    'ariaHidden', 'ariaInvalid', 'ariaKeyShortcuts', 'ariaLabel', 'ariaLevel',
-    'ariaLive', 'ariaModal', 'ariaMultiLine', 'ariaMultiSelectable',
-    'ariaOrientation', 'ariaPlaceholder', 'ariaPosInSet', 'ariaPressed',
-    'ariaReadOnly', 'ariaRelevant', 'ariaRequired', 'ariaRoleDescription',
-    'ariaRowCount', 'ariaRowIndex', 'ariaRowIndexText', 'ariaRowSpan',
-    'ariaSelected', 'ariaSetSize', 'ariaSort', 'ariaValueMax', 'ariaValueMin',
-    'ariaValueNow', 'ariaValueText'];
-  const REFS = ['ariaActiveDescendantElement', 'ariaControlsElements',
-    'ariaDescribedByElements', 'ariaDetailsElements', 'ariaErrorMessageElements',
-    'ariaFlowToElements', 'ariaLabelledByElements'];
-  const IP = ElementInternals.prototype;
-  for (const k of STR) {
-    Object.defineProperty(IP, k, {
-      get: function () { const s = this._aria; return s && s[k] !== undefined ? s[k] : null; },
-      set: function (v) { (this._aria || (this._aria = {}))[k] = v == null ? undefined : String(v); },
-      enumerable: true, configurable: true,
-    });
-  }
-  for (const k of REFS) {
-    Object.defineProperty(IP, k, {
-      get: function () { const s = this._refs; return s && s[k] !== undefined ? s[k] : null; },
-      set: function (v) { (this._refs || (this._refs = {}))[k] = Array.isArray(v) ? v.slice() : null; },
-      enumerable: true, configurable: true,
-    });
-  }
-}
+
 // Full standard constant set (issue #439). The partial version here lacked
 // FILTER_ACCEPT/REJECT/SKIP and most SHOW_* values, so the canonical
 // `acceptNode() { return NodeFilter.FILTER_ACCEPT; }` filter idiom returned
