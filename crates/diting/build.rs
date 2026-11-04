@@ -220,6 +220,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // __iframeBlankLoad) call the walkers at runtime; _loadIframeSrc is an
     // instance member. Registry is file-private.
     ("iframe_registry.js", include_str!("js/iframe_registry.js")),
+    // god-file split (刀38, idle callbacks): requestIdleCallback /
+    // cancelIdleCallback guarded installs + immediate native marking.
+    // Consumers elsewhere are pure string tables (method_ladders SYNC,
+    // window_order ORDER) - no load-time member reads anywhere.
+    ("idle_callbacks.js", include_str!("js/idle_callbacks.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;

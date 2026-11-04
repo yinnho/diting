@@ -2082,18 +2082,6 @@ if (typeof URL === 'undefined' || !URL.prototype || !URL.__diting) {
   globalThis.URL = _URLw;
 }
 
-globalThis.requestIdleCallback = globalThis.requestIdleCallback || function requestIdleCallback(cb, opts) {
-  const start = Date.now();
-  return setTimeout(() => {
-    cb({
-      didTimeout: false,
-      timeRemaining() { return Math.max(0, 50 - (Date.now() - start)); },
-    });
-  }, 1);
-};
-globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function cancelIdleCallback(id) { clearTimeout(id); };
-_markNative(globalThis.requestIdleCallback);
-_markNative(globalThis.cancelIdleCallback);
 
 // Decode a response body honoring the Content-Type charset, so fetch()/XHR
 // over non-UTF-8 resources (GBK, Shift_JIS, ISO-8859-x, ...) return correctly
@@ -3810,8 +3798,6 @@ globalThis.postMessage = function(message, targetOrigin) {
   });
   Promise.resolve().then(() => { globalThis.dispatchEvent?.(event); });
 };
-globalThis.requestIdleCallback = globalThis.requestIdleCallback || function(cb) { return setTimeout(cb, 0); };
-globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function(id) { clearTimeout(id); };
 
 // Geometry family (DOMPoint/DOMRect/DOMQuad/DOMMatrix*/WebKitCSSMatrix):
 // generated shape + behavior module now owns this whole family
