@@ -165,6 +165,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // state included. domcore.js / event_hooks.js call the schedulers at
     // runtime from mutation hooks — order-free.
     ("animation_lifecycle.js", include_str!("js/animation_lifecycle.js")),
+    // god-file split (刀30, custom elements): CustomElementRegistry class +
+    // singleton install (constructor calls __hideOwn at load — published by
+    // bootstrap, which loads earlier) + the dynamic upgrade/disconnect walks.
+    // Cross-file consumers all RUNTIME: htmlelem.js Element constructor reads
+    // the live __ceUpgradeTarget (a() accessor), domcore.js insertion/removal
+    // paths and bootstrap's __prepareInsertedSubtree call the walks, ce_attr
+    // plugin module reached via optional __diting_ce* members. Order-free.
+    ("custom_elements.js", include_str!("js/custom_elements.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
