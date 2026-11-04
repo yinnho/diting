@@ -297,6 +297,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // domcore call at runtime. Zone refs out to bootstrap-published names
     // are runtime reads.
     ("form_activation.js", include_str!("js/form_activation.js")),
+    // god-file split (刀61, form state mirrors + FileList face): the four
+    // nid-keyed value mirrors (idempotent globalThis installs + const
+    // aliases) and the FileList-shaped face (illegal ctor, 刀75 prototype
+    // shape, WeakMap state, _makeFileList). domcore accessors and
+    // data_transfer's files getter read at runtime; FileList install is
+    // typeof-guarded (host native wins). No native marking — synthetic face.
+    ("form_state.js", include_str!("js/form_state.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this

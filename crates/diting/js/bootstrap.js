@@ -555,49 +555,7 @@ function _fp(key) { return _getFp()[key]; }
 // helpers went with the Element and Document dispatch trilogies — listener
 // storage is the native core's private slot now (`diting#et-listeners`,
 // crates/diting_runtime/src/native/event_target.rs).
-globalThis._formValues = globalThis._formValues || {};
-globalThis._formChecked = globalThis._formChecked || {};
-globalThis._formIndeterminate = globalThis._formIndeterminate || {};
-globalThis._fileInputs = globalThis._fileInputs || {};
-const _formValues = globalThis._formValues;
-const _formChecked = globalThis._formChecked;
-const _formIndeterminate = globalThis._formIndeterminate;
-const _fileInputs = globalThis._fileInputs;
-// FileList-shaped face (length/item/indexed/iterator/toStringTag), shared by
-// the input.files getter (#408 lineage) and DataTransfer.files (#58).
-// #258: FileList is a real global constructor — boot-time feature detects
-// and `x instanceof FileList` guards ReferenceError without it (obscura
-// #1232). Constructing throws like Chrome's; the list objects below stay
-// the same shape but now carry its prototype, so instanceof holds.
-function _FileList() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); }
-Object.defineProperty(_FileList, 'name', { value: 'FileList', configurable: true });
-if (typeof FileList === 'undefined') globalThis.FileList = _FileList;
-// (M4 刀75) length/item/@@iterator/@@toStringTag are PROTOTYPE members (Chrome 145);
-// the instance keeps only its indexed own entries. State rides a WeakMap.
-const _flState = new WeakMap();
-function _makeFileList(fs) {
-  const list = Object.create(_FileList.prototype);
-  _flState.set(list, fs);
-  for (let i = 0; i < fs.length; i++) list[i] = fs[i];
-  return list;
-}
-{
-  const P = _FileList.prototype;
-  const st = (o) => { const s = (o !== null && typeof o === 'object') ? _flState.get(o) : undefined; if (!s) throw new TypeError('Illegal invocation'); return s; };
-  const lenGet = function () { return st(this).length; };
-  Object.defineProperty(lenGet, 'name', { value: 'get length' });
-  Object.defineProperty(P, 'length', { get: lenGet, enumerable: true, configurable: true });
-  const item = function item(index) {
-    const s = st(this);
-    if (arguments.length < 1) throw new TypeError("Failed to execute 'item' on 'FileList': 1 argument required, but only 0 present.");
-    const i = Number(index) >>> 0;
-    return i < s.length ? s[i] : null;
-  };
-  Object.defineProperty(item, 'length', { value: 1 });
-  Object.defineProperty(P, 'item', { value: item, writable: true, enumerable: true, configurable: true });
-  Object.defineProperty(P, Symbol.iterator, { value: function values() { const s = st(this); return Array.prototype.values.call(s); }, writable: true, enumerable: false, configurable: true });
-  Object.defineProperty(P, Symbol.toStringTag, { value: 'FileList', configurable: true });
-}
+
 const _domParse = (cmd, a1, a2) => { try { return JSON.parse(_dom(cmd, a1, a2)); } catch { return null; } };
 
 // HTML "ASCII whitespace": U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, U+0020 SPACE.
@@ -2383,11 +2341,7 @@ function __ditingReorderProto(proto, order) {
   d('_evxGuard', _evxGuard);
   d('_evxProps', _evxProps);
   d('_evxRo', _evxRo);
-  d('_fileInputs', _fileInputs);
   d('_fireBlurFamily', _fireBlurFamily);
-  d('_formChecked', _formChecked);
-  d('_formIndeterminate', _formIndeterminate);
-  d('_formValues', _formValues);
   d('_fp', _fp);
   a('_fpCache', () => _fpCache, (v) => { _fpCache = v; });
   d('_fpRand', _fpRand);
@@ -2398,7 +2352,6 @@ function __ditingReorderProto(proto, order) {
   d('_isSubmitButton', _isSubmitButton);
   d('_labeledControl', _labeledControl);
   d('_locationObj', _locationObj);
-  d('_makeFileList', _makeFileList);
   d('_markNativeProto', _markNativeProto);
   d('_mirrorSelectLabel', _mirrorSelectLabel);
   d('_nodeInDocument', _nodeInDocument);
