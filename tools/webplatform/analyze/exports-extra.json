@@ -6,7 +6,6 @@
     "_getFp",
     "__ditingReorderProto",
     "__locParts",
-    "__prepareInitialStylesheets",
     "_fetchRing",
     "_formValues",
     "_fpCache",
@@ -82,5 +81,8 @@
   "named_access.js": [
     "_namedBoot",
     "_namedScanned"
+  ],
+  "insertion_prep.js": [
+    "__prepareInitialStylesheets"
   ]
 }

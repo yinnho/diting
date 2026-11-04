@@ -182,6 +182,15 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // at runtime; Rust entry points call globalThis._namedBoot
     // (analyzer-blind — pinned in exports-extra so the publish stays).
     ("named_access.js", include_str!("js/named_access.js")),
+    // god-file split (刀32, insertion preparation): the dynamic-insertion
+    // pipeline (subtree walk -> CE upgrades / script prep / stylesheet +
+    // style linking), <style>/<link> load-event faces, initial-parse
+    // stylesheet pass, parser-path script load/error events
+    // (globalThis.__fireParserScriptEvent — Rust scripts.rs, member
+    // install). domcore.js's hooks call every face at runtime;
+    // __prepareInitialStylesheets is also called via injected bare
+    // identifier (analyzer-blind — pinned in exports-extra).
+    ("insertion_prep.js", include_str!("js/insertion_prep.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
