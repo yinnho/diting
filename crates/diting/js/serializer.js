@@ -351,7 +351,6 @@ globalThis.XMLSerializer = class XMLSerializer {
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   d('_checkXmlWellFormed', _checkXmlWellFormed);
-  d('_markNative', _markNative);
   d('_xmlBuildTree', _xmlBuildTree);
   d('_xmlWellFormed', _xmlWellFormed);
 }
