@@ -310,6 +310,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // parser-order script visibility pair. domcore/domparser/iframe_realm
     // call at runtime; bootstrap holds zero refs (pure d() migration).
     ("dom_query.js", include_str!("js/dom_query.js")),
+    // god-file split (刀63, persona fingerprint): _fpRand/_fpPlatform/
+    // _getFp/_fp + the mutable seed/cache pair. bootstrap's init and
+    // persona-apply WRITE _fpSeed/_fpCache through the a()-published
+    // accessors (sloppy global assignment routes into the setters);
+    // consumers (audio/bchk/canvas2d/nav_persona/perf/uadata/webrtc) read
+    // at runtime. Pins _getFp/_fpCache/_fpSeed flipped here (刀52).
+    ("fingerprint.js", include_str!("js/fingerprint.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this

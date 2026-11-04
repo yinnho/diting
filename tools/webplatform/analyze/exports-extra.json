@@ -6,9 +6,6 @@
     "__accRo",
     "__ditingReorderProto",
     "__locParts",
-    "_fpCache",
-    "_fpSeed",
-    "_getFp",
     "_markNativeProto",
     "_mirrorSelectLabel",
     "_shallowCloneNode"
@@ -89,5 +86,10 @@
   ],
   "dom_query.js": [
     "_parserVisibleIds"
+  ],
+  "fingerprint.js": [
+    "_fpCache",
+    "_fpSeed",
+    "_getFp"
   ]
 }
