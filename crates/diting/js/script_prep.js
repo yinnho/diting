@@ -94,6 +94,9 @@ function __prepareInsertedScript(script) {
   if (scriptType && !isModule && scriptType !== 'text/javascript' && scriptType !== 'application/javascript') {
     return;
   }
+  // Prepare-consumes-slot law: op_script_try_start is authoritative and
+  // survives moves and cloneNode(), so a script inserted a second time runs
+  // no more than once (upstream 41a8e1c) — both call sites below.
   if (isImportMap) {
     if (!_OPS.op_script_try_start(script._nid)) return;
   }

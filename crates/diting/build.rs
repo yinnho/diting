@@ -292,6 +292,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // walks Chrome's focus order (#14). Plain member installs; consumers
     // are Rust (member form) and tests.
     ("interaction_handlers.js", include_str!("js/interaction_handlers.js")),
+    // god-file split (刀76, hover/active bridges): __diting_setHoverTree /
+    // __diting_setActiveTree — pure runtime bridges, only Rust-side runtime
+    // tests call them; _domRaw value-captured off __diting_domRaw (#1).
+    ("hover_bridges.js", include_str!("js/hover_bridges.js")),
     // god-file split (刀45, window scroll family): _scrollRoot/_windowScroll
     // + scrollTo/scrollBy/scroll installs (marked, alias head) + the
     // read-only scrollX/pageXOffset/scrollY/pageYOffset accessor loop that
