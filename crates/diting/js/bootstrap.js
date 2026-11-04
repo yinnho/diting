@@ -274,8 +274,6 @@ _nativeFnAdd(_functionToString);
 // storage is the native core's private slot now (`diting#et-listeners`,
 // crates/diting_runtime/src/native/event_target.rs).
 
-const _domParse = (cmd, a1, a2) => { try { return JSON.parse(_dom(cmd, a1, a2)); } catch { return null; } };
-
 // Shallow-clone one node as a real DOM node: text/comment copy their data,
 // fragments come back empty, elements are recreated in their namespace with all
 // attributes copied. Used by cloneNode's non-element deep path.
@@ -830,7 +828,6 @@ function __ditingReorderProto(proto, order) {
   d('_ditingEpochNow', _ditingEpochNow);
   a('_ditingMutationEpoch', () => _ditingMutationEpoch, (v) => { _ditingMutationEpoch = v; });
   d('_dom', _dom);
-  d('_domParse', _domParse);
   d('_domRaw', _domRaw);
   d('_edgeMemo', _edgeMemo);
   d('_markNativeProto', _markNativeProto);
