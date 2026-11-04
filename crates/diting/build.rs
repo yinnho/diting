@@ -49,6 +49,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // mark call here would cost two cross-file load-time names.
     // (Name checked against this registry — 刀46 already owns window_misc.)
     ("window_flags.js", include_str!("js/window_flags.js")),
+    // god-file split (刀86, dom JSON face): _domParse — the JSON.parse
+    // wrapper over the _dom op channel (parse-or-null). Free _dom resolves
+    // at call time through the d()-published global; consumers (domcore,
+    // animation_lifecycle, cookie_gate) are all call-time. Any slot safe.
+    ("dom_parse.js", include_str!("js/dom_parse.js")),
     // god-file split (刀79, window identity): window/self/top/parent/frames
     // aliases + frameElement/length. Pure installs, zero reads. FIRST after
     // bootstrap, ahead of location_face — no location reads at load, so the
