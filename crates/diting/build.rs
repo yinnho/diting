@@ -205,6 +205,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // alias (globalThis._markNativeProto) — a bare load call would trip
     // the crossFileLoadTimeNames ratchet.
     ("css_style_decl.js", include_str!("js/css_style_decl.js")),
+    // god-file split (刀35, CSS static face): CSS.supports (Rust @supports
+    // evaluator leg) + CSS.escape + the 刀88 typed-om unit family
+    // (CSSUnitValue ctor + 64 CSS.px-style factories + unit table). Same-
+    // file member installs; css_register.js (#263, later) adds
+    // registerProperty onto the namespace, typedom_math.js (#336) reads
+    // the members inside a guarded IIFE at its load. Units/reg/factory
+    // tables are file-private.
+    ("css_static_face.js", include_str!("js/css_static_face.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
