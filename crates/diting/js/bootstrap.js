@@ -34,24 +34,6 @@ const _domRaw = (cmd, a1, a2) => {
 // node, and Chrome errors "Could not compute box model." for those.
 globalThis.__diting_domRaw = _domRaw;
 
-// Recompute the label a select displays and land it as the select's
-// live_value mirror (form paint batch): paint reads exactly this, and the
-// JS walk supersedes Rust's parsed-attribute fallback because it also sees
-// JS-side dirtiness (option._selected). The precedence matches the value
-// getter the label must agree with: first selected option, else the first
-// option, else ''. An option's text is its `label` attribute when present,
-// else its content — trimmed either way. An empty label writes through,
-// which paint treats as "no mirror" and falls back to the attributes.
-function _mirrorSelectLabel(selectEl) {
-  const opts = selectEl.querySelectorAll('option');
-  let o = null;
-  for (let i = 0; i < opts.length; i++) { if (opts[i].selected) { o = opts[i]; break; } }
-  if (!o && opts.length) o = opts[0];
-  const label = o
-    ? ((o.getAttribute('label') !== null ? o.getAttribute('label') : o.textContent) || '').trim()
-    : '';
-  _domRaw("set_live_value", String(selectEl._nid), label);
-}
 const _dom = (cmd, a1, a2) => {
   if (!_domStrA1.has(cmd) && (a1 === undefined || a1 === null || a1 === "" || isNaN(+a1))) {
     throw new TypeError("Illegal invocation");
@@ -415,7 +397,6 @@ function __ditingReorderProto(proto, order) {
   d('_dom', _dom);
   d('_domRaw', _domRaw);
   d('_markNativeProto', _markNativeProto);
-  d('_mirrorSelectLabel', _mirrorSelectLabel);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END
