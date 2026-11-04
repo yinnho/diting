@@ -247,6 +247,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (#331) read globalThis.crypto at their load time - both after this
     // position, so the fallback is in place first.
     ("crypto_fallback.js", include_str!("js/crypto_fallback.js")),
+    // god-file split (刀44, keyboard interaction handlers): the two CDP
+    // keyDown arms - Escape closes the modal dialog (obscura#952), Tab
+    // walks Chrome's focus order (#14). Plain member installs; consumers
+    // are Rust (member form) and tests.
+    ("interaction_handlers.js", include_str!("js/interaction_handlers.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
