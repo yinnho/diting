@@ -3139,73 +3139,6 @@ _markNative(AbortSignal.abort);
 _markNative(AbortSignal.timeout);
 _markNative(AbortSignal.any);
 _markNative(globalThis.AbortController);
-// Normalize one Blob part to bytes. `native` newline normalization applies to
-// string parts when the Blob/File `endings` option is "native".
-function _blobPartConvert(p) {
-  if (p == null) return { bytes: new Uint8Array(0) };
-  if (typeof Blob === "function" && p instanceof Blob) return { bytes: p._bytes || new Uint8Array(0) };
-  if (p instanceof ArrayBuffer) return { bytes: new Uint8Array(p.slice(0)) };
-  if (ArrayBuffer.isView(p)) return { bytes: new Uint8Array(p.buffer.slice(p.byteOffset, p.byteOffset + p.byteLength)) };
-  return { str: String(p) };
-}
-function _bytesToBinaryString(bytes) { let s = ""; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return s; }
-if (typeof Blob === "undefined") globalThis.Blob = class Blob {
-  constructor(parts, opts) {
-    opts = opts || {};
-    // WebIDL converts arguments left to right: every part's union conversion
-    // (ToString side effects included) fires before the options dictionary
-    // is touched — Chrome pins part-toString > endings > type — and each bag
-    // getter must fire exactly once (`x != null ? String(x)` reads twice).
-    const conv = [];
-    if (parts != null) {
-      if (typeof parts === "string" || typeof parts[Symbol.iterator] !== "function") throw new TypeError("Failed to construct 'Blob': The provided value cannot be converted to a sequence.");
-      for (const p of parts) conv.push(_blobPartConvert(p));
-    }
-    const endingsRaw = opts.endings;
-    const endings = endingsRaw != null ? String(endingsRaw) : "transparent";
-    if (endings !== "transparent" && endings !== "native") throw new TypeError("Failed to construct 'Blob': The provided value '" + endings + "' is not a valid enum value of type EndingType.");
-    const native = endings === "native";
-    const chunks = []; let total = 0;
-    const enc = new TextEncoder();
-    for (const c of conv) {
-      const b = c.bytes != null ? c.bytes : enc.encode(native ? c.str.replace(/\r\n|\r|\n/g, "\n") : c.str);
-      chunks.push(b); total += b.length;
-    }
-    const data = new Uint8Array(total); let off = 0;
-    for (const c of chunks) { data.set(c, off); off += c.length; }
-    this._bytes = data;
-    __diting_liftSlot(this).size = total;
-    const typeRaw = opts.type;
-    const t = typeRaw != null ? String(typeRaw) : "";
-    __diting_liftSlot(this).type = /^[\x20-\x7e]*$/.test(t) ? t.toLowerCase() : "";
-    __hideOwn(this);
-  }
-  get [Symbol.toStringTag]() { return "Blob"; }
-  slice(start, end, contentType) {
-    const len = this.size;
-    const s = start === undefined ? 0 : (start < 0 ? Math.max(len + start, 0) : Math.min(start, len));
-    let e = end === undefined ? len : (end < 0 ? Math.max(len + end, 0) : Math.min(end, len));
-    if (e < s) e = s;
-    const out = new Blob([], contentType != null ? { type: contentType } : {});
-    out._bytes = this._bytes.slice(s, e);
-    out.size = out._bytes.length;
-    return out;
-  }
-  text() { return Promise.resolve(new TextDecoder().decode(this._bytes)); }
-  arrayBuffer() { return Promise.resolve(_arrayBufferFromBytes(this._bytes)); }
-  bytes() { return Promise.resolve(this._bytes.slice()); }
-};
-if (typeof File === "undefined") globalThis.File = class File extends Blob {
-  constructor(parts, name, opts) {
-    if (arguments.length < 2) throw new TypeError("Failed to construct 'File': 2 arguments required, but only " + arguments.length + " present.");
-    opts = opts || {};
-    super(parts, opts);
-    const fs = __diting_liftSlot(this);
-    fs.name = String(name);
-    fs.lastModified = opts.lastModified != null ? Number(opts.lastModified) : Date.now();
-  }
-  get [Symbol.toStringTag]() { return "File"; }
-};
 // (#58) DataTransfer: the standard file-upload injection pattern is
 // `const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;`
 // (Puppeteer's setInputFiles lineage). Zero-arg constructible since Chrome
@@ -4515,7 +4448,6 @@ function __ditingReorderProto(proto, order) {
   d('__hideOwn', __hideOwn);
   d('__locParts', __locParts);
   d('__prepareInsertedScript', __prepareInsertedScript);
-  d('_bytesToBinaryString', _bytesToBinaryString);
   d('_cancelPreClickFlip', _cancelPreClickFlip);
   d('_commitPreClickFlip', _commitPreClickFlip);
   d('_decodeBodyWithCharset', _decodeBodyWithCharset);

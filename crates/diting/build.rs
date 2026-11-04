@@ -225,6 +225,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Consumers elsewhere are pure string tables (method_ladders SYNC,
     // window_order ORDER) - no load-time member reads anywhere.
     ("idle_callbacks.js", include_str!("js/idle_callbacks.js")),
+    // god-file split (刀39, Blob/File): guarded fallback installs (realm
+    // natives win), member-form guards. _bytesToBinaryString stays published
+    // (fetch_helpers/filereader runtime consumers); _blobPartConvert is
+    // file-private. No native marking for this family.
+    ("blob_file.js", include_str!("js/blob_file.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
