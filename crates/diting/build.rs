@@ -230,6 +230,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (fetch_helpers/filereader runtime consumers); _blobPartConvert is
     // file-private. No native marking for this family.
     ("blob_file.js", include_str!("js/blob_file.js")),
+    // god-file split (刀40, DataTransfer): the #58 file-upload injection
+    // face. Member-form guarded install; platform_bundle's load-time
+    // DataTransfer.prototype read sits well after this position.
+    ("data_transfer.js", include_str!("js/data_transfer.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
