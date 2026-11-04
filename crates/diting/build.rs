@@ -34,6 +34,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // method_ladders snapshots G.location at its later load; every other
     // consumer is runtime) — the load window is empty by construction.
     ("location_face.js", include_str!("js/location_face.js")),
+    // god-file split (刀82, Secure Contexts): the isSecureContext accessor,
+    // computed per access off __currentUrl() (location_face, earlier slot,
+    // call-time). Tmall AWSC walks its degraded branch when missing — any
+    // load slot precedes page scripts.
+    ("secure_context.js", include_str!("js/secure_context.js")),
     // god-file split (刀77, uncaught-error reporting): __diting_errors sink +
     // default onerror capture + reportUncaught/reportUncaughtError pipeline.
     // All consumers runtime (js member reads, Rust string bridge, console

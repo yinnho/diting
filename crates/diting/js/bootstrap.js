@@ -332,35 +332,6 @@ function _shallowCloneNode(node) {
   return el;
 }
 
-// Secure Contexts (W3C §is-origin-potentially-trustworthy): https/wss are
-// secure, plain http/ws only on the localhost family, data:/file:/blob:
-// inheriting a secure scheme. Computed per access off the live URL — the
-// property can't be baked into the snapshot because navigation changes the
-// answer. Real pages check this before generating risk params (Tmall's AWSC
-// prints "未使用 HTTPS" and walks its degraded branch when it reads
-// undefined), so the getter must exist on window, not just the worker scope.
-Object.defineProperty(globalThis, 'isSecureContext', {
-  get() {
-    let u;
-    try { u = new URL(__currentUrl()); } catch { return false; }
-    if (u.protocol === 'https:' || u.protocol === 'wss:') return true;
-    if (u.protocol === 'data:' || u.protocol === 'file:') return true;
-    if (u.protocol === 'blob:') {
-      try { return new URL(u.protocol === 'blob:' ? u.href.slice(5) : u.href).protocol === 'https:'; }
-      catch { return false; }
-    }
-    if (u.protocol === 'http:' || u.protocol === 'ws:') {
-      const h = u.hostname;
-      return h === 'localhost' || h.endsWith('.localhost')
-        || h === '::1' || h === '[::1]'
-        || /^127\./.test(h) || h === '0.0.0.0';
-    }
-    return false;
-  },
-  configurable: true,
-  enumerable: true,
-});
-
 // (face fix) The early `globalThis['on'+ev] = null` loop is gone: it installed
 // enumerable data props where Chrome has accessor pairs, and its name set was
 // the pre-P2 approximation. The single chrome-exact accessor install at
