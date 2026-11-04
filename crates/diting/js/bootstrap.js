@@ -688,49 +688,6 @@ function _nodeInDocument(node) {
   return false;
 }
 
-globalThis.ResizeObserver = class ResizeObserver {
-  constructor(callback) {
-    this._callback = callback;
-    this._targets = new Set();
-    this._connected = true;
-    this._fireCount = 0;
-    __hideOwn(this);
-  }
-  _fireFor(targets) {
-    if (!this._connected || !targets.length) return;
-    const records = targets.map(target => {
-      const r = target.getBoundingClientRect ? target.getBoundingClientRect() : { x: 0, y: 0, width: 100, height: 20 };
-      return {
-        target,
-        contentRect: { x: r.x || 0, y: r.y || 0, width: r.width || 100, height: r.height || 20, top: r.top || 0, left: r.left || 0, bottom: r.bottom || 20, right: r.right || 100 },
-        borderBoxSize: [{ blockSize: r.height || 20, inlineSize: r.width || 100 }],
-        contentBoxSize: [{ blockSize: r.height || 20, inlineSize: r.width || 100 }],
-        devicePixelContentBoxSize: [{ blockSize: r.height || 20, inlineSize: r.width || 100 }],
-      };
-    });
-    try { this._callback(records, this); } catch (e) { globalThis.__diting_reportUncaughtError(e); }
-  }
-  observe(el) {
-    if (!el || !this._connected) return;
-    if (this._targets.has(el)) return;
-    this._targets.add(el);
-    Promise.resolve().then(() => this._fireFor([el]));
-    [200, 800].forEach(delay => {
-      setTimeout(() => {
-        if (this._connected && this._targets.has(el) && this._fireCount < 16) {
-          this._fireCount++;
-          this._fireFor([el]);
-        }
-      }, delay);
-    });
-  }
-  unobserve(el) { this._targets.delete(el); }
-  disconnect() { this._connected = false; this._targets.clear(); }
-  // 刀57: takeRecords deleted — Chrome's ResizeObserver.prototype carries
-  // only observe/unobserve/disconnect; pending-record draining is a
-  // MutationObserver/PerformanceObserver face, not this one.
-};
-
 globalThis.__diting_shadowHostNames = new Set(['article','aside','blockquote','body','div','footer','h1','h2','h3','h4','h5','h6','header','main','nav','p','section','span']);
 // ElementInternals: form-associated custom element internals. Validity/state
 // are JS-observable; ARIA reflection that needs the accessibility tree is not.
@@ -877,7 +834,10 @@ globalThis.scrollX = 0; globalThis.scrollY = 0;
   // (刀22) Notification + chrome.csi/loadTimes moved to bchk_apis.js —
   // their native marking migrated there (bootstrap loads first and would
   // see undefined here; the member reads also hid from the analyzer).
-ResizeObserver, PerformanceObserver,  // (刀58) MutationObserver moved to
+PerformanceObserver,
+  // (刀70) ResizeObserver moved to resize_observer.js — its marking
+  // migrated there (install site self-marks, 刀22/刀54 precedent);
+  // (刀58) MutationObserver moved to mutation_observer.js — same.
   // mutation_observer.js — its marking migrated there (刀22 precedent).
 ].forEach(fn => { if (typeof fn === 'function') _markNative(fn); });
 
