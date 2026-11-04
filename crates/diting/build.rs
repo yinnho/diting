@@ -39,6 +39,16 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // at call time). Pure function/data, zero load-time reads; the d() row
     // migrated with the declaration. Early slot keeps the load window tight.
     ("document_membership.js", include_str!("js/document_membership.js")),
+    // god-file split (刀85, window flags + zero constants):
+    // crossOriginIsolated flag (fp-diff-1014 P1; the per-realm SAB
+    // intrinsic delete stays in __diting_init — see the block comment) +
+    // the screen/scroll zero data constants (scroll_family later replaces
+    // the scroll quartet with accessors — this slot loads before it, so
+    // the data-then-accessor order holds). Pure installs, zero load-time
+    // cross-file reads. reportError stays in bootstrap: its load-time
+    // mark call here would cost two cross-file load-time names.
+    // (Name checked against this registry — 刀46 already owns window_misc.)
+    ("window_flags.js", include_str!("js/window_flags.js")),
     // god-file split (刀79, window identity): window/self/top/parent/frames
     // aliases + frameElement/length. Pure installs, zero reads. FIRST after
     // bootstrap, ahead of location_face — no location reads at load, so the

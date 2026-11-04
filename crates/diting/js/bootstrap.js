@@ -327,27 +327,7 @@ Object.defineProperty(globalThis.Window, Symbol.hasInstance, {
 
 // FontFace / FontFaceSet / document.fonts live in platform/fontfaceset.impl.js (M4 knife 52).
 
-// fp-diff-1014 P1: Chrome desktop exposes SharedArrayBuffer ONLY inside
-// cross-origin-isolated contexts (since 92) — a plain page reads
-// typeof SharedArrayBuffer === "undefined". The deno host global leaked the
-// constructor on every realm. The delete can't live here at snapshot time —
-// V8's context deserializer rebuilds the intrinsic function table wholesale,
-// so a snapshot-time delete silently un-deletes on every restore (live
-// probe: typeof came back "function" while the runtime delete works). It
-// runs per-realm from __diting_init instead; only the isolation FLAG is
-// defined here (adds persist in the snapshot, intrinsic deletes don't).
-// The structured-clone path above guards with typeof, and no page can
-// construct one to clone.
-if (!('crossOriginIsolated' in globalThis)) {
-  Object.defineProperty(globalThis, 'crossOriginIsolated', { value: false, configurable: true });
-}
-
 globalThis.reportError = globalThis.reportError || ((e) => console.error(e));
-
-globalThis.screenX = 0; globalThis.screenY = 0;
-globalThis.screenLeft = 0; globalThis.screenTop = 0;
-globalThis.pageXOffset = 0; globalThis.pageYOffset = 0;
-globalThis.scrollX = 0; globalThis.scrollY = 0;
 
 [
   // (刀64) matchMedia moved to media_queries.js — the install wraps
