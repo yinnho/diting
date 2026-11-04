@@ -304,6 +304,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // TextEncoderStream/TextDecoderStream. Host native wins when present;
     // all consumers are runtime-only calls.
     ("text_codec.js", include_str!("js/text_codec.js")),
+    // god-file split (刀56, dynamic script preparation):
+    // __prepareInsertedScript in full — type triage, fetch-driven
+    // execution with retry policy, JSONP/mtop, data:/blob: URLs, inline
+    // eval bracketing. Runtime-only consumers via published hidden
+    // global (insertion_prep.js walk, domcore.js script creation).
+    ("script_prep.js", include_str!("js/script_prep.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
