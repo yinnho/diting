@@ -3,15 +3,9 @@
   "_DOM_MUTATION_COMMANDS",
   "_MQ_PERSONA_BOOL",
   "_WINDOW_EVENT_NAMES",
-  "__ditingBrandList",
-  "__ditingChromeMajorFromUA",
-  "__ditingUADataPlatformFromUA",
-  "__ditingNearestBuild",
-  "__DITING_FULL_BUILD",
   "_getFp",
   "__ditingLangList",
   "__ditingLocaleArg",
-  "__ditingPlatformFromUA",
   "__ditingReorderProto",
   "__locParts",
   "__prepareInitialStylesheets",
@@ -68,5 +62,13 @@
  ],
  "iframe_realm.js": [
   "_IframeWindow"
+ ],
+ "ua_helpers.js": [
+  "__DITING_FULL_BUILD",
+  "__ditingBrandList",
+  "__ditingChromeMajorFromUA",
+  "__ditingNearestBuild",
+  "__ditingPlatformFromUA",
+  "__ditingUADataPlatformFromUA"
  ]
 }

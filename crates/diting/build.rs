@@ -85,6 +85,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (url, name) with real MessagePort pairs (#213), the SharedWorkerGlobal-
     // Scope shape, inline _markNative — the serializer head-alias device.
     ("sharedworker.js", include_str!("js/sharedworker.js")),
+    // god-file split (刀19, UA persona helpers): navigator.platform /
+    // UA-CH brand grease / per-major full-build table, all derived from the
+    // HTTP-layer UA. Pure functions + consts, no installs; consumers
+    // (uadata.js, navigator_persona.js, bootstrap's font metrics) read them
+    // at call time through the generated d() publishes. Loads before
+    // plugins.js to keep the original bootstrap statement order.
+    ("ua_helpers.js", include_str!("js/ua_helpers.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
