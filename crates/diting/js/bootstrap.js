@@ -464,69 +464,6 @@ globalThis.console = {
   },
 };
 
-// DOMStringMap backs Element.dataset. Chrome throws on `new DOMStringMap()`;
-// the construction key keeps instances engine-only (upstream ec05ed0).
-const _domStringMapKey = {};
-class DOMStringMap {
-  constructor(key) {
-    if (key !== _domStringMapKey) {
-      throw new TypeError("Failed to construct 'DOMStringMap': Illegal constructor");
-    }
-  }
-  get [Symbol.toStringTag]() { return "DOMStringMap"; }
-}
-
-const _styleProxy = (decl) => new Proxy(decl, {
-  get(t, p) {
-    if (typeof p === "symbol" || p in t) return t[p];
-    if (/^\d+$/.test(p)) return t.item(+p);
-    return t.getPropertyValue(p);
-  },
-  set(t, p, v) {
-    if (typeof p === "symbol") { t[p] = v; return true; }
-    if (p === "cssText") { t.cssText = v; return true; }
-    if (/^\d+$/.test(p)) return true;
-    if (p in Object.getPrototypeOf(t)) {
-      // (刀75) prototype ACCESSORS with a setter (cssFloat) run it against the declaration;
-      // every other prototype member (methods, readonly names) stays a silent no-op.
-      for (let o = Object.getPrototypeOf(t); o; o = Object.getPrototypeOf(o)) {
-        const d = Object.getOwnPropertyDescriptor(o, p);
-        if (d) { if (d.set) d.set.call(t, v); break; }
-      }
-      return true;
-    }
-    t.setProperty(p, v);
-    return true;
-  },
-  has(t, p) {
-    if (typeof p !== "string") return Reflect.has(t, p);
-    if (p in Object.getPrototypeOf(t)) return true;
-    t._pull();
-    if (_cssCamelToKebab(p) in t._props) return true;
-    if (_CSS_PROP_SET.has(p) || _CSS_PROP_SET.has(_cssKebabToCamel(p))) return true;
-    return /^\d+$/.test(p) && +p < t.length;
-  },
-  ownKeys(t) {
-    t._pull();
-    const keys = [];
-    const n = t.length;
-    for (let i = 0; i < n; i++) keys.push(String(i));
-    const names = new Set(_CSS_PROPERTY_NAMES);
-    for (const k of Object.keys(t._props)) names.add(_cssKebabToCamel(k));
-    for (const name of names) keys.push(name);
-    return keys;
-  },
-  getOwnPropertyDescriptor(t, p) {
-    if (typeof p !== "string") return Reflect.getOwnPropertyDescriptor(t, p);
-    t._pull();
-    if (/^\d+$/.test(p) && +p < t.length) return { value: t.item(+p), writable: false, enumerable: true, configurable: true };
-    if (_cssCamelToKebab(p) in t._props || _CSS_PROP_SET.has(p) || _CSS_PROP_SET.has(_cssKebabToCamel(p))) {
-      return { value: t.getPropertyValue(p), writable: true, enumerable: !/^epub/.test(p), configurable: true };
-    }
-    return undefined;
-  },
-});
-
 // Shallow-clone one node as a real DOM node: text/comment copy their data,
 // fragments come back empty, elements are recreated in their namespace with all
 // attributes copied. Used by cloneNode's non-element deep path.
@@ -956,10 +893,6 @@ globalThis.screenX = 0; globalThis.screenY = 0;
 globalThis.screenLeft = 0; globalThis.screenTop = 0;
 globalThis.pageXOffset = 0; globalThis.pageYOffset = 0;
 globalThis.scrollX = 0; globalThis.scrollY = 0;
-
-
-
-globalThis.DOMStringMap = DOMStringMap;
 
 [
   // (刀64) matchMedia moved to media_queries.js — the install wraps
@@ -1449,7 +1382,6 @@ function __ditingReorderProto(proto, order) {
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
-  d('DOMStringMap', DOMStringMap);
   d('XMLHttpRequestEventTarget', XMLHttpRequestEventTarget);
   d('_DOM_MUTATION_COMMANDS', _DOM_MUTATION_COMMANDS);
   d('_OPS', _OPS);
@@ -1467,7 +1399,6 @@ function __ditingReorderProto(proto, order) {
   d('_dom', _dom);
   d('_domParse', _domParse);
   d('_domRaw', _domRaw);
-  d('_domStringMapKey', _domStringMapKey);
   d('_edgeMemo', _edgeMemo);
   d('_eventState', _eventState);
   d('_locationObj', _locationObj);
@@ -1476,7 +1407,6 @@ function __ditingReorderProto(proto, order) {
   d('_nodeInDocument', _nodeInDocument);
   d('_resolveUrl', _resolveUrl);
   d('_shallowCloneNode', _shallowCloneNode);
-  d('_styleProxy', _styleProxy);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END

@@ -179,6 +179,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // __diting_cssNames install. platform_bundle.js bare-reads
     // __diting_cssNames at ITS load — this file must precede it.
     ("css_names.js", include_str!("js/css_names.js")),
+    // god-file split (刀68, dataset + style proxy): DOMStringMap (dataset
+    // backing face, construction-key gated, synthetic — no native marking)
+    // + _styleProxy (CSSStyleDeclaration-style proxy over a declaration;
+    // trap bodies read css_names tables at runtime — CSS cluster slot).
+    // Consumers (domcore dataset/style accessors, css_rules decl factory)
+    // are runtime reads; the single globalThis install travels with the
+    // class.
+    ("dataset_style.js", include_str!("js/dataset_style.js")),
     // god-file split (刀29, CSS animation/transition lifecycle): the
     // timer-armed animation event engine + transition watcher family,
     // state included. domcore.js / event_hooks.js call the schedulers at
