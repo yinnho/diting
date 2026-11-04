@@ -1,17 +1,6 @@
 "use strict";
 (function () { // @@SCOPE
 
-// 刀84: the shared hidden-slot channel for sealed (Chrome-readonly) prototype
-// accessors. lift_own.js installs the getters; every internal writer calls
-// __diting_liftSlot(obj).member = v. Defined here — platform_bundle constructs
-// sealed classes (TransformStream family) during snapshot, before lift_own runs.
-globalThis.__diting_liftSlots = new WeakMap();
-globalThis.__diting_liftSlot = function (o) {
-  let s = globalThis.__diting_liftSlots.get(o);
-  if (s === undefined) { s = Object.create(null); globalThis.__diting_liftSlots.set(o, s); }
-  return s;
-};
-
 // Event state facade: the native Event (crates/diting_runtime/src/native/
 // event.rs) keeps its state in a private slot - invisible and unwritable
 // from page JS. Its JS bridge `__diting_event_state` lost its last engine

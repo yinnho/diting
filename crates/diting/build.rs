@@ -62,6 +62,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // replacing the dead stub; construction gate key is module-local.
     // Extends host-native EventTarget; consumers (fetch family, worker,
     // navigation) runtime or string tables — early slot for uniformity.
+    // god-file split (刀80, lift-slot channel): the 刀84 hidden-slot channel
+    // for sealed prototype accessors — 20 consumer files, all runtime
+    // (constructor/method bodies); just before abort_signals, the first
+    // consumer in load order.
+    ("lift_slot.js", include_str!("js/lift_slot.js")),
     ("abort_signals.js", include_str!("js/abort_signals.js")),
     // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
     // the DOM core family bootstrap.js carried wholesale. Straight after it:
