@@ -6764,17 +6764,6 @@ globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function(id) { 
 
 
 
-if (typeof ServiceWorkerContainer === 'undefined') {
-  globalThis.ServiceWorkerContainer = class { register(){return Promise.resolve();} getRegistrations(){return Promise.resolve([]);} };
-}
-
-if (typeof URLPattern === 'undefined') {
-  globalThis.URLPattern = class URLPattern {
-    constructor(pattern){this._pattern=pattern||{};} test(){return false;} exec(){return null; __hideOwn(this);}
-  };
-}
-
-
 // (Re)apply the platform persona: screen, dpr, hardwareConcurrency,
 // deviceMemory. Called from __diting_init AND again from Rust's
 // set_user_agent — the runtime constructor runs init before the context's
