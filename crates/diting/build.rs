@@ -271,9 +271,15 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // reads bare NodeList for the RadioNodeList iface row). _nodeList d()
     // row auto-migrates here from bootstrap.
     ("nodelist.js", include_str!("js/nodelist.js")),
+    // god-file split (刀57, URL face): _urlParseOp/_urlSetOp/
+    // _urlResolveOp (Rust url crate delegation) + the URL constructor
+    // (_URLw) with its load-time native marking. MUST load before
+    // blob_urls.js — it mutates the URL constructor (createObjectURL)
+    // at load time; runtime-only consumers otherwise.
+    ("url_face.js", include_str!("js/url_face.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
-    // (member-form writes; base statics copied in bootstrap, this
+    // (member-form writes onto the url_face.js constructor, this
     // overwrites later - order preserved). opener null folded in.
     ("blob_urls.js", include_str!("js/blob_urls.js")),
     // god-file split (刀50, input text-selection + date-draft belt): _ns_
