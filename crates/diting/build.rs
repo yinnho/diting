@@ -28,6 +28,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // bootstrap: _consoleFn calls them at runtime via the published hidden
     // globals, and any load-time console use in later files resolves here.
     ("console_format.js", include_str!("js/console_format.js")),
+    // god-file split (刀65, event subclass family): the _evx WeakMap state
+    // scheme, the deno_core unhandledrejection/rejectionhandled routing
+    // IIFE, and the subclass ladder (UIEvent brood + plain Event brood;
+    // the validating PromiseRejectionEvent install overwrites the routing
+    // block's basic one — both kept verbatim). Extends host-native Event/
+    // EventTarget at load; early slot so later files extending these
+    // classes (pointer_touch) and runtime dispatch all resolve.
+    ("event_classes.js", include_str!("js/event_classes.js")),
     // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
     // the DOM core family bootstrap.js carried wholesale. Straight after it:
     // everything later (canvas, sweeps) needs these classes in scope.
