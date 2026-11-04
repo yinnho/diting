@@ -191,6 +191,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // __prepareInitialStylesheets is also called via injected bare
     // identifier (analyzer-blind — pinned in exports-extra).
     ("insertion_prep.js", include_str!("js/insertion_prep.js")),
+    // god-file split (刀33, btoa/atob): Latin1 binary-string codecs per the
+    // HTML spec, guarded installs (realm natives win). The bootstrap
+    // load-time _markNative sweep row for these two migrated with the
+    // family (刀22 Notification precedent) — this file marks its own
+    // installs at its load tail.
+    ("btoa_atob.js", include_str!("js/btoa_atob.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;

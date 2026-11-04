@@ -3682,40 +3682,6 @@ globalThis.crypto = globalThis.crypto || {
 };
 globalThis.reportError = globalThis.reportError || ((e) => console.error(e));
 
-// Latin1 binary strings per the HTML spec, not UTF-8: Chrome's btoa("é") is
-// "6Q==" (the single byte 0xE9), and anything above 0xFF throws
-// InvalidCharacterError — the old TextEncoder version diverged on both
-// counts (two-byte UTF-8 output, silent acceptance of astral chars), which
-// breaks signature-style round-trips against servers that expect the spec.
-globalThis.btoa = globalThis.btoa || ((s) => {
-  // WebIDL DOMString: every argument is ToString-coerced first, so btoa(123)
-  // is "MTIz" and btoa(null) is "bnVsbA==" — matching atob's String(s) below.
-  s = String(s);
-  for (let i = 0; i < s.length; i++)
-    if (s.charCodeAt(i) > 0xFF)
-      throw new DOMException("Failed to execute 'btoa' on 'Window': The string to be encoded contains characters outside of the Latin1 range.", "InvalidCharacterError");
-  const c="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; let r="";
-  for(let i=0;i<s.length;i+=3){const a=s.charCodeAt(i),b=s.charCodeAt(i+1)||0,cc=s.charCodeAt(i+2)||0; r+=c[a>>2]+c[((a&3)<<4)|(b>>4)]+(i+1<s.length?c[((b&15)<<2)|(cc>>6)]:"=")+(i+2<s.length?c[cc&63]:"=");} return r; });
-// Decoding must fail loud on non-alphabet input: a stray char used to decode
-// to garbage bytes through indexOf's -1 instead of throwing, so corrupt
-// payloads sailed through parsers. ASCII whitespace is ignored, '=' is
-// padding (at most two, tail only), and a lone trailing char (%4 === 1) is
-// not a decodable quantum.
-globalThis.atob = globalThis.atob || ((s) => {
-  const bad = () => new DOMException("Failed to execute 'atob' on 'Window': The string to be decoded is not correctly encoded.", "InvalidCharacterError");
-  const c="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let body = String(s).replace(/[ \t\n\f\r]/g, "");
-  if (body.endsWith("=")) body = body.slice(0, -1);
-  if (body.endsWith("=")) body = body.slice(0, -1);
-  if (body.includes("=") || body.length % 4 === 1) throw bad();
-  const v=[];
-  for (let i = 0; i < body.length; i++) {
-    const x = c.indexOf(body[i]);
-    if (x < 0) throw bad();
-    v.push(x);
-  }
-  let r=[]; for(let i=0;i<v.length;i+=4){const a=v[i],b=v[i+1],cc=v[i+2],d=v[i+3]; r.push((a<<2)|(b>>4)); if(cc!==undefined)r.push(((b&15)<<4)|(cc>>2)); if(d!==undefined)r.push(((cc&3)<<6)|d);} let out=""; for (let k=0;k<r.length;k++) out += String.fromCharCode(r[k]); return out; });
-
 globalThis.screenX = 0; globalThis.screenY = 0;
 globalThis.screenLeft = 0; globalThis.screenTop = 0;
 globalThis.pageXOffset = 0; globalThis.pageYOffset = 0;
@@ -3921,7 +3887,6 @@ _markNative(NodeList.prototype.forEach);
   globalThis.cancelAnimationFrame, globalThis.setTimeout, globalThis.clearTimeout,
   globalThis.setInterval, globalThis.clearInterval, globalThis.queueMicrotask,
   globalThis.structuredClone, globalThis.reportError,
-  globalThis.btoa, globalThis.atob,
   console.log, console.warn, console.error, console.info, console.debug,
   console.dir, console.assert,
   // (刀22) Notification + chrome.csi/loadTimes moved to bchk_apis.js —
