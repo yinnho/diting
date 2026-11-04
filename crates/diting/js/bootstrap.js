@@ -687,34 +687,6 @@ function _nodeInDocument(node) {
   }
   return false;
 }
-// XMLHttpRequestEventTarget — spec-required ancestor for XHR's EventTarget
-// face. M3 step B2: the trio resolves through the chain to the NATIVE core
-// (XHRET.prototype → EventTarget.prototype), exactly Chrome's chain — no
-// own dispatch code remains. zone.js walks XHRET.prototype for the trio
-// descriptors and falls through to EventTarget.prototype, where the native
-// methods live. The on* handler IDL attributes are installed as prototype
-// accessors by xhr.js (`__acc`) so the core's handler leg fires them.
-class XMLHttpRequestEventTarget extends EventTarget {}
-globalThis.XMLHttpRequestEventTarget = XMLHttpRequestEventTarget;
-_markNative(XMLHttpRequestEventTarget);
-
-// Decode a response body honoring the Content-Type charset, so fetch()/XHR
-// over non-UTF-8 resources (GBK, Shift_JIS, ISO-8859-x, ...) return correctly
-// decoded text instead of mojibake. The UTF-8 case (the overwhelming majority)
-// takes the plain TextDecoder fast path; only an explicit non-UTF-8 charset
-// routes through TextDecoder(label), which falls back to UTF-8 on a bad label.
-function _decodeBodyWithCharset(bytes, headers) {
-  let label = '';
-  try {
-    const ct = headers && typeof headers.get === 'function' ? (headers.get('content-type') || '') : '';
-    const m = /charset\s*=\s*"?([^";]+)"?/i.exec(ct);
-    if (m) label = m[1].trim();
-  } catch (e) {}
-  if (!label || /^utf-?8$/i.test(label)) return new TextDecoder().decode(bytes);
-  try { return new TextDecoder(label).decode(bytes); }
-  catch (e) { return new TextDecoder().decode(bytes); }
-}
-
 
 globalThis.ResizeObserver = class ResizeObserver {
   constructor(callback) {
@@ -1382,7 +1354,6 @@ function __ditingReorderProto(proto, order) {
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
-  d('XMLHttpRequestEventTarget', XMLHttpRequestEventTarget);
   d('_DOM_MUTATION_COMMANDS', _DOM_MUTATION_COMMANDS);
   d('_OPS', _OPS);
   d('__acc', __acc);
@@ -1392,7 +1363,6 @@ function __ditingReorderProto(proto, order) {
   d('__ditingReorderProto', __ditingReorderProto);
   d('__hideOwn', __hideOwn);
   d('__locParts', __locParts);
-  d('_decodeBodyWithCharset', _decodeBodyWithCharset);
   d('_decodeDataScriptUrl', _decodeDataScriptUrl);
   d('_ditingEpochNow', _ditingEpochNow);
   a('_ditingMutationEpoch', () => _ditingMutationEpoch, (v) => { _ditingMutationEpoch = v; });
