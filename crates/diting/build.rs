@@ -110,6 +110,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // last declarer, so the alias publishes do not flip). Loads before
     // plugins.js to keep the original bootstrap statement order.
     ("networkinformation.js", include_str!("js/networkinformation.js")),
+    // god-file split (刀22, bchkAPIs faces): the batch166 anti-bot probe
+    // surface — illegal-constructor interface faces for `'X' in window`
+    // checks + the Object.create'd singletons + the chrome object + the
+    // 刀69 WebGL stubs. BatteryManager's EventTarget relink migrated here
+    // from bootstrap's DOM-cluster tail (member form). __diting_fragmentDirective
+    // is exports-extra-pinned for bootstrap's window-face getter;
+    // __diting_launchQueue has zero readers and stays file-private.
+    ("bchk_apis.js", include_str!("js/bchk_apis.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
