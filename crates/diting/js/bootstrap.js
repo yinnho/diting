@@ -1,37 +1,6 @@
 "use strict";
 (function () { // @@SCOPE
 
-// Event state facade: the native Event (crates/diting_runtime/src/native/
-// event.rs) keeps its state in a private slot - invisible and unwritable
-// from page JS. Its JS bridge `__diting_event_state` lost its last engine
-// consumer when the Element and Document dispatch trilogies went native
-// (M3 B3/B4) - the core pins dispatch state itself - so the global is now
-// deleted at bake purely to keep the native facade out of page sight.
-//
-// window itself dispatches through the NATIVE EventTarget core now (M3
-// step B1): the three own addEventListener/removeEventListener/
-// dispatchEvent globals are gone and the chain (window -> Window.prototype
-// -> named-access gate -> EventTarget.prototype, see the rewire at the
-// _namedHolder) serves them. The window-specific on* legs (__windowOnHandlers
-// + <body onX> inline fallback, 'error' pipeline-only) live in the
-// `handler` hook in event_hooks.js.
-// Platform modules that dispatch UA-originated events (sensor errors, ...) need
-// isTrusted=true, which only this facade can set. Keep it as a LEXICAL binding
-// (never a global property, so page JS still cannot see it) before the delete.
-const _eventState = globalThis.__diting_event_state;
-delete globalThis.__diting_event_state;
-// (M3 B1) window dispatches through the native EventTarget core: the trio
-// installed here IS the native one (the runtime installs it on
-// EventTarget.prototype before any JS runs). global_surface.js relocates
-// them to the proto layer later, exactly as it did the legacy trio, so
-// window keeps no own event-method props on the Chrome face. The
-// window-specific on* legs (__windowOnHandlers + <body onX> inline
-// fallback, 'error' pipeline-only suppression) ride the native dispatch's
-// handler hook (event_hooks.js).
-globalThis.addEventListener = globalThis.EventTarget.prototype.addEventListener;
-globalThis.removeEventListener = globalThis.EventTarget.prototype.removeEventListener;
-globalThis.dispatchEvent = globalThis.EventTarget.prototype.dispatchEvent;
-
 // Receiver validation: real browsers throw TypeError("Illegal invocation")
 // when a DOM method is called with a fake receiver (e.g.
 // Object.create(HTMLSelectElement.prototype).setHTMLUnsafe(...) — a classic
@@ -896,7 +865,6 @@ function __ditingReorderProto(proto, order) {
   d('_domParse', _domParse);
   d('_domRaw', _domRaw);
   d('_edgeMemo', _edgeMemo);
-  d('_eventState', _eventState);
   d('_markNativeProto', _markNativeProto);
   d('_mirrorSelectLabel', _mirrorSelectLabel);
   d('_nodeInDocument', _nodeInDocument);
