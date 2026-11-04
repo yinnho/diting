@@ -324,6 +324,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // became a note). Observer cluster slot. interface_sweep reads the
     // global at its load — this file is earlier.
     ("resize_observer.js", include_str!("js/resize_observer.js")),
+    // god-file split (刀73, NodeFilter): the full standard constant table
+    // (issue #439 — FILTER_* + whole SHOW_* mask set). Plain data install,
+    // no d() row, no marking; later layers build module-local faces and
+    // read the global guardedly. DOM cluster slot.
+    ("node_filter.js", include_str!("js/node_filter.js")),
     // god-file split (刀60, form activation belt): the pre/post click
     // activation machinery — lazy prototype-setter cache (bypasses instance
     // traps like React's _valueTracker), flip/cancel/commit triplet,
