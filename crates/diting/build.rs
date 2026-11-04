@@ -118,6 +118,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // is exports-extra-pinned for bootstrap's window-face getter;
     // __diting_launchQueue has zero readers and stays file-private.
     ("bchk_apis.js", include_str!("js/bchk_apis.js")),
+    // god-file split (刀23, Screen / viewport family): the Screen face +
+    // hidden __scrStore + screenApply, VisualViewport + factory + the
+    // installed visualViewport/devicePixelRatio, the __vp* vars (persona
+    // refresh writes them from bootstrap through a() live accessors — 刀8
+    // live-binding law) + installViewportAccessors + scroll/page offsets.
+    // Screen.prototype's onchange accessor + WebIDL reorder migrated from
+    // bootstrap's bottom try-cluster (member form).
+    ("screen_viewport.js", include_str!("js/screen_viewport.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;

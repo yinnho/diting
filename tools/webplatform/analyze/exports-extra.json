@@ -73,5 +73,11 @@
  ],
  "bchk_apis.js": [
   "__diting_fragmentDirective"
+ ],
+ "screen_viewport.js": [
+  "__vpH",
+  "__vpOH",
+  "__vpOW",
+  "__vpW"
  ]
 }
