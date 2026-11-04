@@ -316,18 +316,6 @@ Object.defineProperty(globalThis.Window, Symbol.hasInstance, {
 // Window.prototype. global_surface.js moves it to the proto layer and points
 // it at Window so `self.constructor === Window` gates still pass.
 
-function _nodeInDocument(node) {
-  let cur = node;
-  let steps = 0;
-  while (cur && steps++ < 200) {
-    if (cur.nodeType === 9) return true;
-    cur = cur.parentNode;
-  }
-  return false;
-}
-
-globalThis.__diting_shadowHostNames = new Set(['article','aside','blockquote','body','div','footer','h1','h2','h3','h4','h5','h6','header','main','nav','p','section','span']);
-
 // ResizeObserver is defined earlier with real per-target firing; the stub
 // that previously lived here was a no-op that clobbered the real class.
 //
@@ -867,7 +855,6 @@ function __ditingReorderProto(proto, order) {
   d('_edgeMemo', _edgeMemo);
   d('_markNativeProto', _markNativeProto);
   d('_mirrorSelectLabel', _mirrorSelectLabel);
-  d('_nodeInDocument', _nodeInDocument);
   d('_shallowCloneNode', _shallowCloneNode);
 }
 // @@EXPORTS-END

@@ -32,6 +32,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // migrated with the declaration; consumers (domcore, platform_bundle)
     // read at call time.
     ("event_facade.js", include_str!("js/event_facade.js")),
+    // god-file split (刀84, document membership + shadow host gate):
+    // _nodeInDocument (the 200-step shadow-including document climb behind
+    // animation/lifecycle gating and named-scan reindex) + the attachShadow
+    // host-name allowlist (__diting_shadowHostNames; domcore reads the Set
+    // at call time). Pure function/data, zero load-time reads; the d() row
+    // migrated with the declaration. Early slot keeps the load window tight.
+    ("document_membership.js", include_str!("js/document_membership.js")),
     // god-file split (刀79, window identity): window/self/top/parent/frames
     // aliases + frameElement/length. Pure installs, zero reads. FIRST after
     // bootstrap, ahead of location_face — no location reads at load, so the
