@@ -192,18 +192,6 @@ function _markNativeProto(proto) {
 }
 _nativeFnAdd(_functionToString);
 
-// (M3 B3/B4) The `_eventRegistry` / `_eventRegistryCap` buckets and their
-// helpers went with the Element and Document dispatch trilogies — listener
-// storage is the native core's private slot now (`diting#et-listeners`,
-// crates/diting_runtime/src/native/event_target.rs).
-
-
-// (face fix) The early `globalThis['on'+ev] = null` loop is gone: it installed
-// enumerable data props where Chrome has accessor pairs, and its name set was
-// the pre-P2 approximation. The single chrome-exact accessor install at
-// on_handlers.js (god-file split 刀52) now owns the whole window on* surface — `in`
-// checks and assignment behave the same through the accessors.
-
 globalThis.Window = globalThis.Window || function Window() {};
 Object.defineProperty(globalThis.Window, Symbol.hasInstance, {
   value(obj) { return obj === globalThis || (obj && obj.window === obj); },
