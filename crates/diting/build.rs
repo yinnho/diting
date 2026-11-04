@@ -23,6 +23,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split (刀59, console argument formatter): _fmtVal + _peek +
+    // the _FMT_* clamps — pure helpers, zero installs. First slot after
+    // bootstrap: _consoleFn calls them at runtime via the published hidden
+    // globals, and any load-time console use in later files resolves here.
+    ("console_format.js", include_str!("js/console_format.js")),
     // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
     // the DOM core family bootstrap.js carried wholesale. Straight after it:
     // everything later (canvas, sweeps) needs these classes in scope.
