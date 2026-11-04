@@ -41,6 +41,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // faces. Everyone downstream (TextEncoderStream in bootstrap, fetch.js,
     // interface_sweep.js) touches these at call time or via globalThis reads.
     ("streams.js", include_str!("js/streams.js")),
+    // god-file split (刀6, WebSocket family): the guarded install — class over
+    // the op_ws_* family, ready-state constants, 刀84 __accRo/__acc accessor
+    // installs. No load-time consumers anywhere ahead of it.
+    ("websocket.js", include_str!("js/websocket.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split: the canvas 2D family — TextMetrics, the _Canvas2D class
