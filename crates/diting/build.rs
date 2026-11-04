@@ -46,6 +46,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // accessor installs on the 刀6 alias device (publishes pinned to
     // bootstrap). Sits before websocket to keep original statement order.
     ("broadcastchannel.js", include_str!("js/broadcastchannel.js")),
+    // god-file split (刀16, Selection/Range fallback stubs): the two guarded
+    // installs load ahead of the real selection implementation (刀73) so the
+    // platform phase still wins when it runs. Right after broadcastchannel
+    // to keep original statement order.
+    ("selection_range.js", include_str!("js/selection_range.js")),
     // god-file split (刀6, WebSocket family): the guarded install — class over
     // the op_ws_* family, ready-state constants, 刀84 __accRo/__acc accessor
     // installs. No load-time consumers anywhere ahead of it.
