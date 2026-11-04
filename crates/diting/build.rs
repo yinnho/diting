@@ -92,6 +92,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // at call time through the generated d() publishes. Loads before
     // plugins.js to keep the original bootstrap statement order.
     ("ua_helpers.js", include_str!("js/ua_helpers.js")),
+    // god-file split (刀20, NetworkInformation): the navigator.connection
+    // class (illegal constructor + the five getters), its _markNative call,
+    // the EventTarget chain relink and the WebIDL reorder — both migrated
+    // from bootstrap's DOM-cluster tail / bottom try-cluster at the carve,
+    // reached via the 刀13 head-alias device (navigator_persona.js stays the
+    // last declarer, so the alias publishes do not flip). Loads before
+    // plugins.js to keep the original bootstrap statement order.
+    ("networkinformation.js", include_str!("js/networkinformation.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
