@@ -300,26 +300,6 @@ function _markNativeProto(proto) {
 }
 _nativeFnAdd(_functionToString);
 
-[Error, TypeError, ReferenceError, SyntaxError, RangeError, URIError, EvalError].forEach(E => {
-  try {
-    Object.defineProperty(E.prototype, 'name', {
-      value: E.name, writable: true, enumerable: false, configurable: true, // Chrome: -cw
-    });
-  } catch(e) {}
-});
-
-const _stackCache = new WeakMap();
-const _origStackDesc = Object.getOwnPropertyDescriptor(Error.prototype, 'stack');
-if (_origStackDesc && _origStackDesc.get) {
-  Object.defineProperty(Error.prototype, 'stack', {
-    configurable: false, enumerable: false,
-    get: function() {
-      if (!_stackCache.has(this)) _stackCache.set(this, _origStackDesc.get.call(this));
-      return _stackCache.get(this);
-    }
-  });
-}
-
 // (M3 B3/B4) The `_eventRegistry` / `_eventRegistryCap` buckets and their
 // helpers went with the Element and Document dispatch trilogies — listener
 // storage is the native core's private slot now (`diting#et-listeners`,

@@ -67,6 +67,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (constructor/method bodies); just before abort_signals, the first
     // consumer in load order.
     ("lift_slot.js", include_str!("js/lift_slot.js")),
+    // god-file split (刀81, Error face): name-descriptor normalization (7
+    // builtin prototypes, Chrome -cw face) + the lazy stack cache. Lexical
+    // to the file; descriptor capture is load-time but only touches
+    // Error.prototype, untouched by any earlier slot.
+    ("error_face.js", include_str!("js/error_face.js")),
     ("abort_signals.js", include_str!("js/abort_signals.js")),
     // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
     // the DOM core family bootstrap.js carried wholesale. Straight after it:
