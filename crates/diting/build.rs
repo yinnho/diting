@@ -213,6 +213,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // the members inside a guarded IIFE at its load. Units/reg/factory
     // tables are file-private.
     ("css_static_face.js", include_str!("js/css_static_face.js")),
+    // god-file split (刀36, iframe registration): the browsing-context
+    // registry — insertion-time registration (numeric window indexing in
+    // tree order), srcdoc script runs as a document load, insertion starts
+    // src/srcdoc navigation. domcore.js and iframe_realm.js (owner of
+    // __iframeBlankLoad) call the walkers at runtime; _loadIframeSrc is an
+    // instance member. Registry is file-private.
+    ("iframe_registry.js", include_str!("js/iframe_registry.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
