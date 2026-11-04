@@ -276,6 +276,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (member-form writes; base statics copied in bootstrap, this
     // overwrites later - order preserved). opener null folded in.
     ("blob_urls.js", include_str!("js/blob_urls.js")),
+    // god-file split (刀50, input text-selection + date-draft belt): _ns_
+    // WeakMap mirrors + selection/typing helpers + date sanitize ladder +
+    // __diting_dateDraftBase engine hook. domcore consumes at runtime via
+    // the auto-migrated d() rows. Validation lives in form_validation.js.
+    ("input_selection.js", include_str!("js/input_selection.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
