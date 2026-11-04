@@ -126,6 +126,15 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Screen.prototype's onchange accessor + WebIDL reorder migrated from
     // bootstrap's bottom try-cluster (member form).
     ("screen_viewport.js", include_str!("js/screen_viewport.js")),
+    // god-file split (刀24, fetch helper belt): byte codecs (base64 both
+    // ways, binary string, concat, ArrayBuffer view) + the wasm streaming
+    // fallback (+ its load-time install) + the WHATWG data: URL processor +
+    // percent-decode + the AbortSignal race + __recordFetchTiming + the
+    // guarded Headers polyfill. The two CDP intercept flags stay globalThis
+    // member installs. Runtime-only cross-file consumers (fetch.js, xhr.js,
+    // websocket.js, filereader.js, bootstrap's atob/init legs) — order-free;
+    // _percentDecodeToBytes is file-private (in-zone sole consumer).
+    ("fetch_helpers.js", include_str!("js/fetch_helpers.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
