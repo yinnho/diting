@@ -209,6 +209,7 @@ globalThis.matchMedia = _markNative(function matchMedia(q) {
   d('_MQ_MOBILE_TABLE', _MQ_MOBILE_TABLE);
   d('_MQ_PERSONA_BOOL', _MQ_PERSONA_BOOL);
   d('_MQ_TOUCH_TABLE', _MQ_TOUCH_TABLE);
+  d('_markNative', _markNative);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END

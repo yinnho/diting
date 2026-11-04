@@ -1,12 +1,14 @@
 {
   "bootstrap.js": [
-    "_DOM_MUTATION_COMMANDS",
     "__acc",
     "__accRo",
     "__ditingReorderProto",
     "_markNativeProto",
     "_mirrorSelectLabel",
     "_shallowCloneNode"
+  ],
+  "dom_op_tables.js": [
+    "_DOM_MUTATION_COMMANDS"
   ],
   "domcore.js": [
     "_elementClassFor"
