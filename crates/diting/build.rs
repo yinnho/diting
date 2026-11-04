@@ -290,6 +290,15 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // chrome-155 truth set). Deferred registration via the published
     // __diting_domDeferred member (ratchet-flat form).
     ("on_handlers.js", include_str!("js/on_handlers.js")),
+    // god-file split (刀54, timer wheel + macrotask trampoline belt): the
+    // #38 sorted timer heap + patrol/arm/wake, the #30 macrotask trampoline
+    // (drain/arm/run/window + #39 stall predicates + recover hook +
+    // __MT_STATE dump), the #240 fetch post-mortem ring, and the
+    // setTimeout/Interval/rAF/queueMicrotask faces with their migrated
+    // native marking. Cross-file consumers are all runtime reads of
+    // published hidden globals; message_port.js wraps the recover hook
+    // late in the order.
+    ("timer_belt.js", include_str!("js/timer_belt.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
