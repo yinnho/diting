@@ -310,6 +310,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // installs; bootstrap's trusted-CDP block and details_summary/event_hooks/
     // domcore call at runtime. Zone refs out to bootstrap-published names
     // are runtime reads.
+    // god-file split (刀67, form control semantics): submitter validator,
+    // label association (_LABELABLE + _labeledControl), the CDP
+    // trusted-click dispatch (flip via form_activation triplet), the
+    // fieldset-disabled chain (first-legend rule) and _fireBlurFamily
+    // (focus switch-away leg). Zero installs, zero marking; consumers
+    // (domcore, form_activation, interaction_handlers) all runtime reads.
+    ("form_controls.js", include_str!("js/form_controls.js")),
     ("form_activation.js", include_str!("js/form_activation.js")),
     // god-file split (刀61, form state mirrors + FileList face): the four
     // nid-keyed value mirrors (idempotent globalThis installs + const
