@@ -45,6 +45,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // the op_ws_* family, ready-state constants, 刀84 __accRo/__acc accessor
     // installs. No load-time consumers anywhere ahead of it.
     ("websocket.js", include_str!("js/websocket.js")),
+    // god-file split (刀8, getComputedStyle family): the Chrome-145 longhand
+    // table, camelCase cache, snapshot caches (element + pseudo), the gCS
+    // install with its Proxy-backed declaration. All cross-file traffic is
+    // call-time; the mark-list entry moved with the install. Bootstrap keeps
+    // the epoch let (the mutation choke point) and publishes _ditingEpochNow
+    // so the snapshot staleness read stays live.
+    ("computed_style.js", include_str!("js/computed_style.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split (刀7, Path2D family): the guarded install — subpaths in
