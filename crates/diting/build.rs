@@ -289,6 +289,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // ctor_ladders, shape_fix, global_surface, window_order, worker) are
     // runtime-only. Native marking migrated (刀22 precedent).
     ("mutation_observer.js", include_str!("js/mutation_observer.js")),
+    // god-file split (刀60, form activation belt): the pre/post click
+    // activation machinery — lazy prototype-setter cache (bypasses instance
+    // traps like React's _valueTracker), flip/cancel/commit triplet,
+    // _postClickActivation (label/link/submit). Pure function family, zero
+    // installs; bootstrap's trusted-CDP block and details_summary/event_hooks/
+    // domcore call at runtime. Zone refs out to bootstrap-published names
+    // are runtime reads.
+    ("form_activation.js", include_str!("js/form_activation.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this
