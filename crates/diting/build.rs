@@ -317,6 +317,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // consumers (audio/bchk/canvas2d/nav_persona/perf/uadata/webrtc) read
     // at runtime. Pins _getFp/_fpCache/_fpSeed flipped here (刀52).
     ("fingerprint.js", include_str!("js/fingerprint.js")),
+    // god-file split (刀64, media queries): persona/mobile/touch tables,
+    // __diting_mqRecompute fold, _mqExpr/_mqClause/_mqMatches parser trio,
+    // MediaQueryList + registry, __diting_mqFlush pump, matchMedia face.
+    // Bootstrap's CDP emulation hooks call the globalThis hooks at runtime;
+    // tables publish via d(). Marking travels (install-site wrapper, 刀22).
+    ("media_queries.js", include_str!("js/media_queries.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this
