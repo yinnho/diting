@@ -3307,49 +3307,6 @@ URL.revokeObjectURL = function(url) {
   try { _OPS.op_blob_revoke(url); } catch (_) {}
 };
 
-globalThis.focus = function() {};
-globalThis.blur = function() {};
-globalThis.print = function() {};
-// alert/confirm/prompt never block: the host answers each from the
-// session-side dialog policy (default: dismiss) and records it as a
-// level-"dialog" console entry. See op_dialog.
-const _dlgArg = v => (v === undefined ? "undefined" : v === null ? "null" : String(v));
-const _dialog = (kind, msg) => {
-  let r;
-  try { r = JSON.parse(_OPS.op_dialog(kind, _dlgArg(msg))); } catch { r = { accept: false, value: null }; }
-  return r;
-};
-globalThis.alert = function(msg) { _dialog("alert", msg); };
-globalThis.confirm = function(msg) { return _dialog("confirm", msg).accept; };
-globalThis.prompt = function(msg, def) {
-  const r = _dialog("prompt", msg);
-  if (!r.accept) return null;
-  if (r.value !== null && r.value !== undefined) return r.value;
-  return def === undefined || def === null ? "" : String(def);
-};
-globalThis.open = function() { return null; };
-globalThis.close = function() {};
-globalThis.stop = function() {};
-globalThis.postMessage = function(message, targetOrigin) {
-  // Self-targeted postMessage (spec: window.postMessage to itself). Honor
-  // the targetOrigin gate like the iframe path: '*'/'/'/matching origin
-  // delivers; anything else drops silently (#704).
-  let t = targetOrigin;
-  if (t === undefined || t === null) t = '*';
-  if (typeof t !== 'string' || t === '') return;
-  if (t !== '*' && t !== '/') {
-    const selfOrigin = (function() { try { return new URL(globalThis.location?.href || 'about:blank').origin; } catch(e) { return ''; } })();
-    let tOrigin = '';
-    try { tOrigin = new URL(t).origin; } catch(e) {}
-    if (tOrigin === '' || tOrigin !== selfOrigin) return;
-  }
-  const event = new MessageEvent('message', {
-    data: message,
-    origin: (function() { try { return new URL(globalThis.location?.href || 'about:blank').origin; } catch(e) { return ''; } })(),
-    source: globalThis,
-  });
-  Promise.resolve().then(() => { globalThis.dispatchEvent?.(event); });
-};
 
 // Geometry family (DOMPoint/DOMRect/DOMQuad/DOMMatrix*/WebKitCSSMatrix):
 // generated shape + behavior module now owns this whole family
