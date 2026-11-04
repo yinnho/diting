@@ -79,7 +79,8 @@ GOD_FILE_CAP = 1500
 # production lines must leave this table (retire). Removing a file without
 # removing its entry also fails (stale ratchet).
 GOD_FILE_GRANDFATHER = {
-    "crates/diting/js/bootstrap.js": 17447,  # crypto.subtle split to js/crypto_subtle.js; getRandomValues stays
+    # bootstrap.js retired at 刀67: 17,447 -> 1,487 production lines, under the
+    # cap — now enforced by the ordinary 1,500-line gate like every other file.
     "crates/diting/src/diting_layout/mod.rs": 9978,  # float wrap series #313-#315 + #222 blend emission
     "crates/diting/src/diting_css/mod.rs": 6627,  # post-0.6.0 compat surface bumps
     "crates/diting/src/diting_js/ops/mod.rs": 4761,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
