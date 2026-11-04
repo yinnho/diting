@@ -155,6 +155,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // _nativeFnAdd, a different mechanism). Load-time installs are member
     // form; navigator_persona reads __ditingLangList at runtime.
     ("intl_date_persona.js", include_str!("js/intl_date_persona.js")),
+    // god-file split (刀28, CSS property-name tables): camel/kebab codecs +
+    // the standard camelCase property list + Set form + hidden
+    // __diting_cssNames install. platform_bundle.js bare-reads
+    // __diting_cssNames at ITS load — this file must precede it.
+    ("css_names.js", include_str!("js/css_names.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
