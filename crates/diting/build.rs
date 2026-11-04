@@ -266,6 +266,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // god-file split (刀47, WebGPU constructor stubs): GPUAdapter/GPU - pages
     // detect via navigator.gpu persona; constructors exist for the surface.
     ("gpu_stubs.js", include_str!("js/gpu_stubs.js")),
+    // god-file split (刀48, NodeList belt): spec collection class + ctor-mint
+    // sealing factory + marking. Registers before platform_bundle (its load
+    // reads bare NodeList for the RadioNodeList iface row). _nodeList d()
+    // row auto-migrates here from bootstrap.
+    ("nodelist.js", include_str!("js/nodelist.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;

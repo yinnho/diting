@@ -3179,44 +3179,6 @@ globalThis.scrollX = 0; globalThis.scrollY = 0;
 
 
 globalThis.DOMStringMap = DOMStringMap;
-// Build a NodeList (no named access, per spec) for querySelectorAll and
-// childNodes. Kept light on purpose: querySelectorAll is the hottest query API.
-globalThis.__diting_mkNodeList = (els) => _nodeList(els); // addedNodes/removedNodes are NodeLists in Chrome (Array before)
-// 刀83: ctor_ladders seals NodeList behind a mint token (Chrome: any `new NodeList()`
-// is an Illegal constructor); this factory is the engine's only legal minter.
-globalThis.__diting_ctorMint = Symbol('ctor-mint');
-function _nodeList(els) {
-  const nl = new NodeList(globalThis.__diting_ctorMint);
-  for (let i = 0; i < els.length; i++) nl[i] = els[i];
-  nl._len = els.length;
-  return nl;
-}
-// NodeList is its own type, not an Array subclass: in a real browser
-// Array.isArray(nodeList) is false and Object.prototype.toString reports
-// "[object NodeList]". Fingerprinting and feature-detection scripts check both.
-// It keeps the array-like surface scripts actually use: indexed access, length,
-// item(), forEach(), entries/keys/values, and iteration (so spread and for..of
-// work).
-__accPrivs.add('_len');
-globalThis.NodeList = class NodeList {
-  // (`_len` is registered in __accPrivs below so instance enumeration hides it.)
-  // `length` is a prototype accessor over a hidden `_len` slot (Chrome: instances own only their indices).
-  // 刀85: getter-only — Chrome's NodeList.length is ro; the factory writes `_len` directly.
-  constructor() { Object.defineProperty(this, '_len', { value: 0, writable: true, configurable: true }); }
-  get length() { return this._len; }
-  item(i) { i = i >>> 0; return this[i] != null ? this[i] : null; }
-  forEach(cb, thisArg) {
-    for (let i = 0; i < this.length; i++) cb.call(thisArg, this[i], i, this);
-  }
-  *[Symbol.iterator]() { for (let i = 0; i < this.length; i++) yield this[i]; }
-  *entries() { for (let i = 0; i < this.length; i++) yield [i, this[i]]; }
-  *keys() { for (let i = 0; i < this.length; i++) yield i; }
-  *values() { for (let i = 0; i < this.length; i++) yield this[i]; }
-  get [Symbol.toStringTag]() { return 'NodeList'; }
-};
-_markNative(NodeList);
-_markNative(NodeList.prototype.item);
-_markNative(NodeList.prototype.forEach);
 
 [
   globalThis.matchMedia,
@@ -4057,7 +4019,6 @@ function __ditingReorderProto(proto, order) {
   d('_mtQueue', _mtQueue);
   d('_mtWindow', _mtWindow);
   d('_nodeInDocument', _nodeInDocument);
-  d('_nodeList', _nodeList);
   d('_ns_dateDraft', _ns_dateDraft);
   d('_ns_isTextEntry', _ns_isTextEntry);
   d('_ns_mirrorSelection', _ns_mirrorSelection);
