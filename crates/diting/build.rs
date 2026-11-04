@@ -41,6 +41,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // faces. Everyone downstream (TextEncoderStream in bootstrap, fetch.js,
     // interface_sweep.js) touches these at call time or via globalThis reads.
     ("streams.js", include_str!("js/streams.js")),
+    // god-file split (刀15, BroadcastChannel family): the same-origin message
+    // bus — registry-backed class with real MessageEvent dispatch, acc/accRo
+    // accessor installs on the 刀6 alias device (publishes pinned to
+    // bootstrap). Sits before websocket to keep original statement order.
+    ("broadcastchannel.js", include_str!("js/broadcastchannel.js")),
     // god-file split (刀6, WebSocket family): the guarded install — class over
     // the op_ws_* family, ready-state constants, 刀84 __accRo/__acc accessor
     // installs. No load-time consumers anywhere ahead of it.
