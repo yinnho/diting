@@ -6,6 +6,59 @@
 // disconnected-script-stays-unstarted rule. Moved verbatim from bootstrap;
 // consumers (insertion_prep.js tree walk, domcore.js script element
 // creation) call at runtime through the published hidden global.
+// Decode a data: URL whose payload is JavaScript (upstream 0c4740a + f841205
+// final form). op_fetch_url's HTTP client cannot fetch the data: scheme, so
+// dynamic <script src="data:text/javascript,..."> never ran. Chromium accepts
+// any MIME type here (the fetch layer is bypassed entirely), rejects stray
+// padding in base64, and handles %-escapes + non-ASCII by re-encoding through
+// UTF-8 — matching that shape byte-for-byte avoids a fidelity gap pages can
+// probe. _hexv is defined in url_search_params.js; resolution happens at call time.
+function _decodeDataScriptUrl(url) {
+  const comma = url.indexOf(',');
+  if (!url.startsWith('data:') || comma < 5) {
+    throw new TypeError('Invalid dynamic script data URL');
+  }
+
+  const meta = url.slice(5, comma);
+  const fragment = url.indexOf('#', comma + 1);
+  const payload = url.slice(comma + 1, fragment < 0 ? url.length : fragment);
+  if (meta.split(';').some(part => part.toLowerCase() === 'base64')) {
+    let encoded = payload.replace(/[\r\n\t\f ]/g, '');
+    const remainder = encoded.length % 4;
+    if (remainder === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || /=/.test(encoded.slice(0, -2))) {
+      throw new TypeError('Invalid dynamic script data URL base64');
+    }
+    if (remainder > 0) encoded += '='.repeat(4 - remainder);
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+      throw new TypeError('Invalid dynamic script data URL base64');
+    }
+    return new TextDecoder().decode(_base64ToUint8Array(encoded));
+  }
+
+  const bytes = [];
+  for (let i = 0; i < payload.length; i++) {
+    const code = payload.charCodeAt(i);
+    if (code === 0x25 && i + 2 < payload.length) {
+      const hi = _hexv(payload.charCodeAt(i + 1));
+      const lo = _hexv(payload.charCodeAt(i + 2));
+      if (hi >= 0 && lo >= 0) {
+        bytes.push(hi * 16 + lo);
+        i += 2;
+        continue;
+      }
+    }
+    if (code < 0x80) {
+      bytes.push(code);
+    } else {
+      const character = String.fromCodePoint(payload.codePointAt(i));
+      if (character.length === 2) i++;
+      const encoded = new TextEncoder().encode(character);
+      for (let j = 0; j < encoded.length; j++) bytes.push(encoded[j]);
+    }
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
 function __prepareInsertedScript(script) {
   const scriptType = (script.getAttribute('type') || '').trim().toLowerCase();
   const isModule = scriptType === 'module';
@@ -190,6 +243,7 @@ function __prepareInsertedScript(script) {
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   d('__prepareInsertedScript', __prepareInsertedScript);
+  d('_decodeDataScriptUrl', _decodeDataScriptUrl);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END
