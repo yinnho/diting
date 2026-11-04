@@ -36,6 +36,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Before domparser.js (call-time) and web_api_gaps.js (load-time member
     // read on XMLSerializer.prototype).
     ("serializer.js", include_str!("js/serializer.js")),
+    // god-file split (刀5, streams family): _rsStream + the ReadableStream /
+    // WritableStream / TransformStream installs and their controller/reader
+    // faces. Everyone downstream (TextEncoderStream in bootstrap, fetch.js,
+    // interface_sweep.js) touches these at call time or via globalThis reads.
+    ("streams.js", include_str!("js/streams.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split: the canvas 2D family — TextMetrics, the _Canvas2D class

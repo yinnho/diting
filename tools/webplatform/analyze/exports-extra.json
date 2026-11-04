@@ -18,6 +18,7 @@
   "_mtWindow",
   "_namedBoot",
   "_namedScanned",
+  "_markNativeProto",
   "_parserVisibleIds",
   "_shallowCloneNode",
   "_timerArmNext",
