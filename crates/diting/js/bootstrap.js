@@ -558,68 +558,6 @@ function _fp(key) { return _getFp()[key]; }
 
 const _domParse = (cmd, a1, a2) => { try { return JSON.parse(_dom(cmd, a1, a2)); } catch { return null; } };
 
-// HTML "ASCII whitespace": U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, U+0020 SPACE.
-// Class token splitting (classList, getElementsByClassName) uses exactly this set.
-// JS \s is wider (U+000B, U+00A0, U+2028, etc.), so it must not be used here.
-const _ASCII_WS = /[ \t\n\f\r]+/;
-function _splitAsciiWhitespace(s) {
-  // WebIDL DOMString coercion: null -> "null", undefined -> "undefined".
-  return String(s).split(_ASCII_WS).filter(Boolean);
-}
-// Shared getElementsByClassName: split the argument into an ordered set of
-// tokens on ASCII whitespace, then return descendants (in tree order) whose
-// class attribute contains every token, as an HTMLCollection (so namedItem and
-// named access work on the result). `root` must expose querySelectorAll.
-function _getElementsByClassName(root, classNames) {
-  const tokens = _splitAsciiWhitespace(classNames);
-  if (tokens.length === 0) return __diting_mkCollection([]);
-  // Fast path: a single CSS-identifier token goes straight to the native
-  // selector engine (the common case). Only multi-token sets or exotic class
-  // names (NBSP, leading digits, etc.) fall back to the O(n) JS scan below.
-  if (tokens.length === 1 && /^[A-Za-z_-][\w-]*$/.test(tokens[0])) {
-    return __diting_mkCollection(root.querySelectorAll("." + tokens[0]));
-  }
-  const all = root.querySelectorAll("*");
-  const matched = [];
-  for (let i = 0; i < all.length; i++) {
-    const el = all[i];
-    const elTokens = _splitAsciiWhitespace(el.getAttribute ? (el.getAttribute("class") || "") : "");
-    let ok = true;
-    for (let t = 0; t < tokens.length; t++) {
-      if (elTokens.indexOf(tokens[t]) < 0) { ok = false; break; }
-    }
-    if (ok) matched.push(el);
-  }
-  return __diting_mkCollection(matched);
-}
-// Parser-order script visibility (#120): while a classic parser script runs,
-// <script> elements later in the markup are not yet parsed and must be
-// invisible to script-tag queries — KISSY and JSONP loaders locate their own
-// tag by reverse-scanning document.getElementsByTagName('script'), and with
-// the whole DOM pre-built they would find a later combo <script> and derive
-// a wrong loader base. scripts.rs injects __parserScriptOrder (document-order
-// nids of every parser script) and bumps __parserScriptCeiling before each
-// classic script (deferred/async and post-parse phases run at -1 = visible).
-// Scripts absent from the map — dynamically inserted ones — are always
-// visible, matching Chrome: appendChild lands in the tree immediately.
-function _parserScriptHidden(nid) {
-  const ceiling = globalThis.__parserScriptCeiling;
-  if (ceiling == null || ceiling < 0) return false;
-  const idx = globalThis.__parserScriptIdx && globalThis.__parserScriptIdx.get(nid);
-  return idx !== undefined && idx > ceiling;
-}
-function _parserVisibleIds(ids) {
-  const ceiling = globalThis.__parserScriptCeiling;
-  if (ceiling == null || ceiling < 0 || !globalThis.__parserScriptIdx) return ids;
-  const map = globalThis.__parserScriptIdx;
-  const out = [];
-  for (let i = 0; i < ids.length; i++) {
-    const idx = map.get(ids[i]);
-    if (idx === undefined || idx <= ceiling) out.push(ids[i]);
-  }
-  return out;
-}
-
 const _consoleFn = (level, args) => {
   try {
     let joined = args.map(a => _fmtVal(a, 0, new WeakSet())).join(" ");
@@ -2346,7 +2284,6 @@ function __ditingReorderProto(proto, order) {
   a('_fpCache', () => _fpCache, (v) => { _fpCache = v; });
   d('_fpRand', _fpRand);
   a('_fpSeed', () => _fpSeed, (v) => { _fpSeed = v; });
-  d('_getElementsByClassName', _getElementsByClassName);
   d('_getFp', _getFp);
   d('_isFormControlDisabled', _isFormControlDisabled);
   d('_isSubmitButton', _isSubmitButton);
@@ -2355,8 +2292,6 @@ function __ditingReorderProto(proto, order) {
   d('_markNativeProto', _markNativeProto);
   d('_mirrorSelectLabel', _mirrorSelectLabel);
   d('_nodeInDocument', _nodeInDocument);
-  d('_parserScriptHidden', _parserScriptHidden);
-  d('_parserVisibleIds', _parserVisibleIds);
   d('_resolveUrl', _resolveUrl);
   d('_shallowCloneNode', _shallowCloneNode);
   d('_styleProxy', _styleProxy);

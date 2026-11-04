@@ -304,6 +304,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // data_transfer's files getter read at runtime; FileList install is
     // typeof-guarded (host native wins). No native marking — synthetic face.
     ("form_state.js", include_str!("js/form_state.js")),
+    // god-file split (刀62, DOM query + parser-visibility helpers): ASCII
+    // whitespace splitting, shared getElementsByClassName (fast path +
+    // O(n) fallback, collections via __diting_mkCollection), and the #120
+    // parser-order script visibility pair. domcore/domparser/iframe_realm
+    // call at runtime; bootstrap holds zero refs (pure d() migration).
+    ("dom_query.js", include_str!("js/dom_query.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this
