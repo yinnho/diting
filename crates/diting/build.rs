@@ -135,6 +135,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // websocket.js, filereader.js, bootstrap's atob/init legs) — order-free;
     // _percentDecodeToBytes is file-private (in-zone sole consumer).
     ("fetch_helpers.js", include_str!("js/fetch_helpers.js")),
+    // god-file split (刀25, History API family): the functional History
+    // IIFE — session-history stack + push/replace/go/back/forward +
+    // popstate/hashchange dispatch + the __diting_history CDP accessor.
+    // MUST stay before navigation.js (captures history.pushState at load)
+    // and interface_sweep.js (reads the singleton at load); both load
+    // later in this order. __virtualUrl stays bootstrap's — Location and
+    // __diting_init touch it via member form.
+    ("history_api.js", include_str!("js/history_api.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
