@@ -1367,7 +1367,7 @@ function _shallowCloneNode(node) {
 // any MIME type here (the fetch layer is bypassed entirely), rejects stray
 // padding in base64, and handles %-escapes + non-ASCII by re-encoding through
 // UTF-8 — matching that shape byte-for-byte avoids a fidelity gap pages can
-// probe. _hexv is defined later in this file; resolution happens at call time.
+// probe. _hexv is defined in url_search_params.js; resolution happens at call time.
 function _decodeDataScriptUrl(url) {
   const comma = url.indexOf(',');
   if (!url.startsWith('data:') || comma < 5) {
@@ -3139,77 +3139,6 @@ _markNative(AbortSignal.abort);
 _markNative(AbortSignal.timeout);
 _markNative(AbortSignal.any);
 _markNative(globalThis.AbortController);
-// application/x-www-form-urlencoded serializer: like encodeURIComponent but
-// space -> '+' and also percent-encoding the chars encodeURIComponent leaves
-// bare ( ! ~ ' ( ) ), keeping the form-urlencoded safe set ( * - . _ ).
-function _formEncode(s){
-  return encodeURIComponent(String(s)).replace(/%20/g,'+').replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
-}
-function _hexv(c){ if(c>=48&&c<=57)return c-48; if(c>=65&&c<=70)return c-55; if(c>=97&&c<=102)return c-87; return -1; }
-if (typeof URLSearchParams === "undefined") globalThis.URLSearchParams = class URLSearchParams {
-  constructor(init=""){
-    this._p=[];
-    this._url=null; // set by URL.searchParams so mutations write back to the URL
-    if (typeof URLSearchParams === 'function' && init instanceof URLSearchParams) {
-      this._p = init._p.map(pair => [pair[0], pair[1]]);
-    } else if(typeof init==="string"){
-      this._parseString(init);
-    } else if (init && typeof init[Symbol.iterator] === 'function') {
-      for (const pair of init) {
-        const a = Array.from(pair);
-        if (a.length !== 2) throw new TypeError("Failed to construct 'URLSearchParams': Each query pair must be an iterable [name, value] tuple");
-        this._p.push([String(a[0]), String(a[1])]);
-      }
-    } else if (init && typeof init === 'object') {
-      Object.keys(init).forEach(k => this._p.push([String(k), String(init[k])]));
-    }
-    __hideOwn(this);
-  }
-  _decode(s){
-    // application/x-www-form-urlencoded percent-decoding: decode each valid %XX
-    // byte, leave invalid escapes literal (decodeURIComponent throws on the whole
-    // string instead), '+' -> space, then UTF-8 decode the resulting bytes.
-    s = String(s);
-    const out = [];
-    for (let i = 0; i < s.length; i++) {
-      const c = s.charCodeAt(i);
-      if (c === 0x2B) { out.push(0x20); }
-      else if (c === 0x25 && i + 2 < s.length) {
-        const a = _hexv(s.charCodeAt(i + 1)), b = _hexv(s.charCodeAt(i + 2));
-        if (a >= 0 && b >= 0) { out.push(a * 16 + b); i += 2; } else { out.push(c); }
-      } else if (c < 0x80) { out.push(c); }
-      else { const e = new TextEncoder().encode(s[i]); for (let j = 0; j < e.length; j++) out.push(e[j]); }
-    }
-    try { return new TextDecoder().decode(new Uint8Array(out)); } catch (e) { return s; }
-  }
-  _parseString(s){
-    s = String(s).replace(/^\?/, "");
-    if (s === "") return;
-    for (const pair of s.split("&")) {
-      if (pair === "") continue;
-      const i = pair.indexOf("=");
-      const k = i === -1 ? pair : pair.slice(0, i);
-      const v = i === -1 ? "" : pair.slice(i + 1);
-      this._p.push([this._decode(k), this._decode(v)]);
-    }
-  }
-  _setFromString(s){ this._p = []; this._parseString(s); }
-  _notify(){ if (this._url) this._url._updateSearch(this.toString()); }
-  append(k,v){ this._p.push([String(k),String(v)]); this._notify(); }
-  get(k){k=String(k); const p=this._p.find(([key])=>key===k); return p?p[1]:null;}
-  getAll(k){k=String(k); return this._p.filter(([key])=>key===k).map(pair=>pair[1]);}
-  set(k,v){k=String(k); v=String(v); let done=false; const out=[]; for (const pair of this._p){ if(pair[0]===k){ if(!done){ out.push([k,v]); done=true; } } else out.push(pair); } if(!done) out.push([k,v]); this._p=out; this._notify(); }
-  delete(k,v){k=String(k); const hv=(v!==undefined); v=String(v); this._p=this._p.filter(([key,val])=> hv ? !(key===k&&val===v) : key!==k); this._notify();}
-  has(k,v){k=String(k); const hv=(v!==undefined); v=String(v); return this._p.some(([key,val])=> hv ? (key===k&&val===v) : key===k);}
-  sort(){ this._p.sort((a,b)=> a[0]<b[0]?-1:(a[0]>b[0]?1:0)); this._notify(); }
-  get size(){ return this._p.length; }
-  toString(){return this._p.map(pair=>_formEncode(pair[0])+"="+_formEncode(pair[1])).join("&");}
-  forEach(cb,thisArg){this._p.slice().forEach(pair=>cb.call(thisArg,pair[1],pair[0],this));}
-  *entries(){ for (const pair of this._p) yield [pair[0],pair[1]]; }
-  *keys(){ for (const pair of this._p) yield pair[0]; }
-  *values(){ for (const pair of this._p) yield pair[1]; }
-  [Symbol.iterator](){ return this.entries(); }
-};
 
 // FontFace / FontFaceSet / document.fonts live in platform/fontfaceset.impl.js (M4 knife 52).
 
