@@ -71,6 +71,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (url, name) with real MessagePort pairs (#213), the SharedWorkerGlobal-
     // Scope shape, inline _markNative — the serializer head-alias device.
     ("sharedworker.js", include_str!("js/sharedworker.js")),
+    // god-file split (刀14, Plugin/MimeType family): the four array-like
+    // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
+    // + the cached PDF persona builder. Self-contained installs on globalThis;
+    // navigator_persona reads the two singleton lets and the builder at
+    // runtime through the generated a()/d() publishes. Loads before
+    // navigator_persona to keep the original bootstrap statement order.
+    ("plugins.js", include_str!("js/plugins.js")),
     // god-file split (刀13, navigator persona): __navStore literal, langs
     // memo, the Navigator class + prototype setup walk + singleton +
     // __diting_navSet. The mark-list navigator cluster, the credentials
