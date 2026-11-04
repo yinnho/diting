@@ -51,6 +51,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // platform phase still wins when it runs. Right after broadcastchannel
     // to keep original statement order.
     ("selection_range.js", include_str!("js/selection_range.js")),
+    // god-file split (刀17, guard-stub tail pair): ServiceWorkerContainer +
+    // URLPattern fallback stubs — same guarded pattern as 刀16; the real
+    // URLPattern (platform/urlpattern.impl.js) still loads later and wins.
+    ("swc_urlpattern.js", include_str!("js/swc_urlpattern.js")),
     // god-file split (刀6, WebSocket family): the guarded install — class over
     // the op_ws_* family, ready-state constants, 刀84 __accRo/__acc accessor
     // installs. No load-time consumers anywhere ahead of it.
