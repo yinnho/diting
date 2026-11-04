@@ -52,6 +52,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // the epoch let (the mutation choke point) and publishes _ditingEpochNow
     // so the snapshot staleness read stays live.
     ("computed_style.js", include_str!("js/computed_style.js")),
+    // god-file split (刀9, image-bitmap family): the guarded installs for
+    // ImageData / OffscreenCanvas / ImageBitmap + createImageBitmap (header-
+    // parsed dims on blobs, live-dims passthrough for canvas/Image sources).
+    // Sole installer; no mark entries; all consumers are call-time or sit
+    // later in the order (worker.js realm capture, videoframe error strings).
+    ("image_bitmap.js", include_str!("js/image_bitmap.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split (刀7, Path2D family): the guarded install — subpaths in
