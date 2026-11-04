@@ -443,9 +443,19 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // god-file split (刀64, media queries): persona/mobile/touch tables,
     // __diting_mqRecompute fold, _mqExpr/_mqClause/_mqMatches parser trio,
     // MediaQueryList + registry, __diting_mqFlush pump, matchMedia face.
-    // Bootstrap's CDP emulation hooks call the globalThis hooks at runtime;
+    // Bootstrap's CDP emulation hooks (now cdp_emulation.js, 刀87) call the
+    // globalThis hooks at runtime;
     // tables publish via d(). Marking travels (install-site wrapper, 刀22).
     ("media_queries.js", include_str!("js/media_queries.js")),
+    // god-file split (刀87, CDP emulation belt): setPersona / setViewport /
+    // clearViewport / touchMax+setTouch / setMediaFeatures / setFpSeed —
+    // the knobs Rust (set_user_agent, CDP override paths) and
+    // __diting_init drive. Every cross-file touch is member-form or
+    // accessor/d()-mediated and resolved at call time (fingerprint's
+    // _fp/_fpPlatform d() + _fpSeed/_fpCache a(), screen_viewport's __vp*
+    // a(), media_queries' mqRecompute/mqFlush members). Any slot safe;
+    // beside media_queries, whose hooks it drives.
+    ("cdp_emulation.js", include_str!("js/cdp_emulation.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this
