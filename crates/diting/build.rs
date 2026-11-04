@@ -299,6 +299,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // published hidden globals; message_port.js wraps the recover hook
     // late in the order.
     ("timer_belt.js", include_str!("js/timer_belt.js")),
+    // god-file split (刀55, text codec fallbacks): typeof-guarded
+    // TextEncoder/TextDecoder (pure-JS WHATWG UTF-8 decoder) +
+    // TextEncoderStream/TextDecoderStream. Host native wins when present;
+    // all consumers are runtime-only calls.
+    ("text_codec.js", include_str!("js/text_codec.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
