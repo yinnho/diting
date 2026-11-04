@@ -510,70 +510,6 @@ globalThis.__diting_setActiveTree = function (prevEl, nextEl) {
   else if (prevEl && prevEl._nid !== undefined) _domRaw("set_active", String(prevEl._nid), "0");
 };
 
-function _resolveUrl(url) {
-  // Coerce up front: a URL object passed to location.href/assign/replace has
-  // no .startsWith and would throw here (upstream fe26417).
-  url = String(url);
-  if (!url) return url;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('about:')) return url;
-  try { return new URL(url, _docBase()).href; } catch(e) { return url; }
-}
-// `__virtualUrl` is set by `history.pushState`/`replaceState` (and cleared by
-// any real navigation). When set, `location.href` and friends read it instead
-// of the underlying `document_url`. Without this, client-side routers
-// (Next.js, React Router, vue-router) call `pushState` but the URL never
-// changes, so their `useLocation` hooks return the wrong path and the UI
-// freezes on the original route.
-globalThis.__virtualUrl = null;
-function __currentUrl() {
-  return globalThis.__virtualUrl || _domParse("document_url") || "about:blank";
-}
-// Parsed-URL memo for the Location part getters (10-27 复盘: heavy pages
-// read location.origin/protocol/host thousands of times; each read used to
-// pay a fresh `new URL(this.href)` AND — via __currentUrl — a document_url
-// op round-trip, so the parts re-parsed a URL that hadn't changed). The
-// memo keys on the href string itself: navigation swaps the string, the
-// entry rolls. Part setters are absent on Location (assign-only API), so
-// the parsed snapshot can't go stale within one href.
-let __locMemoKey = null, __locMemoURL = null;
-function __locParts() {
-  const href = __currentUrl();
-  if (href !== __locMemoKey) {
-    try { __locMemoURL = new URL(href); } catch (e) { __locMemoURL = null; }
-    __locMemoKey = href;
-  }
-  return __locMemoURL;
-}
-globalThis.location = {
-  get href() { return __currentUrl(); },
-  set href(url) { var r = _resolveUrl(url); globalThis.__virtualUrl = r; _OPS.op_navigate(r, 'GET', ''); },
-  get origin() { var u = __locParts(); return u ? u.origin : ""; },
-  get protocol() { var u = __locParts(); return u ? u.protocol : ""; },
-  get host() { var u = __locParts(); return u ? u.host : ""; },
-  get hostname() { var u = __locParts(); return u ? u.hostname : ""; },
-  get pathname() { var u = __locParts(); return u ? u.pathname : "/"; },
-  get search() { var u = __locParts(); return u ? u.search : ""; },
-  get hash() { var u = __locParts(); return u ? u.hash : ""; },
-  get port() { var u = __locParts(); return u ? u.port : ""; },
-  get fragmentDirective() { return __diting_fragmentDirective; },
-  toString() { return this.href; },
-  assign(url) { var r = _resolveUrl(url); globalThis.__virtualUrl = r; _OPS.op_navigate(r, 'GET', ''); },
-  reload() { var r = _resolveUrl(this.href); globalThis.__virtualUrl = r; _OPS.op_navigate(r, 'GET', ''); },
-  replace(url) { var r = _resolveUrl(url); globalThis.__virtualUrl = r; _OPS.op_navigate(r, 'GET', ''); },
-};
-const _locationObj = globalThis.location;
-Object.defineProperty(globalThis, 'location', {
-  // __diting_frame_location is the frame-eval swap slot: while the engine
-  // brackets an evaluation into an iframe's globals, reads of `location`
-  // must see the frame's location. The property itself is non-configurable
-  // (matching Chrome's unforgeable Location), so the swap goes through this
-  // data slot instead of redefining the accessor.
-  get() { return globalThis.__diting_frame_location || _locationObj; },
-  set(url) { globalThis.__diting_locNav(url, false); },
-  configurable: false,
-  enumerable: true,
-});
-
 // Secure Contexts (W3C §is-origin-potentially-trustworthy): https/wss are
 // secure, plain http/ws only on the localhost family, data:/file:/blob:
 // inheriting a secure scheme. Computed per access off the live URL — the
@@ -1180,11 +1116,9 @@ function __ditingReorderProto(proto, order) {
   d('_OPS', _OPS);
   d('__acc', __acc);
   d('__accRo', __accRo);
-  d('__currentUrl', __currentUrl);
   d('__def', __def);
   d('__ditingReorderProto', __ditingReorderProto);
   d('__hideOwn', __hideOwn);
-  d('__locParts', __locParts);
   d('_ditingEpochNow', _ditingEpochNow);
   a('_ditingMutationEpoch', () => _ditingMutationEpoch, (v) => { _ditingMutationEpoch = v; });
   d('_dom', _dom);
@@ -1192,11 +1126,9 @@ function __ditingReorderProto(proto, order) {
   d('_domRaw', _domRaw);
   d('_edgeMemo', _edgeMemo);
   d('_eventState', _eventState);
-  d('_locationObj', _locationObj);
   d('_markNativeProto', _markNativeProto);
   d('_mirrorSelectLabel', _mirrorSelectLabel);
   d('_nodeInDocument', _nodeInDocument);
-  d('_resolveUrl', _resolveUrl);
   d('_shallowCloneNode', _shallowCloneNode);
 }
 // @@EXPORTS-END

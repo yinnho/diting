@@ -4,7 +4,6 @@
     "__acc",
     "__accRo",
     "__ditingReorderProto",
-    "__locParts",
     "_markNativeProto",
     "_mirrorSelectLabel",
     "_shallowCloneNode"
@@ -93,5 +92,8 @@
   ],
   "media_queries.js": [
     "_MQ_PERSONA_BOOL"
+  ],
+  "location_face.js": [
+    "__locParts"
   ]
 }
