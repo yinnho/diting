@@ -277,6 +277,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // blob_urls.js — it mutates the URL constructor (createObjectURL)
     // at load time; runtime-only consumers otherwise.
     ("url_face.js", include_str!("js/url_face.js")),
+    // god-file split (刀58, MutationObserver family): the observer class,
+    // the microtask flush (__moFlush), the WebKitMutationObserver alias and
+    // __notifyMutation (the engine's record entry point). All installs are
+    // globalThis member forms; cross-file consumers (domcore dispatch,
+    // ctor_ladders, shape_fix, global_surface, window_order, worker) are
+    // runtime-only. Native marking migrated (刀22 precedent).
+    ("mutation_observer.js", include_str!("js/mutation_observer.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this
