@@ -338,65 +338,6 @@ if (_origStackDesc && _origStackDesc.get) {
 
 const _domParse = (cmd, a1, a2) => { try { return JSON.parse(_dom(cmd, a1, a2)); } catch { return null; } };
 
-const _consoleFn = (level, args) => {
-  try {
-    let joined = args.map(a => _fmtVal(a, 0, new WeakSet())).join(" ");
-    if (joined.length > _FMT_MAX) joined = joined.slice(0, _FMT_MAX) + "\u2026 (truncated " + (joined.length - _FMT_MAX) + " chars)";
-    _OPS.op_console_msg(level, joined);
-  } catch {}
-  if (level === "error") {
-    try {
-      globalThis.__diting_errors = globalThis.__diting_errors || [];
-      globalThis.__diting_errors.push({msg: args.map(a => {
-        if (a !== null && typeof a === "object") {
-          const st = _peek(a, "stack");
-          if (typeof st === "string" && st) return st;
-          const m = _peek(a, "message");
-          if (typeof m === "string" && m) return m;
-          return _fmtVal(a, 0, new WeakSet());
-        }
-        return String(a);
-      }).join(" ")});
-    } catch {}
-  }
-};
-
-globalThis.console = {
-  log: (...a) => _consoleFn("log", a), warn: (...a) => _consoleFn("warn", a),
-  error: (...a) => _consoleFn("error", a), info: (...a) => _consoleFn("log", a),
-  debug: (...a) => _consoleFn("debug", a),
-  dir: () => {}, trace: () => {}, table: () => {}, group: () => {},
-  groupEnd: () => {}, groupCollapsed: () => {}, time: () => {}, timeEnd: () => {},
-  timeLog: () => {}, count: () => {}, countReset: () => {}, clear: () => {},
-  assert: (c, ...a) => { if (!c) _consoleFn("error", ["Assertion failed:", ...a]); },
-  createTask(name) {
-    // Chrome 130+ Console.createTask: a task carries a stack capture for
-    // async continuation attribution. The shape (object with run()) is what
-    // library detectors probe; the stack metadata is inert here.
-    if (arguments.length === 0) throw new TypeError("Failed to execute 'createTask' on 'Console': 1 argument required, but only 0 present.");
-    return {
-      name: String(name),
-      run(fn, ...args) {
-        if (typeof fn !== "function") throw new TypeError("Failed to execute 'run' on 'ConsoleTask': parameter 1 is not of type 'Function'.");
-        try { return fn.apply(undefined, args); }
-        catch (e) { globalThis.__diting_reportUncaughtError(e); }
-      },
-    };
-  },
-  context(label) {
-    // Chrome-only console.context([label]) → ConsoleContext: an object whose
-    // console methods run under the label. Detectors probe its presence;
-    // label routing is inert here, so methods delegate to plain console.
-    const ctx = { label: label === undefined ? "" : String(label) };
-    for (const m of ["log", "info", "warn", "error", "debug", "dir", "table",
-      "trace", "group", "groupEnd", "groupCollapsed", "time", "timeLog",
-      "timeEnd", "count", "countReset", "clear", "assert"]) {
-      if (typeof this[m] === "function") ctx[m] = this[m].bind(this);
-    }
-    return ctx;
-  },
-};
-
 // Shallow-clone one node as a real DOM node: text/comment copy their data,
 // fragments come back empty, elements are recreated in their namespace with all
 // attributes copied. Used by cloneNode's non-element deep path.
@@ -525,8 +466,8 @@ globalThis.scrollX = 0; globalThis.scrollY = 0;
   // (刀54) the timer/raf faces moved to timer_belt.js — their native
   // marking migrated there (bootstrap loads first; 刀22 precedent).
   globalThis.structuredClone, globalThis.reportError,
-  console.log, console.warn, console.error, console.info, console.debug,
-  console.dir, console.assert,
+  // (刀78) the console face moved to console_face.js — its seven members
+  // self-mark there (marking travels, 刀22/刀54 precedent).
   // (刀22) Notification + chrome.csi/loadTimes moved to bchk_apis.js —
   // their native marking migrated there (bootstrap loads first and would
   // see undefined here; the member reads also hid from the analyzer).

@@ -39,6 +39,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // bootstrap: _consoleFn calls them at runtime via the published hidden
     // globals, and any load-time console use in later files resolves here.
     ("console_format.js", include_str!("js/console_format.js")),
+    // god-file split (刀78, console face): _consoleFn + the globalThis.console
+    // install (createTask/context/assert). Consumes console_format's
+    // formatters one slot earlier at call time; the seven marked members
+    // self-mark here (marking travels — bootstrap would mark the host console).
+    ("console_face.js", include_str!("js/console_face.js")),
     // god-file split (刀65, event subclass family): the _evx WeakMap state
     // scheme, the deno_core unhandledrejection/rejectionhandled routing
     // IIFE, and the subclass ladder (UIEvent brood + plain Event brood;
