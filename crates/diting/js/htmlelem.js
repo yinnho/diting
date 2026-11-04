@@ -1007,7 +1007,6 @@ for (const _n of _BODY_WINDOW_EVENT_NAMES) {
   d('_bodyWindowInline', _bodyWindowInline);
   d('_formNamedProxy', _formNamedProxy);
   d('_htmlInterface', _htmlInterface);
-  d('_markNative', _markNative);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END

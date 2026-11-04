@@ -31,6 +31,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // selection mirror, Image/Audio/Option factories and the body-window
     // on* cluster. After domcore.js: its mints extend the core classes.
     ("htmlelem.js", include_str!("js/htmlelem.js")),
+    // god-file split (刀4, serializer family): the XML well-formedness gate,
+    // _xmlBuildTree (domparser.js's XML tree builder) and XMLSerializer.
+    // Before domparser.js (call-time) and web_api_gaps.js (load-time member
+    // read on XMLSerializer.prototype).
+    ("serializer.js", include_str!("js/serializer.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split: the canvas 2D family — TextMetrics, the _Canvas2D class
