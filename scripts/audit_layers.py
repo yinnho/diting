@@ -89,6 +89,7 @@ GOD_FILE_GRANDFATHER = {
     "crates/diting/src/diting_js/runtime.rs": 1765,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
     "src/docgen/workflow.rs": 1592,
     "crates/diting/js/svg_root.js": 1562,  # one family (SVG DOM root+attrs); 62 over — a split for the cap alone buys nothing
+    "crates/diting/js/domcore.js": 4836,  # DOM inheritance spine (Node/Element/Document, 刀3); Element class alone is 2,341 lines — the cap is unreachable without prototype-member-order surgery (shape fingerprint)
 }
 
 # Generated concatenations. platform_bundle.js is bundle.py's output over the
