@@ -28,8 +28,10 @@ if build not in cft["builds"].get(str(major), []):
 # 2. tls profile
 if T["tls_profile"] != "chrome%d" % major:
     errs.append("tls_profile %r != chrome%d" % (T["tls_profile"], major))
-# 3. JS table
-js = open(os.path.join(ROOT, "crates/diting/js/bootstrap.js"), encoding="utf8").read()
+# 3. JS table  (刀19: the table lives in a split file — scan every engine js file)
+_js_dir = os.path.join(ROOT, "crates/diting/js")
+js = "\n".join(open(os.path.join(_js_dir, fn), encoding="utf8").read()
+               for fn in sorted(os.listdir(_js_dir)) if fn.endswith(".js"))
 m = re.search(r"const __DITING_FULL_BUILD = \{(.*?)\};", js, re.S)
 table = dict(re.findall(r'"(\d+)":\s*"([\d.]+)"', m.group(1))) if m else {}
 if table.get(str(major)) != build:
