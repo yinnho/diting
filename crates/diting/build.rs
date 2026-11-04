@@ -285,6 +285,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // the real fetch path; Response is a host native, typeof guards read a
     // host global in both homes - verbatim move. Marking travels (alias).
     ("response_methods.js", include_str!("js/response_methods.js")),
+    // god-file split (刀52, GlobalEventHandlers on* IDL belt): on<event>
+    // accessors on Element/Document prototypes (deferred) + window (direct,
+    // chrome-155 truth set). Deferred registration via the published
+    // __diting_domDeferred member (ratchet-flat form).
+    ("on_handlers.js", include_str!("js/on_handlers.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
