@@ -3157,35 +3157,6 @@ if (!('crossOriginIsolated' in globalThis)) {
   Object.defineProperty(globalThis, 'crossOriginIsolated', { value: false, configurable: true });
 }
 
-globalThis.crypto = globalThis.crypto || {
-  // Fill an integer TypedArray from the OS CSPRNG. Filling the underlying bytes
-  // (not per-element Math.random) keeps the distribution uniform across every
-  // typed-array width and is actually cryptographically random.
-  getRandomValues(arr) {
-    if (!ArrayBuffer.isView(arr) || arr instanceof DataView ||
-        arr instanceof Float32Array || arr instanceof Float64Array ||
-        (typeof Float16Array !== 'undefined' && arr instanceof Float16Array)) {
-      throw new DOMException("The provided ArrayBufferView is not an integer-typed array", "TypeMismatchError");
-    }
-    if (arr.byteLength > 65536) {
-      throw new DOMException("The requested length exceeds 65536 bytes", "QuotaExceededError");
-    }
-    const bytes = _OPS.op_random_bytes(arr.byteLength);
-    new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength).set(bytes);
-    return arr;
-  },
-  randomUUID() {
-    const b = _OPS.op_random_bytes(16);
-    b[6] = (b[6] & 0x0f) | 0x40; // version 4
-    b[8] = (b[8] & 0x3f) | 0x80; // variant 10xx
-    let s = "";
-    for (let i = 0; i < 16; i++) {
-      s += (b[i] + 0x100).toString(16).slice(1);
-      if (i === 3 || i === 5 || i === 7 || i === 9) s += "-";
-    }
-    return s;
-  },
-};
 globalThis.reportError = globalThis.reportError || ((e) => console.error(e));
 
 globalThis.screenX = 0; globalThis.screenY = 0;

@@ -242,6 +242,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // serializers (_formEncode/_hexv). _hexv keeps bootstrap consumers as
     // cross-file runtime refs (published from here).
     ("url_search_params.js", include_str!("js/url_search_params.js")),
+    // god-file split (刀43, crypto fallback): getRandomValues + randomUUID.
+    // Guard already member form. crypto_subtle.js (#330) and ed25519.js
+    // (#331) read globalThis.crypto at their load time - both after this
+    // position, so the fallback is in place first.
+    ("crypto_fallback.js", include_str!("js/crypto_fallback.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
