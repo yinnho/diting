@@ -456,6 +456,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // a(), media_queries' mqRecompute/mqFlush members). Any slot safe;
     // beside media_queries, whose hooks it drives.
     ("cdp_emulation.js", include_str!("js/cdp_emulation.js")),
+    // god-file split (刀88, per-realm initializer): __diting_init — the
+    // whole per-realm setup Rust calls after every context restore (fp
+    // seed redraw, on*/viewport accessor re-installs, persona, SAB
+    // intrinsic delete, NavigationTiming seeding, the interface hide
+    // belt, self-delete). Free names accessor/d()-mediated at call time;
+    // nothing captured at load; the install changes no visibility window
+    // (hide-list capture runs at bootstrap's load; init self-deletes).
+    ("diting_init.js", include_str!("js/diting_init.js")),
     // god-file split (刀49, blob URL minting belt): __blobStore/__blobObjs
     // registries + v4-UUID minter + URL.createObjectURL/revokeObjectURL
     // (member-form writes onto the url_face.js constructor, this
