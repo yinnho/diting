@@ -92,6 +92,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // runtime through the generated a()/d() publishes. Loads before
     // navigator_persona to keep the original bootstrap statement order.
     ("plugins.js", include_str!("js/plugins.js")),
+    // god-file split (刀18, NavigatorUAData): the illegal-constructor class
+    // (brands/mobile/platform, getHighEntropyValues, toJSON) + the WebIDL
+    // prototype reorder, which migrates here from bootstrap's bottom cluster
+    // (bootstrap loads before this file installs the class). Runtime helper
+    // reads (_getFp, the UA-major/build table pair) ride the exports-extra
+    // pins. Loads before navigator_persona — its store's userAgentData
+    // Object.creates the prototype at load time.
+    ("uadata.js", include_str!("js/uadata.js")),
     // god-file split (刀13, navigator persona): __navStore literal, langs
     // memo, the Navigator class + prototype setup walk + singleton +
     // __diting_navSet. The mark-list navigator cluster, the credentials
