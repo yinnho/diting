@@ -3167,18 +3167,6 @@ globalThis.screenLeft = 0; globalThis.screenTop = 0;
 globalThis.pageXOffset = 0; globalThis.pageYOffset = 0;
 globalThis.scrollX = 0; globalThis.scrollY = 0;
 
-// (#27) HTMLElement is a REAL layer between Element and the per-tag
-// interfaces — Chrome's chain is HTMLDivElement → HTMLElement → Element →
-// Node → EventTarget. Page code does `el instanceof HTMLElement` for feature
-// tests and unknown tags (x-foo) report constructor.name "HTMLElement", so
-// the alias `= Element` that used to live here was wrong twice: no
-// HTMLElement level in the chain, and no per-interface prototype at all.
-// The engine passes a numeric node id when it wraps a node; a non-number
-// nid means page-side construction, which has exactly two legal faces
-// (#55): a registry upgrade running a constructor (rebind to the live
-// element) and `new (customElements.get(name))()` (construct a fresh node,
-// born upgraded). Everything else stays the Illegal constructor Chrome
-// throws for `new HTMLElement()` / `new HTMLDivElement()`.
 
 
 globalThis.DOMStringMap = DOMStringMap;
