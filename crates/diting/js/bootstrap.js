@@ -7219,60 +7219,6 @@ globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function(id) { 
 // (platform/gen/geometry.gen.js + platform/geometry.impl.js, M4 knife 1).
 
 
-if (typeof FileReader === 'undefined') {
-  globalThis.FileReader = class FileReader extends EventTarget {
-    constructor() {
-      super();
-      __def(this, '_result', null); __def(this, '_error', null); __def(this, '_readyState', 0); // EMPTY
-      this.onloadstart = null; this.onprogress = null; this.onload = null;
-      this.onabort = null; this.onerror = null; this.onloadend = null;
-      __hideOwn(this);
-    }
-    get [Symbol.toStringTag]() { return "FileReader"; }
-    _read(blob, kind, encoding) {
-      // Spec: reading while LOADING throws InvalidStateError.
-      if (this.readyState === 1) throw new DOMException("The object is already busy reading Blobs.", "InvalidStateError");
-      __def(this, '_readyState', 1); // LOADING
-      __def(this, '_result', null); __def(this, '_error', null);
-      this._fire("loadstart");
-      const self = this;
-      Promise.resolve().then(function () {
-        if (self.readyState !== 1) return; // aborted before completion
-        const bytes = (blob && blob._bytes) ? blob._bytes : new Uint8Array(0);
-        try {
-          if (kind === "text") __def(self, '_result', new TextDecoder(encoding || "utf-8").decode(bytes));
-          else if (kind === "binary") __def(self, '_result', _bytesToBinaryString(bytes));
-          else if (kind === "dataurl") __def(self, '_result', "data:" + ((blob && blob.type) || "application/octet-stream") + ";base64," + btoa(_bytesToBinaryString(bytes)));
-          else __def(self, '_result', _arrayBufferFromBytes(bytes));
-        } catch (e) { __def(self, '_error', e); }
-        __def(self, '_readyState', 2); // DONE
-        self._fire("progress"); self._fire("load"); self._fire("loadend");
-      });
-    }
-    readAsText(blob, encoding) { this._read(blob, "text", encoding); }
-    readAsDataURL(blob) { this._read(blob, "dataurl"); }
-    readAsArrayBuffer(blob) { this._read(blob, "arraybuffer"); }
-    readAsBinaryString(blob) { this._read(blob, "binary"); }
-    abort() {
-      const wasReading = this.readyState === 1;
-      __def(this, '_readyState', 0); __def(this, '_result', null);
-      if (wasReading) { this._fire("abort"); this._fire("loadend"); }
-    }
-    // M3 B2b: one real ProgressEvent through the native core — the ctor
-    // init dict defaults (lengthComputable:false, loaded:0, total:0) are
-    // exactly the fields the old plain object carried, and the on* handler
-    // + listeners now both fire from the core (handler first).
-    _fire(type) {
-      this.dispatchEvent(new ProgressEvent(type));
-    }
-    // (the EventTarget trio resolves through the chain — no own copies)
-  };
-  globalThis.FileReader.EMPTY = 0; globalThis.FileReader.LOADING = 1; globalThis.FileReader.DONE = 2;
-  Object.assign(globalThis.FileReader.prototype, { EMPTY: 0, LOADING: 1, DONE: 2 });
-  __accRo(globalThis.FileReader, ['result', 'error', 'readyState']);
-  __acc(globalThis.FileReader, ['onloadstart', 'onprogress', 'onload',
-    'onabort', 'onerror', 'onloadend']);
-}
 
 // Real network sockets aren't implemented; we don't have a runtime WS / SSE
 // client in V8. But pages that wait for an `open` event (Vite HMR clients
@@ -8243,6 +8189,7 @@ try {
   d('_base64ToUint8Array', _base64ToUint8Array);
   d('_bodyToUint8Array', _bodyToUint8Array);
   d('_bytesToBase64', _bytesToBase64);
+  d('_bytesToBinaryString', _bytesToBinaryString);
   d('_cancelAnimationsInSubtree', _cancelAnimationsInSubtree);
   d('_cancelPreClickFlip', _cancelPreClickFlip);
   d('_cancelTransitionsInSubtree', _cancelTransitionsInSubtree);

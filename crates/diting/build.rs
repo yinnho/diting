@@ -58,6 +58,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Sole installer; no mark entries; all consumers are call-time or sit
     // later in the order (worker.js realm capture, videoframe error strings).
     ("image_bitmap.js", include_str!("js/image_bitmap.js")),
+    // god-file split (刀10, FileReader family): the guarded install —
+    // readAs* over the blob store with ready-state/on* accessor fills
+    // (刀84 __accRo/__acc). extends EventTarget is a native-name ref
+    // (audio/worker/indexeddb precedent), not a cross-file pair.
+    ("filereader.js", include_str!("js/filereader.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split (刀7, Path2D family): the guarded install — subpaths in
