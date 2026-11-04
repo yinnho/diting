@@ -3178,13 +3178,6 @@ globalThis.scrollX = 0; globalThis.scrollY = 0;
 // throws for `new HTMLElement()` / `new HTMLDivElement()`.
 
 
-globalThis.GPUAdapter = class GPUAdapter {
-  requestDevice() { return Promise.reject(new Error('GPUDevice unavailable')); }
-};
-globalThis.GPU = class GPU {
-  requestAdapter() { return Promise.resolve(null); }
-  getPreferredCanvasFormat() { return 'bgra8unorm'; }
-};
 globalThis.DOMStringMap = DOMStringMap;
 // Build a NodeList (no named access, per spec) for querySelectorAll and
 // childNodes. Kept light on purpose: querySelectorAll is the hottest query API.
