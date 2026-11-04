@@ -311,6 +311,12 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // ctor_ladders, shape_fix, global_surface, window_order, worker) are
     // runtime-only. Native marking migrated (刀22 precedent).
     ("mutation_observer.js", include_str!("js/mutation_observer.js")),
+    // god-file split (刀70, ResizeObserver): the real per-target firing
+    // class (observe/unobserve/disconnect only, 刀57 shape); install
+    // self-marks (marking travels, 刀22; the bootstrap marking-list row
+    // became a note). Observer cluster slot. interface_sweep reads the
+    // global at its load — this file is earlier.
+    ("resize_observer.js", include_str!("js/resize_observer.js")),
     // god-file split (刀60, form activation belt): the pre/post click
     // activation machinery — lazy prototype-setter cache (bypasses instance
     // traps like React's _valueTracker), flip/cancel/commit triplet,
