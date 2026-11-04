@@ -23,6 +23,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("deno_shell", "globalThis.Deno = { core: { ops: {}, setUnhandledPromiseRejectionHandler: __diting_set_unhandled_rejection_handler, setHandledPromiseRejectionHandler: __diting_set_handled_rejection_handler } };"),
     // Main script: the bootstrap god-file-turned-root.
     ("bootstrap.js", include_str!("js/bootstrap.js")),
+    // god-file split (刀79, window identity): window/self/top/parent/frames
+    // aliases + frameElement/length. Pure installs, zero reads. FIRST after
+    // bootstrap, ahead of location_face — no location reads at load, so the
+    // 刀74 belt argument survives (the load window has no location READERS).
+    ("window_identity.js", include_str!("js/window_identity.js")),
     // god-file split (刀74, Location face): _resolveUrl + __virtualUrl +
     // __currentUrl + the __locParts memo + the location object + the
     // unforgeable accessor. FIRST slot after bootstrap (刀74 人肉审:

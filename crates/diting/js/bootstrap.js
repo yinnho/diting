@@ -392,14 +392,6 @@ Object.defineProperty(globalThis, 'isSecureContext', {
   enumerable: true,
 });
 
-globalThis.window = globalThis;
-globalThis.self = globalThis;
-globalThis.top = globalThis;
-globalThis.parent = globalThis;
-globalThis.frames = globalThis;
-globalThis.frameElement = null;
-globalThis.length = 0;
-
 // (face fix) The early `globalThis['on'+ev] = null` loop is gone: it installed
 // enumerable data props where Chrome has accessor pairs, and its name set was
 // the pre-P2 approximation. The single chrome-exact accessor install at
