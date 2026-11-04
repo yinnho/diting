@@ -67,6 +67,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // fires `open` after a microtask (docs-site HMR shape), accessor fills
     // on the 刀6 alias device.
     ("eventsource.js", include_str!("js/eventsource.js")),
+    // god-file split (刀12, SharedWorker family): one script instance per
+    // (url, name) with real MessagePort pairs (#213), the SharedWorkerGlobal-
+    // Scope shape, inline _markNative — the serializer head-alias device.
+    ("sharedworker.js", include_str!("js/sharedworker.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split (刀7, Path2D family): the guarded install — subpaths in
