@@ -42,6 +42,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // binding; consumers (domcore, htmlelem) call at call time. Any slot
     // safe. Host pin flipped here from bootstrap in this knife.
     ("mirror_select.js", include_str!("js/mirror_select.js")),
+    // god-file split (刀92, snapshot sweeps): the fp-diff-1014 P0 name sweep
+    // (anonymous function-valued globals named; detached-EventTarget wrap)
+    // + the frame-copyable globals builder, load-time calls intact. Slot is
+    // free: interface_sweep (the LAST snapshot module) re-runs both, and the
+    // only load-time-sensitive consumer (navigation's addEventListener
+    // capture) loads after it. _markNative arrives via the bootstrap hidden-
+    // global bridge captured at this file's head (member form, ratchet-flat).
+    ("snapshot_sweeps.js", include_str!("js/snapshot_sweeps.js")),
     // god-file split (刀83, event-state facade + native trio): _eventState
     // capture off the engine-installed bridge global (deleted in the same
     // breath) + the M3-B1 addEventListener/removeEventListener/dispatchEvent
