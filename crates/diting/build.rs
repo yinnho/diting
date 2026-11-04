@@ -173,6 +173,15 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // paths and bootstrap's __prepareInsertedSubtree call the walks, ce_attr
     // plugin module reached via optional __diting_ce* members. Order-free.
     ("custom_elements.js", include_str!("js/custom_elements.js")),
+    // god-file split (刀31, window named access #48): the _named* family +
+    // the load-time _namedHolder IIFE (parks the gate proxy under
+    // globalThis; window_extras.js's EventTarget rewire reads
+    // __diting_namedHolder at its later load). Named getters only appear
+    // at runtime, so the gate is a no-op layer during every platform
+    // file's load — order-free. domcore.js calls the scan/unscan walkers
+    // at runtime; Rust entry points call globalThis._namedBoot
+    // (analyzer-blind — pinned in exports-extra so the publish stays).
+    ("named_access.js", include_str!("js/named_access.js")),
     // god-file split (刀14, Plugin/MimeType family): the four array-like
     // classes (Plugin, MimeType, PluginArray, MimeTypeArray) + WeakMap stores
     // + the cached PDF persona builder. Self-contained installs on globalThis;
