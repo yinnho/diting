@@ -7227,28 +7227,6 @@ globalThis.cancelIdleCallback = globalThis.cancelIdleCallback || function(id) { 
 // forever otherwise. Fire `open` after a microtask so the consumer at least
 // proceeds; subsequent messages never arrive, which is no worse than the
 // current "no signal whatsoever" behaviour.
-if (typeof EventSource === 'undefined') {
-  globalThis.EventSource = class EventSource {
-    constructor(url, init) {
-      __def(this, '_url', url);
-      __def(this, '_readyState', 0); // CONNECTING
-      __def(this, '_withCredentials', !!(init && init.withCredentials));
-      this.onopen = null; this.onmessage = null; this.onerror = null;
-      Promise.resolve().then(() => {
-        if (this.readyState !== 0) return;
-        __def(this, '_readyState', 1); // OPEN
-        // 刀56: the native dispatch fires on* itself (handler hook) — the
-        // manual onopen call is gone or it would fire twice.
-        try { this.dispatchEvent(new Event('open')); } catch (e) {}
-      });
-      __hideOwn(this);
-    }
-    close() { __def(this, '_readyState', 2); }
-    static CONNECTING = 0; static OPEN = 1; static CLOSED = 2;
-  };
-  __accRo(globalThis.EventSource, ['url', 'readyState', 'withCredentials']);
-  __acc(globalThis.EventSource, ['onopen', 'onmessage', 'onerror']);
-}
 
 if (typeof BroadcastChannel === 'undefined') {
   // Same-origin message bus. Chrome delivers each post as a task to every

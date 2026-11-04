@@ -63,6 +63,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // (刀84 __accRo/__acc). extends EventTarget is a native-name ref
     // (audio/worker/indexeddb precedent), not a cross-file pair.
     ("filereader.js", include_str!("js/filereader.js")),
+    // god-file split (刀11, EventSource family): the guarded SSE stub —
+    // fires `open` after a microtask (docs-site HMR shape), accessor fills
+    // on the 刀6 alias device.
+    ("eventsource.js", include_str!("js/eventsource.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
     // god-file split (刀7, Path2D family): the guarded install — subpaths in
