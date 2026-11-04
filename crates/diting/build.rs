@@ -47,6 +47,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("websocket.js", include_str!("js/websocket.js")),
     // god-file split: the canvas font shorthand parser (刀117), call-time only.
     ("canvas_font.js", include_str!("js/canvas_font.js")),
+    // god-file split (刀7, Path2D family): the guarded install — subpaths in
+    // user space, the SVG path-data constructor parser, addPath. Sits before
+    // canvas2d.js, whose context methods construct Path2D at call time
+    // (_p2d()/beginPath).
+    ("path2d.js", include_str!("js/path2d.js")),
     // god-file split: the canvas 2D family — TextMetrics, the _Canvas2D class
     // (it IS CanvasRenderingContext2D), HTMLCanvasElement's canvas methods and
     // the bitmap flush hook the host evaluates before a render.
