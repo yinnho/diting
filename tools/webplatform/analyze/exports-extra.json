@@ -2,16 +2,15 @@
   "bootstrap.js": [
     "_DOM_MUTATION_COMMANDS",
     "_MQ_PERSONA_BOOL",
-    "_getFp",
-    "__ditingReorderProto",
-    "__locParts",
-    "_formValues",
-    "_fpCache",
-    "_fpSeed",
-    "_mirrorSelectLabel",
     "__acc",
     "__accRo",
+    "__ditingReorderProto",
+    "__locParts",
+    "_fpCache",
+    "_fpSeed",
+    "_getFp",
     "_markNativeProto",
+    "_mirrorSelectLabel",
     "_parserVisibleIds",
     "_shallowCloneNode"
   ],
@@ -85,5 +84,8 @@
     "_timerArmed",
     "_timerHeap",
     "_timerPatrol"
+  ],
+  "form_state.js": [
+    "_formValues"
   ]
 }
