@@ -1,7 +1,6 @@
 {
   "bootstrap.js": [
     "_DOM_MUTATION_COMMANDS",
-    "_MQ_PERSONA_BOOL",
     "__acc",
     "__accRo",
     "__ditingReorderProto",
@@ -91,5 +90,8 @@
     "_fpCache",
     "_fpSeed",
     "_getFp"
+  ],
+  "media_queries.js": [
+    "_MQ_PERSONA_BOOL"
   ]
 }
