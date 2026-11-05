@@ -4935,3 +4935,139 @@ fn ua_link_color_default_blue_for_href_anchors() {
         Some(Color(0, 128, 0, 255))
     );
 }
+
+// ---- #17: computed colour serialisation keeps the authored space ----
+// Chrome truth probed 2026-11-06 (headless --dump-dom, base64 channel):
+// legacy sources (keywords/hex/rgb()/hsl()/hwb()) collapse to rgb()/rgba();
+// modern functions (color(), oklch(), oklab(), lab(), lch(), color-mix(),
+// relative `from` syntax) re-serialize in their authored space, %.6g numbers,
+// `none` channels verbatim, `/ a` only when alpha < 1.
+
+#[test]
+fn parse_color_with_origin_tags_modern_functions() {
+    use super::color::parse_color_with_origin;
+    // Modern: the twin slot fills, sRGB Color still parses for paint.
+    let (c, m) = parse_color_with_origin("oklch(70% 0.1 200)").unwrap();
+    assert!(c.3 > 0, "paint colour still resolves");
+    assert_eq!(m.map(|x| x.to_css()).as_deref(), Some("oklch(0.7 0.1 200)"));
+
+    let (_, m) = parse_color_with_origin("rgb(from red r g 255)").unwrap();
+    assert_eq!(m.map(|x| x.to_css()).as_deref(), Some("color(srgb 1 0 1)"));
+
+    let (_, m) = parse_color_with_origin("color-mix(in srgb, red 50%, blue)").unwrap();
+    assert_eq!(
+        m.map(|x| x.to_css()).as_deref(),
+        Some("color(srgb 0.5 0 0.5)")
+    );
+
+    let (_, m) = parse_color_with_origin("lab(50% 20 -30)").unwrap();
+    assert_eq!(m.map(|x| x.to_css()).as_deref(), Some("lab(50 20 -30)"));
+
+    // `none` channels survive verbatim.
+    let (_, m) = parse_color_with_origin("oklch(none 0.1 200)").unwrap();
+    assert_eq!(
+        m.map(|x| x.to_css()).as_deref(),
+        Some("oklch(none 0.1 200)")
+    );
+
+    // Alpha < 1 appends the slash form; 70% L normalises to 0.7.
+    let (_, m) = parse_color_with_origin("oklch(70% 0.1 200 / 0.5)").unwrap();
+    assert_eq!(
+        m.map(|x| x.to_css()).as_deref(),
+        Some("oklch(0.7 0.1 200 / 0.5)")
+    );
+
+    // Legacy: every form tags None (they serialize rgb()/rgba()).
+    for legacy in [
+        "#f00",
+        "red",
+        "rgb(255 0 0)",
+        "rgba(0,0,0,.5)",
+        "hsl(120 100% 25%)",
+    ] {
+        let (_, m) = parse_color_with_origin(legacy).unwrap();
+        assert!(m.is_none(), "{legacy} should not tag modern");
+    }
+}
+
+#[test]
+fn rgb_css_legacy_spellings() {
+    assert_eq!(color::rgb_css(&Color(255, 0, 0, 255)), "rgb(255, 0, 0)");
+    assert_eq!(color::rgb_css(&Color(0, 0, 0, 0)), "rgba(0, 0, 0, 0)");
+    // 26/255 serializes as 0.1 (two decimals round-trip the 8-bit alpha).
+    assert_eq!(color::rgb_css(&Color(0, 0, 0, 26)), "rgba(0, 0, 0, 0.1)");
+    // 129/255 needs three decimals (0.506 ≠ 0.51×255 rounding).
+    assert_eq!(color::rgb_css(&Color(0, 0, 0, 129)), "rgba(0, 0, 0, 0.506)");
+}
+
+#[test]
+fn computed_style_modern_twin_slots_cascade() {
+    // Direct colour longhand fills both slots.
+    let mut s = ComputedStyle::default();
+    assert!(apply_declarations(&mut s, "color: oklch(0.7 0.1 200)"));
+    assert_eq!(
+        s.color_modern.map(|m| m.to_css()).as_deref(),
+        Some("oklch(0.7 0.1 200)")
+    );
+    // A later legacy value clears the twin (no stale authored space).
+    assert!(apply_declarations(&mut s, "color: red"));
+    assert_eq!(s.color_modern, None);
+    assert_eq!(s.color, Some(Color(255, 0, 0, 255)));
+
+    // background shorthand: modern color + gradient in one declaration.
+    let mut s = ComputedStyle::default();
+    assert!(apply_declarations(
+        &mut s,
+        "background: linear-gradient(#0f0, oklch(0.7 0.1 200)) padding-box"
+    ));
+    assert_eq!(s.background_color, None);
+    assert_eq!(s.background_color_modern, None);
+    assert!(apply_declarations(
+        &mut s,
+        "background-color: color-mix(in srgb, red 50%, blue)"
+    ));
+    assert_eq!(
+        s.background_color_modern.map(|m| m.to_css()).as_deref(),
+        Some("color(srgb 0.5 0 0.5)")
+    );
+
+    // border shorthand carries the modern colour through to the twin.
+    let mut s = ComputedStyle::default();
+    assert!(apply_declarations(
+        &mut s,
+        "border: 1px solid oklch(0.7 0.1 200)"
+    ));
+    assert_eq!(
+        s.border_color_modern.map(|m| m.to_css()).as_deref(),
+        Some("oklch(0.7 0.1 200)")
+    );
+
+    // css-wide keywords copy the twin along with the primary.
+    let mut src = ComputedStyle::default();
+    assert!(apply_declarations(&mut src, "color: oklch(0.7 0.1 200)"));
+    let mut dst = ComputedStyle::default();
+    css_wide_copy_field(&mut dst, &src, "color");
+    assert_eq!(dst.color_modern, src.color_modern);
+}
+
+#[cfg(feature = "screenshot")]
+#[test]
+fn computed_image_text_rewrites_stops_chrome_style() {
+    // Probed Chrome 2026-11-06: legacy stops re-serialize rgb()/rgba(),
+    // modern stops keep their function, separators normalize to ", ".
+    assert_eq!(
+        computed_image_text(
+            "linear-gradient(#0f0, rgb(0 0 255 / .5), oklch(0.7 0.1 200), hsl(120 100% 25%), transparent)"
+        ),
+        "linear-gradient(rgb(0, 255, 0), rgba(0, 0, 255, 0.5), oklch(0.7 0.1 200), rgb(0, 128, 0), rgba(0, 0, 0, 0))"
+    );
+    assert_eq!(
+        computed_image_text("conic-gradient(red,blue)"),
+        "conic-gradient(rgb(255, 0, 0), rgb(0, 0, 255))"
+    );
+    // url() payloads at paren depth 2 keep their commas verbatim.
+    assert_eq!(
+        computed_image_text("url(\"a,b.png\"), linear-gradient(red, blue)"),
+        "url(\"a,b.png\"), linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))"
+    );
+}

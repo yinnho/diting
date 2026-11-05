@@ -2588,9 +2588,10 @@ fn separable_modes_hit_their_identity_corners() {
     );
     // overlay: Cb ≤ 0.5 multiplies — black stays black; white screens.
     assert_eq!(m(MixBlendMode::Overlay, 0, 200), 0);
+    let (src, dst) = (255u32, 200u32);
     assert_eq!(
         m(MixBlendMode::Overlay, 255, 200),
-        255 - ((2 * 0 * 55 + 127) / 255)
+        255 - ((2 * (255 - src) * (255 - dst) + 127) / 255)
     );
     // hard-light mirrors overlay with the source threshold.
     assert_eq!(m(MixBlendMode::HardLight, 200, 0), 0);

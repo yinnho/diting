@@ -2,6 +2,17 @@
 
 use super::*;
 
+/// `parse_color` plus the authored-space tag (#17): modern colour functions
+/// carry their space for the CSSOM face; every legacy form tags `None`.
+pub fn parse_color_with_origin(
+    v: &str,
+) -> Option<(Color, Option<super::color_modern::ModernColor>)> {
+    if let Some((c, m)) = super::color_modern::parse_with_origin(v) {
+        return Some((c, m));
+    }
+    parse_color(v).map(|c| (c, None))
+}
+
 /// Named colors + #rgb/#rrggbbaa hex (the forms real sheets overwhelmingly use).
 pub fn parse_color(v: &str) -> Option<Color> {
     let v = v.trim().to_ascii_lowercase();
@@ -92,6 +103,32 @@ pub fn parse_color(v: &str) -> Option<Color> {
         _ => return parse_hex_color(&v),
     };
     Some(named)
+}
+
+/// Chrome's computed-value spelling of a LEGACY colour (keywords, hex,
+/// rgb()/hsl()): opaque → `rgb(r, g, b)`, alpha < 1 → `rgba(r, g, b, a)`
+/// with two decimals when they round-trip to the same 8-bit alpha (26/255
+/// → 0.1), else three (#17). Modern colour functions never come through
+/// here — they keep their authored space (color_modern::ModernColor).
+pub(crate) fn rgb_css(c: &Color) -> String {
+    if c.3 == 255 {
+        return format!("rgb({}, {}, {})", c.0, c.1, c.2);
+    }
+    let exact = c.3 as f32 / 255.0;
+    let two = (exact * 100.0).round() / 100.0;
+    let a = if (two * 255.0).round() as u8 == c.3 {
+        format!("{:.2}", two)
+    } else {
+        format!("{:.3}", exact)
+    };
+    let a = a.trim_end_matches('0').trim_end_matches('.');
+    format!(
+        "rgba({}, {}, {}, {})",
+        c.0,
+        c.1,
+        c.2,
+        if a.is_empty() { "0" } else { a }
+    )
 }
 
 /// CSS HSL → sRGB (the chroma ladder, CSS Color 3 §4.2.1/§4.2.5): h in
