@@ -16,7 +16,16 @@ impl Drop for NetEnvGuard {
     }
 }
 pub(crate) fn net_env_guard() -> NetEnvGuard {
-    let guard = crate::test_support::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    // Poison-immune by design: on a bare build the #251 tripwire and the
+    // geometry tests fail WHILE holding this lock (net_env_guard is their
+    // setup step). A poisoned lock would then cascade PoisonError into every
+    // later test — one deliberate tripwire failure became 46 cryptic ones,
+    // defeating the tripwire's own "one loud failure beats 32 cryptic" intent.
+    // Recovery is safe: NetEnvGuard's Drop clears the env var even while
+    // unwinding, so lock state is the only thing lost.
+    let guard = crate::test_support::PRIVATE_NET_ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
     NetEnvGuard(guard)
 }
