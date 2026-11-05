@@ -64,7 +64,12 @@ pub(super) fn resolve_document_referrer_policy(state: &OpState) -> String {
 /// Origin-only results keep the trailing "/" that our navigation_referrer
 /// established (Chrome serializes without it; servers parse the header as a
 /// URL either way).
-pub(crate) fn fetch_referer(policy: &str, referrer_init: &str, document: &Url, target: &Url) -> String {
+pub(crate) fn fetch_referer(
+    policy: &str,
+    referrer_init: &str,
+    document: &Url,
+    target: &Url,
+) -> String {
     let referrer = if referrer_init.is_empty() {
         return String::new();
     } else if referrer_init == "about:client" {

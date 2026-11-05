@@ -10,8 +10,8 @@ use crate::diting_css::ComputedStyle;
 use crate::diting_dom::tree::{DomTree, NodeId};
 
 use super::{
-    build_word_leaves, color_context, decoration_context, font_context, han_context,
-    mono_context, small_caps_context, valign_shift, word_spacing_context, FontBook, TextLeaf,
+    build_word_leaves, color_context, decoration_context, font_context, han_context, mono_context,
+    small_caps_context, valign_shift, word_spacing_context, FontBook, TextLeaf,
 };
 
 /// Chrome's UA sheet gives `q::before/::after` the `open-quote`/`close-quote`
@@ -204,8 +204,12 @@ pub(super) fn wrap_q_quotes(
     let ws = word_spacing_context(tree, child, styles);
     let sc = small_caps_context(tree, child, styles);
     let han = han_context(tree, child, styles);
-    let mut wrapped = build_word_leaves(open, fs, b, col, lh, deco, vs, mono, ws, sc, han, fonts, taffy_tree);
+    let mut wrapped = build_word_leaves(
+        open, fs, b, col, lh, deco, vs, mono, ws, sc, han, fonts, taffy_tree,
+    );
     wrapped.append(sub_children);
-    wrapped.extend(build_word_leaves(close, fs, b, col, lh, deco, vs, mono, ws, sc, han, fonts, taffy_tree));
+    wrapped.extend(build_word_leaves(
+        close, fs, b, col, lh, deco, vs, mono, ws, sc, han, fonts, taffy_tree,
+    ));
     *sub_children = wrapped;
 }

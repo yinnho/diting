@@ -27,10 +27,25 @@ use super::theme::Theme;
 /// (including unknown kinds) takes the neutral square.
 fn shape_name(kind: &str) -> &'static str {
     const SHAPES: [&str; 13] = [
-        "frontend", "backend", "database", "cloud", "security", "messagebus", "external",
-        "start", "active", "waiting", "success", "failure", "neutral",
+        "frontend",
+        "backend",
+        "database",
+        "cloud",
+        "security",
+        "messagebus",
+        "external",
+        "start",
+        "active",
+        "waiting",
+        "success",
+        "failure",
+        "neutral",
     ];
-    SHAPES.iter().find(|&&s| s == kind).copied().unwrap_or("neutral")
+    SHAPES
+        .iter()
+        .find(|&&s| s == kind)
+        .copied()
+        .unwrap_or("neutral")
 }
 
 /// Shape → tone slot (reference SIGIL_TONE): lifecycle's state types borrow
@@ -170,10 +185,13 @@ mod tests {
         // start rides the frontend slot, failure the security slot — with the
         // 0.76 alpha baked as the trailing byte.
         let light = &super::super::theme::LIGHT;
-        assert!(sigil("start", 0, 0, light).contains(&format!("stroke=\"{}c2\"", light.frontend.stroke)));
-        assert!(sigil("failure", 0, 0, light).contains(&format!("stroke=\"{}c2\"", light.security.stroke)));
+        assert!(sigil("start", 0, 0, light)
+            .contains(&format!("stroke=\"{}c2\"", light.frontend.stroke)));
+        assert!(sigil("failure", 0, 0, light)
+            .contains(&format!("stroke=\"{}c2\"", light.security.stroke)));
         // neutral itself rides external, which is the neutral slot here.
-        assert!(sigil("neutral", 0, 0, light).contains(&format!("stroke=\"{}c2\"", light.neutral.stroke)));
+        assert!(sigil("neutral", 0, 0, light)
+            .contains(&format!("stroke=\"{}c2\"", light.neutral.stroke)));
     }
 
     #[test]

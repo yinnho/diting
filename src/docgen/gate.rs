@@ -9,7 +9,7 @@
 
 use sha2::{Digest, Sha256};
 
-use super::{render, render_with_quality, render_with_theme, theme, checks::Quality};
+use super::{checks::Quality, render, render_with_quality, render_with_theme, theme};
 
 const CHECKOUT: &str = r#"# Checkout
 
@@ -220,15 +220,42 @@ const CORPUS: [(&str, &str); 9] = [
 /// a surprise. Last re-freeze: 批6e viewer queries (the shell stylesheet
 /// gains the story-caption rules — every document's <style> bytes move).
 const FROZEN: [(&str, &str); 9] = [
-    ("checkout", "03cdd8abce5c4b54c7065031625a08d24472e2070e3f362bffe0734e2d1f5cd0"),
-    ("index-build", "226145ed3d36ee7f52ddc12fcdcba3e62b64b7a18cd5c2614cf41612e9f60e96"),
-    ("dogfood", "b514e3c6abe93e385f5a85f48feafd7cf9c1f71432156d60e8a4d7a89c6032e1"),
-    ("cjk", "b6cc686a962f407a1867e0cf00e434a9d876b4a7c6a6790fa1de36f33be9e273"),
-    ("seq-five", "d9162eef117205974b19d048f302c38c2f1a2ebc927cf1b0e6034ae29edfe57b"),
-    ("seq-min", "d814f6876c4b5a4283e7d18ed1c68fc015682e14397f6504ff69fff3b2f1329d"),
-    ("dataflow-ingest", "7607817dde0fd3050ea2b05beecbe3b9f352e29bbcf0616e3f95b9dc6ba70d6c"),
-    ("lifecycle-release", "af62babeff8f2b27bdcab7e118f1c296314a549e87cf55a26c0cee12c81c055b"),
-    ("architecture-edge", "a946b9b780ad50f3cf6cc68f5805073a55eba2bd62798fe3e5713ab77ae0f0bf"),
+    (
+        "checkout",
+        "03cdd8abce5c4b54c7065031625a08d24472e2070e3f362bffe0734e2d1f5cd0",
+    ),
+    (
+        "index-build",
+        "226145ed3d36ee7f52ddc12fcdcba3e62b64b7a18cd5c2614cf41612e9f60e96",
+    ),
+    (
+        "dogfood",
+        "b514e3c6abe93e385f5a85f48feafd7cf9c1f71432156d60e8a4d7a89c6032e1",
+    ),
+    (
+        "cjk",
+        "b6cc686a962f407a1867e0cf00e434a9d876b4a7c6a6790fa1de36f33be9e273",
+    ),
+    (
+        "seq-five",
+        "d9162eef117205974b19d048f302c38c2f1a2ebc927cf1b0e6034ae29edfe57b",
+    ),
+    (
+        "seq-min",
+        "d814f6876c4b5a4283e7d18ed1c68fc015682e14397f6504ff69fff3b2f1329d",
+    ),
+    (
+        "dataflow-ingest",
+        "7607817dde0fd3050ea2b05beecbe3b9f352e29bbcf0616e3f95b9dc6ba70d6c",
+    ),
+    (
+        "lifecycle-release",
+        "af62babeff8f2b27bdcab7e118f1c296314a549e87cf55a26c0cee12c81c055b",
+    ),
+    (
+        "architecture-edge",
+        "a946b9b780ad50f3cf6cc68f5805073a55eba2bd62798fe3e5713ab77ae0f0bf",
+    ),
 ];
 
 /// Dark-theme corpus: the two richest documents re-rendered under DARK, so
@@ -237,8 +264,14 @@ const FROZEN: [(&str, &str); 9] = [
 const DARK_CORPUS: [&str; 2] = [DOGFOOD, SEQ_FIVE];
 
 const FROZEN_DARK: [(&str, &str); 2] = [
-    ("dogfood", "45687dc4a9d2d720430bbeeb1a714f3abb38e35c0c159b5565bd86f6b8d414b8"),
-    ("seq-five", "eb4cf43f49360df5e60912665744c929cf8a9bf9bfce2be5df7392896b99a30b"),
+    (
+        "dogfood",
+        "45687dc4a9d2d720430bbeeb1a714f3abb38e35c0c159b5565bd86f6b8d414b8",
+    ),
+    (
+        "seq-five",
+        "eb4cf43f49360df5e60912665744c929cf8a9bf9bfce2be5df7392896b99a30b",
+    ),
 ];
 
 /// Preset corpus: one document under each non-classic palette family, in a
@@ -246,13 +279,29 @@ const FROZEN_DARK: [(&str, &str); 2] = [
 /// tables are generator output — this freeze is what makes a typo in those
 /// tables a conscious re-freeze instead of silent drift.
 const PRESET_CORPUS: [(&str, &str, &theme::Theme, &theme::Theme); 2] = [
-    ("dogfood/signal-flow-dark", DOGFOOD, &theme::SIGNAL_FLOW_DARK, &theme::DARK),
-    ("seq-five/blueprint-light", SEQ_FIVE, &theme::BLUEPRINT_LIGHT, &theme::LIGHT),
+    (
+        "dogfood/signal-flow-dark",
+        DOGFOOD,
+        &theme::SIGNAL_FLOW_DARK,
+        &theme::DARK,
+    ),
+    (
+        "seq-five/blueprint-light",
+        SEQ_FIVE,
+        &theme::BLUEPRINT_LIGHT,
+        &theme::LIGHT,
+    ),
 ];
 
 const FROZEN_PRESET: [(&str, &str); 2] = [
-    ("dogfood/signal-flow-dark", "c696c17e41b15321bda384ac3b94cee96880a5574943912deac1edd77f8da849"),
-    ("seq-five/blueprint-light", "28798ec0b89856ac498a9177aa84771cd0a2f3b8a2973b7d9d94fa1ee0bdc279"),
+    (
+        "dogfood/signal-flow-dark",
+        "c696c17e41b15321bda384ac3b94cee96880a5574943912deac1edd77f8da849",
+    ),
+    (
+        "seq-five/blueprint-light",
+        "28798ec0b89856ac498a9177aa84771cd0a2f3b8a2973b7d9d94fa1ee0bdc279",
+    ),
 ];
 
 #[test]
@@ -303,7 +352,10 @@ fn corpus_passes_the_showcase_audit() {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|c| c.as_str().unwrap_or("").contains("composition audit (showcase): clean")),
+                .any(|c| c
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("composition audit (showcase): clean")),
             "{name}: aggregate audit line missing: {:?}",
             outcome.receipt["checks"]
         );

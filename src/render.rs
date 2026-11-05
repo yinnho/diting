@@ -90,13 +90,13 @@ pub fn strip_non_content(html: &str) -> String {
     let mut i = 0;
     let b = lower.as_bytes();
     // Tags whose entire contents (incl. inner text) we drop.
-    const DROP: &[&[u8]] = &[
-        b"<style", b"<script", b"<noscript", b"<head",
-    ];
+    const DROP: &[&[u8]] = &[b"<style", b"<script", b"<noscript", b"<head"];
     while i < bytes.len() {
         if b[i] == b'<' {
             // Find the tag name end to match DROP prefixes.
-            let matched = DROP.iter().any(|tag| lower.as_bytes()[i..].starts_with(tag));
+            let matched = DROP
+                .iter()
+                .any(|tag| lower.as_bytes()[i..].starts_with(tag));
             if matched {
                 // Skip to the matching close tag.
                 let close = find_close_tag(&lower, i);
@@ -124,7 +124,9 @@ fn find_close_tag(lower: &str, start: usize) -> Option<usize> {
     }
     let tag_name = &lower[start + 1..name_end];
     let close = format!("</{}>", tag_name);
-    lower[name_end..].find(&close).map(|p| name_end + p + close.len())
+    lower[name_end..]
+        .find(&close)
+        .map(|p| name_end + p + close.len())
 }
 
 /// Strip HTML tags → plain text (very rough; for `OutputFormat::Text` on Tier 1).
@@ -192,7 +194,11 @@ fn collect_media(html: &str) -> Vec<String> {
     };
     if let Ok(sel) = Selector::parse("img") {
         for el in doc.select(&sel) {
-            take(&el, &["src", "data-src", "data-original", "data-lazy-src"], &mut urls);
+            take(
+                &el,
+                &["src", "data-src", "data-original", "data-lazy-src"],
+                &mut urls,
+            );
             take_first_candidate(&el, &["srcset", "data-srcset"], &mut urls);
         }
     }
@@ -254,19 +260,34 @@ pub async fn http_fetch(
 
     // Non-200 → let Tier 2 try (it handles redirects/challenges differently).
     if resp.status != 200 {
-        tracing::debug!("http_fetch: status {} for {}, deferring to Tier 2", resp.status, url);
+        tracing::debug!(
+            "http_fetch: status {} for {}, deferring to Tier 2",
+            resp.status,
+            url
+        );
         return Ok(None);
     }
 
     // Non-HTML → Tier 1 can't render; defer.
     if !resp.is_html() {
-        tracing::debug!("http_fetch: non-HTML content-type for {}, deferring to Tier 2", url);
+        tracing::debug!(
+            "http_fetch: non-HTML content-type for {}, deferring to Tier 2",
+            url
+        );
         return Ok(None);
     }
 
     // Antispider redirect → defer (Tier 2 has the challenge-bypass logic).
-    if is_antispider_url(resp.url.as_str()) || resp.redirected_from.iter().any(|u| is_antispider_url(u.as_str())) {
-        tracing::debug!("http_fetch: antispider redirect for {}, deferring to Tier 2", url);
+    if is_antispider_url(resp.url.as_str())
+        || resp
+            .redirected_from
+            .iter()
+            .any(|u| is_antispider_url(u.as_str()))
+    {
+        tracing::debug!(
+            "http_fetch: antispider redirect for {}, deferring to Tier 2",
+            url
+        );
         return Ok(None);
     }
 
@@ -274,13 +295,20 @@ pub async fn http_fetch(
 
     // Bytedance WAF JS challenge stub → defer (Tier 2 rides out the PoW).
     if is_byte_waf_challenge_html(&html) {
-        tracing::debug!("http_fetch: byte-WAF challenge stub for {}, deferring to Tier 2", url);
+        tracing::debug!(
+            "http_fetch: byte-WAF challenge stub for {}, deferring to Tier 2",
+            url
+        );
         return Ok(None);
     }
 
     // Insufficient (SPA shell / too short) → defer to JS rendering.
     if !is_content_sufficient(&html) {
-        tracing::debug!("http_fetch: content insufficient (len={}) for {}, deferring to Tier 2", html.len(), url);
+        tracing::debug!(
+            "http_fetch: content insufficient (len={}) for {}, deferring to Tier 2",
+            html.len(),
+            url
+        );
         return Ok(None);
     }
 
@@ -315,7 +343,10 @@ pub async fn http_fetch(
     // selector didn't match the static DOM). Tier 2 may still render real
     // content — serving an empty result at tier "http" is the worst outcome.
     if content.trim().is_empty() {
-        tracing::debug!("http_fetch: converted content empty for {}, deferring to Tier 2", url);
+        tracing::debug!(
+            "http_fetch: converted content empty for {}, deferring to Tier 2",
+            url
+        );
         return Ok(None);
     }
 
@@ -335,7 +366,11 @@ pub async fn http_fetch(
         (content, None)
     } else {
         let (clean, report) = crate::sanitize::sanitize_text(&content, &[]);
-        let report = if report.is_clean() { None } else { Some(report) };
+        let report = if report.is_clean() {
+            None
+        } else {
+            Some(report)
+        };
         (clean, report)
     };
 
@@ -347,11 +382,7 @@ pub async fn http_fetch(
         captcha_event,
         js_extract_result: None,
         tier: Some("http"),
-        redirected_from: resp
-            .redirected_from
-            .iter()
-            .map(|u| u.to_string())
-            .collect(),
+        redirected_from: resp.redirected_from.iter().map(|u| u.to_string()).collect(),
         content_hash: None,
         changed_since_prev: None,
         sanitize_report,
@@ -453,7 +484,11 @@ pub async fn smart_fetch(req: crate::FetchRequest) -> Result<FetchResponse, anyh
             Err(e) => {
                 // Tier 1 network error — fall through to Tier 2, which may
                 // succeed with different fetch settings (stealth, etc.).
-                tracing::warn!("smart_fetch: Tier 1 error for {}: {}, trying Tier 2", req.url, e);
+                tracing::warn!(
+                    "smart_fetch: Tier 1 error for {}: {}, trying Tier 2",
+                    req.url,
+                    e
+                );
             }
         }
     }
@@ -569,7 +604,9 @@ mod tests {
         assert!(is_antispider_url("https://wappass.baidu.com/captcha"));
         assert!(is_antispider_url("https://example.com/antispider/check"));
         assert!(is_antispider_url("https://sorry.google.com/sorry"));
-        assert!(is_antispider_url("https://x.com/cdn-cgi/challenge-platform/h/g/"));
+        assert!(is_antispider_url(
+            "https://x.com/cdn-cgi/challenge-platform/h/g/"
+        ));
     }
 
     // ---- tier1_eligible ----
@@ -603,9 +640,15 @@ mod tests {
         use crate::RenderTier;
         let wx = "https://mp.weixin.qq.com/s?src=11&timestamp=1&signature=x";
         assert!(!tier1_eligible(&tier_req(wx, RenderTier::Auto)));
-        assert!(tier1_eligible(&tier_req(wx, RenderTier::Http)), "explicit http is the caller's call");
+        assert!(
+            tier1_eligible(&tier_req(wx, RenderTier::Http)),
+            "explicit http is the caller's call"
+        );
         assert!(!tier1_eligible(&tier_req(wx, RenderTier::Browser)));
-        assert!(tier1_eligible(&tier_req("https://example.com/a", RenderTier::Auto)));
+        assert!(tier1_eligible(&tier_req(
+            "https://example.com/a",
+            RenderTier::Auto
+        )));
     }
 
     /// #279: the cost knobs need engine machinery (the layout pass, the
@@ -666,7 +709,10 @@ mod tests {
 
     #[test]
     fn extract_title_present() {
-        assert_eq!(extract_title("<html><head><title>My Page</title></head></html>").as_deref(), Some("My Page"));
+        assert_eq!(
+            extract_title("<html><head><title>My Page</title></head></html>").as_deref(),
+            Some("My Page")
+        );
     }
 
     #[test]
@@ -676,7 +722,10 @@ mod tests {
 
     #[test]
     fn extract_title_case_insensitive_tag() {
-        assert_eq!(extract_title("<TITLE>Mixed Case</TITLE>").as_deref(), Some("Mixed Case"));
+        assert_eq!(
+            extract_title("<TITLE>Mixed Case</TITLE>").as_deref(),
+            Some("Mixed Case")
+        );
     }
 
     // ---- strip_non_content ----
@@ -749,7 +798,8 @@ mod tests {
     fn content_sufficient_counts_text_outside_scripts() {
         // A bundle plus real body text must still pass — the fix defers
         // script-only shells, not every scripting-heavy page.
-        let bundle = "var longVariableName=function(anotherArgument){return anotherArgument*2};".repeat(20);
+        let bundle =
+            "var longVariableName=function(anotherArgument){return anotherArgument*2};".repeat(20);
         let html = format!(
             r#"<html><head><script>{bundle}</script></head><body><h1>Welcome to the site</h1>
             <p>This is a real page with more than enough visible text content to clearly pass the threshold for sufficiency checking.</p></body></html>"#
@@ -789,7 +839,11 @@ mod tests {
             for i in 0..256u32 {
                 let mut c = i;
                 for _ in 0..8 {
-                    c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+                    c = if c & 1 != 0 {
+                        0xEDB8_8320 ^ (c >> 1)
+                    } else {
+                        c >> 1
+                    };
                 }
                 table[i as usize] = c;
             }
@@ -838,7 +892,11 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(got.is_none(), "script-only shell must defer to Tier 2, got {:?}", got.map(|r| r.content.chars().count()));
+        assert!(
+            got.is_none(),
+            "script-only shell must defer to Tier 2, got {:?}",
+            got.map(|r| r.content.chars().count())
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]

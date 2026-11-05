@@ -22,7 +22,7 @@ use crate::driver::{AfterTicks, OpDriver, WakeFlag};
 use crate::modules::dynamic;
 use crate::modules::eval::ModuleEvalError;
 use crate::modules::load::RecursiveLoad;
-use crate::modules::map::{ModuleMap, ModuleSlot, initialize_import_meta_object_callback};
+use crate::modules::map::{initialize_import_meta_object_callback, ModuleMap, ModuleSlot};
 use crate::modules::{ModuleError, ModuleId, ModuleLoader};
 use crate::settle::SettleQueue;
 use crate::snapshot::{self, SnapshotError};
@@ -302,7 +302,9 @@ pub(crate) unsafe extern "C" fn promise_reject_callback(message: v8::PromiseReje
             });
             let promise_global = v8::Global::new(scope, promise);
             let error_global = v8::Global::new(scope, error);
-            slot.borrow_mut().pending.push_back((promise_global, error_global));
+            slot.borrow_mut()
+                .pending
+                .push_back((promise_global, error_global));
         }
         PromiseHandlerAddedAfterReject => {
             // The code has until the loop yields to attach a handler and
@@ -453,10 +455,7 @@ fn install_faces(isolate: &mut v8::OwnedIsolate, context: &v8::Global<v8::Contex
 ///
 /// Panics (never returns None silently): a failed bake is a build bug,
 /// and half a snapshot is worse than none.
-pub fn create_snapshot(
-    scripts: &[(&str, &str)],
-    consts: &[&'static v8::OneByteConst],
-) -> Vec<u8> {
+pub fn create_snapshot(scripts: &[(&str, &str)], consts: &[&'static v8::OneByteConst]) -> Vec<u8> {
     ensure_v8();
     // The serializer keys external strings by RESOURCE address and the
     // creator's external-references table must exist at construction —
@@ -500,8 +499,8 @@ pub fn create_snapshot(
                 .get(i)
                 .filter(|c| !c.as_str().is_empty())
                 .and_then(|c| v8::String::new_from_onebyte_const(tc, c));
-            let s = external
-                .unwrap_or_else(|| v8::String::new(tc, src).expect("script source fits"));
+            let s =
+                external.unwrap_or_else(|| v8::String::new(tc, src).expect("script source fits"));
             match v8::Script::compile(tc, s, None).and_then(|script| script.run(tc)) {
                 Some(_) => {}
                 None if tc.has_terminated() => {
@@ -581,7 +580,11 @@ impl Drop for Vm {
             .map(|v| v != "0" && !v.is_empty())
             .unwrap_or(false)
         {
-            eprintln!("isolate dropped key={:x} registry_len={}", self.fg_key, crate::foreground::registry_len());
+            eprintln!(
+                "isolate dropped key={:x} registry_len={}",
+                self.fg_key,
+                crate::foreground::registry_len()
+            );
         }
     }
 }
@@ -622,11 +625,12 @@ impl Vm {
         // post_task will hand back as the isolate key.
         let fg_key = {
             const _: () = assert!(
-                std::mem::size_of::<v8::UnsafeRawIsolatePtr>()
-                    == std::mem::size_of::<usize>()
+                std::mem::size_of::<v8::UnsafeRawIsolatePtr>() == std::mem::size_of::<usize>()
             );
             // SAFETY: pointer-sized transparent wrapper, asserted above.
-            unsafe { std::mem::transmute::<v8::UnsafeRawIsolatePtr, usize>(isolate.as_raw_isolate_ptr()) }
+            unsafe {
+                std::mem::transmute::<v8::UnsafeRawIsolatePtr, usize>(isolate.as_raw_isolate_ptr())
+            }
         };
         // Register BEFORE any other V8 call. Everything below — context
         // deserialization included — allocates, and allocating can trip GC
@@ -966,7 +970,6 @@ impl Vm {
         self.isolate.low_memory_notification();
     }
 
-
     /// Cross-thread terminate/cancel handle (the watchdog family's face —
     /// v8-native `IsolateHandle`, same type deno handed out through
     /// `v8_isolate().thread_safe_handle()`).
@@ -1034,9 +1037,7 @@ impl Vm {
             // register_loop_waker): spawn wakes the flag, the poll-driven
             // embedder re-drives until idle.
             let flag_waker = driver.borrow().flag_waker();
-            driver
-                .borrow_mut()
-                .register_loop_waker(&flag_waker.clone());
+            driver.borrow_mut().register_loop_waker(&flag_waker.clone());
             driver.borrow_mut().drive(&mut self.queue);
             flag_waker
         };
@@ -1113,8 +1114,8 @@ impl Vm {
             .unwrap_or(false);
         // V8's own counter + our queue: both faces of "engine work still in
         // flight" (background threads compiling, foreground posts waiting).
-        let pending_background = self.isolate.has_pending_background_tasks()
-            || crate::foreground::has_pending(&self.fg);
+        let pending_background =
+            self.isolate.has_pending_background_tasks() || crate::foreground::has_pending(&self.fg);
         Ok(LoopActivity {
             delivered,
             pending_ops: self.pending_ops(),

@@ -119,8 +119,18 @@ fn band_frame_inner(
     // Same page-height cap the full-page render uses — a malicious client
     // requesting a 1e9-viewport must not allocate for it.
     const MAX_BAND: f32 = 16000.0;
-    let vw = if viewport.0.is_finite() { viewport.0.max(1.0) } else { 1.0 }.min(MAX_BAND);
-    let vh = if viewport.1.is_finite() { viewport.1.max(1.0) } else { 1.0 }.min(MAX_BAND);
+    let vw = if viewport.0.is_finite() {
+        viewport.0.max(1.0)
+    } else {
+        1.0
+    }
+    .min(MAX_BAND);
+    let vh = if viewport.1.is_finite() {
+        viewport.1.max(1.0)
+    } else {
+        1.0
+    }
+    .min(MAX_BAND);
 
     let epoch = dom.epoch();
     ensure_layout_run(gs, dom, epoch);
@@ -136,7 +146,11 @@ fn band_frame_inner(
         .query_selector_all("html")
         .ok()
         .and_then(|v| v.into_iter().next())
-        .or_else(|| dom.query_selector_all("body").ok().and_then(|v| v.into_iter().next()));
+        .or_else(|| {
+            dom.query_selector_all("body")
+                .ok()
+                .and_then(|v| v.into_iter().next())
+        });
     let mut content_w = vw;
     let mut content_h = vh;
     if let Some(root) = root.filter(|r| rects.contains_key(r)) {
@@ -181,12 +195,9 @@ fn band_frame_inner(
     // `html { overflow: hidden }` as a matter of course.
     if !cut {
         if let Some(root) = root.filter(|r| rects.contains_key(r)) {
-            let eff = crate::diting_layout::effective_viewport_overflow(
-                dom,
-                styles,
-                root,
-                |id| rects.contains_key(&id),
-            );
+            let eff = crate::diting_layout::effective_viewport_overflow(dom, styles, root, |id| {
+                rects.contains_key(&id)
+            });
             if matches!(
                 eff,
                 crate::diting_css::Overflow::Hidden | crate::diting_css::Overflow::Clip
@@ -196,10 +207,18 @@ fn band_frame_inner(
             }
         }
     }
-    let dx = (if scroll_x.is_finite() { scroll_x.max(0.0) } else { 0.0 })
-        .min((content_w - vw).max(0.0));
-    let dy = (if scroll_y.is_finite() { scroll_y.max(0.0) } else { 0.0 })
-        .min((content_h - vh).max(0.0));
+    let dx = (if scroll_x.is_finite() {
+        scroll_x.max(0.0)
+    } else {
+        0.0
+    })
+    .min((content_w - vw).max(0.0));
+    let dy = (if scroll_y.is_finite() {
+        scroll_y.max(0.0)
+    } else {
+        0.0
+    })
+    .min((content_h - vh).max(0.0));
 
     // Sticky v2 paint half: resolve each layout-recorded span to the
     // total its items must carry — sticky spans take the node's read
@@ -253,7 +272,11 @@ fn band_frame_inner(
     // DPR (#185): the vector-text/PDF branch always stays at 1× — its glyph
     // ops are page-space vectors the PDF layer redraws, where device pixels
     // are meaningless. Guard garbage scales the same defensive way.
-    let scale = if collect_text || !scale.is_finite() || scale <= 0.0 { 1.0 } else { scale };
+    let scale = if collect_text || !scale.is_finite() || scale <= 0.0 {
+        1.0
+    } else {
+        scale
+    };
     let mut canvas = crate::diting_layout::paint::Canvas::new_filled(
         (vw * scale) as usize,
         (vh * scale) as usize,
@@ -281,16 +304,23 @@ fn band_frame_inner(
         let band_top = dy;
         let band_bottom = dy + vh;
         ops.retain(|op| match op {
-            crate::diting_layout::paint::PdfOp::Line(l) => l.glyphs.iter().any(|g| {
-                g.y > band_top - l.font_size * 1.5 && g.y < band_bottom + l.font_size
-            }),
+            crate::diting_layout::paint::PdfOp::Line(l) => l
+                .glyphs
+                .iter()
+                .any(|g| g.y > band_top - l.font_size * 1.5 && g.y < band_bottom + l.font_size),
             _ => true,
         });
         crate::diting_layout::paint::pdf_ops_translate(&mut ops, dx, dy);
         text_ops = ops;
     } else if (scale - 1.0).abs() > f32::EPSILON {
         let scaled = crate::diting_layout::paint::scale_items(items, scale);
-        crate::diting_layout::paint::execute_band(&scaled, &fonts, &mut canvas, dx * scale, dy * scale);
+        crate::diting_layout::paint::execute_band(
+            &scaled,
+            &fonts,
+            &mut canvas,
+            dx * scale,
+            dy * scale,
+        );
     } else {
         crate::diting_layout::paint::execute_band(items, &fonts, &mut canvas, dx, dy);
     }

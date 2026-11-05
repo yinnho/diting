@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// arXiv via the export.arxiv.org Atom API (free, no key). "academic"
 /// category only — NOT general (#179): the API is full-text matching, so a
@@ -74,7 +74,12 @@ fn parse_arxiv_atom(body: &str) -> Result<Vec<RawSearchResult>, SearchEngineErro
         let authors: Vec<String> = entry
             .split("<author>")
             .skip(1)
-            .map(|a| unescape_xml(tag_content(a.split("</author>").next().unwrap_or(""), "name")))
+            .map(|a| {
+                unescape_xml(tag_content(
+                    a.split("</author>").next().unwrap_or(""),
+                    "name",
+                ))
+            })
             .filter(|n| !n.is_empty())
             .collect();
 
@@ -175,7 +180,9 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "A Study of & Agents on the Web");
         assert_eq!(results[0].url, "http://arxiv.org/abs/2401.00001v1");
-        assert!(results[0].snippet.starts_with("Ada Lovelace, Alan Turing | [cs.AI, cs.CL] | "));
+        assert!(results[0]
+            .snippet
+            .starts_with("Ada Lovelace, Alan Turing | [cs.AI, cs.CL] | "));
         assert!(results[0].snippet.contains("(2024-01-01T00:00:00Z)"));
         // Newlines flattened.
         assert!(!results[0].snippet.contains('\n'));

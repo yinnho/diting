@@ -158,7 +158,12 @@ impl DomTree {
     }
 
     pub fn node_scroll(&self, id: NodeId) -> [f32; 2] {
-        self.inner.borrow().scroll_offsets.get(&id).copied().unwrap_or([0.0, 0.0])
+        self.inner
+            .borrow()
+            .scroll_offsets
+            .get(&id)
+            .copied()
+            .unwrap_or([0.0, 0.0])
     }
 
     /// The live element-scroller offsets, for the read-time shift walks.

@@ -20,8 +20,8 @@ use crate::vm::Triplet;
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
 /// A future woke us since the last check — a reactor-driven embedder uses

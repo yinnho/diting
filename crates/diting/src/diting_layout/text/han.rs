@@ -45,9 +45,9 @@ pub fn han_slot_for_lang(lang: &str) -> Option<HanSlot> {
         Some("ja") => Some(HanSlot::Japanese),
         Some("ko") => Some(HanSlot::Korean),
         Some("zh") => {
-            let trad = subs[1..].iter().any(|s| {
-                matches!(s.as_str(), "tw" | "hk" | "mo") || s.starts_with("hant")
-            });
+            let trad = subs[1..]
+                .iter()
+                .any(|s| matches!(s.as_str(), "tw" | "hk" | "mo") || s.starts_with("hant"));
             if trad {
                 Some(HanSlot::Traditional)
             } else {
@@ -95,7 +95,8 @@ pub fn face_han_slot(bytes: &[u8]) -> Option<HanSlot> {
     if !name.trim().is_empty() {
         // to_ascii_lowercase leaves the CJK markers untouched.
         let lowered = name.to_ascii_lowercase();
-        let by_token = lowered.split_whitespace()
+        let by_token = lowered
+            .split_whitespace()
             .flat_map(|w| w.split(|c: char| !c.is_alphanumeric()))
             .find_map(|tok| match tok {
                 "jp" | "jpn" | "japan" | "japanese" => Some(HanSlot::Japanese),
@@ -113,7 +114,8 @@ pub fn face_han_slot(bytes: &[u8]) -> Option<HanSlot> {
         if lowered.contains('简') {
             return Some(HanSlot::Simplified);
         }
-        if lowered.contains("日本") || lowered.contains("ゴシック") || lowered.contains("明朝") {
+        if lowered.contains("日本") || lowered.contains("ゴシック") || lowered.contains("明朝")
+        {
             return Some(HanSlot::Japanese);
         }
         if lowered.contains('한') {

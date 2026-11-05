@@ -177,7 +177,9 @@ fn fill(template: &str, data: &serde_json::Value) -> String {
         }
     }
     while let Some(start) = out.find("{{") {
-        let Some(rel) = out[start + 2..].find("}}") else { break };
+        let Some(rel) = out[start + 2..].find("}}") else {
+            break;
+        };
         let end = start + 2 + rel + 2;
         out.replace_range(start..end, "");
     }
@@ -185,7 +187,9 @@ fn fill(template: &str, data: &serde_json::Value) -> String {
 }
 
 fn escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
@@ -254,7 +258,10 @@ mod tests {
         assert!(matches!(load_at(&bad, "x"), Err(OpenError::BadRegistry(_))));
 
         let noarr = fixture(r#"{"something":[]}"#, &[]);
-        assert!(matches!(load_at(&noarr, "x"), Err(OpenError::BadRegistry(_))));
+        assert!(matches!(
+            load_at(&noarr, "x"),
+            Err(OpenError::BadRegistry(_))
+        ));
 
         let missing = fixture(
             r#"{"templates":[{"id":"weather","file":"weather.html"}]}"#,
@@ -282,7 +289,11 @@ mod tests {
         std::fs::create_dir_all(&bare).unwrap();
         for id in ["weather", "reply", "qr"] {
             let html = load_at(&bare, id).unwrap();
-            assert!(html.starts_with('<'), "{id}: built-in should be HTML, got {} bytes", html.len());
+            assert!(
+                html.starts_with('<'),
+                "{id}: built-in should be HTML, got {} bytes",
+                html.len()
+            );
         }
         // 内置清单防锈：三件齐、无漂流
         let ids: Vec<&str> = BUILTIN.iter().map(|(k, _)| *k).collect();
@@ -308,7 +319,12 @@ mod tests {
             r#"{"templates":[{"id":"weather","file":"weather.html"}]}"#,
             &[("weather.html", "<p class=\"c\">{{city}} {{t}}°</p>")],
         );
-        let html = render_at(&root, "weather", &serde_json::json!({"city": "南京", "t": 22})).unwrap();
+        let html = render_at(
+            &root,
+            "weather",
+            &serde_json::json!({"city": "南京", "t": 22}),
+        )
+        .unwrap();
         assert_eq!(html, "<p class=\"c\">南京 22°</p>");
     }
 

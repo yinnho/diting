@@ -35,15 +35,40 @@ fn code_of(name: &str) -> i32 {
 }
 
 pub(crate) static DOM_EXCEPTION: Iface = Iface {
-    name: "DOMException", parent: None, family: 0x0E01,
+    name: "DOMException",
+    parent: None,
+    family: 0x0E01,
     // ctor(message = "", name = "Error")
-    slots: &[Slot { name: "message", default: Def::Str("") }, Slot { name: "name", default: Def::Str("Error") }],
-    members: &[
-        Member { name: "code", attr: Attr::Derived(|v| Val::Num(code_of(v[1].str()) as f64)), writable: false },
-        Member { name: "name", attr: Attr::Slot(1), writable: false },
-        Member { name: "message", attr: Attr::Slot(0), writable: false },
+    slots: &[
+        Slot {
+            name: "message",
+            default: Def::Str(""),
+        },
+        Slot {
+            name: "name",
+            default: Def::Str("Error"),
+        },
     ],
-    to_json: false, factory: None, error_like: true,
+    members: &[
+        Member {
+            name: "code",
+            attr: Attr::Derived(|v| Val::Num(code_of(v[1].str()) as f64)),
+            writable: false,
+        },
+        Member {
+            name: "name",
+            attr: Attr::Slot(1),
+            writable: false,
+        },
+        Member {
+            name: "message",
+            attr: Attr::Slot(0),
+            writable: false,
+        },
+    ],
+    to_json: false,
+    factory: None,
+    error_like: true,
     consts: &[
         ("INDEX_SIZE_ERR", 1),
         ("DOMSTRING_SIZE_ERR", 2),

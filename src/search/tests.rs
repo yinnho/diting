@@ -7,30 +7,42 @@ use super::dual_path::{
     direct_skip_remaining, note_direct_outcome, DirectFailState, DIRECT_FAILS_CAP,
     DIRECT_FAIL_THRESHOLD, DIRECT_SKIP_SECS,
 };
+use super::merge_results_with_time;
 use super::validate::looks_like_bing_news_url;
 use super::*;
-use super::merge_results_with_time;
 use crate::search::baidu::baidu_gpc_window;
 
 // ---- normalize_url ----
 
 #[test]
 fn normalize_strips_www_and_lowercases() {
-    assert_eq!(normalize_url("https://WWW.Example.com/path"), "https://example.com/path");
+    assert_eq!(
+        normalize_url("https://WWW.Example.com/path"),
+        "https://example.com/path"
+    );
 }
 
 #[test]
 fn normalize_preserves_port() {
-    assert_eq!(normalize_url("https://example.com:8080/p"), "https://example.com:8080/p");
+    assert_eq!(
+        normalize_url("https://example.com:8080/p"),
+        "https://example.com:8080/p"
+    );
 }
 
 #[test]
 fn normalize_strips_trailing_slash() {
     // Path with trailing slash is stripped.
-    assert_eq!(normalize_url("https://example.com/path/"), "https://example.com/path");
+    assert_eq!(
+        normalize_url("https://example.com/path/"),
+        "https://example.com/path"
+    );
     // Bare root: the `url` crate normalizes example.com back to "/" so the
     // trailing slash is preserved (cannot represent a truly empty path).
-    assert_eq!(normalize_url("https://example.com/"), "https://example.com/");
+    assert_eq!(
+        normalize_url("https://example.com/"),
+        "https://example.com/"
+    );
 }
 
 #[test]
@@ -108,7 +120,14 @@ async fn health_snapshot_lists_every_registered_engine_healthy_by_default() {
 #[test]
 fn merge_truncates_to_max_results() {
     let results: Vec<RawSearchResult> = (0..5)
-        .map(|i| raw(&format!("t{i}"), &format!("https://e.com/{i}"), "bing", 5.0 - i as f64))
+        .map(|i| {
+            raw(
+                &format!("t{i}"),
+                &format!("https://e.com/{i}"),
+                "bing",
+                5.0 - i as f64,
+            )
+        })
         .collect();
     let merged = merge_results(results, 3);
     assert_eq!(merged.len(), 3);
@@ -137,7 +156,11 @@ fn fresh_fail_map() -> std::collections::HashMap<String, DirectFailState> {
 fn two_consecutive_failures_sentence_the_host() {
     let mut map = fresh_fail_map();
     note_direct_outcome(&mut map, "wall.example", false, 1_000);
-    assert_eq!(direct_skip_remaining(&map, "wall.example", 1_001), 0, "first fail is still just a streak");
+    assert_eq!(
+        direct_skip_remaining(&map, "wall.example", 1_001),
+        0,
+        "first fail is still just a streak"
+    );
     note_direct_outcome(&mut map, "wall.example", false, 1_100);
     let left = direct_skip_remaining(&map, "wall.example", 1_101);
     assert!(
@@ -165,7 +188,11 @@ fn sentence_expires() {
     note_direct_outcome(&mut map, "wall.example", false, 1_000);
     let until = 1_000 + DIRECT_SKIP_SECS;
     assert!(direct_skip_remaining(&map, "wall.example", until - 1) > 0);
-    assert_eq!(direct_skip_remaining(&map, "wall.example", until), 0, "expired");
+    assert_eq!(
+        direct_skip_remaining(&map, "wall.example", until),
+        0,
+        "expired"
+    );
 }
 
 #[test]
@@ -233,13 +260,25 @@ fn cjk_heavy_detects_chinese_medical_query() {
 fn overseas_hosts_auto_proxy_for_search() {
     // Mirrors env_knobs::should_auto_proxy — search relies on this list
     // for proxy-first overseas engines.
-    assert!(crate::config::should_auto_proxy("https://html.duckduckgo.com/html/"));
-    assert!(crate::config::should_auto_proxy("https://huggingface.co/api/models"));
-    assert!(crate::config::should_auto_proxy("https://api.github.com/search/repositories"));
-    assert!(crate::config::should_auto_proxy("https://export.arxiv.org/api/query"));
-    assert!(crate::config::should_auto_proxy("https://pypi.org/pypi/requests/json"));
+    assert!(crate::config::should_auto_proxy(
+        "https://html.duckduckgo.com/html/"
+    ));
+    assert!(crate::config::should_auto_proxy(
+        "https://huggingface.co/api/models"
+    ));
+    assert!(crate::config::should_auto_proxy(
+        "https://api.github.com/search/repositories"
+    ));
+    assert!(crate::config::should_auto_proxy(
+        "https://export.arxiv.org/api/query"
+    ));
+    assert!(crate::config::should_auto_proxy(
+        "https://pypi.org/pypi/requests/json"
+    ));
     assert!(!crate::config::should_auto_proxy("https://www.baidu.com/s"));
-    assert!(!crate::config::should_auto_proxy("https://www.sogou.com/web"));
+    assert!(!crate::config::should_auto_proxy(
+        "https://www.sogou.com/web"
+    ));
 }
 
 #[test]
@@ -389,9 +428,15 @@ fn merge_rescaled_consensus_beats_verbosity() {
     // hands them over (per-batch rescale applied at collection): the same
     // URL from two quiet engines vs a different URL topping the chatty
     // engine — consensus wins.
-    let quiet = |engine: &str, score: f64| raw("Consensus", "https://example.com/shared", engine, score);
+    let quiet =
+        |engine: &str, score: f64| raw("Consensus", "https://example.com/shared", engine, score);
     let results = vec![
-        raw("Chatty top", "https://example.com/only-chatty", "chatty", 1.0),
+        raw(
+            "Chatty top",
+            "https://example.com/only-chatty",
+            "chatty",
+            1.0,
+        ),
         quiet("quiet_a", 1.0),
         quiet("quiet_b", 1.0),
     ];
@@ -444,7 +489,10 @@ async fn transient_streak_cools_after_three() {
     assert!(!registry.record_transient("flaky").await);
     assert!(!registry.record_transient("flaky").await);
     // Third lands the cooldown.
-    assert!(registry.record_transient("flaky").await, "third strike must cool");
+    assert!(
+        registry.record_transient("flaky").await,
+        "third strike must cool"
+    );
     // The suspended path now reports it (resume_at set).
     {
         let st = registry.state.read().await;
@@ -469,10 +517,19 @@ async fn probation_lands_and_clears() {
     let registry = SearchEngineRegistry::with_engines(vec![]);
     assert!(!registry.record_transient("flaky").await, "first strike");
     assert!(!registry.record_transient("flaky").await, "second strike");
-    assert!(registry.record_transient("flaky").await, "third strike cools");
-    assert!(registry.on_probation("flaky").await, "probation armed after cooldown");
+    assert!(
+        registry.record_transient("flaky").await,
+        "third strike cools"
+    );
+    assert!(
+        registry.on_probation("flaky").await,
+        "probation armed after cooldown"
+    );
     registry.reset_transient_streak("flaky").await; // a clean success
-    assert!(!registry.on_probation("flaky").await, "clean success ends probation");
+    assert!(
+        !registry.on_probation("flaky").await,
+        "clean success ends probation"
+    );
 }
 
 /// The section locator: a stored markdown sample + a query term → the

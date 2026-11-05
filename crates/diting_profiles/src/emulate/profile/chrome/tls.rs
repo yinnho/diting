@@ -137,7 +137,10 @@ impl From<ChromeTlsConfig> for TlsOptions {
             .enable_ech_grease(val.enable_ech_grease)
             .alps_protocols([val.alps_protos])
             .alps_use_new_codepoint(val.alps_use_new_codepoint)
-            .requested_trust_anchors(val.empty_trust_anchors.then_some(std::borrow::Cow::Borrowed(&[][..])))
+            .requested_trust_anchors(
+                val.empty_trust_anchors
+                    .then_some(std::borrow::Cow::Borrowed(&[][..])),
+            )
             .aes_hw_override(true)
             .certificate_compressors(CERTIFICATE_COMPRESSORS)
             .build()

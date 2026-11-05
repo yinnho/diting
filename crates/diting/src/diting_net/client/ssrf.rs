@@ -70,7 +70,8 @@ pub fn is_forbidden_base(ip: IpAddr) -> bool {
                 || v6.is_unspecified()
                 || v6.is_unique_local()
                 || v6.is_unicast_link_local()
-                || v6.is_multicast() // ff00::/8
+                || v6.is_multicast()
+            // ff00::/8
             {
                 return true;
             }
@@ -157,7 +158,11 @@ fn in_fake_ip_range(ip: IpAddr) -> bool {
 /// How the fake-ip exemption is decided: `DITING_FAKE_IP=1` forces it
 /// on, `0` forces it off, anything else (default) probes the resolver.
 fn fake_ip_mode() -> Option<bool> {
-    match std::env::var("DITING_FAKE_IP").ok().as_deref().map(str::trim) {
+    match std::env::var("DITING_FAKE_IP")
+        .ok()
+        .as_deref()
+        .map(str::trim)
+    {
         Some("1") | Some("true") | Some("on") => Some(true),
         Some("0") | Some("false") | Some("off") => Some(false),
         _ => None,
@@ -282,7 +287,13 @@ mod fake_ip_tests {
         for ok in ["198.18.0.1", "198.19.255.254"] {
             assert!(in_fake_ip_range(ok.parse().unwrap()), "{ok}");
         }
-        for no in ["198.17.255.255", "198.20.0.0", "127.0.0.1", "10.0.0.1", "169.254.169.254"] {
+        for no in [
+            "198.17.255.255",
+            "198.20.0.0",
+            "127.0.0.1",
+            "10.0.0.1",
+            "169.254.169.254",
+        ] {
             assert!(!in_fake_ip_range(no.parse().unwrap()), "{no}");
         }
     }
@@ -291,7 +302,12 @@ mod fake_ip_tests {
     async fn non_fake_ranges_stay_blocked_whatever_the_dns_looks_like() {
         // These never reach the probe: loopback/RFC1918/metadata are not
         // 198.18/15, so the exemption cannot apply to them.
-        for bad in ["127.0.0.1", "10.1.2.3", "169.254.169.254", "100.100.100.200"] {
+        for bad in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "169.254.169.254",
+            "100.100.100.200",
+        ] {
             assert!(forbidden_after_dns(bad.parse().unwrap()).await, "{bad}");
         }
         assert!(!forbidden_after_dns("93.184.216.34".parse().unwrap()).await);

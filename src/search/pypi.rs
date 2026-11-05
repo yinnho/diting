@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// PyPI package search, keyless. The pypi.org `/search` HTML page is behind
 /// a JS bot challenge (Fastly) and the legacy RPC search API was disabled in
@@ -136,6 +136,8 @@ mod tests {
 
     #[test]
     fn missing_info_yields_empty() {
-        assert!(parse_pypi_json(r#"{"message": "Not Found"}"#).unwrap().is_empty());
+        assert!(parse_pypi_json(r#"{"message": "Not Found"}"#)
+            .unwrap()
+            .is_empty());
     }
 }

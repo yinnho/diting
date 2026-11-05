@@ -29,8 +29,8 @@ pub(super) static FETCH_CLIENT_CACHE: std::sync::OnceLock<
 /// connection pool actually warms up.
 pub fn cached_request_client(proxy_url: Option<&str>) -> Result<reqwest::Client, String> {
     let key = proxy_url.unwrap_or("").to_string();
-    let cache = FETCH_CLIENT_CACHE
-        .get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+    let cache =
+        FETCH_CLIENT_CACHE.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
     if let Ok(read) = cache.read() {
         if let Some(client) = read.get(&key) {
             return Ok(client.clone());
@@ -46,7 +46,10 @@ pub fn cached_request_client(proxy_url: Option<&str>) -> Result<reqwest::Client,
 /// Pick a reqwest client for `url`. When the page was opened without a proxy
 /// (`proxy_url` is None), subresources also go direct. When the page opened
 /// through a proxy (foreign sites), subresources follow it too.
-pub(crate) async fn select_request_client(_url: &str, proxy_url: Option<&str>) -> Result<reqwest::Client, String> {
+pub(crate) async fn select_request_client(
+    _url: &str,
+    proxy_url: Option<&str>,
+) -> Result<reqwest::Client, String> {
     cached_request_client(proxy_url)
 }
 

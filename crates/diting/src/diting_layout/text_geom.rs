@@ -53,8 +53,11 @@ impl Frag {
                 }
                 let into = (p - s.cs) as usize;
                 let prefix: String = s.text.chars().take(into).collect();
-                let part = fonts.advance_width(&prefix, self.font_size, self.bold, self.mono, self.han);
-                let whole = fonts.advance_width(&s.text, self.font_size, self.bold, self.mono, self.han).max(0.001);
+                let part =
+                    fonts.advance_width(&prefix, self.font_size, self.bold, self.mono, self.han);
+                let whole = fonts
+                    .advance_width(&s.text, self.font_size, self.bold, self.mono, self.han)
+                    .max(0.001);
                 // Scale the measured prefix onto the laid-out advance (word
                 // spacing and rounding ride the token width, not the shaper).
                 return s.x + part * (s.w / whole);
@@ -139,24 +142,47 @@ pub fn node_frags(items: &[PaintItem], fonts: &FontBook, target: NodeId) -> Vec<
         else {
             continue;
         };
-        let Some(&(_, seg_start, seg_len)) = segs.iter().find(|(n, _, _)| *n == target) else { continue };
+        let Some(&(_, seg_start, seg_len)) = segs.iter().find(|(n, _, _)| *n == target) else {
+            continue;
+        };
         let toks: std::rc::Rc<[Token]> = match tokens {
             Some(t) => t.clone(),
-            None => text::tokens_of(run_text, *font_size, *bold, fonts, *mono, *word_spacing, *ws, *small_caps, *han).into(),
+            None => text::tokens_of(
+                run_text,
+                *font_size,
+                *bold,
+                fonts,
+                *mono,
+                *word_spacing,
+                *ws,
+                *small_caps,
+                *han,
+            )
+            .into(),
         };
         if toks.is_empty() {
             continue;
         }
-        let wrap = if wrap_at.is_finite() && !ws.no_soft_wrap() { Some(*wrap_at) } else { None };
+        let wrap = if wrap_at.is_finite() && !ws.no_soft_wrap() {
+            Some(*wrap_at)
+        } else {
+            None
+        };
         let lines = text::greedy_wrap(&toks, wrap, *ws);
         let chars: Vec<char> = run_text.chars().collect();
         let ranges = token_chars(&chars, &toks, *ws);
-        let (asc, desc) = fonts.metrics(*font_size, *bold).map(|m| (m.ascent, m.descent)).unwrap_or((*font_size * 0.8, *font_size * 0.2));
+        let (asc, desc) = fonts
+            .metrics(*font_size, *bold)
+            .map(|m| (m.ascent, m.descent))
+            .unwrap_or((*font_size * 0.8, *font_size * 0.2));
         let content_h = asc + desc;
         let seg_start = seg_start as i64;
         let seg_end = seg_start + seg_len as i64;
         for (li, line) in lines.iter().enumerate() {
-            let (Some(&first), Some(&last)) = (line.token_idx.first(), line.token_idx.last()) else { continue };
+            let (Some(&first), Some(&last)) = (line.token_idx.first(), line.token_idx.last())
+            else {
+                continue;
+            };
             let line_x = *x + text::last_line_offset(&lines, li, *last_line_align);
             let line_y = *y + li as f32 * *line_height;
             // x of each token inside the line, in order.

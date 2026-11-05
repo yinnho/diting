@@ -35,8 +35,19 @@ fn is_cors_unsafe_request_header_byte(byte: u8) -> bool {
     (byte < 0x20 && byte != b'\t')
         || matches!(
             byte,
-            b'"' | b'(' | b')' | b':' | b'<' | b'>' | b'?' | b'@' | b'[' | b'\\'
-                | b']' | b'{' | b'}' | 0x7f
+            b'"' | b'('
+                | b')'
+                | b':'
+                | b'<'
+                | b'>'
+                | b'?'
+                | b'@'
+                | b'['
+                | b'\\'
+                | b']'
+                | b'{'
+                | b'}'
+                | 0x7f
         )
 }
 
@@ -44,8 +55,20 @@ fn is_http_token_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
         || matches!(
             byte,
-            b'!' | b'#' | b'$' | b'%' | b'&' | b'\'' | b'*' | b'+' | b'-' | b'.'
-                | b'^' | b'_' | b'`' | b'|' | b'~'
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
         )
 }
 
@@ -106,8 +129,7 @@ pub(crate) fn is_cors_safelisted_request_header(name: &str, value: &str) -> bool
     if name.eq_ignore_ascii_case("accept") {
         return !value.bytes().any(is_cors_unsafe_request_header_byte);
     }
-    if name.eq_ignore_ascii_case("accept-language")
-        || name.eq_ignore_ascii_case("content-language")
+    if name.eq_ignore_ascii_case("accept-language") || name.eq_ignore_ascii_case("content-language")
     {
         return value.bytes().all(|byte| {
             byte.is_ascii_alphanumeric()
@@ -126,7 +148,9 @@ pub(crate) fn is_cors_safelisted_request_header(name: &str, value: &str) -> bool
 /// Return the sorted, lowercase header names that must be authorized by a
 /// CORS preflight. The aggregate safelist cap is observable only on unusual
 /// requests and does not add work to same-origin requests.
-pub(crate) fn cors_unsafe_request_header_names(headers: &std::collections::HashMap<String, String>) -> Vec<String> {
+pub(crate) fn cors_unsafe_request_header_names(
+    headers: &std::collections::HashMap<String, String>,
+) -> Vec<String> {
     let mut unsafe_names = Vec::new();
     let mut safelist_value_size = 0usize;
 
@@ -168,19 +192,20 @@ pub(crate) fn parse_cors_header_list<'a>(
     Some(items)
 }
 
-pub(crate) fn preflight_allows_method(method: &reqwest::Method, allowed: &[&str], credentialed: bool) -> bool {
+pub(crate) fn preflight_allows_method(
+    method: &reqwest::Method,
+    allowed: &[&str],
+    credentialed: bool,
+) -> bool {
     is_cors_safelisted_method(method)
-        || allowed.iter().any(|allowed| {
-            *allowed == method.as_str() || (*allowed == "*" && !credentialed)
-        })
+        || allowed
+            .iter()
+            .any(|allowed| *allowed == method.as_str() || (*allowed == "*" && !credentialed))
 }
 
 pub(crate) fn preflight_allows_header(name: &str, allowed: &[&str], credentialed: bool) -> bool {
     allowed
         .iter()
         .any(|allowed| allowed.eq_ignore_ascii_case(name))
-        || (!name.eq_ignore_ascii_case("authorization")
-            && !credentialed
-            && allowed.contains(&"*"))
+        || (!name.eq_ignore_ascii_case("authorization") && !credentialed && allowed.contains(&"*"))
 }
-

@@ -295,9 +295,13 @@ where
         }
         if self.opts.grease_setting {
             let (id, value) = grease_setting();
-            if let Some(setting) = http2::frame::Setting::from_id(http2::frame::SettingId::Unknown(id), value) {
+            if let Some(setting) =
+                http2::frame::Setting::from_id(http2::frame::SettingId::Unknown(id), value)
+            {
                 builder.experimental_settings(
-                    http2::frame::ExperimentalSettings::builder().push(setting).build(),
+                    http2::frame::ExperimentalSettings::builder()
+                        .push(setting)
+                        .build(),
                 );
             }
         }
@@ -325,7 +329,6 @@ where
         ))
     }
 }
-
 
 /// One HTTP/2 GREASE setting `(id, value)`, drawn per connection like Chrome's session start:
 /// id `0x?A?A` with both `?` nibbles random, value a random 32-bit number. Observed on Chrome for

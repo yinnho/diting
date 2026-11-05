@@ -1,4 +1,4 @@
-    // Table-layout fork deltas (tmall publish P0 #107/#113 + the table
+// Table-layout fork deltas (tmall publish P0 #107/#113 + the table
 // background-paint family), split from fork_deltas.rs at the god-file
 // ratchet's demand. Self-contained tests, crate-pathed imports only.
 
@@ -28,12 +28,14 @@ fn inline_table_with_bare_cells_lays_out_fusion_input() {
     );
     let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
     let rects = crate::diting_layout::layout_dom(
-        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        1280.0,
+        800.0,
     );
     let span_id = tree.query_selector_all(".next-input").unwrap()[0];
-    let span = rects
-        .get(&span_id)
-        .expect("inline-table span owns a box");
+    let span = rects.get(&span_id).expect("inline-table span owns a box");
     assert!(
         (span.width - 200.0).abs() < 2.0,
         "authored table width holds; got {span:?}"
@@ -44,7 +46,10 @@ fn inline_table_with_bare_cells_lays_out_fusion_input() {
         inp.width > 150.0,
         "width:100% input resolves against the cell, not nothing; got {inp:?}"
     );
-    assert!(inp.height > 15.0, "input keeps its default height; got {inp:?}");
+    assert!(
+        inp.height > 15.0,
+        "input keeps its default height; got {inp:?}"
+    );
 }
 
 /// CSS2.2 §17.2.1's anonymous-row half on a real table: a cell directly
@@ -105,13 +110,15 @@ fn row_group_background_paints_on_row_band() {
     let bands: Vec<crate::diting_layout::Rect> = items
         .iter()
         .filter_map(|it| match it {
-            PaintItem::Bg { rect, color, .. } if *color == [0xff, 0x00, 0x00, 0xff] => {
-                Some(*rect)
-            }
+            PaintItem::Bg { rect, color, .. } if *color == [0xff, 0x00, 0x00, 0xff] => Some(*rect),
             _ => None,
         })
         .collect();
-    assert_eq!(bands.len(), 1, "tbody bg paints exactly one band; got {bands:?}");
+    assert_eq!(
+        bands.len(),
+        1,
+        "tbody bg paints exactly one band; got {bands:?}"
+    );
     let band = bands[0];
 
     // The band is the row's, not the cell's: it underlaps the cell text and
@@ -124,10 +131,7 @@ fn row_group_background_paints_on_row_band() {
         })
         .expect("cell text paints");
     assert!(
-        band.x <= tx
-            && tx <= band.x + band.width
-            && band.y <= ty
-            && ty <= band.y + band.height,
+        band.x <= tx && tx <= band.x + band.width && band.y <= ty && ty <= band.y + band.height,
         "band must underlap the cell text; band={band:?} text=({tx},{ty})"
     );
 }
@@ -158,7 +162,9 @@ fn thead_background_paints_on_row_band() {
 
     let bands = items
         .iter()
-        .filter(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0x00, 0xff, 0x00, 0xff]))
+        .filter(
+            |it| matches!(it, PaintItem::Bg { color, .. } if *color == [0x00, 0xff, 0x00, 0xff]),
+        )
         .count();
     assert_eq!(bands, 1, "thead bg paints exactly one band; got {bands}");
 }
@@ -172,7 +178,8 @@ fn cell_background_paints_over_row_group_band() {
     use crate::diting_dom::tree_sink::parse_html;
     use crate::diting_layout::PaintItem;
 
-    let html = r#"<html><body><table><tbody><tr><td class="hl">x</td></tr></tbody></table></body></html>"#;
+    let html =
+        r#"<html><body><table><tbody><tr><td class="hl">x</td></tr></tbody></table></body></html>"#;
     let tree = parse_html(html);
     let rules = parse_stylesheet_for(
         "tbody { background-color: #ff0000; } td.hl { background-color: #00cc00; }",
@@ -190,11 +197,15 @@ fn cell_background_paints_over_row_group_band() {
 
     let red_idx = items
         .iter()
-        .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0xff, 0x00, 0x00, 0xff]))
+        .position(
+            |it| matches!(it, PaintItem::Bg { color, .. } if *color == [0xff, 0x00, 0x00, 0xff]),
+        )
         .expect("climbed tbody band missing");
     let green_idx = items
         .iter()
-        .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0x00, 0xcc, 0x00, 0xff]))
+        .position(
+            |it| matches!(it, PaintItem::Bg { color, .. } if *color == [0x00, 0xcc, 0x00, 0xff]),
+        )
         .expect("cell's own bg missing");
     assert!(
         red_idx < green_idx,
@@ -212,7 +223,8 @@ fn row_background_beats_row_group_background() {
     use crate::diting_dom::tree_sink::parse_html;
     use crate::diting_layout::PaintItem;
 
-    let html = r#"<html><body><table><tbody><tr class="r"><td>x</td></tr></tbody></table></body></html>"#;
+    let html =
+        r#"<html><body><table><tbody><tr class="r"><td>x</td></tr></tbody></table></body></html>"#;
     let tree = parse_html(html);
     let rules = parse_stylesheet_for(
         "tbody { background-color: #ff0000; } tr.r { background-color: #0000ff; }",
@@ -240,8 +252,16 @@ fn row_background_beats_row_group_background() {
         .filter(|(_, it)| matches!(it, PaintItem::Bg { color, .. } if *color == [0x00, 0x00, 0xff, 0xff]))
         .map(|(i, _)| i)
         .collect();
-    assert_eq!(reds.len(), 1, "the group's own red box paints once; got {reds:?}");
-    assert_eq!(blues.len(), 1, "the row's own blue paints once; got {blues:?}");
+    assert_eq!(
+        reds.len(),
+        1,
+        "the group's own red box paints once; got {reds:?}"
+    );
+    assert_eq!(
+        blues.len(),
+        1,
+        "the row's own blue paints once; got {blues:?}"
+    );
     assert!(
         reds[0] < blues[0],
         "group red ({reds:?}) must paint under the row's blue ({blues:?})"
@@ -273,7 +293,11 @@ fn collapsed_borders_merge_into_shared_gutters() {
     );
     let styles = crate::diting_layout::compute_styles(&tree, &rules, (1280.0, 720.0));
     let rects = crate::diting_layout::layout_dom(
-        &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0,
+        &tree,
+        &styles,
+        &crate::diting_fonts::font_book(),
+        1280.0,
+        800.0,
     );
     let cell = |sel: &str| {
         let id = tree.query_selector_all(sel).unwrap()[0];

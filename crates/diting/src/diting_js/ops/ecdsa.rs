@@ -50,11 +50,7 @@ macro_rules! ecdsa_curves {
 macro_rules! ecdsa_key_flat {
     ($sk:expr) => {{
         let sk = $sk;
-        let pkcs8 = sk
-            .to_pkcs8_der()
-            .map_err(crypto_err)?
-            .as_bytes()
-            .to_vec();
+        let pkcs8 = sk.to_pkcs8_der().map_err(crypto_err)?.as_bytes().to_vec();
         let vk = sk.verifying_key();
         let sec1 = vk.to_sec1_point(false).as_bytes().to_vec();
         let spki = vk
@@ -127,7 +123,12 @@ pub(crate) fn op_subtle_ecdsa_import_public(
             .map_err(crypto_err)?
             .as_bytes()
             .to_vec();
-        Ok(ecdsa_flat([&[] as &[u8], &sec1[..], &[] as &[u8], &spki[..]]))
+        Ok(ecdsa_flat([
+            &[] as &[u8],
+            &sec1[..],
+            &[] as &[u8],
+            &spki[..],
+        ]))
     })
 }
 
@@ -143,9 +144,9 @@ pub(crate) fn op_subtle_ecdsa_sign(
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     let prehash = ecdsa_digest(hash, data)?;
     ecdsa_curves!(curve, {
+        use ::ecdsa::signature::hazmat::PrehashSigner;
         use ec::ecdsa::{Signature, SigningKey};
         use ec::elliptic_curve::pkcs8::DecodePrivateKey;
-        use ::ecdsa::signature::hazmat::PrehashSigner;
         let sk = SigningKey::from_pkcs8_der(pkcs8).map_err(crypto_err)?;
         let sig: Signature = sk.sign_prehash(&prehash).map_err(crypto_err)?;
         Ok(sig.to_bytes().to_vec())
@@ -165,8 +166,8 @@ pub(crate) fn op_subtle_ecdsa_verify(
 ) -> Result<bool, deno_error::JsErrorBox> {
     let prehash = ecdsa_digest(hash, data)?;
     ecdsa_curves!(curve, {
-        use ec::ecdsa::{Signature, VerifyingKey};
         use ::ecdsa::signature::hazmat::PrehashVerifier;
+        use ec::ecdsa::{Signature, VerifyingKey};
         let vk = match VerifyingKey::from_sec1_bytes(sec1) {
             Ok(vk) => vk,
             Err(_) => return Ok(false),

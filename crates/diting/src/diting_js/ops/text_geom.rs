@@ -9,11 +9,15 @@ use super::*;
 /// keeps its single border box).
 #[cfg(feature = "screenshot")]
 pub(super) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str) -> String {
-    let Some(nid) = arg1.parse::<u32>().ok().map(NodeId::new) else { return "null".into() };
+    let Some(nid) = arg1.parse::<u32>().ok().map(NodeId::new) else {
+        return "null".into();
+    };
     let epoch = dom.epoch();
     ensure_layout_run(gs, dom, epoch);
     let cache = gs.layout_cache.borrow();
-    let Some((e, run)) = cache.as_ref() else { return "null".into() };
+    let Some((e, run)) = cache.as_ref() else {
+        return "null".into();
+    };
     if *e != epoch {
         return "null".into();
     }
@@ -22,17 +26,27 @@ pub(super) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str
     let fonts: &crate::diting_layout::text::FontBook = &fonts_arc;
     let json = |rects: Vec<[f32; 4]>| {
         serde_json::Value::Array(
-            rects.into_iter().map(|r| serde_json::json!([r[0], r[1], r[2], r[3]])).collect(),
+            rects
+                .into_iter()
+                .map(|r| serde_json::json!([r[0], r[1], r[2], r[3]]))
+                .collect(),
         )
         .to_string()
     };
     match cmd {
         "text_rects" => {
-            let (from, to) = arg2.split_once(',').and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?))).unwrap_or((0, u32::MAX));
+            let (from, to) = arg2
+                .split_once(',')
+                .and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)))
+                .unwrap_or((0, u32::MAX));
             let mut out = Vec::new();
             for f in crate::diting_layout::text_geom::node_frags(items, fonts, nid) {
                 // A collapsed range still reports the caret box on its line.
-                let hit = if from == to { f.start <= from && from <= f.end } else { f.start < to && from < f.end };
+                let hit = if from == to {
+                    f.start <= from && from <= f.end
+                } else {
+                    f.start < to && from < f.end
+                };
                 if hit {
                     out.push(f.sub_rect(fonts, from, to));
                 }
@@ -40,7 +54,9 @@ pub(super) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str
             json(out)
         }
         "elem_rects" => {
-            let inline = styles.get(&nid).is_some_and(|s| s.display == Some(crate::diting_css::Display::Inline));
+            let inline = styles
+                .get(&nid)
+                .is_some_and(|s| s.display == Some(crate::diting_css::Display::Inline));
             if !inline {
                 return "null".into();
             }
@@ -63,7 +79,11 @@ pub(super) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str
                     }
                 }
             }
-            if lines.is_empty() { "null".into() } else { json(lines) }
+            if lines.is_empty() {
+                "null".into()
+            } else {
+                json(lines)
+            }
         }
         _ => "null".into(),
     }

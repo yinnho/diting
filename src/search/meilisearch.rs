@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Meilisearch adapter (SearXNG-parity): query the operator's own
 /// self-hosted Meilisearch instance as a search source — private corpora,

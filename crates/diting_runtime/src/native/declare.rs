@@ -23,10 +23,16 @@ pub(crate) enum Val {
 
 impl Val {
     pub(crate) fn num(&self) -> f64 {
-        match self { Val::Num(n) => *n, Val::Str(_) => f64::NAN }
+        match self {
+            Val::Num(n) => *n,
+            Val::Str(_) => f64::NAN,
+        }
     }
     pub(crate) fn str(&self) -> &str {
-        match self { Val::Str(s) => s, Val::Num(_) => "" }
+        match self {
+            Val::Str(s) => s,
+            Val::Num(_) => "",
+        }
     }
 }
 
@@ -73,10 +79,16 @@ pub(crate) struct Iface {
 type Cb = unsafe extern "C" fn(*const FunctionCallbackInfo);
 
 pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
-    [ctor as Cb, get as Cb, set as Cb, to_json as Cb, factory as Cb]
-        .into_iter()
-        .map(|f| v8::ExternalReference { function: f })
-        .collect()
+    [
+        ctor as Cb,
+        get as Cb,
+        set as Cb,
+        to_json as Cb,
+        factory as Cb,
+    ]
+    .into_iter()
+    .map(|f| v8::ExternalReference { function: f })
+    .collect()
 }
 
 // The interface table is process-static, registered once at install; the
@@ -89,11 +101,20 @@ fn table() -> Table {
 }
 
 const MEMBER_BITS: i32 = 6;
-fn enc(iface: usize, member: usize) -> i32 { ((iface as i32) << MEMBER_BITS) | member as i32 }
-fn dec(d: i32) -> (usize, usize) { ((d >> MEMBER_BITS) as usize, (d & ((1 << MEMBER_BITS) - 1)) as usize) }
+fn enc(iface: usize, member: usize) -> i32 {
+    ((iface as i32) << MEMBER_BITS) | member as i32
+}
+fn dec(d: i32) -> (usize, usize) {
+    (
+        (d >> MEMBER_BITS) as usize,
+        (d & ((1 << MEMBER_BITS) - 1)) as usize,
+    )
+}
 
 fn root_of(t: Table, mut i: usize) -> usize {
-    while let Some(p) = t[i].parent { i = p; }
+    while let Some(p) = t[i].parent {
+        i = p;
+    }
     i
 }
 
@@ -106,21 +127,36 @@ fn throw_type_error(scope: &mut v8::PinScope<'_, '_>, msg: &str) {
 /// WebIDL conversion of one argument to the slot's type; `undefined` ->
 /// `default` when given. A Symbol throws with Chrome's
 /// "<prefix>: Cannot convert ..." wording.
-fn conv(scope: &mut v8::PinScope<'_, '_>, v: Local<v8::Value>, def: Def, use_default: bool, prefix: &str) -> Option<Val> {
+fn conv(
+    scope: &mut v8::PinScope<'_, '_>,
+    v: Local<v8::Value>,
+    def: Def,
+    use_default: bool,
+    prefix: &str,
+) -> Option<Val> {
     if v.is_undefined() && use_default {
-        return Some(match def { Def::Num(n) => Val::Num(n), Def::Str(s) => Val::Str(s.to_string()) });
+        return Some(match def {
+            Def::Num(n) => Val::Num(n),
+            Def::Str(s) => Val::Str(s.to_string()),
+        });
     }
     match def {
         Def::Num(_) => {
             if v.is_symbol() {
-                throw_type_error(scope, &format!("{prefix}: Cannot convert a Symbol value to a number"));
+                throw_type_error(
+                    scope,
+                    &format!("{prefix}: Cannot convert a Symbol value to a number"),
+                );
                 return None;
             }
             v.number_value(scope).map(Val::Num)
         }
         Def::Str(_) => {
             if v.is_symbol() {
-                throw_type_error(scope, &format!("{prefix}: Cannot convert a Symbol value to a string"));
+                throw_type_error(
+                    scope,
+                    &format!("{prefix}: Cannot convert a Symbol value to a string"),
+                );
                 return None;
             }
             let s = v.to_string(scope)?;
@@ -130,7 +166,11 @@ fn conv(scope: &mut v8::PinScope<'_, '_>, v: Local<v8::Value>, def: Def, use_def
 }
 
 /// Brand check: internal-field layout AND family tag must match.
-fn read(scope: &mut v8::PinScope<'_, '_>, this: Local<v8::Object>, root: &Iface) -> Option<Vec<Val>> {
+fn read(
+    scope: &mut v8::PinScope<'_, '_>,
+    this: Local<v8::Object>,
+    root: &Iface,
+) -> Option<Vec<Val>> {
     if this.internal_field_count() != 1 + root.slots.len() {
         return None;
     }
@@ -166,7 +206,10 @@ fn write(scope: &mut v8::PinScope<'_, '_>, obj: Local<v8::Object>, family: i32, 
 }
 
 fn member_value(m: &Member, v: &[Val]) -> Val {
-    match m.attr { Attr::Slot(i) => v[i].clone(), Attr::Derived(f) => f(v) }
+    match m.attr {
+        Attr::Slot(i) => v[i].clone(),
+        Attr::Derived(f) => f(v),
+    }
 }
 
 unsafe extern "C" fn ctor(info: *const FunctionCallbackInfo) {
@@ -225,8 +268,13 @@ unsafe extern "C" fn set(info: *const FunctionCallbackInfo) {
     };
     let m = &t[ii].members[mi];
     let Attr::Slot(slot) = m.attr else { return };
-    let prefix = format!("Failed to set the '{}' property on '{}'", m.name, t[ii].name);
-    let Some(n) = conv(scope, args.get(0), root.slots[slot].default, false, &prefix) else { return };
+    let prefix = format!(
+        "Failed to set the '{}' property on '{}'",
+        m.name, t[ii].name
+    );
+    let Some(n) = conv(scope, args.get(0), root.slots[slot].default, false, &prefix) else {
+        return;
+    };
     v[slot] = n;
     write(scope, args.this(), root.family, &v);
 }
@@ -264,7 +312,14 @@ unsafe extern "C" fn factory(info: *const FunctionCallbackInfo) {
     let it = t[ii];
     let Some(fname) = it.factory else { return };
     let prefix = format!("Failed to execute '{}' on '{}'", fname, it.name);
-    let mut v: Vec<Val> = it.slots.iter().map(|s| match s.default { Def::Num(n) => Val::Num(n), Def::Str(t) => Val::Str(t.to_string()) }).collect();
+    let mut v: Vec<Val> = it
+        .slots
+        .iter()
+        .map(|s| match s.default {
+            Def::Num(n) => Val::Num(n),
+            Def::Str(t) => Val::Str(t.to_string()),
+        })
+        .collect();
     let dict = args.get(0);
     if dict.is_undefined() || dict.is_null() {
         // dictionary default
@@ -273,30 +328,53 @@ unsafe extern "C" fn factory(info: *const FunctionCallbackInfo) {
         order.sort_by_key(|&i| it.slots[i].name);
         for i in order {
             let k = v8::String::new(scope, it.slots[i].name).unwrap();
-            let Some(got) = d.get(scope, k.into()) else { return };
-            let Some(n) = conv(scope, got, it.slots[i].default, true, &prefix) else { return };
+            let Some(got) = d.get(scope, k.into()) else {
+                return;
+            };
+            let Some(n) = conv(scope, got, it.slots[i].default, true, &prefix) else {
+                return;
+            };
             v[i] = n;
         }
     } else {
-        let init = if it.name.starts_with("DOMRect") { "DOMRectInit" } else { "DOMPointInit" };
-        throw_type_error(scope, &format!("{prefix}: The provided value is not of type '{init}'."));
+        let init = if it.name.starts_with("DOMRect") {
+            "DOMRectInit"
+        } else {
+            "DOMPointInit"
+        };
+        throw_type_error(
+            scope,
+            &format!("{prefix}: The provided value is not of type '{init}'."),
+        );
         return;
     }
     // Instantiate through the interface's own constructor so the result
     // carries the right prototype.
     let global = scope.get_current_context().global(scope);
     let k = v8::String::new(scope, it.name).unwrap();
-    let Some(c) = global.get(scope, k.into()) else { return };
-    let Ok(c) = Local::<v8::Function>::try_from(c) else { return };
+    let Some(c) = global.get(scope, k.into()) else {
+        return;
+    };
+    let Ok(c) = Local::<v8::Function>::try_from(c) else {
+        return;
+    };
     let argv: Vec<Local<v8::Value>> = v.iter().map(|n| to_js(scope, n)).collect();
     if let Some(o) = c.new_instance(scope, &argv) {
         ReturnValue::from_function_callback_info(info).set(o.into());
     }
 }
 
-fn builder<'s>(scope: &mut v8::PinScope<'s, '_, ()>, cb: Cb, data: i32, len: i32) -> Local<'s, FunctionTemplate> {
+fn builder<'s>(
+    scope: &mut v8::PinScope<'s, '_, ()>,
+    cb: Cb,
+    data: i32,
+    len: i32,
+) -> Local<'s, FunctionTemplate> {
     let d = v8::Integer::new(scope, data);
-    FunctionTemplate::builder_raw(cb).data(d.into()).length(len).build(scope)
+    FunctionTemplate::builder_raw(cb)
+        .data(d.into())
+        .length(len)
+        .build(scope)
 }
 
 fn name_of<'s>(scope: &mut v8::PinScope<'s, '_, ()>, s: &str) -> Local<'s, v8::String> {
@@ -310,11 +388,18 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object
         let t = builder(scope, ctor, enc(ii, 0), 0);
         let nm = name_of(scope, it.name);
         t.set_class_name(nm);
-        if let Some(p) = it.parent { t.inherit(templates[p]); }
-        t.instance_template(scope).set_internal_field_count(1 + it.slots.len());
+        if let Some(p) = it.parent {
+            t.inherit(templates[p]);
+        }
+        t.instance_template(scope)
+            .set_internal_field_count(1 + it.slots.len());
         t.read_only_prototype();
         let proto = t.prototype_template(scope);
-        proto.set_with_attr(tag_key.into(), nm.into(), PropertyAttribute::READ_ONLY | PropertyAttribute::DONT_ENUM);
+        proto.set_with_attr(
+            tag_key.into(),
+            nm.into(),
+            PropertyAttribute::READ_ONLY | PropertyAttribute::DONT_ENUM,
+        );
         for (mi, m) in it.members.iter().enumerate() {
             let g = builder(scope, get, enc(ii, mi), 0);
             let gname = name_of(scope, &format!("get {}", m.name));
@@ -324,7 +409,9 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object
                 let sname = name_of(scope, &format!("set {}", m.name));
                 s.set_class_name(sname);
                 Some(s)
-            } else { None };
+            } else {
+                None
+            };
             let key = name_of(scope, m.name);
             proto.set_accessor_property(key.into(), Some(g), s, PropertyAttribute::NONE);
         }
@@ -343,26 +430,44 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object
         for (cname, cval) in it.consts {
             let k = name_of(scope, cname);
             let v = v8::Integer::new(scope, *cval);
-            t.set_with_attr(k.into(), v.into(), PropertyAttribute::READ_ONLY | PropertyAttribute::DONT_DELETE);
-            proto.set_with_attr(k.into(), v.into(), PropertyAttribute::READ_ONLY | PropertyAttribute::DONT_DELETE);
+            t.set_with_attr(
+                k.into(),
+                v.into(),
+                PropertyAttribute::READ_ONLY | PropertyAttribute::DONT_DELETE,
+            );
+            proto.set_with_attr(
+                k.into(),
+                v.into(),
+                PropertyAttribute::READ_ONLY | PropertyAttribute::DONT_DELETE,
+            );
         }
         templates.push(t);
     }
     let mut fns: Vec<Local<v8::Function>> = Vec::new();
     for (ii, it) in ifaces.iter().enumerate() {
-        let f = templates[ii].get_function(scope).expect("template instantiates");
+        let f = templates[ii]
+            .get_function(scope)
+            .expect("template instantiates");
         // Interface objects chain like their prototypes (templates only
         // chain the prototype objects).
-        if let Some(p) = it.parent { f.set_prototype(scope, fns[p].into()); }
+        if let Some(p) = it.parent {
+            f.set_prototype(scope, fns[p].into());
+        }
         if it.error_like {
             // Web IDL: an exception interface's prototype chains to
             // Error.prototype, so `e instanceof Error` and Error's toString.
             let ek = name_of(scope, "Error");
             let pk = name_of(scope, "prototype");
-            let err = global.get(scope, ek.into()).and_then(|e| Local::<v8::Object>::try_from(e).ok());
-            let proto = f.get(scope, pk.into()).and_then(|p| Local::<v8::Object>::try_from(p).ok());
+            let err = global
+                .get(scope, ek.into())
+                .and_then(|e| Local::<v8::Object>::try_from(e).ok());
+            let proto = f
+                .get(scope, pk.into())
+                .and_then(|p| Local::<v8::Object>::try_from(p).ok());
             if let (Some(err), Some(proto)) = (err, proto) {
-                if let Some(ep) = err.get(scope, pk.into()) { proto.set_prototype(scope, ep); }
+                if let Some(ep) = err.get(scope, pk.into()) {
+                    proto.set_prototype(scope, ep);
+                }
             }
         }
         fns.push(f);

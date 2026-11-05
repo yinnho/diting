@@ -10,9 +10,7 @@
 /// The upstream proxy URL, read once per call site from the environment:
 /// `DITING_PROXY`.
 pub fn proxy_from_env() -> Option<String> {
-    std::env::var("DITING_PROXY")
-        .ok()
-        .filter(|p| !p.is_empty())
+    std::env::var("DITING_PROXY").ok().filter(|p| !p.is_empty())
 }
 
 /// `DITING_SYNC_XHR_TIMEOUT_MS`: how long the synchronous-XHR op
@@ -193,8 +191,7 @@ pub static EPHEMERAL_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// restores the old retain-across-commands posture: the emergency revert,
 /// and the A/B baseline for the N-session soak.
 pub fn layout_release() -> bool {
-    !std::env::var("DITING_LAYOUT_RELEASE")
-        .is_ok_and(|v| v.trim() == "0")
+    !std::env::var("DITING_LAYOUT_RELEASE").is_ok_and(|v| v.trim() == "0")
 }
 
 /// When set, no credential-bearing state touches the disk: the shared
@@ -224,10 +221,8 @@ pub fn ephemeral() -> bool {
 pub fn app_data_dir() -> Option<std::path::PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        std::env::var_os("HOME").map(|h| {
-            std::path::PathBuf::from(h)
-                .join("Library/Application Support/diting")
-        })
+        std::env::var_os("HOME")
+            .map(|h| std::path::PathBuf::from(h).join("Library/Application Support/diting"))
     }
     #[cfg(target_os = "windows")]
     {
@@ -235,8 +230,7 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
         // from PowerShell/cmd (only git-bash sets it), and falling back to
         // the working directory is the exact leak this function exists to
         // prevent.
-        std::env::var_os("LOCALAPPDATA")
-            .map(|d| std::path::PathBuf::from(d).join("diting"))
+        std::env::var_os("LOCALAPPDATA").map(|d| std::path::PathBuf::from(d).join("diting"))
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -245,8 +239,7 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
                 return Some(std::path::PathBuf::from(xdg).join("diting"));
             }
         }
-        std::env::var_os("HOME")
-            .map(|h| std::path::PathBuf::from(h).join(".local/share/diting"))
+        std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share/diting"))
     }
 }
 
@@ -262,15 +255,21 @@ mod tests {
         assert!(should_auto_proxy("https://raw.githubusercontent.com/x/y"));
         // github's static bundle host — a page whose HTML proxied but whose
         // JS/CSS went direct arrives scriptless, same as the twimg case.
-        assert!(should_auto_proxy("https://github.githubassets.com/assets/some-bundle.js"));
+        assert!(should_auto_proxy(
+            "https://github.githubassets.com/assets/some-bundle.js"
+        ));
         // Twitter's CDN: every x.com page load pulls scripts/images from
         // abs.twimg.com/pbs.twimg.com — a page whose HTML proxied but whose
         // CDN assets went direct arrives scriptless.
-        assert!(should_auto_proxy("https://abs.twimg.com/client-web/main.js"));
+        assert!(should_auto_proxy(
+            "https://abs.twimg.com/client-web/main.js"
+        ));
         assert!(should_auto_proxy("https://pbs.twimg.com/profile/x.jpg"));
         assert!(should_auto_proxy("https://html.duckduckgo.com/html/"));
         assert!(should_auto_proxy("https://huggingface.co/api/models"));
-        assert!(should_auto_proxy("https://api.github.com/search/repositories"));
+        assert!(should_auto_proxy(
+            "https://api.github.com/search/repositories"
+        ));
         assert!(should_auto_proxy("https://export.arxiv.org/api/query"));
         assert!(!should_auto_proxy("https://notwikipedia.org/"));
         assert!(!should_auto_proxy("https://example.com/"));
@@ -279,7 +278,9 @@ mod tests {
 
     #[test]
     fn ephemeral_parses_env_truthiness() {
-        let _env = super::EPHEMERAL_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _env = super::EPHEMERAL_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         std::env::remove_var("DITING_EPHEMERAL");
         assert!(!ephemeral());

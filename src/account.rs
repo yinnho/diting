@@ -152,9 +152,7 @@ pub(crate) fn record_storage(owner: &str, name: &str) -> Option<serde_json::Valu
 fn storage_seed_from_record(rec: &serde_json::Value) -> Option<serde_json::Value> {
     let ls = rec.get("local_storage")?;
     let ss = rec.get("session_storage")?;
-    if ls.as_object().is_none_or(|m| m.is_empty())
-        && ss.as_object().is_none_or(|m| m.is_empty())
-    {
+    if ls.as_object().is_none_or(|m| m.is_empty()) && ss.as_object().is_none_or(|m| m.is_empty()) {
         return None;
     }
     let origin = url_origin(rec.get("url").and_then(serde_json::Value::as_str)?)?;
@@ -198,8 +196,10 @@ fn persona_ua_pool() -> Vec<&'static str> {
     diting::diting_browser::profiles::PROFILES
         .iter()
         .filter(|p| {
-            p.user_agent.contains(&format!("Chrome/{}.0.0.0", diting::chrome_target::CHROME_MAJOR))
-                && (p.user_agent.contains("Windows NT") || p.user_agent.contains("Macintosh"))
+            p.user_agent.contains(&format!(
+                "Chrome/{}.0.0.0",
+                diting::chrome_target::CHROME_MAJOR
+            )) && (p.user_agent.contains("Windows NT") || p.user_agent.contains("Macintosh"))
         })
         .map(|p| p.user_agent)
         .collect()
@@ -211,7 +211,10 @@ fn default_mac_chrome_ua() -> &'static str {
         .iter()
         .find(|p| {
             p.user_agent.contains("Macintosh")
-                && p.user_agent.contains(&format!("Chrome/{}.0.0.0", diting::chrome_target::CHROME_MAJOR))
+                && p.user_agent.contains(&format!(
+                    "Chrome/{}.0.0.0",
+                    diting::chrome_target::CHROME_MAJOR
+                ))
         })
         .map(|p| p.user_agent)
         .unwrap_or(diting::chrome_target::UA_MAC)
@@ -266,7 +269,11 @@ fn coerce_ua_to_tls(ua: &str) -> String {
         .iter()
         .copied()
         .find(|p| prefer_mac && p.contains("Macintosh"))
-        .or_else(|| pool.iter().copied().find(|p| prefer_win && p.contains("Windows NT")))
+        .or_else(|| {
+            pool.iter()
+                .copied()
+                .find(|p| prefer_win && p.contains("Windows NT"))
+        })
         .or_else(|| pool.first().copied())
         .unwrap_or_else(default_mac_chrome_ua);
     tracing::warn!(
@@ -711,7 +718,11 @@ pub async fn login(
     let use_proxy = resolve_use_proxy(&record, use_proxy_param);
 
     enum Outcome {
-        LoggedIn { success_url: String, elapsed_ms: u64, probe_shields: Vec<&'static str> },
+        LoggedIn {
+            success_url: String,
+            elapsed_ms: u64,
+            probe_shields: Vec<&'static str>,
+        },
         Open {
             session_id: String,
             page_url: String,
@@ -785,13 +796,13 @@ pub async fn login(
         };
         let needs = classify_gates(&probe);
         let verdict = match mgr
-            .send(&sid, |reply| crate::session::SessionCommand::Verdict { reply })
+            .send(&sid, |reply| crate::session::SessionCommand::Verdict {
+                reply,
+            })
             .await
         {
             Ok(sheet) => serde_json::from_str::<serde_json::Value>(&sheet)
-                .map(|s| {
-                    s["verdict"].as_str().unwrap_or("unknown").to_string()
-                })
+                .map(|s| s["verdict"].as_str().unwrap_or("unknown").to_string())
                 .unwrap_or_else(|_| "unknown".to_string()),
             Err(e) => {
                 mgr.close(&sid);
@@ -839,10 +850,7 @@ pub async fn login(
                 session_id: sid,
                 page_url: probe["url"].as_str().unwrap_or(url).to_string(),
                 needs,
-                markers: probe["markers"]
-                    .as_array()
-                    .cloned()
-                    .unwrap_or_default(),
+                markers: probe["markers"].as_array().cloned().unwrap_or_default(),
                 verdict,
                 expires_in_secs,
                 probe_shields,
@@ -1087,8 +1095,10 @@ mod tests {
         seed_jar(
             &jar,
             &[
-                "dead=old; Domain=.taobao.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
-                "live=fresh; Domain=.taobao.com; Path=/; Expires=Fri, 01 Jan 2027 00:00:00 GMT".to_string(),
+                "dead=old; Domain=.taobao.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+                    .to_string(),
+                "live=fresh; Domain=.taobao.com; Path=/; Expires=Fri, 01 Jan 2027 00:00:00 GMT"
+                    .to_string(),
                 "session=ok; Domain=.taobao.com; Path=/".to_string(),
             ],
         );
@@ -1096,7 +1106,10 @@ mod tests {
         let header = jar.get_cookie_header(&url);
         assert!(header.contains("live=fresh"), "got: {header}");
         assert!(header.contains("session=ok"), "got: {header}");
-        assert!(!header.contains("dead="), "expired entry must not replay: {header}");
+        assert!(
+            !header.contains("dead="),
+            "expired entry must not replay: {header}"
+        );
     }
 
     #[test]
@@ -1127,8 +1140,14 @@ mod tests {
         // One identity, one egress: the recorded route survives a later
         // call's default-false param; the param only seeds a record without
         // one.
-        assert!(resolve_use_proxy(&serde_json::json!({"use_proxy": true}), false));
-        assert!(resolve_use_proxy(&serde_json::json!({"use_proxy": true}), true));
+        assert!(resolve_use_proxy(
+            &serde_json::json!({"use_proxy": true}),
+            false
+        ));
+        assert!(resolve_use_proxy(
+            &serde_json::json!({"use_proxy": true}),
+            true
+        ));
         assert!(resolve_use_proxy(&serde_json::json!({}), true));
         assert!(!resolve_use_proxy(&serde_json::json!({}), false));
     }
@@ -1223,7 +1242,9 @@ mod tests {
     // outcomes without the global store (OnceLock-pinned, see above).
     #[test]
     fn teach_persona_inserts_normalizes_and_keeps() {
-        let drawn = draw_persona(Some("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0.0.0"));
+        let drawn = draw_persona(Some(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0.0.0",
+        ));
         // Absent → insert drawn.
         let mut rec = serde_json::json!({"version": 1});
         assert_eq!(teach_persona(&mut rec, &drawn).fp_seed, drawn.fp_seed);
@@ -1240,7 +1261,11 @@ mod tests {
         });
         let normalized = teach_persona(&mut stale, &drawn);
         assert_eq!(normalized.fp_seed, 42);
-        assert!(normalized.user_agent.contains("Chrome/145.0.0.0"), "got {}", normalized.user_agent);
+        assert!(
+            normalized.user_agent.contains("Chrome/145.0.0.0"),
+            "got {}",
+            normalized.user_agent
+        );
         assert_eq!(stale["persona"]["fp_seed"], 42);
         // Partial persona → drawn (a half persona is "no persona yet").
         let mut partial = serde_json::json!({"persona": {"fp_seed": 9}});

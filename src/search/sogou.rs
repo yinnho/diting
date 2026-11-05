@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Sogou general search engine.
 ///
@@ -53,9 +53,14 @@ impl SearchEngine for SogouEngine {
             tsn,
         );
 
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .header("User-Agent", diting::chrome_target::UA_DEFAULT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            )
             .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
             .send()
             .await
@@ -72,10 +77,18 @@ impl SearchEngine for SogouEngine {
                     });
                 }
             }
-            return Err(SearchEngineError::Transient(format!("redirect: {}", resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or("?"))));
+            return Err(SearchEngineError::Transient(format!(
+                "redirect: {}",
+                resp.headers()
+                    .get("location")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("?")
+            )));
         }
 
-        let bytes = resp.bytes().await
+        let bytes = resp
+            .bytes()
+            .await
             .map_err(|e| SearchEngineError::Transient(format!("read body: {e}")))?;
 
         // Decode with charset detection (Sogou may return GBK).
@@ -276,10 +289,21 @@ mod tests {
 
     #[test]
     fn wall_bodies_are_flagged() {
-        for marker in ["/antispider", "用户频率限制", "异常流量", "seccode", "showCaptcha"] {
-            assert!(looks_walled(&format!("<html>xx {marker} yy</html>")), "{marker}");
+        for marker in [
+            "/antispider",
+            "用户频率限制",
+            "异常流量",
+            "seccode",
+            "showCaptcha",
+        ] {
+            assert!(
+                looks_walled(&format!("<html>xx {marker} yy</html>")),
+                "{marker}"
+            );
         }
-        assert!(!looks_walled("<html><div class=rb>normal serp</div></html>"));
+        assert!(!looks_walled(
+            "<html><div class=rb>normal serp</div></html>"
+        ));
     }
 
     #[test]

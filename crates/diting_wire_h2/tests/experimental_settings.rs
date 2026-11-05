@@ -16,7 +16,12 @@ fn encode(s: &Settings) -> BytesMut {
 fn pairs(frame: &[u8]) -> Vec<(u16, u32)> {
     frame[9..]
         .chunks(6)
-        .map(|c| (u16::from_be_bytes([c[0], c[1]]), u32::from_be_bytes([c[2], c[3], c[4], c[5]])))
+        .map(|c| {
+            (
+                u16::from_be_bytes([c[0], c[1]]),
+                u32::from_be_bytes([c[2], c[3], c[4], c[5]]),
+            )
+        })
         .collect()
 }
 
@@ -25,15 +30,27 @@ fn grease_style_id_is_sent_last_and_counted_in_the_length() {
     let mut s = Settings::default();
     s.set_initial_window_size(Some(6291456));
     s.set_max_header_list_size(Some(262144));
-    let grease = Setting::from_id(SettingId::Unknown(0x7A3A), 0xDEAD_BEEF).expect("ids above 15 are allowed");
+    let grease = Setting::from_id(SettingId::Unknown(0x7A3A), 0xDEAD_BEEF)
+        .expect("ids above 15 are allowed");
     s.set_experimental_settings(ExperimentalSettings::builder().push(grease).build());
 
     let frame = encode(&s);
     let len = u32::from_be_bytes([0, frame[0], frame[1], frame[2]]) as usize;
-    assert_eq!(len, frame.len() - 9, "payload length field must include the experimental setting");
+    assert_eq!(
+        len,
+        frame.len() - 9,
+        "payload length field must include the experimental setting"
+    );
     let p = pairs(&frame);
-    assert_eq!(p.last(), Some(&(0x7A3A, 0xDEAD_BEEF)), "the GREASE setting goes LAST: {p:x?}");
-    assert!(p.contains(&(4, 6291456)) && p.contains(&(6, 262144)), "regular settings still sent: {p:x?}");
+    assert_eq!(
+        p.last(),
+        Some(&(0x7A3A, 0xDEAD_BEEF)),
+        "the GREASE setting goes LAST: {p:x?}"
+    );
+    assert!(
+        p.contains(&(4, 6291456)) && p.contains(&(6, 262144)),
+        "regular settings still sent: {p:x?}"
+    );
     assert_eq!(p.iter().filter(|(id, _)| *id == 0x7A3A).count(), 1);
 }
 

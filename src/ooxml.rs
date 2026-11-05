@@ -24,7 +24,11 @@ fn crc32(data: &[u8]) -> u32 {
         for (i, slot) in t.iter_mut().enumerate() {
             let mut c = i as u32;
             for _ in 0..8 {
-                c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+                c = if c & 1 != 0 {
+                    0xEDB8_8320 ^ (c >> 1)
+                } else {
+                    c >> 1
+                };
             }
             *slot = c;
         }
@@ -60,7 +64,10 @@ pub(crate) struct ZipWriter {
 
 impl ZipWriter {
     pub(crate) fn new() -> Self {
-        Self { out: Vec::new(), entries: Vec::new() }
+        Self {
+            out: Vec::new(),
+            entries: Vec::new(),
+        }
     }
 
     pub(crate) fn add(&mut self, name: &str, data: &[u8]) {
@@ -76,11 +83,17 @@ impl ZipWriter {
         self.out.extend_from_slice(&crc.to_le_bytes());
         self.out.extend_from_slice(&size.to_le_bytes()); // compressed
         self.out.extend_from_slice(&size.to_le_bytes()); // uncompressed
-        self.out.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        self.out
+            .extend_from_slice(&(name.len() as u16).to_le_bytes());
         self.out.extend_from_slice(&0u16.to_le_bytes()); // extra len
         self.out.extend_from_slice(name.as_bytes());
         self.out.extend_from_slice(data);
-        self.entries.push(ZipEntry { name: name.as_bytes().to_vec(), crc, size, offset });
+        self.entries.push(ZipEntry {
+            name: name.as_bytes().to_vec(),
+            crc,
+            size,
+            offset,
+        });
     }
 
     pub(crate) fn finish(mut self) -> Vec<u8> {
@@ -96,7 +109,8 @@ impl ZipWriter {
             self.out.extend_from_slice(&e.crc.to_le_bytes());
             self.out.extend_from_slice(&e.size.to_le_bytes());
             self.out.extend_from_slice(&e.size.to_le_bytes());
-            self.out.extend_from_slice(&(e.name.len() as u16).to_le_bytes());
+            self.out
+                .extend_from_slice(&(e.name.len() as u16).to_le_bytes());
             self.out.extend_from_slice(&0u16.to_le_bytes()); // extra len
             self.out.extend_from_slice(&0u16.to_le_bytes()); // comment len
             self.out.extend_from_slice(&0u16.to_le_bytes()); // disk start
@@ -233,8 +247,14 @@ pub(crate) fn pptx_package(
     );
     zip.add("ppt/presentation.xml", presentation.as_bytes());
     zip.add("ppt/_rels/presentation.xml.rels", pres_rels.as_bytes());
-    zip.add("ppt/theme/theme1.xml", format!("{XML_DECL}{PPTX_THEME}").as_bytes());
-    zip.add("ppt/slideMasters/slideMaster1.xml", format!("{XML_DECL}{PPTX_MASTER}").as_bytes());
+    zip.add(
+        "ppt/theme/theme1.xml",
+        format!("{XML_DECL}{PPTX_THEME}").as_bytes(),
+    );
+    zip.add(
+        "ppt/slideMasters/slideMaster1.xml",
+        format!("{XML_DECL}{PPTX_MASTER}").as_bytes(),
+    );
     zip.add(
         "ppt/slideMasters/_rels/slideMaster1.xml.rels",
         // The master carries BOTH relationships real decks have: its layouts
@@ -246,7 +266,10 @@ pub(crate) fn pptx_package(
         )
         .as_bytes(),
     );
-    zip.add("ppt/slideLayouts/slideLayout1.xml", format!("{XML_DECL}{PPTX_LAYOUT}").as_bytes());
+    zip.add(
+        "ppt/slideLayouts/slideLayout1.xml",
+        format!("{XML_DECL}{PPTX_LAYOUT}").as_bytes(),
+    );
     zip.add(
         "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
         format!(
@@ -257,7 +280,10 @@ pub(crate) fn pptx_package(
     for (i, (slide, rels)) in slides.iter().enumerate() {
         let n = i + 1;
         zip.add(&format!("ppt/slides/slide{n}.xml"), slide.as_bytes());
-        zip.add(&format!("ppt/slides/_rels/slide{n}.xml.rels"), rels.as_bytes());
+        zip.add(
+            &format!("ppt/slides/_rels/slide{n}.xml.rels"),
+            rels.as_bytes(),
+        );
     }
     for (path, bytes) in media {
         zip.add(path, bytes);
@@ -338,10 +364,7 @@ pub fn docx_of_pages(pages: &[(u32, u32, &[u8])]) -> Vec<u8> {
     }
     // Body-level sectPr for the final section (also the only section when
     // there is a single page).
-    let (lw, lh) = pages
-        .last()
-        .map(|&(w, h, _)| (w, h))
-        .unwrap_or((794, 1123));
+    let (lw, lh) = pages.last().map(|&(w, h, _)| (w, h)).unwrap_or((794, 1123));
     document.push_str(&sect(lw, lh));
     document.push_str("</w:body></w:document>");
     doc_rels.push_str("</Relationships>");
@@ -382,7 +405,11 @@ pub(crate) fn entries_of(zip: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut cd = rd32(eocd + 16);
     let mut out = Vec::with_capacity(count);
     for _ in 0..count {
-        assert_eq!(&zip[cd..cd + 4], &[0x50, 0x4b, 0x01, 0x02], "central dir sig");
+        assert_eq!(
+            &zip[cd..cd + 4],
+            &[0x50, 0x4b, 0x01, 0x02],
+            "central dir sig"
+        );
         let csize = rd32(cd + 20);
         let name_len = rd16(cd + 28);
         let local = rd32(cd + 42);
@@ -467,7 +494,10 @@ mod tests {
             .find(|(n, _)| n == "ppt/slideMasters/_rels/slideMaster1.xml.rels")
             .map(|(_, d)| String::from_utf8_lossy(d).to_string())
             .expect("master rels");
-        assert!(master_rels.contains("theme/theme1.xml"), "master relates to theme");
+        assert!(
+            master_rels.contains("theme/theme1.xml"),
+            "master relates to theme"
+        );
         let master = entries
             .iter()
             .find(|(n, _)| n == "ppt/slideMasters/slideMaster1.xml")
@@ -478,7 +508,11 @@ mod tests {
         assert!(pres.contains(&format!("cy=\"{}\"", 1123 * 9525)));
         // Media bytes verbatim.
         assert_eq!(
-            entries.iter().find(|(n, _)| n == "ppt/media/image1.jpeg").expect("m1").1,
+            entries
+                .iter()
+                .find(|(n, _)| n == "ppt/media/image1.jpeg")
+                .expect("m1")
+                .1,
             j1
         );
         // Determinism.
@@ -501,8 +535,14 @@ mod tests {
         // Page 1's section break rides in its paragraph; the final section
         // is the body-level sectPr sized to the LAST page (200px).
         assert_eq!(doc.matches("<w:sectPr>").count(), 2);
-        assert!(doc.contains(&format!(r#"h="{}""#, 1123 * 15)), "mid sectPr = page 1 height");
-        assert!(doc.contains(&format!(r#"h="{}""#, 200 * 15)), "final sectPr = page 2 height");
+        assert!(
+            doc.contains(&format!(r#"h="{}""#, 1123 * 15)),
+            "mid sectPr = page 1 height"
+        );
+        assert!(
+            doc.contains(&format!(r#"h="{}""#, 200 * 15)),
+            "final sectPr = page 2 height"
+        );
         // Images referenced per page.
         let rels = entries
             .iter()
@@ -512,9 +552,17 @@ mod tests {
         assert_eq!(rels.matches("image1.jpeg").count(), 1);
         assert_eq!(rels.matches("image2.jpeg").count(), 1);
         assert_eq!(
-            entries.iter().find(|(n, _)| n == "word/media/image2.jpeg").expect("m2").1,
+            entries
+                .iter()
+                .find(|(n, _)| n == "word/media/image2.jpeg")
+                .expect("m2")
+                .1,
             j2
         );
-        assert_eq!(docx, docx_of_pages(&[(794, 1123, &j1), (794, 200, &j2)]), "deterministic");
+        assert_eq!(
+            docx,
+            docx_of_pages(&[(794, 1123, &j1), (794, 200, &j2)]),
+            "deterministic"
+        );
     }
 }

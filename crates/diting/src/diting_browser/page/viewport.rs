@@ -64,7 +64,9 @@ impl Page {
     /// No-op when none is set, so navigation on a default session costs
     /// one branch.
     pub(super) fn apply_touch_override(&mut self) {
-        let Some(points) = self.touch_override else { return };
+        let Some(points) = self.touch_override else {
+            return;
+        };
         if let Some(js) = &mut self.js {
             let _ = js.execute_script(
                 "<touch-emulation>",
@@ -161,7 +163,9 @@ impl Page {
     /// crossing MQLs) and pushes the same pairs to the Rust layout state
     /// via the `set_media_env` op, so @media arms re-parse in agreement.
     pub(super) fn apply_emulated_media(&mut self) {
-        let Some(env) = &self.emulated_media else { return; };
+        let Some(env) = &self.emulated_media else {
+            return;
+        };
         let features = serde_json::to_string(&env.features).unwrap_or_else(|_| "[]".into());
         let media = match &env.media {
             Some(Some(m)) if m.eq_ignore_ascii_case("print") => "print",
@@ -284,9 +288,7 @@ impl Page {
         viewport: (f32, f32),
     ) -> Option<(crate::diting_js::ops::BandFrame, Vec<String>)> {
         let js = self.js.as_ref()?;
-        js.with_state(|st| {
-            crate::diting_js::ops::band_frame_cut_with_text(st, x, y, viewport)
-        })
+        js.with_state(|st| crate::diting_js::ops::band_frame_cut_with_text(st, x, y, viewport))
     }
 
     /// The document's text-ink extent (CSS px) from the same cached layout
@@ -345,7 +347,9 @@ impl Page {
             #[cfg(feature = "stealth")]
             let stealth = stealth.clone();
             async move {
-                let Ok(parsed) = url::Url::parse(&u) else { return None };
+                let Ok(parsed) = url::Url::parse(&u) else {
+                    return None;
+                };
                 if crate::diting_js::ops::validate_fetch_url(&parsed).is_err() {
                     return None;
                 }
@@ -502,10 +506,15 @@ impl Page {
     /// Replay the stored override into the current realm. No-op when none
     /// is set, so navigation on a default session costs one branch.
     pub(super) fn apply_viewport_override(&mut self) {
-        let Some((w, h, mobile)) = self.viewport_override else { return; };
+        let Some((w, h, mobile)) = self.viewport_override else {
+            return;
+        };
         // 0 = "persona default" per the CDP deviceScaleFactor semantics the
         // bootstrap side implements; a pinned dpr rides every replay.
-        let dpr = self.dpr_override.map(|d| d.to_string()).unwrap_or_else(|| "0".into());
+        let dpr = self
+            .dpr_override
+            .map(|d| d.to_string())
+            .unwrap_or_else(|| "0".into());
         if let Some(js) = &mut self.js {
             let _ = js.execute_script(
                 "<viewport>",

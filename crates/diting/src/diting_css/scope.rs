@@ -31,7 +31,11 @@ fn paren_group(s: &str) -> Option<(&str, &str)> {
 /// prelude-less `@scope` has no ancestor to root at: `None`.
 pub(super) fn parse_prelude(prelude: &str) -> Option<(String, Option<String>)> {
     let (root, rest) = paren_group(prelude)?;
-    let limit = rest.trim().strip_prefix("to").and_then(paren_group).map(|(l, _)| l.trim().to_string());
+    let limit = rest
+        .trim()
+        .strip_prefix("to")
+        .and_then(paren_group)
+        .map(|(l, _)| l.trim().to_string());
     Some((root.trim().to_string(), limit))
 }
 

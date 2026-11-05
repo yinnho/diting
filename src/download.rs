@@ -19,9 +19,9 @@ use tokio::time::timeout;
 use url::Url;
 
 use crate::config::proxy_from_env;
+use crate::config::should_auto_proxy;
 use diting::diting_net::client::validate_url;
 use diting::diting_net::{CookieJar, HttpClient};
-use crate::config::should_auto_proxy;
 
 /// Per-chunk stall budget: if no bytes arrive for this long, give up instead
 /// of hanging forever (dead NAT mapping, half-closed proxy socket).
@@ -132,7 +132,10 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
                 current = next;
                 continue;
             }
-            return Err(anyhow!("redirect {} without Location header", status.as_u16()));
+            return Err(anyhow!(
+                "redirect {} without Location header",
+                status.as_u16()
+            ));
         }
         resp = Some(r);
         break;
@@ -304,25 +307,29 @@ async fn stream_to_file(
                 hasher.lock().unwrap().update(&chunk);
                 total += chunk.len() as u64;
                 if start_offset + total > MAX_FILE_BYTES {
-                    return Err(anyhow!(
-                        "exceeds {}B hard limit",
-                        MAX_FILE_BYTES
-                    ));
+                    return Err(anyhow!("exceeds {}B hard limit", MAX_FILE_BYTES));
                 }
             }
-            file.flush().await.map_err(|e| anyhow!("flush failed: {e}"))?;
+            file.flush()
+                .await
+                .map_err(|e| anyhow!("flush failed: {e}"))?;
             Ok(total)
         })
     };
 
-    let written = writer_task.await.map_err(|e| anyhow!("writer crashed: {e}"))??;
+    let written = writer_task
+        .await
+        .map_err(|e| anyhow!("writer crashed: {e}"))??;
 
     tokio::fs::rename(part_path, final_path)
         .await
         .with_context(|| format!("finalize {}", final_path.display()))?;
 
     let digest = hasher.lock().unwrap().clone().finalize();
-    let sha256 = digest.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+    let sha256 = digest
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>();
 
     Ok(DownloadResponse {
         url: final_url,
@@ -553,7 +560,9 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let handle = tokio::spawn(async move {
             loop {
-                let Ok((mut sock, _)) = listener.accept().await else { break };
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    break;
+                };
                 let body = body.clone();
                 let headers = headers.clone();
                 tokio::spawn(async move {
@@ -636,7 +645,8 @@ mod tests {
     }
 
     fn tempfile_dir(name: &str) -> String {
-        let dir = std::env::temp_dir().join(format!("aginx-dl-test-{}-{}", name, std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("aginx-dl-test-{}-{}", name, std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         dir.to_string_lossy().into_owned()
     }
@@ -663,7 +673,7 @@ mod tests {
                 resume: false,
                 use_proxy: false,
                 cookies: vec![],
-            dir: None,
+                dir: None,
             })
             .await
             .unwrap();
@@ -693,7 +703,7 @@ mod tests {
                 resume: true,
                 use_proxy: false,
                 cookies: vec![],
-            dir: None,
+                dir: None,
             })
             .await
             .unwrap();
@@ -727,7 +737,7 @@ mod tests {
                 resume: false,
                 use_proxy: false,
                 cookies: vec![],
-            dir: None,
+                dir: None,
             })
             .await
             .unwrap();

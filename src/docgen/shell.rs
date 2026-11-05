@@ -8,8 +8,8 @@
 //! document; a single bare fence renders a diagram-only artifact (the
 //! "just give me JSON" entry point).
 
-use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use pulldown_cmark::html::push_html;
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use super::architecture::render_architecture;
 use super::dataflow::render_dataflow;
@@ -370,8 +370,7 @@ pub fn render(markdown: &str, theme: &'static Theme, motion: bool) -> RenderedDo
                             // timed captions under the svg, per-element rules
                             // in the stylesheet.
                             let caps = if motion {
-                                story_css_buf
-                                    .push_str(&super::story::story_css(index, &d.story));
+                                story_css_buf.push_str(&super::story::story_css(index, &d.story));
                                 super::story::captions_html(&d.story)
                             } else {
                                 String::new()
@@ -426,7 +425,10 @@ pub fn render(markdown: &str, theme: &'static Theme, motion: bool) -> RenderedDo
                 plain.push(events[i].clone());
             }
             Event::Start(Tag::Heading { level, .. })
-                if matches!(level, HeadingLevel::H1 | HeadingLevel::H2 | HeadingLevel::H3) =>
+                if matches!(
+                    level,
+                    HeadingLevel::H1 | HeadingLevel::H2 | HeadingLevel::H3
+                ) =>
             {
                 // The first H1 wins the doc-title race (a fence earlier in
                 // the document already claimed it). Non-motion documents
@@ -863,8 +865,8 @@ fn shell_css(t: &Theme) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::theme::LIGHT;
+    use super::*;
 
     // Every shell test rides the default (light) theme; theme behavior has
     // its own coverage in mod/theme tests.
@@ -967,8 +969,13 @@ mod tests {
         // The note rides the JSON island (the viewer fills the caption from
         // it; the bytes never carry the note as pre-rendered text).
         assert!(doc.html.contains("One actor, outbound only."));
-        assert!(doc.html.contains("<div class=\"agx-view-note\" hidden></div>"));
-        assert_eq!(doc.fences[0].views[0].note.as_deref(), Some("One actor, outbound only."));
+        assert!(doc
+            .html
+            .contains("<div class=\"agx-view-note\" hidden></div>"));
+        assert_eq!(
+            doc.fences[0].views[0].note.as_deref(),
+            Some("One actor, outbound only.")
+        );
     }
 
     #[test]
@@ -990,7 +997,9 @@ mod tests {
     #[test]
     fn views_emit_tabs_island_and_one_viewer() {
         let doc = render(&format!("```archify\n{}\n```\n", seq_with_views()));
-        assert!(doc.html.contains("<div class=\"agx-views\" role=\"tablist\">"));
+        assert!(doc
+            .html
+            .contains("<div class=\"agx-views\" role=\"tablist\">"));
         assert!(doc
             .html
             .contains("data-view-id=\"client\" aria-selected=\"false\">Client side</button>"));
@@ -1054,7 +1063,9 @@ mod tests {
         assert!(doc.fences[0].ok, "{:?}", doc.fences[0].detail);
         // The hostile ids reach the svg as plain data attributes…
         assert!(doc.html.contains("data-node-id=\"constructor\""));
-        assert!(doc.html.contains("data-from=\"constructor\" data-to=\"valueOf\""));
+        assert!(doc
+            .html
+            .contains("data-from=\"constructor\" data-to=\"valueOf\""));
         // …and the receipt flags them as a portability hazard without
         // rejecting the document.
         assert!(doc.fences[0]
@@ -1086,8 +1097,7 @@ mod tests {
             "edges":[{"from":"__proto__","to":"safe","label":"h"}]}}"#;
         let doc = render(&format!("```archify\n{bad}\n```\n"));
         assert!(!doc.fences[0].ok);
-        assert!(doc
-            .fences[0]
+        assert!(doc.fences[0]
             .detail
             .iter()
             .any(|d| d.contains("must match")));
@@ -1138,10 +1148,14 @@ mod tests {
         assert!(doc.html.contains("<body>\n<div class=\"agx-motion\">"));
         assert!(doc.html.contains("</div></body>"));
         assert!(doc.html.contains("@keyframes agx-rise"));
-        assert!(doc.html.contains(".agx-motion>*:nth-child(1){animation-delay:0.12s}"));
+        assert!(doc
+            .html
+            .contains(".agx-motion>*:nth-child(1){animation-delay:0.12s}"));
         // The H1 split into per-unit spans (one latin word = one unit) with
         // escalating delays; the title element still harvests the plain text.
-        assert!(doc.html.contains("<h1><span class=\"agx-ch\" style=\"animation-delay:0.10s\">Notes</span></h1>"));
+        assert!(doc.html.contains(
+            "<h1><span class=\"agx-ch\" style=\"animation-delay:0.10s\">Notes</span></h1>"
+        ));
         assert!(doc.html.contains("<title>Notes</title>"));
         // Motion is scripts-free: the artifact carries no script unless a
         // fence has views (this one doesn't).
@@ -1169,16 +1183,16 @@ mod tests {
         assert!(h2.contains("<code>code</code>"));
         assert!(!h2.contains("agx-ch"));
         // The plain H1 after it still splits.
-        assert!(doc.html.contains("style=\"animation-delay:0.10s\">Plain</span>"));
+        assert!(doc
+            .html
+            .contains("style=\"animation-delay:0.10s\">Plain</span>"));
     }
 
     #[test]
     fn motion_keeps_the_fence_title_priority() {
         // A fence BEFORE the first H1 claims the title even under motion —
         // the split arm harvests the H1 only when the race is still open.
-        let doc = render_motion(&format!(
-            "```archify\n{SEQ}\n```\n\n# After the diagram\n"
-        ));
+        let doc = render_motion(&format!("```archify\n{SEQ}\n```\n\n# After the diagram\n"));
         assert!(doc.html.contains("<title>Ping</title>"));
         assert!(doc.html.contains("style=\"animation-delay:0.10s\">After"));
     }
@@ -1216,7 +1230,9 @@ mod tests {
         assert!(doc
             .html
             .contains("figure[data-diagram-index=\"0\"] [data-node-id=\"a\"]{animation:agx-node"));
-        assert!(doc.html.contains("@keyframes agx-node{from{opacity:0;transform:scale(.9)}}"));
+        assert!(doc
+            .html
+            .contains("@keyframes agx-node{from{opacity:0;transform:scale(.9)}}"));
         // The solid edge draws; the return edge fades (its authored dash
         // survives) and the arrowhead/label rule trails both.
         assert!(doc.html.contains(
@@ -1225,14 +1241,17 @@ mod tests {
         assert!(doc
             .html
             .contains("path[data-from=\"b\"][data-to=\"a\"]{animation:agx-in .5s both"));
-        assert!(doc.html.contains("path[data-from=\"a\"][data-to=\"b\"]+path,"));
+        assert!(doc
+            .html
+            .contains("path[data-from=\"a\"][data-to=\"b\"]+path,"));
         // The caption strip rides inside the figure, after the svg.
         let fig_at = doc.html.find("<figure").unwrap();
         let fig_end = doc.html[fig_at..].find("</figure>").unwrap() + fig_at;
         let figure = &doc.html[fig_at..fig_end];
         assert!(figure.contains("</svg><div class=\"agx-caps\">"));
-        assert!(figure
-            .contains("style=\"animation-duration:2.45s;animation-delay:0.90s\">Fetch，上游拉取</span>"));
+        assert!(figure.contains(
+            "style=\"animation-duration:2.45s;animation-delay:0.90s\">Fetch，上游拉取</span>"
+        ));
         // The strip styles ship with the motion stylesheet, transcript under
         // reduced motion (block stack, and !important so the reset beats the
         // generated per-element rules — see motion.rs).
@@ -1254,14 +1273,16 @@ mod tests {
 
     #[test]
     fn two_diagrams_scope_their_stories_independently() {
-        let doc =
-            render_motion(&format!("```archify\n{WF}\n```\n\n```archify\n{SEQ}\n```\n"));
-        assert!(doc.html.contains("figure[data-diagram-index=\"0\"] [data-node-id=\"a\"]"));
+        let doc = render_motion(&format!(
+            "```archify\n{WF}\n```\n\n```archify\n{SEQ}\n```\n"
+        ));
+        assert!(doc
+            .html
+            .contains("figure[data-diagram-index=\"0\"] [data-node-id=\"a\"]"));
         // The sequence figure indexes its story by message, not node.
-        assert!(
-            doc.html
-                .contains("figure[data-diagram-index=\"1\"] g[data-message-index=\"0\"]")
-        );
+        assert!(doc
+            .html
+            .contains("figure[data-diagram-index=\"1\"] g[data-message-index=\"0\"]"));
         // Both caption strips ship, one per figure.
         assert_eq!(doc.html.matches("<div class=\"agx-caps\">").count(), 2);
     }

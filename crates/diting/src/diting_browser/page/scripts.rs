@@ -4,7 +4,10 @@ use super::*;
 
 impl Page {
     pub(super) async fn execute_scripts(&mut self) {
-        tracing::info!("execute_scripts called, js runtime exists: {}", self.js.is_some());
+        tracing::info!(
+            "execute_scripts called, js runtime exists: {}",
+            self.js.is_some()
+        );
         // Compute document base URL, respecting <base href>.
         let document_base = self.resolve_base_url();
         // Soft deadline on the fetch phase of script execution. Heavy SPAs
@@ -18,8 +21,8 @@ impl Page {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(10_000);
-        let script_deadline = tokio::time::Instant::now()
-            + tokio::time::Duration::from_millis(script_deadline_ms);
+        let script_deadline =
+            tokio::time::Instant::now() + tokio::time::Duration::from_millis(script_deadline_ms);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum ScriptKind {
@@ -54,14 +57,17 @@ impl Page {
                     let mut found_base = false;
                     if let Some(root) = Some(dom.document()) {
                         for nid in dom.descendants(root) {
-                            let Some(node) = dom.get_node(nid) else { continue };
-                            let Some(name) = node.as_element() else { continue };
+                            let Some(node) = dom.get_node(nid) else {
+                                continue;
+                            };
+                            let Some(name) = node.as_element() else {
+                                continue;
+                            };
                             if name.local.as_str() == "base" && !found_base {
                                 if let Some(href) = node.get_attribute("href") {
                                     found_base = true;
-                                    if let Some(resolved) = active_base
-                                        .as_ref()
-                                        .and_then(|base| base.join(href).ok())
+                                    if let Some(resolved) =
+                                        active_base.as_ref().and_then(|base| base.join(href).ok())
                                     {
                                         active_base = Some(resolved);
                                     }
@@ -124,7 +130,8 @@ impl Page {
                         }
                     }
                     scripts
-                }).unwrap_or_default()
+                })
+                .unwrap_or_default()
             }
             None => return,
         };
@@ -199,8 +206,14 @@ impl Page {
 
         let scripts = regular;
 
-        tracing::info!("Found {} regular + {} deferred + {} async scripts", scripts.len(), deferred.len(), async_scripts.len());
-        let all_to_execute: Vec<ScriptInfo> = scripts.into_iter()
+        tracing::info!(
+            "Found {} regular + {} deferred + {} async scripts",
+            scripts.len(),
+            deferred.len(),
+            async_scripts.len()
+        );
+        let all_to_execute: Vec<ScriptInfo> = scripts
+            .into_iter()
             .chain(deferred.into_iter())
             .chain(async_scripts.into_iter())
             .collect();
@@ -210,10 +223,13 @@ impl Page {
 
         for (i, script) in all_to_execute.iter().enumerate() {
             if let Some(src_url) = &script.src {
-                let full_url = if src_url.starts_with("http://") || src_url.starts_with("https://") {
+                let full_url = if src_url.starts_with("http://") || src_url.starts_with("https://")
+                {
                     src_url.clone()
                 } else if let Some(base) = &document_base {
-                    base.join(src_url).map(|u| u.to_string()).unwrap_or_else(|_| src_url.clone())
+                    base.join(src_url)
+                        .map(|u| u.to_string())
+                        .unwrap_or_else(|_| src_url.clone())
                 } else {
                     src_url.clone()
                 };
@@ -247,103 +263,107 @@ impl Page {
         let stealth = self.stealth_client.clone();
         let script_callbacks = self.callbacks.clone();
         let doc_referrer = self.url.as_ref().map(|u| u.to_string());
-        let fetch_futures: Vec<_> = fetch_tasks.iter().map(|(idx, url)| {
-            let client = client.clone();
-            #[cfg(feature = "stealth")]
-            let stealth = stealth.clone();
-            let script_callbacks = script_callbacks.clone();
-            let url = url.clone();
-            let idx = *idx;
-            let doc_referrer = doc_referrer.clone();
-            async move {
-                let parsed = Url::parse(&url).unwrap_or_else(|_| Url::parse("about:blank").unwrap());
-                if parsed.scheme() == "data" {
-                    // data: URIs are inline; decode locally, no network fetch.
-                    // Instagram and other Meta properties serve their bootstrap
-                    // as <script src="data:application/x-javascript;base64,...">.
-                    let body = decode_data_uri(&url).unwrap_or_default();
-                    let content_type = url
-                        .strip_prefix("data:")
-                        .and_then(|s| s.split(',').next())
-                        .unwrap_or("application/javascript")
-                        .split(';')
-                        .next()
-                        .unwrap_or("application/javascript")
-                        .to_string();
-                    let mut headers = std::collections::HashMap::new();
-                    headers.insert("content-type".to_string(), content_type);
-                    let resp = crate::diting_net::Response {
-                        url: parsed,
-                        status: 200,
-                        headers,
-                        body,
-                        redirected_from: Vec::new(),
-                        redirect_hops: Vec::new(),
-                        request_headers: std::collections::HashMap::new(),
-                    };
-                    return Some((idx, url, resp, None));
-                }
-                // #126: monotonic anchor for the live-fetch duration below.
-                let rt_t0 = std::time::Instant::now();
+        let fetch_futures: Vec<_> = fetch_tasks
+            .iter()
+            .map(|(idx, url)| {
+                let client = client.clone();
                 #[cfg(feature = "stealth")]
-                let fetched = if let Some(stealth) = stealth.as_ref() {
-                    stealth.fetch_script(&parsed, doc_referrer.as_deref()).await
-                } else {
-                    client
+                let stealth = stealth.clone();
+                let script_callbacks = script_callbacks.clone();
+                let url = url.clone();
+                let idx = *idx;
+                let doc_referrer = doc_referrer.clone();
+                async move {
+                    let parsed =
+                        Url::parse(&url).unwrap_or_else(|_| Url::parse("about:blank").unwrap());
+                    if parsed.scheme() == "data" {
+                        // data: URIs are inline; decode locally, no network fetch.
+                        // Instagram and other Meta properties serve their bootstrap
+                        // as <script src="data:application/x-javascript;base64,...">.
+                        let body = decode_data_uri(&url).unwrap_or_default();
+                        let content_type = url
+                            .strip_prefix("data:")
+                            .and_then(|s| s.split(',').next())
+                            .unwrap_or("application/javascript")
+                            .split(';')
+                            .next()
+                            .unwrap_or("application/javascript")
+                            .to_string();
+                        let mut headers = std::collections::HashMap::new();
+                        headers.insert("content-type".to_string(), content_type);
+                        let resp = crate::diting_net::Response {
+                            url: parsed,
+                            status: 200,
+                            headers,
+                            body,
+                            redirected_from: Vec::new(),
+                            redirect_hops: Vec::new(),
+                            request_headers: std::collections::HashMap::new(),
+                        };
+                        return Some((idx, url, resp, None));
+                    }
+                    // #126: monotonic anchor for the live-fetch duration below.
+                    let rt_t0 = std::time::Instant::now();
+                    #[cfg(feature = "stealth")]
+                    let fetched = if let Some(stealth) = stealth.as_ref() {
+                        stealth.fetch_script(&parsed, doc_referrer.as_deref()).await
+                    } else {
+                        client
+                            .fetch_with_callbacks(
+                                &parsed,
+                                Some(script_callbacks.as_ref()),
+                                crate::diting_net::ResourceType::Script,
+                                doc_referrer.as_deref(),
+                            )
+                            .await
+                    };
+                    #[cfg(not(feature = "stealth"))]
+                    let fetched = client
                         .fetch_with_callbacks(
                             &parsed,
                             Some(script_callbacks.as_ref()),
                             crate::diting_net::ResourceType::Script,
                             doc_referrer.as_deref(),
                         )
-                        .await
-                };
-                #[cfg(not(feature = "stealth"))]
-                let fetched = client
-                    .fetch_with_callbacks(
-                        &parsed,
-                        Some(script_callbacks.as_ref()),
-                        crate::diting_net::ResourceType::Script,
-                        doc_referrer.as_deref(),
-                    )
-                    .await;
-                match fetched {
-                    Ok(resp) => {
-                        // The reqwest path already notified observers. The
-                        // wreq path has no callback hook, so fire them here
-                        // with the headers that actually went out.
-                        #[cfg(feature = "stealth")]
-                        if stealth.is_some()
-                            && (script_callbacks.has_request_callbacks().await
-                                || script_callbacks.has_response_callbacks().await)
-                        {
-                            let info = crate::diting_net::RequestInfo {
-                                url: parsed.clone(),
-                                method: "GET".to_string(),
-                                headers: resp.request_headers.clone(),
-                                resource_type: crate::diting_net::ResourceType::Script,
-                            };
-                            script_callbacks.fire_request(&info).await;
-                            script_callbacks.fire_response(&info, &resp).await;
+                        .await;
+                    match fetched {
+                        Ok(resp) => {
+                            // The reqwest path already notified observers. The
+                            // wreq path has no callback hook, so fire them here
+                            // with the headers that actually went out.
+                            #[cfg(feature = "stealth")]
+                            if stealth.is_some()
+                                && (script_callbacks.has_request_callbacks().await
+                                    || script_callbacks.has_response_callbacks().await)
+                            {
+                                let info = crate::diting_net::RequestInfo {
+                                    url: parsed.clone(),
+                                    method: "GET".to_string(),
+                                    headers: resp.request_headers.clone(),
+                                    resource_type: crate::diting_net::ResourceType::Script,
+                                };
+                                script_callbacks.fire_request(&info).await;
+                                script_callbacks.fire_response(&info, &resp).await;
+                            }
+                            // #126: real timing around the live fetch only —
+                            // data: URIs never touched the wire, so they carry
+                            // no record. Epoch stamp feeds the JS resource
+                            // clock; Instant gives the monotonic duration.
+                            let rt_start_ms = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs_f64() * 1000.0)
+                                .unwrap_or(0.0);
+                            let dur_ms = rt_t0.elapsed().as_secs_f64() * 1000.0;
+                            Some((idx, url, resp, Some((rt_start_ms, dur_ms))))
                         }
-                        // #126: real timing around the live fetch only —
-                        // data: URIs never touched the wire, so they carry
-                        // no record. Epoch stamp feeds the JS resource
-                        // clock; Instant gives the monotonic duration.
-                        let rt_start_ms = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map(|d| d.as_secs_f64() * 1000.0)
-                            .unwrap_or(0.0);
-                        let dur_ms = rt_t0.elapsed().as_secs_f64() * 1000.0;
-                        Some((idx, url, resp, Some((rt_start_ms, dur_ms))))
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to fetch script {}: {}", url, e);
-                        None
+                        Err(e) => {
+                            tracing::warn!("Failed to fetch script {}: {}", url, e);
+                            None
+                        }
                     }
                 }
-            }
-        }).collect();
+            })
+            .collect();
 
         // Bound concurrency: a page with 100 external scripts would
         // otherwise open 100 sockets at once, exhausting the connection
@@ -372,10 +392,9 @@ impl Page {
         let mut fetch_stream = std::pin::pin!(fetch_stream);
         let mut fetch_results: Vec<_> = Vec::with_capacity(external_total);
         while tokio::time::Instant::now() < script_deadline {
-            match tokio::time::timeout(
-                tokio::time::Duration::from_millis(50),
-                fetch_stream.next(),
-            ).await {
+            match tokio::time::timeout(tokio::time::Duration::from_millis(50), fetch_stream.next())
+                .await
+            {
                 Ok(Some(item)) => fetch_results.push(item),
                 // Stream drained: every fetch future settled or errored out.
                 Ok(None) => break,
@@ -395,7 +414,10 @@ impl Page {
             );
         }
 
-        let mut fetched: std::collections::HashMap<usize, (String, String, crate::diting_net::Response)> = std::collections::HashMap::new();
+        let mut fetched: std::collections::HashMap<
+            usize,
+            (String, String, crate::diting_net::Response),
+        > = std::collections::HashMap::new();
         let mut script_timings: Vec<crate::diting_js::ops::ResourceTimingRecord> = Vec::new();
         for (idx, url, resp, rt) in fetch_results.into_iter().flatten() {
             // Script bodies: only the HTTP Content-Type charset matters
@@ -426,7 +448,10 @@ impl Page {
         // Scripts that check readyState === 'loading' will register DOMContentLoaded
         // listeners instead of calling their callback immediately.
         if let Some(js) = &mut self.js {
-            let _ = js.execute_script("<ready-state>", "globalThis.__documentReadyState__ = 'loading';");
+            let _ = js.execute_script(
+                "<ready-state>",
+                "globalThis.__documentReadyState__ = 'loading';",
+            );
             // #48: window named access must be live before ANY page script
             // runs — Chrome resolves id/name elements onto the global before
             // the first script, and a script's first statement may be a bare
@@ -461,8 +486,9 @@ impl Page {
         // NOT a OnceLock — the source is, the object it defines is fresh
         // every page.
         static SIGNER_GATE_SOURCE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-        let signer_gate_src =
-            SIGNER_GATE_SOURCE.get_or_init(super::env_signer_gate_source).clone();
+        let signer_gate_src = SIGNER_GATE_SOURCE
+            .get_or_init(super::env_signer_gate_source)
+            .clone();
         if let Some(js) = &mut self.js {
             if let Some(source) = signer_gate_src.as_deref() {
                 let _ = js.execute_script("<signer-gate>", source);
@@ -544,7 +570,15 @@ impl Page {
             if script.src.is_some() {
                 if let Some((url, code, resp)) = fetched.remove(&i) {
                     tracing::info!("Executing script ({} bytes): {}", code.len(), url);
-                    self.record_network_event_with_body(&url, "GET", "Script", resp.status, &resp.headers, &resp.request_headers, &resp.body);
+                    self.record_network_event_with_body(
+                        &url,
+                        "GET",
+                        "Script",
+                        resp.status,
+                        &resp.headers,
+                        &resp.request_headers,
+                        &resp.body,
+                    );
                     if let Some(js) = &mut self.js {
                         // #120: classic sync scripts run at their parser
                         // position — later parser scripts are invisible.
@@ -566,9 +600,10 @@ impl Page {
                             // ErrorEvent('error')) and the console, not just
                             // this host-side log line.
                             let msg = e.strip_prefix("JS error: ").unwrap_or(&e);
-                            if let (Ok(m), Ok(s)) =
-                                (serde_json::to_string(msg), serde_json::to_string(url.as_str()))
-                            {
+                            if let (Ok(m), Ok(s)) = (
+                                serde_json::to_string(msg),
+                                serde_json::to_string(url.as_str()),
+                            ) {
                                 let _ = js.execute_script(
                                     "<window-error>",
                                     &format!(
@@ -586,7 +621,8 @@ impl Page {
                                 "slow script: {url} took {exec_ms}ms (classic budget {script_deadline_ms}ms)"
                             );
                         }
-                        let _ = js.execute_script("<current-script>", "globalThis.__currentScriptNid=0;");
+                        let _ = js
+                            .execute_script("<current-script>", "globalThis.__currentScriptNid=0;");
                         // Chrome parity: an executed parser <script src> fires
                         // its element 'load' as a task. doudian's SSR bootstrap
                         // hooks `document.currentScript.previousSibling
@@ -647,9 +683,7 @@ impl Page {
                         ) {
                             let _ = js.execute_script(
                                 "<window-error>",
-                                &format!(
-                                    "globalThis.__diting_reportUncaught({m}, {s}, 0, null);"
-                                ),
+                                &format!("globalThis.__diting_reportUncaught({m}, {s}, 0, null);"),
                             );
                         }
                     }
@@ -660,7 +694,8 @@ impl Page {
                             script.nid
                         );
                     }
-                    let _ = js.execute_script("<current-script>", "globalThis.__currentScriptNid=0;");
+                    let _ =
+                        js.execute_script("<current-script>", "globalThis.__currentScriptNid=0;");
                 }
             }
         }
@@ -700,8 +735,8 @@ impl Page {
         // and must not inherit a budget already consumed by the classic
         // phase — on pages whose inline scripts legitimately take most of
         // the deadline, the app's entry module never got a chance to load.
-        let module_deadline = tokio::time::Instant::now()
-            + tokio::time::Duration::from_millis(script_deadline_ms);
+        let module_deadline =
+            tokio::time::Instant::now() + tokio::time::Duration::from_millis(script_deadline_ms);
         for module_script in &module_scripts {
             if tokio::time::Instant::now() >= module_deadline {
                 tracing::warn!(
@@ -710,7 +745,10 @@ impl Page {
                 break;
             }
             if let Some(ref src) = module_script.src {
-                let full_url = if src.starts_with("http://") || src.starts_with("https://") || src.starts_with("data:") {
+                let full_url = if src.starts_with("http://")
+                    || src.starts_with("https://")
+                    || src.starts_with("data:")
+                {
                     src.clone()
                 } else {
                     Url::parse(&module_script.base_url)
@@ -728,7 +766,15 @@ impl Page {
                             // Module loads ride js.load_module's own fetches,
                             // which surface as their own Fetch rows; this row
                             // is just the success marker, no outbound set.
-                            self.record_network_event(&full_url, "GET", "Script", 200, &std::collections::HashMap::new(), &std::collections::HashMap::new(), 0);
+                            self.record_network_event(
+                                &full_url,
+                                "GET",
+                                "Script",
+                                200,
+                                &std::collections::HashMap::new(),
+                                &std::collections::HashMap::new(),
+                                0,
+                            );
                         }
                         Err(e) => {
                             tracing::warn!("ES module error ({}): {}", full_url, e);
@@ -738,10 +784,10 @@ impl Page {
             } else if !module_script.inline.is_empty() {
                 let base = module_script.base_url.clone();
                 if let Some(js) = &mut self.js {
-                    if let Err(e) =
-                    js.load_inline_module(&module_script.inline, &base, module_eval_budget_ms())
+                    if let Err(e) = js
+                        .load_inline_module(&module_script.inline, &base, module_eval_budget_ms())
                         .await
-                {
+                    {
                         tracing::warn!("Inline ES module error: {}", e);
                     }
                 }

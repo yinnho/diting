@@ -108,7 +108,11 @@ impl CacheState {
         let used = self.next_used;
         self.map.insert(
             key,
-            Cached { policy, fetched: Instant::now(), used },
+            Cached {
+                policy,
+                fetched: Instant::now(),
+                used,
+            },
         );
         // Evict down to the cap. The min-scan only runs on the insert that
         // crosses it; steady state pays one HashMap lookup per call.
@@ -437,13 +441,19 @@ fn parse_rules(body: &str) -> Policy {
             }
             "allow" => {
                 if let Some(g) = current.as_mut() {
-                    g.rules.push(Rule { allow: true, pattern: value });
+                    g.rules.push(Rule {
+                        allow: true,
+                        pattern: value,
+                    });
                 }
             }
             "disallow" => {
                 if let Some(g) = current.as_mut() {
                     // Bare `Disallow:` (no value) means "allow everything".
-                    g.rules.push(Rule { allow: value.is_empty(), pattern: value });
+                    g.rules.push(Rule {
+                        allow: value.is_empty(),
+                        pattern: value,
+                    });
                 }
             }
             _ => {}
@@ -458,7 +468,10 @@ fn parse_rules(body: &str) -> Policy {
         .filter(|g| g.tokens.iter().any(|t| t == PRODUCT_TOKEN))
         .collect();
     let selected: Vec<&Group> = if named.is_empty() {
-        groups.iter().filter(|g| g.tokens.iter().any(|t| t == "*")).collect()
+        groups
+            .iter()
+            .filter(|g| g.tokens.iter().any(|t| t == "*"))
+            .collect()
     } else {
         named
     };
@@ -541,7 +554,10 @@ mod tests {
     use super::*;
 
     fn rule(allow: bool, pattern: &str) -> Rule {
-        Rule { allow, pattern: pattern.to_string() }
+        Rule {
+            allow,
+            pattern: pattern.to_string(),
+        }
     }
 
     #[test]
@@ -551,13 +567,31 @@ mod tests {
             policy_from_robots_response(200, b"User-agent: *\nDisallow: /private"),
             Policy::Rules(_)
         ));
-        assert!(matches!(policy_from_robots_response(204, b""), Policy::AllowAll));
-        assert!(matches!(policy_from_robots_response(404, b""), Policy::AllowAll));
-        assert!(matches!(policy_from_robots_response(410, b""), Policy::AllowAll));
-        assert!(matches!(policy_from_robots_response(403, b""), Policy::AllowAll));
-        assert!(matches!(policy_from_robots_response(503, b""), Policy::DenyAll(_)));
+        assert!(matches!(
+            policy_from_robots_response(204, b""),
+            Policy::AllowAll
+        ));
+        assert!(matches!(
+            policy_from_robots_response(404, b""),
+            Policy::AllowAll
+        ));
+        assert!(matches!(
+            policy_from_robots_response(410, b""),
+            Policy::AllowAll
+        ));
+        assert!(matches!(
+            policy_from_robots_response(403, b""),
+            Policy::AllowAll
+        ));
+        assert!(matches!(
+            policy_from_robots_response(503, b""),
+            Policy::DenyAll(_)
+        ));
         // A hostile non-UTF-8 body is not a refusal — allow all.
-        assert!(matches!(policy_from_robots_response(200, &[0xff, 0xfe]), Policy::AllowAll));
+        assert!(matches!(
+            policy_from_robots_response(200, &[0xff, 0xfe]),
+            Policy::AllowAll
+        ));
     }
 
     #[test]
@@ -571,9 +605,7 @@ mod tests {
 
     #[test]
     fn product_group_beats_star_group() {
-        let p = parse_rules(
-            "User-agent: *\nDisallow: /\n\nUser-agent: Diting\nDisallow: /private",
-        );
+        let p = parse_rules("User-agent: *\nDisallow: /\n\nUser-agent: Diting\nDisallow: /private");
         match p {
             Policy::Rules(rs) => {
                 assert_eq!(rs.len(), 1);
@@ -586,9 +618,7 @@ mod tests {
     #[test]
     fn star_group_ignored_when_product_group_exists() {
         // RFC 9309 §2.2.1: never combine; the most specific group wins.
-        let p = parse_rules(
-            "User-agent: diting\nAllow: /\n\nUser-agent: *\nDisallow: /",
-        );
+        let p = parse_rules("User-agent: diting\nAllow: /\n\nUser-agent: *\nDisallow: /");
         match p {
             Policy::Rules(rs) => {
                 assert!(rs.iter().all(|r| r.allow));
@@ -608,7 +638,10 @@ mod tests {
 
     #[test]
     fn garbage_yields_allow_all() {
-        assert!(matches!(parse_rules("<html><body>challenge page</body>"), Policy::AllowAll));
+        assert!(matches!(
+            parse_rules("<html><body>challenge page</body>"),
+            Policy::AllowAll
+        ));
         assert!(matches!(parse_rules(""), Policy::AllowAll));
         assert!(matches!(parse_rules("# just a comment"), Policy::AllowAll));
     }
@@ -723,7 +756,9 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         tokio::spawn(async move {
             loop {
-                let Ok((mut stream, _)) = listener.accept().await else { break };
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
                 tokio::spawn(async move {
                     use tokio::io::{AsyncReadExt, AsyncWriteExt};
                     let mut buf = vec![0u8; 2048];
@@ -764,20 +799,41 @@ mod tests {
         s.touch("https://host0.example");
         s.insert("https://overflow.example".to_string(), Policy::AllowAll);
 
-        assert_eq!(s.map.len(), MAX_CACHE_ORIGINS, "cap holds after overflow insert");
-        assert!(s.map.contains_key("https://host0.example"), "touched (hot) entry survives");
-        assert!(!s.map.contains_key("https://host1.example"), "least-recently-used entry evicted");
-        assert!(s.map.contains_key("https://overflow.example"), "new entry present");
-        assert!(s.map.contains_key(&format!("https://host{}.example", MAX_CACHE_ORIGINS - 1)));
+        assert_eq!(
+            s.map.len(),
+            MAX_CACHE_ORIGINS,
+            "cap holds after overflow insert"
+        );
+        assert!(
+            s.map.contains_key("https://host0.example"),
+            "touched (hot) entry survives"
+        );
+        assert!(
+            !s.map.contains_key("https://host1.example"),
+            "least-recently-used entry evicted"
+        );
+        assert!(
+            s.map.contains_key("https://overflow.example"),
+            "new entry present"
+        );
+        assert!(s
+            .map
+            .contains_key(&format!("https://host{}.example", MAX_CACHE_ORIGINS - 1)));
     }
 
     #[test]
     fn cache_state_reinsert_refreshes_not_duplicates() {
         let mut s = CacheState::default();
         s.insert("https://a.example".to_string(), Policy::AllowAll);
-        s.insert("https://a.example".to_string(), Policy::DenyAll("refused".into()));
+        s.insert(
+            "https://a.example".to_string(),
+            Policy::DenyAll("refused".into()),
+        );
         assert_eq!(s.map.len(), 1, "same key re-inserts, never duplicates");
-        assert!(matches!(s.map["https://a.example"].policy, Policy::DenyAll(_)));
+        assert!(matches!(
+            s.map["https://a.example"].policy,
+            Policy::DenyAll(_)
+        ));
     }
 
     // #175: the redirect-hop walk. assert_allowed at the handler saw only
@@ -812,14 +868,12 @@ mod tests {
             "hops are walked, not just the final"
         );
         // Clean private entries the whole way: allowed, no request made.
-        assert!(
-            assert_allowed_walk(
-                "http://localhost/landed",
-                &["http://localhost:8080/hop".to_string()]
-            )
-            .await
-            .is_ok()
-        );
+        assert!(assert_allowed_walk(
+            "http://localhost/landed",
+            &["http://localhost:8080/hop".to_string()]
+        )
+        .await
+        .is_ok());
         unsafe { std::env::remove_var("DITING_HONOR_ROBOTS") };
     }
 }

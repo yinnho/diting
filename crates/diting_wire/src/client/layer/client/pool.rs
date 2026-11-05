@@ -13,9 +13,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use diting_wire_proto::rt::{Executor as _, Timer as _};
 use lru::LruCache;
 use tokio::sync::oneshot;
-use diting_wire_proto::rt::{Executor as _, Timer as _};
 
 use crate::{
     rt::{Executor, Timer},

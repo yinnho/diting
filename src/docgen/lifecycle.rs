@@ -22,13 +22,13 @@ use super::graph::{
     label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt, Rect,
     RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
 };
+use super::sigil;
 use super::spec::{
     lifecycle_band, text_units, LifecycleBand, LifecycleLane, LifecycleSpec, LifecycleState,
     LifecycleTransition,
 };
 use super::theme::Theme;
 use super::tx;
-use super::sigil;
 
 // ---------------------------------------------------------------------------
 // constants (archify px × 10)
@@ -209,10 +209,8 @@ pub fn render_lifecycle(
             placed: &scene_placed,
             canvas: (laid.content_w, laid.content_h),
         };
-        let label_w = transition_label_width(
-            transition.label.as_deref(),
-            transition.note.as_deref(),
-        );
+        let label_w =
+            transition_label_width(transition.label.as_deref(), transition.note.as_deref());
         let (from, to) = (&laid.rects[from_idx], &laid.rects[to_idx]);
         let req = RouteRequest {
             from_idx,
@@ -302,13 +300,15 @@ pub fn render_lifecycle(
         .transitions
         .iter()
         .zip(&placed)
-        .map(|(transition, (_, _, points, label))| super::checks::AuditRoute {
-            name: transition_name(transition),
-            from: transition.from.clone(),
-            to: transition.to.clone(),
-            points: points.clone(),
-            label: *label,
-        })
+        .map(
+            |(transition, (_, _, points, label))| super::checks::AuditRoute {
+                name: transition_name(transition),
+                from: transition.from.clone(),
+                to: transition.to.clone(),
+                points: points.clone(),
+                label: *label,
+            },
+        )
         .collect();
     let min_label_font = doc
         .states
@@ -553,7 +553,10 @@ fn state_palette(theme: &Theme, kind: &str) -> (&'static str, &'static str) {
 /// (stroke, width, dash, label fill) per transition variant — emphasis
 /// rides heavier (2px vs 1.1px) exactly like the reference. Sizes and dash
 /// patterns are this adapter's typography; colors come from the theme.
-fn variant_style(theme: &Theme, variant: &str) -> (&'static str, i32, Option<&'static str>, &'static str) {
+fn variant_style(
+    theme: &Theme,
+    variant: &str,
+) -> (&'static str, i32, Option<&'static str>, &'static str) {
     match variant {
         "emphasis" => (theme.ink, 20, None, theme.ink),
         "security" => (theme.danger, 11, None, theme.danger),
@@ -669,7 +672,7 @@ fn emit_svg(
             &state.kind,
             rect.x + rect.w - 170,
             rect.y + 60,
-            theme
+            theme,
         ));
         if let Some(step) = state.step.as_deref().filter(|s| !s.trim().is_empty()) {
             s.push_str(&format!(
@@ -716,10 +719,9 @@ fn emit_svg(
 
     // Transition labels (on top: white mask + label, note beneath).
     for (i, transition) in doc.transitions.iter().enumerate() {
-        let Some(w) = transition_label_width(
-            transition.label.as_deref(),
-            transition.note.as_deref(),
-        ) else {
+        let Some(w) =
+            transition_label_width(transition.label.as_deref(), transition.note.as_deref())
+        else {
             continue;
         };
         let (_, _, points, _) = &placed[i];
@@ -831,8 +833,8 @@ fn arrowhead(points: &[Pt], fill: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::theme::LIGHT;
+    use super::*;
 
     const SPEC_JSON: &str = r#"{
         "title": "Deploy",

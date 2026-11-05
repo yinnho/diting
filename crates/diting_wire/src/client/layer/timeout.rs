@@ -8,9 +8,9 @@ use std::{
     time::Duration,
 };
 
+use diting_wire_proto::rt::Timer as _;
 use http::{Request, Response};
 use tower::{BoxError, Layer, Service};
-use diting_wire_proto::rt::Timer as _;
 
 use self::{
     body::TimeoutBody,

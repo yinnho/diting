@@ -6,7 +6,7 @@
 //! session: navigate once, execute the actions in order on that page, then
 //! extract content (and optionally a screenshot) from its final state.
 
-use axum::{Json, http::StatusCode, response::IntoResponse};
+use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::render::smart_fetch;
@@ -74,7 +74,10 @@ pub enum ScrapeAction {
     #[serde(rename = "scroll")]
     Scroll,
     #[serde(rename = "writeText")]
-    WriteText { text: String, selector: Option<String> },
+    WriteText {
+        text: String,
+        selector: Option<String>,
+    },
     #[serde(rename = "pressKey")]
     PressKey { key: String },
 }
@@ -116,13 +119,16 @@ pub struct ScrapeMetadata {
 }
 
 /// Handle `POST /v1/scrape`.
-pub async fn scrape_handler(
-    Json(req): Json<ScrapeRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    crate::robots::assert_allowed(&req.url).await.map_err(AppError::Forbidden)?;
+pub async fn scrape_handler(Json(req): Json<ScrapeRequest>) -> Result<impl IntoResponse, AppError> {
+    crate::robots::assert_allowed(&req.url)
+        .await
+        .map_err(AppError::Forbidden)?;
     let wants_html = req.formats.iter().any(|f| f == "html");
     let wants_markdown = req.formats.iter().any(|f| f == "markdown");
-    let wants_screenshot = req.actions.iter().any(|a| matches!(a, ScrapeAction::Screenshot { .. }))
+    let wants_screenshot = req
+        .actions
+        .iter()
+        .any(|a| matches!(a, ScrapeAction::Screenshot { .. }))
         || req.formats.iter().any(|f| f == "screenshot");
 
     // Screenshots can only be produced when built with the `screenshot` feature.
@@ -137,8 +143,7 @@ pub async fn scrape_handler(
     // Tier-1 HTTP-direct can return an unrendered SPA shell and ignores
     // wait_secs entirely, so a Wait-only scrape of a JS-rendered page would
     // miss the JS-injected content. Plain scrapes (no actions) stay fast.
-    let needs_session = !req.actions.is_empty()
-        || (wants_screenshot && screenshot_available);
+    let needs_session = !req.actions.is_empty() || (wants_screenshot && screenshot_available);
 
     if needs_session {
         return Ok(scrape_with_session(&req, wants_html, wants_markdown, wants_screenshot).await);
@@ -241,7 +246,13 @@ async fn scrape_with_fetch(
                     error: None,
                 },
             };
-            (StatusCode::OK, Json(ScrapeResponse { success: true, data }))
+            (
+                StatusCode::OK,
+                Json(ScrapeResponse {
+                    success: true,
+                    data,
+                }),
+            )
         }
         Err(e) => {
             // Firecrawl returns success:false on failure rather than an HTTP error.
@@ -258,7 +269,13 @@ async fn scrape_with_fetch(
                     error: Some(format!("{}", e)),
                 },
             };
-            (StatusCode::OK, Json(ScrapeResponse { success: false, data }))
+            (
+                StatusCode::OK,
+                Json(ScrapeResponse {
+                    success: false,
+                    data,
+                }),
+            )
         }
     }
 }
@@ -298,7 +315,13 @@ async fn scrape_with_session(
                 error: Some(e),
             },
         };
-        return (StatusCode::OK, Json(ScrapeResponse { success: false, data }));
+        return (
+            StatusCode::OK,
+            Json(ScrapeResponse {
+                success: false,
+                data,
+            }),
+        );
     }
     let url = req.url.clone();
     let actions = req.actions.clone();
@@ -552,7 +575,13 @@ async fn scrape_with_session(
                     error: None,
                 },
             };
-            (StatusCode::OK, Json(ScrapeResponse { success: true, data }))
+            (
+                StatusCode::OK,
+                Json(ScrapeResponse {
+                    success: true,
+                    data,
+                }),
+            )
         }
         Ok(Err(e)) => {
             let data = ScrapeData {
@@ -568,7 +597,13 @@ async fn scrape_with_session(
                     error: Some(format!("{}", e)),
                 },
             };
-            (StatusCode::OK, Json(ScrapeResponse { success: false, data }))
+            (
+                StatusCode::OK,
+                Json(ScrapeResponse {
+                    success: false,
+                    data,
+                }),
+            )
         }
         Err(e) => {
             let data = ScrapeData {
@@ -584,7 +619,13 @@ async fn scrape_with_session(
                     error: Some(format!("{}", e)),
                 },
             };
-            (StatusCode::OK, Json(ScrapeResponse { success: false, data }))
+            (
+                StatusCode::OK,
+                Json(ScrapeResponse {
+                    success: false,
+                    data,
+                }),
+            )
         }
     }
 }
@@ -615,7 +656,9 @@ fn extract_description(html: &str) -> Option<String> {
     let lower = html.to_ascii_lowercase();
     // Look for name="description" then walk back/forward to the content attr.
     let needle = r#"name="description""#;
-    let idx = lower.find(needle).or_else(|| lower.find(r#"name='description'"#))?;
+    let idx = lower
+        .find(needle)
+        .or_else(|| lower.find(r#"name='description'"#))?;
     // Search within ±200 chars for content="...". Snap the window to char
     // boundaries — a CJK description means raw byte offsets can land mid-char
     // and slicing would panic (observed on baidu.com).

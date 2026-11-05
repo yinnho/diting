@@ -1,15 +1,12 @@
 use async_trait::async_trait;
 
-use super::{strip_tags, SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{strip_tags, RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// The browser headers a plain (non-stealth) client must carry: without a
 /// User-Agent the engine is a bot on sight, and baidu walls headerless
 /// requests even before the TLS fingerprint question starts.
 const HEADERS: &[(&str, &str)] = &[
-    (
-        "User-Agent",
-        diting::chrome_target::UA_DEFAULT,
-    ),
+    ("User-Agent", diting::chrome_target::UA_DEFAULT),
     (
         "Accept",
         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -139,14 +136,18 @@ fn parse_baidu_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineErro
         if title.is_empty() {
             continue;
         }
-        let Some(container_node) =
-            link.ancestors().find(|a| is_result_container_node(a.value()))
+        let Some(container_node) = link
+            .ancestors()
+            .find(|a| is_result_container_node(a.value()))
         else {
             continue;
         };
         // Card internals are c-container divs nested inside the outer card —
         // only the outermost container is a result.
-        if container_node.ancestors().any(|a| is_result_container_node(a.value())) {
+        if container_node
+            .ancestors()
+            .any(|a| is_result_container_node(a.value()))
+        {
             continue;
         }
         let Some(container) = scraper::ElementRef::wrap(container_node) else {
@@ -229,7 +230,10 @@ fn baidu_snippet(item: &scraper::ElementRef) -> String {
     };
 
     let mut parts: Vec<String> = Vec::new();
-    if let Some(lines) = v.pointer("/summaryData/generalLines").and_then(|l| l.as_array()) {
+    if let Some(lines) = v
+        .pointer("/summaryData/generalLines")
+        .and_then(|l| l.as_array())
+    {
         for line in lines {
             if let Some(datas) = line.get("data").and_then(|d| d.as_array()) {
                 for d in datas {
@@ -258,8 +262,10 @@ fn repair_json_escapes(s: &str) -> String {
     while i < bytes.len() {
         if bytes[i] == b'\\' {
             let next = bytes.get(i + 1).copied();
-            let legal = matches!(next,
-                Some(b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't') | Some(b'u'));
+            let legal = matches!(
+                next,
+                Some(b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't') | Some(b'u')
+            );
             out.push('\\');
             if !legal {
                 out.push('\\'); // double it: a literal backslash was intended
@@ -278,7 +284,6 @@ fn repair_json_escapes(s: &str) -> String {
     }
     out
 }
-
 
 /// Baidu's `gpc` time-window parameter for the API's time_range vocabulary.
 /// URL-encoded by the caller's format! via urlencoding on the whole value —
@@ -328,7 +333,11 @@ mod tests {
     #[test]
     fn parses_mu_urls_and_sdata_snippets() {
         let rs = parse_baidu_html(SERP).unwrap();
-        assert_eq!(rs.len(), 2, "outer cards only; nested + no-h3 skipped: {rs:?}");
+        assert_eq!(
+            rs.len(),
+            2,
+            "outer cards only; nested + no-h3 skipped: {rs:?}"
+        );
         assert_eq!(rs[0].title, "First title");
         assert_eq!(rs[0].url, "https://example.com/real");
         // The rendered summary-text spans win over the s-data blob.
@@ -381,8 +390,7 @@ mod tests {
         let Ok(path) = std::env::var("DITING_BAIDU_SERP_FIXTURE") else {
             return;
         };
-        let html = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("read {path}: {e}"));
+        let html = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
         let rs = parse_baidu_html(&html).unwrap();
         assert!(!rs.is_empty(), "real SERP must yield results");
         let with_snippet = rs.iter().filter(|r| !r.snippet.is_empty()).count();
@@ -392,9 +400,13 @@ mod tests {
             rs.len()
         );
         assert!(
-            rs.iter().any(|r| r.url.starts_with("https://") && !r.url.contains("baidu.com/link")),
+            rs.iter()
+                .any(|r| r.url.starts_with("https://") && !r.url.contains("baidu.com/link")),
             "mu attribute must surface real destination URLs, got {:?}",
-            rs.iter().map(|r| r.url.as_str()).take(5).collect::<Vec<_>>()
+            rs.iter()
+                .map(|r| r.url.as_str())
+                .take(5)
+                .collect::<Vec<_>>()
         );
     }
 }

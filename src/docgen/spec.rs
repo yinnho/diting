@@ -363,10 +363,16 @@ pub fn validate_workflow(spec: &WorkflowSpec) -> Vec<String> {
             .clone()
             .unwrap_or_else(|| format!("{}->{}", edge.from, edge.to));
         if !node_ids.contains(edge.from.as_str()) {
-            problems.push(format!("edge \"{name}\" starts at unknown node \"{}\"", edge.from));
+            problems.push(format!(
+                "edge \"{name}\" starts at unknown node \"{}\"",
+                edge.from
+            ));
         }
         if !node_ids.contains(edge.to.as_str()) {
-            problems.push(format!("edge \"{name}\" ends at unknown node \"{}\"", edge.to));
+            problems.push(format!(
+                "edge \"{name}\" ends at unknown node \"{}\"",
+                edge.to
+            ));
         }
         if let Some(route) = &edge.route {
             if !EDGE_ROUTES.contains(&route.as_str()) {
@@ -630,10 +636,16 @@ pub fn validate_dataflow(spec: &DataflowSpec) -> Vec<String> {
             .clone()
             .unwrap_or_else(|| format!("{}->{}", flow.from, flow.to));
         if !node_ids.contains(flow.from.as_str()) {
-            problems.push(format!("flow \"{name}\" starts at unknown node \"{}\"", flow.from));
+            problems.push(format!(
+                "flow \"{name}\" starts at unknown node \"{}\"",
+                flow.from
+            ));
         }
         if !node_ids.contains(flow.to.as_str()) {
-            problems.push(format!("flow \"{name}\" ends at unknown node \"{}\"", flow.to));
+            problems.push(format!(
+                "flow \"{name}\" ends at unknown node \"{}\"",
+                flow.to
+            ));
         }
         if flow.label.trim().is_empty() {
             problems.push(format!("flow \"{name}\" must have a label",));
@@ -681,14 +693,7 @@ pub const LIFECYCLE_ROUTES: [&str; 7] = [
 
 /// The eight state kinds.
 pub const STATE_TYPES: [&str; 8] = [
-    "start",
-    "active",
-    "waiting",
-    "decision",
-    "success",
-    "failure",
-    "neutral",
-    "external",
+    "start", "active", "waiting", "decision", "success", "failure", "neutral", "external",
 ];
 
 #[derive(Debug, Deserialize)]
@@ -1463,8 +1468,10 @@ mod tests {
         };
         assert!(validate_views(&[v("core", &["a", "b"])], &["a", "b"]).is_empty());
         // Duplicate id, empty node list, unknown node — reported in order.
-        let problems =
-            validate_views(&[v("core", &["a"]), v("core", &[]), v("side", &["z"])], &["a", "b"]);
+        let problems = validate_views(
+            &[v("core", &["a"]), v("core", &[]), v("side", &["z"])],
+            &["a", "b"],
+        );
         assert_eq!(problems.len(), 3, "{problems:?}");
         assert!(problems[0].contains("duplicate view id \"core\""));
         assert!(problems[1].contains("lists no nodes"));

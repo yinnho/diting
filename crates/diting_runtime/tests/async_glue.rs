@@ -18,7 +18,7 @@ use diting_runtime::op_glue::{throw_error_one_byte_info, to_f64_option, to_i32_o
 use diting_runtime::op_reg::{OpCtx, OpDecl};
 use diting_runtime::state::OpState;
 use diting_runtime::vm::Vm;
-use diting_runtime::{AsyncOpOutcome, spawn_async_op};
+use diting_runtime::{spawn_async_op, AsyncOpOutcome};
 
 /// The state face the test op reads through the OpSet's shared cell —
 /// pins that the glue's OUR-OpCtx decode reaches the same OpState the

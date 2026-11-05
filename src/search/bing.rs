@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use base64::Engine;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Bing search engine. Uses plain reqwest (Bing does not block standard TLS).
 pub struct BingEngine {

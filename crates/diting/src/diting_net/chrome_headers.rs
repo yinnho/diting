@@ -139,7 +139,11 @@ fn order_names(navigation: bool, authored: bool, authored_accept: bool) -> &'sta
     if navigation {
         NAVIGATION
     } else if authored {
-        if authored_accept { AUTHORED_ACCEPT_SET } else { AUTHORED_ACCEPT_DEFAULT }
+        if authored_accept {
+            AUTHORED_ACCEPT_SET
+        } else {
+            AUTHORED_ACCEPT_DEFAULT
+        }
     } else {
         PLAIN_SUBRESOURCE
     }
@@ -151,10 +155,23 @@ pub fn has_author_headers<'a>(names: impl IntoIterator<Item = &'a str>) -> bool 
     names.into_iter().any(|n| {
         !matches!(
             n.to_ascii_lowercase().as_str(),
-            "accept" | "accept-language" | "accept-encoding" | "referer" | "origin" | "cookie"
-                | "user-agent" | "content-length" | "priority" | "content-type"
-                | "sec-ch-ua" | "sec-ch-ua-mobile" | "sec-ch-ua-platform"
-                | "sec-fetch-dest" | "sec-fetch-mode" | "sec-fetch-site" | "sec-fetch-user"
+            "accept"
+                | "accept-language"
+                | "accept-encoding"
+                | "referer"
+                | "origin"
+                | "cookie"
+                | "user-agent"
+                | "content-length"
+                | "priority"
+                | "content-type"
+                | "sec-ch-ua"
+                | "sec-ch-ua-mobile"
+                | "sec-ch-ua-platform"
+                | "sec-fetch-dest"
+                | "sec-fetch-mode"
+                | "sec-fetch-site"
+                | "sec-fetch-user"
                 | "upgrade-insecure-requests"
         )
     })
@@ -198,9 +215,21 @@ mod tests {
         // accept-language, priority.
         let n = names(&header_order(false, true, true));
         let want = [
-            "content-length", "sec-ch-ua-platform", "authorization", "sec-ch-ua",
-            "sec-ch-ua-mobile", "x-t", "x-b3-traceid", "x-s-common", "user-agent", "accept",
-            "content-type", "x-s", "origin", "sec-fetch-site", "sec-fetch-mode",
+            "content-length",
+            "sec-ch-ua-platform",
+            "authorization",
+            "sec-ch-ua",
+            "sec-ch-ua-mobile",
+            "x-t",
+            "x-b3-traceid",
+            "x-s-common",
+            "user-agent",
+            "accept",
+            "content-type",
+            "x-s",
+            "origin",
+            "sec-fetch-site",
+            "sec-fetch-mode",
         ];
         assert_eq!(&n[..want.len()], &want);
     }

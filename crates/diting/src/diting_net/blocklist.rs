@@ -1,4 +1,3 @@
-
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
@@ -103,11 +102,17 @@ mod tests {
     fn block_trackers_env_off_values_release_the_gate() {
         let _guard = BlockTrackersGuard;
         std::env::remove_var("DITING_BLOCK_TRACKERS");
-        assert!(block_trackers_from_env(), "unset keeps the documented stealth default");
+        assert!(
+            block_trackers_from_env(),
+            "unset keeps the documented stealth default"
+        );
 
         for off in ["0", "false", "no", "off", " OFF ", "No"] {
             std::env::set_var("DITING_BLOCK_TRACKERS", off);
-            assert!(!block_trackers_from_env(), "value {off:?} must release the gate");
+            assert!(
+                !block_trackers_from_env(),
+                "value {off:?} must release the gate"
+            );
         }
         for on in ["1", "yes", "true", "on"] {
             std::env::set_var("DITING_BLOCK_TRACKERS", on);

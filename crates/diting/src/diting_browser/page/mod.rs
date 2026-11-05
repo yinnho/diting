@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use crate::diting_dom::{parse_html, DomTree};
 use crate::diting_js::runtime::JsRuntime;
 use crate::diting_net::{HttpClient, NetError, Response};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use url::Url;
 
 use crate::diting_browser::context::BrowserContext;
@@ -90,11 +90,15 @@ fn cross_scheme_to_file(from: &str, to: &str) -> bool {
 /// Real Chrome allows data: subresources by default; Instagram and most
 /// Meta properties depend on this for their inline bootstrap scripts.
 fn subresource_allowed(page_url: Option<&Url>, resource: &str) -> bool {
-    let Ok(target) = Url::parse(resource) else { return false };
+    let Ok(target) = Url::parse(resource) else {
+        return false;
+    };
     let scheme = target.scheme().to_ascii_lowercase();
     match scheme.as_str() {
         "http" | "https" | "data" => true,
-        "file" => page_url.map(|u| u.scheme().eq_ignore_ascii_case("file")).unwrap_or(false),
+        "file" => page_url
+            .map(|u| u.scheme().eq_ignore_ascii_case("file"))
+            .unwrap_or(false),
         _ => false,
     }
 }
@@ -473,7 +477,8 @@ pub struct Page {
     /// CDP bridge receives every script-initiated fetch()/XHR as an
     /// `InterceptedRequest` and answers with a resolution. Cleared by
     /// `set_fetch_intercept(None)`.
-    intercept_tx: Option<tokio::sync::mpsc::UnboundedSender<crate::diting_js::ops::InterceptedRequest>>,
+    intercept_tx:
+        Option<tokio::sync::mpsc::UnboundedSender<crate::diting_js::ops::InterceptedRequest>>,
     // Scripts to execute in the page's JS context BEFORE any of the page's
     // own scripts run — the CDP `Page.addScriptToEvaluateOnNewDocument`
     // contract. Includes `Runtime.addBinding` shims so puppeteer's
@@ -618,9 +623,7 @@ impl Page {
             touch_override: None,
             timezone_override: None,
             locale_override: None,
-            fp_seed: u64::from_be_bytes(
-                uuid::Uuid::new_v4().into_bytes()[..8].try_into().unwrap(),
-            ),
+            fp_seed: u64::from_be_bytes(uuid::Uuid::new_v4().into_bytes()[..8].try_into().unwrap()),
             callbacks: Arc::new(crate::diting_net::CallbackRegistry::new()),
             response_bodies: std::collections::HashMap::new(),
             response_body_order: std::collections::VecDeque::new(),
@@ -700,12 +703,7 @@ impl Page {
             if tx.send(request).is_ok() {
                 let timeout_ms = crate::diting_js::ops::INTERCEPT_RESOLUTION_TIMEOUT_MS
                     .load(std::sync::atomic::Ordering::Relaxed);
-                match tokio::time::timeout(
-                    std::time::Duration::from_millis(timeout_ms),
-                    rx,
-                )
-                .await
-                {
+                match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), rx).await {
                     Ok(Ok(crate::diting_js::ops::InterceptResolution::Fulfill {
                         status,
                         headers,
@@ -734,13 +732,22 @@ impl Page {
         // A JS/link-initiated navigation carries the referring document's
         // URL per browser semantics; direct automation navigations leave
         // self.referrer empty (edb1785) and go out bare.
-        let referrer = if self.referrer.is_empty() { None } else { Some(self.referrer.as_str()) };
+        let referrer = if self.referrer.is_empty() {
+            None
+        } else {
+            Some(self.referrer.as_str())
+        };
         #[cfg(feature = "stealth")]
         if let Some(ref stealth) = self.stealth_client {
             return stealth.fetch_navigation(url, referrer).await;
         }
         self.http_client
-            .fetch_with_callbacks(url, Some(&self.callbacks), crate::diting_net::ResourceType::Document, referrer)
+            .fetch_with_callbacks(
+                url,
+                Some(&self.callbacks),
+                crate::diting_net::ResourceType::Document,
+                referrer,
+            )
             .await
     }
 
@@ -779,10 +786,8 @@ impl Page {
         // and op_fetch_url so dynamic imports and JS fetch() honour the
         // configured upstream proxy (#139). When proxy_url is None this is
         // equivalent to with_base_url() (direct connection).
-        let mut rt = JsRuntime::with_base_url_and_proxy(
-            &self.url_string(),
-            self.context.proxy_url.clone(),
-        );
+        let mut rt =
+            JsRuntime::with_base_url_and_proxy(&self.url_string(), self.context.proxy_url.clone());
         rt.set_url(&self.url_string());
         // Seed the JS history stack from the REAL session history
         // (obscura#1105): a fresh runtime would report history.length === 1
@@ -825,9 +830,17 @@ impl Page {
             ua.clone()
         } else {
             #[cfg(feature = "stealth")]
-            { if self.stealth_client.is_some() { crate::diting_net::STEALTH_USER_AGENT.to_string() } else { String::new() } }
+            {
+                if self.stealth_client.is_some() {
+                    crate::diting_net::STEALTH_USER_AGENT.to_string()
+                } else {
+                    String::new()
+                }
+            }
             #[cfg(not(feature = "stealth"))]
-            { String::new() }
+            {
+                String::new()
+            }
         };
         if !ua_to_set.is_empty() {
             rt.set_user_agent(&ua_to_set);
@@ -949,21 +962,19 @@ impl Page {
     fn resolve_base_url(&self) -> Option<url::Url> {
         let doc_url = self.url.as_ref()?;
         let base_href: Option<String> = self.js.as_ref().and_then(|js| {
-            js.with_dom(|dom| {
-                match dom.query_selector("base[href]") {
-                    Ok(Some(nid)) => {
-                        dom.get_node(nid).and_then(|n| n.get_attribute("href").map(|s| s.to_string()))
-                    }
-                    _ => None,
-                }
-            }).flatten()
+            js.with_dom(|dom| match dom.query_selector("base[href]") {
+                Ok(Some(nid)) => dom
+                    .get_node(nid)
+                    .and_then(|n| n.get_attribute("href").map(|s| s.to_string())),
+                _ => None,
+            })
+            .flatten()
         });
         match base_href {
             Some(href) => doc_url.join(&href).ok(),
             None => Some(doc_url.clone()),
         }
     }
-
 
     #[cfg_attr(not(test), allow(dead_code))] // storm control: park the realm between microtask bursts
     pub fn suspend_js(&mut self) {
@@ -974,7 +985,8 @@ impl Page {
             }
             // Drain before the realm drops: console calls logged since the
             // last pump must survive suspension like the DOM does.
-            self.suspended_console.extend(js.take_pending_console_calls());
+            self.suspended_console
+                .extend(js.take_pending_console_calls());
         }
         self.js = None;
     }
@@ -1017,7 +1029,6 @@ impl Page {
             None => false,
         }
     }
-
 
     /// Drain queued console calls (level, message, page URL at log time)
     /// for CDP `Runtime.consoleAPICalled` and the session console ring.
@@ -1103,9 +1114,9 @@ impl Page {
                 .url
                 .as_ref()
                 .and_then(|source| {
-                    Url::parse(&url)
-                        .ok()
-                        .map(|target| crate::diting_net::client::HttpClient::navigation_referrer(source, &target))
+                    Url::parse(&url).ok().map(|target| {
+                        crate::diting_net::client::HttpClient::navigation_referrer(source, &target)
+                    })
                 })
                 .unwrap_or_default();
             self.navigate_with_wait_post_ref(
@@ -1130,7 +1141,10 @@ impl Page {
     /// `None` disarms and lets in-flight resolvers fall through to the real
     /// request. Arming survives navigation — `init_js` carries the channel
     /// into each rebuilt realm.
-    pub fn set_fetch_intercept(&mut self, tx: Option<tokio::sync::mpsc::UnboundedSender<crate::diting_js::ops::InterceptedRequest>>) {
+    pub fn set_fetch_intercept(
+        &mut self,
+        tx: Option<tokio::sync::mpsc::UnboundedSender<crate::diting_js::ops::InterceptedRequest>>,
+    ) {
         self.intercept_tx = tx.clone();
         if let Some(js) = &self.js {
             match tx {

@@ -11,8 +11,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use send_wrapper::SendWrapper;
 use diting_wire_proto::rt::{Executor, Sleep, Timer};
+use send_wrapper::SendWrapper;
 
 /// Future executor that utilises the `compio` runtime.
 #[non_exhaustive]

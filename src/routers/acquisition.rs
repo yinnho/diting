@@ -400,7 +400,9 @@ pub(crate) async fn engines_handler() -> impl IntoResponse {
         .iter()
         .filter_map(|e| {
             if e.get("available").and_then(|v| v.as_bool()) == Some(true) {
-                e.get("name").and_then(|v| v.as_str()).map(|s| s.to_string())
+                e.get("name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
             } else {
                 None
             }
@@ -413,7 +415,9 @@ pub(crate) async fn engines_handler() -> impl IntoResponse {
     }))
 }
 
-pub(crate) async fn fetch_handler(Json(req): Json<FetchRequest>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn fetch_handler(
+    Json(req): Json<FetchRequest>,
+) -> Result<impl IntoResponse, AppError> {
     // robots.txt gate before the cache — a policy flip applies to cached
     // content too, and the robots policy itself is host-cached so this is
     // cheap on the hot path.
@@ -528,7 +532,9 @@ fn fetch_cache_put(key: &str, resp: &FetchResponse) {
     }
 }
 
-pub(crate) async fn click_handler(Json(req): Json<ClickRequest>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn click_handler(
+    Json(req): Json<ClickRequest>,
+) -> Result<impl IntoResponse, AppError> {
     // /click fetches the URL autonomously before acting on it — same robots
     // gate as /fetch (see robots.rs for the contract).
     robots::assert_allowed(&req.url)
@@ -544,7 +550,9 @@ pub(crate) async fn click_handler(Json(req): Json<ClickRequest>) -> Result<impl 
     Ok((StatusCode::OK, Json(resp)))
 }
 
-pub(crate) async fn eval_handler(Json(req): Json<EvalRequest>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn eval_handler(
+    Json(req): Json<EvalRequest>,
+) -> Result<impl IntoResponse, AppError> {
     // /eval fetches the URL autonomously to run the script on it — same
     // robots gate as /fetch (see robots.rs for the contract).
     robots::assert_allowed(&req.url)
@@ -559,7 +567,9 @@ pub(crate) async fn eval_handler(Json(req): Json<EvalRequest>) -> Result<impl In
     Ok((StatusCode::OK, Json(resp)))
 }
 
-pub(crate) async fn search_handler(Json(req): Json<SearchRequest>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn search_handler(
+    Json(req): Json<SearchRequest>,
+) -> Result<impl IntoResponse, AppError> {
     let categories = req.categories.clone();
     let resp = do_search(req).await.map_err(|e| match e {
         SearchError::Other(msg) => AppError::Internal(msg),
@@ -801,7 +811,8 @@ mod tests {
         // rejected at the door, not silently coerced.
         assert!(serde_json::from_str::<FetchRequest>(
             r#"{"url":"https://e.com","render_tier":"obscura"}"#
-        ).is_err());
+        )
+        .is_err());
         assert_eq!(
             serde_json::to_value(RenderTier::Browser).unwrap(),
             serde_json::json!("browser")

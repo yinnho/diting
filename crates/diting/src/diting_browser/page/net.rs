@@ -86,12 +86,7 @@ impl Page {
         request_id
     }
 
-    fn store_response_body(
-        &mut self,
-        request_id: String,
-        body: &[u8],
-        content_type: Option<&str>,
-    ) {
+    fn store_response_body(&mut self, request_id: String, body: &[u8], content_type: Option<&str>) {
         let max_entries = response_body_entry_limit();
         let max_bytes = response_body_byte_limit();
         if max_entries == 0 || max_bytes == 0 || body.len() > max_bytes {
@@ -248,7 +243,6 @@ impl Page {
     pub fn off_request(&mut self, id: u64) -> bool {
         self.callbacks.remove_request(id)
     }
-
 
     /// Fan `Network.setExtraHTTPHeaders` out to every transport this page
     /// can issue requests from. A stealth page fetches its main document

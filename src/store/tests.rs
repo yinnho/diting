@@ -28,11 +28,9 @@ fn reopen_migrates_pre_drift_schema() {
     // Migration re-added the drift columns with their defaults.
     let (prev_hash, prev_fetched_at): (String, i64) = s
         .conn
-        .query_row(
-            "SELECT prev_hash, prev_fetched_at FROM pages",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
+        .query_row("SELECT prev_hash, prev_fetched_at FROM pages", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
         .unwrap();
     assert_eq!(prev_hash, "");
     assert_eq!(prev_fetched_at, 0);
@@ -41,11 +39,9 @@ fn reopen_migrates_pre_drift_schema() {
     page(&s, "a", "https://example.cn/x", "t", "body v2");
     let (prev_hash, content_hash): (String, String) = s
         .conn
-        .query_row(
-            "SELECT prev_hash, content_hash FROM pages",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
+        .query_row("SELECT prev_hash, content_hash FROM pages", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
         .unwrap();
     assert_eq!(prev_hash, hex(&Sha256::digest(b"body")));
     assert_eq!(content_hash, hex(&Sha256::digest(b"body v2")));
@@ -185,8 +181,7 @@ fn accounts_roundtrip_owner_isolation_and_listing() {
     // The persona rides the listing as its UA; the fp_seed stays
     // server-side (callers can't act on it, and the summary is
     // metadata-only by contract).
-    let with_persona =
-        r#"{"version":1,"persona":{"fp_seed":42,"user_agent":"UA-X"},"cookies":[]}"#;
+    let with_persona = r#"{"version":1,"persona":{"fp_seed":42,"user_agent":"UA-X"},"cookies":[]}"#;
     s.save_account("owner-a", "publisher", with_persona)
         .unwrap();
     let rows = s.list_accounts("owner-a").unwrap();

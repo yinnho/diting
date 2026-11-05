@@ -75,10 +75,7 @@ pub fn build_browser_with_jar(
 ) -> Result<Browser> {
     // Stealth defaults on; disable via DITING_STEALTH=0 (diagnostic / when
     // the wreq stealth client misbehaves on a given site).
-    let stealth = !matches!(
-        std::env::var("DITING_STEALTH").ok().as_deref(),
-        Some("0")
-    );
+    let stealth = !matches!(std::env::var("DITING_STEALTH").ok().as_deref(), Some("0"));
     let mut builder = Browser::builder().stealth(stealth);
     if share_cookies {
         builder = builder.shared_cookie_jar(SHARED_COOKIE_JAR.clone());
@@ -109,10 +106,7 @@ pub fn build_browser_for_account(
     jar: std::sync::Arc<CookieJar>,
     user_agent: Option<&str>,
 ) -> Result<Browser> {
-    let stealth = !matches!(
-        std::env::var("DITING_STEALTH").ok().as_deref(),
-        Some("0")
-    );
+    let stealth = !matches!(std::env::var("DITING_STEALTH").ok().as_deref(), Some("0"));
     let mut builder = Browser::builder().stealth(stealth).shared_cookie_jar(jar);
     if let Some(ua) = user_agent {
         builder = builder.user_agent(ua);
@@ -313,4 +307,3 @@ where
         })
         .collect()
 }
-

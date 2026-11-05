@@ -400,7 +400,9 @@ pub(crate) async fn screenshot_handler(
 /// encode the viewport bands to MP4 (ffmpeg pipe). Same threading pattern as
 /// /screenshot — V8 is !Send.
 #[cfg(feature = "screenshot")]
-pub(crate) async fn video_handler(Json(req): Json<VideoRequest>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn video_handler(
+    Json(req): Json<VideoRequest>,
+) -> Result<impl IntoResponse, AppError> {
     // Literal-HTML renders never touch the network — same exemption as
     // /screenshot's html mode.
     let html_mode = req.html.as_deref().is_some_and(|h| !h.trim().is_empty());
@@ -422,7 +424,9 @@ pub(crate) async fn video_handler(Json(req): Json<VideoRequest>) -> Result<impl 
 /// Page set: cut the page into pages (print pagination or per-selector
 /// slides) and package as PDF / PNGs. Same threading pattern as /screenshot.
 #[cfg(feature = "screenshot")]
-pub(crate) async fn pdf_handler(Json(req): Json<PdfRequest>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn pdf_handler(
+    Json(req): Json<PdfRequest>,
+) -> Result<impl IntoResponse, AppError> {
     robots::assert_allowed(&req.url)
         .await
         .map_err(AppError::Forbidden)?;
@@ -491,11 +495,14 @@ mod screenshot_html_tests {
     async fn screenshot_html_mode_skips_url_contract() {
         // A url that would fail the domain-rate gate is present but unused —
         // html takes precedence and nothing about the URL is fetched.
-        let req: ScreenshotRequest = serde_json::from_str(r#"{
+        let req: ScreenshotRequest = serde_json::from_str(
+            r#"{
             "html": "<html><body>ok</body></html>",
             "url": "https://definitely-not-fetched.example/",
             "width": 200, "height": 100, "full_page": false
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         let resp = crate::server::do_screenshot(req).expect("html mode ignores url");
         assert!(resp.image_base64.len() > 500);
     }
@@ -509,7 +516,11 @@ mod video_html_tests {
     async fn video_html_mode_encodes_css_animation() {
         // Pure-CSS animation, no __timelines registration — the pump's
         // css_animation_extent branch owns the length. ffmpeg required.
-        if !std::process::Command::new("ffmpeg").arg("-version").output().is_ok() {
+        if !std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .output()
+            .is_ok()
+        {
             return; // no ffmpeg on this host; CI carries it
         }
         let req: VideoRequest = serde_json::from_str(r#"{
@@ -517,7 +528,11 @@ mod video_html_tests {
             "fps": 10, "width": 320, "height": 180, "hold_tail_secs": 0.2
         }"#).unwrap();
         let resp = crate::server::do_video(req).expect("video html mode");
-        assert!(resp.timeline_secs >= 0.4, "css extent measured: {}", resp.timeline_secs);
+        assert!(
+            resp.timeline_secs >= 0.4,
+            "css extent measured: {}",
+            resp.timeline_secs
+        );
         assert!(resp.duration_secs > resp.timeline_secs, "hold tail added");
         assert!(!resp.video_base64.is_empty());
         assert_eq!(resp.format, "mp4");

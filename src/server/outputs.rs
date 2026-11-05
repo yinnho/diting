@@ -43,8 +43,7 @@ pub fn do_screenshot(req: ScreenshotRequest) -> Result<ScreenshotResponse> {
             if !html_mode {
                 crate::rate::check_domain(&req.url).map_err(anyhow::Error::msg)?;
             }
-            let browser =
-                build_browser(req.use_proxy, &target, req.tls_fingerprint.as_deref())?;
+            let browser = build_browser(req.use_proxy, &target, req.tls_fingerprint.as_deref())?;
             if !html_mode {
                 inject_cookies(&browser, &req.cookies, &req.url);
             }
@@ -199,7 +198,8 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
                 use base64::Engine;
                 format!(
                     "data:text/html;charset=utf-8;base64,{}",
-                    base64::engine::general_purpose::STANDARD.encode(req.html.as_deref().unwrap_or(""))
+                    base64::engine::general_purpose::STANDARD
+                        .encode(req.html.as_deref().unwrap_or(""))
                 )
             } else {
                 req.url.clone()
@@ -207,8 +207,7 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
             if !html_mode {
                 crate::rate::check_domain(&req.url).map_err(anyhow::Error::msg)?;
             }
-            let browser =
-                build_browser(req.use_proxy, &target, req.tls_fingerprint.as_deref())?;
+            let browser = build_browser(req.use_proxy, &target, req.tls_fingerprint.as_deref())?;
             if !html_mode {
                 inject_cookies(&browser, &req.cookies, &req.url);
             }
@@ -359,9 +358,11 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             // a plain Rc<RefCell<Vec>> avoids Send bounds a raw pointer or
             // Arc<Mutex> would force (spawn_blocking gets only the rgba).
             #[allow(clippy::rc_buffer)]
-            let handles: std::rc::Rc<std::cell::RefCell<
-                Vec<tokio::task::JoinHandle<Result<(u32, u32, Vec<u8>), String>>>,
-            >> = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let handles: std::rc::Rc<
+                std::cell::RefCell<
+                    Vec<tokio::task::JoinHandle<Result<(u32, u32, Vec<u8>), String>>>,
+                >,
+            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
             let set = if format != "png" {
                 let hh = handles.clone();
                 let quality = req.jpeg_quality;
@@ -461,4 +462,3 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
         })
     })
 }
-

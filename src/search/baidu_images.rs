@@ -35,9 +35,13 @@ impl BaiduImagesEngine {
         let url = "https://image.baidu.com/";
         #[cfg(feature = "stealth")]
         if let Some(ref stealth) = self.stealth {
-            return super::stealth_fetch(stealth.as_ref(), url).await.map(|_| ());
+            return super::stealth_fetch(stealth.as_ref(), url)
+                .await
+                .map(|_| ());
         }
-        super::plain_fetch(&self.plain_client, url).await.map(|_| ())
+        super::plain_fetch(&self.plain_client, url)
+            .await
+            .map(|_| ())
     }
 }
 
@@ -59,7 +63,11 @@ impl SearchEngine for BaiduImagesEngine {
         // Warm the cookie jar once; a failed warmup retries on the next
         // search (get_or_try_init doesn't cache errors) and never blocks
         // the acjson attempt itself.
-        if let Err(e) = self.warmed.get_or_try_init(|| async { self.warm_up().await }).await {
+        if let Err(e) = self
+            .warmed
+            .get_or_try_init(|| async { self.warm_up().await })
+            .await
+        {
             tracing::debug!("baidu_images: warmup failed (continuing anyway): {e:?}");
         }
 

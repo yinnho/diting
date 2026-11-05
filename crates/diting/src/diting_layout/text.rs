@@ -106,7 +106,12 @@ pub struct FontBook {
 
 /// Hash a book's whole face set into the cache identity (see
 /// [`FontBook::fingerprint`]).
-fn face_fingerprint(regular: &[u8], bold: &[u8], mono: Option<&[u8]>, fallbacks: &[FaceBytes]) -> u64 {
+fn face_fingerprint(
+    regular: &[u8],
+    bold: &[u8],
+    mono: Option<&[u8]>,
+    fallbacks: &[FaceBytes],
+) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     regular.hash(&mut h);
@@ -147,9 +152,7 @@ static SWASH_PANIC_FALLBACKS: AtomicU64 = AtomicU64::new(0);
 /// decoder. Blank glyphs raster to no ink either way, so the retry is
 /// pixel-identical for the shapes that actually trigger this.
 fn render_guarded(render: &Render, scaler: &mut Scaler, gid: GlyphId) -> Option<Image> {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        render.render(scaler, gid)
-    })) {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render.render(scaler, gid))) {
         Ok(img) => img,
         Err(_) => {
             SWASH_PANIC_FALLBACKS.fetch_add(1, Ordering::Relaxed);
@@ -196,10 +199,15 @@ impl FontBook {
             .collect();
         // Slots stay parallel to the faces (#139) — classify exactly the
         // bytes that joined.
-        self.fallback_slots.extend(kept.iter().map(|b| han::face_han_slot(b)));
+        self.fallback_slots
+            .extend(kept.iter().map(|b| han::face_han_slot(b)));
         self.fallbacks.extend(kept);
-        self.fingerprint =
-            face_fingerprint(&self.regular, &self.bold, self.mono.as_deref(), &self.fallbacks);
+        self.fingerprint = face_fingerprint(
+            &self.regular,
+            &self.bold,
+            self.mono.as_deref(),
+            &self.fallbacks,
+        );
         self.keys = std::sync::OnceLock::new();
         self
     }
@@ -214,8 +222,12 @@ impl FontBook {
         if FontRef::from_index(&bytes, 0).is_some() {
             self.mono = Some(bytes);
         }
-        self.fingerprint =
-            face_fingerprint(&self.regular, &self.bold, self.mono.as_deref(), &self.fallbacks);
+        self.fingerprint = face_fingerprint(
+            &self.regular,
+            &self.bold,
+            self.mono.as_deref(),
+            &self.fallbacks,
+        );
         self
     }
 
@@ -256,23 +268,41 @@ impl FontBook {
     /// face, made once.
     fn font_ref<'a>(&'a self, bytes: &'a [u8]) -> Option<FontRef<'a>> {
         let table = self.keys.get_or_init(|| {
-            let faces = [Some(&self.regular[..]), Some(&self.bold[..]), self.mono.as_deref()];
+            let faces = [
+                Some(&self.regular[..]),
+                Some(&self.bold[..]),
+                self.mono.as_deref(),
+            ];
             faces
                 .into_iter()
                 .flatten()
                 .chain(self.fallbacks.iter().map(|f| &f[..]))
-                .filter_map(|b| FontRef::from_index(b, 0).map(|f| (b.as_ptr() as usize, b.len(), f.offset, f.key)))
+                .filter_map(|b| {
+                    FontRef::from_index(b, 0)
+                        .map(|f| (b.as_ptr() as usize, b.len(), f.offset, f.key))
+                })
                 .collect()
         });
         let at = bytes.as_ptr() as usize;
-        match table.iter().find(|(p, l, ..)| *p == at && *l == bytes.len()) {
-            Some(&(_, _, offset, key)) => Some(FontRef { data: bytes, offset, key }),
+        match table
+            .iter()
+            .find(|(p, l, ..)| *p == at && *l == bytes.len())
+        {
+            Some(&(_, _, offset, key)) => Some(FontRef {
+                data: bytes,
+                offset,
+                key,
+            }),
             None => FontRef::from_index(bytes, 0),
         }
     }
 
     fn face(&self, bold: bool) -> &Vec<u8> {
-        if bold { &self.bold } else { &self.regular }
+        if bold {
+            &self.bold
+        } else {
+            &self.regular
+        }
     }
 
     fn face_bytes(&self, sel: FaceSel, bold: bool) -> &[u8] {
@@ -427,7 +457,9 @@ impl FontBook {
         let mut total = 0.0f32;
         for (sel, seg) in self.segments(text, bold, mono, han) {
             let bytes = self.face_bytes(sel, bold);
-            let Some(font) = self.font_ref(bytes) else { continue };
+            let Some(font) = self.font_ref(bytes) else {
+                continue;
+            };
             SHAPE_CTX.with_borrow_mut(|ctx| {
                 let mut shaper = ctx.builder(font).size(font_size).build();
                 shaper.add_str(seg);
@@ -466,7 +498,9 @@ impl FontBook {
                 FaceSel::Fallback(_) => return None,
             };
             let bytes = self.face_bytes(sel, bold);
-            let Some(font) = self.font_ref(bytes) else { continue };
+            let Some(font) = self.font_ref(bytes) else {
+                continue;
+            };
             SHAPE_CTX.with_borrow_mut(|ctx| {
                 let mut shaper = ctx.builder(font).size(font_size).build();
                 shaper.add_str(seg);
@@ -484,7 +518,11 @@ impl FontBook {
                             // Ligature/mark clusters: the first glyph
                             // carries the cluster's text for ToUnicode;
                             // the rest map to nothing.
-                            unicode: if gi == 0 { cluster_text.to_string() } else { String::new() },
+                            unicode: if gi == 0 {
+                                cluster_text.to_string()
+                            } else {
+                                String::new()
+                            },
                         });
                         pen += g.advance;
                     }
@@ -648,7 +686,13 @@ impl FontBook {
             baseline - top,
         );
         let data = colorize_layered(&alpha, layer.as_deref(), color);
-        TextRaster { width, height, baseline: baseline - top, top, data }
+        TextRaster {
+            width,
+            height,
+            baseline: baseline - top,
+            top,
+            data,
+        }
     }
 
     /// A wrapped, multi-line raster of a run (batch 4a) — the paint
@@ -675,8 +719,20 @@ impl FontBook {
         last_line_align: Option<crate::diting_css::TextAlign>,
     ) -> Arc<TextRaster> {
         self.rasterize_wrapped_with(
-            text, font_size, bold, color, wrap_at, line_height, mono, word_spacing, truncate_at,
-            ws, None, small_caps, han, last_line_align,
+            text,
+            font_size,
+            bold,
+            color,
+            wrap_at,
+            line_height,
+            mono,
+            word_spacing,
+            truncate_at,
+            ws,
+            None,
+            small_caps,
+            han,
+            last_line_align,
         )
     }
 
@@ -779,7 +835,17 @@ impl FontBook {
         let tokens = match pre_shaped {
             Some(t) => t,
             None => {
-                owned = tokens_of(text, font_size, bold, self, mono, word_spacing, ws, small_caps, han);
+                owned = tokens_of(
+                    text,
+                    font_size,
+                    bold,
+                    self,
+                    mono,
+                    word_spacing,
+                    ws,
+                    small_caps,
+                    han,
+                );
                 &owned
             }
         };
@@ -791,7 +857,17 @@ impl FontBook {
         // ellipsis undecorated).
         let truncated;
         let tokens: &[Token] = match truncate_at.and_then(|limit| {
-            truncate_tokens(tokens, limit, font_size, bold, self, mono, word_spacing, ws, han)
+            truncate_tokens(
+                tokens,
+                limit,
+                font_size,
+                bold,
+                self,
+                mono,
+                word_spacing,
+                ws,
+                han,
+            )
         }) {
             Some((mut kept, marker)) => {
                 kept.extend(marker);
@@ -823,16 +899,38 @@ impl FontBook {
         // One color layer for the whole tile: every line's fallback glyphs
         // max-blend into the same RGBA surface, then colorize merges it over
         // the mono coverage once.
-        let mut layer = self.color_layer_for(&tokens.iter().map(|t| t.text.as_str()).collect::<String>(), bold, mono, han, width, height);
+        let mut layer = self.color_layer_for(
+            &tokens.iter().map(|t| t.text.as_str()).collect::<String>(),
+            bold,
+            mono,
+            han,
+            width,
+            height,
+        );
         if word_spacing == 0.0 && tokens.iter().all(|t| t.scale == 1.0) {
             for (li, (line, baseline)) in lines.iter().zip(&baselines).enumerate() {
                 if line.token_idx.is_empty() {
                     continue;
                 }
-                let s: String =
-                    line.token_idx.iter().map(|&i| tokens[i].text.as_str()).collect();
+                let s: String = line
+                    .token_idx
+                    .iter()
+                    .map(|&i| tokens[i].text.as_str())
+                    .collect();
                 let off = wrap::last_line_offset(&lines, li, last_line_align);
-                self.blit_line(&mut alpha, layer.as_deref_mut(), width, height, &s, font_size, bold, mono, han, off, baseline - top);
+                self.blit_line(
+                    &mut alpha,
+                    layer.as_deref_mut(),
+                    width,
+                    height,
+                    &s,
+                    font_size,
+                    bold,
+                    mono,
+                    han,
+                    off,
+                    baseline - top,
+                );
             }
         } else {
             // Word-spacing or small-caps run: blit token by token at the
@@ -845,14 +943,32 @@ impl FontBook {
                 for &i in &line.token_idx {
                     let t = &tokens[i];
                     if !t.is_space {
-                        self.blit_line(&mut alpha, layer.as_deref_mut(), width, height, &t.text, font_size * t.scale, bold, mono, han, pen, baseline - top);
+                        self.blit_line(
+                            &mut alpha,
+                            layer.as_deref_mut(),
+                            width,
+                            height,
+                            &t.text,
+                            font_size * t.scale,
+                            bold,
+                            mono,
+                            han,
+                            pen,
+                            baseline - top,
+                        );
                     }
                     pen += t.width;
                 }
             }
         }
         let data = colorize_layered(&alpha, layer.as_deref(), color);
-        TextRaster { width, height, baseline: baselines[0] - top, top, data }
+        TextRaster {
+            width,
+            height,
+            baseline: baselines[0] - top,
+            top,
+            data,
+        }
     }
 
     /// Shape `text` and blit its glyphs into an A8 `alpha` buffer (max
@@ -898,7 +1014,9 @@ impl FontBook {
         let mut pen = x0;
         for (sel, seg) in self.segments(text, bold, mono, han) {
             let bytes = self.face_bytes(sel, bold);
-            let Some(font) = self.font_ref(bytes) else { continue };
+            let Some(font) = self.font_ref(bytes) else {
+                continue;
+            };
 
             // Shape once: absolute x per glyph + y offset from the baseline.
             let mut glyphs: Vec<(f32, f32, GlyphId)> = Vec::new();
@@ -933,19 +1051,27 @@ impl FontBook {
                     // top-down). Bitmap strikes carry the same contract.
                     let Some(img) = render_guarded(&render, &mut scaler, gid)
                         .or_else(|| render_guarded(&outline_render, &mut scaler, gid))
-                    else { continue };
+                    else {
+                        continue;
+                    };
                     let ox = pen_x.round() as i64 + img.placement.left as i64;
                     let oy = (baseline + dy).round() as i64 - img.placement.top as i64;
                     let color_px = matches!(img.content, Content::Color)
                         && color_layer.as_ref().is_some_and(|l| !l.is_empty());
                     for gy in 0..img.placement.height as i64 {
-                        let Some(ty) = (oy + gy).checked_sub(0).and_then(|v| usize::try_from(v).ok())
-                        else { continue };
+                        let Some(ty) = (oy + gy)
+                            .checked_sub(0)
+                            .and_then(|v| usize::try_from(v).ok())
+                        else {
+                            continue;
+                        };
                         if ty >= height {
                             continue;
                         }
                         for gx in 0..img.placement.width as i64 {
-                            let Some(tx) = usize::try_from(ox + gx).ok() else { continue };
+                            let Some(tx) = usize::try_from(ox + gx).ok() else {
+                                continue;
+                            };
                             if tx >= width {
                                 continue;
                             }
@@ -966,8 +1092,7 @@ impl FontBook {
                                     ]);
                                 }
                             } else {
-                                let cov =
-                                    img.data[(gy * img.placement.width as i64 + gx) as usize];
+                                let cov = img.data[(gy * img.placement.width as i64 + gx) as usize];
                                 let slot = &mut alpha[ty * width + tx];
                                 *slot = (*slot).max(cov);
                             }
@@ -1030,8 +1155,8 @@ fn colorize_layered(alpha: &[u8], layer: Option<&[u8]>, color: [u8; 4]) -> Vec<u
 // `text::Token` / `super::text::greedy_wrap` path working unchanged.
 mod wrap;
 
-pub use wrap::{greedy_wrap, greedy_wrap_by, last_line_offset, tokens_of, Token, WrapLine};
 pub(crate) use wrap::{caps_case_runs, line_clamp_bake, truncate_tokens, SMALL_CAPS_RATIO};
+pub use wrap::{greedy_wrap, greedy_wrap_by, last_line_offset, tokens_of, Token, WrapLine};
 
 /// 批240 / blitz#924: `text-transform` case mapping, Chrome-grounded via a
 /// headless probe table (2026-09-28). Uppercase/lowercase use the full
@@ -1044,10 +1169,7 @@ pub(crate) use wrap::{caps_case_runs, line_clamp_bake, truncate_tokens, SMALL_CA
 /// Per text node — Chrome carries word state across element boundaries
 /// (`he<span>llo</span>` → `Hello`); that cross-node case is a documented
 /// v1 divergence.
-pub(crate) fn apply_text_transform(
-    text: &str,
-    tt: crate::diting_css::TextTransform,
-) -> String {
+pub(crate) fn apply_text_transform(text: &str, tt: crate::diting_css::TextTransform) -> String {
     use crate::diting_css::TextTransform;
     match tt {
         TextTransform::None => text.to_string(),
@@ -1078,9 +1200,7 @@ pub(crate) fn apply_text_transform(
 /// and the mid-word joiners (`_`, `'`, `’`, `:`, `·`) all join; whitespace,
 /// hyphens and CJK break.
 fn text_transform_word_joiner(c: char) -> bool {
-    if c.is_ascii_digit()
-        || matches!(c, '_' | '\'' | '\u{2019}' | ':' | '\u{00B7}')
-    {
+    if c.is_ascii_digit() || matches!(c, '_' | '\'' | '\u{2019}' | ':' | '\u{00B7}') {
         return true;
     }
     if c.is_alphabetic() && !text_transform_ideographic_ish(c) {
@@ -1257,7 +1377,8 @@ pub struct TextRaster {
     pub width: usize,
     pub height: usize,
     /// Distance from the tile's top edge to the FIRST line's baseline, px.
-    #[allow(dead_code)] // raster metadata: the compositor blits by `top` today; line-box baseline assembly (text batch) is the pending reader
+    #[allow(dead_code)]
+    // raster metadata: the compositor blits by `top` today; line-box baseline assembly (text batch) is the pending reader
     pub baseline: f32,
     /// Tile row 0 relative to the line box top (usually ≤ 0), px.
     pub top: f32,
@@ -1285,4 +1406,3 @@ impl TextRaster {
         bbox
     }
 }
-

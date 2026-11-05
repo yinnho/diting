@@ -111,13 +111,25 @@ struct ConicSpan {
 /// f32 can't hold the digits but rounding them would drift the quadrature.
 #[allow(clippy::excessive_precision)]
 const GL8_X: [f32; 8] = [
-    -0.9602898564975363, -0.7966664774136267, -0.5255324099163290, -0.1834346424956498,
-    0.1834346424956498, 0.5255324099163290, 0.7966664774136267, 0.9602898564975363,
+    -0.9602898564975363,
+    -0.7966664774136267,
+    -0.5255324099163290,
+    -0.1834346424956498,
+    0.1834346424956498,
+    0.5255324099163290,
+    0.7966664774136267,
+    0.9602898564975363,
 ];
 #[allow(clippy::excessive_precision)]
 const GL8_W: [f32; 8] = [
-    0.1012285362903763, 0.2223810344533745, 0.3137066458778873, 0.3626837833783620,
-    0.3626837833783620, 0.3137066458778873, 0.2223810344533745, 0.1012285362903763,
+    0.1012285362903763,
+    0.2223810344533745,
+    0.3137066458778873,
+    0.3626837833783620,
+    0.3626837833783620,
+    0.3137066458778873,
+    0.2223810344533745,
+    0.1012285362903763,
 ];
 
 /// The kappa constant is gone with the cubic approximation: ovals arrive as
@@ -158,12 +170,7 @@ impl MeasSeg {
             MeasSeg::Cubic(p) => {
                 let (p0, p1, p2, p3) = ((p[0], p[1]), (p[2], p[3]), (p[4], p[5]), (p[6], p[7]));
                 let mt = 1.0 - t;
-                let (a, b, c, d) = (
-                    mt * mt * mt,
-                    3.0 * mt * mt * t,
-                    3.0 * mt * t * t,
-                    t * t * t,
-                );
+                let (a, b, c, d) = (mt * mt * mt, 3.0 * mt * mt * t, 3.0 * mt * t * t, t * t * t);
                 (
                     a * p0.0 + b * p1.0 + c * p2.0 + d * p3.0,
                     a * p0.1 + b * p1.1 + c * p2.1 + d * p3.1,
@@ -301,7 +308,11 @@ impl PathMeasure {
         }
         let (t0, l0) = ks[k];
         let (t1, l1) = ks[(k + 1).min(ks.len() - 1)];
-        let frac = if l1 > l0 { ((into - l0) / (l1 - l0)).clamp(0.0, 1.0) } else { 0.0 };
+        let frac = if l1 > l0 {
+            ((into - l0) / (l1 - l0)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         self.segs[seg_idx].eval((t0 + (t1 - t0) * frac).clamp(0.0, 1.0))
     }
 }
@@ -346,7 +357,9 @@ fn parse_path_measure(d: &str) -> Vec<MeasSeg> {
         let rel = cmd.is_ascii_lowercase();
         match cmd.to_ascii_uppercase() {
             'M' => {
-                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else { break };
+                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else {
+                    break;
+                };
                 // Moveto draws nothing — it just relocates (subsequent
                 // implicit pairs become LineTos via the cmd swap below).
                 cur = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
@@ -354,7 +367,9 @@ fn parse_path_measure(d: &str) -> Vec<MeasSeg> {
                 cmd = if rel { 'l' } else { 'L' };
             }
             'L' => {
-                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else { break };
+                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else {
+                    break;
+                };
                 let prev = cur;
                 cur = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 line(&mut segs, prev, cur);
@@ -377,12 +392,24 @@ fn parse_path_measure(d: &str) -> Vec<MeasSeg> {
                 else {
                     break;
                 };
-                let q = if rel { (cur.0 + qx, cur.1 + qy) } else { (qx, qy) };
+                let q = if rel {
+                    (cur.0 + qx, cur.1 + qy)
+                } else {
+                    (qx, qy)
+                };
                 let end = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 // Exact quadratic→cubic control lift (same as parse_path).
-                let c1 = (cur.0 + (2.0 / 3.0) * (q.0 - cur.0), cur.1 + (2.0 / 3.0) * (q.1 - cur.1));
-                let c2 = (end.0 + (2.0 / 3.0) * (q.0 - end.0), end.1 + (2.0 / 3.0) * (q.1 - end.1));
-                segs.push(MeasSeg::Cubic([cur.0, cur.1, c1.0, c1.1, c2.0, c2.1, end.0, end.1]));
+                let c1 = (
+                    cur.0 + (2.0 / 3.0) * (q.0 - cur.0),
+                    cur.1 + (2.0 / 3.0) * (q.1 - cur.1),
+                );
+                let c2 = (
+                    end.0 + (2.0 / 3.0) * (q.0 - end.0),
+                    end.1 + (2.0 / 3.0) * (q.1 - end.1),
+                );
+                segs.push(MeasSeg::Cubic([
+                    cur.0, cur.1, c1.0, c1.1, c2.0, c2.1, end.0, end.1,
+                ]));
                 cur = end;
             }
             'C' => {
@@ -393,14 +420,27 @@ fn parse_path_measure(d: &str) -> Vec<MeasSeg> {
                     take(&mut i),
                     take(&mut i),
                     take(&mut i),
-                )
-                else {
+                ) else {
                     break;
                 };
-                let c1 = if rel { (cur.0 + x1, cur.1 + y1) } else { (x1, y1) };
-                let c2 = if rel { (cur.0 + x2, cur.1 + y2) } else { (x2, y2) };
-                let end = if rel { (cur.0 + x3, cur.1 + y3) } else { (x3, y3) };
-                segs.push(MeasSeg::Cubic([cur.0, cur.1, c1.0, c1.1, c2.0, c2.1, end.0, end.1]));
+                let c1 = if rel {
+                    (cur.0 + x1, cur.1 + y1)
+                } else {
+                    (x1, y1)
+                };
+                let c2 = if rel {
+                    (cur.0 + x2, cur.1 + y2)
+                } else {
+                    (x2, y2)
+                };
+                let end = if rel {
+                    (cur.0 + x3, cur.1 + y3)
+                } else {
+                    (x3, y3)
+                };
+                segs.push(MeasSeg::Cubic([
+                    cur.0, cur.1, c1.0, c1.1, c2.0, c2.1, end.0, end.1,
+                ]));
                 cur = end;
             }
             'A' => {
@@ -411,7 +451,9 @@ fn parse_path_measure(d: &str) -> Vec<MeasSeg> {
                         break;
                     }
                 }
-                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else { break };
+                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else {
+                    break;
+                };
                 let prev = cur;
                 cur = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 line(&mut segs, prev, cur);
@@ -463,7 +505,11 @@ fn conic_seg(p0: (f32, f32), c: (f32, f32), p1: (f32, f32)) -> MeasSeg {
     let pts = [p0.0, p0.1, c.0, c.1, p1.0, p1.1];
     let mut spans = Vec::new();
     compute_conic(&pts, QUARTER_W, 0, p0, K_MAX_T, p1, 0, &mut spans);
-    MeasSeg::Conic { pts, w: QUARTER_W, spans }
+    MeasSeg::Conic {
+        pts,
+        w: QUARTER_W,
+        spans,
+    }
 }
 
 /// Build a [`PathMeasure`] for a geometry element: `tag` + a raw attribute
@@ -588,7 +634,9 @@ fn poly_points(raw: &str) -> Vec<(f32, f32)> {
         .filter(|s| !s.is_empty())
         .filter_map(|s| s.parse::<f32>().ok())
         .collect();
-    nums.chunks(2).filter_map(|c| c.first().zip(c.get(1)).map(|(a, b)| (*a, *b))).collect()
+    nums.chunks(2)
+        .filter_map(|c| c.first().zip(c.get(1)).map(|(a, b)| (*a, *b)))
+        .collect()
 }
 
 /// Precompute the knot tables and totals. Per segment the knots come from
@@ -611,7 +659,12 @@ fn finish_measure(segs: Vec<MeasSeg>) -> PathMeasure {
         knots.push(ks);
         total += seg.length();
     }
-    PathMeasure { segs, starts, knots, total }
+    PathMeasure {
+        segs,
+        starts,
+        knots,
+        total,
+    }
 }
 
 #[cfg(test)]
@@ -646,8 +699,16 @@ mod tests {
             );
         };
         // Straight path and the closing-Z double-back (Z re-walks to start).
-        close(measure("path", &[("d", "M0,0 L100,0")]).total(), 100.0, "p1");
-        close(measure("path", &[("d", "M0,0 L100,0 Z")]).total(), 200.0, "p4");
+        close(
+            measure("path", &[("d", "M0,0 L100,0")]).total(),
+            100.0,
+            "p1",
+        );
+        close(
+            measure("path", &[("d", "M0,0 L100,0 Z")]).total(),
+            200.0,
+            "p4",
+        );
         // Cubic and quadratic beziers — Q rides the exact ⅔ lift.
         close(
             measure("path", &[("d", "M0,0 C50,100 100,0 100,100")]).total(),
@@ -663,16 +724,32 @@ mod tests {
         // 156.067 (NOT 2πr=157.080 — 16 accepted chords of 22.5°), ellipse
         // 158.159, square rect 300, rounded 282.427 (220 straight + 4 conic
         // quarter corners).
-        close(measure("circle", &[("r", "25")]).total(), 156.0674285888672, "circle");
-        close(measure("ellipse", &[("rx", "30"), ("ry", "20")]).total(), 158.15943908691406, "ellipse");
-        close(measure("rect", &[("width", "100"), ("height", "50")]).total(), 300.0, "rect");
+        close(
+            measure("circle", &[("r", "25")]).total(),
+            156.0674285888672,
+            "circle",
+        );
+        close(
+            measure("ellipse", &[("rx", "30"), ("ry", "20")]).total(),
+            158.15943908691406,
+            "ellipse",
+        );
+        close(
+            measure("rect", &[("width", "100"), ("height", "50")]).total(),
+            300.0,
+            "rect",
+        );
         close(
             measure("rect", &[("width", "100"), ("height", "50"), ("rx", "10")]).total(),
             282.427001953125,
             "rounded rect",
         );
         close(
-            measure("line", &[("x1", "0"), ("y1", "0"), ("x2", "30"), ("y2", "40")]).total(),
+            measure(
+                "line",
+                &[("x1", "0"), ("y1", "0"), ("x2", "30"), ("y2", "40")],
+            )
+            .total(),
             50.0,
             "line",
         );
@@ -702,11 +779,20 @@ mod tests {
             "mid {mx},{my}"
         );
         let (ex, ey) = p2.point_at(p2.total());
-        assert!((ex - 100.0).abs() < 1e-2 && (ey - 100.0).abs() < 1e-2, "end {ex},{ey}");
+        assert!(
+            (ex - 100.0).abs() < 1e-2 && (ey - 100.0).abs() < 1e-2,
+            "end {ex},{ey}"
+        );
         let (ox, oy) = p2.point_at(p2.total() + 1000.0);
-        assert!((ox - 100.0).abs() < 1e-2 && (oy - 100.0).abs() < 1e-2, "over-clamps to end");
+        assert!(
+            (ox - 100.0).abs() < 1e-2 && (oy - 100.0).abs() < 1e-2,
+            "over-clamps to end"
+        );
         let (nx, ny) = p2.point_at(-5.0);
-        assert!(nx.abs() < 1e-3 && ny.abs() < 1e-3, "negative clamps to start");
+        assert!(
+            nx.abs() < 1e-3 && ny.abs() < 1e-3,
+            "negative clamps to start"
+        );
         // Empty path: (0,0), no panic.
         let empty = measure("path", &[("d", "")]);
         assert_eq!(empty.point_at(50.0), (0.0, 0.0));
@@ -717,7 +803,10 @@ mod tests {
         // Relative walk + glued tokens measure the same ground as absolute.
         let abs = measure("path", &[("d", "M0,0L100,0L100,50")]).total();
         let rel = measure("path", &[("d", "m0,0l100,0l0,50")]).total();
-        assert!((abs - 150.0).abs() < 1e-3 && (rel - abs).abs() < 1e-3, "abs {abs} rel {rel}");
+        assert!(
+            (abs - 150.0).abs() < 1e-3 && (rel - abs).abs() < 1e-3,
+            "abs {abs} rel {rel}"
+        );
         // Implicit LineTo pairs after M, H/V mixed in.
         let imp = measure("path", &[("d", "M0,0 100,0 100,50")]).total();
         assert!((imp - 150.0).abs() < 1e-3, "implicit {imp}");

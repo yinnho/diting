@@ -37,43 +37,153 @@ struct Col {
 }
 
 const NAMED: &[(&str, u32)] = &[
-    ("aliceblue", 0xf0f8ff), ("antiquewhite", 0xfaebd7), ("aqua", 0x00ffff), ("aquamarine", 0x7fffd4),
-    ("azure", 0xf0ffff), ("beige", 0xf5f5dc), ("bisque", 0xffe4c4), ("black", 0x000000),
-    ("blanchedalmond", 0xffebcd), ("blue", 0x0000ff), ("blueviolet", 0x8a2be2), ("brown", 0xa52a2a),
-    ("burlywood", 0xdeb887), ("cadetblue", 0x5f9ea0), ("chartreuse", 0x7fff00), ("chocolate", 0xd2691e),
-    ("coral", 0xff7f50), ("cornflowerblue", 0x6495ed), ("cornsilk", 0xfff8dc), ("crimson", 0xdc143c),
-    ("cyan", 0x00ffff), ("darkblue", 0x00008b), ("darkcyan", 0x008b8b), ("darkgoldenrod", 0xb8860b),
-    ("darkgray", 0xa9a9a9), ("darkgreen", 0x006400), ("darkgrey", 0xa9a9a9), ("darkkhaki", 0xbdb76b),
-    ("darkmagenta", 0x8b008b), ("darkolivegreen", 0x556b2f), ("darkorange", 0xff8c00), ("darkorchid", 0x9932cc),
-    ("darkred", 0x8b0000), ("darksalmon", 0xe9967a), ("darkseagreen", 0x8fbc8f), ("darkslateblue", 0x483d8b),
-    ("darkslategray", 0x2f4f4f), ("darkslategrey", 0x2f4f4f), ("darkturquoise", 0x00ced1), ("darkviolet", 0x9400d3),
-    ("deeppink", 0xff1493), ("deepskyblue", 0x00bfff), ("dimgray", 0x696969), ("dimgrey", 0x696969),
-    ("dodgerblue", 0x1e90ff), ("firebrick", 0xb22222), ("floralwhite", 0xfffaf0), ("forestgreen", 0x228b22),
-    ("fuchsia", 0xff00ff), ("gainsboro", 0xdcdcdc), ("ghostwhite", 0xf8f8ff), ("gold", 0xffd700),
-    ("goldenrod", 0xdaa520), ("gray", 0x808080), ("green", 0x008000), ("greenyellow", 0xadff2f),
-    ("grey", 0x808080), ("honeydew", 0xf0fff0), ("hotpink", 0xff69b4), ("indianred", 0xcd5c5c),
-    ("indigo", 0x4b0082), ("ivory", 0xfffff0), ("khaki", 0xf0e68c), ("lavender", 0xe6e6fa),
-    ("lavenderblush", 0xfff0f5), ("lawngreen", 0x7cfc00), ("lemonchiffon", 0xfffacd), ("lightblue", 0xadd8e6),
-    ("lightcoral", 0xf08080), ("lightcyan", 0xe0ffff), ("lightgoldenrodyellow", 0xfafad2), ("lightgray", 0xd3d3d3),
-    ("lightgreen", 0x90ee90), ("lightgrey", 0xd3d3d3), ("lightpink", 0xffb6c1), ("lightsalmon", 0xffa07a),
-    ("lightseagreen", 0x20b2aa), ("lightskyblue", 0x87cefa), ("lightslategray", 0x778899), ("lightslategrey", 0x778899),
-    ("lightsteelblue", 0xb0c4de), ("lightyellow", 0xffffe0), ("lime", 0x00ff00), ("limegreen", 0x32cd32),
-    ("linen", 0xfaf0e6), ("magenta", 0xff00ff), ("maroon", 0x800000), ("mediumaquamarine", 0x66cdaa),
-    ("mediumblue", 0x0000cd), ("mediumorchid", 0xba55d3), ("mediumpurple", 0x9370db), ("mediumseagreen", 0x3cb371),
-    ("mediumslateblue", 0x7b68ee), ("mediumspringgreen", 0x00fa9a), ("mediumturquoise", 0x48d1cc),
-    ("mediumvioletred", 0xc71585), ("midnightblue", 0x191970), ("mintcream", 0xf5fffa), ("mistyrose", 0xffe4e1),
-    ("moccasin", 0xffe4b5), ("navajowhite", 0xffdead), ("navy", 0x000080), ("oldlace", 0xfdf5e6),
-    ("olive", 0x808000), ("olivedrab", 0x6b8e23), ("orange", 0xffa500), ("orangered", 0xff4500),
-    ("orchid", 0xda70d6), ("palegoldenrod", 0xeee8aa), ("palegreen", 0x98fb98), ("paleturquoise", 0xafeeee),
-    ("palevioletred", 0xdb7093), ("papayawhip", 0xffefd5), ("peachpuff", 0xffdab9), ("peru", 0xcd853f),
-    ("pink", 0xffc0cb), ("plum", 0xdda0dd), ("powderblue", 0xb0e0e6), ("purple", 0x800080),
-    ("rebeccapurple", 0x663399), ("red", 0xff0000), ("rosybrown", 0xbc8f8f), ("royalblue", 0x4169e1),
-    ("saddlebrown", 0x8b4513), ("salmon", 0xfa8072), ("sandybrown", 0xf4a460), ("seagreen", 0x2e8b57),
-    ("seashell", 0xfff5ee), ("sienna", 0xa0522d), ("silver", 0xc0c0c0), ("skyblue", 0x87ceeb),
-    ("slateblue", 0x6a5acd), ("slategray", 0x708090), ("slategrey", 0x708090), ("snow", 0xfffafa),
-    ("springgreen", 0x00ff7f), ("steelblue", 0x4682b4), ("tan", 0xd2b48c), ("teal", 0x008080),
-    ("thistle", 0xd8bfd8), ("tomato", 0xff6347), ("turquoise", 0x40e0d0), ("violet", 0xee82ee),
-    ("wheat", 0xf5deb3), ("white", 0xffffff), ("whitesmoke", 0xf5f5f5), ("yellow", 0xffff00),
+    ("aliceblue", 0xf0f8ff),
+    ("antiquewhite", 0xfaebd7),
+    ("aqua", 0x00ffff),
+    ("aquamarine", 0x7fffd4),
+    ("azure", 0xf0ffff),
+    ("beige", 0xf5f5dc),
+    ("bisque", 0xffe4c4),
+    ("black", 0x000000),
+    ("blanchedalmond", 0xffebcd),
+    ("blue", 0x0000ff),
+    ("blueviolet", 0x8a2be2),
+    ("brown", 0xa52a2a),
+    ("burlywood", 0xdeb887),
+    ("cadetblue", 0x5f9ea0),
+    ("chartreuse", 0x7fff00),
+    ("chocolate", 0xd2691e),
+    ("coral", 0xff7f50),
+    ("cornflowerblue", 0x6495ed),
+    ("cornsilk", 0xfff8dc),
+    ("crimson", 0xdc143c),
+    ("cyan", 0x00ffff),
+    ("darkblue", 0x00008b),
+    ("darkcyan", 0x008b8b),
+    ("darkgoldenrod", 0xb8860b),
+    ("darkgray", 0xa9a9a9),
+    ("darkgreen", 0x006400),
+    ("darkgrey", 0xa9a9a9),
+    ("darkkhaki", 0xbdb76b),
+    ("darkmagenta", 0x8b008b),
+    ("darkolivegreen", 0x556b2f),
+    ("darkorange", 0xff8c00),
+    ("darkorchid", 0x9932cc),
+    ("darkred", 0x8b0000),
+    ("darksalmon", 0xe9967a),
+    ("darkseagreen", 0x8fbc8f),
+    ("darkslateblue", 0x483d8b),
+    ("darkslategray", 0x2f4f4f),
+    ("darkslategrey", 0x2f4f4f),
+    ("darkturquoise", 0x00ced1),
+    ("darkviolet", 0x9400d3),
+    ("deeppink", 0xff1493),
+    ("deepskyblue", 0x00bfff),
+    ("dimgray", 0x696969),
+    ("dimgrey", 0x696969),
+    ("dodgerblue", 0x1e90ff),
+    ("firebrick", 0xb22222),
+    ("floralwhite", 0xfffaf0),
+    ("forestgreen", 0x228b22),
+    ("fuchsia", 0xff00ff),
+    ("gainsboro", 0xdcdcdc),
+    ("ghostwhite", 0xf8f8ff),
+    ("gold", 0xffd700),
+    ("goldenrod", 0xdaa520),
+    ("gray", 0x808080),
+    ("green", 0x008000),
+    ("greenyellow", 0xadff2f),
+    ("grey", 0x808080),
+    ("honeydew", 0xf0fff0),
+    ("hotpink", 0xff69b4),
+    ("indianred", 0xcd5c5c),
+    ("indigo", 0x4b0082),
+    ("ivory", 0xfffff0),
+    ("khaki", 0xf0e68c),
+    ("lavender", 0xe6e6fa),
+    ("lavenderblush", 0xfff0f5),
+    ("lawngreen", 0x7cfc00),
+    ("lemonchiffon", 0xfffacd),
+    ("lightblue", 0xadd8e6),
+    ("lightcoral", 0xf08080),
+    ("lightcyan", 0xe0ffff),
+    ("lightgoldenrodyellow", 0xfafad2),
+    ("lightgray", 0xd3d3d3),
+    ("lightgreen", 0x90ee90),
+    ("lightgrey", 0xd3d3d3),
+    ("lightpink", 0xffb6c1),
+    ("lightsalmon", 0xffa07a),
+    ("lightseagreen", 0x20b2aa),
+    ("lightskyblue", 0x87cefa),
+    ("lightslategray", 0x778899),
+    ("lightslategrey", 0x778899),
+    ("lightsteelblue", 0xb0c4de),
+    ("lightyellow", 0xffffe0),
+    ("lime", 0x00ff00),
+    ("limegreen", 0x32cd32),
+    ("linen", 0xfaf0e6),
+    ("magenta", 0xff00ff),
+    ("maroon", 0x800000),
+    ("mediumaquamarine", 0x66cdaa),
+    ("mediumblue", 0x0000cd),
+    ("mediumorchid", 0xba55d3),
+    ("mediumpurple", 0x9370db),
+    ("mediumseagreen", 0x3cb371),
+    ("mediumslateblue", 0x7b68ee),
+    ("mediumspringgreen", 0x00fa9a),
+    ("mediumturquoise", 0x48d1cc),
+    ("mediumvioletred", 0xc71585),
+    ("midnightblue", 0x191970),
+    ("mintcream", 0xf5fffa),
+    ("mistyrose", 0xffe4e1),
+    ("moccasin", 0xffe4b5),
+    ("navajowhite", 0xffdead),
+    ("navy", 0x000080),
+    ("oldlace", 0xfdf5e6),
+    ("olive", 0x808000),
+    ("olivedrab", 0x6b8e23),
+    ("orange", 0xffa500),
+    ("orangered", 0xff4500),
+    ("orchid", 0xda70d6),
+    ("palegoldenrod", 0xeee8aa),
+    ("palegreen", 0x98fb98),
+    ("paleturquoise", 0xafeeee),
+    ("palevioletred", 0xdb7093),
+    ("papayawhip", 0xffefd5),
+    ("peachpuff", 0xffdab9),
+    ("peru", 0xcd853f),
+    ("pink", 0xffc0cb),
+    ("plum", 0xdda0dd),
+    ("powderblue", 0xb0e0e6),
+    ("purple", 0x800080),
+    ("rebeccapurple", 0x663399),
+    ("red", 0xff0000),
+    ("rosybrown", 0xbc8f8f),
+    ("royalblue", 0x4169e1),
+    ("saddlebrown", 0x8b4513),
+    ("salmon", 0xfa8072),
+    ("sandybrown", 0xf4a460),
+    ("seagreen", 0x2e8b57),
+    ("seashell", 0xfff5ee),
+    ("sienna", 0xa0522d),
+    ("silver", 0xc0c0c0),
+    ("skyblue", 0x87ceeb),
+    ("slateblue", 0x6a5acd),
+    ("slategray", 0x708090),
+    ("slategrey", 0x708090),
+    ("snow", 0xfffafa),
+    ("springgreen", 0x00ff7f),
+    ("steelblue", 0x4682b4),
+    ("tan", 0xd2b48c),
+    ("teal", 0x008080),
+    ("thistle", 0xd8bfd8),
+    ("tomato", 0xff6347),
+    ("turquoise", 0x40e0d0),
+    ("violet", 0xee82ee),
+    ("wheat", 0xf5deb3),
+    ("white", 0xffffff),
+    ("whitesmoke", 0xf5f5f5),
+    ("yellow", 0xffff00),
     ("yellowgreen", 0x9acd32),
 ];
 
@@ -132,12 +242,20 @@ const PROPHOTO_TO_XYZ_D50: [[f32; 3]; 3] = [
 
 fn srgb_decode(x: f32) -> f32 {
     let a = x.abs();
-    let l = if a <= 0.04045 { a / 12.92 } else { ((a + 0.055) / 1.055).powf(2.4) };
+    let l = if a <= 0.04045 {
+        a / 12.92
+    } else {
+        ((a + 0.055) / 1.055).powf(2.4)
+    };
     l.copysign(x)
 }
 fn srgb_encode(x: f32) -> f32 {
     let a = x.abs();
-    let g = if a <= 0.003_130_8 { a * 12.92 } else { 1.055 * a.powf(1.0 / 2.4) - 0.055 };
+    let g = if a <= 0.003_130_8 {
+        a * 12.92
+    } else {
+        1.055 * a.powf(1.0 / 2.4) - 0.055
+    };
     g.copysign(x)
 }
 fn gamma_decode(x: f32, g: f32) -> f32 {
@@ -145,31 +263,64 @@ fn gamma_decode(x: f32, g: f32) -> f32 {
 }
 
 fn none0(x: f32) -> f32 {
-    if x.is_nan() { 0.0 } else { x }
+    if x.is_nan() {
+        0.0
+    } else {
+        x
+    }
 }
 
 /// Channels of `col` -> XYZ D65.
 fn to_xyz_d65(col: &Col) -> V3 {
     let c = [none0(col.c[0]), none0(col.c[1]), none0(col.c[2])];
     match col.space {
-        Space::Srgb => mul(&SRGB_TO_XYZ, [srgb_decode(c[0]), srgb_decode(c[1]), srgb_decode(c[2])]),
+        Space::Srgb => mul(
+            &SRGB_TO_XYZ,
+            [srgb_decode(c[0]), srgb_decode(c[1]), srgb_decode(c[2])],
+        ),
         Space::SrgbLinear => mul(&SRGB_TO_XYZ, c),
-        Space::Hsl => to_xyz_d65(&Col { space: Space::Srgb, c: hsl_to_rgb(c), a: col.a }),
-        Space::Hwb => to_xyz_d65(&Col { space: Space::Srgb, c: hwb_to_rgb(c), a: col.a }),
+        Space::Hsl => to_xyz_d65(&Col {
+            space: Space::Srgb,
+            c: hsl_to_rgb(c),
+            a: col.a,
+        }),
+        Space::Hwb => to_xyz_d65(&Col {
+            space: Space::Srgb,
+            c: hwb_to_rgb(c),
+            a: col.a,
+        }),
         Space::Lab | Space::Lch => {
-            let lab = if col.space == Space::Lch { polar_to_rect(c) } else { c };
+            let lab = if col.space == Space::Lch {
+                polar_to_rect(c)
+            } else {
+                c
+            };
             let fy = (lab[0] + 16.0) / 116.0;
             let fx = lab[1] / 500.0 + fy;
             let fz = fy - lab[2] / 200.0;
             const E: f32 = 216.0 / 24389.0;
             const K: f32 = 24389.0 / 27.0;
-            let f3 = |f: f32| if f * f * f > E { f * f * f } else { (116.0 * f - 16.0) / K };
-            let y = if lab[0] > K * E { fy * fy * fy } else { lab[0] / K };
+            let f3 = |f: f32| {
+                if f * f * f > E {
+                    f * f * f
+                } else {
+                    (116.0 * f - 16.0) / K
+                }
+            };
+            let y = if lab[0] > K * E {
+                fy * fy * fy
+            } else {
+                lab[0] / K
+            };
             let d50 = [0.96422 * f3(fx), y, 0.82521 * f3(fz)];
             mul(&D50_TO_D65, d50)
         }
         Space::Oklab | Space::Oklch => {
-            let lab = if col.space == Space::Oklch { polar_to_rect(c) } else { c };
+            let lab = if col.space == Space::Oklch {
+                polar_to_rect(c)
+            } else {
+                c
+            };
             let l_ = lab[0] + 0.396_337_78 * lab[1] + 0.215_803_76 * lab[2];
             let m_ = lab[0] - 0.105_561_346 * lab[1] - 0.063_854_17 * lab[2];
             let s_ = lab[0] - 0.089_484_18 * lab[1] - 1.291_485_5 * lab[2];
@@ -181,17 +332,42 @@ fn to_xyz_d65(col: &Col) -> V3 {
             ];
             mul(&SRGB_TO_XYZ, lin)
         }
-        Space::DisplayP3 => mul(&P3_TO_XYZ, [srgb_decode(c[0]), srgb_decode(c[1]), srgb_decode(c[2])]),
-        Space::A98 => mul(&A98_TO_XYZ, [gamma_decode(c[0], 563.0 / 256.0), gamma_decode(c[1], 563.0 / 256.0), gamma_decode(c[2], 563.0 / 256.0)]),
+        Space::DisplayP3 => mul(
+            &P3_TO_XYZ,
+            [srgb_decode(c[0]), srgb_decode(c[1]), srgb_decode(c[2])],
+        ),
+        Space::A98 => mul(
+            &A98_TO_XYZ,
+            [
+                gamma_decode(c[0], 563.0 / 256.0),
+                gamma_decode(c[1], 563.0 / 256.0),
+                gamma_decode(c[2], 563.0 / 256.0),
+            ],
+        ),
         Space::Rec2020 => {
             const A: f32 = 1.099_296_8;
             const B: f32 = 0.018_053_97;
-            let d = |x: f32| if x.abs() < B * 4.5 { x / 4.5 } else { ((x.abs() + A - 1.0) / A).powf(1.0 / 0.45).copysign(x) };
+            let d = |x: f32| {
+                if x.abs() < B * 4.5 {
+                    x / 4.5
+                } else {
+                    ((x.abs() + A - 1.0) / A).powf(1.0 / 0.45).copysign(x)
+                }
+            };
             mul(&REC2020_TO_XYZ, [d(c[0]), d(c[1]), d(c[2])])
         }
         Space::Prophoto => {
-            let d = |x: f32| if x.abs() <= 16.0 / 512.0 { x / 16.0 } else { gamma_decode(x, 1.8) };
-            mul(&D50_TO_D65, mul(&PROPHOTO_TO_XYZ_D50, [d(c[0]), d(c[1]), d(c[2])]))
+            let d = |x: f32| {
+                if x.abs() <= 16.0 / 512.0 {
+                    x / 16.0
+                } else {
+                    gamma_decode(x, 1.8)
+                }
+            };
+            mul(
+                &D50_TO_D65,
+                mul(&PROPHOTO_TO_XYZ_D50, [d(c[0]), d(c[1]), d(c[2])]),
+            )
         }
         Space::XyzD50 => mul(&D50_TO_D65, c),
         Space::XyzD65 => c,
@@ -204,12 +380,20 @@ fn polar_to_rect(c: V3) -> V3 {
 }
 fn rect_to_polar(c: V3) -> V3 {
     let chroma = (c[1] * c[1] + c[2] * c[2]).sqrt();
-    let hue = if chroma < 1e-6 { f32::NAN } else { c[2].atan2(c[1]).to_degrees().rem_euclid(360.0) };
+    let hue = if chroma < 1e-6 {
+        f32::NAN
+    } else {
+        c[2].atan2(c[1]).to_degrees().rem_euclid(360.0)
+    };
     [c[0], chroma, hue]
 }
 
 fn hsl_to_rgb(c: V3) -> V3 {
-    let (h, s, l) = (c[0].rem_euclid(360.0), (c[1] / 100.0).clamp(0.0, 1.0), (c[2] / 100.0).clamp(0.0, 1.0));
+    let (h, s, l) = (
+        c[0].rem_euclid(360.0),
+        (c[1] / 100.0).clamp(0.0, 1.0),
+        (c[2] / 100.0).clamp(0.0, 1.0),
+    );
     let f = |n: f32| {
         let k = (n + h / 30.0).rem_euclid(12.0);
         l - s * l.min(1.0 - l) * (k - 3.0).min(9.0 - k).clamp(-1.0, 1.0)
@@ -224,8 +408,18 @@ fn rgb_to_hsl(c: V3) -> V3 {
     if d.abs() < 1e-6 {
         return [f32::NAN, 0.0, l * 100.0];
     }
-    let s = if l == 0.0 || l == 1.0 { 0.0 } else { (mx - l) / l.min(1.0 - l) };
-    let h = if mx == r { (g - b) / d + if g < b { 6.0 } else { 0.0 } } else if mx == g { (b - r) / d + 2.0 } else { (r - g) / d + 4.0 };
+    let s = if l == 0.0 || l == 1.0 {
+        0.0
+    } else {
+        (mx - l) / l.min(1.0 - l)
+    };
+    let h = if mx == r {
+        (g - b) / d + if g < b { 6.0 } else { 0.0 }
+    } else if mx == g {
+        (b - r) / d + 2.0
+    } else {
+        (r - g) / d + 4.0
+    };
     [h * 60.0, s * 100.0, l * 100.0]
 }
 fn hwb_to_rgb(c: V3) -> V3 {
@@ -237,7 +431,11 @@ fn hwb_to_rgb(c: V3) -> V3 {
     let rgb = hsl_to_rgb([c[0], 100.0, 50.0]);
     w = w.max(0.0);
     b = b.max(0.0);
-    [rgb[0] * (1.0 - w - b) + w, rgb[1] * (1.0 - w - b) + w, rgb[2] * (1.0 - w - b) + w]
+    [
+        rgb[0] * (1.0 - w - b) + w,
+        rgb[1] * (1.0 - w - b) + w,
+        rgb[2] * (1.0 - w - b) + w,
+    ]
 }
 fn rgb_to_hwb(c: V3) -> V3 {
     let hsl = rgb_to_hsl(c);
@@ -248,7 +446,11 @@ fn rgb_to_hwb(c: V3) -> V3 {
 /// XYZ D65 -> gamma-encoded sRGB (unclamped).
 fn xyz_to_srgb(xyz: V3) -> V3 {
     let lin = mul(&XYZ_TO_SRGB, xyz);
-    [srgb_encode(lin[0]), srgb_encode(lin[1]), srgb_encode(lin[2])]
+    [
+        srgb_encode(lin[0]),
+        srgb_encode(lin[1]),
+        srgb_encode(lin[2]),
+    ]
 }
 
 fn to_srgb(col: &Col) -> V3 {
@@ -266,20 +468,65 @@ fn from_srgb(space: Space, rgb: V3) -> V3 {
         Space::Srgb => rgb,
         Space::Hsl => rgb_to_hsl(rgb),
         Space::Hwb => rgb_to_hwb(rgb),
-        Space::SrgbLinear => [srgb_decode(rgb[0]), srgb_decode(rgb[1]), srgb_decode(rgb[2])],
-        Space::XyzD65 => mul(&SRGB_TO_XYZ, [srgb_decode(rgb[0]), srgb_decode(rgb[1]), srgb_decode(rgb[2])]),
-        Space::XyzD50 => mul(&D65_TO_D50, mul(&SRGB_TO_XYZ, [srgb_decode(rgb[0]), srgb_decode(rgb[1]), srgb_decode(rgb[2])])),
+        Space::SrgbLinear => [
+            srgb_decode(rgb[0]),
+            srgb_decode(rgb[1]),
+            srgb_decode(rgb[2]),
+        ],
+        Space::XyzD65 => mul(
+            &SRGB_TO_XYZ,
+            [
+                srgb_decode(rgb[0]),
+                srgb_decode(rgb[1]),
+                srgb_decode(rgb[2]),
+            ],
+        ),
+        Space::XyzD50 => mul(
+            &D65_TO_D50,
+            mul(
+                &SRGB_TO_XYZ,
+                [
+                    srgb_decode(rgb[0]),
+                    srgb_decode(rgb[1]),
+                    srgb_decode(rgb[2]),
+                ],
+            ),
+        ),
         Space::Lab | Space::Lch => {
-            let xyz = mul(&D65_TO_D50, mul(&SRGB_TO_XYZ, [srgb_decode(rgb[0]), srgb_decode(rgb[1]), srgb_decode(rgb[2])]));
+            let xyz = mul(
+                &D65_TO_D50,
+                mul(
+                    &SRGB_TO_XYZ,
+                    [
+                        srgb_decode(rgb[0]),
+                        srgb_decode(rgb[1]),
+                        srgb_decode(rgb[2]),
+                    ],
+                ),
+            );
             const E: f32 = 216.0 / 24389.0;
             const K: f32 = 24389.0 / 27.0;
-            let f = |t: f32| if t > E { t.cbrt() } else { (K * t + 16.0) / 116.0 };
+            let f = |t: f32| {
+                if t > E {
+                    t.cbrt()
+                } else {
+                    (K * t + 16.0) / 116.0
+                }
+            };
             let (fx, fy, fz) = (f(xyz[0] / 0.96422), f(xyz[1]), f(xyz[2] / 0.82521));
             let lab = [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)];
-            if space == Space::Lch { rect_to_polar(lab) } else { lab }
+            if space == Space::Lch {
+                rect_to_polar(lab)
+            } else {
+                lab
+            }
         }
         Space::Oklab | Space::Oklch => {
-            let (r, g, b) = (srgb_decode(rgb[0]), srgb_decode(rgb[1]), srgb_decode(rgb[2]));
+            let (r, g, b) = (
+                srgb_decode(rgb[0]),
+                srgb_decode(rgb[1]),
+                srgb_decode(rgb[2]),
+            );
             let l = (0.412_221_46 * r + 0.536_332_55 * g + 0.051_445_995 * b).cbrt();
             let m = (0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b).cbrt();
             let s = (0.088_302_46 * r + 0.281_718_85 * g + 0.629_978_7 * b).cbrt();
@@ -288,7 +535,11 @@ fn from_srgb(space: Space, rgb: V3) -> V3 {
                 1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s,
                 0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s,
             ];
-            if space == Space::Oklch { rect_to_polar(lab) } else { lab }
+            if space == Space::Oklch {
+                rect_to_polar(lab)
+            } else {
+                lab
+            }
         }
         // Wide-gamut RGB spaces are parse-only here; the sRGB values stand in.
         Space::DisplayP3 | Space::A98 | Space::Prophoto | Space::Rec2020 => rgb,
@@ -298,7 +549,12 @@ fn from_srgb(space: Space, rgb: V3) -> V3 {
 fn to_color(col: &Col) -> Color {
     let rgb = to_srgb(col);
     let q = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
-    Color(q(rgb[0]), q(rgb[1]), q(rgb[2]), (none0(col.a).clamp(0.0, 1.0) * 255.0).round() as u8)
+    Color(
+        q(rgb[0]),
+        q(rgb[1]),
+        q(rgb[2]),
+        (none0(col.a).clamp(0.0, 1.0) * 255.0).round() as u8,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +613,12 @@ fn channel(tok: &str, pct_scale: f32, hue: bool, vars: &[(&str, f32)]) -> Option
         return p.parse::<f32>().ok().map(|p| p / 100.0 * pct_scale);
     }
     if hue {
-        for (u, per) in [("deg", 1.0), ("grad", 0.9), ("rad", 180.0 / std::f32::consts::PI), ("turn", 360.0)] {
+        for (u, per) in [
+            ("deg", 1.0),
+            ("grad", 0.9),
+            ("rad", 180.0 / std::f32::consts::PI),
+            ("turn", 360.0),
+        ] {
             if let Some(n) = t.strip_suffix(u) {
                 return n.parse::<f32>().ok().map(|v| v * per);
             }
@@ -431,7 +692,9 @@ fn eval_expr(s: &str, pct_scale: f32, vars: &[(&str, f32)]) -> Option<f32> {
             if matches!(self.b.get(self.i), Some(b'-') | Some(b'+')) {
                 self.i += 1;
             }
-            while self.i < self.b.len() && (self.b[self.i].is_ascii_alphanumeric() || matches!(self.b[self.i], b'.' | b'%')) {
+            while self.i < self.b.len()
+                && (self.b[self.i].is_ascii_alphanumeric() || matches!(self.b[self.i], b'.' | b'%'))
+            {
                 self.i += 1;
             }
             let tok = std::str::from_utf8(&self.b[start..self.i]).ok()?;
@@ -444,12 +707,21 @@ fn eval_expr(s: &str, pct_scale: f32, vars: &[(&str, f32)]) -> Option<f32> {
                 .iter()
                 .find(|(k, _)| *k == name)
                 .map(|(_, v)| *v)
-                .or_else(|| name.strip_suffix('%').and_then(|p| p.parse::<f32>().ok()).map(|p| p / 100.0 * self.pct))
+                .or_else(|| {
+                    name.strip_suffix('%')
+                        .and_then(|p| p.parse::<f32>().ok())
+                        .map(|p| p / 100.0 * self.pct)
+                })
                 .or_else(|| name.parse::<f32>().ok())?;
             Some(if neg { -v } else { v })
         }
     }
-    let mut p = P { b: s.as_bytes(), i: 0, pct: pct_scale, vars };
+    let mut p = P {
+        b: s.as_bytes(),
+        i: 0,
+        pct: pct_scale,
+        vars,
+    };
     let v = p.expr()?;
     p.ws();
     (p.i == p.b.len() && v.is_finite()).then_some(v)
@@ -458,7 +730,9 @@ fn eval_expr(s: &str, pct_scale: f32, vars: &[(&str, f32)]) -> Option<f32> {
 fn alpha_tok(tok: Option<&String>, vars: &[(&str, f32)]) -> Option<f32> {
     match tok {
         None => Some(1.0),
-        Some(t) => channel(t, 1.0, false, vars).map(|a| if a.is_nan() { 0.0 } else { a.clamp(0.0, 1.0) }),
+        Some(t) => {
+            channel(t, 1.0, false, vars).map(|a| if a.is_nan() { 0.0 } else { a.clamp(0.0, 1.0) })
+        }
     }
 }
 
@@ -520,7 +794,11 @@ fn parse_function(name: &str, args: &str) -> Option<Col> {
             None => (&rest[..], None),
         };
         // Legacy comma syntax carries alpha as a 4th plain token.
-        let (chs, al) = if slash.is_none() && chs.len() == 4 { (&chs[..3], Some(chs[3])) } else { (chs, al) };
+        let (chs, al) = if slash.is_none() && chs.len() == 4 {
+            (&chs[..3], Some(chs[3]))
+        } else {
+            (chs, al)
+        };
         if chs.len() != 3 {
             return None;
         }
@@ -536,7 +814,11 @@ fn parse_function(name: &str, args: &str) -> Option<Col> {
             c[i] = v;
         }
         // Legacy bare numbers for hsl s/l are percentages already (0..100).
-        return Some(Col { space, c, a: alpha_tok(al, &vars)? });
+        return Some(Col {
+            space,
+            c,
+            a: alpha_tok(al, &vars)?,
+        });
     }
     match name {
         "color" => {
@@ -560,8 +842,16 @@ fn parse_function(name: &str, args: &str) -> Option<Col> {
             if chs.len() != 3 {
                 return None;
             }
-            let c = [channel(&chs[0], 1.0, false, &[])?, channel(&chs[1], 1.0, false, &[])?, channel(&chs[2], 1.0, false, &[])?];
-            Some(Col { space, c, a: alpha_tok(al, &[])? })
+            let c = [
+                channel(&chs[0], 1.0, false, &[])?,
+                channel(&chs[1], 1.0, false, &[])?,
+                channel(&chs[2], 1.0, false, &[])?,
+            ];
+            Some(Col {
+                space,
+                c,
+                a: alpha_tok(al, &[])?,
+            })
         }
         "light-dark" => {
             if toks.len() != 2 {
@@ -652,9 +942,17 @@ fn parse_mix(args: &str) -> Option<Col> {
             _ => (x, y),
         };
         // Premultiplied interpolation for every channel but hue.
-        out[i] = if a > 0.0 { (x * c1.a * w1 + y * c2.a * w2) / a } else { x * w1 + y * w2 };
+        out[i] = if a > 0.0 {
+            (x * c1.a * w1 + y * c2.a * w2) / a
+        } else {
+            x * w1 + y * w2
+        };
     }
-    Some(Col { space, c: out, a: a * alpha_mult })
+    Some(Col {
+        space,
+        c: out,
+        a: a * alpha_mult,
+    })
 }
 
 fn mix_hue(x: f32, y: f32, w1: f32, w2: f32, method: Option<&str>) -> f32 {
@@ -668,17 +966,29 @@ fn mix_hue(x: f32, y: f32, w1: f32, w2: f32, method: Option<&str>) -> f32 {
     match method.unwrap_or("shorter") {
         "longer" => {
             let d = b - a;
-            if d > 0.0 && d < 180.0 { a += 360.0 } else if d > -180.0 && d <= 0.0 { b += 360.0 }
+            if d > 0.0 && d < 180.0 {
+                a += 360.0
+            } else if d > -180.0 && d <= 0.0 {
+                b += 360.0
+            }
         }
         "increasing" => {
-            if b < a { b += 360.0 }
+            if b < a {
+                b += 360.0
+            }
         }
         "decreasing" => {
-            if a < b { a += 360.0 }
+            if a < b {
+                a += 360.0
+            }
         }
         _ => {
             let d = b - a;
-            if d > 180.0 { a += 360.0 } else if d < -180.0 { b += 360.0 }
+            if d > 180.0 {
+                a += 360.0
+            } else if d < -180.0 {
+                b += 360.0
+            }
         }
     }
     (a * w1 + b * w2).rem_euclid(360.0)
@@ -716,11 +1026,19 @@ fn parse_col(v: &str) -> Option<Col> {
         return parse_function(lower[..open].trim(), &v[open + 1..v.len() - 1]);
     }
     if lower == "transparent" {
-        return Some(Col { space: Space::Srgb, c: [0.0; 3], a: 0.0 });
+        return Some(Col {
+            space: Space::Srgb,
+            c: [0.0; 3],
+            a: 0.0,
+        });
     }
     if let Some((_, rgb)) = NAMED.iter().find(|(n, _)| *n == lower) {
         let c = |sh: u32| ((rgb >> sh) & 0xff) as f32 / 255.0;
-        return Some(Col { space: Space::Srgb, c: [c(16), c(8), c(0)], a: 1.0 });
+        return Some(Col {
+            space: Space::Srgb,
+            c: [c(16), c(8), c(0)],
+            a: 1.0,
+        });
     }
     super::color::parse_hex_color(&lower).map(|Color(r, g, b, a)| Col {
         space: Space::Srgb,

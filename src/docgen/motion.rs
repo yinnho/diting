@@ -195,7 +195,10 @@ mod tests {
         let html = split_heading_html("a<b", 0.1);
         // The punctuation rides the latin run; escaped markup can't break
         // out of the span.
-        assert!(html.contains("animation-delay:0.10s\">a&lt;b</span>"), "{html}");
+        assert!(
+            html.contains("animation-delay:0.10s\">a&lt;b</span>"),
+            "{html}"
+        );
         // CJK chars split per glyph with the 30ms step.
         let zh = split_heading_html("标题", 0.0);
         assert!(zh.contains("animation-delay:0.00s\">标</span>"), "{zh}");

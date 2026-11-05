@@ -70,14 +70,7 @@ pub(super) fn paint_form_widget(
     }
     if radio {
         let d = (w.min(h) - 6).max(2);
-        out.fill_rounded_rect(
-            x + (w - d) / 2,
-            y + (h - d) / 2,
-            d,
-            d,
-            d as f32 / 2.0,
-            ink,
-        );
+        out.fill_rounded_rect(x + (w - d) / 2, y + (h - d) / 2, d, d, d as f32 / 2.0, ink);
     } else {
         // The bundled symbol set carries ✓ (the font-fallback batch's
         // coverage tail), and the raster cache (#399) makes the repeat free.
@@ -173,7 +166,10 @@ pub(super) fn paint_form_control(
     let (tx, ty) = match form {
         FormRun::Button => {
             let est = est_width(text, font_size).min(w as f32);
-            (x as f32 + ((w as f32 - est) / 2.0).max(2.0), y as f32 + (h as f32 - line_height) / 2.0)
+            (
+                x as f32 + ((w as f32 - est) / 2.0).max(2.0),
+                y as f32 + (h as f32 - line_height) / 2.0,
+            )
         }
         FormRun::Textarea => (x as f32 + 2.0, y as f32 + 2.0),
         _ => (x as f32 + 2.0, y as f32 + (h as f32 - line_height) / 2.0),
@@ -183,7 +179,21 @@ pub(super) fn paint_form_control(
     // content lands exactly; no UAX #9 reordering happens, so a mixed run
     // keeps logical order. Select/Button keep their physical anchoring.
     if rtl && matches!(form, FormRun::Input | FormRun::Textarea) {
-        paint_rtl_value(out, x, y, w, h, ty, text, font_size, bold, line_height, color, fonts, alpha);
+        paint_rtl_value(
+            out,
+            x,
+            y,
+            w,
+            h,
+            ty,
+            text,
+            font_size,
+            bold,
+            line_height,
+            color,
+            fonts,
+            alpha,
+        );
     } else if !text.trim().is_empty() {
         let r = fonts.rasterize_wrapped(
             text,
@@ -193,11 +203,11 @@ pub(super) fn paint_form_control(
             wrap_at.max(1) as f32,
             line_height,
             false,
-            0.0, // control labels carry no inherited word-spacing (v1 boundary)
-            None, // control labels never truncate (input text-overflow is a v2 face)
+            0.0,                // control labels carry no inherited word-spacing (v1 boundary)
+            None,               // control labels never truncate (input text-overflow is a v2 face)
             WhiteSpace::Normal, // control labels always collapse (textarea value editing is a v2 face)
-            false, // control labels never synthesize small-caps
-            None, // no lang slot: control labels use the plain cascade
+            false,              // control labels never synthesize small-caps
+            None,               // no lang slot: control labels use the plain cascade
             None, // control labels carry no text-align-last (their own anchoring above)
         );
         out.push_clip(x + 1, y + 1, x + w - 1, y + h - 1);
@@ -214,7 +224,17 @@ pub(super) fn paint_form_control(
     // the ink so the placeholder gray can never leak into the bar.
     if let Some((off, ink)) = caret {
         if matches!(form, FormRun::Input | FormRun::Textarea) {
-            let tokens = tokens_of(text, font_size, bold, fonts, false, 0.0, WhiteSpace::Normal, false, None);
+            let tokens = tokens_of(
+                text,
+                font_size,
+                bold,
+                fonts,
+                false,
+                0.0,
+                WhiteSpace::Normal,
+                false,
+                None,
+            );
             let lines = greedy_wrap(&tokens, Some(wrap_at.max(1) as f32), WhiteSpace::Normal);
             // tokens_of tokenizes the TRIMMED text: map the offset into
             // trimmed coordinates. A caret inside the leading whitespace
@@ -309,7 +329,17 @@ fn paint_rtl_value(
         return;
     }
     let wrap_at = (w - 4).max(1) as f32;
-    let tokens = tokens_of(text, font_size, bold, fonts, false, 0.0, WhiteSpace::Normal, false, None);
+    let tokens = tokens_of(
+        text,
+        font_size,
+        bold,
+        fonts,
+        false,
+        0.0,
+        WhiteSpace::Normal,
+        false,
+        None,
+    );
     let lines = greedy_wrap(&tokens, Some(wrap_at), WhiteSpace::Normal);
     let rx = x as f32 + w as f32 - 2.0;
     out.push_clip(x + 1, y + 1, x + w - 1, y + h - 1);
@@ -332,7 +362,11 @@ fn paint_rtl_value(
             false,
             None,
         );
-        out.blit_text(&r, (rx - line_w).round() as i64, (ty + li as f32 * line_height + r.top).round() as i64);
+        out.blit_text(
+            &r,
+            (rx - line_w).round() as i64,
+            (ty + li as f32 * line_height + r.top).round() as i64,
+        );
     }
     out.pop_clip();
 }

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// RubyGems via the official `/api/v1/search.json` (free, no key). "packages"
 /// alongside npm/PyPI — same "find the package for X" agent need, Ruby
@@ -22,10 +22,7 @@ impl RubygemsEngine {
 
 const RG_HEADERS: &[(&str, &str)] = &[
     ("Accept", "application/json"),
-    (
-        "User-Agent",
-        diting::chrome_target::UA_DEFAULT,
-    ),
+    ("User-Agent", diting::chrome_target::UA_DEFAULT),
 ];
 
 #[async_trait]
@@ -70,10 +67,7 @@ fn parse_rubygems_json(
 ) -> Result<Vec<RawSearchResult>, SearchEngineError> {
     let parsed: serde_json::Value = serde_json::from_str(body)
         .map_err(|e| SearchEngineError::Transient(format!("json parse: {e}")))?;
-    let gems = parsed
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
+    let gems = parsed.as_array().cloned().unwrap_or_default();
 
     let page: Vec<&serde_json::Value> = gems.iter().skip(skip).take(take).collect();
     let total = page.len().max(1) as f64;
@@ -90,10 +84,7 @@ fn parse_rubygems_json(
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("https://rubygems.org/gems/{name}"));
         let version = gem.get("version").and_then(|v| v.as_str()).unwrap_or("-");
-        let downloads = gem
-            .get("downloads")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let downloads = gem.get("downloads").and_then(|v| v.as_i64()).unwrap_or(0);
         let info = gem.get("info").and_then(|v| v.as_str()).unwrap_or("");
         let snippet = format!("v{version} · ↓{downloads} · {info}");
 

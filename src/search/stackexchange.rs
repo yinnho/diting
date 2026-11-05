@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Stack Overflow via the Stack Exchange API v2.3 (free, no API key).
 /// SearXNG-parity "code" category source: programming Q&A with score and
@@ -41,7 +41,10 @@ impl SearchEngine for StackExchangeEngine {
         const SE_HEADERS: &[(&str, &str)] = &[
             ("Accept", "application/json"),
             // The API 403s the default reqwest UA; a normal client UA passes.
-            ("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"),
+            (
+                "User-Agent",
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+            ),
         ];
         let body = super::get_direct_first(&url, SE_HEADERS, super::proxied_plain_client).await?;
         parse_stack_exchange_json(&body)
@@ -91,10 +94,7 @@ fn parse_stack_exchange_json(body: &str) -> Result<Vec<RawSearchResult>, SearchE
             .get("is_answered")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let score = item
-            .get("score")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let score = item.get("score").and_then(|v| v.as_i64()).unwrap_or(0);
         let answer_count = item
             .get("answer_count")
             .and_then(|v| v.as_i64())
@@ -104,7 +104,11 @@ fn parse_stack_exchange_json(body: &str) -> Result<Vec<RawSearchResult>, SearchE
             "[{}] by {} | {} | score: {} | answers: {}",
             tags.join(", "),
             owner,
-            if is_answered { "answered" } else { "unanswered" },
+            if is_answered {
+                "answered"
+            } else {
+                "unanswered"
+            },
             score,
             answer_count,
         );

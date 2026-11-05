@@ -12,7 +12,10 @@ pub enum FaceBytes {
     Owned(Vec<u8>),
     /// `ident` stands in for the content in the book fingerprint (hashing a
     /// map would fault the whole file in): path, length and mtime.
-    Mapped { map: memmap2::Mmap, ident: u64 },
+    Mapped {
+        map: memmap2::Mmap,
+        ident: u64,
+    },
 }
 
 impl FaceBytes {
@@ -27,7 +30,10 @@ impl FaceBytes {
         path.hash(&mut h);
         meta.len().hash(&mut h);
         meta.modified().ok().hash(&mut h);
-        Some(FaceBytes::Mapped { map, ident: h.finish() })
+        Some(FaceBytes::Mapped {
+            map,
+            ident: h.finish(),
+        })
     }
 }
 

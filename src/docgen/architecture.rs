@@ -22,10 +22,12 @@ use super::graph::{
     label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt, Rect,
     RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT,
 };
-use super::spec::{text_units, ArchBoundary, ArchComponent, ArchConnection, ArchitectureSpec, ArchLayout};
+use super::sigil;
+use super::spec::{
+    text_units, ArchBoundary, ArchComponent, ArchConnection, ArchLayout, ArchitectureSpec,
+};
 use super::theme::Theme;
 use super::tx;
-use super::sigil;
 
 // ---------------------------------------------------------------------------
 // constants (archify px × 10)
@@ -277,13 +279,15 @@ pub fn render_architecture(
         .connections
         .iter()
         .zip(&placed)
-        .map(|(connection, (_, _, points, label))| super::checks::AuditRoute {
-            name: connection_name(connection),
-            from: connection.from.clone(),
-            to: connection.to.clone(),
-            points: points.clone(),
-            label: *label,
-        })
+        .map(
+            |(connection, (_, _, points, label))| super::checks::AuditRoute {
+                name: connection_name(connection),
+                from: connection.from.clone(),
+                to: connection.to.clone(),
+                points: points.clone(),
+                label: *label,
+            },
+        )
         .collect();
     let frames: Vec<super::checks::AuditFrame> = laid
         .boundaries
@@ -540,7 +544,10 @@ fn measured_bounds(
 /// (stroke, width, dash, label fill) per connection variant — the sequence
 /// table minus `return`, which is sequence/workflow vocabulary. Sizes and
 /// dash patterns are this adapter's typography; colors come from the theme.
-fn variant_style(theme: &Theme, variant: &str) -> (&'static str, i32, Option<&'static str>, &'static str) {
+fn variant_style(
+    theme: &Theme,
+    variant: &str,
+) -> (&'static str, i32, Option<&'static str>, &'static str) {
     match variant {
         "emphasis" => (theme.ink, 18, None, theme.ink),
         "security" => (theme.danger, 14, None, theme.danger),
@@ -640,7 +647,7 @@ fn emit_svg(
             &component.kind,
             rect.x + 60,
             rect.y + 60,
-            theme
+            theme,
         ));
         let label_font = fitted_font(&component.label, rect.w - 160, LABEL_PREFERRED, LABEL_MIN);
         s.push_str(&format!(
@@ -651,7 +658,11 @@ fn emit_svg(
             theme.ink,
             esc(&component.label)
         ));
-        if let Some(sub) = component.sublabel.as_deref().filter(|s| !s.trim().is_empty()) {
+        if let Some(sub) = component
+            .sublabel
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+        {
             let sub_font = fitted_font(sub, rect.w, SUB_PREFERRED, SUB_MIN);
             s.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-size=\"{}\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
@@ -683,7 +694,8 @@ fn emit_svg(
         };
         let (_, _, points, _) = &placed[i];
         let at = label_point(points);
-        let w = (text_units(label) as i32 * LABEL_WIDTH_FACTOR + LABEL_WIDTH_PAD).max(LABEL_WIDTH_MIN);
+        let w =
+            (text_units(label) as i32 * LABEL_WIDTH_FACTOR + LABEL_WIDTH_PAD).max(LABEL_WIDTH_MIN);
         let (_, _, _, label_fill) =
             variant_style(theme, connection.variant.as_deref().unwrap_or("default"));
         s.push_str(&format!(
@@ -707,7 +719,11 @@ fn emit_svg(
             "<text x=\"{}\" y=\"{}\" font-size=\"7\" font-weight=\"600\" fill=\"{}\">{}</text>",
             tx(boundary.rect.x + 100),
             tx(boundary.rect.y + 160),
-            if boundary.security { theme.danger } else { theme.ink_soft },
+            if boundary.security {
+                theme.danger
+            } else {
+                theme.ink_soft
+            },
             esc(&boundary.label)
         ));
     }
@@ -770,8 +786,8 @@ fn arrowhead(points: &[Pt], fill: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::theme::LIGHT;
+    use super::*;
 
     const SPEC_JSON: &str = r#"{
         "title": "Deployment",

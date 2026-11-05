@@ -1,7 +1,7 @@
 use std::{error::Error as StdError, fmt, io};
 
-use http::Uri;
 use diting_wire_proto::ext::ReasonPhrase;
+use http::Uri;
 
 use crate::{StatusCode, util::Escape};
 

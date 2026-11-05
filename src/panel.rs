@@ -96,7 +96,11 @@ mod on {
             return None;
         }
         let span = info.maximum - info.minimum;
-        if span > 1 { Some(span) } else { None }
+        if span > 1 {
+            Some(span)
+        } else {
+            None
+        }
     }
 
     impl Touch {
@@ -278,7 +282,9 @@ mod on {
 
     async fn load_html(page: &mut Page, w: u32, h: u32, html: &str) -> Result<(), String> {
         page.set_viewport_override(w as f32, h as f32, true, None);
-        page.goto(&data_url(html)).await.map_err(|e| e.to_string())?;
+        page.goto(&data_url(html))
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -306,7 +312,11 @@ mod on {
         }
     }
 
-    async fn band(page: &mut Page, y: f32, vp: (f32, f32)) -> Result<diting::diting_js::ops::BandFrame, String> {
+    async fn band(
+        page: &mut Page,
+        y: f32,
+        vp: (f32, f32),
+    ) -> Result<diting::diting_js::ops::BandFrame, String> {
         let Some((frame, missing)) = page.inner.viewport_band_frame(0.0, y, vp) else {
             return Err("no band frame".into());
         };
@@ -331,7 +341,13 @@ mod on {
             w: vw as usize,
             h,
         };
-        put_band(&mut cache, first.dy.round().max(0.0) as usize, &first.rgba, first.width, first.height);
+        put_band(
+            &mut cache,
+            first.dy.round().max(0.0) as usize,
+            &first.rgba,
+            first.width,
+            first.height,
+        );
         let mut y = vh as f32;
         let max_origin = (h as f32 - vh as f32).max(0.0);
         while y <= max_origin + 0.5 {
@@ -522,5 +538,7 @@ pub use on::start;
 // would dead-code-warn on plain dev builds.
 #[cfg(all(feature = "screenshot", not(unix)))]
 pub fn start() {
-    tracing::warn!("panel: no paint path on this platform (unix + --features screenshot build required)");
+    tracing::warn!(
+        "panel: no paint path on this platform (unix + --features screenshot build required)"
+    );
 }

@@ -2,7 +2,7 @@
 //! The crate root keeps the axum Router wiring, the shared AppError face,
 //! and the process-level handlers (status/health/doctor).
 pub(crate) mod acquisition;
-pub(crate) mod render;
-pub(crate) mod sessions;
 #[cfg(feature = "screenshot")]
 pub(crate) mod outputs;
+pub(crate) mod render;
+pub(crate) mod sessions;

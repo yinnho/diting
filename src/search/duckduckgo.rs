@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// DuckDuckGo via its server-rendered HTML endpoint (`html.duckduckgo.com/html/`)
 /// — the scrape-friendly surface that keeps working while google.com serves
@@ -33,7 +33,9 @@ impl DuckDuckGoEngine {
     /// (DITING_PROXY or live local :8800) so a late-starting stunnel
     /// still gets used.
     #[cfg(feature = "stealth")]
-    fn stealth_proxied(&self) -> Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>> {
+    fn stealth_proxied(
+        &self,
+    ) -> Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>> {
         let proxy = super::search_proxy_url()?;
         let cookie_jar = std::sync::Arc::new(diting::diting_net::cookies::CookieJar::new());
         Some(std::sync::Arc::new(
@@ -63,7 +65,12 @@ impl DuckDuckGoEngine {
         match direct {
             Ok(Ok((body, _))) if has_results(&body) => return Ok(body),
             Ok(Ok((body, _))) => {
-                super::validate::log_rejected_body(url, "stealth-direct", &body, super::classify_rejected_body(&body));
+                super::validate::log_rejected_body(
+                    url,
+                    "stealth-direct",
+                    &body,
+                    super::classify_rejected_body(&body),
+                );
                 rejected = Some(body);
             }
             Ok(Err(e)) => {
@@ -80,7 +87,12 @@ impl DuckDuckGoEngine {
             return match super::stealth_fetch(proxied.as_ref(), url).await {
                 Ok((body, _)) => {
                     if !has_results(&body) {
-                        super::validate::log_rejected_body(url, "stealth-proxy", &body, super::classify_rejected_body(&body));
+                        super::validate::log_rejected_body(
+                            url,
+                            "stealth-proxy",
+                            &body,
+                            super::classify_rejected_body(&body),
+                        );
                     }
                     Ok(body)
                 }
@@ -100,8 +112,7 @@ impl DuckDuckGoEngine {
 
     #[cfg(not(feature = "stealth"))]
     async fn fetch_results_html(&self, url: &str) -> Result<String, SearchEngineError> {
-        super::get_direct_first_if(url, DDG_HEADERS, super::proxied_plain_client, has_results)
-            .await
+        super::get_direct_first_if(url, DDG_HEADERS, super::proxied_plain_client, has_results).await
     }
 }
 
@@ -112,10 +123,7 @@ fn has_results(body: &str) -> bool {
 }
 
 #[cfg(not(feature = "stealth"))]
-const DDG_HEADERS: &[(&str, &str)] = &[(
-    "User-Agent",
-    diting::chrome_target::UA_DEFAULT,
-)];
+const DDG_HEADERS: &[(&str, &str)] = &[("User-Agent", diting::chrome_target::UA_DEFAULT)];
 
 #[async_trait]
 impl SearchEngine for DuckDuckGoEngine {
@@ -225,7 +233,9 @@ fn extract_uddg(href: &str) -> String {
     };
     let rest = &href[start..];
     let end = rest.find('&').unwrap_or(rest.len());
-    urlencoding::decode(&rest[..end]).unwrap_or_default().into_owned()
+    urlencoding::decode(&rest[..end])
+        .unwrap_or_default()
+        .into_owned()
 }
 
 fn unwrap_ddg_redirect(href: &str) -> String {
@@ -272,13 +282,19 @@ mod tests {
 
     #[test]
     fn extract_uddg_decodes_percent_encoding() {
-        assert_eq!(extract_uddg("//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.b%2Fc&rut=x"), "https://a.b/c");
+        assert_eq!(
+            extract_uddg("//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.b%2Fc&rut=x"),
+            "https://a.b/c"
+        );
         assert_eq!(extract_uddg("https://plain.example.com/x"), "");
     }
 
     #[test]
     fn unwrap_passthrough_protocol_relative() {
-        assert_eq!(unwrap_ddg_redirect("//example.com/x"), "https://example.com/x");
+        assert_eq!(
+            unwrap_ddg_redirect("//example.com/x"),
+            "https://example.com/x"
+        );
     }
 
     /// Firecrawl #4375 parity: a malformed percent escape in one result URL

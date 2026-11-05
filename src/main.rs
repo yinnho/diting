@@ -38,10 +38,10 @@ mod risk_markers;
 // actor face + flows + accounts), outputs (screenshot/video/pdf). The
 // re-exports below are exactly the names other modules consume at
 // `crate::` paths.
-mod routers;
-mod render;
 mod release_mem;
+mod render;
 mod robots;
+mod routers;
 mod sanitize;
 #[cfg(feature = "screenshot")]
 mod screenshot;
@@ -97,24 +97,24 @@ pub use routers::outputs::{
 pub use routers::sessions::SessionCreateRequest;
 
 use routers::acquisition::{
-    click_handler, download_handler, engines_handler, eval_handler, fetch_handler, search_handler,
-    search_engine_rows,
+    click_handler, download_handler, engines_handler, eval_handler, fetch_handler,
+    search_engine_rows, search_handler,
 };
 #[cfg(feature = "screenshot")]
 use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
 use routers::sessions::{
-    account_delete_handler, flow_run_handler, account_login_handler, account_verify_handler, accounts_handler,
-                            import_curl_handler, max_body_bytes, session_challenges_handler, session_click_handler,
-    session_click_xy_handler, session_clone_handler, session_close_handler,
-    session_console_handler, session_cookies_handler, session_cookie_trace_handler,
-    session_create_handler,
-    session_dialog_handler, session_drag_handler, session_qr_handler, session_qr_live_handler, session_eval_handler, session_export_handler,
-    session_har_handler, session_input_handler, session_list_handler, session_navigate_handler,
-    session_network_handler, session_preload_handler, session_screenshot_handler, session_scroll_handler,
-    session_set_files_handler, session_snapshot_handler, session_state_handler, session_storage_handler,
-    session_verdict_handler, session_viewport_handler, session_wait_handler, sessions_handler,
+    account_delete_handler, account_login_handler, account_verify_handler, accounts_handler,
+    flow_run_handler, import_curl_handler, max_body_bytes, session_challenges_handler,
+    session_click_handler, session_click_xy_handler, session_clone_handler, session_close_handler,
+    session_console_handler, session_cookie_trace_handler, session_cookies_handler,
+    session_create_handler, session_dialog_handler, session_drag_handler, session_eval_handler,
+    session_export_handler, session_har_handler, session_input_handler, session_list_handler,
+    session_navigate_handler, session_network_handler, session_preload_handler, session_qr_handler,
+    session_qr_live_handler, session_screenshot_handler, session_scroll_handler,
+    session_set_files_handler, session_snapshot_handler, session_state_handler,
+    session_storage_handler, session_verdict_handler, session_viewport_handler,
+    session_wait_handler, sessions_handler,
 };
-
 
 use server::do_fetch;
 
@@ -350,16 +350,17 @@ async fn main() -> anyhow::Result<()> {
     if let Some(pos) = args.iter().position(|a| a == "--font-dir") {
         let dir = args.get(pos + 1).map(|s| s.as_str());
         diting::diting_fonts::set_font_dir(dir);
-        tracing::info!("font dir fallbacks (--font-dir): {:?}", dir.unwrap_or("(none)"));
+        tracing::info!(
+            "font dir fallbacks (--font-dir): {:?}",
+            dir.unwrap_or("(none)")
+        );
     }
 
     // The phone's glass is this browser's viewport. --panel, or the
     // marker file the device drops, paints straight to DRM instead of
     // handing JPEG frames to another process to paste.
     #[cfg(feature = "screenshot")]
-    if args.iter().any(|a| a == "--panel")
-        || std::path::Path::new("/etc/aginx/panel.on").exists()
-    {
+    if args.iter().any(|a| a == "--panel") || std::path::Path::new("/etc/aginx/panel.on").exists() {
         panel::start();
     }
 
@@ -399,7 +400,8 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/flow/run",
             post(flow_run_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
-        )        .route("/session/:id/clone", post(session_clone_handler))
+        )
+        .route("/session/:id/clone", post(session_clone_handler))
         .route("/import/curl", post(import_curl_handler))
         .route("/session/list", get(session_list_handler))
         .route("/session/:id/navigate", post(session_navigate_handler))
@@ -410,7 +412,10 @@ async fn main() -> anyhow::Result<()> {
             get(session_snapshot_handler).post(session_snapshot_handler),
         )
         .route("/session/:id/cookies", get(session_cookies_handler))
-        .route("/session/:id/cookie_trace", get(session_cookie_trace_handler))
+        .route(
+            "/session/:id/cookie_trace",
+            get(session_cookie_trace_handler),
+        )
         .route("/session/:id/storage", get(session_storage_handler))
         .route("/session/:id/console", get(session_console_handler))
         .route("/session/:id/dialog", post(session_dialog_handler))
@@ -427,7 +432,8 @@ async fn main() -> anyhow::Result<()> {
         // 2 MiB cap would reject real product images outright.
         .route(
             "/session/:id/files",
-            post(session_set_files_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+            post(session_set_files_handler)
+                .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
         )
         .route("/session/:id/scroll", post(session_scroll_handler))
         .route("/session/:id/viewport", post(session_viewport_handler))
@@ -447,7 +453,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/account/verify", post(account_verify_handler))
         .route("/account/login", post(account_login_handler))
         .route("/render", post(routers::render::render_handler))
-        .route("/render_markdown", post(routers::render::render_markdown_handler));
+        .route(
+            "/render_markdown",
+            post(routers::render::render_markdown_handler),
+        );
     #[cfg(feature = "screenshot")]
     let app = app
         .route(
@@ -483,8 +492,7 @@ async fn main() -> anyhow::Result<()> {
     // opt-in token gate meant every fresh install was an open driving
     // surface for the whole network until someone remembered the env var.
     // LAN/container deployments set DITING_BIND explicitly.
-    let bind_addr =
-        std::env::var("DITING_BIND").unwrap_or_else(|_| "127.0.0.1:8089".to_string());
+    let bind_addr = std::env::var("DITING_BIND").unwrap_or_else(|_| "127.0.0.1:8089".to_string());
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
 
     // #88: sessions the previous process flushed at ITS shutdown revive
@@ -578,7 +586,11 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
     tracing::info!("shutdown signal — flushing live sessions for restart");
-    let flushed = crate::session::SESSIONS.lock().await.flush_for_shutdown().await;
+    let flushed = crate::session::SESSIONS
+        .lock()
+        .await
+        .flush_for_shutdown()
+        .await;
     tracing::info!(
         "shutdown flush complete: {flushed} session(s) persisted; a restart restores them under the same ids"
     );
@@ -907,7 +919,9 @@ async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse
         .iter()
         .filter_map(|e| {
             if e.get("available").and_then(|v| v.as_bool()) == Some(true) {
-                e.get("name").and_then(|v| v.as_str()).map(|s| s.to_string())
+                e.get("name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
             } else {
                 None
             }
@@ -968,7 +982,10 @@ mod tests {
     fn unknown_flag_guard_names_offenders_and_shields_values() {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert_eq!(first_unknown_flag(&a(&["diting"])), None);
-        assert_eq!(first_unknown_flag(&a(&["diting", "--panel", "--version"])), None);
+        assert_eq!(
+            first_unknown_flag(&a(&["diting", "--panel", "--version"])),
+            None
+        );
         assert_eq!(
             first_unknown_flag(&a(&["diting", "--allow-network", "10.0.0.0/8"])),
             None

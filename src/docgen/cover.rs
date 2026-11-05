@@ -57,7 +57,15 @@ fn square_safe_band() -> (f64, f64) {
 pub fn render_cover(input: &CoverInput) -> String {
     // Every field is Copy — destructure through the reference so the
     // bindings are values, not &Option<...>.
-    let CoverInput { title, subtitle, footer, body, size, show_crop, theme } = *input;
+    let CoverInput {
+        title,
+        subtitle,
+        footer,
+        body,
+        size,
+        show_crop,
+        theme,
+    } = *input;
     let (w, h) = dimensions(size).unwrap_or((1024, 1024));
     let square = w == 1024 && h == 1024;
     let vertical = w == 1080 && h == 1920;

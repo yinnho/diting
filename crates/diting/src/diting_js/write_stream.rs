@@ -11,11 +11,11 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
+use crate::diting_dom::{DomTree, NodeData, NodeId};
 use html5ever::driver::{parse_fragment, ParseOpts, Parser};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::Tracer;
 use html5ever::{local_name, ns, QualName};
-use crate::diting_dom::{DomTree, NodeData, NodeId};
 
 /// Collects every node the TreeBuilder still holds.
 ///

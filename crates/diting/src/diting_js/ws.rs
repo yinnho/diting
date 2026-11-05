@@ -159,19 +159,13 @@ impl AsyncWrite for WsStream {
             WsStream::Tls(s) => Pin::new(s.as_mut()).poll_write(cx, buf),
         }
     }
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut *self {
             WsStream::Plain(s) => Pin::new(s).poll_flush(cx),
             WsStream::Tls(s) => Pin::new(s.as_mut()).poll_flush(cx),
         }
     }
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut *self {
             WsStream::Plain(s) => Pin::new(s).poll_shutdown(cx),
             WsStream::Tls(s) => Pin::new(s.as_mut()).poll_shutdown(cx),
@@ -179,11 +173,7 @@ impl AsyncWrite for WsStream {
     }
 }
 
-fn deliver(
-    tx: &mpsc::UnboundedSender<WsInbound>,
-    count: &AtomicUsize,
-    ev: WsInbound,
-) -> bool {
+fn deliver(tx: &mpsc::UnboundedSender<WsInbound>, count: &AtomicUsize, ev: WsInbound) -> bool {
     if count.load(Ordering::Relaxed) >= WS_INBOUND_CAP {
         return false;
     }
@@ -197,12 +187,16 @@ fn deliver(
 
 impl WsConnectJob {
     async fn dial(&self) -> Result<WsStream, String> {
-        let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((self.host.as_str(), self.port))
-            .await
-            .map_err(|e| format!("DNS resolution failed for '{}': {e}", self.host))?
-            .collect();
+        let addrs: Vec<std::net::SocketAddr> =
+            tokio::net::lookup_host((self.host.as_str(), self.port))
+                .await
+                .map_err(|e| format!("DNS resolution failed for '{}': {e}", self.host))?
+                .collect();
         if addrs.is_empty() {
-            return Err(format!("DNS resolution returned no addresses for '{}'", self.host));
+            return Err(format!(
+                "DNS resolution returned no addresses for '{}'",
+                self.host
+            ));
         }
         let allow = self.allow_private || crate::diting_net::client::env_allows_private_network();
         let target = if allow {
@@ -276,12 +270,11 @@ impl WsConnectJob {
             .map_err(|e| format!("TCP connect to proxy {authority} failed: {e}"))?;
         let _ = tcp.set_nodelay(true);
         let hostport = format!("{}:{}", self.host, self.port);
-        let req = format!(
-            "CONNECT {hp} HTTP/1.1\r\nHost: {hp}\r\n\r\n",
-            hp = hostport
-        );
+        let req = format!("CONNECT {hp} HTTP/1.1\r\nHost: {hp}\r\n\r\n", hp = hostport);
         let (mut rd, mut wr) = tokio::io::split(tcp);
-        wr.write_all(req.as_bytes()).await.map_err(|e| e.to_string())?;
+        wr.write_all(req.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
         wr.flush().await.map_err(|e| e.to_string())?;
         let mut head = Vec::new();
         // Read until the header terminator; a CONNECT reply is tiny.
@@ -299,9 +292,16 @@ impl WsConnectJob {
                 return Err("proxy CONNECT reply too large".into());
             }
         }
-        let status = head.split(|b| *b == b' ').nth(1).map(|s| s.to_vec()).unwrap_or_default();
+        let status = head
+            .split(|b| *b == b' ')
+            .nth(1)
+            .map(|s| s.to_vec())
+            .unwrap_or_default();
         if status != b"200" {
-            return Err(format!("proxy CONNECT refused (status {})", String::from_utf8_lossy(&status)));
+            return Err(format!(
+                "proxy CONNECT refused (status {})",
+                String::from_utf8_lossy(&status)
+            ));
         }
         let tcp = rd.unsplit(wr);
         if self.tls {
@@ -412,7 +412,10 @@ impl WsConnectJob {
     }
 }
 
-async fn tls_upgrade(tcp: TcpStream, host: &str) -> Result<tokio_rustls::client::TlsStream<TcpStream>, String> {
+async fn tls_upgrade(
+    tcp: TcpStream,
+    host: &str,
+) -> Result<tokio_rustls::client::TlsStream<TcpStream>, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let config = rustls::ClientConfig::builder()
@@ -470,7 +473,9 @@ pub(crate) async fn op_ws_open_body(
         Some(h) => h.to_string(),
         None => return ws_error_json(&format!("URL '{url}' has no host")),
     };
-    let port = parsed.port_or_known_default().unwrap_or(if tls { 443 } else { 80 });
+    let port = parsed
+        .port_or_known_default()
+        .unwrap_or(if tls { 443 } else { 80 });
     if host.is_empty() {
         return ws_error_json(&format!("URL '{url}' has an empty host"));
     }
@@ -499,7 +504,8 @@ pub(crate) async fn op_ws_open_body(
         }
     }
 
-    let protocols: Vec<String> = serde_json::from_str::<Vec<String>>(&protocols_json).unwrap_or_default();
+    let protocols: Vec<String> =
+        serde_json::from_str::<Vec<String>>(&protocols_json).unwrap_or_default();
 
     let (http_client, cookie_header, origin) = {
         let gs = gs_cell.borrow();
@@ -530,48 +536,55 @@ pub(crate) async fn op_ws_open_body(
         None => (String::new(), String::new(), Vec::new(), false, None),
     };
 
-        let mut builder = http::Request::builder()
-            .method("GET")
-            .uri(parsed.as_str())
-            .header("Host", http_host(&parsed))
-            .header("Upgrade", "websocket")
-            .header("Connection", "Upgrade");
-        let key = generate_ws_key();
-        builder = builder
-            .header("Sec-WebSocket-Version", "13")
-            .header("Sec-WebSocket-Key", key);
-        if !origin.is_empty() {
-            builder = builder.header("Origin", origin);
+    let mut builder = http::Request::builder()
+        .method("GET")
+        .uri(parsed.as_str())
+        .header("Host", http_host(&parsed))
+        .header("Upgrade", "websocket")
+        .header("Connection", "Upgrade");
+    let key = generate_ws_key();
+    builder = builder
+        .header("Sec-WebSocket-Version", "13")
+        .header("Sec-WebSocket-Key", key);
+    if !origin.is_empty() {
+        builder = builder.header("Origin", origin);
+    }
+    if !ua.is_empty() {
+        builder = builder.header("User-Agent", ua);
+    }
+    if !accept_language.is_empty() {
+        builder = builder.header("Accept-Language", accept_language);
+    }
+    if !cookie_header.is_empty() {
+        builder = builder.header("Cookie", cookie_header.clone());
+    }
+    if !protocols.is_empty() {
+        builder = builder.header("Sec-WebSocket-Protocol", protocols.join(", "));
+    }
+    for (k, v) in extra_headers {
+        // Reserved headers stay ours (tungstenite validates the upgrade
+        // shape); everything the context layered on goes through.
+        let lower = k.to_ascii_lowercase();
+        if matches!(
+            lower.as_str(),
+            "host"
+                | "upgrade"
+                | "connection"
+                | "sec-websocket-key"
+                | "sec-websocket-version"
+                | "sec-websocket-protocol"
+                | "origin"
+                | "cookie"
+                | "user-agent"
+        ) {
+            continue;
         }
-        if !ua.is_empty() {
-            builder = builder.header("User-Agent", ua);
-        }
-        if !accept_language.is_empty() {
-            builder = builder.header("Accept-Language", accept_language);
-        }
-        if !cookie_header.is_empty() {
-            builder = builder.header("Cookie", cookie_header.clone());
-        }
-        if !protocols.is_empty() {
-            builder = builder.header("Sec-WebSocket-Protocol", protocols.join(", "));
-        }
-        for (k, v) in extra_headers {
-            // Reserved headers stay ours (tungstenite validates the upgrade
-            // shape); everything the context layered on goes through.
-            let lower = k.to_ascii_lowercase();
-            if matches!(
-                lower.as_str(),
-                "host" | "upgrade" | "connection" | "sec-websocket-key" | "sec-websocket-version"
-                    | "sec-websocket-protocol" | "origin" | "cookie" | "user-agent"
-            ) {
-                continue;
-            }
-            builder = builder.header(k.as_str(), v.as_str());
-        }
-        let request = match builder.body(()) {
-            Ok(r) => r,
-            Err(e) => return ws_error_json(&format!("handshake request invalid: {e}")),
-        };
+        builder = builder.header(k.as_str(), v.as_str());
+    }
+    let request = match builder.body(()) {
+        Ok(r) => r,
+        Err(e) => return ws_error_json(&format!("handshake request invalid: {e}")),
+    };
     let job = WsConnectJob {
         host,
         port,
@@ -605,7 +618,10 @@ pub(crate) async fn op_ws_open_body(
     serde_json::Value::Object(obj).to_string()
 }
 
-fn translated_cookie_header(ws_url: &url::Url, jar: &Option<Arc<crate::diting_net::cookies::CookieJar>>) -> String {
+fn translated_cookie_header(
+    ws_url: &url::Url,
+    jar: &Option<Arc<crate::diting_net::cookies::CookieJar>>,
+) -> String {
     let Some(jar) = jar else { return String::new() };
     match translate_ws_url(ws_url) {
         Some(secure_form) => jar.get_cookie_header(&secure_form),
@@ -763,6 +779,8 @@ pub(crate) fn op_ws_close(state: &OpState, id: u32, code: u16, #[string] reason:
     let gs_rc = state.borrow::<SharedState>().clone();
     let gs = gs_rc.borrow();
     if let Some(sock) = gs.ws_registry.sockets.get(&id) {
-        let _ = sock.outbound_tx.send(WsOutbound::Close(code, reason.to_string()));
+        let _ = sock
+            .outbound_tx
+            .send(WsOutbound::Close(code, reason.to_string()));
     }
 }

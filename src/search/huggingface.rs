@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Hugging Face Hub search via the official JSON API (`/api/models`,
 /// keyless). "ai" category source: models/datasets for agents that need to
@@ -32,10 +32,7 @@ impl HuggingFaceEngine {
 
 const HF_HEADERS: &[(&str, &str)] = &[
     ("Accept", "application/json"),
-    (
-        "User-Agent",
-        diting::chrome_target::UA_DEFAULT,
-    ),
+    ("User-Agent", diting::chrome_target::UA_DEFAULT),
 ];
 
 #[async_trait]

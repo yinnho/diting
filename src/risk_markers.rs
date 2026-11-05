@@ -132,11 +132,17 @@ pub fn ali_url_challenge_kind(url: &str) -> Option<String> {
     }
     let bare = url.split(['?', '#']).next().unwrap_or(url);
     let path_l = bare.to_ascii_lowercase();
-    if t.url_path_needles.iter().any(|n| path_l.contains(n.as_str())) {
+    if t.url_path_needles
+        .iter()
+        .any(|n| path_l.contains(n.as_str()))
+    {
         return Some(t.challenge_tag.clone());
     }
     let full_l = url.to_ascii_lowercase();
-    if t.url_host_needles.iter().any(|n| full_l.contains(n.as_str())) {
+    if t.url_host_needles
+        .iter()
+        .any(|n| full_l.contains(n.as_str()))
+    {
         return Some(t.challenge_tag.clone());
     }
     None
@@ -147,13 +153,22 @@ pub fn ali_url_challenge_kind(url: &str) -> Option<String> {
 pub fn ali_url_looks_walled(url: &str) -> bool {
     let t = table();
     let lower = url.to_ascii_lowercase();
-    if t.url_path_needles.iter().any(|n| lower.contains(n.as_str())) {
+    if t.url_path_needles
+        .iter()
+        .any(|n| lower.contains(n.as_str()))
+    {
         return true;
     }
-    if t.url_host_needles.iter().any(|n| lower.contains(n.as_str())) {
+    if t.url_host_needles
+        .iter()
+        .any(|n| lower.contains(n.as_str()))
+    {
         return true;
     }
-    if t.url_token_needles.iter().any(|n| lower.contains(n.as_str())) {
+    if t.url_token_needles
+        .iter()
+        .any(|n| lower.contains(n.as_str()))
+    {
         return true;
     }
     false
@@ -165,16 +180,25 @@ pub fn ali_body_looks_walled(body: &str) -> bool {
     if t.body_markers.iter().any(|m| body.contains(m.as_str())) {
         return true;
     }
-    if t.body_title_markers.iter().any(|m| body.contains(m.as_str())) {
+    if t.body_title_markers
+        .iter()
+        .any(|m| body.contains(m.as_str()))
+    {
         return true;
     }
     // Script-driven redirects embed hosts in HTML without the page URL
     // changing yet.
     let lower = body.to_ascii_lowercase();
-    if t.url_host_needles.iter().any(|n| lower.contains(n.as_str())) {
+    if t.url_host_needles
+        .iter()
+        .any(|n| lower.contains(n.as_str()))
+    {
         return true;
     }
-    if t.url_path_needles.iter().any(|n| lower.contains(n.as_str())) {
+    if t.url_path_needles
+        .iter()
+        .any(|n| lower.contains(n.as_str()))
+    {
         return true;
     }
     false
@@ -228,7 +252,10 @@ mod tests {
         assert!(!ali_url_looks_walled("https://api.example.com/clean/1.0/"));
         // Bodies.
         assert!(ali_body_looks_walled(r#"{"ret":["DEMO_WALL_HIT"]}"#));
-        assert_eq!(ali_body_challenge_kind(r#"{"walledata":"z"}"#), Some("demo-wall".to_string()));
+        assert_eq!(
+            ali_body_challenge_kind(r#"{"walledata":"z"}"#),
+            Some("demo-wall".to_string())
+        );
         assert!(ali_body_looks_walled("<title>Demo Intercept</title>"));
         assert!(ali_body_looks_walled("redirect to wall.example.net soon"));
         assert_eq!(ali_body_challenge_kind(r#"{"ok":true}"#), None);

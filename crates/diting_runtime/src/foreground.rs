@@ -69,7 +69,12 @@ impl v8::PlatformImpl for DitingPlatformImpl {
     /// bookkeeping is the canonical poster), and re-entrant execution there
     /// is a stack overflow (pinned by the ring-overflow test's first run
     /// of this file — delayed task ran mid-GC, re-posted, recursed).
-    fn post_delayed_task(&self, isolate_ptr: *mut std::ffi::c_void, task: v8::Task, delay_in_seconds: f64) {
+    fn post_delayed_task(
+        &self,
+        isolate_ptr: *mut std::ffi::c_void,
+        task: v8::Task,
+        delay_in_seconds: f64,
+    ) {
         queue_delayed(isolate_ptr as usize, task, delay_in_seconds);
     }
 
@@ -95,7 +100,13 @@ fn queue_task(key: usize, task: v8::Task) {
 
 fn queue_delayed(key: usize, task: v8::Task, delay_in_seconds: f64) {
     let due = Instant::now() + std::time::Duration::from_secs_f64(delay_in_seconds.max(0.0));
-    queue(QueuedTask { task, due: Some(due) }, key);
+    queue(
+        QueuedTask {
+            task,
+            due: Some(due),
+        },
+        key,
+    );
 }
 
 fn queue(qt: QueuedTask, key: usize) {
@@ -147,7 +158,10 @@ pub(crate) fn register(isolate_ptr: usize) -> Arc<ForegroundEntry> {
         tasks: Mutex::new(Vec::new()),
         waker: Mutex::new(None),
     });
-    registry().lock().unwrap().insert(isolate_ptr, entry.clone());
+    registry()
+        .lock()
+        .unwrap()
+        .insert(isolate_ptr, entry.clone());
     entry
 }
 
@@ -166,7 +180,9 @@ pub(crate) fn set_waker(entry: &ForegroundEntry, waker: &Waker) {
 pub(crate) fn drain(entry: &ForegroundEntry) -> usize {
     let tasks = std::mem::take(&mut *entry.tasks.lock().unwrap());
     let now = Instant::now();
-    let (due, later): (Vec<_>, Vec<_>) = tasks.into_iter().partition(|qt| qt.due.is_none_or(|d| d <= now));
+    let (due, later): (Vec<_>, Vec<_>) = tasks
+        .into_iter()
+        .partition(|qt| qt.due.is_none_or(|d| d <= now));
     *entry.tasks.lock().unwrap() = later;
     let count = due.len();
     for qt in due {

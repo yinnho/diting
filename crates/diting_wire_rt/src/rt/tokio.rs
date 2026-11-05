@@ -6,8 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pin_project_lite::pin_project;
 use diting_wire_proto::rt::{Executor, Sleep, Timer};
+use pin_project_lite::pin_project;
 
 /// Future executor that utilises `tokio` threads.
 #[non_exhaustive]

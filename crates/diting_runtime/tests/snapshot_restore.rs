@@ -174,25 +174,34 @@ fn from_snapshot_rejects_broken_containers() {
 #[test]
 fn embedder_scripts_bake_into_the_blob() {
     let _g = ISOLATE_LOCK.lock().unwrap();
-    let blob = create_snapshot(&[
-        (
-            "shim.js",
-            "globalThis.__diting_shim_calls = 0; \
+    let blob = create_snapshot(
+        &[
+            (
+                "shim.js",
+                "globalThis.__diting_shim_calls = 0; \
              const LEXICAL = 'lex-val'; \
              globalThis.__diting_read_lexical = function () { return LEXICAL; };",
-        ),
-        (
-            "consumer.js",
-            // Runs at bake time AFTER shim.js — top-level order is the
-            // list order, same law as diting's SNAPSHOT_SCRIPTS.
-            "globalThis.__diting_shim_calls += 1; \
+            ),
+            (
+                "consumer.js",
+                // Runs at bake time AFTER shim.js — top-level order is the
+                // list order, same law as diting's SNAPSHOT_SCRIPTS.
+                "globalThis.__diting_shim_calls += 1; \
              globalThis.__diting_baked_read = __diting_read_lexical();",
-        ),
-    ], &[]);
+            ),
+        ],
+        &[],
+    );
     let blob: &'static [u8] = Box::leak(blob.into());
     let mut vm = Vm::from_snapshot(blob).unwrap();
-    assert_eq!(vm.eval_string("globalThis.__diting_shim_calls").unwrap(), "1");
-    assert_eq!(vm.eval_string("globalThis.__diting_baked_read").unwrap(), "lex-val");
+    assert_eq!(
+        vm.eval_string("globalThis.__diting_shim_calls").unwrap(),
+        "1"
+    );
+    assert_eq!(
+        vm.eval_string("globalThis.__diting_baked_read").unwrap(),
+        "lex-val"
+    );
     assert_eq!(
         vm.eval_string("__diting_read_lexical()").unwrap(),
         "lex-val",
@@ -200,6 +209,9 @@ fn embedder_scripts_bake_into_the_blob() {
     );
     // The prelude faces still live on the same heap — script baking did
     // not displace the shell wiring.
-    assert_eq!(vm.eval_string("typeof __diting_settle").unwrap(), "function");
+    assert_eq!(
+        vm.eval_string("typeof __diting_settle").unwrap(),
+        "function"
+    );
     assert_eq!(vm.eval_string("__diting_tableCounts()").unwrap(), "0,0");
 }

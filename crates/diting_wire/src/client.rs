@@ -22,13 +22,13 @@ use std::{
     time::Duration,
 };
 
+use diting_wire_proto::body::Incoming;
 use http::header::{HeaderMap, HeaderValue, USER_AGENT};
 use tower::{
     BoxError, Layer, Service, ServiceBuilder, ServiceExt,
     retry::{Retry, RetryLayer},
     util::{BoxCloneSyncService, BoxCloneSyncServiceLayer, Either, Oneshot},
 };
-use diting_wire_proto::body::Incoming;
 
 #[cfg(any(
     feature = "gzip",

@@ -40,7 +40,11 @@ pub struct DecodedImage {
 
 impl DecodedImage {
     pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Self {
-        Self { width, height, rgba: Arc::new(rgba) }
+        Self {
+            width,
+            height,
+            rgba: Arc::new(rgba),
+        }
     }
 }
 
@@ -59,7 +63,10 @@ pub struct ImageCache<'a> {
 
 impl Default for ImageCache<'_> {
     fn default() -> Self {
-        Self { network_bytes: None, cache: RefCell::new(HashMap::new()) }
+        Self {
+            network_bytes: None,
+            cache: RefCell::new(HashMap::new()),
+        }
     }
 }
 
@@ -67,7 +74,10 @@ impl<'a> ImageCache<'a> {
     /// A cache that also resolves http(s)/file sources against `bytes`
     /// (absolute URL → response body).
     pub fn with_network(bytes: &'a HashMap<String, std::sync::Arc<Vec<u8>>>) -> Self {
-        Self { network_bytes: Some(bytes), cache: RefCell::new(HashMap::new()) }
+        Self {
+            network_bytes: Some(bytes),
+            cache: RefCell::new(HashMap::new()),
+        }
     }
 
     /// Decode (or recall from cache) the image behind an `<img src>`.
@@ -76,7 +86,9 @@ impl<'a> ImageCache<'a> {
             return Some(Arc::clone(hit));
         }
         let decoded = self.decode_uncached(src)?;
-        self.cache.borrow_mut().insert(src.to_string(), Arc::clone(&decoded));
+        self.cache
+            .borrow_mut()
+            .insert(src.to_string(), Arc::clone(&decoded));
         Some(decoded)
     }
 
@@ -124,9 +136,7 @@ impl<'a> ImageCache<'a> {
                     scope.spawn(move || {
                         chunk
                             .into_iter()
-                            .filter_map(|src| {
-                                decode_src_uncached(&src, bytes).map(|d| (src, d))
-                            })
+                            .filter_map(|src| decode_src_uncached(&src, bytes).map(|d| (src, d)))
                             .collect::<Vec<(String, DecodedImage)>>()
                     })
                 })
@@ -180,7 +190,9 @@ pub fn decode_data_url_png(src: &str) -> Option<DecodedImage> {
     if !meta.starts_with("image/png") || !meta.contains(";base64") {
         return None;
     }
-    let bytes = base64::engine::general_purpose::STANDARD.decode(payload).ok()?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(payload)
+        .ok()?;
     decode_png(&bytes)
 }
 
@@ -302,7 +314,11 @@ pub fn parse_srcset(srcset: &str) -> Vec<SrcsetCandidate> {
             }
         }
         // A bare-URL candidate means 1x.
-        out.push(SrcsetCandidate { url: url.to_string(), density: Some(density.unwrap_or(1.0)).filter(|_| density.is_some()), width });
+        out.push(SrcsetCandidate {
+            url: url.to_string(),
+            density: Some(density.unwrap_or(1.0)).filter(|_| density.is_some()),
+            width,
+        });
     }
     out
 }
@@ -335,7 +351,10 @@ fn split_srcset_entries(srcset: &str) -> Vec<String> {
 /// product-simplified): prefer the smallest density ≥ 1x (we render at dpr 1);
 /// otherwise, among width-descriptor candidates, the largest that fits the
 /// viewport; when none fit, the smallest available. No candidates → None.
-pub fn select_srcset_candidate(candidates: &[SrcsetCandidate], viewport_width: f32) -> Option<&SrcsetCandidate> {
+pub fn select_srcset_candidate(
+    candidates: &[SrcsetCandidate],
+    viewport_width: f32,
+) -> Option<&SrcsetCandidate> {
     if candidates.is_empty() {
         return None;
     }
@@ -344,15 +363,30 @@ pub fn select_srcset_candidate(candidates: &[SrcsetCandidate], viewport_width: f
         return candidates
             .iter()
             .filter(|c| c.density.unwrap_or(1.0) >= 1.0)
-            .min_by(|a, b| a.density.partial_cmp(&b.density).unwrap_or(std::cmp::Ordering::Equal))
-            .or_else(|| candidates.iter().min_by(|a, b| a.density.partial_cmp(&b.density).unwrap_or(std::cmp::Ordering::Equal)));
+            .min_by(|a, b| {
+                a.density
+                    .partial_cmp(&b.density)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .or_else(|| {
+                candidates.iter().min_by(|a, b| {
+                    a.density
+                        .partial_cmp(&b.density)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+            });
     }
     // Width-based selection.
-    let fitting: Vec<_> = candidates.iter().filter(|c| c.width.map(|w| w <= viewport_width).unwrap_or(false)).collect();
+    let fitting: Vec<_> = candidates
+        .iter()
+        .filter(|c| c.width.map(|w| w <= viewport_width).unwrap_or(false))
+        .collect();
     match fitting.iter().max_by_key(|c| c.width.unwrap_or(0.0) as u32) {
         Some(c) => Some(c),
         // Nothing fits: the smallest candidate keeps the box bounded.
-        None => candidates.iter().min_by_key(|c| c.width.unwrap_or(f32::MAX) as u32),
+        None => candidates
+            .iter()
+            .min_by_key(|c| c.width.unwrap_or(f32::MAX) as u32),
     }
 }
 
@@ -441,11 +475,19 @@ mod tests {
     fn network_sources_resolve_from_injected_bytes() {
         let (png_bytes, _img) = two_by_one_png();
         let mut bytes: HashMap<String, std::sync::Arc<Vec<u8>>> = HashMap::new();
-        bytes.insert("https://example.com/a.png".to_string(), std::sync::Arc::new(png_bytes.clone()));
-        bytes.insert("https://example.com/bad.png".to_string(), std::sync::Arc::new(b"not a png".to_vec()));
+        bytes.insert(
+            "https://example.com/a.png".to_string(),
+            std::sync::Arc::new(png_bytes.clone()),
+        );
+        bytes.insert(
+            "https://example.com/bad.png".to_string(),
+            std::sync::Arc::new(b"not a png".to_vec()),
+        );
 
         let cache = ImageCache::with_network(&bytes);
-        let hit = cache.resolve("https://example.com/a.png").expect("fetched PNG decodes");
+        let hit = cache
+            .resolve("https://example.com/a.png")
+            .expect("fetched PNG decodes");
         assert_eq!((hit.width, hit.height), (2, 1));
         assert!(
             cache.resolve("https://example.com/bad.png").is_none(),
@@ -456,7 +498,9 @@ mod tests {
             "URL not in the table stays a placeholder"
         );
         // No network table at all: http(s) never resolves.
-        assert!(ImageCache::default().resolve("https://example.com/a.png").is_none());
+        assert!(ImageCache::default()
+            .resolve("https://example.com/a.png")
+            .is_none());
     }
 
     /// #112: prefetch decodes a page's unique srcs across scoped worker
@@ -494,7 +538,10 @@ mod tests {
         let all: Vec<String> = urls
             .iter()
             .cloned()
-            .chain(["https://example.com/missing.png".to_string(), "https://example.com/bad.png".to_string()])
+            .chain([
+                "https://example.com/missing.png".to_string(),
+                "https://example.com/bad.png".to_string(),
+            ])
             .collect();
 
         let cache = ImageCache::with_network(&bytes);
@@ -505,7 +552,9 @@ mod tests {
         assert!(Arc::ptr_eq(&early, &again), "prefetch keeps cached Arcs");
 
         for (i, url) in urls.iter().enumerate() {
-            let img = cache.resolve(url).unwrap_or_else(|| panic!("src {i} prefetched"));
+            let img = cache
+                .resolve(url)
+                .unwrap_or_else(|| panic!("src {i} prefetched"));
             assert_eq!(&img.rgba[0..4], &[i as u8, 40, 200, 255], "pixel tag {i}");
         }
         assert!(
@@ -527,7 +576,10 @@ mod tests {
     fn jpeg_decodes_and_sniffs_by_magic() {
         let mut jpeg_bytes = Vec::new();
         image::DynamicImage::from(image::RgbImage::from_raw(4, 2, vec![204u8; 4 * 2 * 3]).unwrap())
-            .write_to(&mut std::io::Cursor::new(&mut jpeg_bytes), image::ImageFormat::Jpeg)
+            .write_to(
+                &mut std::io::Cursor::new(&mut jpeg_bytes),
+                image::ImageFormat::Jpeg,
+            )
             .expect("encodes");
         assert!(jpeg_bytes.starts_with(&[0xFF, 0xD8, 0xFF]), "JPEG magic");
 
@@ -564,19 +616,30 @@ mod tests {
         for y in 0..4u32 {
             for x in 0..6u32 {
                 let red = (x < 3) ^ (y < 2);
-                rgba.extend_from_slice(if red { &[200, 40, 40, 255] } else { &[40, 40, 200, 255] });
+                rgba.extend_from_slice(if red {
+                    &[200, 40, 40, 255]
+                } else {
+                    &[40, 40, 200, 255]
+                });
             }
         }
         let mut webp_bytes = Vec::new();
         image::DynamicImage::from(image::RgbaImage::from_raw(6, 4, rgba.clone()).unwrap())
-            .write_to(&mut std::io::Cursor::new(&mut webp_bytes), image::ImageFormat::WebP)
+            .write_to(
+                &mut std::io::Cursor::new(&mut webp_bytes),
+                image::ImageFormat::WebP,
+            )
             .expect("encodes losslessly");
         assert_eq!(&webp_bytes[0..4], b"RIFF", "RIFF magic");
         assert_eq!(&webp_bytes[8..12], b"WEBP", "WEBP magic");
 
         let decoded = decode_bytes(&webp_bytes).expect("sniffs and decodes WebP");
         assert_eq!((decoded.width, decoded.height), (6, 4));
-        assert_eq!(decoded.rgba.as_slice(), rgba.as_slice(), "lossless round-trip");
+        assert_eq!(
+            decoded.rgba.as_slice(),
+            rgba.as_slice(),
+            "lossless round-trip"
+        );
 
         // Truncated RIFF header declines rather than panicking.
         assert!(decode_bytes(b"RIFF\x00\x00\x00\x00WEB").is_none());
@@ -673,7 +736,12 @@ mod tests {
         let table: HashMap<String, std::sync::Arc<Vec<u8>>> = jpgs
             .iter()
             .enumerate()
-            .map(|(i, b)| (format!("http://grid.test/img{i}.jpg"), std::sync::Arc::new(b.clone())))
+            .map(|(i, b)| {
+                (
+                    format!("http://grid.test/img{i}.jpg"),
+                    std::sync::Arc::new(b.clone()),
+                )
+            })
             .collect();
         let fonts = crate::diting_fonts::font_book();
         let t = Instant::now();
@@ -694,11 +762,8 @@ mod tests {
         assert_eq!(n_img_items, N, "every img must carry decoded pixels");
 
         let t = Instant::now();
-        let mut canvas = crate::diting_layout::paint::Canvas::new_filled(
-            1280,
-            900,
-            [255, 255, 255, 255],
-        );
+        let mut canvas =
+            crate::diting_layout::paint::Canvas::new_filled(1280, 900, [255, 255, 255, 255]);
         crate::diting_layout::paint::execute(&items, &fonts, &mut canvas);
         let t_paint = t.elapsed();
 

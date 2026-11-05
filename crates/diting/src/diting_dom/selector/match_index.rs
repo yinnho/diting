@@ -9,10 +9,12 @@
 use std::collections::{HashMap, HashSet};
 
 use selectors::context::QuirksMode;
-use selectors::matching::{MatchingContext, MatchingForInvalidation, MatchingMode, NeedsSelectorFlags};
+use selectors::matching::{
+    MatchingContext, MatchingForInvalidation, MatchingMode, NeedsSelectorFlags,
+};
 use selectors::parser::{self, SelectorList};
 
-use super::{parse_selector, DomElement, DitingSelector};
+use super::{parse_selector, DitingSelector, DomElement};
 use crate::diting_css::split_top_level_commas;
 use crate::diting_dom::tree::{DomTree, NodeId};
 
@@ -46,7 +48,11 @@ impl DomTree {
     /// Subtree-scoped variant (fabricated iframe documents): probe only the
     /// descendants of `roots`. The document-rooted probe never reaches an
     /// orphan tree, so reusing it there would silently match no rule.
-    pub fn rule_match_sets_within(&self, rule_selectors: &[&str], roots: &[NodeId]) -> RuleMatchSets {
+    pub fn rule_match_sets_within(
+        &self,
+        rule_selectors: &[&str],
+        roots: &[NodeId],
+    ) -> RuleMatchSets {
         let mut probe_ids: Vec<NodeId> = Vec::new();
         for root in roots {
             probe_ids.extend(self.descendants(*root));
@@ -140,12 +146,11 @@ impl DomTree {
                     None => plain_parts.push(p.to_string()),
                 }
             }
-            let routing = (!before_parts.is_empty() || !after_parts.is_empty()).then(|| {
-                PseudoRouting {
+            let routing =
+                (!before_parts.is_empty() || !after_parts.is_empty()).then(|| PseudoRouting {
                     before: parse_selector(&before_parts.join(",")).ok(),
                     after: parse_selector(&after_parts.join(",")).ok(),
-                }
-            });
+                });
             let plain = if plain_parts.is_empty() {
                 None
             } else {
@@ -329,8 +334,11 @@ impl DomTree {
                     let slots = [routing.before.as_ref(), routing.after.as_ref()];
                     for (slot, list) in slots.into_iter().enumerate() {
                         if let Some(list) = list {
-                            if selectors::matching::matches_selector_list(list, &element, &mut context)
-                            {
+                            if selectors::matching::matches_selector_list(
+                                list,
+                                &element,
+                                &mut context,
+                            ) {
                                 pseudo_hits.entry(ri).or_default()[slot].push(desc_id.index());
                             }
                         }
@@ -340,10 +348,11 @@ impl DomTree {
         }
         // The walk is document order, not node-index order; the cascade
         // binary-searches these, so each rule's hit set ends ascending.
-        for rule_hits in hits
-            .values_mut()
-            .chain(pseudo_hits.values_mut().flat_map(|rule_slots| rule_slots.iter_mut()))
-        {
+        for rule_hits in hits.values_mut().chain(
+            pseudo_hits
+                .values_mut()
+                .flat_map(|rule_slots| rule_slots.iter_mut()),
+        ) {
             rule_hits.sort_unstable();
         }
     }
@@ -390,7 +399,11 @@ impl DomTree {
     /// parent chain (:has anchoring); an attribute write only changes the
     /// element, its subtree, its siblings, and its ancestor chain. Anything
     /// the registry cannot express falls back to a full rebuild.
-    pub fn rule_match_sets_incremental(&self, rule_selectors: &[&str], css_key: u64) -> RuleMatchSets {
+    pub fn rule_match_sets_incremental(
+        &self,
+        rule_selectors: &[&str],
+        css_key: u64,
+    ) -> RuleMatchSets {
         let trace = std::env::var("DITING_MATCH_TRACE").is_ok();
         let dirty = self.take_match_dirty();
         let mut cache = match self.take_match_cache(css_key) {
@@ -442,7 +455,10 @@ impl DomTree {
                 specificity: cache.index.specificity.clone(),
                 pseudo_hits,
             };
-            tree.set_match_cache(MatchCacheBox { sets: sets.clone(), ..cache });
+            tree.set_match_cache(MatchCacheBox {
+                sets: sets.clone(),
+                ..cache
+            });
             sets
         };
 
@@ -468,9 +484,7 @@ impl DomTree {
         // count (every root contributes at least itself), so a mass
         // mutation (initial parse, big innerHTML) skips candidate
         // resolution entirely and rebuilds — the pre-incremental cost.
-        let stamp_count = dirty.roots.len()
-            + dirty.purge_roots.len()
-            + dirty.sibling_scopes.len();
+        let stamp_count = dirty.roots.len() + dirty.purge_roots.len() + dirty.sibling_scopes.len();
         if stamp_count.saturating_mul(4) > slots {
             if trace {
                 eprintln!(
@@ -484,7 +498,12 @@ impl DomTree {
         // safe index ceiling: the arena never shrinks, and freed slots that
         // come back carry their own insert stamps.
         let mut candidates: Vec<NodeId> = Vec::new();
-        for root in dirty.roots.iter().copied().chain(dirty.purge_roots.iter().copied()) {
+        for root in dirty
+            .roots
+            .iter()
+            .copied()
+            .chain(dirty.purge_roots.iter().copied())
+        {
             if mark(root) {
                 candidates.push(root);
             }
@@ -530,9 +549,7 @@ impl DomTree {
                         }
                     }
                 }
-                chain = self
-                    .with_node(c, |n| n.parent)
-                    .flatten();
+                chain = self.with_node(c, |n| n.parent).flatten();
             }
             for c in self.children(*parent) {
                 if mark(c) {
@@ -557,12 +574,13 @@ impl DomTree {
         // rebuild probes only document+shadow descendants), and a freed
         // slot's stale hits die here too.
         let candidates_len = candidates.len();
-        for rule_hits in cache
-            .sets
-            .hits
-            .values_mut()
-            .chain(cache.sets.pseudo_hits.values_mut().flat_map(|s| s.iter_mut()))
-        {
+        for rule_hits in cache.sets.hits.values_mut().chain(
+            cache
+                .sets
+                .pseudo_hits
+                .values_mut()
+                .flat_map(|s| s.iter_mut()),
+        ) {
             rule_hits.retain(|&i| !(i < slots && seen[i]));
         }
         // A fresh build only keys rules that matched at least one element;
@@ -653,7 +671,10 @@ fn subtree_node_is_has_subject(
     }
     if let Some(id) = id {
         if index.has_subject_ids.contains(id.as_str())
-            || (index.quirks && index.has_subject_ids.contains(id.to_ascii_lowercase().as_str()))
+            || (index.quirks
+                && index
+                    .has_subject_ids
+                    .contains(id.to_ascii_lowercase().as_str()))
         {
             return true;
         }
@@ -662,7 +683,9 @@ fn subtree_node_is_has_subject(
         for tok in class.split_ascii_whitespace() {
             if index.has_subject_classes.contains(tok)
                 || (index.quirks
-                    && index.has_subject_classes.contains(tok.to_ascii_lowercase().as_str()))
+                    && index
+                        .has_subject_classes
+                        .contains(tok.to_ascii_lowercase().as_str()))
             {
                 return true;
             }

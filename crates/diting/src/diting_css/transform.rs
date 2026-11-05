@@ -101,7 +101,10 @@ pub(crate) fn parse_transform_with_vp(v: &str, vw: f32, vh: f32) -> Option<Trans
     // turn, grad. Bare nonzero numbers are invalid CSS (Chrome rejects).
     let angle = parse_angle_deg;
     let mut t = Transform2D {
-        a: 1.0, b: 0.0, c: 0.0, d: 1.0,
+        a: 1.0,
+        b: 0.0,
+        c: 0.0,
+        d: 1.0,
         tx: Length::Px(0.0),
         ty: Length::Px(0.0),
     };
@@ -214,7 +217,9 @@ pub(crate) fn parse_transform_with_vp(v: &str, vw: f32, vh: f32) -> Option<Trans
                 compose_linear(&mut t, 1.0, angle(arg)?.to_radians().tan(), 0.0, 1.0);
             }
             "matrix" => {
-                let [fa, fb, fc, fd, fe, ff] = parts.as_slice() else { return None };
+                let [fa, fb, fc, fd, fe, ff] = parts.as_slice() else {
+                    return None;
+                };
                 let (fa, fb, fc, fd) = (num(fa)?, num(fb)?, num(fc)?, num(fd)?);
                 let (fe, ff) = (num(fe)?, num(ff)?);
                 // e/f are plain numbers (px in matrix units) that map through

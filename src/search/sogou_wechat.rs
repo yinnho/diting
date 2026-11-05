@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Sogou WeChat search engine. Searches WeChat public account articles.
 ///
@@ -65,9 +65,13 @@ async fn reqwest_search_and_resolve(
     );
 
     // Step 1: Search with plain reqwest, collect cookies.
-    let resp = match plain_client.get(&search_url)
+    let resp = match plain_client
+        .get(&search_url)
         .header("User-Agent", diting::chrome_target::UA_DEFAULT)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .header(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
         .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
         .send()
         .await
@@ -75,7 +79,10 @@ async fn reqwest_search_and_resolve(
         Ok(r) => r,
         Err(e) => {
             tracing::warn!("sogou_wechat: reqwest search failed: {}", e);
-            return Err(SearchEngineError::Transient(format!("search request failed: {}", e)));
+            return Err(SearchEngineError::Transient(format!(
+                "search request failed: {}",
+                e
+            )));
         }
     };
 
@@ -92,13 +99,20 @@ async fn reqwest_search_and_resolve(
         }
     }
     let cookie_header = cookies.join("; ");
-    tracing::debug!("sogou_wechat: reqwest search cookies: '{}' len={}", cookie_header, cookie_header.len());
+    tracing::debug!(
+        "sogou_wechat: reqwest search cookies: '{}' len={}",
+        cookie_header,
+        cookie_header.len()
+    );
 
     let html = match resp.text().await {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!("sogou_wechat: reqwest search read body failed: {}", e);
-            return Err(SearchEngineError::Transient(format!("read body failed: {}", e)));
+            return Err(SearchEngineError::Transient(format!(
+                "read body failed: {}",
+                e
+            )));
         }
     };
 
@@ -116,7 +130,10 @@ async fn reqwest_search_and_resolve(
         Ok(r) => r,
         Err(e) => {
             tracing::warn!("sogou_wechat: reqwest parse failed: {:?}", e);
-            return Err(SearchEngineError::Transient(format!("parse failed: {:?}", e)));
+            return Err(SearchEngineError::Transient(format!(
+                "parse failed: {:?}",
+                e
+            )));
         }
     };
 
@@ -130,9 +147,13 @@ async fn reqwest_search_and_resolve(
             continue;
         }
 
-        let mut req = plain_client.get(&result.url)
+        let mut req = plain_client
+            .get(&result.url)
             .header("User-Agent", diting::chrome_target::UA_DEFAULT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            )
             .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
             .header("Referer", &search_url);
 
@@ -153,15 +174,21 @@ async fn reqwest_search_and_resolve(
                             result.url = loc.to_string();
                         } else if loc.starts_with("http") {
                             // Follow one more hop.
-                            if let Ok(next) = plain_client.get(loc)
+                            if let Ok(next) = plain_client
+                                .get(loc)
                                 .header("User-Agent", diting::chrome_target::UA_DEFAULT)
-                                .send().await
+                                .send()
+                                .await
                             {
                                 if next.status().is_redirection() {
                                     if let Some(loc2) = next.headers().get("location") {
                                         let loc2_str = loc2.to_str().unwrap_or("");
                                         if loc2_str.contains("mp.weixin.qq.com") {
-                                            tracing::debug!("sogou_wechat: resolved {} -> {}", result.url, loc2_str);
+                                            tracing::debug!(
+                                                "sogou_wechat: resolved {} -> {}",
+                                                result.url,
+                                                loc2_str
+                                            );
                                             result.url = loc2_str.to_string();
                                         }
                                     }
@@ -173,7 +200,11 @@ async fn reqwest_search_and_resolve(
                     // 200 with HTML — might contain meta/JS redirect.
                     if let Ok(body) = resp.text().await {
                         if let Some(real_url) = extract_weixin_url_from_html(&body) {
-                            tracing::debug!("sogou_wechat: resolved (200) {} -> {}", result.url, real_url);
+                            tracing::debug!(
+                                "sogou_wechat: resolved (200) {} -> {}",
+                                result.url,
+                                real_url
+                            );
                             result.url = real_url;
                         }
                     }
@@ -212,7 +243,11 @@ fn extract_weixin_url_from_html(html: &str) -> Option<String> {
     if !fragments.is_empty() {
         let full_url: String = fragments.join("");
         if full_url.contains("mp.weixin.qq.com") || full_url.contains("weixin.qq") {
-            tracing::debug!("sogou_wechat: reconstructed URL from {} fragments: {}", fragments.len(), full_url);
+            tracing::debug!(
+                "sogou_wechat: reconstructed URL from {} fragments: {}",
+                fragments.len(),
+                full_url
+            );
             return Some(full_url);
         }
     }
@@ -228,7 +263,14 @@ fn extract_weixin_url_from_html(html: &str) -> Option<String> {
     }
 
     // Strategy 3: Look for location.href or window.location in JS.
-    for pattern in &["location.href=\"", "location.href='", "location=\"", "location='", "window.location=\"", "window.location='"] {
+    for pattern in &[
+        "location.href=\"",
+        "location.href='",
+        "location=\"",
+        "location='",
+        "window.location=\"",
+        "window.location='",
+    ] {
         if let Some(start) = html.find(pattern) {
             let rest = &html[start + pattern.len()..];
             let end = rest.find(['"', '\'']).unwrap_or(rest.len());
@@ -247,7 +289,9 @@ fn extract_weixin_url_from_html(html: &str) -> Option<String> {
         let proto_start = before.rfind("http").unwrap_or(0);
         let url_start = &html[proto_start..];
         // Find the end of the URL.
-        let end = url_start.find(['"', '\'', '<', ' ', '\\', '\n']).unwrap_or(url_start.len());
+        let end = url_start
+            .find(['"', '\'', '<', ' ', '\\', '\n'])
+            .unwrap_or(url_start.len());
         let url = &url_start[..end];
         if url.starts_with("http") && url.contains("weixin.qq") {
             return Some(url.to_string());

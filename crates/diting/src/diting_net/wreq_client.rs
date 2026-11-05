@@ -15,9 +15,9 @@ use tokio::sync::RwLock;
 use url::Url;
 
 #[cfg(feature = "stealth")]
-use crate::diting_net::cookies::CookieJar;
+use crate::diting_net::client::{NetError, ResourceType, Response};
 #[cfg(feature = "stealth")]
-use crate::diting_net::client::{Response, NetError, ResourceType};
+use crate::diting_net::cookies::CookieJar;
 
 #[cfg(feature = "stealth")]
 pub const STEALTH_USER_AGENT: &str = crate::chrome_target::UA_DEFAULT;
@@ -105,11 +105,7 @@ fn fingerprint_family_version(name: &str) -> Option<(&'static str, u32)> {
         "edge" => "edge",
         _ => return None,
     };
-    let major = lower[digits..]
-        .split(['_', '.'])
-        .next()?
-        .parse()
-        .ok()?;
+    let major = lower[digits..].split(['_', '.']).next()?.parse().ok()?;
     Some((family, major))
 }
 
@@ -142,7 +138,8 @@ mod face_tripwire {
             .parse()
             .unwrap_or_else(|_| panic!("default preset tail is numeric: {tail}"));
         assert_eq!(
-            major, super::CLAIMED_CHROME_MAJOR,
+            major,
+            super::CLAIMED_CHROME_MAJOR,
             "TLS preset face and claimed UA major must move together"
         );
     }
@@ -369,7 +366,10 @@ impl StealthHttpClient {
             std::env::var_os("SSL_CERT_FILE").as_deref(),
             std::env::var_os("SSL_CERT_DIR").as_deref(),
         ) {
-            match diting_wire::tls::trust::CertStore::builder().set_default_paths().build() {
+            match diting_wire::tls::trust::CertStore::builder()
+                .set_default_paths()
+                .build()
+            {
                 Ok(store) => builder = builder.tls_cert_store(store),
                 Err(e) => {
                     tracing::warn!(
@@ -393,7 +393,9 @@ impl StealthHttpClient {
             }
         }
 
-        builder.build().expect("failed to build wreq stealth client")
+        builder
+            .build()
+            .expect("failed to build wreq stealth client")
     }
 
     pub fn with_proxy(cookie_jar: Arc<CookieJar>, proxy_url: Option<&str>) -> Self {
@@ -412,7 +414,8 @@ impl StealthHttpClient {
             cookie_jar,
             proxy_url,
             os_override,
-            parse_tls_fingerprint(DEFAULT_TLS_FINGERPRINT).unwrap_or_else(crate::chrome_target::target_tls_profile),
+            parse_tls_fingerprint(DEFAULT_TLS_FINGERPRINT)
+                .unwrap_or_else(crate::chrome_target::target_tls_profile),
         )
     }
 
@@ -429,14 +432,17 @@ impl StealthHttpClient {
         // same cell `validate_url` consults, so the two doors can never
         // disagree about what is allowed.
         let allow_flag = Arc::new(AtomicBool::new(false));
-        let proxied_client =
-            proxy_url.map(|_| Self::build_stealth_client_with_os(proxy_url, os_override, emulation, None));
-        let direct_client =
-            Self::build_stealth_client_with_os(None, os_override, emulation, Some(allow_flag.clone()));
+        let proxied_client = proxy_url
+            .map(|_| Self::build_stealth_client_with_os(proxy_url, os_override, emulation, None));
+        let direct_client = Self::build_stealth_client_with_os(
+            None,
+            os_override,
+            emulation,
+            Some(allow_flag.clone()),
+        );
         let auto_proxied_client = if proxy_url.is_none() {
-            crate::env_knobs::proxy_from_env().map(|p| {
-                Self::build_stealth_client_with_os(Some(&p), os_override, emulation, None)
-            })
+            crate::env_knobs::proxy_from_env()
+                .map(|p| Self::build_stealth_client_with_os(Some(&p), os_override, emulation, None))
         } else {
             None
         };
@@ -449,7 +455,8 @@ impl StealthHttpClient {
             cookie_jar,
             extra_headers: RwLock::new(HashMap::new()),
             user_agent: RwLock::new(
-                std::env::var("DITING_UA").unwrap_or_else(|_| crate::chrome_target::UA_DEFAULT.to_string()),
+                std::env::var("DITING_UA")
+                    .unwrap_or_else(|_| crate::chrome_target::UA_DEFAULT.to_string()),
             ),
             accept_language: RwLock::new(
                 std::env::var("DITING_ACCEPT_LANGUAGE")
@@ -478,7 +485,17 @@ impl StealthHttpClient {
     }
 
     pub async fn fetch(&self, url: &Url) -> Result<Response, NetError> {
-        self.fetch_inner(url, None, diting_wire::Method::GET, None, None, None, true, ResourceType::Document).await
+        self.fetch_inner(
+            url,
+            None,
+            diting_wire::Method::GET,
+            None,
+            None,
+            None,
+            true,
+            ResourceType::Document,
+        )
+        .await
     }
 
     /// Navigation fetch (`fetch_document`): like [`fetch`] but carrying the
@@ -490,8 +507,17 @@ impl StealthHttpClient {
         url: &Url,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
-        self.fetch_inner(url, referrer, diting_wire::Method::GET, None, None, None, true, ResourceType::Document)
-            .await
+        self.fetch_inner(
+            url,
+            referrer,
+            diting_wire::Method::GET,
+            None,
+            None,
+            None,
+            true,
+            ResourceType::Document,
+        )
+        .await
     }
 
     /// Subresource GET (band-paint image fetch, 反馈⑫ shape): like [`fetch`]
@@ -504,8 +530,17 @@ impl StealthHttpClient {
         url: &Url,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
-        self.fetch_inner(url, referrer, diting_wire::Method::GET, None, None, None, true, ResourceType::Image)
-            .await
+        self.fetch_inner(
+            url,
+            referrer,
+            diting_wire::Method::GET,
+            None,
+            None,
+            None,
+            true,
+            ResourceType::Image,
+        )
+        .await
     }
 
     /// Classic `<script src>` on a stealth page. Uses the same `diting_wire::Client`
@@ -551,8 +586,17 @@ impl StealthHttpClient {
     ) -> Result<Response, NetError> {
         let method = diting_wire::Method::from_bytes(method.as_bytes())
             .map_err(|e| NetError::Network(format!("invalid method {method:?}: {e}")))?;
-        self.fetch_inner(url, referrer, method, body, content_type, request_headers, include_cookies, ResourceType::Fetch)
-            .await
+        self.fetch_inner(
+            url,
+            referrer,
+            method,
+            body,
+            content_type,
+            request_headers,
+            include_cookies,
+            ResourceType::Fetch,
+        )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -654,14 +698,10 @@ impl StealthHttpClient {
             if !request_local("sec-ch-ua") && !extra.contains_key("Sec-Ch-Ua") {
                 req = req.header("Sec-Ch-Ua", &sec_ch_ua);
             }
-            if !request_local("sec-ch-ua-mobile")
-                && !extra.contains_key("Sec-Ch-Ua-Mobile")
-            {
+            if !request_local("sec-ch-ua-mobile") && !extra.contains_key("Sec-Ch-Ua-Mobile") {
                 req = req.header("Sec-Ch-Ua-Mobile", "?0");
             }
-            if !request_local("sec-ch-ua-platform")
-                && !extra.contains_key("Sec-Ch-Ua-Platform")
-            {
+            if !request_local("sec-ch-ua-platform") && !extra.contains_key("Sec-Ch-Ua-Platform") {
                 req = req.header("Sec-Ch-Ua-Platform", &platform);
             }
 
@@ -779,20 +819,38 @@ impl StealthHttpClient {
             // its own "zstd,gzip,deflate,br" last; navigation/fetch priority
             // also differs (`u=0, i` is only the top-level document).
             if !request_local("accept-encoding") && !extra.contains_key("Accept-Encoding") {
-                req = req.header("Accept-Encoding", crate::diting_net::chrome_headers::ACCEPT_ENCODING);
+                req = req.header(
+                    "Accept-Encoding",
+                    crate::diting_net::chrome_headers::ACCEPT_ENCODING,
+                );
             }
             if !request_local("priority") && !extra.contains_key("Priority") {
-                req = req.header("Priority", crate::diting_net::chrome_headers::priority(resource_type));
+                req = req.header(
+                    "Priority",
+                    crate::diting_net::chrome_headers::priority(resource_type),
+                );
             }
-            if method != diting_wire::Method::GET && method != diting_wire::Method::HEAD && !request_local("content-length") {
-                req = req.header("Content-Length", body.map(|b| b.len()).unwrap_or(0).to_string());
+            if method != diting_wire::Method::GET
+                && method != diting_wire::Method::HEAD
+                && !request_local("content-length")
+            {
+                req = req.header(
+                    "Content-Length",
+                    body.map(|b| b.len()).unwrap_or(0).to_string(),
+                );
             }
             {
                 let navigation = crate::diting_net::client::metadata::is_navigation(resource_type);
                 let authored = request_headers
-                    .map(|h| crate::diting_net::chrome_headers::has_author_headers(h.keys().map(|k| k.as_str())))
+                    .map(|h| {
+                        crate::diting_net::chrome_headers::has_author_headers(
+                            h.keys().map(|k| k.as_str()),
+                        )
+                    })
                     .unwrap_or(false)
-                    || crate::diting_net::chrome_headers::has_author_headers(extra.keys().map(|k| k.as_str()));
+                    || crate::diting_net::chrome_headers::has_author_headers(
+                        extra.keys().map(|k| k.as_str()),
+                    );
                 // `accept: */*` is what the browser itself sends when the page
                 // set nothing, and the page layer mirrors it into
                 // `request_headers`; only a different value is author-set (its
@@ -823,7 +881,10 @@ impl StealthHttpClient {
                     r.headers()
                         .iter()
                         .map(|(k, v)| {
-                            (k.as_str().to_lowercase(), v.to_str().unwrap_or("").to_string())
+                            (
+                                k.as_str().to_lowercase(),
+                                v.to_str().unwrap_or("").to_string(),
+                            )
                         })
                         .collect()
                 })
@@ -880,12 +941,12 @@ impl StealthHttpClient {
 
             if status.is_redirection() {
                 if let Some(location) = resp.headers().get("location") {
-                    let location_str = location.to_str().map_err(|_| {
-                        NetError::Network("Invalid redirect Location".into())
-                    })?;
-                    let next_url = current_url.join(location_str).map_err(|e| {
-                        NetError::Network(format!("Invalid redirect URL: {}", e))
-                    })?;
+                    let location_str = location
+                        .to_str()
+                        .map_err(|_| NetError::Network("Invalid redirect Location".into()))?;
+                    let next_url = current_url
+                        .join(location_str)
+                        .map_err(|e| NetError::Network(format!("Invalid redirect URL: {}", e)))?;
                     // A redirect must not be able to bounce the stealth client
                     // to a forbidden target (e.g. 302 -> http://127.0.0.1/).
                     crate::diting_net::client::validate_url(
@@ -917,9 +978,11 @@ impl StealthHttpClient {
                 }
             }
 
-            let body = resp.bytes().await.map_err(|e| {
-                NetError::Network(format!("Failed to read body: {}", e))
-            })?.to_vec();
+            let body = resp
+                .bytes()
+                .await
+                .map_err(|e| NetError::Network(format!("Failed to read body: {}", e)))?
+                .to_vec();
 
             return Ok(Response {
                 url: current_url,

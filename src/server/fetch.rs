@@ -520,8 +520,7 @@ async fn prefetch_resource_facts(page: &mut crate::page::Page) -> Vec<crate::Res
         let t0 = std::time::Instant::now();
         let html = page.content();
         let url = page.url();
-        let fetched =
-            crate::screenshot::prefetch_render_resources(page, &url, &html, 1280.0).await;
+        let fetched = crate::screenshot::prefetch_render_resources(page, &url, &html, 1280.0).await;
         let facts = resource_facts(&fetched);
         tracing::info!(
             "fetch resources forced: {} bodies, {} with dimensions, in {:?}",
@@ -634,4 +633,3 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
         })
     })
 }
-

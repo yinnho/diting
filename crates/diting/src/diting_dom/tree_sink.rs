@@ -47,7 +47,9 @@ impl TreeSink for DomTree {
 
     fn elem_name<'a>(&'a self, target: &'a NodeId) -> DitingElemName<'a> {
         let borrow = self.borrow_inner();
-        let node = borrow.nodes.get(target.index())
+        let node = borrow
+            .nodes
+            .get(target.index())
             .and_then(|n| n.as_ref())
             .expect("elem_name called on invalid node");
         let name_ptr: *const QualName = match &node.data {
@@ -88,7 +90,10 @@ impl TreeSink for DomTree {
         if flags.template {
             let template_doc = self.new_node(NodeData::Document);
             self.with_node_mut(id, |node| {
-                if let NodeData::Element { template_contents, .. } = &mut node.data {
+                if let NodeData::Element {
+                    template_contents, ..
+                } = &mut node.data
+                {
                     *template_contents = Some(template_doc);
                 }
             });
@@ -127,7 +132,9 @@ impl TreeSink for DomTree {
         prev_element: &NodeId,
         child: NodeOrText<NodeId>,
     ) {
-        let has_parent = self.with_node(*element, |n| n.parent.is_some()).unwrap_or(false);
+        let has_parent = self
+            .with_node(*element, |n| n.parent.is_some())
+            .unwrap_or(false);
         if has_parent {
             self.append_before_sibling(element, child);
         } else {
@@ -152,7 +159,10 @@ impl TreeSink for DomTree {
 
     fn add_attrs_if_missing(&self, target: &NodeId, attrs: Vec<HtmlAttribute>) {
         self.with_node_mut(*target, |node| {
-            if let NodeData::Element { attrs: existing, .. } = &mut node.data {
+            if let NodeData::Element {
+                attrs: existing, ..
+            } = &mut node.data
+            {
                 for attr in attrs {
                     let dominated = existing.iter().any(|a| a.name == attr.name);
                     if !dominated {
@@ -210,7 +220,9 @@ impl TreeSink for DomTree {
 
     fn get_template_contents(&self, target: &NodeId) -> NodeId {
         self.with_node(*target, |n| match &n.data {
-            NodeData::Element { template_contents, .. } => *template_contents,
+            NodeData::Element {
+                template_contents, ..
+            } => *template_contents,
             _ => None,
         })
         .flatten()
@@ -240,9 +252,10 @@ impl TreeSink for DomTree {
 
     fn is_mathml_annotation_xml_integration_point(&self, target: &NodeId) -> bool {
         self.with_node(*target, |n| match &n.data {
-            NodeData::Element { mathml_annotation_xml_integration_point, .. } => {
-                *mathml_annotation_xml_integration_point
-            }
+            NodeData::Element {
+                mathml_annotation_xml_integration_point,
+                ..
+            } => *mathml_annotation_xml_integration_point,
             _ => false,
         })
         .unwrap_or(false)
@@ -300,7 +313,13 @@ fn upgrade_declarative_shadow_roots(tree: &DomTree, scope: NodeId) {
     while let Some(node) = stack.pop() {
         for child in tree.children(node) {
             let declarative = tree.with_node(child, |n| {
-                let NodeData::Element { name, attrs, template_contents, .. } = &n.data else {
+                let NodeData::Element {
+                    name,
+                    attrs,
+                    template_contents,
+                    ..
+                } = &n.data
+                else {
                     return None;
                 };
                 if name.local != local_name!("template") {
@@ -320,11 +339,8 @@ fn upgrade_declarative_shadow_roots(tree: &DomTree, scope: NodeId) {
                 }
             });
             if let Some((mode, Some(host), Some(contents))) = declarative.flatten() {
-                let host_is_element =
-                    tree.with_node(host, |n| n.is_element()).unwrap_or(false);
-                if host_is_element
-                    && tree.attach_shadow_root_node(host, contents, mode).is_ok()
-                {
+                let host_is_element = tree.with_node(host, |n| n.is_element()).unwrap_or(false);
+                if host_is_element && tree.attach_shadow_root_node(host, contents, mode).is_ok() {
                     // The contents fragment is now a registered shadow root,
                     // so removing the shell cannot free it
                     // (inclusive_owned_subtrees only follows light children
@@ -426,7 +442,10 @@ mod tests {
         // The shell is gone: the host's light tree is empty.
         assert!(tree.children(host).is_empty());
         let root = tree.shadow_root(host).expect("shadow root attached");
-        assert_eq!(tree.shadow_root_info(root).unwrap().mode, ShadowRootMode::Open);
+        assert_eq!(
+            tree.shadow_root_info(root).unwrap().mode,
+            ShadowRootMode::Open
+        );
         let kids = tree.children(root);
         assert_eq!(kids.len(), 1);
         assert_eq!(tag_of(&tree, kids[0]), "span");
@@ -443,7 +462,10 @@ mod tests {
         let host = tree.get_element_by_id("h").unwrap();
         assert!(tree.children(host).is_empty());
         let root = tree.shadow_root(host).expect("closed root attached");
-        assert_eq!(tree.shadow_root_info(root).unwrap().mode, ShadowRootMode::Closed);
+        assert_eq!(
+            tree.shadow_root_info(root).unwrap().mode,
+            ShadowRootMode::Closed
+        );
         assert_eq!(tree.text_content(root), "x");
     }
 
@@ -472,13 +494,18 @@ mod tests {
         let kids = tree.children(outer_root);
         assert_eq!(tag_of(&tree, kids[0]), "section");
         let inner_root = tree.shadow_root(kids[0]).expect("nested root");
-        assert_eq!(tree.shadow_root_info(inner_root).unwrap().mode, ShadowRootMode::Closed);
+        assert_eq!(
+            tree.shadow_root_info(inner_root).unwrap().mode,
+            ShadowRootMode::Closed
+        );
         assert_eq!(tree.text_content(inner_root), "deep");
     }
 
     #[test]
     fn declarative_shadow_fragment_parse() {
-        let tree = parse_fragment(r#"<div id="f"><template shadowrootmode="open"><span>frag</span></template></div>"#);
+        let tree = parse_fragment(
+            r#"<div id="f"><template shadowrootmode="open"><span>frag</span></template></div>"#,
+        );
         let host = tree.get_element_by_id("f").unwrap();
         assert!(tree.children(host).is_empty());
         let root = tree.shadow_root(host).expect("fragment shadow root");

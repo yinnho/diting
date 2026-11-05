@@ -28,18 +28,28 @@ struct Table {
 impl Table {
     fn new() -> Self {
         Table {
-            nodes: vec![Node { name: String::new(), children: Vec::new() }],
+            nodes: vec![Node {
+                name: String::new(),
+                children: Vec::new(),
+            }],
             stack: Vec::new(),
             anon: 0,
             ranks: None,
         }
     }
     fn child(&mut self, parent: usize, name: &str) -> usize {
-        if let Some(&c) = self.nodes[parent].children.iter().find(|&&c| self.nodes[c].name == name) {
+        if let Some(&c) = self.nodes[parent]
+            .children
+            .iter()
+            .find(|&&c| self.nodes[c].name == name)
+        {
             return c;
         }
         let id = self.nodes.len();
-        self.nodes.push(Node { name: name.to_string(), children: Vec::new() });
+        self.nodes.push(Node {
+            name: name.to_string(),
+            children: Vec::new(),
+        });
         self.nodes[parent].children.push(id);
         self.ranks = None;
         id
@@ -127,6 +137,9 @@ pub(crate) fn rank(id: u32) -> u32 {
             }
             t.ranks = Some(ranks);
         }
-        t.ranks.as_ref().map(|r| r.get(id as usize).copied().unwrap_or(u32::MAX)).unwrap_or(u32::MAX)
+        t.ranks
+            .as_ref()
+            .map(|r| r.get(id as usize).copied().unwrap_or(u32::MAX))
+            .unwrap_or(u32::MAX)
     })
 }

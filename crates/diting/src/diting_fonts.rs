@@ -121,13 +121,16 @@ pub fn font_ctx_bundled_only() -> parley::FontContext {
 #[cfg(feature = "blitz-reference")]
 fn build_ctx(system_fonts: bool) -> parley::FontContext {
     use parley::fontique::{
-        Collection, CollectionOptions, FontInfoOverride, FontStyle, FallbackKey, GenericFamily,
+        Collection, CollectionOptions, FallbackKey, FontInfoOverride, FontStyle, GenericFamily,
         Script, SourceCache,
     };
 
     let mut ctx = parley::FontContext {
         source_cache: SourceCache::new_shared(),
-        collection: Collection::new(CollectionOptions { shared: false, system_fonts }),
+        collection: Collection::new(CollectionOptions {
+            shared: false,
+            system_fonts,
+        }),
     };
     let mut families = Vec::new();
     for (bytes, weight) in [(REGULAR, 400.0), (BOLD, 700.0)] {
@@ -147,10 +150,17 @@ fn build_ctx(system_fonts: bool) -> parley::FontContext {
         // — `set_fallbacks` replaces, so chain the previous list back on.
         let key = FallbackKey::new(Script::from_bytes(*b"Hani"), None);
         let existing: Vec<_> = ctx.collection.fallback_families(key).collect();
-        let _ = ctx.collection.set_fallbacks(key, families.iter().copied().chain(existing));
+        let _ = ctx
+            .collection
+            .set_fallbacks(key, families.iter().copied().chain(existing));
         // A machine with no fonts at all must still resolve generic text.
-        for generic in [GenericFamily::SansSerif, GenericFamily::Serif, GenericFamily::Monospace] {
-            ctx.collection.append_generic_families(generic, families.iter().copied());
+        for generic in [
+            GenericFamily::SansSerif,
+            GenericFamily::Serif,
+            GenericFamily::Monospace,
+        ] {
+            ctx.collection
+                .append_generic_families(generic, families.iter().copied());
         }
     }
     ctx
@@ -212,12 +222,12 @@ pub(crate) fn platform_emoji_font() -> Option<FaceBytes> {
         "/usr/share/fonts/google-noto-color-emoji/NotoColorEmoji.ttf",
     ];
     #[cfg(target_os = "windows")]
-    const CANDIDATES: &[&str] = &[
-        r"C:\Windows\Fonts\seguiemj.ttf",
-    ];
+    const CANDIDATES: &[&str] = &[r"C:\Windows\Fonts\seguiemj.ttf"];
 
     // Mapped, not read: Apple's file is 183 MB and a page touches a sliver.
-    CANDIDATES.iter().find_map(|path| FaceBytes::map_file(std::path::Path::new(path)))
+    CANDIDATES
+        .iter()
+        .find_map(|path| FaceBytes::map_file(std::path::Path::new(path)))
 }
 
 /// The bundled pair as owned bytes — the raster-cache tests in
@@ -263,7 +273,15 @@ mod tests {
             let w = book.advance_width(&ch.to_string(), 20.0, false, false, None);
             assert!((w - 20.0).abs() < 0.05, "{ch}: advance {w} (want one em)");
         }
-        let raster = book.rasterize("汉字渲染", 24.0, false, [0, 0, 0, 255], 24.0 * 1.2, false, None);
+        let raster = book.rasterize(
+            "汉字渲染",
+            24.0,
+            false,
+            [0, 0, 0, 255],
+            24.0 * 1.2,
+            false,
+            None,
+        );
         assert!(raster.ink_bbox().is_some(), "bundle raster must have ink");
     }
 
@@ -277,7 +295,15 @@ mod tests {
         let book = font_book();
         let sample = "·—–…✓→←↑↓●○◆◇■□▲△▼▽★☆";
         for ch in sample.chars() {
-            let raster = book.rasterize(&ch.to_string(), 24.0, false, [0, 0, 0, 255], 24.0 * 1.2, false, None);
+            let raster = book.rasterize(
+                &ch.to_string(),
+                24.0,
+                false,
+                [0, 0, 0, 255],
+                24.0 * 1.2,
+                false,
+                None,
+            );
             assert!(
                 raster.ink_bbox().is_some(),
                 "{ch} (U+{:04X}) must have ink",
@@ -299,7 +325,10 @@ mod tests {
             return;
         }
         let book = font_book();
-        assert!(book.has_fallbacks(), "the emoji face must load as a fallback");
+        assert!(
+            book.has_fallbacks(),
+            "the emoji face must load as a fallback"
+        );
 
         let adv_cjk = book.advance_width("字字", 24.0, false, false, None);
         let adv_mixed = book.advance_width("字🚀字", 24.0, false, false, None);
@@ -315,7 +344,10 @@ mod tests {
             .chunks_exact(4)
             .filter(|p| {
                 p[3] > 128
-                    && (p[0] as i32 - p[1] as i32).abs().max((p[1] as i32 - p[2] as i32).abs()) > 32
+                    && (p[0] as i32 - p[1] as i32)
+                        .abs()
+                        .max((p[1] as i32 - p[2] as i32).abs())
+                        > 32
             })
             .count();
         assert!(
@@ -340,7 +372,10 @@ mod tests {
             None,
             None,
         );
-        assert!(wrapped.ink_bbox().is_some(), "wrapped mixed run must have ink");
+        assert!(
+            wrapped.ink_bbox().is_some(),
+            "wrapped mixed run must have ink"
+        );
     }
 
     /// The production wiring (mono batch): the real book carries the mono
@@ -352,7 +387,10 @@ mod tests {
     fn bundled_mono_face_routes_ascii() {
         let book = font_book();
         let mono = book.advance_width("0000000000", 20.0, false, true, None);
-        assert!((mono - 120.0).abs() < 0.01, "10 × 0.6em = 120px, got {mono}");
+        assert!(
+            (mono - 120.0).abs() < 0.01,
+            "10 × 0.6em = 120px, got {mono}"
+        );
         let sans = book.advance_width("0000000000", 20.0, false, false, None);
         assert!(
             (sans - mono).abs() > 1.0,

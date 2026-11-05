@@ -59,7 +59,11 @@ pub(crate) fn new_frame() -> u32 {
 pub(crate) fn drain_pending(frame: u32) -> Vec<NodeId> {
     PENDING.with(|p| {
         let mut p = p.borrow_mut();
-        let mine = p.iter().filter(|(f, _)| *f == frame).map(|(_, n)| *n).collect();
+        let mine = p
+            .iter()
+            .filter(|(f, _)| *f == frame)
+            .map(|(_, n)| *n)
+            .collect();
         p.retain(|(f, _)| *f != frame);
         mine
     })
@@ -155,8 +159,8 @@ pub(crate) fn seg_ranges(nodes: &[NodeId], lens: &[u32]) -> Vec<(NodeId, i32, u3
 }
 
 // Moved out of mod.rs (god-file ratchet): inline-run edge whitespace trimming.
-use super::TextLeaf;
 use super::flow_tree::FlowTree as TaffyTree;
+use super::TextLeaf;
 
 /// CSS §16.6.1: collapsible whitespace at the edges of an inline formatting
 /// context contributes no width. The pure-text path already trims edges
@@ -175,7 +179,11 @@ pub(super) fn trim_run_edge_whitespace(
             Some(TextLeaf::Word { text, .. }) if text.trim().is_empty()
         )
     };
-    while leaves.first().copied().is_some_and(|n| is_ws(taffy_tree, n)) {
+    while leaves
+        .first()
+        .copied()
+        .is_some_and(|n| is_ws(taffy_tree, n))
+    {
         let _ = taffy_tree.remove(leaves.remove(0));
     }
     while leaves.last().copied().is_some_and(|n| is_ws(taffy_tree, n)) {

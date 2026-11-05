@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Bing News via the infinite-scroll AJAX fragment — the route SearXNG's
 /// bing_news engine has served since it abandoned `format=RSS`. The RSS
@@ -16,10 +16,7 @@ impl BingNewsEngine {
     }
 }
 
-const BN_HEADERS: &[(&str, &str)] = &[(
-    "User-Agent",
-    diting::chrome_target::UA_DEFAULT,
-)];
+const BN_HEADERS: &[(&str, &str)] = &[("User-Agent", diting::chrome_target::UA_DEFAULT)];
 
 #[async_trait]
 impl SearchEngine for BingNewsEngine {
@@ -80,7 +77,8 @@ impl SearchEngine for BingNewsEngine {
                 && !body.to_ascii_lowercase().contains("object moved")
         }
         let body =
-            super::get_direct_first_if(&url, BN_HEADERS, super::proxied_plain_client, is_fragment).await?;
+            super::get_direct_first_if(&url, BN_HEADERS, super::proxied_plain_client, is_fragment)
+                .await?;
         parse_bing_news_fragment(&body)
     }
 }
@@ -89,9 +87,7 @@ impl SearchEngine for BingNewsEngine {
 /// `a.title` (link), `div.snippet` (text), and a source bar whose
 /// aria-labelled spans name the publisher and age — folded into the snippet
 /// the way the RSS engine folded pubDate.
-fn parse_bing_news_fragment(
-    body: &str,
-) -> Result<Vec<RawSearchResult>, SearchEngineError> {
+fn parse_bing_news_fragment(body: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
     let document = scraper::Html::parse_document(body);
 
     let item_selector = scraper::Selector::parse("div.newsitem")
@@ -226,7 +222,10 @@ mod tests {
         let results = parse_bing_news_fragment(FRAGMENT).unwrap();
         // No source bar, but the anchor carries data-author — the other half
         // of SearXNG's metadata pair.
-        assert_eq!(results[1].snippet, "No source bar on this one. (The Register)");
+        assert_eq!(
+            results[1].snippet,
+            "No source bar on this one. (The Register)"
+        );
     }
 
     #[test]

@@ -26,10 +26,7 @@ impl super::JsRuntime {
     /// 5.05s before termination (#224's doudian livelock measured ~100% duty
     /// while "frozen"). Symmetric headroom caps a 50ms burst at 100ms of spin;
     /// a Navigate/SetContent rebuilds the realm and unfreezes as before.
-    pub async fn run_event_loop_bounded_throttled(
-        &mut self,
-        budget_ms: u64,
-    ) -> Result<(), String> {
+    pub async fn run_event_loop_bounded_throttled(&mut self, budget_ms: u64) -> Result<(), String> {
         self.run_event_loop_bounded_with_headroom(
             budget_ms,
             std::time::Duration::from_millis(budget_ms),
@@ -90,7 +87,6 @@ impl super::JsRuntime {
         matches!(result, Ok(Ok(()))) && !fired
     }
 
-
     /// Pump the event loop until `done_check` returns true (e.g. an IIFE
     /// has written its result sentinel), or `max_total_ms` elapses.
     ///
@@ -106,7 +102,8 @@ impl super::JsRuntime {
     where
         F: FnMut(&mut Self) -> bool,
     {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(max_total_ms);
+        let deadline =
+            tokio::time::Instant::now() + tokio::time::Duration::from_millis(max_total_ms);
         let mut tick_ms: u64 = 1;
         // The tokio timeout below only fires between slices; a promise callback
         // that spins synchronously (or a microtask storm) pins the thread
@@ -133,13 +130,16 @@ impl super::JsRuntime {
             let _ = tokio::time::timeout(
                 tokio::time::Duration::from_millis(tick_ms),
                 self.run_event_loop(),
-            ).await;
+            )
+            .await;
             if wd.fired() {
                 break;
             }
             // Backoff so a hung promise doesn't burn CPU. Caps at 50ms;
             // worst case we miss the result by <50ms.
-            if tick_ms < 50 { tick_ms = (tick_ms * 2).min(50); }
+            if tick_ms < 50 {
+                tick_ms = (tick_ms * 2).min(50);
+            }
         }
         if self.disarm_watchdog(wd) {
             tracing::warn!("promise wait terminated by watchdog (sync spin in event loop)");

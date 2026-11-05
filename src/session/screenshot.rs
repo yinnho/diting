@@ -113,8 +113,12 @@ pub(super) async fn screenshot(
 
     let vw = page.evaluate_with_timeout("innerWidth", crate::page::INTERACTION_EVAL_TIMEOUT);
     let vh = page.evaluate_with_timeout("innerHeight", crate::page::INTERACTION_EVAL_TIMEOUT);
-    let w = width.unwrap_or_else(|| vw.as_f64().unwrap_or(1280.0) as u32).max(1);
-    let h = height.unwrap_or_else(|| vh.as_f64().unwrap_or(800.0) as u32).max(1);
+    let w = width
+        .unwrap_or_else(|| vw.as_f64().unwrap_or(1280.0) as u32)
+        .max(1);
+    let h = height
+        .unwrap_or_else(|| vh.as_f64().unwrap_or(800.0) as u32)
+        .max(1);
 
     let html = page.content();
     // Canvas pixels live only in the JS realm; the re-parse below builds a
@@ -122,8 +126,7 @@ pub(super) async fn screenshot(
     // order (#210).
     page.inner.sync_canvas_bitmaps();
     let canvases = page.inner.canvas_bitmaps_in_order();
-    let resources =
-        crate::screenshot::prefetch_render_resources(page, &url, &html, w as f32).await;
+    let resources = crate::screenshot::prefetch_render_resources(page, &url, &html, w as f32).await;
     crate::screenshot::render_html_to_png_diting(
         &html,
         &url,
@@ -235,7 +238,11 @@ mod tests {
         let second = screenshot(&mut page, None, None, false, None, false, None)
             .await
             .expect("second frame");
-        assert_eq!(pixels(&second), pixels(&first), "static page: second poll returns the cached frame");
+        assert_eq!(
+            pixels(&second),
+            pixels(&first),
+            "static page: second poll returns the cached frame"
+        );
         assert_eq!(
             page.inner.band_paint_count(),
             paints,
@@ -248,7 +255,11 @@ mod tests {
             .await
             .expect("dpr=2 frame");
         let (w2, h2) = dims(&hidp);
-        assert_eq!((w2, h2), (w1 * 2, h1 * 2), "dpr=2 rasterizes at device resolution");
+        assert_eq!(
+            (w2, h2),
+            (w1 * 2, h1 * 2),
+            "dpr=2 rasterizes at device resolution"
+        );
 
         // Damage: a style mutation must invalidate the cache.
         page.inner

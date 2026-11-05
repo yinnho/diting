@@ -233,13 +233,15 @@ impl NavFrameShared {
     pub(super) fn begin(&self, url: String, frame: Option<crate::page::BandFrameCache>) {
         *self.state.lock().expect("nav frame lock") =
             std::sync::Arc::new(NavFrameSnapshot { url, frame });
-        self.in_flight.store(true, std::sync::atomic::Ordering::Release);
+        self.in_flight
+            .store(true, std::sync::atomic::Ordering::Release);
     }
 
     /// The load is over (landed or failed) — sender-side old-frame answers
     /// stand down and polls go through the channel again.
     pub(super) fn end(&self) {
-        self.in_flight.store(false, std::sync::atomic::Ordering::Release);
+        self.in_flight
+            .store(false, std::sync::atomic::Ordering::Release);
     }
 }
 

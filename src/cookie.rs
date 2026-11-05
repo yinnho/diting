@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use diting::diting_net::CookieJar;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// A cookie as exposed to the Rust API. Bin-dead by itself; the round-trip
 /// tests read cookies back through [`CookieStore::get_for_url`].
@@ -32,8 +32,7 @@ impl CookieStore {
     /// Seeded, not observed: the mutation ring tags these writes "import"
     /// (session-create injection / account seeding carried no response).
     pub fn set(&self, set_cookie_str: &str, url: &str) -> Result<(), crate::error::Error> {
-        let parsed = url::Url::parse(url)
-            .map_err(|e| crate::error::Error::Internal(e.into()))?;
+        let parsed = url::Url::parse(url).map_err(|e| crate::error::Error::Internal(e.into()))?;
         self.jar.set_cookie_seeded(set_cookie_str, &parsed);
         Ok(())
     }
@@ -41,8 +40,7 @@ impl CookieStore {
     /// Get cookies for a specific URL.
     #[allow(dead_code)] // bin-dead; server round-trip test reads cookies back
     pub fn get_for_url(&self, url: &str) -> Result<Vec<Cookie>, crate::error::Error> {
-        let parsed = url::Url::parse(url)
-            .map_err(|e| crate::error::Error::Internal(e.into()))?;
+        let parsed = url::Url::parse(url).map_err(|e| crate::error::Error::Internal(e.into()))?;
         let header = self.jar.get_cookie_header(&parsed);
         Ok(header
             .split("; ")

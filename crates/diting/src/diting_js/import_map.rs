@@ -324,8 +324,7 @@ mod tests {
             "https://example.test/app/maps/import-map.json",
         )
         .unwrap();
-        let referrer =
-            url::Url::parse("https://example.test/app/main.js").unwrap();
+        let referrer = url::Url::parse("https://example.test/app/main.js").unwrap();
 
         assert_eq!(
             map.resolve("pkg", &referrer).unwrap().as_str(),
@@ -362,9 +361,7 @@ mod tests {
         )
         .unwrap();
 
-        let nested =
-            url::Url::parse("https://example.test/feature/nested/main.js")
-                .unwrap();
+        let nested = url::Url::parse("https://example.test/feature/nested/main.js").unwrap();
         assert_eq!(
             map.resolve("shared", &nested).unwrap().as_str(),
             "https://example.test/nested.js",
@@ -382,8 +379,7 @@ mod tests {
             "https://example.test/app/index.html",
         )
         .unwrap();
-        let referrer =
-            url::Url::parse("https://example.test/app/main.js").unwrap();
+        let referrer = url::Url::parse("https://example.test/app/main.js").unwrap();
 
         assert_eq!(
             map.resolve("fixed", &referrer).unwrap().as_str(),
@@ -410,8 +406,7 @@ mod tests {
     #[test]
     fn later_prefix_rules_cannot_capture_an_already_resolved_specifier() {
         let mut map = ImportMap::default();
-        let referrer =
-            url::Url::parse("https://example.test/app/main.js").unwrap();
+        let referrer = url::Url::parse("https://example.test/app/main.js").unwrap();
         assert_eq!(
             map.resolve("./pkg/item.js", &referrer).unwrap().as_str(),
             "https://example.test/app/pkg/item.js",
@@ -442,8 +437,7 @@ mod tests {
             "https://example.test/app/index.html",
         )
         .unwrap();
-        let referrer =
-            url::Url::parse("https://example.test/app/feature/main.js").unwrap();
+        let referrer = url::Url::parse("https://example.test/app/feature/main.js").unwrap();
         assert_eq!(
             map.resolve("pkg", &referrer).unwrap().as_str(),
             "https://example.test/scoped.js",

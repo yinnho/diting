@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// GitHub repository search via api.github.com (no key required; unauthenticated
 /// quota is 10 requests/minute per IP — rate-limit responses surface as
@@ -88,8 +88,14 @@ fn parse_github_json(body: &str) -> Result<Vec<RawSearchResult>, SearchEngineErr
             .and_then(|v| v.as_str())
             .unwrap_or("");
         let language = item.get("language").and_then(|v| v.as_str()).unwrap_or("-");
-        let stars = item.get("stargazers_count").and_then(|v| v.as_i64()).unwrap_or(0);
-        let updated = item.get("updated_at").and_then(|v| v.as_str()).unwrap_or("");
+        let stars = item
+            .get("stargazers_count")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let updated = item
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         let snippet = format!(
             "{} | ⭐ {} | lang: {} | updated: {}",

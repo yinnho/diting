@@ -44,7 +44,12 @@ thread_local! {
 }
 
 fn rebuild(r: &mut Registry) {
-    r.non_inherit = r.map.iter().filter(|(_, p)| !p.inherits).map(|(n, _)| n.clone()).collect();
+    r.non_inherit = r
+        .map
+        .iter()
+        .filter(|(_, p)| !p.inherits)
+        .map(|(n, _)| n.clone())
+        .collect();
 }
 
 fn is_css_wide(v: &str) -> bool {
@@ -56,15 +61,24 @@ fn is_css_wide(v: &str) -> bool {
 
 fn is_ident(s: &str) -> bool {
     let mut chars = s.chars();
-    let Some(first) = chars.next() else { return false };
+    let Some(first) = chars.next() else {
+        return false;
+    };
     let first_ok = first.is_alphabetic() || first == '_' || first as u32 >= 0x80 || first == '-';
     if !first_ok {
         return false;
     }
-    if first == '-' && !s.starts_with("--") && !s.chars().nth(1).is_some_and(|c| c.is_alphabetic() || c == '_' || c as u32 >= 0x80) {
+    if first == '-'
+        && !s.starts_with("--")
+        && !s
+            .chars()
+            .nth(1)
+            .is_some_and(|c| c.is_alphabetic() || c == '_' || c as u32 >= 0x80)
+    {
         return false;
     }
-    s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c as u32 >= 0x80)
+    s.chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c as u32 >= 0x80)
 }
 
 /// Split `1.5e3px` into (number, unit). `None` when it does not start with
@@ -114,13 +128,18 @@ fn split_num(s: &str) -> Option<(&str, &str)> {
 
 const ABS_LEN: &[&str] = &["px", "cm", "mm", "q", "in", "pt", "pc"];
 const REL_LEN: &[&str] = &[
-    "em", "rem", "ex", "rex", "cap", "rcap", "ch", "rch", "ic", "ric", "lh", "rlh", "vw", "vh", "vi", "vb", "vmin",
-    "vmax", "svw", "svh", "lvw", "lvh", "dvw", "dvh", "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax",
+    "em", "rem", "ex", "rex", "cap", "rcap", "ch", "rch", "ic", "ric", "lh", "rlh", "vw", "vh",
+    "vi", "vb", "vmin", "vmax", "svw", "svh", "lvw", "lvh", "dvw", "dvh", "cqw", "cqh", "cqi",
+    "cqb", "cqmin", "cqmax",
 ];
 
 fn is_math_fn(v: &str) -> bool {
     let l = v.to_ascii_lowercase();
-    (l.starts_with("calc(") || l.starts_with("min(") || l.starts_with("max(") || l.starts_with("clamp(")) && l.ends_with(')')
+    (l.starts_with("calc(")
+        || l.starts_with("min(")
+        || l.starts_with("max(")
+        || l.starts_with("clamp("))
+        && l.ends_with(')')
 }
 
 fn type_matches(ty: &str, v: &str) -> bool {
@@ -131,7 +150,8 @@ fn type_matches(ty: &str, v: &str) -> bool {
     match ty {
         "number" => is_math_fn(v) || matches!(split_num(v), Some((_, u)) if u.is_empty()),
         "integer" => {
-            is_math_fn(v) || matches!(split_num(v), Some((n, u)) if u.is_empty() && !n.contains(['.', 'e', 'E']))
+            is_math_fn(v)
+                || matches!(split_num(v), Some((n, u)) if u.is_empty() && !n.contains(['.', 'e', 'E']))
         }
         "percentage" => is_math_fn(v) || matches!(split_num(v), Some((_, "%"))),
         "length" | "length-percentage" => {
@@ -143,7 +163,10 @@ fn type_matches(ty: &str, v: &str) -> bool {
                     let ul = u.to_ascii_lowercase();
                     ABS_LEN.contains(&ul.as_str())
                         || REL_LEN.contains(&ul.as_str())
-                        || (u.is_empty() && n.trim_start_matches(['+', '-']).chars().all(|c| c == '0' || c == '.'))
+                        || (u.is_empty()
+                            && n.trim_start_matches(['+', '-'])
+                                .chars()
+                                .all(|c| c == '0' || c == '.'))
                         || (ty == "length-percentage" && u == "%")
                 }
                 None => false,
@@ -154,12 +177,19 @@ fn type_matches(ty: &str, v: &str) -> bool {
                 || matches!(split_num(v), Some((n, u)) if ["deg", "grad", "rad", "turn"].contains(&u.to_ascii_lowercase().as_str())
                     || (u.is_empty() && n.trim_start_matches(['+', '-']).chars().all(|c| c == '0' || c == '.')))
         }
-        "time" => is_math_fn(v) || matches!(split_num(v), Some((_, u)) if ["s", "ms"].contains(&u.to_ascii_lowercase().as_str())),
+        "time" => {
+            is_math_fn(v)
+                || matches!(split_num(v), Some((_, u)) if ["s", "ms"].contains(&u.to_ascii_lowercase().as_str()))
+        }
         "resolution" => {
             is_math_fn(v)
                 || matches!(split_num(v), Some((_, u)) if ["dpi", "dpcm", "dppx", "x"].contains(&u.to_ascii_lowercase().as_str()))
         }
-        "color" => super::parse_color(v).is_some() || v.eq_ignore_ascii_case("currentcolor") || v.eq_ignore_ascii_case("transparent"),
+        "color" => {
+            super::parse_color(v).is_some()
+                || v.eq_ignore_ascii_case("currentcolor")
+                || v.eq_ignore_ascii_case("transparent")
+        }
         "custom-ident" => is_ident(v) && !is_css_wide(v),
         "url" => v.to_ascii_lowercase().starts_with("url(") && v.ends_with(')'),
         "image" => {
@@ -170,7 +200,9 @@ fn type_matches(ty: &str, v: &str) -> bool {
                     || l.contains("-gradient(")
                     || l.starts_with("cross-fade("))
         }
-        "transform-function" => v.ends_with(')') && v.find('(').is_some_and(|i| i > 0 && is_ident(&v[..i])),
+        "transform-function" => {
+            v.ends_with(')') && v.find('(').is_some_and(|i| i > 0 && is_ident(&v[..i]))
+        }
         "transform-list" => {
             // A run of transform functions: every top-level token is `name(...)`.
             let mut depth = 0i32;
@@ -197,8 +229,20 @@ fn type_matches(ty: &str, v: &str) -> bool {
 }
 
 const TYPES: &[&str] = &[
-    "length", "number", "percentage", "length-percentage", "color", "image", "url", "integer", "angle", "time",
-    "resolution", "transform-function", "transform-list", "custom-ident",
+    "length",
+    "number",
+    "percentage",
+    "length-percentage",
+    "color",
+    "image",
+    "url",
+    "integer",
+    "angle",
+    "time",
+    "resolution",
+    "transform-function",
+    "transform-list",
+    "custom-ident",
 ];
 
 /// `Some(None)` = universal `*`; `Some(Some(alts))` = a data-type grammar;
@@ -225,7 +269,10 @@ fn parse_syntax(s: &str) -> Option<Option<Vec<Alt>>> {
             if !TYPES.contains(&ty) || (mult != ' ' && ty == "transform-list") {
                 return None;
             }
-            alts.push(Alt::Typed { ty: ty.to_string(), mult });
+            alts.push(Alt::Typed {
+                ty: ty.to_string(),
+                mult,
+            });
         } else if is_ident(p) && !is_css_wide(p) {
             alts.push(Alt::Literal(p.to_string()));
         } else {
@@ -269,7 +316,11 @@ fn build(syntax: &str, inherits: bool, initial: Option<&str>) -> Option<RegProp>
             }
         }
     }
-    Some(RegProp { alts, inherits, initial })
+    Some(RegProp {
+        alts,
+        inherits,
+        initial,
+    })
 }
 
 fn insert(name: &str, p: RegProp) {
@@ -314,7 +365,9 @@ pub(crate) fn define_from_rule(prelude: &str, inner: &str) {
             _ => {}
         }
     }
-    let (Some(syntax), Some(inherits)) = (syntax, inherits) else { return };
+    let (Some(syntax), Some(inherits)) = (syntax, inherits) else {
+        return;
+    };
     if let Some(p) = build(&syntax, inherits, initial.as_deref()) {
         insert(name, p);
     }
@@ -343,8 +396,12 @@ pub(crate) fn clear_js() {
 pub(crate) fn value_acceptable(name: &str, value: &str) -> bool {
     ACTIVE.with(|r| {
         let r = r.borrow();
-        let Some(Some(alts)) = r.map.get(name).map(|p| p.alts.as_ref()) else { return true };
-        is_css_wide(value) || value.to_ascii_lowercase().contains("var(") || alts_match(alts, value.trim())
+        let Some(Some(alts)) = r.map.get(name).map(|p| p.alts.as_ref()) else {
+            return true;
+        };
+        is_css_wide(value)
+            || value.to_ascii_lowercase().contains("var(")
+            || alts_match(alts, value.trim())
     })
 }
 
@@ -359,7 +416,9 @@ pub(crate) fn lookup(custom: &HashMap<String, String>, name: &str) -> Option<Str
 
 /// The custom-property map a child starts from: the parent's, minus the
 /// registered `inherits: false` names.
-pub(crate) fn inherit_custom(parent: &Arc<HashMap<String, String>>) -> Arc<HashMap<String, String>> {
+pub(crate) fn inherit_custom(
+    parent: &Arc<HashMap<String, String>>,
+) -> Arc<HashMap<String, String>> {
     ACTIVE.with(|r| {
         let r = r.borrow();
         if !r.non_inherit.iter().any(|n| parent.contains_key(n)) {
@@ -386,4 +445,3 @@ pub(crate) fn missing_initials(custom: &HashMap<String, String>) -> Vec<(String,
             .collect()
     })
 }
-

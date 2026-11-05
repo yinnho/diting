@@ -142,10 +142,7 @@ mod tests {
         .is_err();
         assert!(caught);
         let body = std::fs::read_to_string(dir.join("crash.log")).expect("crash log written");
-        assert!(body.contains(&format!(
-            "crash-test-marker-{}",
-            std::process::id()
-        )));
+        assert!(body.contains(&format!("crash-test-marker-{}", std::process::id())));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

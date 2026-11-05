@@ -17,8 +17,11 @@ pub(crate) const INTERACTION_EVAL_TIMEOUT: Duration = Duration::from_secs(10);
 /// as f64, so `Value::as_u64` returns None for an integer-valued result; accept
 /// either an integer or a non-negative finite float. null / non-numbers -> None.
 fn nid_from_value(v: &Value) -> Option<u64> {
-    v.as_u64()
-        .or_else(|| v.as_f64().filter(|f| f.is_finite() && *f >= 0.0).map(|f| f as u64))
+    v.as_u64().or_else(|| {
+        v.as_f64()
+            .filter(|f| f.is_finite() && *f >= 0.0)
+            .map(|f| f as u64)
+    })
 }
 
 /// A browser tab/page.
@@ -89,10 +92,7 @@ impl Page {
     /// result is resolved by value, so JSON-stringified objects come back
     /// as strings just like the synchronous path.
     pub async fn evaluate_async(&mut self, expression: &str) -> Value {
-        let info = self
-            .inner
-            .evaluate_remote(expression, true, true)
-            .await;
+        let info = self.inner.evaluate_remote(expression, true, true).await;
         info.value.unwrap_or(Value::Null)
     }
 
@@ -175,7 +175,10 @@ impl Page {
             escaped
         );
         let val = self.evaluate(&js);
-        nid_from_value(&val).map(|nid| Element { node_id: nid, page: self as *const Page })
+        nid_from_value(&val).map(|nid| Element {
+            node_id: nid,
+            page: self as *const Page,
+        })
     }
 
     /// Wait for a named cookie to appear (polls every 200ms).

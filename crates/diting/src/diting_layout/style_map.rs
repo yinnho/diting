@@ -25,8 +25,10 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     // block with no text-align right-aligns its inline content like Chrome;
     // ltr pages resolve to Left and keep the no-promote fast path.
     let text_align = style.physical_text_align();
-    let promote = matches!(display, CssDisplay::Block | CssDisplay::TableCell | CssDisplay::InlineBlock)
-        && matches!(text_align, Some(TextAlign::Center) | Some(TextAlign::Right));
+    let promote = matches!(
+        display,
+        CssDisplay::Block | CssDisplay::TableCell | CssDisplay::InlineBlock
+    ) && matches!(text_align, Some(TextAlign::Center) | Some(TextAlign::Right));
     s.display = match display {
         CssDisplay::Block if promote => Display::Flex,
         CssDisplay::TableCell if promote => Display::Flex,
@@ -90,7 +92,12 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
         // Auto can only reach margins (parser rejects it elsewhere) - a
         // padding/border slot never holds it, but treat it as 0 defensively.
         // Sizing keywords are width-family only: unreachable here, same 0.
-        Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) => LengthPercentage::length(0.0),
+        Some(
+            crate::diting_css::Length::Auto
+            | crate::diting_css::Length::MinContent
+            | crate::diting_css::Length::MaxContent
+            | crate::diting_css::Length::FitContent,
+        ) => LengthPercentage::length(0.0),
         None => LengthPercentage::length(0.0),
     };
     // Margin has an auto variant; unset margins are CSS `0`, not auto.
@@ -107,7 +114,11 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
         }
         Some(crate::diting_css::Length::Auto) => LengthPercentageAuto::auto(),
         // Sizing keywords are width-family only: unreachable in a margin.
-        Some(crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) => LengthPercentageAuto::length(0.0),
+        Some(
+            crate::diting_css::Length::MinContent
+            | crate::diting_css::Length::MaxContent
+            | crate::diting_css::Length::FitContent,
+        ) => LengthPercentageAuto::length(0.0),
         None => LengthPercentageAuto::length(0.0),
     };
     // Inset/clamp unset values are CSS `auto`.
@@ -117,7 +128,12 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
         Some(crate::diting_css::Length::Calc { percent, .. }) => {
             LengthPercentageAuto::percent(percent / 100.0)
         }
-        Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) => LengthPercentageAuto::auto(),
+        Some(
+            crate::diting_css::Length::Auto
+            | crate::diting_css::Length::MinContent
+            | crate::diting_css::Length::MaxContent
+            | crate::diting_css::Length::FitContent,
+        ) => LengthPercentageAuto::auto(),
         None => LengthPercentageAuto::auto(),
     };
     // taffy::geometry::Rect spelled in full — this module's own Rect shadows
@@ -138,10 +154,26 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     // blitz does. A `none`/unset style computes the widths to 0.
     let bline = style.border_style.is_some();
     let (bt, br, bb, bl) = (
-        if bline { side_px(style.border_width.top) } else { 0.0 },
-        if bline { side_px(style.border_width.right) } else { 0.0 },
-        if bline { side_px(style.border_width.bottom) } else { 0.0 },
-        if bline { side_px(style.border_width.left) } else { 0.0 },
+        if bline {
+            side_px(style.border_width.top)
+        } else {
+            0.0
+        },
+        if bline {
+            side_px(style.border_width.right)
+        } else {
+            0.0
+        },
+        if bline {
+            side_px(style.border_width.bottom)
+        } else {
+            0.0
+        },
+        if bline {
+            side_px(style.border_width.left)
+        } else {
+            0.0
+        },
     );
     s.border = taffy::geometry::Rect {
         top: LengthPercentage::length(bt),
@@ -162,9 +194,11 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     );
     s.size = Size {
         width: match style.width {
-            Some(crate::diting_css::Length::Px(w)) => Dimension::length(
-                if border_box { w } else { w + side_px(style.padding.left) + side_px(style.padding.right) + bl + br },
-            ),
+            Some(crate::diting_css::Length::Px(w)) => Dimension::length(if border_box {
+                w
+            } else {
+                w + side_px(style.padding.left) + side_px(style.padding.right) + bl + br
+            }),
             Some(crate::diting_css::Length::Percent(p)) => Dimension::percent(p / 100.0),
             // Mixed calc rides in as a percent-only placeholder; the px part
             // is resolved against the real containing block in the post-
@@ -176,12 +210,20 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             // keywords ride in as auto — resolve_sizing_keywords replaces
             // them with the measured intrinsic width right after the node
             // is built (before the global layout pass).
-            Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) | None => auto(),
+            Some(
+                crate::diting_css::Length::Auto
+                | crate::diting_css::Length::MinContent
+                | crate::diting_css::Length::MaxContent
+                | crate::diting_css::Length::FitContent,
+            )
+            | None => auto(),
         },
         height: match style.height {
-            Some(crate::diting_css::Length::Px(h)) => Dimension::length(
-                if border_box { h } else { h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb },
-            ),
+            Some(crate::diting_css::Length::Px(h)) => Dimension::length(if border_box {
+                h
+            } else {
+                h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb
+            }),
             Some(crate::diting_css::Length::Percent(p)) if pct_h_resolves => {
                 Dimension::percent(p / 100.0)
             }
@@ -194,9 +236,15 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             // pinning e.g. a print deck's `height:100%` at one viewport
             // tall while its un-stacked slides run past it — the deck's own
             // overflow clip then blanks every slide but the first (#65).
-            Some(crate::diting_css::Length::Percent(_)) | Some(crate::diting_css::Length::Calc { .. })
-                | Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent)
-                | None => auto(),
+            Some(crate::diting_css::Length::Percent(_))
+            | Some(crate::diting_css::Length::Calc { .. })
+            | Some(
+                crate::diting_css::Length::Auto
+                | crate::diting_css::Length::MinContent
+                | crate::diting_css::Length::MaxContent
+                | crate::diting_css::Length::FitContent,
+            )
+            | None => auto(),
         },
     };
 
@@ -341,34 +389,37 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     if let Some(name) = &style.grid_area {
         let start = taffy::style::GridPlacement::NamedLine(format!("{}-start", name), 1);
         let end = taffy::style::GridPlacement::NamedLine(format!("{}-end", name), 1);
-        s.grid_row = taffy::geometry::Line { start: start.clone(), end: end.clone() };
+        s.grid_row = taffy::geometry::Line {
+            start: start.clone(),
+            end: end.clone(),
+        };
         s.grid_column = taffy::geometry::Line { start, end };
     }
 
     // --- positioning + clamps (batch 2d) ---
     let pos = style.position.unwrap_or(PositionMode::Static);
     s.position = match pos {
-            // In-flow boxes map to taffy's Relative — including UNDECLARED
-            // position and CSS static. taffy 0.15's Style default is
-            // Static, which does not claim absolute descendants, so an
-            // undeclared box would leave its out-of-flow children to the
-            // root pass and fold their percent insets against the viewport
-            // (#223: a transformed ancestor pins fixed children to itself,
-            // the reparent pass leaves them in place, and the fold must
-            // follow). Mapping every in-flow box to Relative is safe
-            // because the reparent pass has already normalized each
-            // absolute/fixed box's taffy parent to its CSS containing
-            // block — a claiming parent is always the right one.
-            PositionMode::Static | PositionMode::Relative => Position::Relative,
-            // Fixed pins to the viewport; the nearest slice stands is the
-            // root as containing block (see the reparent pass in layout_dom).
-            PositionMode::Absolute | PositionMode::Fixed => Position::Absolute,
-            // Sticky lays out exactly in flow — the insets are stick
-            // thresholds against the scrollport, NOT relative offsets, so
-            // they must never reach taffy as insets. Readers compute the
-            // scroll-dependent shift (see sticky_axis_shift).
-            PositionMode::Sticky => Position::Relative,
-        };
+        // In-flow boxes map to taffy's Relative — including UNDECLARED
+        // position and CSS static. taffy 0.15's Style default is
+        // Static, which does not claim absolute descendants, so an
+        // undeclared box would leave its out-of-flow children to the
+        // root pass and fold their percent insets against the viewport
+        // (#223: a transformed ancestor pins fixed children to itself,
+        // the reparent pass leaves them in place, and the fold must
+        // follow). Mapping every in-flow box to Relative is safe
+        // because the reparent pass has already normalized each
+        // absolute/fixed box's taffy parent to its CSS containing
+        // block — a claiming parent is always the right one.
+        PositionMode::Static | PositionMode::Relative => Position::Relative,
+        // Fixed pins to the viewport; the nearest slice stands is the
+        // root as containing block (see the reparent pass in layout_dom).
+        PositionMode::Absolute | PositionMode::Fixed => Position::Absolute,
+        // Sticky lays out exactly in flow — the insets are stick
+        // thresholds against the scrollport, NOT relative offsets, so
+        // they must never reach taffy as insets. Readers compute the
+        // scroll-dependent shift (see sticky_axis_shift).
+        PositionMode::Sticky => Position::Relative,
+    };
     if style.position != Some(PositionMode::Sticky)
         && (style.top.is_some()
             || style.right.is_some()
@@ -387,9 +438,11 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     // padding + border (px only; % passes through in both modes).
     s.min_size = Size {
         width: match style.min_width {
-            Some(crate::diting_css::Length::Px(w)) => LengthPercentageAuto::length(
-                if border_box { w } else { w + side_px(style.padding.left) + side_px(style.padding.right) + bl + br },
-            ),
+            Some(crate::diting_css::Length::Px(w)) => LengthPercentageAuto::length(if border_box {
+                w
+            } else {
+                w + side_px(style.padding.left) + side_px(style.padding.right) + bl + br
+            }),
             Some(crate::diting_css::Length::Percent(p)) => LengthPercentageAuto::percent(p / 100.0),
             // Percent-only placeholder; repaired post-layout like width.
             Some(crate::diting_css::Length::Calc { percent, .. }) => {
@@ -397,39 +450,69 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             }
             // Sizing keywords ride in as auto here too; fit-content replaces
             // this slot with the measured min-content floor at build time.
-            Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) | None => LengthPercentageAuto::auto(),
+            Some(
+                crate::diting_css::Length::Auto
+                | crate::diting_css::Length::MinContent
+                | crate::diting_css::Length::MaxContent
+                | crate::diting_css::Length::FitContent,
+            )
+            | None => LengthPercentageAuto::auto(),
         },
         height: match style.min_height {
-            Some(crate::diting_css::Length::Px(h)) => LengthPercentageAuto::length(
-                if border_box { h } else { h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb },
-            ),
+            Some(crate::diting_css::Length::Px(h)) => LengthPercentageAuto::length(if border_box {
+                h
+            } else {
+                h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb
+            }),
             Some(crate::diting_css::Length::Percent(p)) => LengthPercentageAuto::percent(p / 100.0),
             Some(crate::diting_css::Length::Calc { percent, .. }) => {
                 LengthPercentageAuto::percent(percent / 100.0)
             }
-            Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) | None => LengthPercentageAuto::auto(),
+            Some(
+                crate::diting_css::Length::Auto
+                | crate::diting_css::Length::MinContent
+                | crate::diting_css::Length::MaxContent
+                | crate::diting_css::Length::FitContent,
+            )
+            | None => LengthPercentageAuto::auto(),
         },
     };
     s.max_size = Size {
         width: match style.max_width {
-            Some(crate::diting_css::Length::Px(w)) => LengthPercentageAuto::length(
-                if border_box { w } else { w + side_px(style.padding.left) + side_px(style.padding.right) + bl + br },
-            ),
+            Some(crate::diting_css::Length::Px(w)) => LengthPercentageAuto::length(if border_box {
+                w
+            } else {
+                w + side_px(style.padding.left) + side_px(style.padding.right) + bl + br
+            }),
             Some(crate::diting_css::Length::Percent(p)) => LengthPercentageAuto::percent(p / 100.0),
             Some(crate::diting_css::Length::Calc { percent, .. }) => {
                 LengthPercentageAuto::percent(percent / 100.0)
             }
-            Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) | None => LengthPercentageAuto::auto(),
+            Some(
+                crate::diting_css::Length::Auto
+                | crate::diting_css::Length::MinContent
+                | crate::diting_css::Length::MaxContent
+                | crate::diting_css::Length::FitContent,
+            )
+            | None => LengthPercentageAuto::auto(),
         },
         height: match style.max_height {
-            Some(crate::diting_css::Length::Px(h)) => LengthPercentageAuto::length(
-                if border_box { h } else { h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb },
-            ),
+            Some(crate::diting_css::Length::Px(h)) => LengthPercentageAuto::length(if border_box {
+                h
+            } else {
+                h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb
+            }),
             Some(crate::diting_css::Length::Percent(p)) => LengthPercentageAuto::percent(p / 100.0),
             Some(crate::diting_css::Length::Calc { percent, .. }) => {
                 LengthPercentageAuto::percent(percent / 100.0)
             }
-            Some(crate::diting_css::Length::Auto | crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) | None => LengthPercentageAuto::auto(),
+            Some(
+                crate::diting_css::Length::Auto
+                | crate::diting_css::Length::MinContent
+                | crate::diting_css::Length::MaxContent
+                | crate::diting_css::Length::FitContent,
+            )
+            | None => LengthPercentageAuto::auto(),
         },
     };
     if let Some(ar) = style.aspect_ratio {
@@ -455,27 +538,66 @@ pub(super) fn resolve_sizing_keywords(
     style: &ComputedStyle,
     fonts: &FontBook,
 ) {
-    let Some(crate::diting_css::Length::MinContent | crate::diting_css::Length::MaxContent | crate::diting_css::Length::FitContent) = style.width else {
+    let Some(
+        crate::diting_css::Length::MinContent
+        | crate::diting_css::Length::MaxContent
+        | crate::diting_css::Length::FitContent,
+    ) = style.width
+    else {
         return;
     };
     // Same measured-leaf dispatch as the root pass: plain compute_layout
     // would zero the TextLeaf runs (no measure fn attached).
-    let measured = |taffy_tree: &mut TaffyTree<TextLeaf>, w: AvailableSpace| -> f32 {
-        let space = taffy::geometry::Size { width: w, height: AvailableSpace::MaxContent };
-        let _ = taffy_tree.compute_layout_with_measure(node, space, |inputs, _id, ctx, style| {
-            match ctx {
-                Some(TextLeaf::Run { text, font_size, bold, line_height, baseline_shift, mono, word_spacing, ws, tokens, small_caps, han, line_clamp, .. }) => {
-                    let pad = shift_pad(*baseline_shift, leaf_descent(fonts, *font_size, *bold));
-                    let shaped = run_tokens(text, *font_size, *bold, fonts, *mono, *word_spacing, *ws, tokens, *small_caps, *han);
-                    measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, *line_clamp)
-                }
-                Some(TextLeaf::Word { .. }) | Some(TextLeaf::Replaced { .. }) | Some(TextLeaf::Pseudo { .. }) | None => {
-                    taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
-                }
-            }
-        });
-        taffy_tree.layout(node).map(|l| l.size.width).unwrap_or(0.0)
-    };
+    let measured =
+        |taffy_tree: &mut TaffyTree<TextLeaf>, w: AvailableSpace| -> f32 {
+            let space = taffy::geometry::Size {
+                width: w,
+                height: AvailableSpace::MaxContent,
+            };
+            let _ =
+                taffy_tree.compute_layout_with_measure(node, space, |inputs, _id, ctx, style| {
+                    match ctx {
+                        Some(TextLeaf::Run {
+                            text,
+                            font_size,
+                            bold,
+                            line_height,
+                            baseline_shift,
+                            mono,
+                            word_spacing,
+                            ws,
+                            tokens,
+                            small_caps,
+                            han,
+                            line_clamp,
+                            ..
+                        }) => {
+                            let pad =
+                                shift_pad(*baseline_shift, leaf_descent(fonts, *font_size, *bold));
+                            let shaped = run_tokens(
+                                text,
+                                *font_size,
+                                *bold,
+                                fonts,
+                                *mono,
+                                *word_spacing,
+                                *ws,
+                                tokens,
+                                *small_caps,
+                                *han,
+                            );
+                            measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, *line_clamp)
+                        }
+                        Some(TextLeaf::Word { .. })
+                        | Some(TextLeaf::Replaced { .. })
+                        | Some(TextLeaf::Pseudo { .. })
+                        | None => {
+                            taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
+                        }
+                    }
+                });
+            taffy_tree.layout(node).map(|l| l.size.width).unwrap_or(0.0)
+        };
     let w_min = measured(taffy_tree, AvailableSpace::MinContent);
     let w_max = if matches!(style.width, Some(crate::diting_css::Length::MinContent)) {
         w_min
@@ -536,7 +658,9 @@ fn to_grid_track(track: GridTrack) -> taffy::style::GridTemplateComponent<String
 /// named areas to be rectangular; `.` cells are null). Taffy's resolver then
 /// derives the implicit `<name>-start`/`<name>-end` grid lines that
 /// `grid-area: <name>` items reference.
-fn template_areas_from_matrix(matrix: &[Vec<String>]) -> Option<taffy::style::GridTemplateAreas<String>> {
+fn template_areas_from_matrix(
+    matrix: &[Vec<String>],
+) -> Option<taffy::style::GridTemplateAreas<String>> {
     use taffy::style::GridTemplateArea;
     let cols = matrix.first()?.len();
     if cols == 0 || matrix.iter().any(|r| r.len() != cols) {
@@ -586,4 +710,3 @@ pub(super) fn side_px(v: Option<crate::diting_css::Length>) -> f32 {
         _ => 0.0,
     }
 }
-

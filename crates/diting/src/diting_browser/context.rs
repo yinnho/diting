@@ -24,7 +24,8 @@ pub struct BrowserContext {
     /// (`diting_net::client::allow_file_access`, threat model = the
     /// operator's filesystem on a 0.0.0.0-bound server), while
     /// private-network is the broader SSRF gate from issue #4.
-    #[allow(dead_code)] // gate is enforced at HttpClient construction; field kept for introspection
+    #[allow(dead_code)]
+    // gate is enforced at HttpClient construction; field kept for introspection
     pub allow_private_network: bool,
     /// TLS fingerprint name override (stealth mode only): "chrome145",
     /// "firefox133", etc. None → Chrome145. Kept as a String (not the
@@ -49,7 +50,15 @@ impl BrowserContext {
         allow_private_network: bool,
         tls_fingerprint: Option<String>,
     ) -> Self {
-        Self::_new_inner(id, proxy_url, stealth, user_agent, storage_dir, allow_private_network, tls_fingerprint)
+        Self::_new_inner(
+            id,
+            proxy_url,
+            stealth,
+            user_agent,
+            storage_dir,
+            allow_private_network,
+            tls_fingerprint,
+        )
     }
 
     fn _new_inner(
@@ -61,7 +70,16 @@ impl BrowserContext {
         allow_private_network: bool,
         tls_fingerprint: Option<String>,
     ) -> Self {
-        Self::_new_with_jar(id, proxy_url, stealth, user_agent, storage_dir, allow_private_network, tls_fingerprint, None)
+        Self::_new_with_jar(
+            id,
+            proxy_url,
+            stealth,
+            user_agent,
+            storage_dir,
+            allow_private_network,
+            tls_fingerprint,
+            None,
+        )
     }
 
     /// Like `_new_inner` but reuses a caller-owned cookie jar instead of
@@ -80,7 +98,16 @@ impl BrowserContext {
         tls_fingerprint: Option<String>,
         cookie_jar: Arc<CookieJar>,
     ) -> Self {
-        Self::_new_with_jar(id, proxy_url, stealth, user_agent, storage_dir, allow_private_network, tls_fingerprint, Some(cookie_jar))
+        Self::_new_with_jar(
+            id,
+            proxy_url,
+            stealth,
+            user_agent,
+            storage_dir,
+            allow_private_network,
+            tls_fingerprint,
+            Some(cookie_jar),
+        )
     }
 
     #[allow(clippy::too_many_arguments)] // client-construction plumbing — see run_tokens
@@ -106,7 +133,11 @@ impl BrowserContext {
                     }
                     Ok(_) => {}
                     Err(e) => {
-                        tracing::warn!("Failed to load cookies from {}: {}", cookie_path.display(), e);
+                        tracing::warn!(
+                            "Failed to load cookies from {}: {}",
+                            cookie_path.display(),
+                            e
+                        );
                     }
                 }
             }
@@ -121,8 +152,7 @@ impl BrowserContext {
             // DITING_BLOCK_TRACKERS=0 unwelds tracker blocking from
             // stealth on both transports (obscura#995); unset keeps the
             // documented stealth default.
-            client.block_trackers =
-                crate::diting_net::blocklist::block_trackers_from_env();
+            client.block_trackers = crate::diting_net::blocklist::block_trackers_from_env();
             // #116: on a stealth page the JS fetch()/XHR hops must ride the
             // wreq emulation stack too — one jar behind one JA3, matching
             // the navigation's handshake. The fingerprint feeds the same
@@ -163,11 +193,7 @@ impl BrowserContext {
     }
 
     #[cfg_attr(not(test), allow(dead_code))] // constructor-matrix coverage lives in this file's tests
-    pub fn with_options(
-        id: String,
-        proxy_url: Option<String>,
-        stealth: bool,
-    ) -> Self {
+    pub fn with_options(id: String, proxy_url: Option<String>, stealth: bool) -> Self {
         Self::with_full_options(id, proxy_url, stealth, None)
     }
 
@@ -199,8 +225,7 @@ impl BrowserContext {
             self.allow_private_network,
         );
         if self.stealth {
-            client.block_trackers =
-                crate::diting_net::blocklist::block_trackers_from_env();
+            client.block_trackers = crate::diting_net::blocklist::block_trackers_from_env();
             // #116: the copy keeps the template's scripted-transport posture
             // (see `_new_with_jar`) so a CDP-isolated context presents the
             // same handshake on both document and script hops.
@@ -265,12 +290,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn with_full_options_falls_back_to_chrome_default() {
-        let ctx = BrowserContext::with_full_options(
-            "test".to_string(),
-            None,
-            false,
-            None,
-        );
+        let ctx = BrowserContext::with_full_options("test".to_string(), None, false, None);
         assert!(ctx.user_agent.contains("Chrome"));
         let client_ua = ctx.http_client.user_agent.read().await.clone();
         assert!(client_ua.contains("Chrome"));
@@ -285,12 +305,18 @@ mod tests {
         let _guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
         std::env::remove_var("DITING_BLOCK_TRACKERS");
         let ctx = BrowserContext::with_full_options("t".to_string(), None, true, None);
-        assert!(ctx.http_client.block_trackers, "stealth default blocks trackers");
+        assert!(
+            ctx.http_client.block_trackers,
+            "stealth default blocks trackers"
+        );
 
         std::env::set_var("DITING_BLOCK_TRACKERS", "0");
         let ctx = BrowserContext::with_full_options("t".to_string(), None, true, None);
         std::env::remove_var("DITING_BLOCK_TRACKERS");
-        assert!(!ctx.http_client.block_trackers, "env=0 unwelds tracker blocking");
+        assert!(
+            !ctx.http_client.block_trackers,
+            "env=0 unwelds tracker blocking"
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]

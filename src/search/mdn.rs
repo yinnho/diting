@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// MDN Web Docs via the site's own v1 search API (free, no key, CN-reachable
 /// directly). Code docs ONLY — not the general pool: the API fuzzy-matches
@@ -42,10 +42,7 @@ impl SearchEngine for MdnEngine {
             .client
             .get(&url)
             .header("Accept", "application/json")
-            .header(
-                "User-Agent",
-                diting::chrome_target::UA_DEFAULT,
-            )
+            .header("User-Agent", diting::chrome_target::UA_DEFAULT)
             .send()
             .await
             .map_err(|e| SearchEngineError::Transient(format!("fetch error: {e}")))?;
@@ -172,7 +169,9 @@ mod tests {
             results[0].url,
             "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/CSS_layout/Flexbox"
         );
-        assert!(results[0].snippet.starts_with("Flexbox is a one-dimensional"));
+        assert!(results[0]
+            .snippet
+            .starts_with("Flexbox is a one-dimensional"));
         // Score = N - position over the RAW item count (3 incl. the skipped).
         assert_eq!(results[0].score, 3.0);
         assert!(results[0].score > results[1].score);

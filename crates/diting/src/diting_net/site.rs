@@ -164,7 +164,10 @@ mod tests {
         // Cross-origin (port), same-site: the loopback test stand-in for
         // sibling subdomains.
         assert_eq!(
-            sec_fetch_site(Some(&u("http://localhost:8080/")), &u("http://localhost:8081/x")),
+            sec_fetch_site(
+                Some(&u("http://localhost:8080/")),
+                &u("http://localhost:8081/x")
+            ),
             "same-site"
         );
     }
@@ -209,7 +212,10 @@ mod tests {
         // IP and localhost have no registrable domain: opaque, equal only to
         // themselves.
         assert_eq!(
-            sec_fetch_site(Some(&u("http://localhost:8080/")), &u("http://127.0.0.1:8080/x")),
+            sec_fetch_site(
+                Some(&u("http://localhost:8080/")),
+                &u("http://127.0.0.1:8080/x")
+            ),
             "cross-site"
         );
         assert!(is_same_site(

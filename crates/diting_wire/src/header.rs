@@ -5,8 +5,8 @@
 //! HTTP/1 and HTTP/2 headers.
 
 use bytes::Bytes;
-pub use http::header::*;
 use diting_wire_proto::ext::OnPreserveHeaderCallback;
+pub use http::header::*;
 
 /// Trait for types that can be converted into an [`HeaderCaseName`] (case-preserved header).
 ///
@@ -290,8 +290,8 @@ mod sealed {
 
 #[cfg(test)]
 mod test {
-    use http::{HeaderMap, HeaderName, HeaderValue};
     use diting_wire_proto::ext::OnPreserveHeaderCallback;
+    use http::{HeaderMap, HeaderName, HeaderValue};
 
     use super::OrigHeaderMap;
 

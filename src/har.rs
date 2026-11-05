@@ -231,7 +231,9 @@ pub fn xhr_bodies(
     let mut out = Vec::new();
     for e in events {
         if out.len() >= MAX_ENTRIES {
-            tracing::warn!("xhr_bodies: more than {MAX_ENTRIES} matching requests, dropping the tail");
+            tracing::warn!(
+                "xhr_bodies: more than {MAX_ENTRIES} matching requests, dropping the tail"
+            );
             break;
         }
         if e.resource_type != "XHR" && e.resource_type != "Fetch" {
@@ -303,10 +305,7 @@ pub fn media_entries(events: &[NetworkEvent]) -> Vec<Value> {
     events
         .iter()
         .filter_map(|e| {
-            let mime = e
-                .response_headers
-                .get("content-type")
-                .map(|s| s.as_str());
+            let mime = e.response_headers.get("content-type").map(|s| s.as_str());
             media_kind(&e.url, mime).map(|kind| {
                 json!({
                     "url": e.url,
@@ -368,7 +367,9 @@ pub fn media_from_bodies(
 /// body. JSON escapes must be flattened first (`&` → `&`, `\/` → `/`)
 /// or signed query strings get truncated mid-escape.
 fn extract_media_urls(text: &str) -> Vec<String> {
-    const DELIMS: &[char] = &['"', '\'', ' ', '\\', '<', '>', '(', ')', '[', ']', '{', '}', '\n', '\r', '\t'];
+    const DELIMS: &[char] = &[
+        '"', '\'', ' ', '\\', '<', '>', '(', ')', '[', ']', '{', '}', '\n', '\r', '\t',
+    ];
     let flat = text.replace("\\u0026", "&").replace("\\/", "/");
     let mut out = Vec::new();
     let mut rest = flat.as_str();
@@ -434,7 +435,11 @@ fn header_pairs(headers: &HashMap<String, String>) -> Vec<Value> {
 /// `body_of` resolves retained response bodies by request id; requests whose
 /// body was not retained (over the entry/byte limits) simply omit `text`.
 /// Phases we do not measure are `-1` per the HAR "not available" convention.
-pub fn har_log(page_title: &str, events: &[NetworkEvent], body_of: &dyn Fn(&str) -> Option<StoredResponseBody>) -> Value {
+pub fn har_log(
+    page_title: &str,
+    events: &[NetworkEvent],
+    body_of: &dyn Fn(&str) -> Option<StoredResponseBody>,
+) -> Value {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -532,7 +537,10 @@ pub fn har_log(page_title: &str, events: &[NetworkEvent], body_of: &dyn Fn(&str)
 
 /// `?a=b&c=d` from a URL, in order — the HAR `queryString` array.
 fn query_pairs(url: &str) -> Vec<Value> {
-    let Some(query) = url::Url::parse(url).ok().and_then(|u| u.query().map(String::from)) else {
+    let Some(query) = url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.query().map(String::from))
+    else {
         return Vec::new();
     };
     query
@@ -582,7 +590,10 @@ mod tests {
             status: 302,
         }];
         let rows = compact_events(
-            &[bounced.clone(), event("https://api.example/items", "Fetch", 200, 2.0)],
+            &[
+                bounced.clone(),
+                event("https://api.example/items", "Fetch", 200, 2.0),
+            ],
             false,
         );
         assert_eq!(rows[0]["url"], "https://seller.example.com/publish.htm");
@@ -609,10 +620,21 @@ mod tests {
                 base64_encoded: false,
             })
         };
-        let landed = xhr_bodies(&[api.clone()], &["cdn.example".to_string()], 0, false, &body_of);
+        let landed = xhr_bodies(
+            &[api.clone()],
+            &["cdn.example".to_string()],
+            0,
+            false,
+            &body_of,
+        );
         assert_eq!(landed.len(), 1, "landing URL matches: {landed:?}");
-        let asked =
-            xhr_bodies(&[api.clone()], &["api.example/items".to_string()], 0, false, &body_of);
+        let asked = xhr_bodies(
+            &[api.clone()],
+            &["api.example/items".to_string()],
+            0,
+            false,
+            &body_of,
+        );
         assert_eq!(asked.len(), 1, "requested URL still matches: {asked:?}");
         let missed = xhr_bodies(&[api], &["nowhere.example".to_string()], 0, false, &body_of);
         assert!(missed.is_empty(), "unrelated needles still filter out");
@@ -635,7 +657,10 @@ mod tests {
         // The landing entry answers 200 with no Location — the trail rides
         // the _-prefixed fields instead.
         assert_eq!(entries[0]["response"]["redirectURL"], "");
-        assert_eq!(entries[0]["_finalUrl"], "https://error.example.com/error.aspx");
+        assert_eq!(
+            entries[0]["_finalUrl"],
+            "https://error.example.com/error.aspx"
+        );
         assert_eq!(entries[0]["_redirects"][0]["status"], 302);
         assert!(entries[1].get("_redirects").is_none());
     }
@@ -660,10 +685,16 @@ mod tests {
         assert_eq!(media_kind("https://cdn.example/v/f.mp4", None), Some("mp4"));
         // Extension-less player URL classified by Content-Type.
         assert_eq!(
-            media_kind("https://cdn.example/manifest", Some("application/vnd.apple.mpegurl")),
+            media_kind(
+                "https://cdn.example/manifest",
+                Some("application/vnd.apple.mpegurl")
+            ),
             Some("hls")
         );
-        assert_eq!(media_kind("https://cdn.example/api/resolve", Some("application/json")), None);
+        assert_eq!(
+            media_kind("https://cdn.example/api/resolve", Some("application/json")),
+            None
+        );
         assert_eq!(media_kind("https://cdn.example/app.js", None), None);
         // A .ts page route is only media when the path really ends in .ts.
         assert_eq!(media_kind("https://cdn.example/ts", None), None);
@@ -672,10 +703,16 @@ mod tests {
     #[test]
     fn compact_events_carries_failure_reason_on_status_zero_rows() {
         let mut failed = event("https://h5api.example.com/rest", "Fetch", 0, 1.0);
-        failed.error = Some("CORS error: Origin 'https://shop.example' not in Access-Control-Allow-Origin ''".into());
+        failed.error = Some(
+            "CORS error: Origin 'https://shop.example' not in Access-Control-Allow-Origin ''"
+                .into(),
+        );
         let ok = event("https://shop.example/", "Document", 200, 2.0);
         let rows = compact_events(&[failed, ok], false);
-        assert!(rows[0].get("error").is_some(), "status-0 row must carry its reason");
+        assert!(
+            rows[0].get("error").is_some(),
+            "status-0 row must carry its reason"
+        );
         assert!(
             rows[1].get("error").is_none(),
             "successful rows stay lean — no null error field"
@@ -690,9 +727,15 @@ mod tests {
     fn compact_events_optin_carries_request_headers() {
         // #97: include_headers=true puts the request's outbound set on the
         // row — the surface that reads what the page's JS actually sent.
-        let mut ev = event("https://edith.example.com/api/sns/web/v1/feed", "Fetch", 200, 1.0);
+        let mut ev = event(
+            "https://edith.example.com/api/sns/web/v1/feed",
+            "Fetch",
+            200,
+            1.0,
+        );
         ev.headers.insert("x-s".to_string(), "0a1b2c".to_string());
-        ev.headers.insert("x-s-common".to_string(), "si=abc".to_string());
+        ev.headers
+            .insert("x-s-common".to_string(), "si=abc".to_string());
         let rows = compact_events(&[ev], true);
         let hdrs = rows[0]
             .get("headers")
@@ -820,7 +863,9 @@ mod tests {
         );
 
         // The same body-level tag rides the xhr_bodies rows.
-        let xhr = xhr_bodies(&[swallowed, clean], &[], 0, false, &|rid| bodies.get(rid).cloned());
+        let xhr = xhr_bodies(&[swallowed, clean], &[], 0, false, &|rid| {
+            bodies.get(rid).cloned()
+        });
         assert_eq!(xhr[0].get("challenge"), Some(&json!("demo-wall")));
         assert!(
             xhr[1].get("challenge").is_none(),
@@ -848,7 +893,9 @@ mod tests {
 
         // Empty filter list = every script-initiated response; document rows,
         // failed requests and unretained bodies are dropped.
-        let out = xhr_bodies(&[doc, api.clone(), failed], &[], 0, false, &|rid| bodies.get(rid).cloned());
+        let out = xhr_bodies(&[doc, api.clone(), failed], &[], 0, false, &|rid| {
+            bodies.get(rid).cloned()
+        });
         assert_eq!(out.len(), 1, "only the retained XHR body: {out:?}");
         assert_eq!(out[0]["url"], "https://api.example/items?all=1");
         assert_eq!(out[0]["status"], 200);
@@ -864,10 +911,15 @@ mod tests {
             base64_encoded: false,
         };
         let bodies2 = HashMap::from([
-            (api.request_id.clone(), bodies.get(&api.request_id).unwrap().clone()),
+            (
+                api.request_id.clone(),
+                bodies.get(&api.request_id).unwrap().clone(),
+            ),
             (miss.request_id.clone(), long),
         ]);
-        let out = xhr_bodies(&[api, miss], &["/items".to_string()], 4, false, &|rid| bodies2.get(rid).cloned());
+        let out = xhr_bodies(&[api, miss], &["/items".to_string()], 4, false, &|rid| {
+            bodies2.get(rid).cloned()
+        });
         assert_eq!(out.len(), 1, "filter keeps only /items: {out:?}");
         assert_eq!(out[0]["body"], "{\"it");
         assert_eq!(out[0]["body_truncated"], true);
@@ -888,7 +940,12 @@ mod tests {
     fn xhr_bodies_optin_carries_request_headers() {
         // #97: the capture_xhr face (server/mod.rs) always passes true — the
         // signed outbound headers are half the API-call story.
-        let mut api = event("https://edith.example.com/api/sns/web/v1/feed", "Fetch", 200, 1.0);
+        let mut api = event(
+            "https://edith.example.com/api/sns/web/v1/feed",
+            "Fetch",
+            200,
+            1.0,
+        );
         api.response_headers = std::sync::Arc::new(HashMap::from([(
             "content-type".to_string(),
             "application/json".to_string(),
@@ -914,8 +971,18 @@ mod tests {
         // bilibili-style playurl payload: signed durl URLs, & escapes,
         // a page event plus an unrelated XHR that must contribute nothing.
         let events = vec![
-            event("https://e.example/video/BV1GJ411x7h7/", "Document", 200, 1.0),
-            event("https://api.example/x/player/wbi/playurl?avid=1", "Fetch", 200, 2.0),
+            event(
+                "https://e.example/video/BV1GJ411x7h7/",
+                "Document",
+                200,
+                1.0,
+            ),
+            event(
+                "https://api.example/x/player/wbi/playurl?avid=1",
+                "Fetch",
+                200,
+                2.0,
+            ),
             event("https://api.example/x/web-interface/nav", "Fetch", 200, 3.0),
         ];
         let bodies: HashMap<String, StoredResponseBody> = HashMap::from([
@@ -936,10 +1003,7 @@ mod tests {
         ]);
         let body_of = |rid: &str| bodies.get(rid).cloned();
         let media = media_from_bodies(&events, &body_of);
-        let urls: Vec<&str> = media
-            .iter()
-            .map(|m| m["url"].as_str().unwrap())
-            .collect();
+        let urls: Vec<&str> = media.iter().map(|m| m["url"].as_str().unwrap()).collect();
         assert_eq!(
             urls,
             vec![
@@ -959,7 +1023,12 @@ mod tests {
     fn media_entries_carry_kind_status_and_mime() {
         let mut events = vec![
             event("https://e.example/page", "Document", 200, 1.0),
-            event("https://e.example/video/master.m3u8?tk=1", "Fetch", 200, 2.0),
+            event(
+                "https://e.example/video/master.m3u8?tk=1",
+                "Fetch",
+                200,
+                2.0,
+            ),
         ];
         let headers = HashMap::from([(
             "content-type".to_string(),
@@ -990,18 +1059,22 @@ mod tests {
         let bodies: HashMap<String, StoredResponseBody> = HashMap::from([
             (
                 doc.request_id.clone(),
-                StoredResponseBody { body: "hello".into(), base64_encoded: false },
+                StoredResponseBody {
+                    body: "hello".into(),
+                    base64_encoded: false,
+                },
             ),
             (
                 seg.request_id.clone(),
-                StoredResponseBody { body: "AAEC".into(), base64_encoded: true },
+                StoredResponseBody {
+                    body: "AAEC".into(),
+                    base64_encoded: true,
+                },
             ),
         ]);
-        let log = har_log(
-            "Example",
-            &[doc, seg],
-            &|rid: &str| bodies.get(rid).cloned(),
-        );
+        let log = har_log("Example", &[doc, seg], &|rid: &str| {
+            bodies.get(rid).cloned()
+        });
         let log = log["log"].as_object().unwrap();
         assert_eq!(log["version"], "1.2");
         assert_eq!(log["pages"][0]["title"], "Example");
@@ -1019,7 +1092,11 @@ mod tests {
         assert_eq!(seg_entry["response"]["statusText"], "OK");
         assert_eq!(seg_entry["timings"]["wait"], -1.0);
         // Not-retained bodies omit text but keep size.
-        let bare = har_log("t", &[event("https://e.example/x", "Script", 404, 5.0)], &|_| None);
+        let bare = har_log(
+            "t",
+            &[event("https://e.example/x", "Script", 404, 5.0)],
+            &|_| None,
+        );
         let e = &bare["log"]["entries"][0];
         assert!(e["response"]["content"].get("text").is_none());
         assert_eq!(e["response"]["statusText"], "Not Found");
@@ -1064,7 +1141,11 @@ mod tests {
             "completion order (fast answered first) must not reorder starts"
         );
 
-        let nav = har_log("t", &[event("https://e.example/", "Document", 200, 50.0)], &|_| None);
+        let nav = har_log(
+            "t",
+            &[event("https://e.example/", "Document", 200, 50.0)],
+            &|_| None,
+        );
         let e = &nav["log"]["entries"][0];
         assert_eq!(e["startedDateTime"], iso8601(50.0));
         assert_eq!(e["time"], serde_json::json!(-1.0));

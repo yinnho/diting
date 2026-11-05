@@ -4,11 +4,11 @@ use std::io::Write as _;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use diting_ops::diting_op;
-use diting_runtime::state::OpState;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use crate::diting_dom::{AttachShadowError, DomTree, NodeData, NodeId, ShadowRootMode};
 use crate::diting_net::{CookieJar, HttpClient};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
 use url::Url;
 
 /// CDP Fetch-domain resolution: what a client answers a paused request with.
@@ -27,7 +27,9 @@ pub enum InterceptResolution {
         headers: HashMap<String, String>,
         body: Vec<u8>,
     },
-    Fail { reason: String },
+    Fail {
+        reason: String,
+    },
 }
 
 /// A paused request surfaced to the interception channel (CDP
@@ -56,7 +58,8 @@ pub static INTERCEPT_RESOLUTION_TIMEOUT_MS: std::sync::atomic::AtomicU64 =
 /// (epoch, subtree root, viewport w bits, viewport h bits, run) — the
 /// iframe sub-run memo key, see `JsState::iframe_layout_cache`.
 #[cfg(feature = "screenshot")]
-type IframeLayoutCache = std::cell::RefCell<Option<(u64, NodeId, u32, u32, std::rc::Rc<LayoutRun>)>>;
+type IframeLayoutCache =
+    std::cell::RefCell<Option<(u64, NodeId, u32, u32, std::rc::Rc<LayoutRun>)>>;
 
 /// One REAL per-request timing sample for the JS `performance` resource
 /// buffer (#126): captured around the actual stylesheet/script fetches in
@@ -158,7 +161,8 @@ pub struct JsState {
     pub dialog_prompt_text: Option<String>,
     /// The document's input stream for `document.write()`, created on the
     /// first call. Why the calls share one parser is in `write_stream`.
-    pub(crate) write_stream: std::cell::RefCell<Option<crate::diting_js::write_stream::DocumentWriteStream>>,
+    pub(crate) write_stream:
+        std::cell::RefCell<Option<crate::diting_js::write_stream::DocumentWriteStream>>,
     /// HTML's per-script "already started" flag. This is native page state
     /// rather than wrapper state, because it must survive moves and clones and
     /// because fragment parsing can create nodes before a JS wrapper exists.
@@ -187,7 +191,8 @@ pub struct JsState {
     /// keyed `fetch-{N}` — the same id the paired `js_network_events` entry
     /// carries, so CDP `Network.getResponseBody` resolves. LRU-bounded by
     /// `response_body_entry_limit` / `response_body_byte_limit`.
-    pub(crate) network_response_bodies: std::collections::HashMap<String, StoredNetworkResponseBody>,
+    pub(crate) network_response_bodies:
+        std::collections::HashMap<String, StoredNetworkResponseBody>,
     pub(crate) network_response_body_order: std::collections::VecDeque<String>,
     pub(crate) network_response_body_counter: u64,
     /// Network events recorded for script-initiated requests (fetch/XHR),
@@ -213,8 +218,7 @@ pub struct JsState {
     /// provably ignores those properties, so the next run re-collects
     /// against the cached tree instead of re-solving the full page.
     #[cfg(feature = "screenshot")]
-    geometry_cache:
-        std::cell::RefCell<Option<(u64, crate::diting_layout::SolvedGeometry)>>,
+    geometry_cache: std::cell::RefCell<Option<(u64, crate::diting_layout::SolvedGeometry)>>,
     /// Memoized layout run for an orphan subtree (a fabricated iframe
     /// document, obscura #976 family), keyed (epoch, subtree root, viewport
     /// w/h bits). Kept apart from `layout_cache` on purpose: a sub-run's
@@ -280,8 +284,7 @@ pub struct JsState {
     /// entry per (nid, property); a re-trigger on the same pair replaces
     /// the old entry. Sampled at the exit of compute_styles_timed.
     #[cfg(feature = "screenshot")]
-    pub(crate) css_transitions:
-        std::cell::RefCell<Vec<crate::diting_css::CssTransition>>,
+    pub(crate) css_transitions: std::cell::RefCell<Vec<crate::diting_css::CssTransition>>,
     /// Layout invalidation revision: bumped wherever `layout_cache` is
     /// dropped. The DomTree epoch is a tree-shape stamp — attribute-level
     /// writes (style/class/attr) clear the cache without allocating nodes,
@@ -305,8 +308,7 @@ pub struct JsState {
     /// attribute skip the layout-cache drop; `None` until the first layout
     /// run (no caches exist yet, so skipping is free either way).
     #[cfg(feature = "screenshot")]
-    pub(crate) attr_selector_names:
-        std::cell::RefCell<Option<std::collections::HashSet<String>>>,
+    pub(crate) attr_selector_names: std::cell::RefCell<Option<std::collections::HashSet<String>>>,
     /// Absolute-URL → fetched image body, filled on demand by the CDP
     /// viewport capture / screencast pump so band paint renders real rasters
     /// instead of placeholders (the outerHTML re-render path pre-fetches;
@@ -314,8 +316,7 @@ pub struct JsState {
     /// also invalidates `layout_cache` (placeholder boxes vs real intrinsic
     /// sizes can reflow).
     #[cfg(feature = "screenshot")]
-    pub(crate) image_bytes:
-        std::cell::RefCell<HashMap<String, std::sync::Arc<Vec<u8>>>>,
+    pub(crate) image_bytes: std::cell::RefCell<HashMap<String, std::sync::Arc<Vec<u8>>>>,
     /// Insertion order for `image_bytes` (FIFO eviction at the entry cap —
     /// clearing wholesale would thrash pages with more images than the cap).
     #[cfg(feature = "screenshot")]
@@ -507,7 +508,9 @@ impl JsState {
             dialog_prompt_text: None,
             write_stream: std::cell::RefCell::new(None),
             already_started_scripts: RefCell::new(HashSet::new()),
-            import_map: Rc::new(RefCell::new(crate::diting_js::import_map::ImportMap::default())),
+            import_map: Rc::new(RefCell::new(
+                crate::diting_js::import_map::ImportMap::default(),
+            )),
             blob_store: Rc::new(RefCell::new(HashMap::new())),
             dynamic_script_fetches: std::cell::Cell::new(0),
             callbacks: None,
@@ -548,7 +551,9 @@ impl JsState {
             #[cfg(feature = "screenshot")]
             layout_rev: std::cell::Cell::new(0),
             #[cfg(feature = "screenshot")]
-            realm_gen: std::cell::Cell::new(REALM_GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed)),
+            realm_gen: std::cell::Cell::new(
+                REALM_GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            ),
             #[cfg(feature = "screenshot")]
             attr_selector_names: std::cell::RefCell::new(None),
             #[cfg(feature = "screenshot")]
@@ -589,7 +594,9 @@ fn script_nodes_including_template_contents(dom: &DomTree, root: NodeId) -> Vec<
         }
         let template_contents = dom
             .with_node(node_id, |node| match &node.data {
-                NodeData::Element { template_contents, .. } => *template_contents,
+                NodeData::Element {
+                    template_contents, ..
+                } => *template_contents,
                 _ => None,
             })
             .flatten();
@@ -628,19 +635,21 @@ fn propagate_script_start_state(
 
         let source_template = dom
             .with_node(source, |node| match &node.data {
-                NodeData::Element { template_contents, .. } => *template_contents,
+                NodeData::Element {
+                    template_contents, ..
+                } => *template_contents,
                 _ => None,
             })
             .flatten();
         let cloned_template = dom
             .with_node(cloned, |node| match &node.data {
-                NodeData::Element { template_contents, .. } => *template_contents,
+                NodeData::Element {
+                    template_contents, ..
+                } => *template_contents,
                 _ => None,
             })
             .flatten();
-        if let (Some(source_contents), Some(cloned_contents)) =
-            (source_template, cloned_template)
-        {
+        if let (Some(source_contents), Some(cloned_contents)) = (source_template, cloned_template) {
             pairs.push((source_contents, cloned_contents));
         }
 
@@ -695,14 +704,18 @@ fn op_script_try_start(state: &OpState, nid: u32) -> bool {
 fn op_dyn_script_fetch_begin(state: &OpState) {
     let shared = state.borrow::<SharedState>().clone();
     let state = shared.borrow();
-    state.dynamic_script_fetches.set(state.dynamic_script_fetches.get() + 1);
+    state
+        .dynamic_script_fetches
+        .set(state.dynamic_script_fetches.get() + 1);
 }
 
 #[diting_op]
 fn op_dyn_script_fetch_end(state: &OpState) {
     let shared = state.borrow::<SharedState>().clone();
     let state = shared.borrow();
-    state.dynamic_script_fetches.set(state.dynamic_script_fetches.get().saturating_sub(1));
+    state
+        .dynamic_script_fetches
+        .set(state.dynamic_script_fetches.get().saturating_sub(1));
 }
 
 /// Mirror a `URL.createObjectURL` registration into the Rust-side blob
@@ -717,7 +730,11 @@ fn op_blob_register(
     #[string] mime: String,
 ) {
     let shared = state.borrow::<SharedState>().clone();
-    shared.borrow().blob_store.borrow_mut().insert(id, (bytes.to_vec(), mime));
+    shared
+        .borrow()
+        .blob_store
+        .borrow_mut()
+        .insert(id, (bytes.to_vec(), mime));
 }
 
 /// Drop a mirrored blob registration (`URL.revokeObjectURL`).
@@ -753,7 +770,12 @@ fn op_shadow_attach(state: &OpState, host_nid: u32, #[string] mode: String) -> i
 
 #[diting_op]
 #[string]
-fn op_dom(state: &OpState, #[string] cmd: String, #[string] arg1: String, #[string] arg2: String) -> String {
+fn op_dom(
+    state: &OpState,
+    #[string] cmd: String,
+    #[string] arg1: String,
+    #[string] arg2: String,
+) -> String {
     // Anti-panic boundary: a panic in a DOM op would unwind through deno_core
     // into V8's FFI frame, where V8_Fatal calls abort(3) and takes the whole
     // engine (and every CDP client) down. Catch it so one malformed selector or
@@ -795,7 +817,8 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             | "set_text_content"
             | "set_inner_html"
             | "set_live_value"
-            | "set_live_checked" | "set_live_indeterminate"
+            | "set_live_checked"
+            | "set_live_indeterminate"
             | "set_focused"
             | "set_selection"
             | "document_write_reset"
@@ -826,16 +849,12 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .split_once('\0')
                 .is_some_and(|(name, _)| name.eq_ignore_ascii_case("style"))
         {
-            let old = arg1
-                .parse::<u32>()
-                .ok()
-                .map(NodeId::new)
-                .and_then(|id| {
-                    gs.borrow()
-                        .dom
-                        .as_ref()
-                        .and_then(|d| d.get_node(id).and_then(|n| n.get_attribute("style").map(|s| s.to_string())))
-                });
+            let old = arg1.parse::<u32>().ok().map(NodeId::new).and_then(|id| {
+                gs.borrow().dom.as_ref().and_then(|d| {
+                    d.get_node(id)
+                        .and_then(|n| n.get_attribute("style").map(|s| s.to_string()))
+                })
+            });
             let new = arg2.split_once('\0').map(|(_, v)| v);
             identity = old.as_deref() == new;
             paint_only = !identity && style_write_is_paint_only(old.as_deref(), new);
@@ -1088,13 +1107,14 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .unwrap_or("\"\"".into())
         }
         "document_encoding" => serde_json::to_string(&gs.encoding).unwrap_or("\"UTF-8\"".into()),
-        "document_content_type" => {
-            serde_json::to_string(&gs.content_type).unwrap_or("\"\"".into())
-        }
+        "document_content_type" => serde_json::to_string(&gs.content_type).unwrap_or("\"\"".into()),
         "document_element" => {
             for cid in dom.children(dom.document()) {
                 if let Some(n) = dom.get_node(cid) {
-                    if n.as_element().map(|name| name.local.as_str() == "html").unwrap_or(false) {
+                    if n.as_element()
+                        .map(|name| name.local.as_str() == "html")
+                        .unwrap_or(false)
+                    {
                         return cid.index().to_string();
                     }
                 }
@@ -1104,38 +1124,57 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "document_doctype" => {
             for cid in dom.children(dom.document()) {
                 if let Some(n) = dom.get_node(cid) {
-                    if let crate::diting_dom::NodeData::Doctype { name, public_id, system_id } = &n.data {
+                    if let crate::diting_dom::NodeData::Doctype {
+                        name,
+                        public_id,
+                        system_id,
+                    } = &n.data
+                    {
                         return serde_json::json!({
                             "name": name,
                             "publicId": public_id,
                             "systemId": system_id,
                             "nodeId": cid.index(),
-                        }).to_string();
+                        })
+                        .to_string();
                     }
                 }
             }
             "null".into()
         }
-        "get_element_by_id" => {
-            dom.get_element_by_id(&arg1).map(|id| id.index().to_string()).unwrap_or("-1".into())
-        }
-        "query_selector" => {
-            dom.query_selector(&arg1).ok().flatten().map(|id| id.index().to_string()).unwrap_or("-1".into())
-        }
+        "get_element_by_id" => dom
+            .get_element_by_id(&arg1)
+            .map(|id| id.index().to_string())
+            .unwrap_or("-1".into()),
+        "query_selector" => dom
+            .query_selector(&arg1)
+            .ok()
+            .flatten()
+            .map(|id| id.index().to_string())
+            .unwrap_or("-1".into()),
         "query_selector_all" => {
-            let ids: Vec<i32> = dom.query_selector_all(&arg1).ok()
-                .map(|ids| ids.iter().map(|id| id.index() as i32).collect()).unwrap_or_default();
+            let ids: Vec<i32> = dom
+                .query_selector_all(&arg1)
+                .ok()
+                .map(|ids| ids.iter().map(|id| id.index() as i32).collect())
+                .unwrap_or_default();
             serde_json::to_string(&ids).unwrap_or("[]".into())
         }
         "query_selector_scoped" => {
             let root_nid = arg1.parse::<u32>().unwrap_or(0);
-            dom.query_selector_from(NodeId::new(root_nid), &arg2).ok().flatten()
-                .map(|id| id.index().to_string()).unwrap_or("-1".into())
+            dom.query_selector_from(NodeId::new(root_nid), &arg2)
+                .ok()
+                .flatten()
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
         }
         "query_selector_all_scoped" => {
             let root_nid = arg1.parse::<u32>().unwrap_or(0);
-            let ids: Vec<i32> = dom.query_selector_all_from(NodeId::new(root_nid), &arg2).ok()
-                .map(|ids| ids.iter().map(|id| id.index() as i32).collect()).unwrap_or_default();
+            let ids: Vec<i32> = dom
+                .query_selector_all_from(NodeId::new(root_nid), &arg2)
+                .ok()
+                .map(|ids| ids.iter().map(|id| id.index() as i32).collect())
+                .unwrap_or_default();
             serde_json::to_string(&ids).unwrap_or("[]".into())
         }
         // Single-element match with `:scope` bound to the element itself
@@ -1143,22 +1182,48 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // query ops return empty results rather than surfacing the error.
         "matches_selector" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            if dom.matches_selector(NodeId::new(nid), &arg2).unwrap_or(false) { "1".into() } else { "0".into() }
+            if dom
+                .matches_selector(NodeId::new(nid), &arg2)
+                .unwrap_or(false)
+            {
+                "1".into()
+            } else {
+                "0".into()
+            }
         }
         "node_type" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            dom.get_node(NodeId::new(nid)).map(|n| match &n.data {
-                NodeData::Document => "9", NodeData::Element { .. } => "1", NodeData::Text { .. } => "3",
-                NodeData::Comment { .. } => "8", NodeData::Doctype { .. } => "10", NodeData::ProcessingInstruction { .. } => "7",
-            }).unwrap_or("0").into()
+            dom.get_node(NodeId::new(nid))
+                .map(|n| match &n.data {
+                    NodeData::Document => "9",
+                    NodeData::Element { .. } => "1",
+                    NodeData::Text { .. } => "3",
+                    NodeData::Comment { .. } => "8",
+                    NodeData::Doctype { .. } => "10",
+                    NodeData::ProcessingInstruction { .. } => "7",
+                })
+                .unwrap_or("0")
+                .into()
         }
         "node_name" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let name: String = dom.get_node(NodeId::new(nid)).map(|n| match &n.data {
-                NodeData::Document => "#document".to_string(), NodeData::Element { name, .. } => if name.ns == html5ever::ns!(html) { name.local.as_str().to_ascii_uppercase() } else { name.local.as_str().to_string() },
-                NodeData::Text { .. } => "#text".to_string(), NodeData::Comment { .. } => "#comment".to_string(),
-                NodeData::Doctype { name, .. } => name.clone(), NodeData::ProcessingInstruction { target, .. } => target.clone(),
-            }).unwrap_or_default();
+            let name: String = dom
+                .get_node(NodeId::new(nid))
+                .map(|n| match &n.data {
+                    NodeData::Document => "#document".to_string(),
+                    NodeData::Element { name, .. } => {
+                        if name.ns == html5ever::ns!(html) {
+                            name.local.as_str().to_ascii_uppercase()
+                        } else {
+                            name.local.as_str().to_string()
+                        }
+                    }
+                    NodeData::Text { .. } => "#text".to_string(),
+                    NodeData::Comment { .. } => "#comment".to_string(),
+                    NodeData::Doctype { name, .. } => name.clone(),
+                    NodeData::ProcessingInstruction { target, .. } => target.clone(),
+                })
+                .unwrap_or_default();
             serde_json::to_string(&name).unwrap_or("\"\"".into())
         }
         "text_content" => {
@@ -1167,11 +1232,17 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         }
         "parent_node" | "first_child" | "last_child" | "next_sibling" | "prev_sibling" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            dom.get_node(NodeId::new(nid)).and_then(|n| match cmd.as_str() {
-                "parent_node" => n.parent, "first_child" => n.first_child,
-                "last_child" => n.last_child, "next_sibling" => n.next_sibling,
-                "prev_sibling" => n.prev_sibling, _ => None,
-            }).map(|id| id.index().to_string()).unwrap_or("-1".into())
+            dom.get_node(NodeId::new(nid))
+                .and_then(|n| match cmd.as_str() {
+                    "parent_node" => n.parent,
+                    "first_child" => n.first_child,
+                    "last_child" => n.last_child,
+                    "next_sibling" => n.next_sibling,
+                    "prev_sibling" => n.prev_sibling,
+                    _ => None,
+                })
+                .map(|id| id.index().to_string())
+                .unwrap_or("-1".into())
         }
         "next_in_subtree" => {
             let root = NodeId::new(arg1.parse::<u32>().unwrap_or(0));
@@ -1260,16 +1331,20 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             // assigned to serves its fallback children (the JS side reads
             // the distinction).
             match dom.assigned_nodes(NodeId::new(nid)) {
-                Some(ids) => serde_json::to_string(
-                    &ids.iter().map(|id| id.index()).collect::<Vec<_>>(),
-                )
-                .unwrap_or("[]".into()),
+                Some(ids) => {
+                    serde_json::to_string(&ids.iter().map(|id| id.index()).collect::<Vec<_>>())
+                        .unwrap_or("[]".into())
+                }
                 None => "null".into(),
             }
         }
         "child_nodes" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let ids: Vec<i32> = dom.children(NodeId::new(nid)).iter().map(|id| id.index() as i32).collect();
+            let ids: Vec<i32> = dom
+                .children(NodeId::new(nid))
+                .iter()
+                .map(|id| id.index() as i32)
+                .collect();
             serde_json::to_string(&ids).unwrap_or("[]".into())
         }
         "tag_name" => {
@@ -1295,7 +1370,9 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         }
         "get_attribute" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let val = dom.get_node(NodeId::new(nid)).and_then(|n| n.get_attribute(&arg2).map(|s| s.to_string()));
+            let val = dom
+                .get_node(NodeId::new(nid))
+                .and_then(|n| n.get_attribute(&arg2).map(|s| s.to_string()));
             serde_json::to_string(&val).unwrap_or("null".into())
         }
         "attribute_names" => {
@@ -1304,17 +1381,26 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .get_node(NodeId::new(nid))
                 .map(|n| {
                     n.attrs()
-                        .map(|a| a.iter().map(|x| x.name.local.as_str().to_string()).collect())
+                        .map(|a| {
+                            a.iter()
+                                .map(|x| x.name.local.as_str().to_string())
+                                .collect()
+                        })
                         .unwrap_or_default()
                 })
                 .unwrap_or_default();
             serde_json::to_string(&names).unwrap_or("[]".into())
         }
         "set_attribute" => {
-            let node_id = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
             if let Some((name, value)) = arg2.split_once('\0') {
                 if name == "id" {
-                    let old_id = dom.get_node(node_id).and_then(|n| n.get_attribute("id").map(|s| s.to_string()));
+                    let old_id = dom
+                        .get_node(node_id)
+                        .and_then(|n| n.get_attribute("id").map(|s| s.to_string()));
                     dom.with_node_mut(node_id, |n| n.set_attribute(name, value.to_string()));
                     dom.update_id_index(node_id, old_id.as_deref(), Some(value));
                 } else {
@@ -1332,7 +1418,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // purpose: getAttribute/outerHTML must keep showing the ORIGINAL
         // value attribute like Chrome, while paint reads this instead.
         "set_live_value" => {
-            let node_id = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
             dom.with_node_mut(node_id, |n| n.set_live_value(arg2.to_string()));
             "true".into()
         }
@@ -1341,8 +1430,17 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // state, while getAttribute/outerHTML keep showing only the parsed
         // `checked` attribute like Chrome.
         "set_live_checked" | "set_live_indeterminate" => {
-            let node_id = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
-            dom.with_node_mut(node_id, |n| if cmd == "set_live_checked" { n.set_live_checked(arg2 == "1") } else { n.set_live_indeterminate(arg2 == "1") });
+            let node_id = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
+            dom.with_node_mut(node_id, |n| {
+                if cmd == "set_live_checked" {
+                    n.set_live_checked(arg2 == "1")
+                } else {
+                    n.set_live_indeterminate(arg2 == "1")
+                }
+            });
             "true".into()
         }
         // Focus mirror (blitz#839): the bootstrap's focus()/blur() keep the
@@ -1431,7 +1529,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             "true".into()
         }
         "remove_child" => {
-            let child = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            let child = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
             dom.remove_child(child);
             "true".into()
         }
@@ -1444,7 +1545,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             "true".into()
         }
         "remove_attribute" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
             dom.with_node_mut(nid, |n| {
                 if let NodeData::Element { attrs, .. } = &mut n.data {
                     attrs.retain(|a| a.name.local.as_str() != arg2.as_str());
@@ -1454,7 +1558,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             "true".into()
         }
         "set_inner_html" => {
-            let target = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
+            let target = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
             let children = dom.children(target);
             for child in children {
                 dom.detach(child);
@@ -1490,7 +1597,8 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "document_write" => {
             gs.pending_write_nav.set(true);
             let mut slot = gs.write_stream.borrow_mut();
-            let stream = slot.get_or_insert_with(crate::diting_js::write_stream::DocumentWriteStream::new);
+            let stream =
+                slot.get_or_insert_with(crate::diting_js::write_stream::DocumentWriteStream::new);
             let pairs: Vec<[i32; 2]> = stream
                 .write(&arg2, dom)
                 .iter()
@@ -1509,20 +1617,25 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             "true".into()
         }
         "set_text_content" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "false".into() };
-            dom.with_node_mut(nid, |n| {
-                match &mut n.data {
-                    NodeData::Text { contents } => { *contents = arg2.clone(); }
-                    NodeData::Comment { contents } => { *contents = arg2.clone(); }
-                    NodeData::ProcessingInstruction { data, .. } => { *data = arg2.clone(); }
-                    _ => {}
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "false".into(),
+            };
+            dom.with_node_mut(nid, |n| match &mut n.data {
+                NodeData::Text { contents } => {
+                    *contents = arg2.clone();
                 }
+                NodeData::Comment { contents } => {
+                    *contents = arg2.clone();
+                }
+                NodeData::ProcessingInstruction { data, .. } => {
+                    *data = arg2.clone();
+                }
+                _ => {}
             });
             "true".into()
         }
-        "create_document_fragment" => {
-            dom.new_node(NodeData::Document).index().to_string()
-        }
+        "create_document_fragment" => dom.new_node(NodeData::Document).index().to_string(),
         "clone_node" => {
             let nid = match arg1.parse::<u32>() {
                 Ok(n) => n,
@@ -1531,12 +1644,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             let source = NodeId::new(nid);
             match dom.clone_node(source, arg2 == "true") {
                 Some(cloned) => {
-                    propagate_script_start_state(
-                        dom,
-                        source,
-                        cloned,
-                        &gs.already_started_scripts,
-                    );
+                    propagate_script_start_state(dom, source, cloned, &gs.already_started_scripts);
                     cloned.index().to_string()
                 }
                 None => "-1".into(),
@@ -1564,23 +1672,36 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             };
             dom.new_node(NodeData::Element {
                 name: html5ever::QualName::new(None, ns, html5ever::LocalName::from(arg1.as_str())),
-                attrs: vec![], template_contents: None, mathml_annotation_xml_integration_point: false,
+                attrs: vec![],
+                template_contents: None,
+                mathml_annotation_xml_integration_point: false,
                 live_value: None,
-                live_checked: None, live_indeterminate: false,
-            }).index().to_string()
+                live_checked: None,
+                live_indeterminate: false,
+            })
+            .index()
+            .to_string()
         }
-        "create_text_node" => {
-            dom.new_node(NodeData::Text { contents: arg1.clone() }).index().to_string()
-        }
-        "create_comment_node" => {
-            dom.new_node(NodeData::Comment { contents: arg1.clone() }).index().to_string()
-        }
+        "create_text_node" => dom
+            .new_node(NodeData::Text {
+                contents: arg1.clone(),
+            })
+            .index()
+            .to_string(),
+        "create_comment_node" => dom
+            .new_node(NodeData::Comment {
+                contents: arg1.clone(),
+            })
+            .index()
+            .to_string(),
         "create_processing_instruction" => {
             // arg1 = target, arg2 = data
             dom.new_node(NodeData::ProcessingInstruction {
                 target: arg1.clone(),
                 data: arg2.clone(),
-            }).index().to_string()
+            })
+            .index()
+            .to_string()
         }
         "create_doctype" => {
             // arg1 = name, arg2 = public_id. system_id stored only in the
@@ -1590,47 +1711,66 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 name: arg1.clone(),
                 public_id: arg2.clone(),
                 system_id: String::new(),
-            }).index().to_string()
+            })
+            .index()
+            .to_string()
         }
         "pi_target" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let val = dom.get_node(NodeId::new(nid)).and_then(|n| match &n.data {
-                NodeData::ProcessingInstruction { target, .. } => Some(target.clone()),
-                _ => None,
-            }).unwrap_or_default();
+            let val = dom
+                .get_node(NodeId::new(nid))
+                .and_then(|n| match &n.data {
+                    NodeData::ProcessingInstruction { target, .. } => Some(target.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default();
             serde_json::to_string(&val).unwrap_or("\"\"".into())
         }
         "doctype_name" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let val = dom.get_node(NodeId::new(nid)).and_then(|n| match &n.data {
-                NodeData::Doctype { name, .. } => Some(name.clone()),
-                _ => None,
-            }).unwrap_or_default();
+            let val = dom
+                .get_node(NodeId::new(nid))
+                .and_then(|n| match &n.data {
+                    NodeData::Doctype { name, .. } => Some(name.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default();
             serde_json::to_string(&val).unwrap_or("\"\"".into())
         }
         "doctype_public_id" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let val = dom.get_node(NodeId::new(nid)).and_then(|n| match &n.data {
-                NodeData::Doctype { public_id, .. } => Some(public_id.clone()),
-                _ => None,
-            }).unwrap_or_default();
+            let val = dom
+                .get_node(NodeId::new(nid))
+                .and_then(|n| match &n.data {
+                    NodeData::Doctype { public_id, .. } => Some(public_id.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default();
             serde_json::to_string(&val).unwrap_or("\"\"".into())
         }
         "element_children" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            let ids: Vec<i32> = dom.children(NodeId::new(nid)).iter()
+            let ids: Vec<i32> = dom
+                .children(NodeId::new(nid))
+                .iter()
                 .filter(|&&id| dom.get_node(id).map(|n| n.is_element()).unwrap_or(false))
-                .map(|id| id.index() as i32).collect();
+                .map(|id| id.index() as i32)
+                .collect();
             serde_json::to_string(&ids).unwrap_or("[]".into())
         }
         "has_child_nodes" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
-            dom.get_node(NodeId::new(nid)).map(|n| n.first_child.is_some()).unwrap_or(false).to_string()
+            dom.get_node(NodeId::new(nid))
+                .map(|n| n.first_child.is_some())
+                .unwrap_or(false)
+                .to_string()
         }
         "contains" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
             let other = arg2.parse::<u32>().unwrap_or(0);
-            dom.descendants(NodeId::new(nid)).contains(&NodeId::new(other)).to_string()
+            dom.descendants(NodeId::new(nid))
+                .contains(&NodeId::new(other))
+                .to_string()
         }
         // Index of a node among its parent's children. Walks prev siblings in
         // Rust, avoiding the per-step JS->op round trips a Range comparison
@@ -1739,11 +1879,18 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // bootstrap falls back to its synthetic hit-test grid.
         #[cfg(feature = "screenshot")]
         "layout_rect" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             let epoch = dom.epoch();
             ensure_layout_run(&gs, dom, epoch);
             let rect = gs.layout_cache.borrow().as_ref().and_then(|(e, (m, ..))| {
-                if *e == epoch { m.get(&nid).copied() } else { None }
+                if *e == epoch {
+                    m.get(&nid).copied()
+                } else {
+                    None
+                }
             });
             match rect {
                 // Sticky v1: the border-box rect carries the scroll-dependent
@@ -1783,14 +1930,26 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "paint_order" => {
             let epoch = dom.epoch();
             ensure_layout_run(&gs, dom, epoch);
-            let order = gs.layout_cache.borrow().as_ref().and_then(|(e, (_, o, ..))| {
-                if *e == epoch { Some(o.clone()) } else { None }
-            });
+            let order = gs
+                .layout_cache
+                .borrow()
+                .as_ref()
+                .and_then(
+                    |(e, (_, o, ..))| {
+                        if *e == epoch {
+                            Some(o.clone())
+                        } else {
+                            None
+                        }
+                    },
+                );
             let order = order.unwrap_or_default();
             let mut s = String::with_capacity(order.len() * 8 + 2);
             s.push('[');
             for (i, id) in order.iter().enumerate() {
-                if i > 0 { s.push(','); }
+                if i > 0 {
+                    s.push(',');
+                }
                 s.push_str(&id.index().to_string());
             }
             s.push(']');
@@ -1805,12 +1964,19 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // transformed shape.
         #[cfg(feature = "screenshot")]
         "local_geom" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             let epoch = dom.epoch();
             ensure_layout_run(&gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
             let geom = guard.as_ref().and_then(|(e, run)| {
-                if *e == epoch { run.4.get(&nid).copied() } else { None }
+                if *e == epoch {
+                    run.4.get(&nid).copied()
+                } else {
+                    None
+                }
             });
             drop(guard);
             match geom {
@@ -1851,7 +2017,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // this through the iframe-doc marker) and gets "null".
         #[cfg(feature = "screenshot")]
         "iframe_layout_rect" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             let mut root = nid;
             while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
                 root = p;
@@ -1874,7 +2043,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // wire format as `local_geom`, served from the iframe-subtree run.
         #[cfg(feature = "screenshot")]
         "iframe_local_geom" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             let mut root = nid;
             while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
                 root = p;
@@ -1886,7 +2058,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             let run = iframe_layout_run(&gs, dom, root, vw, vh);
             match run.4.get(&nid) {
                 Some(&([x, y, w, h], [a, b, c, d, e, f])) => {
-                    format!("[{},{},{},{},{},{},{},{},{},{}]", x, y, w, h, a, b, c, d, e, f)
+                    format!(
+                        "[{},{},{},{},{},{},{},{},{},{}]",
+                        x, y, w, h, a, b, c, d, e, f
+                    )
                 }
                 None => "null".into(),
             }
@@ -1899,7 +2074,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // keeps its constructor defaults there.
         #[cfg(feature = "screenshot")]
         "event_offset" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             let Some((px, py)) = arg2.split_once(',').and_then(|(xs, ys)| {
                 let x = xs.trim().parse::<f32>().ok()?;
                 let y = ys.trim().parse::<f32>().ok()?;
@@ -1954,23 +2132,25 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // scrollable overflow region without per-margin-box geometry.
         #[cfg(feature = "screenshot")]
         "scroll_extent" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             let epoch = dom.epoch();
             ensure_layout_run(&gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
-            let Some((_, (rects, _, styles, items, _, _, _))) = guard.as_ref().filter(|(e, _)| *e == epoch)
+            let Some((_, (rects, _, styles, items, _, _, _))) =
+                guard.as_ref().filter(|(e, _)| *e == epoch)
             else {
                 return "null".into();
             };
-            let Some(&[ox, oy, ow, oh]) = rects.get(&nid) else { return "null".into() };
+            let Some(&[ox, oy, ow, oh]) = rects.get(&nid) else {
+                return "null".into();
+            };
             let is_root = dom
                 .with_node(nid, |n| {
-                    n.as_element().map(|e| {
-                        matches!(
-                            e.local.to_ascii_lowercase().as_str(),
-                            "html" | "body"
-                        )
-                    })
+                    n.as_element()
+                        .map(|e| matches!(e.local.to_ascii_lowercase().as_str(), "html" | "body"))
                 })
                 .flatten()
                 .unwrap_or(false);
@@ -2023,12 +2203,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .flatten()
                 .unwrap_or(false);
             if is_html {
-                let eff = crate::diting_layout::effective_viewport_overflow(
-                    dom,
-                    styles,
-                    nid,
-                    |id| rects.contains_key(&id),
-                );
+                let eff =
+                    crate::diting_layout::effective_viewport_overflow(dom, styles, nid, |id| {
+                        rects.contains_key(&id)
+                    });
                 if matches!(
                     eff,
                     crate::diting_css::Overflow::Hidden | crate::diting_css::Overflow::Clip
@@ -2046,7 +2224,9 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // catch-all below) and the JS side treats that as not-a-scroller.
         #[cfg(feature = "screenshot")]
         "is_scroll_container" => {
-            let Some(nid) = parse_nid(&arg1) else { return "0".into() };
+            let Some(nid) = parse_nid(&arg1) else {
+                return "0".into();
+            };
             let epoch = dom.epoch();
             ensure_layout_run(&gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
@@ -2067,10 +2247,13 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // invalidates the shift caches, so scrolling never re-lays-out.
         #[cfg(feature = "screenshot")]
         "set_node_scroll" => {
-            let Some(nid) = parse_nid(&arg1) else { return "ok".into() };
-            if let Some((x, y)) = arg2.split_once('\0').and_then(|(x, y)| {
-                Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?))
-            }) {
+            let Some(nid) = parse_nid(&arg1) else {
+                return "ok".into();
+            };
+            if let Some((x, y)) = arg2
+                .split_once('\0')
+                .and_then(|(x, y)| Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?)))
+            {
                 if x.is_finite() && y.is_finite() {
                     dom.set_node_scroll(nid, x, y);
                 }
@@ -2092,7 +2275,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // deliberately not in the table.
         #[cfg(feature = "screenshot")]
         "computed_style" => {
-            let nid = match parse_nid(&arg1) { Some(id) => id, None => return "null".into() };
+            let nid = match parse_nid(&arg1) {
+                Some(id) => id,
+                None => return "null".into(),
+            };
             // Pseudo-element face (batch 102): arg2 routes to the host's
             // cascaded ::before/::after styles. The JS wrapper validates the
             // argument (TypeError for anything not `::name` or a legacy
@@ -2108,7 +2294,8 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             };
             let cssom_tag = dom
                 .with_node(nid, |n| {
-                    n.as_element().map(|e| e.local.as_str().to_ascii_lowercase())
+                    n.as_element()
+                        .map(|e| e.local.as_str().to_ascii_lowercase())
                 })
                 .flatten();
             let epoch = dom.epoch();
@@ -2208,10 +2395,13 @@ fn style_property_map(style: &str) -> HashMap<String, String> {
 #[cfg(feature = "screenshot")]
 fn style_write_is_paint_only(old: Option<&str>, new: Option<&str>) -> bool {
     const PAINT_ONLY: [&str; 5] = ["transform", "opacity", "translate", "rotate", "scale"];
-    let (Some(old), Some(new)) = (old, new) else { return false };
+    let (Some(old), Some(new)) = (old, new) else {
+        return false;
+    };
     let old = style_property_map(old);
     let new = style_property_map(new);
-    old.keys().chain(new.keys())
+    old.keys()
+        .chain(new.keys())
         .all(|n| old.get(n) == new.get(n) || PAINT_ONLY.contains(&n.as_str()))
 }
 
@@ -2296,12 +2486,19 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                     n.get_attribute("href").map(|v| v.to_string()),
                 ))
             });
-            let Some((tag, rel, href)) = meta.flatten() else { continue };
+            let Some((tag, rel, href)) = meta.flatten() else {
+                continue;
+            };
             match &*tag {
                 "style" => {
                     // A sheet edited through CSSOM (insertRule on style.sheet — how
                     // CSS-in-JS libraries style) overrides the element's text.
-                    match gs.ext_sheets.borrow().get(&format!("\u{0}style:{}", el.index())).and_then(|v| v.strip_prefix('\u{2}')) {
+                    match gs
+                        .ext_sheets
+                        .borrow()
+                        .get(&format!("\u{0}style:{}", el.index()))
+                        .and_then(|v| v.strip_prefix('\u{2}'))
+                    {
                         Some(edited) => css.push_str(edited),
                         None => css.push_str(&dom.text_content(el)),
                     }
@@ -2314,7 +2511,9 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                     if !is_sheet {
                         continue;
                     }
-                    let Some(href) = href.filter(|h| !h.is_empty()) else { continue };
+                    let Some(href) = href.filter(|h| !h.is_empty()) else {
+                        continue;
+                    };
                     let abs = Url::parse(&gs.url)
                         .ok()
                         .and_then(|base| base.join(&href).ok())
@@ -2351,7 +2550,11 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         css.hash(&mut hasher);
-        format!("{:?}|{:?}|{:?}", gs.viewport, gs.media_type, gs.media_overrides).hash(&mut hasher);
+        format!(
+            "{:?}|{:?}|{:?}",
+            gs.viewport, gs.media_type, gs.media_overrides
+        )
+        .hash(&mut hasher);
         hasher.finish()
     };
     let (mut rules, keyframes, containers) = crate::diting_css::parse_stylesheet_full(
@@ -2385,7 +2588,11 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                 let fonts_probe = crate::diting_fonts::font_book();
                 let bytes_map = gs.image_bytes.borrow();
                 let network_bytes: Option<&HashMap<String, std::sync::Arc<Vec<u8>>>> =
-                    if bytes_map.is_empty() { None } else { Some(&bytes_map) };
+                    if bytes_map.is_empty() {
+                        None
+                    } else {
+                        Some(&bytes_map)
+                    };
                 let probe = crate::diting_layout::layout_solve(
                     dom,
                     &styles_map,
@@ -2487,7 +2694,11 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
         // fetching).
         let bytes_map = gs.image_bytes.borrow();
         let network_bytes: Option<&HashMap<String, std::sync::Arc<Vec<u8>>>> =
-            if bytes_map.is_empty() { None } else { Some(&bytes_map) };
+            if bytes_map.is_empty() {
+                None
+            } else {
+                Some(&bytes_map)
+            };
         let solved = crate::diting_layout::layout_solve(
             dom,
             &styles_map,
@@ -2527,15 +2738,16 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
         );
     }
     (
-        rects.into_iter().map(|(id, r)| (id, [r.x, r.y, r.width, r.height])).collect(),
+        rects
+            .into_iter()
+            .map(|(id, r)| (id, [r.x, r.y, r.width, r.height]))
+            .collect(),
         paint_order,
         styles_map,
         items,
         local_geom
             .into_iter()
-            .map(|(id, (r, m))| {
-                (id, ([r.x, r.y, r.width, r.height], m))
-            })
+            .map(|(id, (r, m))| (id, ([r.x, r.y, r.width, r.height], m)))
             .collect(),
         sticky_spans,
         scroller_spans,
@@ -2596,12 +2808,14 @@ fn iframe_layout_run(
 ) -> std::rc::Rc<LayoutRun> {
     let epoch = dom.epoch();
     let (vwb, vhb) = (vw.to_bits(), vh.to_bits());
-    if let Some(hit) = gs.iframe_layout_cache.borrow().as_ref().and_then(
-        |(e, r, cw, ch, run)| {
-            (*e == epoch && *r == root && *cw == vwb && *ch == vhb)
-                .then(|| std::rc::Rc::clone(run))
-        },
-    ) {
+    if let Some(hit) = gs
+        .iframe_layout_cache
+        .borrow()
+        .as_ref()
+        .and_then(|(e, r, cw, ch, run)| {
+            (*e == epoch && *r == root && *cw == vwb && *ch == vhb).then(|| std::rc::Rc::clone(run))
+        })
+    {
         return hit;
     }
     let mut css = String::new();
@@ -2610,7 +2824,8 @@ fn iframe_layout_run(
         stack.extend(dom.children(cur));
         let is_style = dom
             .with_node(cur, |n| {
-                n.as_element().map(|e| *e.local.to_ascii_lowercase() == *"style")
+                n.as_element()
+                    .map(|e| *e.local.to_ascii_lowercase() == *"style")
             })
             .flatten()
             .unwrap_or(false);
@@ -2673,8 +2888,7 @@ fn iframe_layout_run(
         sticky_spans,
         scroller_spans,
     ));
-    *gs.iframe_layout_cache.borrow_mut() =
-        Some((epoch, root, vwb, vhb, std::rc::Rc::clone(&run)));
+    *gs.iframe_layout_cache.borrow_mut() = Some((epoch, root, vwb, vhb, std::rc::Rc::clone(&run)));
     run
 }
 
@@ -2703,7 +2917,10 @@ fn is_viewport_fixed(
         if id == root {
             return true;
         }
-        if styles.get(&id).is_some_and(|st| st.effective_transform().is_some()) {
+        if styles
+            .get(&id)
+            .is_some_and(|st| st.effective_transform().is_some())
+        {
             return false;
         }
         cur = dom.get_node(id).and_then(|n| n.parent);
@@ -2729,23 +2946,23 @@ fn is_element_scroller(
     if !rects.contains_key(&id) {
         return false;
     }
-    let Some(s) = styles.get(&id) else { return false };
+    let Some(s) = styles.get(&id) else {
+        return false;
+    };
     if !(s.clips_descendants() && s.effective_overflow() != crate::diting_css::Overflow::Clip) {
         return false;
     }
     let tag = dom
         .with_node(id, |n| {
-            n.as_element().map(|e| e.local.to_ascii_lowercase().to_string())
+            n.as_element()
+                .map(|e| e.local.to_ascii_lowercase().to_string())
         })
         .flatten();
     match tag.as_deref() {
         Some("html") => false,
-        Some("body") => !crate::diting_layout::body_overflow_propagates(
-            dom,
-            styles,
-            id,
-            |x| rects.contains_key(&x),
-        ),
+        Some("body") => !crate::diting_layout::body_overflow_propagates(dom, styles, id, |x| {
+            rects.contains_key(&x)
+        }),
         _ => true,
     }
 }
@@ -2881,9 +3098,7 @@ fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f3
                 // tfoot — UA-mapped to TableRow, same as tr) and rows are
                 // walked past, not clamped to. Without the skip a sticky
                 // tr clamps to its 30px-tall thead box and never moves.
-                let table_internal = styles
-                    .get(&p)
-                    .and_then(|st| st.display)
+                let table_internal = styles.get(&p).and_then(|st| st.display)
                     == Some(crate::diting_css::Display::TableRow);
                 if !table_internal {
                     if let Some(&r) = rects.get(&p) {
@@ -2950,8 +3165,12 @@ fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f3
             let o = scrolls.get(&nid).copied().unwrap_or([0.0, 0.0]);
             ([-o[0], -o[1]], false)
         } else {
-            let Some(&[x, y, w, h]) = rects.get(&nid) else { continue };
-            let Some((_, [cx, cy, cw, ch])) = cb else { continue };
+            let Some(&[x, y, w, h]) = rects.get(&nid) else {
+                continue;
+            };
+            let Some((_, [cx, cy, cw, ch])) = cb else {
+                continue;
+            };
             let st = &styles[&nid];
             // Port: nearest element scroller (v2) with its OWN offset —
             // outer scrollers cancel because the port rides them with the
@@ -3038,27 +3257,22 @@ fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f3
 
 #[cfg(feature = "screenshot")]
 mod band;
-mod css;
-mod encoding;
-mod text_geom;
-mod props;
-mod fetch_gate;
-mod fetch_walk;
 mod canvas;
+mod css;
 mod ecdsa;
 mod ed25519;
+mod encoding;
+mod fetch_gate;
+mod fetch_walk;
 mod node_order;
+mod props;
+mod text_geom;
 
-pub(crate) use fetch_walk::{
-    fetch_url_walk, FetchFailure, FetchNetworkEvent, FetchWalkDeps,
-};
-use node_order::{compare_node_order, node_child_index};
 #[cfg(feature = "screenshot")]
 pub use band::BandFrame;
 #[cfg(feature = "screenshot")]
 pub(crate) use band::{
-    band_frame, band_frame_cut, band_frame_cut_with_text, band_frame_scaled,
-    band_frame_with_text,
+    band_frame, band_frame_cut, band_frame_cut_with_text, band_frame_scaled, band_frame_with_text,
 };
 pub(crate) use canvas::{op_canvas_jpeg, op_canvas_png};
 #[cfg(feature = "screenshot")]
@@ -3068,27 +3282,30 @@ pub(crate) use ecdsa::{
     op_subtle_ecdsa_import_public, op_subtle_ecdsa_sign, op_subtle_ecdsa_verify,
 };
 pub(crate) use ed25519::{
-    op_subtle_ed25519_check, op_subtle_ed25519_public, op_subtle_ed25519_sign, op_subtle_ed25519_verify,
+    op_subtle_ed25519_check, op_subtle_ed25519_public, op_subtle_ed25519_sign,
+    op_subtle_ed25519_verify,
 };
-mod crypto_secret;
+pub(crate) use fetch_walk::{fetch_url_walk, FetchFailure, FetchNetworkEvent, FetchWalkDeps};
+use node_order::{compare_node_order, node_child_index};
 mod cors;
+mod crypto_secret;
 mod referrer;
-pub(crate) use referrer::{fetch_referer, last_valid_referrer_token, resolve_referrer_policy_from};
 use referrer::resolve_document_referrer_policy;
+pub(crate) use referrer::{fetch_referer, last_valid_referrer_token, resolve_referrer_policy_from};
 mod fetch_client;
-pub use fetch_client::cached_request_client;
-pub(crate) use fetch_client::select_request_client;
 #[cfg(feature = "screenshot")]
 use cssom_value::{cb_inline_for, computed_style_value};
+pub use fetch_client::cached_request_client;
+pub(crate) use fetch_client::select_request_client;
 mod cssom_value;
 mod image_info;
-use image_info::image_header_dimensions;
-pub use fetch_gate::validate_fetch_url;
 pub(crate) use cors::request_origin;
 pub(crate) use crypto_secret::{
     crypto_err, op_random_bytes, op_subtle_aes_cbc, op_subtle_aes_ctr, op_subtle_aes_gcm,
     op_subtle_aes_kw, op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, op_subtle_pbkdf2,
 };
+pub use fetch_gate::validate_fetch_url;
+use image_info::image_header_dimensions;
 mod crypto_rsa;
 pub(crate) use crypto_rsa::{
     op_subtle_rsa_generate, op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private,
@@ -3231,7 +3448,6 @@ const COMPUTED_STYLE_PROPS: &[&str] = &[
     "transition-timing-function",
 ];
 
-
 #[diting_op]
 fn op_console_msg(state: &OpState, #[string] level: &str, #[string] msg: &str) {
     match level {
@@ -3323,13 +3539,13 @@ impl FetchCredentials {
     }
 }
 
-
 /// OpState-cloned inputs the fetch front half gathers before any network
 /// I/O, shared by both drivers.
 struct FetchRequestInit {
     cookie_jar: Option<Arc<CookieJar>>,
     in_flight: Option<Arc<std::sync::atomic::AtomicU32>>,
-    in_flight_list: Option<std::sync::Arc<std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>>>,
+    in_flight_list:
+        Option<std::sync::Arc<std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>>>,
     proxy_url: Option<String>,
     http_client: Option<Arc<HttpClient>>,
     callbacks: Option<std::sync::Arc<crate::diting_net::CallbackRegistry>>,
@@ -3351,14 +3567,17 @@ fn gather_fetch_parts(
 ) -> Result<(FetchRequestInit, bool), String> {
     if let Ok(parsed_url) = url::Url::parse(url) {
         if let Err(e) = validate_fetch_url(&parsed_url) {
-            record_failed_fetch(state, &FetchFailure {
-                url: url.to_string(),
-                method: method.to_string(),
-                reason: e.clone(),
-                final_url: url.to_string(),
-                redirects: Vec::new(),
-                started,
-            });
+            record_failed_fetch(
+                state,
+                &FetchFailure {
+                    url: url.to_string(),
+                    method: method.to_string(),
+                    reason: e.clone(),
+                    final_url: url.to_string(),
+                    redirects: Vec::new(),
+                    started,
+                },
+            );
             return Err(serde_json::json!({
                 "status": 0,
                 "body": "",
@@ -3366,7 +3585,8 @@ fn gather_fetch_parts(
                 "headers": {},
                 "blocked": true,
                 "error": e,
-            }).to_string());
+            })
+            .to_string());
         }
     } else {
         // Fail closed (#252): an unparseable URL used to skip the gate
@@ -3376,14 +3596,17 @@ fn gather_fetch_parts(
         // so this is the backstop for direct op callers (module loader,
         // XHR's shared closure).
         let reason = "invalid URL (failed to parse)".to_string();
-        record_failed_fetch(state, &FetchFailure {
-            url: url.to_string(),
-            method: method.to_string(),
-            reason: reason.clone(),
-            final_url: url.to_string(),
-            redirects: Vec::new(),
-            started,
-        });
+        record_failed_fetch(
+            state,
+            &FetchFailure {
+                url: url.to_string(),
+                method: method.to_string(),
+                reason: reason.clone(),
+                final_url: url.to_string(),
+                redirects: Vec::new(),
+                started,
+            },
+        );
         return Err(serde_json::json!({
             "status": 0,
             "body": "",
@@ -3391,7 +3614,8 @@ fn gather_fetch_parts(
             "headers": {},
             "blocked": true,
             "error": reason,
-        }).to_string());
+        })
+        .to_string());
     }
 
     // The JS shim sets this out-of-band header to signal that `body` is
@@ -3415,7 +3639,11 @@ fn gather_fetch_parts(
             .iter()
             .find(|p| *p == "*" || url.contains(p.as_str()) || glob_match(p, url))
             .cloned();
-        tracing::debug!("op_fetch_url: intercept_enabled={}, has_tx={}", gs.intercept_enabled, gs.intercept_tx.is_some());
+        tracing::debug!(
+            "op_fetch_url: intercept_enabled={}, has_tx={}",
+            gs.intercept_enabled,
+            gs.intercept_tx.is_some()
+        );
         let init = FetchRequestInit {
             cookie_jar: gs.cookie_jar.clone(),
             in_flight: gs.http_client.as_ref().map(|c| c.in_flight.clone()),
@@ -3423,7 +3651,10 @@ fn gather_fetch_parts(
             // #139: thread the configured proxy through to the per-request
             // reqwest::Client. Without this, op_fetch_url silently bypasses
             // BrowserContext.proxy_url for every JS fetch() / XHR call.
-            proxy_url: gs.http_client.as_ref().and_then(|c| c.proxy_url().map(|s| s.to_string())),
+            proxy_url: gs
+                .http_client
+                .as_ref()
+                .and_then(|c| c.proxy_url().map(|s| s.to_string())),
             http_client: gs.http_client.clone(),
             callbacks: gs.callbacks.clone(),
             document_url: gs.url.clone(),
@@ -3455,7 +3686,8 @@ fn gather_fetch_parts(
             "url": url,
             "headers": {},
             "blocked": true,
-        }).to_string());
+        })
+        .to_string());
     }
     Ok((init, body_is_base64))
 }
@@ -3637,7 +3869,11 @@ pub(crate) async fn op_fetch_url_body(
     } else {
         referrer_policy
     };
-    tracing::debug!("op_fetch_url called: {} {} (intercept check pending)", method, url);
+    tracing::debug!(
+        "op_fetch_url called: {} {} (intercept check pending)",
+        method,
+        url
+    );
 
     // One entry stamp, every exit's truth (#229): rows stamped later —
     // after the intercept wait or gate walk — would order behind requests
@@ -3646,8 +3882,7 @@ pub(crate) async fn op_fetch_url_body(
     // Bind first: the `state.borrow()` temporary must drop before the arm
     // body re-borrows for the settlement push (same nesting rule gather's
     // own record_failed_fetch follows).
-    let gathered =
-        gather_fetch_parts(&state.borrow(), &url, &method, &headers_json, started_unix);
+    let gathered = gather_fetch_parts(&state.borrow(), &url, &method, &headers_json, started_unix);
     let (init, body_is_base64) = match gathered {
         Ok(parts) => parts,
         Err(json) => {
@@ -3696,27 +3931,37 @@ pub(crate) async fn op_fetch_url_body(
             // future (evaluate of a fetch expression), the resolution cannot
             // be delivered and the wait must expire instead of hanging the
             // command forever.
-            let timeout_ms = INTERCEPT_RESOLUTION_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
-            match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), resolve_rx).await {
-                Ok(Ok(InterceptResolution::Fulfill { status, headers: h, body: b })) => {
+            let timeout_ms =
+                INTERCEPT_RESOLUTION_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
+            match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), resolve_rx)
+                .await
+            {
+                Ok(Ok(InterceptResolution::Fulfill {
+                    status,
+                    headers: h,
+                    body: b,
+                })) => {
                     // Chrome emits network events for fulfilled requests
                     // too — a fulfilled fetch must not read as "never
                     // happened" in the network log (#252); Fail already
                     // replays through record_failed_fetch.
                     let body_b64 = BASE64.encode(&b);
-                    record_fetch_network_event(&state.borrow(), &FetchNetworkEvent {
-                        url: url.clone(),
-                        method: method.clone(),
-                        status,
-                        response_headers: h.clone(),
-                        request_headers: request_headers_view.clone(),
-                        body_size: b.len(),
-                        stored_text: None,
-                        resp_body_base64: body_b64.clone(),
-                        final_url: url.clone(),
-                        redirects: Vec::new(),
-                        started: started_unix,
-                    });
+                    record_fetch_network_event(
+                        &state.borrow(),
+                        &FetchNetworkEvent {
+                            url: url.clone(),
+                            method: method.clone(),
+                            status,
+                            response_headers: h.clone(),
+                            request_headers: request_headers_view.clone(),
+                            body_size: b.len(),
+                            stored_text: None,
+                            resp_body_base64: body_b64.clone(),
+                            final_url: url.clone(),
+                            redirects: Vec::new(),
+                            started: started_unix,
+                        },
+                    );
                     // Byte-native: the synthetic body rides the same base64
                     // channel as real network responses (binary payloads
                     // survive; text is reconstructed on the JS side).
@@ -3725,19 +3970,23 @@ pub(crate) async fn op_fetch_url_body(
                         "bodyBase64": body_b64,
                         "url": url,
                         "headers": h,
-                    }).to_string();
+                    })
+                    .to_string();
                     push_fetch_settlement(&state, &settle_key, resp.clone());
                     return Ok(resp);
                 }
                 Ok(Ok(InterceptResolution::Fail { reason })) => {
-                    record_failed_fetch(&state.borrow(), &FetchFailure {
-                        url: url.clone(),
-                        method: method.clone(),
-                        reason: reason.clone(),
-                        final_url: url.clone(),
-                        redirects: Vec::new(),
-                        started: started_unix,
-                    });
+                    record_failed_fetch(
+                        &state.borrow(),
+                        &FetchFailure {
+                            url: url.clone(),
+                            method: method.clone(),
+                            reason: reason.clone(),
+                            final_url: url.clone(),
+                            redirects: Vec::new(),
+                            started: started_unix,
+                        },
+                    );
                     let resp = serde_json::json!({
                         "status": 0,
                         "body": "",
@@ -3745,11 +3994,17 @@ pub(crate) async fn op_fetch_url_body(
                         "headers": {},
                         "blocked": true,
                         "error": reason,
-                    }).to_string();
+                    })
+                    .to_string();
                     push_fetch_settlement(&state, &settle_key, resp.clone());
                     return Ok(resp);
                 }
-                Ok(Ok(InterceptResolution::Continue { url: new_url, method: new_method, headers: new_headers, body: new_body })) => {
+                Ok(Ok(InterceptResolution::Continue {
+                    url: new_url,
+                    method: new_method,
+                    headers: new_headers,
+                    body: new_body,
+                })) => {
                     override_url = new_url;
                     override_method = new_method;
                     override_headers = new_headers;
@@ -3774,43 +4029,52 @@ pub(crate) async fn op_fetch_url_body(
             match url::Url::parse(&new_url) {
                 Ok(parsed) => {
                     if let Err(reason) = validate_fetch_url(&parsed) {
-                        let error = format!("Intercept rewrite to forbidden URL blocked: {}", reason);
-                        record_failed_fetch(&state.borrow(), &FetchFailure {
-                            url: new_url.clone(),
-                            method: method.clone(),
-                            reason: error.clone(),
-                            final_url: new_url.clone(),
-                            redirects: Vec::new(),
-                            started: started_unix,
-                        });
+                        let error =
+                            format!("Intercept rewrite to forbidden URL blocked: {}", reason);
+                        record_failed_fetch(
+                            &state.borrow(),
+                            &FetchFailure {
+                                url: new_url.clone(),
+                                method: method.clone(),
+                                reason: error.clone(),
+                                final_url: new_url.clone(),
+                                redirects: Vec::new(),
+                                started: started_unix,
+                            },
+                        );
                         let resp = serde_json::json!({
                             "status": 0,
                             "body": "",
                             "url": new_url,
                             "blocked": true,
                             "error": error,
-                        }).to_string();
+                        })
+                        .to_string();
                         push_fetch_settlement(&state, &settle_key, resp.clone());
                         return Ok(resp);
                     }
                 }
                 Err(_) => {
                     let error = "Intercept rewrite to unparseable URL blocked".to_string();
-                    record_failed_fetch(&state.borrow(), &FetchFailure {
-                        url: new_url.clone(),
-                        method: method.clone(),
-                        reason: error.clone(),
-                        final_url: new_url.clone(),
-                        redirects: Vec::new(),
-                        started: started_unix,
-                    });
+                    record_failed_fetch(
+                        &state.borrow(),
+                        &FetchFailure {
+                            url: new_url.clone(),
+                            method: method.clone(),
+                            reason: error.clone(),
+                            final_url: new_url.clone(),
+                            redirects: Vec::new(),
+                            started: started_unix,
+                        },
+                    );
                     let resp = serde_json::json!({
                         "status": 0,
                         "body": "",
                         "url": new_url,
                         "blocked": true,
                         "error": error,
-                    }).to_string();
+                    })
+                    .to_string();
                     push_fetch_settlement(&state, &settle_key, resp.clone());
                     return Ok(resp);
                 }
@@ -3847,7 +4111,11 @@ pub(crate) async fn op_fetch_url_body(
     // url::Url::origin() normalizes default ports, so an explicit :443 still
     // compares same-origin (the old hand-rolled form did not).
     let initial_request_origin = request_origin(&url).unwrap_or_default();
-    let page_origin = if origin.is_empty() { initial_request_origin } else { origin };
+    let page_origin = if origin.is_empty() {
+        initial_request_origin
+    } else {
+        origin
+    };
 
     let mut deps = FetchWalkDeps {
         url,
@@ -3912,7 +4180,6 @@ const REFERRER_POLICY_TOKENS: [&str; 7] = [
     "strict-origin-when-cross-origin",
     "unsafe-url",
 ];
-
 
 pub(crate) fn glob_match(pattern: &str, url: &str) -> bool {
     if pattern == "*" {
@@ -4007,8 +4274,9 @@ fn op_fetch_url_sync(
     // Same #229 entry stamp as the async driver — gather's short-circuit
     // rows and the walk's deps both read the dispatch time.
     let started_unix = now_unix();
-    let (init, body_is_base64) = gather_fetch_parts(state, &url, &method, &headers_json, started_unix)
-        .map_err(deno_error::JsErrorBox::generic)?;
+    let (init, body_is_base64) =
+        gather_fetch_parts(state, &url, &method, &headers_json, started_unix)
+            .map_err(deno_error::JsErrorBox::generic)?;
     let FetchRequestInit {
         cookie_jar,
         in_flight,
@@ -4030,7 +4298,11 @@ fn op_fetch_url_sync(
     custom_headers.remove("__diting_body_b64");
 
     let initial_request_origin = request_origin(&url).unwrap_or_default();
-    let page_origin = if origin.is_empty() { initial_request_origin } else { origin };
+    let page_origin = if origin.is_empty() {
+        initial_request_origin
+    } else {
+        origin
+    };
 
     let mut deps = FetchWalkDeps {
         url,
@@ -4301,7 +4573,11 @@ fn op_storage_write(#[string] origin: &str, #[string] json: &str) {
         .is_ok();
     if write_ok {
         if let Err(e) = std::fs::rename(&tmp, &path) {
-            tracing::warn!("localStorage persist: rename to {} failed: {}", path.display(), e);
+            tracing::warn!(
+                "localStorage persist: rename to {} failed: {}",
+                path.display(),
+                e
+            );
         }
     } else {
         tracing::warn!("localStorage persist: write to {} failed", tmp.display());
@@ -4372,7 +4648,8 @@ pub(crate) async fn op_sleep_body(millis: u64) {
 fn op_binding_called(state: &OpState, #[string] name: &str, #[string] payload: &str) {
     let gs = state.borrow::<SharedState>().clone();
     let mut gs = gs.borrow_mut();
-    gs.pending_binding_calls.push((name.to_string(), payload.to_string()));
+    gs.pending_binding_calls
+        .push((name.to_string(), payload.to_string()));
     // The CDP layer drains this after every dispatch, but a page can loop
     // calling an exposed binding many times inside one long evaluate — same
     // unbounded-queue shape as js_network_events (obscura #705 class).
@@ -4382,7 +4659,6 @@ fn op_binding_called(state: &OpState, #[string] name: &str, #[string] payload: &
         gs.pending_binding_calls.drain(0..overflow);
     }
 }
-
 
 /// Serialize a parsed URL into the WHATWG IDL component shape consumed by the
 /// `URL` class in bootstrap.js. Getters read these fields directly so no op
@@ -4475,8 +4751,7 @@ fn url_set_inner(href: &str, part: &str, value: &str) -> Option<serde_json::Valu
             if value.is_empty() {
                 let _ = u.set_port(None);
             } else {
-                let digits: String =
-                    value.chars().take_while(|c| c.is_ascii_digit()).collect();
+                let digits: String = value.chars().take_while(|c| c.is_ascii_digit()).collect();
                 if let Ok(p) = digits.parse::<u32>() {
                     if p <= 65535 {
                         let _ = u.set_port(Some(p as u16));
@@ -4594,7 +4869,6 @@ fn op_add_import_map(
     result
 }
 
-
 /// 批240 / obscura#1100: SVGGeometryElement.getTotalLength() backing. Chrome
 /// measures through SkPathMeasure (circle r=25 → 156.0674, not 2πr), so these
 /// numbers line up with Chrome (conic chord measure for ovals, analytic for
@@ -4608,7 +4882,9 @@ fn op_add_import_map(
 #[diting_op]
 fn op_svg_path_len(state: &OpState, #[smi] nid: u32) -> f64 {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        svg_measure(state, nid).map(|m| m.total() as f64).unwrap_or(0.0)
+        svg_measure(state, nid)
+            .map(|m| m.total() as f64)
+            .unwrap_or(0.0)
     }))
     .unwrap_or(0.0)
 }
@@ -4644,10 +4920,7 @@ fn op_svg_path_point(_: &OpState, #[smi] _: u32, _: f64) -> String {
 }
 
 #[cfg(feature = "screenshot")]
-fn svg_measure(
-    state: &OpState,
-    nid: u32,
-) -> Option<crate::diting_layout::svg::PathMeasure> {
+fn svg_measure(state: &OpState, nid: u32) -> Option<crate::diting_layout::svg::PathMeasure> {
     let gs = state.borrow::<SharedState>().clone();
     let gs = gs.borrow();
     let dom = match &gs.dom {

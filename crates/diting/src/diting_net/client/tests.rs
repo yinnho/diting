@@ -112,7 +112,10 @@ async fn file_url_read_with_gate_open_sets_content_type() {
 
     let blob = temp_file("blob.bin", b"\x00\x01");
     let resp = fetch_file_url(&file_url_for(&blob)).await.unwrap();
-    assert_eq!(resp.headers.get("content-type").unwrap(), "application/octet-stream");
+    assert_eq!(
+        resp.headers.get("content-type").unwrap(),
+        "application/octet-stream"
+    );
     let _ = std::fs::remove_file(&path);
     let _ = std::fs::remove_file(&blob);
 }
@@ -172,7 +175,11 @@ async fn validate_url_ssrf_rules() {
         assert!(validate_url(&url, false).is_err(), "{bad} must be rejected");
     }
 
-    for good in ["http://example.com/", "https://example.com:8443/a?b=c", "file:///tmp/x.html"] {
+    for good in [
+        "http://example.com/",
+        "https://example.com:8443/a?b=c",
+        "file:///tmp/x.html",
+    ] {
         let url = Url::parse(good).unwrap();
         assert!(validate_url(&url, false).is_ok(), "{good} must be allowed");
     }
@@ -198,9 +205,27 @@ fn parse_scoped_cidrs_bare_ip_and_bounds() {
     let list = parse_scoped_cidrs("10.20.0.0/16, 127.0.0.1, ::1/128, banana, 10.0.0.0/33");
     // "banana" and the /33 are skipped (fail closed), never widened.
     assert_eq!(list.len(), 3, "parsed: {list:?}");
-    assert_eq!(list[0], ScopedCidr { net: IpAddr::from_str("10.20.0.0").unwrap(), prefix: 16 });
-    assert_eq!(list[1], ScopedCidr { net: IpAddr::from_str("127.0.0.1").unwrap(), prefix: 32 });
-    assert_eq!(list[2], ScopedCidr { net: IpAddr::from_str("::1").unwrap(), prefix: 128 });
+    assert_eq!(
+        list[0],
+        ScopedCidr {
+            net: IpAddr::from_str("10.20.0.0").unwrap(),
+            prefix: 16
+        }
+    );
+    assert_eq!(
+        list[1],
+        ScopedCidr {
+            net: IpAddr::from_str("127.0.0.1").unwrap(),
+            prefix: 32
+        }
+    );
+    assert_eq!(
+        list[2],
+        ScopedCidr {
+            net: IpAddr::from_str("::1").unwrap(),
+            prefix: 128
+        }
+    );
 }
 
 #[test]
@@ -208,10 +233,7 @@ fn scoped_allow_network_opens_only_listed_cidrs() {
     use std::str::FromStr;
     let _lock = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
     let _guard = AllowNetworkGuard;
-    std::env::set_var(
-        "DITING_ALLOW_NETWORK",
-        "10.20.0.0/16, 127.0.0.1, ::1",
-    );
+    std::env::set_var("DITING_ALLOW_NETWORK", "10.20.0.0/16, 127.0.0.1, ::1");
 
     let f = |s: &str| is_forbidden_ip(IpAddr::from_str(s).unwrap());
     // Listed ranges open...
@@ -226,14 +248,23 @@ fn scoped_allow_network_opens_only_listed_cidrs() {
     // ...and the embedded-IPv4 recursions respect the list at the leaf.
     assert!(!f("::ffff:10.20.3.4"), "mapped allow-listed v4 passes");
     assert!(f("::ffff:169.254.169.254"), "mapped metadata stays closed");
-    assert!(!f("2002:0a14:0304::"), "6to4-wrapped allow-listed v4 passes");
+    assert!(
+        !f("2002:0a14:0304::"),
+        "6to4-wrapped allow-listed v4 passes"
+    );
     assert!(f("2002:a9fe:a9fe::"), "6to4-wrapped metadata stays closed");
-    assert!(!f("64:ff9b::a14:304"), "NAT64-wrapped allow-listed v4 passes");
+    assert!(
+        !f("64:ff9b::a14:304"),
+        "NAT64-wrapped allow-listed v4 passes"
+    );
     // Teredo is the deliberate exception: the three-slot check (server,
     // client, XOR-obfuscated client) needs every slot individually
     // allowed, and a 10.20.0.0/16 client obfuscates to a public
     // 245.235.x.y — so the whole form stays blocked. Fail closed.
-    assert!(f("2001:0:a14:304::"), "Teredo stays closed even with the server slot allow-listed");
+    assert!(
+        f("2001:0:a14:304::"),
+        "Teredo stays closed even with the server slot allow-listed"
+    );
 }
 
 #[test]
@@ -303,25 +334,44 @@ fn is_forbidden_ip_covers_mapped_and_unspecified() {
 fn is_forbidden_ip_covers_iana_special_purposes() {
     use std::str::FromStr;
     for bad in [
-        "0.0.0.0", "0.1.2.3",                  // 0.0.0.0/8 "this network"
-        "100.64.0.1", "100.100.100.200",       // 100.64.0.0/10 CGNAT (Alibaba metadata)
-        "100.127.255.254",                     // CGNAT upper edge
-        "192.0.0.192",                         // 192.0.0.0/24 (Oracle)
-        "192.31.196.1", "192.52.193.1",        // AS112
-        "192.88.99.1",                         // 6to4 relay
-        "192.175.48.1",                        // Portmap
-        "198.18.0.1", "198.19.255.254",        // 198.18.0.0/15 benchmarking
-        "224.0.0.1", "239.1.1.1",              // multicast
-        "240.0.0.1", "250.1.2.3",              // reserved/future
-        "2001:db8::1",                         // documentation v6
-        "100::1",                              // discard-only 100::/64
-        "ff02::1", "ff0e::1",                  // ff00::/8
+        "0.0.0.0",
+        "0.1.2.3", // 0.0.0.0/8 "this network"
+        "100.64.0.1",
+        "100.100.100.200", // 100.64.0.0/10 CGNAT (Alibaba metadata)
+        "100.127.255.254", // CGNAT upper edge
+        "192.0.0.192",     // 192.0.0.0/24 (Oracle)
+        "192.31.196.1",
+        "192.52.193.1", // AS112
+        "192.88.99.1",  // 6to4 relay
+        "192.175.48.1", // Portmap
+        "198.18.0.1",
+        "198.19.255.254", // 198.18.0.0/15 benchmarking
+        "224.0.0.1",
+        "239.1.1.1", // multicast
+        "240.0.0.1",
+        "250.1.2.3",   // reserved/future
+        "2001:db8::1", // documentation v6
+        "100::1",      // discard-only 100::/64
+        "ff02::1",
+        "ff0e::1", // ff00::/8
     ] {
-        assert!(is_forbidden_ip(IpAddr::from_str(bad).unwrap()), "{bad} must be forbidden");
+        assert!(
+            is_forbidden_ip(IpAddr::from_str(bad).unwrap()),
+            "{bad} must be forbidden"
+        );
     }
     // CGNAT lower/upper neighbors stay reachable.
-    for good in ["100.63.255.254", "100.128.0.1", "198.17.255.254", "198.20.0.1", "223.255.255.254"] {
-        assert!(!is_forbidden_ip(IpAddr::from_str(good).unwrap()), "{good} must be allowed");
+    for good in [
+        "100.63.255.254",
+        "100.128.0.1",
+        "198.17.255.254",
+        "198.20.0.1",
+        "223.255.255.254",
+    ] {
+        assert!(
+            !is_forbidden_ip(IpAddr::from_str(good).unwrap()),
+            "{good} must be allowed"
+        );
     }
 }
 
@@ -330,24 +380,31 @@ fn is_forbidden_ip_unwraps_embedded_ipv4_from_6to4_and_nat64() {
     use std::str::FromStr;
     for bad in [
         // 6to4 2002::/16 wrapping forbidden v4 targets.
-        "2002:a9fe:a9fe::",   // 169.254.169.254 cloud metadata
-        "2002:7f00:1::",      // 127.0.0.1 loopback
-        "2002:a00:1::",       // 10.0.0.1 RFC1918
-        "2002:6464:64c8::",   // 100.100.100.200 Alibaba metadata
-        "2002:c0a8:101::",    // 192.168.1.1
+        "2002:a9fe:a9fe::", // 169.254.169.254 cloud metadata
+        "2002:7f00:1::",    // 127.0.0.1 loopback
+        "2002:a00:1::",     // 10.0.0.1 RFC1918
+        "2002:6464:64c8::", // 100.100.100.200 Alibaba metadata
+        "2002:c0a8:101::",  // 192.168.1.1
         // NAT64 well-known prefix 64:ff9b::/96.
         "64:ff9b::7f00:1",    // 127.0.0.1
         "64:ff9b::a9fe:a9fe", // 169.254.169.254
         "64:ff9b:1::7f00:1",  // local-use 64:ff9b:1::/48 (RFC 8215) → 127.0.0.1
         // IPv4-compatible and mapped re-checked through the v4 deny-set.
-        "::127.0.0.1", "::ffff:169.254.169.254",
+        "::127.0.0.1",
+        "::ffff:169.254.169.254",
     ] {
-        assert!(is_forbidden_ip(IpAddr::from_str(bad).unwrap()), "{bad} must be forbidden");
+        assert!(
+            is_forbidden_ip(IpAddr::from_str(bad).unwrap()),
+            "{bad} must be forbidden"
+        );
     }
     // A 6to4/NAT64 wrapper around a PUBLIC v4 stays allowed — the guard
     // re-checks the embedded address, it does not blanket-ban the prefix.
     for good in ["2002:0808:0808::", /* 8.8.8.8 */ "64:ff9b::808:808"] {
-        assert!(!is_forbidden_ip(IpAddr::from_str(good).unwrap()), "{good} must be allowed");
+        assert!(
+            !is_forbidden_ip(IpAddr::from_str(good).unwrap()),
+            "{good} must be allowed"
+        );
     }
 }
 
@@ -367,13 +424,19 @@ fn is_forbidden_ip_unwraps_teredo_embedded_ipv4() {
         // Client slot obfuscated metadata: 5601:5601 ^ ffff = a9fe:a9fe.
         "2001:0:cf2e:d242:eb00:1234:5601:5601",
     ] {
-        assert!(is_forbidden_ip(IpAddr::from_str(bad).unwrap()), "{bad} must be forbidden");
+        assert!(
+            is_forbidden_ip(IpAddr::from_str(bad).unwrap()),
+            "{bad} must be forbidden"
+        );
     }
     // A Teredo wrapper with a public v4 in every slot stays allowed —
     // server 65.54.227.120 (real Teredo server), raw client 176.16.33.80,
     // de-obfuscated client 79.239.222.175.
     let good = "2001:0:4136:e378:8000:63bf:b010:2150";
-    assert!(!is_forbidden_ip(IpAddr::from_str(good).unwrap()), "{good} must be allowed");
+    assert!(
+        !is_forbidden_ip(IpAddr::from_str(good).unwrap()),
+        "{good} must be allowed"
+    );
 }
 
 #[test]
@@ -382,9 +445,9 @@ fn validate_url_rejects_embedded_ipv6_literal_hosts() {
     std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
 
     for bad in [
-        "http://[2002:7f00:1::]/",         // 6to4-wrapped loopback
-        "http://[64:ff9b::7f00:1]/",       // NAT64-wrapped loopback
-        "http://[2002:a9fe:a9fe::]/latest/meta-data", // 6to4-wrapped metadata
+        "http://[2002:7f00:1::]/",                        // 6to4-wrapped loopback
+        "http://[64:ff9b::7f00:1]/",                      // NAT64-wrapped loopback
+        "http://[2002:a9fe:a9fe::]/latest/meta-data",     // 6to4-wrapped metadata
         "http://[2001:0:4136:e378:8000:63bf:80fe:fefe]/", // Teredo-obfuscated loopback
     ] {
         let url = Url::parse(bad).unwrap();
@@ -400,13 +463,19 @@ async fn ssrf_guard_resolver_blocks_loopback_resolution() {
 
     let guarded = SsrfGuardResolver::new(false);
     assert!(
-        guarded.resolve(Name::from_str("localhost").unwrap()).await.is_err(),
+        guarded
+            .resolve(Name::from_str("localhost").unwrap())
+            .await
+            .is_err(),
         "localhost must be rejected by the guarded resolver"
     );
 
     let permissive = SsrfGuardResolver::new(true);
     assert!(
-        permissive.resolve(Name::from_str("localhost").unwrap()).await.is_ok(),
+        permissive
+            .resolve(Name::from_str("localhost").unwrap())
+            .await
+            .is_ok(),
         "allow_private must pass localhost through"
     );
 }
@@ -432,15 +501,15 @@ async fn lan_http_origin(body: &'static str) -> Option<(Url, tokio::task::JoinHa
     let addr = listener.local_addr().ok()?;
     let handle = tokio::spawn(async move {
         loop {
-            let Ok((mut stream, _)) = listener.accept().await else { break };
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
+            };
             tokio::spawn(async move {
                 use tokio::io::{AsyncReadExt, AsyncWriteExt};
                 let mut buf = [0u8; 1024];
-                let _ = tokio::time::timeout(
-                    std::time::Duration::from_secs(2),
-                    stream.read(&mut buf),
-                )
-                .await;
+                let _ =
+                    tokio::time::timeout(std::time::Duration::from_secs(2), stream.read(&mut buf))
+                        .await;
                 let resp = format!(
                     "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
                     body.len(),
@@ -496,11 +565,7 @@ async fn standard_proxy_env_cannot_hijack_engine_clients() {
 
     // proxy_url None + private-network allowed (the LAN fixture address is
     // RFC1918): the operator asked for a direct fetch.
-    let client = HttpClient::with_full_options(
-        std::sync::Arc::new(CookieJar::new()),
-        None,
-        true,
-    );
+    let client = HttpClient::with_full_options(std::sync::Arc::new(CookieJar::new()), None, true);
     let fetched = client.fetch(&url).await;
 
     clear_standard_proxy_env();
@@ -563,44 +628,40 @@ async fn header_echo_origin() -> Option<(Url, tokio::task::JoinHandle<()>)> {
     let addr = listener.local_addr().ok()?;
     let handle = tokio::spawn(async move {
         loop {
-            let Ok((mut stream, _)) = listener.accept().await else { break };
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
+            };
             tokio::spawn(async move {
                 use tokio::io::{AsyncReadExt, AsyncWriteExt};
                 let mut buf = Vec::new();
-                let _ = tokio::time::timeout(
-                    std::time::Duration::from_secs(2),
-                    async {
-                        let mut chunk = [0u8; 2048];
-                        // Consume the body too, so small POSTs never hit a
-                        // reset mid-write on the client side.
-                        loop {
-                            let n = stream.read(&mut chunk).await?;
-                            buf.extend_from_slice(&chunk[..n]);
-                            let head_end = buf
-                                .windows(4)
-                                .position(|w| w == b"\r\n\r\n")
-                                .map(|p| p + 4);
-                            if let Some(end) = head_end {
-                                let head = String::from_utf8_lossy(&buf[..end]).to_string();
-                                let claimed: usize = head
-                                    .lines()
-                                    .find_map(|l| {
-                                        l.to_ascii_lowercase()
-                                            .strip_prefix("content-length:")
-                                            .and_then(|v| v.trim().parse().ok())
-                                    })
-                                    .unwrap_or(0);
-                                if buf.len() >= end + claimed {
-                                    break;
-                                }
-                            }
-                            if buf.len() > 64 * 1024 {
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                    let mut chunk = [0u8; 2048];
+                    // Consume the body too, so small POSTs never hit a
+                    // reset mid-write on the client side.
+                    loop {
+                        let n = stream.read(&mut chunk).await?;
+                        buf.extend_from_slice(&chunk[..n]);
+                        let head_end = buf.windows(4).position(|w| w == b"\r\n\r\n").map(|p| p + 4);
+                        if let Some(end) = head_end {
+                            let head = String::from_utf8_lossy(&buf[..end]).to_string();
+                            let claimed: usize = head
+                                .lines()
+                                .find_map(|l| {
+                                    l.to_ascii_lowercase()
+                                        .strip_prefix("content-length:")
+                                        .and_then(|v| v.trim().parse().ok())
+                                })
+                                .unwrap_or(0);
+                            if buf.len() >= end + claimed {
                                 break;
                             }
                         }
-                        Ok::<(), std::io::Error>(())
-                    },
-                )
+                        if buf.len() > 64 * 1024 {
+                            break;
+                        }
+                    }
+                    Ok::<(), std::io::Error>(())
+                })
                 .await;
                 let head = String::from_utf8_lossy(&buf).to_string();
                 let echo: Vec<String> = head
@@ -675,7 +736,11 @@ async fn post_form_carries_origin_and_referer() {
     let echo = String::from_utf8_lossy(&resp.body).to_string();
     let origins = echoed(&echo, "origin");
     assert_eq!(origins.len(), 1, "exactly one Origin, echo: {echo}");
-    assert_eq!(origins[0], base.as_str().trim_end_matches('/'), "echo: {echo}");
+    assert_eq!(
+        origins[0],
+        base.as_str().trim_end_matches('/'),
+        "echo: {echo}"
+    );
     assert!(!echoed(&echo, "referer").is_empty(), "echo: {echo}");
 }
 
@@ -695,9 +760,7 @@ async fn extra_headers_override_computed_referer() {
         )]))
         .await;
     let doc = format!("{}doc/page.html", base);
-    let fetched = client
-        .fetch_subresource(&base.clone(), Some(&doc))
-        .await;
+    let fetched = client.fetch_subresource(&base.clone(), Some(&doc)).await;
     server.abort();
 
     let resp = fetched.expect("echo fetch must succeed");
@@ -818,7 +881,16 @@ async fn scripted_fetch_fallback_fires_for_get() {
     let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
     let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
     let err = client
-        .scripted_fetch_fallback(&Method::GET, &url, "error sending request", None, None, false, None, true)
+        .scripted_fetch_fallback(
+            &Method::GET,
+            &url,
+            "error sending request",
+            None,
+            None,
+            false,
+            None,
+            true,
+        )
         .await
         .expect_err("closed port must fail");
     let msg = err.to_string();
@@ -924,7 +996,9 @@ async fn loopback_header_echo() -> (Url, tokio::task::JoinHandle<()>) {
     let addr = listener.local_addr().unwrap();
     let handle = tokio::spawn(async move {
         loop {
-            let Ok((mut stream, _)) = listener.accept().await else { break };
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
+            };
             tokio::spawn(async move {
                 use tokio::io::{AsyncReadExt, AsyncWriteExt};
                 let mut buf = Vec::new();
@@ -933,10 +1007,7 @@ async fn loopback_header_echo() -> (Url, tokio::task::JoinHandle<()>) {
                     loop {
                         let n = stream.read(&mut chunk).await?;
                         buf.extend_from_slice(&chunk[..n]);
-                        let head_end = buf
-                            .windows(4)
-                            .position(|w| w == b"\r\n\r\n")
-                            .map(|p| p + 4);
+                        let head_end = buf.windows(4).position(|w| w == b"\r\n\r\n").map(|p| p + 4);
                         if let Some(end) = head_end {
                             let head = String::from_utf8_lossy(&buf[..end]).to_string();
                             let claimed: usize = head
@@ -1028,7 +1099,9 @@ async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
     assert_eq!(resp.status, 200);
     let echo = String::from_utf8_lossy(&resp.body).to_string();
     assert!(
-        echoed(&echo, "user-agent").iter().any(|v| v.contains("windows nt 10.0")),
+        echoed(&echo, "user-agent")
+            .iter()
+            .any(|v| v.contains("windows nt 10.0")),
         "the hop must carry the client's synced UA, echo: {echo}"
     );
     assert!(
@@ -1162,12 +1235,19 @@ async fn fetch_metadata_follows_resource_type_and_site() {
         "upgrade-insecure-requests is navigation-only, echo:\n{echo}"
     );
     assert!(
-        echoed(&echo, "accept").iter().any(|v| v.starts_with("text/css")),
+        echoed(&echo, "accept")
+            .iter()
+            .any(|v| v.starts_with("text/css")),
         "stylesheet Accept is Chrome's text/css shape, echo:\n{echo}"
     );
 
     let resp = client
-        .fetch_with_callbacks(&url, None, ResourceType::Stylesheet, Some("http://localhost:9/doc.html"))
+        .fetch_with_callbacks(
+            &url,
+            None,
+            ResourceType::Stylesheet,
+            Some("http://localhost:9/doc.html"),
+        )
         .await
         .unwrap();
     let echo = String::from_utf8_lossy(&resp.body).to_string();
@@ -1190,7 +1270,11 @@ async fn fetch_metadata_follows_resource_type_and_site() {
         "no referring document = address-bar shape, echo:\n{echo}"
     );
     assert_eq!(echoed(&echo, "sec-fetch-user"), vec!["?1"], "{echo}");
-    assert_eq!(echoed(&echo, "upgrade-insecure-requests"), vec!["1"], "{echo}");
+    assert_eq!(
+        echoed(&echo, "upgrade-insecure-requests"),
+        vec!["1"],
+        "{echo}"
+    );
     server.abort();
 }
 
@@ -1232,7 +1316,10 @@ async fn in_flight_counter_survives_cancelled_send() {
             _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
         }
     }
-    assert!(saw_in_flight, "the parked request must register as in flight");
+    assert!(
+        saw_in_flight,
+        "the parked request must register as in flight"
+    );
 
     // Drop the future mid-send — the realm-swap cancellation shape.
     drop(fut);

@@ -170,7 +170,11 @@ pub struct WrapLine {
 /// flex promotion). `auto`/`start`/left resolve to None upstream, so only
 /// Center/Right arrive here. Shared by the raster tile, the decorations
 /// painter and the PDF vector layer so all three move the same ink.
-pub fn last_line_offset(lines: &[WrapLine], idx: usize, align: Option<crate::diting_css::TextAlign>) -> f32 {
+pub fn last_line_offset(
+    lines: &[WrapLine],
+    idx: usize,
+    align: Option<crate::diting_css::TextAlign>,
+) -> f32 {
     let Some(a) = align else { return 0.0 };
     if lines.is_empty() || idx != lines.len() - 1 {
         return 0.0;
@@ -208,7 +212,10 @@ pub fn greedy_wrap_by(
     if ws.preserves_newlines() {
         return greedy_wrap_preserved(tokens, width_of(0), ws);
     }
-    let mut lines = vec![WrapLine { token_idx: Vec::new(), width: 0.0 }];
+    let mut lines = vec![WrapLine {
+        token_idx: Vec::new(),
+        width: 0.0,
+    }];
     let mut pending_space = 0.0f32;
     let mut pending_idx: Vec<usize> = Vec::new();
     // #275: a <br> folded into a clamped run arrives as an is_break token
@@ -224,7 +231,10 @@ pub fn greedy_wrap_by(
         if t.is_break {
             pending_space = 0.0;
             pending_idx.clear();
-            lines.push(WrapLine { token_idx: Vec::new(), width: 0.0 });
+            lines.push(WrapLine {
+                token_idx: Vec::new(),
+                width: 0.0,
+            });
             break_opened_last = true;
             continue;
         }
@@ -237,7 +247,10 @@ pub fn greedy_wrap_by(
         let cur = lines.last_mut().expect("always one line");
         if let Some(avail) = avail {
             if cur.width > 0.0 && cur.width + pending_space + t.width > avail {
-                lines.push(WrapLine { token_idx: vec![i], width: t.width });
+                lines.push(WrapLine {
+                    token_idx: vec![i],
+                    width: t.width,
+                });
                 pending_space = 0.0;
                 pending_idx.clear();
                 break_opened_last = false;
@@ -270,11 +283,17 @@ fn greedy_wrap_preserved(
     wrap_at: Option<f32>,
     ws: crate::diting_css::WhiteSpace,
 ) -> Vec<WrapLine> {
-    let mut lines = vec![WrapLine { token_idx: Vec::new(), width: 0.0 }];
+    let mut lines = vec![WrapLine {
+        token_idx: Vec::new(),
+        width: 0.0,
+    }];
     let mut break_opened_last = false;
     for (i, t) in tokens.iter().enumerate() {
         if t.is_break {
-            lines.push(WrapLine { token_idx: Vec::new(), width: 0.0 });
+            lines.push(WrapLine {
+                token_idx: Vec::new(),
+                width: 0.0,
+            });
             break_opened_last = true;
             continue;
         }
@@ -283,12 +302,18 @@ fn greedy_wrap_preserved(
         if let Some(avail) = wrap_at {
             if cur.width > 0.0 && cur.width + t.width > avail {
                 if ws == crate::diting_css::WhiteSpace::BreakSpaces {
-                    lines.push(WrapLine { token_idx: vec![i], width: t.width });
+                    lines.push(WrapLine {
+                        token_idx: vec![i],
+                        width: t.width,
+                    });
                     continue;
                 }
                 // pre-wrap: the overflowing space hangs; a word breaks.
                 if !t.is_space {
-                    lines.push(WrapLine { token_idx: vec![i], width: t.width });
+                    lines.push(WrapLine {
+                        token_idx: vec![i],
+                        width: t.width,
+                    });
                     continue;
                 }
             }
@@ -328,7 +353,17 @@ pub(crate) fn truncate_tokens(
     if total <= limit {
         return None;
     }
-    let mut marker = tokens_of("\u{2026}", font_size, bold, fonts, mono, word_spacing, ws, false, han);
+    let mut marker = tokens_of(
+        "\u{2026}",
+        font_size,
+        bold,
+        fonts,
+        mono,
+        word_spacing,
+        ws,
+        false,
+        han,
+    );
     if let Some(first) = marker.first_mut() {
         first.is_ellipsis = true;
     }
@@ -452,8 +487,22 @@ pub(crate) fn line_clamp_bake(
     // The last kept line, re-cut against the wrap width with the marker's
     // advance always in the budget (same char-boundary fill posture as
     // truncate_tokens — per-char widths skip intra-run kerning).
-    let last: Vec<Token> = lines[n - 1].token_idx.iter().map(|&i| tokens[i].clone()).collect();
-    let mut marker = tokens_of("\u{2026}", font_size, bold, fonts, mono, word_spacing, ws, false, han);
+    let last: Vec<Token> = lines[n - 1]
+        .token_idx
+        .iter()
+        .map(|&i| tokens[i].clone())
+        .collect();
+    let mut marker = tokens_of(
+        "\u{2026}",
+        font_size,
+        bold,
+        fonts,
+        mono,
+        word_spacing,
+        ws,
+        false,
+        han,
+    );
     if let Some(first) = marker.first_mut() {
         first.is_ellipsis = true;
     }
@@ -514,4 +563,3 @@ pub(crate) fn line_clamp_bake(
     let text: String = out.iter().map(|t| t.text.as_str()).collect();
     Some((out, text))
 }
-
