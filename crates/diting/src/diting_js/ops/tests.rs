@@ -118,7 +118,7 @@ fn ecdsa_digest_vectors_and_reject() {
 #[cfg(feature = "screenshot")]
 #[test]
 fn backdrop_filter_computed_face() {
-    assert!(super::COMPUTED_STYLE_PROPS.contains(&"backdrop-filter"));
+    assert!(super::cssom_value::COMPUTED_STYLE_PROPS.contains(&"backdrop-filter"));
     let mut s = crate::diting_css::ComputedStyle::default();
     assert_eq!(
         super::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),

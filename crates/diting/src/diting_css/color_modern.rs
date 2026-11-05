@@ -763,7 +763,7 @@ fn channel_names(name: &str) -> [&'static str; 3] {
     }
 }
 
-fn parse_function(name: &str, args: &str) -> Option<Col> {
+fn parse_function(name: &str, args: &str, ld: bool) -> Option<Col> {
     let toks = tokens(args);
     if let Some((space, scale, hue_idx)) = layout(name) {
         let mut it = toks.iter().peekable();
@@ -773,7 +773,7 @@ fn parse_function(name: &str, args: &str) -> Option<Col> {
         if it.peek().map(|t| t.eq_ignore_ascii_case("from")) == Some(true) {
             it.next();
             let base_tok = it.next()?;
-            let base = parse_col(base_tok)?;
+            let base = parse_col(base_tok, ld)?;
             let names = channel_names(name);
             let ch = from_srgb(space, to_srgb(&base));
             for (i, n) in names.iter().enumerate() {
@@ -858,15 +858,17 @@ fn parse_function(name: &str, args: &str) -> Option<Col> {
             if toks.len() != 2 {
                 return None;
             }
-            // The persona renders in the light scheme.
-            parse_col(&toks[0])
+            // #18: the branch follows the element's used color-scheme
+            // (own tokens, else the ancestor-resolved hint); `ld` is that
+            // answer computed at the cascade entry.
+            parse_col(if ld { &toks[1] } else { &toks[0] }, ld)
         }
-        "color-mix" => parse_mix(args),
+        "color-mix" => parse_mix(args, ld),
         _ => None,
     }
 }
 
-fn parse_mix(args: &str) -> Option<Col> {
+fn parse_mix(args: &str, ld: bool) -> Option<Col> {
     // "in <space> [<hue-method> hue], <color> [p%], <color> [p%]"
     let parts = split_commas(args);
     if parts.len() != 3 {
@@ -903,7 +905,7 @@ fn parse_mix(args: &str) -> Option<Col> {
                 color_tok.push(tok.clone());
             }
         }
-        Some((parse_col(&color_tok.join(" "))?, pct))
+        Some((parse_col(&color_tok.join(" "), ld)?, pct))
     };
     let (c1, p1) = item(&parts[1])?;
     let (c2, p2) = item(&parts[2])?;
@@ -1017,14 +1019,14 @@ fn split_commas(s: &str) -> Vec<String> {
     out
 }
 
-fn parse_col(v: &str) -> Option<Col> {
+fn parse_col(v: &str, ld: bool) -> Option<Col> {
     let v = v.trim();
     let lower = v.to_ascii_lowercase();
     if let Some(open) = lower.find('(') {
         if !lower.ends_with(')') {
             return None;
         }
-        return parse_function(lower[..open].trim(), &v[open + 1..v.len() - 1]);
+        return parse_function(lower[..open].trim(), &v[open + 1..v.len() - 1], ld);
     }
     if lower == "transparent" {
         return Some(Col {
@@ -1049,9 +1051,11 @@ fn parse_col(v: &str) -> Option<Col> {
 }
 
 /// The entry `parse_color` tries first: named colours, slash-alpha and the
-/// CSS Color 4/5 functions. `None` hands the string back to the legacy parser.
+/// CSS Color 4/5 functions. `None` hands the string back to the legacy
+/// parser. `light-dark()` takes its LIGHT branch here — the paint path has
+/// no element context; the cascade entry (`parse_with_scheme`) resolves it.
 pub(super) fn parse(v: &str) -> Option<Color> {
-    parse_col(v).map(|c| to_color(&c))
+    parse_col(v, false).map(|c| to_color(&c))
 }
 
 /// A colour whose AUTHORED syntax was a CSS Color 4/5 modern function
@@ -1130,7 +1134,8 @@ fn num6(x: f32) -> String {
 /// Whether the authored syntax is a modern colour function (its computed
 /// value keeps the authored space, #17). Plain `rgb()/hsl()/hwb()` are
 /// legacy UNLESS they carry the relative `from` clause. `light-dark()` is
-/// excluded until #18 makes it scheme-aware.
+/// resolved to its branch by `parse_with_scheme` before this runs, so its
+/// modern-ness is the CHOSEN branch's (#18).
 fn is_modern(v: &str) -> bool {
     let lower = v.trim().to_ascii_lowercase();
     let Some(open) = lower.find('(') else {
@@ -1147,16 +1152,36 @@ fn is_modern(v: &str) -> bool {
         && lower[open + 1..].trim_start().starts_with("from ")
 }
 
-/// `parse` plus the authored-space tag: `(sRGB bytes for paint, modern
-/// spelling for the CSSOM face)` — the tag is `None` for legacy syntaxes.
-pub(super) fn parse_with_origin(v: &str) -> Option<(Color, Option<ModernColor>)> {
-    let col = parse_col(v)?;
-    let modern = is_modern(v).then(|| ModernColor {
+/// `parse_with_origin` with the element's used color-scheme (#18):
+/// `light-dark()` resolves to its branch first, and the pair returned is
+/// the BRANCH's — Chrome serializes the chosen branch's own spelling.
+pub(super) fn parse_with_scheme(v: &str, ld: bool) -> Option<(Color, Option<ModernColor>)> {
+    let trimmed = v.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(open) = lower.find('(') {
+        if lower[..open].trim() == "light-dark" && trimmed.ends_with(')') {
+            let close = trimmed.len() - 1;
+            let branches = split_commas(&trimmed[open + 1..close]);
+            if branches.len() == 2 {
+                let branch = branches[if ld { 1 } else { 0 }].trim();
+                return parse_with_scheme(branch, ld);
+            }
+            return None;
+        }
+    }
+    let col = parse_col(trimmed, ld)?;
+    let modern = is_modern(trimmed).then(|| ModernColor {
         space: col.space,
         c: col.c,
         a: col.a,
     });
     Some((to_color(&col), modern))
+}
+
+/// `parse` plus the authored-space tag: `(sRGB bytes for paint, modern
+/// spelling for the CSSOM face)` — the tag is `None` for legacy syntaxes.
+pub(super) fn parse_with_origin(v: &str) -> Option<(Color, Option<ModernColor>)> {
+    parse_with_scheme(v, false)
 }
 
 /// Rewrite an authored image value (gradients, #17) into Chrome's computed
@@ -1217,7 +1242,7 @@ pub(crate) fn computed_image_text(v: &str) -> String {
             if FNS.contains(&lower.as_str()) && v[i..].trim_start().starts_with('(') {
                 if let Some(close) = find_balanced(v, i) {
                     let expr = &v[start..=close];
-                    if let Some(col) = parse_col(expr) {
+                    if let Some(col) = parse_col(expr, false) {
                         if is_modern(expr) {
                             let m = ModernColor {
                                 space: col.space,

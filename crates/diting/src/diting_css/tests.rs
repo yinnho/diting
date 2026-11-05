@@ -5071,3 +5071,110 @@ fn computed_image_text_rewrites_stops_chrome_style() {
         "url(\"a,b.png\"), linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))"
     );
 }
+
+// ---- #18: color-scheme + light-dark() branch resolution ----
+// Chrome 145 truth (probed 2026-11-06): own tokens decide — dark WITHOUT
+// light renders dark, everything else declared (light-only / both / normal)
+// renders light under the persona's prefers-color-scheme=light; undeclared
+// walks the ancestor chain; the page default is LIGHT (prefers-color-scheme
+// never reaches a `normal` page).
+
+#[test]
+fn color_scheme_parses_and_normalizes() {
+    let mut s = ComputedStyle::default();
+    assert!(apply_declarations(&mut s, "color-scheme: Light DARK"));
+    assert_eq!(s.color_scheme.as_deref(), Some("light dark"), "lowercased");
+    assert!(apply_declarations(&mut s, "color-scheme: normal"));
+    assert_eq!(s.color_scheme, None, "normal == undeclared");
+    let mut s = ComputedStyle::default();
+    assert!(
+        !apply_declarations(&mut s, "color-scheme: only light"),
+        "`only` fails closed in v1"
+    );
+    assert_eq!(s.color_scheme, None);
+}
+
+#[test]
+fn light_dark_branches_by_own_and_inherited_scheme() {
+    let color_of = |parent: Option<&ComputedStyle>, inline: &str| {
+        let tree = diting_dom::tree_sink::parse_html(&format!(
+            r#"<body><p style="{inline}">x</p></body>"#
+        ));
+        let id = tree.query_selector("p").unwrap().unwrap();
+        let attr: Option<String> = tree
+            .with_node(id, |n| n.get_attribute("style").map(str::to_string))
+            .flatten();
+        cascade_element(
+            "p",
+            &tree,
+            id,
+            &[],
+            parent,
+            attr.as_deref(),
+            DEFAULT_ROOT_FONT_SIZE,
+            (1280.0, 720.0),
+        )
+    };
+
+    // Page default: no scheme anywhere → LIGHT (Chrome probed; prefers
+    // never reaches a normal page).
+    assert_eq!(
+        color_of(None, "color:light-dark(red,blue)").color,
+        Some(Color(255, 0, 0, 255))
+    );
+    // Ancestor walk: root dark flips descendants.
+    let mut dark_root = ComputedStyle::default();
+    apply_declarations(&mut dark_root, "color-scheme: dark");
+    assert_eq!(
+        color_of(Some(&dark_root), "color:light-dark(red,blue)").color,
+        Some(Color(0, 0, 255, 255)),
+        "undeclared inherits the root's dark"
+    );
+    // Own declarations: only-dark wins even inside a light-declaring tree.
+    assert_eq!(
+        color_of(
+            Some(&dark_root),
+            "color-scheme:light;color:light-dark(red,blue)"
+        )
+        .color,
+        Some(Color(255, 0, 0, 255))
+    );
+    assert_eq!(
+        color_of(None, "color-scheme:normal;color:light-dark(red,blue)").color,
+        Some(Color(255, 0, 0, 255)),
+        "normal behaves like undeclared → page default light"
+    );
+    assert_eq!(
+        color_of(None, "color-scheme:light dark;color:light-dark(red,blue)").color,
+        Some(Color(255, 0, 0, 255)),
+        "both allowed → persona prefers light"
+    );
+    // The chosen branch's OWN spelling is what serializes (#17 + #18):
+    // light branch oklch under color-scheme:light.
+    let s = color_of(
+        None,
+        "color-scheme:light;color:light-dark(oklch(0.7 0.1 200), red)",
+    );
+    assert_eq!(
+        s.color_modern.map(|m| m.to_css()).as_deref(),
+        Some("oklch(0.7 0.1 200)")
+    );
+    // ... and the dark branch under dark.
+    let s = color_of(
+        None,
+        "color-scheme:dark;color:light-dark(oklch(0.7 0.1 200), red)",
+    );
+    assert_eq!(s.color_modern, None, "chosen branch red is legacy");
+    assert_eq!(s.color, Some(Color(255, 0, 0, 255)));
+    // light-dark nested in color-mix resolves the same way (probed face:
+    // dark branch blue mixes to zero red channel).
+    let s = color_of(
+        None,
+        "color-scheme:dark;color:color-mix(in srgb, light-dark(red,blue), lime)",
+    );
+    let Some(c) = s.color else {
+        panic!("mix parses")
+    };
+    assert_eq!(c.0, 0, "dark branch (blue) mixed, not red");
+    assert!(c.1 > 0 && c.2 > 0, "blue + lime mix");
+}

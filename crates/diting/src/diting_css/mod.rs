@@ -1014,6 +1014,15 @@ pub struct ComputedStyle {
     /// (`oklch(0.7 0.1 200)`), so the CSSOM face needs the tag alongside
     /// the sRGB bytes. `None` = legacy spelling (rgb()/rgba()).
     pub color_modern: Option<ModernColor>,
+    /// `color-scheme` (#18): authored tokens (`light dark`), lowercased,
+    /// non-inherited per spec; `None` = undeclared (gCS reports `normal`).
+    pub color_scheme: Option<String>,
+    /// The ancestor-resolved used scheme for this element HAD it declared no
+    /// `color-scheme` of its own (#18): `light-dark()` with no own
+    /// declaration walks the tree (Chrome: a root `dark` flips descendants),
+    /// while the page default is LIGHT — prefers-color-scheme never reaches
+    /// a `normal` page (probed Chrome 145, 2026-11-06).
+    pub scheme_dark_hint: bool,
     /// SVG paint properties (svg v1). Deliberately NON-inherited here: the
     /// svg subtree compiler does paint inheritance itself, because CSS
     /// presentation-attribute priority (own CSS > own attr > inherited CSS)
@@ -3192,6 +3201,22 @@ pub fn split_declarations(css: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The element's used color-scheme, as a dark-branch bool for
+/// `light-dark()` (#18). Own tokens decide: a list carrying `dark` without
+/// `light` renders dark; anything else declared (light-only, both, normal)
+/// renders light — with the persona's prefers-color-scheme=light, "both"
+/// resolves light on Chrome-parity machines too. Undeclared walks the
+/// ancestor chain via `scheme_dark_hint`. Probed Chrome 145, 2026-11-06.
+fn scheme_dark_of(style: &ComputedStyle) -> bool {
+    match style.color_scheme.as_deref() {
+        Some(list) => {
+            let has = |kw: &str| list.split_whitespace().any(|t| t == kw);
+            has("dark") && !has("light")
+        }
+        None => style.scheme_dark_hint,
+    }
+}
+
 /// Apply declarations to a computed style. Returns whether any recognized
 /// property was applied (the @supports leaf-probe contract). Uses the
 /// default font context — callers that know the element's font-size (the
@@ -3374,6 +3399,7 @@ css_wide_longhands! {
     "quotes" => quotes, true;
     "text-shadow" => text_shadow, true;
     // --- non-inherited (unset behaves like initial) ---
+    "color-scheme" => color_scheme, false;
     "display" => display, false;
     "background-color" => background_color, false;
     "background-image" => background_image, false;
@@ -3786,12 +3812,34 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             }
             None => false,
         },
-        "color" => color::parse_color_with_origin(v)
+        "color" => color::parse_color_with_scheme(v, scheme_dark_of(style))
             .map(|(c, m)| {
                 style.color = Some(c);
                 style.color_modern = m;
             })
             .is_some(),
+        // `color-scheme` (#18): `normal` (or nothing) stores None — the gCS
+        // face reports "normal" for both; authored `light`/`dark` token
+        // lists store verbatim (lowercased). `only` and custom schemes fail
+        // closed (declaration drops, stays normal) — v1 models the two
+        // schemes light-dark() can resolve.
+        "color-scheme" => {
+            let toks: Vec<String> = v
+                .split_whitespace()
+                .map(|t| t.to_ascii_lowercase())
+                .collect();
+            if toks.is_empty() {
+                false
+            } else if toks.iter().all(|t| t == "normal") {
+                style.color_scheme = None;
+                true
+            } else if toks.iter().all(|t| t == "light" || t == "dark") {
+                style.color_scheme = Some(toks.join(" "));
+                true
+            } else {
+                false
+            }
+        }
         // SVG presentation properties (svg v1): they cascade like any other
         // property — archify-class diagrams color shapes through classes +
         // custom properties (`fill: var(--frontend-fill)`), so the values
@@ -3881,7 +3929,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.font_family = Some(v.to_string());
             true
         }
-        "background-color" => color::parse_color_with_origin(v)
+        "background-color" => color::parse_color_with_scheme(v, scheme_dark_of(style))
             .map(|(c, m)| {
                 style.background_color = Some(c);
                 style.background_color_modern = m;
@@ -3903,7 +3951,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             let mut applied = false;
             for tok in split_sides(v) {
                 let t = tok.trim();
-                if let Some((c, m)) = color::parse_color_with_origin(t) {
+                if let Some((c, m)) = color::parse_color_with_scheme(t, scheme_dark_of(style)) {
                     style.background_color = Some(c);
                     style.background_color_modern = m;
                     applied = true;
@@ -3974,13 +4022,15 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 match border_style_kw(tok) {
                     BorderStyleKw::Line(bs) => line = Some(Some(bs)),
                     BorderStyleKw::NoBorder => line = Some(None),
-                    BorderStyleKw::NotAStyle => match color::parse_color_with_origin(tok) {
-                        Some((c, m)) => {
-                            color = Some(c);
-                            color_modern = m;
+                    BorderStyleKw::NotAStyle => {
+                        match color::parse_color_with_scheme(tok, scheme_dark_of(style)) {
+                            Some((c, m)) => {
+                                color = Some(c);
+                                color_modern = m;
+                            }
+                            None => return false,
                         }
-                        None => return false,
-                    },
+                    }
                 }
             }
             if let Some(l) = width {
@@ -4026,13 +4076,15 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 match border_style_kw(tok) {
                     BorderStyleKw::Line(bs) => line = Some(Some(bs)),
                     BorderStyleKw::NoBorder => line = Some(None),
-                    BorderStyleKw::NotAStyle => match color::parse_color_with_origin(tok) {
-                        Some((c, m)) => {
-                            color = Some(c);
-                            color_modern = m;
+                    BorderStyleKw::NotAStyle => {
+                        match color::parse_color_with_scheme(tok, scheme_dark_of(style)) {
+                            Some((c, m)) => {
+                                color = Some(c);
+                                color_modern = m;
+                            }
+                            None => return false,
                         }
-                        None => return false,
-                    },
+                    }
                 }
             }
             if let Some(l) = width {
@@ -4094,7 +4146,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 BorderStyleKw::NotAStyle => false,
             }
         }
-        "border-color" => color::parse_color_with_origin(v)
+        "border-color" => color::parse_color_with_scheme(v, scheme_dark_of(style))
             .map(|(c, m)| {
                 style.border_color = Some(c);
                 style.border_color_modern = m;
@@ -6020,6 +6072,9 @@ pub fn cascade_element(
     if let Some(parent) = parent {
         style.color = parent.color;
         style.color_modern = parent.color_modern;
+        // The ancestor-resolved used scheme (#18): a root `color-scheme:dark`
+        // flips descendants' light-dark() branches.
+        style.scheme_dark_hint = scheme_dark_of(parent);
         style.font_size = parent.font_size;
         // font-family inherits like the spec: the closest ancestor that
         // names a stack wins. `or` is enough because a child without its
