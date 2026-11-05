@@ -1,4 +1,3 @@
-
 #![allow(clippy::await_holding_lock)] // net tests hold PRIVATE_NET_ENV_LOCK across awaits on purpose — the guard IS the serialization (1f7486c)
 
 use super::*;
