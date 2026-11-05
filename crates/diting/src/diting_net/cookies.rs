@@ -254,7 +254,8 @@ impl CookieJar {
         // Validate Domain against the response origin (RFC 6265): an unrelated
         // Domain attribute must not let a response from attacker.example scope
         // a cookie to victim.example (cookie tossing).
-        let (domain, host_only) = match resolve_cookie_domain(&request_host, domain_attr.as_deref()) {
+        let (domain, host_only) = match resolve_cookie_domain(&request_host, domain_attr.as_deref())
+        {
             Some(d) => d,
             None => return,
         };
@@ -271,7 +272,13 @@ impl CookieJar {
         // Reject before storage AND before the expiry-delete branch below —
         // a prefix-violating cookie is ignored entirely, so it must not even
         // serve as a deletion of a previously-valid same-name cookie.
-        if !cookie_prefix_ok(&name, secure, is_trustworthy_origin(url), host_only, path_attr.as_deref()) {
+        if !cookie_prefix_ok(
+            &name,
+            secure,
+            is_trustworthy_origin(url),
+            host_only,
+            path_attr.as_deref(),
+        ) {
             return;
         }
 
@@ -322,7 +329,10 @@ impl CookieJar {
 
         {
             let mut cookies = self.cookies.write().unwrap();
-            cookies.entry(domain.clone()).or_default().insert((name.clone(), path.clone()), entry.clone());
+            cookies
+                .entry(domain.clone())
+                .or_default()
+                .insert((name.clone(), path.clone()), entry.clone());
         }
         self.record_trace(source, url.as_str(), &entry, false);
     }
@@ -481,7 +491,9 @@ impl CookieJar {
                 } else {
                     cookie.same_site
                 };
-                let expires = cookie.expires.and_then(|e| if e > 0 { Some(e as u64) } else { None });
+                let expires = cookie
+                    .expires
+                    .and_then(|e| if e > 0 { Some(e as u64) } else { None });
                 if let Some(domain_cookies) = jar.get_mut(&cookie.domain) {
                     domain_cookies.retain(|_key, entry| {
                         entry.name != cookie.name || entry.path != cookie.path
@@ -498,7 +510,9 @@ impl CookieJar {
                     expires,
                     same_site,
                 };
-                jar.entry(cookie.domain.clone()).or_default().insert((cookie.name.clone(), cookie.path.clone()), entry.clone());
+                jar.entry(cookie.domain.clone())
+                    .or_default()
+                    .insert((cookie.name.clone(), cookie.path.clone()), entry.clone());
                 seeded.push(entry);
             }
         }
@@ -609,7 +623,8 @@ impl CookieJar {
             }
         }
 
-        let (domain, host_only) = match resolve_cookie_domain(&request_host, domain_attr.as_deref()) {
+        let (domain, host_only) = match resolve_cookie_domain(&request_host, domain_attr.as_deref())
+        {
             Some(d) => d,
             None => return,
         };
@@ -623,7 +638,13 @@ impl CookieJar {
 
         // Same prefix rules on the document.cookie write path (#67) —
         // otherwise page JS could just mint a __Host- cookie itself.
-        if !cookie_prefix_ok(&name, secure, is_trustworthy_origin(url), host_only, path_attr.as_deref()) {
+        if !cookie_prefix_ok(
+            &name,
+            secure,
+            is_trustworthy_origin(url),
+            host_only,
+            path_attr.as_deref(),
+        ) {
             return;
         }
 
@@ -690,7 +711,10 @@ impl CookieJar {
 
         {
             let mut cookies = self.cookies.write().unwrap();
-            cookies.entry(domain.clone()).or_default().insert((name.clone(), path.clone()), entry.clone());
+            cookies
+                .entry(domain.clone())
+                .or_default()
+                .insert((name.clone(), path.clone()), entry.clone());
         }
         self.record_trace("js", url.as_str(), &entry, false);
     }
@@ -755,9 +779,8 @@ impl CookieJar {
             }
         }
 
-        let json = serde_json::to_string_pretty(&all).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-        })?;
+        let json = serde_json::to_string_pretty(&all)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
             // Session tokens live here; the store must not inherit the
@@ -769,9 +792,8 @@ impl CookieJar {
                 std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
             }
         }
-        let mut tmp = tempfile::NamedTempFile::new_in(
-            path.parent().unwrap_or(std::path::Path::new(".")),
-        )?;
+        let mut tmp =
+            tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new(".")))?;
         tmp.write_all(json.as_bytes())?;
         tmp.persist(path).map_err(|e| e.error)?;
         #[cfg(unix)]
@@ -790,10 +812,8 @@ impl CookieJar {
             return Ok(0);
         }
         let data = std::fs::read_to_string(path)?;
-        let cookies: Vec<CookieInfo> =
-            serde_json::from_str(&data).map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-            })?;
+        let cookies: Vec<CookieInfo> = serde_json::from_str(&data)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let count = cookies.len();
         self.set_cookies_from_cdp(cookies);
         Ok(count)
@@ -846,16 +866,23 @@ pub struct CookieMetadata {
 }
 
 fn parse_http_date(s: &str) -> Result<u64, ()> {
-    let months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    let months = [
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+    ];
 
     let s = s.replace('-', " ");
     let parts: Vec<&str> = s.split_whitespace().collect();
 
-    if parts.len() < 5 { return Err(()); }
+    if parts.len() < 5 {
+        return Err(());
+    }
 
     let day: u64 = parts[1].parse().map_err(|_| ())?;
-    let month = months.iter().position(|m| parts[2].to_lowercase().starts_with(m))
-        .ok_or(())? as u64 + 1;
+    let month = months
+        .iter()
+        .position(|m| parts[2].to_lowercase().starts_with(m))
+        .ok_or(())? as u64
+        + 1;
     let year: u64 = parts[3].parse().map_err(|_| ())?;
 
     let time_parts: Vec<&str> = parts[4].split(':').collect();
@@ -881,7 +908,11 @@ fn parse_http_date(s: &str) -> Result<u64, ()> {
 
     let mut days_total: u64 = 0;
     for y in 1970..year {
-        days_total += if y.is_multiple_of(4) && (!y.is_multiple_of(100) || y.is_multiple_of(400)) { 366 } else { 365 };
+        days_total += if y.is_multiple_of(4) && (!y.is_multiple_of(100) || y.is_multiple_of(400)) {
+            366
+        } else {
+            365
+        };
     }
     let days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     let is_leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
@@ -1060,9 +1091,15 @@ fn domain_matches(host: &str, domain: &str) -> bool {
     // domain = "example.com". The byte before the suffix in host
     // must be '.'.
     let prefix_len = host.len() - domain.len();
-    if prefix_len < 1 { return false; }
-    if !host.is_char_boundary(prefix_len) { return false; }
-    if host.as_bytes()[prefix_len - 1] != b'.' { return false; }
+    if prefix_len < 1 {
+        return false;
+    }
+    if !host.is_char_boundary(prefix_len) {
+        return false;
+    }
+    if host.as_bytes()[prefix_len - 1] != b'.' {
+        return false;
+    }
     host[prefix_len..].eq_ignore_ascii_case(domain)
 }
 

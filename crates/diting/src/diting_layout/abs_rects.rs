@@ -41,18 +41,41 @@ pub(super) fn collect(
     cb: (f32, f32),
     out: &mut HashMap<taffy::tree::NodeId, Rect>,
 ) {
-    let Ok(layout) = taffy_tree.layout(node) else { return };
-    let pos = taffy_tree.style(node).map(|s| s.position).unwrap_or_default();
-    let base = if pos == Position::Absolute { cb } else { offset };
+    let Ok(layout) = taffy_tree.layout(node) else {
+        return;
+    };
+    let pos = taffy_tree
+        .style(node)
+        .map(|s| s.position)
+        .unwrap_or_default();
+    let base = if pos == Position::Absolute {
+        cb
+    } else {
+        offset
+    };
     let abs = (base.0 + layout.location.x, base.1 + layout.location.y);
-    out.insert(node, Rect { x: abs.0, y: abs.1, width: layout.size.width, height: layout.size.height });
+    out.insert(
+        node,
+        Rect {
+            x: abs.0,
+            y: abs.1,
+            width: layout.size.width,
+            height: layout.size.height,
+        },
+    );
     let mut child_base = abs;
-    if let Some(t) = node_map.get(&node).and_then(|d| styles.get(d)).and_then(|s| s.effective_transform()) {
+    if let Some(t) = node_map
+        .get(&node)
+        .and_then(|d| styles.get(d))
+        .and_then(|s| s.effective_transform())
+    {
         child_base.0 += translate_px(&t.tx, layout.size.width);
         child_base.1 += translate_px(&t.ty, layout.size.height);
     }
     let child_cb = if pos.is_positioned() { child_base } else { cb };
     for child in taffy_tree.children(node).unwrap_or_default() {
-        collect(taffy_tree, styles, node_map, child, child_base, child_cb, out);
+        collect(
+            taffy_tree, styles, node_map, child, child_base, child_cb, out,
+        );
     }
 }

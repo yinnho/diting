@@ -30,7 +30,11 @@ where
         // A person scanning a login code needs the code the page shows NOW,
         // not a screenshot that expired on the way: every receipt names the
         // self-refreshing scan page of its session.
-        if let Some(sid) = obj.get("session_id").and_then(|v| v.as_str()).map(str::to_string) {
+        if let Some(sid) = obj
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+        {
             obj.insert("live_qr".into(), json!(format!("/session/{sid}/qr/live")));
         }
         obj.insert("timings".into(), Value::Array(rows));

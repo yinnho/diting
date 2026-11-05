@@ -26,7 +26,9 @@ impl Page {
     /// so it pairs these with that tree's canvases by document order.
     #[cfg(feature = "screenshot")]
     pub fn canvas_bitmaps_in_order(&self) -> Vec<(u32, u32, std::sync::Arc<Vec<u8>>)> {
-        let Some(js) = &self.js else { return Vec::new() };
+        let Some(js) = &self.js else {
+            return Vec::new();
+        };
         let ids = match js.with_dom(|dom| dom.query_selector_all("canvas")) {
             Some(Ok(v)) => v,
             _ => return Vec::new(),
@@ -47,8 +49,6 @@ impl Page {
         }
         self.dom.as_ref().map(f)
     }
-
-
 
     /// Like [`Self::evaluate`] but bounded by a V8 watchdog so a runaway
     /// expression cannot hang the process. A non-zero `timeout` of zero falls
@@ -113,7 +113,10 @@ impl Page {
         await_promise: bool,
     ) -> crate::diting_js::runtime::RemoteObjectInfo {
         if let Some(js) = &mut self.js {
-            match js.evaluate_remote(expression, return_by_value, await_promise).await {
+            match js
+                .evaluate_remote(expression, return_by_value, await_promise)
+                .await
+            {
                 Ok(info) => info,
                 Err(e) => {
                     // Bug #24 diagnosis aid: an erroring eval previously surfaced
@@ -222,5 +225,4 @@ impl Page {
             }
         }
     }
-
 }

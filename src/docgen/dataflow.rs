@@ -21,10 +21,10 @@ use super::graph::{
     label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt, Rect,
     RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
 };
+use super::sigil;
 use super::spec::{text_units, DataflowFlow, DataflowNode, DataflowSpec};
 use super::theme::Theme;
 use super::tx;
-use super::sigil;
 
 // ---------------------------------------------------------------------------
 // constants (archify px × 10)
@@ -448,7 +448,10 @@ fn measured_bounds(
 /// (stroke, width, dash, label fill) per flow variant — emphasis rides
 /// heavier (1.8px vs 1.4px) exactly like the reference. Sizes and dash
 /// patterns are this adapter's typography; colors come from the theme.
-fn variant_style(theme: &Theme, variant: &str) -> (&'static str, i32, Option<&'static str>, &'static str) {
+fn variant_style(
+    theme: &Theme,
+    variant: &str,
+) -> (&'static str, i32, Option<&'static str>, &'static str) {
     match variant {
         "emphasis" => (theme.ink, 18, None, theme.ink),
         "security" => (theme.danger, 14, None, theme.danger),
@@ -514,7 +517,8 @@ fn emit_svg(
     // Flow paths + arrowheads.
     for (i, flow) in doc.flows.iter().enumerate() {
         let (_, _, points, _) = &placed[i];
-        let (stroke, stroke_w, dash, _) = variant_style(theme, flow.variant.as_deref().unwrap_or("default"));
+        let (stroke, stroke_w, dash, _) =
+            variant_style(theme, flow.variant.as_deref().unwrap_or("default"));
         let dash_attr = dash.map_or(String::new(), |d| format!(" stroke-dasharray=\"{d}\""));
         s.push_str(&format!(
             "<path data-from=\"{}\" data-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
@@ -586,7 +590,8 @@ fn emit_svg(
             .classification
             .as_deref()
             .is_some_and(|c| !c.trim().is_empty());
-        let (_, _, _, label_fill) = variant_style(theme, flow.variant.as_deref().unwrap_or("default"));
+        let (_, _, _, label_fill) =
+            variant_style(theme, flow.variant.as_deref().unwrap_or("default"));
         let h = if has_class { 300 } else { 160 };
         let class_line = has_class.then(|| {
             format!(
@@ -674,8 +679,8 @@ fn arrowhead(points: &[Pt], fill: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::theme::LIGHT;
+    use super::*;
 
     const SPEC_JSON: &str = r#"{
         "title": "Pipeline",

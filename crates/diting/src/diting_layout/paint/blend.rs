@@ -150,7 +150,10 @@ fn blend_rgb(mode: MixBlendMode, cb: [u32; 3], cs: [u32; 3]) -> [u32; 3] {
         | MixBlendMode::Luminosity => {
             let b = cb.map(|v| f32::from(v as u8) / 255.0);
             let s = cs.map(|v| f32::from(v as u8) / 255.0);
-            let sat = |c: [f32; 3]| c.iter().copied().fold(f32::MIN, f32::max) - c.iter().copied().fold(f32::MAX, f32::min);
+            let sat = |c: [f32; 3]| {
+                c.iter().copied().fold(f32::MIN, f32::max)
+                    - c.iter().copied().fold(f32::MAX, f32::min)
+            };
             let out = match mode {
                 MixBlendMode::Hue => blend_set_lum(blend_set_sat(s, sat(b)), blend_lum(b)),
                 MixBlendMode::Saturation => blend_set_lum(blend_set_sat(b, sat(s)), blend_lum(b)),
@@ -209,9 +212,7 @@ fn blend_group(dst: &mut Canvas, group: &Canvas, mode: MixBlendMode) {
         let b = blend_rgb(mode, cb, cs);
         let ao_num = sa * 255 + ba * (255 - sa);
         for ch in 0..3 {
-            let prem = sa * (255 - ba) * cs[ch]
-                + sa * ba * b[ch]
-                + (255 - sa) * ba * cb[ch];
+            let prem = sa * (255 - ba) * cs[ch] + sa * ba * b[ch] + (255 - sa) * ba * cb[ch];
             // Premultiplied storage: prem sits at 255² scale.
             dst.data[i + ch] = ((prem + 32512) / 65025) as u8;
         }
@@ -219,12 +220,15 @@ fn blend_group(dst: &mut Canvas, group: &Canvas, mode: MixBlendMode) {
     }
 }
 
-
 /// Open a blend group (#222): redirect painting into an offscreen
 /// transparent canvas — same size (the coordinate space is shared), with
 /// the CURRENT clip and transform stacks copied so the group's content
 /// lands exactly where it would have painted un-blended.
-pub(super) fn redirect(out: &mut Canvas, stack: &mut Vec<(Canvas, MixBlendMode)>, mode: MixBlendMode) {
+pub(super) fn redirect(
+    out: &mut Canvas,
+    stack: &mut Vec<(Canvas, MixBlendMode)>,
+    mode: MixBlendMode,
+) {
     let mut group = Canvas::new_transparent(out.width, out.height);
     group.clip = out.clip.clone();
     group.xf_stack = out.xf_stack.clone();

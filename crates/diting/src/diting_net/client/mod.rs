@@ -10,21 +10,21 @@ use url::Url;
 
 use crate::diting_net::cookies::CookieJar;
 
-pub(crate) mod policy;
 pub(crate) mod metadata;
 mod observer;
+pub(crate) mod policy;
 mod ssrf;
 
-use metadata::{metadata_for, FetchMetadata};
 pub use metadata::ResourceType;
+use metadata::{metadata_for, FetchMetadata};
 pub use observer::{CallbackRegistry, RequestCallback, RequestInfo, ResponseCallback};
 
+#[cfg(feature = "stealth")]
+pub(crate) use policy::custom_cert_store_requested;
 pub use policy::{
     allow_file_access, env_allows_private_network, parse_scoped_cidrs, set_allow_file_access,
     set_allow_network, set_allow_private_network, validate_url, ScopedCidr,
 };
-#[cfg(feature = "stealth")]
-pub(crate) use policy::custom_cert_store_requested;
 
 pub use ssrf::{forbidden_after_dns, is_forbidden_base, is_forbidden_ip, SsrfGuardResolver};
 
@@ -70,9 +70,7 @@ pub(crate) fn epoch_ms() -> u64 {
 /// sites keeps the counted window identical; cancellation lands on Drop
 /// instead of on nothing. `None` (a runtime with no owning HttpClient)
 /// is a no-op, matching the old `if let Some(counter)` subs.
-pub(crate) struct InFlightDecrement(
-    pub(crate) Option<Arc<std::sync::atomic::AtomicU32>>,
-);
+pub(crate) struct InFlightDecrement(pub(crate) Option<Arc<std::sync::atomic::AtomicU32>>);
 
 impl Drop for InFlightDecrement {
     fn drop(&mut self) {
@@ -153,9 +151,6 @@ impl Response {
             .unwrap_or(false)
     }
 }
-
-
-
 
 pub(crate) async fn fetch_file_url(url: &Url) -> Result<Response, NetError> {
     if !allow_file_access() {
@@ -276,9 +271,8 @@ impl HttpClient {
             proxy_url: proxy_url.map(|s| s.to_string()),
             cookie_jar,
             user_agent: RwLock::new(
-                std::env::var("DITING_UA").unwrap_or_else(|_| {
-                    crate::chrome_target::UA_DEFAULT.to_string()
-                }),
+                std::env::var("DITING_UA")
+                    .unwrap_or_else(|_| crate::chrome_target::UA_DEFAULT.to_string()),
             ),
             accept_language: RwLock::new(
                 std::env::var("DITING_ACCEPT_LANGUAGE")
@@ -297,27 +291,28 @@ impl HttpClient {
     }
 
     async fn get_client(&self) -> &Client {
-        self.client.get_or_init(|| async {
-            let mut builder = reqwest_builder_no_env_proxy()
-                .redirect(Policy::none())
-                // Browser timeout semantics (#49), not scraper semantics:
-                // `.timeout()` caps the WHOLE request — connect through body
-                // read — so a large-but-live body (the xhs publish page's
-                // 32MB ffmpeg-core.wasm at real CDN speed, ~40s) is killed
-                // mid-stream at 30s with "error decoding response body" while
-                // every browser streams it to completion. `read_timeout` is
-                // the browser shape: headers get 30s from request start, then
-                // every body chunk resets the stall clock — no total cap.
-                .read_timeout(Duration::from_secs(30))
-                .connect_timeout(Duration::from_secs(10))
-                // Bug #24 (long-run degradation): a pooled connection that went
-                // half-dead while idle (NAT drop, proxy reset) used to be handed
-                // back out and stall every subsequent request until the process
-                // was restarted. Keep the idle window short and send TCP
-                // keepalive so the pool reaps stale connections instead.
-                .pool_idle_timeout(Duration::from_secs(60))
-                .tcp_keepalive(Duration::from_secs(30))
-                .danger_accept_invalid_certs(false);
+        self.client
+            .get_or_init(|| async {
+                let mut builder = reqwest_builder_no_env_proxy()
+                    .redirect(Policy::none())
+                    // Browser timeout semantics (#49), not scraper semantics:
+                    // `.timeout()` caps the WHOLE request — connect through body
+                    // read — so a large-but-live body (the xhs publish page's
+                    // 32MB ffmpeg-core.wasm at real CDN speed, ~40s) is killed
+                    // mid-stream at 30s with "error decoding response body" while
+                    // every browser streams it to completion. `read_timeout` is
+                    // the browser shape: headers get 30s from request start, then
+                    // every body chunk resets the stall clock — no total cap.
+                    .read_timeout(Duration::from_secs(30))
+                    .connect_timeout(Duration::from_secs(10))
+                    // Bug #24 (long-run degradation): a pooled connection that went
+                    // half-dead while idle (NAT drop, proxy reset) used to be handed
+                    // back out and stall every subsequent request until the process
+                    // was restarted. Keep the idle window short and send TCP
+                    // keepalive so the pool reaps stale connections instead.
+                    .pool_idle_timeout(Duration::from_secs(60))
+                    .tcp_keepalive(Duration::from_secs(30))
+                    .danger_accept_invalid_certs(false);
                 // No manual Accept-Encoding header: reqwest 0.12 with the
                 // gzip/brotli/deflate cargo features decodes by the RESPONSE's
                 // Content-Encoding header regardless of what we advertised
@@ -328,40 +323,43 @@ impl HttpClient {
                 // header by hand — a manual Accept-Encoding disables reqwest's
                 // auto-decode and raw gzip then reaches the HTML parser.
 
-            if let Some(ref proxy) = self.proxy_url {
-                if let Ok(p) = reqwest::Proxy::all(proxy.as_str()) {
-                    builder = builder.proxy(p);
+                if let Some(ref proxy) = self.proxy_url {
+                    if let Ok(p) = reqwest::Proxy::all(proxy.as_str()) {
+                        builder = builder.proxy(p);
+                    }
                 }
-            }
 
-            builder.build().expect("failed to build HTTP client")
-        }).await
+                builder.build().expect("failed to build HTTP client")
+            })
+            .await
     }
 
     /// Build (once) a direct-connect client with no upstream proxy.
     async fn get_direct_client(&self) -> &Client {
-        self.direct_client.get_or_init(|| async {
-            reqwest_builder_no_env_proxy()
-                .redirect(Policy::none())
-                // read_timeout (per-chunk stall, #49), not a total-duration
-                // cap — see get_client.
-                .read_timeout(Duration::from_secs(30))
-                .connect_timeout(Duration::from_secs(10))
-                // See get_client: short idle window + keepalive against
-                // half-dead pooled connections (bug #24).
-                .pool_idle_timeout(Duration::from_secs(60))
-                .tcp_keepalive(Duration::from_secs(30))
-                .danger_accept_invalid_certs(false)
-                // SSRF guard: reject hostnames that resolve to a
-                // private/loopback IP at connect time (replaces the old
-                // TOCTOU pre-resolution check). Only on the direct client —
-                // with a proxy, the proxy resolves target DNS and the only
-                // local lookup is the proxy host itself, which is often
-                // deliberately a loopback address (e.g. socks5://127.0.0.1).
-                .dns_resolver(Arc::new(SsrfGuardResolver::new(self.allow_private_network)))
-                .build()
-                .expect("failed to build direct HTTP client")
-        }).await
+        self.direct_client
+            .get_or_init(|| async {
+                reqwest_builder_no_env_proxy()
+                    .redirect(Policy::none())
+                    // read_timeout (per-chunk stall, #49), not a total-duration
+                    // cap — see get_client.
+                    .read_timeout(Duration::from_secs(30))
+                    .connect_timeout(Duration::from_secs(10))
+                    // See get_client: short idle window + keepalive against
+                    // half-dead pooled connections (bug #24).
+                    .pool_idle_timeout(Duration::from_secs(60))
+                    .tcp_keepalive(Duration::from_secs(30))
+                    .danger_accept_invalid_certs(false)
+                    // SSRF guard: reject hostnames that resolve to a
+                    // private/loopback IP at connect time (replaces the old
+                    // TOCTOU pre-resolution check). Only on the direct client —
+                    // with a proxy, the proxy resolves target DNS and the only
+                    // local lookup is the proxy host itself, which is often
+                    // deliberately a loopback address (e.g. socks5://127.0.0.1).
+                    .dns_resolver(Arc::new(SsrfGuardResolver::new(self.allow_private_network)))
+                    .build()
+                    .expect("failed to build direct HTTP client")
+            })
+            .await
     }
 
     /// Pick the client for this request. An explicitly configured proxy
@@ -410,7 +408,11 @@ impl HttpClient {
                 if let Ok(p) = reqwest::Proxy::all(&proxy) {
                     builder = builder.proxy(p);
                 }
-                Some(builder.build().expect("failed to build auto-proxy HTTP client"))
+                Some(
+                    builder
+                        .build()
+                        .expect("failed to build auto-proxy HTTP client"),
+                )
             })
             .await
             .as_ref()
@@ -526,8 +528,15 @@ impl HttpClient {
         url: &Url,
         initial_body: Option<Vec<u8>>,
     ) -> Result<Response, NetError> {
-        self.fetch_with_method_traced(initial_method, url, initial_body, None, ResourceType::Document, None)
-            .await
+        self.fetch_with_method_traced(
+            initial_method,
+            url,
+            initial_body,
+            None,
+            ResourceType::Document,
+            None,
+        )
+        .await
     }
 
     async fn fetch_with_method_traced(
@@ -639,7 +648,9 @@ impl HttpClient {
         legacy
             .set_accept_language(&self.accept_language.read().await.clone())
             .await;
-        legacy.set_extra_headers(self.extra_headers.read().await.clone()).await;
+        legacy
+            .set_extra_headers(self.extra_headers.read().await.clone())
+            .await;
         tracing::warn!("rustls transport failed for {url}; retrying once via legacy TLS transport");
         match legacy
             .fetch_with_body(
@@ -802,9 +813,7 @@ impl HttpClient {
     /// a stock Chrome145/Linux default, so the escape hatch never swaps
     /// one JA3-mismatch tell for another (#116).
     #[cfg(feature = "stealth")]
-    async fn legacy_transport(
-        &self,
-    ) -> Option<&Arc<crate::diting_net::StealthHttpClient>> {
+    async fn legacy_transport(&self) -> Option<&Arc<crate::diting_net::StealthHttpClient>> {
         self.legacy_tls
             .get_or_init(|| async {
                 if self
@@ -819,9 +828,8 @@ impl HttpClient {
                     .as_deref()
                     .and_then(crate::diting_net::parse_tls_fingerprint)
                     .unwrap_or(diting_profiles::Profile::Chrome145);
-                let os = crate::diting_net::emulation_os_for_ua(
-                    &self.user_agent.read().await.clone(),
-                );
+                let os =
+                    crate::diting_net::emulation_os_for_ua(&self.user_agent.read().await.clone());
                 let client = crate::diting_net::StealthHttpClient::with_proxy_and_emulation(
                     self.cookie_jar.clone(),
                     self.proxy_url.as_deref(),
@@ -888,16 +896,25 @@ impl HttpClient {
         // class (metadata.rs, #203).
         let initiator = referrer.and_then(|s| url::Url::parse(s).ok());
         let is_navigation = metadata::is_navigation(resource_type);
-        let FetchMetadata { dest: fetch_dest, mode: fetch_mode, default_accept } = metadata_for(resource_type);
+        let FetchMetadata {
+            dest: fetch_dest,
+            mode: fetch_mode,
+            default_accept,
+        } = metadata_for(resource_type);
 
         for _redirect_count in 0..max_redirects {
             let ua = self.user_agent.read().await.clone();
             let (sec_ch_ua, platform) = derive_client_hints(&ua);
             let mut headers = HeaderMap::new();
-            headers.insert(USER_AGENT, HeaderValue::from_str(&ua).unwrap_or_else(|_| {
-                HeaderValue::from_static(crate::chrome_target::UA_DEFAULT)
-            }));
-            headers.insert(reqwest::header::ACCEPT, HeaderValue::from_static(default_accept));
+            headers.insert(
+                USER_AGENT,
+                HeaderValue::from_str(&ua)
+                    .unwrap_or_else(|_| HeaderValue::from_static(crate::chrome_target::UA_DEFAULT)),
+            );
+            headers.insert(
+                reqwest::header::ACCEPT,
+                HeaderValue::from_static(default_accept),
+            );
             headers.insert(
                 reqwest::header::ACCEPT_LANGUAGE,
                 HeaderValue::from_str(&self.accept_language.read().await.clone())
@@ -988,7 +1005,9 @@ impl HttpClient {
             } else {
                 crate::diting_net::cookies::SendContext::subresource(cross_site)
             };
-            let cookie_header = self.cookie_jar.get_cookie_header_for(&current_url, &cookie_ctx);
+            let cookie_header = self
+                .cookie_jar
+                .get_cookie_header_for(&current_url, &cookie_ctx);
             tracing::debug!(
                 "Cookie header for {}: {} cookies ({} bytes)",
                 current_url.host_str().unwrap_or("?"),
@@ -1013,7 +1032,8 @@ impl HttpClient {
                         }
                         tracing::debug!(
                             "Cookie header invalid chars, filtered {} -> {} bytes",
-                            cookie_header.len(), filtered.len(),
+                            cookie_header.len(),
+                            filtered.len(),
                         );
                     }
                 }
@@ -1047,7 +1067,10 @@ impl HttpClient {
             let wire_headers: HashMap<String, String> = headers
                 .iter()
                 .map(|(k, v)| {
-                    (k.as_str().to_lowercase(), v.to_str().unwrap_or("").to_string())
+                    (
+                        k.as_str().to_lowercase(),
+                        v.to_str().unwrap_or("").to_string(),
+                    )
                 })
                 .collect();
             // Passive on_request observers (upstream #408): fire with the
@@ -1058,7 +1081,10 @@ impl HttpClient {
                 _ => None,
             };
 
-            let mut req_builder = self.get_client_for(&current_url).await.request(method.clone(), current_url.as_str())
+            let mut req_builder = self
+                .get_client_for(&current_url)
+                .await
+                .request(method.clone(), current_url.as_str())
                 .headers(headers);
 
             if let Some(b) = body {
@@ -1075,7 +1101,8 @@ impl HttpClient {
                 cbs.fire_request(&info).await;
             }
 
-            self.in_flight.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.in_flight
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             // #309: the counter decrements on Drop, so a cancelled
             // navigation (this future dropped mid-send by a newer goto)
             // can no longer strand it at +1 for the session's life.
@@ -1120,9 +1147,9 @@ impl HttpClient {
                     let location_str = location.to_str().map_err(|_| {
                         NetError::Network("Invalid redirect Location header".into())
                     })?;
-                    let next_url = current_url.join(location_str).map_err(|e| {
-                        NetError::Network(format!("Invalid redirect URL: {}", e))
-                    })?;
+                    let next_url = current_url
+                        .join(location_str)
+                        .map_err(|e| NetError::Network(format!("Invalid redirect URL: {}", e)))?;
                     validate_url(&next_url, self.allow_private_network)?;
                     redirects.push(current_url.clone());
                     redirect_hops.push(RedirectHop {
@@ -1141,10 +1168,20 @@ impl HttpClient {
                 }
             }
 
-            let body_bytes = resp.bytes().await.map_err(|e| {
-                tracing::warn!("body read failed for {}: {} (status={}, ctype={:?})", current_url, e, status, response_headers.get("content-type"));
-                NetError::Network(format!("Failed to read body: {}", e))
-            })?.to_vec();
+            let body_bytes = resp
+                .bytes()
+                .await
+                .map_err(|e| {
+                    tracing::warn!(
+                        "body read failed for {}: {} (status={}, ctype={:?})",
+                        current_url,
+                        e,
+                        status,
+                        response_headers.get("content-type")
+                    );
+                    NetError::Network(format!("Failed to read body: {}", e))
+                })?
+                .to_vec();
 
             let response = Response {
                 url: current_url,

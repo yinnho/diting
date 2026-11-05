@@ -26,10 +26,10 @@ pub(crate) mod geometry;
 /// The one interface table. `parent` fields index into THIS slice; order
 /// is install order (a parent precedes its children).
 pub(crate) static IFACES: declare::Table = &[
-    &geometry::RECT_RO,   // 0
-    &geometry::RECT,      // 1
-    &geometry::POINT_RO,  // 2
-    &geometry::POINT,     // 3
+    &geometry::RECT_RO,         // 0
+    &geometry::RECT,            // 1
+    &geometry::POINT_RO,        // 2
+    &geometry::POINT,           // 3
     &exceptions::DOM_EXCEPTION, // 4
 ];
 

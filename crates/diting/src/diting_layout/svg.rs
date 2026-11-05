@@ -35,8 +35,8 @@ use super::{FontBook, Rect};
 // re-export below.
 mod measure;
 
-use measure::{lex_path, Tok};
 pub(crate) use measure::{build_path_measure, PathMeasure};
+use measure::{lex_path, Tok};
 
 /// A compiled svg: the viewBox (None = user units map 1:1 from the element
 /// box origin) plus the flattened op list in user units. Group transforms
@@ -55,7 +55,10 @@ pub struct SvgRender {
 pub enum SvgOp {
     /// Even-odd fill over one or more subpaths (the fill-rule distinction
     /// is out of scope; simple shapes agree under both rules).
-    Fill { polys: Vec<Vec<(f32, f32)>>, color: [u8; 4] },
+    Fill {
+        polys: Vec<Vec<(f32, f32)>>,
+        color: [u8; 4],
+    },
     /// Polyline stroke; `closed` adds the closing segment.
     Stroke {
         poly: Vec<(f32, f32)>,
@@ -127,7 +130,10 @@ pub fn compile_svg(
         .and_then(|v| parse_view_box(&v));
     let mut markers = HashMap::new();
     collect_markers(tree, styles, root, &mut markers);
-    let mut out = SvgRender { view_box, ops: Vec::new() };
+    let mut out = SvgRender {
+        view_box,
+        ops: Vec::new(),
+    };
     // Root context: nothing declared = unset (SVG initial values apply at
     // draw time); font size tracks the CSS cascade through the HTML chain.
     let ctx = Ctx {
@@ -138,7 +144,10 @@ pub fn compile_svg(
         dash: None,
         view_box_extent: view_box.map(|(_, _, w, h)| (w, h)),
         font_size: styles.get(&root).and_then(|s| s.font_size).unwrap_or(16.0),
-        bold: styles.get(&root).and_then(|s| s.font_weight).is_some_and(|w| w >= 600),
+        bold: styles
+            .get(&root)
+            .and_then(|s| s.font_weight)
+            .is_some_and(|w| w >= 600),
         opacity: 1.0,
     };
     walk(tree, styles, root, ctx, &markers, &mut out.ops);
@@ -182,7 +191,10 @@ struct Ctx {
 const IDENTITY: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
 
 fn apply(m: &[f32; 6], p: (f32, f32)) -> (f32, f32) {
-    (m[0] * p.0 + m[2] * p.1 + m[4], m[1] * p.0 + m[3] * p.1 + m[5])
+    (
+        m[0] * p.0 + m[2] * p.1 + m[4],
+        m[1] * p.0 + m[3] * p.1 + m[5],
+    )
 }
 
 /// Compose parent ∘ child (child's transform applies first).
@@ -203,7 +215,9 @@ fn scale_of(m: &[f32; 6]) -> f32 {
 }
 
 fn attr_f(tree: &DomTree, id: NodeId, name: &str) -> Option<f32> {
-    let raw = tree.with_node(id, |n| n.get_attribute(name).map(str::to_string)).flatten()?;
+    let raw = tree
+        .with_node(id, |n| n.get_attribute(name).map(str::to_string))
+        .flatten()?;
     num(&raw)
 }
 
@@ -246,7 +260,9 @@ fn walk(
     if cs.display == Some(Display::None) {
         return;
     }
-    let Some(tag) = tree.with_node(id, |n| n.as_element().map(|e| e.local.to_string())).flatten()
+    let Some(tag) = tree
+        .with_node(id, |n| n.as_element().map(|e| e.local.to_string()))
+        .flatten()
     else {
         return;
     };
@@ -290,16 +306,20 @@ fn walk(
         .or_else(|| attr_f(tree, id, "stroke-width"))
         .or(ctx.stroke_w);
     let dash = cs.svg_dasharray.or_else(|| {
-        tree.with_node(id, |n| n.get_attribute("stroke-dasharray").map(str::to_string))
-            .flatten()
-            .and_then(|v| parse_dasharray(&v))
+        tree.with_node(id, |n| {
+            n.get_attribute("stroke-dasharray").map(str::to_string)
+        })
+        .flatten()
+        .and_then(|v| parse_dasharray(&v))
     });
     // stroke-dashoffset: CSS declaration > presentation attr, in user units.
     // `pathLength` renormalizes the dash math: the pattern and offset are
     // authored against a path length of `pathLength`, so scale = real/flattened
     // length ÷ pathLength converts them into user units (the self-draw idiom —
     // pathLength=1 + dasharray:1 + dashoffset animating 1→0 — rides this).
-    let dash_offset = cs.svg_dashoffset.or_else(|| attr_f(tree, id, "stroke-dashoffset"));
+    let dash_offset = cs
+        .svg_dashoffset
+        .or_else(|| attr_f(tree, id, "stroke-dashoffset"));
     let path_len_norm = tree
         .with_node(id, |n| n.get_attribute("pathLength").map(str::to_string))
         .flatten()
@@ -358,13 +378,12 @@ fn walk(
         c[3] = (c[3] as f32 * next.opacity * stroke_op).round() as u8;
         c
     };
-    let fill_rgba = Some(
-        dim_fill(next.fill.map(|p| rgba(p, cs.color)).unwrap_or([0, 0, 0, 255])),
-    );
-    let stroke_rgba = next
-        .stroke
-        .map(|p| rgba(p, cs.color))
-        .map(dim_stroke);
+    let fill_rgba = Some(dim_fill(
+        next.fill
+            .map(|p| rgba(p, cs.color))
+            .unwrap_or([0, 0, 0, 255]),
+    ));
+    let stroke_rgba = next.stroke.map(|p| rgba(p, cs.color)).map(dim_stroke);
     let sw = stroke_w.unwrap_or(1.0);
 
     let map_all = |pts: &[(f32, f32)]| pts.iter().map(|&p| apply(&m, p)).collect::<Vec<_>>();
@@ -388,8 +407,14 @@ fn walk(
 
     match tag.as_str() {
         "rect" => {
-            let (x, y) = (attr_f(tree, id, "x").unwrap_or(0.0), attr_f(tree, id, "y").unwrap_or(0.0));
-            let (w, h) = (attr_f(tree, id, "width").unwrap_or(0.0), attr_f(tree, id, "height").unwrap_or(0.0));
+            let (x, y) = (
+                attr_f(tree, id, "x").unwrap_or(0.0),
+                attr_f(tree, id, "y").unwrap_or(0.0),
+            );
+            let (w, h) = (
+                attr_f(tree, id, "width").unwrap_or(0.0),
+                attr_f(tree, id, "height").unwrap_or(0.0),
+            );
             if w <= 0.0 || h <= 0.0 {
                 return;
             }
@@ -406,10 +431,22 @@ fn walk(
             let poly = rounded_rect_poly(x, y, w, h, rx, ry);
             let mapped = map_all(&poly);
             let (d, dof) = norm_dash(&mapped, true);
-            emit_fill_stroke(mapped, true, fill_rgba, stroke_rgba, sw, d.as_ref(), dof, ops);
+            emit_fill_stroke(
+                mapped,
+                true,
+                fill_rgba,
+                stroke_rgba,
+                sw,
+                d.as_ref(),
+                dof,
+                ops,
+            );
         }
         "circle" | "ellipse" => {
-            let (cx, cy) = (attr_f(tree, id, "cx").unwrap_or(0.0), attr_f(tree, id, "cy").unwrap_or(0.0));
+            let (cx, cy) = (
+                attr_f(tree, id, "cx").unwrap_or(0.0),
+                attr_f(tree, id, "cy").unwrap_or(0.0),
+            );
             let (rx, ry) = if tag == "circle" {
                 let r = attr_f(tree, id, "r").unwrap_or(0.0);
                 (r, r)
@@ -432,8 +469,14 @@ fn walk(
             emit_fill_stroke(pts, true, fill_rgba, stroke_rgba, sw, d.as_ref(), dof, ops);
         }
         "line" => {
-            let p1 = (attr_f(tree, id, "x1").unwrap_or(0.0), attr_f(tree, id, "y1").unwrap_or(0.0));
-            let p2 = (attr_f(tree, id, "x2").unwrap_or(0.0), attr_f(tree, id, "y2").unwrap_or(0.0));
+            let p1 = (
+                attr_f(tree, id, "x1").unwrap_or(0.0),
+                attr_f(tree, id, "y1").unwrap_or(0.0),
+            );
+            let p2 = (
+                attr_f(tree, id, "x2").unwrap_or(0.0),
+                attr_f(tree, id, "y2").unwrap_or(0.0),
+            );
             let mapped = vec![apply(&m, p1), apply(&m, p2)];
             let (d, dof) = norm_dash(&mapped, false);
             emit_stroke_if_any(mapped.clone(), false, stroke_rgba, sw, d.as_ref(), dof, ops);
@@ -452,7 +495,16 @@ fn walk(
             let mapped = map_all(&pts);
             let (d, dof) = norm_dash(&mapped, closed);
             if closed {
-                emit_fill_stroke(mapped.clone(), true, fill_rgba, stroke_rgba, sw, d.as_ref(), dof, ops);
+                emit_fill_stroke(
+                    mapped.clone(),
+                    true,
+                    fill_rgba,
+                    stroke_rgba,
+                    sw,
+                    d.as_ref(),
+                    dof,
+                    ops,
+                );
             } else {
                 emit_stroke_if_any(mapped.clone(), false, stroke_rgba, sw, d.as_ref(), dof, ops);
             }
@@ -473,17 +525,31 @@ fn walk(
             // identifiable and the op list stays paint-only.
             if let Some(c) = fill_rgba.filter(|c| c[3] > 0) {
                 if all.iter().any(|p| p.len() >= 3) {
-                    ops.push(SvgOp::Fill { polys: all.clone(), color: c });
+                    ops.push(SvgOp::Fill {
+                        polys: all.clone(),
+                        color: c,
+                    });
                 }
             }
             for s in &subpaths {
                 let (d, dof) = norm_dash(&s.pts, s.closed);
-                emit_stroke_if_any(s.pts.clone(), s.closed, stroke_rgba, sw, d.as_ref(), dof, ops);
+                emit_stroke_if_any(
+                    s.pts.clone(),
+                    s.closed,
+                    stroke_rgba,
+                    sw,
+                    d.as_ref(),
+                    dof,
+                    ops,
+                );
             }
             emit_markers(tree, id, markers, &all, sw, ops);
         }
         "text" => {
-            let (x, y) = (attr_f(tree, id, "x").unwrap_or(0.0), attr_f(tree, id, "y").unwrap_or(0.0));
+            let (x, y) = (
+                attr_f(tree, id, "x").unwrap_or(0.0),
+                attr_f(tree, id, "y").unwrap_or(0.0),
+            );
             let anchor = match tree
                 .with_node(id, |n| n.get_attribute("text-anchor").map(str::to_string))
                 .flatten()
@@ -502,7 +568,15 @@ fn walk(
                 return;
             }
             let (tx, ty) = apply(&m, (x, y));
-            ops.push(SvgOp::Text { content, x: tx, y: ty, anchor, font_size, bold, color: c });
+            ops.push(SvgOp::Text {
+                content,
+                x: tx,
+                y: ty,
+                anchor,
+                font_size,
+                bold,
+                color: c,
+            });
         }
         // g, svg (nested viewBox out of scope), unknown containers: recurse.
         _ => {
@@ -558,7 +632,10 @@ fn emit_fill_stroke(
 ) {
     if poly.len() >= 3 {
         if let Some(c) = fill.filter(|c| c[3] > 0) {
-            ops.push(SvgOp::Fill { polys: vec![poly.clone()], color: c });
+            ops.push(SvgOp::Fill {
+                polys: vec![poly.clone()],
+                color: c,
+            });
         }
     }
     emit_stroke_if_any(poly, closed, stroke, sw, dash, dash_offset, ops);
@@ -574,7 +651,14 @@ fn emit_stroke_if_any(
     ops: &mut Vec<SvgOp>,
 ) {
     if let Some(c) = stroke.filter(|c| c[3] > 0 && sw > 0.0) {
-        ops.push(SvgOp::Stroke { poly, closed, width: sw, dash: dash.cloned(), dash_offset, color: c });
+        ops.push(SvgOp::Stroke {
+            poly,
+            closed,
+            width: sw,
+            dash: dash.cloned(),
+            dash_offset,
+            color: c,
+        });
     }
 }
 
@@ -583,10 +667,15 @@ fn emit_stroke_if_any(
 fn collect_text(tree: &DomTree, id: NodeId) -> String {
     let mut out = String::new();
     for child in tree.children(id) {
-        if let Some(t) = tree.with_node(child, |n| n.text_content_of_text_node().map(str::to_string)).flatten() {
+        if let Some(t) = tree
+            .with_node(child, |n| n.text_content_of_text_node().map(str::to_string))
+            .flatten()
+        {
             out.push_str(&t);
         } else if tree
-            .with_node(child, |n| n.as_element().map(|e| e.local.to_string() == "tspan"))
+            .with_node(child, |n| {
+                n.as_element().map(|e| e.local.to_string() == "tspan")
+            })
             .flatten()
             .unwrap_or(false)
         {
@@ -620,7 +709,10 @@ fn collect_markers(
         .flatten()
         .unwrap_or_default();
     if tag == "marker" {
-        if let Some(mid) = tree.with_node(id, |n| n.get_attribute("id").map(str::to_string)).flatten() {
+        if let Some(mid) = tree
+            .with_node(id, |n| n.get_attribute("id").map(str::to_string))
+            .flatten()
+        {
             // The marker's shape is its first polygon/path child; the
             // archify shape is a polygon "0 0, 10 3.5, 0 7".
             for child in tree.children(id) {
@@ -657,7 +749,14 @@ fn collect_markers(
                         attr_f(tree, id, "refX").unwrap_or(0.0),
                         attr_f(tree, id, "refY").unwrap_or(0.0),
                     );
-                    out.insert(mid, MarkerDef { points, ref_pt, fill });
+                    out.insert(
+                        mid,
+                        MarkerDef {
+                            points,
+                            ref_pt,
+                            fill,
+                        },
+                    );
                     break;
                 }
             }
@@ -694,7 +793,12 @@ fn emit_markers(
     let k = sw.max(0.01);
     if let Some(def) = url("marker-end").and_then(|mid| markers.get(&mid)) {
         if let Some(dir) = end_direction(subpaths, false) {
-            ops.push(marker_op(def, subpaths.last().and_then(|s| s.last().copied()), dir, k));
+            ops.push(marker_op(
+                def,
+                subpaths.last().and_then(|s| s.last().copied()),
+                dir,
+                k,
+            ));
         }
     }
     if let Some(def) = url("marker-start").and_then(|mid| markers.get(&mid)) {
@@ -710,7 +814,11 @@ fn emit_markers(
 fn marker_op(def: &MarkerDef, at: Option<(f32, f32)>, dir: (f32, f32), k: f32) -> SvgOp {
     let (ex, ey) = at.unwrap_or_default();
     let len = dir.0.hypot(dir.1);
-    let (ux, uy) = if len > f32::EPSILON { (dir.0 / len, dir.1 / len) } else { (1.0, 0.0) };
+    let (ux, uy) = if len > f32::EPSILON {
+        (dir.0 / len, dir.1 / len)
+    } else {
+        (1.0, 0.0)
+    };
     // Rotate the marker polygon so +x follows `dir`, scale by k, translate
     // so ref_pt lands on the endpoint.
     let pts = def
@@ -722,12 +830,19 @@ fn marker_op(def: &MarkerDef, at: Option<(f32, f32)>, dir: (f32, f32), k: f32) -
             (ex + dx * ux - dy * uy, ey + dx * uy + dy * ux)
         })
         .collect();
-    SvgOp::Fill { polys: vec![pts], color: def.fill }
+    SvgOp::Fill {
+        polys: vec![pts],
+        color: def.fill,
+    }
 }
 
 /// Unit direction at the end (start=false) or start (true) of the geometry.
 fn end_direction(subpaths: &[Vec<(f32, f32)>], start: bool) -> Option<(f32, f32)> {
-    let path = if start { subpaths.first()? } else { subpaths.last()? };
+    let path = if start {
+        subpaths.first()?
+    } else {
+        subpaths.last()?
+    };
     if path.len() < 2 {
         return None;
     }
@@ -848,15 +963,22 @@ fn parse_path(d: &str, m: &[f32; 6]) -> Vec<Subpath> {
         let rel = cmd.is_ascii_lowercase();
         match cmd.to_ascii_uppercase() {
             'M' => {
-                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else { break };
+                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else {
+                    break;
+                };
                 cur = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 start = cur;
-                subpaths.push(Subpath { pts: vec![apply(m, cur)], closed: false });
+                subpaths.push(Subpath {
+                    pts: vec![apply(m, cur)],
+                    closed: false,
+                });
                 // Subsequent implicit pairs are LineTos.
                 cmd = if rel { 'l' } else { 'L' };
             }
             'L' => {
-                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else { break };
+                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else {
+                    break;
+                };
                 cur = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 push_pt(&mut subpaths, apply(m, cur));
             }
@@ -876,12 +998,22 @@ fn parse_path(d: &str, m: &[f32; 6]) -> Vec<Subpath> {
                 else {
                     break;
                 };
-                let q = if rel { (cur.0 + qx, cur.1 + qy) } else { (qx, qy) };
+                let q = if rel {
+                    (cur.0 + qx, cur.1 + qy)
+                } else {
+                    (qx, qy)
+                };
                 let end = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 // Exact quadratic→cubic control lift: C1 = P0+⅔(Q−P0),
                 // C2 = P1+⅔(Q−P1) — NOT the control point itself.
-                let c1 = (cur.0 + (2.0 / 3.0) * (q.0 - cur.0), cur.1 + (2.0 / 3.0) * (q.1 - cur.1));
-                let c2 = (end.0 + (2.0 / 3.0) * (q.0 - end.0), end.1 + (2.0 / 3.0) * (q.1 - end.1));
+                let c1 = (
+                    cur.0 + (2.0 / 3.0) * (q.0 - cur.0),
+                    cur.1 + (2.0 / 3.0) * (q.1 - cur.1),
+                );
+                let c2 = (
+                    end.0 + (2.0 / 3.0) * (q.0 - end.0),
+                    end.1 + (2.0 / 3.0) * (q.1 - end.1),
+                );
                 flatten_bezier(&mut subpaths, cur, c1, c2, end, 12, m);
                 cur = end;
             }
@@ -893,13 +1025,24 @@ fn parse_path(d: &str, m: &[f32; 6]) -> Vec<Subpath> {
                     take(&mut i),
                     take(&mut i),
                     take(&mut i),
-                )
-                else {
+                ) else {
                     break;
                 };
-                let c1 = if rel { (cur.0 + x1, cur.1 + y1) } else { (x1, y1) };
-                let c2 = if rel { (cur.0 + x2, cur.1 + y2) } else { (x2, y2) };
-                let end = if rel { (cur.0 + x3, cur.1 + y3) } else { (x3, y3) };
+                let c1 = if rel {
+                    (cur.0 + x1, cur.1 + y1)
+                } else {
+                    (x1, y1)
+                };
+                let c2 = if rel {
+                    (cur.0 + x2, cur.1 + y2)
+                } else {
+                    (x2, y2)
+                };
+                let end = if rel {
+                    (cur.0 + x3, cur.1 + y3)
+                } else {
+                    (x3, y3)
+                };
                 flatten_bezier(&mut subpaths, cur, c1, c2, end, 16, m);
                 cur = end;
             }
@@ -910,7 +1053,9 @@ fn parse_path(d: &str, m: &[f32; 6]) -> Vec<Subpath> {
                         break;
                     }
                 }
-                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else { break };
+                let (Some(x), Some(y)) = (take(&mut i), take(&mut i)) else {
+                    break;
+                };
                 cur = if rel { (cur.0 + x, cur.1 + y) } else { (x, y) };
                 push_pt(&mut subpaths, apply(m, cur));
             }
@@ -1008,23 +1153,42 @@ pub fn paint_svg(
     for op in &render.ops {
         match op {
             SvgOp::Fill { polys, color } => {
-                let mapped: Vec<Vec<(f32, f32)>> =
-                    polys.iter().map(|p| p.iter().map(|&q| map(q)).collect()).collect();
+                let mapped: Vec<Vec<(f32, f32)>> = polys
+                    .iter()
+                    .map(|p| p.iter().map(|&q| map(q)).collect())
+                    .collect();
                 fill_even_odd(&mapped, col(*color), out);
             }
-            SvgOp::Stroke { poly, closed, width, dash, dash_offset, color } => {
+            SvgOp::Stroke {
+                poly,
+                closed,
+                width,
+                dash,
+                dash_offset,
+                color,
+            } => {
                 let mapped: Vec<(f32, f32)> = poly.iter().map(|&q| map(q)).collect();
                 stroke_polyline(
                     &mapped,
                     *closed,
                     width * s,
-                    dash.as_ref().map(|d| d.iter().map(|n| n * s).collect::<Vec<_>>()).as_deref(),
+                    dash.as_ref()
+                        .map(|d| d.iter().map(|n| n * s).collect::<Vec<_>>())
+                        .as_deref(),
                     dash_offset.unwrap_or(0.0) * s,
                     col(*color),
                     out,
                 );
             }
-            SvgOp::Text { content, x, y, anchor, font_size, bold, color } => {
+            SvgOp::Text {
+                content,
+                x,
+                y,
+                anchor,
+                font_size,
+                bold,
+                color,
+            } => {
                 let fs = font_size * s;
                 if fs < 1.0 {
                     continue;
@@ -1032,7 +1196,15 @@ pub fn paint_svg(
                 let (sx, sy) = map((*x, *y));
                 // `normal` line height from the face metrics (#16), not a
                 // flat 1.2× — multi-line <text> pitch follows the real font.
-                let r = fonts.rasterize(content, fs, *bold, col(*color), fonts.normal_line_height(fs, *bold), false, None);
+                let r = fonts.rasterize(
+                    content,
+                    fs,
+                    *bold,
+                    col(*color),
+                    fonts.normal_line_height(fs, *bold),
+                    false,
+                    None,
+                );
                 if r.width == 0 || r.height == 0 {
                     continue;
                 }
@@ -1043,7 +1215,11 @@ pub fn paint_svg(
                 };
                 // svg `y` is the baseline; the tile's `baseline` field is the
                 // baseline's offset from the tile top.
-                out.blit_text(&r, (sx + x_off).round() as i64, (sy - r.baseline).round() as i64);
+                out.blit_text(
+                    &r,
+                    (sx + x_off).round() as i64,
+                    (sy - r.baseline).round() as i64,
+                );
             }
         }
     }
@@ -1112,12 +1288,7 @@ fn segments_of(poly: &[(f32, f32)], closed: bool) -> Vec<((f32, f32), (f32, f32)
 
 /// On-distance runs of a dash pattern (odd-length patterns double up per
 /// spec). Distance 0 is always "on".
-fn dash_on_runs(
-    poly: &[(f32, f32)],
-    closed: bool,
-    pattern: &[f32],
-    phase: f32,
-) -> Vec<(f32, f32)> {
+fn dash_on_runs(poly: &[(f32, f32)], closed: bool, pattern: &[f32], phase: f32) -> Vec<(f32, f32)> {
     let mut pat: Vec<f32> = pattern.to_vec();
     if pat.len() % 2 == 1 {
         let orig = pat.clone();
@@ -1139,7 +1310,11 @@ fn dash_on_runs(
     }
     let mut runs = Vec::new();
     let mut d = 0.0f32;
-    let mut on_start: Option<f32> = if idx.is_multiple_of(2) { Some(0.0) } else { None };
+    let mut on_start: Option<f32> = if idx.is_multiple_of(2) {
+        Some(0.0)
+    } else {
+        None
+    };
     for (a, b) in segments_of(poly, closed) {
         let mut remain = (b.0 - a.0).hypot(b.1 - a.1);
         while remain > f32::EPSILON {
@@ -1183,7 +1358,11 @@ fn stroke_polyline(
     let half = stamp_w / 2.0;
     let size = stamp_w.ceil() as i64;
     let on_runs = dash.map(|pattern| dash_on_runs(poly, closed, pattern, dash_offset));
-    let in_on = |d: f32| on_runs.as_ref().is_none_or(|runs| runs.iter().any(|&(a, b)| d >= a && d < b));
+    let in_on = |d: f32| {
+        on_runs
+            .as_ref()
+            .is_none_or(|runs| runs.iter().any(|&(a, b)| d >= a && d < b))
+    };
 
     let mut d = 0.0f32;
     for (a, b) in segments_of(poly, closed) {
@@ -1223,15 +1402,24 @@ mod tests {
 
     fn compile_of(html: &str) -> SvgRender {
         let tree = parse_html(html);
-        let svg_id = tree.query_selector("svg").expect("parse ok").expect("an svg element");
+        let svg_id = tree
+            .query_selector("svg")
+            .expect("parse ok")
+            .expect("an svg element");
         let styles = super::super::compute_styles(&tree, &[], (1280.0, 720.0));
         compile_svg(&tree, &styles, svg_id)
     }
 
     #[test]
     fn viewbox_and_points_parse() {
-        assert_eq!(parse_view_box("0 0 345 230"), Some((0.0, 0.0, 345.0, 230.0)));
-        assert_eq!(parse_view_box("200,0,880,588"), Some((200.0, 0.0, 880.0, 588.0)));
+        assert_eq!(
+            parse_view_box("0 0 345 230"),
+            Some((0.0, 0.0, 345.0, 230.0))
+        );
+        assert_eq!(
+            parse_view_box("200,0,880,588"),
+            Some((200.0, 0.0, 880.0, 588.0))
+        );
         assert_eq!(parse_view_box("0 0 0 10"), None, "zero extent is invalid");
         let pts = parse_points("0 0, 10 3.5, 0 7");
         assert_eq!(pts, vec![(0.0, 0.0), (10.0, 3.5), (0.0, 7.0)]);
@@ -1241,8 +1429,14 @@ mod tests {
     fn transforms_compose_and_scale() {
         let t = parse_transform("translate(10 20) scale(0.6875)").unwrap();
         let p = apply(&t, (100.0, 80.0));
-        assert!((p.0 - 78.75).abs() < 1e-3 && (p.1 - 75.0).abs() < 1e-3, "{p:?}");
-        assert!((scale_of(&t) - 0.6875).abs() < 1e-4, "stroke width rides the uniform scale");
+        assert!(
+            (p.0 - 78.75).abs() < 1e-3 && (p.1 - 75.0).abs() < 1e-3,
+            "{p:?}"
+        );
+        assert!(
+            (scale_of(&t) - 0.6875).abs() < 1e-4,
+            "stroke width rides the uniform scale"
+        );
         let r = parse_transform("rotate(90)").unwrap();
         let q = apply(&r, (10.0, 0.0));
         assert!((q.1 - 10.0).abs() < 1e-4 && q.0.abs() < 1e-4, "{q:?}");
@@ -1259,7 +1453,10 @@ mod tests {
         assert_eq!(subpaths[0].pts[1], (100.0, 0.0));
         // Q midpoint: exact lift puts t=0.5 at (75, 75) for this control.
         let mid = subpaths[0].pts[7];
-        assert!((mid.0 - 75.0).abs() < 1e-3 && (mid.1 - 75.0).abs() < 1e-3, "{mid:?}");
+        assert!(
+            (mid.0 - 75.0).abs() < 1e-3 && (mid.1 - 75.0).abs() < 1e-3,
+            "{mid:?}"
+        );
         // Relative form walks the same ground.
         let rel = parse_path("m 10 10 l 90 0 z", &IDENTITY);
         assert_eq!(rel[0].pts, vec![(10.0, 10.0), (100.0, 10.0)]);
@@ -1288,7 +1485,12 @@ mod tests {
             );
             // No vertex pokes into a cut corner (arc vertices sit exactly on
             // the corner circle; chords stay within cos(pi/32) of it).
-            for (cx, cy) in [(126.0, 162.0), (386.0, 162.0), (386.0, 350.0), (126.0, 350.0)] {
+            for (cx, cy) in [
+                (126.0, 162.0),
+                (386.0, 162.0),
+                (386.0, 350.0),
+                (126.0, 350.0),
+            ] {
                 let d = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
                 assert!(d >= 25.0, "({px},{py}) enters cut corner at ({cx},{cy})");
             }
@@ -1304,7 +1506,10 @@ mod tests {
             let cross = (b.0 - a.0) * (c.1 - b.1) - (b.1 - a.1) * (c.0 - b.0);
             if cross.abs() > 1e-6 {
                 let s = cross.signum();
-                assert!(sign == 0.0 || sign == s, "non-convex turn at {b:?} (cross {cross})");
+                assert!(
+                    sign == 0.0 || sign == s,
+                    "non-convex turn at {b:?} (cross {cross})"
+                );
                 sign = s;
             }
         }
@@ -1388,7 +1593,11 @@ mod tests {
         let r = compile_of(
             r##"<svg viewBox="0 0 10 10"><rect x="0" y="0" width="4" height="4" fill="#ff0000" opacity="0"/></svg>"##,
         );
-        assert!(r.ops.is_empty(), "fully transparent shape draws nothing: {:?}", r.ops);
+        assert!(
+            r.ops.is_empty(),
+            "fully transparent shape draws nothing: {:?}",
+            r.ops
+        );
 
         // Text rides fill_rgba, so a dimmed group dims its labels too.
         let r = compile_of(
@@ -1418,11 +1627,21 @@ mod tests {
             r#"<svg viewBox="0 0 100 50"><title>meta</title><text x="4" y="20" font-size="12">Label</text></svg>"#,
         );
         match r.ops.as_slice() {
-            [SvgOp::Text { content, x, y, anchor, font_size, .. }] => {
+            [SvgOp::Text {
+                content,
+                x,
+                y,
+                anchor,
+                font_size,
+                ..
+            }] => {
                 assert_eq!(content, "Label");
                 assert_eq!((*x, *y), (4.0, 20.0));
                 assert_eq!(*anchor, TextAnchor::Start);
-                assert!((*font_size - 12.0).abs() < 1e-4, "attr font-size beats inherited CSS");
+                assert!(
+                    (*font_size - 12.0).abs() < 1e-4,
+                    "attr font-size beats inherited CSS"
+                );
             }
             other => panic!("expected one text op: {other:?}"),
         }
@@ -1444,11 +1663,19 @@ mod tests {
             other => panic!("expected one text op: {other:?}"),
         }
         let fonts = crate::diting_fonts::font_book();
-        let rect = Rect { x: 0.0, y: 0.0, width: 120.0, height: 40.0 };
+        let rect = Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 120.0,
+            height: 40.0,
+        };
         let mut canvas = Canvas::new_filled(120, 40, [255, 255, 255, 255]);
         paint_svg(&r, &rect, &fonts, &mut canvas, 0.0, 0.0, 1.0);
         let ink = canvas.data.chunks_exact(4).filter(|p| p[0] < 128).count();
-        assert!(ink > 20, "svg text must paint ink regardless of host fonts ({ink} px)");
+        assert!(
+            ink > 20,
+            "svg text must paint ink regardless of host fonts ({ink} px)"
+        );
     }
 
     #[test]
@@ -1459,8 +1686,14 @@ mod tests {
         match r.ops.as_slice() {
             [SvgOp::Fill { polys, .. }] => {
                 let p = &polys[0];
-                assert!((p[0].0 - 10.0).abs() < 1e-3 && (p[0].1 - 5.0).abs() < 1e-3, "{p:?}");
-                assert!((p[2].0 - 60.0).abs() < 1e-3 && (p[2].1 - 25.0).abs() < 1e-3, "{p:?}");
+                assert!(
+                    (p[0].0 - 10.0).abs() < 1e-3 && (p[0].1 - 5.0).abs() < 1e-3,
+                    "{p:?}"
+                );
+                assert!(
+                    (p[2].0 - 60.0).abs() < 1e-3 && (p[2].1 - 25.0).abs() < 1e-3,
+                    "{p:?}"
+                );
             }
             other => panic!("expected one fill op: {other:?}"),
         }
@@ -1482,7 +1715,12 @@ mod tests {
                 },
             ],
         };
-        let rect = Rect { x: 0.0, y: 0.0, width: 20.0, height: 20.0 };
+        let rect = Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 20.0,
+            height: 20.0,
+        };
         let mut canvas = Canvas::new_filled(20, 20, [255, 255, 255, 255]);
         paint_svg(&render, &rect, &fonts, &mut canvas, 0.0, 0.0, 1.0);
         let px = |x: usize, y: usize| canvas.data[(y * 20 + x) * 4];
@@ -1504,7 +1742,12 @@ mod tests {
                 color: [0, 0, 0, 255],
             }],
         };
-        let rect = Rect { x: 10.0, y: 20.0, width: 100.0, height: 50.0 };
+        let rect = Rect {
+            x: 10.0,
+            y: 20.0,
+            width: 100.0,
+            height: 50.0,
+        };
         let mut canvas = Canvas::new_filled(120, 90, [255, 255, 255, 255]);
         paint_svg(&render, &rect, &fonts, &mut canvas, 0.0, 0.0, 1.0);
         let px = |x: usize, y: usize| canvas.data[(y * 120 + x) * 4];
@@ -1530,7 +1773,12 @@ mod tests {
                     color: [0, 0, 0, 255],
                 }],
             },
-            &Rect { x: 0.0, y: 0.0, width: 40.0, height: 10.0 },
+            &Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 40.0,
+                height: 10.0,
+            },
             &fonts,
             &mut canvas,
             0.0,
@@ -1555,7 +1803,12 @@ mod tests {
                     color: [0, 0, 0, 255],
                 }],
             },
-            &Rect { x: 0.0, y: 0.0, width: 40.0, height: 10.0 },
+            &Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 40.0,
+                height: 10.0,
+            },
             &fonts,
             &mut canvas,
             0.0,
@@ -1586,7 +1839,12 @@ mod tests {
                     color: [0, 0, 0, 255],
                 }],
             },
-            &Rect { x: 0.0, y: 0.0, width: 40.0, height: 10.0 },
+            &Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 40.0,
+                height: 10.0,
+            },
             &fonts,
             &mut canvas,
             0.0,
@@ -1612,7 +1870,9 @@ mod tests {
             .ops
             .iter()
             .find_map(|op| match op {
-                SvgOp::Stroke { dash, dash_offset, .. } => Some((dash.clone(), *dash_offset)),
+                SvgOp::Stroke {
+                    dash, dash_offset, ..
+                } => Some((dash.clone(), *dash_offset)),
                 _ => None,
             })
             .expect("stroke op emitted");
@@ -1627,7 +1887,9 @@ mod tests {
             .ops
             .iter()
             .find_map(|op| match op {
-                SvgOp::Stroke { dash, dash_offset, .. } => Some((dash.clone(), *dash_offset)),
+                SvgOp::Stroke {
+                    dash, dash_offset, ..
+                } => Some((dash.clone(), *dash_offset)),
                 _ => None,
             })
             .expect("stroke op emitted");
@@ -1643,13 +1905,17 @@ mod tests {
         let html = r#"<svg viewBox="0 0 40 10"><path d="M 0 5 L 40 5" pathLength="1" stroke="black" stroke-dasharray="1" stroke-dashoffset="1" opacity="1"/></svg>"#;
         let tree = parse_html(html);
         let svg_id = tree.query_selector("svg").unwrap().unwrap();
-        let rules = crate::diting_css::parse_stylesheet(
-            "path { stroke-dashoffset: 0.5; opacity: 0.5 }",
-        );
+        let rules =
+            crate::diting_css::parse_stylesheet("path { stroke-dashoffset: 0.5; opacity: 0.5 }");
         let styles = super::super::compute_styles(&tree, &rules, (1280.0, 720.0));
         let r = compile_svg(&tree, &styles, svg_id);
         match r.ops.as_slice() {
-            [SvgOp::Stroke { dash, dash_offset, color, .. }] => {
+            [SvgOp::Stroke {
+                dash,
+                dash_offset,
+                color,
+                ..
+            }] => {
                 assert_eq!(dash, &Some(vec![40.0]));
                 // CSS 0.5 (not attr 1) renormalized against pathLength.
                 assert_eq!(dash_offset, &Some(20.0));
@@ -1676,11 +1942,18 @@ mod tests {
                     // stroke-width defaults to 1 → marker units scale 1.
                     // Tip = endpoint + (10-9, 3.5-3.5) rotated by 0° = (81, 10).
                     let tip = polys[0][1];
-                    assert!((tip.0 - 81.0).abs() < 1e-3 && (tip.1 - 10.0).abs() < 1e-3, "{tip:?}");
+                    assert!(
+                        (tip.0 - 81.0).abs() < 1e-3 && (tip.1 - 10.0).abs() < 1e-3,
+                        "{tip:?}"
+                    );
                 }
                 _ => {}
             }
         }
-        assert!(saw_stroke && saw_marker, "path emits stroke + marker: {:?}", r.ops);
+        assert!(
+            saw_stroke && saw_marker,
+            "path emits stroke + marker: {:?}",
+            r.ops
+        );
     }
 }

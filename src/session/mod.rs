@@ -17,15 +17,15 @@ mod interact;
 mod manager;
 pub(crate) mod preload_recipes;
 mod record;
-pub(crate) mod snapshot;
 #[cfg(feature = "screenshot")]
 mod screenshot;
+pub(crate) mod snapshot;
 mod state;
 #[cfg(test)]
 mod tests;
 
 pub use commands::{ScrollDirection, SessionCommand};
-pub use manager::{SessionManager, SESSIONS};
 pub(crate) use manager::{send_command, send_command_readonly, send_screenshot};
+pub use manager::{SessionManager, SESSIONS};
 pub use record::replay_bash;
 pub use state::{ConsoleFilter, SessionError};

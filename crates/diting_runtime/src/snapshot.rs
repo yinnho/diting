@@ -81,8 +81,7 @@ pub fn ensure_script_consts(buffers: &[&'static [u8]]) {
     if SCRIPT_CONSTS.get().is_some() {
         return;
     }
-    let consts: Vec<&'static v8::OneByteConst> =
-        buffers.iter().map(|b| ascii_const(b)).collect();
+    let consts: Vec<&'static v8::OneByteConst> = buffers.iter().map(|b| ascii_const(b)).collect();
     register_script_consts(&consts);
 }
 

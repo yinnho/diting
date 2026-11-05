@@ -1,27 +1,26 @@
 #![allow(dead_code)]
+pub mod blocklist;
+#[cfg(feature = "stealth")]
+pub mod chrome_headers;
 pub mod client;
 pub mod cookies;
 pub mod encoding;
-pub mod blocklist;
 pub mod site;
-#[cfg(feature = "stealth")]
-pub mod chrome_headers;
 // Ungated module (#276 P2-6): the fleet-face constants and their tripwire
 // test compile in every build; every wreq-dependent item inside stays
 // stealth-gated, so non-stealth builds see only the pair.
 pub mod wreq_client;
 
 pub use client::{
-    env_allows_private_network, HttpClient, InFlightScripted, NetError,
-    CallbackRegistry, RedirectHop, RequestCallback, RequestInfo, Response, ResponseCallback,
-    ResourceType,
+    env_allows_private_network, CallbackRegistry, HttpClient, InFlightScripted, NetError,
+    RedirectHop, RequestCallback, RequestInfo, ResourceType, Response, ResponseCallback,
 };
 pub use cookies::CookieJar;
-pub use site::{is_same_site, registrable_domain, sec_fetch_site};
 pub use encoding::{
     decode_devtools_body, decode_non_html, decode_response_with_name, decode_with_label,
     label_name, url_encode_query,
 };
+pub use site::{is_same_site, registrable_domain, sec_fetch_site};
 
 /// Fold a response's headers into the JS/CDP-visible map WITHOUT the naive
 /// `HashMap::from_iter` collapse, which keeps only the LAST value of a
@@ -56,12 +55,12 @@ pub fn collect_response_headers(
 }
 // The fleet-face pair is ungated (#276 P2-6): single source for the
 // account-persona coerce, the UA/TLS warning, and the tripwire test.
-pub use wreq_client::{CLAIMED_CHROME_MAJOR, DEFAULT_TLS_FINGERPRINT};
 #[cfg(feature = "stealth")]
 pub use wreq_client::{
-    StealthHttpClient, STEALTH_USER_AGENT, emulation_os_for_ua, parse_tls_fingerprint,
-    warn_on_ua_tls_mismatch,
+    emulation_os_for_ua, parse_tls_fingerprint, warn_on_ua_tls_mismatch, StealthHttpClient,
+    STEALTH_USER_AGENT,
 };
+pub use wreq_client::{CLAIMED_CHROME_MAJOR, DEFAULT_TLS_FINGERPRINT};
 
 /// DevTools `Fetch.enable` urlPattern glob: `*` matches zero or more
 /// characters anywhere in the pattern (Chrome also supports `?`, which real
@@ -140,7 +139,10 @@ mod collect_headers_tests {
             collected.get("www-authenticate").map(String::as_str),
             Some("Basic realm=x, Bearer realm=y")
         );
-        assert_eq!(collected.get("content-type").map(String::as_str), Some("text/html"));
+        assert_eq!(
+            collected.get("content-type").map(String::as_str),
+            Some("text/html")
+        );
     }
 
     #[test]
@@ -165,7 +167,10 @@ mod collect_headers_tests {
         // HeaderName normalizes on construction; the collector must not
         // regress the lowercase contract consumers' `.get()` calls rely on.
         let collected = collect_response_headers(&h);
-        assert_eq!(collected.get("x-custom-header").map(String::as_str), Some("v"));
+        assert_eq!(
+            collected.get("x-custom-header").map(String::as_str),
+            Some("v")
+        );
     }
 }
 
@@ -179,8 +184,14 @@ mod url_pattern_tests {
         assert!(url_pattern_matches("**/*", "https://x.test/a.png"));
         assert!(url_pattern_matches("**/*.png", "https://x.test/a/b.png"));
         assert!(!url_pattern_matches("**/*.png", "https://x.test/a/b.jpg"));
-        assert!(url_pattern_matches("https://x.test/*", "https://x.test/api"));
-        assert!(!url_pattern_matches("https://x.test/*", "https://y.test/api"));
+        assert!(url_pattern_matches(
+            "https://x.test/*",
+            "https://x.test/api"
+        ));
+        assert!(!url_pattern_matches(
+            "https://x.test/*",
+            "https://y.test/api"
+        ));
         assert!(url_pattern_matches(
             "https://x.test/api/v1",
             "https://x.test/api/v1"

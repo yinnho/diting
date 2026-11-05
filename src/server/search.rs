@@ -15,7 +15,6 @@ pub enum SearchError {
     BadRequest(String),
 }
 
-
 /// Shared search engine registry. LazyLock so engine clients (reqwest/wreq)
 /// are built once on first use.
 pub(crate) static SEARCH_REGISTRY: std::sync::LazyLock<crate::search::SearchEngineRegistry> =
@@ -260,7 +259,10 @@ pub(crate) async fn do_search_with_registry(
                 );
             }
             handles.push(tokio::task::spawn_blocking(move || {
-                (i, fetch_url_text_with_cookies(url, use_proxy, wait, max_chars, &cookies))
+                (
+                    i,
+                    fetch_url_text_with_cookies(url, use_proxy, wait, max_chars, &cookies),
+                )
             }));
         }
         for h in handles {
@@ -399,4 +401,3 @@ fn search_cache_put(key: &str, resp: &SearchResponse) {
         cache.insert(key.to_string(), (crate::now_secs(), resp.clone()));
     }
 }
-

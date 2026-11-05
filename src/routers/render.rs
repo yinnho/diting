@@ -101,14 +101,14 @@ pub(crate) async fn render_handler(
     let theme: &'static Theme = match (&req.preset, &req.theme) {
         (None, None) => &crate::docgen::theme::LIGHT,
         (None, Some(mode)) => Theme::by_name(mode).unwrap_or(&crate::docgen::theme::LIGHT),
-        (Some(preset), mode) => {
-            Theme::resolve(preset, mode.as_deref().unwrap_or("light"))
-                .unwrap_or(&crate::docgen::theme::LIGHT)
-        }
+        (Some(preset), mode) => Theme::resolve(preset, mode.as_deref().unwrap_or("light"))
+            .unwrap_or(&crate::docgen::theme::LIGHT),
     };
     let size = req.size.as_deref().unwrap_or(size_default);
     let (w, h) = crate::docgen::cover::dimensions(size).ok_or_else(|| {
-        AppError::BadRequest(format!("unknown size {size:?} — expected one of: square, wide, vertical"))
+        AppError::BadRequest(format!(
+            "unknown size {size:?} — expected one of: square, wide, vertical"
+        ))
     })?;
     let html = crate::docgen::cover::render_cover(&crate::docgen::cover::CoverInput {
         title: &req.title,
@@ -121,7 +121,12 @@ pub(crate) async fn render_handler(
     });
     Ok((
         StatusCode::OK,
-        Json(RenderResponse { kind: req.kind.clone(), width: w, height: h, html }),
+        Json(RenderResponse {
+            kind: req.kind.clone(),
+            width: w,
+            height: h,
+            html,
+        }),
     ))
 }
 
@@ -150,14 +155,14 @@ pub(crate) async fn render_markdown_handler(
                 )
             }),
     };
-    let quality = req.quality.as_deref().map_or(
-        Ok(crate::docgen::checks::Quality::Standard),
-        |name| {
-            crate::docgen::checks::Quality::by_name(name).ok_or_else(|| {
-                format!("unknown quality \"{name}\" — expected one of: standard, showcase")
-            })
-        },
-    );
+    let quality =
+        req.quality
+            .as_deref()
+            .map_or(Ok(crate::docgen::checks::Quality::Standard), |name| {
+                crate::docgen::checks::Quality::by_name(name).ok_or_else(|| {
+                    format!("unknown quality \"{name}\" — expected one of: standard, showcase")
+                })
+            });
     let (theme, quality) = match (theme, quality) {
         (Ok(t), Ok(q)) => (t, q),
         (Err(e), _) | (_, Err(e)) => return Err(AppError::BadRequest(e)),
@@ -213,10 +218,9 @@ mod render_tests {
     #[tokio::test]
     async fn render_card_and_title_kinds_default_sizes() {
         // card → square with body rows; title → vertical 1080×1920.
-        let card: RenderRequest = serde_json::from_str(
-            r#"{"kind":"card","title":"知识卡","body":["要点一","要点二"]}"#,
-        )
-        .unwrap();
+        let card: RenderRequest =
+            serde_json::from_str(r#"{"kind":"card","title":"知识卡","body":["要点一","要点二"]}"#)
+                .unwrap();
         let (_, Json(res)) = render_handler(axum::Json(card)).await.ok().unwrap();
         assert_eq!((res.width, res.height), (1024, 1024));
         assert!(res.html.contains("要点一") && res.html.contains("border-left:10px solid"));
@@ -233,10 +237,8 @@ mod render_tests {
         let bad_kind: RenderRequest =
             serde_json::from_str(r#"{"kind":"poster","title":"x"}"#).unwrap();
         assert!(render_handler(axum::Json(bad_kind)).await.is_err());
-        let bad_size: RenderRequest = serde_json::from_str(
-            r#"{"kind":"cover","title":"x","size":"a3"}"#,
-        )
-        .unwrap();
+        let bad_size: RenderRequest =
+            serde_json::from_str(r#"{"kind":"cover","title":"x","size":"a3"}"#).unwrap();
         assert!(render_handler(axum::Json(bad_size)).await.is_err());
     }
 }

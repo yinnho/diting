@@ -83,9 +83,19 @@ pub(super) fn computed_style_value(
             // alpha (26/255 -> 0.1), else three (0.102 style).
             let exact = c.3 as f32 / 255.0;
             let two = (exact * 100.0).round() / 100.0;
-            let a = if (two * 255.0).round() as u8 == c.3 { format!("{:.2}", two) } else { format!("{:.3}", exact) };
+            let a = if (two * 255.0).round() as u8 == c.3 {
+                format!("{:.2}", two)
+            } else {
+                format!("{:.3}", exact)
+            };
             let a = a.trim_end_matches('0').trim_end_matches('.');
-            format!("rgba({}, {}, {}, {})", c.0, c.1, c.2, if a.is_empty() { "0" } else { a })
+            format!(
+                "rgba({}, {}, {}, {})",
+                c.0,
+                c.1,
+                c.2,
+                if a.is_empty() { "0" } else { a }
+            )
         }
     };
     match prop {
@@ -120,7 +130,7 @@ pub(super) fn computed_style_value(
                 }
                 .into(),
             )
-        },
+        }
         "z-index" => Some(match s.z_index {
             Some(z) => z.to_string(),
             None => "auto".into(),
@@ -143,18 +153,16 @@ pub(super) fn computed_style_value(
         // default chain (the UA middle behavior at the alignment site isn't
         // a declaration). Chrome's computed value: lengths are absolute px,
         // percentages keep their % shape.
-        "vertical-align" => s
-            .vertical_align
-            .map(|va| match va {
-                VerticalAlign::Top => "top".to_string(),
-                VerticalAlign::Middle => "middle".to_string(),
-                VerticalAlign::Bottom => "bottom".to_string(),
-                VerticalAlign::Baseline => "baseline".to_string(),
-                VerticalAlign::Sub => "sub".to_string(),
-                VerticalAlign::Super => "super".to_string(),
-                VerticalAlign::Length(px) => format!("{px}px"),
-                VerticalAlign::Percent(p) => format!("{p}%"),
-            }),
+        "vertical-align" => s.vertical_align.map(|va| match va {
+            VerticalAlign::Top => "top".to_string(),
+            VerticalAlign::Middle => "middle".to_string(),
+            VerticalAlign::Bottom => "bottom".to_string(),
+            VerticalAlign::Baseline => "baseline".to_string(),
+            VerticalAlign::Sub => "sub".to_string(),
+            VerticalAlign::Super => "super".to_string(),
+            VerticalAlign::Length(px) => format!("{px}px"),
+            VerticalAlign::Percent(p) => format!("{p}%"),
+        }),
         // Not inherited (the paint-time propagation to inline descendants is
         // a layout concern): an element reports its OWN declared/UA set.
         "text-decoration-line" | "text-decoration" => Some(match s.text_decoration_line {
@@ -197,11 +205,11 @@ pub(super) fn computed_style_value(
         "content" => Some(match &s.content {
             Some(ContentValue::Str(t)) => {
                 format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
-            },
+            }
             Some(ContentValue::Attr(name)) => format!("attr({})", name),
             Some(ContentValue::Counter { name, style }) => {
                 format!("counter({}{})", name, counter_style_suffix(*style))
-            },
+            }
             Some(ContentValue::Counters { name, sep, style }) => format!(
                 "counters({}, \"{}\"{})",
                 name,
@@ -211,18 +219,22 @@ pub(super) fn computed_style_value(
             Some(ContentValue::OpenQuote) => "open-quote".into(),
             Some(ContentValue::CloseQuote) => "close-quote".into(),
             Some(ContentValue::NoQuote { close }) => {
-                if *close { "no-close-quote".into() } else { "no-open-quote".into() }
-            },
+                if *close {
+                    "no-close-quote".into()
+                } else {
+                    "no-open-quote".into()
+                }
+            }
             Some(ContentValue::List(parts)) => parts
                 .iter()
                 .map(|p| match p {
                     ContentValue::Str(t) => {
                         format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
-                    },
+                    }
                     ContentValue::Attr(name) => format!("attr({})", name),
                     ContentValue::Counter { name, style } => {
                         format!("counter({}{})", name, counter_style_suffix(*style))
-                    },
+                    }
                     ContentValue::Counters { name, sep, style } => format!(
                         "counters({}, \"{}\"{})",
                         name,
@@ -231,9 +243,12 @@ pub(super) fn computed_style_value(
                     ),
                     ContentValue::OpenQuote => "open-quote".into(),
                     ContentValue::CloseQuote => "close-quote".into(),
-                    ContentValue::NoQuote { close } => {
-                        if *close { "no-close-quote" } else { "no-open-quote" }.into()
-                    },
+                    ContentValue::NoQuote { close } => if *close {
+                        "no-close-quote"
+                    } else {
+                        "no-open-quote"
+                    }
+                    .into(),
                     ContentValue::List(_) => "normal".into(),
                 })
                 .collect::<Vec<_>>()
@@ -249,13 +264,24 @@ pub(super) fn computed_style_value(
         ),
         // Same declared-keyword convention: `text` or the CSS initial's
         // border-box. The -webkit- alias reads through here too.
-        "background-clip" => Some(if s.background_clip_text { "text" } else { "border-box" }.into()),
+        "background-clip" => Some(
+            if s.background_clip_text {
+                "text"
+            } else {
+                "border-box"
+            }
+            .into(),
+        ),
         "overflow" => {
             let (x, y) = s.resolved_overflow();
             Some(if x == y {
                 crate::diting_css::overflow_name(x).into()
             } else {
-                format!("{} {}", crate::diting_css::overflow_name(x), crate::diting_css::overflow_name(y))
+                format!(
+                    "{} {}",
+                    crate::diting_css::overflow_name(x),
+                    crate::diting_css::overflow_name(y)
+                )
             })
         }
         "overflow-x" => {
@@ -305,25 +331,19 @@ pub(super) fn computed_style_value(
             }
             .into(),
         ),
-        "line-height" => Some(
-            match s.line_height {
-                Some(LineHeightSpec::Number(n)) => format_number(n),
-                Some(LineHeightSpec::Px(v)) => format!("{}px", format_number(v)),
-                _ => "normal".into(),
-            },
-        ),
-        "word-spacing" => Some(
-            match s.word_spacing {
-                Some(v) => format!("{}px", format_number(v)),
-                None => "normal".into(),
-            },
-        ),
-        "font-variant-caps" => Some(
-            match s.font_variant_caps {
-                Some(true) => "small-caps".into(),
-                _ => "normal".into(),
-            },
-        ),
+        "line-height" => Some(match s.line_height {
+            Some(LineHeightSpec::Number(n)) => format_number(n),
+            Some(LineHeightSpec::Px(v)) => format!("{}px", format_number(v)),
+            _ => "normal".into(),
+        }),
+        "word-spacing" => Some(match s.word_spacing {
+            Some(v) => format!("{}px", format_number(v)),
+            None => "normal".into(),
+        }),
+        "font-variant-caps" => Some(match s.font_variant_caps {
+            Some(true) => "small-caps".into(),
+            _ => "normal".into(),
+        }),
         // Declared-only (`color` posture): unset returns None so the JS
         // caller's default chain serves the initial — and the innerText walk
         // can tell a declared `none` (resets inheritance) from unset (keeps
@@ -335,12 +355,10 @@ pub(super) fn computed_style_value(
             TextTransform::Capitalize => "capitalize".into(),
             TextTransform::None => "none".into(),
         }),
-        "font-variant" => Some(
-            match s.font_variant_caps {
-                Some(true) => "small-caps".into(),
-                _ => "normal".into(),
-            },
-        ),
+        "font-variant" => Some(match s.font_variant_caps {
+            Some(true) => "small-caps".into(),
+            _ => "normal".into(),
+        }),
         "container-type" => Some(
             match s.container_type {
                 crate::diting_css::ContainerType::InlineSize => "inline-size",
@@ -370,12 +388,10 @@ pub(super) fn computed_style_value(
         ),
         // #271: both spellings answer from the one slot; Chrome serializes
         // the number bare ("2") and the initial as "none".
-        "line-clamp" | "-webkit-line-clamp" => Some(
-            match s.line_clamp {
-                Some(n) => n.to_string(),
-                None => "none".into(),
-            },
-        ),
+        "line-clamp" | "-webkit-line-clamp" => Some(match s.line_clamp {
+            Some(n) => n.to_string(),
+            None => "none".into(),
+        }),
         "color" => s.color.as_ref().map(&color),
         "background-color" => s.background_color.as_ref().map(&color),
         // Raw author token stream (var() already substituted by the cascade);
@@ -397,32 +413,50 @@ pub(super) fn computed_style_value(
         // Chrome answers 0px whenever the style is none/hidden — the width
         // keyword stays declared but the used border is gone (`border: none`
         // on a webtop iframe must not shrink its document's viewport).
-        "border-top-width" => Some(if s.border_style.is_some() { side_css(&s.border_width.top) } else { "0px".into() }),
-        "border-right-width" => Some(if s.border_style.is_some() { side_css(&s.border_width.right) } else { "0px".into() }),
-        "border-bottom-width" => Some(if s.border_style.is_some() { side_css(&s.border_width.bottom) } else { "0px".into() }),
-        "border-left-width" => Some(if s.border_style.is_some() { side_css(&s.border_width.left) } else { "0px".into() }),
+        "border-top-width" => Some(if s.border_style.is_some() {
+            side_css(&s.border_width.top)
+        } else {
+            "0px".into()
+        }),
+        "border-right-width" => Some(if s.border_style.is_some() {
+            side_css(&s.border_width.right)
+        } else {
+            "0px".into()
+        }),
+        "border-bottom-width" => Some(if s.border_style.is_some() {
+            side_css(&s.border_width.bottom)
+        } else {
+            "0px".into()
+        }),
+        "border-left-width" => Some(if s.border_style.is_some() {
+            side_css(&s.border_width.left)
+        } else {
+            "0px".into()
+        }),
         // #207: the style/color longhands were absent, so the JS mask served
         // "" where Chrome answers the keyword / resolved color. Style is the
         // declared keyword (uniform across sides — per-side styles are a later
         // batch) with `none` for the initial; color is currentcolor resolved
         // Chrome-style (declared border color, else the element's color, else
         // black).
-        "border-top-style" | "border-right-style" | "border-bottom-style" | "border-left-style" => Some(
-            match s.border_style {
-                Some(BorderStyle::Solid) => "solid",
-                Some(BorderStyle::Dashed) => "dashed",
-                Some(BorderStyle::Dotted) => "dotted",
-                Some(BorderStyle::Double) => "double",
-                None => "none",
-            }
-            .into(),
-        ),
-        "border-top-color" | "border-right-color" | "border-bottom-color" | "border-left-color" => Some(
-            match s.border_color.or(s.color) {
+        "border-top-style" | "border-right-style" | "border-bottom-style" | "border-left-style" => {
+            Some(
+                match s.border_style {
+                    Some(BorderStyle::Solid) => "solid",
+                    Some(BorderStyle::Dashed) => "dashed",
+                    Some(BorderStyle::Dotted) => "dotted",
+                    Some(BorderStyle::Double) => "double",
+                    None => "none",
+                }
+                .into(),
+            )
+        }
+        "border-top-color" | "border-right-color" | "border-bottom-color" | "border-left-color" => {
+            Some(match s.border_color.or(s.color) {
                 Some(c) => color(&c),
                 None => "rgb(0, 0, 0)".into(),
-            },
-        ),
+            })
+        }
         "margin-top" => Some(side_css_used(&s.margin.top, cb_inline)),
         "margin-right" => Some(side_css_used(&s.margin.right, cb_inline)),
         "margin-bottom" => Some(side_css_used(&s.margin.bottom, cb_inline)),
@@ -491,7 +525,11 @@ pub(super) fn computed_style_value(
                         let parts: Vec<&str> = x.split(' ').collect();
                         let [a, b, c, d] = [parts[0], parts[1], parts[2], parts[3]];
                         let s = if c == a && d == b {
-                            if a == b { a.to_string() } else { format!("{a} {b}") }
+                            if a == b {
+                                a.to_string()
+                            } else {
+                                format!("{a} {b}")
+                            }
                         } else {
                             format!("{a} {b} {c} {d}")
                         };
@@ -533,7 +571,11 @@ pub(super) fn computed_style_value(
         // Chrome echoes the computed filter/perspective list; v1 models the
         // position face only (#316), so the authored value echoes verbatim.
         "filter" | "perspective" => {
-            let raw = if prop.eq_ignore_ascii_case("filter") { &s.filter } else { &s.perspective };
+            let raw = if prop.eq_ignore_ascii_case("filter") {
+                &s.filter
+            } else {
+                &s.perspective
+            };
             Some(raw.clone().unwrap_or_else(|| "none".into()))
         }
         // Chrome's computed text-shadow: "color dx dy blur" per layer
@@ -746,7 +788,10 @@ pub(super) fn format_number(v: f32) -> String {
 /// resolves against the containing-block inline size, calc folds its two
 /// halves. Without a containing block (boxless elements, pseudo cascades
 /// on a boxless host) the declared spelling stays.
-pub(super) fn side_css_used(l: &Option<crate::diting_css::Length>, cb_inline: Option<f32>) -> String {
+pub(super) fn side_css_used(
+    l: &Option<crate::diting_css::Length>,
+    cb_inline: Option<f32>,
+) -> String {
     use crate::diting_css::Length;
     match (l, cb_inline) {
         (Some(Length::Percent(p)), Some(cb)) => format!("{}px", format_number(p * cb / 100.0)),
@@ -883,7 +928,11 @@ pub(super) fn side_css(l: &Option<crate::diting_css::Length>) -> String {
         Some(Length::Px(v)) => format!("{}px", format_number(*v)),
         Some(Length::Percent(p)) => format!("{}%", format_number(*p)),
         Some(Length::Calc { percent, px }) => {
-            format!("calc({}% + {}px)", format_number(*percent), format_number(*px))
+            format!(
+                "calc({}% + {}px)",
+                format_number(*percent),
+                format_number(*px)
+            )
         }
         // `auto` is margin-only (the centering idiom); padding rejects it
         // at parse time so it can't reach this arm from there. min/max/

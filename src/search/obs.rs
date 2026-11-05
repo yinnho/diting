@@ -36,7 +36,9 @@ pub fn search_obs_snapshot() -> serde_json::Value {
     let dispatch = SEARCH_OBS.engine_dispatch_total.load(Ordering::Relaxed);
     let captcha = SEARCH_OBS.captcha_suspend_total.load(Ordering::Relaxed);
     let bn_attempts = SEARCH_OBS.bing_news_attempt_total.load(Ordering::Relaxed);
-    let bn_dual = SEARCH_OBS.bing_news_dual_path_fail_total.load(Ordering::Relaxed);
+    let bn_dual = SEARCH_OBS
+        .bing_news_dual_path_fail_total
+        .load(Ordering::Relaxed);
     let captcha_share = if dispatch == 0 {
         0.0
     } else {

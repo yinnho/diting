@@ -250,8 +250,8 @@ mod sanitize_fetch_tests {
 
 #[cfg(test)]
 mod shared_jar_tests {
-    use crate::server::*;
     use crate::browser::Browser;
+    use crate::server::*;
     use diting::diting_net::CookieJar;
     use std::sync::Arc;
 
@@ -393,7 +393,8 @@ mod cookie_injection_tests {
         assert_eq!(anchor, "https://taobao.com/");
         assert!(full.starts_with("cookie1=t"));
 
-        let (full, anchor) = crate::server::normalize_cookie_entry("sid=1", "https://a.example.com/x");
+        let (full, anchor) =
+            crate::server::normalize_cookie_entry("sid=1", "https://a.example.com/x");
         assert_eq!(anchor, "https://a.example.com/x");
         assert_eq!(full, "sid=1; Domain=a.example.com; Path=/");
     }
@@ -478,10 +479,9 @@ mod cookie_injection_tests {
     // is now the only one.)
     #[test]
     fn session_create_request_accepts_start_url_alias() {
-        let req: crate::SessionCreateRequest = serde_json::from_str(
-            r#"{"start_url":"https://example.com/","persistent":false}"#,
-        )
-        .expect("start_url must deserialize into url, not be dropped");
+        let req: crate::SessionCreateRequest =
+            serde_json::from_str(r#"{"start_url":"https://example.com/","persistent":false}"#)
+                .expect("start_url must deserialize into url, not be dropped");
         assert_eq!(req.url.as_deref(), Some("https://example.com/"));
     }
 }
@@ -634,7 +634,7 @@ mod search_fallback_tests {
     }
 
     #[cfg(feature = "screenshot")]
-#[tokio::test]
+    #[tokio::test]
     async fn legit_zero_hits_stands_without_fallback() {
         let registry =
             crate::search::SearchEngineRegistry::with_engines(vec![Arc::new(MockEngine {
@@ -766,7 +766,10 @@ mod cost_knob_tests {
         // unchanged for existing clients.
         let plain = do_fetch(knob_req(format!("http://127.0.0.1:{port}/"), false, false)).unwrap();
         assert!(plain.layout.is_none(), "layout facts must be opt-in only");
-        assert!(plain.resources.is_empty(), "resource rows must be opt-in only");
+        assert!(
+            plain.resources.is_empty(),
+            "resource rows must be opt-in only"
+        );
 
         // Opted in: geometry from the forced pass, the fetched PNG with its
         // decoded dimensions.
@@ -778,7 +781,11 @@ mod cost_knob_tests {
             facts.scroll_height
         );
         assert!(facts.scroll_width > 0, "scrollWidth must be positive");
-        assert_eq!(rich.resources.len(), 1, "exactly one subresource on the page");
+        assert_eq!(
+            rich.resources.len(),
+            1,
+            "exactly one subresource on the page"
+        );
         let row = &rich.resources[0];
         assert!(row.url.ends_with("/dot.png"), "row url: {}", row.url);
         assert_eq!(row.bytes, 75, "the 75-byte PNG body lands whole");

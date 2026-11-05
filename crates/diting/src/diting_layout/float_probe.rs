@@ -20,7 +20,11 @@ fn words(n: usize, word_w: f32, space_w: f32) -> Vec<(f32, bool)> {
 }
 
 /// Greedy fill where each line asks `slot(y)` for its (x, width).
-fn wrap_in_slots(toks: &[(f32, bool)], line_h: f32, mut slot: impl FnMut(f32) -> (f32, f32)) -> Vec<(f32, f32)> {
+fn wrap_in_slots(
+    toks: &[(f32, bool)],
+    line_h: f32,
+    mut slot: impl FnMut(f32) -> (f32, f32),
+) -> Vec<(f32, f32)> {
     let mut lines = Vec::new();
     let (mut y, mut used, mut have) = (0.0f32, 0.0f32, false);
     let (mut x0, mut w) = slot(y);
@@ -50,31 +54,70 @@ fn wrap_in_slots(toks: &[(f32, bool)], line_h: f32, mut slot: impl FnMut(f32) ->
 fn taffy_places_the_float_and_leaves_the_block_box_overlapping() {
     let mut tree: TaffyTree<()> = TaffyTree::new();
     let float = tree
-        .new_leaf(Style { float: Float::Left, size: Size { width: length(50.0), height: length(50.0) }, ..Default::default() })
+        .new_leaf(Style {
+            float: Float::Left,
+            size: Size {
+                width: length(50.0),
+                height: length(50.0),
+            },
+            ..Default::default()
+        })
         .unwrap();
-    let p = tree.new_leaf_with_context(Style { display: Display::Block, ..Default::default() }, ()).unwrap();
+    let p = tree
+        .new_leaf_with_context(
+            Style {
+                display: Display::Block,
+                ..Default::default()
+            },
+            (),
+        )
+        .unwrap();
     let root = tree
         .new_with_children(
-            Style { display: Display::Block, size: Size { width: length(200.0), height: auto() }, ..Default::default() },
+            Style {
+                display: Display::Block,
+                size: Size {
+                    width: length(200.0),
+                    height: auto(),
+                },
+                ..Default::default()
+            },
             &[float, p],
         )
         .unwrap();
     let mut widths = Vec::new();
     tree.compute_layout_with_measure(
         root,
-        Size { width: AvailableSpace::Definite(200.0), height: AvailableSpace::MaxContent },
+        Size {
+            width: AvailableSpace::Definite(200.0),
+            height: AvailableSpace::MaxContent,
+        },
         |inputs, _, _, style| {
-            taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |known, avail| {
-                widths.push((known.width, avail.width));
-                Size { width: known.width.unwrap_or(0.0), height: 100.0 }
-            })
+            taffy::compute_leaf_layout(
+                inputs,
+                style,
+                |_, _| 0.0,
+                |known, avail| {
+                    widths.push((known.width, avail.width));
+                    Size {
+                        width: known.width.unwrap_or(0.0),
+                        height: 100.0,
+                    }
+                },
+            )
         },
     )
     .unwrap();
     let pl = *tree.layout(p).unwrap();
     let fl = *tree.layout(float).unwrap();
-    eprintln!("float at ({},{}) size {}x{}", fl.location.x, fl.location.y, fl.size.width, fl.size.height);
-    eprintln!("p box at ({},{}) size {}x{}; measure saw {:?}", pl.location.x, pl.location.y, pl.size.width, pl.size.height, widths);
+    eprintln!(
+        "float at ({},{}) size {}x{}",
+        fl.location.x, fl.location.y, fl.size.width, fl.size.height
+    );
+    eprintln!(
+        "p box at ({},{}) size {}x{}; measure saw {:?}",
+        pl.location.x, pl.location.y, pl.size.width, pl.size.height, widths
+    );
     assert_eq!(fl.location.x, 0.0);
     assert_eq!(fl.size.width, 50.0);
 }
@@ -83,7 +126,17 @@ fn taffy_places_the_float_and_leaves_the_block_box_overlapping() {
 fn float_context_slots_give_chromes_line_offsets() {
     let mut ctx = FloatContext::new();
     ctx.set_width(200.0);
-    let at = ctx.place_floated_box(0, Size { width: 50.0, height: 50.0 }, 0.0, [0.0, 0.0], FloatDirection::Left, Clear::None);
+    let at = ctx.place_floated_box(
+        0,
+        Size {
+            width: 50.0,
+            height: 50.0,
+        },
+        0.0,
+        [0.0, 0.0],
+        FloatDirection::Left,
+        Clear::None,
+    );
     assert_eq!((at.x, at.y), (0.0, 0.0));
     let toks = words(20, 36.0, 4.0);
     let lines = wrap_in_slots(&toks, 20.0, |y| {
@@ -99,8 +152,9 @@ fn float_context_slots_give_chromes_line_offsets() {
 // --- Probe 3: our own tree, so the text node receives taffy's BlockContext ---
 
 use taffy::{
-    compute_block_layout, compute_cached_layout, compute_leaf_layout, compute_root_layout, Cache, CacheTree, Layout,
-    LayoutBlockContainer, LayoutInput, LayoutOutput, LayoutPartialTree, NodeId, TraversePartialTree,
+    compute_block_layout, compute_cached_layout, compute_leaf_layout, compute_root_layout, Cache,
+    CacheTree, Layout, LayoutBlockContainer, LayoutInput, LayoutOutput, LayoutPartialTree, NodeId,
+    TraversePartialTree,
 };
 
 enum Kind {
@@ -122,15 +176,30 @@ struct N {
 
 impl N {
     fn new(kind: Kind, style: Style) -> N {
-        N { kind, style, cache: Cache::new(), layout: Layout::with_order(0), kids: Vec::new(), lines: Vec::new() }
+        N {
+            kind,
+            style,
+            cache: Cache::new(),
+            layout: Layout::with_order(0),
+            kids: Vec::new(),
+            lines: Vec::new(),
+        }
     }
     fn at(&self, id: NodeId) -> &N {
         let i = usize::from(id);
-        if i == usize::MAX { self } else { &self.kids[i] }
+        if i == usize::MAX {
+            self
+        } else {
+            &self.kids[i]
+        }
     }
     fn at_mut(&mut self, id: NodeId) -> &mut N {
         let i = usize::from(id);
-        if i == usize::MAX { self } else { &mut self.kids[i] }
+        if i == usize::MAX {
+            self
+        } else {
+            &mut self.kids[i]
+        }
     }
 }
 
@@ -173,10 +242,15 @@ impl LayoutPartialTree for N {
                 compute_block_layout(tree, id, inputs, None)
             } else {
                 // Float boxes (sized by style) and text without a context.
-                compute_leaf_layout(inputs, &tree.at(id).style, |_, _| 0.0, |known, _| Size {
-                    width: known.width.unwrap_or(0.0),
-                    height: known.height.unwrap_or(0.0),
-                })
+                compute_leaf_layout(
+                    inputs,
+                    &tree.at(id).style,
+                    |_, _| 0.0,
+                    |known, _| Size {
+                        width: known.width.unwrap_or(0.0),
+                        height: known.height.unwrap_or(0.0),
+                    },
+                )
             }
         })
     }
@@ -222,7 +296,9 @@ impl LayoutBlockContainer for N {
             return self.compute_child_layout(id, inputs);
         };
         let (toks, line_h) = (toks.clone(), *line_h);
-        let Some(ctx) = block_ctx else { return self.compute_child_layout(id, inputs) };
+        let Some(ctx) = block_ctx else {
+            return self.compute_child_layout(id, inputs);
+        };
         let width = inputs.known_dimensions.width.unwrap_or(0.0);
         // Slots are asked relative to this block's own top (the sub-context is
         // positioned at the child's estimated y).
@@ -238,13 +314,60 @@ impl LayoutBlockContainer for N {
 
 #[test]
 fn own_tree_text_node_gets_the_block_context_and_wraps_around_the_float() {
-    let mut root = N::new(Kind::Block, Style { display: Display::Block, size: Size { width: length(200.0), height: auto() }, ..Default::default() });
-    root.kids.push(N::new(Kind::Float, Style { float: Float::Left, size: Size { width: length(50.0), height: length(50.0) }, ..Default::default() }));
-    root.kids.push(N::new(Kind::Text(words(20, 36.0, 4.0), 20.0), Style { display: Display::Block, ..Default::default() }));
-    compute_root_layout(&mut root, NodeId::from(usize::MAX), Size { width: AvailableSpace::Definite(200.0), height: AvailableSpace::MaxContent });
+    let mut root = N::new(
+        Kind::Block,
+        Style {
+            display: Display::Block,
+            size: Size {
+                width: length(200.0),
+                height: auto(),
+            },
+            ..Default::default()
+        },
+    );
+    root.kids.push(N::new(
+        Kind::Float,
+        Style {
+            float: Float::Left,
+            size: Size {
+                width: length(50.0),
+                height: length(50.0),
+            },
+            ..Default::default()
+        },
+    ));
+    root.kids.push(N::new(
+        Kind::Text(words(20, 36.0, 4.0), 20.0),
+        Style {
+            display: Display::Block,
+            ..Default::default()
+        },
+    ));
+    compute_root_layout(
+        &mut root,
+        NodeId::from(usize::MAX),
+        Size {
+            width: AvailableSpace::Definite(200.0),
+            height: AvailableSpace::MaxContent,
+        },
+    );
     let p = &root.kids[1];
-    eprintln!("p box ({},{}) {}x{}; lines {:?}", p.layout.location.x, p.layout.location.y, p.layout.size.width, p.layout.size.height, p.lines);
-    assert_eq!(p.layout.location.x, 0.0, "the block box overlaps the float (Chrome boxLeft 0)");
+    eprintln!(
+        "p box ({},{}) {}x{}; lines {:?}",
+        p.layout.location.x,
+        p.layout.location.y,
+        p.layout.size.width,
+        p.layout.size.height,
+        p.lines
+    );
+    assert_eq!(
+        p.layout.location.x, 0.0,
+        "the block box overlaps the float (Chrome boxLeft 0)"
+    );
     let xs: Vec<f32> = p.lines.iter().map(|l| l.0).collect();
-    assert_eq!(&xs[..5], &[50.0, 50.0, 50.0, 0.0, 0.0], "line offsets follow the float (Chrome)");
+    assert_eq!(
+        &xs[..5],
+        &[50.0, 50.0, 50.0, 0.0, 0.0],
+        "line offsets follow the float (Chrome)"
+    );
 }

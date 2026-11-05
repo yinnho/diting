@@ -60,8 +60,8 @@ pub mod op_reg;
 pub mod settle;
 pub use v8;
 
-pub mod snapshot;
 pub(crate) mod native;
+pub mod snapshot;
 pub mod state;
 pub mod vm;
 
@@ -70,9 +70,9 @@ pub use modules::{
     ModuleEvalError, ModuleId, ModuleLoadResponse, ModuleLoader, ModuleLoaderError, ModuleSource,
 };
 pub use settle::{SettleQueue, Stats};
-pub use snapshot::{SIDECAR_VERSION, SnapshotError};
+pub use snapshot::{SnapshotError, SIDECAR_VERSION};
 pub use vm::{
-    AsyncOpOutcome, LoopActivity, LoopError, Triplet, Vm, create_snapshot, spawn_async_op,
+    create_snapshot, spawn_async_op, AsyncOpOutcome, LoopActivity, LoopError, Triplet, Vm,
 };
 
 /// Live-isolate count (the foreground registry's length) — the realm

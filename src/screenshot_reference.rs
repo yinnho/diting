@@ -26,15 +26,15 @@
 //! as `rect * scale`.
 
 use anyhow::Result;
-use std::sync::Arc;
-use blitz_dom::{BaseDocument, DocumentConfig, Point, util::Color};
+use blitz_dom::{util::Color, BaseDocument, DocumentConfig, Point};
 use blitz_html::HtmlDocument;
 use blitz_paint::paint_scene;
 use blitz_traits::net::{Bytes, NetHandler, NetProvider, Request as NetRequest};
 use blitz_traits::node_id::NodeId;
 use blitz_traits::shell::{ColorScheme, Viewport};
-use peniko::Fill;
 use peniko::kurbo::Rect;
+use peniko::Fill;
+use std::sync::Arc;
 
 use crate::screenshot::{ElementRect, PrefetchedResources, RenderedScreenshot};
 
@@ -177,7 +177,8 @@ pub fn render_html_to_png(
                     "selector {sel:?} matched an element with no layout box ({}x{}). \
                      Inline elements (bare <a>/<span> with text) carry no Taffy box - \
                      target a block ancestor instead",
-                    r.width, r.height
+                    r.width,
+                    r.height
                 );
             }
             // Clamp the crop into the page and to sane minimums; cap like full_page.
@@ -193,11 +194,7 @@ pub fn render_html_to_png(
         // shift painted positions and viewport culling inconsistently
         // (upstream only ever passes 0,0), whereas viewport_scroll shifts
         // both coherently - so we use that and keep the offsets at zero.
-        Some((cx, cy, cw, ch)) => (
-            (cw * scale_f) as u32,
-            (ch * scale_f) as u32,
-            Some((cx, cy)),
-        ),
+        Some((cx, cy, cw, ch)) => ((cw * scale_f) as u32, (ch * scale_f) as u32, Some((cx, cy))),
         None => (
             (width as f64 * scale_f) as u32,
             if full_page {
@@ -213,12 +210,16 @@ pub fn render_html_to_png(
     if render_width == 0 || render_height == 0 {
         anyhow::bail!(
             "render_html_to_png: zero-sized output ({}x{}; computed_height={})",
-            render_width, render_height, computed_height
+            render_width,
+            render_height,
+            computed_height
         );
     }
 
     if let Some((sx, sy)) = viewport_scroll {
-        document.as_mut().set_viewport_scroll(Point { x: sx, y: sy });
+        document
+            .as_mut()
+            .set_viewport_scroll(Point { x: sx, y: sy });
     }
 
     // Paint white background, then the document. vello_cpu is pure CPU - no GPU/wgpu.
@@ -249,7 +250,8 @@ pub fn render_html_to_png(
     let mut png_bytes = Vec::with_capacity((render_width * render_height * 4) as usize / 4);
     {
         use std::io::Cursor;
-        let mut encoder = png::Encoder::new(Cursor::new(&mut png_bytes), render_width, render_height);
+        let mut encoder =
+            png::Encoder::new(Cursor::new(&mut png_bytes), render_width, render_height);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder
@@ -265,7 +267,13 @@ pub fn render_html_to_png(
 
     tracing::debug!(
         "screenshot: {}x{} @ scale {} (scroll {:?}) -> {} PNG bytes (computed_height={}, rects={})",
-        render_width, render_height, scale_f, viewport_scroll, png_bytes.len(), computed_height, rects.len()
+        render_width,
+        render_height,
+        scale_f,
+        viewport_scroll,
+        png_bytes.len(),
+        computed_height,
+        rects.len()
     );
 
     Ok(RenderedScreenshot {
@@ -315,7 +323,9 @@ fn descendants_bbox(doc: &BaseDocument, node_id: NodeId) -> Option<ElementRect> 
         if visited > 2000 {
             break;
         }
-        let Some(node) = doc.get_node(id) else { continue };
+        let Some(node) = doc.get_node(id) else {
+            continue;
+        };
         if node.element_data().is_none() {
             // Text/comment nodes have no final_layout (accessing it panics);
             // their extent belongs to the nearest block ancestor anyway.
@@ -421,7 +431,10 @@ mod tests {
             .chunks(4)
             .filter(|p| p[0] < 128 && p[1] < 128 && p[2] < 128)
             .count();
-        assert!(ink > 100, "CJK must paint from the bundle alone (ink px={ink})");
+        assert!(
+            ink > 100,
+            "CJK must paint from the bundle alone (ink px={ink})"
+        );
     }
 
     /// Deterministic layout check: an absolutely-positioned element must report
@@ -433,8 +446,18 @@ mod tests {
         </body></html>"##;
 
         // 1. Rect math: uncropped render (selector_all), selector reports the element rect.
-        let full = render_html_to_png(html, "https://example.com/", 800, 600, 1.0, false, Some("#target"), true, None)
-            .expect("full render");
+        let full = render_html_to_png(
+            html,
+            "https://example.com/",
+            800,
+            600,
+            1.0,
+            false,
+            Some("#target"),
+            true,
+            None,
+        )
+        .expect("full render");
         assert_eq!(full.rects.len(), 1);
         let r = full.rects[0];
         assert!((r.x - 100.0).abs() <= 1.0, "x: {r:?}");
@@ -443,8 +466,18 @@ mod tests {
         assert!((r.height - 40.0).abs() <= 1.0, "height: {r:?}");
 
         // 2. Crop: rendered image is exactly the element, mostly red.
-        let crop = render_html_to_png(html, "https://example.com/", 800, 600, 1.0, false, Some("#target"), false, None)
-            .expect("crop render");
+        let crop = render_html_to_png(
+            html,
+            "https://example.com/",
+            800,
+            600,
+            1.0,
+            false,
+            Some("#target"),
+            false,
+            None,
+        )
+        .expect("crop render");
         assert_eq!((crop.pixel_width, crop.pixel_height), (60, 40));
         assert_eq!(crop.rects[0], r);
         let red = count_color(&crop.png, |(r, g, b)| r > 200 && g < 80 && b < 80);
@@ -460,17 +493,48 @@ mod tests {
             <div class="it" style="position:absolute;left:10px;top:20px;width:30px;height:30px;background:#00ff00"></div>
             <div class="it" style="position:absolute;left:50px;top:60px;width:30px;height:30px;background:#0000ff"></div>
         </body></html>"##;
-        let all = render_html_to_png(html2, "https://example.com/", 200, 200, 1.0, false, Some(".it"), true, None)
-            .expect("all render");
+        let all = render_html_to_png(
+            html2,
+            "https://example.com/",
+            200,
+            200,
+            1.0,
+            false,
+            Some(".it"),
+            true,
+            None,
+        )
+        .expect("all render");
         assert_eq!(all.rects.len(), 2);
         assert!((all.rects[0].x - 10.0).abs() <= 1.0);
         assert!((all.rects[1].x - 50.0).abs() <= 1.0);
         assert_eq!((all.pixel_width, all.pixel_height), (200, 200));
 
         // 4. No match is an error for crop mode, empty for all-mode.
-        assert!(render_html_to_png(html, "https://example.com/", 800, 600, 1.0, false, Some("#nope"), false, None).is_err());
-        let none = render_html_to_png(html, "https://example.com/", 800, 600, 1.0, false, Some("#nope"), true, None)
-            .expect("all-mode returns empty");
+        assert!(render_html_to_png(
+            html,
+            "https://example.com/",
+            800,
+            600,
+            1.0,
+            false,
+            Some("#nope"),
+            false,
+            None
+        )
+        .is_err());
+        let none = render_html_to_png(
+            html,
+            "https://example.com/",
+            800,
+            600,
+            1.0,
+            false,
+            Some("#nope"),
+            true,
+            None,
+        )
+        .expect("all-mode returns empty");
         assert!(none.rects.is_empty());
 
         // 5. Inline element with box children: rect falls back to the union of
@@ -478,17 +542,49 @@ mod tests {
         let html3 = r##"<html><body style="margin:0">
             <a id="link" href="#"><div style="position:absolute;left:200px;top:250px;width:50px;height:70px;background:#ff0000"></div></a>
         </body></html>"##;
-        let inline = render_html_to_png(html3, "https://example.com/", 800, 600, 1.0, false, Some("#link"), true, None)
-            .expect("inline render");
+        let inline = render_html_to_png(
+            html3,
+            "https://example.com/",
+            800,
+            600,
+            1.0,
+            false,
+            Some("#link"),
+            true,
+            None,
+        )
+        .expect("inline render");
         assert_eq!(inline.rects.len(), 1);
-        assert!((inline.rects[0].x - 200.0).abs() <= 1.0, "{:?}", inline.rects[0]);
-        assert!((inline.rects[0].width - 50.0).abs() <= 1.0, "{:?}", inline.rects[0]);
-        assert!((inline.rects[0].height - 70.0).abs() <= 1.0, "{:?}", inline.rects[0]);
+        assert!(
+            (inline.rects[0].x - 200.0).abs() <= 1.0,
+            "{:?}",
+            inline.rects[0]
+        );
+        assert!(
+            (inline.rects[0].width - 50.0).abs() <= 1.0,
+            "{:?}",
+            inline.rects[0]
+        );
+        assert!(
+            (inline.rects[0].height - 70.0).abs() <= 1.0,
+            "{:?}",
+            inline.rects[0]
+        );
 
         // 6. Pure-inline (text-only) element crops are rejected with a clear error.
         let html4 = r##"<html><body style="margin:0"><p><a id="textonly" href="#">just text</a></p></body></html>"##;
-        assert!(render_html_to_png(html4, "https://example.com/", 800, 600, 1.0, false, Some("#textonly"), false, None)
-            .is_err());
+        assert!(render_html_to_png(
+            html4,
+            "https://example.com/",
+            800,
+            600,
+            1.0,
+            false,
+            Some("#textonly"),
+            false,
+            None
+        )
+        .is_err());
     }
 
     /// PrefetchedNetProvider: served stylesheets and images actually paint;
@@ -503,9 +599,18 @@ mod tests {
             "https://example.com/s.css".to_string(),
             Arc::new(b"body { background: #00ff00 }".to_vec()),
         );
-        let served =
-            render_html_to_png(css_html, "https://example.com/", 200, 150, 1.0, false, None, false, Some(&hit))
-                .expect("served render");
+        let served = render_html_to_png(
+            css_html,
+            "https://example.com/",
+            200,
+            150,
+            1.0,
+            false,
+            None,
+            false,
+            Some(&hit),
+        )
+        .expect("served render");
         let green = count_color(&served.png, |(r, g, b)| g > 200 && r < 80 && b < 80);
         assert!(
             green > 200 * 150 * 9 / 10,
@@ -523,9 +628,18 @@ mod tests {
             "https://example.com/other.css".to_string(),
             Arc::new(b"body{}".to_vec()),
         );
-        let blank =
-            render_html_to_png(img_html, "https://example.com/", 200, 150, 1.0, false, None, false, Some(&miss))
-                .expect("miss render must not trip the pending-critical guard");
+        let blank = render_html_to_png(
+            img_html,
+            "https://example.com/",
+            200,
+            150,
+            1.0,
+            false,
+            None,
+            false,
+            Some(&miss),
+        )
+        .expect("miss render must not trip the pending-critical guard");
         let green = count_color(&blank.png, |(r, g, b)| g > 200 && r < 80 && b < 80);
         assert_eq!(green, 0, "unserved stylesheet must not apply");
 
@@ -536,9 +650,18 @@ mod tests {
             "https://cdn.example.com/dot.png".to_string(),
             Arc::new(solid_png(8, 8, 255, 0, 0)),
         );
-        let painted =
-            render_html_to_png(img_html, "https://example.com/", 200, 150, 1.0, false, None, false, Some(&img_hit))
-                .expect("image render");
+        let painted = render_html_to_png(
+            img_html,
+            "https://example.com/",
+            200,
+            150,
+            1.0,
+            false,
+            None,
+            false,
+            Some(&img_hit),
+        )
+        .expect("image render");
         let red = count_color(&painted.png, |(r, g, b)| r > 200 && g < 80 && b < 80);
         assert!(
             red > 80 * 60 * 8 / 10,
@@ -555,7 +678,10 @@ mod tests {
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header().expect("png header");
-        let row: Vec<u8> = std::iter::repeat([r, g, b, 255]).take(w as usize).flatten().collect();
+        let row: Vec<u8> = std::iter::repeat([r, g, b, 255])
+            .take(w as usize)
+            .flatten()
+            .collect();
         let data: Vec<u8> = std::iter::repeat(row).take(h as usize).flatten().collect();
         writer.write_image_data(&data).expect("png data");
         writer.finish().expect("png finish");
@@ -616,12 +742,25 @@ mod tests {
             <p class="item">Second paragraph mixing English with 中文内容.</p>
         </body></html>"#;
 
-        let shot = render_html_to_png(html, "https://example.com/", 800, 400, 1.0, false, None, false, None)
-            .expect("SSR render");
+        let shot = render_html_to_png(
+            html,
+            "https://example.com/",
+            800,
+            400,
+            1.0,
+            false,
+            None,
+            false,
+            None,
+        )
+        .expect("SSR render");
         assert_eq!((shot.pixel_width, shot.pixel_height), (800, 400));
 
         let colors = distinct_colors(&shot.png);
-        assert!(colors > 50, "text+antialiasing should yield many colors, got {colors}");
+        assert!(
+            colors > 50,
+            "text+antialiasing should yield many colors, got {colors}"
+        );
         // Blue heading glyphs present (#1a0dab ± antialiasing).
         let blue = count_color(&shot.png, |(r, g, b)| b > 120 && r < 90 && g < 80);
         assert!(blue > 100, "CJK heading glyphs missing: {blue} blue px");
@@ -630,8 +769,18 @@ mod tests {
         assert!(dark > 200, "body text missing: {dark} dark px");
 
         // Layout truth: h1 sits near the top of the document.
-        let h1 = render_html_to_png(html, "https://example.com/", 800, 400, 1.0, false, Some("h1"), true, None)
-            .expect("h1 rect");
+        let h1 = render_html_to_png(
+            html,
+            "https://example.com/",
+            800,
+            400,
+            1.0,
+            false,
+            Some("h1"),
+            true,
+            None,
+        )
+        .expect("h1 rect");
         assert_eq!(h1.rects.len(), 1);
         assert!(h1.rects[0].y < 100.0, "h1 near top: {:?}", h1.rects[0]);
     }
@@ -657,8 +806,18 @@ mod tests {
             </div>
         </body></html>"#;
 
-        let shot = render_html_to_png(html, "https://example.com/", 600, 300, 1.0, false, None, false, None)
-            .expect("flex/grid render");
+        let shot = render_html_to_png(
+            html,
+            "https://example.com/",
+            600,
+            300,
+            1.0,
+            false,
+            None,
+            false,
+            None,
+        )
+        .expect("flex/grid render");
         let red = count_color(&shot.png, |(r, g, b)| r > 200 && g < 80 && b < 80);
         let green = count_color(&shot.png, |(r, g, b)| g > 140 && r < 70 && b < 70);
         let blue = count_color(&shot.png, |(r, g, b)| b > 180 && r < 70 && g < 130);
@@ -669,11 +828,26 @@ mod tests {
 
         // Grid: two rows of three 60x40 cells with 8px gaps — verify geometry
         // via rects (gap math is exact) rather than pixel counts.
-        let all = render_html_to_png(html, "https://example.com/", 600, 300, 1.0, false, Some(".g"), true, None)
-            .expect("grid rects");
+        let all = render_html_to_png(
+            html,
+            "https://example.com/",
+            600,
+            300,
+            1.0,
+            false,
+            Some(".g"),
+            true,
+            None,
+        )
+        .expect("grid rects");
         assert_eq!(all.rects.len(), 6, "grid must place all six cells");
         let row1_max_y = all.rects.iter().take(3).map(|r| r.y).fold(0.0f64, f64::max);
-        let row2_min_y = all.rects.iter().skip(3).map(|r| r.y).fold(f64::MAX, f64::min);
+        let row2_min_y = all
+            .rects
+            .iter()
+            .skip(3)
+            .map(|r| r.y)
+            .fold(f64::MAX, f64::min);
         assert!(
             row2_min_y >= row1_max_y + 40.0,
             "grid rows must not overlap: row1 maxY {row1_max_y}, row2 minY {row2_min_y}"
@@ -697,11 +871,24 @@ mod tests {
             <div class="hidden">must not paint</div>
         </body></html>"#;
 
-        let shot = render_html_to_png(html, "https://example.com/", 400, 300, 1.0, false, None, false, None)
-            .expect("table render");
+        let shot = render_html_to_png(
+            html,
+            "https://example.com/",
+            400,
+            300,
+            1.0,
+            false,
+            None,
+            false,
+            None,
+        )
+        .expect("table render");
         // Gray borders from collapsed td edges.
         let gray = count_color(&shot.png, |(r, g, b)| {
-            (r as i32 - g as i32).abs() < 12 && (g as i32 - b as i32).abs() < 12 && r > 110 && r < 190
+            (r as i32 - g as i32).abs() < 12
+                && (g as i32 - b as i32).abs() < 12
+                && r > 110
+                && r < 190
         });
         assert!(gray > 150, "table borders missing: {gray} gray px");
         // Text ink present.
@@ -711,8 +898,18 @@ mod tests {
         // display:none content paints nothing. selector_all still reports a
         // match entry (blitz keeps the node), but its box is 0x0 — lock that
         // honest behavior as the baseline.
-        let hidden = render_html_to_png(html, "https://example.com/", 400, 300, 1.0, false, Some(".hidden"), true, None)
-            .expect("hidden query");
+        let hidden = render_html_to_png(
+            html,
+            "https://example.com/",
+            400,
+            300,
+            1.0,
+            false,
+            Some(".hidden"),
+            true,
+            None,
+        )
+        .expect("hidden query");
         for r in &hidden.rects {
             assert!(
                 r.width < 0.5 && r.height < 0.5,
@@ -730,8 +927,18 @@ mod tests {
         let html = r#"<html><head><style>body{margin:0}</style></head><body>
             <div style="height:1800px;background:#123456"></div>
         </body></html>"#;
-        let shot = render_html_to_png(html, "https://example.com/", 400, 300, 1.0, true, None, false, None)
-            .expect("full-page render");
+        let shot = render_html_to_png(
+            html,
+            "https://example.com/",
+            400,
+            300,
+            1.0,
+            true,
+            None,
+            false,
+            None,
+        )
+        .expect("full-page render");
         assert!(
             shot.pixel_height >= 1800,
             "full_page must track content height, got {}",
@@ -739,12 +946,21 @@ mod tests {
         );
 
         // Viewport-only render clips at 300px.
-        let vp = render_html_to_png(html, "https://example.com/", 400, 300, 1.0, false, None, false, None)
-            .expect("viewport render");
+        let vp = render_html_to_png(
+            html,
+            "https://example.com/",
+            400,
+            300,
+            1.0,
+            false,
+            None,
+            false,
+            None,
+        )
+        .expect("viewport render");
         assert_eq!(vp.pixel_height, 300);
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // Dual-engine computed-style cross-check (render-claim follow-up): run the
@@ -795,9 +1011,7 @@ mod cross_check {
             )
         }
         cs.color = Some(rgba(&style.get_inherited_text().color));
-        cs.background_color = Some(rgba(
-            style.get_background().background_color.as_absolute()?,
-        ));
+        cs.background_color = Some(rgba(style.get_background().background_color.as_absolute()?));
 
         let margin = style.get_margin();
         cs.margin.top = margin_enum_len(&margin.margin_top);
@@ -897,7 +1111,8 @@ mod cross_check {
 
     #[test]
     fn dual_engine_display_and_colors_agree() {
-        let html = r#"<body><h1 id="t">标题</h1><p class="lead">x</p><span class="inl">y</span></body>"#;
+        let html =
+            r#"<body><h1 id="t">标题</h1><p class="lead">x</p><span class="inl">y</span></body>"#;
         let sheet = r#"
             h1 { color: #1a0dab; background-color: #ff0000; font-weight: bold; font-size: 28px; margin-top: 16px; }
             .lead { color: red; }
@@ -905,9 +1120,17 @@ mod cross_check {
         "#;
         let (doc, tree, rules) = dual_compute(html, sheet);
 
-        let cases: &[( &str, NodeId)] = &[
-            ("h1", doc.query_selector("#t").unwrap().expect("h1 in blitz doc")),
-            ("p", doc.query_selector(".lead").unwrap().expect(".lead in blitz doc")),
+        let cases: &[(&str, NodeId)] = &[
+            (
+                "h1",
+                doc.query_selector("#t").unwrap().expect("h1 in blitz doc"),
+            ),
+            (
+                "p",
+                doc.query_selector(".lead")
+                    .unwrap()
+                    .expect(".lead in blitz doc"),
+            ),
         ];
         for (tag, blitz_nid) in cases {
             let ours_selector = if *tag == "h1" { "h1" } else { ".lead" };
@@ -915,22 +1138,38 @@ mod cross_check {
 
             let parent = tree.with_node(our_nid, |n| n.parent).flatten();
             let parent_style = parent.and_then(|pid| {
-                let tag_name = tree.with_node(pid, |n| {
-                    n.as_element().map(|e| e.local.to_string())
-                }).flatten()?;
+                let tag_name = tree
+                    .with_node(pid, |n| n.as_element().map(|e| e.local.to_string()))
+                    .flatten()?;
                 Some(cascade_simple(&tree, pid, &tag_name, &rules))
             });
-            let inline = tree.with_node(our_nid, |n| n.get_attribute("style").map(|s| s.to_string())).flatten();
-            let our_view = diting_css_cascade_full(&tree, our_nid, *tag, &rules, parent_style.as_ref(), inline.as_deref());
+            let inline = tree
+                .with_node(our_nid, |n| n.get_attribute("style").map(|s| s.to_string()))
+                .flatten();
+            let our_view = diting_css_cascade_full(
+                &tree,
+                our_nid,
+                *tag,
+                &rules,
+                parent_style.as_ref(),
+                inline.as_deref(),
+            );
 
             let theirs = stylo_view(&doc, *blitz_nid).expect("stylo primary style");
 
-            assert_eq!(our_view.color, theirs.color, "{tag} color: ours={:?} theirs={:?}", our_view.color, theirs.color);
+            assert_eq!(
+                our_view.color, theirs.color,
+                "{tag} color: ours={:?} theirs={:?}",
+                our_view.color, theirs.color
+            );
             // KNOWN MODELING DIVERGENCE (recorded in render.md §10): Stylo
             // always materializes an initial value (transparent) for every
             // property; diting_css uses None to mean "declared nowhere".
             // Compare the set-or-transparent flag instead of raw values.
-            let ours_bg_set = our_view.background_color.map(|c| c != diting_css::Color(0, 0, 0, 0)).unwrap_or(false);
+            let ours_bg_set = our_view
+                .background_color
+                .map(|c| c != diting_css::Color(0, 0, 0, 0))
+                .unwrap_or(false);
             let theirs_bg = theirs.background_color.expect("stylo always has a bg");
             let theirs_bg_set = theirs_bg != diting_css::Color(0, 0, 0, 0);
             assert_eq!(ours_bg_set, theirs_bg_set, "{tag} background set-flag");
@@ -963,7 +1202,10 @@ mod cross_check {
         "#;
         let (doc, tree, rules) = dual_compute(html, sheet);
 
-        let blitz_nid = doc.query_selector(".resp").unwrap().expect(".resp in blitz doc");
+        let blitz_nid = doc
+            .query_selector(".resp")
+            .unwrap()
+            .expect(".resp in blitz doc");
         let our_nid = tree.query_selector(".resp").unwrap().unwrap();
 
         let our_view = diting_css_cascade_full(&tree, our_nid, "div", &rules, None, None);
@@ -987,12 +1229,25 @@ mod cross_check {
         // The inline style lives on <body>; our cascade must walk the parent
         // chain (body → p) for inheritance, exactly like Stylo does.
         let our_body = tree.query_selector("body").unwrap().unwrap();
-        let body_style = diting_css_cascade_full(&tree, our_body, "body", &rules, None, Some("color: #333333"));
+        let body_style = diting_css_cascade_full(
+            &tree,
+            our_body,
+            "body",
+            &rules,
+            None,
+            Some("color: #333333"),
+        );
         let our_view = diting_css_cascade_full(&tree, our_p, "p", &rules, Some(&body_style), None);
         let theirs = stylo_view(&doc, blitz_p).expect("stylo");
 
-        assert_eq!(our_view.color, theirs.color, "inline-inherited color on body reaches p");
-        assert_eq!(our_view.font_size, theirs.font_size, "font-size from body sheet inherits to p");
+        assert_eq!(
+            our_view.color, theirs.color,
+            "inline-inherited color on body reaches p"
+        );
+        assert_eq!(
+            our_view.font_size, theirs.font_size,
+            "font-size from body sheet inherits to p"
+        );
     }
 
     // -- helpers shared by the cross-check tests --
@@ -1019,7 +1274,9 @@ mod cross_check {
         let matched: Vec<(&diting_css::ParsedRule, u32)> = rules
             .iter()
             .filter_map(|rule| {
-                let hits = tree.query_selector_all_from(tree.document(), &rule.selector).ok()?;
+                let hits = tree
+                    .query_selector_all_from(tree.document(), &rule.selector)
+                    .ok()?;
                 if !hits.contains(&nid) {
                     return None;
                 }
@@ -1027,6 +1284,15 @@ mod cross_check {
                 Some((rule, compiled.specificity()))
             })
             .collect();
-        diting_css::cascade_element(tag, tree, nid, &matched, parent, inline, diting_css::DEFAULT_ROOT_FONT_SIZE, (1280.0, 720.0))
+        diting_css::cascade_element(
+            tag,
+            tree,
+            nid,
+            &matched,
+            parent,
+            inline,
+            diting_css::DEFAULT_ROOT_FONT_SIZE,
+            (1280.0, 720.0),
+        )
     }
 }

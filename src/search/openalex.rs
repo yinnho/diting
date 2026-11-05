@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// OpenAlex via the public api.openalex.org works API (free, no key,
 /// CN-reachable directly). "academic" alongside arXiv: OpenAlex is a
@@ -56,10 +56,7 @@ impl SearchEngine for OpenalexEngine {
             .client
             .get(&url)
             .header("Accept", "application/json")
-            .header(
-                "User-Agent",
-                diting::chrome_target::UA_DEFAULT,
-            )
+            .header("User-Agent", diting::chrome_target::UA_DEFAULT)
             .send()
             .await
             .map_err(|e| SearchEngineError::Transient(format!("fetch error: {e}")))?;
@@ -236,7 +233,9 @@ mod tests {
         assert_eq!(results[0].engine, "openalex");
         assert_eq!(results[0].url, "https://doi.org/10.1145/3385412.3386036");
         // >2 authorships fold to "first two et al."
-        assert!(results[0].snippet.starts_with("2020 | Yiji Zhang, Sen Yang et al. | "));
+        assert!(results[0]
+            .snippet
+            .starts_with("2020 | Yiji Zhang, Sen Yang et al. | "));
         assert!(results[0].snippet.contains("Rust is a young programming"));
         assert_eq!(results[0].score, 3.0);
     }

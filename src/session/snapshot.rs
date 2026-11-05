@@ -41,7 +41,11 @@ pub(crate) fn format_snapshot_text(snap: &Value) -> String {
             let name = el.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let rf = el.get("ref").and_then(|v| v.as_str()).unwrap_or("");
             let mut line = format!("- {} \"{}\" [ref={}]", role, escape_name(name), rf);
-            if el.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if el
+                .get("disabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 line.push_str(" disabled");
             }
             if let Some(v) = el.get("value").and_then(|v| v.as_str()) {
@@ -91,7 +95,11 @@ fn format_snapshot_json(parsed: &Value) -> Value {
                     "h": el.get("h").and_then(|v| v.as_i64()).unwrap_or(0),
                 },
             });
-            if el.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if el
+                .get("disabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 obj["disabled"] = json!(true);
             }
             if let Some(v) = el.get("value") {
@@ -208,6 +216,9 @@ mod tests {
 
         let text = format_snapshot_text(&snap);
         assert!(text.contains("- link \"Home\" [ref=e0]"), "{text}");
-        assert!(text.contains("- button \"Sign In\" [ref=e2] disabled"), "{text}");
+        assert!(
+            text.contains("- button \"Sign In\" [ref=e2] disabled"),
+            "{text}"
+        );
     }
 }

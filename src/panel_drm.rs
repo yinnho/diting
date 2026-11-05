@@ -26,10 +26,7 @@ const fn iowr<T>(nr: u32) -> u32 {
         | nr
 }
 const fn iow<T>(nr: u32) -> u32 {
-    (_IOC_WRITE << 30)
-        | ((std::mem::size_of::<T>() as u32) << 16)
-        | (DRM_IOCTL_BASE << 8)
-        | nr
+    (_IOC_WRITE << 30) | ((std::mem::size_of::<T>() as u32) << 16) | (DRM_IOCTL_BASE << 8) | nr
 }
 const fn io(nr: u32) -> u32 {
     (DRM_IOCTL_BASE << 8) | nr
@@ -214,7 +211,13 @@ pub struct Drm {
 /// master dangles on the (long-lived) engine process — every later
 /// SET_MASTER fails with nothing visible in /proc/*/fd (#85).
 #[cfg(unix)]
-fn release_buffers(fd: i32, fb: &[u32; 2], handles: &[u32; 2], maps: &[*mut u32; 2], map_len: usize) {
+fn release_buffers(
+    fd: i32,
+    fb: &[u32; 2],
+    handles: &[u32; 2],
+    maps: &[*mut u32; 2],
+    map_len: usize,
+) {
     for m in maps.iter() {
         if !m.is_null() {
             unsafe { libc::munmap(*m as *mut libc::c_void, map_len) };
@@ -307,7 +310,10 @@ impl Drm {
             return Err("no usable connector".into());
         }
         let mut crtc_id = 0u32;
-        let mut ge = drm_mode_get_encoder { encoder_id: enc_id, ..Default::default() };
+        let mut ge = drm_mode_get_encoder {
+            encoder_id: enc_id,
+            ..Default::default()
+        };
         if unsafe { libc::ioctl(fd, DRM_IOCTL_MODE_GETENCODER as _, &mut ge) } == 0 {
             if ge.crtc_id != 0 {
                 crtc_id = ge.crtc_id;

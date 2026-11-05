@@ -72,7 +72,11 @@ pub enum VideoError {
     FfmpegFailed(String),
     /// A frame's pixel buffer didn't match the dimensions ffmpeg was sized
     /// with (viewport changed mid-render).
-    FrameSizeMismatch { expect: usize, got: usize, frame: u32 },
+    FrameSizeMismatch {
+        expect: usize,
+        got: usize,
+        frame: u32,
+    },
 }
 
 impl std::fmt::Display for VideoError {
@@ -198,7 +202,12 @@ struct PumpPhases {
 }
 
 impl PumpPhases {
-    fn record(&mut self, eval: std::time::Duration, band: std::time::Duration, images: std::time::Duration) {
+    fn record(
+        &mut self,
+        eval: std::time::Duration,
+        band: std::time::Duration,
+        images: std::time::Duration,
+    ) {
         self.frames += 1;
         self.eval += eval;
         self.band += band;
@@ -236,7 +245,10 @@ struct Hardsub {
 
 impl Hardsub {
     fn none() -> Self {
-        Self { cues: Vec::new(), tiles: Vec::new() }
+        Self {
+            cues: Vec::new(),
+            tiles: Vec::new(),
+        }
     }
 
     /// Parse the inline SRT. Malformed blocks are skipped, never fatal —
@@ -244,11 +256,18 @@ impl Hardsub {
     fn parse(srt: &str) -> Self {
         let mut cues = Vec::new();
         for block in srt.replace("\r\n", "\n").split("\n\n") {
-            let lines: Vec<&str> = block.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
-            let Some(t_i) = lines.iter().position(|l| l.contains("-->")) else { continue };
-            let Some((start, end)) = lines[t_i].split_once("-->") else { continue };
-            let (Some(start), Some(end)) =
-                (parse_srt_timestamp(start), parse_srt_timestamp(end))
+            let lines: Vec<&str> = block
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect();
+            let Some(t_i) = lines.iter().position(|l| l.contains("-->")) else {
+                continue;
+            };
+            let Some((start, end)) = lines[t_i].split_once("-->") else {
+                continue;
+            };
+            let (Some(start), Some(end)) = (parse_srt_timestamp(start), parse_srt_timestamp(end))
             else {
                 continue;
             };
@@ -274,9 +293,8 @@ impl Hardsub {
         let Some(i) = self.cues.iter().rposition(|c| c.start <= t && t < c.end) else {
             return;
         };
-        let tile = self.tiles[i].get_or_insert_with(|| {
-            rasterize_cue_tile(&self.cues[i].text, w, h, fonts)
-        });
+        let tile = self.tiles[i]
+            .get_or_insert_with(|| rasterize_cue_tile(&self.cues[i].text, w, h, fonts));
         let x0 = (w as i64 - tile.width as i64) / 2;
         let y0 = h as i64 - tile.height as i64 - (h / 12) as i64;
         composite_tile(frame, w as usize, h as usize, TileRef::from(&*tile), x0, y0);
@@ -318,23 +336,72 @@ fn rasterize_cue_tile(text: &str, w: u32, h: u32, fonts: &FontBook) -> CueTile {
     let wrap_at = w as f32 * 0.9;
     let stroke = ((font_size / 12.0).round() as i32).max(1);
     let pad = stroke as usize;
-    let white = fonts.rasterize_wrapped(text, font_size, true, [255, 255, 255, 255], wrap_at, line_height, false, 0.0, None, diting::diting_css::WhiteSpace::Normal, false, None, None);
-    let black = fonts.rasterize_wrapped(text, font_size, true, [12, 12, 12, 255], wrap_at, line_height, false, 0.0, None, diting::diting_css::WhiteSpace::Normal, false, None, None);
+    let white = fonts.rasterize_wrapped(
+        text,
+        font_size,
+        true,
+        [255, 255, 255, 255],
+        wrap_at,
+        line_height,
+        false,
+        0.0,
+        None,
+        diting::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
+    let black = fonts.rasterize_wrapped(
+        text,
+        font_size,
+        true,
+        [12, 12, 12, 255],
+        wrap_at,
+        line_height,
+        false,
+        0.0,
+        None,
+        diting::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
     let width = white.width + pad * 2;
     let height = white.height + pad * 2;
     let mut data = vec![0u8; width * height * 4];
     let stroke_i64 = stroke as i64;
     for (dx, dy) in [
-        (-stroke, 0), (stroke, 0), (0, -stroke), (0, stroke),
-        (-stroke, -stroke), (-stroke, stroke), (stroke, -stroke), (stroke, stroke),
+        (-stroke, 0),
+        (stroke, 0),
+        (0, -stroke),
+        (0, stroke),
+        (-stroke, -stroke),
+        (-stroke, stroke),
+        (stroke, -stroke),
+        (stroke, stroke),
     ] {
         composite_tile(
-            &mut data, width, height, TileRef::from(&black),
-            stroke_i64 + dx as i64, stroke_i64 + dy as i64,
+            &mut data,
+            width,
+            height,
+            TileRef::from(&black),
+            stroke_i64 + dx as i64,
+            stroke_i64 + dy as i64,
         );
     }
-    composite_tile(&mut data, width, height, TileRef::from(&white), stroke_i64, stroke_i64);
-    CueTile { width, height, data }
+    composite_tile(
+        &mut data,
+        width,
+        height,
+        TileRef::from(&white),
+        stroke_i64,
+        stroke_i64,
+    );
+    CueTile {
+        width,
+        height,
+        data,
+    }
 }
 
 /// A borrowed RGBA tile — the burn compositor's blit unit, wrapping both
@@ -347,13 +414,21 @@ struct TileRef<'a> {
 
 impl<'a> From<&'a CueTile> for TileRef<'a> {
     fn from(t: &'a CueTile) -> Self {
-        Self { width: t.width, height: t.height, data: &t.data }
+        Self {
+            width: t.width,
+            height: t.height,
+            data: &t.data,
+        }
     }
 }
 
 impl<'a> From<&'a diting::diting_layout::text::TextRaster> for TileRef<'a> {
     fn from(r: &'a diting::diting_layout::text::TextRaster) -> Self {
-        Self { width: r.width, height: r.height, data: &r.data }
+        Self {
+            width: r.width,
+            height: r.height,
+            data: &r.data,
+        }
     }
 }
 
@@ -361,7 +436,11 @@ impl<'a> From<&'a diting::diting_layout::text::TextRaster> for TileRef<'a> {
 /// through the Arc without claiming a clone.
 impl<'a> From<&'a std::sync::Arc<diting::diting_layout::text::TextRaster>> for TileRef<'a> {
     fn from(r: &'a std::sync::Arc<diting::diting_layout::text::TextRaster>) -> Self {
-        Self { width: r.width, height: r.height, data: &r.data }
+        Self {
+            width: r.width,
+            height: r.height,
+            data: &r.data,
+        }
     }
 }
 
@@ -369,7 +448,11 @@ impl<'a> From<&'a std::sync::Arc<diting::diting_layout::text::TextRaster>> for T
 /// destination bounds. Same straight-alpha model as paint.rs `over`, but
 /// maintaining the destination alpha — cue tiles start transparent.
 fn composite_tile(dst: &mut [u8], dw: usize, dh: usize, src: TileRef, x0: i64, y0: i64) {
-    let TileRef { width: sw, height: sh, data: src } = src;
+    let TileRef {
+        width: sw,
+        height: sh,
+        data: src,
+    } = src;
     if sw == 0 || sh == 0 {
         return;
     }
@@ -460,7 +543,10 @@ pub async fn render_timeline_video(
     }
     let total = timeline + opts.hold_tail_secs;
     if total > opts.max_duration_secs {
-        return Err(VideoError::DurationCapped { asked: total, cap: opts.max_duration_secs });
+        return Err(VideoError::DurationCapped {
+            asked: total,
+            cap: opts.max_duration_secs,
+        });
     }
     let frames = ((total * opts.fps).ceil() as u64).max(1) as u32;
 
@@ -483,10 +569,8 @@ pub async fn render_timeline_video(
     // (read back and removed below) while frames stream through stdin.
     static PUMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = PUMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let out_path = std::env::temp_dir().join(format!(
-        "diting-pump-{}-{seq}.mp4",
-        std::process::id()
-    ));
+    let out_path =
+        std::env::temp_dir().join(format!("diting-pump-{}-{seq}.mp4", std::process::id()));
 
     // Audio, when requested: BGM track plus narration clips all become the
     // same shape (fetched bytes + a place on the timeline), parked in temp
@@ -515,8 +599,8 @@ pub async fn render_timeline_video(
         .iter()
         .enumerate()
         .map(|(i, (bytes, ..))| {
-            let p = std::env::temp_dir()
-                .join(format!("diting-pump-{}-{seq}.a{i}", std::process::id()));
+            let p =
+                std::env::temp_dir().join(format!("diting-pump-{}-{seq}.a{i}", std::process::id()));
             std::fs::write(&p, bytes)
                 .map_err(|e| VideoError::AudioFetchFailed(format!("audio temp write: {e}")))
                 .map(|_| p)
@@ -554,8 +638,8 @@ pub async fn render_timeline_video(
                     MAX_SUBTITLE_BYTES
                 )));
             }
-            let p = std::env::temp_dir()
-                .join(format!("diting-pump-{}-{seq}.srt", std::process::id()));
+            let p =
+                std::env::temp_dir().join(format!("diting-pump-{}-{seq}.srt", std::process::id()));
             std::fs::write(&p, srt)
                 .map_err(|e| VideoError::SubtitleStaging(format!("subtitle temp write: {e}")))?;
             Ok(p)
@@ -601,7 +685,10 @@ pub async fn render_timeline_video(
                 filters.push(format!("adelay={delay_ms}:all=1"));
             }
             if fade_out > 0.0 {
-                filters.push(format!("afade=t=out:st={:.3}:d={fade_out:.3}", total - fade_out));
+                filters.push(format!(
+                    "afade=t=out:st={:.3}:d={fade_out:.3}",
+                    total - fade_out
+                ));
             }
             if !filters.is_empty() {
                 cmd.arg("-af").arg(filters.join(","));
@@ -634,7 +721,10 @@ pub async fn render_timeline_video(
                 audio_inputs.len()
             );
             if fade_out > 0.0 {
-                mix.push_str(&format!(",afade=t=out:st={:.3}:d={fade_out:.3}", total - fade_out));
+                mix.push_str(&format!(
+                    ",afade=t=out:st={:.3}:d={fade_out:.3}",
+                    total - fade_out
+                ));
             }
             graph.push_str(&format!("{mix}[aout]"));
             cmd.arg("-filter_complex")
@@ -652,7 +742,8 @@ pub async fn render_timeline_video(
         // srt stream on its own; the explicit -map above disables defaults,
         // so subtitles must be mapped explicitly there.
         if audio_inputs.len() >= 2 {
-            cmd.arg("-map").arg(format!("{}:s:0", 1 + audio_inputs.len()));
+            cmd.arg("-map")
+                .arg(format!("{}:s:0", 1 + audio_inputs.len()));
         }
         cmd.arg("-c:s").arg("mov_text");
         if let Some(lang) = opts.subtitles_language.as_deref().filter(|l| !l.is_empty()) {
@@ -696,7 +787,11 @@ pub async fn render_timeline_video(
         let mut rx = rx;
         while let Ok(FrameMsg::Frame(rgba)) = rx.recv() {
             if rgba.len() != expect {
-                return Err(VideoError::FrameSizeMismatch { expect, got: rgba.len(), frame: 0 });
+                return Err(VideoError::FrameSizeMismatch {
+                    expect,
+                    got: rgba.len(),
+                    frame: 0,
+                });
             }
             if let Err(e) = stdin.write_all(&rgba).and_then(|_| stdin.flush()) {
                 return Err(VideoError::FfmpegFailed(format!("stdin write: {e}")));
@@ -707,7 +802,8 @@ pub async fn render_timeline_video(
 
     let mut written: u32 = 0;
     let t_send = Instant::now();
-    tx.send(FrameMsg::Frame(first)).map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
+    tx.send(FrameMsg::Frame(first))
+        .map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
     phases.write += t_send.elapsed();
     written += 1;
     let pump_wall = Instant::now();
@@ -718,15 +814,20 @@ pub async fn render_timeline_video(
             hardsub.burn(&mut rgba, w, h, t, fonts);
         }
         let t_send = Instant::now();
-        tx.send(FrameMsg::Frame(rgba)).map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
+        tx.send(FrameMsg::Frame(rgba))
+            .map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
         phases.write += t_send.elapsed();
         written += 1;
     }
     // Closing the channel drops the writer's stdin — ffmpeg's end-of-stream
     // signal; the MP4 trailer lands in the temp file after that.
     drop(tx);
-    writer.join().map_err(|_| VideoError::FfmpegFailed("writer panicked".into()))??;
-    let status = child.wait().map_err(|e| VideoError::FfmpegFailed(e.to_string()))?;
+    writer
+        .join()
+        .map_err(|_| VideoError::FfmpegFailed("writer panicked".into()))??;
+    let status = child
+        .wait()
+        .map_err(|e| VideoError::FfmpegFailed(e.to_string()))?;
     let mp4 = std::fs::read(&out_path).unwrap_or_default();
     let _ = std::fs::remove_file(&out_path);
     for p in &audio_paths {
@@ -736,7 +837,13 @@ pub async fn render_timeline_video(
         let _ = std::fs::remove_file(p);
     }
     if !status.success() {
-        let tail: String = err_reader.join().unwrap_or_default().chars().rev().take(400).collect();
+        let tail: String = err_reader
+            .join()
+            .unwrap_or_default()
+            .chars()
+            .rev()
+            .take(400)
+            .collect();
         return Err(VideoError::FfmpegFailed(tail.chars().rev().collect()));
     }
     // Debug knob (DITING_VIDEO_TRACE=1): pump phase summary, the video
@@ -779,16 +886,24 @@ async fn fetch_audio(page: &Page, url: &str) -> Result<Vec<u8>, VideoError> {
     };
     let scheme = parsed.scheme();
     if scheme != "http" && scheme != "https" {
-        return err(format!("audio url scheme {scheme:?} not allowed (http/https only)"));
+        return err(format!(
+            "audio url scheme {scheme:?} not allowed (http/https only)"
+        ));
     }
     let base = page.url_string();
     match tokio::time::timeout(
         AUDIO_FETCH_TIMEOUT,
-        page.context.http_client.fetch_subresource(&parsed, Some(base.as_str())),
+        page.context
+            .http_client
+            .fetch_subresource(&parsed, Some(base.as_str())),
     )
     .await
     {
-        Ok(Ok(resp)) if resp.status == 200 && !resp.body.is_empty() && resp.body.len() <= MAX_AUDIO_BYTES => {
+        Ok(Ok(resp))
+            if resp.status == 200
+                && !resp.body.is_empty()
+                && resp.body.len() <= MAX_AUDIO_BYTES =>
+        {
             Ok(resp.body)
         }
         Ok(Ok(resp)) => err(format!(
@@ -862,7 +977,11 @@ async fn seek_and_paint(
     if page.layout_rev() == gen_before && reuse.scroll == Some((sx, sy)) {
         if let Some((w, h, bytes)) = reuse.frame.as_ref() {
             phases.reused += 1;
-            phases.record(eval_dt, std::time::Duration::ZERO, std::time::Duration::ZERO);
+            phases.record(
+                eval_dt,
+                std::time::Duration::ZERO,
+                std::time::Duration::ZERO,
+            );
             return Ok((*w, *h, bytes.clone()));
         }
     }
@@ -1005,7 +1124,10 @@ document.getElementById("box").style.opacity = "0";
         let (f1, _) = at(1.0);
         let (f2, _) = at(2.0);
         assert_eq!((f0.width, f0.height), (800, 450));
-        assert_ne!(f0.rgba, f1.rgba, "mid-seek must repaint (epoch is equal — this is the attr invalidation)");
+        assert_ne!(
+            f0.rgba, f1.rgba,
+            "mid-seek must repaint (epoch is equal — this is the attr invalidation)"
+        );
         assert_ne!(f1.rgba, f2.rgba, "end-seek must differ from mid");
         assert_ne!(f0.rgba, f2.rgba);
     }
@@ -1019,16 +1141,17 @@ document.getElementById("box").style.opacity = "0";
         let mut page = navigated_stub_page().await;
         let vp = (800.0, 450.0);
         let seek = |page: &mut EnginePage, t: f64| {
-            page.evaluate(&format!(
-                "window.__timelines.main.pause({t}); undefined"
-            ));
+            page.evaluate(&format!("window.__timelines.main.pause({t}); undefined"));
             page.viewport_band_frame(0.0, 0.0, vp).expect("band frame")
         };
         // First paint solves (the elements' initial style writes were also
         // first-writes: no prior attribute to diff → full invalidation).
         let (f0, _) = seek(&mut page, 0.0);
         let after_first = page.layout_solve_count();
-        assert!(after_first >= 1, "the first frame must have solved at least once");
+        assert!(
+            after_first >= 1,
+            "the first frame must have solved at least once"
+        );
         // Seeks differ in pixels…
         let (f1, _) = seek(&mut page, 1.0);
         let (f2, _) = seek(&mut page, 2.0);
@@ -1112,7 +1235,10 @@ window.__timelines.main.pause(0);
         // Animated half [0, 1]: ten frames, each a fresh value → a paint.
         assert!(paints >= 10, "animated frames still paint ({paints})");
         // Hold tail [1, 2]: ten frames the guard leaves unwritten → clones.
-        assert!(paints < 20, "held frames must reuse, not repaint ({paints})");
+        assert!(
+            paints < 20,
+            "held frames must reuse, not repaint ({paints})"
+        );
         assert_eq!(&video.mp4[4..8], b"ftyp", "mp4 magic");
     }
 
@@ -1130,7 +1256,11 @@ window.__timelines.main.pause(0);
         write(&mut page, "-77");
         let g1 = page.layout_rev();
         write(&mut page, "-77");
-        assert_eq!(page.layout_rev(), g1, "identical rewrite must not invalidate");
+        assert_eq!(
+            page.layout_rev(),
+            g1,
+            "identical rewrite must not invalidate"
+        );
         write(&mut page, "-78");
         assert!(page.layout_rev() > g1, "changed rewrite invalidates");
     }
@@ -1173,18 +1303,38 @@ window.__timelines = { main: {
         .expect("navigate scroll fixture");
         page.settle_until_idle(5000).await;
         let vp = (800.0, 450.0);
-        let (_, _, top) = seek_and_paint(&mut page, vp, 0.0, &mut PumpPhases::default(), &mut FrameReuse::default())
-            .await
-            .expect("frame at top");
-        let (_, _, bot) = seek_and_paint(&mut page, vp, 2.0, &mut PumpPhases::default(), &mut FrameReuse::default())
-            .await
-            .expect("frame at bottom");
+        let (_, _, top) = seek_and_paint(
+            &mut page,
+            vp,
+            0.0,
+            &mut PumpPhases::default(),
+            &mut FrameReuse::default(),
+        )
+        .await
+        .expect("frame at top");
+        let (_, _, bot) = seek_and_paint(
+            &mut page,
+            vp,
+            2.0,
+            &mut PumpPhases::default(),
+            &mut FrameReuse::default(),
+        )
+        .await
+        .expect("frame at bottom");
         let px = |f: &[u8]| {
             let i = (225 * 800 + 400) * 4;
             (f[i], f[i + 1], f[i + 2])
         };
-        assert_eq!(px(&top), (16, 20, 24), "camera at the top paints the dark screen");
-        assert_eq!(px(&bot), (80, 200, 60), "camera scrolled down paints the lower screen");
+        assert_eq!(
+            px(&top),
+            (16, 20, 24),
+            "camera at the top paints the dark screen"
+        );
+        assert_eq!(
+            px(&bot),
+            (80, 200, 60),
+            "camera scrolled down paints the lower screen"
+        );
     }
 
     /// Declarative CSS animation fixture: keyframes in the stylesheet, NO
@@ -1216,7 +1366,8 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
         // folded by the first layout read (the pump's wait loop pokes the
         // same one).
         assert_eq!(
-            page.evaluate("Object.keys(window.__timelines || {}).length").as_f64(),
+            page.evaluate("Object.keys(window.__timelines || {}).length")
+                .as_f64(),
             Some(0.0),
             "no __timelines on a declarative page"
         );
@@ -1240,15 +1391,35 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
         // the underlying opacity 0 (invisible box), t=2 the forwards-filled
         // end state (black box on white).
         let vp = (800.0, 450.0);
-        let (_, _, f0) = seek_and_paint(&mut page, vp, 0.0, &mut PumpPhases::default(), &mut FrameReuse::default())
-            .await
-            .expect("frame at t=0");
-        let (_, _, f2) = seek_and_paint(&mut page, vp, 2.0, &mut PumpPhases::default(), &mut FrameReuse::default())
-            .await
-            .expect("frame at t=2");
-        let dark = |f: &[u8]| f.chunks_exact(4).filter(|p| p[0] < 60 && p[1] < 60 && p[2] < 60).count();
+        let (_, _, f0) = seek_and_paint(
+            &mut page,
+            vp,
+            0.0,
+            &mut PumpPhases::default(),
+            &mut FrameReuse::default(),
+        )
+        .await
+        .expect("frame at t=0");
+        let (_, _, f2) = seek_and_paint(
+            &mut page,
+            vp,
+            2.0,
+            &mut PumpPhases::default(),
+            &mut FrameReuse::default(),
+        )
+        .await
+        .expect("frame at t=2");
+        let dark = |f: &[u8]| {
+            f.chunks_exact(4)
+                .filter(|p| p[0] < 60 && p[1] < 60 && p[2] < 60)
+                .count()
+        };
         assert_eq!(dark(&f0), 0, "opacity 0 hides the box");
-        assert!(dark(&f2) > 200 * 200 * 9 / 10, "forwards fill paints the full box: {}", dark(&f2));
+        assert!(
+            dark(&f2) > 200 * 200 * 9 / 10,
+            "forwards fill paints the full box: {}",
+            dark(&f2)
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -1265,9 +1436,21 @@ html,body{{margin:0;padding:0;width:800px;height:450px;background:#ffffff}}
         };
         let mut page = test_page();
         for (decl, want, why) in [
-            ("fade 2s 1s 3 linear forwards", 7.0, "delay + duration * iterations"),
-            ("fade 2s 1s 2.5 linear forwards", 6.0, "fractional count multiplies through"),
-            ("fade 2s infinite linear", 2.0, "infinite-only page keeps one cycle"),
+            (
+                "fade 2s 1s 3 linear forwards",
+                7.0,
+                "delay + duration * iterations",
+            ),
+            (
+                "fade 2s 1s 2.5 linear forwards",
+                6.0,
+                "fractional count multiplies through",
+            ),
+            (
+                "fade 2s infinite linear",
+                2.0,
+                "infinite-only page keeps one cycle",
+            ),
         ] {
             let port = spawn_html_server(Box::leak(html(decl).into_boxed_str()));
             page.navigate_with_wait(
@@ -1351,8 +1534,15 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
         // MP4 starts with a ftyp box: 4-byte size, then "ftyp".
         assert_eq!(&video.mp4[4..8], b"ftyp", "mp4 magic");
         assert!(!video.has_audio);
-        assert!(!video.mp4.windows(4).any(|w| w == b"mp4a"), "no audio track when none requested");
-        assert!(video.mp4.len() > 4_000, "a real encoded stream, not a bare header: {} bytes", video.mp4.len());
+        assert!(
+            !video.mp4.windows(4).any(|w| w == b"mp4a"),
+            "no audio track when none requested"
+        );
+        assert!(
+            video.mp4.len() > 4_000,
+            "a real encoded stream, not a bare header: {} bytes",
+            video.mp4.len()
+        );
         // The stub's pause() writes unconditionally, so every seek bumps
         // the layout revision — reuse must never fire here.
         assert_eq!(
@@ -1453,7 +1643,10 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
             video.mp4.windows(4).any(|w| w == b"mp4a"),
             "mp4a sample entry present"
         );
-        assert!(video.mp4.windows(4).any(|w| w == b"avc1"), "h264 still present");
+        assert!(
+            video.mp4.windows(4).any(|w| w == b"avc1"),
+            "h264 still present"
+        );
     }
 
     /// A requested track that can't be fetched is an explicit error — never
@@ -1545,7 +1738,10 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
                 }
             }
         }
-        assert!(white > 20, "white glyph ink in the subtitle band ({white} px)");
+        assert!(
+            white > 20,
+            "white glyph ink in the subtitle band ({white} px)"
+        );
         assert!(black > 20, "black outline ink around it ({black} px)");
     }
 
@@ -1557,10 +1753,7 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
             eprintln!("skipping ffprobe leg: ffprobe not on PATH");
             return None;
         }
-        let p = std::env::temp_dir().join(format!(
-            "diting-pump-probe-{}.mp4",
-            std::process::id()
-        ));
+        let p = std::env::temp_dir().join(format!("diting-pump-probe-{}.mp4", std::process::id()));
         std::fs::write(&p, mp4).ok()?;
         let out = Command::new("ffprobe")
             .arg("-v")
@@ -1623,11 +1816,17 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
         assert_eq!(video.duration_secs, 2.0, "-t pins the length");
         assert!(video.has_audio);
         assert!(video.has_subtitles);
-        assert!(video.burned_subtitles, "cues burn into the pixels by default");
+        assert!(
+            video.burned_subtitles,
+            "cues burn into the pixels by default"
+        );
         assert!(video.mp4.windows(4).any(|w| w == b"mp4a"), "AAC track");
         assert!(video.mp4.windows(4).any(|w| w == b"avc1"), "h264 track");
         if let Some(codecs) = ffprobe_codecs(&video.mp4) {
-            assert!(codecs.iter().any(|c| c == "mov_text"), "soft subtitle stream: {codecs:?}");
+            assert!(
+                codecs.iter().any(|c| c == "mov_text"),
+                "soft subtitle stream: {codecs:?}"
+            );
             assert!(codecs.iter().any(|c| c == "aac"), "aac stream: {codecs:?}");
         }
         // Opt-out keeps the soft track without touching the pixels.

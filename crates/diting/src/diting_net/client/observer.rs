@@ -8,8 +8,8 @@ use tokio::sync::RwLock;
 
 use url::Url;
 
-use super::Response;
 use super::metadata::ResourceType;
+use super::Response;
 
 /// A request about to be sent (or just answered), as seen by an
 /// on_request / on_response observer. Headers are the fully-built set the
@@ -83,7 +83,6 @@ impl CallbackRegistry {
             Err(_) => false,
         }
     }
-
 
     /// True when at least one request callback is registered. Lets fire sites
     /// skip building a `RequestInfo` when nobody listens.

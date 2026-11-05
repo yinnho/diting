@@ -34,7 +34,12 @@ pub fn eval_calc(expr: &str, fonts: &FontCtx) -> Option<Length> {
 /// percentages then fold to px, so min()/max()/clamp() over mixed units can
 /// be ordered.
 pub fn eval_calc_with(expr: &str, fonts: &FontCtx, base: Option<f32>) -> Option<Length> {
-    let mut p = CalcParser { s: expr.as_bytes(), i: 0, fonts, base };
+    let mut p = CalcParser {
+        s: expr.as_bytes(),
+        i: 0,
+        fonts,
+        base,
+    };
     let v = p.expr_value()?;
     p.skip_ws();
     if p.i != p.s.len() {
@@ -81,14 +86,30 @@ pub fn eval_math_call_with(v: &str, fonts: &FontCtx, base: Option<f32>) -> Optio
     }
     // The Values-4 functions (round/mod/rem/abs/sign/sqrt/pow/hypot/exp/log/
     // trig) reduce through the same parser as a whole expression.
-    const FNS: &[&str] = &["round(", "mod(", "rem(", "abs(", "sign(", "sqrt(", "pow(", "hypot(", "exp(", "log(", "sin(", "cos(", "tan(", "asin(", "acos(", "atan2(", "atan("];
-    if t.ends_with(')') && FNS.iter().any(|f| t.len() > f.len() && t[..f.len()].eq_ignore_ascii_case(f)) {
+    const FNS: &[&str] = &[
+        "round(", "mod(", "rem(", "abs(", "sign(", "sqrt(", "pow(", "hypot(", "exp(", "log(",
+        "sin(", "cos(", "tan(", "asin(", "acos(", "atan2(", "atan(",
+    ];
+    if t.ends_with(')')
+        && FNS
+            .iter()
+            .any(|f| t.len() > f.len() && t[..f.len()].eq_ignore_ascii_case(f))
+    {
         return eval_calc_with(t, fonts, base);
     }
-    for (prefix, f) in [("min(", MathFn::Min), ("max(", MathFn::Max), ("clamp(", MathFn::Clamp)] {
+    for (prefix, f) in [
+        ("min(", MathFn::Min),
+        ("max(", MathFn::Max),
+        ("clamp(", MathFn::Clamp),
+    ] {
         let pl = prefix.len();
         if t.len() > pl && t[..pl].eq_ignore_ascii_case(prefix) && t.ends_with(')') {
-            let mut p = CalcParser { s: &t.as_bytes()[pl..], i: 0, fonts, base };
+            let mut p = CalcParser {
+                s: &t.as_bytes()[pl..],
+                i: 0,
+                fonts,
+                base,
+            };
             let v = p.math_args_value(f)?;
             p.skip_ws();
             if p.i != p.s.len() {
@@ -173,8 +194,14 @@ impl CalcParser<'_> {
                 _ => return None,
             };
             acc = match val {
-                CalcVal::Len { px, percent } if !div => CalcVal::Len { px: px * n, percent: percent * n },
-                CalcVal::Len { px, percent } if div && n != 0.0 => CalcVal::Len { px: px / n, percent: percent / n },
+                CalcVal::Len { px, percent } if !div => CalcVal::Len {
+                    px: px * n,
+                    percent: percent * n,
+                },
+                CalcVal::Len { px, percent } if div && n != 0.0 => CalcVal::Len {
+                    px: px / n,
+                    percent: percent / n,
+                },
                 _ => return None,
             };
         }
@@ -199,8 +226,12 @@ impl CalcParser<'_> {
             return None;
         }
         // One unit family only (see eval_math_call): all-px or all-percent.
-        let all_px = args.iter().all(|a| matches!(a, CalcVal::Len { percent: 0.0, .. }));
-        let all_pct = args.iter().all(|a| matches!(a, CalcVal::Len { px: 0.0, .. }));
+        let all_px = args
+            .iter()
+            .all(|a| matches!(a, CalcVal::Len { percent: 0.0, .. }));
+        let all_pct = args
+            .iter()
+            .all(|a| matches!(a, CalcVal::Len { px: 0.0, .. }));
         if !(all_px || all_pct) {
             return None;
         }
@@ -219,7 +250,11 @@ impl CalcParser<'_> {
         let pick = |lo: bool, a: &CalcVal, b: &CalcVal| {
             let (x, y) = (key(a), key(b));
             let take_b = if lo { y < x } else { y > x };
-            if take_b { *b } else { *a }
+            if take_b {
+                *b
+            } else {
+                *a
+            }
         };
         let mut acc = args[0];
         match f {
@@ -250,7 +285,11 @@ impl CalcParser<'_> {
             let v = self.expr_value()?;
             return self.eat(b')').then_some(v);
         }
-        for (prefix, f) in [("min(", MathFn::Min), ("max(", MathFn::Max), ("clamp(", MathFn::Clamp)] {
+        for (prefix, f) in [
+            ("min(", MathFn::Min),
+            ("max(", MathFn::Max),
+            ("clamp(", MathFn::Clamp),
+        ] {
             if self.starts_with_ignore_case(prefix) {
                 self.i += prefix.len();
                 return self.math_args_value(f);
@@ -265,7 +304,8 @@ impl CalcParser<'_> {
         while self.i < self.s.len() {
             let c = self.s[self.i];
             if self.i > start
-                && (c.is_ascii_whitespace() || matches!(c, b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b','))
+                && (c.is_ascii_whitespace()
+                    || matches!(c, b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b','))
             {
                 break;
             }
@@ -290,8 +330,14 @@ impl CalcParser<'_> {
         match resolved {
             Length::Px(px) => Some(CalcVal::Len { px, percent: 0.0 }),
             Length::Percent(p) => Some(match self.base {
-                Some(b) => CalcVal::Len { px: p * b / 100.0, percent: 0.0 },
-                None => CalcVal::Len { px: 0.0, percent: p },
+                Some(b) => CalcVal::Len {
+                    px: p * b / 100.0,
+                    percent: 0.0,
+                },
+                None => CalcVal::Len {
+                    px: 0.0,
+                    percent: p,
+                },
             }),
             _ => None,
         }
@@ -308,7 +354,11 @@ fn angle_radians(tok: &str) -> Option<f32> {
         ("turn", std::f32::consts::TAU),
     ] {
         if let Some(n) = l.strip_suffix(unit) {
-            return n.parse::<f32>().ok().filter(|v| v.is_finite()).map(|v| v * per_unit);
+            return n
+                .parse::<f32>()
+                .ok()
+                .filter(|v| v.is_finite())
+                .map(|v| v * per_unit);
         }
     }
     None
@@ -332,12 +382,32 @@ impl CalcParser<'_> {
     fn pair(a: CalcVal, b: CalcVal, f: impl Fn(f32, f32) -> f32) -> Option<CalcVal> {
         match (a, b) {
             (CalcVal::Number(x), CalcVal::Number(y)) => Some(CalcVal::Number(f(x, y))),
-            (CalcVal::Len { px: x, percent: 0.0 }, CalcVal::Len { px: y, percent: 0.0 }) => {
-                Some(CalcVal::Len { px: f(x, y), percent: 0.0 })
-            }
-            (CalcVal::Len { px: 0.0, percent: x }, CalcVal::Len { px: 0.0, percent: y }) => {
-                Some(CalcVal::Len { px: 0.0, percent: f(x, y) })
-            }
+            (
+                CalcVal::Len {
+                    px: x,
+                    percent: 0.0,
+                },
+                CalcVal::Len {
+                    px: y,
+                    percent: 0.0,
+                },
+            ) => Some(CalcVal::Len {
+                px: f(x, y),
+                percent: 0.0,
+            }),
+            (
+                CalcVal::Len {
+                    px: 0.0,
+                    percent: x,
+                },
+                CalcVal::Len {
+                    px: 0.0,
+                    percent: y,
+                },
+            ) => Some(CalcVal::Len {
+                px: 0.0,
+                percent: f(x, y),
+            }),
             _ => None,
         }
     }
@@ -354,26 +424,31 @@ impl CalcParser<'_> {
     /// when it is one but its arguments do not reduce.
     fn math_function(&mut self) -> Option<Option<CalcVal>> {
         const NAMES: &[&str] = &[
-            "round", "mod", "rem", "abs", "sign", "sqrt", "pow", "hypot", "exp", "log", "sin", "cos", "tan", "asin",
-            "acos", "atan2", "atan",
+            "round", "mod", "rem", "abs", "sign", "sqrt", "pow", "hypot", "exp", "log", "sin",
+            "cos", "tan", "asin", "acos", "atan2", "atan",
         ];
         let name = NAMES.iter().find(|n| {
-            self.starts_with_ignore_case(n)
-                && self.s.get(self.i + n.len()) == Some(&b'(')
+            self.starts_with_ignore_case(n) && self.s.get(self.i + n.len()) == Some(&b'(')
         })?;
         self.i += name.len() + 1;
         let strategy = if *name == "round" {
             self.skip_ws();
-            ["up", "down", "to-zero", "nearest"].iter().find(|st| {
-                self.starts_with_ignore_case(st) && self.s.get(self.i + st.len()).is_some_and(|c| *c == b',')
-            }).map(|st| {
-                self.i += st.len() + 1;
-                *st
-            })
+            ["up", "down", "to-zero", "nearest"]
+                .iter()
+                .find(|st| {
+                    self.starts_with_ignore_case(st)
+                        && self.s.get(self.i + st.len()).is_some_and(|c| *c == b',')
+                })
+                .map(|st| {
+                    self.i += st.len() + 1;
+                    *st
+                })
         } else {
             None
         };
-        let Some(args) = self.call_args() else { return Some(None) };
+        let Some(args) = self.call_args() else {
+            return Some(None);
+        };
         let a = args[0];
         let out = match (*name, args.len()) {
             ("round", 2) => {
@@ -392,22 +467,47 @@ impl CalcParser<'_> {
                     r * step
                 })
             }
-            ("mod", 2) => Self::pair(a, args[1], |x, y| if y == 0.0 { f32::NAN } else { x - y * (x / y).floor() }),
-            ("rem", 2) => Self::pair(a, args[1], |x, y| if y == 0.0 { f32::NAN } else { x - y * (x / y).trunc() }),
+            ("mod", 2) => Self::pair(a, args[1], |x, y| {
+                if y == 0.0 {
+                    f32::NAN
+                } else {
+                    x - y * (x / y).floor()
+                }
+            }),
+            ("rem", 2) => Self::pair(a, args[1], |x, y| {
+                if y == 0.0 {
+                    f32::NAN
+                } else {
+                    x - y * (x / y).trunc()
+                }
+            }),
             ("abs", 1) => match a {
                 CalcVal::Number(n) => Some(CalcVal::Number(n.abs())),
-                CalcVal::Len { px, percent } => Some(CalcVal::Len { px: px.abs(), percent: percent.abs() }),
+                CalcVal::Len { px, percent } => Some(CalcVal::Len {
+                    px: px.abs(),
+                    percent: percent.abs(),
+                }),
             },
             ("sign", 1) => {
                 let v = match a {
                     CalcVal::Number(n) => n,
-                    CalcVal::Len { px, percent } => if px != 0.0 { px } else { percent },
+                    CalcVal::Len { px, percent } => {
+                        if px != 0.0 {
+                            px
+                        } else {
+                            percent
+                        }
+                    }
                 };
                 Some(CalcVal::Number(if v == 0.0 { 0.0 } else { v.signum() }))
             }
-            ("sqrt", 1) => Self::scalar(a).filter(|n| *n >= 0.0).map(|n| CalcVal::Number(n.sqrt())),
+            ("sqrt", 1) => Self::scalar(a)
+                .filter(|n| *n >= 0.0)
+                .map(|n| CalcVal::Number(n.sqrt())),
             ("exp", 1) => Self::scalar(a).map(|n| CalcVal::Number(n.exp())),
-            ("log", 1) => Self::scalar(a).filter(|n| *n > 0.0).map(|n| CalcVal::Number(n.ln())),
+            ("log", 1) => Self::scalar(a)
+                .filter(|n| *n > 0.0)
+                .map(|n| CalcVal::Number(n.ln())),
             ("log", 2) => match (Self::scalar(a), Self::scalar(args[1])) {
                 (Some(x), Some(b)) if x > 0.0 && b > 0.0 => Some(CalcVal::Number(x.ln() / b.ln())),
                 _ => None,
@@ -428,7 +528,10 @@ impl CalcParser<'_> {
                 }
                 match total? {
                     CalcVal::Number(n) => Some(CalcVal::Number(n.sqrt())),
-                    CalcVal::Len { px, percent } => Some(CalcVal::Len { px: px.sqrt(), percent: percent.sqrt() }),
+                    CalcVal::Len { px, percent } => Some(CalcVal::Len {
+                        px: px.sqrt(),
+                        percent: percent.sqrt(),
+                    }),
                 }
             }
             ("sin", 1) => Self::scalar(a).map(|n| CalcVal::Number(n.sin())),
@@ -438,7 +541,9 @@ impl CalcParser<'_> {
             ("acos", 1) => Self::scalar(a).map(|n| CalcVal::Number(n.acos())),
             ("atan", 1) => Self::scalar(a).map(|n| CalcVal::Number(n.atan())),
             ("atan2", 2) => Self::pair(a, args[1], |y, x| y.atan2(x)).map(|v| match v {
-                CalcVal::Len { px, percent } => CalcVal::Number(if px != 0.0 { px } else { percent }),
+                CalcVal::Len { px, percent } => {
+                    CalcVal::Number(if px != 0.0 { px } else { percent })
+                }
                 n => n,
             }),
             _ => None,
@@ -473,7 +578,14 @@ pub(super) fn parse_extra_unit(v: &str) -> Option<CssLength> {
         }
     }
     // Absolute units after the viewport ones: "vmin" ends in "in".
-    for (unit, px) in [("cm", 96.0 / 2.54), ("mm", 96.0 / 25.4), ("q", 96.0 / 101.6), ("in", 96.0), ("pt", 96.0 / 72.0), ("pc", 16.0)] {
+    for (unit, px) in [
+        ("cm", 96.0 / 2.54),
+        ("mm", 96.0 / 25.4),
+        ("q", 96.0 / 101.6),
+        ("in", 96.0),
+        ("pt", 96.0 / 72.0),
+        ("pc", 16.0),
+    ] {
         if let Some(n) = l.strip_suffix(unit).and_then(|n| n.css_f32()) {
             return Some(CssLength::Px(n * px));
         }
@@ -491,8 +603,11 @@ fn px_normalize(expr: &str, fonts: &FontCtx) -> String {
     let mut i = 0;
     while i < b.len() {
         let c = b[i];
-        let prev_ident = i > 0 && (b[i - 1].is_ascii_alphabetic() || b[i - 1] == b'-' || b[i - 1] == b'_');
-        if (c.is_ascii_digit() || (c == b'.' && b.get(i + 1).is_some_and(u8::is_ascii_digit))) && !prev_ident {
+        let prev_ident =
+            i > 0 && (b[i - 1].is_ascii_alphabetic() || b[i - 1] == b'-' || b[i - 1] == b'_');
+        if (c.is_ascii_digit() || (c == b'.' && b.get(i + 1).is_some_and(u8::is_ascii_digit)))
+            && !prev_ident
+        {
             let mut j = i;
             while j < b.len() && (b[j].is_ascii_digit() || b[j] == b'.') {
                 j += 1;
@@ -529,13 +644,24 @@ pub(super) fn pct_math(v: &str, fonts: &FontCtx) -> Option<(Length, std::sync::A
         return None;
     }
     let l = t.to_ascii_lowercase();
-    if !["calc(", "min(", "max(", "clamp(", "round(", "mod(", "rem(", "abs("].iter().any(|p| l.starts_with(p)) {
+    if ![
+        "calc(", "min(", "max(", "clamp(", "round(", "mod(", "rem(", "abs(",
+    ]
+    .iter()
+    .any(|p| l.starts_with(p))
+    {
         return None;
     }
     let norm = px_normalize(t, fonts);
     // Valid iff it evaluates against some base; the real base arrives at layout.
     eval_math_call_with(&norm, fonts, Some(1000.0))?;
-    Some((Length::Calc { percent: 100.0, px: 0.0 }, norm.into()))
+    Some((
+        Length::Calc {
+            percent: 100.0,
+            px: 0.0,
+        },
+        norm.into(),
+    ))
 }
 
 /// Evaluate a [`pct_math`] expression with the containing-block width (px)

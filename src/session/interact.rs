@@ -345,7 +345,6 @@ pub(super) fn extract_indexed_state(
     Ok(out)
 }
 
-
 // ---------------------------------------------------------------------------
 // Click / Input by index
 // ---------------------------------------------------------------------------
@@ -908,8 +907,11 @@ pub(super) async fn click_xy(
     let code = mouse_button_code(button);
     let mask = mouse_button_mask(button);
     eval_interaction(page, INPUT_HELPERS).map_err(|e| format!("helpers: {e}"))?;
-    eval_interaction(page, &mouse_down_js(x, y, code, mask, click_count as u64, 0))
-        .map_err(|e| format!("mouse_down: {e}"))?;
+    eval_interaction(
+        page,
+        &mouse_down_js(x, y, code, mask, click_count as u64, 0),
+    )
+    .map_err(|e| format!("mouse_down: {e}"))?;
     eval_interaction(page, &mouse_up_js(x, y, code, click_count as u64, 0))
         .map_err(|e| format!("mouse_up: {e}"))?;
     Ok(())
@@ -988,7 +990,11 @@ impl XorShift64 {
             .unwrap_or(0x9E37_79B9_7F4A_7C15);
         let probe = &nanos as *const u64 as u64;
         let seed = nanos ^ probe.rotate_left(17) ^ 0x9E37_79B9_7F4A_7C15;
-        XorShift64(if seed == 0 { 0x853C_49E6_748F_EA9B } else { seed })
+        XorShift64(if seed == 0 {
+            0x853C_49E6_748F_EA9B
+        } else {
+            seed
+        })
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -1295,7 +1301,11 @@ pub(super) fn input_by_index(
 /// the widget's own click handler (doudian's new bundle), so no selector
 /// can reach the input — but the widget's `input.click()` call arms the
 /// chooser, and this mode feeds that exact element.
-pub(super) fn set_files_by_selector(page: &mut Page, selector: Option<&str>, files: &[Value]) -> Result<Value, String> {
+pub(super) fn set_files_by_selector(
+    page: &mut Page,
+    selector: Option<&str>,
+    files: &[Value],
+) -> Result<Value, String> {
     // JSON-encode both interpolations so selector quotes and spec strings
     // can't break out of the script literal.
     let selector = match selector {
@@ -1405,7 +1415,11 @@ pub(super) async fn wait(
                 escaped
             );
             let v = page.evaluate_with_timeout(&js, crate::page::INTERACTION_EVAL_TIMEOUT);
-            if v.is_null() { None } else { Some(v) }
+            if v.is_null() {
+                None
+            } else {
+                Some(v)
+            }
         } else {
             let pred = predicate.unwrap_or("false");
             let js = format!(

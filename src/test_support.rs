@@ -22,7 +22,9 @@ pub(crate) static PRIVATE_NET_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex:
 /// which vanish with the module on a bare build.
 #[cfg(feature = "screenshot")]
 pub(crate) fn file_access_guard(enabled: bool) -> impl Drop {
-    let guard = FILE_ACCESS_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let guard = FILE_ACCESS_ENV_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     if enabled {
         std::env::set_var("DITING_ALLOW_FILE_ACCESS", "1");
     } else {
@@ -53,7 +55,9 @@ static WORKFLOW_DIR_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// built-ins). Dropping removes the var, restoring default resolution, even
 /// on panic.
 pub(crate) fn workflow_dir_env_guard() -> WorkflowDirGuard {
-    let guard = WORKFLOW_DIR_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let guard = WORKFLOW_DIR_ENV_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     // Held without a value until the test sets its own; the drop guard only
     // has to undo whatever the test leaves behind.
     std::env::remove_var("DITING_WORKFLOW_DIR");

@@ -25,7 +25,13 @@ mod style_text_leak_tests {
             styles.remove(&id);
         }
         let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
             .iter()
@@ -39,8 +45,14 @@ mod style_text_leak_tests {
     #[test]
     fn full_coverage_never_paints_style_text() {
         let texts = text_items(None);
-        assert!(texts.iter().any(|t| t.contains("hello")), "body text renders: {texts:?}");
-        assert!(!texts.iter().any(|t| t.contains("margin")), "UA display:none keeps style text out of paint");
+        assert!(
+            texts.iter().any(|t| t.contains("hello")),
+            "body text renders: {texts:?}"
+        );
+        assert!(
+            !texts.iter().any(|t| t.contains("margin")),
+            "UA display:none keeps style text out of paint"
+        );
     }
 
     #[test]
@@ -50,9 +62,14 @@ mod style_text_leak_tests {
         // kind). The missing element must paint nothing while the covered
         // rest of the page keeps rendering.
         let texts = text_items(Some("#leak"));
-        assert!(texts.iter().any(|t| t.contains("hello")), "covered elements keep rendering: {texts:?}");
         assert!(
-            !texts.iter().any(|t| t.contains("margin") || t.contains("body")),
+            texts.iter().any(|t| t.contains("hello")),
+            "covered elements keep rendering: {texts:?}"
+        );
+        assert!(
+            !texts
+                .iter()
+                .any(|t| t.contains("margin") || t.contains("body")),
             "a styles-map miss must not paint the raw CSS text"
         );
     }
@@ -82,13 +99,22 @@ mod hidden_replaced_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
             .iter()
             .filter_map(|it| match it {
                 PaintItem::Text { text, .. } => Some(text.clone()),
-                PaintItem::Replaced { alt: Some((text, ..)), .. } => Some(text.clone()),
+                PaintItem::Replaced {
+                    alt: Some((text, ..)),
+                    ..
+                } => Some(text.clone()),
                 _ => None,
             })
             .collect()
@@ -105,9 +131,13 @@ mod hidden_replaced_tests {
             r#"<html><body><textarea style="display:none;">{TEMPLATE}</textarea><p id="p">hello</p></body></html>"#
         );
         let ts = texts(&html, "");
-        assert!(ts.iter().any(|t| t.contains("hello")), "rest of page renders: {ts:?}");
         assert!(
-            !ts.iter().any(|t| t.contains("css_result") || t.contains("ftCon")),
+            ts.iter().any(|t| t.contains("hello")),
+            "rest of page renders: {ts:?}"
+        );
+        assert!(
+            !ts.iter()
+                .any(|t| t.contains("css_result") || t.contains("ftCon")),
             "hidden textarea must not paint its template value: {ts:?}"
         );
     }
@@ -118,9 +148,13 @@ mod hidden_replaced_tests {
             r#"<html><body><textarea class="tmpl">{TEMPLATE}</textarea><p id="p">hello</p></body></html>"#
         );
         let ts = texts(&html, ".tmpl { display: none }");
-        assert!(ts.iter().any(|t| t.contains("hello")), "rest of page renders: {ts:?}");
         assert!(
-            !ts.iter().any(|t| t.contains("css_result") || t.contains("ftCon")),
+            ts.iter().any(|t| t.contains("hello")),
+            "rest of page renders: {ts:?}"
+        );
+        assert!(
+            !ts.iter()
+                .any(|t| t.contains("css_result") || t.contains("ftCon")),
             "rule-hidden textarea must not paint its template value: {ts:?}"
         );
     }
@@ -131,8 +165,14 @@ mod hidden_replaced_tests {
         // is_replaced_tag set, not just textarea.
         let html = r#"<html><body><input value="SECRETV" style="display:none;"><p id="p">hello</p></body></html>"#;
         let ts = texts(html, "");
-        assert!(ts.iter().any(|t| t.contains("hello")), "rest of page renders: {ts:?}");
-        assert!(!ts.iter().any(|t| t.contains("SECRETV")), "hidden input must not paint: {ts:?}");
+        assert!(
+            ts.iter().any(|t| t.contains("hello")),
+            "rest of page renders: {ts:?}"
+        );
+        assert!(
+            !ts.iter().any(|t| t.contains("SECRETV")),
+            "hidden input must not paint: {ts:?}"
+        );
     }
 
     #[test]
@@ -143,18 +183,31 @@ mod hidden_replaced_tests {
         // alt run inside the Replaced placeholder; hidden, it must vanish.
         let html = r#"<html><body><img src="/missing.png" alt="SECRETALT" style="display:none;"><p id="p">hello</p></body></html>"#;
         let ts = texts(html, "");
-        assert!(ts.iter().any(|t| t.contains("hello")), "rest of page renders: {ts:?}");
-        assert!(!ts.iter().any(|t| t.contains("SECRETALT")), "hidden img must not paint its alt: {ts:?}");
+        assert!(
+            ts.iter().any(|t| t.contains("hello")),
+            "rest of page renders: {ts:?}"
+        );
+        assert!(
+            !ts.iter().any(|t| t.contains("SECRETALT")),
+            "hidden img must not paint its alt: {ts:?}"
+        );
     }
 
     #[test]
     fn visible_textarea_still_paints_its_value() {
         // The gate must not over-hide: a visible control keeps painting its
         // value on the form-control path.
-        let html = r#"<html><body><textarea>shown value</textarea><p id="p">hello</p></body></html>"#;
+        let html =
+            r#"<html><body><textarea>shown value</textarea><p id="p">hello</p></body></html>"#;
         let ts = texts(html, "");
-        assert!(ts.iter().any(|t| t.contains("shown value")), "visible textarea paints: {ts:?}");
-        assert!(ts.iter().any(|t| t.contains("hello")), "rest of page renders: {ts:?}");
+        assert!(
+            ts.iter().any(|t| t.contains("shown value")),
+            "visible textarea paints: {ts:?}"
+        );
+        assert!(
+            ts.iter().any(|t| t.contains("hello")),
+            "rest of page renders: {ts:?}"
+        );
     }
 }
 
@@ -196,7 +249,15 @@ mod incremental_match_tests {
         let key = 11u64;
 
         let run = || {
-            compute_styles_timed(&tree, &rules, &keyframes, None, &[], (800.0, 600.0), Some(key))
+            compute_styles_timed(
+                &tree,
+                &rules,
+                &keyframes,
+                None,
+                &[],
+                (800.0, 600.0),
+                Some(key),
+            )
         };
         let t = tree.get_element_by_id("t").unwrap();
         assert_eq!(
@@ -214,7 +275,9 @@ mod incremental_match_tests {
 
         // Structural insert: a fresh element picks up a rule it was not
         // present for.
-        let p = tree.new_node(crate::diting_dom::tree::NodeData::Text { contents: "b".into() });
+        let p = tree.new_node(crate::diting_dom::tree::NodeData::Text {
+            contents: "b".into(),
+        });
         let hot2 = tree.new_node(parse_element("p", "hot"));
         tree.append_child(hot2, p);
         let wrap = tree.get_element_by_id("wrap").unwrap();
@@ -262,9 +325,9 @@ mod grid_percent_track_tests {
     // time, which dropped the whole declaration and collapsed the grid to
     // one auto column. Pin the resolved geometry: a % track sizes against
     // the grid container's content box, and 1fr eats the remainder.
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn layout(sheet: &str, body: &str) -> HashMap<NodeId, Rect> {
         let html = format!("<html><body>{body}</body></html>");
@@ -272,18 +335,29 @@ mod grid_percent_track_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (rects, _, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         rects
     }
 
     #[test]
     fn percent_track_and_fr_split_the_container() {
-        let sheet = "body { margin: 0 } #g { display: grid; width: 400px; grid-template-columns: 25% 1fr }";
+        let sheet =
+            "body { margin: 0 } #g { display: grid; width: 400px; grid-template-columns: 25% 1fr }";
         let body = r#"<div id="g"><div>aaa</div><div>bbbb</div></div>"#;
         let rects = layout(sheet, body);
         let x_at_width = |w: f32| -> f32 {
-            let hits: Vec<f32> = rects.values().filter(|r| r.width == w).map(|r| r.x).collect();
+            let hits: Vec<f32> = rects
+                .values()
+                .filter(|r| r.width == w)
+                .map(|r| r.x)
+                .collect();
             assert_eq!(hits.len(), 1, "width {w} matched {hits:?}");
             hits[0]
         };
@@ -297,7 +371,11 @@ mod grid_percent_track_tests {
         let sheet = "body { margin: 0 } #g { display: grid; width: 400px; grid-template-columns: repeat(2, 50%) }";
         let body = r#"<div id="g"><div>aaa</div><div>bbbb</div></div>"#;
         let rects = layout(sheet, body);
-        let mut xs: Vec<f32> = rects.values().filter(|r| r.width == 200.0).map(|r| r.x).collect();
+        let mut xs: Vec<f32> = rects
+            .values()
+            .filter(|r| r.width == 200.0)
+            .map(|r| r.x)
+            .collect();
         xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
         assert_eq!(xs, vec![0.0, 200.0]);
     }
@@ -311,9 +389,9 @@ mod reparent_anchoring_tests {
     // parent's flow position), a collapsed top margin displaces the CB and
     // the abs box follows its final position, and an abs box with no
     // positioned ancestor falls back to the ICB.
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn layout(sheet: &str, body: &str) -> HashMap<NodeId, Rect> {
         let html = format!("<html><body>{body}</body></html>");
@@ -321,7 +399,13 @@ mod reparent_anchoring_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (rects, _, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         rects
     }
@@ -342,14 +426,20 @@ mod reparent_anchoring_tests {
 
     #[test]
     fn fixed_under_body_ignores_ua_margin() {
-        let rects = layout("", r#"<p>hello</p><div style="position: fixed; top: 0; left: 0; width: 26px; height: 14px"></div>"#);
+        let rects = layout(
+            "",
+            r#"<p>hello</p><div style="position: fixed; top: 0; left: 0; width: 26px; height: 14px"></div>"#,
+        );
         assert_at(&rects, 26.0, 14.0, 0.0, 0.0);
     }
 
     #[test]
     fn abs_anchors_to_positioned_ancestor_padding_box() {
         let sheet = "#gp { position: relative; width: 300px; height: 200px; padding-top: 1px } #mid { width: 200px; height: 100px; margin-left: 30px } #abs { position: absolute; top: 5px; left: 15px; width: 40px; height: 20px }";
-        let rects = layout(sheet, r#"<div id="gp"><div id="mid"><div id="abs"></div></div></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="gp"><div id="mid"><div id="abs"></div></div></div>"#,
+        );
         assert_at(&rects, 200.0, 100.0, 38.0, 9.0);
         // gp padding box (8,8) + insets, NOT #mid border box + insets (53,14).
         assert_at(&rects, 40.0, 20.0, 23.0, 13.0);
@@ -358,7 +448,10 @@ mod reparent_anchoring_tests {
     #[test]
     fn collapsed_top_margin_does_not_leak_into_abs_anchor() {
         let sheet = "#gp { position: relative; width: 300px; height: 200px; padding-top: 1px } #mid { width: 200px; height: 100px; margin-left: 30px; margin-top: 40px } #abs { position: absolute; top: 5px; left: 15px; width: 40px; height: 20px }";
-        let rects = layout(sheet, r#"<div id="gp"><div id="mid"><div id="abs"></div></div></div><div style="position: absolute; top: 5px; left: 10px; width: 42px; height: 22px"></div><div style="position: fixed; top: 8px; left: 12px; width: 44px; height: 24px"></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="gp"><div id="mid"><div id="abs"></div></div></div><div style="position: absolute; top: 5px; left: 10px; width: 42px; height: 22px"></div><div style="position: fixed; top: 8px; left: 12px; width: 44px; height: 24px"></div>"#,
+        );
         // #mid's 40px margin stays in flow (gp padding blocks the collapse).
         assert_at(&rects, 300.0, 201.0, 8.0, 8.0);
         assert_at(&rects, 200.0, 100.0, 38.0, 49.0);
@@ -371,7 +464,10 @@ mod reparent_anchoring_tests {
     #[test]
     fn collapse_through_displaces_cb_and_abs_follows() {
         let sheet = "#gp { position: relative; width: 300px; height: 200px } #mid { width: 200px; height: 100px; margin-left: 30px; margin-top: 40px } #abs { position: absolute; top: 5px; left: 15px; width: 40px; height: 20px }";
-        let rects = layout(sheet, r#"<div id="gp"><div id="mid"><div id="abs"></div></div></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="gp"><div id="mid"><div id="abs"></div></div></div>"#,
+        );
         // mid's margin collapses through gp and past the 8px body margin
         // (max(8,40)); gp and mid both start at y=40.
         assert_at(&rects, 300.0, 200.0, 8.0, 40.0);
@@ -386,7 +482,10 @@ mod reparent_anchoring_tests {
         // 100px of lines, 200px free; center puts 100px above the block.
         let sheet = "body { margin: 0 } #c { display: flex; flex-wrap: wrap; width: 100px; height: 300px; align-content: center } \
                      #a { width: 100px; height: 50px } #b { width: 60px; height: 50px }";
-        let rects = layout(sheet, r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#,
+        );
         assert_at(&rects, 100.0, 50.0, 0.0, 100.0);
         assert_at(&rects, 60.0, 50.0, 0.0, 150.0);
         // Unset (normal→stretch): the LINE boxes stretch to share the free
@@ -395,20 +494,29 @@ mod reparent_anchoring_tests {
         // already stretch.
         let sheet = "body { margin: 0 } #c { display: flex; flex-wrap: wrap; width: 100px; height: 300px } \
                      #a { width: 100px; height: 50px } #b { width: 60px; height: 50px }";
-        let rects = layout(sheet, r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#,
+        );
         assert_at(&rects, 100.0, 50.0, 0.0, 0.0);
         assert_at(&rects, 60.0, 50.0, 0.0, 150.0);
         // flex-start packs the lines flush: pre-fix pages that asked for it
         // got the stretch default instead.
         let sheet = "body { margin: 0 } #c { display: flex; flex-wrap: wrap; width: 100px; height: 300px; align-content: flex-start } \
                      #a { width: 100px; height: 50px } #b { width: 60px; height: 50px }";
-        let rects = layout(sheet, r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#,
+        );
         assert_at(&rects, 100.0, 50.0, 0.0, 0.0);
         assert_at(&rects, 60.0, 50.0, 0.0, 50.0);
         // flex-end pins the other edge: 200px free all above the block.
         let sheet = "body { margin: 0 } #c { display: flex; flex-wrap: wrap; width: 100px; height: 300px; align-content: flex-end } \
                      #a { width: 100px; height: 50px } #b { width: 60px; height: 50px }";
-        let rects = layout(sheet, r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#);
+        let rects = layout(
+            sheet,
+            r#"<div id="c"><div id="a"></div><div id="b"></div></div>"#,
+        );
         assert_at(&rects, 100.0, 50.0, 0.0, 200.0);
         assert_at(&rects, 60.0, 50.0, 0.0, 250.0);
     }
@@ -420,10 +528,14 @@ mod reparent_anchoring_tests {
         // against an INDEFINITE container axis falls back to content-based
         // sizing instead of collapsing to 0. Before the bump the column
         // item below laid out at zero height.
-        let sheet = "body { margin: 0 } #c { display: flex; flex-direction: column; width: 200px } \
+        let sheet =
+            "body { margin: 0 } #c { display: flex; flex-direction: column; width: 200px } \
                      #i { flex-basis: 40%; width: 50px }";
         let rects = layout(sheet, r#"<div id="c"><div id="i">t</div></div>"#);
-        let item = rects.values().find(|r| r.width == 50.0).expect("50px item rect");
+        let item = rects
+            .values()
+            .find(|r| r.width == 50.0)
+            .expect("50px item rect");
         assert!(
             item.height > 0.0,
             "content fallback must not collapse to 0, got {}",
@@ -452,9 +564,9 @@ mod reparent_anchoring_tests {
 /// the whole Chrome-parity matrix.
 #[cfg(test)]
 mod abspos_self_align_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn abs_at(sheet: &str) -> (f32, f32) {
         let html = r#"<html><body><div id="c"><div id="abs"></div></div></body></html>"#;
@@ -462,7 +574,13 @@ mod abspos_self_align_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (rects, _, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         let hits: Vec<(f32, f32)> = rects
             .values()
@@ -493,12 +611,36 @@ mod abspos_self_align_tests {
     fn flex_align_self_overrides_container_align_items() {
         // ai=flex-start on the container; the child's own align-self must
         // win the cross axis. Before: all four landed at (170, 0).
-        assert_eq!(abs_at(&flex_sheet("justify-content: center; align-items: flex-start", "align-self: flex-start")), (170.0, 0.0));
-        assert_eq!(abs_at(&flex_sheet("justify-content: center; align-items: flex-start", "align-self: center")), (170.0, 80.0));
-        assert_eq!(abs_at(&flex_sheet("justify-content: center; align-items: flex-start", "align-self: flex-end")), (170.0, 160.0));
+        assert_eq!(
+            abs_at(&flex_sheet(
+                "justify-content: center; align-items: flex-start",
+                "align-self: flex-start"
+            )),
+            (170.0, 0.0)
+        );
+        assert_eq!(
+            abs_at(&flex_sheet(
+                "justify-content: center; align-items: flex-start",
+                "align-self: center"
+            )),
+            (170.0, 80.0)
+        );
+        assert_eq!(
+            abs_at(&flex_sheet(
+                "justify-content: center; align-items: flex-start",
+                "align-self: flex-end"
+            )),
+            (170.0, 160.0)
+        );
         // Stretch degenerates to start: auto insets + definite size never
         // stretch the box (CSS2 §10.3.7) — height stays 40 too.
-        assert_eq!(abs_at(&flex_sheet("justify-content: center; align-items: flex-start", "align-self: stretch")), (170.0, 0.0));
+        assert_eq!(
+            abs_at(&flex_sheet(
+                "justify-content: center; align-items: flex-start",
+                "align-self: stretch"
+            )),
+            (170.0, 0.0)
+        );
     }
 
     #[test]
@@ -508,7 +650,10 @@ mod abspos_self_align_tests {
         // here → x=0). Pinned so a future "fix" can't quietly apply it.
         for js in ["start", "center", "end"] {
             assert_eq!(
-                abs_at(&flex_sheet("justify-content: flex-start", &format!("justify-self: {js}"))),
+                abs_at(&flex_sheet(
+                    "justify-content: flex-start",
+                    &format!("justify-self: {js}")
+                )),
                 (0.0, 0.0),
                 "justify-self={js} must not move a flex item"
             );
@@ -520,8 +665,20 @@ mod abspos_self_align_tests {
         // Regression guard for the harvest path the correction rides on:
         // container-level justify-content/align-items keep working when the
         // child states no align-self.
-        assert_eq!(abs_at(&flex_sheet("justify-content: center; align-items: center", "")), (170.0, 80.0));
-        assert_eq!(abs_at(&flex_sheet("justify-content: flex-end; align-items: flex-end", "")), (340.0, 160.0));
+        assert_eq!(
+            abs_at(&flex_sheet(
+                "justify-content: center; align-items: center",
+                ""
+            )),
+            (170.0, 80.0)
+        );
+        assert_eq!(
+            abs_at(&flex_sheet(
+                "justify-content: flex-end; align-items: flex-end",
+                ""
+            )),
+            (340.0, 160.0)
+        );
     }
 
     #[test]
@@ -540,7 +697,10 @@ mod abspos_self_align_tests {
         // Alignment subjects resolve inside the margin box: flex-start puts
         // the margin edge at the content edge.
         assert_eq!(
-            abs_at(&flex_sheet("justify-content: center", "align-self: flex-start; margin-top: 20px")),
+            abs_at(&flex_sheet(
+                "justify-content: center",
+                "align-self: flex-start; margin-top: 20px"
+            )),
             (170.0, 20.0)
         );
     }
@@ -549,12 +709,23 @@ mod abspos_self_align_tests {
     fn grid_self_alignment_matrix() {
         // The full 4×4 justify-self × align-self matrix against the grid
         // container's content box. Before: every combo sat at (0, 0).
-        let x_of = |js: &str| match js { "center" => 170.0, "end" => 340.0, _ => 0.0 };
-        let y_of = |aslf: &str| match aslf { "center" => 80.0, "end" => 160.0, _ => 0.0 };
+        let x_of = |js: &str| match js {
+            "center" => 170.0,
+            "end" => 340.0,
+            _ => 0.0,
+        };
+        let y_of = |aslf: &str| match aslf {
+            "center" => 80.0,
+            "end" => 160.0,
+            _ => 0.0,
+        };
         for js in ["start", "center", "end", "stretch"] {
             for aslf in ["start", "center", "end", "stretch"] {
                 assert_eq!(
-                    abs_at(&grid_sheet(&format!("justify-self: {js}; align-self: {aslf}"), "")),
+                    abs_at(&grid_sheet(
+                        &format!("justify-self: {js}; align-self: {aslf}"),
+                        ""
+                    )),
                     (x_of(js), y_of(aslf)),
                     "grid js={js} as={aslf}"
                 );
@@ -587,9 +758,9 @@ mod abspos_self_align_tests {
 
 #[cfg(test)]
 mod paint_token_memo_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     /// The collection walk hands each Run leaf's measure-time wrap tokens to
     /// its Text paint item (obscura#983's paint half): identity maps carry
@@ -604,7 +775,13 @@ mod paint_token_memo_tests {
             let rules = parse_stylesheet_for(sheet, (1280.0, 800.0), CssMediaType::Screen);
             let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
             let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-                &tree, &styles, &crate::diting_fonts::font_book(), 1280.0, 800.0, None, None,
+                &tree,
+                &styles,
+                &crate::diting_fonts::font_book(),
+                1280.0,
+                800.0,
+                None,
+                None,
             );
             items
         };
@@ -613,15 +790,27 @@ mod paint_token_memo_tests {
             items
                 .iter()
                 .filter_map(|it| match it {
-                    PaintItem::Text { text, tokens, .. } if text.contains("淘宝") => Some(tokens.is_some()),
+                    PaintItem::Text { text, tokens, .. } if text.contains("淘宝") => {
+                        Some(tokens.is_some())
+                    }
                     _ => None,
                 })
                 .collect()
         };
-        let got = runs(&collect_items("p { font-size: 16px; text-decoration: underline; }"));
-        assert!(!got.is_empty() && got.iter().all(|&t| t), "unscaled run carries tokens: {got:?}");
-        let scaled = runs(&collect_items("p { font-size: 16px; text-decoration: underline; transform: scale(2); }"));
-        assert!(!scaled.is_empty() && scaled.iter().all(|&t| !t), "scaled run drops tokens: {scaled:?}");
+        let got = runs(&collect_items(
+            "p { font-size: 16px; text-decoration: underline; }",
+        ));
+        assert!(
+            !got.is_empty() && got.iter().all(|&t| t),
+            "unscaled run carries tokens: {got:?}"
+        );
+        let scaled = runs(&collect_items(
+            "p { font-size: 16px; text-decoration: underline; transform: scale(2); }",
+        ));
+        assert!(
+            !scaled.is_empty() && scaled.iter().all(|&t| !t),
+            "scaled run drops tokens: {scaled:?}"
+        );
     }
 }
 
@@ -668,11 +857,13 @@ mod run_token_memo_tests {
         .unwrap()
     }
 
-    fn text_page() -> (TaffyTree<TextLeaf>, taffy::tree::NodeId, Vec<taffy::tree::NodeId>) {
+    fn text_page() -> (
+        TaffyTree<TextLeaf>,
+        taffy::tree::NodeId,
+        Vec<taffy::tree::NodeId>,
+    ) {
         let mut tree = TaffyTree::new();
-        let kids: Vec<taffy::tree::NodeId> = (0..40)
-            .map(|s| paragraph(&mut tree, s))
-            .collect();
+        let kids: Vec<taffy::tree::NodeId> = (0..40).map(|s| paragraph(&mut tree, s)).collect();
         let root = tree
             .new_with_children(
                 Style {
@@ -697,13 +888,39 @@ mod run_token_memo_tests {
         width: AvailableSpace,
         calls: &AtomicUsize,
     ) {
-        let space = taffy::geometry::Size { width, height: AvailableSpace::MaxContent };
+        let space = taffy::geometry::Size {
+            width,
+            height: AvailableSpace::MaxContent,
+        };
         tree.compute_layout_with_measure(root, space, |inputs, _id, ctx, style| {
             calls.fetch_add(1, Ordering::Relaxed);
             match ctx {
-                Some(TextLeaf::Run { text, font_size, bold, line_height, baseline_shift, mono, word_spacing, ws, tokens, small_caps, .. }) => {
+                Some(TextLeaf::Run {
+                    text,
+                    font_size,
+                    bold,
+                    line_height,
+                    baseline_shift,
+                    mono,
+                    word_spacing,
+                    ws,
+                    tokens,
+                    small_caps,
+                    ..
+                }) => {
                     let pad = shift_pad(*baseline_shift, leaf_descent(fonts, *font_size, *bold));
-                    let shaped = run_tokens(text, *font_size, *bold, fonts, *mono, *word_spacing, *ws, tokens, *small_caps, None);
+                    let shaped = run_tokens(
+                        text,
+                        *font_size,
+                        *bold,
+                        fonts,
+                        *mono,
+                        *word_spacing,
+                        *ws,
+                        tokens,
+                        *small_caps,
+                        None,
+                    );
                     measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, None)
                 }
                 _ => taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO),
@@ -720,9 +937,18 @@ mod run_token_memo_tests {
         let (mut tree, root, leaves) = text_page();
         let calls = AtomicUsize::new(0);
         let t0 = Instant::now();
-        solve(&mut tree, root, &fonts, AvailableSpace::Definite(800.0), &calls);
-        eprintln!("first solve of 40x8-token CJK runs ({} measure calls): {:?}",
-            calls.load(Ordering::Relaxed), t0.elapsed());
+        solve(
+            &mut tree,
+            root,
+            &fonts,
+            AvailableSpace::Definite(800.0),
+            &calls,
+        );
+        eprintln!(
+            "first solve of 40x8-token CJK runs ({} measure calls): {:?}",
+            calls.load(Ordering::Relaxed),
+            t0.elapsed()
+        );
         // A plain re-solve is served from taffy's cache (zero measure calls,
         // ~1ms) — the memo's win is only visible on a dirty tree, the shape
         // of every real style/attr mutation re-layout.
@@ -731,9 +957,18 @@ mod run_token_memo_tests {
         }
         let before = calls.load(Ordering::Relaxed);
         let t1 = Instant::now();
-        solve(&mut tree, root, &fonts, AvailableSpace::Definite(800.0), &calls);
-        eprintln!("forced re-solve ({} measure calls, each re-shaped every token before the memo): {:?}",
-            calls.load(Ordering::Relaxed) - before, t1.elapsed());
+        solve(
+            &mut tree,
+            root,
+            &fonts,
+            AvailableSpace::Definite(800.0),
+            &calls,
+        );
+        eprintln!(
+            "forced re-solve ({} measure calls, each re-shaped every token before the memo): {:?}",
+            calls.load(Ordering::Relaxed) - before,
+            t1.elapsed()
+        );
         let h = tree.layout(root).map(|l| l.size.height).unwrap_or(0.0);
         assert!(h > 0.0, "text page must lay out to a positive height");
     }
@@ -743,14 +978,26 @@ mod run_token_memo_tests {
         let (mut tree, root, leaves) = text_page();
         let fonts = crate::diting_fonts::font_book();
         let calls = AtomicUsize::new(0);
-        solve(&mut tree, root, &fonts, AvailableSpace::Definite(800.0), &calls);
+        solve(
+            &mut tree,
+            root,
+            &fonts,
+            AvailableSpace::Definite(800.0),
+            &calls,
+        );
         // A dirty re-solve re-enters the measure closure for every leaf —
         // the memo must be populated and stay populated (every probe after
         // the first clones the Rc instead of re-shaping).
         for id in &leaves {
             let _ = tree.mark_dirty(*id);
         }
-        solve(&mut tree, root, &fonts, AvailableSpace::Definite(800.0), &calls);
+        solve(
+            &mut tree,
+            root,
+            &fonts,
+            AvailableSpace::Definite(800.0),
+            &calls,
+        );
         for id in &leaves {
             match tree.get_node_context(*id) {
                 Some(TextLeaf::Run { tokens, .. }) => assert!(tokens.borrow().is_some()),
@@ -766,9 +1013,9 @@ mod box_shadow_paint_tests {
     // UNDER the element's own background, inset layers one per layer
     // ABOVE it (still under the border) — both emit orders reversed
     // (first-declared layer paints on top).
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn items(sheet: &str, body: &str) -> Vec<PaintItem> {
         let html = format!("<html><body>{body}</body></html>");
@@ -776,7 +1023,13 @@ mod box_shadow_paint_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
     }
@@ -794,12 +1047,21 @@ mod box_shadow_paint_tests {
             .map(|(i, _)| i)
             .collect();
         assert_eq!(at.len(), 2);
-        assert!(matches!(&items[at[0]], PaintItem::BoxShadow { dx, .. } if *dx == 2.0), "reversed: green first");
-        assert!(matches!(&items[at[1]], PaintItem::BoxShadow { dx, .. } if *dx == 1.0), "red second");
+        assert!(
+            matches!(&items[at[0]], PaintItem::BoxShadow { dx, .. } if *dx == 2.0),
+            "reversed: green first"
+        );
+        assert!(
+            matches!(&items[at[1]], PaintItem::BoxShadow { dx, .. } if *dx == 1.0),
+            "red second"
+        );
         let bg = items
             .iter()
             .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0, 0, 255, 255]));
-        assert!(bg.is_some_and(|b| at.iter().all(|s| *s < b)), "shadows under the background");
+        assert!(
+            bg.is_some_and(|b| at.iter().all(|s| *s < b)),
+            "shadows under the background"
+        );
     }
 
     #[test]
@@ -817,8 +1079,11 @@ mod box_shadow_paint_tests {
         let bg = items
             .iter()
             .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0, 0, 255, 255]));
-        let border = items.iter().position(|it| matches!(it, PaintItem::Border { .. }));
-        let (outer, inset, bg, border) = (outer.unwrap(), inset.unwrap(), bg.unwrap(), border.unwrap());
+        let border = items
+            .iter()
+            .position(|it| matches!(it, PaintItem::Border { .. }));
+        let (outer, inset, bg, border) =
+            (outer.unwrap(), inset.unwrap(), bg.unwrap(), border.unwrap());
         assert!(outer < bg, "outer shadow under the background");
         assert!(bg < inset, "inset shadow above the background");
         assert!(inset < border, "inset shadow under the border");
@@ -843,64 +1108,85 @@ mod box_shadow_paint_tests {
             .iter()
             .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [0, 0, 255, 255]));
         let (bd, outer, bg) = (bd.unwrap(), outer.unwrap(), bg.unwrap());
-        assert!(bd < outer, "backdrop filter beneath the element's own shadow");
+        assert!(
+            bd < outer,
+            "backdrop filter beneath the element's own shadow"
+        );
         assert!(bd < bg, "backdrop filter beneath its own background");
         let radii = match &items[bd] {
             PaintItem::BackdropFilter { radii, .. } => *radii,
             _ => unreachable!(),
         };
-        assert!(radii.iter().all(|r| r.0 > 0.0), "carries the clamped corner radii: {radii:?}");
+        assert!(
+            radii.iter().all(|r| r.0 > 0.0),
+            "carries the clamped corner radii: {radii:?}"
+        );
     }
 
-/// #222: a non-normal mix-blend-mode brackets the element's whole
-/// rendering — BlendBegin before its own background, BlendEnd after the
-/// subtree — and nothing emits brackets without the property.
-#[test]
-fn mix_blend_mode_brackets_the_elements_whole_rendering() {
-    let list = items(
-        "#host { width: 60px; height: 40px; background: white } \
+    /// #222: a non-normal mix-blend-mode brackets the element's whole
+    /// rendering — BlendBegin before its own background, BlendEnd after the
+    /// subtree — and nothing emits brackets without the property.
+    #[test]
+    fn mix_blend_mode_brackets_the_elements_whole_rendering() {
+        let list = items(
+            "#host { width: 60px; height: 40px; background: white } \
          #kid { width: 30px; height: 20px; background: red; mix-blend-mode: multiply }",
-        r#"<div id="host"><div id="kid"></div></div>"#,
-    );
-    let begins: Vec<usize> = list
-        .iter()
-        .enumerate()
-        .filter(|(_, it)| matches!(it, PaintItem::BlendBegin { mode: crate::diting_css::MixBlendMode::Multiply }))
-        .map(|(i, _)| i)
-        .collect();
-    let ends: Vec<usize> = list
-        .iter()
-        .enumerate()
-        .filter(|(_, it)| matches!(it, PaintItem::BlendEnd))
-        .map(|(i, _)| i)
-        .collect();
-    assert_eq!(begins.len(), 1, "exactly one blend bracket: {list:?}");
-    assert_eq!(ends.len(), 1);
-    let kid_bg = list
-        .iter()
-        .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [255, 0, 0, 255]))
-        .expect("kid background");
-    let host_bg = list
-        .iter()
-        .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [255, 255, 255, 255]))
-        .expect("host background");
-    assert!(begins[0] < kid_bg, "BlendBegin before the blended element's own ink");
-    assert!(kid_bg < ends[0], "BlendEnd after it");
-    assert!(host_bg < begins[0], "the host backdrop paints beneath the group");
+            r#"<div id="host"><div id="kid"></div></div>"#,
+        );
+        let begins: Vec<usize> = list
+            .iter()
+            .enumerate()
+            .filter(|(_, it)| {
+                matches!(
+                    it,
+                    PaintItem::BlendBegin {
+                        mode: crate::diting_css::MixBlendMode::Multiply
+                    }
+                )
+            })
+            .map(|(i, _)| i)
+            .collect();
+        let ends: Vec<usize> = list
+            .iter()
+            .enumerate()
+            .filter(|(_, it)| matches!(it, PaintItem::BlendEnd))
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(begins.len(), 1, "exactly one blend bracket: {list:?}");
+        assert_eq!(ends.len(), 1);
+        let kid_bg = list
+            .iter()
+            .position(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [255, 0, 0, 255]))
+            .expect("kid background");
+        let host_bg = list
+            .iter()
+            .position(
+                |it| matches!(it, PaintItem::Bg { color, .. } if *color == [255, 255, 255, 255]),
+            )
+            .expect("host background");
+        assert!(
+            begins[0] < kid_bg,
+            "BlendBegin before the blended element's own ink"
+        );
+        assert!(kid_bg < ends[0], "BlendEnd after it");
+        assert!(
+            host_bg < begins[0],
+            "the host backdrop paints beneath the group"
+        );
 
-    // Without the property: zero brackets on the page.
-    let plain = items(
-        "#a { width: 10px; height: 10px; background: blue }",
-        r#"<div id="a"></div>"#,
-    );
-    assert!(
-        !plain.iter().any(|it| matches!(it, PaintItem::BlendBegin { .. } | PaintItem::BlendEnd)),
-        "normal elements emit no blend brackets"
-    );
+        // Without the property: zero brackets on the page.
+        let plain = items(
+            "#a { width: 10px; height: 10px; background: blue }",
+            r#"<div id="a"></div>"#,
+        );
+        assert!(
+            !plain
+                .iter()
+                .any(|it| matches!(it, PaintItem::BlendBegin { .. } | PaintItem::BlendEnd)),
+            "normal elements emit no blend brackets"
+        );
+    }
 }
-}
-
-
 
 #[cfg(test)]
 mod white_space_pre_family_tests {
@@ -909,9 +1195,9 @@ mod white_space_pre_family_tests {
     // with white-space: normal, blank source lines own a line box, and
     // whitespace-only pre content still keeps its line (the flush_run
     // preserve gate).
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn pre_rect(body: &str) -> Rect {
         let html = format!("<html><body>{body}</body></html>");
@@ -919,44 +1205,81 @@ mod white_space_pre_family_tests {
         let rules = parse_stylesheet_for("", (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (rects, _, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
-        let pre = tree.query_selector("pre").expect("selector parse").expect("pre in body");
+        let pre = tree
+            .query_selector("pre")
+            .expect("selector parse")
+            .expect("pre in body");
         rects[&pre]
     }
 
     #[test]
     fn pre_element_stacks_hard_breaks() {
         let one = pre_rect(r#"<pre>abc</pre>"#);
-        let three = pre_rect(r#"<pre>abc
+        let three = pre_rect(
+            r#"<pre>abc
 def
-ghi</pre>"#);
-        assert!(three.height > one.height + 30.0, "two hard breaks must add two line boxes: one={} three={}", one.height, three.height);
-        assert!(one.height < three.height / 2.5, "one line is well under a third of three");
+ghi</pre>"#,
+        );
+        assert!(
+            three.height > one.height + 30.0,
+            "two hard breaks must add two line boxes: one={} three={}",
+            one.height,
+            three.height
+        );
+        assert!(
+            one.height < three.height / 2.5,
+            "one line is well under a third of three"
+        );
     }
 
     #[test]
     fn author_normal_collapses_pre_back_to_one_line() {
         let one = pre_rect(r#"<pre>abc</pre>"#);
-        let collapsed = pre_rect(r#"<pre style="white-space: normal">abc
-def</pre>"#);
-        assert_eq!(collapsed.height, one.height, "collapsed whitespace = one line box");
+        let collapsed = pre_rect(
+            r#"<pre style="white-space: normal">abc
+def</pre>"#,
+        );
+        assert_eq!(
+            collapsed.height, one.height,
+            "collapsed whitespace = one line box"
+        );
     }
 
     #[test]
     fn blank_lines_inside_pre_own_a_line_box() {
-        let two = pre_rect(r#"<pre>abc
-def</pre>"#);
-        let blank = pre_rect(r#"<pre>abc
+        let two = pre_rect(
+            r#"<pre>abc
+def</pre>"#,
+        );
+        let blank = pre_rect(
+            r#"<pre>abc
 
-def</pre>"#);
-        assert!(blank.height > two.height + 14.0, "the empty middle line takes a full line box: two={} blank={}", two.height, blank.height);
+def</pre>"#,
+        );
+        assert!(
+            blank.height > two.height + 14.0,
+            "the empty middle line takes a full line box: two={} blank={}",
+            two.height,
+            blank.height
+        );
     }
 
     #[test]
     fn whitespace_only_pre_content_keeps_a_line() {
         let r = pre_rect(r#"<pre>   </pre>"#);
-        assert!(r.height >= 16.0, "preserved spaces still paint a line box, h={}", r.height);
+        assert!(
+            r.height >= 16.0,
+            "preserved spaces still paint a line box, h={}",
+            r.height
+        );
     }
 }
 
@@ -967,19 +1290,28 @@ def</pre>"#);
 /// live.
 #[cfg(test)]
 mod sticky_tests {
-    use crate::diting_layout::{apply_sticky_to_items, sticky_axis_shift, sticky_inset_px, PaintItem, Rect};
     use crate::diting_css::Length;
+    use crate::diting_layout::{
+        apply_sticky_to_items, sticky_axis_shift, sticky_inset_px, PaintItem, Rect,
+    };
 
     fn bg(x: f32, y: f32) -> PaintItem {
         PaintItem::Bg {
-            rect: Rect { x, y, width: 10.0, height: 10.0 },
+            rect: Rect {
+                x,
+                y,
+                width: 10.0,
+                height: 10.0,
+            },
             color: [0, 0, 0, 255],
             radius: 0.0,
         }
     }
 
     fn bg_xy(it: &PaintItem) -> (f32, f32) {
-        let PaintItem::Bg { rect, .. } = it else { panic!("not a Bg") };
+        let PaintItem::Bg { rect, .. } = it else {
+            panic!("not a Bg")
+        };
         (rect.x, rect.y)
     }
 
@@ -989,7 +1321,13 @@ mod sticky_tests {
         assert_eq!(sticky_inset_px(&Length::Percent(50.0), 1000.0), 500.0);
         // calc(10% + 5px) against an 800px scrollport
         assert_eq!(
-            sticky_inset_px(&Length::Calc { percent: 10.0, px: 5.0 }, 800.0),
+            sticky_inset_px(
+                &Length::Calc {
+                    percent: 10.0,
+                    px: 5.0
+                },
+                800.0
+            ),
             85.0
         );
     }
@@ -1052,22 +1390,38 @@ mod sticky_tests {
     fn apply_translates_raw_and_folds_brackets() {
         let items = vec![
             bg(0.0, 0.0),
-            PaintItem::SetXf { xf: [2.0, 0.0, 0.0, 2.0, 50.0, 60.0] },
+            PaintItem::SetXf {
+                xf: [2.0, 0.0, 0.0, 2.0, 50.0, 60.0],
+            },
             bg(10.0, 20.0), // inside the local bracket — the matrix carries it
             PaintItem::ClearXf,
             bg(30.0, 30.0),
         ];
         let spans = vec![(0usize, 5usize, [30.0f32, 40.0f32])];
         let out = apply_sticky_to_items(&items, &spans);
-        assert_eq!(bg_xy(&out[0]), (30.0, 40.0), "outside any bracket: raw translate");
-        let PaintItem::SetXf { xf } = &out[1] else { panic!("not a SetXf") };
+        assert_eq!(
+            bg_xy(&out[0]),
+            (30.0, 40.0),
+            "outside any bracket: raw translate"
+        );
+        let PaintItem::SetXf { xf } = &out[1] else {
+            panic!("not a SetXf")
+        };
         assert_eq!(
             *xf,
             [2.0, 0.0, 0.0, 2.0, 80.0, 100.0],
             "T·M fold: e/f take the shift, linear part untouched"
         );
-        assert_eq!(bg_xy(&out[2]), (10.0, 20.0), "inside the local bracket: untouched");
-        assert_eq!(bg_xy(&out[4]), (60.0, 70.0), "after ClearXf: raw translate again");
+        assert_eq!(
+            bg_xy(&out[2]),
+            (10.0, 20.0),
+            "inside the local bracket: untouched"
+        );
+        assert_eq!(
+            bg_xy(&out[4]),
+            (60.0, 70.0),
+            "after ClearXf: raw translate again"
+        );
         // The input run is the cached one — never mutated.
         assert_eq!(bg_xy(&items[0]), (0.0, 0.0));
     }
@@ -1112,8 +1466,16 @@ mod sticky_tests {
         ];
         let out = apply_sticky_to_items(&items, &spans);
         assert_eq!(bg_xy(&out[1]).1, 48.0, "pinned head: NET ZERO total, it keeps its layout position while the port rides over it");
-        assert_eq!(bg_xy(&out[2]).1, 1648.0, "tall content travels with the scroller base");
-        assert_eq!(bg_xy(&out[0]).1, -392.0, "pre-clip item takes the scroller base only");
+        assert_eq!(
+            bg_xy(&out[2]).1,
+            1648.0,
+            "tall content travels with the scroller base"
+        );
+        assert_eq!(
+            bg_xy(&out[0]).1,
+            -392.0,
+            "pre-clip item takes the scroller base only"
+        );
     }
 }
 
@@ -1125,9 +1487,9 @@ mod sticky_tests {
 /// edge is pinned too: separators BETWEEN inline siblings must survive.
 #[cfg(test)]
 mod batch_124_leading_ws_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn text_x(body: &str, needle: &str) -> f32 {
         let html = format!("<html><body>{body}</body></html>");
@@ -1135,14 +1497,22 @@ mod batch_124_leading_ws_tests {
         let rules = parse_stylesheet_for("", (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
             .iter()
             .find_map(|it| match it {
                 // Run leaves carry the RAW node text (trimming lives in the
                 // tokens); Word leaves carry the token itself.
-                PaintItem::Text { text, x, .. } if text.trim_start().starts_with(needle) => Some(*x),
+                PaintItem::Text { text, x, .. } if text.trim_start().starts_with(needle) => {
+                    Some(*x)
+                }
                 _ => None,
             })
             .unwrap_or_else(|| {
@@ -1161,16 +1531,25 @@ mod batch_124_leading_ws_tests {
     fn leading_ws_at_ifc_start_is_trimmed_mixed_run() {
         // takumi#1489's exact shape: newline+indent text node, then a span.
         let flush = text_x(r#"<p id="f">Due <span>x</span></p>"#, "Due");
-        let indented = text_x(r#"<p id="i">
-  Due <span>x</span></p>"#, "Due");
-        assert_eq!(indented, flush, "newline+indent at IFC start must not shift the paragraph");
+        let indented = text_x(
+            r#"<p id="i">
+  Due <span>x</span></p>"#,
+            "Due",
+        );
+        assert_eq!(
+            indented, flush,
+            "newline+indent at IFC start must not shift the paragraph"
+        );
     }
 
     #[test]
     fn leading_ws_at_ifc_start_is_trimmed_pure_text() {
         let flush = text_x(r#"<p>Due</p>"#, "Due");
-        let indented = text_x(r#"<p>
-  Due</p>"#, "Due");
+        let indented = text_x(
+            r#"<p>
+  Due</p>"#,
+            "Due",
+        );
         assert_eq!(indented, flush);
     }
 
@@ -1180,7 +1559,10 @@ mod batch_124_leading_ws_tests {
         // mid-line whitespace — per-node trimming would glue these.
         let glued = text_x(r#"<p><span>a</span>b<span>c</span></p>"#, "b");
         let spaced = text_x(r#"<p><span>a</span> b <span>c</span></p>"#, "b");
-        assert!(spaced > glued + 2.0, "separator space must advance: glued={glued} spaced={spaced}");
+        assert!(
+            spaced > glued + 2.0,
+            "separator space must advance: glued={glued} spaced={spaced}"
+        );
     }
 
     #[test]
@@ -1189,7 +1571,10 @@ mod batch_124_leading_ws_tests {
         // of a line is removed — including the line opened by a <br>.
         let base = text_x(r#"<p>abc<br>def</p>"#, "def");
         let spaced = text_x(r#"<p>abc<br> def</p>"#, "def");
-        assert_eq!(spaced, base, "space after <br> opens the next line and must be removed");
+        assert_eq!(
+            spaced, base,
+            "space after <br> opens the next line and must be removed"
+        );
     }
 
     /// #146: Chrome's trailing-`<br>` line-box accounting, pinned against
@@ -1203,11 +1588,18 @@ mod batch_124_leading_ws_tests {
     fn br_line_boxes_match_the_chrome_matrix() {
         use crate::diting_layout::{compute_styles, layout_dom};
         fn div_height(body: &str) -> f32 {
-            let html = format!(r#"<html><body style="margin:0"><div id="d">{body}</div></body></html>"#);
+            let html =
+                format!(r#"<html><body style="margin:0"><div id="d">{body}</div></body></html>"#);
             let tree = parse_html(&html);
             let rules = parse_stylesheet_for("", (800.0, 600.0), CssMediaType::Screen);
             let styles = compute_styles(&tree, &rules, (800.0, 600.0));
-            let rects = layout_dom(&tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0);
+            let rects = layout_dom(
+                &tree,
+                &styles,
+                &crate::diting_fonts::font_book(),
+                800.0,
+                600.0,
+            );
             rects[&tree.query_selector("#d").unwrap().unwrap()].height
         }
         let line = div_height("a");
@@ -1217,14 +1609,26 @@ mod batch_124_leading_ws_tests {
         // Content after the break is the break's own line (Chrome: 40 = 2×20).
         assert_eq!(div_height("a<br>b"), line * 2.0, "one break, two lines");
         // The EMPTY line between two breaks owns a line box (Chrome: 40).
-        assert_eq!(div_height("a<br><br>"), line * 2.0, "consecutive brs: the middle empty line exists");
+        assert_eq!(
+            div_height("a<br><br>"),
+            line * 2.0,
+            "consecutive brs: the middle empty line exists"
+        );
         // A br-only block is one line tall (Chrome: 20) — the rich-text
         // empty-paragraph shape <p><br></p>.
         assert_eq!(div_height("<br>"), line, "br-only block keeps one line box");
         // Collapsible whitespace after the br is not content (Chrome: 20).
-        assert_eq!(div_height("<br> "), line, "ws after br does not open a second line");
+        assert_eq!(
+            div_height("<br> "),
+            line,
+            "ws after br does not open a second line"
+        );
         // All-break content: every br owns its line (Chrome <br><br> = 40).
-        assert_eq!(div_height("<br><br>"), line * 2.0, "two standalone brs stack two empty lines");
+        assert_eq!(
+            div_height("<br><br>"),
+            line * 2.0,
+            "two standalone brs stack two empty lines"
+        );
         // The empty line's height rides the BR's own inherited line-height
         // (lh:3 → the strut is 3em, not the 1.2 default). Block-level p so
         // the strut stacks in p's own flow instead of hoisting into a run.
@@ -1243,17 +1647,33 @@ mod batch_124_leading_ws_tests {
     fn display_none_br_contributes_no_line() {
         use crate::diting_layout::{compute_styles, layout_dom};
         fn div_height(sheet: &str, body: &str) -> f32 {
-            let html = format!(r#"<html><head><style>{sheet}</style></head><body style="margin:0"><div id="d">{body}</div></body></html>"#);
+            let html = format!(
+                r#"<html><head><style>{sheet}</style></head><body style="margin:0"><div id="d">{body}</div></body></html>"#
+            );
             let tree = parse_html(&html);
             let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
             let styles = compute_styles(&tree, &rules, (800.0, 600.0));
-            let rects = layout_dom(&tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0);
+            let rects = layout_dom(
+                &tree,
+                &styles,
+                &crate::diting_fonts::font_book(),
+                800.0,
+                600.0,
+            );
             rects[&tree.query_selector("#d").unwrap().unwrap()].height
         }
         let one = div_height("", "a");
-        assert_eq!(div_height("", "a<br style='display:none'>"), one, "hidden br adds no line");
+        assert_eq!(
+            div_height("", "a<br style='display:none'>"),
+            one,
+            "hidden br adds no line"
+        );
         // A standalone hidden br owns no line box either.
-        assert_eq!(div_height("", "<br style='display:none'>"), 0.0, "hidden br-only block is 0-height");
+        assert_eq!(
+            div_height("", "<br style='display:none'>"),
+            0.0,
+            "hidden br-only block is 0-height"
+        );
     }
 }
 
@@ -1267,9 +1687,9 @@ mod batch_124_leading_ws_tests {
 /// text bands so glyphs stay uncovered.
 #[cfg(test)]
 mod batch_125_inline_fragment_deco_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn items(sheet: &str, body: &str) -> Vec<PaintItem> {
         let html = format!("<html><body>{body}</body></html>");
@@ -1277,16 +1697,26 @@ mod batch_125_inline_fragment_deco_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
     }
 
-    const WRAP_BODY: &str = r#"<p id="p"><span id="s">alpha beta gamma delta epsilon zeta eta theta</span></p>"#;
+    const WRAP_BODY: &str =
+        r#"<p id="p"><span id="s">alpha beta gamma delta epsilon zeta eta theta</span></p>"#;
 
     #[test]
     fn solid_bg_wrapping_span_paints_per_line_bands() {
-        let items = items("#p { width: 200px } #s { background: rgb(255,0,0) }", WRAP_BODY);
+        let items = items(
+            "#p { width: 200px } #s { background: rgb(255,0,0) }",
+            WRAP_BODY,
+        );
         let bands: Vec<&Rect> = items
             .iter()
             .filter_map(|it| match it {
@@ -1294,9 +1724,14 @@ mod batch_125_inline_fragment_deco_tests {
                 _ => None,
             })
             .collect();
-        assert!(bands.len() >= 2, "one Bg per line fragment, got {}", bands.len());
+        assert!(
+            bands.len() >= 2,
+            "one Bg per line fragment, got {}",
+            bands.len()
+        );
         let ys: Vec<f32> = bands.iter().map(|r| r.y).collect();
-        ys.windows(2).for_each(|w| assert!(w[1] > w[0], "bands stack line by line: {ys:?}"));
+        ys.windows(2)
+            .for_each(|w| assert!(w[1] > w[0], "bands stack line by line: {ys:?}"));
     }
 
     #[test]
@@ -1318,7 +1753,9 @@ mod batch_125_inline_fragment_deco_tests {
             grads.len()
         );
         assert!(
-            grads.windows(2).all(|w| w[0].x == w[1].x && w[0].width == w[1].width),
+            grads
+                .windows(2)
+                .all(|w| w[0].x == w[1].x && w[0].width == w[1].width),
             "all fragments sample ONE union rect (continuous strip): {grads:?}"
         );
         // Each gradient is bracketed Clip(band) … PopClip, and the clip
@@ -1326,14 +1763,20 @@ mod batch_125_inline_fragment_deco_tests {
         let band_rects: Vec<Rect> = items
             .windows(3)
             .filter_map(|w| match (&w[0], &w[1], &w[2]) {
-                (PaintItem::Clip { rect: c }, PaintItem::BgGradient { rect, .. }, PaintItem::PopClip) => {
-                    Some((*c, *rect))
-                }
+                (
+                    PaintItem::Clip { rect: c },
+                    PaintItem::BgGradient { rect, .. },
+                    PaintItem::PopClip,
+                ) => Some((*c, *rect)),
                 _ => None,
             })
             .map(|(c, _)| c)
             .collect();
-        assert_eq!(band_rects.len(), grads.len(), "every gradient rides a Clip bracket");
+        assert_eq!(
+            band_rects.len(),
+            grads.len(),
+            "every gradient rides a Clip bracket"
+        );
         assert!(
             band_rects.iter().any(|b| b.width < grads[0].width),
             "at least one fragment is narrower than the union: {band_rects:?} vs {:?}",
@@ -1351,13 +1794,26 @@ mod batch_125_inline_fragment_deco_tests {
         let _styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let mut tt = TaffyTree::<TextLeaf>::new();
         let leaves = build_word_leaves(
-            "hello AB", 16.0, false, [0, 0, 0, 255], 20.0, TextDecorations::default(),
-            0.0, false, 0.0, true, None, &crate::diting_fonts::font_book(), &mut tt,
+            "hello AB",
+            16.0,
+            false,
+            [0, 0, 0, 255],
+            20.0,
+            TextDecorations::default(),
+            0.0,
+            false,
+            0.0,
+            true,
+            None,
+            &crate::diting_fonts::font_book(),
+            &mut tt,
         );
         let got: Vec<(String, f32)> = leaves
             .iter()
             .filter_map(|id| match tt.get_node_context(*id) {
-                Some(TextLeaf::Word { text, font_size, .. }) => Some((text.clone(), *font_size)),
+                Some(TextLeaf::Word {
+                    text, font_size, ..
+                }) => Some((text.clone(), *font_size)),
                 _ => None,
             })
             .collect();
@@ -1375,7 +1831,10 @@ mod batch_125_inline_fragment_deco_tests {
 
     #[test]
     fn border_wrapping_span_slice_edges() {
-        let items = items("#p { width: 200px } #s { border: 4px solid rgb(255,0,0) }", WRAP_BODY);
+        let items = items(
+            "#p { width: 200px } #s { border: 4px solid rgb(255,0,0) }",
+            WRAP_BODY,
+        );
         let strips: Vec<Rect> = items
             .iter()
             .filter_map(|it| match it {
@@ -1392,14 +1851,28 @@ mod batch_125_inline_fragment_deco_tests {
         let vertical: Vec<&Rect> = strips.iter().filter(|r| r.width <= r.height).collect();
         // Slice: top+bottom per fragment (so an even count >= 4 = 2 bands),
         // exactly ONE left and ONE right edge.
-        assert!(horizontal.len() >= 4 && horizontal.len().is_multiple_of(2), "top+bottom per band: {:?}", horizontal);
-        assert_eq!(vertical.len(), 2, "slice = left only on first band, right only on last: {strips:?}");
+        assert!(
+            horizontal.len() >= 4 && horizontal.len().is_multiple_of(2),
+            "top+bottom per band: {:?}",
+            horizontal
+        );
+        assert_eq!(
+            vertical.len(),
+            2,
+            "slice = left only on first band, right only on last: {strips:?}"
+        );
         let xs: Vec<f32> = vertical.iter().map(|r| r.x).collect();
         let min_x = strips.iter().map(|r| r.x).fold(f32::INFINITY, f32::min);
-        assert!(xs.contains(&min_x), "left edge opens the inline: {xs:?} vs min {min_x}");
+        assert!(
+            xs.contains(&min_x),
+            "left edge opens the inline: {xs:?} vs min {min_x}"
+        );
         // The inline CLOSES at the LAST fragment's right edge (later lines
         // are typically shorter — the right edge is not the union's max).
-        let last_bottom = horizontal.iter().max_by(|a, b| a.y.total_cmp(&b.y)).unwrap();
+        let last_bottom = horizontal
+            .iter()
+            .max_by(|a, b| a.y.total_cmp(&b.y))
+            .unwrap();
         assert!(
             vertical
                 .iter()
@@ -1412,7 +1885,10 @@ mod batch_125_inline_fragment_deco_tests {
     // band guard checked bg/gradient/border but not shadows.
     #[test]
     fn shadow_only_wrapping_span_paints_per_fragment() {
-        let items = items("#p { width: 200px } #s { box-shadow: 6px 6px 0 rgb(255,0,0) }", WRAP_BODY);
+        let items = items(
+            "#p { width: 200px } #s { box-shadow: 6px 6px 0 rgb(255,0,0) }",
+            WRAP_BODY,
+        );
         let shadows: Vec<&PaintItem> = items
             .iter()
             .filter(|it| matches!(it, PaintItem::BoxShadow { inset: false, .. }))
@@ -1425,7 +1901,13 @@ mod batch_125_inline_fragment_deco_tests {
         let rects: Vec<Rect> = shadows
             .iter()
             .filter_map(|it| match it {
-                PaintItem::BoxShadow { rect, dx, dy, color, .. } => {
+                PaintItem::BoxShadow {
+                    rect,
+                    dx,
+                    dy,
+                    color,
+                    ..
+                } => {
                     assert_eq!(*color, [255, 0, 0, 255]);
                     assert!((*dx - 6.0).abs() < 0.01 && (*dy - 6.0).abs() < 0.01);
                     Some(*rect)
@@ -1434,7 +1916,8 @@ mod batch_125_inline_fragment_deco_tests {
             })
             .collect();
         let ys: Vec<f32> = rects.iter().map(|r| r.y).collect();
-        ys.windows(2).for_each(|w| assert!(w[1] > w[0], "shadow fragments stack line by line: {ys:?}"));
+        ys.windows(2)
+            .for_each(|w| assert!(w[1] > w[0], "shadow fragments stack line by line: {ys:?}"));
     }
 
     // #26: border-radius on a wrapping span — box-decoration-break: slice.
@@ -1452,7 +1935,9 @@ mod batch_125_inline_fragment_deco_tests {
         let rounded: Vec<f32> = single_line
             .iter()
             .filter_map(|it| match it {
-                PaintItem::Bg { radius, color, .. } if *color == [250, 204, 21, 255] => Some(*radius),
+                PaintItem::Bg { radius, color, .. } if *color == [250, 204, 21, 255] => {
+                    Some(*radius)
+                }
                 _ => None,
             })
             .collect();
@@ -1478,12 +1963,26 @@ mod batch_125_inline_fragment_deco_tests {
             corners
         );
         // First fragment: TL/BL rounded (left), TR/BR square.
-        assert!(corners[0][0].0 > 0.0 && corners[0][3].0 > 0.0, "first band left corners: {:?}", corners[0]);
-        assert!(corners[0][1].0 == 0.0 && corners[0][2].0 == 0.0, "first band right corners square: {:?}", corners[0]);
+        assert!(
+            corners[0][0].0 > 0.0 && corners[0][3].0 > 0.0,
+            "first band left corners: {:?}",
+            corners[0]
+        );
+        assert!(
+            corners[0][1].0 == 0.0 && corners[0][2].0 == 0.0,
+            "first band right corners square: {:?}",
+            corners[0]
+        );
         // Last fragment: TR/BR rounded (right), TL/BL square.
         let last = corners[corners.len() - 1];
-        assert!(last[1].0 > 0.0 && last[2].0 > 0.0, "last band right corners: {last:?}");
-        assert!(last[0].0 == 0.0 && last[3].0 == 0.0, "last band left corners square: {last:?}");
+        assert!(
+            last[1].0 > 0.0 && last[2].0 > 0.0,
+            "last band right corners: {last:?}"
+        );
+        assert!(
+            last[0].0 == 0.0 && last[3].0 == 0.0,
+            "last band left corners square: {last:?}"
+        );
         // Oversized radii clamp per fragment (Chrome's proportional
         // reduction): 12px on a ~18px line never paints as a full 12.
         assert!(
@@ -1495,7 +1994,9 @@ mod batch_125_inline_fragment_deco_tests {
         let middle: Vec<f32> = items
             .iter()
             .filter_map(|it| match it {
-                PaintItem::Bg { radius, color, .. } if *color == [250, 204, 21, 255] => Some(*radius),
+                PaintItem::Bg { radius, color, .. } if *color == [250, 204, 21, 255] => {
+                    Some(*radius)
+                }
                 _ => None,
             })
             .collect();
@@ -1515,14 +2016,19 @@ mod batch_125_inline_fragment_deco_tests {
             "#p { width: 200px } #s { background: rgb(165,243,252); border-radius: 10px; box-shadow: 2px 3px 4px rgb(0,0,200) }",
             WRAP_BODY,
         );
-        let first_shadow = items.iter().position(|it| matches!(it, PaintItem::BoxShadow { inset: false, .. }));
-        let first_bg = items
+        let first_shadow = items
             .iter()
-            .position(|it| matches!(it, PaintItem::BgCorner { color, .. } if *color == [165, 243, 252, 255]));
+            .position(|it| matches!(it, PaintItem::BoxShadow { inset: false, .. }));
+        let first_bg = items.iter().position(
+            |it| matches!(it, PaintItem::BgCorner { color, .. } if *color == [165, 243, 252, 255]),
+        );
         let (Some(s), Some(b)) = (first_shadow, first_bg) else {
             panic!("expected shadow items and rounded bg items, got {items:?}");
         };
-        assert!(s < b, "outer shadow paints below the background (block layer order)");
+        assert!(
+            s < b,
+            "outer shadow paints below the background (block layer order)"
+        );
         let n_shadow = items
             .iter()
             .filter(|it| matches!(it, PaintItem::BoxShadow { inset: false, .. }))
@@ -1531,16 +2037,24 @@ mod batch_125_inline_fragment_deco_tests {
             .iter()
             .filter(|it| matches!(it, PaintItem::BgCorner { color, .. } if *color == [165, 243, 252, 255]))
             .count();
-        assert_eq!(n_shadow, n_bg + items.iter().filter(|it| matches!(it, PaintItem::Bg { color, .. } if *color == [165, 243, 252, 255])).count(),
-            "one shadow per painted fragment");
+        assert_eq!(
+            n_shadow,
+            n_bg + items
+                .iter()
+                .filter(
+                    |it| matches!(it, PaintItem::Bg { color, .. } if *color == [165, 243, 252, 255])
+                )
+                .count(),
+            "one shadow per painted fragment"
+        );
     }
 }
 
 #[cfg(test)]
 mod container_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_full, CssMediaType, MediaOverrides};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn by_id(tree: &DomTree, id: &str) -> NodeId {
         tree.query_selector_all(&format!("#{id}")).unwrap()[0]
@@ -1591,9 +2105,18 @@ mod container_tests {
         assert_eq!(plan.extra_rules.len(), 1);
         let gates = &plan.gates[&rules.len()];
         let (i1, i2, i3) = (by_id(&tree, "i1"), by_id(&tree, "i2"), by_id(&tree, "i3"));
-        assert!(gates.binary_search(&i1.index()).is_ok(), "300px container passes min-width:200px");
-        assert!(gates.binary_search(&i2.index()).is_err(), "100px container fails");
-        assert!(gates.binary_search(&i3.index()).is_err(), "no container ancestor, no gate");
+        assert!(
+            gates.binary_search(&i1.index()).is_ok(),
+            "300px container passes min-width:200px"
+        );
+        assert!(
+            gates.binary_search(&i2.index()).is_err(),
+            "100px container fails"
+        );
+        assert!(
+            gates.binary_search(&i3.index()).is_err(),
+            "no container ancestor, no gate"
+        );
 
         // The gated cascade is what makes that plan visible in styles.
         let mut full_rules = rules.clone();
@@ -1608,9 +2131,18 @@ mod container_tests {
             &plan.gates,
             (1280.0, 720.0),
         );
-        assert_eq!(styles[&i1].color, Some(crate::diting_css::Color(255, 0, 0, 255)));
-        assert_eq!(styles[&i2].color, Some(crate::diting_css::Color(0, 0, 255, 255)));
-        assert_eq!(styles[&i3].color, Some(crate::diting_css::Color(0, 0, 255, 255)));
+        assert_eq!(
+            styles[&i1].color,
+            Some(crate::diting_css::Color(255, 0, 0, 255))
+        );
+        assert_eq!(
+            styles[&i2].color,
+            Some(crate::diting_css::Color(0, 0, 255, 255))
+        );
+        assert_eq!(
+            styles[&i3].color,
+            Some(crate::diting_css::Color(0, 0, 255, 255))
+        );
     }
 
     #[test]
@@ -1629,7 +2161,10 @@ mod container_tests {
             gates.binary_search(&a.index()).is_ok(),
             "named lookup walks PAST the nearer anonymous 100px container to the 400px 'side' one"
         );
-        assert!(gates.binary_search(&b.index()).is_err(), "no 'side' ancestor at all");
+        assert!(
+            gates.binary_search(&b.index()).is_err(),
+            "no 'side' ancestor at all"
+        );
     }
 
     #[test]
@@ -1659,11 +2194,18 @@ mod container_tests {
             bake_container_units("padding: 2.5cqi", 300.0, 200.0),
             "padding: 7.500px",
         );
-        assert_eq!(bake_container_units("margin: -10cqb", 300.0, 200.0), "margin: -20px");
+        assert_eq!(
+            bake_container_units("margin: -10cqb", 300.0, 200.0),
+            "margin: -20px"
+        );
         // Non-container units and digit+letter runs (hex colors, asset names)
         // pass through byte-identical.
         assert_eq!(
-            bake_container_units(".b { width: 30px; color: #a1b2c3; background: url(logo-2x.png) }", 300.0, 200.0),
+            bake_container_units(
+                ".b { width: 30px; color: #a1b2c3; background: url(logo-2x.png) }",
+                300.0,
+                200.0
+            ),
             ".b { width: 30px; color: #a1b2c3; background: url(logo-2x.png) }",
         );
     }
@@ -1780,9 +2322,9 @@ mod float_continuation_tests {
 /// giant values (height + margin, both 3e38) never overflow to inf.
 #[cfg(test)]
 mod finite_giant_values_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     #[test]
     fn giant_finite_lengths_resolve_to_finite_geometry() {
@@ -1795,12 +2337,23 @@ mod finite_giant_values_tests {
         let rules = parse_stylesheet_for("", (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (800.0, 600.0));
         let (rects, _, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         assert!(
-            rects.values().all(|r| r.width.is_finite() && r.height.is_finite()),
+            rects
+                .values()
+                .all(|r| r.width.is_finite() && r.height.is_finite()),
             "sums of giant values must clamp, not overflow: {:?}",
-            rects.values().filter(|r| !r.height.is_finite()).collect::<Vec<_>>()
+            rects
+                .values()
+                .filter(|r| !r.height.is_finite())
+                .collect::<Vec<_>>()
         );
     }
 }
@@ -1815,17 +2368,26 @@ mod anon_cell_stale_key_tests {
     // pass's parent() on every layout rebuild. The merge must only unwrap
     // kids that are actually registered run wrappers.
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
-    use crate::diting_layout::compute_styles;
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::compute_styles;
     use crate::diting_layout::layout_dom_with_paint_order_and_images;
 
-    fn layout(sheet: &str, body: &str) -> std::collections::HashMap<crate::diting_dom::tree::NodeId, (f32, f32, f32, f32)> {
+    fn layout(
+        sheet: &str,
+        body: &str,
+    ) -> std::collections::HashMap<crate::diting_dom::tree::NodeId, (f32, f32, f32, f32)> {
         let html = format!("<html><body>{body}</body></html>");
         let tree = parse_html(&html);
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (1280.0, 720.0));
         let (rects, _, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         rects
             .into_iter()
@@ -1848,10 +2410,16 @@ mod anon_cell_stale_key_tests {
             "body { margin: 0 }",
             r#"<div style="display: table"><div style="display: table-row">hello<textarea style="position: absolute; top: 5px; left: 7px; width: 40px; height: 20px"></textarea></div></div>"#,
         );
-        let ta: Vec<_> = rects.values().filter(|(_, _, w, h)| *w == 40.0 && *h == 20.0).collect();
+        let ta: Vec<_> = rects
+            .values()
+            .filter(|(_, _, w, h)| *w == 40.0 && *h == 20.0)
+            .collect();
         assert_eq!(ta.len(), 1, "textarea box missing from layout: {rects:?}");
         let (x, y, _, _) = ta[0];
-        assert!((x - 7.0).abs() <= 1.0 && (y - 5.0).abs() <= 1.0, "abs insets not honored: {x},{y}");
+        assert!(
+            (x - 7.0).abs() <= 1.0 && (y - 5.0).abs() <= 1.0,
+            "abs insets not honored: {x},{y}"
+        );
     }
 
     #[test]
@@ -1863,7 +2431,10 @@ mod anon_cell_stale_key_tests {
             "body { margin: 0 }",
             r#"<div style="display: table"><div style="display: table-row">hi<span style="position: absolute; top: 3px; left: 4px; width: 30px; height: 12px"></span></div></div>"#,
         );
-        let sp: Vec<_> = rects.values().filter(|(_, _, w, h)| *w == 30.0 && *h == 12.0).collect();
+        let sp: Vec<_> = rects
+            .values()
+            .filter(|(_, _, w, h)| *w == 30.0 && *h == 12.0)
+            .collect();
         assert_eq!(sp.len(), 1, "abs inline box missing from layout: {rects:?}");
     }
 }
@@ -1902,7 +2473,10 @@ mod inline_block_interior_tests {
             "body { margin: 0 } #row { width: 750px }",
             "#wrap",
         );
-        assert!((w - 250.0).abs() <= 1.0, "block width:auto must fill the inline-block; got w={w}");
+        assert!(
+            (w - 250.0).abs() <= 1.0,
+            "block width:auto must fill the inline-block; got w={w}"
+        );
     }
 
     #[test]
@@ -1916,19 +2490,24 @@ mod inline_block_interior_tests {
             "body { margin: 0 }",
             "#wrap",
         );
-        assert!((w - 250.0).abs() <= 1.0, "childless block must not collapse; got w={w}");
+        assert!(
+            (w - 250.0).abs() <= 1.0,
+            "childless block must not collapse; got w={w}"
+        );
     }
 
     #[test]
     fn block_children_stack_vertically() {
         // Two blocks inside one inline-block stack (BFC block flow), they
         // must not end up side-by-side row items.
-        let tree = parse_html(r#"<html><body>
+        let tree = parse_html(
+            r#"<html><body>
             <span id="shell" style="display: inline-block; width: 250px">
                 <div id="a" style="height: 30px">a</div>
                 <div id="b" style="height: 30px">b</div>
             </span>
-        </body></html>"#);
+        </body></html>"#,
+        );
         let rules = parse_stylesheet_for("body { margin: 0 }", (VW, 800.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (VW, 800.0));
         let rects = layout_dom(&tree, &styles, &crate::diting_fonts::font_book(), VW, 800.0);
@@ -1972,7 +2551,10 @@ mod inline_block_interior_tests {
         </div></body></html>"#;
         for sel in ["#c1", "#c2", "#c3"] {
             let (_x, _y, w, _h) = rect(html, sheet, sel);
-            assert!((w - 250.0).abs() <= 1.0, "{sel} must be 250 wide; got w={w}");
+            assert!(
+                (w - 250.0).abs() <= 1.0,
+                "{sel} must be 250 wide; got w={w}"
+            );
         }
     }
 }
@@ -2012,7 +2594,10 @@ mod block_in_inline_tests {
             "body { margin: 0 }",
             "#art",
         );
-        assert!((w - 740.0).abs() <= 1.0, "article must fill the 740px container; got w={w}");
+        assert!(
+            (w - 740.0).abs() <= 1.0,
+            "article must fill the 740px container; got w={w}"
+        );
     }
 
     #[test]
@@ -2026,7 +2611,10 @@ mod block_in_inline_tests {
             "body { margin: 0 }",
             "#blk",
         );
-        assert!((w - 600.0).abs() <= 1.0, "nested inline chain must not shrink the block; got w={w}");
+        assert!(
+            (w - 600.0).abs() <= 1.0,
+            "nested inline chain must not shrink the block; got w={w}"
+        );
     }
 
     #[test]
@@ -2057,7 +2645,10 @@ mod block_in_inline_tests {
             "body { margin: 0 }",
             "#im",
         );
-        assert!((iw - 40.0).abs() <= 1.0 && (ih - 20.0).abs() <= 1.0, "img keeps its authored box; got {iw}x{ih}");
+        assert!(
+            (iw - 40.0).abs() <= 1.0 && (ih - 20.0).abs() <= 1.0,
+            "img keeps its authored box; got {iw}x{ih}"
+        );
     }
 }
 
@@ -2092,7 +2683,10 @@ mod text_align_block_children_tests {
             "body { margin: 0 } body, p { text-align: center }",
             "#track",
         );
-        assert!((w - VW).abs() <= 1.0, "block under centered body must fill; got w={w}");
+        assert!(
+            (w - VW).abs() <= 1.0,
+            "block under centered body must fill; got w={w}"
+        );
     }
 
     #[test]
@@ -2113,7 +2707,11 @@ mod text_align_block_children_tests {
         // Alignment of the inline content itself is the promote's whole
         // point — keep it: a short text run in the centered body sits at the
         // horizontal middle, not at the left edge.
-        let rules = parse_stylesheet_for("body { text-align: center }", (VW, 800.0), CssMediaType::Screen);
+        let rules = parse_stylesheet_for(
+            "body { text-align: center }",
+            (VW, 800.0),
+            CssMediaType::Screen,
+        );
         let tree = parse_html(r#"<html><body><i id="m">.</i></body></html>"#);
         let styles = compute_styles(&tree, &rules, (VW, 800.0));
         let rects = layout_dom(&tree, &styles, &crate::diting_fonts::font_book(), VW, 800.0);
@@ -2159,7 +2757,13 @@ mod pseudo_inline_style_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (800.0, 600.0));
         let (_, items, _, _, _, _) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
     }
@@ -2168,7 +2772,9 @@ mod pseudo_inline_style_tests {
         items
             .iter()
             .filter_map(|it| match it {
-                PaintItem::Text { text, color, x, y, .. } => Some((text.clone(), *color, *x, *y)),
+                PaintItem::Text {
+                    text, color, x, y, ..
+                } => Some((text.clone(), *color, *x, *y)),
                 _ => None,
             })
             .collect()
@@ -2185,9 +2791,15 @@ mod pseudo_inline_style_tests {
         let Some((_, color, _, _)) = mark else {
             panic!("pseudo text not painted: {rs:?}");
         };
-        assert_eq!(*color, ACCENT, "diverging pseudo must paint in its own color");
+        assert_eq!(
+            *color, ACCENT,
+            "diverging pseudo must paint in its own color"
+        );
         let tail = rs.iter().find(|(t, ..)| t.contains("tail"));
-        assert!(tail.is_some_and(|(_, c, _, _)| *c != ACCENT), "host text keeps the host color: {rs:?}");
+        assert!(
+            tail.is_some_and(|(_, c, _, _)| *c != ACCENT),
+            "host text keeps the host color: {rs:?}"
+        );
     }
 
     #[test]
@@ -2199,8 +2811,16 @@ mod pseudo_inline_style_tests {
             r#"<div id="m">tail</div>"#,
         );
         let rs = runs(&items);
-        let (mx, my) = rs.iter().find(|(t, ..)| t.starts_with("MARK")).map(|(_, _, x, y)| (*x, *y)).unwrap();
-        let (tx, ty) = rs.iter().find(|(t, ..)| t.contains("tail")).map(|(_, _, x, y)| (*x, *y)).unwrap();
+        let (mx, my) = rs
+            .iter()
+            .find(|(t, ..)| t.starts_with("MARK"))
+            .map(|(_, _, x, y)| (*x, *y))
+            .unwrap();
+        let (tx, ty) = rs
+            .iter()
+            .find(|(t, ..)| t.contains("tail"))
+            .map(|(_, _, x, y)| (*x, *y))
+            .unwrap();
         assert!((my - ty).abs() < 1.0, "same line: mark y={my} tail y={ty}");
         assert!(tx >= mx, "prefix precedes the run: mark x={mx} tail x={tx}");
     }
@@ -2215,7 +2835,8 @@ mod pseudo_inline_style_tests {
         );
         let rs = runs(&items);
         assert!(
-            rs.iter().any(|(t, ..)| t.contains("• ") && t.contains("label")),
+            rs.iter()
+                .any(|(t, ..)| t.contains("• ") && t.contains("label")),
             "undeclared pseudo still merges with the run: {rs:?}"
         );
     }
@@ -2228,7 +2849,8 @@ mod pseudo_inline_style_tests {
         );
         let rs = runs(&items);
         assert!(
-            rs.iter().any(|(t, c, ..)| t.trim_start().starts_with("TAIL") && *c == ACCENT),
+            rs.iter()
+                .any(|(t, c, ..)| t.trim_start().starts_with("TAIL") && *c == ACCENT),
             "::after must keep its accent too: {rs:?}"
         );
     }
@@ -2244,7 +2866,9 @@ mod pseudo_empty_box_tests {
     // the undeclared-display overlay shape survives at all.
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
-    use crate::diting_layout::{compute_styles, layout_dom_with_paint_order_and_images, paint, PaintItem, Rect};
+    use crate::diting_layout::{
+        compute_styles, layout_dom_with_paint_order_and_images, paint, PaintItem, Rect,
+    };
 
     fn render(sheet: &str, body: &str) -> (Vec<PaintItem>, paint::Canvas) {
         let html = format!(
@@ -2254,7 +2878,13 @@ mod pseudo_empty_box_tests {
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (800.0, 600.0));
         let (_, items, ..) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         let mut canvas = paint::Canvas::new_transparent(800, 600);
         paint::execute(&items, &crate::diting_fonts::font_book(), &mut canvas);
@@ -2330,7 +2960,11 @@ mod pseudo_empty_box_tests {
             let i = (y * canvas.width + x) * 4;
             canvas.data[i..i + 4].to_vec()
         };
-        assert_eq!(px(150, 50), vec![200, 0, 0, 255], "right half inked by the overlay");
+        assert_eq!(
+            px(150, 50),
+            vec![200, 0, 0, 255],
+            "right half inked by the overlay"
+        );
         assert_eq!(px(50, 50), vec![0, 0, 0, 0], "left half untouched");
     }
 
@@ -2344,7 +2978,9 @@ mod pseudo_empty_box_tests {
             r#"<div id="m">label</div>"#,
         );
         assert!(
-            !items.iter().any(|it| matches!(it, PaintItem::Bg { .. } | PaintItem::BgGradient { .. })),
+            !items
+                .iter()
+                .any(|it| matches!(it, PaintItem::Bg { .. } | PaintItem::BgGradient { .. })),
             "inline empty pseudo paints nothing: {:?}",
             solid_bgs(&items)
         );
@@ -2463,9 +3099,9 @@ mod abspos_float_shrink_tests {
 /// execute inks the right device pixels.
 #[cfg(test)]
 mod dpr_scale_items_tests {
-    use crate::diting_layout::{paint, PaintItem};
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::{paint, PaintItem};
 
     fn collect(sheet: &str, body: &str) -> Vec<PaintItem> {
         let html = format!(
@@ -2475,7 +3111,13 @@ mod dpr_scale_items_tests {
         let rules = parse_stylesheet_for(sheet, (200.0, 100.0), CssMediaType::Screen);
         let styles = crate::diting_layout::compute_styles(&tree, &rules, (200.0, 100.0));
         let (_, items, ..) = crate::diting_layout::layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 200.0, 100.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            200.0,
+            100.0,
+            None,
+            None,
         );
         items
     }
@@ -2494,16 +3136,27 @@ mod dpr_scale_items_tests {
             PaintItem::Bg { rect, color, .. } if *color == [1, 2, 3, 255] => Some(*rect),
             _ => None,
         });
-        let Some(r) = bg else { panic!("bg missing: {scaled:?}") };
+        let Some(r) = bg else {
+            panic!("bg missing: {scaled:?}")
+        };
         assert_eq!((r.width, r.height), (100.0, 20.0), "box doubles");
         let (_text, fs, lh, wrap, tokens) = scaled
             .iter()
             .find_map(|it| match it {
-                PaintItem::Text { text, font_size, line_height, wrap_at, tokens, .. }
-                    if text.contains("折行") =>
-                {
-                    Some((text.clone(), *font_size, *line_height, *wrap_at, tokens.is_some()))
-                }
+                PaintItem::Text {
+                    text,
+                    font_size,
+                    line_height,
+                    wrap_at,
+                    tokens,
+                    ..
+                } if text.contains("折行") => Some((
+                    text.clone(),
+                    *font_size,
+                    *line_height,
+                    *wrap_at,
+                    tokens.is_some(),
+                )),
                 _ => None,
             })
             .unwrap();
@@ -2512,11 +3165,13 @@ mod dpr_scale_items_tests {
         let (fs0, lh0, wrap0) = items
             .iter()
             .find_map(|it| match it {
-                PaintItem::Text { text, font_size, line_height, wrap_at, .. }
-                    if text.contains("折行") =>
-                {
-                    Some((*font_size, *line_height, *wrap_at))
-                }
+                PaintItem::Text {
+                    text,
+                    font_size,
+                    line_height,
+                    wrap_at,
+                    ..
+                } if text.contains("折行") => Some((*font_size, *line_height, *wrap_at)),
                 _ => None,
             })
             .unwrap();
@@ -2539,30 +3194,65 @@ mod dpr_scale_items_tests {
         // the LOCAL geometry stays raw — scaling both would double-apply.
         let items = vec![
             PaintItem::Bg {
-                rect: crate::diting_layout::Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 },
+                rect: crate::diting_layout::Rect {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
                 color: [0, 0, 0, 255],
                 radius: 0.0,
             },
-            PaintItem::SetXf { xf: [2.0, 0.3, 0.0, 2.0, 50.0, 60.0] },
+            PaintItem::SetXf {
+                xf: [2.0, 0.3, 0.0, 2.0, 50.0, 60.0],
+            },
             PaintItem::Bg {
-                rect: crate::diting_layout::Rect { x: 10.0, y: 20.0, width: 5.0, height: 5.0 },
+                rect: crate::diting_layout::Rect {
+                    x: 10.0,
+                    y: 20.0,
+                    width: 5.0,
+                    height: 5.0,
+                },
                 color: [0, 0, 0, 255],
                 radius: 0.0,
             },
             PaintItem::ClearXf,
             PaintItem::Bg {
-                rect: crate::diting_layout::Rect { x: 30.0, y: 30.0, width: 10.0, height: 10.0 },
+                rect: crate::diting_layout::Rect {
+                    x: 30.0,
+                    y: 30.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
                 color: [0, 0, 0, 255],
                 radius: 0.0,
             },
         ];
         let out = paint::scale_items(&items, 2.0);
-        let PaintItem::SetXf { xf } = &out[1] else { panic!("bracket survived") };
-        assert_eq!(*xf, [4.0, 0.6, 0.0, 4.0, 100.0, 120.0], "matrix takes the scale");
-        let PaintItem::Bg { rect, .. } = &out[2] else { panic!() };
-        assert_eq!((rect.x, rect.y, rect.width, rect.height), (10.0, 20.0, 5.0, 5.0), "locals raw");
-        let PaintItem::Bg { rect, .. } = &out[4] else { panic!() };
-        assert_eq!((rect.x, rect.width), (60.0, 20.0), "after ClearXf page space scales again");
+        let PaintItem::SetXf { xf } = &out[1] else {
+            panic!("bracket survived")
+        };
+        assert_eq!(
+            *xf,
+            [4.0, 0.6, 0.0, 4.0, 100.0, 120.0],
+            "matrix takes the scale"
+        );
+        let PaintItem::Bg { rect, .. } = &out[2] else {
+            panic!()
+        };
+        assert_eq!(
+            (rect.x, rect.y, rect.width, rect.height),
+            (10.0, 20.0, 5.0, 5.0),
+            "locals raw"
+        );
+        let PaintItem::Bg { rect, .. } = &out[4] else {
+            panic!()
+        };
+        assert_eq!(
+            (rect.x, rect.width),
+            (60.0, 20.0),
+            "after ClearXf page space scales again"
+        );
     }
 
     #[test]
@@ -2582,7 +3272,11 @@ mod dpr_scale_items_tests {
         };
         // left:100 × 50 wide → device window [200, 300).
         assert_eq!(px(250, 20), vec![200, 0, 0, 255], "box center at device 2x");
-        assert_eq!(px(199, 20), vec![0, 0, 0, 0], "just left of the doubled edge");
+        assert_eq!(
+            px(199, 20),
+            vec![0, 0, 0, 0],
+            "just left of the doubled edge"
+        );
         assert_eq!(px(300, 20), vec![0, 0, 0, 0], "just right of it");
     }
 }
@@ -2597,16 +3291,19 @@ mod dpr_scale_items_tests {
 /// keep logical order.
 #[cfg(test)]
 mod direction_rtl_tests {
-    use crate::diting_layout::*;
     use crate::diting_css::{parse_stylesheet_for, CssMediaType, TextAlign, TextDirection};
     use crate::diting_dom::tree_sink::parse_html;
+    use crate::diting_layout::*;
 
     fn styles_for(
         sheet: &str,
         body: &str,
     ) -> (
         crate::diting_dom::tree::DomTree,
-        std::collections::HashMap<crate::diting_dom::tree::NodeId, crate::diting_css::ComputedStyle>,
+        std::collections::HashMap<
+            crate::diting_dom::tree::NodeId,
+            crate::diting_css::ComputedStyle,
+        >,
     ) {
         let html = format!("<html><body>{body}</body></html>");
         let tree = parse_html(&html);
@@ -2631,8 +3328,14 @@ mod direction_rtl_tests {
             "#e { direction: ltr }",
             r#"<div id="e">x</div><div id="u">y</div>"#,
         );
-        assert_eq!(styles[&tree.query_selector("#e").unwrap().unwrap()].direction, Some(TextDirection::Ltr));
-        assert_eq!(styles[&tree.query_selector("#u").unwrap().unwrap()].direction, None);
+        assert_eq!(
+            styles[&tree.query_selector("#e").unwrap().unwrap()].direction,
+            Some(TextDirection::Ltr)
+        );
+        assert_eq!(
+            styles[&tree.query_selector("#u").unwrap().unwrap()].direction,
+            None
+        );
     }
 
     #[test]
@@ -2642,8 +3345,14 @@ mod direction_rtl_tests {
             "#w { direction: ltr }",
             r#"<div id="h" dir="rtl">x</div><div id="w" dir="rtl">y</div>"#,
         );
-        assert_eq!(styles[&tree.query_selector("#h").unwrap().unwrap()].direction, Some(TextDirection::Rtl));
-        assert_eq!(styles[&tree.query_selector("#w").unwrap().unwrap()].direction, Some(TextDirection::Ltr));
+        assert_eq!(
+            styles[&tree.query_selector("#h").unwrap().unwrap()].direction,
+            Some(TextDirection::Rtl)
+        );
+        assert_eq!(
+            styles[&tree.query_selector("#w").unwrap().unwrap()].direction,
+            Some(TextDirection::Ltr)
+        );
     }
 
     #[test]
@@ -2657,13 +3366,19 @@ mod direction_rtl_tests {
                <div id="t" dir="auto">سلام</div>
                <div id="n" dir="auto">123</div>"#,
         );
-        assert_eq!(styles[&tree.query_selector("#ar").unwrap().unwrap()].direction, Some(TextDirection::Rtl));
+        assert_eq!(
+            styles[&tree.query_selector("#ar").unwrap().unwrap()].direction,
+            Some(TextDirection::Rtl)
+        );
         assert_eq!(
             styles[&tree.query_selector("#la").unwrap().unwrap()].direction,
             Some(TextDirection::Ltr),
             "first strong Latin resolves ltr (Chrome's computed direction for dir=auto)"
         );
-        assert_eq!(styles[&tree.query_selector("#t").unwrap().unwrap()].direction, Some(TextDirection::Rtl));
+        assert_eq!(
+            styles[&tree.query_selector("#t").unwrap().unwrap()].direction,
+            Some(TextDirection::Rtl)
+        );
         assert_eq!(
             styles[&tree.query_selector("#n").unwrap().unwrap()].direction,
             None,
@@ -2674,7 +3389,13 @@ mod direction_rtl_tests {
     fn text_x(sheet: &str, body: &str, needle: &str) -> f32 {
         let (tree, styles) = styles_for(sheet, body);
         let (_, items, ..) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
             .iter()
@@ -2690,10 +3411,17 @@ mod direction_rtl_tests {
         // An rtl block with NO text-align right-aligns its inline content —
         // the undeclared initial IS start (css-text-3), and start flips
         // against the element's own base direction, exactly like Chrome.
-        let right = text_x("#p { direction: rtl; width: 400px }", r#"<div id="p">hi</div>"#, "hi");
+        let right = text_x(
+            "#p { direction: rtl; width: 400px }",
+            r#"<div id="p">hi</div>"#,
+            "hi",
+        );
         assert!(right > 300.0, "rtl run must hug the right edge; x={right}");
         let left = text_x("#p { width: 400px }", r#"<div id="p">hi</div>"#, "hi");
-        assert!(left < 50.0, "ltr undeclared stays flush left (no-promote fast path); x={left}");
+        assert!(
+            left < 50.0,
+            "ltr undeclared stays flush left (no-promote fast path); x={left}"
+        );
     }
 
     #[test]
@@ -2703,17 +3431,29 @@ mod direction_rtl_tests {
         // verbatim) — resolution happens at consume time only.
         let end_left = text_x(
             "#p { direction: rtl; text-align: end; width: 400px }",
-            r#"<div id="p">hi</div>"#, "hi",
+            r#"<div id="p">hi</div>"#,
+            "hi",
         );
-        assert!(end_left < 50.0, "end under rtl = physical left; x={end_left}");
+        assert!(
+            end_left < 50.0,
+            "end under rtl = physical left; x={end_left}"
+        );
         let start_right = text_x(
             "#p { direction: rtl; text-align: start; width: 400px }",
-            r#"<div id="p">hi</div>"#, "hi",
+            r#"<div id="p">hi</div>"#,
+            "hi",
         );
-        assert!(start_right > 300.0, "start under rtl = physical right; x={start_right}");
+        assert!(
+            start_right > 300.0,
+            "start under rtl = physical right; x={start_right}"
+        );
         let (tree, styles) = styles_for("#p { text-align: end }", r#"<div id="p">x</div>"#);
         let p = tree.query_selector("#p").unwrap().unwrap();
-        assert_eq!(styles[&p].text_align, Some(TextAlign::End), "computed style keeps the logical keyword");
+        assert_eq!(
+            styles[&p].text_align,
+            Some(TextAlign::End),
+            "computed style keeps the logical keyword"
+        );
     }
 
     /// Paint-level: an RTL input anchors its value at the RIGHT edge of the
@@ -2729,7 +3469,13 @@ mod direction_rtl_tests {
             let rules = parse_stylesheet_for("", (200.0, 100.0), CssMediaType::Screen);
             let styles = compute_styles(&tree, &rules, (200.0, 100.0));
             let (_, items, ..) = layout_dom_with_paint_order_and_images(
-                &tree, &styles, &crate::diting_fonts::font_book(), 200.0, 100.0, None, None,
+                &tree,
+                &styles,
+                &crate::diting_fonts::font_book(),
+                200.0,
+                100.0,
+                None,
+                None,
             );
             let mut canvas = paint::Canvas::new_transparent(200, 100);
             paint::execute(&items, &crate::diting_fonts::font_book(), &mut canvas);
@@ -2738,7 +3484,12 @@ mod direction_rtl_tests {
             for y in 0..canvas.height {
                 for x in 0..canvas.width {
                     let i = (y * canvas.width + x) * 4;
-                    let (r, g, b, a) = (canvas.data[i], canvas.data[i + 1], canvas.data[i + 2], canvas.data[i + 3]);
+                    let (r, g, b, a) = (
+                        canvas.data[i],
+                        canvas.data[i + 1],
+                        canvas.data[i + 2],
+                        canvas.data[i + 3],
+                    );
                     if a == 255 && r < 100 && g < 100 && b < 100 {
                         lo = lo.min(x as f32);
                         hi = hi.max(x as f32);
@@ -2751,8 +3502,14 @@ mod direction_rtl_tests {
         let (lo_ltr, _) = ink_span("ltr");
         let (lo_rtl, hi_rtl) = ink_span("rtl");
         assert!(lo_ltr < 15.0, "ltr value hugs the left inset; lo={lo_ltr}");
-        assert!(lo_rtl > 60.0, "rtl value must be right-anchored, not left; lo={lo_rtl}");
-        assert!(hi_rtl > 120.0, "rtl ink reaches near the right edge; hi={hi_rtl}");
+        assert!(
+            lo_rtl > 60.0,
+            "rtl value must be right-anchored, not left; lo={lo_rtl}"
+        );
+        assert!(
+            hi_rtl > 120.0,
+            "rtl ink reaches near the right edge; hi={hi_rtl}"
+        );
     }
 }
 
@@ -2773,7 +3530,13 @@ mod abspos_inline_root_tests {
         let rules = parse_stylesheet_for("", (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (800.0, 600.0));
         let (_, items, ..) = layout_dom_with_paint_order_and_images(
-            &tree, &styles, &crate::diting_fonts::font_book(), 800.0, 600.0, None, None,
+            &tree,
+            &styles,
+            &crate::diting_fonts::font_book(),
+            800.0,
+            600.0,
+            None,
+            None,
         );
         items
     }
@@ -2782,9 +3545,9 @@ mod abspos_inline_root_tests {
         items
             .iter()
             .find_map(|it| match it {
-                PaintItem::Text { text, x, y, color, .. } if text.contains(needle) => {
-                    Some((text.as_str(), *x, *y, *color))
-                }
+                PaintItem::Text {
+                    text, x, y, color, ..
+                } if text.contains(needle) => Some((text.as_str(), *x, *y, *color)),
                 _ => None,
             })
             .unwrap_or_else(|| panic!("no text item for {needle:?}"))

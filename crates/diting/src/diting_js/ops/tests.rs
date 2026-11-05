@@ -5,9 +5,9 @@ use super::cors::{
     is_cors_safelisted_request_header, parse_cors_header_list, preflight_allows_header,
     preflight_allows_method,
 };
-use super::{validate_fetch_url, FetchCredentials};
 use super::crypto_secret::{pbkdf2_derive, PBKDF2_MAX_ITERATIONS, PBKDF2_MAX_OUTPUT_BYTES};
 use super::image_header_dimensions;
+use super::{validate_fetch_url, FetchCredentials};
 
 /// Header-only dimension parsing for the four formats op_image_info
 /// serves. Byte layouts pinned against the spec tables: PNG IHDR (BE
@@ -77,10 +77,13 @@ fn image_header_dimensions_all_formats() {
 fn ecdsa_flat_layout() {
     let flat = super::ecdsa::ecdsa_flat([b"PK", b"POINT", b"", b"SPKI-DER"]);
     let expect: Vec<u8> = [
-        &[0u8, 2][..], b"PK",
-        &[0, 5], b"POINT",
+        &[0u8, 2][..],
+        b"PK",
+        &[0, 5],
+        b"POINT",
         &[0, 0],
-        &[0, 8], b"SPKI-DER",
+        &[0, 8],
+        b"SPKI-DER",
     ]
     .concat();
     assert_eq!(flat, expect);
@@ -232,7 +235,10 @@ fn cors_safelist_content_type_is_value_sensitive() {
         "multipart/form-data; boundary=----x",
         "TEXT/PLAIN",
     ] {
-        assert!(is_cors_safelisted_content_type(ok), "must be safelisted: {ok}");
+        assert!(
+            is_cors_safelisted_content_type(ok),
+            "must be safelisted: {ok}"
+        );
     }
     for blocked in [
         "application/json",
@@ -253,8 +259,8 @@ fn cors_safelist_content_type_is_value_sensitive() {
 fn cors_unsafe_header_names_sorted_and_lowercased() {
     let headers: std::collections::HashMap<String, String> = [
         ("Content-Type", "application/json".to_string()), // unsafe value
-        ("X-Custom", "anything".to_string()),              // unsafe name
-        ("Accept", "text/html".to_string()),               // safelisted
+        ("X-Custom", "anything".to_string()),             // unsafe name
+        ("Accept", "text/html".to_string()),              // safelisted
     ]
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
@@ -287,7 +293,11 @@ fn preflight_permissions_respect_credentials_and_authorization() {
     assert!(preflight_allows_method(&put, &["*"], false));
     assert!(!preflight_allows_method(&put, &["*"], true));
 
-    assert!(preflight_allows_header("content-type", &["Content-Type"], false));
+    assert!(preflight_allows_header(
+        "content-type",
+        &["Content-Type"],
+        false
+    ));
     assert!(preflight_allows_header("x-custom", &["*"], false));
     assert!(!preflight_allows_header("x-custom", &["*"], true));
     assert!(!preflight_allows_header("authorization", &["*"], false));
@@ -296,10 +306,7 @@ fn preflight_permissions_respect_credentials_and_authorization() {
 #[test]
 fn parse_cors_header_list_rejects_non_tokens() {
     let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        "access-control-allow-methods",
-        "GET, PUT".parse().unwrap(),
-    );
+    headers.insert("access-control-allow-methods", "GET, PUT".parse().unwrap());
     assert_eq!(
         parse_cors_header_list(&headers, "access-control-allow-methods"),
         Some(vec!["GET", "PUT"])
@@ -402,14 +409,49 @@ fn fetch_credentials_gate_cookies_per_request_origin() {
 fn credentialed_cors_requires_exact_origin_and_allow_credentials() {
     let page_origin = "https://www.example.com";
 
-    assert!(cors_response_allows(FetchCredentials::SameOrigin, page_origin, "*", ""));
-    assert!(cors_response_allows(FetchCredentials::SameOrigin, page_origin, page_origin, ""));
-    assert!(!cors_response_allows(FetchCredentials::SameOrigin, page_origin, "https://other.example", ""));
+    assert!(cors_response_allows(
+        FetchCredentials::SameOrigin,
+        page_origin,
+        "*",
+        ""
+    ));
+    assert!(cors_response_allows(
+        FetchCredentials::SameOrigin,
+        page_origin,
+        page_origin,
+        ""
+    ));
+    assert!(!cors_response_allows(
+        FetchCredentials::SameOrigin,
+        page_origin,
+        "https://other.example",
+        ""
+    ));
 
-    assert!(cors_response_allows(FetchCredentials::Include, page_origin, page_origin, "true"));
-    assert!(!cors_response_allows(FetchCredentials::Include, page_origin, "*", ""));
-    assert!(!cors_response_allows(FetchCredentials::Include, page_origin, page_origin, ""));
-    assert!(!cors_response_allows(FetchCredentials::Include, page_origin, "https://other.example", "true"));
+    assert!(cors_response_allows(
+        FetchCredentials::Include,
+        page_origin,
+        page_origin,
+        "true"
+    ));
+    assert!(!cors_response_allows(
+        FetchCredentials::Include,
+        page_origin,
+        "*",
+        ""
+    ));
+    assert!(!cors_response_allows(
+        FetchCredentials::Include,
+        page_origin,
+        page_origin,
+        ""
+    ));
+    assert!(!cors_response_allows(
+        FetchCredentials::Include,
+        page_origin,
+        "https://other.example",
+        "true"
+    ));
 }
 
 // Upstream cfda91b / #580 — PBKDF2 parameters arrive straight from page JS.
@@ -427,8 +469,14 @@ fn pbkdf2_rejects_excessive_iterations() {
 
 #[test]
 fn pbkdf2_rejects_excessive_output_length() {
-    let err = pbkdf2_derive("SHA-256", b"pw", b"salt", 1_000, PBKDF2_MAX_OUTPUT_BYTES + 1)
-        .expect_err("output length above the cap must be rejected");
+    let err = pbkdf2_derive(
+        "SHA-256",
+        b"pw",
+        b"salt",
+        1_000,
+        PBKDF2_MAX_OUTPUT_BYTES + 1,
+    )
+    .expect_err("output length above the cap must be rejected");
     assert!(
         err.to_string().contains("length"),
         "error should name the length cap: {err}"

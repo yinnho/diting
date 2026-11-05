@@ -56,7 +56,9 @@ fn parse_bing_images_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngi
     let mut results = Vec::new();
 
     for (i, anchor) in anchors.iter().enumerate() {
-        let Some(m) = anchor.value().attr("m") else { continue };
+        let Some(m) = anchor.value().attr("m") else {
+            continue;
+        };
 
         // The `m` attribute is a JSON string. scraper already unescapes HTML
         // entities, but fall back to manual &quot; replacement in case the

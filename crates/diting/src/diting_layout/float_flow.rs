@@ -70,7 +70,9 @@ use std::sync::OnceLock;
 use taffy::prelude::*;
 use taffy::{Clear, Float};
 
-use crate::diting_css::{ClearSide, ComputedStyle, Display as CssDisplay, FloatSide, Length, TextAlign};
+use crate::diting_css::{
+    ClearSide, ComputedStyle, Display as CssDisplay, FloatSide, Length, TextAlign,
+};
 use crate::diting_dom::tree::{DomTree, NodeId};
 
 thread_local! {
@@ -112,7 +114,10 @@ pub(super) fn enabled() -> bool {
 /// joins the block formatting context and can see the floats.
 pub(super) fn run_style() -> Style {
     if enabled() {
-        Style { display: Display::Block, ..Style::default() }
+        Style {
+            display: Display::Block,
+            ..Style::default()
+        }
     } else {
         Style::default()
     }
@@ -133,11 +138,17 @@ pub(super) fn eligible(
     if std::env::var("DITING_FLOAT_WRAP_ALL").is_ok() {
         return true;
     }
-    let block = matches!(container.display.unwrap_or(CssDisplay::Block), CssDisplay::Block);
+    let block = matches!(
+        container.display.unwrap_or(CssDisplay::Block),
+        CssDisplay::Block
+    );
     if !block {
         return false;
     }
-    if matches!(container.physical_text_align(), Some(TextAlign::Center) | Some(TextAlign::Right)) {
+    if matches!(
+        container.physical_text_align(),
+        Some(TextAlign::Center) | Some(TextAlign::Right)
+    ) {
         // Center/right hosts wrap (#313): bare text and single inline runs
         // mount their run leaf beside the float (float_lines shifts each
         // line inside its slot, #314), and mixed runs — several/nested
@@ -165,7 +176,10 @@ pub(super) fn eligible(
         .and_then(|p| styles.get(&p))
         .map(|ps| ps.display.unwrap_or(CssDisplay::Block));
     let parent_is_block = parent_display.is_none_or(|d| matches!(d, CssDisplay::Block));
-    let parent_is_flex_grid = matches!(parent_display, Some(CssDisplay::Flex) | Some(CssDisplay::Grid));
+    let parent_is_flex_grid = matches!(
+        parent_display,
+        Some(CssDisplay::Flex) | Some(CssDisplay::Grid)
+    );
     if !parent_is_block && container.width.is_none() && !parent_is_flex_grid {
         return false;
     }
@@ -178,7 +192,9 @@ pub(super) fn eligible(
         if tree.with_node(*cid, |n| n.is_text()).unwrap_or(false) {
             continue;
         }
-        let Some(s) = styles.get(cid) else { return false };
+        let Some(s) = styles.get(cid) else {
+            return false;
+        };
         let display = s.display.unwrap_or(CssDisplay::Block);
         if display == CssDisplay::None {
             continue;
@@ -197,8 +213,7 @@ pub(super) fn eligible(
             // (resolve_sizing_keywords).
             if !matches!(
                 s.width,
-                None
-                    | Some(Length::Px(_))
+                None | Some(Length::Px(_))
                     | Some(Length::Percent(_))
                     | Some(Length::Calc { .. })
                     | Some(Length::MinContent)
@@ -233,7 +248,11 @@ pub(super) fn clear_of(side: Option<ClearSide>) -> Clear {
 }
 
 /// Give a built child taffy's `float` / `clear`.
-pub(super) fn mark(taffy_tree: &mut super::flow_tree::FlowTree<super::TextLeaf>, node: taffy::tree::NodeId, style: Option<&ComputedStyle>) {
+pub(super) fn mark(
+    taffy_tree: &mut super::flow_tree::FlowTree<super::TextLeaf>,
+    node: taffy::tree::NodeId,
+    style: Option<&ComputedStyle>,
+) {
     let Some(style) = style else { return };
     if style.float_side.is_none() && style.clear_side.is_none() {
         return;

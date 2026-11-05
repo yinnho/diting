@@ -5,9 +5,9 @@ use std::{
     time::Duration,
 };
 
+use diting_wire_proto::rt::{Sleep, Timer as _};
 use http_body::Body;
 use pin_project_lite::pin_project;
-use diting_wire_proto::rt::{Sleep, Timer as _};
 
 use crate::{
     Error,

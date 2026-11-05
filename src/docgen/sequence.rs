@@ -74,7 +74,10 @@ fn overflows_at_minimum(text: &str, available: i32, minimum: i32) -> bool {
 
 /// (stroke, width, dash, text fill) per message variant — sizes and dash
 /// patterns are this adapter's typography; the colors come from the theme.
-fn variant_style(theme: &Theme, variant: &str) -> (&'static str, i32, Option<&'static str>, &'static str) {
+fn variant_style(
+    theme: &Theme,
+    variant: &str,
+) -> (&'static str, i32, Option<&'static str>, &'static str) {
     match variant {
         "emphasis" => (theme.ink, 18, None, theme.ink),
         "security" => (theme.danger, 14, None, theme.danger),
@@ -210,7 +213,8 @@ pub fn render_sequence(
             tx(y),
             stroke,
             tx(stroke_w),
-            dash.map(|d| format!(" stroke-dasharray=\"{d}\"")).unwrap_or_default()
+            dash.map(|d| format!(" stroke-dasharray=\"{d}\""))
+                .unwrap_or_default()
         ));
         // Explicit arrowhead (diting svg v1 draws paths, not marker refs).
         svg.push_str(&format!(
@@ -349,8 +353,8 @@ pub fn render_sequence(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::theme::LIGHT;
+    use super::*;
 
     fn spec(json: &str) -> SequenceSpec {
         let s: SequenceSpec = serde_json::from_str(json).unwrap();

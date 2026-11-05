@@ -1,5 +1,5 @@
-pub use upgrade::Upgraded;
 use diting_wire_proto::upgrade;
+pub use upgrade::Upgraded;
 
 use super::response::Response;
 use crate::Error;

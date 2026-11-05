@@ -5,6 +5,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use diting_wire_proto::ext::ReasonPhrase;
 #[cfg(feature = "charset")]
 use encoding_rs::{Encoding, UTF_8};
 #[cfg(feature = "stream")]
@@ -16,7 +17,6 @@ use http_body_util::{BodyExt, Collected};
 use mime::Mime;
 #[cfg(feature = "json")]
 use serde::de::DeserializeOwned;
-use diting_wire_proto::ext::ReasonPhrase;
 
 #[cfg(feature = "cookies")]
 use crate::cookie;

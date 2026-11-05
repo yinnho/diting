@@ -1,5 +1,5 @@
-use http::HeaderMap;
 use diting_wire_proto::{http1::Http1Options, http2::Http2Options};
+use http::HeaderMap;
 
 use crate::{group::Group, header::OrigHeaderMap, tls::TlsOptions};
 

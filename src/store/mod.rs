@@ -64,8 +64,8 @@ fn db_path() -> PathBuf {
     // the shared store: session snapshots live here, and restore_all()
     // would otherwise revive foreign sessions — stale localStorage ghosts
     // included — straight into the "fresh" instance.
-    if let Ok(dir) = std::env::var("DITING_STORAGE_DIR")
-        .or_else(|_| std::env::var("DITING_COOKIE_STORE_DIR"))
+    if let Ok(dir) =
+        std::env::var("DITING_STORAGE_DIR").or_else(|_| std::env::var("DITING_COOKIE_STORE_DIR"))
     {
         if !dir.is_empty() {
             return PathBuf::from(dir).join("cache.db");
@@ -92,10 +92,7 @@ fn page_ttl_hours() -> i64 {
 }
 
 fn search_ttl_hours() -> i64 {
-    env_hours(
-        "DITING_STORE_SEARCH_TTL_HOURS",
-        DEFAULT_SEARCH_TTL_HOURS,
-    )
+    env_hours("DITING_STORE_SEARCH_TTL_HOURS", DEFAULT_SEARCH_TTL_HOURS)
 }
 
 fn env_hours(name: &str, default: i64) -> i64 {
@@ -403,44 +400,44 @@ impl Store {
     /// the match landed. `None` when the page isn't cached or no heading
     /// precedes the match.
     fn section_for_hit(&self, url: &str, terms: &[&str]) -> Option<String> {
-        let content: String = self.conn.query_row(
-            "SELECT content FROM pages WHERE norm_url = ?1 AND expires_at > ?2",
-            params![normalize_url(url), now()],
-            |r| r.get(0),
-        ).ok()?;
+        let content: String = self
+            .conn
+            .query_row(
+                "SELECT content FROM pages WHERE norm_url = ?1 AND expires_at > ?2",
+                params![normalize_url(url), now()],
+                |r| r.get(0),
+            )
+            .ok()?;
         let mut best_off: Option<usize> = None;
         for t in terms {
-            if t.chars().count() < 2 { continue; } // skip CJK single chars / noise
+            if t.chars().count() < 2 {
+                continue;
+            } // skip CJK single chars / noise
             if let Some(i) = content.find(t) {
-                best_off = Some(match best_off { Some(b) => b.min(i), None => i });
+                best_off = Some(match best_off {
+                    Some(b) => b.min(i),
+                    None => i,
+                });
             }
         }
         let off = best_off?;
         let before = &content[..off];
-        before
-            .lines()
-            .rev()
-            .find_map(|l| {
-                let t = l.trim_start();
-                let hashes = t.chars().take_while(|c| *c == '#').count();
-                if (1..=4).contains(&hashes) {
-                    t[hashes..].strip_prefix(' ').map(|h| h.trim().to_string())
-                } else {
-                    None
-                }
-            })
+        before.lines().rev().find_map(|l| {
+            let t = l.trim_start();
+            let hashes = t.chars().take_while(|c| *c == '#').count();
+            if (1..=4).contains(&hashes) {
+                t[hashes..].strip_prefix(' ').map(|h| h.trim().to_string())
+            } else {
+                None
+            }
+        })
     }
 
     /// Read a stored search back: `(results_json, searched_at)` when a
     /// fresh (TTL-valid) row exists for this owner/query/category triple.
     /// The write side has been landing rows since v0.3; this read makes
     /// them a persistence layer instead of write-only telemetry.
-    fn lookup_search(
-        &self,
-        owner: &str,
-        query: &str,
-        categories: &str,
-    ) -> Option<(String, i64)> {
+    fn lookup_search(&self, owner: &str, query: &str, categories: &str) -> Option<(String, i64)> {
         self.conn
             .query_row(
                 "SELECT results_json, searched_at FROM searches
@@ -659,7 +656,6 @@ impl Store {
         }
         Ok(out)
     }
-
 }
 
 fn hex(d: &[u8]) -> String {
@@ -732,14 +728,18 @@ pub fn record_search(owner: &str, query: &str, categories: &str, resp: &crate::S
 /// Section locator for search hits (see the store method). `None` when the
 /// store is off or the page isn't cached.
 pub fn section_for_hit(url: &str, terms: &[&str]) -> Option<String> {
-    with_store(|st| Ok(st.section_for_hit(url, terms))).ok().flatten()
+    with_store(|st| Ok(st.section_for_hit(url, terms)))
+        .ok()
+        .flatten()
 }
 
 /// Read a stored search back (TTL-valid rows only). `None` when the store
 /// is disabled or nothing fresh exists. Raw JSON rides along; the caller
 /// re-truncates to its own max_results.
 pub fn lookup_search(owner: &str, query: &str, categories: &str) -> Option<(String, i64)> {
-    with_store(|st| Ok(st.lookup_search(&norm_owner(owner), query, categories))).ok().flatten()
+    with_store(|st| Ok(st.lookup_search(&norm_owner(owner), query, categories)))
+        .ok()
+        .flatten()
 }
 
 /// Best-effort snapshot persistence — a failed write degrades the session to

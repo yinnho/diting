@@ -109,11 +109,7 @@ fn ip_in_scoped_cidr(ip: IpAddr, c: ScopedCidr) -> bool {
     // check inside `is_forbidden_ip`, which re-enters this function with the
     // extracted v4 address).
     let (ip_bits, net_bits, max) = match (ip, c.net) {
-        (IpAddr::V4(ip), IpAddr::V4(net)) => (
-            u32::from(ip) as u128,
-            u32::from(net) as u128,
-            32u8,
-        ),
+        (IpAddr::V4(ip), IpAddr::V4(net)) => (u32::from(ip) as u128, u32::from(net) as u128, 32u8),
         (IpAddr::V6(ip), IpAddr::V6(net)) => (u128::from(ip), u128::from(net), 128u8),
         _ => return false,
     };
@@ -207,8 +203,7 @@ pub fn validate_url(url: &Url, allow_private_network: bool) -> Result<(), NetErr
                 if is_forbidden_ip(IpAddr::V4(ip)) {
                     return Err(NetError::Network(format!(
                         "Access to private/internal IP address {} is not allowed{}",
-                        ip,
-                        PRIVATE_NETWORK_HINT
+                        ip, PRIVATE_NETWORK_HINT
                     )));
                 }
             }
@@ -216,8 +211,7 @@ pub fn validate_url(url: &Url, allow_private_network: bool) -> Result<(), NetErr
                 if is_forbidden_ip(IpAddr::V6(ip)) {
                     return Err(NetError::Network(format!(
                         "Access to private/internal IPv6 address {} is not allowed{}",
-                        ip,
-                        PRIVATE_NETWORK_HINT
+                        ip, PRIVATE_NETWORK_HINT
                     )));
                 }
             }
@@ -230,8 +224,7 @@ pub fn validate_url(url: &Url, allow_private_network: bool) -> Result<(), NetErr
                 {
                     return Err(NetError::Network(format!(
                         "Access to localhost domain '{}' is not allowed{}",
-                        domain,
-                        PRIVATE_NETWORK_HINT
+                        domain, PRIVATE_NETWORK_HINT
                     )));
                 }
             }
@@ -253,7 +246,9 @@ pub(crate) mod file_access_test {
         }
     }
     pub(crate) fn file_access_guard(enabled: bool) -> impl Drop {
-        let guard = FILE_ACCESS_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = FILE_ACCESS_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let prev = super::FILE_ACCESS_FLAG.load(Ordering::Relaxed);
         super::FILE_ACCESS_FLAG.store(enabled, Ordering::Relaxed);
         std::env::remove_var("DITING_ALLOW_FILE_ACCESS");

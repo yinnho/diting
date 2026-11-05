@@ -37,12 +37,15 @@ mod tests {
 
     fn app() -> Router {
         Router::new()
-            .route("/boom", get(|| async {
-                if true {
-                    panic!("kaboom");
-                }
-                "unreachable"
-            }))
+            .route(
+                "/boom",
+                get(|| async {
+                    if true {
+                        panic!("kaboom");
+                    }
+                    "unreachable"
+                }),
+            )
             .route("/ok", get(|| async { "fine" }))
             .layer(layer())
     }

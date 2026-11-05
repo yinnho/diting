@@ -163,7 +163,8 @@ pub(crate) fn flatten(sel: &str, body: &str) -> Option<String> {
                 if let Some(at) = head.strip_prefix('@') {
                     let name: String = at.chars().take_while(|c| c.is_ascii_alphabetic()).collect();
                     if GROUP_AT_RULES.contains(&name.to_ascii_lowercase().as_str()) {
-                        let body_css = flatten(sel, &inner).unwrap_or_else(|| format!("{sel}{{{inner}}}"));
+                        let body_css =
+                            flatten(sel, &inner).unwrap_or_else(|| format!("{sel}{{{inner}}}"));
                         rest.push_str(&format!("{head}{{{body_css}}}"));
                     }
                 } else if head.starts_with("--") {
@@ -171,7 +172,8 @@ pub(crate) fn flatten(sel: &str, body: &str) -> Option<String> {
                     own.push_str(&format!("{head}{{{inner}}};"));
                 } else {
                     let resolved = resolve(sel, head);
-                    let css = flatten(&resolved, &inner).unwrap_or_else(|| format!("{resolved}{{{inner}}}"));
+                    let css = flatten(&resolved, &inner)
+                        .unwrap_or_else(|| format!("{resolved}{{{inner}}}"));
                     rest.push_str(&css);
                 }
             }

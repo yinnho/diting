@@ -9,8 +9,9 @@
 
 use taffy::util::ResolveOrZero;
 use taffy::{
-    AvailableSpace, BlockContext, BoxGenerationMode, Clear, CoreStyle, Layout, LayoutInput, LayoutOutput, LayoutPartialTree,
-    JustifyContent, Line, NodeId, Point, RequestedAxis, Size, SizingMode,
+    AvailableSpace, BlockContext, BoxGenerationMode, Clear, CoreStyle, JustifyContent, Layout,
+    LayoutInput, LayoutOutput, LayoutPartialTree, Line, NodeId, Point, RequestedAxis, Size,
+    SizingMode,
 };
 
 struct Item {
@@ -27,9 +28,18 @@ fn sized(width: f32, known: Size<Option<f32>>, mode: taffy::RunMode) -> LayoutIn
         sizing_mode: SizingMode::InherentSize,
         axis: RequestedAxis::Both,
         known_dimensions: known,
-        known_dimensions_are_definite: Size { width: true, height: true },
-        parent_size: Size { width: Some(width), height: None },
-        available_space: Size { width: AvailableSpace::MaxContent, height: AvailableSpace::MaxContent },
+        known_dimensions_are_definite: Size {
+            width: true,
+            height: true,
+        },
+        parent_size: Size {
+            width: Some(width),
+            height: None,
+        },
+        available_space: Size {
+            width: AvailableSpace::MaxContent,
+            height: AvailableSpace::MaxContent,
+        },
         vertical_margins_are_collapsible: Line::FALSE,
     }
 }
@@ -68,8 +78,16 @@ pub(super) fn layout<T: LayoutPartialTree>(
             tree.set_unrounded_layout(k, &Layout::with_order(0));
             continue;
         }
-        let size = tree.compute_child_layout(k, sized(width, Size::NONE, taffy::RunMode::ComputeSize)).size;
-        items.push(Item { id: k, size, margin, border, padding });
+        let size = tree
+            .compute_child_layout(k, sized(width, Size::NONE, taffy::RunMode::ComputeSize))
+            .size;
+        items.push(Item {
+            id: k,
+            size,
+            margin,
+            border,
+            padding,
+        });
     }
 
     // Place items line by line, remembering each line's band (x0, room)
@@ -89,7 +107,9 @@ pub(super) fn layout<T: LayoutPartialTree>(
     for (i, it) in items.iter().enumerate() {
         let outer_w = it.size.width + it.margin.left + it.margin.right;
         let outer_h = it.size.height + it.margin.top + it.margin.bottom;
-        let fits = cur.as_ref().is_none_or(|l| l.w + outer_w <= slot.width.min(width) + 0.001);
+        let fits = cur
+            .as_ref()
+            .is_none_or(|l| l.w + outer_w <= slot.width.min(width) + 0.001);
         if let Some(l) = cur.take() {
             if fits {
                 cur = Some(l);
@@ -103,7 +123,8 @@ pub(super) fn layout<T: LayoutPartialTree>(
             // A first item wider than the free room drops to the next slot
             // that is wide enough (past the float), like a line box would.
             let mut guard = 0;
-            while outer_w > slot.width.min(width) + 0.001 && slot.segment_id.is_some() && guard < 64 {
+            while outer_w > slot.width.min(width) + 0.001 && slot.segment_id.is_some() && guard < 64
+            {
                 slot = ctx.find_content_slot(y, Clear::None, slot.segment_id);
                 y = y.max(slot.y);
                 guard += 1;
@@ -116,7 +137,14 @@ pub(super) fn layout<T: LayoutPartialTree>(
                 y = y.max(ctx.find_content_slot(y, Clear::Both, None).y);
             }
             let x0 = slot.x.max(0.0).min(width);
-            cur = Some(Line { x0, room: (width - x0).min(slot.width).max(0.0), y, h: 0.0, w: 0.0, items: Vec::new() });
+            cur = Some(Line {
+                x0,
+                room: (width - x0).min(slot.width).max(0.0),
+                y,
+                h: 0.0,
+                w: 0.0,
+                items: Vec::new(),
+            });
         }
         let l = cur.as_mut().expect("a line opens with its first item");
         l.items.push((i, l.w + it.margin.left, y + it.margin.top));
@@ -128,7 +156,10 @@ pub(super) fn layout<T: LayoutPartialTree>(
         lines.push(l);
     }
     let total_h = y;
-    let size = Size { width, height: inputs.known_dimensions.height.unwrap_or(total_h) };
+    let size = Size {
+        width,
+        height: inputs.known_dimensions.height.unwrap_or(total_h),
+    };
 
     if inputs.run_mode == taffy::RunMode::PerformLayout {
         for l in &lines {
@@ -153,10 +184,20 @@ pub(super) fn layout<T: LayoutPartialTree>(
                 let it = &items[*i];
                 let out = tree.compute_child_layout(
                     it.id,
-                    sized(width, Size { width: Some(it.size.width), height: Some(it.size.height) }, taffy::RunMode::PerformLayout),
+                    sized(
+                        width,
+                        Size {
+                            width: Some(it.size.width),
+                            height: Some(it.size.height),
+                        },
+                        taffy::RunMode::PerformLayout,
+                    ),
                 );
                 let mut lo = Layout::with_order(*i as u32);
-                lo.location = Point { x: l.x0 + shift + cx, y: *py };
+                lo.location = Point {
+                    x: l.x0 + shift + cx,
+                    y: *py,
+                };
                 lo.size = it.size;
                 lo.scrollable_overflow_rect = out.scrollable_overflow_rect;
                 lo.margin = it.margin;

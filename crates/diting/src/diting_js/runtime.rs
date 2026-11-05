@@ -9,7 +9,7 @@ use crate::diting_dom::DomTree;
 pub use v8::IsolateHandle;
 
 use crate::diting_js::module_loader::DitingModuleLoader;
-use crate::diting_js::ops::{JsState, our_decls};
+use crate::diting_js::ops::{our_decls, JsState};
 use diting_runtime::vm::Vm;
 use diting_runtime::ModuleId;
 
@@ -18,13 +18,13 @@ use diting_runtime::ModuleId;
 // historical `diting_js::runtime::spawn_watchdog` path keeps resolving.
 mod drop_serialized;
 mod heap_guard;
-mod watchdog;
 mod pump;
+mod watchdog;
 
-use drop_serialized::{ISOLATE_CONSTRUCT_LOCK, SerializedDropRuntime};
-use heap_guard::{HeapLimitState, install_heap_limit_guard};
-pub use watchdog::{spawn_watchdog, WatchdogToken};
+use drop_serialized::{SerializedDropRuntime, ISOLATE_CONSTRUCT_LOCK};
+use heap_guard::{install_heap_limit_guard, HeapLimitState};
 use watchdog::watchdog_terminate;
+pub use watchdog::{spawn_watchdog, WatchdogToken};
 
 // The eval/callFunctionOn wrapper-source builders (INLINE_EVAL_JS trampoline,
 // object slots, meta extraction, the #114 await-settle wrappers).
@@ -91,7 +91,8 @@ pub struct ExceptionInfo {
 }
 
 pub struct JsRuntime {
-    runtime: SerializedDropRuntime,    state: Rc<RefCell<JsState>>,
+    runtime: SerializedDropRuntime,
+    state: Rc<RefCell<JsState>>,
     object_store: HashMap<String, String>,
     object_counter: u64,
     /// Thread-safe handle to this runtime's V8 isolate, captured at
@@ -162,8 +163,7 @@ fn panic_payload_message(payload: Box<dyn std::any::Any + Send>) -> String {
 /// outlive the Vm construction so the first op spawn finds the
 /// handle. Delayed tasks keep spawning afterward through the stored
 /// `Handle` clone, which stays valid because the runtime never drops.
-static BACKGROUND_TOKIO: std::sync::OnceLock<tokio::runtime::Runtime> =
-    std::sync::OnceLock::new();
+static BACKGROUND_TOKIO: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
 
 fn enter_tokio_context() -> Option<tokio::runtime::EnterGuard<'static>> {
     if tokio::runtime::Handle::try_current().is_ok() {
@@ -184,7 +184,6 @@ impl JsRuntime {
     pub fn shrink_heap(&mut self) {
         self.runtime.shrink_heap();
     }
-
 
     pub fn new() -> Self {
         Self::with_base_url("about:blank")
@@ -344,7 +343,9 @@ impl JsRuntime {
                 let h = runtime.heap_statistics();
                 tracing::info!(
                     "realm heap [S shrunk]: used {} total {} physical {} shrink_ms {:?}",
-                    h.used_heap_size(), h.total_heap_size(), h.total_physical_size(),
+                    h.used_heap_size(),
+                    h.total_heap_size(),
+                    h.total_physical_size(),
                     t0.elapsed()
                 );
             }
@@ -363,7 +364,11 @@ impl JsRuntime {
         }
         let isolate_handle = runtime.isolate_handle();
         let heap_limit_state = std::sync::Arc::new(HeapLimitState::default());
-        install_heap_limit_guard(&mut runtime, isolate_handle.clone(), heap_limit_state.clone());
+        install_heap_limit_guard(
+            &mut runtime,
+            isolate_handle.clone(),
+            heap_limit_state.clone(),
+        );
 
         JsRuntime {
             runtime: SerializedDropRuntime(std::mem::ManuallyDrop::new(runtime)),
@@ -374,12 +379,8 @@ impl JsRuntime {
             heap_limit_state,
             watchdog_fired_total: std::cell::Cell::new(0),
             v8_active_ns: std::cell::Cell::new(0),
-            stale_termination: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
-                false,
-            )),
-            termination_unwound: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
-                false,
-            )),
+            stale_termination: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            termination_unwound: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             module_evaluations: HashMap::new(),
             module_loader: module_loader.clone(),
         }
@@ -599,10 +600,7 @@ impl JsRuntime {
     /// next navigation's fresh realm clears a stale swap anyway.
     fn frame_restore(&mut self) {
         const RESTORE: &str = "(function() { var s = globalThis.__diting_frame_saved; if (!s) return; var sl = globalThis.__ditingWinSlot; if (s[4] && sl) { sl.document = s[4].d; sl.window = s[4].w; sl.self = s[4].s; sl.frames = s[4].f; } document = s[0]; window = s[1]; self = s[2]; frames = s[3]; delete globalThis.__diting_frame_saved; delete globalThis.__diting_frame_location; })()";
-        if let Err(e) = self
-            .runtime
-            .execute_script("<frame-restore>", RESTORE)
-        {
+        if let Err(e) = self.runtime.execute_script("<frame-restore>", RESTORE) {
             tracing::warn!("frame restore failed: {}", e);
         }
     }
@@ -635,14 +633,16 @@ impl JsRuntime {
         // instead, then run the plain one-shot execute.
         self.runtime.revive();
         let eval_wd = self.arm_watchdog(Self::eval_watchdog_duration(await_budget_ms));
-        let result = self
-            .runtime
-            .execute_script("<eval-remote>", &meta_code);
+        let result = self.runtime.execute_script("<eval-remote>", &meta_code);
         let eval_fired = self.disarm_watchdog(eval_wd);
         if eval_fired {
             let secs = Self::eval_watchdog_duration(await_budget_ms).as_secs();
             let preview: String = expression.chars().take(80).collect();
-            tracing::warn!("eval terminated by watchdog (ran >{}s): '{}'", secs, preview);
+            tracing::warn!(
+                "eval terminated by watchdog (ran >{}s): '{}'",
+                secs,
+                preview
+            );
             return Err(format!("eval timed out: script ran longer than {}s", secs));
         }
         result.map_err(|e| format!("JS error: {}", e))?;
@@ -650,14 +650,19 @@ impl JsRuntime {
         if await_promise {
             let __t0 = std::time::Instant::now();
             let sentinel = format!("globalThis.__diting_done_{done_counter} === true");
-            let settled = self.resolve_promises_until(
-                |rt| rt.runtime.execute_script("<done?>", &sentinel)
-                    .ok()
-                    .and_then(|v| rt.v8_to_json(v).ok())
-                    .and_then(|j| j.as_bool())
-                    .unwrap_or(false),
-                await_budget_ms,
-            ).await;
+            let settled = self
+                .resolve_promises_until(
+                    |rt| {
+                        rt.runtime
+                            .execute_script("<done?>", &sentinel)
+                            .ok()
+                            .and_then(|v| rt.v8_to_json(v).ok())
+                            .and_then(|j| j.as_bool())
+                            .unwrap_or(false)
+                    },
+                    await_budget_ms,
+                )
+                .await;
             // An unset sentinel means the budget expired with the promise
             // still pending: the result slot was never assigned, so falling
             // through would read `undefined` and surface as a silent
@@ -669,7 +674,8 @@ impl JsRuntime {
                 let preview: String = expression.chars().take(80).collect();
                 tracing::warn!(
                     "eval await exceeded {}ms budget (still pending): '{}'",
-                    await_budget_ms, preview
+                    await_budget_ms,
+                    preview
                 );
                 return Err(format!(
                     "EVAL_TIMEOUT: expression did not settle within {}ms — the script may still be running; verify side effects before retrying",
@@ -685,7 +691,8 @@ impl JsRuntime {
                     .collect();
                 tracing::debug!(
                     "Runtime.evaluate awaitPromise took {}ms; expr={}",
-                    __dt.as_millis(), preview,
+                    __dt.as_millis(),
+                    preview,
                 );
             }
         }
@@ -724,7 +731,8 @@ impl JsRuntime {
             };
             Self::info_from_meta(&meta_json, Some(oid.clone()))
         };
-        self.object_store.insert(oid.clone(), Self::object_slot(&oid));
+        self.object_store
+            .insert(oid.clone(), Self::object_slot(&oid));
         Ok(EvalOutcome {
             info,
             exception: None,
@@ -803,10 +811,17 @@ impl JsRuntime {
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
-        let line = exc_meta.get("line").and_then(|v| v.as_u64()).map(|v| v as u32);
-        let col = exc_meta.get("col").and_then(|v| v.as_u64()).map(|v| v as u32);
+        let line = exc_meta
+            .get("line")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32);
+        let col = exc_meta
+            .get("col")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32);
 
-        self.object_store.insert(oid.to_string(), Self::object_slot(oid));
+        self.object_store
+            .insert(oid.to_string(), Self::object_slot(oid));
 
         let text = if await_promise {
             "Uncaught (in promise)"
@@ -908,14 +923,19 @@ impl JsRuntime {
                 .map_err(|e| format!("JS error: {}", e))?;
 
             let sentinel = format!("globalThis.__diting_done_{done_counter} === true");
-            let settled = self.resolve_promises_until(
-                |rt| rt.runtime.execute_script("<done?>", &sentinel)
-                    .ok()
-                    .and_then(|v| rt.v8_to_json(v).ok())
-                    .and_then(|j| j.as_bool())
-                    .unwrap_or(false),
-                DEFAULT_AWAIT_BUDGET_MS,
-            ).await;
+            let settled = self
+                .resolve_promises_until(
+                    |rt| {
+                        rt.runtime
+                            .execute_script("<done?>", &sentinel)
+                            .ok()
+                            .and_then(|v| rt.v8_to_json(v).ok())
+                            .and_then(|j| j.as_bool())
+                            .unwrap_or(false)
+                    },
+                    DEFAULT_AWAIT_BUDGET_MS,
+                )
+                .await;
             // Same contract as evaluate_remote_outcome: an unsettled budget
             // must not fall through to an empty result slot (silent null).
             if !settled {
@@ -957,7 +977,8 @@ impl JsRuntime {
                 };
                 Self::info_from_meta(&meta_json, Some(oid.clone()))
             };
-            self.object_store.insert(oid.clone(), Self::object_slot(&oid));
+            self.object_store
+                .insert(oid.clone(), Self::object_slot(&oid));
             return Ok(EvalOutcome {
                 info,
                 exception: None,
@@ -1062,7 +1083,8 @@ impl JsRuntime {
         } else {
             meta_str
         };
-        self.object_store.insert(oid.clone(), Self::object_slot(&oid));
+        self.object_store
+            .insert(oid.clone(), Self::object_slot(&oid));
         Ok(EvalOutcome {
             info: Self::info_from_meta(&meta_json, Some(oid)),
             exception: None,
@@ -1076,7 +1098,14 @@ impl JsRuntime {
         arguments: &[serde_json::Value],
         return_by_value: bool,
     ) -> Result<RemoteObjectInfo, String> {
-        self.call_function_on_remote(function_declaration, object_id, arguments, return_by_value, false).await
+        self.call_function_on_remote(
+            function_declaration,
+            object_id,
+            arguments,
+            return_by_value,
+            false,
+        )
+        .await
     }
     #[cfg_attr(not(test), allow(dead_code))] // tests: release_object_with_adversarial_id_is_inert
     pub fn release_object(&mut self, object_id: &str) {
@@ -1088,8 +1117,8 @@ impl JsRuntime {
 
     pub async fn load_module(&mut self, url: &str, budget_ms: u64) -> Result<(), String> {
         let budget = tokio::time::Duration::from_millis(budget_ms);
-        let specifier = url::Url::parse(url)
-            .map_err(|e| format!("Invalid module URL {}: {}", url, e))?;
+        let specifier =
+            url::Url::parse(url).map_err(|e| format!("Invalid module URL {}: {}", url, e))?;
 
         // Fetch the module source. The old impl registered an empty string
         // and called it loaded, so every Vite / Next module bundle "loaded"
@@ -1120,7 +1149,8 @@ impl JsRuntime {
         // module loader, so a slow import chain must not hang page load.
         let module_id = match tokio::time::timeout(
             budget,
-            self.runtime.load_side_es_module_from_code(specifier.as_str(), source_code),
+            self.runtime
+                .load_side_es_module_from_code(specifier.as_str(), source_code),
         )
         .await
         {
@@ -1169,8 +1199,7 @@ impl JsRuntime {
         // budget; disarm cancels/heals a fired termination so the phases after
         // this module still run. Chrome semantics: a killed module ends the
         // module, never the page's load lifecycle.
-        let eval_wd = self
-            .arm_watchdog(budget + tokio::time::Duration::from_millis(250));
+        let eval_wd = self.arm_watchdog(budget + tokio::time::Duration::from_millis(250));
         // Contained-panic belt (module machinery panics stay module errors,
         // never page-process deaths). The deno_core 0.350 "Module already
         // evaluated" panic face is gone with the host — our map no-ops —
@@ -1246,16 +1275,18 @@ impl JsRuntime {
         budget_ms: u64,
     ) -> Result<(), String> {
         let budget = tokio::time::Duration::from_millis(budget_ms);
-        let specifier = url::Url::parse(
-            &format!("{}#inline-module-{}", base_url, self.object_counter),
-        )
+        let specifier = url::Url::parse(&format!(
+            "{}#inline-module-{}",
+            base_url, self.object_counter
+        ))
         .unwrap_or_else(|_| url::Url::parse("about:blank").unwrap());
 
         self.object_counter += 1;
 
         let module_id = match tokio::time::timeout(
             budget,
-            self.runtime.load_side_es_module_from_code(specifier.as_str(), code.to_string()),
+            self.runtime
+                .load_side_es_module_from_code(specifier.as_str(), code.to_string()),
         )
         .await
         {
@@ -1271,7 +1302,8 @@ impl JsRuntime {
         // Same completion-not-idle semantics as load_module (upstream #374):
         // an inline preamble module that installs a timer must not burn the
         // whole budget waiting for an idle that never comes.
-        self.drive_module_eval(module_id, budget_ms, "Inline module").await
+        self.drive_module_eval(module_id, budget_ms, "Inline module")
+            .await
     }
 
     pub fn execute_script(&mut self, _name: &str, source: &str) -> Result<(), String> {
@@ -1303,10 +1335,7 @@ impl JsRuntime {
 
         let isolate_handle = self.runtime.isolate_handle();
 
-        let pair = std::sync::Arc::new((
-            std::sync::Mutex::new(false),
-            std::sync::Condvar::new(),
-        ));
+        let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
         let pair_clone = pair.clone();
 
         let watchdog = std::thread::spawn(move || {
@@ -1329,9 +1358,7 @@ impl JsRuntime {
             }
         });
 
-        let result = self
-            .runtime
-            .execute_script("<script>", source);
+        let result = self.runtime.execute_script("<script>", source);
 
         {
             let (lock, cvar) = &*pair;
@@ -1506,7 +1533,9 @@ impl JsRuntime {
             Some(oid) => {
                 if let Some(retrieval) = self.object_store.get(oid) {
                     retrieval.clone()
-                } else if let Some(nid) = oid.strip_prefix("node-").and_then(|s| s.parse::<u64>().ok())
+                } else if let Some(nid) = oid
+                    .strip_prefix("node-")
+                    .and_then(|s| s.parse::<u64>().ok())
                 {
                     format!(
                         "(function() {{ \
@@ -1532,7 +1561,8 @@ impl JsRuntime {
         for (i, arg) in arguments.iter().enumerate() {
             let arg_name = format!("__arg{}", i);
             if let Some(value) = arg.get("value") {
-                let json_str = serde_json::to_string(value).unwrap_or_else(|_| "undefined".to_string());
+                let json_str =
+                    serde_json::to_string(value).unwrap_or_else(|_| "undefined".to_string());
                 setup_lines.push(format!("var {} = {};", arg_name, json_str));
             } else if let Some(oid) = arg.get("objectId").and_then(|v| v.as_str()) {
                 if let Some(retrieval) = self.object_store.get(oid) {
@@ -1551,10 +1581,7 @@ impl JsRuntime {
         (setup_lines.join("\n"), arg_names.join(", "))
     }
 
-    fn v8_to_json(
-        &mut self,
-        result: v8::Global<v8::Value>,
-    ) -> Result<serde_json::Value, String> {
+    fn v8_to_json(&mut self, result: v8::Global<v8::Value>) -> Result<serde_json::Value, String> {
         // Our Vm's handle-scope face (with_scope) — the deno_core::scope!
         // rebuild of 0.411, now ours.
         self.runtime.with_scope(|scope| {
@@ -1581,8 +1608,7 @@ impl JsRuntime {
                 if let Some(json_obj) = json_obj.to_object(scope) {
                     let stringify_str = v8::String::new(scope, "stringify").unwrap();
                     if let Some(stringify_fn) = json_obj.get(scope, stringify_str.into()) {
-                        if let Ok(stringify_fn) =
-                            v8::Local::<v8::Function>::try_from(stringify_fn)
+                        if let Ok(stringify_fn) = v8::Local::<v8::Function>::try_from(stringify_fn)
                         {
                             let args = [local];
                             if let Some(result) = stringify_fn.call(scope, json_obj.into(), &args) {
@@ -1708,10 +1734,7 @@ impl JsRuntime {
         Ok(self.v8_to_json(probe)?.as_bool().unwrap_or(false))
     }
 
-    fn info_from_meta(
-        meta: &serde_json::Value,
-        object_id: Option<String>,
-    ) -> RemoteObjectInfo {
+    fn info_from_meta(meta: &serde_json::Value, object_id: Option<String>) -> RemoteObjectInfo {
         let js_type = meta
             .get("type")
             .and_then(|v| v.as_str())

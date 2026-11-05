@@ -118,8 +118,7 @@ fn resolve_element_index(
 ) -> Result<usize, AppError> {
     match (index, element_ref.map(str::trim).filter(|s| !s.is_empty())) {
         (Some(i), Some(r)) => {
-            let ri = session::snapshot::parse_element_ref(r)
-                .map_err(AppError::BadRequest)?;
+            let ri = session::snapshot::parse_element_ref(r).map_err(AppError::BadRequest)?;
             if ri != i {
                 return Err(AppError::BadRequest(format!(
                     "index ({i}) and ref ({r}) disagree — pass one, or make them match"
@@ -522,9 +521,9 @@ pub(crate) async fn session_preload_handler(
                     session::SessionError::NotFound(_)
                     | session::SessionError::Expired(_)
                     | session::SessionError::ThreadDied(_) => session_err(e),
-                    other => AppError::BadRequest(format!(
-                        "preload apply_now script[{i}]: {other}"
-                    )),
+                    other => {
+                        AppError::BadRequest(format!("preload apply_now script[{i}]: {other}"))
+                    }
                 }
             })?;
         }
@@ -641,11 +640,10 @@ pub(crate) async fn session_snapshot_handler(
             ));
         }
     }
-    let snap = session::send_command_readonly(&id, |reply| session::SessionCommand::Snapshot {
-        reply,
-    })
-    .await
-    .map_err(session_err)?;
+    let snap =
+        session::send_command_readonly(&id, |reply| session::SessionCommand::Snapshot { reply })
+            .await
+            .map_err(session_err)?;
 
     let format = q.format.as_deref().unwrap_or("json").to_ascii_lowercase();
     if format == "text" || format == "a11y" {
@@ -808,7 +806,6 @@ pub(crate) struct SessionNetworkQuery {
     body_max_chars: Option<usize>,
 }
 
-
 #[derive(Deserialize)]
 pub(crate) struct FlowRunBody {
     /// Inline flow document ({create?, vars?, steps:[{op, args, expect?, save?}]}).
@@ -836,7 +833,9 @@ pub(crate) struct FlowRunBody {
 /// zero model tokens. Returns the receipt: `status:ok` + `saved` outputs, or
 /// `status:failed` + the failing step, reason, and a diagnostic screenshot
 /// (the session stays alive for manual takeover).
-pub(crate) async fn flow_run_handler(Json(body): Json<FlowRunBody>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn flow_run_handler(
+    Json(body): Json<FlowRunBody>,
+) -> Result<impl IntoResponse, AppError> {
     let mut doc =
         flow::resolve_flow_doc(body.flow, body.name.as_deref()).map_err(AppError::BadRequest)?;
     // Caller budget wins over the document's own max_steps — one read path
@@ -930,12 +929,9 @@ pub(crate) async fn session_click_handler(
     Json(req): Json<SessionClickRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let index = resolve_element_index(req.index, req.element_ref.as_deref())?;
-    let resp = session::send_command(&id, |reply| session::SessionCommand::Click {
-        index,
-        reply,
-    })
-    .await
-    .map_err(session_err)?;
+    let resp = session::send_command(&id, |reply| session::SessionCommand::Click { index, reply })
+        .await
+        .map_err(session_err)?;
     Ok((StatusCode::OK, Json(resp)))
 }
 
@@ -1337,7 +1333,10 @@ mod tests {
         // Same page after the scan: code gone, store home → landed.
         assert!(qr_landed("https://store.weixin.qq.com/shop/home", false));
         // Classic login URLs stay not-landed even while the code renews.
-        assert!(!qr_landed("https://login.taobao.com/member/login.jhtml", false));
+        assert!(!qr_landed(
+            "https://login.taobao.com/member/login.jhtml",
+            false
+        ));
         assert!(!qr_landed("about:blank", false));
         assert!(!qr_landed("", false));
     }
@@ -1349,8 +1348,14 @@ mod tests {
         // code was visibly on the page — every live_qr handoff broke. The
         // extractor is page JS (no DOM to run it on here), so pin the bound
         // itself: change the gate, change this test.
-        assert!(QR_EXTRACT_JS.contains("w>=80&&w<=1024"), "canvas gate must admit 528×528 login QRs");
-        assert!(!QR_EXTRACT_JS.contains("w<=480"), "stale 480 cap re-introduced");
+        assert!(
+            QR_EXTRACT_JS.contains("w>=80&&w<=1024"),
+            "canvas gate must admit 528×528 login QRs"
+        );
+        assert!(
+            !QR_EXTRACT_JS.contains("w<=480"),
+            "stale 480 cap re-introduced"
+        );
     }
 
     #[test]
@@ -1358,7 +1363,10 @@ mod tests {
         // Mid-word hits are not login pages: "/lesson/" carries "sso"
         // inside "lesson", "blossom" carries it inside "blossom" — the
         // substring rule held "not landed" forever on these.
-        assert!(qr_landed("https://edu.example.com/lesson/123?from=home", false));
+        assert!(qr_landed(
+            "https://edu.example.com/lesson/123?from=home",
+            false
+        ));
         assert!(qr_landed("https://example.com/flowers/blossom", false));
         // Token-edge hits still count: exact, prefix ("ssologin"), suffix
         // ("newlogin"), host label ("loginmyseller.tmall.com").
@@ -1366,7 +1374,10 @@ mod tests {
         assert!(!qr_landed("https://passport.taobao.com/newlogin", false));
         assert!(!qr_landed("https://loginmyseller.tmall.com/", false));
         assert!(!qr_landed("https://example.com/sso/login_panel", false));
-        assert!(!qr_landed("https://login.taobao.com/member/login.jhtml", false));
+        assert!(!qr_landed(
+            "https://login.taobao.com/member/login.jhtml",
+            false
+        ));
     }
 
     // 0.4.1 taobao report problem 1: an over-limit body must classify as a
@@ -1474,17 +1485,22 @@ pub(crate) async fn session_qr_handler(
     let b64 = v["qr"].as_str();
     if q.json.is_some() {
         let landed = qr_landed(&url, b64.is_some());
-        return Ok(Json(serde_json::json!({ "url": url, "qr": b64.is_some(), "landed": landed })).into_response());
+        return Ok(
+            Json(serde_json::json!({ "url": url, "qr": b64.is_some(), "landed": landed }))
+                .into_response(),
+        );
     }
     let (Some(b64), Some(mime)) = (b64, v["mime"].as_str()) else {
-        return Err(AppError::NotFound("no QR code on the page right now".into()));
+        return Err(AppError::NotFound(
+            "no QR code on the page right now".into(),
+        ));
     };
     let bytes = {
-            {
-                use base64::Engine as _;
-                base64::engine::general_purpose::STANDARD.decode(b64)
-            }
-            .map_err(|e| AppError::Internal(format!("QR decode: {e}")))?
+        {
+            use base64::Engine as _;
+            base64::engine::general_purpose::STANDARD.decode(b64)
+        }
+        .map_err(|e| AppError::Internal(format!("QR decode: {e}")))?
     };
     Ok((
         StatusCode::OK,

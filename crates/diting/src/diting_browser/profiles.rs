@@ -179,7 +179,8 @@ mod tests {
                     p.ua_platform_version
                         .split('.')
                         .all(|part| part.chars().all(|c| c.is_ascii_digit())),
-                    "{}", p.ua_platform_version
+                    "{}",
+                    p.ua_platform_version
                 );
             } else {
                 panic!("unknown OS token in {}", p.user_agent);
@@ -197,8 +198,15 @@ mod tests {
             .filter(|(_, p)| p.ua_platform == "Linux")
             .map(|(i, _)| i)
             .collect();
-        assert_eq!(linux, vec![8, 9, 10, 11], "four Linux personas appended at the tail");
-        assert_eq!(DEFAULT_PROFILE_INDEX, 6, "un-pinned default must stay the macOS persona");
+        assert_eq!(
+            linux,
+            vec![8, 9, 10, 11],
+            "four Linux personas appended at the tail"
+        );
+        assert_eq!(
+            DEFAULT_PROFILE_INDEX, 6,
+            "un-pinned default must stay the macOS persona"
+        );
     }
 
     #[test]
@@ -207,7 +215,9 @@ mod tests {
         // Un-pinned select keeps the persona every DITING_UA-unset
         // deployment has always presented: macOS Chrome at the fleet major.
         assert!(p.user_agent.starts_with("Mozilla/5.0 (Macintosh"));
-        assert!(p.user_agent.contains(&format!("Chrome/{}", crate::chrome_target::CHROME_MAJOR)));
+        assert!(p
+            .user_agent
+            .contains(&format!("Chrome/{}", crate::chrome_target::CHROME_MAJOR)));
         assert_eq!(p.platform, "MacIntel");
     }
 
@@ -215,9 +225,7 @@ mod tests {
     fn random_profile_stays_inside_the_pool() {
         for _ in 0..50 {
             let p = random_profile();
-            assert!(PROFILES
-                .iter()
-                .any(|c| c.user_agent == p.user_agent));
+            assert!(PROFILES.iter().any(|c| c.user_agent == p.user_agent));
         }
     }
 }

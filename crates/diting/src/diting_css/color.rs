@@ -32,7 +32,11 @@ pub fn parse_color(v: &str) -> Option<Color> {
             return None;
         }
         let chan = |x: f32| x.round().clamp(0.0, 255.0) as u8;
-        let a = if nums.len() == 4 { (nums[3].clamp(0.0, 1.0) * 255.0).round() as u8 } else { 255 };
+        let a = if nums.len() == 4 {
+            (nums[3].clamp(0.0, 1.0) * 255.0).round() as u8
+        } else {
+            255
+        };
         return Some(Color(chan(nums[0]), chan(nums[1]), chan(nums[2]), a));
     }
     // hsl()/hsla() (#136, obscura #1085): hue is a bare number, deg, or
@@ -114,20 +118,21 @@ pub(super) fn parse_hex_color(v: &str) -> Option<Color> {
     let hex = v.strip_prefix('#')?;
     let (r, g, b, a) = match hex.len() {
         3 => {
-            let n: Vec<u8> = hex.chars().filter_map(|c| c.to_digit(16).map(|d| d as u8)).collect();
+            let n: Vec<u8> = hex
+                .chars()
+                .filter_map(|c| c.to_digit(16).map(|d| d as u8))
+                .collect();
             if n.len() != 3 {
                 return None;
             }
-            (
-                n[0] * 17,
-                n[1] * 17,
-                n[2] * 17,
-                255,
-            )
+            (n[0] * 17, n[1] * 17, n[2] * 17, 255)
         }
         4 => {
             // #rgba: each digit doubles (CSS Color 4).
-            let n: Vec<u8> = hex.chars().filter_map(|c| c.to_digit(16).map(|d| d as u8)).collect();
+            let n: Vec<u8> = hex
+                .chars()
+                .filter_map(|c| c.to_digit(16).map(|d| d as u8))
+                .collect();
             if n.len() != 4 {
                 return None;
             }

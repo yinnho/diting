@@ -36,7 +36,10 @@ mod tests {
         assert!(CHROME_FULL_VERSION.starts_with(&format!("{CHROME_MAJOR}.")));
         assert_eq!(TLS_PROFILE_NAME, format!("chrome{CHROME_MAJOR}"));
         for ua in [UA_MAC, UA_WINDOWS, UA_LINUX] {
-            assert!(ua.contains(&format!("Chrome/{CHROME_MAJOR}.0.0.0 ")), "{ua}");
+            assert!(
+                ua.contains(&format!("Chrome/{CHROME_MAJOR}.0.0.0 ")),
+                "{ua}"
+            );
         }
         assert_eq!(UA_DEFAULT, UA_MAC);
         assert_eq!((PLATFORM_OS, PLATFORM_ARCH), ("macOS", "arm64"));

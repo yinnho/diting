@@ -5,11 +5,11 @@ use std::rc::Rc;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
+use diting_runtime::modules::resolve_import;
 use diting_runtime::modules::ModuleLoadResponse;
 use diting_runtime::modules::ModuleLoader;
 use diting_runtime::modules::ModuleLoaderError;
 use diting_runtime::modules::ModuleSource;
-use diting_runtime::modules::resolve_import;
 use url::Url as ModuleSpecifier;
 
 use crate::diting_js::import_map::ImportMap;
@@ -129,7 +129,9 @@ fn decode_base64_payload(payload: &str) -> Result<Vec<u8>, ModuleLoaderError> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/')
     {
-        return Err(io_err("Invalid base64 payload in module data: URL".to_string()));
+        return Err(io_err(
+            "Invalid base64 payload in module data: URL".to_string(),
+        ));
     }
     let mut padded = stripped.to_string();
     while !padded.len().is_multiple_of(4) {
@@ -165,11 +167,7 @@ fn data_module_source(
         return Err(io_err(format!(
             "Refused to execute module from {}: MIME type ({}) is not a JavaScript MIME type",
             url,
-            if mime.is_empty() {
-                "text/plain"
-            } else {
-                mime
-            }
+            if mime.is_empty() { "text/plain" } else { mime }
         )));
     }
     let bytes = if base64 {
@@ -210,11 +208,7 @@ fn blob_module_source(
         return Err(io_err(format!(
             "Refused to execute module from {}: MIME type ({}) is not a JavaScript MIME type",
             url,
-            if mime.is_empty() {
-                "text/plain"
-            } else {
-                &mime
-            }
+            if mime.is_empty() { "text/plain" } else { &mime }
         )));
     }
     let code = String::from_utf8_lossy(&bytes).into_owned();
@@ -289,9 +283,7 @@ impl ModuleLoader for DitingModuleLoader {
             // hosts just because it took the module-loader path.
             let specifier = ModuleSpecifier::parse(&url)
                 .map_err(|e| io_err(format!("Invalid module URL {}: {}", url, e)))?;
-            if let Err(reason) =
-                crate::diting_js::ops::validate_fetch_url(&specifier)
-            {
+            if let Err(reason) = crate::diting_js::ops::validate_fetch_url(&specifier) {
                 return Err(io_err(format!(
                     "Failed to fetch module {}: {}",
                     url, reason
@@ -448,9 +440,7 @@ fn decoded_module_source(
     // with top-level await just reports its EXIT late, which still
     // localizes the spin. Strictly an engine-debugging aid.
     let code = if std::env::var("DITING_MODULE_TRACE").is_ok() {
-        format!(
-            "console.log(\"MODULE_ENTER:{url}\");\n{code}\nconsole.log(\"MODULE_EXIT:{url}\");"
-        )
+        format!("console.log(\"MODULE_ENTER:{url}\");\n{code}\nconsole.log(\"MODULE_EXIT:{url}\");")
     } else {
         code
     };

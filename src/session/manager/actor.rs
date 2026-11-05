@@ -55,9 +55,12 @@ fn http_date(secs: i64) -> Option<String> {
     let year = if mth <= 2 { y + 1 } else { y };
     // Day 0 of the epoch was a Thursday.
     let wd = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"][days.rem_euclid(7) as usize];
-    let mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        [(mth - 1) as usize];
-    Some(format!("{wd}, {d:02} {mon} {year:04} {h:02}:{m:02}:{s:02} GMT"))
+    let mon = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ][(mth - 1) as usize];
+    Some(format!(
+        "{wd}, {d:02} {mon} {year:04} {h:02}:{m:02}:{s:02} GMT"
+    ))
 }
 
 /// Drain `pending` web-storage into the current page, origin-gated
@@ -71,7 +74,10 @@ fn http_date(secs: i64) -> Option<String> {
 /// the session should just start logged out, like any fresh visit.
 fn try_inject_storage(page: &mut crate::page::Page, pending: &mut Option<Value>) {
     let Some(blob) = pending else { return };
-    let want = blob.get("origin").and_then(Value::as_str).map(str::to_string);
+    let want = blob
+        .get("origin")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     if let Some(want) = want {
         let here = crate::account::url_origin(&page.url());
         if here.as_deref() != Some(want.as_str()) {
@@ -1200,7 +1206,6 @@ pub(super) fn session_thread(
     crate::release_mem::release_to_os();
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{http_date, in_flight_row, HUNG_INFLIGHT_AFTER_MS};
@@ -1239,7 +1244,10 @@ mod tests {
     #[test]
     fn http_date_formats_epoch_as_rfc1123_gmt() {
         // Day 0 of the epoch was a Thursday.
-        assert_eq!(http_date(0).as_deref(), Some("Thu, 01 Jan 1970 00:00:00 GMT"));
+        assert_eq!(
+            http_date(0).as_deref(),
+            Some("Thu, 01 Jan 1970 00:00:00 GMT")
+        );
         // Day 53: Monday, 23 Feb 1970 (Jan 1 1970 = Thursday, Jan = 31 days).
         assert_eq!(
             http_date(53 * 86_400).as_deref(),

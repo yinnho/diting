@@ -13,7 +13,9 @@
 
 use std::collections::HashMap;
 
-use crate::diting_css::{parse_linear_gradient, ComputedStyle, Display as CssDisplay, TextAlign, WhiteSpace};
+use crate::diting_css::{
+    parse_linear_gradient, ComputedStyle, Display as CssDisplay, TextAlign, WhiteSpace,
+};
 use crate::diting_dom::tree::{DomTree, NodeId};
 
 use super::text::{greedy_wrap, last_line_offset, Token};
@@ -39,9 +41,16 @@ fn inline_spec(
                 return None;
             }
             if s.background_clip_text {
-                if let Some(g) = s.background_image.as_deref().and_then(parse_linear_gradient) {
+                if let Some(g) = s
+                    .background_image
+                    .as_deref()
+                    .and_then(parse_linear_gradient)
+                {
                     return Some((
-                        g.stops.iter().map(|(p, c)| (*p, [c.0, c.1, c.2, c.3])).collect(),
+                        g.stops
+                            .iter()
+                            .map(|(p, c)| (*p, [c.0, c.1, c.2, c.3]))
+                            .collect(),
                         g.css_deg,
                         s.box_decoration_clone,
                     ));
@@ -116,7 +125,12 @@ pub(super) fn run_fill(
             })
             .collect();
     } else if inline.is_some() {
-        let widest = lines.iter().map(|l| l.width).fold(0.0f32, f32::max).max(1.0) * sa;
+        let widest = lines
+            .iter()
+            .map(|l| l.width)
+            .fold(0.0f32, f32::max)
+            .max(1.0)
+            * sa;
         g.area = Rect {
             x,
             y,

@@ -177,7 +177,15 @@ fn op_fetch_url_impl(info: *const v8::FunctionCallbackInfo) -> usize {
     let state = opctx.state.clone();
     let fut = async move {
         super::ops::op_fetch_url_body(
-            state, url, method, headers_json, body, origin, mode, credentials, referrer,
+            state,
+            url,
+            method,
+            headers_json,
+            body,
+            origin,
+            mode,
+            credentials,
+            referrer,
         )
         .await
         .map_err(|e| e.to_string())

@@ -164,16 +164,10 @@ impl Seg {
             (hi > lo).then_some((lo, hi))
         };
         if self.horizontal && other.horizontal && self.a.1 == other.a.1 {
-            let (lo, hi) = overlap(
-                (self.a.0, self.b.0),
-                (other.a.0, other.b.0),
-            )?;
+            let (lo, hi) = overlap((self.a.0, self.b.0), (other.a.0, other.b.0))?;
             Some((hi - lo, (lo, self.a.1), (hi, self.a.1)))
         } else if !self.horizontal && !other.horizontal && self.a.0 == other.a.0 {
-            let (lo, hi) = overlap(
-                (self.a.1, self.b.1),
-                (other.a.1, other.b.1),
-            )?;
+            let (lo, hi) = overlap((self.a.1, self.b.1), (other.a.1, other.b.1))?;
             Some((hi - lo, (self.a.0, lo), (self.a.0, hi)))
         } else {
             None
@@ -245,7 +239,13 @@ impl Seg {
                 let lo = self.a.0.min(self.b.0);
                 let hi = self.a.0.max(self.b.0);
                 (
-                    if p.0 < lo { lo - p.0 } else if p.0 > hi { p.0 - hi } else { 0 },
+                    if p.0 < lo {
+                        lo - p.0
+                    } else if p.0 > hi {
+                        p.0 - hi
+                    } else {
+                        0
+                    },
                     dy,
                 )
             } else {
@@ -253,7 +253,13 @@ impl Seg {
                 let hi = self.a.1.max(self.b.1);
                 (
                     dx,
-                    if p.1 < lo { lo - p.1 } else if p.1 > hi { p.1 - hi } else { 0 },
+                    if p.1 < lo {
+                        lo - p.1
+                    } else if p.1 > hi {
+                        p.1 - hi
+                    } else {
+                        0
+                    },
                 )
             };
             dx as i64 * dx as i64 + dy as i64 * dy as i64
@@ -277,10 +283,38 @@ fn border_segments(frame: &AuditFrame) -> [(Seg, &'static str); 4] {
     let rad = frame.radius.clamp(0, r.w / 2).clamp(0, r.h / 2);
     let (left, right, top, bottom) = (r.x, r.right(), r.y, r.bottom());
     [
-        (Seg { a: (left + rad, top), b: (right - rad, top), horizontal: true }, "top"),
-        (Seg { a: (right, top + rad), b: (right, bottom - rad), horizontal: false }, "right"),
-        (Seg { a: (right - rad, bottom), b: (left + rad, bottom), horizontal: true }, "bottom"),
-        (Seg { a: (left, bottom - rad), b: (left, top + rad), horizontal: false }, "left"),
+        (
+            Seg {
+                a: (left + rad, top),
+                b: (right - rad, top),
+                horizontal: true,
+            },
+            "top",
+        ),
+        (
+            Seg {
+                a: (right, top + rad),
+                b: (right, bottom - rad),
+                horizontal: false,
+            },
+            "right",
+        ),
+        (
+            Seg {
+                a: (right - rad, bottom),
+                b: (left + rad, bottom),
+                horizontal: true,
+            },
+            "bottom",
+        ),
+        (
+            Seg {
+                a: (left, bottom - rad),
+                b: (left, top + rad),
+                horizontal: false,
+            },
+            "left",
+        ),
     ]
 }
 
@@ -307,8 +341,16 @@ pub fn audit(scene: &AuditScene) -> Composition {
             let mut crossing = None;
             for l in left.points.windows(2) {
                 for r in right.points.windows(2) {
-                    let ls = Seg { a: l[0], b: l[1], horizontal: l[0].1 == l[1].1 };
-                    let rs = Seg { a: r[0], b: r[1], horizontal: r[0].1 == r[1].1 };
+                    let ls = Seg {
+                        a: l[0],
+                        b: l[1],
+                        horizontal: l[0].1 == l[1].1,
+                    };
+                    let rs = Seg {
+                        a: r[0],
+                        b: r[1],
+                        horizontal: r[0].1 == r[1].1,
+                    };
                     if let Some(p) = ls.crosses(&rs) {
                         crossing = Some(p);
                         break;
@@ -325,8 +367,16 @@ pub fn audit(scene: &AuditScene) -> Composition {
             let mut longest: Option<(i32, Pt, Pt)> = None;
             for l in left.points.windows(2) {
                 for r in right.points.windows(2) {
-                    let ls = Seg { a: l[0], b: l[1], horizontal: l[0].1 == l[1].1 };
-                    let rs = Seg { a: r[0], b: r[1], horizontal: r[0].1 == r[1].1 };
+                    let ls = Seg {
+                        a: l[0],
+                        b: l[1],
+                        horizontal: l[0].1 == l[1].1,
+                    };
+                    let rs = Seg {
+                        a: r[0],
+                        b: r[1],
+                        horizontal: r[0].1 == r[1].1,
+                    };
                     if let Some(hit) = ls.axis_overlap(&rs) {
                         if longest.is_none_or(|best| hit.0 > best.0) {
                             longest = Some(hit);
@@ -391,8 +441,12 @@ pub fn audit(scene: &AuditScene) -> Composition {
                 );
                 let cap = LABEL_CLEARANCE_SHOWCASE as i64;
                 if sq < cap * cap {
-                    out.label_clearances
-                        .push((labeled.name.clone(), other.name.clone(), sq, hidden));
+                    out.label_clearances.push((
+                        labeled.name.clone(),
+                        other.name.clone(),
+                        sq,
+                        hidden,
+                    ));
                 }
             }
         }
@@ -487,8 +541,7 @@ impl Composition {
     }
 
     fn readability_is_hit(&self) -> bool {
-        self.readability
-            .is_some_and(|(_, _, hit)| hit)
+        self.readability.is_some_and(|(_, _, hit)| hit)
     }
 
     /// The receipt-facing report. `status` fails only on error-severity
@@ -622,7 +675,9 @@ impl Composition {
     /// Total findings at this profile (warnings included), for receipt
     /// check lines.
     pub fn findings(&self, quality: Quality) -> usize {
-        self.report(quality)["issues"].as_array().map_or(0, |a| a.len())
+        self.report(quality)["issues"]
+            .as_array()
+            .map_or(0, |a| a.len())
     }
 }
 
@@ -650,7 +705,12 @@ mod tests {
     }
 
     // 1000×1000px frame, 100px corner radius.
-    const R: Rect = Rect { x: 0, y: 0, w: 10000, h: 10000 };
+    const R: Rect = Rect {
+        x: 0,
+        y: 0,
+        w: 10000,
+        h: 10000,
+    };
 
     #[test]
     fn crossing_is_detected_and_shared_endpoints_are_exempt() {
@@ -658,14 +718,22 @@ mod tests {
             route("a->b", "a", "b", &[(0, 0), (1000, 0)], None),
             route("c->d", "c", "d", &[(500, -500), (500, 500)], None),
         ];
-        let comp = audit(&AuditScene { routes: &disjoint, frames: &[], readability: None });
+        let comp = audit(&AuditScene {
+            routes: &disjoint,
+            frames: &[],
+            readability: None,
+        });
         assert_eq!(comp.crossings.len(), 1, "h × v interior crossing");
         // Same endpoints: the fan-out is topology, not a defect.
         let shared = [
             route("a->b", "a", "b", &[(0, 0), (1000, 0)], None),
             route("b->a", "a", "b", &[(500, -500), (500, 500)], None),
         ];
-        let comp = audit(&AuditScene { routes: &shared, frames: &[], readability: None });
+        let comp = audit(&AuditScene {
+            routes: &shared,
+            frames: &[],
+            readability: None,
+        });
         assert!(comp.crossings.is_empty());
         assert!(comp.clean(Quality::Showcase));
     }
@@ -677,7 +745,11 @@ mod tests {
             route("a->b", "a", "b", &[(0, 0), (1000, 0)], None),
             route("c->d", "c", "d", &[(500, -500), (500, 0)], None),
         ];
-        let comp = audit(&AuditScene { routes: &touching, frames: &[], readability: None });
+        let comp = audit(&AuditScene {
+            routes: &touching,
+            frames: &[],
+            readability: None,
+        });
         assert!(comp.crossings.is_empty());
     }
 
@@ -687,13 +759,21 @@ mod tests {
             route("a->b", "a", "b", &[(0, 0), (2000, 0)], None),
             route("c->d", "c", "d", &[(1200, 0), (3000, 0)], None),
         ];
-        let comp = audit(&AuditScene { routes: &colinear, frames: &[], readability: None });
+        let comp = audit(&AuditScene {
+            routes: &colinear,
+            frames: &[],
+            readability: None,
+        });
         assert_eq!(comp.corridors.len(), 1, "800px of shared corridor");
         let short = [
             route("a->b", "a", "b", &[(0, 0), (2000, 0)], None),
             route("c->d", "c", "d", &[(1950, 0), (3000, 0)], None),
         ];
-        let comp = audit(&AuditScene { routes: &short, frames: &[], readability: None });
+        let comp = audit(&AuditScene {
+            routes: &short,
+            frames: &[],
+            readability: None,
+        });
         assert!(comp.corridors.is_empty(), "50px < 80px floor");
     }
 
@@ -717,7 +797,13 @@ mod tests {
         assert!(audit(&scene).border_runs.is_empty());
         // Crossing the border perpendicularly is legitimate.
         let scene = AuditScene {
-            routes: &[route("a->b", "a", "b", &[(5000, -2000), (5000, 2000)], None)],
+            routes: &[route(
+                "a->b",
+                "a",
+                "b",
+                &[(5000, -2000), (5000, 2000)],
+                None,
+            )],
             frames: &[frame(R, 1000)],
             readability: None,
         };
@@ -752,7 +838,12 @@ mod tests {
     fn label_clearance_threshold_follows_the_profile() {
         // Label 30px (300 tenths) below a foreign route: above the 2px
         // standard bar, below the 4px showcase bar.
-        let label = Rect { x: 0, y: 30, w: 400, h: 100 };
+        let label = Rect {
+            x: 0,
+            y: 30,
+            w: 400,
+            h: 100,
+        };
         let scene = AuditScene {
             routes: &[
                 route("a->b", "a", "b", &[(0, 0), (1000, 0)], Some(label)),
@@ -766,7 +857,18 @@ mod tests {
         assert_eq!(comp.label_hits(Quality::Showcase).len(), 1);
         // Its own relationship is exempt.
         let own = AuditScene {
-            routes: &[route("a->b", "a", "b", &[(0, 0), (1000, 0)], Some(Rect { x: 0, y: 5, w: 400, h: 100 }))],
+            routes: &[route(
+                "a->b",
+                "a",
+                "b",
+                &[(0, 0), (1000, 0)],
+                Some(Rect {
+                    x: 0,
+                    y: 5,
+                    w: 400,
+                    h: 100,
+                }),
+            )],
             frames: &[],
             readability: None,
         };
@@ -777,14 +879,34 @@ mod tests {
     fn rhythm_flags_micro_and_short_interior_segments() {
         // 3-segment route: the 12px middle run is a short interior segment
         // (the 60px tail is an endpoint, under 16px but allowed).
-        let zig = [route("a->b", "a", "b", &[(0, 0), (600, 0), (600, 120), (1200, 120)], None)];
-        let comp = audit(&AuditScene { routes: &zig, frames: &[], readability: None });
+        let zig = [route(
+            "a->b",
+            "a",
+            "b",
+            &[(0, 0), (600, 0), (600, 120), (1200, 120)],
+            None,
+        )];
+        let comp = audit(&AuditScene {
+            routes: &zig,
+            frames: &[],
+            readability: None,
+        });
         assert_eq!(comp.rhythm.len(), 1);
         assert_eq!(comp.rhythm[0].1, "short-interior-segment");
         assert_eq!(comp.metrics.max_bends, 2);
         // A 5px segment anywhere is a micro segment.
-        let tiny = [route("a->b", "a", "b", &[(0, 0), (50, 0), (50, 600), (1200, 600)], None)];
-        let comp = audit(&AuditScene { routes: &tiny, frames: &[], readability: None });
+        let tiny = [route(
+            "a->b",
+            "a",
+            "b",
+            &[(0, 0), (50, 0), (50, 600), (1200, 600)],
+            None,
+        )];
+        let comp = audit(&AuditScene {
+            routes: &tiny,
+            frames: &[],
+            readability: None,
+        });
         assert_eq!(comp.rhythm.len(), 1);
         assert_eq!(comp.rhythm[0].1, "micro-segment");
     }
@@ -794,22 +916,41 @@ mod tests {
         let wide = AuditScene {
             routes: &[route("a->b", "a", "b", &[(0, 0), (2000, 0)], None)],
             frames: &[],
-            readability: Some(Readability { view_box_w: 18600, min_label_font: 80 }),
+            readability: Some(Readability {
+                view_box_w: 18600,
+                min_label_font: 80,
+            }),
         };
         let comp = audit(&wide);
-        assert_eq!(comp.report(Quality::Showcase)["metrics"]["minProjectedNodeTextPx"], "4");
-        assert!(comp.readability_is_hit(), "8px font halves to 4px on a 2× canvas");
+        assert_eq!(
+            comp.report(Quality::Showcase)["metrics"]["minProjectedNodeTextPx"],
+            "4"
+        );
+        assert!(
+            comp.readability_is_hit(),
+            "8px font halves to 4px on a 2× canvas"
+        );
         let narrow = AuditScene {
             routes: &[route("a->b", "a", "b", &[(0, 0), (2000, 0)], None)],
             frames: &[],
-            readability: Some(Readability { view_box_w: 9300, min_label_font: 80 }),
+            readability: Some(Readability {
+                view_box_w: 9300,
+                min_label_font: 80,
+            }),
         };
-        assert!(!audit(&narrow).readability_is_hit(), "reader-width canvas: no shrink");
+        assert!(
+            !audit(&narrow).readability_is_hit(),
+            "reader-width canvas: no shrink"
+        );
     }
 
     #[test]
     fn empty_scene_is_clean_and_report_is_deterministic() {
-        let scene = AuditScene { routes: &[], frames: &[], readability: None };
+        let scene = AuditScene {
+            routes: &[],
+            frames: &[],
+            readability: None,
+        };
         let comp = audit(&scene);
         assert!(comp.clean(Quality::Showcase));
         let r1 = comp.report(Quality::Showcase);

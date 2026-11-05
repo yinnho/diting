@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use diting::diting_browser::BrowserContext;
 use diting::diting_net::CookieJar;
@@ -43,7 +43,10 @@ impl Browser {
         let context = Arc::new(context);
         let cookie_jar = context.cookie_jar.clone();
 
-        Ok(Browser { context, cookie_jar })
+        Ok(Browser {
+            context,
+            cookie_jar,
+        })
     }
 
     pub fn builder() -> BrowserBuilder {
@@ -52,10 +55,7 @@ impl Browser {
 
     pub async fn new_page(&self) -> Result<Page, Error> {
         let id = NEXT_PAGE_ID.fetch_add(1, Ordering::Relaxed);
-        let page = diting::diting_browser::Page::new(
-            format!("page-{}", id),
-            self.context.clone(),
-        );
+        let page = diting::diting_browser::Page::new(format!("page-{}", id), self.context.clone());
         Ok(Page {
             inner: page,
             context: self.context.clone(),

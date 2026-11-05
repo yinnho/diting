@@ -27,10 +27,10 @@ use std::collections::{BTreeSet, HashMap};
 
 use serde::Deserialize;
 
+use crate::ooxml::{pptx_package, A_NS, PPTX_SP_TREE_HEAD, P_NS, R_NS, XML_DECL};
+use crate::pages::PageError;
 use diting::diting_browser::Page;
 use diting::diting_css::{parse_color, parse_linear_gradient, Color};
-use crate::ooxml::{pptx_package, PPTX_SP_TREE_HEAD, A_NS, P_NS, R_NS, XML_DECL};
-use crate::pages::PageError;
 
 /// Per-image body cap, matching the other pump fetch paths.
 const MAX_IMAGE_BYTES: usize = 2 * 1024 * 1024;
@@ -164,13 +164,20 @@ pub async fn pptx_native_deck(
 ) -> Result<(Vec<u8>, usize), PageError> {
     let lit = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".to_string());
     let val = page.evaluate(&format!("({WALKER_JS})({lit})"));
-    let slides: Vec<WalkedSlide> = serde_json::from_value(val)
-        .map_err(|_| PageError::NoSelectorMatches { selector: selector.to_string() })?;
+    let slides: Vec<WalkedSlide> =
+        serde_json::from_value(val).map_err(|_| PageError::NoSelectorMatches {
+            selector: selector.to_string(),
+        })?;
     if slides.is_empty() {
-        return Err(PageError::NoSelectorMatches { selector: selector.to_string() });
+        return Err(PageError::NoSelectorMatches {
+            selector: selector.to_string(),
+        });
     }
     if slides.len() > max_pages {
-        return Err(PageError::PageCapExceeded { asked: slides.len(), cap: max_pages });
+        return Err(PageError::PageCapExceeded {
+            asked: slides.len(),
+            cap: max_pages,
+        });
     }
     let media = resolve_media(page, &slides).await;
     Ok((pack(&slides, &media), slides.len()))
@@ -241,13 +248,16 @@ async fn fetch_image(page: &Page, url: &str) -> Option<Vec<u8>> {
             let base = page.url_string();
             let fetched = tokio::time::timeout(
                 std::time::Duration::from_secs(3),
-                page.context.http_client.fetch_subresource(&parsed, Some(base.as_str())),
+                page.context
+                    .http_client
+                    .fetch_subresource(&parsed, Some(base.as_str())),
             )
             .await;
             match fetched {
-                Ok(Ok(resp)) if resp.status == 200
-                    && !resp.body.is_empty()
-                    && resp.body.len() <= MAX_IMAGE_BYTES =>
+                Ok(Ok(resp))
+                    if resp.status == 200
+                        && !resp.body.is_empty()
+                        && resp.body.len() <= MAX_IMAGE_BYTES =>
                 {
                     Some(resp.body)
                 }
@@ -306,7 +316,10 @@ fn emu(px: f32) -> u64 {
 /// A shape fill: the three states an element's background can land in.
 enum Fill {
     Solid(Color),
-    Grad { stops: Vec<(f32, Color)>, css_deg: f32 },
+    Grad {
+        stops: Vec<(f32, Color)>,
+        css_deg: f32,
+    },
 }
 
 /// Parse an element's background into a fill: gradient (longhand
@@ -315,7 +328,10 @@ enum Fill {
 /// (shared with the paint layer since the gradient-paint batch).
 fn element_fill(bg: Option<&str>, bg_image: Option<&str>) -> Option<Fill> {
     if let Some(g) = bg_image.and_then(parse_linear_gradient) {
-        return Some(Fill::Grad { stops: g.stops, css_deg: g.css_deg });
+        return Some(Fill::Grad {
+            stops: g.stops,
+            css_deg: g.css_deg,
+        });
     }
     let c = bg.and_then(parse_color)?;
     (c.3 > 0).then_some(Fill::Solid(c))
@@ -348,7 +364,10 @@ fn srgb_with_alpha(c: Color, alpha: f32) -> String {
 
 fn fill_xml(fill: &Fill, opacity: f32) -> String {
     match fill {
-        Fill::Solid(c) => format!("<a:solidFill>{}</a:solidFill>", srgb_with_alpha(*c, opacity)),
+        Fill::Solid(c) => format!(
+            "<a:solidFill>{}</a:solidFill>",
+            srgb_with_alpha(*c, opacity)
+        ),
         Fill::Grad { stops, css_deg } => {
             let gs: String = stops
                 .iter()
@@ -434,7 +453,11 @@ fn plain_shape(
 /// line heights convert to exact points — the DrawingML defaults (top
 /// anchor, "single" spacing ≈ 1.2 em) sit visibly high and drift per line.
 fn text_shape(id: u64, e: &WalkedElement, fill: Option<&Fill>) -> String {
-    let opacity: f32 = e.opacity.as_deref().and_then(|o| o.parse().ok()).unwrap_or(1.0);
+    let opacity: f32 = e
+        .opacity
+        .as_deref()
+        .and_then(|o| o.parse().ok())
+        .unwrap_or(1.0);
 
     let font_px = e
         .font_size
@@ -470,8 +493,14 @@ fn text_shape(id: u64, e: &WalkedElement, fill: Option<&Fill>) -> String {
                     r#"<a:lnSpc><a:spcPts val="{}"/></a:lnSpc>"#,
                     (n * font_px * 75.0).round() as u32
                 );
-            } else if let Some(px) = lh.strip_suffix("px").and_then(|p| p.trim().parse::<f32>().ok()) {
-                ln_spc = format!(r#"<a:lnSpc><a:spcPts val="{}"/></a:lnSpc>"#, (px * 75.0).round() as u32);
+            } else if let Some(px) = lh
+                .strip_suffix("px")
+                .and_then(|p| p.trim().parse::<f32>().ok())
+            {
+                ln_spc = format!(
+                    r#"<a:lnSpc><a:spcPts val="{}"/></a:lnSpc>"#,
+                    (px * 75.0).round() as u32
+                );
             }
         }
     }
@@ -538,7 +567,9 @@ fn text_shape(id: u64, e: &WalkedElement, fill: Option<&Fill>) -> String {
         })
         .collect();
 
-    let fill_xml_str = fill.map(|f| fill_xml(f, opacity)).unwrap_or_else(|| "<a:noFill/>".to_string());
+    let fill_xml_str = fill
+        .map(|f| fill_xml(f, opacity))
+        .unwrap_or_else(|| "<a:noFill/>".to_string());
 
     format!(
         r#"<p:sp><p:nvSpPr><p:cNvPr id="{id}" name="{}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>{}{}{}<a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr lIns="{}" tIns="{}" rIns="{}" bIns="{}" wrap="{wrap}" anchor="ctr"/><a:lstStyle/>{paras}</p:txBody></p:sp>"#,
@@ -563,7 +594,13 @@ fn text_shape(id: u64, e: &WalkedElement, fill: Option<&Fill>) -> String {
 /// zh/en runs this exporter emits); otherwise the first real family.
 fn portable_family(stack: &str) -> Option<String> {
     const SKIPPED: [&str; 7] = [
-        "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif", "serif", "monospace", "cursive",
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "system-ui",
+        "sans-serif",
+        "serif",
+        "monospace",
+        "cursive",
     ];
     let families: Vec<&str> = stack
         .split(',')
@@ -571,7 +608,12 @@ fn portable_family(stack: &str) -> Option<String> {
         .filter(|f| !f.is_empty() && !SKIPPED.iter().any(|s| s.eq_ignore_ascii_case(f)))
         .collect();
     const CJK: [&str; 6] = [
-        "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Source Han Sans SC", "SimHei",
+        "Microsoft YaHei",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Noto Sans SC",
+        "Source Han Sans SC",
+        "SimHei",
     ];
     CJK.iter()
         .find(|cjk| families.iter().any(|f| f.eq_ignore_ascii_case(cjk)))
@@ -640,7 +682,10 @@ fn map_slide(s: &WalkedSlide, media: &Media) -> (String, String) {
                 &e.tag,
                 (e.x as f32, e.y as f32, e.w as f32, e.h as f32),
                 fill.as_ref().expect("checked above"),
-                e.opacity.as_deref().and_then(|o| o.parse().ok()).unwrap_or(1.0),
+                e.opacity
+                    .as_deref()
+                    .and_then(|o| o.parse().ok())
+                    .unwrap_or(1.0),
                 e.border_radius.as_deref(),
             ));
         }
@@ -659,8 +704,16 @@ fn map_slide(s: &WalkedSlide, media: &Media) -> (String, String) {
 /// carries one slide size (max width × max height); smaller slides anchor
 /// at the top-left, same posture as the image-based writer.
 fn pack(slides: &[WalkedSlide], media: &Media) -> Vec<u8> {
-    let deck_w = slides.iter().map(|s| s.w as f32).fold(0.0_f32, f32::max).max(1.0);
-    let deck_h = slides.iter().map(|s| s.h as f32).fold(0.0_f32, f32::max).max(1.0);
+    let deck_w = slides
+        .iter()
+        .map(|s| s.w as f32)
+        .fold(0.0_f32, f32::max)
+        .max(1.0);
+    let deck_h = slides
+        .iter()
+        .map(|s| s.h as f32)
+        .fold(0.0_f32, f32::max)
+        .max(1.0);
     let out: Vec<(String, String)> = slides.iter().map(|s| map_slide(s, media)).collect();
     let mut exts: BTreeSet<&str> = BTreeSet::new();
     for (path, _) in &media.parts {
@@ -675,9 +728,9 @@ fn pack(slides: &[WalkedSlide], media: &Media) -> Vec<u8> {
 #[cfg(all(test, feature = "screenshot"))]
 mod tests {
     use super::*;
+    use crate::ooxml::entries_of;
     use diting::diting_browser::lifecycle::WaitUntil;
     use diting::diting_browser::{BrowserContext, Page as EnginePage};
-    use crate::ooxml::entries_of;
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::Arc;
@@ -690,7 +743,11 @@ mod tests {
     fn drawingml_angle_converts_css_degrees() {
         // CSS 0deg points up; DrawingML 0° points right (3 o'clock):
         // (90 - css) mod 360, in 60000ths of a degree.
-        assert_eq!(drawingml_angle(135.0), 18900000, "135deg CSS → 315° DrawingML");
+        assert_eq!(
+            drawingml_angle(135.0),
+            18900000,
+            "135deg CSS → 315° DrawingML"
+        );
         assert_eq!(drawingml_angle(90.0), 0, "to right → 0° (pointing right)");
     }
 
@@ -699,17 +756,37 @@ mod tests {
     fn el(tag: &str, x: f64, y: f64, w: f64, h: f64) -> WalkedElement {
         WalkedElement {
             tag: tag.to_string(),
-            x, y, w, h,
-            color: None, bg: None, bg_image: None, font_family: None,
-            font_size: None, font_weight: None, text_align: None, opacity: None,
-            border_radius: None, line_height: None,
-            pad_top: None, pad_left: None, pad_right: None, pad_bottom: None,
-            text: None, img: None,
+            x,
+            y,
+            w,
+            h,
+            color: None,
+            bg: None,
+            bg_image: None,
+            font_family: None,
+            font_size: None,
+            font_weight: None,
+            text_align: None,
+            opacity: None,
+            border_radius: None,
+            line_height: None,
+            pad_top: None,
+            pad_left: None,
+            pad_right: None,
+            pad_bottom: None,
+            text: None,
+            img: None,
         }
     }
 
     fn slide(w: f64, h: f64, elements: Vec<WalkedElement>) -> WalkedSlide {
-        WalkedSlide { w, h, bg: None, bg_image: None, elements }
+        WalkedSlide {
+            w,
+            h,
+            bg: None,
+            bg_image: None,
+            elements,
+        }
     }
 
     #[test]
@@ -721,22 +798,37 @@ mod tests {
         e.text_align = Some("center".to_string());
         e.font_family = Some("Arial, sans-serif".to_string());
         e.color = Some("rgb(34, 34, 34)".to_string());
-        let pptx = pack(&[slide(1280.0, 720.0, vec![e])], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[slide(1280.0, 720.0, vec![e])],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let entries = entries_of(&pptx);
         let slide_xml = entries
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
             .map(|(_, d)| String::from_utf8_lossy(d).to_string())
             .expect("slide1");
-        assert!(slide_xml.contains("<a:t>Hello deck</a:t>"), "real text run, not an image");
+        assert!(
+            slide_xml.contains("<a:t>Hello deck</a:t>"),
+            "real text run, not an image"
+        );
         assert!(slide_xml.contains("sz=\"2400\""), "32px → 24pt → sz=2400");
         assert!(slide_xml.contains("b=\"1\""), "weight 700 → bold");
         assert!(slide_xml.contains("algn=\"ctr\""));
         assert!(slide_xml.contains(r#"typeface="Arial""#));
         assert!(slide_xml.contains(r#"<a:srgbClr val="222222"/>"#));
-        assert!(slide_xml.contains("lIns=\"0\""), "zero insets so CSS geometry holds");
+        assert!(
+            slide_xml.contains("lIns=\"0\""),
+            "zero insets so CSS geometry holds"
+        );
         // No media parts at all — nothing image-based in the package.
-        assert!(entries.iter().all(|(n, _)| !n.contains("/media/")), "no image parts");
+        assert!(
+            entries.iter().all(|(n, _)| !n.contains("/media/")),
+            "no image parts"
+        );
     }
 
     #[test]
@@ -749,28 +841,48 @@ mod tests {
         e.font_size = Some("72px".to_string());
         e.line_height = Some("1.35".to_string());
         e.font_family = Some(
-            "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif".to_string(),
+            "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+                .to_string(),
         );
-        let pptx = pack(&[slide(1280.0, 720.0, vec![e])], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[slide(1280.0, 720.0, vec![e])],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
             .map(|(_, d)| String::from_utf8_lossy(d).to_string())
             .expect("slide1");
         // Two lines, two real paragraphs — not one run left to re-wrap.
-        assert_eq!(slide_xml.matches("<a:p>").count(), 2, "one paragraph per <br> line");
+        assert_eq!(
+            slide_xml.matches("<a:p>").count(),
+            2,
+            "one paragraph per <br> line"
+        );
         assert!(slide_xml.contains("<a:t>用国产模型跑</a:t>"));
         assert!(slide_xml.contains("<a:t>Claude Code / Codex</a:t>"));
         // 1.35 × 72px = 97.2px = 72.9pt → spcPts 7290, not spcPct 135000.
         assert!(slide_xml.contains(r#"<a:spcPts val="7290"/>"#));
-        assert!(!slide_xml.contains("spcPct"), "percent line spacing drifts in Office");
+        assert!(
+            !slide_xml.contains("spcPct"),
+            "percent line spacing drifts in Office"
+        );
         // Vendor aliases skipped, the CJK family the author listed pins for
         // both scripts.
         assert!(slide_xml.contains(r#"<a:latin typeface="Microsoft YaHei"/>"#));
         assert!(slide_xml.contains(r#"<a:ea typeface="Microsoft YaHei"/>"#));
-        assert!(!slide_xml.contains("-apple-system"), "vendor alias never exported");
+        assert!(
+            !slide_xml.contains("-apple-system"),
+            "vendor alias never exported"
+        );
         // Two lines tall → keeps wrapping.
-        assert!(slide_xml.contains(r#"wrap="square""#), "multi-line box wraps");
+        assert!(
+            slide_xml.contains(r#"wrap="square""#),
+            "multi-line box wraps"
+        );
 
         // Same element one line tall: wrapping off — the box width is the
         // fit-content width under diting's fonts and a substituted face in
@@ -778,14 +890,26 @@ mod tests {
         let mut single = el("H1", 0.0, 0.0, 600.0, 97.2);
         single.text = Some("Agent 的 AI 大脑".to_string());
         single.font_size = Some("72px".to_string());
-        let pptx = pack(&[slide(1280.0, 720.0, vec![single])], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[slide(1280.0, 720.0, vec![single])],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
             .map(|(_, d)| String::from_utf8_lossy(d).to_string())
             .expect("slide1");
-        assert!(slide_xml.contains(r#"wrap="none""#), "single-line box does not re-wrap");
-        assert!(slide_xml.contains(r#"anchor="ctr""#), "text centers like CSS half-leading");
+        assert!(
+            slide_xml.contains(r#"wrap="none""#),
+            "single-line box does not re-wrap"
+        );
+        assert!(
+            slide_xml.contains(r#"anchor="ctr""#),
+            "text centers like CSS half-leading"
+        );
     }
 
     #[test]
@@ -799,7 +923,13 @@ mod tests {
         e.pad_left = Some("26px".to_string());
         e.pad_right = Some("26px".to_string());
         e.pad_bottom = Some("10px".to_string());
-        let pptx = pack(&[slide(400.0, 300.0, vec![e])], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[slide(400.0, 300.0, vec![e])],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
@@ -815,15 +945,30 @@ mod tests {
     fn gradient_background_becomes_gradfill() {
         let mut e = el("DIV", 0.0, 0.0, 1280.0, 720.0);
         e.bg_image = Some("linear-gradient(135deg, #2c3e50 0%, #fd79a8 100%)".to_string());
-        let s = WalkedSlide { w: 1280.0, h: 720.0, bg: None, bg_image: None, elements: vec![e] };
-        let pptx = pack(&[s], &Media { parts: vec![], index: HashMap::new() });
+        let s = WalkedSlide {
+            w: 1280.0,
+            h: 720.0,
+            bg: None,
+            bg_image: None,
+            elements: vec![e],
+        };
+        let pptx = pack(
+            &[s],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
             .map(|(_, d)| String::from_utf8_lossy(d).to_string())
             .expect("slide1");
         assert!(slide_xml.contains("gradFill"));
-        assert!(slide_xml.contains(r#"ang="18900000""#), "135deg CSS → DrawingML angle");
+        assert!(
+            slide_xml.contains(r#"ang="18900000""#),
+            "135deg CSS → DrawingML angle"
+        );
         assert!(slide_xml.contains(r#"<a:gs pos="0">"#));
         assert!(slide_xml.contains(r#"<a:gs pos="100000">"#));
     }
@@ -840,7 +985,13 @@ mod tests {
             bg_image: None,
             elements: vec![e],
         };
-        let pptx = pack(&[s], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[s],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
@@ -867,7 +1018,13 @@ mod tests {
         let mut e = el("DIV", 0.0, 0.0, 100.0, 100.0);
         e.bg = Some("rgb(255, 0, 0)".to_string());
         e.opacity = Some("0.5".to_string());
-        let pptx = pack(&[slide(200.0, 200.0, vec![e])], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[slide(200.0, 200.0, vec![e])],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
@@ -880,7 +1037,13 @@ mod tests {
     fn noop_containers_are_skipped() {
         let e = el("DIV", 0.0, 0.0, 100.0, 100.0); // no text, no bg
         let s = slide(200.0, 200.0, vec![e]);
-        let pptx = pack(&[s], &Media { parts: vec![], index: HashMap::new() });
+        let pptx = pack(
+            &[s],
+            &Media {
+                parts: vec![],
+                index: HashMap::new(),
+            },
+        );
         let slide_xml = entries_of(&pptx)
             .iter()
             .find(|(n, _)| n == "ppt/slides/slide1.xml")
@@ -947,17 +1110,26 @@ html,body{margin:0;padding:0}
         let png = crate::pages::png_of(1, 1, &[255, 0, 0, 255]).expect("png encode");
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         let html: &'static str = Box::leak(
-            DECK_HTML.replace("IMG_PLACEHOLDER", &format!("data:image/png;base64,{}", STANDARD.encode(&png)))
+            DECK_HTML
+                .replace(
+                    "IMG_PLACEHOLDER",
+                    &format!("data:image/png;base64,{}", STANDARD.encode(&png)),
+                )
                 .into_boxed_str(),
         );
         let port = spawn_html_server(html);
         let mut page = test_page();
-        page.navigate_with_wait(&format!("http://127.0.0.1:{port}/deck.html"), WaitUntil::Load)
-            .await
-            .expect("navigate fixture");
+        page.navigate_with_wait(
+            &format!("http://127.0.0.1:{port}/deck.html"),
+            WaitUntil::Load,
+        )
+        .await
+        .expect("navigate fixture");
         page.settle_until_idle(5000).await;
 
-        let (pptx, _) = pptx_native_deck(&mut page, ".slide", 10).await.expect("deck");
+        let (pptx, _) = pptx_native_deck(&mut page, ".slide", 10)
+            .await
+            .expect("deck");
         let entries = entries_of(&pptx);
         let names: Vec<&str> = entries.iter().map(|(n, _)| n.as_str()).collect();
         assert!(names.contains(&"ppt/slides/slide1.xml"));
@@ -973,14 +1145,23 @@ html,body{margin:0;padding:0}
         assert!(slide_xml.contains("sz=\"2400\""), "32px → 24pt");
         assert!(slide_xml.contains("b=\"1\""), "weight 700 → bold");
         assert!(slide_xml.contains("algn=\"ctr\""), "center → algn ctr");
-        assert!(slide_xml.contains(r#"typeface="Arial""#), "font-family from the engine surface");
-        assert!(slide_xml.contains(r#"anchor="ctr""#), "text centers like CSS half-leading");
+        assert!(
+            slide_xml.contains(r#"typeface="Arial""#),
+            "font-family from the engine surface"
+        );
+        assert!(
+            slide_xml.contains(r#"anchor="ctr""#),
+            "text centers like CSS half-leading"
+        );
         // The chip: <br> → two paragraphs, portable family for both scripts,
         // exact line spacing, padding → insets — the full alignment contract
         // read off the live engine.
         assert!(slide_xml.contains(r#"typeface="Microsoft YaHei""#));
         assert!(slide_xml.contains(r#"<a:ea typeface="Microsoft YaHei"/>"#));
-        assert!(slide_xml.contains(r#"<a:spcPts val="2430"/>"#), "1.35 × 24px = 32.4px = 24.3pt");
+        assert!(
+            slide_xml.contains(r#"<a:spcPts val="2430"/>"#),
+            "1.35 × 24px = 32.4px = 24.3pt"
+        );
         assert!(slide_xml.contains(r#"tIns="95250""#), "10px top padding");
         assert!(slide_xml.contains(r#"lIns="247650""#), "26px left padding");
         assert!(slide_xml.contains("<a:t>每年省下</a:t>"));
@@ -998,7 +1179,10 @@ html,body{margin:0;padding:0}
         let media = media.expect("a media part exists");
         assert!(media.ends_with(".png"));
         assert_eq!(
-            entries.iter().find(|(n, _)| n == media).map(|(_, d)| d.len()),
+            entries
+                .iter()
+                .find(|(n, _)| n == media)
+                .map(|(_, d)| d.len()),
             Some(png.len()),
             "media bytes verbatim"
         );
@@ -1010,7 +1194,9 @@ html,body{margin:0;padding:0}
         let file = media.rsplit('/').next().unwrap();
         assert!(rels.contains(&format!("Target=\"../media/{file}\"")));
         // Determinism.
-        let (again, _) = pptx_native_deck(&mut page, ".slide", 10).await.expect("deck again");
+        let (again, _) = pptx_native_deck(&mut page, ".slide", 10)
+            .await
+            .expect("deck again");
         assert_eq!(pptx, again, "byte-identical rebuild");
     }
 
@@ -1018,9 +1204,12 @@ html,body{margin:0;padding:0}
     async fn selector_must_match_and_cap_holds() {
         let port = spawn_html_server(DECK_HTML.replace("IMG_PLACEHOLDER", "x").leak());
         let mut page = test_page();
-        page.navigate_with_wait(&format!("http://127.0.0.1:{port}/deck.html"), WaitUntil::Load)
-            .await
-            .expect("navigate fixture");
+        page.navigate_with_wait(
+            &format!("http://127.0.0.1:{port}/deck.html"),
+            WaitUntil::Load,
+        )
+        .await
+        .expect("navigate fixture");
         page.settle_until_idle(5000).await;
         assert!(matches!(
             pptx_native_deck(&mut page, ".nope", 10).await,

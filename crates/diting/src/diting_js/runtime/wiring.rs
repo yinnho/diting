@@ -142,7 +142,6 @@ impl JsRuntime {
         self.state.borrow().dynamic_script_fetches.get() > 0
     }
 
-
     /// Drain queued console calls (level, message, page URL at log time)
     /// captured by `op_console_msg`. The CDP layer turns each into a
     /// `Runtime.consoleAPICalled` event.
@@ -173,7 +172,10 @@ impl JsRuntime {
     /// and every navigation auto-enabled interception, which made
     /// `fetch()` from page JS hang forever waiting for a CDP client to
     /// answer Fetch.requestPaused events that the client never asked for.
-    pub fn set_intercept_tx(&self, tx: tokio::sync::mpsc::UnboundedSender<crate::diting_js::ops::InterceptedRequest>) {
+    pub fn set_intercept_tx(
+        &self,
+        tx: tokio::sync::mpsc::UnboundedSender<crate::diting_js::ops::InterceptedRequest>,
+    ) {
         let mut state = self.state.borrow_mut();
         state.intercept_tx = Some(tx);
     }

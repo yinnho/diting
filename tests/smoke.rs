@@ -55,7 +55,10 @@ impl ServerGuard {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
-        Some(ServerGuard { child: Some(child), port })
+        Some(ServerGuard {
+            child: Some(child),
+            port,
+        })
     }
 
     fn url(&self, path: &str) -> String {
@@ -74,7 +77,10 @@ impl Drop for ServerGuard {
 
 /// Minimal blocking HTTP client (no reqwest dependency in tests).
 fn http_get_json(url: &str) -> Option<String> {
-    let resp = ureq::get(url).timeout(Duration::from_secs(15)).call().ok()?;
+    let resp = ureq::get(url)
+        .timeout(Duration::from_secs(15))
+        .call()
+        .ok()?;
     resp.into_string().ok()
 }
 

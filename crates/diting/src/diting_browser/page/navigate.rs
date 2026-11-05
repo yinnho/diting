@@ -40,10 +40,9 @@ impl Page {
             if now >= deadline && (now >= dynamic_deadline || !js.has_pending_dynamic_scripts()) {
                 break;
             }
-            let result = tokio::time::timeout(
-                tokio::time::Duration::from_millis(10),
-                js.run_event_loop(),
-            ).await;
+            let result =
+                tokio::time::timeout(tokio::time::Duration::from_millis(10), js.run_event_loop())
+                    .await;
 
             match result {
                 Ok(Ok(())) => {
@@ -65,8 +64,7 @@ impl Page {
                     // when nothing is in flight and nothing fires inside
                     // the rest of the fast-path window, waiting it out
                     // only adds latency.
-                    if self.http_client.active_requests() == 0
-                        && !js.has_pending_dynamic_scripts()
+                    if self.http_client.active_requests() == 0 && !js.has_pending_dynamic_scripts()
                     {
                         let left = deadline
                             .saturating_duration_since(tokio::time::Instant::now())
@@ -83,7 +81,8 @@ impl Page {
     }
 
     pub async fn navigate(&mut self, url_str: &str) -> Result<(), PageError> {
-        self.navigate_with_wait(url_str, crate::diting_browser::lifecycle::WaitUntil::Load).await
+        self.navigate_with_wait(url_str, crate::diting_browser::lifecycle::WaitUntil::Load)
+            .await
     }
 
     pub async fn navigate_with_wait(
@@ -91,7 +90,8 @@ impl Page {
         url_str: &str,
         wait_until: crate::diting_browser::lifecycle::WaitUntil,
     ) -> Result<(), PageError> {
-        self.navigate_with_wait_post(url_str, wait_until, "GET", "").await
+        self.navigate_with_wait_post(url_str, wait_until, "GET", "")
+            .await
     }
 
     pub async fn navigate_with_wait_post(
@@ -418,7 +418,10 @@ impl Page {
         // tuned against real page measurements, and this number is the only
         // way to see how close a legitimate heavy page came to the cliff.
         let duty_pct = (gained as u128 * 100 / elapsed.as_nanos().max(1)) as u64;
-        tracing::warn!("#66 busy window: {duty_pct}% duty over {}s", elapsed.as_secs());
+        tracing::warn!(
+            "#66 busy window: {duty_pct}% duty over {}s",
+            elapsed.as_secs()
+        );
         if hot {
             self.busy_frozen = true;
             let secs = elapsed.as_secs();
@@ -463,7 +466,9 @@ impl Page {
     /// entries past the cursor (matches real Chrome: navigating after a
     /// goBack clobbers the forward history).
     pub fn push_history(&mut self, url: String) {
-        if url.is_empty() { return; }
+        if url.is_empty() {
+            return;
+        }
         // Don't dupe consecutive entries (Page.reload would otherwise pile up).
         if self.history.get(self.history_index) == Some(&url) {
             return;
@@ -507,7 +512,8 @@ impl Page {
             .filter(|&n| n > 0)
             .unwrap_or(10);
         for chain in 0..chain_limit {
-            self.navigate_single(&current_url, wait_until, &current_method, &current_body).await?;
+            self.navigate_single(&current_url, wait_until, &current_method, &current_body)
+                .await?;
             if let Some((next_url, next_method, next_body)) = self.take_pending_navigation() {
                 if cross_scheme_to_file(&current_url, &next_url) {
                     // SOP gate. A web page must not be able to drive
@@ -523,12 +529,21 @@ impl Page {
                     );
                     break;
                 }
-                tracing::info!("JS-triggered navigation chain: {} {} -> {}", current_method, current_url, next_url);
+                tracing::info!(
+                    "JS-triggered navigation chain: {} {} -> {}",
+                    current_method,
+                    current_url,
+                    next_url
+                );
                 // The chain step is document-initiated: the new document sees
                 // the strict-origin-when-cross-origin referrer of this one.
                 self.referrer = Url::parse(&current_url)
                     .ok()
-                    .and_then(|src| Url::parse(&next_url).ok().map(|dst| crate::diting_net::client::HttpClient::navigation_referrer(&src, &dst)))
+                    .and_then(|src| {
+                        Url::parse(&next_url).ok().map(|dst| {
+                            crate::diting_net::client::HttpClient::navigation_referrer(&src, &dst)
+                        })
+                    })
                     .unwrap_or_default();
                 current_url = next_url;
                 current_method = next_method;
@@ -600,26 +615,43 @@ impl Page {
         }
 
         let response = if url.scheme() == "data" {
-            let content_type = url_str.strip_prefix("data:")
+            let content_type = url_str
+                .strip_prefix("data:")
                 .and_then(|s| s.split(',').next())
                 .unwrap_or("text/html")
-                .split(';').next()
+                .split(';')
+                .next()
                 .unwrap_or("text/html")
                 .to_string();
             let body_bytes = decode_data_uri(url_str).unwrap_or_default();
             let mut headers = std::collections::HashMap::new();
             headers.insert("content-type".to_string(), content_type);
-            Ok(crate::diting_net::Response { url: url.clone(), status: 200, headers, body: body_bytes, redirected_from: Vec::new(), redirect_hops: Vec::new(), request_headers: std::collections::HashMap::new() })
+            Ok(crate::diting_net::Response {
+                url: url.clone(),
+                status: 200,
+                headers,
+                body: body_bytes,
+                redirected_from: Vec::new(),
+                redirect_hops: Vec::new(),
+                request_headers: std::collections::HashMap::new(),
+            })
         } else if method == "POST" {
             // The submitting document initiates the POST: it is both the
             // Referer (policy-trimmed per hop) and the Origin source.
             let doc_referrer = self.url.as_ref().map(|u| u.to_string());
             self.http_client
-                .post_form_with_callbacks(&url, body, Some(&self.callbacks), crate::diting_net::ResourceType::Document, doc_referrer.as_deref())
+                .post_form_with_callbacks(
+                    &url,
+                    body,
+                    Some(&self.callbacks),
+                    crate::diting_net::ResourceType::Document,
+                    doc_referrer.as_deref(),
+                )
                 .await
         } else {
             self.fetch_document(&url).await
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             self.lifecycle = LifecycleState::Failed;
             PageError::NetworkError(e.to_string())
         })?;
@@ -699,14 +731,22 @@ impl Page {
                     });
                 }
                 dom
-            } else if self.content_type.as_deref().is_some_and(renders_as_text_document) {
+            } else if self
+                .content_type
+                .as_deref()
+                .is_some_and(renders_as_text_document)
+            {
                 plain_text_document(&body_text)
             } else {
                 parse_html(&body_text)
             }
         };
         #[cfg(not(feature = "screenshot"))]
-        let dom = if self.content_type.as_deref().is_some_and(renders_as_text_document) {
+        let dom = if self
+            .content_type
+            .as_deref()
+            .is_some_and(renders_as_text_document)
+        {
             plain_text_document(&body_text)
         } else {
             parse_html(&body_text)
@@ -738,7 +778,9 @@ impl Page {
             let full_url = if href.starts_with("http://") || href.starts_with("https://") {
                 href.clone()
             } else if let Some(base) = &self.url {
-                base.join(href).map(|u| u.to_string()).unwrap_or_else(|_| href.clone())
+                base.join(href)
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|_| href.clone())
             } else {
                 href.clone()
             };
@@ -771,46 +813,55 @@ impl Page {
             .and_then(|s| s.parse::<u64>().ok())
             .filter(|&ms| ms > 0)
             .unwrap_or(10_000);
-        let css_futures: Vec<_> = css_fetch_urls.iter().map(|full_url| {
-            let client = client.clone();
-            let css_callbacks = css_callbacks.clone();
-            let url_str = full_url.clone();
-            let doc_referrer = doc_referrer.clone();
-            async move {
-                let parsed = Url::parse(&url_str).unwrap_or_else(|_| Url::parse("about:blank").unwrap());
-                // #126: real resource-timing capture — epoch stamp for the
-                // resource clock, monotonic Instant for the duration. The
-                // record only lands on a completed fetch; failures stay out.
-                let rt_start_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs_f64() * 1000.0)
-                    .unwrap_or(0.0);
-                let rt_t0 = std::time::Instant::now();
-                let fetched = tokio::time::timeout(
-                    tokio::time::Duration::from_millis(sheet_budget_ms),
-                    client.fetch_with_callbacks(&parsed, Some(css_callbacks.as_ref()), crate::diting_net::ResourceType::Stylesheet, doc_referrer.as_deref()),
-                )
-                .await;
-                match fetched {
-                    Ok(Ok(resp)) => {
-                        let dur_ms = rt_t0.elapsed().as_secs_f64() * 1000.0;
-                        Some((url_str, resp, rt_start_ms, dur_ms))
-                    }
-                    Ok(Err(e)) => {
-                        tracing::debug!("Failed to fetch stylesheet {}: {}", url_str, e);
-                        None
-                    }
-                    Err(_) => {
-                        tracing::warn!(
-                            "stylesheet {} exceeded {}ms budget — committing without it",
-                            url_str,
-                            sheet_budget_ms
-                        );
-                        None
+        let css_futures: Vec<_> = css_fetch_urls
+            .iter()
+            .map(|full_url| {
+                let client = client.clone();
+                let css_callbacks = css_callbacks.clone();
+                let url_str = full_url.clone();
+                let doc_referrer = doc_referrer.clone();
+                async move {
+                    let parsed =
+                        Url::parse(&url_str).unwrap_or_else(|_| Url::parse("about:blank").unwrap());
+                    // #126: real resource-timing capture — epoch stamp for the
+                    // resource clock, monotonic Instant for the duration. The
+                    // record only lands on a completed fetch; failures stay out.
+                    let rt_start_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs_f64() * 1000.0)
+                        .unwrap_or(0.0);
+                    let rt_t0 = std::time::Instant::now();
+                    let fetched = tokio::time::timeout(
+                        tokio::time::Duration::from_millis(sheet_budget_ms),
+                        client.fetch_with_callbacks(
+                            &parsed,
+                            Some(css_callbacks.as_ref()),
+                            crate::diting_net::ResourceType::Stylesheet,
+                            doc_referrer.as_deref(),
+                        ),
+                    )
+                    .await;
+                    match fetched {
+                        Ok(Ok(resp)) => {
+                            let dur_ms = rt_t0.elapsed().as_secs_f64() * 1000.0;
+                            Some((url_str, resp, rt_start_ms, dur_ms))
+                        }
+                        Ok(Err(e)) => {
+                            tracing::debug!("Failed to fetch stylesheet {}: {}", url_str, e);
+                            None
+                        }
+                        Err(_) => {
+                            tracing::warn!(
+                                "stylesheet {} exceeded {}ms budget — committing without it",
+                                url_str,
+                                sheet_budget_ms
+                            );
+                            None
+                        }
                     }
                 }
-            }
-        }).collect();
+            })
+            .collect();
 
         // Same concurrency cap as script fetches.
         use futures::StreamExt as _;
@@ -824,7 +875,15 @@ impl Page {
             // CSS bodies: honor the Content-Type charset; CSS @charset is
             // out of scope for the current scrape-focused pipeline.
             let css = crate::diting_net::decode_non_html(&resp.body, resp.content_type());
-            self.record_network_event_with_body(&url_str, "GET", "Stylesheet", resp.status, &resp.headers, &resp.request_headers, &resp.body);
+            self.record_network_event_with_body(
+                &url_str,
+                "GET",
+                "Stylesheet",
+                resp.status,
+                &resp.headers,
+                &resp.request_headers,
+                &resp.body,
+            );
             css_timings.push(crate::diting_js::ops::ResourceTimingRecord {
                 name: url_str.clone(),
                 initiator: "link",
@@ -906,7 +965,8 @@ impl Page {
 
         if matches!(
             wait_until,
-            crate::diting_browser::lifecycle::WaitUntil::NetworkIdle0 | crate::diting_browser::lifecycle::WaitUntil::NetworkIdle2
+            crate::diting_browser::lifecycle::WaitUntil::NetworkIdle0
+                | crate::diting_browser::lifecycle::WaitUntil::NetworkIdle2
         ) {
             let threshold = match wait_until {
                 crate::diting_browser::lifecycle::WaitUntil::NetworkIdle0 => 0,
@@ -937,7 +997,9 @@ impl Page {
                     if idle_since.is_none() {
                         idle_since = Some(now);
                     }
-                    if now.duration_since(idle_since.unwrap()) >= tokio::time::Duration::from_millis(500) {
+                    if now.duration_since(idle_since.unwrap())
+                        >= tokio::time::Duration::from_millis(500)
+                    {
                         break;
                     }
                 } else {
@@ -945,7 +1007,10 @@ impl Page {
                 }
 
                 if now >= deadline {
-                    tracing::debug!("Network idle timeout reached with {} active requests", active);
+                    tracing::debug!(
+                        "Network idle timeout reached with {} active requests",
+                        active
+                    );
                     break;
                 }
 
@@ -953,7 +1018,8 @@ impl Page {
                     let _ = tokio::time::timeout(
                         tokio::time::Duration::from_millis(50),
                         js.run_event_loop(),
-                    ).await;
+                    )
+                    .await;
                 } else {
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
@@ -978,7 +1044,9 @@ impl Page {
         }
         self.js = None;
         self.url = Some(Url::parse("about:blank").unwrap());
-        self.dom = Some(parse_html("<!DOCTYPE html><html><head></head><body></body></html>"));
+        self.dom = Some(parse_html(
+            "<!DOCTYPE html><html><head></head><body></body></html>",
+        ));
         self.title = String::new();
         self.content_type = None;
         self.lifecycle = LifecycleState::Loaded;

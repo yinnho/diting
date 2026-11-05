@@ -5,6 +5,7 @@ mod scope;
 
 use std::{error::Error as StdError, future::Ready, sync::Arc, time::Duration};
 
+use diting_wire_proto::body::Incoming;
 use http::{Request, Response};
 use tower::{
     BoxError,
@@ -13,7 +14,6 @@ use tower::{
         budget::{Budget, TpsBudget},
     },
 };
-use diting_wire_proto::body::Incoming;
 
 pub(crate) use self::{
     classify::{Action, Classifier, ClassifyFn, ReqRep},

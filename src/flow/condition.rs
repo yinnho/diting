@@ -21,7 +21,14 @@ pub(super) fn js_truthy(v: &Value) -> bool {
 
 /// The condition operators a `when` may use.
 pub(super) const CONDITION_OPS: &[&str] = &[
-    "equals", "not_equals", "in", "not_in", "contains", "at_least", "at_most", "truthy",
+    "equals",
+    "not_equals",
+    "in",
+    "not_in",
+    "contains",
+    "at_least",
+    "at_most",
+    "truthy",
     "falsy",
 ];
 
@@ -54,9 +61,8 @@ pub(super) fn eval_condition(when: &Value, vars: &Map<String, Value>) -> Result<
         .and_then(Value::as_str)
         .ok_or_else(|| format!("when.is is required (one of {})", CONDITION_OPS.join(" | ")))?;
     let value = when.get("value");
-    let val = lookup_path(vars, path).ok_or_else(|| {
-        format!("unknown var '{path}' — no step saved it and no var declared it")
-    })?;
+    let val = lookup_path(vars, path)
+        .ok_or_else(|| format!("unknown var '{path}' — no step saved it and no var declared it"))?;
     match is {
         "equals" => Ok(loose_eq(val, value.ok_or("equals needs a value")?)),
         "not_equals" => Ok(!loose_eq(val, value.ok_or("not_equals needs a value")?)),
@@ -79,9 +85,7 @@ pub(super) fn eval_condition(when: &Value, vars: &Map<String, Value>) -> Result<
             _ => Err("contains applies to string and array vars".into()),
         },
         "at_least" | "at_most" => {
-            let x = val
-                .as_f64()
-                .ok_or("at_least/at_most need a numeric var")?;
+            let x = val.as_f64().ok_or("at_least/at_most need a numeric var")?;
             let y = value
                 .and_then(Value::as_f64)
                 .ok_or("at_least/at_most need a numeric value")?;

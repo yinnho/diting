@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Wikipedia via the MediaWiki `list=search` API (free, no key). The language
 /// edition follows the request's language tag (zh-CN → zh.wikipedia.org).
@@ -17,10 +17,7 @@ impl WikipediaEngine {
 
 const WIKI_HEADERS: &[(&str, &str)] = &[
     ("Accept", "application/json"),
-    (
-        "User-Agent",
-        diting::chrome_target::UA_DEFAULT,
-    ),
+    ("User-Agent", diting::chrome_target::UA_DEFAULT),
 ];
 
 #[async_trait]
@@ -71,10 +68,7 @@ impl SearchEngine for WikipediaEngine {
     }
 }
 
-fn parse_wikipedia_json(
-    body: &str,
-    lang: &str,
-) -> Result<Vec<RawSearchResult>, SearchEngineError> {
+fn parse_wikipedia_json(body: &str, lang: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
     let parsed: serde_json::Value = serde_json::from_str(body)
         .map_err(|e| SearchEngineError::Transient(format!("json parse: {e}")))?;
     let items = parsed

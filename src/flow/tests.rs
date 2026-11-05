@@ -117,8 +117,8 @@ fn absent_workflow_directory_is_valid() {
         if !flow_path.is_file() {
             continue;
         }
-        let text = std::fs::read_to_string(&flow_path)
-            .unwrap_or_else(|e| panic!("sample {name:?}: {e}"));
+        let text =
+            std::fs::read_to_string(&flow_path).unwrap_or_else(|e| panic!("sample {name:?}: {e}"));
         let doc: Value = serde_json::from_str(&text)
             .unwrap_or_else(|e| panic!("sample {name:?} is not valid JSON: {e}"));
         assert!(
@@ -323,7 +323,10 @@ fn json_interpolate_replaces_whole_leaves_only() {
 async fn run_flow_http_step_posts_json_and_chains_saved_fields() {
     let _net = crate::server::test_util::net_env_guard();
     let (port, hits) = crate::server::test_util::recording_server(&[
-        ("POST /token", r#"{"access_token":"abc123","expires_in":7200}"#),
+        (
+            "POST /token",
+            r#"{"access_token":"abc123","expires_in":7200}"#,
+        ),
         ("POST /draft", r#"{"media_id":"M1"}"#),
     ]);
     let mut mgr = SessionManager::new();
@@ -359,7 +362,10 @@ async fn run_flow_http_step_posts_json_and_chains_saved_fields() {
     assert!(mgr.close_and_wait(&sid).await);
 
     let hits = hits.lock().unwrap();
-    let second = hits.iter().find(|h| h.contains("/draft")).expect("second request recorded");
+    let second = hits
+        .iter()
+        .find(|h| h.contains("/draft"))
+        .expect("second request recorded");
     // URL carries the token spliced from step 1's saved response.
     assert!(second.contains("access_token=abc123"), "hit: {second}");
     // Hit format is "METHOD path PROTO body" (the recording server
@@ -375,10 +381,8 @@ async fn run_flow_http_step_posts_json_and_chains_saved_fields() {
 #[tokio::test]
 async fn run_flow_http_step_multipart_uploads() {
     let _net = crate::server::test_util::net_env_guard();
-    let (port, hits) = crate::server::test_util::recording_server(&[(
-        "POST /upload",
-        r#"{"media_id":"THUMB"}"#,
-    )]);
+    let (port, hits) =
+        crate::server::test_util::recording_server(&[("POST /upload", r#"{"media_id":"THUMB"}"#)]);
     let mut mgr = SessionManager::new();
     let flow = json!({
         "steps": [
@@ -400,7 +404,10 @@ async fn run_flow_http_step_multipart_uploads() {
     assert!(mgr.close_and_wait(&sid).await);
 
     let hits = hits.lock().unwrap();
-    let hit = hits.iter().find(|h| h.contains("/upload")).expect("upload recorded");
+    let hit = hits
+        .iter()
+        .find(|h| h.contains("/upload"))
+        .expect("upload recorded");
     // The recording server logs "METHOD path PROTO body" — header lines
     // (the multipart content-type) aren't captured, so the contract is
     // pinned on the body itself: boundary markers wrap a well-formed part.
@@ -728,8 +735,13 @@ fn eval_condition_operators() {
     let c = |when: Value| eval_condition(&when, &vars);
     assert!(c(json!({ "var": "v.verdict", "is": "equals", "value": "challenge" })).unwrap());
     assert!(!c(json!({ "var": "v.verdict", "is": "not_equals", "value": "challenge" })).unwrap());
-    assert!(c(json!({ "var": "v.verdict", "is": "in", "value": ["landed", "challenge"] })).unwrap());
-    assert!(!c(json!({ "var": "v.verdict", "is": "not_in", "value": ["landed", "challenge"] })).unwrap());
+    assert!(
+        c(json!({ "var": "v.verdict", "is": "in", "value": ["landed", "challenge"] })).unwrap()
+    );
+    assert!(
+        !c(json!({ "var": "v.verdict", "is": "not_in", "value": ["landed", "challenge"] }))
+            .unwrap()
+    );
     assert!(c(json!({ "var": "v.url", "is": "contains", "value": "/login" })).unwrap());
     assert!(c(json!({ "var": "v.console", "is": "contains", "value": "b" })).unwrap());
     // Integer fact vs float literal and vice versa — loose numeric equality.
@@ -923,7 +935,10 @@ async fn run_flow_verdict_step_branches_on_the_fact_sheet() {
     let receipt = run_flow(&mut mgr, &flow, &Map::new(), None).await;
     assert_eq!(receipt["status"], "ok", "receipt: {receipt}");
     assert_eq!(receipt["saved"]["v"]["verdict"], "empty");
-    assert!(receipt["saved"].get("wrong").is_none(), "branch skipped the retry step");
+    assert!(
+        receipt["saved"].get("wrong").is_none(),
+        "branch skipped the retry step"
+    );
     assert_eq!(receipt["saved"]["tail"], "verified");
     let sid = receipt["session_id"].as_str().unwrap().to_string();
     assert!(mgr.close_and_wait(&sid).await);
@@ -986,7 +1001,10 @@ async fn run_flow_global_releases_sessions_lock_during_wait() {
     assert_eq!(receipt["failed_step"], 0);
     assert_eq!(receipt["session_id"], sid.as_str());
     let reason = receipt["reason"].as_str().unwrap();
-    assert!(reason.contains("timeout") && reason.contains("#absent"), "reason: {reason}");
+    assert!(
+        reason.contains("timeout") && reason.contains("#absent"),
+        "reason: {reason}"
+    );
     assert!(SESSIONS.lock().await.close_and_wait(&sid).await);
 }
 
@@ -996,10 +1014,7 @@ async fn run_flow_global_releases_sessions_lock_during_wait() {
 #[tokio::test]
 async fn run_flow_receipt_carries_elapsed_and_step_timings() {
     let _net = crate::server::test_util::net_env_guard();
-    let (port, _hits) = crate::server::test_util::recording_server(&[(
-        "GET /a",
-        r#"{"ok":1}"#,
-    )]);
+    let (port, _hits) = crate::server::test_util::recording_server(&[("GET /a", r#"{"ok":1}"#)]);
     let mut mgr = SessionManager::new();
     let flow = json!({
         "steps": [
@@ -1031,7 +1046,10 @@ fn resolve_flow_doc_bundles_recipes_from_disk() {
     let _guard = crate::test_support::workflow_dir_env_guard();
     let dir = std::env::temp_dir().join(format!(
         "diting-flow-bundled-{}",
-        std::thread::current().name().unwrap_or("t").replace("::", "-")
+        std::thread::current()
+            .name()
+            .unwrap_or("t")
+            .replace("::", "-")
     ));
     let _ = fs::remove_dir_all(&dir);
     std::env::set_var("DITING_WORKFLOW_DIR", &dir);
@@ -1097,7 +1115,6 @@ async fn preload_step_missing_recipe_names_the_contract() {
     let sid = receipt["session_id"].as_str().unwrap().to_string();
     assert!(mgr.close_and_wait(&sid).await);
 }
-
 
 // Engine-side MIME derivation (moli fix(upload) class): explicit
 // mime_type wins, a known extension derives the type, unknown extensions

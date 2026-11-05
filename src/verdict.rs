@@ -116,8 +116,10 @@ pub fn core_rules() -> Vec<UrlRule> {
 
 /// Embedded fallback — same bytes as repo `config/verdict_rules.json` so
 /// tests and bare binaries keep login classification without a cwd file.
-const EMBEDDED_VERDICT_RULES_JSON: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/config/verdict_rules.json"));
+const EMBEDDED_VERDICT_RULES_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/config/verdict_rules.json"
+));
 
 /// Parse an overlay document `{ "rules": [ { "needle", "verdict" }, ... ] }`.
 /// Unknown verdict names and empty needles are skipped (warn via tracing).
@@ -351,21 +353,36 @@ mod tests {
         // the shipped public tables are empty (asset separation).
         crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
         let cases = [
-            ("https://wall.example.net/auth?secmark=abc", Verdict::Challenge),
+            (
+                "https://wall.example.net/auth?secmark=abc",
+                Verdict::Challenge,
+            ),
             (
                 "https://api.example.com/x/1.0/?/demo/punish=x",
                 Verdict::Challenge,
             ),
             ("https://www.google.com/sorry/index?q=x", Verdict::Landed),
-            ("https://t.captcha.qq.com/cap_union_prehandle", Verdict::Landed),
-            ("https://login.example.net/member/login.jhtml", Verdict::Login),
-            ("https://creator.example.net/login?source=official", Verdict::Login),
+            (
+                "https://t.captcha.qq.com/cap_union_prehandle",
+                Verdict::Landed,
+            ),
+            (
+                "https://login.example.net/member/login.jhtml",
+                Verdict::Login,
+            ),
+            (
+                "https://creator.example.net/login?source=official",
+                Verdict::Login,
+            ),
             // Quiet-table negatives: no rule fires, the healthy 200 doc
             // speaks → landed (Unknown is reserved for non-2xx / no-doc,
             // NOT "table doesn't know this URL").
             ("https://www.example.org/signin?next=%2F", Verdict::Landed),
             ("https://shop.example.com/item/8123", Verdict::Landed),
-            ("https://login.taobao.com/member/login.jhtml", Verdict::Landed),
+            (
+                "https://login.taobao.com/member/login.jhtml",
+                Verdict::Landed,
+            ),
         ];
         let demo_rules = {
             let mut r = core_rules();
@@ -413,7 +430,10 @@ mod tests {
         i.doc_bytes = Some(4_000);
         let (v, signals) = verdict_for(&i, rules());
         assert_eq!(v, Verdict::Unknown);
-        assert!(signals.contains(&"doc_status_403".to_string()), "{signals:?}");
+        assert!(
+            signals.contains(&"doc_status_403".to_string()),
+            "{signals:?}"
+        );
         // No document event, no rule → unknown.
         let mut i = input("https://example.com/x");
         i.doc_status = None;
@@ -455,7 +475,9 @@ mod tests {
                          {"needle":"creator.example.net/login","verdict":"login"},
                          {"needle":"wall.example.net","verdict":"challenge"}]}"#,
         );
-        assert!(overlay.iter().any(|r| r.needle == "login.example.net" && r.verdict == Verdict::Login));
+        assert!(overlay
+            .iter()
+            .any(|r| r.needle == "login.example.net" && r.verdict == Verdict::Login));
         let all = rules();
         assert!(all.iter().any(|r| r.needle == "challenges.cloudflare.com"));
     }

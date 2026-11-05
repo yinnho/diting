@@ -6,7 +6,6 @@ pub mod okhttp;
 pub mod opera;
 pub mod safari;
 
-use typed_builder::TypedBuilder;
 #[cfg(feature = "emulation-compression")]
 use diting_wire::header::ACCEPT_ENCODING;
 use diting_wire::{
@@ -21,6 +20,7 @@ use diting_wire::{
         compress::CertificateCompressor,
     },
 };
+use typed_builder::TypedBuilder;
 
 use super::{
     Emulation, Platform,

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// npm package search via api.npms.io (keyless JSON; SearXNG's npm engine
 /// uses the same endpoint). "packages" category source. Snippet packs
@@ -71,7 +71,10 @@ fn parse_npm_json(body: &str) -> Result<Vec<RawSearchResult>, SearchEngineError>
             continue;
         }
         let version = pkg.get("version").and_then(|v| v.as_str()).unwrap_or("-");
-        let description = pkg.get("description").and_then(|v| v.as_str()).unwrap_or("");
+        let description = pkg
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         let author = pkg
             .get("author")
             .and_then(|a| a.get("name"))

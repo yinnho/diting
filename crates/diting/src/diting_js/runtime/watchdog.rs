@@ -84,7 +84,9 @@ unsafe extern "C" fn dump_spin_stack(
     let count = trace.get_frame_count().min(24);
     eprintln!("[watchdog-stack] {landed_ms} {count} frames (top first):");
     for i in 0..count {
-        let Some(frame) = trace.get_frame(scope, i) else { continue };
+        let Some(frame) = trace.get_frame(scope, i) else {
+            continue;
+        };
         let fn_name = frame
             .get_function_name(scope)
             .map(|s| s.to_rust_string_lossy(scope))
@@ -93,7 +95,11 @@ unsafe extern "C" fn dump_spin_stack(
             .get_script_name(scope)
             .map(|s| s.to_rust_string_lossy(scope))
             .unwrap_or_default();
-        let fn_name = if fn_name.is_empty() { "<anon>" } else { &fn_name };
+        let fn_name = if fn_name.is_empty() {
+            "<anon>"
+        } else {
+            &fn_name
+        };
         // Minified bundles are one line, so name+line:col can't tell 54 inline
         // scripts apart — the V8 script id (compile order) plus a source
         // prefix can. Prefix only on the top frame to keep samples cheap.
@@ -230,7 +236,13 @@ pub fn spawn_watchdog(
             }
         }
     });
-    WatchdogToken { pair, join: Some(join), fired, resurfaced, sampler_stop }
+    WatchdogToken {
+        pair,
+        join: Some(join),
+        fired,
+        resurfaced,
+        sampler_stop,
+    }
 }
 
 impl Drop for WatchdogToken {
@@ -269,7 +281,8 @@ impl WatchdogToken {
         // Before the mutex: the post-fire grace poll in the watchdog thread
         // reads this flag, and the mutex is in that thread's hands until the
         // grace ends.
-        self.resurfaced.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.resurfaced
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         {
             let (lock, cvar) = &*self.pair;
             *lock.lock().unwrap() = true;
@@ -361,8 +374,10 @@ impl super::JsRuntime {
         let cap = budget + std::time::Duration::from_secs(60);
         let scaled = budget.saturating_mul(mult).min(cap);
         if scaled > budget {
-            tracing::debug!("#224 pump watchdog patience ×{mult} (capped at {}ms)",
-                scaled.as_millis());
+            tracing::debug!(
+                "#224 pump watchdog patience ×{mult} (capped at {}ms)",
+                scaled.as_millis()
+            );
         }
         self.arm_watchdog(scaled)
     }
@@ -522,9 +537,10 @@ impl super::JsRuntime {
     /// this so session_console shows why a realm stopped pumping.
     pub fn push_console_entry(&self, level: &str, msg: &str) {
         let log_url = self.state.borrow().url.clone();
-        self.state
-            .borrow_mut()
-            .pending_console_calls
-            .push((level.to_string(), msg.to_string(), log_url));
+        self.state.borrow_mut().pending_console_calls.push((
+            level.to_string(),
+            msg.to_string(),
+            log_url,
+        ));
     }
 }

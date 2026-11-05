@@ -1,3 +1,4 @@
+pub mod arxiv;
 pub mod baidu;
 pub mod baidu_images;
 pub mod bing;
@@ -5,9 +6,8 @@ pub mod bing_images;
 pub mod bing_news;
 pub mod duckduckgo;
 pub mod github_repos;
-pub mod arxiv;
-pub mod huggingface;
 pub mod hn;
+pub mod huggingface;
 pub mod mdn;
 pub mod meilisearch;
 pub mod npm;
@@ -131,7 +131,6 @@ pub enum SearchEngineError {
     /// Engine is currently suspended (skipped).
     Suspended,
 }
-
 
 // ---------------------------------------------------------------------------
 // SearchEngine trait
@@ -273,7 +272,10 @@ impl SearchEngineRegistry {
         };
         tracing::warn!(
             "search: engine {} suspended for {:?} (CAPTCHA #{}, policy={})",
-            name, duration, s.captcha_count, policy
+            name,
+            duration,
+            s.captcha_count,
+            policy
         );
         s.captcha_count
     }
@@ -293,7 +295,10 @@ impl SearchEngineRegistry {
             s.resume_at = Some(std::time::Instant::now() + Duration::from_secs(90));
             s.transient_streak = 0;
             s.on_probation = true;
-            tracing::warn!("search: engine {} cooled down 90s (3 consecutive transients)", name);
+            tracing::warn!(
+                "search: engine {} cooled down 90s (3 consecutive transients)",
+                name
+            );
             true
         } else {
             false
@@ -332,9 +337,9 @@ impl SearchEngineRegistry {
         {
             let state = self.state.read().await;
             let now = std::time::Instant::now();
-            let needs_cleanup = state.values().any(|s| {
-                s.resume_at.is_some_and(|t| t <= now)
-            });
+            let needs_cleanup = state
+                .values()
+                .any(|s| s.resume_at.is_some_and(|t| t <= now));
             if !needs_cleanup {
                 return;
             }
@@ -379,7 +384,12 @@ impl SearchEngineRegistry {
                 let name = e.name();
                 let (suspended, remaining, count, streak) = match state.get(name) {
                     Some(s) => match s.resume_at {
-                        Some(t) if t > now => (true, (t - now).as_secs(), s.captcha_count, s.transient_streak),
+                        Some(t) if t > now => (
+                            true,
+                            (t - now).as_secs(),
+                            s.captcha_count,
+                            s.transient_streak,
+                        ),
                         _ => (false, 0, s.captcha_count, s.transient_streak),
                     },
                     None => (false, 0, 0, 0),
@@ -449,13 +459,19 @@ pub async fn native_search(
     let general_only = requested.iter().all(|c| *c == "general")
         || (requested.contains(&"general")
             && !requested.iter().any(|c| {
-                matches!(*c, "code" | "packages" | "ai" | "academic" | "news" | "images")
+                matches!(
+                    *c,
+                    "code" | "packages" | "ai" | "academic" | "news" | "images"
+                )
             }));
     let eligible: Vec<Arc<dyn SearchEngine>> = registry
         .engines
         .iter()
         .filter(|e| e.categories().iter().any(|c| requested.contains(c)))
-        .filter(|e| params.engine_filter.is_empty() || params.engine_filter.iter().any(|n| n.as_str() == e.name()))
+        .filter(|e| {
+            params.engine_filter.is_empty()
+                || params.engine_filter.iter().any(|n| n.as_str() == e.name())
+        })
         .filter(|e| {
             if !params.engine_filter.is_empty() {
                 return true;
@@ -488,26 +504,29 @@ pub async fn native_search(
 
         let state = registry.state.clone();
 
-        handles.push((name.clone(), tokio::spawn(async move {
-            // Check suspension inside the task.
-            {
-                let s = state.read().await;
-                if let Some(es) = s.get(&name) {
-                    if let Some(resume_at) = es.resume_at {
-                        if std::time::Instant::now() < resume_at {
-                            return (name, Err(SearchEngineError::Suspended));
+        handles.push((
+            name.clone(),
+            tokio::spawn(async move {
+                // Check suspension inside the task.
+                {
+                    let s = state.read().await;
+                    if let Some(es) = s.get(&name) {
+                        if let Some(resume_at) = es.resume_at {
+                            if std::time::Instant::now() < resume_at {
+                                return (name, Err(SearchEngineError::Suspended));
+                            }
                         }
                     }
                 }
-            }
 
-            obs_inc(&SEARCH_OBS.engine_dispatch_total);
-            if name == "bing_news" {
-                obs_inc(&SEARCH_OBS.bing_news_attempt_total);
-            }
-            let result = engine.search(&query, params).await;
-            (name, result)
-        })));
+                obs_inc(&SEARCH_OBS.engine_dispatch_total);
+                if name == "bing_news" {
+                    obs_inc(&SEARCH_OBS.bing_news_attempt_total);
+                }
+                let result = engine.search(&query, params).await;
+                (name, result)
+            }),
+        ));
     }
 
     // Collect results.
@@ -539,7 +558,10 @@ pub async fn native_search(
                 // verbosity decided consensus weight. After rescale, every
                 // engine's top hit is 1.0 and cross-engine consensus sums
                 // fairly.
-                let max = results.iter().map(|r| r.score).fold(f64::NEG_INFINITY, f64::max);
+                let max = results
+                    .iter()
+                    .map(|r| r.score)
+                    .fold(f64::NEG_INFINITY, f64::max);
                 let probation = registry.on_probation(&name).await;
                 if max > 0.0 {
                     for r in results.iter_mut() {
@@ -582,23 +604,31 @@ pub async fn native_search(
             Ok(Ok((name, Err(SearchEngineError::Transient(msg))))) => {
                 tracing::warn!("search: engine {} transient error: {}", name, msg);
                 let cooled = registry.record_transient(&name).await;
-                engine_errors.insert(name, if cooled {
-                    format!("transient: {msg} — 3 in a row, engine cooling down for 90s")
-                } else {
-                    format!("transient: {msg}")
-                });
+                engine_errors.insert(
+                    name,
+                    if cooled {
+                        format!("transient: {msg} — 3 in a row, engine cooling down for 90s")
+                    } else {
+                        format!("transient: {msg}")
+                    },
+                );
             }
             Ok(Ok((name, Err(SearchEngineError::Suspended)))) => {
                 let (remaining, streak_zero) = {
                     let state = registry.state.read().await;
                     state
                         .get(&name)
-                        .map(|s| (
-                            s.resume_at
-                                .map(|t| t.saturating_duration_since(std::time::Instant::now()).as_secs())
-                                .unwrap_or(0),
-                            s.transient_streak == 0,
-                        ))
+                        .map(|s| {
+                            (
+                                s.resume_at
+                                    .map(|t| {
+                                        t.saturating_duration_since(std::time::Instant::now())
+                                            .as_secs()
+                                    })
+                                    .unwrap_or(0),
+                                s.transient_streak == 0,
+                            )
+                        })
                         .unwrap_or((0, true))
                 };
                 tracing::debug!("search: engine {} skipped (suspended)", name);
@@ -676,11 +706,27 @@ fn normalize_url(raw: &str) -> String {
     // social share set — without these, one article syndicated with
     // different promo tags dedups as N results.
     let tracking_params = [
-        "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "utm_term",
+        "utm_content",
         // CN engines' promo/session params
-        "spm", "scm", "from", "sid", "tn", "srcid", "qq-pf-to",
+        "spm",
+        "scm",
+        "from",
+        "sid",
+        "tn",
+        "srcid",
+        "qq-pf-to",
         // social share trackers
-        "fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref_src", "share_token",
+        "fbclid",
+        "gclid",
+        "igshid",
+        "mc_cid",
+        "mc_eid",
+        "ref_src",
+        "share_token",
     ];
     if url.query().is_some() {
         let mut pairs: Vec<(String, String)> = url
@@ -790,7 +836,9 @@ fn merge_results(results: Vec<RawSearchResult>, max_results: usize) -> Vec<Searc
             // relevant one.
             let mut pick = &group[0];
             for r in &group {
-                if r.score > pick.score || (r.score == pick.score && r.title.len() > pick.title.len()) {
+                if r.score > pick.score
+                    || (r.score == pick.score && r.title.len() > pick.title.len())
+                {
                     pick = r;
                 }
             }
@@ -835,14 +883,17 @@ fn merge_results(results: Vec<RawSearchResult>, max_results: usize) -> Vec<Searc
         .collect();
 
     // Sort by score descending.
-    merged.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    merged.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Soft domain diversity: at most MAX_PER_HOST from one host before
     // filling remaining slots, so a single noisy engine (arxiv/hf) cannot
     // dominate the page for a Chinese medical query.
     diversify_by_host(merged, max_results)
 }
-
 
 // ---------------------------------------------------------------------------
 // Query / merge helpers (CJK selection + host diversity)
@@ -880,13 +931,7 @@ fn is_cjk_char(c: char) -> bool {
 fn is_cjk_noise_engine(name: &str) -> bool {
     matches!(
         name,
-        "huggingface"
-            | "npm"
-            | "pypi"
-            | "rubygems"
-            | "hn"
-            | "github"
-            | "stackexchange"
+        "huggingface" | "npm" | "pypi" | "rubygems" | "hn" | "github" | "stackexchange"
     )
 }
 
@@ -895,7 +940,10 @@ const MAX_PER_HOST: usize = 2;
 fn host_of(url: &str) -> String {
     Url::parse(url)
         .ok()
-        .and_then(|u| u.host_str().map(|h| h.trim_start_matches("www.").to_lowercase()))
+        .and_then(|u| {
+            u.host_str()
+                .map(|h| h.trim_start_matches("www.").to_lowercase())
+        })
         .unwrap_or_default()
 }
 
@@ -1006,9 +1054,9 @@ fn local_socks_proxy_up(addr: &str) -> bool {
         }
     }
     let up = std::net::TcpStream::connect_timeout(
-        &addr.parse().unwrap_or_else(|_| {
-            std::net::SocketAddr::from(([127, 0, 0, 1], 8800))
-        }),
+        &addr
+            .parse()
+            .unwrap_or_else(|_| std::net::SocketAddr::from(([127, 0, 0, 1], 8800))),
         Duration::from_millis(50),
     )
     .is_ok();
@@ -1075,8 +1123,10 @@ pub fn build_stealth_client(
         None
     };
     let cookie_jar = Arc::new(diting::diting_net::cookies::CookieJar::new());
-    let client =
-        diting::diting_net::wreq_client::StealthHttpClient::with_proxy(cookie_jar, proxy_url.as_deref());
+    let client = diting::diting_net::wreq_client::StealthHttpClient::with_proxy(
+        cookie_jar,
+        proxy_url.as_deref(),
+    );
     Arc::new(client)
 }
 
@@ -1086,7 +1136,6 @@ pub fn build_stealth_client(_use_proxy: bool) -> Option<()> {
     None
 }
 
-
 /// Fetch a URL via the stealth client, returning the decoded text and the
 /// final URL. Handles CAPTCHA detection via 302 redirects.
 #[cfg(feature = "stealth")]
@@ -1094,7 +1143,8 @@ pub async fn stealth_fetch(
     client: &diting::diting_net::wreq_client::StealthHttpClient,
     url: &str,
 ) -> Result<(String, String), SearchEngineError> {
-    let parsed = Url::parse(url).map_err(|e| SearchEngineError::Transient(format!("bad url: {e}")))?;
+    let parsed =
+        Url::parse(url).map_err(|e| SearchEngineError::Transient(format!("bad url: {e}")))?;
     let resp = client
         .fetch(&parsed)
         .await
@@ -1107,8 +1157,12 @@ pub async fn stealth_fetch(
     let final_url = resp.url.as_str();
     tracing::debug!(
         "stealth_fetch: {} -> final={} redirects={:?} status={}",
-        url, final_url,
-        resp.redirected_from.iter().map(|u| u.as_str()).collect::<Vec<_>>(),
+        url,
+        final_url,
+        resp.redirected_from
+            .iter()
+            .map(|u| u.as_str())
+            .collect::<Vec<_>>(),
         resp.status,
     );
     if final_url.contains("/antispider")
@@ -1193,7 +1247,9 @@ pub async fn plain_fetch_with(
                 };
                 continue;
             }
-            return Err(SearchEngineError::Transient("redirect without location".into()));
+            return Err(SearchEngineError::Transient(
+                "redirect without location".into(),
+            ));
         }
 
         // Non-redirect response — read body.
@@ -1209,4 +1265,3 @@ pub async fn plain_fetch_with(
 
     Err(SearchEngineError::Transient("too many redirects".into()))
 }
-

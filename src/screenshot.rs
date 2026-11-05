@@ -65,14 +65,21 @@ pub fn stylesheet_hrefs(html: &str, base_url: &str) -> std::collections::HashSet
     use scraper::{Html, Selector};
 
     let mut out = std::collections::HashSet::new();
-    let Ok(base) = url::Url::parse(base_url) else { return out };
+    let Ok(base) = url::Url::parse(base_url) else {
+        return out;
+    };
     let doc = Html::parse_document(html);
-    let Ok(sel) = Selector::parse("link[href]") else { return out };
+    let Ok(sel) = Selector::parse("link[href]") else {
+        return out;
+    };
     for el in doc.select(&sel) {
         let is_css = el
             .value()
             .attr("rel")
-            .map(|r| r.split_ascii_whitespace().any(|t| t.eq_ignore_ascii_case("stylesheet")))
+            .map(|r| {
+                r.split_ascii_whitespace()
+                    .any(|t| t.eq_ignore_ascii_case("stylesheet"))
+            })
             .unwrap_or(false);
         if is_css {
             if let Some(href) = el.value().attr("href") {
@@ -115,7 +122,9 @@ fn collect_resource_urls(html: &str, base: &url::Url, viewport_width: f32) -> Ve
             // gate doesn't even queue reads that would be refused.
             let scheme_ok = match u.scheme() {
                 "http" | "https" => true,
-                "file" => base.scheme() == "file" && diting::diting_net::client::allow_file_access(),
+                "file" => {
+                    base.scheme() == "file" && diting::diting_net::client::allow_file_access()
+                }
                 _ => false,
             };
             if scheme_ok && !out.contains(&u) {
@@ -165,7 +174,10 @@ fn collect_resource_urls(html: &str, base: &url::Url, viewport_width: f32) -> Ve
             let is_css = el
                 .value()
                 .attr("rel")
-                .map(|r| r.split_ascii_whitespace().any(|t| t.eq_ignore_ascii_case("stylesheet")))
+                .map(|r| {
+                    r.split_ascii_whitespace()
+                        .any(|t| t.eq_ignore_ascii_case("stylesheet"))
+                })
                 .unwrap_or(false);
             if is_css {
                 if let Some(href) = el.value().attr("href") {
@@ -227,11 +239,7 @@ pub async fn prefetch_render_resources(
         if let Some(ref stealth) = page.inner.stealth_client {
             return stealth.fetch(u).await.ok();
         }
-        page.inner
-            .http_client
-            .fetch_subresource(u, doc)
-            .await
-            .ok()
+        page.inner.http_client.fetch_subresource(u, doc).await.ok()
     }
 
     let Ok(base) = url::Url::parse(base_url) else {
@@ -260,7 +268,11 @@ pub async fn prefetch_render_resources(
             Some((u.as_str().to_string(), Arc::new(resp.body)))
         }
     });
-    let map: PrefetchedResources = futures::future::join_all(futs).await.into_iter().flatten().collect();
+    let map: PrefetchedResources = futures::future::join_all(futs)
+        .await
+        .into_iter()
+        .flatten()
+        .collect();
     tracing::debug!(
         "screenshot prefetch: {}/{} sub-resources fetched",
         map.len(),
@@ -300,7 +312,11 @@ pub fn render_html_to_png_diting(
         anyhow::bail!("render_html_to_png_diting: empty HTML (page content() returned nothing - navigation may have failed)");
     }
     // Garbage scales render 1:1 rather than allocating a nonsense bitmap.
-    let scale = if scale.is_finite() && (1.0..=3.0).contains(&scale) { scale } else { 1.0 };
+    let scale = if scale.is_finite() && (1.0..=3.0).contains(&scale) {
+        scale
+    } else {
+        1.0
+    };
 
     let tree = diting::diting_dom::tree_sink::parse_html(html);
 
@@ -330,7 +346,8 @@ pub fn render_html_to_png_diting(
         (width as f32, height as f32),
         diting::diting_css::CssMediaType::Screen,
     );
-    let styles = diting::diting_layout::compute_styles(&tree, &rules, (width as f32, height as f32));
+    let styles =
+        diting::diting_layout::compute_styles(&tree, &rules, (width as f32, height as f32));
     let fonts = diting::diting_fonts::font_book();
 
     // Image bytes: everything non-stylesheet the prefetch pass fetched,
@@ -339,7 +356,9 @@ pub fn render_html_to_png_diting(
     let network_bytes: HashMap<String, std::sync::Arc<Vec<u8>>> = resources
         .map(|res| {
             res.iter()
-                .filter(|(k, v)| (!css_urls.contains(k.as_str()) && !k.ends_with(".css")) && !v.is_empty())
+                .filter(|(k, v)| {
+                    (!css_urls.contains(k.as_str()) && !k.ends_with(".css")) && !v.is_empty()
+                })
                 .map(|(k, v)| (k.clone(), std::sync::Arc::clone(v)))
                 .collect()
         })
@@ -391,7 +410,10 @@ pub fn render_html_to_png_diting(
         );
 
     // Content height for full_page: the deepest laid-out bottom edge.
-    let content_h = rects.values().map(|r| r.y + r.height).fold(0.0_f32, f32::max);
+    let content_h = rects
+        .values()
+        .map(|r| r.y + r.height)
+        .fold(0.0_f32, f32::max);
 
     // Selector resolution. Inline elements carry no box of their own (their
     // content belongs to the host block's inline layout) — fall back to the
@@ -402,7 +424,12 @@ pub fn render_html_to_png_diting(
         id: diting::diting_dom::NodeId,
     ) -> Option<ElementRect> {
         if let Some(r) = rects.get(&id) {
-            return Some(ElementRect { x: r.x as f64, y: r.y as f64, width: r.width as f64, height: r.height as f64 });
+            return Some(ElementRect {
+                x: r.x as f64,
+                y: r.y as f64,
+                width: r.width as f64,
+                height: r.height as f64,
+            });
         }
         fn union_into(
             tree: &diting::diting_dom::DomTree,
@@ -411,7 +438,12 @@ pub fn render_html_to_png_diting(
             acc: &mut Option<ElementRect>,
         ) {
             if let Some(r) = rects.get(&id) {
-                let b = ElementRect { x: r.x as f64, y: r.y as f64, width: r.width as f64, height: r.height as f64 };
+                let b = ElementRect {
+                    x: r.x as f64,
+                    y: r.y as f64,
+                    width: r.width as f64,
+                    height: r.height as f64,
+                };
                 *acc = Some(match acc.take() {
                     None => b,
                     Some(a) => ElementRect {
@@ -438,7 +470,10 @@ pub fn render_html_to_png_diting(
             .query_selector_all(sel)
             .map_err(|e| anyhow::anyhow!("invalid selector {sel:?}: {e}"))?;
         if selector_all {
-            out_rects = matched.iter().filter_map(|&id| diting_rect(&tree, &rects, id)).collect();
+            out_rects = matched
+                .iter()
+                .filter_map(|&id| diting_rect(&tree, &rects, id))
+                .collect();
         } else {
             let id = matched
                 .first()
@@ -452,7 +487,8 @@ pub fn render_html_to_png_diting(
                     "selector {sel:?} matched an element with no layout box ({}x{}). \
                      Inline elements (bare <a>/<span> with text) carry no box - \
                      target a block ancestor instead",
-                    r.width, r.height
+                    r.width,
+                    r.height
                 );
             }
             let (w, h) = (r.width.min(16000.0), r.height.min(16000.0));
@@ -491,7 +527,10 @@ pub fn render_html_to_png_diting(
     // under scale, so the window maps through the same factor.
     let (out_w, out_h, buffer): (u32, u32, Vec<u8>) = match crop {
         Some((cx, cy, cw, ch)) => {
-            let (x0, y0) = ((cx.max(0.0) * scale) as usize, (cy.max(0.0) * scale) as usize);
+            let (x0, y0) = (
+                (cx.max(0.0) * scale) as usize,
+                (cy.max(0.0) * scale) as usize,
+            );
             let (x1, y1) = (
                 (x0 + (cw * scale) as usize).min(canvas.width),
                 (y0 + (ch * scale) as usize).min(canvas.height),
@@ -510,7 +549,9 @@ pub fn render_html_to_png_diting(
     if out_w == 0 || out_h == 0 {
         anyhow::bail!(
             "render_html_to_png_diting: zero-sized output ({}x{}; content_height={})",
-            out_w, out_h, content_h
+            out_w,
+            out_h,
+            content_h
         );
     }
 
@@ -533,7 +574,11 @@ pub fn render_html_to_png_diting(
 
     tracing::debug!(
         "screenshot(diting): {}x{} -> {} PNG bytes (content_height={}, rects={})",
-        out_w, out_h, png_bytes.len(), content_h, out_rects.len()
+        out_w,
+        out_h,
+        png_bytes.len(),
+        content_h,
+        out_rects.len()
     );
 
     Ok(RenderedScreenshot {
@@ -573,7 +618,8 @@ pub fn element_rects_diting(
         (viewport_width, viewport_height),
         diting::diting_css::CssMediaType::Screen,
     );
-    let styles = diting::diting_layout::compute_styles(&tree, &rules, (viewport_width, viewport_height));
+    let styles =
+        diting::diting_layout::compute_styles(&tree, &rules, (viewport_width, viewport_height));
 
     let matched = tree
         .query_selector_all(selector)
@@ -584,18 +630,25 @@ pub fn element_rects_diting(
         matched.into_iter().take(1).collect()
     };
 
-    let rects = diting::diting_layout::layout_dom(&tree, &styles, &diting::diting_fonts::font_book(), viewport_width, viewport_height);
+    let rects = diting::diting_layout::layout_dom(
+        &tree,
+        &styles,
+        &diting::diting_fonts::font_book(),
+        viewport_width,
+        viewport_height,
+    );
     Ok(ids
         .iter()
-        .filter_map(|id| rects.get(id).map(|r| ElementRect {
-            x: r.x as f64,
-            y: r.y as f64,
-            width: r.width as f64,
-            height: r.height as f64,
-        }))
+        .filter_map(|id| {
+            rects.get(id).map(|r| ElementRect {
+                x: r.x as f64,
+                y: r.y as f64,
+                width: r.width as f64,
+                height: r.height as f64,
+            })
+        })
         .collect())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -628,13 +681,19 @@ mod tests {
             <link rel="icon" href="/favicon.ico">
         </head></html>"#;
         let set = stylesheet_hrefs(html, "https://en.wikipedia.org/wiki/HTTP");
-        assert!(set.contains(
-            "https://en.wikipedia.org/w/load.php?lang=en&modules=skins.vector&only=styles"
-        ), "{set:?}");
+        assert!(
+            set.contains(
+                "https://en.wikipedia.org/w/load.php?lang=en&modules=skins.vector&only=styles"
+            ),
+            "{set:?}"
+        );
         assert!(set.contains("https://cdn.example.com/skin.css"), "{set:?}");
         assert!(set.contains("https://en.wikipedia.org/both.css"), "{set:?}");
         assert!(!set.contains("https://en.wikipedia.org/pre.css"), "{set:?}");
-        assert!(!set.contains("https://en.wikipedia.org/favicon.ico"), "{set:?}");
+        assert!(
+            !set.contains("https://en.wikipedia.org/favicon.ico"),
+            "{set:?}"
+        );
     }
 
     /// requirements-aginxos P2 residual, found by eyeballing the ON-probe
@@ -657,8 +716,14 @@ mod tests {
         {
             let _g = file_access_guard(true);
             let urls = collect_resource_urls(html, &file_base, 1280.0);
-            assert!(urls.iter().any(|u| u.as_str().ends_with("/style.css")), "{urls:?}");
-            assert!(urls.iter().any(|u| u.as_str().ends_with("/dot.png")), "{urls:?}");
+            assert!(
+                urls.iter().any(|u| u.as_str().ends_with("/style.css")),
+                "{urls:?}"
+            );
+            assert!(
+                urls.iter().any(|u| u.as_str().ends_with("/dot.png")),
+                "{urls:?}"
+            );
             // Cross-scheme stays pinned: an http page never pulls file:// refs,
             // open gate or not.
             let urls = collect_resource_urls(
@@ -694,16 +759,35 @@ mod tests {
             <p>谛听渲染第一图</p>
         </body></html>"##;
 
-        let full = render_html_to_png_diting(html, "https://example.com/", 300, 200, 1.0, true, None, false, &[], None)
-            .expect("diting full render");
+        let full = render_html_to_png_diting(
+            html,
+            "https://example.com/",
+            300,
+            200,
+            1.0,
+            true,
+            None,
+            false,
+            &[],
+            None,
+        )
+        .expect("diting full render");
         assert_eq!(full.pixel_width, 300, "viewport width");
         // banner 60 + target 50 + one 16px line ≈ 78-80px of content: full_page
         // must track past the 200px floor? No — content < viewport floor keeps
         // the floor (same max() semantics as the blitz path).
-        assert_eq!(full.pixel_height, 200, "full_page floors at viewport height");
+        assert_eq!(
+            full.pixel_height, 200,
+            "full_page floors at viewport height"
+        );
 
-        let banner = count_color(&full.png, |(r, g, b)| r < 100 && g > 60 && g < 140 && b > 150);
-        assert!(banner > 300 * 55, "banner blue dominates its band: {banner}");
+        let banner = count_color(&full.png, |(r, g, b)| {
+            r < 100 && g > 60 && g < 140 && b > 150
+        });
+        assert!(
+            banner > 300 * 55,
+            "banner blue dominates its band: {banner}"
+        );
         let red = count_color(&full.png, |(r, g, b)| r > 200 && g < 80 && b < 80);
         assert!(red > 110 * 45, "target red fills its box: {red}");
         let ink = count_color(&full.png, |(r, g, b)| r < 80 && g < 80 && b < 80);
@@ -711,16 +795,42 @@ mod tests {
 
         // Selector crop: a 120x50 window whose pixels are all red (the
         // #target box), proving the crop is the element's own canvas region.
-        let cropped = render_html_to_png_diting(html, "https://example.com/", 300, 200, 1.0, false, Some("#target"), false, &[], None)
-            .expect("diting crop");
-        assert_eq!((cropped.pixel_width, cropped.pixel_height), (120, 50), "crop = element box");
+        let cropped = render_html_to_png_diting(
+            html,
+            "https://example.com/",
+            300,
+            200,
+            1.0,
+            false,
+            Some("#target"),
+            false,
+            &[],
+            None,
+        )
+        .expect("diting crop");
+        assert_eq!(
+            (cropped.pixel_width, cropped.pixel_height),
+            (120, 50),
+            "crop = element box"
+        );
         assert_eq!(cropped.rects.len(), 1);
         let all_red = count_color(&cropped.png, |(r, g, b)| r > 200 && g < 80 && b < 80);
         assert_eq!(all_red, 120 * 50, "every cropped pixel is the target's red");
 
         // selector_all: no crop, rects for every match.
-        let rects = render_html_to_png_diting(html, "https://example.com/", 300, 200, 1.0, false, Some("div"), true, &[], None)
-            .expect("diting selector_all");
+        let rects = render_html_to_png_diting(
+            html,
+            "https://example.com/",
+            300,
+            200,
+            1.0,
+            false,
+            Some("div"),
+            true,
+            &[],
+            None,
+        )
+        .expect("diting selector_all");
         assert_eq!(rects.pixel_width, 300, "selector_all does not crop");
         assert_eq!(rects.rects.len(), 2, "both divs match in document order");
     }
@@ -744,10 +854,16 @@ mod tests {
         // First match only.
         let one = element_rects_diting(html, "#target", false, 800.0, 600.0, None).expect("rects");
         assert_eq!(one.len(), 1);
-        assert!((one[0].x - 100.0).abs() <= 1.0 && (one[0].y - 150.0).abs() <= 1.0,
-            "absolute box at its authored position: {:?}", one[0]);
-        assert!((one[0].width - 60.0).abs() <= 1.0 && (one[0].height - 40.0).abs() <= 1.0,
-            "authored size: {:?}", one[0]);
+        assert!(
+            (one[0].x - 100.0).abs() <= 1.0 && (one[0].y - 150.0).abs() <= 1.0,
+            "absolute box at its authored position: {:?}",
+            one[0]
+        );
+        assert!(
+            (one[0].width - 60.0).abs() <= 1.0 && (one[0].height - 40.0).abs() <= 1.0,
+            "authored size: {:?}",
+            one[0]
+        );
 
         // selector_all: document order.
         let all = element_rects_diting(html, ".it", true, 800.0, 600.0, None).expect("all");
@@ -755,22 +871,37 @@ mod tests {
         assert!((all[0].x - 10.0).abs() <= 1.0 && (all[1].x - 50.0).abs() <= 1.0);
 
         // No match is empty; an invalid selector errors.
-        assert!(element_rects_diting(html, "#nope", true, 800.0, 600.0, None)
-            .expect("empty ok").is_empty());
+        assert!(
+            element_rects_diting(html, "#nope", true, 800.0, 600.0, None)
+                .expect("empty ok")
+                .is_empty()
+        );
         assert!(element_rects_diting(html, "###", true, 800.0, 600.0, None).is_err());
 
         // extra_css participates in the cascade with correct specificity:
         // an id rule (from the extra sheet) overrides the class rule's
         // height — while #a's inline style keeps winning on left, exactly
         // the CSS cascade order (inline > id > class).
-        let overridden =
-            element_rects_diting(html, "#a", false, 800.0, 600.0, Some("#a { height: 90px; }"))
-                .expect("extra css");
+        let overridden = element_rects_diting(
+            html,
+            "#a",
+            false,
+            800.0,
+            600.0,
+            Some("#a { height: 90px; }"),
+        )
+        .expect("extra css");
         assert_eq!(overridden.len(), 1);
-        assert!((overridden[0].x - 10.0).abs() <= 1.0,
-            "inline left survives: {:?}", overridden[0]);
-        assert!((overridden[0].height - 90.0).abs() <= 1.0,
-            "id rule beats class rule for height: {:?}", overridden[0]);
+        assert!(
+            (overridden[0].x - 10.0).abs() <= 1.0,
+            "inline left survives: {:?}",
+            overridden[0]
+        );
+        assert!(
+            (overridden[0].height - 90.0).abs() <= 1.0,
+            "id rule beats class rule for height: {:?}",
+            overridden[0]
+        );
     }
 
     /// obscura#667 class, DOM side: a `srcset` is a priority list, not a set
@@ -833,7 +964,10 @@ mod tests {
         assert_eq!(rects.len(), 4, "all four cells: {rects:?}");
         // Row 1: a1 then a2 on one line.
         assert!(rects[0].x < rects[1].x, "cells share a line: {rects:?}");
-        assert!((rects[0].y - rects[1].y).abs() <= 1.0, "same band: {rects:?}");
+        assert!(
+            (rects[0].y - rects[1].y).abs() <= 1.0,
+            "same band: {rects:?}"
+        );
         // Row 2 below, columns aligned with row 1.
         assert!(
             rects[2].y > rects[0].y + rects[0].height - 1.0,
@@ -898,13 +1032,22 @@ mod tests {
         let r1 = element_rects_diting(html, "#r1", false, 800.0, 600.0, None).expect("r1")[0];
         let l2 = element_rects_diting(html, "#l2", false, 800.0, 600.0, None).expect("l2")[0];
         let r2 = element_rects_diting(html, "#r2", false, 800.0, 600.0, None).expect("r2")[0];
-        assert!((l1.x + l1.width - r1.x).abs() <= 1.0, "row 1 columns adjacent: {l1:?} {r1:?}");
+        assert!(
+            (l1.x + l1.width - r1.x).abs() <= 1.0,
+            "row 1 columns adjacent: {l1:?} {r1:?}"
+        );
         assert!(
             (l1.width + r1.width - 360.0).abs() <= 1.0,
             "cells fill the 360px table: {l1:?} {r1:?}"
         );
-        assert!((l2.x - l1.x).abs() <= 1.0 && (r2.x - r1.x).abs() <= 1.0, "rows aligned: {l1:?} {r1:?} {l2:?} {r2:?}");
-        assert!((l2.width - l1.width).abs() <= 1.0 && (r2.width - r1.width).abs() <= 1.0, "column widths uniform: {l1:?} {r1:?} {l2:?} {r2:?}");
+        assert!(
+            (l2.x - l1.x).abs() <= 1.0 && (r2.x - r1.x).abs() <= 1.0,
+            "rows aligned: {l1:?} {r1:?} {l2:?} {r2:?}"
+        );
+        assert!(
+            (l2.width - l1.width).abs() <= 1.0 && (r2.width - r1.width).abs() <= 1.0,
+            "column widths uniform: {l1:?} {r1:?} {l2:?} {r2:?}"
+        );
     }
 
     /// `border-collapse: collapse` = zero gaps between cells; the separate
@@ -929,7 +1072,10 @@ mod tests {
             r.x - (l.x + l.width)
         };
         let collapsed = gap("collapse");
-        assert!(collapsed.abs() <= 0.5, "collapse = shared border, no gap: {collapsed}");
+        assert!(
+            collapsed.abs() <= 0.5,
+            "collapse = shared border, no gap: {collapsed}"
+        );
         let separate = gap("separate");
         assert!(
             (separate - 2.0).abs() <= 0.5,
@@ -955,7 +1101,10 @@ mod tests {
         let b = element_rects_diting(html, "#b", false, 800.0, 600.0, None).expect("b")[0];
         assert!(b.y > h.y + 1.0, "tbody row below thead row: {h:?} {b:?}");
         assert!((h.x - b.x).abs() <= 1.0, "cells left-aligned: {h:?} {b:?}");
-        assert!((h.width - b.width).abs() <= 1.0, "single column, uniform width: {h:?} {b:?}");
+        assert!(
+            (h.width - b.width).abs() <= 1.0,
+            "single column, uniform width: {h:?} {b:?}"
+        );
     }
 
     /// colspan: the spanning cell covers both columns exactly — same x as the
@@ -976,7 +1125,10 @@ mod tests {
         let wide = element_rects_diting(html, "#wide", false, 800.0, 600.0, None).expect("wide")[0];
         let c1 = element_rects_diting(html, "#c1", false, 800.0, 600.0, None).expect("c1")[0];
         let c2 = element_rects_diting(html, "#c2", false, 800.0, 600.0, None).expect("c2")[0];
-        assert!((wide.x - c1.x).abs() <= 1.0, "spanning cell starts at col 1: {wide:?} {c1:?}");
+        assert!(
+            (wide.x - c1.x).abs() <= 1.0,
+            "spanning cell starts at col 1: {wide:?} {c1:?}"
+        );
         assert!(
             (wide.width - (c1.width + c2.width)).abs() <= 2.0,
             "spanning cell width = col1 + col2: {wide:?} {c1:?} {c2:?}"
@@ -1007,7 +1159,10 @@ mod tests {
         let r2 = element_rects_diting(html, "#r2", false, 800.0, 600.0, None).expect("r2")[0];
         // both rows are 30px of content each; the 80px rowspan cell forces the
         // band to 80px, split evenly → 40px per row.
-        assert!((tall.y - r1.y).abs() <= 1.0, "rowspan cell top = row 1 top: {tall:?} {r1:?}");
+        assert!(
+            (tall.y - r1.y).abs() <= 1.0,
+            "rowspan cell top = row 1 top: {tall:?} {r1:?}"
+        );
         assert!(
             (tall.height - (r1.height + r2.height)).abs() <= 2.0,
             "rowspan cell height = row1 + row2: {tall:?} {r1:?} {r2:?}"
@@ -1045,15 +1200,24 @@ mod tests {
         let e = element_rects_diting(html, "#e", false, 800.0, 600.0, None).expect("e")[0];
         // columns: col1=30, col2=60, col3=30 (from the third row); big covers
         // col1+col2 = 90.
-        assert!((big.x - c.x).abs() <= 1.0, "big starts at col 1: {big:?} {c:?}");
+        assert!(
+            (big.x - c.x).abs() <= 1.0,
+            "big starts at col 1: {big:?} {c:?}"
+        );
         assert!(
             (big.width - (c.width + d.width)).abs() <= 2.0,
             "big width = col1 + col2: {big:?} {c:?} {d:?}"
         );
-        assert!((a.x - e.x).abs() <= 1.0, "col 3 aligned across rows 1/3: {a:?} {e:?}");
+        assert!(
+            (a.x - e.x).abs() <= 1.0,
+            "col 3 aligned across rows 1/3: {a:?} {e:?}"
+        );
         // big holds a 90px div and spans rows 1+2 (30px content each) → the
         // 30px deficit splits evenly, 45px per row, band = 90.
-        assert!((big.height - 90.0).abs() <= 2.0, "big spans the full 2-row band: {big:?}");
+        assert!(
+            (big.height - 90.0).abs() <= 2.0,
+            "big spans the full 2-row band: {big:?}"
+        );
         assert!(
             (c.y - (big.y + big.height)).abs() <= 1.0,
             "row 3 starts at big's bottom: {big:?} {c:?}"
@@ -1075,7 +1239,8 @@ mod tests {
                 <tr><td id="c1">a</td><td id="c2">b</td></tr>
             </table>
         </body></html>"##;
-        let cap = element_rects_diting(html, "#cap", false, 800.0, 600.0, None).expect("caption box")[0];
+        let cap =
+            element_rects_diting(html, "#cap", false, 800.0, 600.0, None).expect("caption box")[0];
         let c1 = element_rects_diting(html, "#c1", false, 800.0, 600.0, None).expect("c1")[0];
         let c2 = element_rects_diting(html, "#c2", false, 800.0, 600.0, None).expect("c2")[0];
         assert!(cap.height >= 10.0, "caption carries its text: {cap:?}");
@@ -1113,10 +1278,23 @@ mod tests {
             let html = mk(layout);
             element_rects_diting(&html, id, false, 800.0, 600.0, None).expect(id)[0]
         };
-        let (a1, b1, a2) = (rect("fixed", "#a1"), rect("fixed", "#b1"), rect("fixed", "#a2"));
-        assert!((a1.width - 100.0).abs() <= 1.0, "fixed: authored 100px holds: {a1:?}");
-        assert!((a2.width - a1.width).abs() <= 1.0, "fixed: col 1 uniform across rows: {a1:?} {a2:?}");
-        assert!((b1.width - 200.0).abs() <= 2.0, "fixed: auto column takes the 200px leftover: {b1:?}");
+        let (a1, b1, a2) = (
+            rect("fixed", "#a1"),
+            rect("fixed", "#b1"),
+            rect("fixed", "#a2"),
+        );
+        assert!(
+            (a1.width - 100.0).abs() <= 1.0,
+            "fixed: authored 100px holds: {a1:?}"
+        );
+        assert!(
+            (a2.width - a1.width).abs() <= 1.0,
+            "fixed: col 1 uniform across rows: {a1:?} {a2:?}"
+        );
+        assert!(
+            (b1.width - 200.0).abs() <= 2.0,
+            "fixed: auto column takes the 200px leftover: {b1:?}"
+        );
         let a1_auto = rect("auto", "#a1");
         assert!(
             a1_auto.width > 140.0,
@@ -1142,9 +1320,18 @@ mod tests {
         let a1 = element_rects_diting(html, "#a1", false, 800.0, 600.0, None).expect("a1")[0];
         let a2 = element_rects_diting(html, "#a2", false, 800.0, 600.0, None).expect("a2")[0];
         let b1 = element_rects_diting(html, "#b1", false, 800.0, 600.0, None).expect("b1")[0];
-        assert!((a1.width - 60.0).abs() <= 1.0, "col width outranks the first-row cell: {a1:?}");
-        assert!((a2.width - 60.0).abs() <= 1.0, "col 1 pinned despite row-2 content: {a2:?}");
-        assert!((b1.width - 240.0).abs() <= 2.0, "second col is auto: 240px leftover: {b1:?}");
+        assert!(
+            (a1.width - 60.0).abs() <= 1.0,
+            "col width outranks the first-row cell: {a1:?}"
+        );
+        assert!(
+            (a2.width - 60.0).abs() <= 1.0,
+            "col 1 pinned despite row-2 content: {a2:?}"
+        );
+        assert!(
+            (b1.width - 240.0).abs() <= 2.0,
+            "second col is auto: 240px leftover: {b1:?}"
+        );
     }
 
     /// The td `width` attribute — the height attribute's (blitz#507)
@@ -1169,9 +1356,15 @@ mod tests {
             element_rects_diting(&html, id, false, 800.0, 600.0, None).expect(id)[0].width
         };
         let attr = width(r#"width="80""#, "#a");
-        assert!((attr - 80.0).abs() <= 1.0, "bare width attribute pins the column: {attr}");
+        assert!(
+            (attr - 80.0).abs() <= 1.0,
+            "bare width attribute pins the column: {attr}"
+        );
         let css = width(r#"width="80" style="width:120px""#, "#a");
-        assert!((css - 120.0).abs() <= 1.0, "CSS width outranks the attribute: {css}");
+        assert!(
+            (css - 120.0).abs() <= 1.0,
+            "CSS width outranks the attribute: {css}"
+        );
     }
 
     /// collapsed borders between adjacent cells halve: two 4px borders meet at
@@ -1207,7 +1400,10 @@ mod tests {
         </body></html>"##;
         let c = element_rects_diting(html, "#c", false, 800.0, 600.0, None).expect("c")[0];
         assert!((c.height - 55.0).abs() <= 1.0, "attr height 55: {c:?}");
-        assert!((c.width - 100.0).abs() <= 1.0, "fills the authored table width: {c:?}");
+        assert!(
+            (c.width - 100.0).abs() <= 1.0,
+            "fills the authored table width: {c:?}"
+        );
     }
 
     /// Same for tr: the attribute is the row height, cells stretch to it.
@@ -1221,7 +1417,10 @@ mod tests {
             <table><tr height="70"><td id="c">x</td></tr></table>
         </body></html>"##;
         let c = element_rects_diting(html, "#c", false, 800.0, 600.0, None).expect("c")[0];
-        assert!((c.height - 70.0).abs() <= 1.0, "cell stretches to the tr attr height: {c:?}");
+        assert!(
+            (c.height - 70.0).abs() <= 1.0,
+            "cell stretches to the tr attr height: {c:?}"
+        );
     }
 
     /// valign moves cell content within a taller cell (blitz#508); the
@@ -1241,10 +1440,15 @@ mod tests {
         };
         let top = element_rects_diting(&mk("valign=\"top\""), "div", false, 800.0, 600.0, None)
             .expect("top")[0];
-        let middle = element_rects_diting(&mk(""), "div", false, 800.0, 600.0, None).expect("mid")[0];
-        let bottom = element_rects_diting(&mk("valign=\"bottom\""), "div", false, 800.0, 600.0, None)
-            .expect("bottom")[0];
-        assert!(top.y <= 1.0, "valign=top pins content to the cell top: {top:?}");
+        let middle =
+            element_rects_diting(&mk(""), "div", false, 800.0, 600.0, None).expect("mid")[0];
+        let bottom =
+            element_rects_diting(&mk("valign=\"bottom\""), "div", false, 800.0, 600.0, None)
+                .expect("bottom")[0];
+        assert!(
+            top.y <= 1.0,
+            "valign=top pins content to the cell top: {top:?}"
+        );
         assert!(
             (middle.y - 45.0).abs() <= 1.5,
             "no attr = UA middle default: 110 cell, 20 content → y=45: {middle:?}"
@@ -1346,8 +1550,19 @@ mod opacity_pipeline_tests {
         </style></head><body>
             <div id="rot"><span id="hl">MMMMMMMMMM</span></div>
         </body></html>"#;
-        let shot = render_html_to_png_diting(html, "http://probe.local/", 220, 180, 1.0, false, None, false, &[], None)
-            .expect("render");
+        let shot = render_html_to_png_diting(
+            html,
+            "http://probe.local/",
+            220,
+            180,
+            1.0,
+            false,
+            None,
+            false,
+            &[],
+            None,
+        )
+        .expect("render");
         // rotate(90°) about the div center (100,20) is x' = 120 − y,
         // y' = x − 80: the first line's horizontal band (x ∈ [0,165),
         // y ∈ [0,24)) maps to a vertical stripe at columns ≈ [96, 121) and
@@ -1370,14 +1585,21 @@ mod opacity_pipeline_tests {
                 }
             }
         }
-        assert!(yellow_cols.len() > 500, "band paints: {} yellow px", yellow_cols.len());
+        assert!(
+            yellow_cols.len() > 500,
+            "band paints: {} yellow px",
+            yellow_cols.len()
+        );
         assert!(
             yellow_cols.iter().all(|&x| (90..122).contains(&x)),
             "stripe is vertical (rotation applied to the band): cols {:?}..{:?}",
             yellow_cols.iter().min(),
             yellow_cols.iter().max()
         );
-        assert!(max_row > 60, "band extends below the original line box: max row {max_row}");
+        assert!(
+            max_row > 60,
+            "band extends below the original line box: max row {max_row}"
+        );
     }
 
     #[test]
@@ -1391,14 +1613,34 @@ mod opacity_pipeline_tests {
             .h { color: #FFFFFF; font-size: 28px; opacity: 0; }
             .half { color: #FFFFFF; font-size: 28px; opacity: 0.5; }
         </style></head><body><div class="h">HIDDEN</div><div class="half">HALF</div></body></html>"#;
-        let shot = render_html_to_png_diting(html, "http://probe.local/", 300, 200, 1.0, false, None, false, &[], None)
-            .expect("render");
+        let shot = render_html_to_png_diting(
+            html,
+            "http://probe.local/",
+            300,
+            200,
+            1.0,
+            false,
+            None,
+            false,
+            &[],
+            None,
+        )
+        .expect("render");
         // Nothing fully bright: the opacity-0 line leaves zero ink and the
         // half-opacity line is mid-gray at worst.
-        assert_eq!(count_color(&shot.png, |(r, g, b)| r as u32 + g as u32 + b as u32 > 600), 0, "opacity:0 text must not paint");
+        assert_eq!(
+            count_color(&shot.png, |(r, g, b)| r as u32 + g as u32 + b as u32 > 600),
+            0,
+            "opacity:0 text must not paint"
+        );
         // The half-opacity line DOES land — blended, not full-white.
-        let gray = count_color(&shot.png, |(r, g, b)| r > 80 && g > 80 && b > 80 && r as u32 + g as u32 + b as u32 <= 600);
-        assert!(gray > 50, "opacity:0.5 text should paint blended gray, got {gray} px");
+        let gray = count_color(&shot.png, |(r, g, b)| {
+            r > 80 && g > 80 && b > 80 && r as u32 + g as u32 + b as u32 <= 600
+        });
+        assert!(
+            gray > 50,
+            "opacity:0.5 text should paint blended gray, got {gray} px"
+        );
     }
 
     /// #154's pinned walk — attributes → thumb geometry. The paint AND the
@@ -1419,16 +1661,25 @@ mod opacity_pipeline_tests {
             let html = format!(
                 r#"<html><head><style>body {{ margin: 0; }} input {{ width: 120px; }}</style></head><body><input type="range" {attrs}></body></html>"#
             );
-            let shot = render_html_to_png_diting(&html, "http://probe.local/", 160, 60, 1.0, false, None, false, &[], None)
-                .expect("render");
+            let shot = render_html_to_png_diting(
+                &html,
+                "http://probe.local/",
+                160,
+                60,
+                1.0,
+                false,
+                None,
+                false,
+                &[],
+                None,
+            )
+            .expect("render");
             let decoder = png::Decoder::new(std::io::Cursor::new(&shot.png));
             let mut reader = decoder.read_info().expect("png read_info");
             let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
             let info = reader.next_frame(&mut buf).expect("png decode");
             let px = &buf[..info.buffer_size()];
-            let gray_family = |x: u8, center: u8| {
-                (x as i32 - center as i32).abs() <= 10
-            };
+            let gray_family = |x: u8, center: u8| (x as i32 - center as i32).abs() <= 10;
             let mut cols: Vec<(u32, u8, u8, u8)> = Vec::new();
             for y in 0..info.height {
                 for x in 0..info.width {
@@ -1441,9 +1692,15 @@ mod opacity_pipeline_tests {
             let span = |center: u8| -> Option<(i64, i64)> {
                 let mut hits: Vec<u32> = Vec::new();
                 for x in 0..info.width {
-                    let n = cols.iter().filter(|&&(cx, r, g, b)| {
-                        cx == x && gray_family(r, center) && gray_family(g, center) && gray_family(b, center)
-                    }).count();
+                    let n = cols
+                        .iter()
+                        .filter(|&&(cx, r, g, b)| {
+                            cx == x
+                                && gray_family(r, center)
+                                && gray_family(g, center)
+                                && gray_family(b, center)
+                        })
+                        .count();
                     if n >= 2 {
                         hits.push(x);
                     }
@@ -1451,10 +1708,14 @@ mod opacity_pipeline_tests {
                 if hits.is_empty() {
                     None
                 } else {
-                    Some((*hits.iter().min().unwrap() as i64, *hits.iter().max().unwrap() as i64))
+                    Some((
+                        *hits.iter().min().unwrap() as i64,
+                        *hits.iter().max().unwrap() as i64,
+                    ))
                 }
             };
-            let (fill_x0, fill_x1) = span(118).unwrap_or_else(|| panic!("no fill family found for `{attrs}`"));
+            let (fill_x0, fill_x1) =
+                span(118).unwrap_or_else(|| panic!("no fill family found for `{attrs}`"));
             // Thumb centroid: mean column of the dark ink pixels.
             let ink: Vec<u32> = cols
                 .iter()
@@ -1474,24 +1735,45 @@ mod opacity_pipeline_tests {
         // fill leading it, trailing track past the disc.
         let (trailing, thumb, fx0, fx1) = geometry("min=\"0\" max=\"1000\" value=\"300\"");
         let (tt0, tt1) = trailing.expect("trailing track for a mid value");
-        assert!((5..=9).contains(&fx0), "fill starts at the track head: {fx0}");
-        assert!((thumb - 39).abs() <= 2, "thumb at 30% of the inset span: got {thumb}");
+        assert!(
+            (5..=9).contains(&fx0),
+            "fill starts at the track head: {fx0}"
+        );
+        assert!(
+            (thumb - 39).abs() <= 2,
+            "thumb at 30% of the inset span: got {thumb}"
+        );
         assert!(fx1 <= thumb + 2, "fill leads the thumb: {fx0}..{fx1}");
-        assert!(tt0 >= thumb + 4 && (108..=114).contains(&tt1), "trailing track: {tt0}..{tt1}");
+        assert!(
+            tt0 >= thumb + 4 && (108..=114).contains(&tt1),
+            "trailing track: {tt0}..{tt1}"
+        );
 
         // Out-of-range value clamps to max: thumb parks at the track end,
         // the fill spans the whole track (no trailing track left).
         let (trailing, thumb, fx0, fx1) = geometry("min=\"0\" max=\"1000\" value=\"2000\"");
-        assert!((thumb - 113).abs() <= 3, "clamped thumb at the end: got {thumb}");
+        assert!(
+            (thumb - 113).abs() <= 3,
+            "clamped thumb at the end: got {thumb}"
+        );
         // The visible fill can only reach the disc's left edge (106) — the
         // ink parks on top of the fill's tail — so ≥103 pins "spans the
         // track" while tolerating the disc's antialiased boundary.
-        assert!((5..=9).contains(&fx0) && (103..=108).contains(&fx1), "fill spans the track: {fx0}..{fx1}");
-        assert!(trailing.is_none(), "no unfilled track behind a clamped thumb: {trailing:?}");
+        assert!(
+            (5..=9).contains(&fx0) && (103..=108).contains(&fx1),
+            "fill spans the track: {fx0}..{fx1}"
+        );
+        assert!(
+            trailing.is_none(),
+            "no unfilled track behind a clamped thumb: {trailing:?}"
+        );
 
         // No min/max: the spec defaults 0..100 apply (value 25 → 25% of
         // the same 106px span = 7+27=34).
         let (_, thumb, _, _) = geometry("value=\"25\"");
-        assert!((thumb - 34).abs() <= 2, "thumb at 25% of defaults: got {thumb}");
+        assert!(
+            (thumb - 34).abs() <= 2,
+            "thumb at 25% of defaults: got {thumb}"
+        );
     }
 }

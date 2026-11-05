@@ -8,8 +8,8 @@ use selectors::matching::{
     NeedsSelectorFlags,
 };
 use selectors::parser::{self, ParseRelative, SelectorParseErrorKind};
-use selectors::{Element, OpaqueElement, SelectorList};
 use selectors::visitor::SelectorVisitor;
+use selectors::{Element, OpaqueElement, SelectorList};
 
 use crate::diting_dom::tree::{DomTree, NodeData, NodeId};
 
@@ -263,7 +263,10 @@ impl<'a> DomElement<'a> {
     /// group is the same-named radios under the same form owner (nearest
     /// ancestor <form>, else the whole tree); a nameless radio is its own group.
     fn radio_group_unchecked(&self, me: &crate::diting_dom::tree::Node) -> bool {
-        let checked = |n: &crate::diting_dom::tree::Node| n.live_checked().unwrap_or_else(|| n.get_attribute("checked").is_some());
+        let checked = |n: &crate::diting_dom::tree::Node| {
+            n.live_checked()
+                .unwrap_or_else(|| n.get_attribute("checked").is_some())
+        };
         if checked(me) {
             return false;
         }
@@ -273,16 +276,23 @@ impl<'a> DomElement<'a> {
         }
         let form_of = |id: NodeId| {
             self.tree.ancestors(id).into_iter().find(|a| {
-                self.tree.with_node(*a, |n| n.as_element().is_some_and(|e| e.local.as_str() == "form")).unwrap_or(false)
+                self.tree
+                    .with_node(*a, |n| {
+                        n.as_element().is_some_and(|e| e.local.as_str() == "form")
+                    })
+                    .unwrap_or(false)
             })
         };
         let owner = form_of(self.node_id);
-        let scope = owner.or_else(|| self.tree.tree_scope_root(self.node_id)).unwrap_or_else(|| self.tree.document());
+        let scope = owner
+            .or_else(|| self.tree.tree_scope_root(self.node_id))
+            .unwrap_or_else(|| self.tree.document());
         !self.tree.descendants(scope).into_iter().any(|id| {
             self.tree
                 .with_node(id, |n| {
                     n.as_element().is_some_and(|e| e.local.as_str() == "input")
-                        && n.get_attribute("type").is_some_and(|t| t.eq_ignore_ascii_case("radio"))
+                        && n.get_attribute("type")
+                            .is_some_and(|t| t.eq_ignore_ascii_case("radio"))
                         && n.get_attribute("name") == Some(name.as_str())
                         && checked(n)
                 })
@@ -409,17 +419,12 @@ impl<'a> DomElement<'a> {
         }
         // Editing-host chain: contenteditable on self or any ancestor
         // ("", "true", "plaintext-only" are truthy; "false" stops it).
-        let truthy = |v: &str| {
-            !matches!(v.trim().to_ascii_lowercase().as_str(), "false")
-        };
+        let truthy = |v: &str| !matches!(v.trim().to_ascii_lowercase().as_str(), "false");
         let mut cur = Some(self.node_id);
         while let Some(id) = cur {
             let hit = self
                 .tree
-                .with_node(id, |n| {
-                    n.get_attribute("contenteditable")
-                        .map(truthy)
-                })
+                .with_node(id, |n| n.get_attribute("contenteditable").map(truthy))
                 .flatten()
                 .unwrap_or(false);
             if hit {
@@ -490,7 +495,9 @@ impl<'a> Element for DomElement<'a> {
     fn prev_sibling_element(&self) -> Option<Self> {
         let mut current = self.tree.with_node(self.node_id, |n| n.prev_sibling)?;
         while let Some(sibling_id) = current {
-            let (is_element, prev) = self.tree.with_node(sibling_id, |s| (s.is_element(), s.prev_sibling))?;
+            let (is_element, prev) = self
+                .tree
+                .with_node(sibling_id, |s| (s.is_element(), s.prev_sibling))?;
             if is_element {
                 return Some(DomElement::new(self.tree, sibling_id));
             }
@@ -502,7 +509,9 @@ impl<'a> Element for DomElement<'a> {
     fn next_sibling_element(&self) -> Option<Self> {
         let mut current = self.tree.with_node(self.node_id, |n| n.next_sibling)?;
         while let Some(sibling_id) = current {
-            let (is_element, next) = self.tree.with_node(sibling_id, |s| (s.is_element(), s.next_sibling))?;
+            let (is_element, next) = self
+                .tree
+                .with_node(sibling_id, |s| (s.is_element(), s.next_sibling))?;
             if is_element {
                 return Some(DomElement::new(self.tree, sibling_id));
             }
@@ -514,7 +523,9 @@ impl<'a> Element for DomElement<'a> {
     fn first_element_child(&self) -> Option<Self> {
         let mut current = self.tree.with_node(self.node_id, |n| n.first_child)?;
         while let Some(child_id) = current {
-            let (is_element, next) = self.tree.with_node(child_id, |c| (c.is_element(), c.next_sibling))?;
+            let (is_element, next) = self
+                .tree
+                .with_node(child_id, |c| (c.is_element(), c.next_sibling))?;
             if is_element {
                 return Some(DomElement::new(self.tree, child_id));
             }
@@ -546,20 +557,26 @@ impl<'a> Element for DomElement<'a> {
     fn has_namespace(&self, ns: &CssNamespace) -> bool {
         self.tree
             .with_node(self.node_id, |n| {
-                n.as_element()
-                    .map(|name| name.ns == ns.0)
-                    .unwrap_or(false)
+                n.as_element().map(|name| name.ns == ns.0).unwrap_or(false)
             })
             .unwrap_or(false)
     }
 
     fn is_same_type(&self, other: &Self) -> bool {
-        let self_name = self.tree.with_node(self.node_id, |n| {
-            n.as_element().map(|name| (name.local.clone(), name.ns.clone()))
-        }).flatten();
-        let other_name = self.tree.with_node(other.node_id, |n| {
-            n.as_element().map(|name| (name.local.clone(), name.ns.clone()))
-        }).flatten();
+        let self_name = self
+            .tree
+            .with_node(self.node_id, |n| {
+                n.as_element()
+                    .map(|name| (name.local.clone(), name.ns.clone()))
+            })
+            .flatten();
+        let other_name = self
+            .tree
+            .with_node(other.node_id, |n| {
+                n.as_element()
+                    .map(|name| (name.local.clone(), name.ns.clone()))
+            })
+            .flatten();
         match (self_name, other_name) {
             (Some((al, ans)), Some((bl, bns))) => al == bl && ans == bns,
             _ => false,
@@ -597,10 +614,9 @@ impl<'a> Element for DomElement<'a> {
             .with_node(self.node_id, |node| {
                 node.attrs()
                     .map(|attrs| {
-                        attrs.iter().any(|a| {
-                            a.name.ns == html5ever::ns!()
-                                && a.name.local == local_name.0
-                        })
+                        attrs
+                            .iter()
+                            .any(|a| a.name.ns == html5ever::ns!() && a.name.local == local_name.0)
                     })
                     .unwrap_or(false)
             })
@@ -629,14 +645,19 @@ impl<'a> Element for DomElement<'a> {
                 .with_node(self.node_id, |n| {
                     let checkable = n.as_element().is_some_and(|e| e.local.as_str() == "input")
                         && matches!(
-                            n.get_attribute("type").map(|t| t.to_ascii_lowercase()).as_deref(),
+                            n.get_attribute("type")
+                                .map(|t| t.to_ascii_lowercase())
+                                .as_deref(),
                             Some("checkbox" | "radio")
                         );
                     // A checkbox/radio's dirty checkedness (el.checked = x)
                     // beats the parsed attribute, as in the IDL getter.
                     match n.live_checked() {
                         Some(c) if checkable => c,
-                        _ => n.get_attribute("checked").is_some() || n.get_attribute("selected").is_some(),
+                        _ => {
+                            n.get_attribute("checked").is_some()
+                                || n.get_attribute("selected").is_some()
+                        }
                     }
                 })
                 .unwrap_or(false),
@@ -644,14 +665,20 @@ impl<'a> Element for DomElement<'a> {
             // value (radio groups with nothing checked are not modelled).
             PseudoClass::Indeterminate => self
                 .tree
-                .with_node(self.node_id, |n| match n.as_element().map(|e| e.local.as_str()) {
-                    Some("input") => match n.get_attribute("type").map(|t| t.to_ascii_lowercase()).as_deref() {
-                        Some("checkbox") => n.live_indeterminate(),
-                        Some("radio") => self.radio_group_unchecked(n),
+                .with_node(self.node_id, |n| {
+                    match n.as_element().map(|e| e.local.as_str()) {
+                        Some("input") => match n
+                            .get_attribute("type")
+                            .map(|t| t.to_ascii_lowercase())
+                            .as_deref()
+                        {
+                            Some("checkbox") => n.live_indeterminate(),
+                            Some("radio") => self.radio_group_unchecked(n),
+                            _ => false,
+                        },
+                        Some("progress") => n.get_attribute("value").is_none(),
                         _ => false,
-                    },
-                    Some("progress") => n.get_attribute("value").is_none(),
-                    _ => false,
+                    }
                 })
                 .unwrap_or(false),
             // Focus tracks the tree's live focused node (blitz#839): agents
@@ -855,7 +882,10 @@ fn simple_id_selector(selector: &str) -> Option<&str> {
     if !(first.is_ascii_alphabetic() || first == b'_') {
         return None;
     }
-    if id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
+    if id
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    {
         Some(id)
     } else {
         None
@@ -871,7 +901,11 @@ impl DomTree {
         self.query_selector_all_from(self.document(), selector)
     }
 
-    pub fn query_selector_from(&self, root: NodeId, selector: &str) -> Result<Option<NodeId>, String> {
+    pub fn query_selector_from(
+        &self,
+        root: NodeId,
+        selector: &str,
+    ) -> Result<Option<NodeId>, String> {
         // Fast path: a bare "#id" selector resolves through the id index in O(1)
         // instead of scanning every descendant. The index holds the first element
         // in tree order per id, which is exactly what the full scan would return.
@@ -935,18 +969,18 @@ impl DomTree {
     // query leaves the scope unset, where the selectors crate falls back to
     // the root element — which is exactly how browsers resolve
     // `document.querySelector(':scope ...')` (it means html).
-    fn bind_query_scope(
-        &self,
-        context: &mut MatchingContext<'_, DitingSelector>,
-        root: NodeId,
-    ) {
+    fn bind_query_scope(&self, context: &mut MatchingContext<'_, DitingSelector>, root: NodeId) {
         let is_element = self.with_node(root, |n| n.is_element()).unwrap_or(false);
         if is_element {
             context.scope_element = Some(DomElement::new(self, root).opaque());
         }
     }
 
-    pub fn query_selector_all_from(&self, root: NodeId, selector: &str) -> Result<Vec<NodeId>, String> {
+    pub fn query_selector_all_from(
+        &self,
+        root: NodeId,
+        selector: &str,
+    ) -> Result<Vec<NodeId>, String> {
         let selector_list = parse_selector(selector)?;
         let mut caches = selectors::context::SelectorCaches::default();
         let mut context = MatchingContext::new(
@@ -1039,5 +1073,3 @@ mod match_index;
 
 pub use match_index::RuleMatchSets;
 pub(crate) use match_index::{MatchCacheBox, MatchDirty};
-
-

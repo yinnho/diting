@@ -34,7 +34,11 @@ pub struct Check {
 }
 
 fn check(status: Status, name: &'static str, detail: impl Into<String>) -> Check {
-    Check { status, name, detail: detail.into() }
+    Check {
+        status,
+        name,
+        detail: detail.into(),
+    }
 }
 
 /// Compiled-in features — the same booleans `/doctor` reports over HTTP,
@@ -52,7 +56,10 @@ fn features_check() -> Check {
     let detail = if feats.is_empty() {
         "none (plain build: no /screenshot, no stealth TLS)".to_string()
     } else {
-        format!("{} — rebuild with --features stealth,screenshot if missing", feats.join("+"))
+        format!(
+            "{} — rebuild with --features stealth,screenshot if missing",
+            feats.join("+")
+        )
     };
     check(Status::Ok, "features", detail)
 }
@@ -89,7 +96,11 @@ fn robots_check() -> Check {
     {
         check(Status::Ok, "robots", "HONOR_ROBOTS set — /fetch, /screenshot and /download check robots.txt (operator opt-in)")
     } else {
-        check(Status::Ok, "robots", "robots.txt not consulted by default (DITING_HONOR_ROBOTS=1 to opt in)")
+        check(
+            Status::Ok,
+            "robots",
+            "robots.txt not consulted by default (DITING_HONOR_ROBOTS=1 to opt in)",
+        )
     }
 }
 
@@ -99,11 +110,27 @@ fn robots_check() -> Check {
 #[cfg(feature = "screenshot")]
 fn fonts_check() -> Check {
     let book = diting::diting_fonts::font_book();
-    let raster = book.rasterize("汉字Abc", 24.0, false, [0, 0, 0, 255], 24.0 * 1.2, false, None);
+    let raster = book.rasterize(
+        "汉字Abc",
+        24.0,
+        false,
+        [0, 0, 0, 255],
+        24.0 * 1.2,
+        false,
+        None,
+    );
     if raster.ink_bbox().is_some() {
-        check(Status::Ok, "fonts", "bundled CJK bundle inks 汉字 (GB2312 + symbols)")
+        check(
+            Status::Ok,
+            "fonts",
+            "bundled CJK bundle inks 汉字 (GB2312 + symbols)",
+        )
     } else {
-        check(Status::Fail, "fonts", "bundled fonts parse but rasterize no ink — bundle corrupt")
+        check(
+            Status::Fail,
+            "fonts",
+            "bundled fonts parse but rasterize no ink — bundle corrupt",
+        )
     }
 }
 
@@ -111,7 +138,11 @@ fn fonts_check() -> Check {
 /// rasterize at all (and /screenshot 404s) — that's the thing to surface.
 #[cfg(not(feature = "screenshot"))]
 fn fonts_check() -> Check {
-    check(Status::Warn, "fonts", "screenshot feature off — no bundled fonts, /screenshot unavailable")
+    check(
+        Status::Warn,
+        "fonts",
+        "screenshot feature off — no bundled fonts, /screenshot unavailable",
+    )
 }
 
 /// Pull the version token out of `ffmpeg -version`'s first line
@@ -138,7 +169,10 @@ fn ffmpeg_check() -> Check {
             let first = head.lines().next().unwrap_or("");
             let detail = match ffmpeg_version_word(first) {
                 Some(v) => format!("ffmpeg {v} on PATH — /video ready"),
-                None => format!("ffmpeg on PATH — /video ready ({})", first.chars().take(60).collect::<String>()),
+                None => format!(
+                    "ffmpeg on PATH — /video ready ({})",
+                    first.chars().take(60).collect::<String>()
+                ),
             };
             check(Status::Ok, "ffmpeg", detail)
         }
@@ -182,7 +216,11 @@ fn env_checks() -> Vec<Check> {
     match std::env::var("DITING_PROXY") {
         Ok(p) if !p.is_empty() => out.push(check(Status::Info, "proxy", p)),
         _ => {
-            out.push(check(Status::Info, "proxy", "none — direct-first, auto-fallback per fetch"));
+            out.push(check(
+                Status::Info,
+                "proxy",
+                "none — direct-first, auto-fallback per fetch",
+            ));
             // The engine ignores standard proxy env vars (every client pins
             // the implicit matcher off); say so before a shell proxy looks
             // "configured" while fetches go direct.
@@ -240,7 +278,9 @@ async fn egress_check() -> Check {
         Err(e) => check(
             Status::Fail,
             "egress",
-            format!("https://example.com unreachable: {e} — check DNS/firewall, or set DITING_PROXY"),
+            format!(
+                "https://example.com unreachable: {e} — check DNS/firewall, or set DITING_PROXY"
+            ),
         ),
     }
 }
@@ -274,11 +314,20 @@ pub fn render(checks: &[Check]) -> String {
 
 /// Entry point from main's arg dispatch. Returns the process exit code.
 pub async fn run() -> i32 {
-    let mut checks =
-        vec![features_check(), workflow_check(), fonts_check(), ffmpeg_check(), robots_check()];
+    let mut checks = vec![
+        features_check(),
+        workflow_check(),
+        fonts_check(),
+        ffmpeg_check(),
+        robots_check(),
+    ];
     checks.extend(env_checks());
     checks.push(egress_check().await);
-    let code = if checks.iter().any(|c| c.status == Status::Fail) { 1 } else { 0 };
+    let code = if checks.iter().any(|c| c.status == Status::Fail) {
+        1
+    } else {
+        0
+    };
     print!("{}", render(&checks));
     println!("Like it? ⭐ Star us → https://github.com/yinnho/diting");
     code
@@ -297,7 +346,11 @@ mod tests {
         ];
         let text = render(&checks);
         assert!(text.contains("[ok]   "), "status tags padded: {}", text);
-        assert!(text.contains("1 failed, 1 warning(s)."), "summary counts: {}", text);
+        assert!(
+            text.contains("1 failed, 1 warning(s)."),
+            "summary counts: {}",
+            text
+        );
         // Name column aligned to the longest name.
         let ok_line = text.lines().find(|l| l.contains("features")).unwrap();
         let ssrf_line = text.lines().find(|l| l.contains("ssrf")).unwrap();
@@ -306,7 +359,10 @@ mod tests {
 
     #[test]
     fn render_all_pass_has_no_fail_summary() {
-        let checks = vec![check(Status::Ok, "features", "x"), check(Status::Info, "proxy", "none")];
+        let checks = vec![
+            check(Status::Ok, "features", "x"),
+            check(Status::Info, "proxy", "none"),
+        ];
         let text = render(&checks);
         assert!(text.contains("all checks passed"), "{}", text);
         assert!(!text.contains("failed"), "{}", text);
@@ -321,7 +377,9 @@ mod tests {
     #[test]
     fn ffmpeg_version_word_extracts_token() {
         assert_eq!(
-            ffmpeg_version_word("ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers"),
+            ffmpeg_version_word(
+                "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers"
+            ),
             Some("7.1.1")
         );
         // Distro builds carry package suffixes — keep the whole token.
@@ -330,7 +388,10 @@ mod tests {
             Some("4.4.2-0ubuntu0.22.04.1")
         );
         // Non-standard first lines (static builds sometimes brand differently).
-        assert_eq!(ffmpeg_version_word("ffmpeg version n7.1-latest"), Some("n7.1-latest"));
+        assert_eq!(
+            ffmpeg_version_word("ffmpeg version n7.1-latest"),
+            Some("n7.1-latest")
+        );
         assert_eq!(ffmpeg_version_word("garbage with no marker"), None);
         assert_eq!(ffmpeg_version_word(""), None);
     }

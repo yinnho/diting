@@ -23,19 +23,19 @@ mod color_modern;
 pub use color::{parse_color, parse_linear_gradient, LinearGradient};
 mod animation;
 use animation::{parse_animation_shorthand, parse_keyframes_body};
-mod supports;
-pub(crate) mod props;
+mod calc;
 mod layers;
 mod nesting;
+pub(crate) mod props;
 mod scope;
+mod supports;
 mod vars;
-mod calc;
 pub use calc::{eval_calc, eval_math_call, eval_width_expr};
 use vars::substitute_vars;
 mod transform;
-pub(crate) use transform::{parse_transform, parse_transform_with_vp};
-use transform::parse_transform_origin;
 pub use supports::supports_declaration;
+use transform::parse_transform_origin;
+pub(crate) use transform::{parse_transform, parse_transform_with_vp};
 
 /// Which media a stylesheet evaluation targets. `print` rules only apply
 /// inside `@media print` bodies; `screen` rules apply outside it.
@@ -90,7 +90,9 @@ pub fn collect_selector_attr_names(rules: &[ParsedRule]) -> std::collections::Ha
         let s = rule.selector.as_bytes();
         let mut i = 0;
         while i < s.len() {
-            let Some(open) = s[i..].iter().position(|&b| b == b'[').map(|p| p + i) else { break };
+            let Some(open) = s[i..].iter().position(|&b| b == b'[').map(|p| p + i) else {
+                break;
+            };
             let mut j = open + 1;
             while j < s.len() && (s[j].is_ascii_alphanumeric() || s[j] == b'-' || s[j] == b'_') {
                 j += 1;
@@ -209,7 +211,11 @@ pub fn parse_stylesheet(css: &str) -> Vec<ParsedRule> {
     parse_stylesheet_for(css, (1280.0, 720.0), CssMediaType::Screen)
 }
 
-pub fn parse_stylesheet_for(css: &str, viewport: (f32, f32), media_type: CssMediaType) -> Vec<ParsedRule> {
+pub fn parse_stylesheet_for(
+    css: &str,
+    viewport: (f32, f32),
+    media_type: CssMediaType,
+) -> Vec<ParsedRule> {
     parse_stylesheet_timed(css, viewport, media_type).0
 }
 
@@ -310,8 +316,14 @@ fn parse_stylesheet_with_containers(
                         overrides,
                         containers,
                     );
-                } else if let Some(flat) = decls.contains('{').then(|| nesting::flatten(sel, decls)).flatten() {
-                    let (r, k) = parse_stylesheet_with_containers(&flat, viewport, media_type, overrides, containers);
+                } else if let Some(flat) = decls
+                    .contains('{')
+                    .then(|| nesting::flatten(sel, decls))
+                    .flatten()
+                {
+                    let (r, k) = parse_stylesheet_with_containers(
+                        &flat, viewport, media_type, overrides, containers,
+                    );
                     rules.extend(r);
                     keyframes.extend(k);
                 } else {
@@ -386,8 +398,9 @@ fn flush_at_rule(
         layers::leave();
     } else if let Some(prelude) = at_rule_prelude(at, "scope") {
         if let Some((root, limit)) = scope::parse_prelude(prelude) {
-            let (mut inner_rules, inner_kf) =
-                parse_stylesheet_with_containers(inner, viewport, media_type, overrides, containers);
+            let (mut inner_rules, inner_kf) = parse_stylesheet_with_containers(
+                inner, viewport, media_type, overrides, containers,
+            );
             for r in &mut inner_rules {
                 r.selector = scope::rewrite(&r.selector, &root, limit.as_deref());
             }
@@ -458,7 +471,10 @@ fn parse_container_rule(
     }
 }
 
-fn merge_conditions(outer: Option<&ContainerCondition>, inner: Option<ContainerCondition>) -> Option<ContainerCondition> {
+fn merge_conditions(
+    outer: Option<&ContainerCondition>,
+    inner: Option<ContainerCondition>,
+) -> Option<ContainerCondition> {
     match (outer, inner) {
         (None, i) => i,
         (Some(o), None) => Some(o.clone()),
@@ -489,7 +505,10 @@ fn split_container_prelude(prelude: &str) -> (Option<String>, Option<&str>) {
                     .chars()
                     .all(|c| c.is_alphanumeric() || c == '-' || c == '_');
             if ident && (rest.is_empty() || rest.starts_with('(')) {
-                (Some(name.to_string()), if rest.is_empty() { None } else { Some(rest) })
+                (
+                    Some(name.to_string()),
+                    if rest.is_empty() { None } else { Some(rest) },
+                )
             } else {
                 (None, Some(p))
             }
@@ -576,7 +595,11 @@ fn parse_container_feature(f: &str) -> Option<ContainerFeature> {
         if let Some((l, r)) = f.split_once(sym) {
             let (l, r) = (l.trim(), r.trim());
             if let Some(axis) = container_axis_of(l) {
-                return Some(ContainerFeature { axis, cmp, px: parse_px(r)? });
+                return Some(ContainerFeature {
+                    axis,
+                    cmp,
+                    px: parse_px(r)?,
+                });
             }
             if let Some(axis) = container_axis_of(r) {
                 let flipped = match cmp {
@@ -586,7 +609,11 @@ fn parse_container_feature(f: &str) -> Option<ContainerFeature> {
                     ContainerCmp::Lt => ContainerCmp::Gt,
                     ContainerCmp::Eq => ContainerCmp::Eq,
                 };
-                return Some(ContainerFeature { axis, cmp: flipped, px: parse_px(l)? });
+                return Some(ContainerFeature {
+                    axis,
+                    cmp: flipped,
+                    px: parse_px(l)?,
+                });
             }
         }
     }
@@ -660,7 +687,11 @@ fn single_media_query_applies(
     overrides: &MediaOverrides,
 ) -> bool {
     let query = query.trim().strip_prefix("@media").unwrap_or(query).trim();
-    let compact: String = query.chars().filter(|c| !c.is_whitespace()).flat_map(char::to_lowercase).collect();
+    let compact: String = query
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect();
 
     // Leading `not` negates the whole arm. Only strip the `not` token itself;
     // the media type after it must stay intact (`not print` → evaluate
@@ -721,7 +752,11 @@ fn single_media_query_applies_compact(
 /// overrides first, then the persona defaults — evaluated before the px parse
 /// so a non-numeric value like `reduce` isn't discarded as unparseable.
 fn media_feature_applies(feature: &str, viewport: (f32, f32), overrides: &MediaOverrides) -> bool {
-    let feature = feature.trim().trim_start_matches('(').trim_end_matches(')').trim();
+    let feature = feature
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .trim();
     let Some((name, value)) = feature.split_once(':') else {
         // Boolean feature without a value: unsupported → conservative false.
         return false;
@@ -790,7 +825,8 @@ fn eval_supports(condition: &str) -> Option<bool> {
         return None;
     }
     // Unwrap one enclosing parenthesized group: `(...)` or `((a) and (b))`.
-    if condition.starts_with('(') && condition.ends_with(')') && balanced_inner_is_whole(condition) {
+    if condition.starts_with('(') && condition.ends_with(')') && balanced_inner_is_whole(condition)
+    {
         return eval_supports(&condition[1..condition.len() - 1]);
     }
     if let Some(rest) = strip_keyword(condition, "not") {
@@ -843,8 +879,13 @@ fn balanced_inner_is_whole(condition: &str) -> bool {
 }
 
 fn strip_keyword<'a>(condition: &'a str, keyword: &str) -> Option<&'a str> {
-    if condition.get(..keyword.len()).is_some_and(|p| p.eq_ignore_ascii_case(keyword))
-        && condition.as_bytes().get(keyword.len()).is_some_and(u8::is_ascii_whitespace)
+    if condition
+        .get(..keyword.len())
+        .is_some_and(|p| p.eq_ignore_ascii_case(keyword))
+        && condition
+            .as_bytes()
+            .get(keyword.len())
+            .is_some_and(u8::is_ascii_whitespace)
     {
         Some(condition[keyword.len()..].trim())
     } else {
@@ -866,12 +907,13 @@ fn split_top_level_keyword(condition: &str, keyword: &str) -> Option<Vec<String>
             b'(' => depth += 1,
             b')' => depth = (depth - 1).max(0),
             _ if depth == 0 && i + kw.len() <= bytes.len() && bytes[i..].starts_with(kw) => {
-                let before_ok = i == 0 || bytes[i - 1].is_ascii_whitespace() || bytes[i - 1] == b')';
+                let before_ok =
+                    i == 0 || bytes[i - 1].is_ascii_whitespace() || bytes[i - 1] == b')';
                 let after_idx = i + kw.len();
-                let after_ok =
-                    after_idx == bytes.len() || bytes[after_idx].is_ascii_whitespace() || bytes[after_idx] == b'(';
-                let word_boundary_before = i == 0
-                    || !bytes[i - 1].is_ascii_alphanumeric();
+                let after_ok = after_idx == bytes.len()
+                    || bytes[after_idx].is_ascii_whitespace()
+                    || bytes[after_idx] == b'(';
+                let word_boundary_before = i == 0 || !bytes[i - 1].is_ascii_alphanumeric();
                 if before_ok && after_ok && word_boundary_before {
                     // Avoid matching "and" inside "not": check no preceding space-less letter.
                     parts.push(condition[start..i].trim().to_string());
@@ -1323,42 +1365,49 @@ pub fn format_counter_value(v: i64, style: CounterStyle) -> String {
     match style {
         CounterStyle::Decimal | CounterStyle::DecimalLeadingZero => {
             let s = v.to_string();
-            if matches!(style, CounterStyle::DecimalLeadingZero)
-                && (0..=9).contains(&v)
-            {
+            if matches!(style, CounterStyle::DecimalLeadingZero) && (0..=9).contains(&v) {
                 format!("0{}", s)
             } else {
                 s
             }
         }
-        CounterStyle::LowerAlpha | CounterStyle::UpperAlpha if v < 1 => {
-            v.to_string()
-        }
+        CounterStyle::LowerAlpha | CounterStyle::UpperAlpha if v < 1 => v.to_string(),
         CounterStyle::LowerAlpha | CounterStyle::UpperAlpha => {
             let mut s = String::new();
             let mut n = v;
             while n > 0 {
                 let rem = ((n - 1) % 26) as u8;
                 let c = (b'a' + rem) as char;
-                s.insert(0, if matches!(style, CounterStyle::UpperAlpha) {
-                    c.to_ascii_uppercase()
-                } else {
-                    c
-                });
+                s.insert(
+                    0,
+                    if matches!(style, CounterStyle::UpperAlpha) {
+                        c.to_ascii_uppercase()
+                    } else {
+                        c
+                    },
+                );
                 n = (n - 1) / 26;
             }
             s
         }
-        CounterStyle::LowerRoman | CounterStyle::UpperRoman
-            if !(1..=3999).contains(&v) =>
-        {
+        CounterStyle::LowerRoman | CounterStyle::UpperRoman if !(1..=3999).contains(&v) => {
             v.to_string()
         }
         CounterStyle::LowerRoman | CounterStyle::UpperRoman => {
             const PAIRS: [(u16, &str); 13] = [
-                (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
-                (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
-                (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+                (1000, "m"),
+                (900, "cm"),
+                (500, "d"),
+                (400, "cd"),
+                (100, "c"),
+                (90, "xc"),
+                (50, "l"),
+                (40, "xl"),
+                (10, "x"),
+                (9, "ix"),
+                (5, "v"),
+                (4, "iv"),
+                (1, "i"),
             ];
             let mut s = String::new();
             let mut n = v as u16;
@@ -1385,7 +1434,10 @@ pub enum ContentValue {
     Str(String),
     Attr(String),
     /// `counter(name)` / `counter(name, style)`
-    Counter { name: String, style: CounterStyle },
+    Counter {
+        name: String,
+        style: CounterStyle,
+    },
     /// `counters(name, "sep")` / `counters(name, "sep", style)`
     Counters {
         name: String,
@@ -1395,7 +1447,9 @@ pub enum ContentValue {
     OpenQuote,
     CloseQuote,
     /// `no-open-quote`/`no-close-quote`: shifts the quote depth, renders "".
-    NoQuote { close: bool },
+    NoQuote {
+        close: bool,
+    },
     /// A space-separated content list (`content: "§ " counter(x) ":"`).
     List(Vec<ContentValue>),
 }
@@ -1889,7 +1943,11 @@ fn parse_text_decoration(v: &str, shorthand: bool) -> Option<TextDecorations> {
             _ => return None,
         }
     }
-    if saw_line { Some(out) } else { None }
+    if saw_line {
+        Some(out)
+    } else {
+        None
+    }
 }
 
 /// What a border-style token means: not a style keyword at all, an explicit
@@ -1907,7 +1965,8 @@ impl ComputedStyle {
     /// and horizontal boxes all ignore the clamp, and `overflow` plays no
     /// part. Returns the clamped line count when that face is armed.
     pub fn clamp_lines(&self) -> Option<u32> {
-        self.line_clamp.filter(|_| self.webkit_box.is_some() && self.webkit_box_vertical)
+        self.line_clamp
+            .filter(|_| self.webkit_box.is_some() && self.webkit_box_vertical)
     }
 
     /// css-overflow-3 §3.1 pair rule: when one axis is `visible` and the
@@ -2002,7 +2061,10 @@ impl WhiteSpace {
     /// Modes that keep whitespace characters verbatim (no trim, no run
     /// collapsing). `pre-line` is NOT here: it collapses spaces.
     pub fn preserves_spaces(self) -> bool {
-        matches!(self, WhiteSpace::Pre | WhiteSpace::PreWrap | WhiteSpace::BreakSpaces)
+        matches!(
+            self,
+            WhiteSpace::Pre | WhiteSpace::PreWrap | WhiteSpace::BreakSpaces
+        )
     }
 
     /// Modes that render newline characters as line breaks.
@@ -2066,7 +2128,10 @@ pub enum GridTrack {
     Auto,
     /// minmax(min, max); the two arguments are shallow (nested minmax is
     /// invalid CSS), which also keeps the enum non-recursive.
-    MinMax { min: TrackSize, max: TrackSize },
+    MinMax {
+        min: TrackSize,
+        max: TrackSize,
+    },
 }
 
 /// A minmax() argument — one of the simple sizings, never another minmax.
@@ -2211,7 +2276,10 @@ pub enum Length {
     /// the layout engine's post-layout repair pass (width/min/max only —
     /// other slots keep the percent-only placeholder or drop, see
     /// to_taffy_style). The px part is always exact here.
-    Calc { percent: f32, px: f32 },
+    Calc {
+        percent: f32,
+        px: f32,
+    },
     /// CSS `auto` - legal ONLY for margins (the horizontal centering idiom
     /// and the abspos §10.3.3 centering pattern). Padding and borders reject
     /// it at parse time; layout maps it to taffy's
@@ -2262,7 +2330,14 @@ impl Transform2D {
             Length::Percent(p) => p * r / 100.0,
             _ => 0.0,
         };
-        [self.a, self.b, self.c, self.d, px(self.tx, ref_w), px(self.ty, ref_h)]
+        [
+            self.a,
+            self.b,
+            self.c,
+            self.d,
+            px(self.tx, ref_w),
+            px(self.ty, ref_h),
+        ]
     }
 }
 
@@ -2287,8 +2362,16 @@ impl ComputedStyle {
     pub fn physical_text_align(&self) -> Option<TextAlign> {
         let rtl = self.direction == Some(TextDirection::Rtl);
         match self.text_align {
-            Some(TextAlign::Start) | None => Some(if rtl { TextAlign::Right } else { TextAlign::Left }),
-            Some(TextAlign::End) => Some(if rtl { TextAlign::Left } else { TextAlign::Right }),
+            Some(TextAlign::Start) | None => Some(if rtl {
+                TextAlign::Right
+            } else {
+                TextAlign::Left
+            }),
+            Some(TextAlign::End) => Some(if rtl {
+                TextAlign::Left
+            } else {
+                TextAlign::Right
+            }),
             other => other,
         }
     }
@@ -2306,8 +2389,16 @@ impl ComputedStyle {
             Some(TextAlignLast::Left) => Some(TextAlign::Left),
             Some(TextAlignLast::Right) => Some(TextAlign::Right),
             Some(TextAlignLast::Center) => Some(TextAlign::Center),
-            Some(TextAlignLast::Start) => Some(if rtl { TextAlign::Right } else { TextAlign::Left }),
-            Some(TextAlignLast::End) => Some(if rtl { TextAlign::Left } else { TextAlign::Right }),
+            Some(TextAlignLast::Start) => Some(if rtl {
+                TextAlign::Right
+            } else {
+                TextAlign::Left
+            }),
+            Some(TextAlignLast::End) => Some(if rtl {
+                TextAlign::Left
+            } else {
+                TextAlign::Right
+            }),
         }
     }
 
@@ -2318,7 +2409,14 @@ impl ComputedStyle {
         let mut m = match self.transform {
             Some(t) => t,
             None if !has_ind => return None,
-            None => Transform2D { a: 1.0, b: 0.0, c: 0.0, d: 1.0, tx: Length::Px(0.0), ty: Length::Px(0.0) },
+            None => Transform2D {
+                a: 1.0,
+                b: 0.0,
+                c: 0.0,
+                d: 1.0,
+                tx: Length::Px(0.0),
+                ty: Length::Px(0.0),
+            },
         };
         if let Some((sx, sy)) = self.scale_prop {
             m.a *= sx;
@@ -2464,7 +2562,9 @@ fn parse_transition_shorthand(v: &str) -> Option<TransitionSpec> {
         if tok.contains('(') {
             return None;
         }
-        if tok.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        if tok
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
             && !tok.is_empty()
         {
             match property {
@@ -2821,7 +2921,9 @@ fn parse_line_height(v: &str) -> Option<LineHeightRaw> {
     }
     // Unitless numbers are legal ONLY for line-height (line-height: 1.6).
     if let Ok(n) = v.parse::<f32>() {
-        let numeric_shape = v.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-');
+        let numeric_shape = v
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == '-');
         return (n.is_finite() && n > 0.0 && numeric_shape).then_some(LineHeightRaw::Number(n));
     }
     parse_css_length(v).map(LineHeightRaw::Len)
@@ -2919,7 +3021,6 @@ fn parse_css_length(v: &str) -> Option<CssLength> {
     }
     None
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Sides {
@@ -3060,8 +3161,14 @@ pub fn ua_text_align(tag: &str) -> Option<TextAlign> {
 /// Author declarations override (they apply later in cascade_element).
 pub fn ua_text_decoration(tag: &str) -> Option<TextDecorations> {
     match tag {
-        "u" | "ins" | "a" => Some(TextDecorations { underline: true, ..Default::default() }),
-        "s" | "del" | "strike" => Some(TextDecorations { line_through: true, ..Default::default() }),
+        "u" | "ins" | "a" => Some(TextDecorations {
+            underline: true,
+            ..Default::default()
+        }),
+        "s" | "del" | "strike" => Some(TextDecorations {
+            line_through: true,
+            ..Default::default()
+        }),
         _ => None,
     }
 }
@@ -3141,7 +3248,8 @@ pub fn ua_white_space(tag: &str) -> Option<WhiteSpace> {
     }
 }
 
-pub fn ua_margin(tag: &str) -> Option<[CssLength; 4]> {    let em = |n: f32| CssLength::Em(n);
+pub fn ua_margin(tag: &str) -> Option<[CssLength; 4]> {
+    let em = |n: f32| CssLength::Em(n);
     let px = |n: f32| CssLength::Px(n);
     match tag {
         "body" => Some([px(8.0), px(8.0), px(8.0), px(8.0)]),
@@ -3166,9 +3274,12 @@ pub fn ua_margin(tag: &str) -> Option<[CssLength; 4]> {    let em = |n: f32| Css
 /// measured 19px, the bare label advance; Chrome ≈ 31).
 pub fn ua_padding(tag: &str) -> Option<[CssLength; 4]> {
     match tag {
-        "ul" | "ol" | "menu" | "dir" => {
-            Some([CssLength::Px(0.0), CssLength::Px(0.0), CssLength::Px(0.0), CssLength::Px(40.0)])
-        }
+        "ul" | "ol" | "menu" | "dir" => Some([
+            CssLength::Px(0.0),
+            CssLength::Px(0.0),
+            CssLength::Px(0.0),
+            CssLength::Px(40.0),
+        ]),
         "button" => Some([
             CssLength::Px(1.0),
             CssLength::Px(6.0),
@@ -3196,8 +3307,14 @@ fn parse_list_style_type(v: &str) -> Option<ListStyleType> {
         "disc" => Some(ListStyleType::Disc),
         "circle" => Some(ListStyleType::Circle),
         "square" => Some(ListStyleType::Square),
-        "decimal" | "decimal-leading-zero" | "lower-roman" | "upper-roman" | "lower-alpha"
-        | "lower-latin" | "upper-alpha" | "upper-latin" => Some(ListStyleType::Decimal),
+        "decimal"
+        | "decimal-leading-zero"
+        | "lower-roman"
+        | "upper-roman"
+        | "lower-alpha"
+        | "lower-latin"
+        | "upper-alpha"
+        | "upper-latin" => Some(ListStyleType::Decimal),
         _ => None,
     }
 }
@@ -3238,8 +3355,12 @@ pub fn ua_list_style(tag: &str) -> Option<ListStyleType> {
 /// underlying cascade value (fill-mode none semantics); after the end it
 /// holds the final stop when fill-mode is `forwards`/`both`.
 pub fn sample_css_animation(style: &mut ComputedStyle, keyframes: &KeyframesMap, t: Option<f64>) {
-    let Some(anim) = style.animation.clone() else { return };
-    let Some(kf) = keyframes.get(&anim.name) else { return };
+    let Some(anim) = style.animation.clone() else {
+        return;
+    };
+    let Some(kf) = keyframes.get(&anim.name) else {
+        return;
+    };
     let progress = match t {
         None => 1.0,
         Some(t) => {
@@ -3301,10 +3422,16 @@ fn stop_transform(
     if sub.trim() == "none" {
         return StopTransform::Identity;
     }
-    parse_transform(&sub).map(StopTransform::T).unwrap_or(StopTransform::Absent)
+    parse_transform(&sub)
+        .map(StopTransform::T)
+        .unwrap_or(StopTransform::Absent)
 }
 
-fn stop_num(stop: &KeyframeStop, prop: &str, custom: &std::collections::HashMap<String, String>) -> Option<f32> {
+fn stop_num(
+    stop: &KeyframeStop,
+    prop: &str,
+    custom: &std::collections::HashMap<String, String>,
+) -> Option<f32> {
     let (_, raw) = stop.decls.iter().rev().find(|(k, _)| k == prop)?;
     let sub = substitute_vars(raw, custom, 0).unwrap_or_else(|| raw.clone());
     sub.trim().css_f32().filter(|n| n.is_finite())
@@ -3372,7 +3499,11 @@ fn apply_stops(style: &mut ComputedStyle, kf: &Keyframes, p: f32) {
     let (local, s1) = match stops.get(i0 + 1) {
         Some(next) => {
             let span = next.offset - stops[i0].offset;
-            let local = if span <= 0.0 { 1.0 } else { ((p - stops[i0].offset) / span).clamp(0.0, 1.0) };
+            let local = if span <= 0.0 {
+                1.0
+            } else {
+                ((p - stops[i0].offset) / span).clamp(0.0, 1.0)
+            };
             (local, next)
         }
         None => (1.0, &stops[i0]),
@@ -3502,7 +3633,10 @@ pub(crate) fn scale_computed_px(c: &mut ComputedStyle, z: f32) {
         }
     }
     fn scale_sides(s: &mut Sides, z: f32) {
-        for l in [&mut s.top, &mut s.right, &mut s.bottom, &mut s.left].into_iter().flatten() {
+        for l in [&mut s.top, &mut s.right, &mut s.bottom, &mut s.left]
+            .into_iter()
+            .flatten()
+        {
             scale_len(l, z);
         }
     }
@@ -3561,7 +3695,6 @@ pub(crate) fn scale_computed_px(c: &mut ComputedStyle, z: f32) {
         }
     }
 }
-
 
 /// The longhand table the css-wide keywords (#218, takumi #1795 lineage)
 /// copy at field level: `initial` = un-declare (a fresh default holds None
@@ -3708,13 +3841,16 @@ css_wide_longhands! {
 /// unknown, so `@supports` stays honest) covers itself.
 fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
     const PADDING: &[&str] = &[
-        "padding-top", "padding-right", "padding-bottom", "padding-left",
+        "padding-top",
+        "padding-right",
+        "padding-bottom",
+        "padding-left",
     ];
-    const MARGIN: &[&str] = &[
-        "margin-top", "margin-right", "margin-bottom", "margin-left",
-    ];
+    const MARGIN: &[&str] = &["margin-top", "margin-right", "margin-bottom", "margin-left"];
     const BORDER_WIDTH: &[&str] = &[
-        "border-top-width", "border-right-width", "border-bottom-width",
+        "border-top-width",
+        "border-right-width",
+        "border-bottom-width",
         "border-left-width",
     ];
     Some(match name {
@@ -3723,8 +3859,12 @@ fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
         "margin" => MARGIN,
         "border-width" => BORDER_WIDTH,
         "border" => &[
-            "border-top-width", "border-right-width", "border-bottom-width",
-            "border-left-width", "border-style", "border-color",
+            "border-top-width",
+            "border-right-width",
+            "border-bottom-width",
+            "border-left-width",
+            "border-style",
+            "border-color",
         ],
         "background" => &["background-color", "background-image"],
         "font" => &["font-size", "font-weight", "font-family", "line-height"],
@@ -3759,8 +3899,7 @@ fn apply_css_wide_keyword(
     let single = [name];
     let expanded: &[&str] = css_wide_expand(name).unwrap_or(&single);
     for long in expanded {
-        let inherits = keyword == "inherit"
-            || (keyword == "unset" && css_wide_is_inherited(long));
+        let inherits = keyword == "inherit" || (keyword == "unset" && css_wide_is_inherited(long));
         let src = if inherits {
             parent.unwrap_or(&initial_src)
         } else {
@@ -3812,8 +3951,7 @@ pub(crate) fn apply_declarations_importance(
                 let inherited = parent.and_then(|p| p.custom.get(&name)).cloned();
                 match inherited {
                     Some(pv) => {
-                        std::sync::Arc::make_mut(&mut style.custom)
-                            .insert(name.clone(), pv);
+                        std::sync::Arc::make_mut(&mut style.custom).insert(name.clone(), pv);
                     }
                     None => {
                         std::sync::Arc::make_mut(&mut style.custom).remove(&name);
@@ -3822,8 +3960,7 @@ pub(crate) fn apply_declarations_importance(
             } else if v.is_empty() {
                 std::sync::Arc::make_mut(&mut style.custom).remove(&name);
             } else {
-                std::sync::Arc::make_mut(&mut style.custom)
-                    .insert(name.clone(), v.to_string());
+                std::sync::Arc::make_mut(&mut style.custom).insert(name.clone(), v.to_string());
             }
             applied = true;
             continue;
@@ -3868,12 +4005,14 @@ pub(crate) fn apply_declarations_importance(
 fn strip_important(value: &str) -> (String, bool) {
     let v = value.trim_end();
     if v.to_ascii_lowercase().ends_with("!important") {
-        (v[..v.len() - "!important".len()].trim_end().to_string(), true)
+        (
+            v[..v.len() - "!important".len()].trim_end().to_string(),
+            true,
+        )
     } else {
         (value.to_string(), false)
     }
 }
-
 
 fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx) -> bool {
     let v = value.trim();
@@ -4003,7 +4142,9 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                     // font-size); the % keeps its shape for the layout side,
                     // which resolves it against the element's line-height.
                     Some(Length::Px(px)) => style.vertical_align = Some(VerticalAlign::Length(px)),
-                    Some(Length::Percent(p)) => style.vertical_align = Some(VerticalAlign::Percent(p)),
+                    Some(Length::Percent(p)) => {
+                        style.vertical_align = Some(VerticalAlign::Percent(p))
+                    }
                     _ => return false,
                 },
             }
@@ -4113,7 +4254,9 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.font_family = Some(v.to_string());
             true
         }
-        "background-color" => parse_color(v).map(|c| style.background_color = Some(c)).is_some(),
+        "background-color" => parse_color(v)
+            .map(|c| style.background_color = Some(c))
+            .is_some(),
         // `background` shorthand: paren-aware token split, then classify —
         // a *-gradient(...) function feeds background_image (the paint
         // layer parses it there), a color token feeds background_color;
@@ -4205,8 +4348,12 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 }
             }
             if let Some(l) = width {
-                style.border_width =
-                    Sides { top: Some(l), right: Some(l), bottom: Some(l), left: Some(l) };
+                style.border_width = Sides {
+                    top: Some(l),
+                    right: Some(l),
+                    bottom: Some(l),
+                    left: Some(l),
+                };
             }
             match line {
                 Some(Some(bs)) => style.border_style = Some(bs),
@@ -4305,14 +4452,20 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 BorderStyleKw::NotAStyle => false,
             }
         }
-        "border-color" => parse_color(v).map(|c| style.border_color = Some(c)).is_some(),
+        "border-color" => parse_color(v)
+            .map(|c| style.border_color = Some(c))
+            .is_some(),
         "font-size" => {
             // Resolved by the cascade's font-size pre-pass (em/% need the
             // PARENT font-size); here only px/keywords can apply directly.
             // em/rem/% handled by the pre-pass, not this arm.
-            parse_font_size_len(v).map(|l| if let CssLength::Px(px) = l {
-                style.font_size = Some(px)
-            }).is_some()
+            parse_font_size_len(v)
+                .map(|l| {
+                    if let CssLength::Px(px) = l {
+                        style.font_size = Some(px)
+                    }
+                })
+                .is_some()
         }
         "width" => {
             style.width = len_sizing(v);
@@ -4352,10 +4505,18 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                     LineHeightRaw::Len(CssLength::Em(n)) => LineHeightSpec::Px(n * fonts.own),
                     LineHeightRaw::Len(CssLength::Rem(n)) => LineHeightSpec::Px(n * fonts.root),
                     LineHeightRaw::Len(CssLength::Percent(p)) => LineHeightSpec::Number(p / 100.0),
-                    LineHeightRaw::Len(CssLength::Vw(n)) => LineHeightSpec::Px(n * fonts.viewport_w / 100.0),
-                    LineHeightRaw::Len(CssLength::Vh(n)) => LineHeightSpec::Px(n * fonts.viewport_h / 100.0),
-                    LineHeightRaw::Len(CssLength::Vmin(n)) => LineHeightSpec::Px(n * fonts.viewport_w.min(fonts.viewport_h) / 100.0),
-                    LineHeightRaw::Len(CssLength::Vmax(n)) => LineHeightSpec::Px(n * fonts.viewport_w.max(fonts.viewport_h) / 100.0),
+                    LineHeightRaw::Len(CssLength::Vw(n)) => {
+                        LineHeightSpec::Px(n * fonts.viewport_w / 100.0)
+                    }
+                    LineHeightRaw::Len(CssLength::Vh(n)) => {
+                        LineHeightSpec::Px(n * fonts.viewport_h / 100.0)
+                    }
+                    LineHeightRaw::Len(CssLength::Vmin(n)) => {
+                        LineHeightSpec::Px(n * fonts.viewport_w.min(fonts.viewport_h) / 100.0)
+                    }
+                    LineHeightRaw::Len(CssLength::Vmax(n)) => {
+                        LineHeightSpec::Px(n * fonts.viewport_w.max(fonts.viewport_h) / 100.0)
+                    }
                     // ch/ex fold at the same 0.5em fallback as resolve_len.
                     LineHeightRaw::Len(CssLength::Ch(n)) | LineHeightRaw::Len(CssLength::Ex(n)) => {
                         LineHeightSpec::Px(n * 0.5 * fonts.own)
@@ -4533,7 +4694,11 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         // absolute descendants to this containing block; the raw string is
         // kept as-is for the computed-style echo.
         "filter" | "perspective" => {
-            let raw = if v.eq_ignore_ascii_case("none") { None } else { Some(v.to_string()) };
+            let raw = if v.eq_ignore_ascii_case("none") {
+                None
+            } else {
+                Some(v.to_string())
+            };
             if name.eq_ignore_ascii_case("filter") {
                 style.filter = raw;
             } else {
@@ -4671,8 +4836,13 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         // inline flow (rtl is a read/alignment face), so inline-start=left
         // is the self-consistent mapping — the declared value lands in the
         // physical slot and layout consumes it like the physical longhand.
-        "margin-block-start" | "margin-block-end" | "margin-inline-start" | "margin-inline-end"
-        | "padding-block-start" | "padding-block-end" | "padding-inline-start"
+        "margin-block-start"
+        | "margin-block-end"
+        | "margin-inline-start"
+        | "margin-inline-end"
+        | "padding-block-start"
+        | "padding-block-end"
+        | "padding-inline-start"
         | "padding-inline-end" => {
             if name.starts_with("padding") && v.eq_ignore_ascii_case("auto") {
                 // padding: auto is illegal — drop the declaration.
@@ -4713,7 +4883,11 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 return false;
             }
             let mk = |t: &str| {
-                if t.eq_ignore_ascii_case("auto") { Some(Length::Auto) } else { len(t) }
+                if t.eq_ignore_ascii_case("auto") {
+                    Some(Length::Auto)
+                } else {
+                    len(t)
+                }
             };
             let (start, end) = match (mk(a), mk(b)) {
                 (Some(s), Some(e)) => (s, e),
@@ -4721,7 +4895,11 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             };
             let block = name.ends_with("block");
             let margins = name.starts_with("margin");
-            let sides = if margins { &mut style.margin } else { &mut style.padding };
+            let sides = if margins {
+                &mut style.margin
+            } else {
+                &mut style.padding
+            };
             if block {
                 sides.top = Some(start);
                 sides.bottom = Some(end);
@@ -4856,14 +5034,15 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 None => (v, None),
             };
             let parse_list = |s: &str| -> Option<Vec<Length>> {
-                let vals: Vec<Option<Length>> =
-                    s.split_whitespace().map(len).collect();
+                let vals: Vec<Option<Length>> = s.split_whitespace().map(len).collect();
                 if vals.iter().any(|v| v.is_none()) || vals.is_empty() || vals.len() > 4 {
                     return None;
                 }
                 Some(vals.into_iter().flatten().collect())
             };
-            let Some(h) = parse_list(horiz) else { return false };
+            let Some(h) = parse_list(horiz) else {
+                return false;
+            };
             let vlist = match vert {
                 Some(s) => match parse_list(s) {
                     Some(v) if v.len() == h.len() => v,
@@ -4889,9 +5068,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 (hc[3], vc[3]),
             ]);
             // Keep the uniform shortcut in sync for the common 1-value case.
-            if matches!(&hc, [a, b, c, d] if a == b && b == c && c == d)
-                && hc[0] == vc[0]
-            {
+            if matches!(&hc, [a, b, c, d] if a == b && b == c && c == d) && hc[0] == vc[0] {
                 style.border_radius = Some(hc[0]);
             } else {
                 style.border_radius = None;
@@ -4971,7 +5148,11 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         // answers "normal"; `safe `/`unsafe ` prefixes drop like
         // align-self's.
         "align-content" => {
-            let v = v.trim().strip_prefix("safe ").or_else(|| v.trim().strip_prefix("unsafe ")).unwrap_or(v.trim());
+            let v = v
+                .trim()
+                .strip_prefix("safe ")
+                .or_else(|| v.trim().strip_prefix("unsafe "))
+                .unwrap_or(v.trim());
             style.align_content = match v {
                 "flex-start" | "start" => Some(AlignContentMode::FlexStart),
                 "center" => Some(AlignContentMode::Center),
@@ -5098,11 +5279,10 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                         style.flex_shrink = Some(shrink.unwrap_or(1.0));
                         // Explicit `auto` (Some(None)) must survive — only an
                         // omitted basis becomes the shorthand's 0% initial.
-                        style.flex_basis =
-                            match basis {
-                                Some(b) => b,
-                                None => Some(Length::Percent(0.0)),
-                            };
+                        style.flex_basis = match basis {
+                            Some(b) => b,
+                            None => Some(Length::Percent(0.0)),
+                        };
                         true
                     }
                     // No number anywhere (`flex: auto`-less forms like
@@ -5264,7 +5444,10 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 style.right = conv(sides.right);
                 style.bottom = conv(sides.bottom);
                 style.left = conv(sides.left);
-                style.top.is_some() || style.right.is_some() || style.bottom.is_some() || style.left.is_some()
+                style.top.is_some()
+                    || style.right.is_some()
+                    || style.bottom.is_some()
+                    || style.left.is_some()
             }
         }
         // min/max-width sizing keywords are valid CSS but not resolved by the
@@ -5398,7 +5581,10 @@ fn parse_grid_tracks(v: &str) -> Option<Vec<GridTrack>> {
         // repeat(N, <track-list>) expands inline to N copies of the list.
         // auto-fill/auto-fit counts need the container's size, which the
         // cascade doesn't have — those reject like any unknown token.
-        if let Some(inner) = token.strip_prefix("repeat(").and_then(|t| t.strip_suffix(')')) {
+        if let Some(inner) = token
+            .strip_prefix("repeat(")
+            .and_then(|t| t.strip_suffix(')'))
+        {
             let (count, list) = inner.split_once(',')?;
             let count: usize = count.trim().parse().ok()?;
             // Chrome caps explicit tracks at 1000; repeat expansion must not
@@ -5459,7 +5645,10 @@ fn next_track_token(v: &str) -> Option<(&str, &str)> {
 /// `min-content`/`max-content` approximate to `auto` until the track
 /// machinery learns them.
 fn parse_grid_track_token(tok: &str) -> Option<GridTrack> {
-    if let Some(inner) = tok.strip_prefix("minmax(").and_then(|t| t.strip_suffix(')')) {
+    if let Some(inner) = tok
+        .strip_prefix("minmax(")
+        .and_then(|t| t.strip_suffix(')'))
+    {
         let (a, b) = inner.split_once(',')?;
         return Some(GridTrack::MinMax {
             min: parse_track_size(a.trim())?,
@@ -5547,15 +5736,36 @@ fn expand_sides(value: &str, fonts: &FontCtx) -> Sides {
             if tok.eq_ignore_ascii_case("auto") {
                 Some(Length::Auto)
             } else {
-                eval_math_call(tok, fonts).or_else(|| parse_css_length(tok).map(|l| resolve_len(l, fonts)))
+                eval_math_call(tok, fonts)
+                    .or_else(|| parse_css_length(tok).map(|l| resolve_len(l, fonts)))
             }
         })
         .collect();
     match vals.as_slice() {
-        [one] => Sides { top: *one, right: *one, bottom: *one, left: *one },
-        [t, r] => Sides { top: *t, right: *r, bottom: *t, left: *r },
-        [t, r, b] => Sides { top: *t, right: *r, bottom: *b, left: *r },
-        [t, r, b, l] => Sides { top: *t, right: *r, bottom: *b, left: *l },
+        [one] => Sides {
+            top: *one,
+            right: *one,
+            bottom: *one,
+            left: *one,
+        },
+        [t, r] => Sides {
+            top: *t,
+            right: *r,
+            bottom: *t,
+            left: *r,
+        },
+        [t, r, b] => Sides {
+            top: *t,
+            right: *r,
+            bottom: *b,
+            left: *r,
+        },
+        [t, r, b, l] => Sides {
+            top: *t,
+            right: *r,
+            bottom: *b,
+            left: *l,
+        },
         _ => Sides::default(),
     }
 }
@@ -5594,7 +5804,12 @@ fn sides_no_auto(s: &Sides) -> Option<Sides> {
         Some(Length::Auto) => None,
         v => Some(v),
     };
-    Some(Sides { top: ok(s.top)?, right: ok(s.right)?, bottom: ok(s.bottom)?, left: ok(s.left)? })
+    Some(Sides {
+        top: ok(s.top)?,
+        right: ok(s.right)?,
+        bottom: ok(s.bottom)?,
+        left: ok(s.left)?,
+    })
 }
 
 /// px-only float length (gaps, flex-basis, grid tracks: fractional px legal,
@@ -5711,8 +5926,16 @@ fn parse_font_shorthand(v: &str, fonts: &FontCtx) -> Option<FontShorthand> {
     let first = v.split_whitespace().next()?.to_ascii_lowercase();
     if matches!(
         first.as_str(),
-        "caption" | "icon" | "menu" | "message-box" | "small-caption" | "status-bar"
-            | "inherit" | "initial" | "unset" | "revert"
+        "caption"
+            | "icon"
+            | "menu"
+            | "message-box"
+            | "small-caption"
+            | "status-bar"
+            | "inherit"
+            | "initial"
+            | "unset"
+            | "revert"
     ) {
         return None;
     }
@@ -5771,8 +5994,12 @@ fn parse_font_shorthand(v: &str, fonts: &FontCtx) -> Option<FontShorthand> {
         LineHeightRaw::Len(CssLength::Percent(p)) => LineHeightSpec::Number(p / 100.0),
         LineHeightRaw::Len(CssLength::Vw(n)) => LineHeightSpec::Px(n * fonts.viewport_w / 100.0),
         LineHeightRaw::Len(CssLength::Vh(n)) => LineHeightSpec::Px(n * fonts.viewport_h / 100.0),
-        LineHeightRaw::Len(CssLength::Vmin(n)) => LineHeightSpec::Px(n * fonts.viewport_w.min(fonts.viewport_h) / 100.0),
-        LineHeightRaw::Len(CssLength::Vmax(n)) => LineHeightSpec::Px(n * fonts.viewport_w.max(fonts.viewport_h) / 100.0),
+        LineHeightRaw::Len(CssLength::Vmin(n)) => {
+            LineHeightSpec::Px(n * fonts.viewport_w.min(fonts.viewport_h) / 100.0)
+        }
+        LineHeightRaw::Len(CssLength::Vmax(n)) => {
+            LineHeightSpec::Px(n * fonts.viewport_w.max(fonts.viewport_h) / 100.0)
+        }
         // ch/ex fold at the 0.5em fallback, basis = the shorthand's new size.
         LineHeightRaw::Len(CssLength::Ch(n)) | LineHeightRaw::Len(CssLength::Ex(n)) => {
             LineHeightSpec::Px(n * 0.5 * size)
@@ -5796,7 +6023,14 @@ fn parse_font_shorthand(v: &str, fonts: &FontCtx) -> Option<FontShorthand> {
 /// when the token is not a parseable size (the whole shorthand is invalid
 /// without one).
 fn size_px(size_str: &str, fonts: &FontCtx) -> Option<f32> {
-    parse_font_size_len(size_str).map(|l| font_size_px(l, fonts.own, fonts.root, (fonts.viewport_w, fonts.viewport_h)))
+    parse_font_size_len(size_str).map(|l| {
+        font_size_px(
+            l,
+            fonts.own,
+            fonts.root,
+            (fonts.viewport_w, fonts.viewport_h),
+        )
+    })
 }
 
 fn parse_font_weight(v: &str) -> Option<u16> {
@@ -6088,13 +6322,18 @@ fn first_strong_direction(
 fn strong_dir_of_char(c: char) -> Option<TextDirection> {
     match c {
         // L: Latin (+extended), Greek, Cyrillic.
-        'A'..='Z' | 'a'..='z' | '\u{00C0}'..='\u{024F}' | '\u{0370}'..='\u{03FF}'
+        'A'..='Z'
+        | 'a'..='z'
+        | '\u{00C0}'..='\u{024F}'
+        | '\u{0370}'..='\u{03FF}'
         | '\u{0400}'..='\u{04FF}' => Some(TextDirection::Ltr),
         // R/AL: Hebrew, Arabic (+supplement/presentation forms), Syriac.
-        '\u{0590}'..='\u{05FF}' | '\u{0600}'..='\u{06FF}' | '\u{0700}'..='\u{077F}'
-        | '\u{FB1D}'..='\u{FB4F}' | '\u{FB50}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}' => {
-            Some(TextDirection::Rtl)
-        }
+        '\u{0590}'..='\u{05FF}'
+        | '\u{0600}'..='\u{06FF}'
+        | '\u{0700}'..='\u{077F}'
+        | '\u{FB1D}'..='\u{FB4F}'
+        | '\u{FB50}'..='\u{FDFF}'
+        | '\u{FE70}'..='\u{FEFF}' => Some(TextDirection::Rtl),
         _ => None,
     }
 }
@@ -6263,7 +6502,13 @@ pub fn cascade_element(
     candidates.sort_by_key(|c| (c.layer_rank, c.specificity, c.source_order));
     // !important inverts layer order: the earlier layer wins, unlayered loses.
     let mut important_order: Vec<&CascadeCandidate> = candidates.iter().collect();
-    important_order.sort_by_key(|c| (std::cmp::Reverse(c.layer_rank), c.specificity, c.source_order));
+    important_order.sort_by_key(|c| {
+        (
+            std::cmp::Reverse(c.layer_rank),
+            c.specificity,
+            c.source_order,
+        )
+    });
 
     // Font-size pre-pass: CSS computes font-size before every other
     // property (regardless of declaration order within a block), because
@@ -6303,7 +6548,12 @@ pub fn cascade_element(
             .unwrap_or(parent_fs)
     };
     style.font_size = Some(own_fs);
-    let fonts = FontCtx { own: own_fs, root: root_font_size, viewport_w: viewport.0, viewport_h: viewport.1 };
+    let fonts = FontCtx {
+        own: own_fs,
+        root: root_font_size,
+        viewport_w: viewport.0,
+        viewport_h: viewport.1,
+    };
 
     // UA box defaults AFTER the fs pre-pass (em margins resolve against the
     // element's OWN font-size — h1's .67em × its 2em size) and BEFORE author
@@ -6332,8 +6582,7 @@ pub fn cascade_element(
     if matches!(tag, "td" | "th" | "tr") {
         let attr_h = tree
             .with_node(node_id, |n| {
-                n.get_attribute("height")
-                    .and_then(|v| v.trim().css_f32())
+                n.get_attribute("height").and_then(|v| v.trim().css_f32())
             })
             .flatten();
         if let Some(h) = attr_h {
@@ -6347,8 +6596,7 @@ pub fn cascade_element(
     if matches!(tag, "td" | "th") {
         let attr_w = tree
             .with_node(node_id, |n| {
-                n.get_attribute("width")
-                    .and_then(|v| v.trim().css_f32())
+                n.get_attribute("width").and_then(|v| v.trim().css_f32())
             })
             .flatten();
         if let Some(w) = attr_w {
@@ -6395,7 +6643,8 @@ pub fn cascade_element(
     // for input/textarea, else the element's text content.
     if let Some(dir) = tree
         .with_node(node_id, |n| {
-            n.get_attribute("dir").map(|v| v.trim().to_ascii_lowercase())
+            n.get_attribute("dir")
+                .map(|v| v.trim().to_ascii_lowercase())
         })
         .flatten()
     {

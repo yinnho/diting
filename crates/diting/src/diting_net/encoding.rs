@@ -25,7 +25,12 @@ pub fn label_name(label: &str) -> Option<String> {
 /// Decode `bytes` with an explicit encoding label, with TextDecoder semantics.
 /// Returns None when the label is unknown, or (when `fatal`) when the input is
 /// not valid in that encoding. Non-fatal decoding replaces errors with U+FFFD.
-pub fn decode_with_label(label: &str, bytes: &[u8], fatal: bool, ignore_bom: bool) -> Option<String> {
+pub fn decode_with_label(
+    label: &str,
+    bytes: &[u8],
+    fatal: bool,
+    ignore_bom: bool,
+) -> Option<String> {
     let enc = Encoding::for_label(label.as_bytes())?;
     let mut dec = if ignore_bom {
         enc.new_decoder_without_bom_handling()
@@ -33,8 +38,7 @@ pub fn decode_with_label(label: &str, bytes: &[u8], fatal: bool, ignore_bom: boo
         enc.new_decoder()
     };
     if fatal {
-        let capacity = dec
-            .max_utf8_buffer_length_without_replacement(bytes.len())?;
+        let capacity = dec.max_utf8_buffer_length_without_replacement(bytes.len())?;
         let mut out = String::with_capacity(capacity);
         let (res, _) = dec.decode_to_string_without_replacement(bytes, &mut out, true);
         match res {
@@ -130,10 +134,12 @@ pub fn decode_devtools_body(bytes: &[u8], content_type: Option<&str>) -> Option<
             let (encoding, _) = detect_encoding(bytes, Some(header));
             return decode_fatal(encoding, bytes);
         }
-        DevtoolsFamily::Utf8 => charset_from_content_type(header)
-            .unwrap_or_else(|| "utf-8".to_string()),
-        DevtoolsFamily::Plain => charset_from_content_type(header)
-            .unwrap_or_else(|| "windows-1252".to_string()),
+        DevtoolsFamily::Utf8 => {
+            charset_from_content_type(header).unwrap_or_else(|| "utf-8".to_string())
+        }
+        DevtoolsFamily::Plain => {
+            charset_from_content_type(header).unwrap_or_else(|| "windows-1252".to_string())
+        }
     };
     decode_with_label(&label, bytes, true, false)
 }
@@ -147,8 +153,7 @@ enum DevtoolsFamily {
 
 fn decode_fatal(encoding: &'static Encoding, bytes: &[u8]) -> Option<String> {
     let mut dec = encoding.new_decoder();
-    let capacity = dec
-        .max_utf8_buffer_length_without_replacement(bytes.len())?;
+    let capacity = dec.max_utf8_buffer_length_without_replacement(bytes.len())?;
     let mut out = String::with_capacity(capacity);
     let (res, _) = dec.decode_to_string_without_replacement(bytes, &mut out, true);
     (res == DecoderResult::InputEmpty).then_some(out)
@@ -167,10 +172,8 @@ fn push_pct(out: &mut String, b: u8) {
 /// `>`, 0x7F), plus `'` for special schemes (the special-query set). ASCII
 /// delimiters like `=` and `&` are left literal, so structured queries survive.
 fn push_query_ascii(out: &mut String, b: u8, special: bool) {
-    let must_encode = b <= 0x20
-        || b == 0x7F
-        || matches!(b, 0x22 | 0x23 | 0x3C | 0x3E)
-        || (special && b == 0x27);
+    let must_encode =
+        b <= 0x20 || b == 0x7F || matches!(b, 0x22 | 0x23 | 0x3C | 0x3E) || (special && b == 0x27);
     if must_encode {
         push_pct(out, b);
     } else {
@@ -267,7 +270,10 @@ pub fn detect_encoding(
 fn charset_from_content_type(header: &str) -> Option<String> {
     for part in header.split(';') {
         let trimmed = part.trim();
-        if let Some(rest) = trimmed.strip_prefix("charset=").or_else(|| trimmed.strip_prefix("Charset=")) {
+        if let Some(rest) = trimmed
+            .strip_prefix("charset=")
+            .or_else(|| trimmed.strip_prefix("Charset="))
+        {
             // Strip surrounding quotes if present.
             let value = rest.trim_matches(|c: char| c == '"' || c == '\'').trim();
             if !value.is_empty() {
@@ -533,9 +539,15 @@ mod tests {
     fn devtools_body_json_and_binary_stay_base64() {
         // Chrome 152 verified: JSON with a stray 0xFF travels base64; so does
         // octet-stream. A charset parameter does not rescue a binary MIME.
-        assert_eq!(decode_devtools_body(&[0xFF], Some("application/json")), None);
         assert_eq!(
-            decode_devtools_body(&[0x00, 0x01], Some("application/octet-stream; charset=utf-8")),
+            decode_devtools_body(&[0xFF], Some("application/json")),
+            None
+        );
+        assert_eq!(
+            decode_devtools_body(
+                &[0x00, 0x01],
+                Some("application/octet-stream; charset=utf-8")
+            ),
             None
         );
     }
@@ -574,7 +586,10 @@ mod tests {
     #[test]
     fn url_encode_query_eucjp_high_bytes() {
         // U+8108 (脈) is EUC-JP CC AE; both bytes are above 0x7E so both encode.
-        assert_eq!(url_encode_query("\u{8108}", "euc-jp", true).unwrap(), "%CC%AE");
+        assert_eq!(
+            url_encode_query("\u{8108}", "euc-jp", true).unwrap(),
+            "%CC%AE"
+        );
     }
 
     #[test]
@@ -589,7 +604,10 @@ mod tests {
     fn url_encode_query_big5_low_trail_byte_is_escaped() {
         // U+4E00 (一) is Big5 A4 40; the 0x40 trail byte is ASCII '@' but must
         // still be percent-encoded because it serializes a non-ASCII char.
-        assert_eq!(url_encode_query("\u{4e00}", "big5", true).unwrap(), "%A4%40");
+        assert_eq!(
+            url_encode_query("\u{4e00}", "big5", true).unwrap(),
+            "%A4%40"
+        );
     }
 
     #[test]

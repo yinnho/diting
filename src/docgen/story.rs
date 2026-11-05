@@ -22,7 +22,7 @@
 use std::collections::HashMap;
 
 use super::spec::{
-    ArchitectureSpec, DataflowSpec, LifecycleSpec, SequenceSpec, WorkflowSpec, text_units,
+    text_units, ArchitectureSpec, DataflowSpec, LifecycleSpec, SequenceSpec, WorkflowSpec,
 };
 
 /// The story clock starts once the figure's entrance grow has settled.
@@ -95,20 +95,30 @@ fn grid_story(nodes: Vec<(String, String)>, edges: Vec<(String, String, bool)>) 
     let mut beats = Vec::with_capacity(nodes.len());
     for (id, cap) in nodes {
         let dur = beat_duration(&cap);
-        beats.push(Beat { id, caption: cap, at, dur });
+        beats.push(Beat {
+            id,
+            caption: cap,
+            at,
+            dur,
+        });
         at += dur;
     }
-    let at_of = |from: &str| {
-        beats
-            .iter()
-            .find(|b| b.id == from)
-            .map_or(T0, |b| b.at)
-    };
+    let at_of = |from: &str| beats.iter().find(|b| b.id == from).map_or(T0, |b| b.at);
     let edges = edges
         .into_iter()
-        .map(|(from, to, dashed)| StoryEdge { at: at_of(&from) + EDGE_OFFSET, from, to, dashed })
+        .map(|(from, to, dashed)| StoryEdge {
+            at: at_of(&from) + EDGE_OFFSET,
+            from,
+            to,
+            dashed,
+        })
         .collect();
-    Story { beats, edges, family: StoryFamily::Grid, duration: at + 0.5 }
+    Story {
+        beats,
+        edges,
+        family: StoryFamily::Grid,
+        duration: at + 0.5,
+    }
 }
 
 pub fn workflow(spec: &WorkflowSpec) -> Story {
@@ -123,8 +133,13 @@ pub fn workflow(spec: &WorkflowSpec) -> Story {
     // (lane, col) paint order.
     let mut nodes: Vec<_> = spec.nodes.iter().collect();
     nodes.sort_by(|a, b| {
-        a.col.cmp(&b.col)
-            .then(lane_index.get(a.lane.as_str()).cmp(&lane_index.get(b.lane.as_str())))
+        a.col
+            .cmp(&b.col)
+            .then(
+                lane_index
+                    .get(a.lane.as_str())
+                    .cmp(&lane_index.get(b.lane.as_str())),
+            )
             .then(a.id.cmp(&b.id))
     });
     let beats_in = nodes
@@ -147,7 +162,12 @@ pub fn workflow(spec: &WorkflowSpec) -> Story {
 
 pub fn dataflow(spec: &DataflowSpec) -> Story {
     let mut nodes: Vec<_> = spec.nodes.iter().collect();
-    nodes.sort_by(|a, b| a.stage.cmp(&b.stage).then(a.row.cmp(&b.row)).then(a.id.cmp(&b.id)));
+    nodes.sort_by(|a, b| {
+        a.stage
+            .cmp(&b.stage)
+            .then(a.row.cmp(&b.row))
+            .then(a.id.cmp(&b.id))
+    });
     let beats_in = nodes
         .into_iter()
         .map(|n| (n.id.clone(), caption(&n.label, n.sublabel.as_deref())))
@@ -175,8 +195,13 @@ pub fn lifecycle(spec: &LifecycleSpec) -> Story {
         .collect();
     let mut nodes: Vec<_> = spec.states.iter().collect();
     nodes.sort_by(|a, b| {
-        a.col.cmp(&b.col)
-            .then(lane_index.get(a.lane.as_str()).cmp(&lane_index.get(b.lane.as_str())))
+        a.col
+            .cmp(&b.col)
+            .then(
+                lane_index
+                    .get(a.lane.as_str())
+                    .cmp(&lane_index.get(b.lane.as_str())),
+            )
             .then(a.id.cmp(&b.id))
     });
     let beats_in = nodes
@@ -199,7 +224,12 @@ pub fn lifecycle(spec: &LifecycleSpec) -> Story {
 
 pub fn architecture(spec: &ArchitectureSpec) -> Story {
     let mut nodes: Vec<_> = spec.components.iter().collect();
-    nodes.sort_by(|a, b| a.row.cmp(&b.row).then(a.col.cmp(&b.col)).then(a.id.cmp(&b.id)));
+    nodes.sort_by(|a, b| {
+        a.row
+            .cmp(&b.row)
+            .then(a.col.cmp(&b.col))
+            .then(a.id.cmp(&b.id))
+    });
     let beats_in = nodes
         .into_iter()
         .map(|c| (c.id.clone(), caption(&c.label, c.sublabel.as_deref())))
@@ -240,7 +270,12 @@ pub fn sequence(spec: &SequenceSpec) -> Story {
             )
         };
         let dur = beat_duration(&cap);
-        beats.push(Beat { id: i.to_string(), caption: cap, at, dur });
+        beats.push(Beat {
+            id: i.to_string(),
+            caption: cap,
+            at,
+            dur,
+        });
         at += dur;
     }
     Story {
@@ -393,7 +428,10 @@ mod tests {
         for w in st.beats.windows(2) {
             assert_eq!(w[1].at, w[0].at + w[0].dur);
         }
-        assert_eq!(st.duration, st.beats.last().unwrap().at + st.beats.last().unwrap().dur + 0.5);
+        assert_eq!(
+            st.duration,
+            st.beats.last().unwrap().at + st.beats.last().unwrap().dur + 0.5
+        );
     }
 
     #[test]
@@ -446,9 +484,15 @@ mod tests {
         assert_eq!(st.beats[0].caption, "Client → Server：ping");
         assert!(st.edges.is_empty());
         let css = story_css(0, &st);
-        assert!(css.contains("[data-participant-id=\"a\"]{animation:agx-in .4s both;animation-delay:0.90s}"));
-        assert!(css.contains("[data-participant-id=\"b\"]{animation:agx-in .4s both;animation-delay:1.02s}"));
-        assert!(css.contains("g[data-message-index=\"0\"]{animation:agx-in .45s both;animation-delay:0.90s}"));
+        assert!(css.contains(
+            "[data-participant-id=\"a\"]{animation:agx-in .4s both;animation-delay:0.90s}"
+        ));
+        assert!(css.contains(
+            "[data-participant-id=\"b\"]{animation:agx-in .4s both;animation-delay:1.02s}"
+        ));
+        assert!(css.contains(
+            "g[data-message-index=\"0\"]{animation:agx-in .45s both;animation-delay:0.90s}"
+        ));
     }
 
     #[test]

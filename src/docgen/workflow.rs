@@ -20,13 +20,13 @@ use super::graph::{
     ColConstraint, Feedback, PlacedRoute, PlannedRoute, Pt, Rect, RouteError, RouteKind,
     RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
 };
+use super::sigil;
 use super::spec::{
-    text_units, Lane, NodeGroup, Phase, WorkflowEdge, WorkflowNode, WorkflowSpec,
-    workflow_node_height,
+    text_units, workflow_node_height, Lane, NodeGroup, Phase, WorkflowEdge, WorkflowNode,
+    WorkflowSpec,
 };
 use super::theme::Theme;
 use super::tx;
-use super::sigil;
 
 // ---------------------------------------------------------------------------
 // constants (archify px × 10)
@@ -175,7 +175,8 @@ fn canon<'a>(spec: &'a WorkflowSpec) -> Canon<'a> {
     });
     let mut edges: Vec<&WorkflowEdge> = spec.edges.iter().collect();
     edges.sort_by(|a, b| {
-        a.id.as_deref().unwrap_or("")
+        a.id.as_deref()
+            .unwrap_or("")
             .cmp(b.id.as_deref().unwrap_or(""))
             .then(a.from.cmp(&b.from))
             .then(a.to.cmp(&b.to))
@@ -185,7 +186,12 @@ fn canon<'a>(spec: &'a WorkflowSpec) -> Canon<'a> {
                     .unwrap_or("")
                     .cmp(b.label.as_deref().unwrap_or("")),
             )
-            .then(a.route.as_deref().unwrap_or("").cmp(b.route.as_deref().unwrap_or("")))
+            .then(
+                a.route
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.route.as_deref().unwrap_or("")),
+            )
     });
     let mut phases: Vec<&Phase> = spec.phases.iter().collect();
     phases.sort_by(|a, b| {
@@ -571,7 +577,12 @@ fn group_rect(doc: &Canon, group: &NodeGroup, laid: &Laid) -> Rect {
     let fy = laid.lane_tops[lane] + LANE_TITLE_H + GROUP_FRAME_TOP_INSET;
     let gh =
         laid.lane_heights[lane] - LANE_TITLE_H - GROUP_FRAME_TOP_INSET - GROUP_FRAME_BOTTOM_INSET;
-    Rect { x: gx, y: fy, w: gw, h: gh }
+    Rect {
+        x: gx,
+        y: fy,
+        w: gw,
+        h: gh,
+    }
 }
 
 fn edge_name(edge: &WorkflowEdge) -> String {
@@ -638,7 +649,10 @@ fn constraints(doc: &Canon, rank_gaps: &BTreeMap<(usize, usize), i32>) -> Vec<Co
         if a.lane != b.lane || a.col == b.col {
             continue;
         }
-        if !matches!(edge.route.as_deref(), None | Some("auto") | Some("straight")) {
+        if !matches!(
+            edge.route.as_deref(),
+            None | Some("auto") | Some("straight")
+        ) {
             continue;
         }
         if a.y_offset.unwrap_or(0) != b.y_offset.unwrap_or(0) {
@@ -929,7 +943,11 @@ fn port_spread(doc: &Canon, laid: &Laid) -> HashMap<usize, (Pt, Pt)> {
             .get(edge.to.as_str())
             .expect("validated: to resolves");
         let (fs, ts) = default_sides(&laid.rects[from_idx], &laid.rects[to_idx]);
-        let fs = edge.from_side.as_deref().and_then(Side::parse).unwrap_or(fs);
+        let fs = edge
+            .from_side
+            .as_deref()
+            .and_then(Side::parse)
+            .unwrap_or(fs);
         let ts = edge.to_side.as_deref().and_then(Side::parse).unwrap_or(ts);
         let key = format!(
             "{}|{}|{}|{}",
@@ -1058,7 +1076,14 @@ fn measured_bounds(
     }
     for phase in &doc.phases {
         let (x, width) = phase_span(phase, &laid.col_xs);
-        include(x, PHASE_BAND_Y, &mut left, &mut top, &mut right, &mut bottom);
+        include(
+            x,
+            PHASE_BAND_Y,
+            &mut left,
+            &mut top,
+            &mut right,
+            &mut bottom,
+        );
         include(
             x + width,
             PHASE_BAND_Y + PHASE_BAND_H,
@@ -1096,7 +1121,14 @@ fn measured_bounds(
     for (row, entries) in legend_rows.iter().enumerate() {
         let baseline = legend_y - (legend_rows.len() as i32 - 1 - row as i32) * LEGEND_ROW_H;
         for &(x, w, _) in entries {
-            include(x, baseline - 100, &mut left, &mut top, &mut right, &mut bottom);
+            include(
+                x,
+                baseline - 100,
+                &mut left,
+                &mut top,
+                &mut right,
+                &mut bottom,
+            );
             include(
                 x + w,
                 baseline + 40,
@@ -1134,7 +1166,10 @@ fn pack_legend_rows(entries: &[(usize, i32)], width: i32) -> Vec<Vec<(i32, i32, 
 /// (stroke, width, dash, label fill) per edge variant — the sequence table,
 /// with the grid families' plain default (no accent label). Sizes and dash
 /// patterns are this adapter's typography; colors come from the theme.
-fn variant_style(theme: &Theme, variant: &str) -> (&'static str, i32, Option<&'static str>, &'static str) {
+fn variant_style(
+    theme: &Theme,
+    variant: &str,
+) -> (&'static str, i32, Option<&'static str>, &'static str) {
     match variant {
         "emphasis" => (theme.ink, 18, None, theme.ink),
         "security" => (theme.danger, 14, None, theme.danger),
@@ -1238,7 +1273,12 @@ fn emit_svg(
     // Groups.
     for group in &doc.groups {
         let security = group.variant.as_deref() == Some("security");
-        let Rect { x: gx, y: fy, w: gw, h: gh } = group_rect(doc, group, laid);
+        let Rect {
+            x: gx,
+            y: fy,
+            w: gw,
+            h: gh,
+        } = group_rect(doc, group, laid);
         s.push_str(&format!(
             "<rect data-group-id=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"9\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
             esc(&group.id),
@@ -1253,7 +1293,11 @@ fn emit_svg(
             "<text x=\"{}\" y=\"{}\" font-size=\"7\" font-weight=\"600\" fill=\"{}\">{}</text>",
             tx(gx + GROUP_LABEL_X_INSET),
             tx(fy + GROUP_LABEL_BASELINE_OFFSET),
-            if security { theme.danger } else { theme.ink_soft },
+            if security {
+                theme.danger
+            } else {
+                theme.ink_soft
+            },
             esc(&group.label)
         ));
     }
@@ -1291,8 +1335,12 @@ fn emit_svg(
             node_colors.stroke
         ));
         s.push_str(&sigil::sigil(&node.kind, rect.x + 60, rect.y + 60, theme));
-        let label_font =
-            fitted_font(&node.label, NODE_W - LABEL_RESERVE, LABEL_PREFERRED, LABEL_MIN);
+        let label_font = fitted_font(
+            &node.label,
+            NODE_W - LABEL_RESERVE,
+            LABEL_PREFERRED,
+            LABEL_MIN,
+        );
         s.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
             tx(rect.cx()),
@@ -1332,7 +1380,8 @@ fn emit_svg(
         let (_, _, points, lrect) = &placed[i];
         let Some(lr) = lrect else { continue };
         let at = label_point(points);
-        let (_, _, _, label_fill) = variant_style(theme, edge.variant.as_deref().unwrap_or("default"));
+        let (_, _, _, label_fill) =
+            variant_style(theme, edge.variant.as_deref().unwrap_or("default"));
         s.push_str(&format!(
             "<g data-from=\"{}\" data-to=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"14\" rx=\"3\" fill=\"{}\"/><text x=\"{}\" y=\"{}\" font-size=\"8\" fill=\"{}\" text-anchor=\"middle\">{}</text></g>",
             esc(&edge.from),
@@ -1412,8 +1461,8 @@ fn arrowhead(points: &[Pt], fill: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::theme::LIGHT;
+    use super::*;
 
     const SPEC_JSON: &str = r#"{
         "title": "Checkout",

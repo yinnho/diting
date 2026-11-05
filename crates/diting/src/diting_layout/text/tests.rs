@@ -49,13 +49,61 @@ fn repeated_rasterize_shares_the_cached_tile() {
     let (reg, bold) = production_pair();
     let book = FontBook::from_pairs(reg, bold).unwrap();
     let _held = isolated();
-    let black = book.rasterize_wrapped("缓存命中", 16.0, false, [0, 0, 0, 255], 20.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
-    let again = book.rasterize_wrapped("缓存命中", 16.0, false, [0, 0, 0, 255], 20.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
-    assert!(Arc::ptr_eq(&black, &again), "repeat must hand back the cached Arc");
+    let black = book.rasterize_wrapped(
+        "缓存命中",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        20.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
+    let again = book.rasterize_wrapped(
+        "缓存命中",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        20.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
+    assert!(
+        Arc::ptr_eq(&black, &again),
+        "repeat must hand back the cached Arc"
+    );
     assert!(black.ink_bbox().is_some(), "the tile has real ink");
 
-    let red = book.rasterize_wrapped("缓存命中", 16.0, false, [255, 0, 0, 255], 20.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
-    assert!(!Arc::ptr_eq(&black, &red), "color rides the key — a new tile");
+    let red = book.rasterize_wrapped(
+        "缓存命中",
+        16.0,
+        false,
+        [255, 0, 0, 255],
+        20.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
+    assert!(
+        !Arc::ptr_eq(&black, &red),
+        "color rides the key — a new tile"
+    );
     let ink = |r: &TextRaster| {
         r.data
             .chunks_exact(4)
@@ -63,7 +111,11 @@ fn repeated_rasterize_shares_the_cached_tile() {
             .map(|p| (p[0], p[1], p[2]))
             .max()
     };
-    assert_eq!(ink(&black), Some((0, 0, 0)), "black tile's opaque ink is black");
+    assert_eq!(
+        ink(&black),
+        Some((0, 0, 0)),
+        "black tile's opaque ink is black"
+    );
     assert_eq!(ink(&red), Some((255, 0, 0)), "red tile's opaque ink is red");
 }
 
@@ -79,7 +131,21 @@ fn line_and_wrapped_rasters_cache_separately() {
     let line = book.rasterize(text, 16.0, false, [0, 0, 0, 255], 24.0, false, None);
     // Narrow wrap: the same text breaks across 4+ lines, so the wrapped
     // tile is much taller than the single-line one.
-    let wrapped = book.rasterize_wrapped(text, 16.0, false, [0, 0, 0, 255], 40.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
+    let wrapped = book.rasterize_wrapped(
+        text,
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        40.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
     assert!(!Arc::ptr_eq(&line, &wrapped), "kinds must not collide");
     assert!(
         wrapped.height > line.height * 2,
@@ -111,10 +177,21 @@ fn budget_overflow_clears_all() {
     assert!(Arc::ptr_eq(&a1, &same), "A alone fits the budget exactly");
     // A longer text is a strictly heavier entry (wider tile, longer key):
     // inserting it overflows and clears — A's tile is gone.
-    let b = book.rasterize("iiiiiiiiiiii", 8.0, false, [0, 0, 0, 255], 10.0, false, None);
+    let b = book.rasterize(
+        "iiiiiiiiiiii",
+        8.0,
+        false,
+        [0, 0, 0, 255],
+        10.0,
+        false,
+        None,
+    );
     assert!(!Arc::ptr_eq(&a1, &b));
     let a2 = book.rasterize("ii", 8.0, false, [0, 0, 0, 255], 10.0, false, None);
-    assert!(!Arc::ptr_eq(&a1, &a2), "clear-all must evict the earlier entry");
+    assert!(
+        !Arc::ptr_eq(&a1, &a2),
+        "clear-all must evict the earlier entry"
+    );
 }
 
 /// dfrg/swash#139 (own issue #19): a fallback face carrying an EBLC/EBDT
@@ -129,7 +206,9 @@ fn budget_overflow_clears_all() {
 fn zero_width_ebdt_strike_does_not_panic_the_raster() {
     let (reg, bold) = production_pair();
     let zw = include_bytes!("../fixtures/zero-width-ebdt.ttf").to_vec();
-    let book = FontBook::from_pairs(reg, bold).unwrap().with_fallbacks(vec![zw]);
+    let book = FontBook::from_pairs(reg, bold)
+        .unwrap()
+        .with_fallbacks(vec![zw]);
     let _held = isolated();
     let before = SWASH_PANIC_FALLBACKS.load(Ordering::Relaxed);
     // U+E000: outside the bundled pair's coverage (test-fallback-face
@@ -164,9 +243,15 @@ fn face_fingerprint_isolates_books() {
     let _held = isolated();
     let r1 = a.rasterize("指纹隔离", 12.0, false, [0, 0, 0, 255], 15.0, false, None);
     let r2 = b.rasterize("指纹隔离", 12.0, false, [0, 0, 0, 255], 15.0, false, None);
-    assert!(Arc::ptr_eq(&r1, &r2), "same face bytes share entries across instances");
+    assert!(
+        Arc::ptr_eq(&r1, &r2),
+        "same face bytes share entries across instances"
+    );
     let r3 = swapped.rasterize("指纹隔离", 12.0, false, [0, 0, 0, 255], 15.0, false, None);
-    assert!(!Arc::ptr_eq(&r1, &r3), "different face bytes must not share entries");
+    assert!(
+        !Arc::ptr_eq(&r1, &r3),
+        "different face bytes must not share entries"
+    );
 }
 
 /// The mono flag rides the key: a `mono: true` rasterize must not collide
@@ -179,16 +264,23 @@ fn face_fingerprint_isolates_books() {
 fn mono_rides_the_key_and_shapes_fixed_advance() {
     let (reg, bold) = production_pair();
     let sans = FontBook::from_pairs(reg.clone(), bold.clone()).unwrap();
-    let mono_book =
-        FontBook::from_pairs(reg, bold).unwrap().with_mono(crate::diting_fonts::bundled_mono_for_tests());
+    let mono_book = FontBook::from_pairs(reg, bold)
+        .unwrap()
+        .with_mono(crate::diting_fonts::bundled_mono_for_tests());
     let _held = isolated();
     let plain = sans.rasterize("mono key", 14.0, false, [0, 0, 0, 255], 18.0, false, None);
     let flagged = sans.rasterize("mono key", 14.0, false, [0, 0, 0, 255], 18.0, true, None);
     assert!(!Arc::ptr_eq(&plain, &flagged), "mono flag rides the key");
     let faced = mono_book.rasterize("mono key", 14.0, false, [0, 0, 0, 255], 18.0, true, None);
-    assert!(!Arc::ptr_eq(&plain, &faced), "a mono face is different pixels");
+    assert!(
+        !Arc::ptr_eq(&plain, &faced),
+        "a mono face is different pixels"
+    );
     let adv = mono_book.advance_width("0000000000", 20.0, false, true, None);
-    assert!((adv - 120.0).abs() < 0.01, "10 × 0.6em = 120px at 20px, got {adv}");
+    assert!(
+        (adv - 120.0).abs() < 0.01,
+        "10 × 0.6em = 120px at 20px, got {adv}"
+    );
     let cjk_mono = mono_book.advance_width("汉", 20.0, false, true, None);
     let cjk_sans = sans.advance_width("汉", 20.0, false, false, None);
     assert!(
@@ -218,20 +310,58 @@ fn mono_without_face_degrades_to_primary() {
 fn tokens_of_applies_word_spacing_to_space_tokens_only() {
     let (reg, bold) = production_pair();
     let book = FontBook::from_pairs(reg, bold).unwrap();
-    let plain = tokens_of("ab cd ef", 16.0, false, &book, false, 0.0, crate::diting_css::WhiteSpace::Normal, false, None);
-    let spaced = tokens_of("ab cd ef", 16.0, false, &book, false, 9.0, crate::diting_css::WhiteSpace::Normal, false, None);
-    assert_eq!(plain.len(), spaced.len(), "spacing never changes the token count");
+    let plain = tokens_of(
+        "ab cd ef",
+        16.0,
+        false,
+        &book,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+    );
+    let spaced = tokens_of(
+        "ab cd ef",
+        16.0,
+        false,
+        &book,
+        false,
+        9.0,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+    );
+    assert_eq!(
+        plain.len(),
+        spaced.len(),
+        "spacing never changes the token count"
+    );
     for (p, s) in plain.iter().zip(&spaced) {
         assert_eq!(p.text, s.text);
         if p.is_space {
-            assert!((s.width - (p.width + 9.0)).abs() < 0.01,
-                "space token grows by exactly the extra advance ({} → {})", p.width, s.width);
+            assert!(
+                (s.width - (p.width + 9.0)).abs() < 0.01,
+                "space token grows by exactly the extra advance ({} → {})",
+                p.width,
+                s.width
+            );
         } else {
             assert_eq!(p.width, s.width, "word token width is spacing-invariant");
         }
     }
     // `normal` is modeled as 0.0 — identical tokens.
-    let normal = tokens_of("ab cd", 16.0, false, &book, false, 0.0, crate::diting_css::WhiteSpace::Normal, false, None);
+    let normal = tokens_of(
+        "ab cd",
+        16.0,
+        false,
+        &book,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+    );
     assert!(normal[1].is_space);
 }
 
@@ -245,18 +375,64 @@ fn rasterize_wrapped_word_spacing_shifts_ink() {
     let (reg, bold) = production_pair();
     let book = FontBook::from_pairs(reg, bold).unwrap();
     let _held = isolated();
-    let tight = book.rasterize_wrapped("ab cd", 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
-    let loose = book.rasterize_wrapped("ab cd", 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, 12.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
+    let tight = book.rasterize_wrapped(
+        "ab cd",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
+    let loose = book.rasterize_wrapped(
+        "ab cd",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        12.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
     assert_eq!(tight.height, loose.height, "one line either way");
     let ink_right = |r: &TextRaster| r.ink_bbox().map(|b| b.2).unwrap_or(0);
     assert!(
         (ink_right(&loose) - ink_right(&tight)) as f32 >= 11.0,
         "second word's ink shifts right by the extra advance (tight={}, loose={})",
-        ink_right(&tight), ink_right(&loose)
+        ink_right(&tight),
+        ink_right(&loose)
     );
     // Negative spacing tightens toward overlap — still deterministic.
-    let tight2 = book.rasterize_wrapped("ab cd", 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, -8.0, None, crate::diting_css::WhiteSpace::Normal, false, None, None);
-    assert!(ink_right(&tight2) < ink_right(&tight), "negative ws pulls the second word left");
+    let tight2 = book.rasterize_wrapped(
+        "ab cd",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        -8.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+        None,
+    );
+    assert!(
+        ink_right(&tight2) < ink_right(&tight),
+        "negative ws pulls the second word left"
+    );
 }
 
 /// Small-caps synthesis segments a token at case boundaries (`ß` is a
@@ -264,13 +440,14 @@ fn rasterize_wrapped_word_spacing_shifts_ink() {
 /// current segment (digits after a capital stay full-size).
 #[test]
 fn caps_case_runs_segments_at_case_boundaries() {
-    assert_eq!(
-        caps_case_runs("hello"),
-        vec![("hello".to_string(), true)]
-    );
+    assert_eq!(caps_case_runs("hello"), vec![("hello".to_string(), true)]);
     assert_eq!(
         caps_case_runs("ßaB1c"),
-        vec![("ßa".to_string(), true), ("B1".to_string(), false), ("c".to_string(), true)]
+        vec![
+            ("ßa".to_string(), true),
+            ("B1".to_string(), false),
+            ("c".to_string(), true)
+        ]
     );
     // Caseless-only text stays one full-size segment.
     assert_eq!(caps_case_runs("123"), vec![("123".to_string(), false)]);
@@ -284,8 +461,15 @@ fn caps_case_runs_segments_at_case_boundaries() {
 fn tokens_of_small_caps_uppercases_lower_runs_at_ratio() {
     let book = crate::diting_fonts::font_book();
     let toks = tokens_of(
-        "hello AB", 16.0, false, &book, false, 0.0,
-        crate::diting_css::WhiteSpace::Normal, true, None,
+        "hello AB",
+        16.0,
+        false,
+        &book,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        true,
+        None,
     );
     let words: Vec<&Token> = toks.iter().filter(|t| !t.is_space).collect();
     assert_eq!(words.len(), 2, "hello + AB");
@@ -295,8 +479,15 @@ fn tokens_of_small_caps_uppercases_lower_runs_at_ratio() {
     assert_eq!(words[1].scale, 1.0, "already-uppercase stays full-size");
 
     let plain = tokens_of(
-        "hello AB", 16.0, false, &book, false, 0.0,
-        crate::diting_css::WhiteSpace::Normal, false, None,
+        "hello AB",
+        16.0,
+        false,
+        &book,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
     );
     assert!(plain.iter().all(|t| t.scale == 1.0));
     assert_eq!(plain.iter().find(|t| !t.is_space).unwrap().text, "hello");
@@ -330,17 +521,48 @@ fn colorize_folds_color_alpha_into_coverage() {
 #[test]
 fn truncate_tokens_clips_to_limit_and_appends_marker() {
     let fonts = crate::diting_fonts::font_book();
-    let tokens = tokens_of("alpha beta gamma delta", 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::Normal, false, None);
+    let tokens = tokens_of(
+        "alpha beta gamma delta",
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+    );
     let total: f32 = tokens.iter().map(|t| t.width).sum();
 
     assert!(
-        truncate_tokens(&tokens, total + 1.0, 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::Normal, None).is_none(),
+        truncate_tokens(
+            &tokens,
+            total + 1.0,
+            16.0,
+            false,
+            &fonts,
+            false,
+            0.0,
+            crate::diting_css::WhiteSpace::Normal,
+            None
+        )
+        .is_none(),
         "fitting text is untouched"
     );
 
     let limit = total / 2.0;
-    let (kept, marker) = truncate_tokens(&tokens, limit, 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::Normal, None)
-        .expect("overflowing text truncates");
+    let (kept, marker) = truncate_tokens(
+        &tokens,
+        limit,
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        None,
+    )
+    .expect("overflowing text truncates");
     let kept_w: f32 = kept.iter().map(|t| t.width).sum();
     let marker_w: f32 = marker.iter().map(|t| t.width).sum();
     assert!(marker_w > 0.0 && marker.iter().any(|t| t.text.contains('\u{2026}')));
@@ -356,9 +578,23 @@ fn truncate_tokens_clips_to_limit_and_appends_marker() {
 
     // A bold run's marker must measure wider than the normal run's —
     // font params flow through.
-    let (_, bold_marker) = truncate_tokens(&tokens, limit, 16.0, true, &fonts, false, 0.0, crate::diting_css::WhiteSpace::Normal, None).unwrap();
+    let (_, bold_marker) = truncate_tokens(
+        &tokens,
+        limit,
+        16.0,
+        true,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        None,
+    )
+    .unwrap();
     let bold_w: f32 = bold_marker.iter().map(|t| t.width).sum();
-    assert!(bold_w > marker_w, "bold marker measures wider ({bold_w} > {marker_w})");
+    assert!(
+        bold_w > marker_w,
+        "bold marker measures wider ({bold_w} > {marker_w})"
+    );
 }
 
 /// line-clamp (#271): the bake keeps exactly N lines, cuts the Nth so the
@@ -373,23 +609,43 @@ fn line_clamp_bake_keeps_n_lines_and_flags_marker() {
     let tokens = tokens_of(text, 16.0, false, &fonts, false, 0.0, ws, false, None);
     let wrap_at = 60.0;
     let lines = greedy_wrap(&tokens, Some(wrap_at), ws);
-    assert!(lines.len() > 3, "fixture must wrap to >3 lines at {wrap_at}, got {}", lines.len());
+    assert!(
+        lines.len() > 3,
+        "fixture must wrap to >3 lines at {wrap_at}, got {}",
+        lines.len()
+    );
 
     // Exactly-N wrapped lines: no clamp (takumi #1965's exactly-fits edge).
     let n = lines.len() as u32;
-    assert!(line_clamp_bake(&tokens, n, wrap_at, ws, 16.0, false, &fonts, false, 0.0, None).is_none());
+    assert!(
+        line_clamp_bake(&tokens, n, wrap_at, ws, 16.0, false, &fonts, false, 0.0, None).is_none()
+    );
     // Generous clamp: no clamp.
-    assert!(line_clamp_bake(&tokens, 100, wrap_at, ws, 16.0, false, &fonts, false, 0.0, None).is_none());
+    assert!(
+        line_clamp_bake(&tokens, 100, wrap_at, ws, 16.0, false, &fonts, false, 0.0, None).is_none()
+    );
 
-    let (baked, baked_text) = line_clamp_bake(&tokens, 3, wrap_at, ws, 16.0, false, &fonts, false, 0.0, None)
-        .expect("over-clamped run bakes");
+    let (baked, baked_text) = line_clamp_bake(
+        &tokens, 3, wrap_at, ws, 16.0, false, &fonts, false, 0.0, None,
+    )
+    .expect("over-clamped run bakes");
     // A token PREFIX re-wraps to the same lines: every kept line was full.
     let rewrapped = greedy_wrap(&baked, Some(wrap_at), ws);
-    assert_eq!(rewrapped.len(), 3, "baked stream re-wraps to exactly the clamp count");
+    assert_eq!(
+        rewrapped.len(),
+        3,
+        "baked stream re-wraps to exactly the clamp count"
+    );
     assert!(baked.iter().any(|t| t.is_ellipsis), "marker is flagged");
-    assert!(baked_text.ends_with('\u{2026}'), "joined text ends with the marker: {baked_text:?}");
+    assert!(
+        baked_text.ends_with('\u{2026}'),
+        "joined text ends with the marker: {baked_text:?}"
+    );
     let last_w: f32 = rewrapped[2].token_idx.iter().map(|&i| baked[i].width).sum();
-    assert!(last_w <= wrap_at + f32::EPSILON, "last line {last_w} within {wrap_at}");
+    assert!(
+        last_w <= wrap_at + f32::EPSILON,
+        "last line {last_w} within {wrap_at}"
+    );
 }
 
 /// The pre family's hard breaks must survive the bake — the kept lines
@@ -399,13 +655,32 @@ fn line_clamp_bake_keeps_n_lines_and_flags_marker() {
 fn line_clamp_bake_preserves_hard_breaks() {
     let fonts = crate::diting_fonts::font_book();
     let ws = crate::diting_css::WhiteSpace::PreWrap;
-    let tokens = tokens_of("aa bb\ncc dd\nee ff\ngg", 16.0, false, &fonts, false, 0.0, ws, false, None);
-    let (baked, baked_text) = line_clamp_bake(&tokens, 2, 500.0, ws, 16.0, false, &fonts, false, 0.0, None)
-        .expect("hard-broken run clamps");
-    assert!(baked_text.contains("aa") && baked_text.contains("cc") && !baked_text.contains("ee"), "keeps the first two lines: {baked_text:?}");
+    let tokens = tokens_of(
+        "aa bb\ncc dd\nee ff\ngg",
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        ws,
+        false,
+        None,
+    );
+    let (baked, baked_text) =
+        line_clamp_bake(&tokens, 2, 500.0, ws, 16.0, false, &fonts, false, 0.0, None)
+            .expect("hard-broken run clamps");
+    assert!(
+        baked_text.contains("aa") && baked_text.contains("cc") && !baked_text.contains("ee"),
+        "keeps the first two lines: {baked_text:?}"
+    );
     assert!(baked_text.ends_with('\u{2026}'));
     let rewrapped = greedy_wrap(&baked, Some(500.0), ws);
-    assert_eq!(rewrapped.len(), 2, "hard breaks survive the bake ({} lines)", rewrapped.len());
+    assert_eq!(
+        rewrapped.len(),
+        2,
+        "hard breaks survive the bake ({} lines)",
+        rewrapped.len()
+    );
 }
 
 /// Paint half of obscura#983: a pre-shaped token slice must rasterize
@@ -415,16 +690,92 @@ fn line_clamp_bake_preserves_hard_breaks() {
 fn rasterize_wrapped_pre_shaped_matches_reshaped() {
     let fonts = crate::diting_fonts::font_book();
     let text = "淘宝商品列表页的一段中文文本需要折行处理".repeat(4);
-    let tokens = tokens_of(&text, 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::Normal, false, None);
+    let tokens = tokens_of(
+        &text,
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Normal,
+        false,
+        None,
+    );
 
-    let plain = fonts.rasterize_wrapped_uncached(&text, 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, None, false, None, None);
-    let pre = fonts.rasterize_wrapped_uncached(&text, 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, 0.0, None, crate::diting_css::WhiteSpace::Normal, Some(&tokens), false, None, None);
-    assert_eq!((plain.width, plain.height, plain.baseline), (pre.width, pre.height, pre.baseline));
+    let plain = fonts.rasterize_wrapped_uncached(
+        &text,
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        None,
+        false,
+        None,
+        None,
+    );
+    let pre = fonts.rasterize_wrapped_uncached(
+        &text,
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        0.0,
+        None,
+        crate::diting_css::WhiteSpace::Normal,
+        Some(&tokens),
+        false,
+        None,
+        None,
+    );
+    assert_eq!(
+        (plain.width, plain.height, plain.baseline),
+        (pre.width, pre.height, pre.baseline)
+    );
     assert_eq!(plain.data, pre.data);
 
-    let plain_t = fonts.rasterize_wrapped_uncached(&text, 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, 0.0, Some(320.0), crate::diting_css::WhiteSpace::Normal, None, false, None, None);
-    let pre_t = fonts.rasterize_wrapped_uncached(&text, 16.0, false, [0, 0, 0, 255], 200.0, 24.0, false, 0.0, Some(320.0), crate::diting_css::WhiteSpace::Normal, Some(&tokens), false, None, None);
-    assert_eq!((plain_t.width, plain_t.height, plain_t.baseline), (pre_t.width, pre_t.height, pre_t.baseline));
+    let plain_t = fonts.rasterize_wrapped_uncached(
+        &text,
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        0.0,
+        Some(320.0),
+        crate::diting_css::WhiteSpace::Normal,
+        None,
+        false,
+        None,
+        None,
+    );
+    let pre_t = fonts.rasterize_wrapped_uncached(
+        &text,
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        200.0,
+        24.0,
+        false,
+        0.0,
+        Some(320.0),
+        crate::diting_css::WhiteSpace::Normal,
+        Some(&tokens),
+        false,
+        None,
+        None,
+    );
+    assert_eq!(
+        (plain_t.width, plain_t.height, plain_t.baseline),
+        (pre_t.width, pre_t.height, pre_t.baseline)
+    );
     assert_eq!(plain_t.data, pre_t.data);
 }
 
@@ -441,7 +792,17 @@ fn ws_lines(text: &str, ws: crate::diting_css::WhiteSpace, wrap_at: Option<f32>)
 #[test]
 fn pre_tokens_preserve_whitespace_and_breaks() {
     let fonts = crate::diting_fonts::font_book();
-    let toks = tokens_of("a  b\tc\r\nd", 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::Pre, false, None);
+    let toks = tokens_of(
+        "a  b\tc\r\nd",
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::Pre,
+        false,
+        None,
+    );
     let texts: Vec<&str> = toks.iter().map(|t| t.text.as_str()).collect();
     assert_eq!(texts, vec!["a", " ", " ", "b", "        ", "c", "\n", "d"]);
     assert!(toks[6].is_break && toks[6].width == 0.0);
@@ -456,7 +817,11 @@ fn pre_wraps_on_newlines_and_keeps_blank_lines() {
     assert_eq!(lines[1].width, 0.0, "the middle line is empty, not merged");
     // No soft wrap at all: an arbitrarily long run stays one line even
     // with a tiny wrap_at handed in (defensive — measure passes None).
-    let lines = ws_lines(&"x".repeat(200), crate::diting_css::WhiteSpace::Pre, Some(10.0));
+    let lines = ws_lines(
+        &"x".repeat(200),
+        crate::diting_css::WhiteSpace::Pre,
+        Some(10.0),
+    );
     assert_eq!(lines.len(), 1, "pre has no soft wrap opportunities");
 }
 
@@ -465,12 +830,30 @@ fn pre_wraps_on_newlines_and_keeps_blank_lines() {
 #[test]
 fn pre_wrap_spaces_hang_at_line_end() {
     let fonts = crate::diting_fonts::font_book();
-    let toks = tokens_of("aa   bb", 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::PreWrap, false, None);
+    let toks = tokens_of(
+        "aa   bb",
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::PreWrap,
+        false,
+        None,
+    );
     let (w_aa, sp) = (toks[0].width, toks[1].width);
     let wrap_at = w_aa + 2.5 * sp; // "aa  " fits, the 3rd space hangs, "bb" breaks
-    let lines = ws_lines("aa   bb", crate::diting_css::WhiteSpace::PreWrap, Some(wrap_at));
+    let lines = ws_lines(
+        "aa   bb",
+        crate::diting_css::WhiteSpace::PreWrap,
+        Some(wrap_at),
+    );
     assert_eq!(lines.len(), 2, "one break, before bb");
-    assert_eq!(lines[0].token_idx, vec![0, 1, 2, 3], "aa + all three spaces hang on line 1");
+    assert_eq!(
+        lines[0].token_idx,
+        vec![0, 1, 2, 3],
+        "aa + all three spaces hang on line 1"
+    );
     assert_eq!(lines[1].token_idx, vec![4], "bb alone on line 2");
 }
 
@@ -479,13 +862,38 @@ fn pre_wrap_spaces_hang_at_line_end() {
 #[test]
 fn break_spaces_wraps_space_tokens_down() {
     let fonts = crate::diting_fonts::font_book();
-    let toks = tokens_of("aa   bb", 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::BreakSpaces, false, None);
+    let toks = tokens_of(
+        "aa   bb",
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::BreakSpaces,
+        false,
+        None,
+    );
     let w_aa = toks[0].width;
-    let lines = ws_lines("aa   bb", crate::diting_css::WhiteSpace::BreakSpaces, Some(w_aa + 0.5));
-    assert_eq!(lines[0].token_idx, vec![0], "aa alone — the first space already overflows");
-    let spaced: Vec<usize> = lines[1..lines.len() - 1].iter().flat_map(|l| l.token_idx.iter().copied()).collect();
+    let lines = ws_lines(
+        "aa   bb",
+        crate::diting_css::WhiteSpace::BreakSpaces,
+        Some(w_aa + 0.5),
+    );
+    assert_eq!(
+        lines[0].token_idx,
+        vec![0],
+        "aa alone — the first space already overflows"
+    );
+    let spaced: Vec<usize> = lines[1..lines.len() - 1]
+        .iter()
+        .flat_map(|l| l.token_idx.iter().copied())
+        .collect();
     assert_eq!(spaced, vec![1, 2, 3], "the three spaces wrap down together");
-    assert_eq!(lines.last().unwrap().token_idx, vec![4], "bb on the last line");
+    assert_eq!(
+        lines.last().unwrap().token_idx,
+        vec![4],
+        "bb on the last line"
+    );
 }
 
 /// `pre-line`: spaces collapse within each newline-separated segment and
@@ -494,15 +902,37 @@ fn break_spaces_wraps_space_tokens_down() {
 #[test]
 fn pre_line_collapses_spaces_but_breaks_on_newlines() {
     let fonts = crate::diting_fonts::font_book();
-    let toks = tokens_of("  a  b  \n c\nd  \n", 16.0, false, &fonts, false, 0.0, crate::diting_css::WhiteSpace::PreLine, false, None);
+    let toks = tokens_of(
+        "  a  b  \n c\nd  \n",
+        16.0,
+        false,
+        &fonts,
+        false,
+        0.0,
+        crate::diting_css::WhiteSpace::PreLine,
+        false,
+        None,
+    );
     let texts: Vec<&str> = toks.iter().map(|t| t.text.as_str()).collect();
-    assert_eq!(texts, vec!["a", " ", "b", "\n", "c", "\n", "d", "\n"], "collapsed segments, breaks between, trailing break kept for the breaker");
-    let lines = ws_lines("  a  b  \n c\nd  \n", crate::diting_css::WhiteSpace::PreLine, None);
+    assert_eq!(
+        texts,
+        vec!["a", " ", "b", "\n", "c", "\n", "d", "\n"],
+        "collapsed segments, breaks between, trailing break kept for the breaker"
+    );
+    let lines = ws_lines(
+        "  a  b  \n c\nd  \n",
+        crate::diting_css::WhiteSpace::PreLine,
+        None,
+    );
     let line_texts: Vec<Vec<&str>> = lines
         .iter()
         .map(|l| l.token_idx.iter().map(|&i| texts[i]).collect())
         .collect();
-    assert_eq!(line_texts, vec![vec!["a", " ", "b"], vec!["c"], vec!["d"]], "trailing newline opens no empty line");
+    assert_eq!(
+        line_texts,
+        vec![vec!["a", " ", "b"], vec!["c"], vec!["d"]],
+        "trailing newline opens no empty line"
+    );
 }
 
 /// A trailing newline in any preserved mode ends the last line instead
@@ -510,11 +940,23 @@ fn pre_line_collapses_spaces_but_breaks_on_newlines() {
 /// exactly one blank line.
 #[test]
 fn trailing_newline_drops_not_doubles() {
-    assert_eq!(ws_lines("a\n", crate::diting_css::WhiteSpace::Pre, None).len(), 1);
-    assert_eq!(ws_lines("a\n\n", crate::diting_css::WhiteSpace::Pre, None).len(), 2);
-    assert_eq!(ws_lines("a\n", crate::diting_css::WhiteSpace::BreakSpaces, None).len(), 1);
+    assert_eq!(
+        ws_lines("a\n", crate::diting_css::WhiteSpace::Pre, None).len(),
+        1
+    );
+    assert_eq!(
+        ws_lines("a\n\n", crate::diting_css::WhiteSpace::Pre, None).len(),
+        2
+    );
+    assert_eq!(
+        ws_lines("a\n", crate::diting_css::WhiteSpace::BreakSpaces, None).len(),
+        1
+    );
     // Un-touched content (no break) never pops its only line.
-    assert_eq!(ws_lines("", crate::diting_css::WhiteSpace::Pre, None).len(), 1);
+    assert_eq!(
+        ws_lines("", crate::diting_css::WhiteSpace::Pre, None).len(),
+        1
+    );
 }
 
 // ---- #139: Han-unification slot routing ----
@@ -530,18 +972,33 @@ fn trailing_newline_drops_not_doubles() {
 fn han_slot_routes_ideographs_to_same_slot_face() {
     let (reg, bold) = production_pair();
     let ja = include_bytes!("../../diting_fonts/test-han-ja-face.ttf").to_vec();
-    let book = FontBook::from_pairs(reg, bold).unwrap().with_fallbacks(vec![ja]);
+    let book = FontBook::from_pairs(reg, bold)
+        .unwrap()
+        .with_fallbacks(vec![ja]);
 
     let ja_run = book.segments("直A", false, false, Some(HanSlot::Japanese));
-    assert_eq!(ja_run[0], (FaceSel::Fallback(0), "直"), "ja ideograph routes to the ja face");
+    assert_eq!(
+        ja_run[0],
+        (FaceSel::Fallback(0), "直"),
+        "ja ideograph routes to the ja face"
+    );
     assert_eq!(ja_run[1], (FaceSel::Primary, "A"), "Latin never re-fonts");
 
     let plain = book.segments("直A", false, false, None);
-    assert!(plain.iter().all(|(sel, _)| *sel == FaceSel::Primary), "no lang: plain cascade");
+    assert!(
+        plain.iter().all(|(sel, _)| *sel == FaceSel::Primary),
+        "no lang: plain cascade"
+    );
     let zh = book.segments("直A", false, false, Some(HanSlot::Simplified));
-    assert!(zh.iter().all(|(sel, _)| *sel == FaceSel::Primary), "primary IS the SC slot");
+    assert!(
+        zh.iter().all(|(sel, _)| *sel == FaceSel::Primary),
+        "primary IS the SC slot"
+    );
     let tc = book.segments("直A", false, false, Some(HanSlot::Traditional));
-    assert!(tc.iter().all(|(sel, _)| *sel == FaceSel::Primary), "no tc face: fall through");
+    assert!(
+        tc.iter().all(|(sel, _)| *sel == FaceSel::Primary),
+        "no tc face: fall through"
+    );
 }
 
 /// The slot rides the raster-cache identity (#139): same text, same size,
@@ -551,15 +1008,40 @@ fn han_slot_routes_ideographs_to_same_slot_face() {
 fn han_slot_rides_the_raster_key() {
     let (reg, bold) = production_pair();
     let ja = include_bytes!("../../diting_fonts/test-han-ja-face.ttf").to_vec();
-    let book = FontBook::from_pairs(reg, bold).unwrap().with_fallbacks(vec![ja]);
+    let book = FontBook::from_pairs(reg, bold)
+        .unwrap()
+        .with_fallbacks(vec![ja]);
     let _held = isolated();
-    let zh = book.rasterize("直", 16.0, false, [0, 0, 0, 255], 24.0, false, Some(HanSlot::Simplified));
-    let ja_r = book.rasterize("直", 16.0, false, [0, 0, 0, 255], 24.0, false, Some(HanSlot::Japanese));
+    let zh = book.rasterize(
+        "直",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        24.0,
+        false,
+        Some(HanSlot::Simplified),
+    );
+    let ja_r = book.rasterize(
+        "直",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        24.0,
+        false,
+        Some(HanSlot::Japanese),
+    );
     assert!(!Arc::ptr_eq(&zh, &ja_r), "slot must ride the key");
-    let zh2 = book.rasterize("直", 16.0, false, [0, 0, 0, 255], 24.0, false, Some(HanSlot::Simplified));
+    let zh2 = book.rasterize(
+        "直",
+        16.0,
+        false,
+        [0, 0, 0, 255],
+        24.0,
+        false,
+        Some(HanSlot::Simplified),
+    );
     assert!(Arc::ptr_eq(&zh, &zh2), "same slot still caches");
 }
-
 
 /// archify #91 (engine twin): a variation selector (U+FE00..=U+FE0F) is
 /// default-ignorable and must never open its own segment. Before the fix,
@@ -570,7 +1052,9 @@ fn han_slot_rides_the_raster_key() {
 fn variation_selectors_ride_the_base_and_measure_zero() {
     let (reg, bold) = production_pair();
     let zw = include_bytes!("../fixtures/zero-width-ebdt.ttf").to_vec();
-    let book = FontBook::from_pairs(reg, bold).unwrap().with_fallbacks(vec![zw]);
+    let book = FontBook::from_pairs(reg, bold)
+        .unwrap()
+        .with_fallbacks(vec![zw]);
     let _held = isolated();
     // U+E000 routes to the fallback face (its cmap does not cover FE0F).
     let base = book.advance_width("\u{E000}", 20.0, false, false, None);
@@ -582,7 +1066,11 @@ fn variation_selectors_ride_the_base_and_measure_zero() {
     // The selector is dropped from the slice — the fallback face does not
     // map it, and an unmapped selector would shape as .notdef.
     let segs = book.segments("\u{E000}\u{FE0F}", false, false, None);
-    assert_eq!(segs.len(), 1, "the selector never opens a segment: {segs:?}");
+    assert_eq!(
+        segs.len(),
+        1,
+        "the selector never opens a segment: {segs:?}"
+    );
     assert!(matches!(segs[0].0, FaceSel::Fallback(0)));
     assert_eq!(segs[0].1, "\u{E000}");
     // Same contract on the primary pair: U+2714 is covered, FE0F is not
@@ -599,7 +1087,10 @@ fn variation_selectors_ride_the_base_and_measure_zero() {
     assert_eq!(segs[0].1, "\u{2714}");
     // A leading selector has no base: default-ignorable, measures nothing.
     let lead = book.advance_width("\u{FE0F}\u{E000}", 20.0, false, false, None);
-    assert!((lead - base).abs() < 0.01, "leading VS16 dropped ({lead} vs {base})");
+    assert!(
+        (lead - base).abs() < 0.01,
+        "leading VS16 dropped ({lead} vs {base})"
+    );
 }
 
 /// 批240 / blitz#924: `text-transform` case mapping, Chrome-grounded via a
@@ -622,11 +1113,23 @@ fn text_transform_case_table_matches_chrome() {
     );
     // Capitalize: word starts only, Chrome's own probe strings.
     assert_eq!(cap("don't stop"), "Don't Stop", "apostrophe joins the word");
-    assert_eq!(cap("_world"), "_world", "underscore joins — no word start after it");
-    assert_eq!(cap("2abc"), "2abc", "the digit owns the word start, so abc never caps");
+    assert_eq!(
+        cap("_world"),
+        "_world",
+        "underscore joins — no word start after it"
+    );
+    assert_eq!(
+        cap("2abc"),
+        "2abc",
+        "the digit owns the word start, so abc never caps"
+    );
     assert_eq!(cap("foo-bar"), "Foo-Bar", "hyphen breaks words");
     assert_eq!(cap("中文abc"), "中文Abc", "ideographs are their own words");
-    assert_eq!(cap("hello WORLD"), "Hello WORLD", "already-cased starts pass through");
+    assert_eq!(
+        cap("hello WORLD"),
+        "Hello WORLD",
+        "already-cased starts pass through"
+    );
     assert_eq!(cap("çé ño"), "Çé Ño", "non-ASCII lowercase caps");
     // none is the identity.
     assert_eq!(apply_text_transform("MiXeD", T::None), "MiXeD");

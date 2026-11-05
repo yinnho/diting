@@ -212,7 +212,9 @@ pub async fn auto_solve_captcha(
     };
 
     match config.service {
-        CaptchaService::TwoCaptcha => solve_with_2captcha(url, &sitekey, captcha_type, config).await,
+        CaptchaService::TwoCaptcha => {
+            solve_with_2captcha(url, &sitekey, captcha_type, config).await
+        }
         CaptchaService::AntiCaptcha => {
             // Placeholder — same API shape, different endpoints.
             CaptchaSolveResult::NotAttempted
@@ -371,15 +373,16 @@ mod tests {
         // empty; these assertions pin the DETECTION MECHANISM).
         crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
         // Clean API URL alone is not a captcha.
-        assert!(detect_captcha_type(
-            "https://api.example.com/x/1.0/item.fetch/1.0/",
-            None
-        )
-        .is_none());
+        assert!(
+            detect_captcha_type("https://api.example.com/x/1.0/item.fetch/1.0/", None).is_none()
+        );
         // Risk-control JSON body (HTTP 200, markers say walled).
         let blocked = r#"{"api":"item.fetch","ret":["DEMO_WALL_HIT","walledata::validate failed"],"data":{"url":"https://api.example.com/x/1.0/?punish=..."}}"#;
         assert!(matches!(
-            detect_captcha_type("https://api.example.com/x/1.0/item.fetch/1.0/", Some(blocked)),
+            detect_captcha_type(
+                "https://api.example.com/x/1.0/item.fetch/1.0/",
+                Some(blocked)
+            ),
             Some(CaptchaType::SliderCaptcha)
         ));
         // Punish redirect URL.
@@ -394,7 +397,10 @@ mod tests {
         ));
         // Wall host inside an HTML body (script-driven redirect).
         assert!(matches!(
-            detect_captcha_type("https://shop.example.com/", Some(r#"<script>location.href="https://wall.example.net/"</script>"#)),
+            detect_captcha_type(
+                "https://shop.example.com/",
+                Some(r#"<script>location.href="https://wall.example.net/"</script>"#)
+            ),
             Some(CaptchaType::SliderCaptcha)
         ));
     }
@@ -402,11 +408,10 @@ mod tests {
     #[test]
     fn successful_mtop_payload_is_not_flagged() {
         let ok = r#"{"ret":["SUCCESS::调用成功"],"data":{"totalCnt":"397","hasNext":true,"data":[{"itemId":"1","title":"x"}]}}"#;
-        assert!(detect_captcha_type(
-            "https://api.example.com/x/1.0/item.fetch/1.0/",
-            Some(ok)
-        )
-        .is_none());
+        assert!(
+            detect_captcha_type("https://api.example.com/x/1.0/item.fetch/1.0/", Some(ok))
+                .is_none()
+        );
     }
 
     #[test]

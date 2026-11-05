@@ -90,7 +90,9 @@ pub(super) fn install_heap_limit_guard(
             );
             return current_limit.saturating_add(HEAP_PRESSURE_HEADROOM_BYTES);
         }
-        state.tripped.store(true, std::sync::atomic::Ordering::SeqCst);
+        state
+            .tripped
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         eprintln!(
             "[heapguard] near-heap-limit tripped at {} bytes (initial {}) — pressure GC did not free enough; terminating t={t_ms}",
             current_limit, _initial_limit
@@ -106,10 +108,7 @@ pub(super) fn install_heap_limit_guard(
             isolate.remove_near_heap_limit_callback(near_heap_limit_thunk, 0);
         }
         isolate.set_slot::<HeapCbSlot>(HeapCbSlot(Box::new(RefCell::new(body))));
-        let data = isolate
-            .get_slot::<HeapCbSlot>()
-            .expect("just set")
-            as *const HeapCbSlot
+        let data = isolate.get_slot::<HeapCbSlot>().expect("just set") as *const HeapCbSlot
             as *mut core::ffi::c_void;
         isolate.add_near_heap_limit_callback(near_heap_limit_thunk, data);
     });
@@ -127,7 +126,6 @@ fn uninstall_heap_limit_guard(runtime: &mut Vm, restore_limit: usize) {
         isolate.remove_slot::<HeapCbSlot>();
     });
 }
-
 
 impl JsRuntime {
     /// How many times the heap guard terminated a task in this realm's
@@ -147,11 +145,12 @@ impl JsRuntime {
     /// a JS-heavy page sat at ~175 MB of mostly dead heap (#307).
     pub fn trim_heap(&mut self) {
         const WORTH_A_GC: usize = 48 << 20;
-        let used = self.runtime.with_isolate(|isolate| {
-            isolate.get_heap_statistics().used_heap_size()
-        });
+        let used = self
+            .runtime
+            .with_isolate(|isolate| isolate.get_heap_statistics().used_heap_size());
         if used > WORTH_A_GC {
-            self.runtime.with_isolate(|isolate| isolate.low_memory_notification());
+            self.runtime
+                .with_isolate(|isolate| isolate.low_memory_notification());
         }
     }
 

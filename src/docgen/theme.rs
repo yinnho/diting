@@ -703,23 +703,34 @@ mod tests {
         // A preset table that copied classic's values would silently render
         // identical bytes — each preset must move the page and at least one
         // kind slot in both modes.
-        for other in [
-            &SIGNAL_FLOW_LIGHT,
-            &BLUEPRINT_LIGHT,
-            &EDITORIAL_LIGHT,
-        ] {
-            assert_ne!(LIGHT.page_bg, other.page_bg, "{} light must move the page", other.preset);
-            assert_ne!(LIGHT.ink, other.ink, "{} light must move the ink", other.preset);
+        for other in [&SIGNAL_FLOW_LIGHT, &BLUEPRINT_LIGHT, &EDITORIAL_LIGHT] {
             assert_ne!(
-                LIGHT.frontend.stroke,
-                other.frontend.stroke,
+                LIGHT.page_bg, other.page_bg,
+                "{} light must move the page",
+                other.preset
+            );
+            assert_ne!(
+                LIGHT.ink, other.ink,
+                "{} light must move the ink",
+                other.preset
+            );
+            assert_ne!(
+                LIGHT.frontend.stroke, other.frontend.stroke,
                 "{} light must move kind slots",
                 other.preset
             );
         }
         for other in [&SIGNAL_FLOW_DARK, &BLUEPRINT_DARK, &EDITORIAL_DARK] {
-            assert_ne!(DARK.page_bg, other.page_bg, "{} dark must move the page", other.preset);
-            assert_ne!(DARK.ink, other.ink, "{} dark must move the ink", other.preset);
+            assert_ne!(
+                DARK.page_bg, other.page_bg,
+                "{} dark must move the page",
+                other.preset
+            );
+            assert_ne!(
+                DARK.ink, other.ink,
+                "{} dark must move the ink",
+                other.preset
+            );
         }
     }
 }

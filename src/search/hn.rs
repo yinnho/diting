@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{SearchParams, RawSearchResult, SearchEngine, SearchEngineError};
+use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Hacker News via the Algolia hn.algolia.com API (free, no key, CN-reachable
 /// directly). `general` pool: HN results are ranked story links with points
@@ -73,10 +73,7 @@ impl SearchEngine for HnEngine {
             .client
             .get(&url)
             .header("Accept", "application/json")
-            .header(
-                "User-Agent",
-                diting::chrome_target::UA_DEFAULT,
-            )
+            .header("User-Agent", diting::chrome_target::UA_DEFAULT)
             .send()
             .await
             .map_err(|e| SearchEngineError::Transient(format!("fetch error: {e}")))?;
@@ -207,7 +204,13 @@ mod tests {
     fn cutoff_encodes_operator_and_maps_windows() {
         let url = search_url("rust", 1, Some(1_700_000_000));
         assert!(url.contains("numericFilters=created_at_i%3E1700000000"));
-        assert_eq!(cutoff_for(SearchTimeRange::Day, 1_000_000), 1_000_000 - 86_400);
-        assert_eq!(cutoff_for(SearchTimeRange::Year, 1_000_000), 1_000_000 - 31_536_000);
+        assert_eq!(
+            cutoff_for(SearchTimeRange::Day, 1_000_000),
+            1_000_000 - 86_400
+        );
+        assert_eq!(
+            cutoff_for(SearchTimeRange::Year, 1_000_000),
+            1_000_000 - 31_536_000
+        );
     }
 }

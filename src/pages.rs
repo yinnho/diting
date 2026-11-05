@@ -51,8 +51,7 @@ impl Default for PagePumpOptions {
 
 /// One painted page: raw RGBA at `width`×`height`, cut from `origin_y` in
 /// document space.
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PageImage {
     pub rgba: Vec<u8>,
     pub width: u32,
@@ -149,7 +148,10 @@ pub async fn render_page_set_with(
         PageMode::Slides(selector) => slide_bands(page, selector)?,
     };
     if bands.len() > opts.max_pages {
-        return Err(PageError::PageCapExceeded { asked: bands.len(), cap: opts.max_pages });
+        return Err(PageError::PageCapExceeded {
+            asked: bands.len(),
+            cap: opts.max_pages,
+        });
     }
 
     let mut pages = Vec::with_capacity(bands.len());
@@ -158,8 +160,8 @@ pub async fn render_page_set_with(
         // Missing images that surface per-page (fetch failures stay missing;
         // a painted placeholder beats a stall). Cut semantics: (x, y) is a
         // document-space origin, not a scroll offset (#60).
-        let (_, missing) = paint(page, band.x, band.y, (band.vw, band.vh))
-            .ok_or(PageError::NoLiveDocument)?;
+        let (_, missing) =
+            paint(page, band.x, band.y, (band.vw, band.vh)).ok_or(PageError::NoLiveDocument)?;
         if !missing.is_empty() {
             page.fetch_band_images(missing).await;
         }
@@ -181,7 +183,11 @@ pub async fn render_page_set_with(
         }
         pages.push(img);
     }
-    Ok(PageSet { pages, text_ops, content_size })
+    Ok(PageSet {
+        pages,
+        text_ops,
+        content_size,
+    })
 }
 
 /// Print pagination: greedy breaks at top-level block bottoms. For each
@@ -207,7 +213,11 @@ fn print_bands(page: &mut Page, page_w: f32, page_h: f32) -> Result<Vec<Band>, P
     let mut bottoms: Vec<f32> = obj
         .and_then(|o| o.get("b"))
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_f64().map(|n| n as f32)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_f64().map(|n| n as f32))
+                .collect()
+        })
         .unwrap_or_default();
     bottoms.retain(|b| b.is_finite() && *b > 0.0);
     bottoms.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -246,7 +256,12 @@ fn print_bands(page: &mut Page, page_w: f32, page_h: f32) -> Result<Vec<Band>, P
         let remaining = content_h - y;
         if remaining <= page_h {
             // Last page: short viewport makes the dy clamp land exactly on y.
-            bands.push(Band { x: 0.0, y, vw: page_w, vh: remaining.max(1.0) });
+            bands.push(Band {
+                x: 0.0,
+                y,
+                vw: page_w,
+                vh: remaining.max(1.0),
+            });
             break;
         }
         let floor = y + page_h * 0.55;
@@ -258,7 +273,12 @@ fn print_bands(page: &mut Page, page_w: f32, page_h: f32) -> Result<Vec<Band>, P
             .find(|b| **b > floor && **b <= ceiling)
             .copied()
             .unwrap_or(ceiling);
-        bands.push(Band { x: 0.0, y, vw: page_w, vh: (next - y).max(1.0) });
+        bands.push(Band {
+            x: 0.0,
+            y,
+            vw: page_w,
+            vh: (next - y).max(1.0),
+        });
         y = next;
     }
     // Merge a sub-MIN_TAIL remainder into the previous page instead of a
@@ -301,7 +321,9 @@ fn slide_bands(page: &mut Page, selector: &str) -> Result<Vec<Band>, PageError> 
         })
         .unwrap_or_default();
     if rects.is_empty() {
-        return Err(PageError::NoSelectorMatches { selector: selector.to_string() });
+        return Err(PageError::NoSelectorMatches {
+            selector: selector.to_string(),
+        });
     }
     Ok(rects
         .into_iter()
@@ -345,7 +367,8 @@ pub fn jpeg_of(width: u32, height: u32, rgba: &[u8], quality: u8) -> Result<Vec<
     let rgb = image::DynamicImage::ImageRgba8(img).to_rgb8();
     let mut out = std::io::Cursor::new(Vec::new());
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
-    rgb.write_with_encoder(encoder).map_err(|e| format!("jpeg encode: {e}"))?;
+    rgb.write_with_encoder(encoder)
+        .map_err(|e| format!("jpeg encode: {e}"))?;
     Ok(out.into_inner())
 }
 
@@ -357,8 +380,12 @@ pub fn png_of(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, String> {
             png::Encoder::new(std::io::Cursor::new(&mut out), width.max(1), height.max(1));
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header().map_err(|e| format!("png header: {e}"))?;
-        writer.write_image_data(rgba).map_err(|e| format!("png encode: {e}"))?;
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| format!("png header: {e}"))?;
+        writer
+            .write_image_data(rgba)
+            .map_err(|e| format!("png encode: {e}"))?;
     }
     Ok(out)
 }
@@ -412,7 +439,9 @@ pub fn pdf_of_pages(
         .collect();
     let mut metrics: BTreeMap<PdfFace, (f32, f32, f32)> = BTreeMap::new();
     for f in &used_faces {
-        let m = fonts.pdf_face_metrics(*f).unwrap_or((800.0, -200.0, 1000.0));
+        let m = fonts
+            .pdf_face_metrics(*f)
+            .unwrap_or((800.0, -200.0, 1000.0));
         metrics.insert(*f, m);
     }
     for (f, ws) in widths.iter_mut() {
@@ -484,8 +513,9 @@ pub fn pdf_of_pages(
 
     offsets.push(out.len());
     out.extend_from_slice(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-    let kids: Vec<String> =
-        (0..pages.len()).map(|i| format!("{} 0 R", 3 + 3 * i)).collect();
+    let kids: Vec<String> = (0..pages.len())
+        .map(|i| format!("{} 0 R", 3 + 3 * i))
+        .collect();
     offsets.push(out.len());
     out.extend_from_slice(
         format!(
@@ -905,9 +935,18 @@ html,body{margin:0;padding:0}
             ],
             "greedy break at #after's bottom (1120), guillotine inside the giant line"
         );
-        assert!(blue_px(&set.pages[4]) > 5000, "giant glyph top fragment paints");
-        assert!(blue_px(&set.pages[5]) > 5000, "giant glyph bottom fragment paints");
-        assert!(has_ink(&p_rgba_frame(&set.pages[5])), "tail block continues after the line");
+        assert!(
+            blue_px(&set.pages[4]) > 5000,
+            "giant glyph top fragment paints"
+        );
+        assert!(
+            blue_px(&set.pages[5]) > 5000,
+            "giant glyph bottom fragment paints"
+        );
+        assert!(
+            has_ink(&p_rgba_frame(&set.pages[5])),
+            "tail block continues after the line"
+        );
 
         // Vector mode: the line op is retained on both covering pages —
         // band-local baseline below page 4's bottom (only the glyph's top
@@ -928,7 +967,9 @@ html,body{margin:0;padding:0}
             set.text_ops[i]
                 .iter()
                 .filter_map(|op| match op {
-                    diting::diting_layout::paint::PdfOp::Line(l) if l.glyphs.iter().any(|g| g.unicode == "M") => {
+                    diting::diting_layout::paint::PdfOp::Line(l)
+                        if l.glyphs.iter().any(|g| g.unicode == "M") =>
+                    {
                         Some(l.glyphs[0].y)
                     }
                     _ => None,
@@ -944,8 +985,15 @@ html,body{margin:0;padding:0}
         );
         let p5 = m_ops(5);
         assert_eq!(p5.len(), 1, "page 5 retains the giant line op: {p5:?}");
-        assert!(p5[0] > 0.0 && p5[0] < 280.0, "page 5 baseline on-page: {}", p5[0]);
-        assert!(has_ink(&p_rgba_frame(&set.pages[5])), "tail continues (vector mode)");
+        assert!(
+            p5[0] > 0.0 && p5[0] < 280.0,
+            "page 5 baseline on-page: {}",
+            p5[0]
+        );
+        assert!(
+            has_ink(&p_rgba_frame(&set.pages[5])),
+            "tail continues (vector mode)"
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -957,8 +1005,18 @@ html,body{margin:0;padding:0}
             max_pages: 10,
             collect_text: false,
         };
-        let set = render_page_set(&mut page, &opts).await.expect("page set renders");
-        assert_eq!(set.pages.len(), 4, "one page per 200px block at page_h 300: {:?}", set.pages.iter().map(|p| (p.origin_y, p.height)).collect::<Vec<_>>());
+        let set = render_page_set(&mut page, &opts)
+            .await
+            .expect("page set renders");
+        assert_eq!(
+            set.pages.len(),
+            4,
+            "one page per 200px block at page_h 300: {:?}",
+            set.pages
+                .iter()
+                .map(|p| (p.origin_y, p.height))
+                .collect::<Vec<_>>()
+        );
         for (i, p) in set.pages.iter().enumerate() {
             assert_eq!((p.width, p.height), (400, 200), "page {i} size");
             assert_eq!(p.origin_y, (i as f32) * 200.0, "page {i} origin");
@@ -989,8 +1047,18 @@ html,body{margin:0;padding:0}
             max_pages: 10,
             collect_text: false,
         };
-        let set = render_page_set(&mut page, &opts).await.expect("slides render");
-        assert_eq!(set.pages.len(), 3, "gap div is not a .slide: {:?}", set.pages.iter().map(|p| (p.origin_y, p.height)).collect::<Vec<_>>());
+        let set = render_page_set(&mut page, &opts)
+            .await
+            .expect("slides render");
+        assert_eq!(
+            set.pages.len(),
+            3,
+            "gap div is not a .slide: {:?}",
+            set.pages
+                .iter()
+                .map(|p| (p.origin_y, p.height))
+                .collect::<Vec<_>>()
+        );
         // Heights match the elements: 120 / 200 / 160 (±1px layout rounding).
         let heights: Vec<u32> = set.pages.iter().map(|p| p.height).collect();
         assert_eq!(heights[0], 120);
@@ -1019,10 +1087,16 @@ html,body{margin:0;padding:0}
             max_pages: 10,
             collect_text: false,
         };
-        let set = render_page_set(&mut page, &opts).await.expect("horizontal slides render");
+        let set = render_page_set(&mut page, &opts)
+            .await
+            .expect("horizontal slides render");
         assert_eq!(set.pages.len(), 2);
         for (i, p) in set.pages.iter().enumerate() {
-            assert_eq!((p.width, p.height), (400, 300), "slide {i} sized to its element");
+            assert_eq!(
+                (p.width, p.height),
+                (400, 300),
+                "slide {i} sized to its element"
+            );
             assert!(has_ink(&p_rgba_frame(p)), "slide {i} is not blank");
         }
         assert_ne!(
@@ -1063,10 +1137,16 @@ html,body{margin:0;padding:0}
             deck_h >= 2999.0,
             "deck height:100% must fold to auto against the auto body and span the stacked slides (#65); got {deck_h}"
         );
-        let set = render_page_set(&mut page, &opts).await.expect("print deck renders");
+        let set = render_page_set(&mut page, &opts)
+            .await
+            .expect("print deck renders");
         assert_eq!(set.pages.len(), 2);
         for (i, p) in set.pages.iter().enumerate() {
-            assert_eq!((p.width, p.height), (800, 1500), "slide {i} block-stretched, print height honored");
+            assert_eq!(
+                (p.width, p.height),
+                (800, 1500),
+                "slide {i} block-stretched, print height honored"
+            );
             assert!(has_ink(&p_rgba_frame(p)), "slide {i} is not blank");
         }
         assert_eq!(set.pages[0].origin_y, 0.0, "slide 1 at the top");
@@ -1074,7 +1154,10 @@ html,body{margin:0;padding:0}
             set.pages[1].origin_y, 1500.0,
             "slide 2 stacked below slide 1 — the print un-stack with the inline transform canceled"
         );
-        assert_ne!(set.pages[0].rgba, set.pages[1].rgba, "the two slides carry distinct backgrounds");
+        assert_ne!(
+            set.pages[0].rgba, set.pages[1].rgba,
+            "the two slides carry distinct backgrounds"
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -1100,7 +1183,10 @@ html,body{margin:0;padding:0}
             collect_text: false,
         };
         let err = render_page_set(&mut page, &opts).await.unwrap_err();
-        assert!(matches!(err, PageError::PageCapExceeded { asked: 4, cap: 2 }), "{err}");
+        assert!(
+            matches!(err, PageError::PageCapExceeded { asked: 4, cap: 2 }),
+            "{err}"
+        );
     }
 
     /// Bare-text body: no element children → the extent must come from the
@@ -1119,10 +1205,23 @@ html,body{margin:0;padding:0}
             max_pages: 10,
             collect_text: false,
         };
-        let set = render_page_set(&mut page, &opts).await.expect("bare text renders");
-        assert_eq!(set.pages.len(), 2, "ink extent 480px at page_h 300 is 2 pages: {:?}", set.pages.iter().map(|p| (p.origin_y, p.height)).collect::<Vec<_>>());
+        let set = render_page_set(&mut page, &opts)
+            .await
+            .expect("bare text renders");
+        assert_eq!(
+            set.pages.len(),
+            2,
+            "ink extent 480px at page_h 300 is 2 pages: {:?}",
+            set.pages
+                .iter()
+                .map(|p| (p.origin_y, p.height))
+                .collect::<Vec<_>>()
+        );
         for (i, p) in set.pages.iter().enumerate() {
-            assert!(has_ink(&p_rgba_frame(p)), "page {i} is blank — blank-tail bug");
+            assert!(
+                has_ink(&p_rgba_frame(p)),
+                "page {i} is blank — blank-tail bug"
+            );
         }
     }
 
@@ -1135,7 +1234,10 @@ html,body{margin:0;padding:0}
         let j1 = vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 0xFF, 0xD9];
         let j2 = vec![0xFF, 0xD8, 9, 9, 0xFF, 0xD9];
         let pdf = pdf_of_pages(&[(794, 1123, &j1, &[]), (794, 200, &j2, &[])]);
-        assert!(pdf.starts_with(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3"), "header + binary marker");
+        assert!(
+            pdf.starts_with(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3"),
+            "header + binary marker"
+        );
         assert!(pdf.ends_with(b"%%EOF\n"), "trailer");
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("/Count 2"), "pages count");
@@ -1150,7 +1252,11 @@ html,body{margin:0;padding:0}
             .next()
             .and_then(|s| s.parse().ok())
             .expect("numeric startxref");
-        assert_eq!(&pdf[xref_at..xref_at + 4], b"xref", "startxref points at the xref table");
+        assert_eq!(
+            &pdf[xref_at..xref_at + 4],
+            b"xref",
+            "startxref points at the xref table"
+        );
         // Every "n" entry's offset should land on "<n> 0 obj". The walk runs
         // on raw bytes, not the lossy `text`: the binary marker and the JPEG
         // streams contain invalid UTF-8 that from_utf8_lossy widens to
@@ -1170,7 +1276,11 @@ html,body{margin:0;padding:0}
                 .and_then(|s| s.parse().ok())
                 .expect("10-digit offset");
             let expect = format!("{} 0 obj", i + 1);
-            assert!(pdf[off..].starts_with(expect.as_bytes()), "obj {} offset", i + 1);
+            assert!(
+                pdf[off..].starts_with(expect.as_bytes()),
+                "obj {} offset",
+                i + 1
+            );
         }
     }
 
@@ -1185,7 +1295,12 @@ html,body{margin:0;padding:0}
 
         let j1 = vec![0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0xD9];
         let ops = vec![
-            PdfOp::Clip { x: 0.0, y: 0.0, w: 400.0, h: 100.0 },
+            PdfOp::Clip {
+                x: 0.0,
+                y: 0.0,
+                w: 400.0,
+                h: 100.0,
+            },
             PdfOp::Line(PdfLine {
                 font_size: 16.0,
                 color: [0, 0, 0, 255],
@@ -1250,7 +1365,10 @@ html,body{margin:0;padding:0}
         );
         assert!(text.contains("DitingCJK-Regular"), "regular base font");
         assert!(text.contains("DitingCJK-Bold"), "bold base font");
-        assert!(!text.contains("DitingMono-Regular"), "unused mono face not embedded");
+        assert!(
+            !text.contains("DitingMono-Regular"),
+            "unused mono face not embedded"
+        );
 
         // The FontFile2 stream is the shaper's own bytes, verbatim.
         let fonts = diting::diting_fonts::font_book();
@@ -1262,22 +1380,40 @@ html,body{margin:0;padding:0}
 
         // Content stream: image draw, clip bracket (y flipped), color +
         // BT/ET, face-switched Tf, per-glyph Tm/Tj, underline fill.
-        assert!(text.contains("q 595.50 0 0 842.25 0 0 cm /Im0 Do Q"), "image draw");
+        assert!(
+            text.contains("q 595.50 0 0 842.25 0 0 cm /Im0 Do Q"),
+            "image draw"
+        );
         assert!(text.contains("/MediaBox [0 0 595.50 842.25]"), "px → pt");
-        assert!(text.contains("q 0.00 767.25 300.00 75.00 re W n"), "clip, y flipped");
+        assert!(
+            text.contains("q 0.00 767.25 300.00 75.00 re W n"),
+            "clip, y flipped"
+        );
         assert!(text.contains("0.000 0.000 0.000 rg\nBT\n"), "color then BT");
         assert!(text.contains("/F1 12.000 Tf"), "16px @96dpi → 12pt");
-        assert!(text.contains("1 0 0 1 7.50 827.25 Tm <0044> Tj"), "glyph 'A'");
-        assert!(text.contains("<0078> Tj"), "continuation glyph, no extra Tf");
+        assert!(
+            text.contains("1 0 0 1 7.50 827.25 Tm <0044> Tj"),
+            "glyph 'A'"
+        );
+        assert!(
+            text.contains("<0078> Tj"),
+            "continuation glyph, no extra Tf"
+        );
         assert!(text.contains("<04D2> Tj"), "CJK glyph '中'");
         assert!(text.contains("/F2 12.000 Tf"), "bold face switch");
         assert!(text.contains("<0046> Tj"), "bold glyph 'B'");
         assert!(text.contains("ET\n"));
-        assert!(text.contains("7.50 823.50 6.75 0.75 re f"), "underline fill");
+        assert!(
+            text.contains("7.50 823.50 6.75 0.75 re f"),
+            "underline fill"
+        );
         assert!(text.contains("Q\n"), "pop clip");
 
         // Page resources reference exactly the used faces.
-        assert!(text.contains("/Font << /F1 6 0 R /F2 11 0 R >>"), "F1@6 F2@11");
+        assert!(
+            text.contains("/Font << /F1 6 0 R /F2 11 0 R >>"),
+            "F1@6 F2@11"
+        );
 
         // CID widths: px advances scaled to font units per em.
         let (_, _, upem) = fonts.pdf_face_metrics(PdfFace::Regular).unwrap();
@@ -1285,7 +1421,10 @@ html,body{margin:0;padding:0}
             text.contains(&format!("68 [{}", (9.0 / 16.0 * upem).round())),
             "/W entry for gid 68"
         );
-        assert!(text.contains(&format!("/DW {:.0}", upem * 0.6)), "default width");
+        assert!(
+            text.contains(&format!("/DW {:.0}", upem * 0.6)),
+            "default width"
+        );
 
         // ToUnicode CMap: first text per gid as UTF-16BE, decoded back the
         // way a PDF text extractor reads it.
@@ -1324,7 +1463,11 @@ html,body{margin:0;padding:0}
                 .and_then(|s| s.parse().ok())
                 .expect("10-digit offset");
             let expect = format!("{} 0 obj", i + 1);
-            assert!(pdf[off..].starts_with(expect.as_bytes()), "obj {} offset", i + 1);
+            assert!(
+                pdf[off..].starts_with(expect.as_bytes()),
+                "obj {} offset",
+                i + 1
+            );
         }
     }
 

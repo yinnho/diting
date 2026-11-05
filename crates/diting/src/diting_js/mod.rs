@@ -1,7 +1,7 @@
-pub mod module_loader;
-pub mod runtime;
-pub mod ops;
 pub mod async_glue;
+pub mod module_loader;
+pub mod ops;
+pub mod runtime;
 pub mod ws;
 
 /// The snapshot's script sources as process-static UTF-16 buffers —

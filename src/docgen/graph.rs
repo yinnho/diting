@@ -48,7 +48,11 @@ const ESCALATE_BISECT: usize = 24;
 pub type Pt = (i32, i32);
 
 fn coord(p: Pt, axis: usize) -> i32 {
-    if axis == 0 { p.0 } else { p.1 }
+    if axis == 0 {
+        p.0
+    } else {
+        p.1
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -285,10 +289,10 @@ pub fn normalize_route_points(points: &[Pt]) -> Vec<Pt> {
             let b = out[out.len() - 1];
             // i64: outside-right escalation probes reach ~80k tenths, and the
             // fold products scale as delta² — i32 overflows there.
-            let cross = (b.0 - a.0) as i64 * (p.1 - b.1) as i64
-                - (b.1 - a.1) as i64 * (p.0 - b.0) as i64;
-            let forward = (b.0 - a.0) as i64 * (p.0 - b.0) as i64
-                + (b.1 - a.1) as i64 * (p.1 - b.1) as i64;
+            let cross =
+                (b.0 - a.0) as i64 * (p.1 - b.1) as i64 - (b.1 - a.1) as i64 * (p.0 - b.0) as i64;
+            let forward =
+                (b.0 - a.0) as i64 * (p.0 - b.0) as i64 + (b.1 - a.1) as i64 * (p.1 - b.1) as i64;
             if cross == 0 && forward >= 0 {
                 out.pop();
             } else {
@@ -301,13 +305,19 @@ pub fn normalize_route_points(points: &[Pt]) -> Vec<Pt> {
 }
 
 pub fn orthogonal(points: &[Pt]) -> bool {
-    points.windows(2).all(|w| (w[0].0 == w[1].0) != (w[0].1 == w[1].1))
+    points
+        .windows(2)
+        .all(|w| (w[0].0 == w[1].0) != (w[0].1 == w[1].1))
 }
 
 fn endpoint_side_ok(points: &[Pt], seg: usize, side: Side, is_source: bool) -> bool {
     let (a, b) = (points[seg], points[seg + 1]);
     let (dx, dy) = (b.0 - a.0, b.1 - a.1);
-    let (along, across) = if side.horizontal() { (dx, dy) } else { (dy, dx) };
+    let (along, across) = if side.horizontal() {
+        (dx, dy)
+    } else {
+        (dy, dx)
+    };
     // The source stub leaves along the side's outward direction; the target
     // stub arrives moving against it, into the box.
     let sign = if is_source { 1 } else { -1 };
@@ -693,12 +703,14 @@ fn plan_auto(
     for (pair_ordinal, &(from_side, to_side)) in pairs.iter().enumerate() {
         let primary = pair_ordinal == 0;
         let start = if primary {
-            req.primary_ports.map_or_else(|| anchor(req.from, from_side), |p| p.0)
+            req.primary_ports
+                .map_or_else(|| anchor(req.from, from_side), |p| p.0)
         } else {
             anchor(req.from, from_side)
         };
         let end = if primary {
-            req.primary_ports.map_or_else(|| anchor(req.to, to_side), |p| p.1)
+            req.primary_ports
+                .map_or_else(|| anchor(req.to, to_side), |p| p.1)
         } else {
             anchor(req.to, to_side)
         };
@@ -719,7 +731,8 @@ fn plan_auto(
         if scored.is_empty() {
             // No stock candidate fits this pair — escalate the outside-right
             // corridor, then classify the dead end for the feedback loop.
-            if let Some(points) = escalate_outside_right(req, scene, start, end, from_side, to_side) {
+            if let Some(points) = escalate_outside_right(req, scene, start, end, from_side, to_side)
+            {
                 let ordinal = pair_ordinal as i64 * 9 + 6; // outside-right family slot
                 plans.push(Scored {
                     cost: candidate_cost(req, scene, &points, ordinal, natural_start, natural_end),
@@ -776,7 +789,14 @@ fn plan_preset(
         let points = normalize_route_points(&all);
         if feasible(req, scene, &points, from_side, to_side) {
             plans.push(Scored {
-                cost: candidate_cost(req, scene, &points, ordinal as i64, natural_start, natural_end),
+                cost: candidate_cost(
+                    req,
+                    scene,
+                    &points,
+                    ordinal as i64,
+                    natural_start,
+                    natural_end,
+                ),
                 points,
             });
         }
@@ -787,7 +807,11 @@ fn plan_preset(
             points: best.points,
         });
     }
-    let preset: &'static str = PRESETS.iter().find(|p| **p == name).copied().unwrap_or("auto");
+    let preset: &'static str = PRESETS
+        .iter()
+        .find(|p| **p == name)
+        .copied()
+        .unwrap_or("auto");
     Err(RouteError::PresetConflict { preset })
 }
 
@@ -797,7 +821,10 @@ fn plan_preset(
 fn preset_via(req: &RouteRequest, name: &str, start: Pt, end: Pt) -> Vec<Pt> {
     match name {
         "straight" => Vec::new(),
-        "drop" => vec![(start.0, req.corridors.lane_gap_y), (end.0, req.corridors.lane_gap_y)],
+        "drop" => vec![
+            (start.0, req.corridors.lane_gap_y),
+            (end.0, req.corridors.lane_gap_y),
+        ],
         "outside-right" => vec![
             (req.corridors.outside_right_x, start.1),
             (req.corridors.outside_right_x, end.1),
@@ -810,10 +837,9 @@ fn preset_via(req: &RouteRequest, name: &str, start: Pt, end: Pt) -> Vec<Pt> {
             (start.0, req.corridors.bottom_y),
             (end.0, req.corridors.bottom_y),
         ],
-        "up-channel" | "top-channel" => vec![
-            (start.0, req.corridors.top_y),
-            (end.0, req.corridors.top_y),
-        ],
+        "up-channel" | "top-channel" => {
+            vec![(start.0, req.corridors.top_y), (end.0, req.corridors.top_y)]
+        }
         "vertical-channel" => {
             let x = (start.0 + end.0) / 2;
             vec![(x, start.1), (x, end.1)]
@@ -894,7 +920,13 @@ fn candidate_set(
     scored
 }
 
-fn feasible(req: &RouteRequest, scene: &RouteScene, points: &[Pt], from_side: Side, to_side: Side) -> bool {
+fn feasible(
+    req: &RouteRequest,
+    scene: &RouteScene,
+    points: &[Pt],
+    from_side: Side,
+    to_side: Side,
+) -> bool {
     orthogonal(points)
         && route_honors_endpoint_sides(points, from_side, to_side)
         && route_meets_hard_rhythm(points)
@@ -948,7 +980,10 @@ fn route_label_clears_nodes(req: &RouteRequest, scene: &RouteScene, points: &[Pt
         return true;
     };
     let rect = label_rect(w, label_point(points));
-    scene.nodes.iter().all(|n| !rects_overlap(&rect, n, LABEL_TOLERANCE))
+    scene
+        .nodes
+        .iter()
+        .all(|n| !rects_overlap(&rect, n, LABEL_TOLERANCE))
         && scene
             .obstacles
             .iter()
@@ -1008,12 +1043,14 @@ fn candidate_cost(
         let rect = label_rect(w, label_point(points));
         for placed in scene.placed {
             for v in placed.points.windows(2) {
-                label_deficit += (LABEL_ROUTE_THRESHOLD - segment_rect_clearance(v[0], v[1], &rect)).max(0) as i64;
+                label_deficit += (LABEL_ROUTE_THRESHOLD - segment_rect_clearance(v[0], v[1], &rect))
+                    .max(0) as i64;
             }
             if let Some(other) = &placed.label {
                 for w2 in points.windows(2) {
-                    label_deficit +=
-                        (LABEL_ROUTE_THRESHOLD - segment_rect_clearance(w2[0], w2[1], other)).max(0) as i64;
+                    label_deficit += (LABEL_ROUTE_THRESHOLD
+                        - segment_rect_clearance(w2[0], w2[1], other))
+                    .max(0) as i64;
                 }
             }
         }
@@ -1087,7 +1124,9 @@ fn escalate_outside_right(
         let es = outward_stub(end, to_side);
         normalize_route_points(&[start, ss, (x, ss.1), (x, es.1), es, end])
     };
-    let candidate_label = req.label_width.map(|w| label_rect(w, label_point(&build(base_x))));
+    let candidate_label = req
+        .label_width
+        .map(|w| label_rect(w, label_point(&build(base_x))));
 
     // Rightward deficit: how far labels/segments reach past the corridor.
     let mut min_x = base_x;
@@ -1179,8 +1218,9 @@ fn diagnose_dead_end(
     from_side: Side,
     to_side: Side,
 ) -> RouteError {
-    let horizontally_facing = (from_side == Side::Right && to_side == Side::Left && end.0 > start.0)
-        || (from_side == Side::Left && to_side == Side::Right && start.0 > end.0);
+    let horizontally_facing =
+        (from_side == Side::Right && to_side == Side::Left && end.0 > start.0)
+            || (from_side == Side::Left && to_side == Side::Right && start.0 > end.0);
     if horizontally_facing && req.from_col != req.to_col {
         let from_col = req.from_col.min(req.to_col) as usize;
         let to_col = req.from_col.max(req.to_col) as usize;
@@ -1261,7 +1301,12 @@ mod tests {
         assert!(!route_meets_hard_rhythm(&[(0, 0), (279, 0)]));
         assert!(route_meets_hard_rhythm(&[(0, 0), (80, 0), (80, 200)]));
         assert!(!route_meets_hard_rhythm(&[(0, 0), (79, 0), (79, 200)]));
-        assert!(!route_meets_hard_rhythm(&[(0, 0), (100, 0), (100, 115), (200, 115)]));
+        assert!(!route_meets_hard_rhythm(&[
+            (0, 0),
+            (100, 0),
+            (100, 115),
+            (200, 115)
+        ]));
     }
 
     #[test]
@@ -1291,7 +1336,12 @@ mod tests {
     fn crossing_and_corridor_metrics() {
         assert!(proper_axis_crossing((0, 0), (100, 0), (50, -50), (50, 50)));
         assert!(!proper_axis_crossing((0, 0), (100, 0), (50, 0), (50, 50)));
-        assert!(!proper_axis_crossing((0, 0), (100, 0), (150, -50), (150, 50)));
+        assert!(!proper_axis_crossing(
+            (0, 0),
+            (100, 0),
+            (150, -50),
+            (150, 50)
+        ));
         assert_eq!(axis_overlap_length((0, 0), (100, 0), (50, 0), (150, 0)), 50);
         assert_eq!(axis_overlap_length((0, 0), (100, 0), (0, 10), (100, 10)), 0);
     }
@@ -1312,7 +1362,11 @@ mod tests {
         assert_eq!(cols[3], 940 + 1200 + 4000);
         assert_eq!(cols[5], cols[3] + 2 * 1200);
         // Constraints never move a column left of the lattice seed.
-        let cols = solve_columns(&[ColConstraint { from: 2, to: 4, minimum: 100 }]);
+        let cols = solve_columns(&[ColConstraint {
+            from: 2,
+            to: 4,
+            minimum: 100,
+        }]);
         assert_eq!(cols[4], 940 + 4 * 1200);
     }
 
@@ -1408,7 +1462,11 @@ mod tests {
             primary_ports: None,
         };
         let planned = plan_route(&req, &scene).unwrap();
-        assert!(planned.points.len() > 2, "must dogleg: {:?}", planned.points);
+        assert!(
+            planned.points.len() > 2,
+            "must dogleg: {:?}",
+            planned.points
+        );
         // And the chosen route actually clears the obstacle.
         for w in planned.points.windows(2) {
             assert!(
@@ -1574,7 +1632,13 @@ mod tests {
         // rect lands inside the band — infeasible with a label, fine
         // without one.
         let below_band = [(0, 450), (3900, 450)];
-        assert!(!feasible(&req, &scene, &below_band, Side::Right, Side::Left));
+        assert!(!feasible(
+            &req,
+            &scene,
+            &below_band,
+            Side::Right,
+            Side::Left
+        ));
         req.label_width = None;
         assert!(feasible(&req, &scene, &below_band, Side::Right, Side::Left));
     }

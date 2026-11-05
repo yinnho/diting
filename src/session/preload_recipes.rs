@@ -96,14 +96,23 @@ mod tests {
 
     #[test]
     fn resolve_is_empty_after_asset_separation() {
-        for name in ["xhs-sign", "xhs", "taobao-block-everyhelp", "x-p256", "anything"] {
-            assert!(resolve(name).is_none(), "public registry stays empty: {name}");
+        for name in [
+            "xhs-sign",
+            "xhs",
+            "taobao-block-everyhelp",
+            "x-p256",
+            "anything",
+        ] {
+            assert!(
+                resolve(name).is_none(),
+                "public registry stays empty: {name}"
+            );
         }
         assert!(probe_shield_recipes("https://www.xiaohongshu.com/").is_empty());
         assert!(probe_shield_recipes("https://www.taobao.com/").is_empty());
     }
 
-#[test]
+    #[test]
     fn probe_shields_empty_everywhere_after_separation() {
         for url in [
             "https://www.taobao.com/",
@@ -121,4 +130,3 @@ mod tests {
         }
     }
 }
-

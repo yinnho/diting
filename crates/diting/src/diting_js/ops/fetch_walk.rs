@@ -14,8 +14,8 @@ use super::cors::{
     cors_response_allows, cors_unsafe_request_header_names, is_cors_safelisted_method,
     parse_cors_header_list, preflight_allows_header, preflight_allows_method, request_origin,
 };
-use super::fetch_gate::validate_fetch_url;
 use super::fetch_body_byte_limit;
+use super::fetch_gate::validate_fetch_url;
 use super::{fetch_referer, select_request_client, FetchCredentials, FETCH_REDIRECT_LIMIT};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use url::Url;
@@ -86,7 +86,8 @@ pub(crate) struct FetchWalkDeps {
     pub(crate) credentials: FetchCredentials,
     pub(crate) cookie_jar: Option<Arc<CookieJar>>,
     pub(crate) in_flight: Option<Arc<std::sync::atomic::AtomicU32>>,
-    pub(crate) in_flight_list: Option<std::sync::Arc<std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>>>,
+    pub(crate) in_flight_list:
+        Option<std::sync::Arc<std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>>>,
     pub(crate) http_client: Option<Arc<HttpClient>>,
     pub(crate) proxy_url: Option<String>,
     pub(crate) document_url: String,
@@ -105,9 +106,7 @@ pub(crate) struct FetchWalkDeps {
 /// paths (redirect hops, fallback escapes, errors); Drop is the only
 /// discipline that keeps the registry honest across all of them (#116).
 struct InFlightEntryGuard {
-    list: std::sync::Arc<
-        std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>,
-    >,
+    list: std::sync::Arc<std::sync::Mutex<Vec<crate::diting_net::InFlightScripted>>>,
     pub(crate) url: String,
     pub(crate) method: String,
 }
@@ -138,12 +137,7 @@ fn header_present(headers: &HashMap<String, String>, name: &str) -> bool {
 /// stealth-first preflight needs the identical one (#116).
 fn buffered_preflight_parts(
     fr: &crate::diting_net::Response,
-) -> (
-    reqwest::header::HeaderMap,
-    String,
-    String,
-    u16,
-) {
+) -> (reqwest::header::HeaderMap, String, String, u16) {
     let mut headers = reqwest::header::HeaderMap::new();
     for (name, value) in &fr.headers {
         if let (Ok(n), Ok(v)) = (
@@ -241,10 +235,7 @@ pub(crate) async fn fetch_url_walk(
         // same request.
         let mut preflight_headers: HashMap<String, String> = HashMap::new();
         preflight_headers.insert("Origin".to_string(), page_origin.clone());
-        preflight_headers.insert(
-            "Access-Control-Request-Method".to_string(),
-            method.clone(),
-        );
+        preflight_headers.insert("Access-Control-Request-Method".to_string(), method.clone());
         if !unsafe_header_names.is_empty() {
             preflight_headers.insert(
                 "Access-Control-Request-Headers".to_string(),
@@ -333,13 +324,13 @@ pub(crate) async fn fetch_url_walk(
                                     None => format!("CORS preflight failed: {e}"),
                                 };
                                 deps.failures.push(FetchFailure {
-                                        url: url.clone(),
-                                        method: method.clone(),
-                                        reason: error.clone(),
-                                        final_url: url.clone(),
-                                        redirects: Vec::new(),
-                                        started: deps.started_unix,
-                                    });
+                                    url: url.clone(),
+                                    method: method.clone(),
+                                    reason: error.clone(),
+                                    final_url: url.clone(),
+                                    redirects: Vec::new(),
+                                    started: deps.started_unix,
+                                });
                                 return Err(deno_error::JsErrorBox::generic(error));
                             }
                         }
@@ -372,7 +363,12 @@ pub(crate) async fn fetch_url_walk(
                 preflight_status
             )));
         }
-        if !cors_response_allows(credentials, &page_origin, &allowed_origin, &allow_credentials) {
+        if !cors_response_allows(
+            credentials,
+            &page_origin,
+            &allowed_origin,
+            &allow_credentials,
+        ) {
             return Err(reject_preflight(format!(
                 "CORS preflight: Origin '{}' not allowed by Access-Control-Allow-Origin '{}'",
                 page_origin, allowed_origin
@@ -383,20 +379,14 @@ pub(crate) async fn fetch_url_walk(
         // headers — a server that allows the origin but never listed the
         // method/headers does not consent to this request (obscura "enforce
         // CORS preflight permissions" fix, 04f0475).
-        let allowed_methods = parse_cors_header_list(
-            &pf_headers,
-            "access-control-allow-methods",
-        )
-        .ok_or_else(|| {
+        let allowed_methods = parse_cors_header_list(&pf_headers, "access-control-allow-methods")
+            .ok_or_else(|| {
             reject_preflight(
                 "CORS preflight returned an invalid Access-Control-Allow-Methods value".to_string(),
             )
         })?;
-        let allowed_headers = parse_cors_header_list(
-            &pf_headers,
-            "access-control-allow-headers",
-        )
-        .ok_or_else(|| {
+        let allowed_headers = parse_cors_header_list(&pf_headers, "access-control-allow-headers")
+            .ok_or_else(|| {
             reject_preflight(
                 "CORS preflight returned an invalid Access-Control-Allow-Headers value".to_string(),
             )
@@ -471,7 +461,8 @@ pub(crate) async fn fetch_url_walk(
                 .map(|(k, v)| (k.to_lowercase(), v.clone()))
                 .collect();
             let info = crate::diting_net::RequestInfo {
-                url: url::Url::parse(&current_url).unwrap_or_else(|_| url::Url::parse("about:blank").unwrap()),
+                url: url::Url::parse(&current_url)
+                    .unwrap_or_else(|_| url::Url::parse("about:blank").unwrap()),
                 method: current_method.to_string(),
                 headers: sent_headers,
                 resource_type: crate::diting_net::ResourceType::Fetch,
@@ -490,8 +481,8 @@ pub(crate) async fn fetch_url_walk(
         let current_is_cross_origin = request_origin(&current_url)
             .map(|o| o != page_origin)
             .unwrap_or(false);
-        let method_needs_origin = current_method != reqwest::Method::GET
-            && current_method != reqwest::Method::HEAD;
+        let method_needs_origin =
+            current_method != reqwest::Method::GET && current_method != reqwest::Method::HEAD;
         if method_needs_origin || current_is_cross_origin {
             req = req.header("Origin", &page_origin);
         }
@@ -569,7 +560,11 @@ pub(crate) async fn fetch_url_walk(
             Some(&fetch_initiator),
             &url::Url::parse(&current_url).unwrap_or_else(|_| fetch_initiator.clone()),
         );
-        let sec_fetch_mode = if mode.is_empty() { "cors" } else { mode.as_str() };
+        let sec_fetch_mode = if mode.is_empty() {
+            "cors"
+        } else {
+            mode.as_str()
+        };
         for (name, value) in [
             ("sec-fetch-site", sec_fetch_site.to_string()),
             ("sec-fetch-mode", sec_fetch_mode.to_string()),
@@ -585,7 +580,9 @@ pub(crate) async fn fetch_url_walk(
         // strict-origin-when-cross-origin trims per hop like client.rs.
         // Domain-whitelist APIs (e.g. AMap keys bound to a domain) reject
         // bare requests. Explicit Referer in fetch init still wins.
-        if !custom_headers.keys().any(|k| k.eq_ignore_ascii_case("referer"))
+        if !custom_headers
+            .keys()
+            .any(|k| k.eq_ignore_ascii_case("referer"))
             && (!document_url.is_empty() || referrer_init != "about:client")
         {
             if let Ok(target) = Url::parse(&current_url) {
@@ -664,9 +661,7 @@ pub(crate) async fn fetch_url_walk(
         if !header_present(&hop_headers, "referer")
             && (!document_url.is_empty() || referrer_init != "about:client")
         {
-            if let (Ok(target), Ok(doc)) =
-                (Url::parse(&current_url), Url::parse(&document_url))
-            {
+            if let (Ok(target), Ok(doc)) = (Url::parse(&current_url), Url::parse(&document_url)) {
                 let ref_val = fetch_referer(&referrer_policy, &referrer_init, &doc, &target);
                 if !ref_val.is_empty() {
                     hop_headers.insert("Referer".into(), ref_val);
@@ -697,8 +692,7 @@ pub(crate) async fn fetch_url_walk(
         // next navigation's realm swap never reached any of them and the
         // page's counter leaked +1, permanently disarming the settle fast
         // paths for the session.
-        let _in_flight =
-            crate::diting_net::client::InFlightDecrement(in_flight.clone());
+        let _in_flight = crate::diting_net::client::InFlightDecrement(in_flight.clone());
         // #116: register the hop so a hung scripted request is observable
         // while it hangs (fetch/XHR promises that never settle read on the
         // surface as a silent EVAL_TIMEOUT). Dropped — i.e. removed — on
@@ -756,8 +750,7 @@ pub(crate) async fn fetch_url_walk(
                 // url-only chain) so the network face reports the wander
                 // on the stealth build too, not just the final URL.
                 redirect_hops.extend(buffered.redirect_hops.iter().cloned());
-                redirect_chain
-                    .extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
+                redirect_chain.extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
                 break OpFetchOutcome::Buffered(buffered);
             }
             Some(Err(_)) => {
@@ -818,8 +811,7 @@ pub(crate) async fn fetch_url_walk(
                         // #231: same adoption for the legacy-TLS fallback —
                         // its redirects were walked client-side as well.
                         redirect_hops.extend(buffered.redirect_hops.iter().cloned());
-                        redirect_chain
-                            .extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
+                        redirect_chain.extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
                         break OpFetchOutcome::Buffered(buffered);
                     }
                     Some(Err(fallback_err)) => {
@@ -831,7 +823,7 @@ pub(crate) async fn fetch_url_walk(
                             redirects: redirect_hops.clone(),
                             started: deps.started_unix,
                         });
-                        return Err(deno_error::JsErrorBox::generic(fallback_err.to_string()))
+                        return Err(deno_error::JsErrorBox::generic(fallback_err.to_string()));
                     }
                     None => {
                         deps.failures.push(FetchFailure {
@@ -842,7 +834,7 @@ pub(crate) async fn fetch_url_walk(
                             redirects: redirect_hops.clone(),
                             started: deps.started_unix,
                         });
-                        return Err(deno_error::JsErrorBox::generic(e.to_string()))
+                        return Err(deno_error::JsErrorBox::generic(e.to_string()));
                     }
                 }
             }
@@ -1046,8 +1038,7 @@ pub(crate) async fn fetch_url_walk(
     // from the real thing, so the page's catch/toast/retry paths never run
     // (the doudian broken-pipe retries completed as exactly this shape).
     if status == 0 {
-        let error =
-            "request blocked or the transport produced no response (status 0)".to_string();
+        let error = "request blocked or the transport produced no response (status 0)".to_string();
         deps.failures.push(FetchFailure {
             url: url.clone(),
             method: current_method.as_str().to_string(),
@@ -1100,16 +1091,19 @@ pub(crate) async fn fetch_url_walk(
             let error = if credentials == FetchCredentials::Include {
                 format!("CORS error: credentialed request requires Access-Control-Allow-Origin '{}' and Access-Control-Allow-Credentials 'true'{}", page_origin, redirect_note)
             } else {
-                format!("CORS error: Origin '{}' not in Access-Control-Allow-Origin '{}'{}", page_origin, allowed, redirect_note)
+                format!(
+                    "CORS error: Origin '{}' not in Access-Control-Allow-Origin '{}'{}",
+                    page_origin, allowed, redirect_note
+                )
             };
             deps.failures.push(FetchFailure {
-                    url: url.clone(),
-                    method: current_method.as_str().to_string(),
-                    reason: error.clone(),
-                    final_url: current_url.clone(),
-                    redirects: redirect_hops.clone(),
-                    started: deps.started_unix,
-                });
+                url: url.clone(),
+                method: current_method.as_str().to_string(),
+                reason: error.clone(),
+                final_url: current_url.clone(),
+                redirects: redirect_hops.clone(),
+                started: deps.started_unix,
+            });
             return Ok(FetchWalkOutcome {
                 json: serde_json::json!({
                     "status": 0,

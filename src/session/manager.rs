@@ -10,19 +10,17 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
-use super::commands::{
-    ScrollDirection, SessionCommand, SessionListEntry, SessionNavResponse,
-};
+use super::commands::{ScrollDirection, SessionCommand, SessionListEntry, SessionNavResponse};
 use super::interact::{
-    DOM_MEDIA_SCRIPT, click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index,
-    merge_dom_candidates, set_files_by_selector,
+    click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index, merge_dom_candidates,
+    set_files_by_selector, DOM_MEDIA_SCRIPT,
 };
+use super::record::{inject_storage_js, RecordedAction};
 use super::snapshot::extract_snapshot;
-use super::record::{RecordedAction, inject_storage_js};
 use super::state::{
-    BrowserSession, DormantSession, NavFrameShared, SessionError, SnapshotStore, SESSION_COUNTER,
-    PER_SESSION_FLUSH_BUDGET, SESSION_TIMEOUT, SHUTDOWN_FLUSH_BUDGET, SNAPSHOT_MAX_AGE_SECS,
-    drain_console,
+    drain_console, BrowserSession, DormantSession, NavFrameShared, SessionError, SnapshotStore,
+    PER_SESSION_FLUSH_BUDGET, SESSION_COUNTER, SESSION_TIMEOUT, SHUTDOWN_FLUSH_BUDGET,
+    SNAPSHOT_MAX_AGE_SECS,
 };
 
 // Session manager
@@ -58,10 +56,7 @@ pub static SESSIONS: std::sync::LazyLock<tokio::sync::Mutex<SessionManager>> =
 /// [`SessionManager::dispatch`] runs inline). Multi-step orchestrators
 /// (create/clone, the account wizard, listings) still hold the lock — they
 /// interleave several calls against one consistent map.
-pub(crate) async fn send_command<T, E, F>(
-    session_id: &str,
-    make_cmd: F,
-) -> Result<T, SessionError>
+pub(crate) async fn send_command<T, E, F>(session_id: &str, make_cmd: F) -> Result<T, SessionError>
 where
     T: Send + 'static,
     E: Into<SessionError> + Send + 'static,
@@ -656,7 +651,6 @@ impl SessionManager {
             _ => {}
         }
     }
-
 
     /// Close and remove a session. Fire-and-forget; use [`Self::close_and_wait`]
     /// when the caller needs to know the session thread actually stopped.

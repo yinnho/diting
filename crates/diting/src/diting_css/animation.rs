@@ -16,7 +16,9 @@ pub(super) fn parse_keyframes_body(inner: &str) -> Option<Keyframes> {
         let offset = match sel.trim() {
             "from" => Some(0.0),
             "to" => Some(1.0),
-            s => s.strip_suffix('%').and_then(|n| n.trim().css_f32().map(|p| p / 100.0)),
+            s => s
+                .strip_suffix('%')
+                .and_then(|n| n.trim().css_f32().map(|p| p / 100.0)),
         };
         if let Some(offset) = offset.filter(|o| o.is_finite() && (0.0..=1.0).contains(o)) {
             let decls = split_declarations(body);
@@ -64,7 +66,11 @@ pub(super) fn parse_keyframes_body(inner: &str) -> Option<Keyframes> {
     if stops.is_empty() {
         return None;
     }
-    stops.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(std::cmp::Ordering::Equal));
+    stops.sort_by(|a, b| {
+        a.offset
+            .partial_cmp(&b.offset)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     Some(Keyframes { stops })
 }
 
@@ -100,8 +106,8 @@ pub(super) fn parse_animation_shorthand(v: &str) -> Option<AnimationSpec> {
             "ease-in-out" => easing = Some(Easing::CubicBezier(0.42, 0.0, 0.58, 1.0)),
             "forwards" | "both" => fill_forwards = true,
             "infinite" => iterations = f32::INFINITY,
-            "backwards" | "none" | "alternate" | "reverse"
-            | "alternate-reverse" | "running" | "paused" => {}
+            "backwards" | "none" | "alternate" | "reverse" | "alternate-reverse" | "running"
+            | "paused" => {}
             _ => {
                 if let Some(rest) = tok.strip_prefix("cubic-bezier(") {
                     let args: Vec<Option<f32>> = rest
@@ -129,7 +135,11 @@ pub(super) fn parse_animation_shorthand(v: &str) -> Option<AnimationSpec> {
                     // A bare number token is the iteration count (<number>,
                     // fractional legal); anything else identifier-shaped is
                     // the animation name.
-                    if tok.chars().next().is_some_and(|c| c.is_ascii_digit() || c == '.') {
+                    if tok
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_digit() || c == '.')
+                    {
                         if let Ok(n) = tok.parse::<f32>() {
                             if n.is_finite() && n >= 0.0 {
                                 iterations = n;

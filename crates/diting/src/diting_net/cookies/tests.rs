@@ -101,7 +101,8 @@ fn save_to_file_errors_when_parent_is_not_a_directory() {
     jar.set_cookie("session=abc; Path=/", &url);
 
     assert!(
-        jar.save_to_file(&blocker.join("cookie-store.json")).is_err(),
+        jar.save_to_file(&blocker.join("cookie-store.json"))
+            .is_err(),
         "unwritable store path must surface an error (obscura#855)"
     );
 }
@@ -159,8 +160,10 @@ fn document_cookie_still_overwrites_non_httponly_cookie() {
     jar.set_cookie_from_js("pref=new", &url);
 
     let header = jar.get_cookie_header(&url);
-    assert!(header.contains("pref=new") && !header.contains("old"),
-        "non-HttpOnly cookies keep their normal overwrite semantics: {header}");
+    assert!(
+        header.contains("pref=new") && !header.contains("old"),
+        "non-HttpOnly cookies keep their normal overwrite semantics: {header}"
+    );
 }
 
 #[test]
@@ -449,7 +452,10 @@ fn test_path_match_requires_slash_boundary() {
     let url = Url::parse("https://example.com/admin").unwrap();
     jar.set_cookie("a=1; Path=/admin", &url);
     let sibling = Url::parse("https://example.com/administrator").unwrap();
-    assert!(jar.get_cookie_header(&sibling).is_empty(), "Path=/admin must not leak to /administrator");
+    assert!(
+        jar.get_cookie_header(&sibling).is_empty(),
+        "Path=/admin must not leak to /administrator"
+    );
 }
 
 #[test]
@@ -460,7 +466,9 @@ fn test_unrelated_domain_attr_falls_back_to_host_only() {
     let url = Url::parse("https://sub.example.com/").unwrap();
     jar.set_cookie("evil=1; Domain=other.com", &url);
 
-    assert!(jar.get_cookie_header(&Url::parse("https://other.com/").unwrap()).is_empty());
+    assert!(jar
+        .get_cookie_header(&Url::parse("https://other.com/").unwrap())
+        .is_empty());
     // Falls back to host-only on the origin.
     assert!(jar.get_cookie_header(&url).contains("evil=1"));
 }
@@ -473,7 +481,10 @@ fn test_host_only_cookie_not_sent_to_subdomain() {
 
     assert!(jar.get_cookie_header(&apex).contains("h=1"));
     let sub = Url::parse("https://www.example.com/").unwrap();
-    assert!(jar.get_cookie_header(&sub).is_empty(), "host-only cookie must not leak to subdomains");
+    assert!(
+        jar.get_cookie_header(&sub).is_empty(),
+        "host-only cookie must not leak to subdomains"
+    );
 }
 
 #[test]
@@ -531,7 +542,11 @@ fn test_domain_matches_subdomain_without_leading_dot() {
     }]);
     let url = Url::parse("https://www.xiaohongshu.com/explore").unwrap();
     let header = jar.get_cookie_header(&url);
-    assert!(header.contains("session=abc"), "Cookie header was: '{}'", header);
+    assert!(
+        header.contains("session=abc"),
+        "Cookie header was: '{}'",
+        header
+    );
 }
 
 #[test]
@@ -539,22 +554,26 @@ fn test_cookie_from_file_load_then_send_in_request() {
     // Simulate what happens: load cookies from file → navigate → cookie should be in request
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("cookies.json");
-    
+
     // Write cookies like we exported from Chrome
     let cookies = serde_json::json!([
         {"name": "a1", "value": "testval", "domain": "xiaohongshu.com", "path": "/", "secure": false, "httpOnly": false},
         {"name": "web_session", "value": "sess123", "domain": "xiaohongshu.com", "path": "/", "secure": false, "httpOnly": true},
     ]);
     std::fs::write(&path, serde_json::to_string(&cookies).unwrap()).unwrap();
-    
+
     let jar = CookieJar::new();
     let count = jar.load_from_file(&path).unwrap();
     assert_eq!(count, 2, "Should load 2 cookies");
-    
+
     let url = Url::parse("https://www.xiaohongshu.com/explore").unwrap();
     let header = jar.get_cookie_header(&url);
     assert!(header.contains("a1=testval"), "Missing a1 in: '{}'", header);
-    assert!(header.contains("web_session=sess123"), "Missing web_session in: '{}'", header);
+    assert!(
+        header.contains("web_session=sess123"),
+        "Missing web_session in: '{}'",
+        header
+    );
 }
 
 // #69: Expires is untrusted header input — range-check before arithmetic.
@@ -579,10 +598,12 @@ fn test_parse_http_date_rejects_out_of_range_fields() {
 
 #[test]
 fn test_ip_literal_origin_never_widens_domain() {
-    let (domain, host_only) =
-        resolve_cookie_domain("192.168.1.100", Some("168.1.100")).unwrap();
+    let (domain, host_only) = resolve_cookie_domain("192.168.1.100", Some("168.1.100")).unwrap();
     assert_eq!(domain, "192.168.1.100");
-    assert!(host_only, "a Domain attribute on an IP host is ignored entirely");
+    assert!(
+        host_only,
+        "a Domain attribute on an IP host is ignored entirely"
+    );
 
     // Suffix strings must not match across unrelated IPs.
     assert!(!domain_matches("10.168.1.100", "168.1.100"));
@@ -725,7 +746,8 @@ fn test_secure_cookie_prefixes_unlock_on_loopback_http() {
     );
     jar.set_cookie_from_js("__Secure-sid=2; Secure", &local);
     assert!(
-        jar.get_js_visible_cookies(&local).contains("__Secure-sid=2"),
+        jar.get_js_visible_cookies(&local)
+            .contains("__Secure-sid=2"),
         "document.cookie can mint __Secure- on loopback http, as in Chrome"
     );
 
@@ -748,10 +770,7 @@ fn test_secure_cookie_prefixes_unlock_on_loopback_http() {
 fn cookie_trace_records_http_write_and_expiry_delete() {
     let jar = CookieJar::new();
     let url = Url::parse("https://fxg.example.com/hop2").unwrap();
-    jar.set_cookie(
-        "unb=REALTOKEN; Domain=example.com; Path=/; Secure",
-        &url,
-    );
+    jar.set_cookie("unb=REALTOKEN; Domain=example.com; Path=/; Secure", &url);
     // Different (name, domain) pair — a subdomain's host-only copy, the
     // taobao shape where host-only and domain-wide coexist.
     jar.set_cookie("unb=hostcopy; Path=/", &url);
@@ -774,10 +793,7 @@ fn cookie_trace_records_http_write_and_expiry_delete() {
     assert!(second.host_only, "no Domain attr = host-anchored row");
 
     // The deleting write: past Max-Age on the domain-wide pair.
-    jar.set_cookie(
-        "unb=x; Domain=example.com; Path=/; Max-Age=0",
-        &url,
-    );
+    jar.set_cookie("unb=x; Domain=example.com; Path=/; Max-Age=0", &url);
     let trace = jar.cookie_trace();
     assert_eq!(trace.len(), 3);
     let del = &trace[2];
@@ -850,15 +866,24 @@ fn same_site_send_gate_matches_chrome() {
     let jar = CookieJar::new();
     let u = |s: &str| Url::parse(s).unwrap();
     jar.set_cookie("lax1=v; SameSite=Lax", &u("https://everyhelp.taobao.com/"));
-    jar.set_cookie("strict1=v; SameSite=Strict", &u("https://everyhelp.taobao.com/"));
-    jar.set_cookie("none1=v; SameSite=None; Secure", &u("https://everyhelp.taobao.com/"));
+    jar.set_cookie(
+        "strict1=v; SameSite=Strict",
+        &u("https://everyhelp.taobao.com/"),
+    );
+    jar.set_cookie(
+        "none1=v; SameSite=None; Secure",
+        &u("https://everyhelp.taobao.com/"),
+    );
     jar.set_cookie("unset1=v", &u("https://everyhelp.taobao.com/"));
 
     let same = u("https://everyhelp.taobao.com/x");
     let sub_same = SendContext::subresource(false);
     let got = jar.get_cookie_header_for(&same, &sub_same);
     for name in ["lax1", "strict1", "none1", "unset1"] {
-        assert!(got.contains(&format!("{name}=")), "same-site subresource carries {name}: {got}");
+        assert!(
+            got.contains(&format!("{name}=")),
+            "same-site subresource carries {name}: {got}"
+        );
     }
 
     // Same target URL, but the initiating document is another site (say
@@ -866,7 +891,10 @@ fn same_site_send_gate_matches_chrome() {
     let sub_cross = SendContext::subresource(true);
     let got = jar.get_cookie_header_for(&same, &sub_cross);
     assert!(!got.contains("lax1") && !got.contains("strict1") && !got.contains("unset1"));
-    assert!(got.contains("none1="), "None rides cross-site subresources: {got}");
+    assert!(
+        got.contains("none1="),
+        "None rides cross-site subresources: {got}"
+    );
 }
 
 /// A cross-site top-level GET navigation is the one cross-site shape Lax
@@ -917,12 +945,22 @@ fn same_site_receive_gate_blocks_cross_site_subresource_sets() {
     );
     assert!(!jar.get_cookie_header(&same_site_origin).contains("fresh"));
 
-    jar.set_cookie_in_context("none1=v; SameSite=None", &same_site_origin, &sub_cross, "http");
+    jar.set_cookie_in_context(
+        "none1=v; SameSite=None",
+        &same_site_origin,
+        &sub_cross,
+        "http",
+    );
     assert!(
         !jar.get_cookie_header(&same_site_origin).contains("none1"),
         "None without Secure is refused in any context"
     );
 
-    jar.set_cookie_in_context("optin=v; SameSite=None; Secure", &same_site_origin, &sub_cross, "http");
+    jar.set_cookie_in_context(
+        "optin=v; SameSite=None; Secure",
+        &same_site_origin,
+        &sub_cross,
+        "http",
+    );
     assert!(jar.get_cookie_header(&same_site_origin).contains("optin="));
 }

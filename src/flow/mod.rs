@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::session::{
-    ScrollDirection, SessionCommand, SessionError, SessionManager, SESSIONS, send_command,
+    send_command, ScrollDirection, SessionCommand, SessionError, SessionManager, SESSIONS,
 };
 use tokio::sync::oneshot;
 
@@ -33,8 +33,8 @@ mod condition;
 mod resolve;
 
 pub use resolve::{
-    available_workflows, is_workflow_name, legacy_cwd_workflow_active,
-    provision_workflow_dir, resolve_flow_doc, workflow_dir,
+    available_workflows, is_workflow_name, legacy_cwd_workflow_active, provision_workflow_dir,
+    resolve_flow_doc, workflow_dir,
 };
 mod timing;
 use condition::{eval_condition, js_truthy, CONDITION_OPS};
@@ -94,20 +94,17 @@ pub fn recorded_to_flow(jsonl: &str) -> Value {
             // A chooser-mode recording (selector-less feed of the pending
             // file chooser) exports selector-less too — the replay re-feeds
             // whatever chooser the prior steps armed.
-            "set_files" => steps.push(step(
-                "set_files",
-                {
-                    let mut args = json!({
-                        "files": v["names"].as_array().map(|ns| {
-                            ns.iter().map(|n| json!({ "name": n })).collect::<Vec<_>>()
-                        }).unwrap_or_default(),
-                    });
-                    if let Some(sel) = v.get("selector").filter(|s| !s.is_null()) {
-                        args["selector"] = sel.clone();
-                    }
-                    args
-                },
-            )),
+            "set_files" => steps.push(step("set_files", {
+                let mut args = json!({
+                    "files": v["names"].as_array().map(|ns| {
+                        ns.iter().map(|n| json!({ "name": n })).collect::<Vec<_>>()
+                    }).unwrap_or_default(),
+                });
+                if let Some(sel) = v.get("selector").filter(|s| !s.is_null()) {
+                    args["selector"] = sel.clone();
+                }
+                args
+            })),
             "scroll" => steps.push(step(
                 "scroll",
                 json!({ "direction": v["direction"], "amount": v["amount"] }),
@@ -292,7 +289,9 @@ fn opt_u32(a: &Value, key: &str) -> Option<u32> {
 fn validate_control_flow(steps: &[Value]) -> Result<HashMap<String, usize>, String> {
     let mut ids: HashMap<String, usize> = HashMap::new();
     for (i, s) in steps.iter().enumerate() {
-        let Some(id) = s.get("id").and_then(Value::as_str) else { continue };
+        let Some(id) = s.get("id").and_then(Value::as_str) else {
+            continue;
+        };
         if id.is_empty() {
             return Err(format!("step {i}: id must be a non-empty string"));
         }
@@ -332,7 +331,9 @@ fn validate_control_flow(steps: &[Value]) -> Result<HashMap<String, usize>, Stri
             .and_then(Value::as_str)
             .is_none_or(|s| s.is_empty())
         {
-            return Err(format!("branch step {i}: when.var (a dotted var path) is required"));
+            return Err(format!(
+                "branch step {i}: when.var (a dotted var path) is required"
+            ));
         }
         let is = when
             .get("is")
@@ -692,9 +693,7 @@ async fn exec_http_step(a: &Value, vars: &Map<String, Value>) -> Result<Value, S
     use std::str::FromStr;
 
     let mut raw = a.clone();
-    let json_arg = raw
-        .as_object_mut()
-        .and_then(|m| m.remove("json"));
+    let json_arg = raw.as_object_mut().and_then(|m| m.remove("json"));
     let text = substitute(&raw, vars).map_err(|e| format!("http: {e}"))?;
 
     let url_str = str_arg(&text, "url", "http")?;
@@ -763,7 +762,8 @@ async fn exec_http_step(a: &Value, vars: &Map<String, Value>) -> Result<Value, S
                 .get("content_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("application/octet-stream");
-            let mut head = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"");
+            let mut head =
+                format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"");
             if let Some(f) = p.get("filename").and_then(|v| v.as_str()) {
                 head.push_str(&format!("; filename=\"{f}\""));
             }
@@ -1139,14 +1139,16 @@ async fn run_flow_inner(
             // FRESH cookie jar per run. A reused jar carries the previous scan's
             // SSO cookies, and a QR scanned into it writes cookies without the
             // page ever navigating (抖店 shows it as "scanned, nothing happens").
-            let account_name = c
-                .get("account")
-                .and_then(|v| v.as_str())
-                .map(|n| n.replace("{ts}", &std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0)
-                    .to_string()));
+            let account_name = c.get("account").and_then(|v| v.as_str()).map(|n| {
+                n.replace(
+                    "{ts}",
+                    &std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0)
+                        .to_string(),
+                )
+            });
             let account = match account_name.as_deref() {
                 Some(name) => match crate::account::validate_name(name) {
                     Ok(()) => Some((crate::store::REST_OWNER.to_string(), name.to_string())),
@@ -1165,9 +1167,8 @@ async fn run_flow_inner(
                 None => None,
             };
             if let Some((owner, name)) = &account {
-                let hint = crate::account::resolve_ua_hint(
-                    c.get("persona_ua").and_then(|v| v.as_str()),
-                );
+                let hint =
+                    crate::account::resolve_ua_hint(c.get("persona_ua").and_then(|v| v.as_str()));
                 let _ = crate::account::persona_for(owner, name, hint.as_deref());
             }
             mgr.create(

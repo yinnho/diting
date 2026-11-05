@@ -4,7 +4,11 @@
 /// `None` when any reference is unresolvable (no such property AND no
 /// usable fallback) — the caller then drops the declaration (IACVT).
 /// Depth-capped to break `--a: var(--b); --b: var(--a)` cycles.
-pub(super) fn substitute_vars(value: &str, custom: &std::collections::HashMap<String, String>, depth: usize) -> Option<String> {
+pub(super) fn substitute_vars(
+    value: &str,
+    custom: &std::collections::HashMap<String, String>,
+    depth: usize,
+) -> Option<String> {
     const MAX_DEPTH: usize = 8;
     if depth > MAX_DEPTH {
         return None;

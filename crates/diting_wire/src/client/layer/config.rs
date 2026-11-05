@@ -3,10 +3,10 @@ use std::{
     task::{Context, Poll},
 };
 
+use diting_wire_proto::{http1::Http1Options, http2::Http2Options};
 use futures_util::future::{self, Either, Ready};
 use http::{HeaderMap, Request, Response, Version};
 use tower::{Layer, Service};
-use diting_wire_proto::{http1::Http1Options, http2::Http2Options};
 
 use crate::{
     Error, config::RequestConfig, conn::net::SocketBindOptions, ext::UriExt, group::Group,

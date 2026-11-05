@@ -350,11 +350,11 @@ pub mod http1 {
 pub mod http2 {
     //! HTTP/2 protocol implementation and utilities.
 
+    pub use diting_wire_proto::http2::{Http2Options, Http2OptionsBuilder};
     pub use http2::frame::{
         Priorities, PrioritiesBuilder, Priority, PseudoId, PseudoOrder, Setting, SettingId,
         SettingsOrder, SettingsOrderBuilder, StreamDependency, StreamId,
     };
-    pub use diting_wire_proto::http2::{Http2Options, Http2OptionsBuilder};
 }
 
 pub use http::{Method, StatusCode, Uri, Version};

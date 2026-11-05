@@ -13,6 +13,13 @@ use std::{
 };
 
 use bytes::Bytes;
+use diting_wire_proto::{
+    body::Incoming,
+    conn::{self, TrySendError as ConnTrySendError},
+    http1::Http1Options,
+    http2::Http2Options,
+    rt::Executor as _,
+};
 use futures_util::future::{self, BoxFuture, Either, FutureExt, TryFutureExt};
 use http::{
     HeaderValue, Method, Request, Response, Uri, Version,
@@ -23,13 +30,6 @@ use http_body::Body;
 use pool::Ver;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tower::{BoxError, util::Oneshot};
-use diting_wire_proto::{
-    body::Incoming,
-    conn::{self, TrySendError as ConnTrySendError},
-    http1::Http1Options,
-    http2::Http2Options,
-    rt::Executor as _,
-};
 #[cfg(feature = "cookies")]
 use {
     crate::cookie::{CookieStore, Cookies},

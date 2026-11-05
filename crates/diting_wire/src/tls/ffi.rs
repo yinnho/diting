@@ -19,5 +19,9 @@ pub(crate) fn set_requested_trust_anchors(
     let ok = unsafe {
         btls_sys::SSL_CTX_set1_requested_trust_anchors(connector.as_ptr(), ids.as_ptr(), ids.len())
     };
-    if ok == 1 { Ok(()) } else { Err(ErrorStack::get()) }
+    if ok == 1 {
+        Ok(())
+    } else {
+        Err(ErrorStack::get())
+    }
 }

@@ -148,7 +148,9 @@ impl SessionManager {
             // Same origin gate as the clone path (issue #141): replay only
             // onto the site the snapshot was taken from.
             let mut blob = serde_json::json!({ "local_storage": ls, "session_storage": ss });
-            if let Some(o) = crate::account::url_origin(snap["url"].as_str().unwrap_or("about:blank")) {
+            if let Some(o) =
+                crate::account::url_origin(snap["url"].as_str().unwrap_or("about:blank"))
+            {
                 blob["origin"] = Value::String(o);
             }
             Some(blob)
@@ -197,10 +199,7 @@ impl SessionManager {
                 });
             }
         }
-        tracing::info!(
-            session = session_id,
-            "session revived from snapshot"
-        );
+        tracing::info!(session = session_id, "session revived from snapshot");
         true
     }
 
@@ -423,7 +422,11 @@ mod restore_mode_tests {
         }
         for v in ["skip-keepalive", "non-keepalive", "NO-KEEPALIVE"] {
             std::env::set_var("DITING_RESTORE_SESSIONS", v);
-            assert_eq!(eager_restore_mode(), EagerRestoreMode::SkipKeepalive, "{v:?}");
+            assert_eq!(
+                eager_restore_mode(),
+                EagerRestoreMode::SkipKeepalive,
+                "{v:?}"
+            );
         }
         std::env::remove_var("DITING_RESTORE_SESSIONS");
     }

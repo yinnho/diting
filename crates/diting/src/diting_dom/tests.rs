@@ -65,9 +65,15 @@ mod tree_tests {
     fn test_multiple_children() {
         let tree = DomTree::new();
         let doc = tree.document();
-        let c1 = tree.new_node(NodeData::Text { contents: "a".into() });
-        let c2 = tree.new_node(NodeData::Text { contents: "b".into() });
-        let c3 = tree.new_node(NodeData::Text { contents: "c".into() });
+        let c1 = tree.new_node(NodeData::Text {
+            contents: "a".into(),
+        });
+        let c2 = tree.new_node(NodeData::Text {
+            contents: "b".into(),
+        });
+        let c3 = tree.new_node(NodeData::Text {
+            contents: "c".into(),
+        });
         tree.append_child(doc, c1);
         tree.append_child(doc, c2);
         tree.append_child(doc, c3);
@@ -79,8 +85,12 @@ mod tree_tests {
     fn test_detach() {
         let tree = DomTree::new();
         let doc = tree.document();
-        let c1 = tree.new_node(NodeData::Text { contents: "a".into() });
-        let c2 = tree.new_node(NodeData::Text { contents: "b".into() });
+        let c1 = tree.new_node(NodeData::Text {
+            contents: "a".into(),
+        });
+        let c2 = tree.new_node(NodeData::Text {
+            contents: "b".into(),
+        });
         tree.append_child(doc, c1);
         tree.append_child(doc, c2);
 
@@ -92,9 +102,15 @@ mod tree_tests {
     fn test_insert_before() {
         let tree = DomTree::new();
         let doc = tree.document();
-        let c1 = tree.new_node(NodeData::Text { contents: "a".into() });
-        let c2 = tree.new_node(NodeData::Text { contents: "b".into() });
-        let c3 = tree.new_node(NodeData::Text { contents: "c".into() });
+        let c1 = tree.new_node(NodeData::Text {
+            contents: "a".into(),
+        });
+        let c2 = tree.new_node(NodeData::Text {
+            contents: "b".into(),
+        });
+        let c3 = tree.new_node(NodeData::Text {
+            contents: "c".into(),
+        });
         tree.append_child(doc, c1);
         tree.append_child(doc, c3);
         tree.insert_before(c3, c2);
@@ -117,8 +133,12 @@ mod tree_tests {
         });
         tree.append_child(doc, div);
 
-        let t1 = tree.new_node(NodeData::Text { contents: "Hello ".into() });
-        let t2 = tree.new_node(NodeData::Text { contents: "World".into() });
+        let t1 = tree.new_node(NodeData::Text {
+            contents: "Hello ".into(),
+        });
+        let t2 = tree.new_node(NodeData::Text {
+            contents: "World".into(),
+        });
         tree.append_child(div, t1);
         tree.append_child(div, t2);
 
@@ -178,12 +198,20 @@ mod tree_tests {
 
         // append_child: html is an ancestor of div -> must be a no-op, no cycle.
         tree.append_child(div, html);
-        assert_eq!(tree.descendants(doc).len(), before, "cyclic append must be a no-op");
+        assert_eq!(
+            tree.descendants(doc).len(),
+            before,
+            "cyclic append must be a no-op"
+        );
         assert_eq!(tree.descendants(div).len(), 0, "div must stay a leaf");
 
         // insert_before: html is an ancestor of body (div's parent) -> no-op.
         tree.insert_before(div, html);
-        assert_eq!(tree.descendants(doc).len(), before, "cyclic insert_before must be a no-op");
+        assert_eq!(
+            tree.descendants(doc).len(),
+            before,
+            "cyclic insert_before must be a no-op"
+        );
 
         // self-append / self-insert remain no-ops (existing guards).
         tree.append_child(div, div);
@@ -250,7 +278,9 @@ mod tree_tests {
             live_indeterminate: false,
         });
         tree.append_child(doc, div);
-        let text = tree.new_node(NodeData::Text { contents: "hi".into() });
+        let text = tree.new_node(NodeData::Text {
+            contents: "hi".into(),
+        });
         tree.append_child(div, text);
 
         assert_eq!(tree.len(), 3);
@@ -265,14 +295,20 @@ mod tree_tests {
         // new_node() calls could be handed the SAME NodeId (aliasing).
         let tree = DomTree::new();
         let doc = tree.document();
-        let a = tree.new_node(NodeData::Text { contents: "a".into() });
+        let a = tree.new_node(NodeData::Text {
+            contents: "a".into(),
+        });
         tree.append_child(doc, a);
 
         tree.remove(a);
         tree.remove(a); // must not free the slot a second time
 
-        let b = tree.new_node(NodeData::Text { contents: "b".into() });
-        let c = tree.new_node(NodeData::Text { contents: "c".into() });
+        let b = tree.new_node(NodeData::Text {
+            contents: "b".into(),
+        });
+        let c = tree.new_node(NodeData::Text {
+            contents: "c".into(),
+        });
         assert_ne!(b, c, "double-free handed the same slot to two live nodes");
         assert_eq!(b, a, "first new node should reuse the freed slot");
     }
@@ -287,7 +323,11 @@ mod tree_tests {
         let tree = DomTree::new();
         let doc = tree.document();
         let kids: Vec<_> = (0..300)
-            .map(|_| tree.new_node(NodeData::Text { contents: "x".into() }))
+            .map(|_| {
+                tree.new_node(NodeData::Text {
+                    contents: "x".into(),
+                })
+            })
             .collect();
         for k in &kids {
             tree.append_child(doc, *k);
@@ -300,7 +340,9 @@ mod tree_tests {
         assert_ne!(before, after, "256 pure removals must move the epoch");
         // And monotonicity is not just non-equality: fresh slots move it too.
         let mid = tree.epoch();
-        tree.new_node(NodeData::Text { contents: "y".into() });
+        tree.new_node(NodeData::Text {
+            contents: "y".into(),
+        });
         assert!(tree.epoch() > mid, "allocation must move the epoch forward");
     }
 
@@ -311,8 +353,12 @@ mod tree_tests {
         // a bounded result instead of looping forever.
         let tree = DomTree::new();
         let doc = tree.document();
-        let a = tree.new_node(NodeData::Text { contents: "a".into() });
-        let b = tree.new_node(NodeData::Text { contents: "b".into() });
+        let a = tree.new_node(NodeData::Text {
+            contents: "a".into(),
+        });
+        let b = tree.new_node(NodeData::Text {
+            contents: "b".into(),
+        });
         tree.append_child(doc, a);
         tree.append_child(doc, b);
 
@@ -322,13 +368,21 @@ mod tree_tests {
         tree.with_node_mut(b, |n| n.next_sibling = Some(a));
         tree.with_node_mut(a, |n| n.prev_sibling = Some(b));
         let kids = tree.children(doc);
-        assert!(kids.len() <= tree.node_slot_count() + 1, "children() ran away: {}", kids.len());
+        assert!(
+            kids.len() <= tree.node_slot_count() + 1,
+            "children() ran away: {}",
+            kids.len()
+        );
 
         // Parent cycle: a.parent = b, b.parent = a.
         tree.with_node_mut(a, |n| n.parent = Some(b));
         tree.with_node_mut(b, |n| n.parent = Some(a));
         let anc = tree.ancestors(a);
-        assert!(anc.len() <= tree.node_slot_count() + 1, "ancestors() ran away: {}", anc.len());
+        assert!(
+            anc.len() <= tree.node_slot_count() + 1,
+            "ancestors() ran away: {}",
+            anc.len()
+        );
     }
 
     #[test]
@@ -336,15 +390,18 @@ mod tree_tests {
         // A parsed namespaced attribute stores prefix separately from the local
         // name (xlink:href -> prefix="xlink", local="href"). set_attribute must
         // match on the qualified name, or it silently pushes a duplicate.
-        let tree = crate::diting_dom::tree_sink::parse_html(
-            r##"<svg><use xlink:href="#icon"/></svg>"##,
-        );
+        let tree =
+            crate::diting_dom::tree_sink::parse_html(r##"<svg><use xlink:href="#icon"/></svg>"##);
         let use_el = tree.query_selector("use").unwrap().unwrap();
 
         tree.with_node_mut(use_el, |n| n.set_attribute("xlink:href", "#other".into()));
         tree.with_node(use_el, |n| {
             let attrs = n.attrs().unwrap();
-            assert_eq!(attrs.len(), 1, "qualified-name set must update in place, got {attrs:?}");
+            assert_eq!(
+                attrs.len(),
+                1,
+                "qualified-name set must update in place, got {attrs:?}"
+            );
             assert_eq!(n.get_attribute("xlink:href"), Some("#other"));
         });
 
@@ -376,8 +433,15 @@ mod tree_tests {
             n.set_attribute_ns("http://www.w3.org/1999/xlink", "xlink:href", "#a".into())
         });
         tree.with_node(el, |n| {
-            assert_eq!(n.get_attribute_ns("http://www.w3.org/1999/xlink", "href"), Some("#a"));
-            assert_eq!(n.get_attribute("xlink:href"), Some("#a"), "qualified-name lookup must find ns-set attrs");
+            assert_eq!(
+                n.get_attribute_ns("http://www.w3.org/1999/xlink", "href"),
+                Some("#a")
+            );
+            assert_eq!(
+                n.get_attribute("xlink:href"),
+                Some("#a"),
+                "qualified-name lookup must find ns-set attrs"
+            );
         });
 
         // Update in place via NS API.
@@ -389,7 +453,9 @@ mod tree_tests {
             assert_eq!(n.get_attribute("xlink:href"), Some("#b"));
         });
 
-        tree.with_node_mut(el, |n| n.remove_attribute_ns("http://www.w3.org/1999/xlink", "href"));
+        tree.with_node_mut(el, |n| {
+            n.remove_attribute_ns("http://www.w3.org/1999/xlink", "href")
+        });
         tree.with_node(el, |n| assert!(n.attrs().unwrap().is_empty()));
     }
 
@@ -419,7 +485,9 @@ mod tree_tests {
         let imported_tmpl = dest.query_selector("template").unwrap().unwrap();
         let contents = dest
             .with_node(imported_tmpl, |n| match &n.data {
-                NodeData::Element { template_contents, .. } => *template_contents,
+                NodeData::Element {
+                    template_contents, ..
+                } => *template_contents,
                 _ => None,
             })
             .flatten()
@@ -428,7 +496,8 @@ mod tree_tests {
         let text = dest.text_content(contents);
         assert_eq!(text, "tmpl");
         assert!(
-            dest.with_node(contents, |n| n.is_document()).unwrap_or(false),
+            dest.with_node(contents, |n| n.is_document())
+                .unwrap_or(false),
             "contents must be a Document node in the destination tree"
         );
     }
@@ -448,7 +517,11 @@ mod tree_tests {
         let text = tree.text_content(tree.document());
         assert_eq!(text, "x");
         let serialized = tree.outer_html(tree.document());
-        assert!(serialized.len() >= depth * 5, "serialized len {}", serialized.len());
+        assert!(
+            serialized.len() >= depth * 5,
+            "serialized len {}",
+            serialized.len()
+        );
     }
 
     #[test]
@@ -509,13 +582,15 @@ mod tree_tests {
         tree.append_child(host, named);
         tree.append_child(host, default_text);
 
-        let root = tree
-            .attach_shadow_root(host, ShadowRootMode::Open)
-            .unwrap();
+        let root = tree.attach_shadow_root(host, ShadowRootMode::Open).unwrap();
         let first_named = element(&tree, "slot");
-        tree.with_node_mut(first_named, |node| node.set_attribute("name", "title".into()));
+        tree.with_node_mut(first_named, |node| {
+            node.set_attribute("name", "title".into())
+        });
         let duplicate_named = element(&tree, "slot");
-        tree.with_node_mut(duplicate_named, |node| node.set_attribute("name", "title".into()));
+        tree.with_node_mut(duplicate_named, |node| {
+            node.set_attribute("name", "title".into())
+        });
         let fallback = element(&tree, "b");
         tree.append_child(duplicate_named, fallback);
         let default_slot = element(&tree, "slot");
@@ -538,9 +613,7 @@ mod tree_tests {
         let document = tree.document();
         let host = element(&tree, "x-card");
         tree.append_child(document, host);
-        let root = tree
-            .attach_shadow_root(host, ShadowRootMode::Open)
-            .unwrap();
+        let root = tree.attach_shadow_root(host, ShadowRootMode::Open).unwrap();
 
         // The shadow element is created first, so it owns the best-effort
         // global id-index entry. Public document lookup still has to recover
@@ -559,9 +632,7 @@ mod tree_tests {
         let document = tree.document();
         let host = element(&tree, "x-card");
         tree.append_child(document, host);
-        let root = tree
-            .attach_shadow_root(host, ShadowRootMode::Open)
-            .unwrap();
+        let root = tree.attach_shadow_root(host, ShadowRootMode::Open).unwrap();
         let shadow_child = element(&tree, "span");
         tree.append_child(root, shadow_child);
 
@@ -583,9 +654,7 @@ mod tree_tests {
         let tree = DomTree::new();
         let host = element(&tree, "x-card");
         tree.append_child(tree.document(), host);
-        let root = tree
-            .attach_shadow_root(host, ShadowRootMode::Open)
-            .unwrap();
+        let root = tree.attach_shadow_root(host, ShadowRootMode::Open).unwrap();
         let shadow_host = element(&tree, "nested-card");
         tree.append_child(root, shadow_host);
         let nested_root = tree
@@ -614,456 +683,492 @@ mod tree_tests {
         let host = element(&tree, "x-card");
         let light = element(&tree, "span");
         tree.append_child(host, light);
-        let root = tree
-            .attach_shadow_root(host, ShadowRootMode::Open)
-            .unwrap();
+        let root = tree.attach_shadow_root(host, ShadowRootMode::Open).unwrap();
         tree.append_child(root, element(&tree, "button"));
 
         assert_eq!(tree.clone_node(root, true), None);
-        let clone = tree.clone_node(host, true).expect("host itself is clonable");
+        let clone = tree
+            .clone_node(host, true)
+            .expect("host itself is clonable");
         assert_eq!(tree.shadow_root(clone), None);
         assert_eq!(tree.children(clone).len(), 1);
     }
 
-mod selector_tests {
+    mod selector_tests {
 
-    use crate::diting_dom::tree_sink::parse_html;
+        use crate::diting_dom::tree_sink::parse_html;
 
-    #[test]
-    fn test_query_selector_tag() {
-        let tree = parse_html("<html><body><h1>Title</h1><p>Text</p></body></html>");
-        let result = tree.query_selector("h1").unwrap();
-        assert!(result.is_some());
-        let node = tree.get_node(result.unwrap()).unwrap();
-        assert_eq!(node.as_element().unwrap().local.as_str(), "h1");
-    }
+        #[test]
+        fn test_query_selector_tag() {
+            let tree = parse_html("<html><body><h1>Title</h1><p>Text</p></body></html>");
+            let result = tree.query_selector("h1").unwrap();
+            assert!(result.is_some());
+            let node = tree.get_node(result.unwrap()).unwrap();
+            assert_eq!(node.as_element().unwrap().local.as_str(), "h1");
+        }
 
-    #[test]
-    fn test_query_selector_class() {
-        let tree =
-            parse_html(r#"<div class="foo bar">Content</div><div class="baz">Other</div>"#);
-        let result = tree.query_selector(".foo").unwrap();
-        assert!(result.is_some());
-        let node = tree.get_node(result.unwrap()).unwrap();
-        assert_eq!(node.get_attribute("class"), Some("foo bar"));
-    }
+        #[test]
+        fn test_query_selector_class() {
+            let tree =
+                parse_html(r#"<div class="foo bar">Content</div><div class="baz">Other</div>"#);
+            let result = tree.query_selector(".foo").unwrap();
+            assert!(result.is_some());
+            let node = tree.get_node(result.unwrap()).unwrap();
+            assert_eq!(node.get_attribute("class"), Some("foo bar"));
+        }
 
-    #[test]
-    fn test_query_selector_id() {
-        let tree = parse_html(r#"<div id="main">Content</div>"#);
-        let result = tree.query_selector("#main").unwrap();
-        assert!(result.is_some());
-    }
+        #[test]
+        fn test_query_selector_id() {
+            let tree = parse_html(r#"<div id="main">Content</div>"#);
+            let result = tree.query_selector("#main").unwrap();
+            assert!(result.is_some());
+        }
 
-    #[test]
-    fn test_query_selector_all() {
-        let tree = parse_html("<ul><li>1</li><li>2</li><li>3</li></ul>");
-        let results = tree.query_selector_all("li").unwrap();
-        assert_eq!(results.len(), 3);
-    }
+        #[test]
+        fn test_query_selector_all() {
+            let tree = parse_html("<ul><li>1</li><li>2</li><li>3</li></ul>");
+            let results = tree.query_selector_all("li").unwrap();
+            assert_eq!(results.len(), 3);
+        }
 
-    #[test]
-    fn test_query_selector_descendant() {
-        let tree =
-            parse_html(r#"<div id="outer"><div id="inner"><span>Target</span></div></div>"#);
-        let result = tree.query_selector("#outer span").unwrap();
-        assert!(result.is_some());
-        let node = tree.get_node(result.unwrap()).unwrap();
-        assert_eq!(node.as_element().unwrap().local.as_str(), "span");
-    }
+        #[test]
+        fn test_query_selector_descendant() {
+            let tree =
+                parse_html(r#"<div id="outer"><div id="inner"><span>Target</span></div></div>"#);
+            let result = tree.query_selector("#outer span").unwrap();
+            assert!(result.is_some());
+            let node = tree.get_node(result.unwrap()).unwrap();
+            assert_eq!(node.as_element().unwrap().local.as_str(), "span");
+        }
 
-    #[test]
-    fn test_query_selector_attribute() {
-        let tree = parse_html(
-            r#"<input type="text" name="user"><input type="password" name="pass">"#,
-        );
-        let result = tree.query_selector(r#"input[type="password"]"#).unwrap();
-        assert!(result.is_some());
-        let node = tree.get_node(result.unwrap()).unwrap();
-        assert_eq!(node.get_attribute("name"), Some("pass"));
-    }
+        #[test]
+        fn test_query_selector_attribute() {
+            let tree =
+                parse_html(r#"<input type="text" name="user"><input type="password" name="pass">"#);
+            let result = tree.query_selector(r#"input[type="password"]"#).unwrap();
+            assert!(result.is_some());
+            let node = tree.get_node(result.unwrap()).unwrap();
+            assert_eq!(node.get_attribute("name"), Some("pass"));
+        }
 
-    #[test]
-    fn test_query_selector_no_match() {
-        let tree = parse_html("<div>Hello</div>");
-        let result = tree.query_selector("span").unwrap();
-        assert!(result.is_none());
-    }
+        #[test]
+        fn test_query_selector_no_match() {
+            let tree = parse_html("<div>Hello</div>");
+            let result = tree.query_selector("span").unwrap();
+            assert!(result.is_none());
+        }
 
-    #[test]
-    fn test_query_selector_complex() {
-        let tree = parse_html(
-            r#"<div class="container">
+        #[test]
+        fn test_query_selector_complex() {
+            let tree = parse_html(
+                r#"<div class="container">
                 <ul class="list">
                     <li class="item active">First</li>
                     <li class="item">Second</li>
                     <li class="item active">Third</li>
                 </ul>
             </div>"#,
-        );
-        let results = tree.query_selector_all(".list .item.active").unwrap();
-        assert_eq!(results.len(), 2);
-    }
+            );
+            let results = tree.query_selector_all(".list .item.active").unwrap();
+            assert_eq!(results.len(), 2);
+        }
 
-    #[test]
-    fn test_query_selector_all_from_scopes_to_subtree() {
-        let tree = parse_html(
-            r#"<div id="a"><span class="x">in a</span></div><div id="b"><span class="x">in b</span></div>"#,
-        );
-        let a = tree.get_element_by_id("a").expect("div#a");
-        let b = tree.get_element_by_id("b").expect("div#b");
+        #[test]
+        fn test_query_selector_all_from_scopes_to_subtree() {
+            let tree = parse_html(
+                r#"<div id="a"><span class="x">in a</span></div><div id="b"><span class="x">in b</span></div>"#,
+            );
+            let a = tree.get_element_by_id("a").expect("div#a");
+            let b = tree.get_element_by_id("b").expect("div#b");
 
-        // Document-rooted: sees both spans.
-        assert_eq!(tree.query_selector_all(".x").unwrap().len(), 2);
-        // Scoped to #a: only its descendant span.
-        let in_a = tree.query_selector_all_from(a, ".x").unwrap();
-        assert_eq!(in_a.len(), 1);
-        let in_b = tree.query_selector_all_from(b, ".x").unwrap();
-        assert_eq!(in_b.len(), 1);
-        assert_ne!(in_a[0], in_b[0]);
-    }
+            // Document-rooted: sees both spans.
+            assert_eq!(tree.query_selector_all(".x").unwrap().len(), 2);
+            // Scoped to #a: only its descendant span.
+            let in_a = tree.query_selector_all_from(a, ".x").unwrap();
+            assert_eq!(in_a.len(), 1);
+            let in_b = tree.query_selector_all_from(b, ".x").unwrap();
+            assert_eq!(in_b.len(), 1);
+            assert_ne!(in_a[0], in_b[0]);
+        }
 
-    #[test]
-    fn test_query_selector_from_returns_first_in_subtree_only() {
-        let tree = parse_html(
-            r#"<section id="s"><p>first</p><p>second</p></section><p>outside</p>"#,
-        );
-        let s = tree.get_element_by_id("s").expect("section#s");
+        #[test]
+        fn test_query_selector_from_returns_first_in_subtree_only() {
+            let tree =
+                parse_html(r#"<section id="s"><p>first</p><p>second</p></section><p>outside</p>"#);
+            let s = tree.get_element_by_id("s").expect("section#s");
 
-        // Scoped to #s: skip the outside paragraph; return the first inside.
-        let first_in_s = tree.query_selector_from(s, "p").unwrap().expect("a p inside");
-        assert_eq!(tree.text_content(first_in_s), "first");
-    }
+            // Scoped to #s: skip the outside paragraph; return the first inside.
+            let first_in_s = tree
+                .query_selector_from(s, "p")
+                .unwrap()
+                .expect("a p inside");
+            assert_eq!(tree.text_content(first_in_s), "first");
+        }
 
-    #[test]
-    fn test_root_pseudo_class_matches_document_element() {
-        let tree = parse_html(r#"<html><body><div id="not-root"></div></body></html>"#);
-        let hits = tree.query_selector_all(":root").unwrap();
-        assert_eq!(hits.len(), 1, ":root matches exactly the document element");
-        let html = hits[0];
-        let node = tree.get_node(html).unwrap();
-        assert_eq!(node.as_element().map(|q| q.local.as_str()), Some("html"));
-        assert!(tree.query_selector_all("div:root").unwrap().is_empty());
-    }
+        #[test]
+        fn test_root_pseudo_class_matches_document_element() {
+            let tree = parse_html(r#"<html><body><div id="not-root"></div></body></html>"#);
+            let hits = tree.query_selector_all(":root").unwrap();
+            assert_eq!(hits.len(), 1, ":root matches exactly the document element");
+            let html = hits[0];
+            let node = tree.get_node(html).unwrap();
+            assert_eq!(node.as_element().map(|q| q.local.as_str()), Some("html"));
+            assert!(tree.query_selector_all("div:root").unwrap().is_empty());
+        }
 
-    #[test]
-    fn test_query_selector_from_excludes_self() {
-        // The root element itself must not match its own scoped query, per
-        // the spec: querySelector matches descendants only.
-        let tree = parse_html(r#"<div id="root" class="x"><span>child</span></div>"#);
-        let root = tree.get_element_by_id("root").expect("div#root");
+        #[test]
+        fn test_query_selector_from_excludes_self() {
+            // The root element itself must not match its own scoped query, per
+            // the spec: querySelector matches descendants only.
+            let tree = parse_html(r#"<div id="root" class="x"><span>child</span></div>"#);
+            let root = tree.get_element_by_id("root").expect("div#root");
 
-        // Only descendants are candidates: `.x` on root finds nothing.
-        assert!(tree.query_selector_from(root, ".x").unwrap().is_none());
-        // `span` finds the child.
-        assert!(tree.query_selector_from(root, "span").unwrap().is_some());
-    }
+            // Only descendants are candidates: `.x` on root finds nothing.
+            assert!(tree.query_selector_from(root, ".x").unwrap().is_none());
+            // `span` finds the child.
+            assert!(tree.query_selector_from(root, "span").unwrap().is_some());
+        }
 
-    #[test]
-    fn test_scope_child_combinator_scoped_to_query_root() {
-        // The archify viewer pattern: container.querySelector(':scope > svg')
-        // must find the container's direct svg child — not svgs in a sibling
-        // container, not svgs deeper inside.
-        let tree = parse_html(
-            r#"<html><body>
+        #[test]
+        fn test_scope_child_combinator_scoped_to_query_root() {
+            // The archify viewer pattern: container.querySelector(':scope > svg')
+            // must find the container's direct svg child — not svgs in a sibling
+            // container, not svgs deeper inside.
+            let tree = parse_html(
+                r#"<html><body>
                 <div id="a"><svg id="direct"></svg><div><svg id="deep"></svg></div></div>
                 <div id="b"><svg id="other"></svg></div>
             </body></html>"#,
-        );
-        let a = tree.get_element_by_id("a").unwrap();
-        let hit = tree
-            .query_selector_from(a, ":scope > svg")
-            .unwrap()
-            .expect("direct svg child of #a");
-        assert_eq!(
-            tree.get_element_by_id("direct"),
-            Some(hit),
-            "must be the direct child, not the deep or sibling svg"
-        );
+            );
+            let a = tree.get_element_by_id("a").unwrap();
+            let hit = tree
+                .query_selector_from(a, ":scope > svg")
+                .unwrap()
+                .expect("direct svg child of #a");
+            assert_eq!(
+                tree.get_element_by_id("direct"),
+                Some(hit),
+                "must be the direct child, not the deep or sibling svg"
+            );
 
-        let direct_only = tree.query_selector_all_from(a, ":scope > svg").unwrap();
-        assert_eq!(direct_only.len(), 1);
-    }
+            let direct_only = tree.query_selector_all_from(a, ":scope > svg").unwrap();
+            assert_eq!(direct_only.len(), 1);
+        }
 
-    #[test]
-    fn test_scope_descendant_combinator_and_bare_form() {
-        let tree = parse_html(
-            r#"<html><body>
+        #[test]
+        fn test_scope_descendant_combinator_and_bare_form() {
+            let tree = parse_html(
+                r#"<html><body>
                 <div id="a"><span class="x"></span><section><span class="x"></span></section></div>
                 <span class="x"></span>
             </body></html>"#,
-        );
-        let a = tree.get_element_by_id("a").unwrap();
-        // `:scope .x` = every .x in the subtree (both depths)...
-        assert_eq!(tree.query_selector_all_from(a, ":scope .x").unwrap().len(), 2);
-        // ...while a document-rooted query sees all three.
-        assert_eq!(tree.query_selector_all(":scope .x").unwrap().len(), 3);
+            );
+            let a = tree.get_element_by_id("a").unwrap();
+            // `:scope .x` = every .x in the subtree (both depths)...
+            assert_eq!(
+                tree.query_selector_all_from(a, ":scope .x").unwrap().len(),
+                2
+            );
+            // ...while a document-rooted query sees all three.
+            assert_eq!(tree.query_selector_all(":scope .x").unwrap().len(), 3);
 
-        // Bare `:scope` from an element root matches nothing: the scope
-        // element itself is not among its own descendants.
-        assert!(tree.query_selector_from(a, ":scope").unwrap().is_none());
-        assert!(tree.query_selector_all_from(a, ":scope").unwrap().is_empty());
-    }
+            // Bare `:scope` from an element root matches nothing: the scope
+            // element itself is not among its own descendants.
+            assert!(tree.query_selector_from(a, ":scope").unwrap().is_none());
+            assert!(tree
+                .query_selector_all_from(a, ":scope")
+                .unwrap()
+                .is_empty());
+        }
 
-    #[test]
-    fn test_scope_from_document_root_means_html() {
-        // Document-rooted queries leave the scope unset, where :scope falls
-        // back to the root element — the browser behavior for
-        // document.querySelector(':scope ...').
-        let tree = parse_html(r#"<html><body><svg id="top"></svg><div><svg id="nested"></svg></div></body></html>"#);
-        assert_eq!(
-            tree.query_selector(":scope").unwrap(),
-            tree.query_selector("html").unwrap(),
-            "bare :scope from the document is the document element"
-        );
-        let hit = tree
-            .query_selector(":scope > body")
-            .unwrap()
-            .expect("body is the document element's direct child");
-        assert_eq!(
-            tree.query_selector("body").unwrap(),
-            Some(hit),
-            ":scope from the document means html, so :scope > body resolves"
-        );
-    }
+        #[test]
+        fn test_scope_from_document_root_means_html() {
+            // Document-rooted queries leave the scope unset, where :scope falls
+            // back to the root element — the browser behavior for
+            // document.querySelector(':scope ...').
+            let tree = parse_html(
+                r#"<html><body><svg id="top"></svg><div><svg id="nested"></svg></div></body></html>"#,
+            );
+            assert_eq!(
+                tree.query_selector(":scope").unwrap(),
+                tree.query_selector("html").unwrap(),
+                "bare :scope from the document is the document element"
+            );
+            let hit = tree
+                .query_selector(":scope > body")
+                .unwrap()
+                .expect("body is the document element's direct child");
+            assert_eq!(
+                tree.query_selector("body").unwrap(),
+                Some(hit),
+                ":scope from the document means html, so :scope > body resolves"
+            );
+        }
 
-    #[test]
-    fn test_matches_selector_binds_scope_to_element() {
-        // Element.matches semantics: :scope is the tested element.
-        let tree = parse_html(r#"<html><body><div id="hit" class="panel"><span></span></div></body></html>"#);
-        let hit = tree.get_element_by_id("hit").unwrap();
-        assert!(tree.matches_selector(hit, ":scope").unwrap());
-        assert!(tree.matches_selector(hit, ":scope.panel").unwrap());
-        assert!(!tree.matches_selector(hit, ":scope.missing").unwrap());
-        // With :scope bound to the tested element, a child combinator off it
-        // can only be false: nothing is its own parent. `span.matches
-        // (':scope > span')` asks whether span's parent is span.
-        let span = tree.query_selector("span").unwrap().expect("the span");
-        assert!(!tree.matches_selector(span, ":scope > span").unwrap());
-    }
+        #[test]
+        fn test_matches_selector_binds_scope_to_element() {
+            // Element.matches semantics: :scope is the tested element.
+            let tree = parse_html(
+                r#"<html><body><div id="hit" class="panel"><span></span></div></body></html>"#,
+            );
+            let hit = tree.get_element_by_id("hit").unwrap();
+            assert!(tree.matches_selector(hit, ":scope").unwrap());
+            assert!(tree.matches_selector(hit, ":scope.panel").unwrap());
+            assert!(!tree.matches_selector(hit, ":scope.missing").unwrap());
+            // With :scope bound to the tested element, a child combinator off it
+            // can only be false: nothing is its own parent. `span.matches
+            // (':scope > span')` asks whether span's parent is span.
+            let span = tree.query_selector("span").unwrap().expect("the span");
+            assert!(!tree.matches_selector(span, ":scope > span").unwrap());
+        }
 
-    #[test]
-    fn test_quirks_mode_class_id_case_insensitive() {
-        // No doctype => full quirks mode: class and id selectors match
-        // ASCII-case-insensitively (legacy pages depend on this).
-        let quirks = parse_html(r#"<div class="Foo" id="Main">x</div>"#);
-        assert!(quirks.is_quirks(), "no-doctype document must parse as quirks");
-        assert!(quirks.query_selector(".foo").unwrap().is_some());
-        assert!(quirks.query_selector(".FOO").unwrap().is_some());
-        assert!(quirks.query_selector("#main").unwrap().is_some());
+        #[test]
+        fn test_quirks_mode_class_id_case_insensitive() {
+            // No doctype => full quirks mode: class and id selectors match
+            // ASCII-case-insensitively (legacy pages depend on this).
+            let quirks = parse_html(r#"<div class="Foo" id="Main">x</div>"#);
+            assert!(
+                quirks.is_quirks(),
+                "no-doctype document must parse as quirks"
+            );
+            assert!(quirks.query_selector(".foo").unwrap().is_some());
+            assert!(quirks.query_selector(".FOO").unwrap().is_some());
+            assert!(quirks.query_selector("#main").unwrap().is_some());
 
-        // With a doctype => no-quirks: class/id match case-sensitively.
-        let strict = parse_html(
-            r#"<!DOCTYPE html><html><body><div class="Foo" id="Main">x</div></body></html>"#,
-        );
-        assert!(!strict.is_quirks());
-        assert!(strict.query_selector(".Foo").unwrap().is_some());
-        assert!(strict.query_selector(".foo").unwrap().is_none());
-        assert!(strict.query_selector("#main").unwrap().is_none());
-    }
+            // With a doctype => no-quirks: class/id match case-sensitively.
+            let strict = parse_html(
+                r#"<!DOCTYPE html><html><body><div class="Foo" id="Main">x</div></body></html>"#,
+            );
+            assert!(!strict.is_quirks());
+            assert!(strict.query_selector(".Foo").unwrap().is_some());
+            assert!(strict.query_selector(".foo").unwrap().is_none());
+            assert!(strict.query_selector("#main").unwrap().is_none());
+        }
 
-    #[test]
-    fn test_enabled_disabled_checked_match_dom_state() {
-        let tree = parse_html(
-            r#"<form>
+        #[test]
+        fn test_enabled_disabled_checked_match_dom_state() {
+            let tree = parse_html(
+                r#"<form>
                 <input type="text" name="a">
                 <input type="text" name="b" disabled>
                 <input type="checkbox" name="c" checked>
                 <button name="d">go</button>
                 <select name="e"><option selected>x</option><option>y</option></select>
             </form>"#,
-        );
+            );
 
-        let enabled = tree.query_selector_all("input:enabled").unwrap();
-        assert_eq!(enabled.len(), 2, "two non-disabled inputs: {enabled:?}");
-        let disabled = tree.query_selector_all("input:disabled").unwrap();
-        assert_eq!(disabled.len(), 1);
-        let checked = tree.query_selector_all(":checked").unwrap();
-        assert_eq!(checked.len(), 2, "checkbox[checked] + option[selected]: {checked:?}");
+            let enabled = tree.query_selector_all("input:enabled").unwrap();
+            assert_eq!(enabled.len(), 2, "two non-disabled inputs: {enabled:?}");
+            let disabled = tree.query_selector_all("input:disabled").unwrap();
+            assert_eq!(disabled.len(), 1);
+            let checked = tree.query_selector_all(":checked").unwrap();
+            assert_eq!(
+                checked.len(),
+                2,
+                "checkbox[checked] + option[selected]: {checked:?}"
+            );
 
-        // :enabled on a non-form-control never matches.
-        let tree2 = parse_html(r#"<div>plain</div>"#);
-        assert!(tree2.query_selector("div:enabled").unwrap().is_none());
-    }
+            // :enabled on a non-form-control never matches.
+            let tree2 = parse_html(r#"<div>plain</div>"#);
+            assert!(tree2.query_selector("div:enabled").unwrap().is_none());
+        }
 
-    #[test]
-    fn test_has_parses() {
-        // Isolate parse from match: :has must parse, not error.
-        assert!(
-            crate::diting_dom::selector::parse_selector("a:has(p.bt)").is_ok(),
-            ":has failed to parse"
-        );
-    }
+        #[test]
+        fn test_has_parses() {
+            // Isolate parse from match: :has must parse, not error.
+            assert!(
+                crate::diting_dom::selector::parse_selector("a:has(p.bt)").is_ok(),
+                ":has failed to parse"
+            );
+        }
 
-    #[test]
-    fn test_query_selector_has() {
-        let tree = parse_html(r#"<a><p class="bt">x</p></a>"#);
-        let all = tree.query_selector_all("a:has(p.bt)").unwrap();
-        assert_eq!(all.len(), 1, "a:has(p.bt) should match the <a>");
-        let none = tree.query_selector_all("a:has(span.bt)").unwrap();
-        assert_eq!(none.len(), 0, "a:has(span.bt) should match nothing");
-    }
+        #[test]
+        fn test_query_selector_has() {
+            let tree = parse_html(r#"<a><p class="bt">x</p></a>"#);
+            let all = tree.query_selector_all("a:has(p.bt)").unwrap();
+            assert_eq!(all.len(), 1, "a:has(p.bt) should match the <a>");
+            let none = tree.query_selector_all("a:has(span.bt)").unwrap();
+            assert_eq!(none.len(), 0, "a:has(span.bt) should match nothing");
+        }
 
-    #[test]
-    fn test_query_selector_has_deep_and_bare_relative() {
-        // :has with a descendant combinator several levels deep, and the bare
-        // relative form (no leading combinator == descendant). Nested :has is
-        // spec-invalid (:has(:has())) and the selectors crate rejects it.
-        let tree = parse_html(
-            r#"<section><article><div><ul><li class="hit">x</li></ul></div></article></section>"#,
-        );
-        assert_eq!(tree.query_selector_all("section:has(.hit)").unwrap().len(), 1);
-        assert_eq!(tree.query_selector_all("article:has(li)").unwrap().len(), 1);
-        assert_eq!(tree.query_selector_all("div:has(> ul > .hit)").unwrap().len(), 1);
-        assert!(crate::diting_dom::selector::parse_selector("section:has(article:has(li))").is_err());
-    }
+        #[test]
+        fn test_query_selector_has_deep_and_bare_relative() {
+            // :has with a descendant combinator several levels deep, and the bare
+            // relative form (no leading combinator == descendant). Nested :has is
+            // spec-invalid (:has(:has())) and the selectors crate rejects it.
+            let tree = parse_html(
+                r#"<section><article><div><ul><li class="hit">x</li></ul></div></article></section>"#,
+            );
+            assert_eq!(
+                tree.query_selector_all("section:has(.hit)").unwrap().len(),
+                1
+            );
+            assert_eq!(tree.query_selector_all("article:has(li)").unwrap().len(), 1);
+            assert_eq!(
+                tree.query_selector_all("div:has(> ul > .hit)")
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert!(
+                crate::diting_dom::selector::parse_selector("section:has(article:has(li))")
+                    .is_err()
+            );
+        }
 
-    #[test]
-    fn test_is_and_where_parse_and_match() {
-        // Tailwind preflight / modern resets wrap rules in :where(...).
-        let tree = parse_html(
-            r#"<button class="btn">go</button><input class="field"><div class="btn-like">x</div>"#,
-        );
-        assert_eq!(
-            tree.query_selector_all(":where(button, input)").unwrap().len(),
-            2
-        );
-        assert_eq!(
-            tree.query_selector_all(":is(button, input)").unwrap().len(),
-            2
-        );
-        // Compound subject: .control:is(...) narrows by both parts.
-        assert!(tree.query_selector_all(r#"input:is([class="field"])"#.trim_end_matches('"')).is_ok());
-        assert_eq!(tree.query_selector_all("button:where(.btn)").unwrap().len(), 1);
-    }
+        #[test]
+        fn test_is_and_where_parse_and_match() {
+            // Tailwind preflight / modern resets wrap rules in :where(...).
+            let tree = parse_html(
+                r#"<button class="btn">go</button><input class="field"><div class="btn-like">x</div>"#,
+            );
+            assert_eq!(
+                tree.query_selector_all(":where(button, input)")
+                    .unwrap()
+                    .len(),
+                2
+            );
+            assert_eq!(
+                tree.query_selector_all(":is(button, input)").unwrap().len(),
+                2
+            );
+            // Compound subject: .control:is(...) narrows by both parts.
+            assert!(tree
+                .query_selector_all(r#"input:is([class="field"])"#.trim_end_matches('"'))
+                .is_ok());
+            assert_eq!(
+                tree.query_selector_all("button:where(.btn)").unwrap().len(),
+                1
+            );
+        }
 
-    #[test]
-    fn focus_state_pseudo_classes_parse_and_match_static_snapshot() {
-        // Bootstrap's .visually-hidden-focusable pattern: :not(:focus):not(:focus-within)
-        // must MATCH when nothing holds focus (both pseudos are false).
-        let tree = parse_html(r#"<div class="visually-hidden-focusable">Skip</div>"#);
-        let hidden = tree
-            .query_selector_all(".visually-hidden-focusable:not(:focus):not(:focus-within)")
-            .unwrap();
-        assert_eq!(hidden.len(), 1);
-        assert_eq!(tree.query_selector_all(":focus-visible").unwrap().len(), 0);
-    }
+        #[test]
+        fn focus_state_pseudo_classes_parse_and_match_static_snapshot() {
+            // Bootstrap's .visually-hidden-focusable pattern: :not(:focus):not(:focus-within)
+            // must MATCH when nothing holds focus (both pseudos are false).
+            let tree = parse_html(r#"<div class="visually-hidden-focusable">Skip</div>"#);
+            let hidden = tree
+                .query_selector_all(".visually-hidden-focusable:not(:focus):not(:focus-within)")
+                .unwrap();
+            assert_eq!(hidden.len(), 1);
+            assert_eq!(tree.query_selector_all(":focus-visible").unwrap().len(), 0);
+        }
 
-    /// The live side of the focus pseudos (blitz#839): the tree's focused
-    /// node drives :focus, :focus-within climbs ancestors, and
-    /// :focus-visible narrows to text-entry controls (input type=text
-    /// yes, type=checkbox no).
-    #[test]
-    fn focus_pseudo_classes_match_live_focused_node() {
-        let tree = parse_html(
-            r#"<form><input id="q" type="text"><input id="c" type="checkbox"><button id="b">Go</button></form>"#,
-        );
-        let q = tree.get_element_by_id("q").unwrap();
-        tree.set_focused_node(Some(q));
-        assert_eq!(tree.query_selector_all(":focus").unwrap().len(), 1);
-        assert_eq!(
-            tree.query_selector_all("#q:focus-visible").unwrap().len(),
-            1
-        );
-        // :focus-within reaches the form even though the form itself isn't focused.
-        assert_eq!(
-            tree.query_selector_all("form:focus-within").unwrap().len(),
-            1
-        );
+        /// The live side of the focus pseudos (blitz#839): the tree's focused
+        /// node drives :focus, :focus-within climbs ancestors, and
+        /// :focus-visible narrows to text-entry controls (input type=text
+        /// yes, type=checkbox no).
+        #[test]
+        fn focus_pseudo_classes_match_live_focused_node() {
+            let tree = parse_html(
+                r#"<form><input id="q" type="text"><input id="c" type="checkbox"><button id="b">Go</button></form>"#,
+            );
+            let q = tree.get_element_by_id("q").unwrap();
+            tree.set_focused_node(Some(q));
+            assert_eq!(tree.query_selector_all(":focus").unwrap().len(), 1);
+            assert_eq!(
+                tree.query_selector_all("#q:focus-visible").unwrap().len(),
+                1
+            );
+            // :focus-within reaches the form even though the form itself isn't focused.
+            assert_eq!(
+                tree.query_selector_all("form:focus-within").unwrap().len(),
+                1
+            );
 
-        // A checkbox holds focus → :focus matches, but :focus-visible doesn't
-        // (mouse-ish control per the heuristic).
-        let c = tree.get_element_by_id("c").unwrap();
-        tree.set_focused_node(Some(c));
-        assert_eq!(tree.query_selector_all("#c:focus").unwrap().len(), 1);
-        assert_eq!(tree.query_selector_all(":focus-visible").unwrap().len(), 0);
+            // A checkbox holds focus → :focus matches, but :focus-visible doesn't
+            // (mouse-ish control per the heuristic).
+            let c = tree.get_element_by_id("c").unwrap();
+            tree.set_focused_node(Some(c));
+            assert_eq!(tree.query_selector_all("#c:focus").unwrap().len(), 1);
+            assert_eq!(tree.query_selector_all(":focus-visible").unwrap().len(), 0);
 
-        // Blur → every focus pseudo is false again.
-        tree.set_focused_node(None);
-        assert_eq!(tree.query_selector_all(":focus").unwrap().len(), 0);
-        assert_eq!(
-            tree.query_selector_all("form:focus-within").unwrap().len(),
-            0
-        );
-    }
+            // Blur → every focus pseudo is false again.
+            tree.set_focused_node(None);
+            assert_eq!(tree.query_selector_all(":focus").unwrap().len(), 0);
+            assert_eq!(
+                tree.query_selector_all("form:focus-within").unwrap().len(),
+                0
+            );
+        }
 
-    /// The pointer-state pseudos (#152): the tree's hovered/active nodes
-    /// drive :hover/:active, both climb to ancestors (an element is hovered
-    /// when it or a descendant holds the pointer), and clearing resets.
-    #[test]
-    fn hover_and_active_pseudo_classes_match_live_pointer_state() {
-        // Doctype keeps the fixture out of quirks mode: the selectors crate
-        // carries the web-compat hover/active quirk (a BARE :hover compound
-        // on a non-link matches nothing in quirks documents — Blink/Gecko
-        // legacy behavior), which would gate the bare-:hover assertions.
-        let tree = parse_html(
-            r#"<!DOCTYPE html><div id="outer"><div id="a"><span id="child">x</span></div><div id="b"></div></div>"#,
-        );
-        let child = tree.get_element_by_id("child").unwrap();
-        tree.set_hovered_node(Some(child));
-        // html and body are chain elements too — Chrome's querySelectorAll
-        //(':hover') reports the whole ancestor chain, 5 elements deep here.
-        assert_eq!(tree.query_selector_all(":hover").unwrap().len(), 5);
-        assert_eq!(
-            tree.query_selector_all("#outer:hover").unwrap().len(),
-            1,
-            "hover climbs from the hit target to every ancestor"
-        );
-        // The sibling stays unhovered.
-        assert_eq!(tree.query_selector_all("#b:hover").unwrap().len(), 0);
+        /// The pointer-state pseudos (#152): the tree's hovered/active nodes
+        /// drive :hover/:active, both climb to ancestors (an element is hovered
+        /// when it or a descendant holds the pointer), and clearing resets.
+        #[test]
+        fn hover_and_active_pseudo_classes_match_live_pointer_state() {
+            // Doctype keeps the fixture out of quirks mode: the selectors crate
+            // carries the web-compat hover/active quirk (a BARE :hover compound
+            // on a non-link matches nothing in quirks documents — Blink/Gecko
+            // legacy behavior), which would gate the bare-:hover assertions.
+            let tree = parse_html(
+                r#"<!DOCTYPE html><div id="outer"><div id="a"><span id="child">x</span></div><div id="b"></div></div>"#,
+            );
+            let child = tree.get_element_by_id("child").unwrap();
+            tree.set_hovered_node(Some(child));
+            // html and body are chain elements too — Chrome's querySelectorAll
+            //(':hover') reports the whole ancestor chain, 5 elements deep here.
+            assert_eq!(tree.query_selector_all(":hover").unwrap().len(), 5);
+            assert_eq!(
+                tree.query_selector_all("#outer:hover").unwrap().len(),
+                1,
+                "hover climbs from the hit target to every ancestor"
+            );
+            // The sibling stays unhovered.
+            assert_eq!(tree.query_selector_all("#b:hover").unwrap().len(), 0);
 
-        // Moving to the sibling flips the whole set.
-        let b = tree.get_element_by_id("b").unwrap();
-        tree.set_hovered_node(Some(b));
-        assert_eq!(tree.query_selector_all("#a:hover").unwrap().len(), 0);
-        assert_eq!(tree.query_selector_all("#b:hover").unwrap().len(), 1);
-        // ...and the shared ancestor keeps matching (outer contains b).
-        assert_eq!(tree.query_selector_all("#outer:hover").unwrap().len(), 1);
+            // Moving to the sibling flips the whole set.
+            let b = tree.get_element_by_id("b").unwrap();
+            tree.set_hovered_node(Some(b));
+            assert_eq!(tree.query_selector_all("#a:hover").unwrap().len(), 0);
+            assert_eq!(tree.query_selector_all("#b:hover").unwrap().len(), 1);
+            // ...and the shared ancestor keeps matching (outer contains b).
+            assert_eq!(tree.query_selector_all("#outer:hover").unwrap().len(), 1);
 
-        // :active rides the same shape, independent of hover.
-        tree.set_active_node(Some(child));
-        assert_eq!(tree.query_selector_all(":active").unwrap().len(), 5);
-        assert_eq!(tree.query_selector_all("#b:active").unwrap().len(), 0);
+            // :active rides the same shape, independent of hover.
+            tree.set_active_node(Some(child));
+            assert_eq!(tree.query_selector_all(":active").unwrap().len(), 5);
+            assert_eq!(tree.query_selector_all("#b:active").unwrap().len(), 0);
 
-        // Both clear.
-        tree.set_hovered_node(None);
-        tree.set_active_node(None);
-        assert_eq!(tree.query_selector_all(":hover").unwrap().len(), 0);
-        assert_eq!(tree.query_selector_all(":active").unwrap().len(), 0);
-    }
+            // Both clear.
+            tree.set_hovered_node(None);
+            tree.set_active_node(None);
+            assert_eq!(tree.query_selector_all(":hover").unwrap().len(), 0);
+            assert_eq!(tree.query_selector_all(":active").unwrap().len(), 0);
+        }
 
-    #[test]
-    fn link_pseudo_class_matches_anchor_with_href() {
-        let tree = parse_html(
-            r#"<a href="https://x/">real</a><a name="anchor-only">not</a><a>bare</a>"#,
-        );
-        let links = tree.query_selector_all(":link").unwrap();
-        assert_eq!(links.len(), 1, ":link needs an href: {links:?}");
-        assert_eq!(tree.query_selector_all("a:any-link").unwrap().len(), 1);
-        // :visited is always false on a static snapshot.
-        assert_eq!(tree.query_selector_all(":visited").unwrap().len(), 0);
-    }
+        #[test]
+        fn link_pseudo_class_matches_anchor_with_href() {
+            let tree = parse_html(
+                r#"<a href="https://x/">real</a><a name="anchor-only">not</a><a>bare</a>"#,
+            );
+            let links = tree.query_selector_all(":link").unwrap();
+            assert_eq!(links.len(), 1, ":link needs an href: {links:?}");
+            assert_eq!(tree.query_selector_all("a:any-link").unwrap().len(), 1);
+            // :visited is always false on a static snapshot.
+            assert_eq!(tree.query_selector_all(":visited").unwrap().len(), 0);
+        }
 
-    #[test]
-    fn matches_selector_works_on_detached_subjects() {
-        // query_selector only walks the tree, so a detached subject was
-        // untestable before matches_selector existed.
-        let detached = parse_html("<em id='d'>d</em>");
-        let d = detached.get_element_by_id("d").unwrap();
-        assert!(detached.matches_selector(d, "em#d").unwrap());
-        assert!(!detached.matches_selector(d, "div em").unwrap());
-    }
+        #[test]
+        fn matches_selector_works_on_detached_subjects() {
+            // query_selector only walks the tree, so a detached subject was
+            // untestable before matches_selector existed.
+            let detached = parse_html("<em id='d'>d</em>");
+            let d = detached.get_element_by_id("d").unwrap();
+            assert!(detached.matches_selector(d, "em#d").unwrap());
+            assert!(!detached.matches_selector(d, "div em").unwrap());
+        }
 
-    /// The rule-hash must be indistinguishable from the old per-rule
-    /// querySelectorAll on every selector shape compute_styles feeds it:
-    /// per-rule hit sets AND per-rule specificity, rule index by rule
-    /// index. parse_html fixtures without a doctype parse in quirks mode,
-    /// so the case-folded selectors in the list also pin the quirks
-    /// bucket/probe spellings against the matcher's ground truth.
-    #[test]
-    fn rule_match_sets_agree_with_per_rule_qsa() {
-        let tree = parse_html(
-            r#"<div id="wrap" class="container">
+        /// The rule-hash must be indistinguishable from the old per-rule
+        /// querySelectorAll on every selector shape compute_styles feeds it:
+        /// per-rule hit sets AND per-rule specificity, rule index by rule
+        /// index. parse_html fixtures without a doctype parse in quirks mode,
+        /// so the case-folded selectors in the list also pin the quirks
+        /// bucket/probe spellings against the matcher's ground truth.
+        #[test]
+        fn rule_match_sets_agree_with_per_rule_qsa() {
+            let tree = parse_html(
+                r#"<div id="wrap" class="container">
                 <h1 class="title main">T</h1>
                 <p data-kind="lead">L</p>
                 <p>plain</p>
@@ -1071,629 +1176,693 @@ mod selector_tests {
                 <svg><clipPath id="cp"><rect/></clipPath></svg>
                 <span>s</span>
             </div>"#,
-        );
-        let selectors = [
-            "div",
-            ".container",
-            "#wrap",
-            "p",
-            ".title.main",
-            "div .item",
-            "ul li",
-            "h1, .item",
-            "li, rect, #cp",
-            "*",
-            "ul *",
-            "[data-kind]",
-            "p[data-kind='lead']",
-            "li:not(.item)",
-            "li:first-child",
-            "clipPath",
-            "#nope",
-            ".container, .missing",
-            "p[lang]",
-            // Quirks-mode case folds: whichever way the matcher answers,
-            // the hash must answer identically.
-            ".ITEM",
-            "#WRAP",
-            // Dangling combinator: fails to parse, so no bucket, no hits,
-            // no specificity — same as the old qSA error path skipping it.
-            "div >",
-        ];
-        let sets = tree.rule_match_sets(&selectors);
-        for (ri, sel) in selectors.iter().enumerate() {
-            let expected: Vec<usize> = tree
-                .query_selector_all_from(tree.document(), sel)
-                .map(|v| v.into_iter().map(|n| n.index()).collect())
-                .unwrap_or_default();
-            let got = sets.hits.get(&ri).cloned().unwrap_or_default();
-            assert_eq!(got, expected, "hit set diverged for rule {ri} `{sel}`");
-            // Ascending order is the cascade's binary-search contract.
-            assert!(
-                got.windows(2).all(|w| w[0] < w[1]),
-                "hits not ascending for rule {ri} `{sel}`: {got:?}"
             );
-            assert_eq!(
-                sets.specificity[ri],
-                tree.compile_rule_selector(sel).map(|c| c.specificity()),
-                "specificity diverged for rule {ri} `{sel}`"
-            );
+            let selectors = [
+                "div",
+                ".container",
+                "#wrap",
+                "p",
+                ".title.main",
+                "div .item",
+                "ul li",
+                "h1, .item",
+                "li, rect, #cp",
+                "*",
+                "ul *",
+                "[data-kind]",
+                "p[data-kind='lead']",
+                "li:not(.item)",
+                "li:first-child",
+                "clipPath",
+                "#nope",
+                ".container, .missing",
+                "p[lang]",
+                // Quirks-mode case folds: whichever way the matcher answers,
+                // the hash must answer identically.
+                ".ITEM",
+                "#WRAP",
+                // Dangling combinator: fails to parse, so no bucket, no hits,
+                // no specificity — same as the old qSA error path skipping it.
+                "div >",
+            ];
+            let sets = tree.rule_match_sets(&selectors);
+            for (ri, sel) in selectors.iter().enumerate() {
+                let expected: Vec<usize> = tree
+                    .query_selector_all_from(tree.document(), sel)
+                    .map(|v| v.into_iter().map(|n| n.index()).collect())
+                    .unwrap_or_default();
+                let got = sets.hits.get(&ri).cloned().unwrap_or_default();
+                assert_eq!(got, expected, "hit set diverged for rule {ri} `{sel}`");
+                // Ascending order is the cascade's binary-search contract.
+                assert!(
+                    got.windows(2).all(|w| w[0] < w[1]),
+                    "hits not ascending for rule {ri} `{sel}`: {got:?}"
+                );
+                assert_eq!(
+                    sets.specificity[ri],
+                    tree.compile_rule_selector(sel).map(|c| c.specificity()),
+                    "specificity diverged for rule {ri} `{sel}`"
+                );
+            }
         }
-    }
 
-    /// The incremental face must be indistinguishable from a fresh full
-    /// match after every mutation shape the dirty registry stamps:
-    /// re-parenting, attribute writes, detach-without-free, re-insertion,
-    /// remove-with-free, and insert_before. The fixture parses quirks-mode
-    /// (no doctype) so the case-folded bucket spellings ride along, and it
-    /// is big enough that small mutations stay under the mass-mutation
-    /// threshold — exercising the true incremental path, not the fallback.
-    #[test]
-    fn incremental_match_sets_equal_full_rebuild() {
-        let mut lis = String::new();
-        for i in 0..24 {
-            let class = if i % 3 == 0 { format!("odd3 item{i}") } else { format!("item{i}") };
-            lis.push_str(&format!("<li class='{class}'>{i}</li>"));
-        }
-        let html = format!(
-            r#"<div id="wrap" class="container">
+        /// The incremental face must be indistinguishable from a fresh full
+        /// match after every mutation shape the dirty registry stamps:
+        /// re-parenting, attribute writes, detach-without-free, re-insertion,
+        /// remove-with-free, and insert_before. The fixture parses quirks-mode
+        /// (no doctype) so the case-folded bucket spellings ride along, and it
+        /// is big enough that small mutations stay under the mass-mutation
+        /// threshold — exercising the true incremental path, not the fallback.
+        #[test]
+        fn incremental_match_sets_equal_full_rebuild() {
+            let mut lis = String::new();
+            for i in 0..24 {
+                let class = if i % 3 == 0 {
+                    format!("odd3 item{i}")
+                } else {
+                    format!("item{i}")
+                };
+                lis.push_str(&format!("<li class='{class}'>{i}</li>"));
+            }
+            let html = format!(
+                r#"<div id="wrap" class="container">
                 <h1 class="title main">T</h1>
                 <p data-kind="lead">L</p>
                 <ul id="list">{lis}</ul>
                 <section class="sink"><span class="ghost" data-k="g">g</span></section>
             </div>"#
-        );
-        let tree = parse_html(&html);
-        let selectors = [
-            "div",
-            ".container",
-            "#wrap",
-            "p",
-            ".title.main",
-            "div .item",
-            "ul li",
-            "li.odd3 + li",
-            "li ~ li",
-            "li:first-child",
-            "li:last-child",
-            "li:nth-child(2n)",
-            "[data-kind]",
-            "p[data-kind='lead']",
-            ".sink .ghost",
-            "h1, .item",
-            "*",
-            "#nope",
-            ".ITEM",
-            "#WRAP",
-            "div >",
-            "span[data-k]",
-            "ul:has(.odd3)",
-            "div:not(.sink) > section",
-            ".sinkitem",
-        ];
-        let key = 7u64;
-        let check = |stage: &str| {
-            let inc = tree.rule_match_sets_incremental(&selectors, key);
-            let full = tree.rule_match_sets(&selectors);
-            assert_eq!(inc, full, "incremental diverged at `{stage}`");
-        };
+            );
+            let tree = parse_html(&html);
+            let selectors = [
+                "div",
+                ".container",
+                "#wrap",
+                "p",
+                ".title.main",
+                "div .item",
+                "ul li",
+                "li.odd3 + li",
+                "li ~ li",
+                "li:first-child",
+                "li:last-child",
+                "li:nth-child(2n)",
+                "[data-kind]",
+                "p[data-kind='lead']",
+                ".sink .ghost",
+                "h1, .item",
+                "*",
+                "#nope",
+                ".ITEM",
+                "#WRAP",
+                "div >",
+                "span[data-k]",
+                "ul:has(.odd3)",
+                "div:not(.sink) > section",
+                ".sinkitem",
+            ];
+            let key = 7u64;
+            let check = |stage: &str| {
+                let inc = tree.rule_match_sets_incremental(&selectors, key);
+                let full = tree.rule_match_sets(&selectors);
+                assert_eq!(inc, full, "incremental diverged at `{stage}`");
+            };
 
-        // First run: parse-time stamps cross the threshold, so this lands
-        // on the full-rebuild path and populates the cache.
-        check("initial");
+            // First run: parse-time stamps cross the threshold, so this lands
+            // on the full-rebuild path and populates the cache.
+            check("initial");
 
-        // 1. Re-parent: the ul moves into the section (roots + both child
-        // lists + :has chains).
-        let ul = tree.get_element_by_id("list").unwrap();
-        let section = tree.query_selector_all(".sink").unwrap()[0];
-        tree.append_child(section, ul);
-        check("reparent ul");
+            // 1. Re-parent: the ul moves into the section (roots + both child
+            // lists + :has chains).
+            let ul = tree.get_element_by_id("list").unwrap();
+            let section = tree.query_selector_all(".sink").unwrap()[0];
+            tree.append_child(section, ul);
+            check("reparent ul");
 
-        // 2. Attribute write through the ops-path shape: the h1 gains the
-        // attr an unkeyed selector reads.
-        let h1 = tree.query_selector_all("h1").unwrap()[0];
-        let before = tree.rule_match_sets_incremental(&selectors, key);
-        let unkeyed_ri = selectors.iter().position(|s| *s == "[data-kind]").unwrap();
-        let before_hits = before.hits.get(&unkeyed_ri).cloned().unwrap_or_default().len();
-        tree.with_node_mut(h1, |n| n.set_attribute("data-kind", "lead".into()));
-        tree.note_restyle(h1);
-        check("attr write");
-        let after = tree.rule_match_sets_incremental(&selectors, key);
-        let after_hits = after.hits.get(&unkeyed_ri).cloned().unwrap_or_default().len();
-        assert_eq!(after_hits, before_hits + 1, "attr write must add the h1 hit");
+            // 2. Attribute write through the ops-path shape: the h1 gains the
+            // attr an unkeyed selector reads.
+            let h1 = tree.query_selector_all("h1").unwrap()[0];
+            let before = tree.rule_match_sets_incremental(&selectors, key);
+            let unkeyed_ri = selectors.iter().position(|s| *s == "[data-kind]").unwrap();
+            let before_hits = before
+                .hits
+                .get(&unkeyed_ri)
+                .cloned()
+                .unwrap_or_default()
+                .len();
+            tree.with_node_mut(h1, |n| n.set_attribute("data-kind", "lead".into()));
+            tree.note_restyle(h1);
+            check("attr write");
+            let after = tree.rule_match_sets_incremental(&selectors, key);
+            let after_hits = after
+                .hits
+                .get(&unkeyed_ri)
+                .cloned()
+                .unwrap_or_default()
+                .len();
+            assert_eq!(
+                after_hits,
+                before_hits + 1,
+                "attr write must add the h1 hit"
+            );
 
-        // 3. Class flip on one li.
-        let li5 = tree.query_selector_all("li").unwrap()[5];
-        tree.with_node_mut(li5, |n| n.set_attribute("class", "sinkitem".into()));
-        tree.note_restyle(li5);
-        check("class flip");
-        let got = tree.rule_match_sets_incremental(&selectors, key);
-        let sink_ri = selectors.iter().position(|s| *s == ".sinkitem").unwrap();
-        assert_eq!(got.hits.get(&sink_ri).map(|v| v.len()), Some(1));
+            // 3. Class flip on one li.
+            let li5 = tree.query_selector_all("li").unwrap()[5];
+            tree.with_node_mut(li5, |n| n.set_attribute("class", "sinkitem".into()));
+            tree.note_restyle(li5);
+            check("class flip");
+            let got = tree.rule_match_sets_incremental(&selectors, key);
+            let sink_ri = selectors.iter().position(|s| *s == ".sinkitem").unwrap();
+            assert_eq!(got.hits.get(&sink_ri).map(|v| v.len()), Some(1));
 
-        // 4. Detach without free (remove_child), then re-insert elsewhere.
-        let ghost = tree.query_selector_all(".ghost").unwrap()[0];
-        tree.remove_child(ghost);
-        check("detach ghost");
-        tree.append_child(ul, ghost);
-        check("reinsert ghost");
+            // 4. Detach without free (remove_child), then re-insert elsewhere.
+            let ghost = tree.query_selector_all(".ghost").unwrap()[0];
+            tree.remove_child(ghost);
+            check("detach ghost");
+            tree.append_child(ul, ghost);
+            check("reinsert ghost");
 
-        // 5. Remove with free (slot recycling — stale indices must purge).
-        let victim = tree.query_selector_all("li").unwrap()[1];
-        tree.remove(victim);
-        check("remove li");
+            // 5. Remove with free (slot recycling — stale indices must purge).
+            let victim = tree.query_selector_all("li").unwrap()[1];
+            tree.remove(victim);
+            check("remove li");
 
-        // 6. insert_before: the last li moves to the front.
-        let lis_now = tree.query_selector_all("li").unwrap();
-        tree.insert_before(lis_now[0], lis_now[lis_now.len() - 1]);
-        check("insert_before li");
+            // 6. insert_before: the last li moves to the front.
+            let lis_now = tree.query_selector_all("li").unwrap();
+            tree.insert_before(lis_now[0], lis_now[lis_now.len() - 1]);
+            check("insert_before li");
 
-        // 7. Mass mutation: re-append every li — crosses the stamp-count
-        // threshold and lands on the fallback rebuild.
-        for li in tree.query_selector_all("li").unwrap() {
-            tree.append_child(ul, li);
+            // 7. Mass mutation: re-append every li — crosses the stamp-count
+            // threshold and lands on the fallback rebuild.
+            for li in tree.query_selector_all("li").unwrap() {
+                tree.append_child(ul, li);
+            }
+            check("mass re-append");
+
+            // 8. No mutations: the sync is a pure cache read.
+            check("idle");
+
+            // 9. A different css key drops the cache and rebuilds.
+            let fresh = tree.rule_match_sets(&selectors);
+            assert_eq!(tree.rule_match_sets_incremental(&selectors, key + 1), fresh);
         }
-        check("mass re-append");
 
-        // 8. No mutations: the sync is a pure cache read.
-        check("idle");
-
-        // 9. A different css key drops the cache and rebuilds.
-        let fresh = tree.rule_match_sets(&selectors);
-        assert_eq!(tree.rule_match_sets_incremental(&selectors, key + 1), fresh);
-    }
-
-    /// #123's root cause, handwritten from the fuzzer's seed-3/step-81 hit:
-    /// a `:has()`-bearing selector with a combinator to the RIGHT of the
-    /// :has subject (`section:has(.leaf) .ghost`). Moving the .leaf
-    /// subtree in/out flips the section's :has(), and that flip changes
-    /// the match of every .ghost DESCENDANT of the section — nodes that
-    /// are attached, outside the mutated subtree, and (pre-fix) never in
-    /// the incremental candidate set. The chain walk covers the section
-    /// itself; the section's other descendants are the hole. The padding
-    /// keeps the stamp/candidate counts under the mass-mutation gates so
-    /// the true incremental path (not the rebuild fallback) is exercised.
-    #[test]
-    fn transitive_has_rules_reprobe_descendants_of_flipped_ancestors() {
-        let pad = (0..80)
-            .map(|i| format!("<span class='p{i}'>p</span>"))
-            .collect::<String>();
-        let tree = parse_html(&format!(
-            r#"<div id="wrap">
+        /// #123's root cause, handwritten from the fuzzer's seed-3/step-81 hit:
+        /// a `:has()`-bearing selector with a combinator to the RIGHT of the
+        /// :has subject (`section:has(.leaf) .ghost`). Moving the .leaf
+        /// subtree in/out flips the section's :has(), and that flip changes
+        /// the match of every .ghost DESCENDANT of the section — nodes that
+        /// are attached, outside the mutated subtree, and (pre-fix) never in
+        /// the incremental candidate set. The chain walk covers the section
+        /// itself; the section's other descendants are the hole. The padding
+        /// keeps the stamp/candidate counts under the mass-mutation gates so
+        /// the true incremental path (not the rebuild fallback) is exercised.
+        #[test]
+        fn transitive_has_rules_reprobe_descendants_of_flipped_ancestors() {
+            let pad = (0..80)
+                .map(|i| format!("<span class='p{i}'>p</span>"))
+                .collect::<String>();
+            let tree = parse_html(&format!(
+                r#"<div id="wrap">
                 <section class="sink"><div class="mid"><span class="ghost">g</span></div></section>
                 <section class="sink2"><div class="deep"><span class="leaf">d</span></div></section>
                 <div id="pad">{pad}</div>
             </div>"#
-        ));
-        let selectors = ["section:has(.leaf) .ghost"];
-        let key = 0xfeed_face_u64;
-        let ghost_hits = |tree: &crate::diting_dom::tree::DomTree| {
-            tree.rule_match_sets_incremental(&selectors, key)
-                .hits
-                .get(&0)
-                .map(|v| v.len())
-                .unwrap_or(0)
-        };
-        // Prime: the .leaf lives under .sink2, so the ghost under .sink
-        // must not match.
-        assert_eq!(ghost_hits(&tree), 0, "ghost must not match before the operand arrives");
+            ));
+            let selectors = ["section:has(.leaf) .ghost"];
+            let key = 0xfeed_face_u64;
+            let ghost_hits = |tree: &crate::diting_dom::tree::DomTree| {
+                tree.rule_match_sets_incremental(&selectors, key)
+                    .hits
+                    .get(&0)
+                    .map(|v| v.len())
+                    .unwrap_or(0)
+            };
+            // Prime: the .leaf lives under .sink2, so the ghost under .sink
+            // must not match.
+            assert_eq!(
+                ghost_hits(&tree),
+                0,
+                "ghost must not match before the operand arrives"
+            );
 
-        // Move the .leaf subtree under .sink: the ghost must GAIN the hit.
-        let sink = tree.query_selector_all(".sink").unwrap()[0];
-        let deep = tree.query_selector_all(".deep").unwrap()[0];
-        tree.append_child(sink, deep);
-        assert_eq!(
-            ghost_hits(&tree),
-            1,
-            "inserting the :has operand must reach the subject descendant"
-        );
+            // Move the .leaf subtree under .sink: the ghost must GAIN the hit.
+            let sink = tree.query_selector_all(".sink").unwrap()[0];
+            let deep = tree.query_selector_all(".deep").unwrap()[0];
+            tree.append_child(sink, deep);
+            assert_eq!(
+                ghost_hits(&tree),
+                1,
+                "inserting the :has operand must reach the subject descendant"
+            );
 
-        // Move it back out: the ghost must LOSE the hit again.
-        let sink2 = tree.query_selector_all(".sink2").unwrap()[0];
-        tree.append_child(sink2, deep);
-        assert_eq!(
-            ghost_hits(&tree),
-            0,
-            "removing the :has operand must purge the subject descendant's stale hit"
-        );
-    }
-
-    /// #123: the tmall publish page parks a poisoned match box — pre-existing
-    /// elements lose late-sheet hits while fresh clones match them — and no
-    /// hand-picked mutation shape in the differential above reproduces it.
-    /// This fuzzes RANDOM mutation sequences against the same invariant
-    /// (incremental sync == fresh full match after every step), weighted
-    /// toward the shapes a React/KISSY commit storm actually produces:
-    /// detach-with-sync-then-reinsert (a layout run between the two halves of
-    /// a re-parent, which is what pump slice boundaries do mid-commit),
-    /// slot-recycling churn (free N, allocate N back), attribute writes on
-    /// detached nodes, mass re-appends straddling the stamp gate, and
-    /// cross-key drops. Deterministic LCG: a failure names its seed.
-    #[test]
-    fn incremental_match_survives_random_mutation_storms() {
-        use crate::diting_dom::NodeId;
-        use crate::diting_dom::tree::{Attribute, DomTree, NodeData};
-        use html5ever::{ns, LocalName, Namespace, QualName};
-
-        struct Rng(u64);
-        impl Rng {
-            fn next(&mut self) -> u64 {
-                self.0 = self
-                    .0
-                    .wrapping_mul(6364136223846793005)
-                    .wrapping_add(1442695040888963407);
-                self.0
-            }
-            fn below(&mut self, n: usize) -> usize {
-                (self.next() >> 33) as usize % n.max(1)
-            }
+            // Move it back out: the ghost must LOSE the hit again.
+            let sink2 = tree.query_selector_all(".sink2").unwrap()[0];
+            tree.append_child(sink2, deep);
+            assert_eq!(
+                ghost_hits(&tree),
+                0,
+                "removing the :has operand must purge the subject descendant's stale hit"
+            );
         }
 
-        let lis = (0..48)
-            .map(|i| {
-                let class = if i % 3 == 0 {
-                    format!("odd3 item{i}")
-                } else if i % 5 == 0 {
-                    format!("sinkitem item{i}")
-                } else {
-                    format!("item{i}")
-                };
-                format!("<li class='{class}' data-kind='k{i}'>{i}</li>")
-            })
-            .collect::<String>();
-        let html = format!(
-            r#"<div id="wrap" class="container">
+        /// #123: the tmall publish page parks a poisoned match box — pre-existing
+        /// elements lose late-sheet hits while fresh clones match them — and no
+        /// hand-picked mutation shape in the differential above reproduces it.
+        /// This fuzzes RANDOM mutation sequences against the same invariant
+        /// (incremental sync == fresh full match after every step), weighted
+        /// toward the shapes a React/KISSY commit storm actually produces:
+        /// detach-with-sync-then-reinsert (a layout run between the two halves of
+        /// a re-parent, which is what pump slice boundaries do mid-commit),
+        /// slot-recycling churn (free N, allocate N back), attribute writes on
+        /// detached nodes, mass re-appends straddling the stamp gate, and
+        /// cross-key drops. Deterministic LCG: a failure names its seed.
+        #[test]
+        fn incremental_match_survives_random_mutation_storms() {
+            use crate::diting_dom::tree::{Attribute, DomTree, NodeData};
+            use crate::diting_dom::NodeId;
+            use html5ever::{ns, LocalName, Namespace, QualName};
+
+            struct Rng(u64);
+            impl Rng {
+                fn next(&mut self) -> u64 {
+                    self.0 = self
+                        .0
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
+                    self.0
+                }
+                fn below(&mut self, n: usize) -> usize {
+                    (self.next() >> 33) as usize % n.max(1)
+                }
+            }
+
+            let lis = (0..48)
+                .map(|i| {
+                    let class = if i % 3 == 0 {
+                        format!("odd3 item{i}")
+                    } else if i % 5 == 0 {
+                        format!("sinkitem item{i}")
+                    } else {
+                        format!("item{i}")
+                    };
+                    format!("<li class='{class}' data-kind='k{i}'>{i}</li>")
+                })
+                .collect::<String>();
+            let html = format!(
+                r#"<div id="wrap" class="container">
                 <h1 class="title main" data-kind="lead">T</h1>
                 <p data-kind="lead">L</p>
                 <ul id="list">{lis}</ul>
                 <section class="sink"><span class="ghost" data-k="g">g</span></section>
                 <section class="sink2"><div class="deep"><span class="leaf">d</span></div></section>
             </div>"#
-        );
+            );
 
-        let selectors = [
-            "div",
-            ".container",
-            "#wrap",
-            "p",
-            ".title.main",
-            "div .item",
-            "ul li",
-            "li.odd3 + li",
-            "li ~ li",
-            "li:first-child",
-            "li:nth-child(2n)",
-            "[data-kind]",
-            "p[data-kind='lead']",
-            ".sink .ghost",
-            ".sink2 .deep .leaf",
-            "section:has(.leaf)",
-            "section:has(> .ghost)",
-            "h1, .item",
-            "*",
-            "#nope",
-            ".sinkitem",
-            "li:not(.item)",
-            "[data-k]",
-        ];
+            let selectors = [
+                "div",
+                ".container",
+                "#wrap",
+                "p",
+                ".title.main",
+                "div .item",
+                "ul li",
+                "li.odd3 + li",
+                "li ~ li",
+                "li:first-child",
+                "li:nth-child(2n)",
+                "[data-kind]",
+                "p[data-kind='lead']",
+                ".sink .ghost",
+                ".sink2 .deep .leaf",
+                "section:has(.leaf)",
+                "section:has(> .ghost)",
+                "h1, .item",
+                "*",
+                "#nope",
+                ".sinkitem",
+                "li:not(.item)",
+                "[data-k]",
+            ];
 
-        let key_a = 0x1234_5678_9abc_def0u64;
-        let key_b = key_a.wrapping_add(1);
+            let key_a = 0x1234_5678_9abc_def0u64;
+            let key_b = key_a.wrapping_add(1);
 
-        // The late-sheet face: when a stylesheet lands the css bytes grow,
-        // so the selector list GROWS with the key (same prefix, extra rules
-        // appended — document order keeps existing rule indexes stable).
-        let mut selectors_late: Vec<&str> = selectors.to_vec();
-        selectors_late.extend_from_slice(&[".leaf", "span.ghost", "section:has(.leaf) .ghost"]);
+            // The late-sheet face: when a stylesheet lands the css bytes grow,
+            // so the selector list GROWS with the key (same prefix, extra rules
+            // appended — document order keeps existing rule indexes stable).
+            let mut selectors_late: Vec<&str> = selectors.to_vec();
+            selectors_late.extend_from_slice(&[".leaf", "span.ghost", "section:has(.leaf) .ghost"]);
 
-        for seed in 0..48u64 {
-            let tree = parse_html(&html);
-            let mut rng = Rng(seed.wrapping_mul(0x9e3779b97f4a7c15) | 1);
-            let mut key = if seed % 2 == 0 { key_a } else { key_b };
-            // Prime the box under `key` (parse-time stamps force the
-            // full-build parking path). The comparison filters each rule's
-            // hit set down to ATTACHED element indices: the cascade only
-            // consults node_rules for nodes the visit walk reaches, so stale
-            // hits on freed/detached slots are unobservable — what must never
-            // happen is an ATTACHED node whose hits diverge (the #123 poison:
-            // attached originals missing late-sheet hits while fresh nodes
-            // match them).
-            let attached_filter = |tree: &DomTree| -> Vec<bool> {
-                let slots = tree.node_slot_count();
-                let mut at = vec![false; slots];
-                for d in tree.descendants(tree.document()) {
-                    let i = d.index();
-                    if i < slots {
-                        at[i] = true;
+            for seed in 0..48u64 {
+                let tree = parse_html(&html);
+                let mut rng = Rng(seed.wrapping_mul(0x9e3779b97f4a7c15) | 1);
+                let mut key = if seed % 2 == 0 { key_a } else { key_b };
+                // Prime the box under `key` (parse-time stamps force the
+                // full-build parking path). The comparison filters each rule's
+                // hit set down to ATTACHED element indices: the cascade only
+                // consults node_rules for nodes the visit walk reaches, so stale
+                // hits on freed/detached slots are unobservable — what must never
+                // happen is an ATTACHED node whose hits diverge (the #123 poison:
+                // attached originals missing late-sheet hits while fresh nodes
+                // match them).
+                let attached_filter = |tree: &DomTree| -> Vec<bool> {
+                    let slots = tree.node_slot_count();
+                    let mut at = vec![false; slots];
+                    for d in tree.descendants(tree.document()) {
+                        let i = d.index();
+                        if i < slots {
+                            at[i] = true;
+                        }
                     }
-                }
-                at
-            };
-            let check = |stage: &str, key: u64, selectors: &[&str]| {
-                let inc = tree.rule_match_sets_incremental(selectors, key);
-                let full = tree.rule_match_sets(selectors);
-                let at = attached_filter(&tree);
-                let mask = |v: &[usize]| v.iter().copied().filter(|i| at.get(*i).copied().unwrap_or(false)).collect::<Vec<usize>>();
-                for (ri, sel) in selectors.iter().enumerate() {
-                    let a = mask(inc.hits.get(&ri).map(|v| v.as_slice()).unwrap_or(&[]));
-                    let b = mask(full.hits.get(&ri).map(|v| v.as_slice()).unwrap_or(&[]));
-                    if a != b {
-                        let only_inc: Vec<usize> = a.iter().copied().filter(|i| !b.contains(i)).collect();
-                        let only_full: Vec<usize> = b.iter().copied().filter(|i| !a.contains(i)).collect();
-                        panic!(
+                    at
+                };
+                let check = |stage: &str, key: u64, selectors: &[&str]| {
+                    let inc = tree.rule_match_sets_incremental(selectors, key);
+                    let full = tree.rule_match_sets(selectors);
+                    let at = attached_filter(&tree);
+                    let mask = |v: &[usize]| {
+                        v.iter()
+                            .copied()
+                            .filter(|i| at.get(*i).copied().unwrap_or(false))
+                            .collect::<Vec<usize>>()
+                    };
+                    for (ri, sel) in selectors.iter().enumerate() {
+                        let a = mask(inc.hits.get(&ri).map(|v| v.as_slice()).unwrap_or(&[]));
+                        let b = mask(full.hits.get(&ri).map(|v| v.as_slice()).unwrap_or(&[]));
+                        if a != b {
+                            let only_inc: Vec<usize> =
+                                a.iter().copied().filter(|i| !b.contains(i)).collect();
+                            let only_full: Vec<usize> =
+                                b.iter().copied().filter(|i| !a.contains(i)).collect();
+                            panic!(
                             "seed {seed} diverged at `{stage}` rule {ri} `{sel}`: \
                              incremental-missing(attached)={only_full:?} incremental-extra(attached)={only_inc:?}"
                         );
+                        }
                     }
-                }
-            };
-            let base_sel: &[&str] = &selectors;
-            let late_sel: &[&str] = &selectors_late;
-            check("prime", key, if key == key_b { late_sel } else { base_sel });
-
-            // Attached-element pool: everything at or below #wrap except the
-            // structural roots themselves, refreshed lazily.
-            let pool = |tree: &DomTree| -> Vec<NodeId> {
-                let wrap = tree.get_element_by_id("wrap").unwrap();
-                tree.descendants(wrap)
-            };
-            let pick = |tree: &DomTree, rng: &mut Rng| -> Option<NodeId> {
-                let p = pool(tree);
-                (!p.is_empty()).then(|| p[rng.below(p.len())])
-            };
-
-            let new_element = |tree: &DomTree, rng: &mut Rng| -> NodeId {
-                let tag = ["span", "div", "li", "em", "section"][rng.below(5)];
-                let class = [
-                    "item9",
-                    "odd3",
-                    "sinkitem",
-                    "ghost deep",
-                    "",
-                    "leaf",
-                ][rng.below(6)];
-                let data = if rng.below(2) == 0 {
-                    format!("k{}", rng.below(50))
-                } else {
-                    String::new()
                 };
-                let mut attrs = vec![Attribute {
-                    name: QualName::new(None, Namespace::default(), LocalName::from("class")),
-                    value: class.into(),
-                }];
-                if !data.is_empty() {
-                    attrs.push(Attribute {
-                        name: QualName::new(None, Namespace::default(), LocalName::from("data-kind")),
-                        value: data,
-                    });
-                }
-                tree.new_node(NodeData::Element {
-                    name: QualName::new(None, ns!(html), LocalName::from(tag)),
-                    attrs,
-                    template_contents: None,
-                    mathml_annotation_xml_integration_point: false,
-                    live_value: None,
-                    live_checked: None,
-                    live_indeterminate: false,
-                })
-            };
+                let base_sel: &[&str] = &selectors;
+                let late_sel: &[&str] = &selectors_late;
+                check("prime", key, if key == key_b { late_sel } else { base_sel });
 
-            for step in 0..160 {
-                let stage = format!("seed {seed} step {step}");
-                match rng.below(12) {
-                    // 0-1: insert a fresh node (allocation may recycle slots).
-                    0 | 1 => {
-                        let node = new_element(&tree, &mut rng);
-                        if let Some(parent) = pick(&tree, &mut rng) {
-                            tree.append_child(parent, node);
-                        }
-                        if rng.below(3) == 0 {
-                            let kid = new_element(&tree, &mut rng);
-                            tree.append_child(node, kid);
-                        }
-                    }
-                    // 2: re-parent an existing node.
-                    2 => {
-                        if let (Some(node), Some(parent)) = (pick(&tree, &mut rng), pick(&tree, &mut rng)) {
-                            tree.append_child(parent, node);
-                        }
-                    }
-                    // 3: detach without free, sync runs mid-commit (the pump
-                    // slice shape), then re-insert elsewhere.
-                    3 => {
-                        if let (Some(node), Some(parent)) = (pick(&tree, &mut rng), pick(&tree, &mut rng)) {
-                            tree.remove_child(node);
-                            check(&format!("{stage}: mid-commit detach"), key, if key == key_b { late_sel } else { base_sel });
-                            tree.append_child(parent, node);
-                        }
-                    }
-                    // 4: remove with free (slot recycling).
-                    4 => {
-                        if let Some(node) = pick(&tree, &mut rng) {
-                            tree.remove(node);
-                        }
-                    }
-                    // 5: slot-recycling churn — free a batch, allocate a batch.
-                    5 => {
-                        let victims: Vec<NodeId> = (0..3)
-                            .filter_map(|_| pick(&tree, &mut rng))
-                            .collect();
-                        for v in victims {
-                            tree.remove(v);
-                        }
-                        if let Some(parent) = pick(&tree, &mut rng) {
-                            for _ in 0..3 {
-                                let n = new_element(&tree, &mut rng);
-                                tree.append_child(parent, n);
-                            }
-                        }
-                    }
-                    // 6: insert_before.
-                    6 => {
-                        if let (Some(existing), Some(node)) = (pick(&tree, &mut rng), pick(&tree, &mut rng)) {
-                            tree.insert_before(existing, node);
-                        }
-                    }
-                    // 7: attribute write + the ops-layer restyle stamp.
-                    7 => {
-                        if let Some(node) = pick(&tree, &mut rng) {
-                            let (name, value) = [
-                                ("class", "sinkitem"),
-                                ("class", "odd3 leaf"),
-                                ("data-kind", "lead"),
-                                ("data-kind", ""),
-                                ("id", "zz9"),
-                            ][rng.below(5)];
-                            tree.with_node_mut(node, |n| n.set_attribute(name, value.to_string()));
-                            tree.note_restyle(node);
-                        }
-                    }
-                    // 8: attr write on a DETACHED node, then re-attach (the
-                    // stamps fire while detached; the sync purges without
-                    // re-probing; the re-attach must restore).
-                    8 => {
-                        if let (Some(node), Some(parent)) = (pick(&tree, &mut rng), pick(&tree, &mut rng)) {
-                            tree.remove_child(node);
-                            tree.with_node_mut(node, |n| n.set_attribute("class", "sinkitem".to_string()));
-                            tree.note_restyle(node);
-                            check(&format!("{stage}: detached restyle"), key, if key == key_b { late_sel } else { base_sel });
-                            tree.append_child(parent, node);
-                        }
-                    }
-                    // 9: mass re-append — straddles the stamp-count gate.
-                    9 => {
-                        if let Some(ul) = tree.get_element_by_id("list") {
-                            for li in tree.query_selector_all("li").unwrap_or_default() {
-                                tree.append_child(ul, li);
-                            }
-                        }
-                    }
-                    // 10: the escape hatch.
-                    10 => {
-                        tree.note_match_full();
-                    }
-                    // 11: idle sync.
-                    _ => {}
-                }
-                // A stylesheet lands mid-storm every ~40 steps: the css
-                // bytes grow (selectors_late) and the css_key flips, then
-                // churn continues under the new sheet — the #123 shape
-                // (originals that predate the sheet must not lose its hits).
-                if step % 40 == 19 {
-                    if key == key_a {
-                        key = key_b;
+                // Attached-element pool: everything at or below #wrap except the
+                // structural roots themselves, refreshed lazily.
+                let pool = |tree: &DomTree| -> Vec<NodeId> {
+                    let wrap = tree.get_element_by_id("wrap").unwrap();
+                    tree.descendants(wrap)
+                };
+                let pick = |tree: &DomTree, rng: &mut Rng| -> Option<NodeId> {
+                    let p = pool(tree);
+                    (!p.is_empty()).then(|| p[rng.below(p.len())])
+                };
+
+                let new_element = |tree: &DomTree, rng: &mut Rng| -> NodeId {
+                    let tag = ["span", "div", "li", "em", "section"][rng.below(5)];
+                    let class =
+                        ["item9", "odd3", "sinkitem", "ghost deep", "", "leaf"][rng.below(6)];
+                    let data = if rng.below(2) == 0 {
+                        format!("k{}", rng.below(50))
                     } else {
-                        key = key_a;
+                        String::new()
+                    };
+                    let mut attrs = vec![Attribute {
+                        name: QualName::new(None, Namespace::default(), LocalName::from("class")),
+                        value: class.into(),
+                    }];
+                    if !data.is_empty() {
+                        attrs.push(Attribute {
+                            name: QualName::new(
+                                None,
+                                Namespace::default(),
+                                LocalName::from("data-kind"),
+                            ),
+                            value: data,
+                        });
                     }
+                    tree.new_node(NodeData::Element {
+                        name: QualName::new(None, ns!(html), LocalName::from(tag)),
+                        attrs,
+                        template_contents: None,
+                        mathml_annotation_xml_integration_point: false,
+                        live_value: None,
+                        live_checked: None,
+                        live_indeterminate: false,
+                    })
+                };
+
+                for step in 0..160 {
+                    let stage = format!("seed {seed} step {step}");
+                    match rng.below(12) {
+                        // 0-1: insert a fresh node (allocation may recycle slots).
+                        0 | 1 => {
+                            let node = new_element(&tree, &mut rng);
+                            if let Some(parent) = pick(&tree, &mut rng) {
+                                tree.append_child(parent, node);
+                            }
+                            if rng.below(3) == 0 {
+                                let kid = new_element(&tree, &mut rng);
+                                tree.append_child(node, kid);
+                            }
+                        }
+                        // 2: re-parent an existing node.
+                        2 => {
+                            if let (Some(node), Some(parent)) =
+                                (pick(&tree, &mut rng), pick(&tree, &mut rng))
+                            {
+                                tree.append_child(parent, node);
+                            }
+                        }
+                        // 3: detach without free, sync runs mid-commit (the pump
+                        // slice shape), then re-insert elsewhere.
+                        3 => {
+                            if let (Some(node), Some(parent)) =
+                                (pick(&tree, &mut rng), pick(&tree, &mut rng))
+                            {
+                                tree.remove_child(node);
+                                check(
+                                    &format!("{stage}: mid-commit detach"),
+                                    key,
+                                    if key == key_b { late_sel } else { base_sel },
+                                );
+                                tree.append_child(parent, node);
+                            }
+                        }
+                        // 4: remove with free (slot recycling).
+                        4 => {
+                            if let Some(node) = pick(&tree, &mut rng) {
+                                tree.remove(node);
+                            }
+                        }
+                        // 5: slot-recycling churn — free a batch, allocate a batch.
+                        5 => {
+                            let victims: Vec<NodeId> =
+                                (0..3).filter_map(|_| pick(&tree, &mut rng)).collect();
+                            for v in victims {
+                                tree.remove(v);
+                            }
+                            if let Some(parent) = pick(&tree, &mut rng) {
+                                for _ in 0..3 {
+                                    let n = new_element(&tree, &mut rng);
+                                    tree.append_child(parent, n);
+                                }
+                            }
+                        }
+                        // 6: insert_before.
+                        6 => {
+                            if let (Some(existing), Some(node)) =
+                                (pick(&tree, &mut rng), pick(&tree, &mut rng))
+                            {
+                                tree.insert_before(existing, node);
+                            }
+                        }
+                        // 7: attribute write + the ops-layer restyle stamp.
+                        7 => {
+                            if let Some(node) = pick(&tree, &mut rng) {
+                                let (name, value) = [
+                                    ("class", "sinkitem"),
+                                    ("class", "odd3 leaf"),
+                                    ("data-kind", "lead"),
+                                    ("data-kind", ""),
+                                    ("id", "zz9"),
+                                ][rng.below(5)];
+                                tree.with_node_mut(node, |n| {
+                                    n.set_attribute(name, value.to_string())
+                                });
+                                tree.note_restyle(node);
+                            }
+                        }
+                        // 8: attr write on a DETACHED node, then re-attach (the
+                        // stamps fire while detached; the sync purges without
+                        // re-probing; the re-attach must restore).
+                        8 => {
+                            if let (Some(node), Some(parent)) =
+                                (pick(&tree, &mut rng), pick(&tree, &mut rng))
+                            {
+                                tree.remove_child(node);
+                                tree.with_node_mut(node, |n| {
+                                    n.set_attribute("class", "sinkitem".to_string())
+                                });
+                                tree.note_restyle(node);
+                                check(
+                                    &format!("{stage}: detached restyle"),
+                                    key,
+                                    if key == key_b { late_sel } else { base_sel },
+                                );
+                                tree.append_child(parent, node);
+                            }
+                        }
+                        // 9: mass re-append — straddles the stamp-count gate.
+                        9 => {
+                            if let Some(ul) = tree.get_element_by_id("list") {
+                                for li in tree.query_selector_all("li").unwrap_or_default() {
+                                    tree.append_child(ul, li);
+                                }
+                            }
+                        }
+                        // 10: the escape hatch.
+                        10 => {
+                            tree.note_match_full();
+                        }
+                        // 11: idle sync.
+                        _ => {}
+                    }
+                    // A stylesheet lands mid-storm every ~40 steps: the css
+                    // bytes grow (selectors_late) and the css_key flips, then
+                    // churn continues under the new sheet — the #123 shape
+                    // (originals that predate the sheet must not lose its hits).
+                    if step % 40 == 19 {
+                        if key == key_a {
+                            key = key_b;
+                        } else {
+                            key = key_a;
+                        }
+                    }
+                    check(&stage, key, if key == key_b { late_sel } else { base_sel });
                 }
-                check(&stage, key, if key == key_b { late_sel } else { base_sel });
+
+                // Cross-key round trip at the end: K -> other -> K must equal a
+                // fresh full match each time.
+                let other = if key == key_a { key_b } else { key_a };
+                let fresh = tree.rule_match_sets(&selectors_late);
+                assert_eq!(
+                    tree.rule_match_sets_incremental(&selectors_late, other),
+                    fresh,
+                    "seed {seed} cross-key"
+                );
+                assert_eq!(
+                    tree.rule_match_sets_incremental(&selectors_late, key),
+                    fresh,
+                    "seed {seed} key-back"
+                );
             }
+        }
 
-            // Cross-key round trip at the end: K -> other -> K must equal a
-            // fresh full match each time.
-            let other = if key == key_a { key_b } else { key_a };
-            let fresh = tree.rule_match_sets(&selectors_late);
-            assert_eq!(tree.rule_match_sets_incremental(&selectors_late, other), fresh, "seed {seed} cross-key");
-            assert_eq!(tree.rule_match_sets_incremental(&selectors_late, key), fresh, "seed {seed} key-back");
+        /// Rules whose rightmost compound has no id/class/tag key (universal,
+        /// attr-only, pseudo-only) fall into the always-tested bucket — the
+        /// one place the hash could silently drop matches if the fallback
+        /// regressed.
+        #[test]
+        fn rule_match_sets_unkeyed_rules_still_match() {
+            let tree = parse_html(r#"<div><p data-x="1">a</p><p>b</p><span>c</span></div>"#);
+            let selectors = ["[data-x]", "*:not(span)", "[hidden]", "*"];
+            let sets = tree.rule_match_sets(&selectors);
+            let expected: Vec<usize> = tree
+                .query_selector_all_from(tree.document(), "[data-x]")
+                .unwrap()
+                .into_iter()
+                .map(|n| n.index())
+                .collect();
+            let got = sets.hits.get(&0).cloned().unwrap_or_default();
+            assert_eq!(got, expected, "attr-only rule lost its match");
+            // `*` matches every element: html, head, body included.
+            let star = sets.hits.get(&3).cloned().unwrap_or_default();
+            assert!(star.len() >= 5, "universal rule matched only {star:?}");
+            // Never-matching unkeyed rule contributes nothing.
+            assert!(!sets.hits.contains_key(&2));
+        }
+
+        // ---- pseudo-element rule routing (::before/::after v1, #312) ----
+
+        #[test]
+        fn pseudo_element_rules_route_out_of_normal_hits() {
+            let tree = parse_html(r#"<div class="row">x</div><p class="row">y</p>"#);
+            let sets = tree.rule_match_sets(&[".row:after"]);
+            let slots = sets.pseudo_hits.get(&0);
+            assert_eq!(
+                slots.map(|s| (s[0].len(), s[1].len())),
+                Some((0, 2)),
+                "::after routes to slot 1 alone"
+            );
+            assert!(
+                !sets.hits.contains_key(&0),
+                "pseudo rule must never reach the normal cascade"
+            );
+        }
+
+        #[test]
+        fn pseudo_suffix_spellings_and_case() {
+            let tree = parse_html(r#"<ul><li id="a">one</li><li id="b">two</li></ul>"#);
+            let sets = tree.rule_match_sets(&["li::before", "li:after", ".LI:BEFORE"]);
+            assert_eq!(sets.pseudo_hits.get(&0).map(|s| s[0].len()), Some(2));
+            assert_eq!(sets.pseudo_hits.get(&1).map(|s| s[1].len()), Some(2));
+            // The suffix matches case-insensitively but the base keeps the
+            // author's case, so class matching stays case-sensitive: routing
+            // is orthogonal to matching.
+            assert!(!sets.pseudo_hits.contains_key(&2), ".LI matches nothing");
+        }
+
+        #[test]
+        fn comma_lists_route_per_sub_selector() {
+            // Bootstrap 3's clearfix family: giant comma lists where SOME
+            // sub-selectors carry ::after/::before. Pre-#312 the whole rule
+            // stayed dead; now each part routes by itself.
+            let tree =
+                parse_html(r#"<div class="row"><p>hi</p></div><section class="s"></section>"#);
+            let sets = tree.rule_match_sets(&[".row:after,.row:before", ".row p,.row:after"]);
+            // Rule 0: both slots carry the .row div, nothing in normal hits.
+            let r0 = sets.pseudo_hits.get(&0).expect("clearfix rule routed");
+            assert_eq!(r0[0].len(), 1, "before slot");
+            assert_eq!(r0[1].len(), 1, "after slot");
+            assert!(!sets.hits.contains_key(&0), "no plain part in rule 0");
+            // Rule 1: the `p` part feeds the normal cascade, the ::after part
+            // the pseudo one — same rule, two cascades.
+            assert_eq!(sets.hits.get(&1).map(|v| v.len()), Some(1), "plain p hits");
+            assert_eq!(
+                sets.pseudo_hits.get(&1).map(|s| s[1].len()),
+                Some(1),
+                "after slot of the mixed rule"
+            );
+            assert_eq!(
+                sets.pseudo_hits.get(&1).map(|s| s[0].len()),
+                Some(0),
+                "mixed rule has no before part"
+            );
+            // The never-matching section stays out of every set.
+            let section = tree
+                .query_selector_all_from(tree.document(), "section")
+                .unwrap()[0]
+                .index();
+            for slots in sets.pseudo_hits.values() {
+                assert!(!slots.iter().any(|v| v.contains(&section)));
+            }
+        }
+
+        #[test]
+        fn non_trailing_suffixes_stay_dead() {
+            let tree = parse_html(r##"<a id="x" href="#">l</a><b class="b">t</b>"##);
+            let sets = tree.rule_match_sets(&[".b a::before:hover", "a::before .b"]);
+            assert!(
+                sets.pseudo_hits.is_empty(),
+                "no trailing suffix, no routing"
+            );
+            assert!(
+                !sets.hits.contains_key(&0),
+                "pseudo-class after pseudo-element is invalid CSS"
+            );
+            assert!(
+                !sets.hits.contains_key(&1),
+                "descendant-of-pseudo never matches real elements"
+            );
         }
     }
-
-    /// Rules whose rightmost compound has no id/class/tag key (universal,
-    /// attr-only, pseudo-only) fall into the always-tested bucket — the
-    /// one place the hash could silently drop matches if the fallback
-    /// regressed.
-    #[test]
-    fn rule_match_sets_unkeyed_rules_still_match() {
-        let tree = parse_html(r#"<div><p data-x="1">a</p><p>b</p><span>c</span></div>"#);
-        let selectors = ["[data-x]", "*:not(span)", "[hidden]", "*"];
-        let sets = tree.rule_match_sets(&selectors);
-        let expected: Vec<usize> = tree
-            .query_selector_all_from(tree.document(), "[data-x]")
-            .unwrap()
-            .into_iter()
-            .map(|n| n.index())
-            .collect();
-        let got = sets.hits.get(&0).cloned().unwrap_or_default();
-        assert_eq!(got, expected, "attr-only rule lost its match");
-        // `*` matches every element: html, head, body included.
-        let star = sets.hits.get(&3).cloned().unwrap_or_default();
-        assert!(star.len() >= 5, "universal rule matched only {star:?}");
-        // Never-matching unkeyed rule contributes nothing.
-        assert!(!sets.hits.contains_key(&2));
-    }
-
-    // ---- pseudo-element rule routing (::before/::after v1, #312) ----
-
-    #[test]
-    fn pseudo_element_rules_route_out_of_normal_hits() {
-        let tree = parse_html(r#"<div class="row">x</div><p class="row">y</p>"#);
-        let sets = tree.rule_match_sets(&[".row:after"]);
-        let slots = sets.pseudo_hits.get(&0);
-        assert_eq!(
-            slots.map(|s| (s[0].len(), s[1].len())),
-            Some((0, 2)),
-            "::after routes to slot 1 alone"
-        );
-        assert!(
-            !sets.hits.contains_key(&0),
-            "pseudo rule must never reach the normal cascade"
-        );
-    }
-
-    #[test]
-    fn pseudo_suffix_spellings_and_case() {
-        let tree = parse_html(r#"<ul><li id="a">one</li><li id="b">two</li></ul>"#);
-        let sets = tree.rule_match_sets(&["li::before", "li:after", ".LI:BEFORE"]);
-        assert_eq!(sets.pseudo_hits.get(&0).map(|s| s[0].len()), Some(2));
-        assert_eq!(sets.pseudo_hits.get(&1).map(|s| s[1].len()), Some(2));
-        // The suffix matches case-insensitively but the base keeps the
-        // author's case, so class matching stays case-sensitive: routing
-        // is orthogonal to matching.
-        assert!(!sets.pseudo_hits.contains_key(&2), ".LI matches nothing");
-    }
-
-    #[test]
-    fn comma_lists_route_per_sub_selector() {
-        // Bootstrap 3's clearfix family: giant comma lists where SOME
-        // sub-selectors carry ::after/::before. Pre-#312 the whole rule
-        // stayed dead; now each part routes by itself.
-        let tree = parse_html(r#"<div class="row"><p>hi</p></div><section class="s"></section>"#);
-        let sets = tree.rule_match_sets(&[".row:after,.row:before", ".row p,.row:after"]);
-        // Rule 0: both slots carry the .row div, nothing in normal hits.
-        let r0 = sets.pseudo_hits.get(&0).expect("clearfix rule routed");
-        assert_eq!(r0[0].len(), 1, "before slot");
-        assert_eq!(r0[1].len(), 1, "after slot");
-        assert!(!sets.hits.contains_key(&0), "no plain part in rule 0");
-        // Rule 1: the `p` part feeds the normal cascade, the ::after part
-        // the pseudo one — same rule, two cascades.
-        assert_eq!(sets.hits.get(&1).map(|v| v.len()), Some(1), "plain p hits");
-        assert_eq!(
-            sets.pseudo_hits.get(&1).map(|s| s[1].len()),
-            Some(1),
-            "after slot of the mixed rule"
-        );
-        assert_eq!(
-            sets.pseudo_hits.get(&1).map(|s| s[0].len()),
-            Some(0),
-            "mixed rule has no before part"
-        );
-        // The never-matching section stays out of every set.
-        let section = tree
-            .query_selector_all_from(tree.document(), "section")
-            .unwrap()[0]
-            .index();
-        for slots in sets.pseudo_hits.values() {
-            assert!(!slots.iter().any(|v| v.contains(&section)));
-        }
-    }
-
-    #[test]
-    fn non_trailing_suffixes_stay_dead() {
-        let tree = parse_html(r##"<a id="x" href="#">l</a><b class="b">t</b>"##);
-        let sets = tree.rule_match_sets(&[".b a::before:hover", "a::before .b"]);
-        assert!(sets.pseudo_hits.is_empty(), "no trailing suffix, no routing");
-        assert!(!sets.hits.contains_key(&0), "pseudo-class after pseudo-element is invalid CSS");
-        assert!(!sets.hits.contains_key(&1), "descendant-of-pseudo never matches real elements");
-    }
-}
 }

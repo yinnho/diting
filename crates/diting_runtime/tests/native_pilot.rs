@@ -16,7 +16,8 @@ static ISOLATE_LOCK: Mutex<()> = Mutex::new(());
 const PROBE: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-probe.js");
 const TRUTH: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-truth-145.json");
 const DEX_PROBE: &str = include_str!("../../../tools/webplatform/chrome/domexception-probe.js");
-const DEX_TRUTH: &str = include_str!("../../../tools/webplatform/chrome/domexception-truth-145.json");
+const DEX_TRUTH: &str =
+    include_str!("../../../tools/webplatform/chrome/domexception-truth-145.json");
 
 /// Probes a bare isolate cannot answer (no structuredClone, etc.).
 const ALLOWED_BARE: &[&str] = &["structuredClone"];
@@ -38,7 +39,10 @@ fn diff_against(got: &BTreeMap<String, serde_json::Value>, truth_json: &str) -> 
     let mut truth: BTreeMap<String, serde_json::Value> = serde_json::from_str(truth_json).unwrap();
     // Known gap: DOMPointReadOnly.matrixTransform needs DOMMatrix (not native yet).
     if let Some(shape) = truth.get_mut("shape.PointRO") {
-        shape["members"].as_object_mut().unwrap().remove("matrixTransform");
+        shape["members"]
+            .as_object_mut()
+            .unwrap()
+            .remove("matrixTransform");
         let order = shape["order"].as_array_mut().unwrap();
         order.retain(|v| v != "matrixTransform");
     }
@@ -48,7 +52,10 @@ fn diff_against(got: &BTreeMap<String, serde_json::Value>, truth_json: &str) -> 
             continue;
         }
         if got.get(k) != Some(want) {
-            bad.push(format!("{k}\n   chrome={want}\n   native={}", got.get(k).map(|v| v.to_string()).unwrap_or_default()));
+            bad.push(format!(
+                "{k}\n   chrome={want}\n   native={}",
+                got.get(k).map(|v| v.to_string()).unwrap_or_default()
+            ));
         }
     }
     bad
@@ -60,7 +67,12 @@ fn native_dom_rect_matches_chrome_after_snapshot_restore() {
     let blob: &'static [u8] = Box::leak(create_snapshot(&[], &[]).into());
     let mut vm = Vm::from_snapshot(blob).unwrap();
     let bad = diff(&run_probe(&mut vm));
-    assert!(bad.is_empty(), "{} probes differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} probes differ from Chrome:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 #[test]
@@ -68,7 +80,12 @@ fn native_dom_rect_matches_chrome_in_fresh_vm() {
     let _g = ISOLATE_LOCK.lock().unwrap();
     let mut vm = Vm::new();
     let bad = diff(&run_probe(&mut vm));
-    assert!(bad.is_empty(), "{} probes differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} probes differ from Chrome:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 /// DOMException (exception interface: Error-chained prototype, string slots,
@@ -79,9 +96,18 @@ fn native_dom_exception_matches_chrome() {
     let blob: &'static [u8] = Box::leak(create_snapshot(&[], &[]).into());
     for label in ["snapshot-restored", "fresh"] {
         // One isolate at a time (V8 requires reverse-order drops).
-        let mut vm = if label == "fresh" { Vm::new() } else { Vm::from_snapshot(blob).unwrap() };
+        let mut vm = if label == "fresh" {
+            Vm::new()
+        } else {
+            Vm::from_snapshot(blob).unwrap()
+        };
         let bad = diff_against(&run(&mut vm, DEX_PROBE), DEX_TRUTH);
-        assert!(bad.is_empty(), "[{label}] {} DOMException probes differ from Chrome:\n{}", bad.len(), bad.join("\n"));
+        assert!(
+            bad.is_empty(),
+            "[{label}] {} DOMException probes differ from Chrome:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
     }
 }
 
@@ -111,13 +137,19 @@ fn pilot_measurements() {
     "#;
     let mut vm = Vm::from_snapshot(blob).unwrap();
     vm.eval_string(js_class).unwrap();
-    for (label, ctor) in [("native DOMRect", "DOMRect"), ("JS class (WeakMap slots)", "JsRect")] {
+    for (label, ctor) in [
+        ("native DOMRect", "DOMRect"),
+        ("JS class (WeakMap slots)", "JsRect"),
+    ] {
         let script = format!(
             "(function(){{ var s=0; for (var i=0;i<300000;i++){{ var r=new {ctor}(i,2,3,4); s+=r.x+r.width+r.right; }} return String(s); }})()"
         );
         vm.eval_string(&script).unwrap(); // warm
         let t = std::time::Instant::now();
         vm.eval_string(&script).unwrap();
-        println!("{label}: {:?} per create+3 reads (300k iterations)", t.elapsed() / 300_000);
+        println!(
+            "{label}: {:?} per create+3 reads (300k iterations)",
+            t.elapsed() / 300_000
+        );
     }
 }

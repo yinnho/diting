@@ -83,7 +83,10 @@ pub(super) fn measure(
             for l in &lines {
                 let mut s = ctx.find_content_slot(y, Clear::None, None);
                 let mut guard = 0;
-                while l.width > s.width.min(full).max(0.0) + 0.001 && s.segment_id.is_some() && guard < 64 {
+                while l.width > s.width.min(full).max(0.0) + 0.001
+                    && s.segment_id.is_some()
+                    && guard < 64
+                {
                     s = ctx.find_content_slot(y, Clear::None, s.segment_id);
                     y = y.max(s.y);
                     guard += 1;
@@ -94,14 +97,22 @@ pub(super) fn measure(
                 if guard > 0 && s.segment_id.is_none() {
                     y = y.max(ctx.find_content_slot(y, Clear::Both, None).y);
                 }
-                slots.push(Slot { x: s.x.max(0.0), y, width: s.width.min(full).max(0.0) });
+                slots.push(Slot {
+                    x: s.x.max(0.0),
+                    y,
+                    width: s.width.min(full).max(0.0),
+                });
                 y += line_height;
             }
         } else {
             for i in 0..lines.len() {
                 let y = i as f32 * line_height;
                 let s = ctx.find_content_slot(y, Clear::None, None);
-                slots.push(Slot { x: s.x.max(0.0), y, width: s.width.min(full).max(0.0) });
+                slots.push(Slot {
+                    x: s.x.max(0.0),
+                    y,
+                    width: s.width.min(full).max(0.0),
+                });
             }
         }
         lines
@@ -110,7 +121,11 @@ pub(super) fn measure(
             while slots.len() <= i {
                 let y = slots.len() as f32 * line_height;
                 let s = ctx.find_content_slot(y, Clear::None, None);
-                slots.push(Slot { x: s.x.max(0.0), y, width: s.width.min(full).max(0.0) });
+                slots.push(Slot {
+                    x: s.x.max(0.0),
+                    y,
+                    width: s.width.min(full).max(0.0),
+                });
             }
             Some(slots[i].width)
         });
@@ -125,13 +140,25 @@ pub(super) fn measure(
             while slots.len() <= i {
                 let y = slots.len() as f32 * line_height;
                 let s = ctx.find_content_slot(y, Clear::None, None);
-                slots.push(Slot { x: s.x.max(0.0), y, width: s.width.min(full).max(0.0) });
+                slots.push(Slot {
+                    x: s.x.max(0.0),
+                    y,
+                    width: s.width.min(full).max(0.0),
+                });
             }
             let y0 = (i as f32 * line_height).max(y);
             let mut s = ctx.find_content_slot(y0, Clear::None, None);
-            if let Some(t) = l.token_idx.iter().copied().find(|&t| !tokens[t].is_space && !tokens[t].is_break) {
+            if let Some(t) = l
+                .token_idx
+                .iter()
+                .copied()
+                .find(|&t| !tokens[t].is_space && !tokens[t].is_break)
+            {
                 let mut guard = 0;
-                while tokens[t].width > s.width.min(full).max(0.0) + 0.001 && s.segment_id.is_some() && guard < 64 {
+                while tokens[t].width > s.width.min(full).max(0.0) + 0.001
+                    && s.segment_id.is_some()
+                    && guard < 64
+                {
                     s = ctx.find_content_slot(y0, Clear::None, s.segment_id);
                     y = y.max(s.y);
                     guard += 1;
@@ -140,7 +167,11 @@ pub(super) fn measure(
                     y = y.max(ctx.find_content_slot(y0, Clear::Both, None).y);
                 }
             }
-            slots[i] = Slot { x: s.x.max(0.0), y: y0.max(y), width: s.width.min(full).max(0.0) };
+            slots[i] = Slot {
+                x: s.x.max(0.0),
+                y: y0.max(y),
+                width: s.width.min(full).max(0.0),
+            };
             y = slots[i].y + line_height;
         }
         lines
@@ -150,7 +181,11 @@ pub(super) fn measure(
     }
     slots.truncate(lines.len());
     while slots.len() < lines.len() {
-        slots.push(Slot { x: 0.0, y: slots.len() as f32 * line_height, width: full });
+        slots.push(Slot {
+            x: 0.0,
+            y: slots.len() as f32 * line_height,
+            width: full,
+        });
     }
     // Where the stack ends vertically: a line a drop moved below the
     // floats makes it taller than lines × line-height.
@@ -177,7 +212,12 @@ pub(super) fn measure(
     }
     Some(LayoutOutput::from_sizes(
         size,
-        taffy::geometry::Rect { left: 0.0, top: 0.0, right: size.width, bottom: size.height },
+        taffy::geometry::Rect {
+            left: 0.0,
+            top: 0.0,
+            right: size.width,
+            bottom: size.height,
+        },
     ))
 }
 
@@ -193,7 +233,13 @@ pub(super) struct Line {
 }
 
 /// Cut a run into the lines `measure` laid out, using the slots it recorded.
-pub(super) fn split(text: &str, toks: &[Token], ws: WhiteSpace, line_height: f32, slots: &[Slot]) -> Vec<Line> {
+pub(super) fn split(
+    text: &str,
+    toks: &[Token],
+    ws: WhiteSpace,
+    line_height: f32,
+    slots: &[Slot],
+) -> Vec<Line> {
     // A slot width is not a wrap opportunity for nowrap/pre — they replay
     // their hard breaks and overflow the band (measure records one slot per
     // hard line for exactly this).
@@ -211,8 +257,17 @@ pub(super) fn split(text: &str, toks: &[Token], ws: WhiteSpace, line_height: f32
             let (from, to) = (ranges[first].0, ranges[last].1);
             Some(Line {
                 text: chars[from as usize..to as usize].iter().collect(),
-                tokens: l.token_idx.iter().map(|&t| toks[t].clone()).collect::<Vec<_>>().into(),
-                slot: slots.get(i).copied().unwrap_or(Slot { x: 0.0, y: i as f32 * line_height, width: l.width }),
+                tokens: l
+                    .token_idx
+                    .iter()
+                    .map(|&t| toks[t].clone())
+                    .collect::<Vec<_>>()
+                    .into(),
+                slot: slots.get(i).copied().unwrap_or(Slot {
+                    x: 0.0,
+                    y: i as f32 * line_height,
+                    width: l.width,
+                }),
                 from,
                 to,
             })
@@ -231,17 +286,63 @@ pub(super) fn measure_node(
     block: Option<&mut taffy::BlockContext<'_>>,
 ) -> taffy::tree::LayoutOutput {
     match ctx {
-        Some(super::TextLeaf::Run { text, font_size, bold, line_height, baseline_shift, mono, word_spacing, ws, align, tokens, small_caps, han, line_clamp, atomic, .. }) => {
-            let pad = super::shift_pad(*baseline_shift, super::leaf_descent(fonts, *font_size, *bold));
-            let shaped = super::run_tokens(text, *font_size, *bold, fonts, *mono, *word_spacing, *ws, tokens, *small_caps, *han);
+        Some(super::TextLeaf::Run {
+            text,
+            font_size,
+            bold,
+            line_height,
+            baseline_shift,
+            mono,
+            word_spacing,
+            ws,
+            align,
+            tokens,
+            small_caps,
+            han,
+            line_clamp,
+            atomic,
+            ..
+        }) => {
+            let pad = super::shift_pad(
+                *baseline_shift,
+                super::leaf_descent(fonts, *font_size, *bold),
+            );
+            let shaped = super::run_tokens(
+                text,
+                *font_size,
+                *bold,
+                fonts,
+                *mono,
+                *word_spacing,
+                *ws,
+                tokens,
+                *small_caps,
+                *han,
+            );
             if let Some(b) = block.as_deref() {
-                if let Some(out) = measure(id, &shaped, *line_height, pad, &inputs, *ws, *align, *line_clamp, *atomic, b) {
+                if let Some(out) = measure(
+                    id,
+                    &shaped,
+                    *line_height,
+                    pad,
+                    &inputs,
+                    *ws,
+                    *align,
+                    *line_clamp,
+                    *atomic,
+                    b,
+                ) {
                     return out;
                 }
             }
             super::measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, *line_clamp)
         }
         // Word leaves keep their style-driven sizing.
-        _ => taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| taffy::geometry::Size::ZERO),
+        _ => taffy::compute_leaf_layout(
+            inputs,
+            style,
+            |_, _| 0.0,
+            |_, _| taffy::geometry::Size::ZERO,
+        ),
     }
 }

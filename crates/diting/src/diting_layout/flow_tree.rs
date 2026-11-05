@@ -19,15 +19,16 @@
 use super::inline_flow;
 use std::collections::HashSet;
 use taffy::style::{
-    AlignSelf, BoxGenerationMode, BoxSizing, ContainingBlockClaims, Contain, Dimension, Direction,
+    AlignSelf, BoxGenerationMode, BoxSizing, Contain, ContainingBlockClaims, Dimension, Direction,
     LengthPercentageAuto, Overflow, Position,
 };
 use taffy::{
-    compute_block_layout, compute_cached_layout, compute_flexbox_layout, compute_grid_layout, compute_hidden_layout,
-    compute_leaf_layout, compute_oof_layout, compute_root_layout, round_layout, BlockContext, Cache, CacheTree,
-    CoreStyle, DetailedGridInfo, DetailedLayoutInfo, Display, FlexboxItemStyle, Layout, LayoutBlockContainer,
-    LayoutContainingBlock, LayoutFlexboxContainer, LayoutGridContainer, LayoutInput, LayoutOutput,
-    LayoutPartialTree, NodeId, Point, Rect, RoundTree, RunMode, Size, Style, TaffyError, TraversePartialTree,
+    compute_block_layout, compute_cached_layout, compute_flexbox_layout, compute_grid_layout,
+    compute_hidden_layout, compute_leaf_layout, compute_oof_layout, compute_root_layout,
+    round_layout, BlockContext, Cache, CacheTree, CoreStyle, DetailedGridInfo, DetailedLayoutInfo,
+    Display, FlexboxItemStyle, Layout, LayoutBlockContainer, LayoutContainingBlock,
+    LayoutFlexboxContainer, LayoutGridContainer, LayoutInput, LayoutOutput, LayoutPartialTree,
+    NodeId, Point, Rect, RoundTree, RunMode, Size, Style, TaffyError, TraversePartialTree,
     TraverseTree,
 };
 use taffy::{AvailableSpace, FlexWrap};
@@ -46,7 +47,10 @@ struct Chunked<T> {
 
 impl<T> Chunked<T> {
     fn new() -> Self {
-        Chunked { chunks: Vec::new(), len: 0 }
+        Chunked {
+            chunks: Vec::new(),
+            len: 0,
+        }
     }
     fn push(&mut self, t: T) -> usize {
         if self.chunks.last().is_none_or(|c| c.len() == CHUNK) {
@@ -95,7 +99,10 @@ impl<C> Word<C> {
     /// The style the word would have had as a full node.
     fn style(&self) -> Style {
         Style {
-            size: Size { width: Dimension::length(self.size.width), height: Dimension::length(self.size.height) },
+            size: Size {
+                width: Dimension::length(self.size.width),
+                height: Dimension::length(self.size.height),
+            },
             flex_shrink: if self.pinned { 0.0 } else { 1.0 },
             ..Style::default()
         }
@@ -128,7 +135,13 @@ fn word_index(id: NodeId) -> Option<usize> {
 
 impl<C> FlowTree<C> {
     pub fn new() -> Self {
-        FlowTree { nodes: Chunked::new(), words: Chunked::new(), rounding: true, min_as_max: HashSet::new(), blank: Style::default() }
+        FlowTree {
+            nodes: Chunked::new(),
+            words: Chunked::new(),
+            rounding: true,
+            min_as_max: HashSet::new(),
+            blank: Style::default(),
+        }
     }
 
     /// Size `node`'s max-content like its min-content (a table caption).
@@ -205,14 +218,20 @@ impl<C> FlowTree<C> {
         if word_index(id).is_some() {
             return Err(TaffyError::InvalidInputNode(id));
         }
-        self.nodes.get(usize::from(id)).and_then(|n| n.as_ref()).ok_or(TaffyError::InvalidInputNode(id))
+        self.nodes
+            .get(usize::from(id))
+            .and_then(|n| n.as_ref())
+            .ok_or(TaffyError::InvalidInputNode(id))
     }
 
     fn get_mut(&mut self, id: NodeId) -> Res<&mut Node<C>> {
         if word_index(id).is_some() {
             return Err(TaffyError::InvalidInputNode(id));
         }
-        self.nodes.get_mut(usize::from(id)).and_then(|n| n.as_mut()).ok_or(TaffyError::InvalidInputNode(id))
+        self.nodes
+            .get_mut(usize::from(id))
+            .and_then(|n| n.as_mut())
+            .ok_or(TaffyError::InvalidInputNode(id))
     }
 
     fn set_parent(&mut self, id: NodeId, parent: Option<NodeId>) -> Res<()> {
@@ -281,14 +300,19 @@ impl<C> FlowTree<C> {
         if !self.exists(child) {
             return Err(TaffyError::InvalidChildNode(child));
         }
-        self.get(parent).map_err(|_| TaffyError::InvalidParentNode(parent))?;
+        self.get(parent)
+            .map_err(|_| TaffyError::InvalidParentNode(parent))?;
         self.set_parent(child, Some(parent))?;
         self.get_mut(parent)?.children.push(child);
         self.mark_dirty(parent)
     }
 
     pub fn set_children(&mut self, parent: NodeId, children: &[NodeId]) -> Res<()> {
-        let old = self.get(parent).map_err(|_| TaffyError::InvalidParentNode(parent))?.children.clone();
+        let old = self
+            .get(parent)
+            .map_err(|_| TaffyError::InvalidParentNode(parent))?
+            .children
+            .clone();
         for c in old {
             let _ = self.set_parent(c, None);
         }
@@ -306,10 +330,16 @@ impl<C> FlowTree<C> {
     }
 
     pub fn remove_child(&mut self, parent: NodeId, child: NodeId) -> Res<NodeId> {
-        let pn = self.get_mut(parent).map_err(|_| TaffyError::InvalidParentNode(parent))?;
+        let pn = self
+            .get_mut(parent)
+            .map_err(|_| TaffyError::InvalidParentNode(parent))?;
         let idx = pn.children.iter().position(|c| *c == child);
         let Some(idx) = idx else {
-            return Err(TaffyError::ChildIndexOutOfBounds { parent, child_index: usize::MAX, child_count: pn.children.len() });
+            return Err(TaffyError::ChildIndexOutOfBounds {
+                parent,
+                child_index: usize::MAX,
+                child_count: pn.children.len(),
+            });
         };
         pn.children.remove(idx);
         let _ = self.set_parent(child, None);
@@ -346,19 +376,34 @@ impl<C> FlowTree<C> {
         let rounding = self.rounding;
         match word_index(node) {
             Some(i) => match self.words.get(i) {
-                Some(Some(w)) => Ok(if rounding { &w.final_layout } else { &w.unrounded }),
+                Some(Some(w)) => Ok(if rounding {
+                    &w.final_layout
+                } else {
+                    &w.unrounded
+                }),
                 _ => Err(TaffyError::InvalidInputNode(node)),
             },
             None => {
                 let n = self.get(node)?;
-                Ok(if rounding { &n.final_layout } else { &n.unrounded })
+                Ok(if rounding {
+                    &n.final_layout
+                } else {
+                    &n.unrounded
+                })
             }
         }
     }
 
     pub fn unrounded_layout(&self, node: NodeId) -> &Layout {
         match word_index(node) {
-            Some(i) => &self.words.get(i).and_then(|w| w.as_ref()).expect("live node").unrounded,
+            Some(i) => {
+                &self
+                    .words
+                    .get(i)
+                    .and_then(|w| w.as_ref())
+                    .expect("live node")
+                    .unrounded
+            }
             None => &self.get(node).expect("live node").unrounded,
         }
     }
@@ -384,25 +429,46 @@ impl<C> FlowTree<C> {
         Ok(())
     }
 
-    pub fn compute_layout_with_measure<M>(&mut self, node: NodeId, space: Size<AvailableSpace>, mut measure: M) -> Res<()>
+    pub fn compute_layout_with_measure<M>(
+        &mut self,
+        node: NodeId,
+        space: Size<AvailableSpace>,
+        mut measure: M,
+    ) -> Res<()>
     where
         M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style) -> LayoutOutput,
     {
-        self.compute_layout_with_block_measure(node, space, move |inputs, id, ctx, style, _| measure(inputs, id, ctx, style))
+        self.compute_layout_with_block_measure(node, space, move |inputs, id, ctx, style, _| {
+            measure(inputs, id, ctx, style)
+        })
     }
 
     /// Like [`Self::compute_layout_with_measure`], but a leaf laid out as an
     /// in-flow block child also receives the block formatting context it sits
     /// in, so it can ask where the floats are (`find_content_slot`).
-    pub fn compute_layout_with_block_measure<M>(&mut self, node: NodeId, space: Size<AvailableSpace>, measure: M) -> Res<()>
+    pub fn compute_layout_with_block_measure<M>(
+        &mut self,
+        node: NodeId,
+        space: Size<AvailableSpace>,
+        measure: M,
+    ) -> Res<()>
     where
-        M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+        M: FnMut(
+            LayoutInput,
+            NodeId,
+            Option<&mut C>,
+            &Style,
+            Option<&mut BlockContext<'_>>,
+        ) -> LayoutOutput,
     {
         if !self.exists(node) {
             return Err(TaffyError::InvalidInputNode(node));
         }
         let rounding = self.rounding;
-        let mut view = View { tree: self, measure };
+        let mut view = View {
+            tree: self,
+            measure,
+        };
         compute_root_layout(&mut view, node, space);
         if rounding {
             round_layout(&mut view, node);
@@ -511,10 +577,18 @@ struct View<'a, C, M> {
 
 impl<C, M> View<'_, C, M> {
     fn n(&self, id: NodeId) -> &Node<C> {
-        self.tree.nodes.get(usize::from(id)).and_then(|n| n.as_ref()).expect("live full node")
+        self.tree
+            .nodes
+            .get(usize::from(id))
+            .and_then(|n| n.as_ref())
+            .expect("live full node")
     }
     fn n_mut(&mut self, id: NodeId) -> &mut Node<C> {
-        self.tree.nodes.get_mut(usize::from(id)).and_then(|n| n.as_mut()).expect("live full node")
+        self.tree
+            .nodes
+            .get_mut(usize::from(id))
+            .and_then(|n| n.as_mut())
+            .expect("live full node")
     }
     fn word(&self, id: NodeId) -> Option<&Word<C>> {
         self.tree.words.get(word_index(id)?)?.as_ref()
@@ -535,9 +609,20 @@ impl<C, M> View<'_, C, M> {
 
 impl<C, M> View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
-    fn compute(&mut self, id: NodeId, mut inputs: LayoutInput, block_ctx: Option<&mut BlockContext<'_>>) -> LayoutOutput {
+    fn compute(
+        &mut self,
+        id: NodeId,
+        mut inputs: LayoutInput,
+        block_ctx: Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput {
         // A word is a fixed-size leaf: no cache, no children, no hoisting.
         if let Some(w) = self.word(id) {
             if inputs.run_mode == RunMode::PerformHiddenLayout {
@@ -546,7 +631,9 @@ where
             let style = w.style();
             return compute_leaf_layout(inputs, &style, |_, _| 0.0, |_, _| Size::ZERO);
         }
-        if inputs.available_space.width == AvailableSpace::MaxContent && self.tree.min_as_max.contains(&id) {
+        if inputs.available_space.width == AvailableSpace::MaxContent
+            && self.tree.min_as_max.contains(&id)
+        {
             inputs.available_space.width = AvailableSpace::MinContent;
         }
         // An ancestor is `display:none`: lay this subtree out hidden.
@@ -559,7 +646,9 @@ where
             // The inline-flow wrapper (`run_wrapper_style` with float wrap on):
             // a block-level box whose items wrap like a flex row. Beside a
             // float its lines take the free slots; elsewhere it is the flex row.
-            let flow = has_children && display == Display::Block && view.n(id).style.flex_wrap == FlexWrap::Wrap;
+            let flow = has_children
+                && display == Display::Block
+                && view.n(id).style.flex_wrap == FlexWrap::Wrap;
             let mut out = match (display, has_children) {
                 (Display::None, _) => compute_hidden_layout(view, id),
                 (Display::Block, true) if flow => {
@@ -576,7 +665,11 @@ where
                 (Display::Grid, true) => compute_grid_layout(view, id, inputs),
                 (_, false) => {
                     let View { tree, measure } = view;
-                    let n = tree.nodes.get_mut(usize::from(id)).and_then(|n| n.as_mut()).expect("live full node");
+                    let n = tree
+                        .nodes
+                        .get_mut(usize::from(id))
+                        .and_then(|n| n.as_mut())
+                        .expect("live full node");
                     measure(inputs, id, n.ctx.as_mut(), &n.style, block_ctx)
                 }
             };
@@ -601,7 +694,13 @@ impl Iterator for ChildIter {
 
 impl<C, M> TraversePartialTree for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     type ChildIter<'a>
         = ChildIter
@@ -624,11 +723,26 @@ where
     }
 }
 
-impl<C, M> TraverseTree for View<'_, C, M> where M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput {}
+impl<C, M> TraverseTree for View<'_, C, M> where
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput
+{
+}
 
 impl<C, M> LayoutPartialTree for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     type CoreContainerStyle<'a>
         = StyleRef<'a>
@@ -657,7 +771,13 @@ where
 
 impl<C, M> LayoutContainingBlock for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     type OofItemStyle<'a>
         = &'a Style
@@ -688,7 +808,13 @@ where
 
 impl<C, M> CacheTree for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     fn cache_get(&mut self, id: NodeId, input: &LayoutInput) -> Option<LayoutOutput> {
         if word_index(id).is_some() {
@@ -698,7 +824,10 @@ where
     }
     fn cache_store(&mut self, id: NodeId, input: &LayoutInput, out: LayoutOutput) {
         if word_index(id).is_none() {
-            self.n_mut(id).cache.get_or_insert_with(|| Box::new(Cache::new())).store(input, out)
+            self.n_mut(id)
+                .cache
+                .get_or_insert_with(|| Box::new(Cache::new()))
+                .store(input, out)
         }
     }
     fn cache_clear(&mut self, id: NodeId) {
@@ -710,7 +839,13 @@ where
 
 impl<C, M> LayoutBlockContainer for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     type BlockContainerStyle<'a>
         = &'a Style
@@ -738,7 +873,13 @@ where
 
 impl<C, M> LayoutFlexboxContainer for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     type FlexboxContainerStyle<'a>
         = &'a Style
@@ -761,7 +902,13 @@ where
 
 impl<C, M> LayoutGridContainer for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     type GridContainerStyle<'a>
         = &'a Style
@@ -784,7 +931,13 @@ where
 
 impl<C, M> RoundTree for View<'_, C, M>
 where
-    M: FnMut(LayoutInput, NodeId, Option<&mut C>, &Style, Option<&mut BlockContext<'_>>) -> LayoutOutput,
+    M: FnMut(
+        LayoutInput,
+        NodeId,
+        Option<&mut C>,
+        &Style,
+        Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput,
 {
     fn get_unrounded_layout(&self, id: NodeId) -> Layout {
         match self.word(id) {

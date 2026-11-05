@@ -80,7 +80,9 @@ fn translate_item(it: &mut PaintItem, tx: f32, ty: f32) {
         | PaintItem::Clip { rect }
         | PaintItem::ClipRounded { rect, .. }
         | PaintItem::Border { rect, .. } => tr(rect, tx, ty),
-        PaintItem::Image { rect, paint_rect, .. } => {
+        PaintItem::Image {
+            rect, paint_rect, ..
+        } => {
             tr(rect, tx, ty);
             tr(paint_rect, tx, ty);
         }

@@ -80,7 +80,10 @@ pub fn check_domain(url: &str) -> Result<(), String> {
 
     let mut map = DOMAINS.lock().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
-    let window = map.entry(site.clone()).or_insert(Window { count: 0, started: now });
+    let window = map.entry(site.clone()).or_insert(Window {
+        count: 0,
+        started: now,
+    });
     if now.duration_since(window.started) >= WINDOW {
         window.count = 0;
         window.started = now;
@@ -146,13 +149,9 @@ pub(crate) fn registrable_domain(host: &str) -> String {
 /// Common multi-part public suffixes where last-two-labels bucketing would
 /// merge unrelated sites into one budget.
 const TWO_PART_SUFFIXES: &[&str] = &[
-    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk",
-    "co.jp", "or.jp", "ne.jp",
-    "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn", "ac.cn",
-    "com.au", "net.au", "org.au",
-    "com.br", "com.mx", "com.ar",
-    "co.in", "co.nz", "co.za", "co.kr",
-    "com.sg", "com.hk", "com.tw", "com.tr", "com.ru",
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "co.jp", "or.jp", "ne.jp", "com.cn", "net.cn",
+    "org.cn", "gov.cn", "edu.cn", "ac.cn", "com.au", "net.au", "org.au", "com.br", "com.mx",
+    "com.ar", "co.in", "co.nz", "co.za", "co.kr", "com.sg", "com.hk", "com.tw", "com.tr", "com.ru",
 ];
 
 #[cfg(test)]

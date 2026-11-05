@@ -5,8 +5,8 @@ use url::Url;
 
 use super::obs::{obs_inc, SEARCH_OBS};
 use super::validate::{
-    challenge_skip_remaining, is_challenge_class, log_rejected_body,
-    looks_like_bing_news_url, note_dual_path_challenge, CHALLENGE_PROXY_TIMEOUT_SECS,
+    challenge_skip_remaining, is_challenge_class, log_rejected_body, looks_like_bing_news_url,
+    note_dual_path_challenge, CHALLENGE_PROXY_TIMEOUT_SECS,
 };
 use super::{
     build_plain_client, classify_rejected_body, proxied_plain_client_timeout, BodyRejectClass,
@@ -57,8 +57,7 @@ static DIRECT_FAILS: std::sync::OnceLock<
     std::sync::Mutex<std::collections::HashMap<String, DirectFailState>>,
 > = std::sync::OnceLock::new();
 
-fn direct_fails()
--> &'static std::sync::Mutex<std::collections::HashMap<String, DirectFailState>> {
+fn direct_fails() -> &'static std::sync::Mutex<std::collections::HashMap<String, DirectFailState>> {
     DIRECT_FAILS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
 }
 
@@ -88,9 +87,10 @@ pub(crate) fn note_direct_outcome(
         map.remove(host);
         return;
     }
-    let st = map
-        .entry(host.to_string())
-        .or_insert(DirectFailState { fails: 0, skip_until: 0 });
+    let st = map.entry(host.to_string()).or_insert(DirectFailState {
+        fails: 0,
+        skip_until: 0,
+    });
     st.fails = st.fails.saturating_add(1);
     if st.fails >= DIRECT_FAIL_THRESHOLD {
         st.skip_until = now.saturating_add(DIRECT_SKIP_SECS);
@@ -112,9 +112,7 @@ pub(crate) fn note_direct_outcome(
 
 /// [`note_direct_outcome`] over the process-global map.
 fn note_direct_outcome_global(host: &str, ok: bool) {
-    let mut map = direct_fails()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
+    let mut map = direct_fails().lock().unwrap_or_else(|e| e.into_inner());
     note_direct_outcome(&mut map, host, ok, crate::now_secs());
 }
 
@@ -225,10 +223,7 @@ where
                     let class = classify_rejected_body(&body);
                     direct_reject_class = Some(class);
                     log_rejected_body(url, "direct", &body, class);
-                    last_err = format!(
-                        "direct: body failed validation ({})",
-                        class.as_str()
-                    );
+                    last_err = format!("direct: body failed validation ({})", class.as_str());
                 }
                 Err(_) => {
                     last_err = "direct: read body failed".into();
@@ -246,8 +241,8 @@ where
     // Attempt 2: proxied retry, only when a proxy is configured.
     if let Some(proxied) = proxied {
         // Challenge/geo/portal (or bing_news infinitescroll) → ≤2s proxy budget.
-        let challenge_fast = direct_reject_class.is_some_and(is_challenge_class)
-            || looks_like_bing_news_url(url);
+        let challenge_fast =
+            direct_reject_class.is_some_and(is_challenge_class) || looks_like_bing_news_url(url);
         let client = if challenge_fast {
             tracing::info!(
                 "search: direct fetch of {} unusable ({}); retrying via proxy (≤{}s challenge budget)",

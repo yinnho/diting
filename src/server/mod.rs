@@ -27,20 +27,20 @@ pub(crate) use browser::{
 #[cfg(test)]
 pub(crate) use browser::{cookie_store_path, shared_cookie_jar_for_tests};
 
-pub use fetch::{do_click, do_eval, do_fetch};
 pub(crate) use fetch::maybe_bypass_challenge;
-#[cfg(test)]
-pub(crate) use fetch::{media_from_eval, parse_layout_facts};
 #[cfg(feature = "screenshot")]
 #[allow(unused_imports)]
 pub(crate) use fetch::resource_facts;
+pub use fetch::{do_click, do_eval, do_fetch};
+#[cfg(test)]
+pub(crate) use fetch::{media_from_eval, parse_layout_facts};
 #[cfg(feature = "screenshot")]
 pub use outputs::{do_pdf, do_screenshot, do_video};
 
-pub use search::{do_search, SearchError};
-pub(crate) use search::search_engine_health;
 #[cfg(test)]
 pub(crate) use search::do_search_with_registry;
+pub(crate) use search::search_engine_health;
+pub use search::{do_search, SearchError};
 
 /// Shared test plumbing for handler-level tests that need a real local
 /// origin: an env guard that opens the private-network door under the same

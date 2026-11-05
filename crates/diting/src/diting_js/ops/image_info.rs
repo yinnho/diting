@@ -10,9 +10,7 @@
 /// Truncated/garbage input is `None`, never a panic.
 pub(super) fn image_header_dimensions(b: &[u8]) -> Option<(u32, u32)> {
     // PNG: 8-byte signature, then chunk length + "IHDR", then BE u32 w/h.
-    if b.len() >= 24
-        && b[..8] == [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1A, b'\n']
-    {
+    if b.len() >= 24 && b[..8] == [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1A, b'\n'] {
         let w = u32::from_be_bytes([b[16], b[17], b[18], b[19]]);
         let h = u32::from_be_bytes([b[20], b[21], b[22], b[23]]);
         return Some((w, h));

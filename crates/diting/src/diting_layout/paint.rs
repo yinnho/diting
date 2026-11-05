@@ -79,22 +79,40 @@ enum ClipShape {
 impl ClipShape {
     fn bounds(&self) -> (i64, i64, i64, i64) {
         match *self {
-            ClipShape::Rect(x0, y0, x1, y1)
-            | ClipShape::Rounded { x0, y0, x1, y1, .. } => (x0, y0, x1, y1),
-            ClipShape::Affine { bx0, by0, bx1, by1, .. } => (bx0, by0, bx1, by1),
+            ClipShape::Rect(x0, y0, x1, y1) | ClipShape::Rounded { x0, y0, x1, y1, .. } => {
+                (x0, y0, x1, y1)
+            }
+            ClipShape::Affine {
+                bx0, by0, bx1, by1, ..
+            } => (bx0, by0, bx1, by1),
         }
     }
 
     /// Whether pixel center `(cx, cy)` passes this clip shape.
     fn accepts(&self, cx: f64, cy: f64) -> bool {
         match *self {
-            ClipShape::Rect(x0, y0, x1, y1) => cx >= x0 as f64 && cx < x1 as f64
-                && cy >= y0 as f64 && cy < y1 as f64,
-            ClipShape::Affine { inv, x, y, w, h, radii, .. } => {
+            ClipShape::Rect(x0, y0, x1, y1) => {
+                cx >= x0 as f64 && cx < x1 as f64 && cy >= y0 as f64 && cy < y1 as f64
+            }
+            ClipShape::Affine {
+                inv,
+                x,
+                y,
+                w,
+                h,
+                radii,
+                ..
+            } => {
                 let (lx, ly) = mat_apply(inv, cx, cy);
                 rounded_contains(x, y, w, h, radii, lx, ly)
             }
-            ClipShape::Rounded { x0, y0, x1, y1, radii } => {
+            ClipShape::Rounded {
+                x0,
+                y0,
+                x1,
+                y1,
+                radii,
+            } => {
                 if !(cx >= x0 as f64 && cx < x1 as f64 && cy >= y0 as f64 && cy < y1 as f64) {
                     return false;
                 }
@@ -152,7 +170,13 @@ impl Canvas {
         for px in data.chunks_exact_mut(4) {
             px.copy_from_slice(&color);
         }
-        Self { width, height, data, clip: Vec::new(), xf_stack: Vec::new() }
+        Self {
+            width,
+            height,
+            data,
+            clip: Vec::new(),
+            xf_stack: Vec::new(),
+        }
     }
 
     /// A fully transparent canvas — the LOCAL scratch surface an affine
@@ -160,7 +184,13 @@ impl Canvas {
     /// the transform (text/svg/replaced ink keeps its own rasterizer, which
     /// only knows how to write axis-aligned integer pixels).
     pub fn new_transparent(width: usize, height: usize) -> Self {
-        Self { width, height, data: vec![0u8; width * height * 4], clip: Vec::new(), xf_stack: Vec::new() }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width * height * 4],
+            clip: Vec::new(),
+            xf_stack: Vec::new(),
+        }
     }
 
     /// Rows [y0, y1) × cols [x0, x1) the next primitive may touch: the
@@ -209,7 +239,13 @@ impl Canvas {
         self.clip.push(if r.2 < r.0 || r.3 < r.1 {
             ClipShape::Rect(0, 0, 0, 0)
         } else {
-            ClipShape::Rounded { x0: r.0, y0: r.1, x1: r.2, y1: r.3, radii }
+            ClipShape::Rounded {
+                x0: r.0,
+                y0: r.1,
+                x1: r.2,
+                y1: r.3,
+                radii,
+            }
         });
     }
 
@@ -242,7 +278,12 @@ impl Canvas {
     fn mapped_xf_bounds(&self, x: f64, y: f64, w: f64, h: f64) -> (i64, i64, i64, i64) {
         match self.xf() {
             Some(m) => mapped_bounds(m, x, y, w, h),
-            None => (x.floor() as i64, y.floor() as i64, (x + w).ceil() as i64, (y + h).ceil() as i64),
+            None => (
+                x.floor() as i64,
+                y.floor() as i64,
+                (x + w).ceil() as i64,
+                (y + h).ceil() as i64,
+            ),
         }
     }
 
@@ -405,7 +446,9 @@ impl Canvas {
         for gy in y.max(ay0).max(0)..(y + h).min(ay1).min(self.height as i64) {
             for gx in x.max(ax0).max(0)..(x + w).min(ax1).min(self.width as i64) {
                 let (cx, cy) = (gx as f64 + 0.5, gy as f64 + 0.5);
-                if !border_ring_contains(x as f64, y as f64, w as f64, h as f64, widths, radii, cx, cy) {
+                if !border_ring_contains(
+                    x as f64, y as f64, w as f64, h as f64, widths, radii, cx, cy,
+                ) {
                     continue;
                 }
                 if !self.clip_accepts(cx, cy) {
@@ -698,7 +741,13 @@ impl Canvas {
         // Degenerate corners (either radius ≤ 0) don't round; only build the
         // clip shape when at least one corner is live.
         let rounded = radii.iter().any(|r| r.0 > 0.0 && r.1 > 0.0);
-        let shape = rounded.then_some(ClipShape::Rounded { x0: x, y0: y, x1: x + w, y1: y + h, radii });
+        let shape = rounded.then_some(ClipShape::Rounded {
+            x0: x,
+            y0: y,
+            x1: x + w,
+            y1: y + h,
+            radii,
+        });
         for gy in y.max(0).max(ay0)..(y + h).min(self.height as i64).min(ay1) {
             let row_base = (gy as f64 + 0.5 - ccy) * duy / len + 0.5;
             for gx in x.max(0).max(ax0)..(x + w).min(self.width as i64).min(ax1) {
@@ -735,8 +784,7 @@ impl Canvas {
         if w <= 0 || h <= 0 {
             return;
         }
-        let r = radius
-            .clamp(0.0, (w.min(h) as f32) / 2.0);
+        let r = radius.clamp(0.0, (w.min(h) as f32) / 2.0);
         if r <= 0.0 {
             self.fill_rect(x, y, w, h, color);
             return;
@@ -803,8 +851,12 @@ impl Canvas {
         let rh = (y1 - y0) as usize;
         // Deinterleave the snapshot, then premultiply RGB by A so bright
         // pixels can't bleed across transparent ones.
-        let mut planes: [Vec<u8>; 4] =
-            [vec![0u8; rw * rh], vec![0u8; rw * rh], vec![0u8; rw * rh], vec![0u8; rw * rh]];
+        let mut planes: [Vec<u8>; 4] = [
+            vec![0u8; rw * rh],
+            vec![0u8; rw * rh],
+            vec![0u8; rw * rh],
+            vec![0u8; rw * rh],
+        ];
         for (row, plane_rows) in planes.iter_mut().enumerate() {
             for gy in 0..rh {
                 let src = ((y0 + gy as i64) as usize * self.width + x0 as usize) * 4;
@@ -897,7 +949,10 @@ impl Canvas {
         let (shw, shh) = if inset {
             // A collapsed shadow box is legal: clamp to a point and the
             // whole element ends up outside it (fully shadowed).
-            ((ehw - spread as f64).max(0.0), (ehh - spread as f64).max(0.0))
+            (
+                (ehw - spread as f64).max(0.0),
+                (ehh - spread as f64).max(0.0),
+            )
         } else {
             (ehw + spread as f64, ehh + spread as f64)
         };
@@ -911,7 +966,12 @@ impl Canvas {
             (ecx - ehw, ecy - ehh, ecx + ehw, ecy + ehh)
         } else {
             let pad = feather + 1.0;
-            (scx - shw - pad, scy - shh - pad, scx + shw + pad, scy + shh + pad)
+            (
+                scx - shw - pad,
+                scy - shh - pad,
+                scx + shw + pad,
+                scy + shh + pad,
+            )
         };
         let (ax0, ay0, ax1, ay1) = self.allowed();
         let x0 = (bx0.floor() as i64).max(ax0).max(0);
@@ -989,7 +1049,10 @@ impl Canvas {
         let (scx, scy) = (ecx + dx as f64, ecy + dy as f64);
         let feather = blur.max(0.0) as f64;
         let (shw, shh) = if inset {
-            ((ehw - spread as f64).max(0.0), (ehh - spread as f64).max(0.0))
+            (
+                (ehw - spread as f64).max(0.0),
+                (ehh - spread as f64).max(0.0),
+            )
         } else {
             (ehw + spread as f64, ehh + spread as f64)
         };
@@ -1000,7 +1063,12 @@ impl Canvas {
             (ecx - ehw, ecy - ehh, ecx + ehw, ecy + ehh)
         } else {
             let pad = feather + 1.0;
-            (scx - shw - pad, scy - shh - pad, scx + shw + pad, scy + shh + pad)
+            (
+                scx - shw - pad,
+                scy - shh - pad,
+                scx + shw + pad,
+                scy + shh + pad,
+            )
         };
         let (bx0, by0, bx1, by1) = mapped_bounds(m, lx0, ly0, lx1 - lx0, ly1 - ly0);
         let (ax0, ay0, ax1, ay1) = self.allowed();
@@ -1265,7 +1333,10 @@ fn border_ring_contains(
         return false;
     }
     let (ix, iy) = (x + l as f64, y + t as f64);
-    let (iw, ih) = ((w - l as f64 - r as f64).max(0.0), (h - t as f64 - b as f64).max(0.0));
+    let (iw, ih) = (
+        (w - l as f64 - r as f64).max(0.0),
+        (h - t as f64 - b as f64).max(0.0),
+    );
     if iw <= 0.0 || ih <= 0.0 {
         return true;
     }
@@ -1316,9 +1387,16 @@ fn lerp_premultiplied(a: [u8; 4], b: [u8; 4], k: f32) -> [u8; 4] {
     let ch = |x: u8, y: u8| {
         let px = x as f32 * a[3] as f32 / 255.0;
         let py = y as f32 * b[3] as f32 / 255.0;
-        ((px + (py - px) * k) * 255.0 / out_a).round().clamp(0.0, 255.0) as u8
+        ((px + (py - px) * k) * 255.0 / out_a)
+            .round()
+            .clamp(0.0, 255.0) as u8
     };
-    [ch(a[0], b[0]), ch(a[1], b[1]), ch(a[2], b[2]), out_a.round().clamp(0.0, 255.0) as u8]
+    [
+        ch(a[0], b[0]),
+        ch(a[1], b[1]),
+        ch(a[2], b[2]),
+        out_a.round().clamp(0.0, 255.0) as u8,
+    ]
 }
 
 /// background-clip: text fill (gradient-text batch): rewrite an
@@ -1350,10 +1428,7 @@ fn recolor_gradient_text(r: &mut TextRaster, x: f32, y: f32, line_height: f32, g
             (x + lox, y + idx as f32 * line_height, lw, line_height)
         };
         let len = (bw as f64 * dux.abs() + bh as f64 * duy.abs()).max(1.0);
-        let (ccx, ccy) = (
-            bx as f64 + bw as f64 / 2.0,
-            by as f64 + bh as f64 / 2.0,
-        );
+        let (ccx, ccy) = (bx as f64 + bw as f64 / 2.0, by as f64 + bh as f64 / 2.0);
         let col_a = dux / len;
         let row_base = (tile_top + gy as f64 - ccy) * duy / len + 0.5;
         for gx in 0..r.width {
@@ -1430,14 +1505,36 @@ fn paint_text_decorations(
     let tokens = match pre_shaped {
         Some(t) => t,
         None => {
-            owned = tokens_of(text, font_size, bold, fonts, mono, word_spacing, ws, small_caps, han);
+            owned = tokens_of(
+                text,
+                font_size,
+                bold,
+                fonts,
+                mono,
+                word_spacing,
+                ws,
+                small_caps,
+                han,
+            );
             &owned
         }
     };
     // The ellipsis marker is undecorated (Chrome): strokes span the kept
     // tokens only, so underline/line-through end at the truncation cut.
     let kept;
-    let tokens: &[Token] = match truncate_at.and_then(|limit| truncate_tokens(tokens, limit, font_size, bold, fonts, mono, word_spacing, ws, han)) {
+    let tokens: &[Token] = match truncate_at.and_then(|limit| {
+        truncate_tokens(
+            tokens,
+            limit,
+            font_size,
+            bold,
+            fonts,
+            mono,
+            word_spacing,
+            ws,
+            han,
+        )
+    }) {
         Some((t, _marker)) => {
             kept = t;
             &kept
@@ -1449,7 +1546,11 @@ fn paint_text_decorations(
     // the cut, never under the ellipsis.
     let stripped;
     let tokens: &[Token] = if tokens.iter().any(|t| t.is_ellipsis) {
-        stripped = tokens.iter().filter(|t| !t.is_ellipsis).cloned().collect::<Vec<_>>();
+        stripped = tokens
+            .iter()
+            .filter(|t| !t.is_ellipsis)
+            .cloned()
+            .collect::<Vec<_>>();
         &stripped
     } else {
         tokens
@@ -1497,7 +1598,13 @@ fn paint_text_decorations(
             } else {
                 let (x0, y0) = ((lx - dx).round() as i64, (ly - dy).round() as i64);
                 for c in 0..tw {
-                    out.fill_rect(x0 + c as i64, y0, 1, th as i64, tile[c * 4..c * 4 + 4].try_into().unwrap());
+                    out.fill_rect(
+                        x0 + c as i64,
+                        y0,
+                        1,
+                        th as i64,
+                        tile[c * 4..c * 4 + 4].try_into().unwrap(),
+                    );
                 }
             }
             return;
@@ -1577,7 +1684,15 @@ pub fn text_ink_extent(items: &[PaintItem]) -> (f32, f32) {
                     cur = prev;
                 }
             }
-            PaintItem::Text { text, font_size, line_height, x, y, wrap_at, .. } => {
+            PaintItem::Text {
+                text,
+                font_size,
+                line_height,
+                x,
+                y,
+                wrap_at,
+                ..
+            } => {
                 let wrap = wrap_at.max(1.0);
                 let est = est_width(text, *font_size);
                 let lines = (est / wrap).ceil().max(1.0);
@@ -1651,7 +1766,12 @@ pub(crate) fn pdf_text_ops(items: &[PaintItem], fonts: &FontBook) -> (Vec<PdfOp>
     for (idx, item) in items.iter().enumerate() {
         match item {
             PaintItem::Clip { rect } => {
-                ops.push(PdfOp::Clip { x: rect.x, y: rect.y, w: rect.width, h: rect.height });
+                ops.push(PdfOp::Clip {
+                    x: rect.x,
+                    y: rect.y,
+                    w: rect.width,
+                    h: rect.height,
+                });
                 clip_stack.push(true);
             }
             PaintItem::ClipRounded { .. } => clip_stack.push(false),
@@ -1681,7 +1801,8 @@ pub(crate) fn pdf_text_ops(items: &[PaintItem], fonts: &FontBook) -> (Vec<PdfOp>
                 text_shadow,
                 small_caps,
                 han,
-                last_line_align, ..
+                last_line_align,
+                ..
             } => {
                 // Vector gate: the shaper must cover every segment (fallback
                 // faces are emoji color bitmaps with no outlines), the fill
@@ -1701,8 +1822,23 @@ pub(crate) fn pdf_text_ops(items: &[PaintItem], fonts: &FontBook) -> (Vec<PdfOp>
                     continue;
                 }
                 let Some(line) = pdf_vectorize_line(
-                    text, *font_size, *bold, *color, *line_height, *x, *y, *wrap_at,
-                    *decorations, *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), fonts,
+                    text,
+                    *font_size,
+                    *bold,
+                    *color,
+                    *line_height,
+                    *x,
+                    *y,
+                    *wrap_at,
+                    *decorations,
+                    *mono,
+                    *word_spacing,
+                    *truncate_at,
+                    *ws,
+                    *small_caps,
+                    *han,
+                    tokens.as_deref(),
+                    fonts,
                     *last_line_align,
                 ) else {
                     continue;
@@ -1745,7 +1881,17 @@ fn pdf_vectorize_line(
     let tokens: &[Token] = match pre_shaped {
         Some(t) => t,
         None => {
-            owned = tokens_of(text, font_size, bold, fonts, mono, word_spacing, ws, small_caps, han);
+            owned = tokens_of(
+                text,
+                font_size,
+                bold,
+                fonts,
+                mono,
+                word_spacing,
+                ws,
+                small_caps,
+                han,
+            );
             &owned
         }
     };
@@ -1754,7 +1900,17 @@ fn pdf_vectorize_line(
     // only (the marker is undecorated, Chrome).
     let truncated;
     let painted: &[Token] = match truncate_at.and_then(|limit| {
-        truncate_tokens(tokens, limit, font_size, bold, fonts, mono, word_spacing, ws, han)
+        truncate_tokens(
+            tokens,
+            limit,
+            font_size,
+            bold,
+            fonts,
+            mono,
+            word_spacing,
+            ws,
+            han,
+        )
     }) {
         Some((mut kept, marker)) => {
             kept.extend(marker);
@@ -1767,14 +1923,28 @@ fn pdf_vectorize_line(
     // the kept tokens only (the clamp's "…" is ink, not decorated text).
     let stripped;
     let markerless: &[Token] = if tokens.iter().any(|t| t.is_ellipsis) {
-        stripped = tokens.iter().filter(|t| !t.is_ellipsis).cloned().collect::<Vec<_>>();
+        stripped = tokens
+            .iter()
+            .filter(|t| !t.is_ellipsis)
+            .cloned()
+            .collect::<Vec<_>>();
         &stripped
     } else {
         tokens
     };
     let truncated_kept;
     let kept: &[Token] = match truncate_at.and_then(|limit| {
-        truncate_tokens(markerless, limit, font_size, bold, fonts, mono, word_spacing, ws, han)
+        truncate_tokens(
+            markerless,
+            limit,
+            font_size,
+            bold,
+            fonts,
+            mono,
+            word_spacing,
+            ws,
+            han,
+        )
     }) {
         Some((k, _)) => {
             truncated_kept = k;
@@ -1814,9 +1984,18 @@ fn pdf_vectorize_line(
             if line.token_idx.is_empty() {
                 continue;
             }
-            let s: String = line.token_idx.iter().map(|&i| painted[i].text.as_str()).collect();
+            let s: String = line
+                .token_idx
+                .iter()
+                .map(|&i| painted[i].text.as_str())
+                .collect();
             let baseline = y + (li as f32 * line_height).round() + b0;
-            if !shape_run(&s, last_line_offset(&lines, li, last_line_align), baseline, &mut glyphs) {
+            if !shape_run(
+                &s,
+                last_line_offset(&lines, li, last_line_align),
+                baseline,
+                &mut glyphs,
+            ) {
                 return None;
             }
         }
@@ -1860,7 +2039,12 @@ fn pdf_vectorize_line(
             }
         }
     }
-    Some(PdfLine { font_size, color, glyphs, strokes })
+    Some(PdfLine {
+        font_size,
+        color,
+        glyphs,
+        strokes,
+    })
 }
 
 /// Bake page-space pdf ops into a band's local coordinates (band origin
@@ -1886,7 +2070,6 @@ pub(crate) fn pdf_ops_translate(ops: &mut [PdfOp], dx: f32, dy: f32) {
         }
     }
 }
-
 
 /// Replay the paint items onto `out`. `Bg` rects come from taffy's rounded
 /// layout so the fill lands on whole pixels; each `Text` re-rasterizes
@@ -1961,7 +2144,15 @@ pub fn scale_items(items: &[PaintItem], s: f32) -> Vec<PaintItem> {
                 rect_s(rect, s);
                 radii_s(radii, s);
             }
-            PaintItem::BoxShadow { rect, radii, dx, dy, blur, spread, .. } => {
+            PaintItem::BoxShadow {
+                rect,
+                radii,
+                dx,
+                dy,
+                blur,
+                spread,
+                ..
+            } => {
                 rect_s(rect, s);
                 radii_s(radii, s);
                 *dx *= s;
@@ -1978,7 +2169,9 @@ pub fn scale_items(items: &[PaintItem], s: f32) -> Vec<PaintItem> {
                 rect_s(rect, s);
                 radii_s(radii, s);
             }
-            PaintItem::Image { rect, paint_rect, .. } => {
+            PaintItem::Image {
+                rect, paint_rect, ..
+            } => {
                 rect_s(rect, s);
                 rect_s(paint_rect, s);
             }
@@ -1996,7 +2189,12 @@ pub fn scale_items(items: &[PaintItem], s: f32) -> Vec<PaintItem> {
                 radii_s(radii, s);
             }
             PaintItem::PopClip => {}
-            PaintItem::Border { rect, widths, radii, .. } => {
+            PaintItem::Border {
+                rect,
+                widths,
+                radii,
+                ..
+            } => {
                 rect_s(rect, s);
                 for w in widths.iter_mut() {
                     *w *= s;
@@ -2161,7 +2359,9 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
             PaintItem::BlendEnd => {
                 blend::restore(out, &mut blend_stack);
             }
-            PaintItem::BgCorner { rect, color, radii, .. } => {
+            PaintItem::BgCorner {
+                rect, color, radii, ..
+            } => {
                 if out.xf().is_some() {
                     out.fill_shape_affine(
                         rect.x as f64,
@@ -2187,12 +2387,30 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                 // canvas-space snapshot on the affine path); axis-aligned
                 // glass is the blitz#901 shape.
                 if out.xf().is_none() && *blur > 0.0 {
-                    out.blur_backdrop(rect.x - dx, rect.y - dy, rect.width, rect.height, *radii, *blur);
+                    out.blur_backdrop(
+                        rect.x - dx,
+                        rect.y - dy,
+                        rect.width,
+                        rect.height,
+                        *radii,
+                        *blur,
+                    );
                 }
             }
-            PaintItem::BoxShadow { rect, color, radii, dx: sdx, dy: sdy, blur, spread, inset } => {
+            PaintItem::BoxShadow {
+                rect,
+                color,
+                radii,
+                dx: sdx,
+                dy: sdy,
+                blur,
+                spread,
+                inset,
+            } => {
                 if out.xf().is_some() {
-                    out.fill_shadow_affine(rect, *color, *radii, *sdx, *sdy, *blur, *spread, *inset);
+                    out.fill_shadow_affine(
+                        rect, *color, *radii, *sdx, *sdy, *blur, *spread, *inset,
+                    );
                 } else {
                     // No bracket: the collect walk's paint translation still
                     // applies (the affine path folds it into the matrix).
@@ -2205,7 +2423,12 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     out.fill_box_shadow(&moved, *color, *radii, *sdx, *sdy, *blur, *spread, *inset);
                 }
             }
-            PaintItem::Bg { rect, color, radius, .. } => {
+            PaintItem::Bg {
+                rect,
+                color,
+                radius,
+                ..
+            } => {
                 if out.xf().is_some() {
                     out.fill_shape_affine(
                         rect.x as f64,
@@ -2226,7 +2449,12 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     );
                 }
             }
-            PaintItem::BgGradient { rect, stops, css_deg, radii } => {
+            PaintItem::BgGradient {
+                rect,
+                stops,
+                css_deg,
+                radii,
+            } => {
                 if out.xf().is_some() {
                     out.fill_gradient_affine(
                         rect.x as f64,
@@ -2249,7 +2477,12 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     );
                 }
             }
-            PaintItem::Border { rect, widths, color, radii } => {
+            PaintItem::Border {
+                rect,
+                widths,
+                color,
+                radii,
+            } => {
                 if out.xf().is_some() {
                     out.border_affine(
                         rect.x as f64,
@@ -2267,10 +2500,7 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     // paint browsers produce with radius 0 (the historical
                     // fast path, bit-for-bit).
                     let [t, r, b, l] = *widths;
-                    let (x, y) = (
-                        (rect.x - dx).round() as i64,
-                        (rect.y - dy).round() as i64,
-                    );
+                    let (x, y) = ((rect.x - dx).round() as i64, (rect.y - dy).round() as i64);
                     let (w, h) = (rect.width.round() as i64, rect.height.round() as i64);
                     // #38: widths arrive fractional in the wild (border:
                     // 0.8px) and the old `as i64` cast truncated every side
@@ -2313,7 +2543,12 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     );
                 }
             }
-            PaintItem::Image { rect, paint_rect, image, alpha } => {
+            PaintItem::Image {
+                rect,
+                paint_rect,
+                image,
+                alpha,
+            } => {
                 if out.xf().is_some() {
                     // Replaced content still clips to the element box — the
                     // clip rides the same bracket.
@@ -2355,7 +2590,16 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     out.pop_clip();
                 }
             }
-            PaintItem::Replaced { rect, alt, fill_placeholder, widget, form, alpha, caret, form_rtl } => {
+            PaintItem::Replaced {
+                rect,
+                alt,
+                fill_placeholder,
+                widget,
+                form,
+                alpha,
+                caret,
+                form_rtl,
+            } => {
                 if out.xf().is_some() {
                     // Rasterize the placeholder + alt into a transparent
                     // LOCAL scratch at raw metrics (the bracket maps the
@@ -2378,16 +2622,39 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     let mut scratch = Canvas::new_transparent(w, h);
                     if let Some(widget) = widget {
                         paint_form_widget(
-                            &mut scratch, 0, 0, w as i64, h as i64, *widget, fonts, *alpha,
+                            &mut scratch,
+                            0,
+                            0,
+                            w as i64,
+                            h as i64,
+                            *widget,
+                            fonts,
+                            *alpha,
                         );
                     } else if let Some(form) = form {
                         paint_form_control(
-                            &mut scratch, 0, 0, w as i64, h as i64, alt.as_ref(), *form,
-                            *fill_placeholder, fonts, *alpha, *caret, *form_rtl,
+                            &mut scratch,
+                            0,
+                            0,
+                            w as i64,
+                            h as i64,
+                            alt.as_ref(),
+                            *form,
+                            *fill_placeholder,
+                            fonts,
+                            *alpha,
+                            *caret,
+                            *form_rtl,
                         );
                     } else {
                         if *fill_placeholder {
-                            scratch.fill_rect(0, 0, w as i64, h as i64, alpha_color([224, 224, 224, 255], *alpha));
+                            scratch.fill_rect(
+                                0,
+                                0,
+                                w as i64,
+                                h as i64,
+                                alpha_color([224, 224, 224, 255], *alpha),
+                            );
                         }
                         if let Some((text, font_size, bold, line_height, color)) = alt {
                             if !text.trim().is_empty() {
@@ -2419,10 +2686,7 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     if rect.y + rect.height <= dy || rect.y >= dy + out.height as f32 {
                         continue;
                     }
-                    let (x, y) = (
-                        (rect.x - dx).round() as i64,
-                        (rect.y - dy).round() as i64,
-                    );
+                    let (x, y) = ((rect.x - dx).round() as i64, (rect.y - dy).round() as i64);
                     let (w, h) = (rect.width.round() as i64, rect.height.round() as i64);
                     if let Some(widget) = widget {
                         if w > 0 && h > 0 {
@@ -2430,8 +2694,18 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                         }
                     } else if let Some(form) = form {
                         paint_form_control(
-                            out, x, y, w, h, alt.as_ref(), *form, *fill_placeholder, fonts, *alpha,
-                            *caret, *form_rtl,
+                            out,
+                            x,
+                            y,
+                            w,
+                            h,
+                            alt.as_ref(),
+                            *form,
+                            *fill_placeholder,
+                            fonts,
+                            *alpha,
+                            *caret,
+                            *form_rtl,
                         );
                     } else {
                         if *fill_placeholder && w > 0 && h > 0 {
@@ -2468,7 +2742,11 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     }
                 }
             }
-            PaintItem::Svg { rect, render, alpha } => {
+            PaintItem::Svg {
+                rect,
+                render,
+                alpha,
+            } => {
                 if out.xf().is_some() {
                     let (w, h) = (rect.width.round() as i64, rect.height.round() as i64);
                     if w <= 0 || h <= 0 {
@@ -2488,7 +2766,15 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     // blit through the bracket.
                     let (w, h) = (w as usize, h as usize);
                     let mut scratch = Canvas::new_transparent(w, h);
-                    super::svg::paint_svg(render, rect, fonts, &mut scratch, rect.x, rect.y, *alpha);
+                    super::svg::paint_svg(
+                        render,
+                        rect,
+                        fonts,
+                        &mut scratch,
+                        rect.x,
+                        rect.y,
+                        *alpha,
+                    );
                     out.blit_rgba_affine(&scratch.data, w, h, rect.x as f64, rect.y as f64);
                 } else {
                     // Same band prefilter as Replaced: the svg painter clips to
@@ -2500,7 +2786,28 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     super::svg::paint_svg(render, rect, fonts, out, dx, dy, *alpha);
                 }
             }
-            PaintItem::Text { text, font_size, bold, color, line_height, x, y, wrap_at, gradient, decorations, mono, word_spacing, truncate_at, tokens, ws, text_shadow, small_caps, han, last_line_align, .. } => {
+            PaintItem::Text {
+                text,
+                font_size,
+                bold,
+                color,
+                line_height,
+                x,
+                y,
+                wrap_at,
+                gradient,
+                decorations,
+                mono,
+                word_spacing,
+                truncate_at,
+                tokens,
+                ws,
+                text_shadow,
+                small_caps,
+                han,
+                last_line_align,
+                ..
+            } => {
                 // background-clip: text: the fill color is ignored entirely
                 // (CSS paints the background through the glyphs; the
                 // transparent-text-fill half of the idiom is free by
@@ -2510,7 +2817,11 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                 // page coords and the bracket's local coords are exactly the
                 // space `area` was captured in, so the gradient rides the
                 // affine through rotations too.
-                let fill = if gradient.is_some() { [255, 255, 255, 255] } else { *color };
+                let fill = if gradient.is_some() {
+                    [255, 255, 255, 255]
+                } else {
+                    *color
+                };
                 // Shadow extent (blur feather + offset) for prefilter
                 // widening; shadows ride under the glyphs, first-declared
                 // layer on top (blitz#271 family).
@@ -2527,19 +2838,45 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     // an offset/blur reaching the canvas isn't skipped.
                     let pad = shadow_pad.unwrap_or(0.0) as i64;
                     let est_w = est_width(text, *font_size).max(*wrap_at);
-                    let lines = (est_width(text, *font_size) / wrap_at.max(1.0)).ceil().max(1.0);
+                    let lines = (est_width(text, *font_size) / wrap_at.max(1.0))
+                        .ceil()
+                        .max(1.0);
                     let (bx0, by0, bx1, by1) = out.mapped_xf_bounds(
                         *x as f64,
                         (*y - *line_height) as f64,
                         est_w as f64,
                         ((lines + 1.0) * *line_height) as f64,
                     );
-                    if bx1 + pad <= 0 || by1 + pad <= 0 || bx0 - pad >= out.width as i64 || by0 - pad >= out.height as i64 {
+                    if bx1 + pad <= 0
+                        || by1 + pad <= 0
+                        || bx0 - pad >= out.width as i64
+                        || by0 - pad >= out.height as i64
+                    {
                         continue;
                     }
                     if let Some(shadows) = text_shadow {
                         for sh in shadows.iter().rev() {
-                            stamp_text_shadow(out, fonts, text, *font_size, *bold, *wrap_at, *line_height, *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), sh, true, (*x + sh.dx) as f64, (*y + sh.dy) as f64, *last_line_align);
+                            stamp_text_shadow(
+                                out,
+                                fonts,
+                                text,
+                                *font_size,
+                                *bold,
+                                *wrap_at,
+                                *line_height,
+                                *mono,
+                                *word_spacing,
+                                *truncate_at,
+                                *ws,
+                                *small_caps,
+                                *han,
+                                tokens.as_deref(),
+                                sh,
+                                true,
+                                (*x + sh.dx) as f64,
+                                (*y + sh.dy) as f64,
+                                *last_line_align,
+                            );
                             // Chrome shadows the decorations with the text
                             // (blitz#984): each hard layer restamps the
                             // strokes in the shadow color at the same offset.
@@ -2547,11 +2884,49 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                             // line beside a feathered glyph reads as a bug,
                             // not a shadow.
                             if sh.blur <= 0.0 {
-                                paint_text_decorations(out, fonts, text, *font_size, *bold, [sh.color.0, sh.color.1, sh.color.2, sh.color.3], *line_height, *x + sh.dx, *y + sh.dy, *wrap_at, *decorations, None, *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), 0.0, 0.0, *last_line_align);
+                                paint_text_decorations(
+                                    out,
+                                    fonts,
+                                    text,
+                                    *font_size,
+                                    *bold,
+                                    [sh.color.0, sh.color.1, sh.color.2, sh.color.3],
+                                    *line_height,
+                                    *x + sh.dx,
+                                    *y + sh.dy,
+                                    *wrap_at,
+                                    *decorations,
+                                    None,
+                                    *mono,
+                                    *word_spacing,
+                                    *truncate_at,
+                                    *ws,
+                                    *small_caps,
+                                    *han,
+                                    tokens.as_deref(),
+                                    0.0,
+                                    0.0,
+                                    *last_line_align,
+                                );
                             }
                         }
                     }
-                    let r = fonts.rasterize_wrapped_with(text, *font_size, *bold, fill, *wrap_at, *line_height, *mono, *word_spacing, *truncate_at, *ws, tokens.clone(), *small_caps, *han, *last_line_align);
+                    let r = fonts.rasterize_wrapped_with(
+                        text,
+                        *font_size,
+                        *bold,
+                        fill,
+                        *wrap_at,
+                        *line_height,
+                        *mono,
+                        *word_spacing,
+                        *truncate_at,
+                        *ws,
+                        tokens.clone(),
+                        *small_caps,
+                        *han,
+                        *last_line_align,
+                    );
                     // Gradient recolor rewrites pixels in place — the cache
                     // hands out Arcs, so that path clones first (#399).
                     let mut owned;
@@ -2562,22 +2937,118 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     } else {
                         &r
                     };
-                    out.blit_rgba_affine(&r.data, r.width, r.height, *x as f64, (*y + r.top) as f64);
-                    paint_text_decorations(out, fonts, text, *font_size, *bold, *color, *line_height, *x, *y, *wrap_at, *decorations, decorations.pierce.then_some(gradient.as_ref()).flatten(), *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), 0.0, 0.0, *last_line_align);
+                    out.blit_rgba_affine(
+                        &r.data,
+                        r.width,
+                        r.height,
+                        *x as f64,
+                        (*y + r.top) as f64,
+                    );
+                    paint_text_decorations(
+                        out,
+                        fonts,
+                        text,
+                        *font_size,
+                        *bold,
+                        *color,
+                        *line_height,
+                        *x,
+                        *y,
+                        *wrap_at,
+                        *decorations,
+                        decorations.pierce.then_some(gradient.as_ref()).flatten(),
+                        *mono,
+                        *word_spacing,
+                        *truncate_at,
+                        *ws,
+                        *small_caps,
+                        *han,
+                        tokens.as_deref(),
+                        0.0,
+                        0.0,
+                        *last_line_align,
+                    );
                 } else {
                     let pad = shadow_pad.unwrap_or(0.0);
-                    if !text_reaches_band(*y, text, *font_size, *wrap_at, *line_height, dy, out.height as i64, pad) {
+                    if !text_reaches_band(
+                        *y,
+                        text,
+                        *font_size,
+                        *wrap_at,
+                        *line_height,
+                        dy,
+                        out.height as i64,
+                        pad,
+                    ) {
                         continue;
                     }
                     if let Some(shadows) = text_shadow {
                         for sh in shadows.iter().rev() {
-                            stamp_text_shadow(out, fonts, text, *font_size, *bold, *wrap_at, *line_height, *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), sh, false, (*x + sh.dx - dx) as f64, (*y + sh.dy - dy) as f64, *last_line_align);
+                            stamp_text_shadow(
+                                out,
+                                fonts,
+                                text,
+                                *font_size,
+                                *bold,
+                                *wrap_at,
+                                *line_height,
+                                *mono,
+                                *word_spacing,
+                                *truncate_at,
+                                *ws,
+                                *small_caps,
+                                *han,
+                                tokens.as_deref(),
+                                sh,
+                                false,
+                                (*x + sh.dx - dx) as f64,
+                                (*y + sh.dy - dy) as f64,
+                                *last_line_align,
+                            );
                             if sh.blur <= 0.0 {
-                                paint_text_decorations(out, fonts, text, *font_size, *bold, [sh.color.0, sh.color.1, sh.color.2, sh.color.3], *line_height, *x + sh.dx, *y + sh.dy, *wrap_at, *decorations, None, *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), dx, dy, *last_line_align);
+                                paint_text_decorations(
+                                    out,
+                                    fonts,
+                                    text,
+                                    *font_size,
+                                    *bold,
+                                    [sh.color.0, sh.color.1, sh.color.2, sh.color.3],
+                                    *line_height,
+                                    *x + sh.dx,
+                                    *y + sh.dy,
+                                    *wrap_at,
+                                    *decorations,
+                                    None,
+                                    *mono,
+                                    *word_spacing,
+                                    *truncate_at,
+                                    *ws,
+                                    *small_caps,
+                                    *han,
+                                    tokens.as_deref(),
+                                    dx,
+                                    dy,
+                                    *last_line_align,
+                                );
                             }
                         }
                     }
-                    let r = fonts.rasterize_wrapped_with(text, *font_size, *bold, fill, *wrap_at, *line_height, *mono, *word_spacing, *truncate_at, *ws, tokens.clone(), *small_caps, *han, *last_line_align);
+                    let r = fonts.rasterize_wrapped_with(
+                        text,
+                        *font_size,
+                        *bold,
+                        fill,
+                        *wrap_at,
+                        *line_height,
+                        *mono,
+                        *word_spacing,
+                        *truncate_at,
+                        *ws,
+                        tokens.clone(),
+                        *small_caps,
+                        *han,
+                        *last_line_align,
+                    );
                     let mut owned;
                     let r = if let Some(g) = gradient {
                         owned = (*r).clone();
@@ -2588,7 +3059,30 @@ pub fn execute_band(items: &[PaintItem], fonts: &FontBook, out: &mut Canvas, dx:
                     };
                     // Tile row 0 sits `top` px above the leaf's line-box top.
                     out.blit_text(r, (x - dx).round() as i64, (y - dy + r.top).round() as i64);
-                    paint_text_decorations(out, fonts, text, *font_size, *bold, *color, *line_height, *x, *y, *wrap_at, *decorations, decorations.pierce.then_some(gradient.as_ref()).flatten(), *mono, *word_spacing, *truncate_at, *ws, *small_caps, *han, tokens.as_deref(), dx, dy, *last_line_align);
+                    paint_text_decorations(
+                        out,
+                        fonts,
+                        text,
+                        *font_size,
+                        *bold,
+                        *color,
+                        *line_height,
+                        *x,
+                        *y,
+                        *wrap_at,
+                        *decorations,
+                        decorations.pierce.then_some(gradient.as_ref()).flatten(),
+                        *mono,
+                        *word_spacing,
+                        *truncate_at,
+                        *ws,
+                        *small_caps,
+                        *han,
+                        tokens.as_deref(),
+                        dx,
+                        dy,
+                        *last_line_align,
+                    );
                 }
             }
         }
@@ -2674,7 +3168,10 @@ fn stamp_text_shadow(
     let radius = ((blur * 0.5).round() as usize).max(1);
     let pw = r.width.saturating_add(pad).saturating_add(pad);
     let ph = r.height.saturating_add(pad).saturating_add(pad);
-    if pw.checked_mul(ph).is_none_or(|px| px > MAX_SHADOW_SCRATCH_PX) {
+    if pw
+        .checked_mul(ph)
+        .is_none_or(|px| px > MAX_SHADOW_SCRATCH_PX)
+    {
         // Even clamped, the tile overshoots the scratch budget (enormous
         // run + full-radius blur): paint the unfeathered shadow — same
         // shape the `blur <= 0` path draws — instead of a giant allocation.
@@ -2708,9 +3205,19 @@ fn stamp_text_shadow(
     // Row 0 of the padded tile is `pad` px above the run tile's row 0,
     // which itself sits `r.top` px above the line box top.
     if affine {
-        out.blit_rgba_affine(&blurred.data, blurred.width, blurred.height, ox - pad as f64, oy + r.top as f64 - pad as f64);
+        out.blit_rgba_affine(
+            &blurred.data,
+            blurred.width,
+            blurred.height,
+            ox - pad as f64,
+            oy + r.top as f64 - pad as f64,
+        );
     } else {
-        out.blit_text(&blurred, (ox - pad as f64).round() as i64, (oy + r.top as f64 - pad as f64).round() as i64);
+        out.blit_text(
+            &blurred,
+            (ox - pad as f64).round() as i64,
+            (oy + r.top as f64 - pad as f64).round() as i64,
+        );
     }
 }
 

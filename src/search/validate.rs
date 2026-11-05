@@ -66,8 +66,7 @@ static CHALLENGE_SKIPS: std::sync::OnceLock<
     std::sync::Mutex<std::collections::HashMap<String, u64>>,
 > = std::sync::OnceLock::new();
 
-fn challenge_skips()
--> &'static std::sync::Mutex<std::collections::HashMap<String, u64>> {
+fn challenge_skips() -> &'static std::sync::Mutex<std::collections::HashMap<String, u64>> {
     CHALLENGE_SKIPS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
 }
 
