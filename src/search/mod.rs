@@ -641,9 +641,10 @@ pub async fn native_search(
                     format!("skipped: CAPTCHA suspension, resumes in {remaining}s")
                 });
             }
-            // Deadline hit while this engine was still in flight. MUST
-            // precede the JoinError arm or it never fires (Elapsed is just
-            // another Err to the bare arm).
+            // Deadline hit while this engine was still in flight. Elapsed is
+            // just another Err to a bare arm — so there deliberately is no
+            // bare Err arm here (it would be unreachable and swallow this
+            // one's meaning); task panics arrive as Ok(Err(JoinError)).
             Err(_elapsed) => {
                 tracing::warn!("search: engine {} missed the overall deadline", handle_name);
                 obs_inc(&SEARCH_OBS.engine_deadline_miss_total);
@@ -651,10 +652,6 @@ pub async fn native_search(
                     handle_name,
                     "slow: exceeded the overall search deadline — results returned without this engine".into(),
                 );
-            }
-            Err(e) => {
-                tracing::error!("search: engine task panicked: {}", e);
-                engine_errors.insert(handle_name, format!("engine task panicked: {e}"));
             }
             Ok(Err(e)) => {
                 tracing::error!("search: engine task panicked: {}", e);
@@ -822,9 +819,12 @@ fn merge_results(results: Vec<RawSearchResult>, max_results: usize) -> Vec<Searc
         .map(|group| {
             let mut engines = Vec::new();
             let mut total_score = 0.0;
-            let mut best_title = String::new();
+            // best_title/best_url 无初值：pick 选定后无条件覆写（845 行起），
+            // String::new() 是死赋值。best_snippet 保留空初值——最长者胜，
+            // 空组也能落空串。
+            let mut best_title;
             let mut best_snippet = String::new();
-            let mut best_url = String::new();
+            let mut best_url;
             let mut cookies = Vec::new();
             let mut js_extract_result = None;
             let mut image: Option<ImageResult> = None;
