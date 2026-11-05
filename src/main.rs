@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 mod account;
 mod auth;
+// Authoring 线（出片/出文档，ARCHITECTURE.md §4/D4）：pages/video/ooxml/
+// pptx_native/docgen 整目录住 src/authoring/，门控与注释随之内移。
+mod authoring;
 mod browser;
 mod captcha;
 mod config;
@@ -17,7 +20,6 @@ mod curl_import;
 // Panic persistence (aginxos REQ #414): append panics to {data}/crash.log —
 // the device respawned with zero death trace anywhere else.
 mod crash;
-mod docgen;
 mod doctor_cli;
 mod download;
 mod error;
@@ -53,22 +55,6 @@ mod store;
 // "where did this session land" — challenge/captcha/login/empty/landed/
 // unknown from signals the engine already holds. No evals, no model.
 mod verdict;
-// Timeline video pump (切片层): seek `window.__timelines` frame by frame,
-// paint viewport bands, pipe raw RGBA into ffmpeg — MP4 bytes out.
-#[cfg(feature = "screenshot")]
-mod video;
-// Page pump (切片层): cut the live page into pages — print pagination at
-// block boundaries, or one page per selector match — and package as PDF/PNG.
-#[cfg(feature = "screenshot")]
-mod pages;
-// OOXML containers (容器层): image-based PPTX/DOCX packaging of the page
-// set — stored-ZIP writer, zero new dependencies.
-#[cfg(feature = "screenshot")]
-mod ooxml;
-// Native (editable) PPTX (容器层): element-level DrawingML — text runs,
-// gradient shapes, image parts, with diting as the layout oracle.
-#[cfg(feature = "screenshot")]
-mod pptx_native;
 // The Blitz reference pipeline — cross-check oracle for diting, opt-in via
 // `blitz-reference`. Not compiled in production/device builds.
 #[cfg(feature = "blitz-reference")]

@@ -90,7 +90,7 @@ GOD_FILE_GRANDFATHER = {
     "src/bridge_cross_check.rs": 4423,
     "crates/diting/src/diting_layout/fork_deltas.rs": 2930,
     "crates/diting/src/diting_js/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
-    "src/docgen/workflow.rs": 1641,
+    "src/authoring/docgen/workflow.rs": 1641,
     # tree.rs crossed the cap in the 2026-11-05 fmt reflow (1500 -> 1587, no
     # code added); 87 over — a split for the cap alone buys nothing (svg_root.js
     # precedent). Retires when the split program reaches it.
