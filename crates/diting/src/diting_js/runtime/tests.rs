@@ -27262,6 +27262,147 @@ fn window_named_access_iframe_yields_content_window() {
     );
 }
 
+/// #15: canvas clip() constrains every paint path. Chrome truth (issue
+/// probe): after clip to a 50×50 rect, a 100×100 fill leaves (70,70) at its
+/// pre-clip color while (20,20) takes the new one; restore() drops the
+/// region; an empty-path clip suppresses everything; clearRect is clipped
+/// too; two save/clip levels intersect.
+#[test]
+fn canvas_clip_constrains_paint_paths() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"
+        (function () { try {
+        const mk = () => { const c = document.createElement('canvas'); c.width = 100; c.height = 100; return c.getContext('2d'); };
+        const px = (g, x, y) => { const d = g.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; };
+        const g = mk();
+        g.fillStyle = '#f00'; g.fillRect(0, 0, 100, 100);
+        g.save(); g.beginPath(); g.rect(0, 0, 50, 50); g.clip();
+        g.fillStyle = '#00f'; g.fillRect(0, 0, 100, 100);
+        const outsideStaysRed = px(g, 70, 70);
+        const insideTakesBlue = px(g, 20, 20);
+        g.restore();
+        g.fillStyle = '#0f0'; g.fillRect(0, 0, 100, 100);
+        const afterRestore = px(g, 70, 70);
+        // clearRect honors the clip: clearing under it leaves the outside intact.
+        const g2 = mk();
+        g2.fillStyle = '#f00'; g2.fillRect(0, 0, 100, 100);
+        g2.save(); g2.beginPath(); g2.rect(10, 10, 20, 20); g2.clip();
+        g2.clearRect(0, 0, 100, 100); g2.restore();
+        const clearOutsideIntact = px(g2, 70, 70);
+        const clearInsideCleared = px(g2, 15, 15);
+        // Two save/clip levels intersect: 30×30 ∩ rows 20..40 = a 10-row band.
+        const g3 = mk();
+        g3.fillStyle = '#00f'; g3.fillRect(0, 0, 100, 100);
+        g3.save(); g3.beginPath(); g3.rect(0, 0, 30, 30); g3.clip();
+        g3.save(); g3.beginPath(); g3.rect(0, 20, 100, 20); g3.clip();
+        g3.fillStyle = '#f00'; g3.fillRect(0, 0, 100, 100);
+        g3.restore(); g3.restore();
+        const intersectBand = px(g3, 15, 25);
+        const intersectBlocked = px(g3, 15, 45);
+        // Empty path: everything after is clipped away, restore brings it back.
+        const g4 = mk();
+        g4.save(); g4.beginPath(); g4.clip();
+        g4.fillStyle = '#f00'; g4.fillRect(0, 0, 100, 100); g4.restore();
+        g4.fillStyle = '#00f'; g4.fillRect(0, 0, 100, 100);
+        const emptyClipThenFree = px(g4, 50, 50);
+        // Path is NOT consumed by clip(): the same path still fills.
+        const g5 = mk();
+        g5.beginPath(); g5.rect(10, 10, 30, 30); g5.clip();
+        g5.fillStyle = '#f00'; g5.fill();
+        const clipThenFill = px(g5, 20, 20);
+        globalThis.__out = JSON.stringify([
+            outsideStaysRed, insideTakesBlue, afterRestore,
+            clearOutsideIntact, clearInsideCleared,
+            intersectBand, intersectBlocked, emptyClipThenFree, clipThenFill,
+        ]);
+        return globalThis.__out;
+        } catch (e) { return 'ERR ' + e.name + ': ' + e.message; } })()
+    "#,
+        )
+        .unwrap();
+    let s = out.as_str().unwrap();
+    assert!(!s.starts_with("ERR"), "clip probe threw: {}", s);
+    let v: serde_json::Value = serde_json::from_str(s).unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!([
+            [255, 0, 0],
+            [0, 0, 255],
+            [0, 255, 0],
+            [255, 0, 0],
+            [0, 0, 0],
+            [255, 0, 0],
+            [0, 0, 255],
+            [0, 0, 255],
+            [255, 0, 0],
+        ]),
+        "clip must gate fillRect/fill/clearRect, stack via save/restore, and leave the path usable"
+    );
+}
+
+/// #16: document named access. Chrome truth (headless probe 2026-11-05):
+/// names come from the name attribute of applet/embed/form/iframe/img/
+/// object (plus the id of an element that ALSO has a name — a bare id never
+/// resolves on document, that's the window half), the exposed face is a
+/// plain own VALUE prop (writable/enumerable/configurable), it shadows
+/// PROTOTYPE members ([LegacyOverrideBuiltIns]) but real own props
+/// (location) win, removal uninstalls live, and two bearers give an
+/// HTMLCollection.
+#[test]
+fn document_named_access_resolves_and_shadows() {
+    let mut rt = setup_runtime(
+        "<html><body><div id=\"fooId\"></div><img name=\"barName\" id=\"barId\">\
+         <form name=\"frmName\"></form><img name=\"forms\">\
+         <iframe name=\"ifrName\" src=\"about:blank\"></iframe></body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"
+        (function () { try {
+        const gopd = (n) => { const d = Object.getOwnPropertyDescriptor(document, n); return d ? Object.keys(d).join('+') : 'none'; };
+        globalThis.__out = JSON.stringify([
+            typeof document.fooId,                       // bare id: NOT a document name (Chrome: undefined)
+            document.barName.tagName,                    // img name resolves
+            document.frmName.tagName,                    // form name resolves
+            document.barId.tagName,                      // id resolves when a name is also present
+            gopd('barName'),                             // value+writable+enumerable+configurable
+            Object.getOwnPropertyNames(document).includes('barName'),
+            Object.keys(document).includes('barName'),
+            (function () { for (const k in document) if (k === 'barName') return true; return false; })(),
+            document.forms.tagName,                      // [LegacyOverrideBuiltIns]: img shadows the collection
+            typeof document.location === 'object',       // real own prop (location) wins over <iframe name=…>… none here, sanity
+            (function () { const i = document.querySelector('iframe[name=ifrName]'); return document.ifrName === i.contentWindow; })(),
+            (function () { document.body.insertAdjacentHTML('beforeend', '<img name=\"q1\"><img name=\"q1\">'); return [Object.prototype.toString.call(document.q1), document.q1.length]; })(),
+            (function () { const e = document.querySelector('img[name=barName]'); e.remove(); return typeof document.barName; })(),
+            (function () { document.body.insertAdjacentHTML('beforeend', '<img name=\"retName\">'); return typeof document.retName; })(),
+        ]);
+        return globalThis.__out;
+        } catch (e) { return 'ERR ' + e.name + ': ' + e.message; } })()
+    "#,
+        )
+        .unwrap();
+    let s = out.as_str().unwrap();
+    assert!(
+        !s.starts_with("ERR"),
+        "document named access probe threw: {}",
+        s
+    );
+    let v: serde_json::Value = serde_json::from_str(s).unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!([
+            "undefined", "IMG", "FORM", "IMG",
+            "value+writable+enumerable+configurable", true, true, true,
+            "IMG", true, true,
+            ["[object HTMLCollection]", 2],
+            "undefined", "object",
+        ]),
+        "document named access: name-based resolution, value-prop face, override-builtins, live tracking"
+    );
+}
+
 /// 2026-10-18 sweep follow-up (moli ba5cd6f): a browsing context only exists
 /// while the iframe is connected — never-connected AND removed elements read
 /// null from both contentWindow and contentDocument. The lazy synthetic
