@@ -33,7 +33,8 @@ mod condition;
 mod resolve;
 
 pub use resolve::{
-    available_workflows, is_workflow_name, provision_workflow_dir, resolve_flow_doc, workflow_dir,
+    available_workflows, is_workflow_name, legacy_cwd_workflow_active,
+    provision_workflow_dir, resolve_flow_doc, workflow_dir,
 };
 mod timing;
 use condition::{eval_condition, js_truthy, CONDITION_OPS};

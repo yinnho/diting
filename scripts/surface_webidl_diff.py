@@ -115,5 +115,6 @@ L = ['# JS 表面 × WebIDL 差集（生成件）', '',
 for n, how, tot, g in rows:
     L.append(f'| {n} | {how} | {len(g)}/{tot} | {", ".join(g)} |')
 L += ['', '## 原型级探测（实例造不出，成员未核实）', '', ', '.join(unver), '']
+os.makedirs(os.path.dirname(OUT), exist_ok=True)  # fresh clone: docs/ is untracked and may not exist
 open(OUT, 'w').write('\n'.join(L))
 print('wrote', OUT, 'rows', len(rows), 'miss_ship', len(miss_ship), 'extra', len(extra))

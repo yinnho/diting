@@ -28,8 +28,9 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // id/arg tables). Consumers (bootstrap's _domRaw/_dom, domcore's
     // parentNode getter) read at call time through d()-published bindings;
     // the Set/Map bindings are never reassigned so value publish is correct.
-    // Slot right after bootstrap: zero load-time callers exist anywhere,
-    // adjacency keeps the exposure window empty by construction.
+    // Zero load-time callers exist anywhere, so the slot is free; it sits
+    // right after bootstrap today, but safety comes from the analyzer's
+    // forward-load ratchet (forwardLoadRefs = 0), not from adjacency.
     ("dom_op_tables.js", include_str!("js/dom_op_tables.js")),
     // god-file split (刀90, shallow clone): _shallowCloneNode — the one-node
     // clone primitive behind domcore's cloneNode deep path. Free names are
@@ -53,12 +54,13 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // god-file split (刀83, event-state facade + native trio): _eventState
     // capture off the engine-installed bridge global (deleted in the same
     // breath) + the M3-B1 addEventListener/removeEventListener/dispatchEvent
-    // install. First slot with load-time capture semantics, directly after
-    // bootstrap (the pure-data 刀89 table split intervenes harmlessly): the
-    // capture+delete must run before any other file could observe the bridge
-    // global, and the trio reads only the host EventTarget (present before
-    // any JS). The d() row migrated with the declaration; consumers
-    // (domcore, platform_bundle) read at call time.
+    // install. Load-time capture semantics: the capture+delete must run
+    // before any file that reads the captured names loads (the trio install
+    // is what event_classes/pointer_touch extend at their later slots), and
+    // the trio reads only the host EventTarget (present before any JS). The
+    // analyzer's forward-load ratchet enforces that machine-side — no
+    // adjacency to bootstrap is required. The d() row migrated with the
+    // declaration; consumers (domcore, platform_bundle) read at call time.
     ("event_facade.js", include_str!("js/event_facade.js")),
     // god-file split (刀84, document membership + shadow host gate):
     // _nodeInDocument (the 200-step shadow-including document climb behind
@@ -83,15 +85,17 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // animation_lifecycle, cookie_gate) are all call-time. Any slot safe.
     ("dom_parse.js", include_str!("js/dom_parse.js")),
     // god-file split (刀79, window identity): window/self/top/parent/frames
-    // aliases + frameElement/length. Pure installs, zero reads. FIRST after
-    // bootstrap, ahead of location_face — no location reads at load, so the
-    // 刀74 belt argument survives (the load window has no location READERS).
+    // aliases + frameElement/length. Pure installs, zero reads, and no
+    // location READERS exist anywhere at load — so the 刀74 belt argument
+    // survives whatever slot this file takes; the analyzer's forward-load
+    // ratchet holds that as files move.
     ("window_identity.js", include_str!("js/window_identity.js")),
     // god-file split (刀74, Location face): _resolveUrl + __virtualUrl +
     // __currentUrl + the __locParts memo + the location object + the
-    // unforgeable accessor. FIRST slot after bootstrap (刀74 人肉审:
-    // method_ladders snapshots G.location at its later load; every other
-    // consumer is runtime) — the load window is empty by construction.
+    // unforgeable accessor. 刀74 人肉审: the only load-time snapshot of
+    // G.location is method_ladders at its later slot; every other consumer
+    // is runtime — the load window is empty by construction, and the
+    // analyzer's forward-load ratchet keeps it that way.
     ("location_face.js", include_str!("js/location_face.js")),
     // god-file split (刀82, Secure Contexts): the isSecureContext accessor,
     // computed per access off __currentUrl() (location_face, earlier slot,
@@ -104,9 +108,9 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // face lazy guard); after location_face to keep 刀74's first-slot law.
     ("error_report.js", include_str!("js/error_report.js")),
     // god-file split (刀59, console argument formatter): _fmtVal + _peek +
-    // the _FMT_* clamps — pure helpers, zero installs. First slot after
-    // bootstrap: _consoleFn calls them at runtime via the published hidden
-    // globals, and any load-time console use in later files resolves here.
+    // the _FMT_* clamps — pure helpers, zero installs. _consoleFn calls
+    // them at runtime via the published hidden globals, and any load-time
+    // console use in later files resolves here whatever the slot order.
     ("console_format.js", include_str!("js/console_format.js")),
     // god-file split (刀78, console face): _consoleFn + the globalThis.console
     // install (createTask/context/assert). Consumes console_format's
@@ -804,52 +808,136 @@ fn main() {
     // PRELUDE + raw faces + the script list above, in our [blob][sidecar]
     // container. Scripts run origin-less: stack frames surface as
     // "<anonymous>" (300015 brand-leak law; the name rides only panics).
-    // #276 shared-source campaign: scripts whose code region is pure
-    // ASCII compile from process-static OneByteConst bytes (external
-    // strings — the realm heap holds a handle, not the text). Comment
-    // non-ASCII maps to '?': the guarantee below is that stripping
-    // comments from the original and the mapped source yields IDENTICAL
-    // code regions, so runtime behavior is untouched; a script that
-    // fails the check rides the inline fallback (empty const).
+    // #276 shared-source campaign: scripts whose code region is pure ASCII
+    // compile from process-static OneByteConst bytes (external strings —
+    // the realm heap holds a handle, not the text). Non-ASCII maps to '?',
+    // which is only safe inside comments (inert text). The guarantee: strip
+    // NOTHING BUT comments from the original and the mapped source and the
+    // two must be identical — so every character the snapshot executes is
+    // ASCII on both sides; a script that fails the check rides the inline
+    // fallback (empty const).
     fn strip_comments_js(src: &str) -> String {
-        // Conservative comment stripper for the equality check only:
-        // block comments, line comments, and string/template/regex
-        // literals passed through verbatim so their contents count as
-        // code. Chars: enough for these files (no regex-literal edge
-        // ambiguity after '/' inside strings — literals are carried
-        // whole, so a // inside a string stays).
+        // Mini-lexer: drops line/block comments; carries code, string and
+        // template bodies, and regex literals (char classes included), so a
+        // non-ASCII byte in any EXECUTED position breaks the equality and
+        // forces the fallback — a mangled string must never slip through
+        // (2026-11-05 audit: the old string-dropping stripper let
+        // 'Google 日本語' externalize as 'Google ??'; Chinese form-validation
+        // copy had already shipped mangled the same way).
+        // Regex-vs-division is decided from the previous significant char
+        // (a value-ending context means division; keywords exempted); a
+        // misparse only ever mislabels a span as code — and code is kept —
+        // so the failure mode is a lost optimization, never a wrong verdict.
         let b: Vec<char> = src.chars().collect();
         let mut out = String::new();
         let mut i = 0;
+        let mut prev = '\0'; // last significant char; whitespace/comments skip it
+        let mut word = String::new(); // identifier ending at `prev`, for keyword checks
         while i < b.len() {
             let c = b[i];
             if c == '/' && i + 1 < b.len() && b[i + 1] == '/' {
                 while i < b.len() && b[i] != '\n' {
                     i += 1;
                 }
+                continue; // the newline itself stays code
             } else if c == '/' && i + 1 < b.len() && b[i + 1] == '*' {
                 i += 2;
                 while i + 1 < b.len() && !(b[i] == '*' && b[i + 1] == '/') {
                     i += 1;
                 }
                 i = (i + 2).min(b.len());
+                continue;
             } else if c == '"' || c == '\'' || c == '`' {
                 let q = c;
                 out.push(q);
                 i += 1;
                 while i < b.len() && b[i] != q {
-                    if b[i] == '\\' {
-                        i += 1;
+                    if b[i] == '\\' && i + 1 < b.len() {
+                        out.push(b[i]);
+                        out.push(b[i + 1]);
+                        i += 2;
+                        continue;
                     }
+                    out.push(b[i]);
                     i += 1;
                 }
+                if i < b.len() {
+                    out.push(b[i]); // closing quote
+                }
+                i += 1;
+                prev = q;
+                word.clear();
+            } else if c == '/' && is_regex_position(prev, &word) {
+                out.push(c);
+                i += 1;
+                let mut in_class = false;
+                while i < b.len() {
+                    let r = b[i];
+                    if r == '\\' && i + 1 < b.len() {
+                        out.push(r);
+                        out.push(b[i + 1]);
+                        i += 2;
+                        continue;
+                    }
+                    if r == '\n' {
+                        break; // not a regex after all — bail, chars stay code
+                    }
+                    if r == '[' {
+                        in_class = true;
+                    } else if r == ']' {
+                        in_class = false;
+                    } else if r == '/' && !in_class {
+                        break;
+                    }
+                    out.push(r);
+                    i += 1;
+                }
+                if i < b.len() && b[i] != '\n' {
+                    out.push(b[i]); // closing '/'
+                    i += 1;
+                    while i < b.len() && b[i].is_ascii_alphabetic() {
+                        out.push(b[i]); // flags
+                        i += 1;
+                    }
+                }
+                prev = '0'; // a completed regex ends a value (division may follow)
+                word.clear();
+            } else {
+                out.push(c);
+                i += 1;
+                if c.is_ascii_alphanumeric() || c == '_' || c == '$' {
+                    if !(prev.is_ascii_alphanumeric() || prev == '_' || prev == '$') {
+                        word.clear();
+                    }
+                    word.push(c);
+                } else if !c.is_whitespace() {
+                    word.clear();
+                }
+                if !c.is_whitespace() {
+                    prev = c;
+                }
             }
-            if i < b.len() {
-                out.push(b[i]);
-            }
-            i += 1;
         }
         out
+    }
+
+    // A '/' starts a regex literal except right after something that could
+    // end a value (identifier/number/)/]/quote-close) — there it is division.
+    // Keywords (return/typeof/case/…) end no value, so they still open one.
+    fn is_regex_position(prev: char, last_word: &str) -> bool {
+        const KEYWORDS: [&str; 12] = [
+            "return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "case", "do",
+            "else", "yield",
+        ];
+        let value_ending = prev.is_ascii_alphanumeric()
+            || prev == '_'
+            || prev == '$'
+            || prev == ')'
+            || prev == ']'
+            || prev == '"'
+            || prev == '\''
+            || prev == '`';
+        !value_ending || KEYWORDS.contains(&last_word)
     }
 
     let mut generated =

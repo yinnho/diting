@@ -14,13 +14,64 @@ const WORKFLOW_MANUAL: &str = include_str!("../../workflow/README.md");
 /// Where on-disk `name`-addressed flows live: the app-data directory, so the
 /// flows an agent distills survive restarts from any working directory and
 /// binary upgrades — drop a directory in to deploy, no rebuild.
-/// `DITING_WORKFLOW_DIR` overrides; the bare cwd-relative path is only the
-/// fallback for a box with no resolvable home.
+/// `DITING_WORKFLOW_DIR` overrides. The bare cwd-relative path is only the
+/// fallback for a box with no resolvable home — plus the upgrade bridge:
+/// flows distilled before the app-data move sit under `<cwd>/workflow/`, and
+/// while the new home holds none and the legacy directory still does,
+/// resolution stays there so an upgrade never makes the agent's flows
+/// silently vanish (2026-11-05 audit finding 1).
 pub fn workflow_dir() -> PathBuf {
-    std::env::var_os("DITING_WORKFLOW_DIR")
-        .map(PathBuf::from)
-        .or_else(|| crate::config::app_data_dir().map(|d| d.join("workflow")))
-        .unwrap_or_else(|| PathBuf::from("workflow"))
+    if let Some(dir) = std::env::var_os("DITING_WORKFLOW_DIR") {
+        return PathBuf::from(dir);
+    }
+    let Some(data) = crate::config::app_data_dir() else {
+        return PathBuf::from("workflow");
+    };
+    let home = data.join("workflow");
+    if prefer_legacy_cwd_workflow(&home, std::path::Path::new("workflow")) {
+        static LEGACY_WARNED: std::sync::Once = std::sync::Once::new();
+        LEGACY_WARNED.call_once(|| {
+            tracing::warn!(
+                "workflow dir: legacy ./workflow still in use — move its flows to {} \
+                 (or export DITING_WORKFLOW_DIR)",
+                home.display()
+            );
+        });
+        return PathBuf::from("workflow");
+    }
+    home
+}
+
+/// True when this call resolved onto the legacy cwd-relative directory
+/// (see `workflow_dir`); /doctor turns this into a warning line.
+pub fn legacy_cwd_workflow_active() -> bool {
+    std::env::var_os("DITING_WORKFLOW_DIR").is_none()
+        && crate::config::app_data_dir()
+            .map(|d| {
+                prefer_legacy_cwd_workflow(&d.join("workflow"), std::path::Path::new("workflow"))
+            })
+            .unwrap_or(false)
+}
+
+/// The bridge fires only while the app-data home is empty of flows and the
+/// cwd-relative directory carries at least one — once the flows land in the
+/// new home (or the box is fresh), resolution is app-data, no flip-flop.
+pub(super) fn prefer_legacy_cwd_workflow(
+    home: &std::path::Path,
+    cwd_dir: &std::path::Path,
+) -> bool {
+    !dir_has_flow(home) && dir_has_flow(cwd_dir)
+}
+
+fn dir_has_flow(dir: &std::path::Path) -> bool {
+    std::fs::read_dir(dir)
+        .map(|rd| {
+            rd.flatten().any(|e| {
+                is_workflow_name(&e.file_name().to_string_lossy())
+                    && e.path().join("flow.json").is_file()
+            })
+        })
+        .unwrap_or(false)
 }
 
 /// Boot-time: make sure the workflow directory exists and carries this
