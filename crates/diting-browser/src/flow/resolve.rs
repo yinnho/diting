@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 /// The agent's manual: compiled in, so it reaches every install no matter
 /// how the binary got there.
-const WORKFLOW_MANUAL: &str = include_str!("../../workflow/README.md");
+const WORKFLOW_MANUAL: &str = include_str!("../../../../workflow/README.md");
 
 /// Where on-disk `name`-addressed flows live: the app-data directory, so the
 /// flows an agent distills survive restarts from any working directory and

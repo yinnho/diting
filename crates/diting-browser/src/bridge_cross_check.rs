@@ -25,9 +25,9 @@ fn our_styles(tree: &DomTree, rules: &[ParsedRule]) -> HashMap<NodeId, ComputedS
 /// cross-check must read one source of truth, so this reaches across
 /// the workspace split instead of forking the binaries.
 const FIXTURE_REGULAR: &[u8] =
-    include_bytes!("../crates/diting/src/diting_layout/fixtures/diting-fixture-regular.ttf");
+    include_bytes!("../../../crates/diting/src/diting_layout/fixtures/diting-fixture-regular.ttf");
 const FIXTURE_BOLD: &[u8] =
-    include_bytes!("../crates/diting/src/diting_layout/fixtures/diting-fixture-bold.ttf");
+    include_bytes!("../../../crates/diting/src/diting_layout/fixtures/diting-fixture-bold.ttf");
 const FIXTURE_FAMILY: &str = "DitingFixture";
 
 fn fixture_fonts() -> FontBook {

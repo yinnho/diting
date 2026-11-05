@@ -1515,5 +1515,5 @@ pub(crate) async fn session_qr_handler(
 
 /// `GET /session/:id/qr/live` — the self-refreshing scan page (`web/qr-live.html`).
 pub(crate) async fn session_qr_live_handler() -> axum::response::Html<&'static str> {
-    axum::response::Html(include_str!("../../web/qr-live.html"))
+    axum::response::Html(include_str!("../../../../web/qr-live.html"))
 }

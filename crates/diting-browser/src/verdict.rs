@@ -116,10 +116,7 @@ pub fn core_rules() -> Vec<UrlRule> {
 
 /// Embedded fallback — same bytes as repo `config/verdict_rules.json` so
 /// tests and bare binaries keep login classification without a cwd file.
-const EMBEDDED_VERDICT_RULES_JSON: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/config/verdict_rules.json"
-));
+const EMBEDDED_VERDICT_RULES_JSON: &str = include_str!("../../../config/verdict_rules.json");
 
 /// Parse an overlay document `{ "rules": [ { "needle", "verdict" }, ... ] }`.
 /// Unknown verdict names and empty needles are skipped (warn via tracing).

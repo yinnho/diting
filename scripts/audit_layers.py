@@ -35,7 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = ROOT / "crates" / "diting"
-PRODUCT = ROOT / "src"
+PRODUCT = ROOT / "crates/diting-browser/src"
 
 # The faces: doors hold routing/parameter structs only (R3), and nothing may
 # import them (R1b) — main.rs is the bin root doing assembly, so it may.
@@ -87,10 +87,10 @@ GOD_FILE_GRANDFATHER = {
     "crates/diting/src/diting_css/mod.rs": 6727,  # post-0.6.0 compat surface bumps
     "crates/diting/src/diting_js/ops/mod.rs": 5030,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
     "crates/diting/src/diting_layout/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
-    "src/bridge_cross_check.rs": 4423,
+    "crates/diting-browser/src/bridge_cross_check.rs": 4423,
     "crates/diting/src/diting_layout/fork_deltas.rs": 2930,
     "crates/diting/src/diting_js/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
-    "src/authoring/docgen/workflow.rs": 1641,
+    "crates/diting-browser/src/authoring/docgen/workflow.rs": 1641,
     # tree.rs crossed the cap in the 2026-11-05 fmt reflow (1500 -> 1587, no
     # code added); 87 over — a split for the cap alone buys nothing (svg_root.js
     # precedent). Retires when the split program reaches it.

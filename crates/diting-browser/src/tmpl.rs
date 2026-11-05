@@ -79,9 +79,9 @@ pub fn dir() -> PathBuf {
 /// 的赢。这样裸装（fresh flash 无模板目录）也全套可用，而
 /// /var/lib/diting/templates 仍是 scp 秒生效的热修覆盖通道。
 const BUILTIN: &[(&str, &str)] = &[
-    ("weather", include_str!("../templates/weather.html")),
-    ("reply", include_str!("../templates/reply.html")),
-    ("qr", include_str!("../templates/qr.html")),
+    ("weather", include_str!("../../../templates/weather.html")),
+    ("reply", include_str!("../../../templates/reply.html")),
+    ("qr", include_str!("../../../templates/qr.html")),
 ];
 
 pub fn render(template: &str, data: &serde_json::Value) -> Result<String, OpenError> {
