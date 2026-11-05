@@ -28605,6 +28605,16 @@ async fn test_css_supports_probes() {
             CSS.supports('(display: flex) or (display: bogus)'),
             CSS.supports(':hover'),
             CSS.supports(':bogus-pseudo'),
+            // #20: these three stay FALSE on purpose — Chrome says true,
+            // but the engine has none of the layout behind them (anchor
+            // positioning resolution, subgrid track inheritance — taffy
+            // pins no subgrid, scroll-timeline sampling). Saying true
+            // would flip feature-detected pages onto paths this layout
+            // cannot honor; the honest answer routes them to working
+            // fallbacks. Flip ONLY when the layout lands.
+            CSS.supports('anchor-name', '--a'),
+            CSS.supports('grid-template-columns', 'subgrid'),
+            CSS.supports('animation-timeline', 'scroll()'),
         ]"#;
     let result = rt
         .call_function_on_remote(script, None, &[], true, true)
@@ -28612,7 +28622,9 @@ async fn test_css_supports_probes() {
         .unwrap();
     assert_eq!(
         result.value.unwrap(),
-        serde_json::json!([true, false, true, false, false, true, false, true, true, false])
+        serde_json::json!([
+            true, false, true, false, false, true, false, true, true, false, false, false, false
+        ])
     );
 }
 

@@ -117,7 +117,10 @@ pub fn supports_declaration(name: &str, value: &str) -> bool {
     }
     if CHROME_EXTRA_PROPS.contains(&name_l.as_str()) && !SUPPORTED.contains(&name_l.as_str()) {
         // Parsed-and-ignored properties: true for any sane value (never
-        // `subgrid`, whose layout this engine does not do).
+        // `subgrid`, whose layout this engine does not do — #20 verified:
+        // Chrome aligns subgridded cols to the parent's resolved tracks
+        // [140,80] where this engine leaves them unsynced; flip only
+        // together with the layout).
         return !value.is_empty()
             && !value.eq_ignore_ascii_case("subgrid")
             && !value.contains("subgrid");
@@ -378,7 +381,8 @@ pub(super) fn pseudo_known(head: &str) -> bool {
 /// non-empty value so feature detection takes the same branch as Chrome —
 /// except the ones whose JS/CSS fallback matters for layout: anchor
 /// positioning, scroll/view timelines, which stay false so pages use their
-/// fallbacks.
+/// fallbacks (#20 verified live: no layout behind either — anchor chips
+/// never move, scroll-timeline gCS reads "").
 pub(super) const CHROME_EXTRA_PROPS: &[&str] = &[
     "all",
     "animation",
