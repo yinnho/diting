@@ -25745,13 +25745,14 @@ fn computed_style_pseudo_element_face() {
         ),
         r#""P""#
     );
-    // attr() resolves against the host's attributes at cascade time.
+    // attr() keeps its functional shape on the computed face (#19, Chrome
+    // parity) — the host attribute substitutes only into the rendered box.
     assert_eq!(
         read(
             &mut rt,
             "getComputedStyle(document.getElementById('a'),'::after').getPropertyValue('content')"
         ),
-        r#""v1""#
+        "attr(k)"
     );
     // Pseudo with no matching rule (and unmodeled `::name` forms) answers
     // the initial-value table.
@@ -25797,18 +25798,27 @@ fn computed_style_pseudo_element_face() {
     }
 }
 
-/// Batch 105: counter()/counters() numbering — the css-lists-3 §4.3 worked
-/// example's canonical shapes: flat 1..n, nested ol joins "3.1", the li after
-/// the nested list continues the OUTER counter (inner counter never reaches
-/// following siblings of its creator's parent), and a sibling ol restarts
-/// because reset shadows previous-sibling-origin counters (§4.4.2).
+/// Batch 105 + #19: counter()/counters() numbering — the css-lists-3 §4.3
+/// worked example's canonical shapes: flat 1..n, nested ol joins "3.1", the
+/// li after the nested list continues the OUTER counter (inner counter
+/// never reaches following siblings of its creator's parent), and a sibling
+/// ol restarts because reset shadows previous-sibling-origin counters
+/// (§4.4.2). The ::before face keeps the functional shape (#19), so the
+/// numbering itself is asserted by width-parity against literal-content
+/// controls — identical construction (same rule shape, same merge into the
+/// li's text run), so widths are equal iff resolution produced exactly the
+/// control's text.
 #[cfg(feature = "screenshot")]
 #[test]
 fn counters_numbering_scoping_and_restart() {
     let mut rt = setup_runtime(
         r#"<style>
           ol{counter-reset:item;list-style:none;margin:0;padding:0}
+          li{margin:0;padding:0}
           li::before{counter-increment:item;content:counters(item,".") " "}
+          li.m1::before{content:"1 "}
+          li.m31::before{content:"3.1 "}
+          li.m4::before{content:"4 "}
         </style>
         <ol>
           <li id="a">alpha</li>
@@ -25816,51 +25826,77 @@ fn counters_numbering_scoping_and_restart() {
           <li id="c">gamma<ol><li id="d">delta</li></ol></li>
           <li id="e">epsilon</li>
         </ol>
-        <ol><li id="f">zeta</li></ol>"#,
+        <ol><li id="f">zeta</li></ol>
+        <ol><li class="m1" id="ca">alpha</li></ol>
+        <ol><li class="m31" id="cd">delta</li></ol>
+        <ol><li class="m4" id="ce">epsilon</li></ol>
+        <ol><li class="m1" id="cf">zeta</li></ol>"#,
     );
-    let before = |rt: &mut JsRuntime, id: &str| -> String {
-        match rt.evaluate(&format!(
-            "getComputedStyle(document.getElementById('{}'),'::before').getPropertyValue('content')",
-            id
-        )) {
+    let read = |rt: &mut JsRuntime, expr: &str| -> String {
+        match rt.evaluate(expr) {
             Ok(serde_json::Value::String(s)) => s,
-            other => panic!("{id} ::before -> {other:?}"),
+            other => panic!("{expr} -> {other:?}"),
         }
     };
-    assert_eq!(before(&mut rt, "a"), "\"1 \"");
-    assert_eq!(before(&mut rt, "b"), "\"2 \"");
-    assert_eq!(before(&mut rt, "c"), "\"3 \"");
-    assert_eq!(before(&mut rt, "d"), "\"3.1 \"", "nested ol joins the join");
-    assert_eq!(
-        before(&mut rt, "e"),
-        "\"4 \"",
-        "li after the nested list keeps counting the outer counter"
-    );
-    assert_eq!(
-        before(&mut rt, "f"),
-        "\"1 \"",
-        "sibling ol's reset shadows the previous sibling's counter"
-    );
+    // #19: every ::before face serves the authored functional shape.
+    for id in ["a", "b", "c", "d", "e", "f"] {
+        assert_eq!(
+            read(
+                &mut rt,
+                &format!(
+                    "getComputedStyle(document.getElementById('{id}'),'::before').getPropertyValue('content')"
+                )
+            ),
+            r#"counters(item, ".") " ""#,
+            "{id} face"
+        );
+    }
+    let width = |rt: &mut JsRuntime, id: &str| -> f64 {
+        rt.evaluate(&format!(
+            "document.getElementById('{id}').getBoundingClientRect().width"
+        ))
+        .unwrap()
+        .as_f64()
+        .unwrap_or(-1.0)
+    };
+    let parity = |rt: &mut JsRuntime, probe: &str, ctl: &str| {
+        let (p, c) = (width(rt, probe), width(rt, ctl));
+        assert!(
+            (p - c).abs() < 0.5,
+            "{probe} resolved text width {p} != {ctl} {c}"
+        );
+    };
+    parity(&mut rt, "a", "ca");
+    parity(&mut rt, "d", "cd");
+    parity(&mut rt, "e", "ce");
+    parity(&mut rt, "f", "cf");
 }
 
-/// Batch 105: counter style formatting, implicit-zero counters, same-element
-/// reset+increment composition (reset then increment → 6), and the host
-/// gCS face keeping the source shape functional (Chrome parity).
+/// Batch 105 + #19: counter style formatting, implicit-zero counters,
+/// same-element reset+increment composition (reset then increment → 6), and
+/// the gCS faces keeping the source shape functional (Chrome parity). The
+/// resolved values ride `content_resolved` (invisible to JS by design), so
+/// the formatting is asserted by width-parity against literal-content
+/// control spans — equal widths iff resolution produced the control's text.
 #[cfg(feature = "screenshot")]
 #[test]
 fn counter_styles_composition_and_host_face() {
     let mut rt = setup_runtime(
         r#"<style>
           .r::before{content:counter(x, upper-roman) " "}
+          .rc::before{content:"III "}
           .al::before{content:counter(y, lower-alpha) " "}
           .ci::before{content:counter(n) " "}
+          .cic::before{content:"6 "}
           .z::before{content:counter(ghost)}
+          .zc::before{content:"0"}
           #h{content:counter(w, upper-roman) " " attr(data-k)}
         </style>
         <div style="counter-reset:x 3"><span class="r"></span></div>
+        <div><span class="rc"></span></div>
         <div style="counter-reset:y"><span class="al"></span></div>
-        <span class="ci" style="counter-reset:n 5;counter-increment:n"></span>
-        <span class="z"></span>
+        <span class="ci" style="counter-reset:n 5;counter-increment:n"></span><span class="cic"></span>
+        <span class="z"></span><span class="zc"></span>
         <span id="h" data-k="K"></span>"#,
     );
     let read = |rt: &mut JsRuntime, expr: &str| -> String {
@@ -25869,32 +25905,19 @@ fn counter_styles_composition_and_host_face() {
             other => panic!("{expr} -> {other:?}"),
         }
     };
-    assert_eq!(
+    let face = |rt: &mut JsRuntime, sel: &str| -> String {
         read(
-            &mut rt,
-            "getComputedStyle(document.querySelector('.r'),'::before').getPropertyValue('content')"
-        ),
-        "\"III \"",
-        "reset to 3 renders upper-roman"
-    );
-    assert_eq!(
-        read(&mut rt, "getComputedStyle(document.querySelector('.al'),'::before').getPropertyValue('content')"),
-        "\"0 \"",
-        "lower-alpha of 0 falls back to decimal"
-    );
-    assert_eq!(
-        read(&mut rt, "getComputedStyle(document.querySelector('.ci'),'::before').getPropertyValue('content')"),
-        "\"6 \"",
-        "reset 5 then increment on the same element"
-    );
-    assert_eq!(
-        read(
-            &mut rt,
-            "getComputedStyle(document.querySelector('.z'),'::before').getPropertyValue('content')"
-        ),
-        "\"0\"",
-        "counter of a name never reset is 0"
-    );
+            rt,
+            &format!(
+                "getComputedStyle(document.querySelector('{sel}'),'::before').getPropertyValue('content')"
+            ),
+        )
+    };
+    // #19: functional shape, both counter() spellings.
+    assert_eq!(face(&mut rt, ".r"), r#"counter(x, upper-roman) " ""#);
+    assert_eq!(face(&mut rt, ".al"), r#"counter(y, lower-alpha) " ""#);
+    assert_eq!(face(&mut rt, ".ci"), r#"counter(n) " ""#);
+    assert_eq!(face(&mut rt, ".z"), "counter(ghost)");
     // Host face: source shape round-trips functional notation.
     assert_eq!(
         read(
@@ -25903,11 +25926,93 @@ fn counter_styles_composition_and_host_face() {
         ),
         "counter(w, upper-roman) \" \" attr(data-k)"
     );
+    let width = |rt: &mut JsRuntime, sel: &str| -> f64 {
+        rt.evaluate(&format!(
+            "document.querySelector('{sel}').getBoundingClientRect().width"
+        ))
+        .unwrap()
+        .as_f64()
+        .unwrap_or(-1.0)
+    };
+    let parity = |rt: &mut JsRuntime, probe: &str, ctl: &str| {
+        let (p, c) = (width(rt, probe), width(rt, ctl));
+        assert!(
+            (p - c).abs() < 0.5,
+            "{probe} resolved text width {p} != {ctl} {c}"
+        );
+    };
+    parity(&mut rt, ".r", ".rc"); // reset to 3 renders upper-roman III
+    parity(&mut rt, ".ci", ".cic"); // reset 5 then increment on the same element
+    parity(&mut rt, ".z", ".zc"); // a name never reset resolves to 0
 }
 
-/// Batch 105: quotes — open/close-quote pick the depth'th pair (last pair
-/// repeats), `quotes: none` yields empty strings, and the property-less
-/// default is curly quotes.
+/// #19 (Chrome-diff battery): the pseudo's computed content keeps its
+/// functional shape — Chrome's gCS serves `counter(c) ". "` while the box
+/// renders `1. `. The flattened text lives on `content_resolved` for the
+/// box builder and never leaks into the CSSOM face.
+#[cfg(feature = "screenshot")]
+#[test]
+fn pseudo_content_functional_shape_and_render() {
+    let mut rt = setup_runtime(
+        r#"<style>
+          li{counter-increment:c}
+          li::before{content:counter(c) ". "}
+          li.one::before{content:"1. "}
+        </style>
+        <ul style="list-style:none;margin:0;padding:0">
+          <li id="a">x</li>
+          <li class="one" id="ctl">x</li>
+        </ul>"#,
+    );
+    let read = |rt: &mut JsRuntime, expr: &str| -> String {
+        match rt.evaluate(expr) {
+            Ok(serde_json::Value::String(s)) => s,
+            other => panic!("{expr} -> {other:?}"),
+        }
+    };
+    // The battery face: functional shape, counter unresolved.
+    assert_eq!(
+        read(
+            &mut rt,
+            "getComputedStyle(document.getElementById('a'),'::before').getPropertyValue('content')"
+        ),
+        r#"counter(c) ". ""#
+    );
+    // Literal strings keep their plain quoted face.
+    assert_eq!(
+        read(
+            &mut rt,
+            "getComputedStyle(document.getElementById('ctl'),'::before').getPropertyValue('content')"
+        ),
+        r#""1. ""#
+    );
+    // And the box still renders the resolved `1. ` (width parity against
+    // the literal control: same merge into the same li text run).
+    let widths: Vec<f64> = ["a", "ctl"]
+        .into_iter()
+        .map(|id| {
+            rt.evaluate(&format!(
+                "document.getElementById('{id}').getBoundingClientRect().width"
+            ))
+            .unwrap()
+            .as_f64()
+            .unwrap_or(-1.0)
+        })
+        .collect();
+    assert!(
+        (widths[0] - widths[1]).abs() < 0.5,
+        "resolved counter text width {:?} != literal control {:?}",
+        widths[0],
+        widths[1]
+    );
+}
+
+/// Batch 105 + #19: quotes — the gCS face keeps the open-quote/close-quote
+/// keywords (the glyph is a walk-time used value: it depends on the
+/// document-position quote depth, which a computed value cannot see). The
+/// depth-pair selection, the `quotes: none` emptying and the property-less
+/// curly default are asserted by width-parity against literal-glyph
+/// controls with identical box shapes.
 #[cfg(feature = "screenshot")]
 #[test]
 fn quotes_depth_pairs_none_and_default() {
@@ -25919,10 +26024,20 @@ fn quotes_depth_pairs_none_and_default() {
           #nn::before{content:open-quote}
           #dd::before{content:open-quote}
           #dd::after{content:close-quote}
+          .kc::before{content:"«"}
+          .kc::after{content:"»"}
+          .ki::before{content:"‹"}
+          .ki::after{content:"›"}
+          .kd::before{content:"“"}
+          .kd::after{content:"”"}
         </style>
-        <div style="quotes: '«' '»' '‹' '›'"><span class="o"><span class="o"></span></span></div>
-        <span id="dd"></span>
-        <span id="nn"></span>"#,
+        <div style="quotes: '«' '»' '‹' '›'">
+          <span class="o" id="oo"><span class="o" id="oi"></span></span>
+          <span class="kc" id="ck"><span class="ki"></span></span>
+          <span class="ki" id="ci"></span>
+        </div>
+        <span id="dd"></span><span class="kd" id="cd"></span>
+        <span id="nn"></span><span id="bare"></span>"#,
     );
     let read = |rt: &mut JsRuntime, expr: &str| -> String {
         match rt.evaluate(expr) {
@@ -25930,48 +26045,44 @@ fn quotes_depth_pairs_none_and_default() {
             other => panic!("{expr} -> {other:?}"),
         }
     };
-    let outer = "getComputedStyle(document.querySelector('div > span'),'";
-    assert_eq!(
+    let face = |rt: &mut JsRuntime, id: &str, pseudo: &str| -> String {
         read(
-            &mut rt,
-            &format!("{outer}::before').getPropertyValue('content')")
-        ),
-        "\"«\"",
-        "outermost quote takes the first pair"
-    );
-    assert_eq!(
-        read(
-            &mut rt,
-            &format!("{outer}::after').getPropertyValue('content')")
-        ),
-        "\"»\""
-    );
-    let inner = "getComputedStyle(document.querySelector('div > span > span'),'";
-    assert_eq!(
-        read(
-            &mut rt,
-            &format!("{inner}::before').getPropertyValue('content')")
-        ),
-        "\"‹\"",
-        "nested quote takes the depth'th pair"
-    );
-    assert_eq!(
-        read(
-            &mut rt,
-            &format!("{inner}::after').getPropertyValue('content')")
-        ),
-        "\"›\""
-    );
-    assert_eq!(
-        read(&mut rt, "getComputedStyle(document.getElementById('nn'),'::before').getPropertyValue('content')"),
-        "\"\"",
-        "quotes:none makes open-quote empty"
-    );
-    assert_eq!(
-        read(&mut rt, "getComputedStyle(document.getElementById('dd'),'::before').getPropertyValue('content')"),
-        "\"\u{201C}\"",
-        "property-less default is the curly left double quote"
-    );
+            rt,
+            &format!(
+                "getComputedStyle(document.getElementById('{id}'),'{pseudo}').getPropertyValue('content')"
+            ),
+        )
+    };
+    // #19: the keywords persist on every face — outer, inner, none, default.
+    for id in ["oo", "oi", "dd", "nn"] {
+        assert_eq!(face(&mut rt, id, "::before"), "open-quote", "{id} face");
+    }
+    for id in ["oo", "oi", "dd"] {
+        assert_eq!(face(&mut rt, id, "::after"), "close-quote", "{id} face");
+    }
+    let width = |rt: &mut JsRuntime, id: &str| -> f64 {
+        rt.evaluate(&format!(
+            "document.getElementById('{id}').getBoundingClientRect().width"
+        ))
+        .unwrap()
+        .as_f64()
+        .unwrap_or(-1.0)
+    };
+    let parity = |rt: &mut JsRuntime, probe: &str, ctl: &str| {
+        let (p, c) = (width(rt, probe), width(rt, ctl));
+        assert!(
+            (p - c).abs() < 0.5,
+            "{probe} resolved glyph width {p} != {ctl} {c}"
+        );
+    };
+    // Inner: depth-1 pair ‹›; outer: depth-0 pair «» around the inner box.
+    parity(&mut rt, "oi", "ci");
+    parity(&mut rt, "oo", "ck");
+    // Property-less default is the curly double pair.
+    parity(&mut rt, "dd", "cd");
+    // quotes:none renders nothing — the span stays empty-width like a
+    // pseudo-less bare span.
+    parity(&mut rt, "nn", "bare");
 }
 
 /// obscura#993 lineage: custom elements created AFTER define() must upgrade.

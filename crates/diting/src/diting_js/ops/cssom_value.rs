@@ -299,8 +299,9 @@ pub(super) fn computed_style_value(
         // value), so the CSS initial surfaces as content-box.
         // Chrome's initial computed content is "normal"; declared strings
         // re-serialize quoted, attr()/counter()/counters()/quotes keywords
-        // keep their functional shape. On pseudos the resolved plain string
-        // surfaces instead (documented divergence).
+        // keep their functional shape — the flattened text lives on
+        // `content_resolved` for the box builder and never surfaces here
+        // (#19; pseudos serve the same functional shape as hosts).
         "content" => Some(match &s.content {
             Some(ContentValue::Str(t)) => {
                 format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
