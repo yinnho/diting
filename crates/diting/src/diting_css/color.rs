@@ -13,6 +13,19 @@ pub fn parse_color_with_origin(
     parse_color(v).map(|c| (c, None))
 }
 
+/// `parse_color_with_origin` with the element's used color-scheme (#18):
+/// `light-dark()` picks its branch before parsing, and the returned pair is
+/// the chosen branch's — modern-ness included.
+pub fn parse_color_with_scheme(
+    v: &str,
+    scheme_dark: bool,
+) -> Option<(Color, Option<super::color_modern::ModernColor>)> {
+    if let Some((c, m)) = super::color_modern::parse_with_scheme(v, scheme_dark) {
+        return Some((c, m));
+    }
+    parse_color(v).map(|c| (c, None))
+}
+
 /// Named colors + #rgb/#rrggbbaa hex (the forms real sheets overwhelmingly use).
 pub fn parse_color(v: &str) -> Option<Color> {
     let v = v.trim().to_ascii_lowercase();

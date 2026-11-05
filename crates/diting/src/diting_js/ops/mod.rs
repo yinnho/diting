@@ -2328,9 +2328,9 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                         None => (crate::diting_css::ComputedStyle::default(), None),
                     };
                     let mut obj = serde_json::Map::with_capacity(
-                        COMPUTED_STYLE_PROPS.len() + target.custom.len(),
+                        cssom_value::COMPUTED_STYLE_PROPS.len() + target.custom.len(),
                     );
-                    for prop in COMPUTED_STYLE_PROPS {
+                    for prop in cssom_value::COMPUTED_STYLE_PROPS {
                         if let Some(v) = computed_style_value(&target, prop, tag.as_deref(), cb) {
                             obj.insert((*prop).to_string(), serde_json::Value::String(v));
                         }
@@ -3349,104 +3349,6 @@ pub(crate) fn store_image_bytes(gs: &mut JsState, url: String, bytes: Vec<u8>) {
     gs.image_order.borrow_mut().push_back(url);
     gs.drop_layout();
 }
-
-/// The property table the `computed_style` snapshot serializes — every
-/// property [`computed_style_value`] can spell. Order is irrelevant (the
-/// consumer is a JSON object); this list just guarantees the op and the
-/// serializer stay in lockstep.
-#[cfg(feature = "screenshot")]
-const COMPUTED_STYLE_PROPS: &[&str] = &[
-    "position",
-    "z-index",
-    "display",
-    "float",
-    "clear",
-    "content",
-    "box-sizing",
-    "background-clip",
-    "overflow",
-    "overflow-x",
-    "overflow-y",
-    "border-collapse",
-    "table-layout",
-    "vertical-align",
-    "text-decoration",
-    "text-decoration-line",
-    "font-size",
-    "font-weight",
-    "text-align",
-    "text-align-last",
-    "direction",
-    "line-height",
-    "word-spacing",
-    "text-transform",
-    "font-variant-caps",
-    "font-variant",
-    "container-type",
-    "container-name",
-    "white-space",
-    "text-overflow",
-    "line-clamp",
-    "-webkit-line-clamp",
-    "color",
-    "background-color",
-    "box-shadow",
-    "backdrop-filter",
-    "filter",
-    "perspective",
-    "text-shadow",
-    "background-image",
-    "font-family",
-    "padding-top",
-    "padding-right",
-    "padding-bottom",
-    "padding-left",
-    "border-top-width",
-    "border-right-width",
-    "border-bottom-width",
-    "border-left-width",
-    "border-top-style",
-    "border-right-style",
-    "border-bottom-style",
-    "border-left-style",
-    "border-top-color",
-    "border-right-color",
-    "border-bottom-color",
-    "border-left-color",
-    "margin-top",
-    "margin-right",
-    "margin-bottom",
-    "margin-left",
-    "margin-block-start",
-    "margin-block-end",
-    "margin-inline-start",
-    "margin-inline-end",
-    "padding-block-start",
-    "padding-block-end",
-    "padding-inline-start",
-    "padding-inline-end",
-    "transform-origin",
-    "border-radius",
-    "flex-direction",
-    "flex-wrap",
-    "justify-content",
-    "align-items",
-    "opacity",
-    "zoom",
-    "transform",
-    "animation-name",
-    "animation-duration",
-    "animation-delay",
-    "animation-timing-function",
-    "animation-fill-mode",
-    "animation-iteration-count",
-    "animation-direction",
-    "animation-play-state",
-    "transition-property",
-    "transition-duration",
-    "transition-delay",
-    "transition-timing-function",
-];
 
 #[diting_op]
 fn op_console_msg(state: &OpState, #[string] level: &str, #[string] msg: &str) {
