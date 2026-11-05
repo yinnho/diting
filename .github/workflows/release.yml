@@ -1,0 +1,196 @@
+name: release
+
+# 发版线（2026-11-05 起）：跑在公开仓——公开仓标准 runner 免费不限量，
+# 私有 overlay 仓从此零 Actions 分钟（旧线在 overlay 仓跑，macOS 10×
+# 乘数把月度配额 4 天烧穿，v0.9.1 后迁此）。
+#
+# 构建内容不变：本仓 v* tag + 私仓 yinnho/diting-overlay（只读 deploy
+# key 拉取，fork/dependabot PR 拿不到 secrets——GitHub 模型保证）→
+# apply → 五平台 stealth,screenshot → 门禁 → 发本仓同号 release。
+#
+# 日志纪律：apply 与编译的完整输出可能带 overlay 源码行（rustc 报错
+# 打代码片段），落文件不落控制台；失败时只回放 error 头行。公开仓
+# 的日志全世界可见。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      diting_ref:
+        description: "ref to build (tag/branch/sha); empty = latest tag"
+        required: false
+        default: ""
+      publish:
+        description: "upload to the release (only for a v* ref)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          # 没有 Intel runner 了：整条工具链在 Rosetta 下当 x86_64 宿主跑，
+          # build.rs 才是 x86_64 进程，V8 snapshot 架构才对（v0.2.10 事后追责）。
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            rosetta: true
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          # 同公开仓 ci：windows-latest 预装 cmake+nasm+libclang（boring-sys2
+          # bindgen）；Build 步必须 pin shell: bash——PowerShell 会把
+          # `--features stealth,screenshot` 的逗号解析成数组再拼回两个
+          # argv，cargo 拒收。
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          # 原生 arm64 runner：V8 snapshot 必须和目标同架构。
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            zig: true
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 — 本仓（tag 触发时即 tag 提交）
+      - name: Resolve ref to build
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.diting_ref }}" ]; then
+            REF="${{ inputs.diting_ref }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            REF="$GITHUB_REF_NAME"
+          else
+            REF=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*/||' | sort -V | tail -1)
+          fi
+          echo "DITING_REF=$REF" >>"$GITHUB_ENV"
+          # 只有 tag 推送，或手动勾选 publish 且 ref 是 v*，才上传
+          PUBLISH=false
+          case "$REF" in
+            v*)
+              if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.publish }}" = "true" ]; then
+                PUBLISH=true
+              fi
+              ;;
+          esac
+          echo "PUBLISH=$PUBLISH" >>"$GITHUB_ENV"
+          echo "building $REF (publish=$PUBLISH)"
+      - name: Check out the tag ref (dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DITING_REF }}
+      - name: Check out overlay (read-only deploy key)
+        shell: bash
+        env:
+          OVERLAY_DEPLOY_KEY: ${{ secrets.OVERLAY_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$OVERLAY_DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          # 优先同号 tag（镜像仪式保留：发版时往 overlay 推 v* tag 钉住
+          # 当时状态）；没有则用 overlay main HEAD（回执里打出 sha 留痕）。
+          if git clone --depth 1 --branch "$DITING_REF" git@github.com:yinnho/diting-overlay.git overlay 2>/dev/null; then
+            echo "overlay @ tag $DITING_REF"
+          else
+            git clone --depth 1 git@github.com:yinnho/diting-overlay.git overlay
+            echo "overlay @ main $(git -C overlay rev-parse --short HEAD)"
+          fi
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Ensure Rosetta
+        if: matrix.rosetta
+        run: arch -x86_64 /usr/bin/true || softwareupdate --install-rosetta --agree-to-license
+      - name: Switch to an x86_64 host toolchain
+        if: matrix.rosetta
+        run: |
+          rustup toolchain install stable-x86_64-apple-darwin --force-non-host --profile minimal
+          TC="$HOME/.rustup/toolchains/stable-x86_64-apple-darwin/bin"
+          echo "$TC" >> "$GITHUB_PATH"
+          # 预热 Rosetta 翻译——rustup 首次 x86_64 执行的版本探测会超时
+          "$TC/rustc" --version
+          "$TC/cargo" --version --verbose | grep -q 'host: x86_64-apple-darwin'
+      - name: Install fontconfig dev libs (Linux gnu only)
+        if: runner.os == 'Linux' && !matrix.zig
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+      - name: Install musl build tools
+        if: matrix.zig
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake clang libclang-dev
+          curl -fsSL https://ziglang.org/download/0.16.0/zig-aarch64-linux-0.16.0.tar.xz | sudo tar -xJ -C /opt
+          echo "/opt/zig-aarch64-linux-0.16.0" >> "$GITHUB_PATH"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        if: matrix.zig
+        with:
+          tool: cargo-zigbuild
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Apply overlay + build
+        shell: bash
+        run: |
+          PY=python3; command -v python3 >/dev/null 2>&1 || PY=python
+          # 完整输出落文件：apply 清单和 rustc 报错可能带 overlay 源码行，
+          # 公开仓日志全世界可见——失败时只回放 error 头行（不带片段）。
+          set -o pipefail
+          "$PY" overlay/apply.py . >build.log 2>&1 || { tail -3 build.log; echo "apply failed (log withheld: overlay source)" >&2; exit 1; }
+          if [ "${{ matrix.zig }}" = "true" ]; then
+            cargo zigbuild --release --features stealth,screenshot --target ${{ matrix.target }} >>build.log 2>&1
+          else
+            cargo build --release --features stealth,screenshot --target ${{ matrix.target }} >>build.log 2>&1
+          fi || { grep -E '^error(\[|:)' build.log | head -20; echo "build failed (full log withheld: may contain overlay source)" >&2; exit 1; }
+          tail -1 build.log
+      - name: Package
+        shell: bash
+        run: |
+          # 打包脚本 96e809f（v0.8.3 tag 之后）才下沉进 scripts/——
+          # 早于它的 ref 打不了包，给清楚报错而不是 exit 127。
+          [ -f scripts/package_release.sh ] || { echo "$DITING_REF 无 scripts/package_release.sh（早于 96e809f 的 ref）——用 main 或 v0.8.4+ tag" >&2; exit 1; }
+          bin=diting
+          if [ "${{ runner.os }}" = "Windows" ]; then bin=diting.exe; fi
+          # dispatch 构建指定 tag 时，让 release_ver 走 tag 分支得到纯版本号
+          case "$DITING_REF" in
+            v*) export GITHUB_REF="refs/tags/$DITING_REF" GITHUB_REF_NAME="$DITING_REF" ;;
+          esac
+          scripts/package_release.sh ${{ matrix.target }} "target/${{ matrix.target }}/release/$bin"
+      - name: Asset names are isomorphic
+        shell: bash
+        run: bash scripts/check_release_assets.sh
+      - name: Verify package is the complete build
+        shell: bash
+        run: |
+          pkg=$(ls diting-*.tar.gz)
+          bash overlay/scripts/verify_package.sh "$pkg"
+      - name: Release notes from the tag annotation
+        if: env.PUBLISH == 'true'
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo "body<<DITING_TAG_EOF"
+            git tag -l --format='%(contents)' "$DITING_REF"
+            echo "DITING_TAG_EOF"
+          } >>"$GITHUB_OUTPUT"
+      - name: Publish release
+        if: env.PUBLISH == 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ env.DITING_REF }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |
+            diting-*.tar.gz
+            diting-*.zip
+            diting-*.sha256
+      - name: Keep the build as an actions artifact (no publish)
+        if: env.PUBLISH != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: diting-${{ matrix.target }}
+          path: diting-*.tar.gz
+          retention-days: 7
