@@ -217,13 +217,13 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
             page.set_viewport_override(req.width as f32, req.height as f32, false, None);
             page.goto(&target).await?;
 
-            let opts = crate::video::TimelineVideoOptions {
+            let opts = crate::authoring::video::TimelineVideoOptions {
                 fps: req.fps,
                 viewport: (req.width as f32, req.height as f32),
                 hold_tail_secs: req.hold_tail_secs,
                 max_duration_secs: req.max_duration_secs,
                 wait_timelines: std::time::Duration::from_millis(req.wait_timelines_ms),
-                audio: req.audio.map(|a| crate::video::AudioTrack {
+                audio: req.audio.map(|a| crate::authoring::video::AudioTrack {
                     url: a.url,
                     volume: a.volume,
                     fade_out_secs: a.fade_out_secs,
@@ -232,7 +232,7 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
                 narration: req
                     .narration
                     .into_iter()
-                    .map(|c| crate::video::NarrationClip {
+                    .map(|c| crate::authoring::video::NarrationClip {
                         url: c.url,
                         start_secs: c.start_secs,
                         volume: c.volume,
@@ -242,7 +242,8 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
                 subtitles_language: req.subtitles_language,
                 burn_subtitles: req.burn_subtitles,
             };
-            let video = crate::video::render_timeline_video(&mut page.inner, &opts).await?;
+            let video =
+                crate::authoring::video::render_timeline_video(&mut page.inner, &opts).await?;
             let final_url = page.url();
             let title: Option<String> = {
                 let v = page.evaluate("document.title");
@@ -305,9 +306,12 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
                 let selector = req.selector.clone().ok_or_else(|| {
                     anyhow::anyhow!("format=pptx-native requires `selector` (one slide per match)")
                 })?;
-                let (bytes, slides) =
-                    crate::pptx_native::pptx_native_deck(&mut page.inner, &selector, req.max_pages)
-                        .await?;
+                let (bytes, slides) = crate::authoring::pptx_native::pptx_native_deck(
+                    &mut page.inner,
+                    &selector,
+                    req.max_pages,
+                )
+                .await?;
                 return Ok(crate::PdfResponse {
                     url: page.url(),
                     title: {
@@ -328,8 +332,8 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             }
 
             let mode = match req.selector.as_deref() {
-                Some(sel) => crate::pages::PageMode::Slides(sel.to_string()),
-                None => crate::pages::PageMode::Print,
+                Some(sel) => crate::authoring::pages::PageMode::Slides(sel.to_string()),
+                None => crate::authoring::pages::PageMode::Print,
             };
             // Only the PDF path consumes the vector text layer — collecting
             // it strips vectorizable text from the band raster, so the
@@ -343,7 +347,7 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             } else {
                 "pdf"
             };
-            let opts = crate::pages::PagePumpOptions {
+            let opts = crate::authoring::pages::PagePumpOptions {
                 mode,
                 page_size: (req.width as f32, req.height as f32),
                 max_pages: req.max_pages,
@@ -366,16 +370,20 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             let set = if format != "png" {
                 let hh = handles.clone();
                 let quality = req.jpeg_quality;
-                let mut on_page = move |img: crate::pages::PageImage| {
+                let mut on_page = move |img: crate::authoring::pages::PageImage| {
                     let (w, h, rgba) = (img.width, img.height, img.rgba);
                     hh.borrow_mut().push(rt.spawn_blocking(move || {
-                        crate::pages::jpeg_of(w, h, &rgba, quality).map(|j| (w, h, j))
+                        crate::authoring::pages::jpeg_of(w, h, &rgba, quality).map(|j| (w, h, j))
                     }));
                 };
-                crate::pages::render_page_set_with(&mut page.inner, &opts, Some(&mut on_page))
-                    .await?
+                crate::authoring::pages::render_page_set_with(
+                    &mut page.inner,
+                    &opts,
+                    Some(&mut on_page),
+                )
+                .await?
             } else {
-                crate::pages::render_page_set(&mut page.inner, &opts).await?
+                crate::authoring::pages::render_page_set(&mut page.inner, &opts).await?
             };
             // JoinHandle isn't Clone; take the vec out of the cell instead — the
             // render finished, nobody else holds a borrow.
@@ -404,7 +412,7 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             let mut jpegs: Vec<(u32, u32, Vec<u8>)> = Vec::new();
             if format == "png" {
                 for p in &set.pages {
-                    let png = crate::pages::png_of(p.width, p.height, &p.rgba)
+                    let png = crate::authoring::pages::png_of(p.width, p.height, &p.rgba)
                         .map_err(anyhow::Error::msg)?;
                     pngs.push(base64_png(&png));
                 }
@@ -431,16 +439,18 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             let (pdf_base64, pptx_base64, docx_base64) = match format {
                 "pptx" => (
                     None,
-                    Some(base64_png(&crate::ooxml::pptx_of_pages(&refs))),
+                    Some(base64_png(&crate::authoring::ooxml::pptx_of_pages(&refs))),
                     None,
                 ),
                 "docx" => (
                     None,
                     None,
-                    Some(base64_png(&crate::ooxml::docx_of_pages(&refs))),
+                    Some(base64_png(&crate::authoring::ooxml::docx_of_pages(&refs))),
                 ),
                 "pdf" => (
-                    Some(base64_png(&crate::pages::pdf_of_pages(&pdf_refs))),
+                    Some(base64_png(&crate::authoring::pages::pdf_of_pages(
+                        &pdf_refs,
+                    ))),
                     None,
                     None,
                 ),

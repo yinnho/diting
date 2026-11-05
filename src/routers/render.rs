@@ -85,7 +85,7 @@ pub(crate) struct RenderResponse {
 pub(crate) async fn render_handler(
     Json(req): Json<RenderRequest>,
 ) -> Result<(StatusCode, Json<RenderResponse>), AppError> {
-    use crate::docgen::theme::Theme;
+    use crate::authoring::docgen::theme::Theme;
 
     // The layout family shares one skeleton; kind picks the default size
     // (cover/card: square, title: vertical 1080×1920).
@@ -99,26 +99,30 @@ pub(crate) async fn render_handler(
         }
     };
     let theme: &'static Theme = match (&req.preset, &req.theme) {
-        (None, None) => &crate::docgen::theme::LIGHT,
-        (None, Some(mode)) => Theme::by_name(mode).unwrap_or(&crate::docgen::theme::LIGHT),
+        (None, None) => &crate::authoring::docgen::theme::LIGHT,
+        (None, Some(mode)) => {
+            Theme::by_name(mode).unwrap_or(&crate::authoring::docgen::theme::LIGHT)
+        }
         (Some(preset), mode) => Theme::resolve(preset, mode.as_deref().unwrap_or("light"))
-            .unwrap_or(&crate::docgen::theme::LIGHT),
+            .unwrap_or(&crate::authoring::docgen::theme::LIGHT),
     };
     let size = req.size.as_deref().unwrap_or(size_default);
-    let (w, h) = crate::docgen::cover::dimensions(size).ok_or_else(|| {
+    let (w, h) = crate::authoring::docgen::cover::dimensions(size).ok_or_else(|| {
         AppError::BadRequest(format!(
             "unknown size {size:?} — expected one of: square, wide, vertical"
         ))
     })?;
-    let html = crate::docgen::cover::render_cover(&crate::docgen::cover::CoverInput {
-        title: &req.title,
-        subtitle: req.subtitle.as_deref(),
-        footer: req.footer.as_deref(),
-        body: req.body.as_deref(),
-        size,
-        show_crop: req.show_crop.unwrap_or(false),
-        theme,
-    });
+    let html = crate::authoring::docgen::cover::render_cover(
+        &crate::authoring::docgen::cover::CoverInput {
+            title: &req.title,
+            subtitle: req.subtitle.as_deref(),
+            footer: req.footer.as_deref(),
+            body: req.body.as_deref(),
+            size,
+            show_crop: req.show_crop.unwrap_or(false),
+            theme,
+        },
+    );
     Ok((
         StatusCode::OK,
         Json(RenderResponse {
@@ -133,12 +137,12 @@ pub(crate) async fn render_handler(
 pub(crate) async fn render_markdown_handler(
     Json(req): Json<RenderMarkdownRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    use crate::docgen::theme::Theme;
+    use crate::authoring::docgen::theme::Theme;
 
     // (preset, mode) → theme, with the classic/light defaults filling
     // one-sided requests.
     let theme: Result<&'static Theme, String> = match (&req.preset, &req.theme) {
-        (None, None) => Ok(&crate::docgen::theme::LIGHT),
+        (None, None) => Ok(&crate::authoring::docgen::theme::LIGHT),
         (None, Some(mode)) => Theme::by_name(mode).ok_or_else(|| {
             format!(
                 "unknown theme \"{mode}\" — expected one of: {}",
@@ -155,21 +159,21 @@ pub(crate) async fn render_markdown_handler(
                 )
             }),
     };
-    let quality =
-        req.quality
-            .as_deref()
-            .map_or(Ok(crate::docgen::checks::Quality::Standard), |name| {
-                crate::docgen::checks::Quality::by_name(name).ok_or_else(|| {
-                    format!("unknown quality \"{name}\" — expected one of: standard, showcase")
-                })
-            });
+    let quality = req.quality.as_deref().map_or(
+        Ok(crate::authoring::docgen::checks::Quality::Standard),
+        |name| {
+            crate::authoring::docgen::checks::Quality::by_name(name).ok_or_else(|| {
+                format!("unknown quality \"{name}\" — expected one of: standard, showcase")
+            })
+        },
+    );
     let (theme, quality) = match (theme, quality) {
         (Ok(t), Ok(q)) => (t, q),
         (Err(e), _) | (_, Err(e)) => return Err(AppError::BadRequest(e)),
     };
     let motion = req.motion.unwrap_or(false);
     let outcome = spawn_blocking(move || {
-        crate::docgen::render_with_quality(&req.markdown, theme, quality, motion)
+        crate::authoring::docgen::render_with_quality(&req.markdown, theme, quality, motion)
     })
     .await
     .map_err(|e| AppError::Internal(format!("render task failed: {e}")))?;
@@ -190,28 +194,32 @@ mod render_tests {
     async fn render_cover_squares_and_wides() {
         // Exercise the handler's pure core (theme resolve + layout + dims)
         // the same way the route does, asserting on the CoverInput output.
-        let theme = &crate::docgen::theme::LIGHT;
-        let html = crate::docgen::cover::render_cover(&crate::docgen::cover::CoverInput {
-            title: "测试封面",
-            subtitle: Some("副题"),
-            footer: Some("diting"),
-            body: None,
-            size: "square",
-            show_crop: false,
-            theme,
-        });
+        let theme = &crate::authoring::docgen::theme::LIGHT;
+        let html = crate::authoring::docgen::cover::render_cover(
+            &crate::authoring::docgen::cover::CoverInput {
+                title: "测试封面",
+                subtitle: Some("副题"),
+                footer: Some("diting"),
+                body: None,
+                size: "square",
+                show_crop: false,
+                theme,
+            },
+        );
         assert!(html.contains("width:1024px"));
         assert!(html.contains("测试封面"));
 
-        let wide = crate::docgen::cover::render_cover(&crate::docgen::cover::CoverInput {
-            title: "宽版",
-            subtitle: None,
-            footer: None,
-            body: None,
-            size: "wide",
-            show_crop: false,
-            theme,
-        });
+        let wide = crate::authoring::docgen::cover::render_cover(
+            &crate::authoring::docgen::cover::CoverInput {
+                title: "宽版",
+                subtitle: None,
+                footer: None,
+                body: None,
+                size: "wide",
+                show_crop: false,
+                theme,
+            },
+        );
         assert!(wide.contains("width:1080px"));
     }
 
