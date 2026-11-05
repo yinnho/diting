@@ -392,11 +392,21 @@ pub(super) fn computed_style_value(
             Some(n) => n.to_string(),
             None => "none".into(),
         }),
-        "color" => s.color.as_ref().map(&color),
-        "background-color" => s.background_color.as_ref().map(&color),
+        // #17: modern colour functions keep their authored space in the
+        // computed value (oklch(0.7 0.1 200), color(srgb …)); legacy forms
+        // collapse to rgb()/rgba().
+        "color" => Some(match s.color_modern {
+            Some(m) => m.to_css(),
+            None => s.color.as_ref().map(&color)?,
+        }),
+        "background-color" => Some(match s.background_color_modern {
+            Some(m) => m.to_css(),
+            None => s.background_color.as_ref().map(&color)?,
+        }),
         // Raw author token stream (var() already substituted by the cascade);
-        // unset stays absent so the JS initial (`none`) serves it.
-        "background-image" => s.background_image.clone(),
+        // unset stays absent so the JS initial (`none`) serves it. Colour
+        // stops re-serialize to Chrome's computed spelling (#17).
+        "background-image" => s.background_image.as_deref().map(computed_image_text),
         // Same posture as background-image: the author's stack, verbatim.
         "font-family" => s.font_family.clone(),
         // Padding/margin longhands: Chrome reports the used px — percentage
@@ -452,9 +462,15 @@ pub(super) fn computed_style_value(
             )
         }
         "border-top-color" | "border-right-color" | "border-bottom-color" | "border-left-color" => {
-            Some(match s.border_color.or(s.color) {
-                Some(c) => color(&c),
-                None => "rgb(0, 0, 0)".into(),
+            // #17: the declared spelling wins (border-modern, else the
+            // element's own color-modern when border falls back to
+            // currentcolor), else the legacy rgb() chain.
+            Some(match s.border_color_modern.or(s.color_modern) {
+                Some(m) => m.to_css(),
+                None => match s.border_color.or(s.color) {
+                    Some(c) => color(&c),
+                    None => "rgb(0, 0, 0)".into(),
+                },
             })
         }
         "margin-top" => Some(side_css_used(&s.margin.top, cb_inline)),

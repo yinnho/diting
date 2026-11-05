@@ -3,13 +3,14 @@
 //! `lab()/lch()/oklab()/oklch()`, `color(<space> …)`, `color-mix()`,
 //! `light-dark()` and the relative-colour `from` syntax. Everything resolves to
 //! an sRGB [`Color`] (out-of-gamut channels clip) — enough to paint and to
-//! compare; computed-value serialisation keeps rgb().
+//! compare; computed-value serialisation keeps rgb() for LEGACY forms, and
+//! carries the authored space for modern ones ([`ModernColor`], #17).
 
 use super::Color;
 
 type V3 = [f32; 3];
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Space {
     Srgb,
     SrgbLinear,
@@ -1051,4 +1052,284 @@ fn parse_col(v: &str) -> Option<Col> {
 /// CSS Color 4/5 functions. `None` hands the string back to the legacy parser.
 pub(super) fn parse(v: &str) -> Option<Color> {
     parse_col(v).map(|c| to_color(&c))
+}
+
+/// A colour whose AUTHORED syntax was a CSS Color 4/5 modern function
+/// (`oklch()/lab()/lch()/oklab()/color()/color-mix()` or the relative
+/// `from` forms), kept in its own space past the cascade: Chrome's
+/// computed-value serialization spells these in the authored space
+/// (`oklch(0.7 0.1 200)`, `color(srgb 0.5 0 0 0.5)` — #17) while legacy
+/// forms collapse to rgb()/rgba(). The sRGB bytes for paint still travel
+/// in [`Color`]; this slot exists for the CSSOM face only.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ModernColor {
+    space: Space,
+    c: V3,
+    a: f32,
+}
+
+impl ModernColor {
+    /// Chrome's spelling (probed 2026-11-06): channels re-serialized in the
+    /// function's own scale — lightness as a number (`70%` → `0.7`), hue in
+    /// degrees, `none` kept as `none`; alpha appended as `/ a` only when
+    /// < 1. Numbers use up to 6 significant digits, trimmed
+    /// (`color-mix(in oklch,…)` → `oklch(0.539974 0.285457 326.643)`).
+    pub(crate) fn to_css(&self) -> String {
+        let n = num6;
+        let (head, cs) = match self.space {
+            Space::Srgb => ("color(srgb ", self.c),
+            Space::SrgbLinear => ("color(srgb-linear ", self.c),
+            Space::DisplayP3 => ("color(display-p3 ", self.c),
+            Space::A98 => ("color(a98-rgb ", self.c),
+            Space::Prophoto => ("color(prophoto-rgb ", self.c),
+            Space::Rec2020 => ("color(rec2020 ", self.c),
+            Space::XyzD50 => ("color(xyz-d50 ", self.c),
+            Space::XyzD65 => ("color(xyz-d65 ", self.c),
+            Space::Oklch => ("oklch(", self.c),
+            Space::Oklab => ("oklab(", self.c),
+            Space::Lab => ("lab(", self.c),
+            Space::Lch => ("lch(", self.c),
+            // Hsl/Hwb are legacy syntaxes — never tagged modern (is_modern).
+            Space::Hsl | Space::Hwb => {
+                return super::color::rgb_css(&to_color(&Col {
+                    space: self.space,
+                    c: self.c,
+                    a: self.a,
+                }))
+            }
+        };
+        let mut s = format!("{head}{} {} {}", n(cs[0]), n(cs[1]), n(cs[2]));
+        if self.a < 1.0 {
+            s.push_str(&format!(" / {}", n(self.a)));
+        }
+        s.push(')');
+        s
+    }
+}
+
+/// Chrome's serialisation: `%g` with 6 significant digits (`oklch(0.7 …)`
+/// stays `0.7`, `326.64294…` becomes `326.643`), trailing zeros trimmed.
+fn num6(x: f32) -> String {
+    if x.is_nan() {
+        return "none".into(); // Chrome keeps `none` channels verbatim (#17).
+    }
+    if x == 0.0 {
+        return "0".into();
+    }
+    let mag = x.abs().log10().floor() as i32;
+    let decimals = (5 - mag).clamp(0, 6) as usize;
+    let s = format!("{:.*}", decimals, x);
+    let s = s.trim_end_matches('0').trim_end_matches('.');
+    if s.is_empty() {
+        "0".into()
+    } else {
+        s.into()
+    }
+}
+
+/// Whether the authored syntax is a modern colour function (its computed
+/// value keeps the authored space, #17). Plain `rgb()/hsl()/hwb()` are
+/// legacy UNLESS they carry the relative `from` clause. `light-dark()` is
+/// excluded until #18 makes it scheme-aware.
+fn is_modern(v: &str) -> bool {
+    let lower = v.trim().to_ascii_lowercase();
+    let Some(open) = lower.find('(') else {
+        return false;
+    };
+    let name = lower[..open].trim();
+    if matches!(
+        name,
+        "lab" | "lch" | "oklab" | "oklch" | "color" | "color-mix"
+    ) {
+        return true;
+    }
+    matches!(name, "rgb" | "rgba" | "hsl" | "hsla" | "hwb")
+        && lower[open + 1..].trim_start().starts_with("from ")
+}
+
+/// `parse` plus the authored-space tag: `(sRGB bytes for paint, modern
+/// spelling for the CSSOM face)` — the tag is `None` for legacy syntaxes.
+pub(super) fn parse_with_origin(v: &str) -> Option<(Color, Option<ModernColor>)> {
+    let col = parse_col(v)?;
+    let modern = is_modern(v).then(|| ModernColor {
+        space: col.space,
+        c: col.c,
+        a: col.a,
+    });
+    Some((to_color(&col), modern))
+}
+
+/// Rewrite an authored image value (gradients, #17) into Chrome's computed
+/// spelling: every stop colour — bare keyword, hex, or colour function —
+/// re-serializes (legacy → rgb()/rgba(), modern → its own space), while
+/// positions/angles/functions pass through verbatim. `var()` is already
+/// substituted by the time the cascade stores the string.
+pub(crate) fn computed_image_text(v: &str) -> String {
+    const FNS: &[&str] = &[
+        "rgb",
+        "rgba",
+        "hsl",
+        "hsla",
+        "hwb",
+        "lab",
+        "lch",
+        "oklab",
+        "oklch",
+        "color",
+        "color-mix",
+    ];
+    let bytes = v.as_bytes();
+    let mut out = String::with_capacity(v.len() + 16);
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'#' {
+            // Hex literal: 3/4/6/8 digits.
+            let rest = &v[i + 1..];
+            let digits: usize = rest
+                .chars()
+                .take_while(|c| c.is_ascii_hexdigit())
+                .map(|c| c.len_utf8())
+                .sum();
+            if matches!(digits, 3 | 4 | 6 | 8) {
+                let hex = &rest[..digits];
+                if let Some(c) = super::color::parse_hex_color(&format!("#{hex}")) {
+                    out.push_str(&super::color::rgb_css(&c));
+                    i += 1 + digits;
+                    continue;
+                }
+            }
+            out.push(b as char);
+            i += 1;
+            continue;
+        }
+        if b.is_ascii_alphabetic() {
+            // Maximal identifier run; a colour function gets balanced-paren
+            // parsing, a bare named colour an exact-token match.
+            let start = i;
+            while i < bytes.len()
+                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'-' || bytes[i] == b'_')
+            {
+                i += 1;
+            }
+            let word = &v[start..i];
+            let lower = word.to_ascii_lowercase();
+            if FNS.contains(&lower.as_str()) && v[i..].trim_start().starts_with('(') {
+                if let Some(close) = find_balanced(v, i) {
+                    let expr = &v[start..=close];
+                    if let Some(col) = parse_col(expr) {
+                        if is_modern(expr) {
+                            let m = ModernColor {
+                                space: col.space,
+                                c: col.c,
+                                a: col.a,
+                            };
+                            out.push_str(&m.to_css());
+                        } else {
+                            out.push_str(&super::color::rgb_css(&to_color(&col)));
+                        }
+                        i = close + 1;
+                        continue;
+                    }
+                }
+            } else if lower == "transparent" {
+                out.push_str("rgba(0, 0, 0, 0)");
+                continue;
+            } else if let Some((_, rgb)) = NAMED.iter().find(|(n, _)| *n == lower) {
+                let c = |sh: u32| ((rgb >> sh) & 0xff) as u8;
+                out.push_str(&super::color::rgb_css(&Color(c(16), c(8), c(0), 255)));
+                continue;
+            }
+            out.push_str(word);
+            continue;
+        }
+        // Non-ASCII (UTF-8 content) passes byte-wise.
+        let ch = v[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    normalize_commas(&out)
+}
+
+/// Chrome spells gradient/layer separators as ", " whatever the author
+/// wrote (`conic-gradient(red,blue)` → `…, rgb(0, 0, 255))`). Commas two
+/// or more parens deep (url("a,b.png") payloads) keep verbatim.
+fn normalize_commas(v: &str) -> String {
+    // `","` at paren depth ≤ 1 → `", "`, swallowing whatever whitespace
+    // already follows the comma (authored ", " must not double up).
+    // Commas inside quotes or a url(...) token never split — a quoted url
+    // payload's commas are part of the URL, not a separator.
+    let mut out = String::with_capacity(v.len() + 4);
+    let mut depth = 0i32;
+    let mut chars = v.chars().peekable();
+    while let Some(c) = chars.next() {
+        if (c == 'u' || c == 'U') && depth == 0 && rest_is_url_paren(&mut chars) {
+            out.push(c);
+            for c2 in chars.by_ref() {
+                out.push(c2);
+                if c2 == ')' {
+                    break;
+                }
+            }
+            continue;
+        }
+        match c {
+            '"' | '\'' => {
+                let quote = c;
+                out.push(c);
+                while let Some(c2) = chars.next() {
+                    out.push(c2);
+                    if c2 == quote {
+                        break;
+                    }
+                    if c2 == '\\' {
+                        if let Some(esc) = chars.next() {
+                            out.push(esc);
+                        }
+                    }
+                }
+            }
+            '(' => {
+                depth += 1;
+                out.push(c);
+            }
+            ')' => {
+                depth -= 1;
+                out.push(c);
+            }
+            ',' if depth <= 1 => {
+                out.push_str(", ");
+                while matches!(chars.peek(), Some(' ') | Some('\t') | Some('\n')) {
+                    chars.next();
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Whether the chars immediately ahead are `rl(` (so the `u` we just emitted
+/// opens a `url(` token); consumes them into the url run when true.
+fn rest_is_url_paren(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> bool {
+    let mut probe = chars.clone();
+    matches!((probe.next(), probe.next()), (Some('r'), Some('l'))) && probe.next() == Some('(')
+}
+
+/// Index just past the `)` closing the paren that opens at/after `from`.
+fn find_balanced(v: &str, from: usize) -> Option<usize> {
+    let mut depth = 0i32;
+    for (j, c) in v[from..].char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(from + j);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }

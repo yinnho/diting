@@ -17351,8 +17351,8 @@ fn test_custom_properties_and_var_substitution() {
     );
     assert_eq!(
         v["bg"],
-        serde_json::json!("linear-gradient(to right, rgb(200, 10, 10), blue)"),
-        "background-image passes through with vars substituted"
+        serde_json::json!("linear-gradient(to right, rgb(200, 10, 10), rgb(0, 0, 255))"),
+        "vars substitute AND stops re-serialize Chrome-style (#17: blue → rgb(0, 0, 255))"
     );
     assert_eq!(
         v["rootVar"],
@@ -38931,6 +38931,9 @@ async fn knife117_font_shorthand_parse_model() {
 }
 
 #[tokio::test]
+// The U+200B/C/D codepoints in the probe strings are the payload (刀118
+// Cf-insert shaping truth), not stray bytes.
+#[allow(clippy::invisible_characters)]
 async fn knife118_cf_insert_kill_truth() {
     // (刀118) transparent-Cf insert kills, CFT Chrome 145 truth (k118a..m
     // censuses, 323,385-cell universe). Chrome elides {200C,200D,2060-2064,
