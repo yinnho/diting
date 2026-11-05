@@ -1,4 +1,3 @@
-
 use crate::screenshot_reference::element_rect;
 use diting::diting_css::{self, ComputedStyle, ParsedRule};
 use diting::diting_dom::tree::{DomTree, NodeId};
