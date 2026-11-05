@@ -697,7 +697,7 @@ fn fmt_uptime(d: std::time::Duration) -> String {
 /// drags and typing land on the real session page, so a wall (taobao slider
 /// etc.) can be solved in the very session the agent owns.
 async fn live_handler() -> axum::response::Html<&'static str> {
-    axum::response::Html(include_str!("../web/live.html"))
+    axum::response::Html(include_str!("../../../web/live.html"))
 }
 
 /// Human-facing status page at `/`. Umbrel (and any self-hoster poking the
