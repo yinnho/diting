@@ -144,7 +144,7 @@ jobs:
             cargo zigbuild --release --features stealth,screenshot --target ${{ matrix.target }} >>build.log 2>&1
           else
             cargo build --release --features stealth,screenshot --target ${{ matrix.target }} >>build.log 2>&1
-          fi || { grep -E '^error(\[|:)' build.log | head -20; echo "build failed (full log withheld: may contain overlay source)" >&2; exit 1; }
+          fi || { sed 's/\x1b\[[0-9;]*m//g' build.log | grep -E '^error(\[|:)' | head -20; echo "build failed (full log withheld: may contain overlay source)" >&2; exit 1; }
           tail -1 build.log
       - name: Package
         shell: bash
