@@ -1343,6 +1343,17 @@ mod tests {
     }
 
     #[test]
+    fn qr_canvas_gate_admits_havana_528() {
+        // 2026-11-05 live case: havana renders its login QR at 528×528 (was
+        // 212×212 in October). The 480 cap made /session/:id/qr 404 while the
+        // code was visibly on the page — every live_qr handoff broke. The
+        // extractor is page JS (no DOM to run it on here), so pin the bound
+        // itself: change the gate, change this test.
+        assert!(QR_EXTRACT_JS.contains("w>=80&&w<=1024"), "canvas gate must admit 528×528 login QRs");
+        assert!(!QR_EXTRACT_JS.contains("w<=480"), "stale 480 cap re-introduced");
+    }
+
+    #[test]
     fn qr_landed_login_keywords_need_a_word_edge() {
         // Mid-word hits are not login pages: "/lesson/" carries "sso"
         // inside "lesson", "blossom" carries it inside "blossom" — the
@@ -1417,8 +1428,13 @@ const QR_EXTRACT_JS: &str = r#"(function(){
     var e=document.querySelector('.account-center-image-content');
     if(e){var m=getComputedStyle(e).backgroundImage.match(/data:(image\/[a-z+]+);base64,([A-Za-z0-9+\/=]+)/);if(m)return [m[1],m[2]];}
     var cs=document.querySelectorAll('canvas');
+    // Upper bound guards against picking up chart/game canvases on non-login
+    // pages. Havana rendered its login QR at 212×212 (2026-10) then 528×528
+    // (2026-11-05) — a 480 cap served a live 404 while the code was visibly
+    // on the page, breaking every live_qr handoff. 1024 keeps the guard with
+    // login-QR headroom.
     for(var i=0;i<cs.length;i++){var c=cs[i],w=c.width,h=c.height;
-      if(w>=80&&w<=480&&Math.abs(w-h)<=4){try{var d=c.toDataURL('image/png').match(/data:(image\/png);base64,(.*)/);if(d)return [d[1],d[2]];}catch(x){}}}
+      if(w>=80&&w<=1024&&Math.abs(w-h)<=4){try{var d=c.toDataURL('image/png').match(/data:(image\/png);base64,(.*)/);if(d)return [d[1],d[2]];}catch(x){}}}
     var im=document.querySelectorAll('img');
     for(var j=0;j<im.length;j++){
       if(im[j].id==='__xhs_live_qr'||im[j].id==='__qf_live_qr'||im[j].id==='__xhs_qr_img') continue;
