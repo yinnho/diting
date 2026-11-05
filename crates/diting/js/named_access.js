@@ -113,6 +113,7 @@ function _namedTrack(el) {
     }
     _namedInstall(n);
   }
+  _docTrack(el);
 }
 function _namedUntrackBy(nid, names) {
   for (const n of names) {
@@ -129,10 +130,11 @@ function _namedUntrackBy(nid, names) {
       }
     }
   }
+  if (_docEls.size) _docUntrackBy(nid, names);
 }
 function _namedUntrack(el) {
   if (!el || el.nodeType !== 1) return;
-  _namedUntrackBy(el._nid, _namedNames(el));
+  _namedUntrackBy(el._nid, _namedNamesAll(el));
 }
 function _namedLookup(name) {
   const pick = () => {
@@ -205,6 +207,111 @@ function _namedUnscanIn(root) { // removal: walk live children (root may be deta
   }
 }
 
+// ---- (#16) Document named access: document.<name> ----
+// Chrome truth (headless probe 2026-11-05, issue #16): supported names come
+// from the name attribute of applet/embed/form/iframe/img/object, plus the
+// id of any element that ALSO carries a name — a bare id never resolves on
+// document (that's the WINDOW half of the family). HTMLDocument is
+// [LegacyOverrideBuiltIns]: a bearing element shadows PROTOTYPE members
+// (document.forms with <img name=forms> reads the img) while real OWN props
+// (location — [LegacyUnforgeable], page assignments) win. The exposed face
+// is a plain own VALUE property (gOPD shows value+writable+enumerable+
+// configurable all true; gopn/Object.keys/for-in list it), so this half
+// installs data props stamped by the mutation hooks instead of getters —
+// reads need no lazy path and the descriptor shape matches Chrome exactly.
+// Divergences kept deliberately: page writes over a named slot land and
+// stick until the next hook re-stamps (Chrome absorbs the write forever —
+// one slot cannot be both a value descriptor and write-proof in plain JS).
+// delete removes our prop and it stays removed until a NEW bearer enters —
+// same as Chrome.
+const _docEls = new Map();        // name -> Set<nid>, insertion order
+const _docInstalled = new Set();  // names this file owns on the document
+const _DOC_NAMED_TAGS = { APPLET: 1, EMBED: 1, FORM: 1, IFRAME: 1, IMG: 1, OBJECT: 1 };
+function _docNames(el) {
+  if (!el || el.nodeType !== 1) return [];
+  const out = [];
+  if (_DOC_NAMED_TAGS[el.tagName]) {
+    const n = el.getAttribute('name');
+    if (n) {
+      out.push(n);
+      // id contributes only when a name is also present (HTML spec,
+      // supported property names item 2).
+      const id = el.id;
+      if (id && id !== n) out.push(id);
+    }
+  }
+  return out;
+}
+function _namedNamesAll(el) { // union of both registries' names (untrack snapshots)
+  const a = _namedNames(el), b = _docNames(el);
+  if (!b.length) return a;
+  if (!a.length) return b;
+  return [...new Set(a.concat(b))];
+}
+function _docStamp(name) {
+  const doc = globalThis.document;
+  if (!doc || doc.nodeType !== 9) return;
+  const s = _docEls.get(name);
+  const bearers = [];
+  if (s) {
+    for (const nid of s) {
+      const el = _wrapEl(+nid);
+      if (el && el.nodeType === 1 && el.isConnected) bearers.push(el);
+      else s.delete(nid); // dead nid (innerHTML rebuilt the subtree)
+    }
+    if (!s.size) _docEls.delete(name);
+  }
+  const ours = _docInstalled.has(name);
+  if (!bearers.length) {
+    if (ours) { _docInstalled.delete(name); try { delete doc[name]; } catch (e) {} }
+    return;
+  }
+  // Iframe bearers expose their nested browsing context (document.ifr ===
+  // window.ifr, both probes); if the frame's window isn't materialized at
+  // stamp time the element itself stands in until a later hook re-stamps.
+  let value;
+  if (bearers.length === 1) {
+    value = bearers[0];
+    if (value.tagName === 'IFRAME') {
+      try { const w = value.contentWindow; if (w) value = w; } catch (e) {}
+    }
+  } else {
+    value = __diting_mkCollection(bearers); // tree order approximated by insertion order
+  }
+  // Real own slots win: location, page assignments, engine internals keep
+  // theirs and no named prop is installed over them (Chrome's resolution).
+  if (!ours && Object.prototype.hasOwnProperty.call(doc, name)) return;
+  try {
+    Object.defineProperty(doc, name, { value, writable: true, enumerable: true, configurable: true });
+    _docInstalled.add(name);
+  } catch (e) {}
+}
+function _docTrack(el) {
+  for (const n of _docNames(el)) {
+    if (!n || /^\d+$/.test(n)) continue; // array-index names never resolve (spec)
+    let s = _docEls.get(n);
+    if (s) {
+      // Known (element, name) with a live prop: nothing changed. The
+      // NOT-installed case still stamps — that's a detached registration
+      // whose element just connected (subtree attach re-tracks children).
+      if (s.has(el._nid) && _docInstalled.has(n)) continue;
+      s.add(el._nid);
+    } else {
+      s = new Set(); _docEls.set(n, s); s.add(el._nid);
+    }
+    _docStamp(n);
+  }
+}
+function _docUntrackBy(nid, names) {
+  for (const n of names) {
+    const s = _docEls.get(n);
+    if (!s || !s.has(nid)) continue;
+    s.delete(nid);
+    if (!s.size) _docEls.delete(n);
+    _docStamp(n);
+  }
+}
+
 // @@EXPORTS-BEGIN generated by tools/webplatform/analyze/analyze.mjs --gen-exports - do not edit
 {
   // Only names the window does not already carry are defined (hidden, non-enumerable) - a Chrome-visible global keeps its value.
@@ -212,9 +319,10 @@ function _namedUnscanIn(root) { // removal: walk live children (root may be deta
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
+  d('_docEls', _docEls);
   d('_namedBoot', _namedBoot);
   d('_namedEls', _namedEls);
-  d('_namedNames', _namedNames);
+  d('_namedNamesAll', _namedNamesAll);
   d('_namedScanIn', _namedScanIn);
   a('_namedScanned', () => _namedScanned, (v) => { _namedScanned = v; });
   d('_namedTrack', _namedTrack);

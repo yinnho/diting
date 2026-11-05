@@ -98,6 +98,10 @@ class _Canvas2D {
     // ctx.fill(new Path2D(d)) under ctx.scale(), which painted nothing.
     this._m = [1, 0, 0, 1, 0, 0];
     this._path2d = null;
+    // (#15) Clip region as a device-space coverage mask, null until the
+    // first clip(). save() snapshots it by reference; clip() copy-on-writes
+    // so an intersect never mutates a mask the stack still holds.
+    this._clipMask = null;
     __hideOwn(this);
   }
   _resize(w, h) {
@@ -117,6 +121,7 @@ class _Canvas2D {
     this._stateStack = [];
     this._m = [1, 0, 0, 1, 0, 0];
     this._path2d = null;
+    this._clipMask = null;
   }
   _parseColor(css) {
     if (typeof css !== 'string') css = String(css ?? '');
@@ -189,6 +194,10 @@ class _Canvas2D {
   _setPixel(x, y, r, g, b, a) {
     x = Math.round(x); y = Math.round(y);
     if (x < 0 || x >= this._w || y < 0 || y >= this._h) return;
+    // (#15) Every paint path (fill/stroke/blit/drawImage/fillRect) funnels
+    // here, so one mask gate covers them all; putImageData bypasses this on
+    // purpose (spec: ignores clip).
+    if (this._clipMask && !this._clipMask[y * this._w + x]) return;
     const idx = (y * this._w + x) * 4;
     const alpha = (a / 255) * this.globalAlpha;
     this._buf[idx+0] = Math.round(r * alpha + this._buf[idx+0] * (1 - alpha));
@@ -228,6 +237,9 @@ class _Canvas2D {
       w = Math.round(Math.abs(x1-x0)); h = Math.round(Math.abs(y1-y0));
       for (let py = Math.max(0,y); py < Math.min(this._h, y+h); py++) {
         for (let px = Math.max(0,x); px < Math.min(this._w, x+w); px++) {
+          // (#15) clearRect IS clipped (canvas spec: "the clearRect() method
+          // … constrained by the clipping region").
+          if (this._clipMask && !this._clipMask[py * this._w + px]) continue;
           const idx = (py * this._w + px) * 4;
           this._buf[idx] = this._buf[idx+1] = this._buf[idx+2] = this._buf[idx+3] = 0;
         }
@@ -592,7 +604,9 @@ class _Canvas2D {
   rect(x, y, w, h) { this._p2d().rect(x, y, w, h); }
   // Scanline polygon rasterizer with nonzero winding (default) and
   // even-odd. Fill closes open subpaths implicitly, like Chrome.
-  _fillDevicePolys(polys, rgba, rule) {
+  // (#15) The span walk is factored out (_eachSpan) so clip() rasterizes
+  // its coverage mask with the exact same winding math fills use.
+  _eachSpan(polys, rule, fn) {
     const edges = [];
     let ylo = Infinity, yhi = -Infinity;
     const push = (x1, y1, x2, y2) => {
@@ -629,13 +643,16 @@ class _Canvas2D {
         const inside = evenodd ? (wind % 2 !== 0) : wind !== 0;
         if (inside && !open) { span = ev[0]; open = true; }
         else if (!inside && open) {
-          const px0 = Math.max(0, Math.ceil(span - 0.5));
-          const px1 = Math.min(this._w, Math.ceil(ev[0] - 0.5));
-          for (let px = px0; px < px1; px++) this._setPixel(px, py, rgba[0], rgba[1], rgba[2], rgba[3]);
+          fn(py, Math.max(0, Math.ceil(span - 0.5)), Math.min(this._w, Math.ceil(ev[0] - 0.5)));
           open = false;
         }
       }
     }
+  }
+  _fillDevicePolys(polys, rgba, rule) {
+    this._eachSpan(polys, rule, (py, px0, px1) => {
+      for (let px = px0; px < px1; px++) this._setPixel(px, py, rgba[0], rgba[1], rgba[2], rgba[3]);
+    });
   }
   fill(path, rule) {
     if (typeof path === 'string') { rule = path; path = undefined; }
@@ -674,7 +691,35 @@ class _Canvas2D {
       }
     }
   }
-  clip() {}
+  // (#15) clip(): intersect the current clip with the path's fill. The path
+  // is rasterized to a coverage mask in DEVICE space (CTM applied here, so
+  // later CTM changes don't move the clip region — canvas semantics). An
+  // empty path yields an all-zero mask: everything after is clipped away,
+  // which is Chrome's behavior for clipping with no path. The path itself
+  // is not consumed (fill() after clip() still paints it).
+  clip(path, rule) {
+    if (typeof path === 'string') { rule = path; path = undefined; }
+    const subs = (path && path._subs) ? path._subs : this._p2d()._subs;
+    const polys = [];
+    for (const s of subs) {
+      if (!s || s.p.length < 2) continue;
+      const pts = new Array(s.p.length);
+      for (let i = 0; i < s.p.length; i++) pts[i] = this._tp(s.p[i][0], s.p[i][1]);
+      polys.push(pts);
+    }
+    const nm = new Uint8Array(this._w * this._h);
+    this._eachSpan(polys, rule, (py, px0, px1) => { nm.fill(1, py * this._w + px0, py * this._w + px1); });
+    if (!this._clipMask) {
+      this._clipMask = nm;
+    } else {
+      // Copy-on-write: the save() stack may hold the current mask by
+      // reference — an in-place AND would leak the intersect into it.
+      const cur = this._clipMask;
+      const m = new Uint8Array(cur.length);
+      for (let i = 0; i < cur.length; i++) m[i] = cur[i] & nm[i];
+      this._clipMask = m;
+    }
+  }
   isPointInPath(a, b, c) {
     let path = null, x, y, rule;
     if (a && a._subs) { path = a; x = b; y = c; } else { x = a; y = b; rule = c; }
@@ -721,6 +766,7 @@ class _Canvas2D {
       globalAlpha: this.globalAlpha, font: this.font, lineWidth: this.lineWidth,
       textAlign: this.textAlign, textBaseline: this.textBaseline,
       _m: this._m.slice(),
+      _clipMask: this._clipMask,
     });
   }
   restore() {

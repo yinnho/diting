@@ -859,16 +859,16 @@ class Element extends Node {
     if (globalThis.__mutationObservers?.length) {
       oldChildren = _domParse("child_nodes", this._nid) || [];
     }
-    // (#48) The replaced subtree's nids die at set_inner_html and may be
-    // recycled; collect their named ids BEFORE the op so the registry can
-    // drop them (a stale nid would alias a future element).
+    // (#48 + #16) The replaced subtree's nids die at set_inner_html and may
+    // be recycled; collect BOTH registries' names (window + document) before
+    // the op so each can drop them (a stale nid would alias a future element).
     let oldNamed = null;
-    if (_namedEls.size) {
+    if (_namedEls.size || _docEls.size) {
       const kids0 = _domParse("child_nodes", this._nid) || [];
       for (const nid of kids0) {
         const el = _wrapEl(+nid);
         if (el && el.nodeType === 1) {
-          const ns = _namedNames(el);
+          const ns = _namedNamesAll(el);
           if (ns.length) { (oldNamed = oldNamed || []).push([el._nid, ns]); }
         }
       }
@@ -1097,11 +1097,11 @@ class Element extends Node {
   setAttribute(n, v) {
     n = _htmlAttrName(this, n);
     const popoverPrev = (n === "popover") ? this.popover : undefined;
-    // (#48) id/name writes re-key the window-named property; snapshot the
+    // (#48 + #16) id/name writes re-key BOTH named registries; snapshot the
     // old names before the op drops them.
     let oldNamed = null;
-    if ((n === "id" || n === "name") && _namedEls.size && this.nodeType === 1) {
-      const ns = _namedNames(this);
+    if ((n === "id" || n === "name") && (_namedEls.size || _docEls.size) && this.nodeType === 1) {
+      const ns = _namedNamesAll(this);
       if (ns.length) oldNamed = [this._nid, ns];
     }
     const __moOld = globalThis.__mutationObservers?.length ? this.getAttribute(n) : undefined;
