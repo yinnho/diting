@@ -2,7 +2,9 @@
 # Root package is diting-browser; the BINARY is `diting` ([[bin]] below) —
 # the engine crate owns the bare `diting` name (crates/diting).
 name = "diting-browser"
-version = "0.9.2"
+# 发版号单源在 [workspace.package]——root 和 crates/diting 锁死同步继承。
+# v0.9.2 前手抄两处，diting 卡 0.8.3 整月没人发现（8b5fa03 才追平）。
+version.workspace = true
 edition = "2021"
 authors = ["OpenCarrier Team"]
 description = "Pure server-side browser engine with built-in V8. HTTP API for scraping, search, and interactive browsing. No Chromium required."
@@ -20,6 +22,12 @@ categories = ["web-programming", "network-programming", "command-line-utilities"
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }{ archive-suffix }"
 bin-dir = "diting-{ version }-{ target }/{ bin }{ binary-ext }"
+
+[workspace.package]
+# 发版号单源：只有 root(diting-browser) 和 crates/diting 继承。wire 家族 +
+# profiles 五个不继承——版本号贴上游 wreq 生态当跟踪信号（6.0.0-rc.31 等）；
+# ops / runtime 的 0.1.0 纯内部号没人消费，留在原地。
+version = "0.9.2"
 
 [workspace]
 members = ["crates/diting", "crates/diting_ops", "crates/diting_runtime",

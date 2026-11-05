@@ -70,6 +70,13 @@ templates/findings.html
 templates/gzh.html
 web/zcode*
 
+# overlay 合成构建目录（apply.py 输出的独立 target，与 /target/ 平行）
+/target-ov/
+
+# 运营脚本/探测取证的仓库根杂物（X 发帖 _post_*、探测 _probe_*）——never commit
+/_post_*
+/_probe_*
+
 # JS platform dependency analyzer deps (package-lock.json is committed)
 /tools/webplatform/analyze/node_modules/
 __pycache__/
