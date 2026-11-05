@@ -25725,8 +25725,9 @@ async fn dynamic_script_retries_once_on_network_failure_not_on_404() {
 /// every constructor's prototype/static members is simultaneously the
 /// fingerprint surface (a leaked global is an anti-bot tell), the compat
 /// surface (an API vanishing must page us before a field report does) and
-/// the anchor SURFACE.md is checked against. Any drift fails with a diff;
-/// an intentional change regenerates the fixture:
+/// the anchor the checked-in surface_snapshot.txt fixture is checked
+/// against. Any drift fails with a diff; an intentional change regenerates
+/// the fixture:
 ///   UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot
 #[test]
 fn js_surface_snapshot_matches_fixture() {
@@ -25773,7 +25774,7 @@ fn js_surface_snapshot_matches_fixture() {
         let added: Vec<&&str> = a.difference(&e).take(40).collect();
         let gone: Vec<&&str> = e.difference(&a).take(40).collect();
         panic!(
-            "JS surface drifted from surface_snapshot.txt.\n  NEW (leak? or intentional):\n{added:#?}\n  GONE (compat break?):\n{gone:#?}\nIf intentional: UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot, then log it in js/SURFACE.md"
+            "JS surface drifted from surface_snapshot.txt.\n  NEW (leak? or intentional):\n{added:#?}\n  GONE (compat break?):\n{gone:#?}\nIf intentional: UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot, then record the change in the commit message (the engine ledger is local-only)"
         );
     }
 }
@@ -26065,7 +26066,7 @@ fn hit_test_cold_path_and_webidl_double_args() {
 ///    sets, and forin additionally pins the PROTOTYPE member order.
 ///  - ev.ownkeys / ev.areaBadType: the legacy Event base class keeps its state
 ///    as own instance props, Chrome as an internal slot - an Event-family
-///    gap that is out of this slice (tracked in SURFACE.md).
+///    gap that is out of this slice (engine ledger, local-only).
 #[test]
 fn storage_matches_chrome_truth() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -26375,7 +26376,8 @@ fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
 /// owns on no level. This test diffs the live engine against the same truth
 /// file, key by key.
 ///
-/// STAGED members are later family knives (SURFACE.md ledger) and are
+/// STAGED members are later family knives (the engine ledger, local-only)
+/// and are
 /// filtered out of the order/kinds comparisons. Knife 4 landed every staged
 /// family, so the filter is empty. KNOWN_HTML_GAPS is a ratchet: an entry
 /// that starts matching must be removed.
@@ -26639,7 +26641,7 @@ async fn element_staged_members_match_chrome_truth() {
 /// so no module-level pass can relocate them — they cluster at the front
 /// while Chrome interleaves them mid-sequence. Every movable member's
 /// position matches Chrome exactly; the constants' placement is a
-/// bootstrap-layer fact (SURFACE.md knife 5).
+/// bootstrap-layer fact (knife 5, engine ledger).
 #[tokio::test(flavor = "current_thread")]
 async fn htmlmedia_members_match_chrome_truth() {
     const IMMOVABLE: &[&str] = &[

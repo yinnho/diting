@@ -1295,9 +1295,35 @@ fn qr_landed(url: &str, has_qr: bool) -> bool {
     if has_qr || url.is_empty() || url.starts_with("about:") {
         return false;
     }
-    !["login", "passport", "sso", "havana", "loginmyseller"]
-        .iter()
-        .any(|k| url.contains(k))
+    !login_keyword_in_url(url)
+}
+
+/// Login-page keywords, matched on word tokens (runs of ASCII
+/// alphanumerics) at a token's start, end, or whole — never mid-word. A
+/// bare substring test reads "sso" inside "/lesson/" and "blossom" and
+/// holds "not landed" forever on a good post-scan page (2026-11-05 audit
+/// finding 2); token-edge matching still catches "login.taobao.com",
+/// "ssologin", "newlogin" and "loginmyseller.tmall.com".
+const LOGIN_KEYWORDS: [&str; 5] = ["login", "passport", "sso", "havana", "loginmyseller"];
+
+fn login_keyword_in_url(url: &str) -> bool {
+    let mut token = String::new();
+    let hit = |token: &str| {
+        LOGIN_KEYWORDS
+            .iter()
+            .any(|k| token == *k || token.starts_with(k) || token.ends_with(k))
+    };
+    // The '\0' sentinel flushes the final token without a second pass.
+    for c in url.chars().chain(std::iter::once('\0')) {
+        if c.is_ascii_alphanumeric() {
+            token.push(c.to_ascii_lowercase());
+        } else if !token.is_empty() && hit(&token) {
+            return true;
+        } else if !token.is_empty() {
+            token.clear();
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -1314,6 +1340,22 @@ mod tests {
         assert!(!qr_landed("https://login.taobao.com/member/login.jhtml", false));
         assert!(!qr_landed("about:blank", false));
         assert!(!qr_landed("", false));
+    }
+
+    #[test]
+    fn qr_landed_login_keywords_need_a_word_edge() {
+        // Mid-word hits are not login pages: "/lesson/" carries "sso"
+        // inside "lesson", "blossom" carries it inside "blossom" — the
+        // substring rule held "not landed" forever on these.
+        assert!(qr_landed("https://edu.example.com/lesson/123?from=home", false));
+        assert!(qr_landed("https://example.com/flowers/blossom", false));
+        // Token-edge hits still count: exact, prefix ("ssologin"), suffix
+        // ("newlogin"), host label ("loginmyseller.tmall.com").
+        assert!(!qr_landed("https://member.example.com/ssologin", false));
+        assert!(!qr_landed("https://passport.taobao.com/newlogin", false));
+        assert!(!qr_landed("https://loginmyseller.tmall.com/", false));
+        assert!(!qr_landed("https://example.com/sso/login_panel", false));
+        assert!(!qr_landed("https://login.taobao.com/member/login.jhtml", false));
     }
 
     // 0.4.1 taobao report problem 1: an over-limit body must classify as a

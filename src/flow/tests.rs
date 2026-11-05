@@ -161,7 +161,44 @@ fn workflow_dir_lists_and_resolves_disk_flows() {
 fn workflow_dir_defaults_to_app_data_not_cwd() {
     let _guard = crate::test_support::workflow_dir_env_guard();
     let data = crate::config::app_data_dir().expect("test box has a home");
+    // The legacy-cwd bridge never fires here: the public tree's workflow/
+    // carries only the manual, no flow.json (asset separation 2026-10-25).
     assert_eq!(workflow_dir(), data.join("workflow"));
+}
+
+#[test]
+fn legacy_cwd_workflow_bridge_follows_the_flows() {
+    use std::fs;
+    let tmp = std::env::temp_dir().join(format!("diting-legacy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&tmp);
+    let home = tmp.join("home");
+    let legacy = tmp.join("legacy");
+    fs::create_dir_all(legacy.join("old-flow")).unwrap();
+    fs::write(
+        legacy.join("old-flow").join("flow.json"),
+        r#"{"steps":[{"op":"eval","args":{"script":"1"}}]}"#,
+    )
+    .unwrap();
+
+    // Empty app-data home + flows under the old cwd layout → bridge holds:
+    // the upgrade must not orphan flows distilled before the move.
+    assert!(super::resolve::prefer_legacy_cwd_workflow(&home, &legacy));
+    // Once the flows land in the new home, the bridge releases — no
+    // flip-flop between runs.
+    fs::create_dir_all(home.join("moved-flow")).unwrap();
+    fs::write(
+        home.join("moved-flow").join("flow.json"),
+        r#"{"steps":[{"op":"eval","args":{"script":"1"}}]}"#,
+    )
+    .unwrap();
+    assert!(!super::resolve::prefer_legacy_cwd_workflow(&home, &legacy));
+    // Fresh box: flows nowhere → app-data resolution, no legacy adoption.
+    assert!(!super::resolve::prefer_legacy_cwd_workflow(
+        &tmp.join("no-home"),
+        &tmp.join("no-legacy")
+    ));
+
+    let _ = fs::remove_dir_all(&tmp);
 }
 
 #[test]

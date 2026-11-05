@@ -59,7 +59,23 @@ fn features_check() -> Check {
 
 /// Where flows live — the agent's manual is `README.md` in the same place.
 fn workflow_check() -> Check {
-    check(Status::Ok, "workflow", crate::flow::workflow_dir().display().to_string())
+    let dir = crate::flow::workflow_dir();
+    // The upgrade bridge (flow/resolve.rs) keeps a pre-app-data ./workflow
+    // working; surface it as a warning so the operator moves the flows
+    // instead of running on the legacy layout forever.
+    if crate::flow::legacy_cwd_workflow_active() {
+        check(
+            Status::Warn,
+            "workflow",
+            format!(
+                "{} — legacy cwd layout (pre-app-data); move flows to the app-data \
+                 workflow dir or export DITING_WORKFLOW_DIR",
+                dir.display()
+            ),
+        )
+    } else {
+        check(Status::Ok, "workflow", dir.display().to_string())
+    }
 }
 
 /// The robots.txt stance is a product decision made visible: it defaults to
