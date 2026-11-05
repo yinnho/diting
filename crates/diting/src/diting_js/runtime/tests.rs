@@ -19601,6 +19601,81 @@ async fn css_wide_keywords_initial_inherit_unset() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn line_height_normal_persona_and_vertical_mode_gap() {
+    // #21 verify-and-pin (battery faces, both verdicts documented here):
+    //
+    // Face 1 — the 1px line-height diff is the bundled face's persona,
+    // not a formula bug. normal = ascent+descent+line_gap from the
+    // first face's hhea, which IS Chrome's formula (Times cross-check:
+    // 1.1504 × 16 = 18.4 ≈ Chrome's 18). The bundled diting-cjk face
+    // carries hhea 1160/-288/0 at upem 1000 → 1.448em → 23.168px at
+    // 16px, where Chrome-mac's default PingFang SC is 1.375em → 22px.
+    // Re-metricing the default face is a product decision (it moves
+    // every text box), so the diff parks as a persona artifact in the
+    // same ledger as matchMedia/light-dark. Every declared family also
+    // maps to this one face (Times/mono measure the same height);
+    // Chrome varies 18/17/15.
+    //
+    // Face 2 — writing-mode:vertical-rl parses and serves in gCS
+    // (fingerprint-first, pages don't gate layout on it) but layout
+    // stays horizontal: word leaves carry horizontal advances
+    // (build_word_leaves), taffy flows block vertically, paint draws
+    // horizontal runs — vertical typesetting is a campaign (upright CJK
+    // columns stacking right-to-left, transposed baselines, rotated
+    // Latin), not a flip. Chrome's vertical box: width 22 (one column
+    // = line-height), content growing down columns. Pinned so a future
+    // vertical campaign flips this test consciously.
+    let mut rt = setup_runtime(
+        r#"<html><body style="margin:0">
+<p id="a" style="margin:0;font-size:16px">abc</p>
+<p id="v" style="margin:0;font-size:16px;writing-mode:vertical-rl">abc</p>
+<p id="mo" style="margin:0;font-size:16px;font-family:monospace">abc</p>
+</body></html>"#,
+    );
+    let script = r#"async () => {
+            const h = id => Math.round(document.getElementById(id).getBoundingClientRect().height * 100) / 100;
+            const v = document.getElementById('v').getBoundingClientRect();
+            return {
+                a: h('a'),
+                mo: h('mo'),
+                vg: getComputedStyle(document.getElementById('v')).writingMode,
+                vh: Math.round(v.height * 100) / 100,
+                vfullwidth: v.width > 100,
+            };
+        }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!(23.17),
+        "normal line-height = bundled face hhea (1160-(-288)+0)/1000 × 16 = 23.168; Chrome-mac PingFang gives 22 — persona, not formula"
+    );
+    assert_eq!(
+        v["mo"],
+        serde_json::json!(23.17),
+        "monospace line box measures the same bundled face (Chrome: 15) — one-face persona"
+    );
+    assert_eq!(
+        v["vg"],
+        serde_json::json!("vertical-rl"),
+        "writing-mode serves in gCS — fingerprint-first"
+    );
+    assert_eq!(
+        v["vh"],
+        serde_json::json!(23.17),
+        "vertical-rl still lays out as one horizontal line (Chrome: columns of line-height width); flip together with the vertical campaign"
+    );
+    assert_eq!(
+        v["vfullwidth"],
+        serde_json::json!(true),
+        "vertical-rl block keeps full-width horizontal flow (Chrome: width collapses to 22)"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn read_only_read_write_face_matches_chrome() {
     // #219 / lightpanda #3718: :read-only/:read-write used to fall out
     // of the selector parser entirely (unknown pseudo → rule dropped,

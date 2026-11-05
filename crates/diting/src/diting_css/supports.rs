@@ -659,6 +659,11 @@ pub(super) const CHROME_EXTRA_PROPS: &[&str] = &[
     "word-break",
     "word-spacing",
     "word-wrap",
+    // Fingerprint-first: pages don't gate layout on writing-mode, but
+    // note the layout behind it stays horizontal (#21 verified: the
+    // vertical-rl box lays out full-width one line where Chrome
+    // collapses to line-height-wide columns). Flip the layout in a
+    // vertical campaign, never here.
     "writing-mode",
     "zoom",
     "align-content",
