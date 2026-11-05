@@ -1354,6 +1354,12 @@ pub struct ComputedStyle {
     /// `attr()` stays unresolved here — the host's attributes live outside
     /// this module — and resolves at the cascade's visit site.
     pub content: Option<ContentValue>,
+    /// The flattened text of `content` after the cascade's visit resolved
+    /// counters/quotes/attr() against the walk state — the box builder's
+    /// face. The symbolic `content` above stays untouched for the CSSOM
+    /// computed-value face (#19: Chrome's gCS ::before serves
+    /// `counter(c) ". "` while the rendered box shows `2. `).
+    pub content_resolved: Option<String>,
     /// `counter-reset: <name> [<int>]? ...` — non-inherited; empty vector is
     /// also what `none` parses to.
     pub counter_reset: Vec<(String, i32)>,
