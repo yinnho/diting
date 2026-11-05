@@ -620,7 +620,11 @@ mod tests {
     where
         F: std::future::Future<Output = T>,
     {
-        let _g = crate::test_support::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+        // Poison-immune (see net_env_guard): a bare-build tripwire failure
+        // elsewhere must not cascade PoisonError into every download test.
+        let _g = crate::test_support::PRIVATE_NET_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
         let out = f.await;
         std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
