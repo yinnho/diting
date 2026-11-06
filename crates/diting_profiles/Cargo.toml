@@ -46,8 +46,17 @@ path = "src/lib.rs"
 test = false
 doctest = false
 
+# TLS cert-compression golden test (#33): brotli-decode stability across
+# brotli generations; see tests/compress_golden.rs. Needs tokio-rt because
+# diting_profiles pulls diting_wire with default-features=false — the net
+# pieces only compile with a runtime feature on (as in the real graph).
+[[test]]
+name = "compress_golden"
+path = "tests/compress_golden.rs"
+required-features = ["tokio-rt"]
+
 [dependencies.brotli]
-version = "8.0.2"
+version = "9.0.0"
 optional = true
 
 [dependencies.flate2]

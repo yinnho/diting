@@ -71,8 +71,8 @@ url = "2"
 urlencoding = "2"
 
 # --- html / dom parsing (product-side convenience wrappers) ---
-scraper = "0.27"
-html2md = "0.2"
+scraper = "0.29"
+ego-tree = "0.11"
 
 base64 = "0.22"
 sha2 = "0.11"

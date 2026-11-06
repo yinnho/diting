@@ -8,7 +8,6 @@ use selectors::matching::{
     NeedsSelectorFlags,
 };
 use selectors::parser::{self, ParseRelative, SelectorParseErrorKind};
-use selectors::visitor::SelectorVisitor;
 use selectors::{Element, OpaqueElement, SelectorList};
 
 use crate::diting_dom::tree::{DomTree, NodeData, NodeId};
@@ -109,8 +108,6 @@ pub enum PseudoClass {
 }
 
 impl parser::NonTSPseudoClass for PseudoClass {
-    type Impl = DitingSelector;
-
     fn is_active_or_hover(&self) -> bool {
         matches!(self, PseudoClass::Hover | PseudoClass::Active)
     }
@@ -124,13 +121,6 @@ impl parser::NonTSPseudoClass for PseudoClass {
                 | PseudoClass::FocusVisible
                 | PseudoClass::FocusWithin
         )
-    }
-
-    fn visit<V>(&self, _visitor: &mut V) -> bool
-    where
-        V: SelectorVisitor<Impl = Self::Impl>,
-    {
-        true
     }
 }
 
@@ -160,9 +150,7 @@ impl ToCss for PseudoClass {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PseudoElement {}
 
-impl parser::PseudoElement for PseudoElement {
-    type Impl = DitingSelector;
-}
+impl parser::PseudoElement for PseudoElement {}
 
 impl ToCss for PseudoElement {
     fn to_css<W: std::fmt::Write>(&self, _dest: &mut W) -> std::fmt::Result {
@@ -174,7 +162,7 @@ pub struct DitingSelectorParser;
 
 impl<'i> parser::Parser<'i> for DitingSelectorParser {
     type Impl = DitingSelector;
-    type Error = SelectorParseErrorKind<'i>;
+    type Error = SelectorParseErrorKind;
 
     // Allow `:has()`. The selectors crate gates relative-selector parsing on
     // this (default false), so without it `a:has(p)` failed to parse and the
@@ -205,9 +193,8 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
 
     fn parse_non_ts_pseudo_class(
         &self,
-        _location: cssparser::SourceLocation,
         name: CowRcStr<'i>,
-    ) -> Result<PseudoClass, cssparser::ParseError<'i, Self::Error>> {
+    ) -> Result<PseudoClass, cssparser::ParseError<Self::Error>> {
         match name.as_ref() {
             "hover" => Ok(PseudoClass::Hover),
             "active" => Ok(PseudoClass::Active),
@@ -223,12 +210,11 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
             "root" => Ok(PseudoClass::Root),
             "read-only" => Ok(PseudoClass::ReadOnly),
             "read-write" => Ok(PseudoClass::ReadWrite),
-            _ => Err(cssparser::ParseError {
-                kind: cssparser::ParseErrorKind::Custom(
-                    SelectorParseErrorKind::UnsupportedPseudoClassOrElement(name),
-                ),
-                location: _location,
-            }),
+            // 0.41: the error kind dropped its payload and the trait dropped
+            // the SourceLocation param — ParseError::custom fills both.
+            _ => Err(cssparser::ParseError::custom(
+                SelectorParseErrorKind::UnsupportedPseudoClassOrElement,
+            )),
         }
     }
 }
@@ -847,8 +833,8 @@ thread_local! {
 const SELECTOR_CACHE_CAP: usize = 256;
 
 fn parse_selector_uncached(selector: &str) -> Result<SelectorList<DitingSelector>, String> {
-    let mut parser_input = cssparser::ParserInput::new(selector);
-    let mut parser = cssparser::Parser::new(&mut parser_input);
+    // 0.38: ParserInput is gone — Parser::new borrows the &str directly.
+    let mut parser = cssparser::Parser::new(selector);
     SelectorList::parse(&DitingSelectorParser, &mut parser, ParseRelative::No)
         .map_err(|e| format!("Failed to parse selector '{}': {:?}", selector, e))
 }

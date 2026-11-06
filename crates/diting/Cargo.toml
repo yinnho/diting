@@ -20,9 +20,6 @@ stealth = ["dep:diting_wire", "dep:diting_profiles"]
 # surface were retired 2026-11-06; diting's text stack is swash + its
 # own greedy_wrap, zero parley.)
 screenshot = [
-    "dep:anyrender",
-    "dep:anyrender_vello_cpu",
-    "dep:peniko",
     "dep:png",
     # JPEG/WebP/GIF decode for diting_layout's ImageCache (batches 6d/7b/7e).
     # Animated GIFs take the first frame. `png` is needed by the CDP legacy
@@ -114,9 +111,8 @@ url = "2"
 
 # --- html / dom parsing ---
 html5ever = "0.40"
-selectors = "0.40"
-servo_arc = "0.4"
-cssparser = "0.37"
+selectors = "0.41"
+cssparser = "0.38"
 precomputed-hash = "0.1"
 
 # --- V8 / JS runtime (claimed: diting_runtime, engine = v8 crate) ---
@@ -173,9 +169,6 @@ getrandom = "0.2"
 diting_profiles = { path = "../diting_profiles", optional = true }
 
 # --- render output encoding (screenshot) ---
-anyrender = { version = "0.13", optional = true }
-anyrender_vello_cpu = { version = "0.17", optional = true, features = ["multithreading"] }
-peniko = { version = "0.6", optional = true }
 png = { version = "0.18", optional = true }
 # Same version blitz-dom pins (0.25.x); jpeg/webp/gif are the only features we need.
 image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
