@@ -297,9 +297,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // UA/TLS coherence (taobao compat report ⑤): DITING_UA overrides
-    // the UA while the stealth transport keeps its default chrome145-shaped
-    // TLS handshake; fleet claim is Chrome/145 — warn when the UA major
-    // disagrees with that claim (WAF tell).
+    // the UA while the stealth transport keeps the chrome-target preset's
+    // TLS handshake (chrome157 today); warn when the UA major disagrees
+    // with that claim (WAF tell).
     #[cfg(feature = "stealth")]
     if let Ok(ua) = std::env::var("DITING_UA") {
         diting::diting_net::warn_on_ua_tls_mismatch(&ua, None);

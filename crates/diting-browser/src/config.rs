@@ -26,8 +26,9 @@ pub struct BrowserConfig {
     pub user_agent: Option<String>,
     /// Directory for persistent cookie storage
     pub storage_dir: Option<PathBuf>,
-    /// TLS fingerprint override (stealth mode only): "chrome145", "firefox133",
-    /// "safari17_5", "edge145", etc. None → Chrome145 default.
+    /// TLS fingerprint override (stealth mode only): "chrome145", "chrome157",
+    /// "firefox133", "safari17_5", "edge145", etc. None → the chrome-target
+    /// preset (crates/diting/chrome-target.toml, currently chrome157).
     pub tls_fingerprint: Option<String>,
     /// Caller-owned cookie jar shared across browser instances (the stateless
     /// HTTP handlers pass the process-global jar here).
