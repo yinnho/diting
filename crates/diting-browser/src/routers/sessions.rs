@@ -425,6 +425,54 @@ pub(crate) async fn account_login_handler(
     Ok((StatusCode::OK, Json(v)))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AccountImportBrowserRequest {
+    /// The account the cookies land in (created when absent).
+    pub name: String,
+    /// "chrome" (macOS) | "firefox".
+    pub browser: String,
+    /// Profile directory name under the browser's data root ("Default",
+    /// "Profile 1", "abcd.default-release"), or a path to the profile
+    /// directory / cookie db. Omitted = the browser's default profile.
+    pub profile: Option<String>,
+    /// Keep only these sites (exact host or any subdomain). Omitted = the
+    /// whole profile — an account is one browser identity.
+    #[serde(default)]
+    pub domains: Vec<String>,
+}
+
+/// Import a local browser profile's cookies into an account (#26): migrate an
+/// existing login instead of logging in again. Chrome reads the Keychain's
+/// "Chrome Safe Storage" (macOS asks once). The response is counts and hosts
+/// only — imported values are credentials and never come back.
+pub(crate) async fn account_import_browser_handler(
+    Json(req): Json<AccountImportBrowserRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    account::validate_name(&req.name).map_err(AppError::BadRequest)?;
+    let browser = crate::browser_import::Browser::parse(&req.browser).map_err(AppError::BadRequest)?;
+    let name = req.name.clone();
+    let (out, total) = tokio::task::spawn_blocking(move || {
+        let out = crate::browser_import::import(browser, req.profile.as_deref(), &req.domains)?;
+        let total = account::import_cookies(crate::store::REST_OWNER, &req.name, &out.cookies)?;
+        Ok::<_, String>((out, total))
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("import task failed: {e}")))?
+    .map_err(AppError::BadRequest)?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": name,
+            "imported": out.cookies.len(),
+            "account_cookies": total,
+            "skipped_expired": out.skipped_expired,
+            "skipped_invalid": out.skipped_invalid,
+            "undecryptable": out.undecryptable,
+            "domains": out.domains,
+        })),
+    ))
+}
+
 /// Derive a session carrying the source's login state (cookies + storage +
 /// viewport + dialog policy); the source stays untouched.
 pub(crate) async fn session_clone_handler(
