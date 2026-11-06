@@ -1311,6 +1311,12 @@ pub struct ComputedStyle {
     /// form; this exists so the CSSOM reports author-set images instead of
     /// the `none` initial. The `background` shorthand does NOT fill it (v1).
     pub background_image: Option<String>,
+    /// `mask-image`, same raw-token posture as `background_image` (#22): the
+    /// paint slice doesn't rasterize masks, the field exists so the CSSOM
+    /// reports the computed spelling (stops re-serialized #17-style) instead
+    /// of echoing the declared inline text. The `mask` shorthand fills it
+    /// (gradient tokens only, like `background`).
+    pub mask_image: Option<String>,
     /// `font-family`, raw author token stream (same posture as
     /// `background_image`): this slice resolves fonts at raster time from
     /// the default stack, so there is no parsed form — the field exists so
@@ -3409,6 +3415,7 @@ css_wide_longhands! {
     "display" => display, false;
     "background-color" => background_color, false;
     "background-image" => background_image, false;
+    "mask-image" => mask_image, false;
     "background-clip" => background_clip_text, false;
     "box-decoration-break" => box_decoration_clone, false;
     "box-shadow" => box_shadow, false;
@@ -3929,6 +3936,48 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         "background-image" => {
             style.background_image = Some(v.to_string());
             true
+        }
+        // Same raw passthrough as background-image; the CSSOM arm runs the
+        // #17 stop re-serialization over it, so only sane image grammars
+        // should land in the slot (#22).
+        "mask-image" => {
+            let lower = v.to_ascii_lowercase();
+            if v.eq_ignore_ascii_case("none")
+                || lower.contains("gradient(")
+                || lower.starts_with("url(")
+                || lower.contains("image(")
+                || lower.contains("cross-fade(")
+                || lower.contains("element(")
+            {
+                style.mask_image = Some(v.to_string());
+                true
+            } else {
+                false
+            }
+        }
+        // `mask` shorthand: the `background` posture over mask-image —
+        // paren-aware split, gradient/url tokens feed mask_image (layers
+        // comma-joined, Chrome-style), `none` and the repeat/position/clip/
+        // composite/mode keywords are recognized and ignored (Chrome
+        // expands eight longhands; only the image one is modeled, #22).
+        // Shorthand resets first like every CSS shorthand.
+        "mask" => {
+            style.mask_image = None;
+            let mut layers: Vec<&str> = Vec::new();
+            let mut applied = false;
+            for tok in split_sides(v) {
+                let t = tok.trim_end_matches(',');
+                if t.to_ascii_lowercase().contains("gradient(") || t.starts_with("url(") {
+                    layers.push(t);
+                    applied = true;
+                } else if t.eq_ignore_ascii_case("none") {
+                    applied = true;
+                }
+            }
+            if !layers.is_empty() {
+                style.mask_image = Some(layers.join(", "));
+            }
+            applied
         }
         // Same posture as background-image: the author's stack, verbatim.
         "font-family" => {
