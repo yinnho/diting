@@ -51,8 +51,8 @@ macro_rules! tls_options {
             .empty_trust_anchors(true))
     };
     // (9) = (8) + GREASE/ML-DSA-led verify sigalgs, as sent by real Chrome 157.
-    // Degrades to (8)'s sigalgs on BoringSSL snapshots that reject the raw
-    // values (see `sigalgs_v157`) — the rest of the 157 face is identical.
+    // Ships via the vendored btls-sys mldsa patch; BoringSSL builds without it
+    // degrade to (8)'s sigalgs (see `sigalgs_v157`).
     (9, $curves:expr) => {
         tls_options!(@build ChromeTlsConfig::builder()
             .permute_extensions(true)
@@ -104,10 +104,13 @@ pub const SIGALGS_LIST: &str = join!(
 /// (0x0904/0x0905/0x0906 — `mldsa44/65/87`, RFC-ietf-tls-mldsa; schemes this
 /// BoringSSL snapshot cannot name, hence raw wire values), then `SIGALGS_LIST`'s
 /// 8 classics. Measured on 157.0.8103.38 (tools/webplatform/chrome/wire/); the
-/// trio arrived between 146 and 156. The transport probes BoringSSL and degrades
-/// to the 8 classics until its snapshot learns the values (#25); advertising
-/// schemes we cannot verify would only matter if servers issued ML-DSA certs,
-/// which production does not yet.
+/// trio arrived between 146 and 156. The vendored btls-sys
+/// (crates/diting_btls_sys) teaches its BoringSSL snapshot these values via
+/// diting-mldsa-sigalgs.patch, so the full 12-entry face ships — verified
+/// byte-exact JA4 + peetprint against local Chrome. Unpatched snapshots reject
+/// the values and the transport degrades to the 8 classics (conn.rs probes,
+/// warns); advertising schemes we cannot verify would only matter if servers
+/// issued ML-DSA certs, which production does not yet.
 pub const SIGALGS_V157_TAIL: [u16; 11] = [
     0x0904, 0x0905, 0x0906, 0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0806, 0x0601,
 ];
@@ -123,7 +126,11 @@ fn sigalgs_v157() -> Vec<u16> {
     let mut h = RandomState::new().build_hasher();
     h.write_u8(0);
     let r = h.finish();
-    let grease = 0x0A0A | ((((r >> 8) & 0xF) as u16) << 12) | ((((r >> 16) & 0xF) as u16) << 4);
+    // Canonical GREASE: both nibble positions carry the SAME nibble
+    // (0x0a0a, 0x1a1a, … 0xfafa) — independent nibbles would emit values
+    // like 0xda2a that GREASE-aware fingerprinters hash as real sigalgs.
+    let n = ((r >> 8) & 0xF) as u16;
+    let grease = 0x0A0A | (n << 12) | (n << 4);
     let mut prefs = Vec::with_capacity(SIGALGS_V157_TAIL.len() + 1);
     prefs.push(grease);
     prefs.extend_from_slice(&SIGALGS_V157_TAIL);

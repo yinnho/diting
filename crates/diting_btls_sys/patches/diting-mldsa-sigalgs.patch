@@ -1,0 +1,60 @@
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index dd81949..92feed4 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -1146,6 +1146,14 @@ OPENSSL_EXPORT int SSL_set_ocsp_response(SSL *ssl, const uint8_t *response,
+ #define SSL_SIGN_RSA_PSS_RSAE_SHA512 0x0806
+ #define SSL_SIGN_ED25519 0x0807
+ 
++// diting patch: ML-DSA signature algorithms (RFC-ietf-tls-mldsa). The
++// crypto/mldsa primitives exist in this snapshot but the signature-algorithm
++// tables predate the values; Chrome 156+ leads its ClientHello sigalgs list
++// with GREASE + this trio.
++#define SSL_SIGN_MLDSA44 0x0904
++#define SSL_SIGN_MLDSA65 0x0905
++#define SSL_SIGN_MLDSA87 0x0906
++
+ // SSL_SIGN_RSA_PKCS1_SHA256_LEGACY is a backport of RSASSA-PKCS1-v1_5 with
+ // SHA-256 to TLS 1.3. It is disabled by default and only defined for client
+ // certificates.
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+index 926d2c0..94135ca 100644
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -98,6 +98,19 @@ static const SSL_SIGNATURE_ALGORITHM kSignatureAlgorithms[] = {
+     {SSL_SIGN_ED25519, EVP_PKEY_ED25519, NID_undef, nullptr,
+      /*is_rsa_pss=*/false, /*tls12_ok=*/true, /*tls13_ok=*/true,
+      /*client_only=*/false},
++
++    // diting patch: ML-DSA (RFC-ietf-tls-mldsa). Advertised by Chrome 156+
++    // ahead of any production ML-DSA certificate; verification rides the EVP
++    // default path (crypto/mldsa), the same digest-free flow as ED25519.
++    {SSL_SIGN_MLDSA44, EVP_PKEY_ML_DSA_44, NID_undef, nullptr,
++     /*is_rsa_pss=*/false, /*tls12_ok=*/false, /*tls13_ok=*/true,
++     /*client_only=*/false},
++    {SSL_SIGN_MLDSA65, EVP_PKEY_ML_DSA_65, NID_undef, nullptr,
++     /*is_rsa_pss=*/false, /*tls12_ok=*/false, /*tls13_ok=*/true,
++     /*client_only=*/false},
++    {SSL_SIGN_MLDSA87, EVP_PKEY_ML_DSA_87, NID_undef, nullptr,
++     /*is_rsa_pss=*/false, /*tls12_ok=*/false, /*tls13_ok=*/true,
++     /*client_only=*/false},
+ };
+ 
+ static const SSL_SIGNATURE_ALGORITHM *get_signature_algorithm(uint16_t sigalg) {
+@@ -568,6 +581,16 @@ static bool set_sigalg_prefs(Array<uint16_t> *out, Span<const uint16_t> prefs) {
+   }
+   size_t added = 0;
+   for (uint16_t pref : prefs) {
++    // diting patch: GREASE values (0x?A?A, per-connection random) pass
++    // through unvalidated, as newer BoringSSL does for Chrome's randomized
++    // sigalgs lead; the ClientHello serializer writes the list verbatim.
++    // Peer-chosen GREASE still fails tls12_check_peer_sigalg (no table
++    // entry), which is the correct fatal alert.
++    if ((pref & 0x0f0f) == 0x0a0a) {
++      filtered[added] = pref;
++      added++;
++      continue;
++    }
+     if (pref == SSL_SIGN_RSA_PKCS1_MD5_SHA1) {
+       // Though not intended to be used with this API, we treat
+       // |SSL_SIGN_RSA_PKCS1_MD5_SHA1| as a real signature algorithm in
