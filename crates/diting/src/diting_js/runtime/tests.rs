@@ -19757,6 +19757,120 @@ async fn mask_image_computed_spelling_and_shorthand() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn gcs_camel_webkit_alias_prefix() {
+    // #23: the lookup's kebab pass turned webkitLineClamp into
+    // "webkit-line-clamp" (no leading dash), so the camel surface of every
+    // vendor alias read '' — the snapshot keys all carry the dash. The
+    // kebab channel (getPropertyValue('-webkit-…')) always worked. Chrome
+    // truth 2026-11-06: declared -webkit-line-clamp:3 → "3", unset →
+    // "none", webkitMaskImage initial → "none". webkitTextFillColor needs
+    // color-alias modeling and stays '' (follow-up noted in the issue).
+    let mut rt = setup_runtime(
+        r#"<html><body style="margin:0">
+<p id="p" style="-webkit-line-clamp:3">x</p>
+<p id="r">x</p>
+</body></html>"#,
+    );
+    let script = r#"async () => {
+            const g = id => getComputedStyle(document.getElementById(id));
+            return {
+                wlc: g('p').webkitLineClamp,
+                wlcU: g('r').webkitLineClamp,
+                wmiU: g('r').webkitMaskImage,
+                kebab: g('r').getPropertyValue('-webkit-line-clamp'),
+                wtfc: g('r').webkitTextFillColor,
+            };
+        }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["wlc"],
+        serde_json::json!("3"),
+        "camel vendor alias reaches the cascade value (was '' pre-#23)"
+    );
+    assert_eq!(
+        v["wlcU"],
+        serde_json::json!("none"),
+        "unset camel alias serves the initial like Chrome"
+    );
+    assert_eq!(
+        v["wmiU"],
+        serde_json::json!("none"),
+        "webkitMaskImage camel face lights up #22's arm (was '')"
+    );
+    assert_eq!(
+        v["kebab"],
+        serde_json::json!("none"),
+        "the kebab channel keeps working"
+    );
+    assert_eq!(
+        v["wtfc"],
+        serde_json::json!(""),
+        "webkitTextFillColor still awaits color-alias modeling (Chrome: rgb(0, 0, 0)) — flip when that lands"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn clip_path_computed_serving() {
+    // #24: clip-path was unmodeled — the declared spelling only surfaced
+    // through the inline echo (coincidence-parity for canonical spellings)
+    // and the initial answered '' where Chrome says "none". Raw store +
+    // shape-grammar gate now; Chrome truth 2026-11-06: circle(50%) and
+    // polygon verbatim, unset/kebab "none", an invalid value drops.
+    let mut rt = setup_runtime(
+        r#"<html><body style="margin:0">
+<p id="p" style="clip-path:circle(50%)">x</p>
+<p id="r">x</p>
+<p id="s" style="clip-path:polygon(0 0,100% 0,50% 100%)">x</p>
+<p id="t" style="clip-path:red">x</p>
+</body></html>"#,
+    );
+    let script = r#"async () => {
+            const g = id => getComputedStyle(document.getElementById(id));
+            return {
+                circle: g('p').clipPath,
+                unset: g('r').clipPath,
+                kebab: g('r').getPropertyValue('clip-path'),
+                poly: g('s').clipPath,
+                bad: g('t').clipPath,
+            };
+        }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["circle"],
+        serde_json::json!("circle(50%)"),
+        "declared basic shape serves verbatim"
+    );
+    assert_eq!(
+        v["unset"],
+        serde_json::json!("none"),
+        "the initial is none (Chrome answers none, not '')"
+    );
+    assert_eq!(
+        v["kebab"],
+        serde_json::json!("none"),
+        "kebab channel serves the same initial"
+    );
+    assert_eq!(
+        v["poly"],
+        serde_json::json!("polygon(0 0,100% 0,50% 100%)"),
+        "polygon points pass through verbatim"
+    );
+    assert_eq!(
+        v["bad"],
+        serde_json::json!("none"),
+        "clip-path: red is not a shape — declaration drops like Chrome"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn read_only_read_write_face_matches_chrome() {
     // #219 / lightpanda #3718: :read-only/:read-write used to fall out
     // of the selector parser entirely (unknown pseudo → rule dropped,

@@ -1317,6 +1317,10 @@ pub struct ComputedStyle {
     /// of echoing the declared inline text. The `mask` shorthand fills it
     /// (gradient tokens only, like `background`).
     pub mask_image: Option<String>,
+    /// `clip-path`, raw-token posture again (#24): no clip rasterization
+    /// behind it, the field exists so the CSSOM reports the declared shape
+    /// and answers the `none` initial instead of the echo's empty string.
+    pub clip_path: Option<String>,
     /// `font-family`, raw author token stream (same posture as
     /// `background_image`): this slice resolves fonts at raster time from
     /// the default stack, so there is no parsed form — the field exists so
@@ -3416,6 +3420,7 @@ css_wide_longhands! {
     "background-color" => background_color, false;
     "background-image" => background_image, false;
     "mask-image" => mask_image, false;
+    "clip-path" => clip_path, false;
     "background-clip" => background_clip_text, false;
     "box-decoration-break" => box_decoration_clone, false;
     "box-shadow" => box_shadow, false;
@@ -3950,6 +3955,25 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 || lower.contains("element(")
             {
                 style.mask_image = Some(v.to_string());
+                true
+            } else {
+                false
+            }
+        }
+        // `clip-path` raw store, the mask-image posture over shapes (#24):
+        // basic shapes, url() references and `none`; anything else (a bare
+        // color, a length) is invalid and drops like Chrome's recovery.
+        "clip-path" => {
+            let lower = v.to_ascii_lowercase();
+            if v.eq_ignore_ascii_case("none")
+                || lower.starts_with("url(")
+                || lower.contains("circle(")
+                || lower.contains("ellipse(")
+                || lower.contains("inset(")
+                || lower.contains("polygon(")
+                || lower.contains("path(")
+            {
+                style.clip_path = Some(v.to_string());
                 true
             } else {
                 false
