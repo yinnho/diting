@@ -1,0 +1,65 @@
+{
+ "badDescWidth": [
+  "error",
+  "normal"
+ ],
+ "badWidth": [
+  "SyntaxError",
+  "Failed to set the 'width' property on 'FontFace': Failed to set 'zzz' as a property value.",
+  "normal"
+ ],
+ "brand": "TypeError: Illegal invocation",
+ "def": [
+  "normal",
+  "normal"
+ ],
+ "descBoth": [
+  "expanded",
+  "expanded"
+ ],
+ "descStretch": [
+  "condensed",
+  "condensed",
+  "unloaded"
+ ],
+ "descWidth": [
+  "expanded",
+  "expanded",
+  "unloaded"
+ ],
+ "ffsCtor": [
+  true,
+  true,
+  false,
+  true,
+  0,
+  "FontFaceSet",
+  true
+ ],
+ "ffsNew": "TypeError: Failed to construct 'FontFaceSet': Illegal constructor",
+ "ffsWinDesc": [
+  true,
+  false,
+  true
+ ],
+ "sameAccessor": [
+  false,
+  "get width",
+  "set width",
+  true,
+  true
+ ],
+ "setBrand": "TypeError: Illegal invocation",
+ "setStretch": [
+  "condensed",
+  "condensed"
+ ],
+ "setWidth": [
+  "expanded",
+  "expanded"
+ ],
+ "setWidthPct": [
+  "75%",
+  "75%"
+ ]
+}

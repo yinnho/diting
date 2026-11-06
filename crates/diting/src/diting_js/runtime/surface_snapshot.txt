@@ -1,4 +1,4 @@
-[globals] 1213
+[globals] 1235
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -11,6 +11,7 @@ G AnimationEffect
 G AnimationEvent
 G AnimationPlaybackEvent
 G AnimationTimeline
+G AnimationTrigger
 G Array
 G ArrayBuffer
 G AsyncDisposableStack
@@ -28,6 +29,7 @@ G AudioListener
 G AudioNode
 G AudioParam
 G AudioParamMap
+G AudioPlaybackStats
 G AudioProcessingEvent
 G AudioScheduledSourceNode
 G AudioSinkInfo
@@ -105,6 +107,7 @@ G CSSPositionTryDescriptors
 G CSSPositionTryRule
 G CSSPositionValue
 G CSSPropertyRule
+G CSSPseudoElement
 G CSSRotate
 G CSSRule
 G CSSRuleList
@@ -239,6 +242,7 @@ G Float64Array
 G FocusEvent
 G FontData
 G FontFace
+G FontFaceSet
 G FontFaceSetLoadEvent
 G FormData
 G FormDataEvent
@@ -307,6 +311,7 @@ G HTMLBRElement
 G HTMLBaseElement
 G HTMLBodyElement
 G HTMLButtonElement
+G HTMLCameraElement
 G HTMLCanvasElement
 G HTMLCollection
 G HTMLDListElement
@@ -344,6 +349,7 @@ G HTMLMediaElement
 G HTMLMenuElement
 G HTMLMetaElement
 G HTMLMeterElement
+G HTMLMicrophoneElement
 G HTMLModElement
 G HTMLOListElement
 G HTMLObjectElement
@@ -377,6 +383,7 @@ G HTMLTitleElement
 G HTMLTrackElement
 G HTMLUListElement
 G HTMLUnknownElement
+G HTMLUserMediaElement
 G HTMLVideoElement
 G HashChangeEvent
 G Headers
@@ -418,6 +425,7 @@ G Int16Array
 G Int32Array
 G Int8Array
 G IntegrityViolationReportBody
+G InteractionContentfulPaint
 G InterestEvent
 G IntersectionObserver
 G IntersectionObserverEntry
@@ -429,6 +437,7 @@ G KeyboardEvent
 G KeyboardLayoutMap
 G KeyframeEffect
 G LanguageDetector
+G LanguageModel
 G LargestContentfulPaint
 G LaunchParams
 G LaunchQueue
@@ -506,6 +515,7 @@ G Node
 G NodeFilter
 G NodeIterator
 G NodeList
+G NodeRange
 G NotRestoredReasonDetails
 G NotRestoredReasons
 G Notification
@@ -517,6 +527,7 @@ G OfflineAudioCompletionEvent
 G OfflineAudioContext
 G OffscreenCanvas
 G OffscreenCanvasRenderingContext2D
+G OpaqueRange
 G Option
 G OrientationSensor
 G Origin
@@ -550,12 +561,14 @@ G PerformancePaintTiming
 G PerformanceResourceTiming
 G PerformanceScriptTiming
 G PerformanceServerTiming
+G PerformanceSoftNavigation
 G PerformanceTiming
 G PerformanceTimingConfidence
 G PeriodicSyncManager
 G PeriodicWave
 G PermissionStatus
 G Permissions
+G PermissionsPolicy
 G PictureInPictureEvent
 G PictureInPictureWindow
 G Plugin
@@ -726,6 +739,7 @@ G SVGTransformList
 G SVGUnitTypes
 G SVGUseElement
 G SVGViewElement
+G Sanitizer
 G Scheduler
 G Scheduling
 G Screen
@@ -745,13 +759,6 @@ G ServiceWorkerContainer
 G ServiceWorkerRegistration
 G Set
 G ShadowRoot
-G SharedStorage
-G SharedStorageAppendMethod
-G SharedStorageClearMethod
-G SharedStorageDeleteMethod
-G SharedStorageModifierMethod
-G SharedStorageSetMethod
-G SharedStorageWorklet
 G SharedWorker
 G SnapEvent
 G SourceBuffer
@@ -807,6 +814,9 @@ G TextTrackCueList
 G TextTrackList
 G TextUpdateEvent
 G TimeRanges
+G TimelineTrigger
+G TimelineTriggerRange
+G TimelineTriggerRangeList
 G ToggleEvent
 G Touch
 G TouchEvent
@@ -918,8 +928,12 @@ G XRAnchorSet
 G XRBoundedReferenceSpace
 G XRCPUDepthInformation
 G XRCamera
+G XRCompositionLayer
+G XRCubeLayer
+G XRCylinderLayer
 G XRDOMOverlayState
 G XRDepthInformation
+G XREquirectLayer
 G XRFrame
 G XRHand
 G XRHitTestResult
@@ -931,9 +945,14 @@ G XRInputSourcesChangeEvent
 G XRJointPose
 G XRJointSpace
 G XRLayer
+G XRLayerEvent
 G XRLightEstimate
 G XRLightProbe
+G XRPlane
+G XRPlaneSet
 G XRPose
+G XRProjectionLayer
+G XRQuadLayer
 G XRRay
 G XRReferenceSpace
 G XRReferenceSpaceEvent
@@ -942,6 +961,7 @@ G XRRigidTransform
 G XRSession
 G XRSessionEvent
 G XRSpace
+G XRSubImage
 G XRSystem
 G XRTransientInputHitTestResult
 G XRTransientInputHitTestSource
@@ -952,6 +972,8 @@ G XRVisibilityMaskChangeEvent
 G XRWebGLBinding
 G XRWebGLDepthInformation
 G XRWebGLLayer
+G XRWebGLSubImage
+G XSLTProcessor
 G alert
 G atob
 G blur
@@ -1164,6 +1186,7 @@ G releaseEvents
 G reportError
 G requestAnimationFrame
 G requestIdleCallback
+G requestResize
 G resizeBy
 G resizeTo
 G scheduler
@@ -1182,7 +1205,6 @@ G self
 G sessionStorage
 G setInterval
 G setTimeout
-G sharedStorage
 G showDirectoryPicker
 G showOpenFilePicker
 G showSaveFilePicker
@@ -1225,6 +1247,7 @@ P AnimationEffect :: constructor,getComputedTiming,getTiming,updateTiming
 P AnimationEvent :: animationName,constructor,elapsedTime,pseudoElement
 P AnimationPlaybackEvent :: constructor,currentTime,timelineTime
 P AnimationTimeline :: constructor,currentTime,duration
+P AnimationTrigger :: constructor
 S Array :: from,fromAsync,isArray,of
 P Array :: at,concat,constructor,copyWithin,entries,every,fill,filter,find,findIndex,findLast,findLastIndex,flat,flatMap,forEach,includes,indexOf,join,keys,lastIndexOf,length,map,pop,push,reduce,reduceRight,reverse,shift,slice,some,sort,splice,toLocaleString,toReversed,toSorted,toSpliced,toString,unshift,values,with
 S ArrayBuffer :: isView
@@ -1245,6 +1268,7 @@ P AudioListener :: constructor,forwardX,forwardY,forwardZ,positionX,positionY,po
 P AudioNode :: channelCount,channelCountMode,channelInterpretation,connect,constructor,context,disconnect,numberOfInputs,numberOfOutputs
 P AudioParam :: automationRate,cancelAndHoldAtTime,cancelScheduledValues,constructor,defaultValue,exponentialRampToValueAtTime,linearRampToValueAtTime,maxValue,minValue,setTargetAtTime,setValueAtTime,setValueCurveAtTime,value
 P AudioParamMap :: constructor,entries,forEach,get,has,keys,size,values
+P AudioPlaybackStats :: constructor
 P AudioProcessingEvent :: constructor,inputBuffer,outputBuffer,playbackTime
 P AudioScheduledSourceNode :: constructor,onended,start,stop
 P AudioSinkInfo :: constructor,type
@@ -1327,6 +1351,7 @@ P CSSPositionTryDescriptors :: align-self,alignSelf,block-size,blockSize,bottom,
 P CSSPositionTryRule :: constructor,name,style
 P CSSPositionValue :: constructor,x,y
 P CSSPropertyRule :: constructor,inherits,initialValue,name,syntax
+P CSSPseudoElement :: constructor
 P CSSRotate :: angle,constructor,x,y,z
 S CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE
 P CSSRule :: CHARSET_RULE,COUNTER_STYLE_RULE,FONT_FACE_RULE,FONT_FEATURE_VALUES_RULE,IMPORT_RULE,KEYFRAMES_RULE,KEYFRAME_RULE,MARGIN_RULE,MEDIA_RULE,NAMESPACE_RULE,PAGE_RULE,STYLE_RULE,SUPPORTS_RULE,constructor,cssText,parentRule,parentStyleSheet,type
@@ -1482,7 +1507,8 @@ S Float64Array :: BYTES_PER_ELEMENT
 P Float64Array :: BYTES_PER_ELEMENT,constructor
 P FocusEvent :: constructor,relatedTarget
 P FontData :: blob,constructor,family,fullName,postscriptName,style
-P FontFace :: ascentOverride,constructor,descentOverride,display,family,featureSettings,lineGapOverride,load,loaded,sizeAdjust,status,stretch,style,unicodeRange,variant,variationSettings,weight
+P FontFace :: ascentOverride,constructor,descentOverride,display,family,featureSettings,lineGapOverride,load,loaded,sizeAdjust,status,stretch,style,unicodeRange,variant,variationSettings,weight,width
+P FontFaceSet :: add,check,clear,constructor,delete,entries,forEach,has,keys,load,onloading,onloadingdone,onloadingerror,ready,size,status,values
 P FontFaceSetLoadEvent :: constructor,fontfaces
 P FormData :: append,constructor,delete,entries,forEach,get,getAll,has,keys,set,values
 P FormDataEvent :: constructor,formData
@@ -1546,6 +1572,7 @@ P HTMLBRElement :: clear,constructor
 P HTMLBaseElement :: constructor,href,target
 P HTMLBodyElement :: aLink,background,bgColor,constructor,link,onafterprint,onbeforeprint,onbeforeunload,onblur,onerror,onfocus,ongamepadconnected,ongamepaddisconnected,onhashchange,onlanguagechange,onload,onmessage,onmessageerror,onoffline,ononline,onpagehide,onpageshow,onpopstate,onrejectionhandled,onresize,onscroll,onstorage,onunhandledrejection,onunload,text,vLink
 P HTMLButtonElement :: checkValidity,command,commandForElement,constructor,disabled,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,interestForElement,labels,name,popoverTargetAction,popoverTargetElement,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
+P HTMLCameraElement :: constructor
 P HTMLCanvasElement :: captureStream,constructor,getContext,height,toBlob,toDataURL,transferControlToOffscreen,width
 P HTMLCollection :: constructor,item,length,namedItem
 P HTMLDListElement :: compact,constructor
@@ -1585,6 +1612,7 @@ P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_M
 P HTMLMenuElement :: compact,constructor
 P HTMLMetaElement :: constructor,content,httpEquiv,media,name,scheme
 P HTMLMeterElement :: constructor,high,labels,low,max,min,optimum,value
+P HTMLMicrophoneElement :: constructor
 P HTMLModElement :: cite,constructor,dateTime
 P HTMLOListElement :: compact,constructor,reversed,start,type
 P HTMLObjectElement :: align,archive,border,checkValidity,code,codeBase,codeType,constructor,contentDocument,contentWindow,data,declare,form,getSVGDocument,height,hspace,name,reportValidity,setCustomValidity,standby,type,useMap,validationMessage,validity,vspace,width,willValidate
@@ -1620,6 +1648,7 @@ S HTMLTrackElement :: ERROR,LOADED,LOADING,NONE
 P HTMLTrackElement :: ERROR,LOADED,LOADING,NONE,constructor,default,kind,label,readyState,src,srclang,track
 P HTMLUListElement :: compact,constructor,type
 P HTMLUnknownElement :: constructor
+P HTMLUserMediaElement :: constructor
 P HTMLVideoElement :: cancelVideoFrameCallback,constructor,disablePictureInPicture,getVideoPlaybackQuality,height,onenterpictureinpicture,onleavepictureinpicture,playsInline,poster,requestPictureInPicture,requestVideoFrameCallback,videoHeight,videoWidth,webkitDecodedFrameCount,webkitDroppedFrameCount,width
 P HashChangeEvent :: constructor,newURL,oldURL
 P Headers :: append,constructor,delete,entries,forEach,get,getSetCookie,has,keys,set,values
@@ -1668,6 +1697,7 @@ P Int32Array :: BYTES_PER_ELEMENT,constructor
 S Int8Array :: BYTES_PER_ELEMENT
 P Int8Array :: BYTES_PER_ELEMENT,constructor
 P IntegrityViolationReportBody :: blockedURL,constructor,destination,documentURL,reportOnly,toJSON
+P InteractionContentfulPaint :: constructor
 P InterestEvent :: constructor,source
 P IntersectionObserver :: constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
 P IntersectionObserverEntry :: boundingClientRect,constructor,intersectionRatio,intersectionRect,isIntersecting,isVisible,rootBounds,target,time
@@ -1680,6 +1710,7 @@ P KeyboardLayoutMap :: constructor,entries,forEach,get,has,keys,size,values
 P KeyframeEffect :: composite,constructor,getKeyframes,pseudoElement,setKeyframes,target
 S LanguageDetector :: availability,create
 P LanguageDetector :: constructor,destroy,detect,expectedInputLanguages,inputQuota,measureInputUsage
+P LanguageModel :: constructor
 P LargestContentfulPaint :: constructor,element,id,loadTime,paintTime,presentationTime,renderTime,size,toJSON,url
 P LaunchParams :: constructor,files,targetURL
 P LaunchQueue :: constructor,setConsumer
@@ -1760,6 +1791,7 @@ P Node :: ATTRIBUTE_NODE,CDATA_SECTION_NODE,COMMENT_NODE,DOCUMENT_FRAGMENT_NODE,
 S NodeFilter :: FILTER_ACCEPT,FILTER_REJECT,FILTER_SKIP,SHOW_ALL,SHOW_ATTRIBUTE,SHOW_CDATA_SECTION,SHOW_COMMENT,SHOW_DOCUMENT,SHOW_DOCUMENT_FRAGMENT,SHOW_DOCUMENT_TYPE,SHOW_ELEMENT,SHOW_ENTITY,SHOW_ENTITY_REFERENCE,SHOW_NOTATION,SHOW_PROCESSING_INSTRUCTION,SHOW_TEXT
 P NodeIterator :: constructor,detach,filter,nextNode,pointerBeforeReferenceNode,previousNode,referenceNode,root,whatToShow
 P NodeList :: constructor,entries,forEach,item,keys,length,values
+P NodeRange :: constructor
 P NotRestoredReasonDetails :: constructor,reason,toJSON
 P NotRestoredReasons :: children,constructor,id,name,reasons,src,toJSON,url
 S Notification :: maxActions,permission,requestPermission
@@ -1775,6 +1807,7 @@ P OfflineAudioCompletionEvent :: constructor,renderedBuffer
 P OfflineAudioContext :: constructor,length,oncomplete,resume,startRendering,suspend
 P OffscreenCanvas :: constructor,convertToBlob,getContext,height,oncontextlost,oncontextrestored,transferToImageBitmap,width
 P OffscreenCanvasRenderingContext2D :: arc,arcTo,beginPath,bezierCurveTo,canvas,clearRect,clip,closePath,constructor,createConicGradient,createImageData,createLinearGradient,createPattern,createRadialGradient,direction,drawImage,ellipse,fill,fillRect,fillStyle,fillText,filter,font,fontKerning,fontStretch,fontVariantCaps,getContextAttributes,getImageData,getLineDash,getTransform,globalAlpha,globalCompositeOperation,imageSmoothingEnabled,imageSmoothingQuality,isContextLost,isPointInPath,isPointInStroke,lang,letterSpacing,lineCap,lineDashOffset,lineJoin,lineTo,lineWidth,measureText,miterLimit,moveTo,putImageData,quadraticCurveTo,rect,reset,resetTransform,restore,rotate,roundRect,save,scale,setLineDash,setTransform,shadowBlur,shadowColor,shadowOffsetX,shadowOffsetY,stroke,strokeRect,strokeStyle,strokeText,textAlign,textBaseline,textRendering,transform,translate,wordSpacing
+P OpaqueRange :: constructor
 P Option :: constructor,defaultSelected,disabled,form,index,label,selected,text,value
 P OrientationSensor :: constructor,populateMatrix,quaternion
 S Origin :: from
@@ -1812,12 +1845,14 @@ P PerformancePaintTiming :: constructor,paintTime,presentationTime,toJSON
 P PerformanceResourceTiming :: connectEnd,connectStart,constructor,contentEncoding,decodedBodySize,deliveryType,domainLookupEnd,domainLookupStart,encodedBodySize,fetchStart,finalResponseHeadersStart,firstInterimResponseStart,initiatorType,nextHopProtocol,redirectEnd,redirectStart,renderBlockingStatus,requestStart,responseEnd,responseStart,responseStatus,secureConnectionStart,serverTiming,toJSON,transferSize,workerCacheLookupStart,workerFinalSourceType,workerMatchedSourceType,workerRouterEvaluationStart,workerStart
 P PerformanceScriptTiming :: constructor,executionStart,forcedStyleAndLayoutDuration,invoker,invokerType,pauseDuration,sourceCharPosition,sourceFunctionName,sourceURL,toJSON,window,windowAttribution
 P PerformanceServerTiming :: constructor,description,duration,name,toJSON
+P PerformanceSoftNavigation :: constructor
 P PerformanceTiming :: connectEnd,connectStart,constructor,domComplete,domContentLoadedEventEnd,domContentLoadedEventStart,domInteractive,domLoading,domainLookupEnd,domainLookupStart,fetchStart,loadEventEnd,loadEventStart,navigationStart,redirectEnd,redirectStart,requestStart,responseEnd,responseStart,secureConnectionStart,toJSON,unloadEventEnd,unloadEventStart
 P PerformanceTimingConfidence :: constructor,randomizedTriggerRate,toJSON,value
 P PeriodicSyncManager :: constructor,getTags,register,unregister
 P PeriodicWave :: constructor
 P PermissionStatus :: constructor,name,onchange,state
 P Permissions :: constructor,query
+P PermissionsPolicy :: constructor
 P PictureInPictureEvent :: constructor,pictureInPictureWindow
 P PictureInPictureWindow :: constructor,height,onresize,width
 P Plugin :: constructor,description,filename,item,length,name,namedItem
@@ -2017,6 +2052,7 @@ P SVGUnitTypes :: SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,SVG_UNIT_TYPE_UNKNOWN,SVG_UNIT
 P SVGUseElement :: constructor,height,href,width,x,y
 S SVGViewElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN
 P SVGViewElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN,constructor,preserveAspectRatio,viewBox,zoomAndPan
+P Sanitizer :: constructor
 P Scheduler :: constructor,postTask,yield
 P Scheduling :: constructor,isInputPending
 P Screen :: availHeight,availLeft,availTop,availWidth,colorDepth,constructor,height,isExtended,onchange,orientation,pixelDepth,width
@@ -2036,13 +2072,6 @@ P ServiceWorkerContainer :: constructor,controller,getRegistration,getRegistrati
 P ServiceWorkerRegistration :: active,backgroundFetch,constructor,cookies,getNotifications,installing,navigationPreload,onupdatefound,paymentManager,periodicSync,pushManager,scope,showNotification,sync,unregister,update,updateViaCache,waiting
 P Set :: add,clear,constructor,delete,difference,entries,forEach,has,intersection,isDisjointFrom,isSubsetOf,isSupersetOf,keys,size,symmetricDifference,union,values
 P ShadowRoot :: activeElement,adoptedStyleSheets,clonable,constructor,delegatesFocus,elementFromPoint,elementsFromPoint,fullscreenElement,getAnimations,getHTML,getSelection,host,innerHTML,mode,onslotchange,pictureInPictureElement,pointerLockElement,serializable,setHTMLUnsafe,slotAssignment,styleSheets
-P SharedStorage :: append,batchUpdate,clear,constructor,createWorklet,delete,get,run,selectURL,set,worklet
-P SharedStorageAppendMethod :: constructor
-P SharedStorageClearMethod :: constructor
-P SharedStorageDeleteMethod :: constructor
-P SharedStorageModifierMethod :: constructor
-P SharedStorageSetMethod :: constructor
-P SharedStorageWorklet :: addModule,constructor,run,selectURL
 P SharedWorker :: constructor,onerror,port
 P SnapEvent :: constructor,snapTargetBlock,snapTargetInline
 P SourceBuffer :: abort,appendBuffer,appendWindowEnd,appendWindowStart,buffered,changeType,constructor,mode,onabort,onerror,onupdate,onupdateend,onupdatestart,remove,timestampOffset,updating
@@ -2102,6 +2131,9 @@ P TextTrackCueList :: constructor,getCueById,length
 P TextTrackList :: constructor,getTrackById,length,onaddtrack,onchange,onremovetrack
 P TextUpdateEvent :: constructor,selectionEnd,selectionStart,text,updateRangeEnd,updateRangeStart
 P TimeRanges :: constructor,end,length,start
+P TimelineTrigger :: constructor
+P TimelineTriggerRange :: constructor
+P TimelineTriggerRangeList :: constructor
 P ToggleEvent :: constructor,newState,oldState,source
 P Touch :: clientX,clientY,constructor,force,identifier,pageX,pageY,radiusX,radiusY,rotationAngle,screenX,screenY,target
 P TouchEvent :: altKey,changedTouches,constructor,ctrlKey,metaKey,shiftKey,targetTouches,touches
@@ -2228,8 +2260,12 @@ P XRAnchorSet :: constructor,entries,forEach,has,keys,size,values
 P XRBoundedReferenceSpace :: boundsGeometry,constructor
 P XRCPUDepthInformation :: constructor,data,getDepthInMeters
 P XRCamera :: constructor,height,width
+P XRCompositionLayer :: constructor
+P XRCubeLayer :: constructor
+P XRCylinderLayer :: constructor
 P XRDOMOverlayState :: constructor,type
 P XRDepthInformation :: constructor,height,normDepthBufferFromNormView,projectionMatrix,rawValueToMeters,transform,width
+P XREquirectLayer :: constructor
 P XRFrame :: constructor,createAnchor,fillJointRadii,fillPoses,getDepthInformation,getHitTestResults,getHitTestResultsForTransientInput,getJointPose,getLightEstimate,getPose,getViewerPose,session,trackedAnchors
 P XRHand :: constructor,entries,forEach,get,keys,size,values
 P XRHitTestResult :: constructor,createAnchor,getPose
@@ -2241,9 +2277,14 @@ P XRInputSourcesChangeEvent :: added,constructor,removed,session
 P XRJointPose :: constructor,radius
 P XRJointSpace :: constructor,jointName
 P XRLayer :: constructor
+P XRLayerEvent :: constructor
 P XRLightEstimate :: constructor,primaryLightDirection,primaryLightIntensity,sphericalHarmonicsCoefficients
 P XRLightProbe :: constructor,onreflectionchange,probeSpace
+P XRPlane :: constructor
+P XRPlaneSet :: constructor
 P XRPose :: constructor,emulatedPosition,transform
+P XRProjectionLayer :: constructor
+P XRQuadLayer :: constructor
 P XRRay :: constructor,direction,matrix,origin
 P XRReferenceSpace :: constructor,getOffsetReferenceSpace,onreset
 P XRReferenceSpaceEvent :: constructor,referenceSpace,transform
@@ -2252,6 +2293,7 @@ P XRRigidTransform :: constructor,inverse,matrix,orientation,position
 P XRSession :: cancelAnimationFrame,constructor,depthActive,depthDataFormat,depthType,depthUsage,domOverlayState,enabledFeatures,end,environmentBlendMode,inputSources,interactionMode,onend,oninputsourceschange,onselect,onselectend,onselectstart,onsqueeze,onsqueezeend,onsqueezestart,onvisibilitychange,onvisibilitymaskchange,pauseDepthSensing,preferredReflectionFormat,renderState,requestAnimationFrame,requestHitTestSource,requestHitTestSourceForTransientInput,requestLightProbe,requestReferenceSpace,resumeDepthSensing,updateRenderState,visibilityState
 P XRSessionEvent :: constructor,session
 P XRSpace :: constructor
+P XRSubImage :: constructor
 P XRSystem :: constructor,isSessionSupported,ondevicechange,requestSession
 P XRTransientInputHitTestResult :: constructor,inputSource,results
 P XRTransientInputHitTestSource :: cancel,constructor
@@ -2263,6 +2305,8 @@ P XRWebGLBinding :: constructor,getCameraImage,getDepthInformation,getReflection
 P XRWebGLDepthInformation :: constructor,texture
 S XRWebGLLayer :: getNativeFramebufferScaleFactor
 P XRWebGLLayer :: antialias,constructor,framebuffer,framebufferHeight,framebufferWidth,getViewport,ignoreDepthValues
+P XRWebGLSubImage :: constructor
+P XSLTProcessor :: constructor
 P alert :: constructor
 P blur :: constructor
 P close :: constructor
