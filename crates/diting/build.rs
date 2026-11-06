@@ -721,6 +721,8 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("window_extras.js", include_str!("js/window_extras.js")),
     ("shape_fix.js", include_str!("js/shape_fix.js")),
     ("version_prune.js", include_str!("js/version_prune.js")),
+    // #30: `get X`/`set X` names on every window accessor + the [Replaceable] setters (before the reorder).
+    ("window_accessors.js", include_str!("js/window_accessors.js")),
     ("window_order.js", include_str!("js/window_order.js")),
 ];
 

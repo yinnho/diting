@@ -32840,9 +32840,8 @@ async fn get_element_by_id_ignores_detached_nodes_after_inner_html() {
 
 /// M4 knife 52 - document.fonts is a real FontFaceSet (EventTarget, insertion-ordered set of FontFace) and FontFace has Chrome's
 /// full descriptor surface; fonts-probe.js, 27 keys against real Chrome 157 (157 exposes the FontFaceSet interface with a prototype
-/// `constructor`, and FontFace grew `width`). KNOWN GAP, must shrink: `win[4]` is FontFaceSet's ABSOLUTE index in
-/// getOwnPropertyNames(window) - the engine reads 4 high because window/top/location/document are non-configurable at install
-/// time and sit at the head of the order (#30); every other element is compared exactly.
+/// `constructor`, and FontFace grew `width`). `win[4]` is FontFaceSet's ABSOLUTE index in getOwnPropertyNames(window) -
+/// exact since #30 put the non-configurable globals in Chrome's slots.
 #[tokio::test(flavor = "current_thread")]
 async fn fonts_matches_chrome_truth() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -32851,15 +32850,12 @@ async fn fonts_matches_chrome_truth() {
         .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
         .await
         .unwrap();
-    let mut engine: serde_json::Value =
+    let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
-    let mut truth: serde_json::Value = serde_json::from_str(include_str!(
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../tools/webplatform/chrome/fonts-truth-157.json"
     ))
     .unwrap();
-    // #30: absolute window-order index, offset by the head-stuck non-configurable globals.
-    engine["win"][4] = serde_json::Value::Null;
-    truth["win"][4] = serde_json::Value::Null;
     let mut bad = Vec::new();
     for (k, want) in truth.as_object().unwrap() {
         if &engine[k] != want {
@@ -32904,6 +32900,65 @@ async fn fontface_width_and_fontfaceset_iface_match_chrome_truth() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// #30 - the window's own-property face against real Chrome 157 (window-face-probe.js): every own accessor is a native
+/// `get X` / `set X` pair (188, names + flags + toString), the 20 [Replaceable] setters replace in place, the
+/// non-configurable set is Chrome's seven, and getOwnPropertyNames(window) is Chrome's order position for position.
+/// KNOWN GAP, must shrink: four 157 interfaces the engine does not carry yet (#25) are dropped from the truth order.
+/// Deliberate deviation: `replace.after` (innerWidth assignment) - the size attributes keep ignoring page writes (#105,
+/// window_size_props_ignore_page_writes); `replace.strict` (scrollX) still pins Chrome's in-place replacement.
+#[tokio::test(flavor = "current_thread")]
+async fn window_own_property_face_matches_chrome_truth() {
+    const MISSING: &[&str] = &[
+        "CanvasPaintEvent",
+        "ElementGeometryUpdateEvent",
+        "ElementImage",
+        "TrustedHTMLParserOptions",
+    ];
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(include_str!(
+            "../../../../../tools/webplatform/chrome/window-face-probe.js"
+        ))
+        .unwrap();
+    let engine: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let mut truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/window-face-truth-157.json"
+    ))
+    .unwrap();
+    truth["order"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|n| !MISSING.contains(&n.as_str().unwrap()));
+    let order_e = engine["order"].as_array().unwrap();
+    let order_c = truth["order"].as_array().unwrap();
+    if let Some(i) = order_c.iter().zip(order_e).position(|(c, e)| c != e) {
+        panic!(
+            "own-name order departs at {i}: engine {:?} chrome {:?}",
+            &order_e[i..(i + 3).min(order_e.len())],
+            &order_c[i..(i + 3).min(order_c.len())]
+        );
+    }
+    assert_eq!(order_e.len(), order_c.len(), "own-name count");
+    let mut bad = Vec::new();
+    truth["replace"]["after"] = engine["replace"]["after"].clone();
+    assert_eq!(
+        engine["replace"]["after"],
+        serde_json::json!([true, null, null, true, true, true]),
+        "innerWidth stays an accessor that ignored the write (#105)"
+    );
+    for k in ["nonConfigurable", "replace"] {
+        if engine[k] != truth[k] {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {}", engine[k], truth[k]));
+        }
+    }
+    for (n, want) in truth["accessors"].as_object().unwrap() {
+        if &engine["accessors"][n] != want {
+            bad.push(format!("accessor {n}:\n   engine {}\n   chrome {want}", engine["accessors"][n]));
+        }
+    }
+    assert!(bad.is_empty(), "{} off:\n{}", bad.len(), bad.join("\n"));
 }
 
 /// M4 knife 53 - the window's own ENUMERABLE keys (for-in + hasOwnProperty: what for-in, JSON.stringify, Object.assign and spread see;

@@ -72,12 +72,13 @@ const _locationObj = globalThis.location;
 Object.defineProperty(globalThis, 'location', {
   // __diting_frame_location is the frame-eval swap slot: while the engine
   // brackets an evaluation into an iframe's globals, reads of `location`
-  // must see the frame's location. The property itself is non-configurable
+  // must see the frame's location. The property ends up non-configurable
   // (matching Chrome's unforgeable Location), so the swap goes through this
-  // data slot instead of redefining the accessor.
+  // data slot instead of redefining the accessor. Installed configurable:
+  // window_order.js freezes it after placing it in Chrome's own-name order (#30).
   get() { return globalThis.__diting_frame_location || _locationObj; },
   set(url) { globalThis.__diting_locNav(url, false); },
-  configurable: false,
+  configurable: true,
   enumerable: true,
 });
 
