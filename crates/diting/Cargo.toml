@@ -117,7 +117,7 @@ url = "2"
 
 # --- html / dom parsing ---
 html5ever = "0.40"
-selectors = "0.41"
+selectors = "0.42"
 cssparser = "0.38"
 precomputed-hash = "0.1"
 
