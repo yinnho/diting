@@ -232,9 +232,16 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     // kebab+lowercase pass would corrupt --mainColor into --main-color.
     // Past the snapshot, the inline-style fallback below still applies
     // (el.style.setProperty('--x', …) is part of the cascade).
-    const kebab = rawProp.startsWith('--')
+    let kebab = rawProp.startsWith('--')
       ? rawProp
       : rawProp.replace(/([A-Z])/g, '-$1').toLowerCase();
+    // Camel vendor aliases carry their dash on the FRONT: webkitLineClamp
+    // kebabs to -webkit-line-clamp, not webkit-line-clamp — without the
+    // prefix dash the snapshot key never matches and every camel webkit*
+    // read fell to the inline echo as '' (#23; kebab-channel reads like
+    // getPropertyValue('-webkit-mask-image') always worked). No standard
+    // property starts with "webkit-", so the prepend is unambiguous.
+    if (!rawProp.startsWith('--') && kebab.startsWith('webkit-')) kebab = '-' + kebab;
     if (snapshot.rendered && Object.prototype.hasOwnProperty.call(snapshot.rendered, kebab)) {
       return snapshot.rendered[kebab];
     }

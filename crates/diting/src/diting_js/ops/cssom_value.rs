@@ -115,6 +115,7 @@ pub(super) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "background-image",
     "mask-image",
     "-webkit-mask-image",
+    "clip-path",
     "font-family",
     "padding-top",
     "padding-right",
@@ -518,6 +519,10 @@ pub(super) fn computed_style_value(
             Some(v) => computed_image_text(v),
             None => "none".to_string(),
         }),
+        // #24: clip-path raw store, declared spelling verbatim (Chrome
+        // normalizes shape whitespace/case; the declared form of real pages
+        // already matches) and `none` for the initial/unset.
+        "clip-path" => Some(s.clip_path.clone().unwrap_or_else(|| "none".into())),
         // Same posture as background-image: the author's stack, verbatim.
         "font-family" => s.font_family.clone(),
         // Padding/margin longhands: Chrome reports the used px — percentage
