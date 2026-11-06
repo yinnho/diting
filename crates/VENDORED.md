@@ -23,6 +23,12 @@ carry no per-file banner (the whole crate is "modified"); `README.md` of each cr
 - Dropped: tests, examples, benches, `Cargo.toml.orig`, upstream README/CHANGELOG, publishing metadata.
 - Library tests and doctests are off (`test = false`, `doctest = false`): the behaviour we depend on is
   pinned by our own tests (`diting_net::wreq_client::tests`, wire audits under `tools/webplatform`).
+- 2026-11-06 tail sweep: the intake "Dropped: tests" line was only ever true for `tests/` dirs —
+  inline `#[cfg(test)]` modules survived in `src/` with the dev-dependencies stripped, which
+  never compiled under `cargo check --all-targets` (39 E0432s) and never ran under `cargo test`.
+  All of it is now actually gone (≈6.5k lines across the family). One deliberate survivor:
+  `diting_wire_proto/tests/grease_setting.rs` is OURS — it pins the HTTP/2 GREASE setting
+  generator (Chrome 145 trait) and runs like any house test.
 - Pruned to what the product uses: optional features and their dependencies that we never enable were
   emptied/removed (compio runtime, hickory DNS, QUIC, websocket, cookies, json/form/query/multipart,
   system proxy, tracing, serde, ...). The dependency closure in `Cargo.lock` is exactly the old one

@@ -2,7 +2,6 @@
 #![deny(unused)]
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
-#![cfg_attr(test, deny(warnings))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 pub mod rt;

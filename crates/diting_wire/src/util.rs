@@ -128,18 +128,3 @@ impl fmt::Display for Escape<'_> {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::strip_ipv6_brackets;
-
-    #[test]
-    fn strips_ipv6_brackets() {
-        assert_eq!(strip_ipv6_brackets("[::1]"), "::1");
-        assert_eq!(strip_ipv6_brackets("::1"), "::1");
-        assert_eq!(strip_ipv6_brackets("example.com"), "example.com");
-        assert_eq!(strip_ipv6_brackets("[example.com"), "[example.com");
-        assert_eq!(strip_ipv6_brackets("example.com]"), "example.com]");
-        assert_eq!(strip_ipv6_brackets("[[::1]]"), "[::1]");
-    }
-}

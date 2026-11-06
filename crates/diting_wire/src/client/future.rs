@@ -59,20 +59,3 @@ impl Future for Pending {
         Poll::Ready(res)
     }
 }
-
-#[cfg(test)]
-mod test {
-
-    #[test]
-    fn test_future_size() {
-        let s = std::mem::size_of::<super::Pending>();
-        assert!(s <= 360, "size_of::<Pending>() == {s}, too big");
-    }
-
-    #[tokio::test]
-    async fn error_has_url() {
-        let u = "http://does.not.exist.local/ever";
-        let err = crate::Client::new().get(u).send().await.unwrap_err();
-        assert_eq!(err.uri().unwrap(), u, "{err:?}");
-    }
-}

@@ -19,14 +19,6 @@ use std::fmt;
 const UNCLAIMED_NUMERATOR: i32 = 1;
 const UNCLAIMED_DENOMINATOR: i32 = 2;
 
-#[test]
-#[allow(clippy::assertions_on_constants)]
-fn sanity_unclaimed_ratio() {
-    assert!(UNCLAIMED_NUMERATOR < UNCLAIMED_DENOMINATOR);
-    assert!(UNCLAIMED_NUMERATOR >= 0);
-    assert!(UNCLAIMED_DENOMINATOR > 0);
-}
-
 #[derive(Copy, Clone, Debug)]
 pub struct FlowControl {
     /// Window the peer knows about.
