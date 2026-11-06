@@ -336,7 +336,7 @@ pub struct Page {
     pub id: String,
     /// Upstream frame-realm identifier: one Page can host sub-frame realms
     /// keyed by frame id. We run a single realm per page, so nothing reads
-    /// it yet (frame-realm absorption is parked — see docs/engine/browser.md).
+    /// it yet (frame-realm absorption is parked).
     #[allow(dead_code)]
     pub frame_id: String,
     pub url: Option<Url>,

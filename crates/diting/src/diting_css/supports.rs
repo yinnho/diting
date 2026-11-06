@@ -298,9 +298,9 @@ pub fn supports_declaration(name: &str, value: &str) -> bool {
 }
 
 /// Pseudo-class / pseudo-element names `CSS.supports('selector(...)')` answers
-/// true for — Chrome's answer for a UA claiming Chrome 145, minus the ones
-/// whose behaviour is invisible-by-design here are kept true (feature
-/// detection reads the answer, not the rendering).
+/// true for — Chrome's answer on the target version (157, re-truthed #25),
+/// minus the ones whose behaviour is invisible-by-design here are kept true
+/// (feature detection reads the answer, not the rendering).
 pub(super) fn pseudo_known(head: &str) -> bool {
     matches!(
         head,
@@ -376,8 +376,9 @@ pub(super) fn pseudo_known(head: &str) -> bool {
     )
 }
 
-/// Properties Chrome 145 supports that this cascade does not model (they
-/// parse and are ignored). `CSS.supports` and `@supports` answer true for a
+/// Properties the target Chrome (157) supports that this cascade does not
+/// model (they parse and are ignored). `CSS.supports` and `@supports` answer
+/// true for a
 /// non-empty value so feature detection takes the same branch as Chrome —
 /// except the ones whose JS/CSS fallback matters for layout: anchor
 /// positioning, scroll/view timelines, which stay false so pages use their
