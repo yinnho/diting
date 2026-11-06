@@ -199,7 +199,8 @@ globalThis.__diting_init = function() {
     globalThis.__diting_gopn_patched = true;
   }
   if (typeof globalThis.__diting_demote_own === 'function') { try { globalThis.__diting_demote_own(); } catch (e) {} }
-  if (typeof globalThis.__diting_reorder_window === 'function') { try { globalThis.__diting_reorder_window(); } catch (e) {} }
+  if (typeof globalThis.__diting_window_accessors === 'function') { try { globalThis.__diting_window_accessors(); } catch (e) {} }
+  if (typeof globalThis.__diting_reorder_window === 'function') { try { globalThis.__diting_reorder_window(true); } catch (e) {} }
   delete globalThis.__diting_init;
 };
 

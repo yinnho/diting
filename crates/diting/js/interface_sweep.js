@@ -223,7 +223,7 @@ try { (function () {
       slot[n] = d.value;
       Object.defineProperty(g, n, {
         enumerable: true,
-        configurable: opts.frozen ? false : true,
+        configurable: true,
         get: hideAware(getterFor(n)),
         set: opts.replaceable ? setterFor(n, n === "name" || n === "status") : undefined
       });
@@ -235,10 +235,12 @@ try { (function () {
   var GET_SET = ["devicePixelRatio", "frames", "length", "name", "onerror",
     "opener", "parent", "performance", "screen", "screenLeft", "screenTop",
     "screenX", "screenY", "self", "status", "visualViewport"];
+  // Chrome: getter-only and NON-configurable - installed configurable here and frozen by window_order.js once they reached
+  // their slot in the own-name order (#30: frozen at install time they could never move and sat at the head of the list).
   var GET_ONLY_FROZEN = ["top", "window"];
   convert(GET_ONLY, {});
   convert(GET_SET, { replaceable: true });
-  convert(GET_ONLY_FROZEN, { frozen: true });
+  convert(GET_ONLY_FROZEN, {});
   // document keeps bootstrap's lazy accessor (per-page _dom resolution) as
   // its fallback: slot.document === undefined means "resolve lazily", a
   // concrete value (worker mask's HIDE sentinel, CDP frame scoping's frame
@@ -254,10 +256,11 @@ try { (function () {
     _markNative(docGet);
     // accessor->accessor redefine RETAINS an omitted setter — pass
     // set: undefined explicitly or bootstrap's _documentInstance setter
-    // survives and pages can clobber the binding.
+    // survives and pages can clobber the binding. Configurable until
+    // window_order.js places and freezes it (#30).
     Object.defineProperty(g, "document", {
       enumerable: ddoc.enumerable === true,
-      configurable: false,
+      configurable: true,
       get: docGet,
       set: undefined
     });
