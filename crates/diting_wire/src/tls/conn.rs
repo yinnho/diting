@@ -403,9 +403,10 @@ impl TlsConnectorBuilder {
 
         // Raw verify prefs, for schemes BoringSSL cannot name (Chrome 157's ML-DSA lead).
         // Applied after the string form so the raw list wins the ClientHello extension.
-        // The setter validates against BoringSSL's own scheme table, which predates
-        // ML-DSA — until the snapshot learns those values this fails and we keep the
-        // string list (logged, not fatal: the rest of the 157 face still ships).
+        // The vendored btls-sys snapshot knows these values (diting-mldsa-sigalgs.patch),
+        // so the full 12-entry face ships; the error path stays for unpatched BoringSSL
+        // builds (BORING_BSSL_SOURCE_PATH), which degrade to the string list — logged,
+        // not fatal.
         if let Some(prefs) = opts.sigalgs_verify_prefs.as_deref() {
             let prefs: Vec<_> = prefs
                 .iter()

@@ -22,9 +22,12 @@ arch         = "arm64"
 # 157.0.8103.38 (tools/webplatform/chrome/wire/chrome-157.0.8103.38.json):
 #  * ClientHello shape unchanged since 145 EXCEPT the signature_algorithms list now leads
 #    with GREASE + mldsa44/65/87 (RFC-ietf-tls-mldsa) - carried as raw wire values via
-#    ChromeTlsConfig's sigalgs_mldsa_grease; the BoringSSL snapshot btls 0.5.6 bundles
-#    rejects those values, so the transport degrades to the 8 classics until btls-sys
-#    updates (conn.rs probes, warns; the one remaining 157 fingerprint delta - #25).
+#    ChromeTlsConfig's sigalgs_mldsa_grease. btls-sys is vendored (crates/diting_btls_sys)
+#    with diting-mldsa-sigalgs.patch teaching the bundled BoringSSL snapshot those values,
+#    so the full face ships: engine JA4 t13d1517h2_8daaf6152771_cb7bf5808d99 and peetprint
+#    hash verified byte-exact against local Chrome (ja4/peetprint; JA3 is unstable on real
+#    Chrome itself through extension permutation). Unpatched BoringSSL builds degrade the
+#    sigalg lead to the 8 classics (conn.rs probes, warns).
 #  * H2 SETTINGS dropped the random GREASE setting Chrome 145 sent (http2 tier 3, not 4).
 #  * Navigation header order: accept-language moved after accept-encoding - the layout
 #    chrome_headers.rs already measured on Chrome 155, so no change there.

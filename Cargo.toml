@@ -36,3 +36,8 @@ strip = true
 # copy of taffy (versioned 0.14.0) is a different source and stays.
 [patch.crates-io]
 taffy = { git = "https://github.com/DioxusLabs/taffy", rev = "802e497b69689e1c93be2d16e9d53a973971bcb2" }
+# btls-sys 0.5.6 with ONE local patch on the bundled BoringSSL snapshot
+# (mldsa-sigalgs: SSL_SIGN_MLDSA44/65/87 + GREASE passthrough — Chrome 156+
+# ClientHello sigalgs lead, issue #25). Same name+version so btls 0.5.6 links
+# ours; drop the patch file when upstream's snapshot learns the values.
+btls-sys = { path = "crates/diting_btls_sys" }

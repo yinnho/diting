@@ -88,9 +88,10 @@ fn fingerprint_names_parse_to_versions() {
 fn chrome157_preset_pins_h2_and_sigalg_face() {
     // (#25) The 157 preset's wire face, pinned at the options level, independent of
     // the TLS library: H2 without the GREASE setting (Chrome dropped it by 156) and
-    // verify sigalgs carrying the GREASE + ML-DSA lead. The transport degrades the
-    // sigalg lead on BoringSSL snapshots that reject the raw values; the data face
-    // stays pinned here either way. Byte truth: chrome-157.0.8103.38.json.
+    // verify sigalgs carrying the GREASE + ML-DSA lead. The vendored btls-sys patch
+    // carries the lead onto the wire (JA4 cb7bf5808d99 = real 157, byte-exact);
+    // unpatched BoringSSL degrades it to the 8 classics — the data face stays
+    // pinned here either way. Byte truth: chrome-157.0.8103.38.json.
     use diting_wire::IntoEmulation;
     let emu = diting_profiles::Profile::Chrome157.into_emulation();
     let h2 = emu.http2_options.as_ref().expect("h2 options");
@@ -111,6 +112,11 @@ fn chrome157_preset_pins_h2_and_sigalg_face() {
     );
     assert_eq!(prefs.len(), 12);
     assert_eq!(prefs[0] & 0x0F0F, 0x0A0A, "GREASE lead has the 0x?A?A form");
+    assert_eq!(
+        (prefs[0] >> 12) & 0xF,
+        (prefs[0] >> 4) & 0xF,
+        "GREASE nibbles must match: 0xda2a-style values are not canonical GREASE and JA4/peetprint hash them as real sigalgs"
+    );
     assert_eq!(
         tls.requested_trust_anchors.as_deref(),
         Some(&[][..]),
