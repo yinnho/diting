@@ -735,31 +735,51 @@ for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) 
   _markNative(_C.prototype.setSelectionRange);
 }
 
-// setRangeText - replace selection with text (input/textarea, 刀55)
+// setRangeText - replace selection with text (input/textarea, 刀55).
+// Selection semantics pinned against real Chrome 157 (obscura #1414
+// absorption): an empty value inserts fine (no early return), 'preserve'
+// keys off the PRE-CALL selection — intersecting the replaced span selects
+// the replacement, before it stays put, strictly after it shifts by the
+// length delta.
 for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.setRangeText) {
   _C.prototype.setRangeText = function setRangeText(replacement) {
-    const val = this.value;
-    if (!val) return;
-    const strVal = String(val);
+    const strVal = String(this.value ?? '');
     const start = arguments[1] === undefined ? (this.selectionStart ?? 0) : Math.max(0, parseInt(arguments[1], 10) || 0);
     const end = arguments[2] === undefined ? (this.selectionEnd ?? 0) : Math.max(0, parseInt(arguments[2], 10) || 0);
-    const newValue = strVal.slice(0, start) + String(replacement) + strVal.slice(end);
+    const repl = String(replacement);
+    // Snapshot the selection BEFORE `this.value =` — the value setter resets
+    // the selection WeakMaps to the new length, and 'preserve' keys off the
+    // pre-call selection.
+    const oldStart = _ns_selectionStart.get(this) ?? start;
+    const oldEnd = _ns_selectionEnd.get(this) ?? end;
+    const newValue = strVal.slice(0, start) + repl + strVal.slice(end);
     this.value = newValue;
     const selectMode = arguments[3] || 'preserve';
     if (selectMode === 'select') {
-      const replLen = String(replacement).length;
       _ns_selectionStart.set(this, start);
-      _ns_selectionEnd.set(this, start + replLen);
+      _ns_selectionEnd.set(this, start + repl.length);
       _ns_selectionDir.set(this, 'none');
     } else if (selectMode === 'start') {
       _ns_selectionStart.set(this, start);
       _ns_selectionEnd.set(this, start);
       _ns_selectionDir.set(this, 'none');
     } else if (selectMode === 'end') {
-      const replLen = String(replacement).length;
-      _ns_selectionStart.set(this, start + replLen);
-      _ns_selectionEnd.set(this, start + replLen);
+      _ns_selectionStart.set(this, start + repl.length);
+      _ns_selectionEnd.set(this, start + repl.length);
       _ns_selectionDir.set(this, 'none');
+    } else {
+      // 'preserve' (pinned on real Chrome 157): a selection intersecting the
+      // replaced span selects the replacement; one outside it stays put or
+      // shifts by the length delta.
+      if (oldStart < end && oldEnd > start) {
+        _ns_selectionStart.set(this, start);
+        _ns_selectionEnd.set(this, start + repl.length);
+      } else {
+        // strictly after the span shifts by the delta; at-or-before stays
+        const shift = (p) => (p > end ? p + repl.length - (end - start) : p);
+        _ns_selectionStart.set(this, Math.min(shift(oldStart), newValue.length));
+        _ns_selectionEnd.set(this, Math.min(shift(oldEnd), newValue.length));
+      }
     }
     _ns_mirrorSelection(this);
   };

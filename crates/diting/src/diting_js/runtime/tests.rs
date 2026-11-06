@@ -10572,6 +10572,37 @@ fn test_selection_mirror_records_js_writes() {
 }
 
 #[test]
+fn test_set_range_text_chrome_pinned_selection() {
+    // obscura #1414 absorption: setRangeText must insert into an EMPTY
+    // value (no early return) and place the selection the way real Chrome
+    // 157 does — pinned by CDP probe on 2026-11-06, all six shapes
+    // byte-identical. 'preserve' keys off the PRE-CALL selection: spanning
+    // the replaced range selects the replacement, before it stays, strictly
+    // after it shifts by the length delta.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt
+        .evaluate(
+            r#"
+            const out = [];
+            const shape = (fn) => { const t = document.createElement('textarea'); fn(t); out.push(t.value + '@' + t.selectionStart + '-' + t.selectionEnd); };
+            shape((t) => { t.value = 'hello'; t.setSelectionRange(0, 0); t.setRangeText('XY'); });
+            shape((t) => { t.setRangeText('A'); });
+            shape((t) => { t.value = 'abcdef'; t.setSelectionRange(2, 4, 'forward'); t.setRangeText('Z'); });
+            shape((t) => { t.value = 'abcdef'; t.setSelectionRange(5, 5); t.setRangeText('Z', 0, 2); });
+            shape((t) => { t.value = 'abcdef'; t.setSelectionRange(3, 3); t.setRangeText('LONG', 2, 4); });
+            shape((t) => { t.value = 'abcdef'; t.setRangeText('!', 2, 4, 'select'); });
+            return out.join('|');
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!("XYhello@0-0|A@0-0|abZef@2-3|Zcdef@4-4|abLONGef@2-6|ab!ef@2-3"),
+        "all six shapes pinned to real Chrome 157"
+    );
+}
+
+#[test]
 fn test_option_legacy_factory() {
     // glama.ai admin form chunk populates selects via `new Option(label,
     // value)`; without the global its hydration died on "Option is not
