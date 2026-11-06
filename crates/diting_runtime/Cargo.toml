@@ -7,7 +7,7 @@ license = "Apache-2.0"
 repository = "https://github.com/yinnho/diting"
 publish = false
 
-# One dependency, by design: V8 itself, pinned (same =150.4.0 as the rest of
+# One dependency, by design: V8 itself, pinned (same =152.2.0 as the rest of
 # the workspace — one build, and version moves stay our decision, aligned with
 # UA/TLS fingerprint declarations). Feature-for-feature the same declaration
 # deno_core uses (simdutf, no defaults): a `-p diting_runtime` solo build
@@ -15,15 +15,12 @@ publish = false
 # v8's build script shares one gn_out/obj path per target dir, and two
 # variants would clobber each other on every alternation.
 [dependencies]
-v8 = { version = "=150.4.0", default-features = false, features = ["simdutf"] }
-# op_glue (verbatim deno_core 0.411 helper copies) needs serde_v8's V8Slice
-# and serde for the SerdeMarker return face. Leaf utility crates — they stay
-# after deno_core retires, unlike deno_core itself. deno_error is the same
-# class of leaf (op error classification: JsErrorBox/JsErrorClass); the
-# crypto/fetch op bodies spell it in ~60 signatures and it stays.
+v8 = { version = "=152.2.0", default-features = false, features = ["simdutf"] }
+# deno_error: op error classification (JsErrorBox/JsErrorClass); the
+# crypto/fetch op bodies spell it in ~60 signatures. serde_v8 (and serde for
+# its return face) was absorbed into op_glue on the v8 152 bump — it pinned
+# v8 ^150 through deno_v8 and would have put two engines in the graph.
 deno_error = "0.7"
-serde = "1"
-serde_v8 = "0.320"
 # The module machinery's specifier type — deno_core aliases it the same way
 # (`pub type ModuleSpecifier = Url`); after the retirement url remains ours.
 url = "2"

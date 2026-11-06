@@ -14,18 +14,34 @@
 //!
 //! Copy source: `~/.cargo/registry/src/*/deno_core-0.411.0/runtime/ops.rs`
 //! and `.../runtime/ops_rust_to_v8.rs`.
+//!
+//! serde_v8 也已吸收（2026-11-06，v8 150→152 批）：它锁 deno_v8→v8 ^150，
+//! 我们一升 v8 图里就两份引擎。用到的面只有三张——`#[buffer]` 参数的
+//! V8Slice（[`BufferSlice`]，u8 脸，clamp 逻辑照搬 serde_v8 0.320
+//! `magic/v8slice.rs`）、编码失败的错误类型（[`EncodeError`]）、一个
+//! `#[serde]` 返回（canvas 文字瓦片，换成手写的 [`ToV8Object`]）。
 
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-
-use serde_v8::V8Sliceable;
+use std::ops::Range;
 
 /// The default string buffer size on the stack that prevents mallocs in some
 /// string functions. Keep in mind that Windows only offers 1MB stacks by default,
 /// so this is a limited resource!
 pub const STRING_STACK_BUFFER_SIZE: usize = 1024 * 8;
+
+/// An op return value that failed to materialize in V8 (string/array over
+/// v8's length limit, object build failure). Every message is static.
+#[derive(Debug)]
+pub struct EncodeError(pub &'static str);
+
+impl std::fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
 
 macro_rules! try_integer_some {
     ($n:ident $type:ident $is:ident) => {
@@ -140,29 +156,46 @@ pub fn to_str<'a, const N: usize>(
     string.to_rust_cow_lossy(scope, buffer)
 }
 
-/// Retrieve a [`serde_v8::V8Slice`] from a typed array in an [`v8::ArrayBufferView`].
-pub fn to_v8_slice<'a, T>(
-    input: v8::Local<'a, v8::Value>,
-) -> Result<serde_v8::V8Slice<T>, &'static str>
-where
-    T: V8Sliceable,
-    v8::Local<'a, T::V8>: TryFrom<v8::Local<'a, v8::Value>>,
-    v8::Local<'a, v8::ArrayBufferView>: From<v8::Local<'a, T::V8>>,
-{
-    let (store, offset, length) = match v8::Local::<T::V8>::try_from(input) {
-        Ok(buf) => {
-            let buf: v8::Local<v8::ArrayBufferView> = buf.into();
-            let Some(buffer) = buf.get_backing_store() else {
-                return Err("buffer missing");
-            };
-            (buffer, buf.byte_offset(), buf.byte_length())
+/// A `#[buffer]` argument: the view's backing store kept alive plus the
+/// view's byte window into it.
+pub struct BufferSlice {
+    store: v8::SharedRef<v8::BackingStore>,
+    range: Range<usize>,
+}
+
+impl AsRef<[u8]> for BufferSlice {
+    fn as_ref(&self) -> &[u8] {
+        // A detached buffer has no data pointer; a store that shrank since
+        // the view was read clamps the window (serde_v8's as_slice law).
+        let Some(ptr) = self.store.data() else {
+            return &[];
+        };
+        let end = self.range.end.min(self.store.len());
+        let len = end.saturating_sub(self.range.start);
+        if len == 0 {
+            return &[];
         }
-        _ => {
-            return Err("expected typed ArrayBufferView");
-        }
+        // SAFETY: the SharedRef keeps the store's heap bytes alive and fixed
+        // in place (Arc<[u8]>-like); start..start+len lies inside them per
+        // the clamp above. Ops only read the slice during the call.
+        unsafe { std::slice::from_raw_parts(ptr.cast::<u8>().as_ptr().add(self.range.start), len) }
+    }
+}
+
+/// Read a [`BufferSlice`] from a `Uint8Array` argument.
+pub fn to_v8_slice(input: v8::Local<'_, v8::Value>) -> Result<BufferSlice, &'static str> {
+    let Ok(buf) = v8::Local::<v8::Uint8Array>::try_from(input) else {
+        return Err("expected typed ArrayBufferView");
     };
-    let slice = unsafe { serde_v8::V8Slice::from_parts(store, offset..(offset + length)) };
-    Ok(slice)
+    let buf: v8::Local<v8::ArrayBufferView> = buf.into();
+    let Some(store) = buf.get_backing_store() else {
+        return Err("buffer missing");
+    };
+    let offset = buf.byte_offset();
+    Ok(BufferSlice {
+        store,
+        range: offset..offset + buf.byte_length(),
+    })
 }
 
 pub fn throw_error_one_byte_info(info: &v8::FunctionCallbackInfo, message: &str) {
@@ -178,13 +211,13 @@ pub fn throw_error_one_byte<'s, 'i>(scope: &mut v8::PinScope<'s, 'i>, message: &
 }
 
 /// The encode-failure throw: when `to_v8_fallible` fails (string/array over
-/// v8's length limit, serde serialization failure) the value never
+/// v8's length limit, object build failure) the value never
 /// materialized, so a plain Error is thrown — NOT the class-built JS error
 /// machinery deno's `throw_error_js_error_class` routes through (that needs
 /// the host's exception state + JS builder callback, a host face claimed
 /// with the runtime-host swap). Deliberate divergence on a barely-observable
 /// path; noted in the campaign plan.
-pub fn throw_serde_v8_error<'s, 'i>(scope: &mut v8::PinScope<'s, 'i>, err: &serde_v8::Error) {
+pub fn throw_encode_error<'s, 'i>(scope: &mut v8::PinScope<'s, 'i>, err: &EncodeError) {
     let msg = err.to_string();
     let m = v8::String::new(scope, &msg).unwrap_or_else(|| {
         v8::String::new_from_one_byte(
@@ -200,7 +233,7 @@ pub fn throw_serde_v8_error<'s, 'i>(scope: &mut v8::PinScope<'s, 'i>, err: &serd
 
 /// An op's `Err` face → a V8 exception value (10d flip; the shape deno_core
 /// `error.rs::to_v8_error` gave the macro's `Result` arm). Deliberate
-/// divergence on the same law as [`throw_serde_v8_error`]: deno_core 0.411
+/// divergence on the same law as [`throw_encode_error`]: deno_core 0.411
 /// builds classed errors through a JS builder callback stored in the
 /// isolate's exception-state embedder data (`js_build_custom_error_cb`,
 /// installed by its bootstrap) — a host face we never install. Instead this
@@ -245,11 +278,11 @@ pub trait RustToV8Fallible<'a> {
     fn to_v8_fallible<'i>(
         self,
         scope: &mut v8::PinScope<'a, 'i>,
-    ) -> serde_v8::Result<v8::Local<'a, v8::Value>>;
+    ) -> Result<v8::Local<'a, v8::Value>, EncodeError>;
 }
 
 /// Transparent marker struct that can be used to alter the conversion in various ways. The
-/// main uses of this are to mark something as being `serde`-serializable.
+/// main use of this is to mark a struct as returned via [`ToV8Object`].
 #[repr(transparent)]
 pub struct RustToV8Marker<M, T>(T, PhantomData<M>);
 impl<M: Marker, T> From<T> for RustToV8Marker<M, T> {
@@ -259,9 +292,9 @@ impl<M: Marker, T> From<T> for RustToV8Marker<M, T> {
     }
 }
 
-/// This struct should be serialized using `serde`.
-pub struct SerdeMarker;
-impl Marker for SerdeMarker {}
+/// This struct is returned as a plain JS object ([`ToV8Object`]).
+pub struct ObjectMarker;
+impl Marker for ObjectMarker {}
 
 /// This buffer should be serialized as an ArrayBuffer.
 pub struct ArrayBufferMarker;
@@ -323,7 +356,7 @@ macro_rules! to_v8_fallible {
       #[allow(clippy::needless_borrow, reason = "borrow may be needed depending on macro instantiation type")]
       impl <'a> RustToV8Fallible<'a> for $ty {
         #[inline(always)]
-        fn to_v8_fallible<'i>(self, scope: &mut v8::PinScope<'a, 'i>) -> serde_v8::Result<v8::Local<'a, v8::Value>> {
+        fn to_v8_fallible<'i>(self, scope: &mut v8::PinScope<'a, 'i>) -> Result<v8::Local<'a, v8::Value>, EncodeError> {
           let $value = self;
           let $scope = scope;
           let res = $block;
@@ -355,19 +388,11 @@ to_v8_retval!((i8, i16, i32): |value, rv| rv.set_int32(value as _));
 // Strings
 //
 
-to_v8_fallible!((String, Cow<'a, str>, &'a str): |value, scope| v8::String::new(scope, &value).ok_or_else(|| serde_v8::Error::Message("failed to allocate string; buffer exceeds maximum length".into())));
+to_v8_fallible!((String, Cow<'a, str>, &'a str): |value, scope| v8::String::new(scope, &value).ok_or(EncodeError("failed to allocate string; buffer exceeds maximum length")));
 
 //
 // Buffers — subset: u8 only (the matrix's Vec<u8> #[buffer] face)
 //
-
-to_v8!(RustToV8Marker<ArrayBufferMarker, serde_v8::V8Slice<u8>>: |value, scope| {
-  value.0.into_v8_unsliced_arraybuffer_local(scope)
-});
-
-to_v8_fallible!(serde_v8::V8Slice<u8>: |value, scope| {
-  value.into_v8_local(scope).ok_or_else(|| serde_v8::Error::Message("failed to allocate array".into()))
-});
 
 macro_rules! typedarray {
   ($rty:ty, $v8ty:ident) => {
@@ -387,7 +412,7 @@ macro_rules! typedarray {
       let ab = unsafe {
         v8::Local::cast_unchecked(RustToV8Marker::<ArrayBufferMarker, _>::from(buf).to_v8(scope))
       };
-      v8::$v8ty::new(scope, ab, 0, len).ok_or_else(|| serde_v8::Error::Message("failed to allocate array".into()))
+      v8::$v8ty::new(scope, ab, 0, len).ok_or(EncodeError("failed to allocate array"))
     });
     to_v8!(RustToV8Marker<ArrayBufferMarker, Vec<$rty>>: |value, scope| {
       RustToV8Marker::<ArrayBufferMarker, _>::from(value.0.into_boxed_slice()).to_v8(scope)
@@ -399,15 +424,25 @@ macro_rules! typedarray {
 typedarray!(u8, Uint8Array);
 
 //
-// Serde
+// Objects
 //
 
-impl<'a, T: serde::Serialize> RustToV8Fallible<'a> for RustToV8Marker<SerdeMarker, T> {
+/// A struct an `#[object]` op returns, built field by field into a plain JS
+/// object. Replaces serde_v8's serializer: one op returned a struct (the
+/// canvas text tile), and its hand-written impl is a dozen lines.
+pub trait ToV8Object {
+    fn to_v8_object<'a, 'i>(
+        self,
+        scope: &mut v8::PinScope<'a, 'i>,
+    ) -> Result<v8::Local<'a, v8::Value>, EncodeError>;
+}
+
+impl<'a, T: ToV8Object> RustToV8Fallible<'a> for RustToV8Marker<ObjectMarker, T> {
     #[inline(always)]
     fn to_v8_fallible<'i>(
         self,
         scope: &mut v8::PinScope<'a, 'i>,
-    ) -> serde_v8::Result<v8::Local<'a, v8::Value>> {
-        serde_v8::to_v8(scope, self.0)
+    ) -> Result<v8::Local<'a, v8::Value>, EncodeError> {
+        self.0.to_v8_object(scope)
     }
 }

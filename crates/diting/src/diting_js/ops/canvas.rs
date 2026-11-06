@@ -693,13 +693,43 @@ pub(crate) fn op_canvas_store(
 /// placement from it. Gated on `screenshot` because that is where the
 /// font stack lives; without it the JS side keeps its glyph fallback.
 #[cfg(feature = "screenshot")]
-#[derive(serde::Serialize)]
 pub(crate) struct CanvasTextTile {
     width: usize,
     height: usize,
     baseline: f32,
     /// RGBA8, row-major, straight alpha — `width * height * 4` bytes.
     data: Vec<u8>,
+}
+
+/// `{ width, height, baseline, data: Uint8Array }` — `_blitText` only
+/// indexes `data`, so a typed array (one copy-free backing store) serves
+/// where the serde path used to build a 4·w·h element JS Array.
+#[cfg(feature = "screenshot")]
+impl diting_runtime::op_glue::ToV8Object for CanvasTextTile {
+    fn to_v8_object<'a, 'i>(
+        self,
+        scope: &mut v8::PinScope<'a, 'i>,
+    ) -> Result<v8::Local<'a, v8::Value>, diting_runtime::op_glue::EncodeError> {
+        use diting_runtime::op_glue::{EncodeError, RustToV8Fallible};
+        let obj = v8::Object::new(scope);
+        let data = self.data.to_v8_fallible(scope)?;
+        let fields: [(&str, v8::Local<v8::Value>); 4] = [
+            ("width", v8::Number::new(scope, self.width as f64).into()),
+            ("height", v8::Number::new(scope, self.height as f64).into()),
+            (
+                "baseline",
+                v8::Number::new(scope, f64::from(self.baseline)).into(),
+            ),
+            ("data", data),
+        ];
+        for (name, value) in fields {
+            let key =
+                v8::String::new(scope, name).ok_or(EncodeError("failed to allocate string"))?;
+            obj.set(scope, key.into(), value)
+                .ok_or(EncodeError("failed to build object"))?;
+        }
+        Ok(obj.into())
+    }
 }
 
 #[cfg(feature = "screenshot")]
@@ -731,7 +761,7 @@ pub(crate) fn canvas_text_tile(
 
 #[cfg(feature = "screenshot")]
 #[diting_op]
-#[serde]
+#[object]
 pub(crate) fn op_canvas_text(
     #[string] text: &str,
     size: f64,
