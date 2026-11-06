@@ -19676,6 +19676,87 @@ async fn line_height_normal_persona_and_vertical_mode_gap() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn mask_image_computed_spelling_and_shorthand() {
+    // #22: mask-image was unmodeled, so gCS fell through to the inline echo
+    // in computed_style.js and served the DECLARED spelling — the battery
+    // face was `linear-gradient(black,transparent)` where Chrome re-serializes
+    // every stop (the #17 computed_image_text pass, which until now only fed
+    // background-image). Chrome truth captured 2026-11-06: longhand and the
+    // `mask:` shorthand both normalize; the initial/unset answer is `none`
+    // (not ""); an invalid image value (`red`) drops the declaration like
+    // Chrome's invalid-declaration recovery.
+    let mut rt = setup_runtime(
+        r#"<html><body style="margin:0">
+<p id="p" style="mask-image:linear-gradient(black,transparent)">x</p>
+<p id="q" style="mask:linear-gradient(#f00,#0000)">x</p>
+<p id="r">x</p>
+<p id="s" style="mask-image:none">x</p>
+<p id="t" style="mask:linear-gradient(black,transparent);mask-image:radial-gradient(green,yellow)">x</p>
+<p id="u" style="mask-image:red">x</p>
+<p id="c" style="clip-path:circle(50%)">x</p>
+</body></html>"#,
+    );
+    let script = r#"async () => {
+            const g = id => getComputedStyle(document.getElementById(id));
+            return {
+                p: g('p').maskImage,
+                q: g('q').maskImage,
+                unset: g('r').maskImage,
+                none: g('s').maskImage,
+                t: g('t').maskImage,
+                invalid: g('u').maskImage,
+                kebab: g('c').getPropertyValue('-webkit-mask-image'),
+                clip: g('c').clipPath,
+            };
+        }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["p"],
+        serde_json::json!("linear-gradient(rgb(0, 0, 0), rgba(0, 0, 0, 0))"),
+        "longhand stops re-serialize #17-style (Chrome: keywords expand, transparent is rgba(0, 0, 0, 0))"
+    );
+    assert_eq!(
+        v["q"],
+        serde_json::json!("linear-gradient(rgb(255, 0, 0), rgba(0, 0, 0, 0))"),
+        "mask: shorthand expands into mask-image (Chrome: #f00/#0000 → rgb/rgba)"
+    );
+    assert_eq!(
+        v["unset"],
+        serde_json::json!("none"),
+        "the initial is none (Chrome answers none, not '')"
+    );
+    assert_eq!(
+        v["none"],
+        serde_json::json!("none"),
+        "explicit none stays none"
+    );
+    assert_eq!(
+        v["t"],
+        serde_json::json!("radial-gradient(rgb(0, 128, 0), rgb(255, 255, 0))"),
+        "a later longhand overrides the shorthand's image"
+    );
+    assert_eq!(
+        v["invalid"],
+        serde_json::json!("none"),
+        "mask-image: red is invalid (a color is not an image) — declaration drops"
+    );
+    assert_eq!(
+        v["kebab"],
+        serde_json::json!("none"),
+        "-webkit-mask-image serves through the kebab channel (camel webkitMaskImage is the family-wide JS kebab quirk, out of scope)"
+    );
+    assert_eq!(
+        v["clip"],
+        serde_json::json!("circle(50%)"),
+        "the battery probe's other half: declared clip-path echoes verbatim"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn read_only_read_write_face_matches_chrome() {
     // #219 / lightpanda #3718: :read-only/:read-write used to fall out
     // of the selector parser entirely (unknown pseudo → rule dropped,

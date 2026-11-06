@@ -113,6 +113,8 @@ pub(super) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "perspective",
     "text-shadow",
     "background-image",
+    "mask-image",
+    "-webkit-mask-image",
     "font-family",
     "padding-top",
     "padding-right",
@@ -510,6 +512,12 @@ pub(super) fn computed_style_value(
         // unset stays absent so the JS initial (`none`) serves it. Colour
         // stops re-serialize to Chrome's computed spelling (#17).
         "background-image" => s.background_image.as_deref().map(computed_image_text),
+        // #22: mask-image rides the same stop re-serialization; the initial
+        // is `none` (Chrome answers none — not "" — when nothing declared).
+        "mask-image" | "-webkit-mask-image" => Some(match s.mask_image.as_deref() {
+            Some(v) => computed_image_text(v),
+            None => "none".to_string(),
+        }),
         // Same posture as background-image: the author's stack, verbatim.
         "font-family" => s.font_family.clone(),
         // Padding/margin longhands: Chrome reports the used px — percentage
