@@ -16,13 +16,32 @@ members = ["crates/diting-browser", "crates/diting", "crates/diting_ops",
            "crates/diting_wire_rt", "crates/diting_profiles", "crates/diting_wire_h2"]
 resolver = "2"
 
+# Lint 单源（2026-11-06 #27）：各成员 `[lints] workspace = true` 继承这里，
+# lint 政策只动本文件。disallowed 名单本体在 clippy.toml，这里只定执行级。
+# 姿势偷自 moli（lexmount/moli）的 workspace.lints 接法；他家名单里的
+# std::sync 全家→parking_lot 暂不入单：现存 std::sync::Mutex 104 处/
+# RwLock 12/Condvar 3，那是迁徙不是配置；wire_h2 的双后端 sync.rs 是
+# 将来棘轮的模板。例外：diting_wire_h2 保留上游 h2 自己的 [lints]
+# （fuzzing cfg 护栏），vendor fork 走上游纪律，本表不罩它。
+[workspace.lints.clippy]
+disallowed_methods = "deny"
+disallowed_types = "deny"
+
 # Unwinding is REQUIRED: ops wrap their bodies in std::panic::catch_unwind so a
 # panic degrades to an error return instead of unwinding into V8's FFI frame and
 # aborting the process. panic="abort" turns every catchable op panic into a crash.
 # Workspace-wide: applies to every member crate (diting included).
+# 2026-11-06 #27 复审（对照 moli 双 profile abort）：他家是桌面 CLI 产物，
+# 我们是托管多租户服务——9 处 catch_unwind 全在承重位（JS eval 边界、
+# ops 毒墙×6、字形渲染护栏、crash 边界），abort 等于拆掉「一页坏不倒
+# 引擎」（#260）。审计结论：保留 unwind。
 [profile.release]
 panic = "unwind"
 strip = true
+# codegen-units 故意不设 1（moli 设 1 换紧凑工作集）：diting lib 单颗 rustc
+# 峰值 anon-rss 已到 6.4G（2026-11-06 86quan 全局 OOM 实测，cgu=默认 16），
+# 设 1 会进一步抬高峰值，8G 构建机必墙、16G CI 贴墙；且运行时性能不是
+# 当前瓶颈（bench auto 532ms）。要动它先带 bench 数字和构建机余量再来。
 
 # taffy 0.15.0 (2026-10-12) predates the float tail-segment fix our #300
 # graduation battery pinned: a float placed beside a shorter earlier float

@@ -99,6 +99,31 @@ jobs:
         # wall-clock honest. Multiple positional filters are ORed by libtest.
         run: cargo test --workspace --features stealth,screenshot -- redirect cookie
 
+  clippy:
+    # #27: lint gate. The disallowed list lives in clippy.toml, the enforcement
+    # level (deny) in [workspace.lints.clippy] at the workspace root — this job
+    # exists so the list bites. Whole workspace: the vendored wire family's
+    # dead upstream test code was cut 2026-11-06 (VENDORED.md), so they build
+    # under --all-targets like everyone else; their [lints] stay upstream's,
+    # not the workspace table. The ~130 warn-level findings this job prints
+    # are known debt; folding them to zero and flipping on -D warnings is the
+    # follow-up (249-256 precedent).
+    name: cargo clippy (workspace)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          # Separate cache: clippy check fingerprints differ from the check/test
+          # jobs; same v8 OUT_DIR poisoning caveat as the test job applies.
+          key: clippy-v1
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --features stealth,screenshot
+
   layers:
     # ARCHITECTURE.md §2 R1-R3 as greppable tripwires plus the god-file
     # ratchet (§6 P2). The compile-time guarantee is the workspace dep

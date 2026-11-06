@@ -270,12 +270,16 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // CLI face: doctor's contract is "exit code = diagnosis outcome", the one
+    // place the process exit ban doesn't apply (see clippy.toml).
+    #[expect(clippy::disallowed_methods, reason = "doctor subcommand exits with its diagnosis code")]
     if args.get(1).map(String::as_str) == Some("doctor") {
         std::process::exit(doctor_cli::run().await);
     }
 
     // A typo'd or stale recipe (the historical `--port` never bound anything)
     // must not start a silently-misconfigured server.
+    #[expect(clippy::disallowed_methods, reason = "usage error exits 2 by CLI convention")]
     if let Some(bad) = first_unknown_flag(&args) {
         eprintln!("diting: unrecognized argument {bad:?} (see --help)");
         std::process::exit(2);
