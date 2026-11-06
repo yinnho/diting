@@ -87,7 +87,6 @@ GOD_FILE_GRANDFATHER = {
     "crates/diting/src/diting_css/mod.rs": 6727,  # post-0.6.0 compat surface bumps
     "crates/diting/src/diting_js/ops/mod.rs": 5030,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
     "crates/diting/src/diting_layout/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
-    "crates/diting-browser/src/bridge_cross_check.rs": 4423,
     "crates/diting/src/diting_layout/fork_deltas.rs": 2930,
     "crates/diting/src/diting_js/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
     "crates/diting-browser/src/authoring/docgen/workflow.rs": 1641,

@@ -5,15 +5,9 @@
 //! This module replaces that with real advances read from actual font bytes
 //! through `swash` — the same stack upstream obscura-render builds its text
 //! engine on (cosmic-text fork + swash 0.2) — so text-derived rects become a
-//! function of the fixture glyphs, not a guess.
-//!
-//! Both sides of the blitz cross-check load the SAME fixture bytes: ours
-//! through this module, blitz's through `DocumentConfig.font_ctx` with
-//! `system_fonts: false` and the fixture registered under a pinned family
-//! name. Advances therefore differ only by shaping: parley 0.10 shapes with
-//! harfrust while we shape with swash — identical by construction for CJK
-//! (no kerning, one glyph per char, advance = full-width) and within
-//! tolerance for the kerned Latin our fixtures use.
+//! function of the fixture glyphs, not a guess. (The blitz cross-check this
+//! paragraph used to justify — same fixture bytes on both engines, shaping
+//! as the only delta — retired with the reference pipeline 2026-11-06.)
 //!
 //! Regenerate the fixtures with `scripts/make_font_fixture.py`.
 //!

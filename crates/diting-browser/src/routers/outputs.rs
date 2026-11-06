@@ -57,10 +57,9 @@ pub struct ScreenshotRequest {
     #[serde(default)]
     pub diting_rects: bool,
     /// Render engine: "diting" (default — our own css+layout+paint stack,
-    /// no Stylo/vello/parley in the path) or "blitz" (the Blitz reference
-    /// pipeline via the pinned rev, for comparison renders; requires the
-    /// `blitz-reference` feature at build time — without it the request
-    /// errors instead of silently switching engines).
+    /// no Stylo/vello/parley in the path). "blitz" was the retired
+    /// comparison pipeline (deleted 2026-11-06) and now errors with a
+    /// pointer instead of silently switching engines.
     #[serde(default)]
     pub engine: Option<String>,
     /// Route through DITING_PROXY. Default false (direct).

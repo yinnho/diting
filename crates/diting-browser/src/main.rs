@@ -55,15 +55,6 @@ mod store;
 // "where did this session land" — challenge/captcha/login/empty/landed/
 // unknown from signals the engine already holds. No evals, no model.
 mod verdict;
-// The Blitz reference pipeline — cross-check oracle for diting, opt-in via
-// `blitz-reference`. Not compiled in production/device builds.
-#[cfg(feature = "blitz-reference")]
-mod screenshot_reference;
-// Dual-engine cross-check tests (diting vs blitz). Lives in the product crate
-// so the diting engine carries zero product/blitz references (ARCHITECTURE.md
-// §2 rule R2; moved with the workspace split).
-#[cfg(all(test, feature = "blitz-reference"))]
-mod bridge_cross_check;
 // Env-knob test guards shared by this crate's single test binary (see the
 // module docs for why the engine's own guards can't be reused).
 #[cfg(test)]

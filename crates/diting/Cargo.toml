@@ -10,28 +10,23 @@ publish = false
 
 [features]
 default = []
-# The blitz reference pipeline's parley FontContext (diting_fonts::font_ctx
-# and friends). The engine never depends on blitz itself; this only gates the
-# small FontContext surface the product crate's blitz cross-check pipeline
-# consumes — forwarded from the product's `blitz-reference` feature.
-blitz-reference = ["dep:parley"]
 # Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL).
 # Disable for plain reqwest-only builds.
 stealth = ["dep:diting_wire", "dep:diting_profiles"]
 # Screenshot rendering via the diting engine (own CSS+layout+paint
-# stack on the taffy/parley/swash/vello_cpu foundation). Opt-in; renders the
+# stack on the taffy/swash/vello_cpu foundation). Opt-in; renders the
 # JS-rendered DOM (captured by the diting V8 path) to a PNG — no Chromium
-# required, no blitz.
+# required. (The blitz reference pipeline and its parley FontContext
+# surface were retired 2026-11-06; diting's text stack is swash + its
+# own greedy_wrap, zero parley.)
 screenshot = [
     "dep:anyrender",
     "dep:anyrender_vello_cpu",
     "dep:peniko",
     "dep:png",
     # JPEG/WebP/GIF decode for diting_layout's ImageCache (batches 6d/7b/7e).
-    # Same `image` crate version blitz-dom decodes with, so RGBA output is
-    # identical (only relevant when blitz-reference is also on). Animated
-    # GIFs take the first frame. `png` is needed by the CDP legacy path,
-    # which re-encodes JPEG captures from the rendered PNG bytes.
+    # Animated GIFs take the first frame. `png` is needed by the CDP legacy
+    # path, which re-encodes JPEG captures from the rendered PNG bytes.
     "dep:image",
     "image/jpeg",
     "image/png",
@@ -43,15 +38,6 @@ screenshot = [
     # (render claim batches 3a/3b). Same stack upstream obscura-render builds
     # on. scale/render are the outline raster features (3b paint).
     "dep:swash",
-    # parley is consumed ONLY behind `blitz-reference` (diting_fonts'
-    # FontContext + the cross-check fixtures); diting's own text stack is
-    # swash + its own greedy_wrap (batch 72). Kept under `screenshot` for
-    # historical layering — blitz-reference gates on screenshot.
-    "dep:parley",
-    # musl cross builds cannot link fontconfig at build time (no pkg-config
-    # sysroot). dlopen defers libfontconfig to runtime; fontique degrades
-    # gracefully when it is absent (bundled CJK fonts carry the render).
-    "fontique/fontconfig-dlopen",
 ]
 
 [dependencies]
@@ -64,11 +50,9 @@ screenshot = [
 # indefinite percentage flex-basis (falls back to content sizing instead
 # of collapsing to 0, our #241), the #1278-#1284 grid family, and the
 # block-layout vertical-margins rework; 0.15.0 = that rev + #1293/#1242 +
-# the release bump, so the pin is gone. Root-crate blitz-reference still
-# pulls blitz@916fa89 whose own taffy stays a git copy versioned 0.14.0 —
-# a different version, so cargo keeps the copies separate; keep mirroring
-# blitz's feature set (default-features = false, no float_layout) anyway
-# so toggling blitz-reference can't shift diting's layout behavior.
+# the release bump, so the pin is gone. (The second taffy copy — 0.14.0,
+# riding along with the blitz reference pipeline — left the tree when that
+# pipeline was deleted 2026-11-06; 0.15 is now the only taffy.)
 # taffy_tree is additionally listed because the unified graph already enables
 # it (Cargo.lock shows taffy pulling slotmap) — an explicit no-op.
 # Used by diting_layout box layout and the fork-delta tests (docs/engine/render.md).
@@ -95,13 +79,8 @@ swash = { version = "0.2", optional = true, default-features = false, features =
     "scale",
     "render",
 ] }
-# parley provides the FontContext the blitz-reference cross-check fixtures
-# build (diting itself shapes via swash). Mirrors blitz's own declaration
-# (default-features false, std) so the unified graph can't drift blitz's
-# parley behavior when blitz-reference is on.
-parley = { version = "0.11.1", optional = true, default-features = false, features = ["std"] }
-# Runtime-dlopen fontconfig for musl cross builds (see `screenshot` feature).
-fontique = { version = "0.11", optional = true }
+# (parley/fontique were the retired blitz-reference fixture stack's shaping
+# stack — diting itself shapes via swash; removed with the pipeline 2026-11-06.)
 # --- async runtime ---
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"

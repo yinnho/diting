@@ -48,8 +48,6 @@ fn features_check() -> Check {
     let feats: Vec<&str> = vec![
         #[cfg(feature = "screenshot")]
         "screenshot",
-        #[cfg(feature = "blitz-reference")]
-        "blitz-reference",
         #[cfg(feature = "stealth")]
         "stealth",
     ];
