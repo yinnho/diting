@@ -3941,11 +3941,13 @@ __platform.define("fontfaceset", function (exports, require, P) {
 "use strict";
 // document.fonts / FontFaceSet (M4 knife 52). The engine's `document.fonts` was a plain ARRAY of fake FontFace-tagged objects with
 // `forEach/has/check/...` grafted on as own properties (so `Array.isArray(document.fonts)` was true, `size` undefined, `check()`
-// answered false for unknown families), and the stub interfaces FontFaceSet / CSSPseudoElement stood on `window`. Chrome 145: a real
-// FontFaceSet (EventTarget, set of FontFace, insertion-ordered, `size`), whose interface object is NOT exposed on window, empty by
-// default (only faces a page adds or an @font-face declares), `check()` true for any family no registered face claims (and the font
-// shorthand must parse: SyntaxError "Could not resolve '...' as a font."), `load()` a promise of the matching faces.
-// Truth: chrome/fonts-truth-145.json (fonts-probe.js, 19 keys, diffed by fonts_matches_chrome_truth).
+// answered false for unknown families), and the stub interfaces FontFaceSet / CSSPseudoElement stood on `window`. Chrome: a real
+// FontFaceSet (EventTarget, set of FontFace, insertion-ordered, `size`), empty by default (only faces a page adds or an @font-face
+// declares), `check()` true for any family no registered face claims (and the font shorthand must parse: SyntaxError "Could not
+// resolve '...' as a font."), `load()` a promise of the matching faces. 157 (vs 145): the FontFaceSet interface object is exposed
+// on window with a prototype `constructor`, and FontFace grew `width` (CSS Fonts 4's rename of font-stretch: its own accessor pair,
+// same storage as `stretch`, listed before it).
+// Truth: chrome/fonts-truth-157.json (fonts-probe.js, 27 keys, diffed by fonts_matches_chrome_truth).
 
 // ---------------------------------------------------------------- FontFace
 const NAMED_STRETCH = /^(ultra-condensed|extra-condensed|condensed|semi-condensed|normal|semi-expanded|expanded|extra-expanded|ultra-expanded)$/i;
@@ -4007,6 +4009,13 @@ function FontFace(family, source, descriptors) {
     const v = VALID[k](String(d[k]));
     if (v === null) ok = false; else s.desc[k] = v;
   }
+  // `width` is the CSS Fonts 4 name of the stretch descriptor and writes the same slot; IDL dictionaries convert members in
+  // lexicographic order, so with both present `width` lands last and wins (real 157: {width:'expanded', stretch:'condensed'}
+  // reads 'expanded' on both).
+  if (d.width !== undefined) {
+    const v = VALID.stretch(String(d.width));
+    if (v === null) ok = false; else s.desc.stretch = v;
+  }
   s.loaded = new Promise((res, rej) => { s.resolve = res; s.reject = rej; });
   s.loaded.catch(() => {});
   if (!ok) { s.status = 'error'; s.reject(new DOMException('A network error occurred.', 'NetworkError')); }
@@ -4018,10 +4027,11 @@ const FFP = P.iface(FontFace, 'FontFace', 2);
 Object.defineProperty(FontFace, 'length', { value: 2, writable: false, enumerable: false, configurable: true });
 const setErr = (prop, v) => { throw new DOMException("Failed to set the '" + prop + "' property on 'FontFace': Failed to set '" + v + "' as a property value.", 'SyntaxError'); };
 P.accessor(FFP, 'family', function __f() { return fstate(this, __f).family; }, function __f(v) { fstate(this, __f).family = P.conv.DOMString(v, "Failed to set the 'family' property on 'FontFace'", __f); });
-for (const k of ['style', 'weight', 'stretch', 'unicodeRange', 'variant', 'featureSettings', 'display', 'ascentOverride', 'descentOverride', 'lineGapOverride', 'sizeAdjust']) {
-  P.accessor(FFP, k, function __f() { return fstate(this, __f).desc[k]; }, function __f(v) {
+for (const k of ['style', 'weight', 'width', 'stretch', 'unicodeRange', 'variant', 'featureSettings', 'display', 'ascentOverride', 'descentOverride', 'lineGapOverride', 'sizeAdjust']) {
+  const slot = k === 'width' ? 'stretch' : k; // width/stretch: two accessor pairs, one descriptor
+  P.accessor(FFP, k, function __f() { return fstate(this, __f).desc[slot]; }, function __f(v) {
     const s = fstate(this, __f); const str = P.conv.DOMString(v, "Failed to set the '" + k + "' property on 'FontFace'", __f);
-    const c = VALID[k](str); if (c === null) setErr(k, str, __f); s.desc[k] = c;
+    const c = VALID[slot](str); if (c === null) setErr(k, str, __f); s.desc[slot] = c;
   });
 }
 P.getter(FFP, 'status', function __f() { return fstate(this, __f).status; });
@@ -4135,7 +4145,10 @@ P.method(FP, 'keys', 0, function __f() { return Array.from(st(this, __f).faces)[
 const values = function __f() { return st(this, __f).faces.values(); };
 P.method(FP, 'values', 0, values);
 Object.defineProperty(FP, Symbol.iterator, { value: values, writable: true, enumerable: false, configurable: true });
-// (no `constructor` own property: the interface object is not exposed, Chrome's prototype has none either)
+// 157 exposes the interface (145 did not): `constructor` last on the prototype, and the window name is THIS class, not a
+// global_surface stub (global_surface skips names already present), so document.fonts.constructor === FontFaceSet.
+P.seal(FontFaceSet);
+P.expose('FontFaceSet', FontFaceSet);
 
 // ---- the single per-document instance, and the Document.fonts accessor
 const insts = new WeakMap();

@@ -2132,7 +2132,8 @@ fn conn_uad_face_p6() {
             r.u_proto = JSON.stringify(Object.getOwnPropertyNames(Object.getPrototypeOf(uad)));
             r.u_mobile = uad.mobile === false;
             r.u_mobile_proto = typeof Object.getOwnPropertyDescriptor(Object.getPrototypeOf(uad), 'mobile').get;
-            r.u_json_shape = (function(){ var j = uad.toJSON(); return j.mobile === false && typeof j.platform === 'string' && j.platform.length > 0 && j.brands.length === 3 && j.brands[0].brand === 'Not:A-Brand' && j.brands[1].brand === 'Google Chrome' && j.brands[2].brand === 'Chromium' && j.brands[1].version === '145' && j.brands[1].version === j.brands[2].version && j.brands[0].version === '99'; })();
+            r.u_json_shape = (function(){ var j = uad.toJSON(); return j.mobile === false && typeof j.platform === 'string' && j.platform.length > 0; })();
+            r.u_json_brands = JSON.stringify(uad.toJSON().brands);
             r.u_gev = typeof uad.getHighEntropyValues === 'function';
             r.u_instanceof = uad instanceof NavigatorUAData;
             r.u_enum = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(uad), 'brands').enumerable === true;
@@ -2160,6 +2161,7 @@ fn conn_uad_face_p6() {
         "u_tag",
         "u_proto",
         "u_mobile_proto",
+        "u_json_brands",
     ];
     for k in obj.keys() {
         if typed.contains(&k.as_str()) {
@@ -2171,6 +2173,25 @@ fn conn_uad_face_p6() {
             k, obj[k]
         );
     }
+    // toJSON().brands, derived from the target instead of pinned (the '145'/'99' literals went red on the 157 flip, #28):
+    // Chromium's GREASE (user_agent_utils.cc GenerateBrandVersionList), re-derived here independently of ua_helpers.js so the
+    // test is an oracle, not a copy - "Not"+C[m%11]+"A"+C[(m+1)%11]+"Brand" at [8,99,24][m%3], [grease, Chromium, Google
+    // Chrome] placed by ORD3[m%6] (shuffled[order[i]] = list[i]).
+    let m = crate::chrome_target::CHROME_MAJOR as usize;
+    const C: [&str; 11] = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
+    const ORD3: [[usize; 3]; 6] = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+    let list = [
+        (format!("Not{}A{}Brand", C[m % 11], C[(m + 1) % 11]), ["8", "99", "24"][m % 3].to_string()),
+        ("Chromium".to_string(), m.to_string()),
+        ("Google Chrome".to_string(), m.to_string()),
+    ];
+    let mut want = vec![serde_json::Value::Null; 3];
+    for (i, (brand, version)) in list.into_iter().enumerate() {
+        want[ORD3[m % 6][i]] = serde_json::json!({ "brand": brand, "version": version });
+    }
+    let brands: serde_json::Value =
+        serde_json::from_str(obj["u_json_brands"].as_str().unwrap()).unwrap();
+    assert_eq!(brands, serde_json::Value::Array(want), "UA-CH brands for Chrome {m}");
     assert_eq!(obj["ni_type"], "function");
     assert_eq!(obj["nuad_type"], "function");
     assert_eq!(
@@ -30620,6 +30641,19 @@ fn js_surface_snapshot_matches_fixture() {
         let e: std::collections::BTreeSet<&str> = expected.lines().collect();
         let added: Vec<&&str> = a.difference(&e).take(40).collect();
         let gone: Vec<&&str> = e.difference(&a).take(40).collect();
+        // Set-equal but not byte-equal = order / duplicate-line drift, which the set diff above
+        // shows as two empty lists (#28): name the first diverging line instead.
+        if added.is_empty() && gone.is_empty() {
+            let at = actual
+                .lines()
+                .zip(expected.lines())
+                .position(|(x, y)| x != y);
+            panic!(
+                "JS surface drifted from surface_snapshot.txt in ORDER or DUPLICATES only (same line set): first divergence at line {at:?} (actual {} lines, fixture {})",
+                actual.lines().count(),
+                expected.lines().count()
+            );
+        }
         panic!(
             "JS surface drifted from surface_snapshot.txt.\n  NEW (leak? or intentional):\n{added:#?}\n  GONE (compat break?):\n{gone:#?}\nIf intentional: UPDATE_SURFACE_SNAPSHOT=1 cargo test -p diting js_surface_snapshot, then record the change in the commit message (the engine ledger is local-only)"
         );
@@ -31425,7 +31459,7 @@ fn htmlelement_members_match_chrome_truth_except_known_gaps() {
 }
 
 /// M4 knife 3: the EventTarget family's INHERITANCE face. Chrome truth
-/// (eventtarget-chain-truth-145.json, 43 keys) pins, for all 147 non-DOM
+/// (eventtarget-chain-truth-157.json, 43 keys; 157 re-truth 2026-11-06) pins, for all 155 non-DOM
 /// interfaces of the family: the full prototype chain (constructor names per
 /// level), that the trio is never an own member of a leaf prototype
 /// (ownTrio), live listener/dispatch round-trips on constructible leaves,
@@ -31456,7 +31490,7 @@ fn eventtarget_chains_match_chrome_truth_except_known_gaps() {
     let engine: serde_json::Value =
         serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/eventtarget-chain-truth-145.json"
+        "../../../../../tools/webplatform/chrome/eventtarget-chain-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -31532,7 +31566,7 @@ fn eventtarget_chains_match_chrome_truth_except_known_gaps() {
 }
 
 /// M4 knife 4: the Element staged family, landed. Chrome truth
-/// (element-staged-truth-145.json, 38 keys) pins the nine members the
+/// (element-staged-truth-157.json, 38 keys; 157 re-truth: computed length 413->480) pins the nine members the
 /// knife-2 ledger staged — part (cached DOMTokenList rw accessor),
 /// attributeStyleMap/computedStyleMap (Typed OM; StylePropertyMap/
 /// StylePropertyMapReadOnly owned by the stylemap module: ctor keeps
@@ -31564,7 +31598,7 @@ async fn element_staged_members_match_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/element-staged-truth-145.json"
+        "../../../../../tools/webplatform/chrome/element-staged-truth-157.json"
     ))
     .unwrap();
     let eng_gcs = engine["gcs.len"].clone();
@@ -32804,8 +32838,11 @@ async fn get_element_by_id_ignores_detached_nodes_after_inner_html() {
     assert_eq!(out.as_str().unwrap(), "[false,false,true,1,null]");
 }
 
-/// M4 knife 52 - document.fonts is a real FontFaceSet (EventTarget, insertion-ordered set of FontFace, interface object not exposed on
-/// window) and FontFace has Chrome 145's full descriptor surface; fonts-probe.js, 27 keys against Chrome for Testing.
+/// M4 knife 52 - document.fonts is a real FontFaceSet (EventTarget, insertion-ordered set of FontFace) and FontFace has Chrome's
+/// full descriptor surface; fonts-probe.js, 27 keys against real Chrome 157 (157 exposes the FontFaceSet interface with a prototype
+/// `constructor`, and FontFace grew `width`). KNOWN GAP, must shrink: `win[4]` is FontFaceSet's ABSOLUTE index in
+/// getOwnPropertyNames(window) - the engine reads 4 high because window/top/location/document are non-configurable at install
+/// time and sit at the head of the order (#30); every other element is compared exactly.
 #[tokio::test(flavor = "current_thread")]
 async fn fonts_matches_chrome_truth() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -32814,10 +32851,45 @@ async fn fonts_matches_chrome_truth() {
         .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
         .await
         .unwrap();
+    let mut engine: serde_json::Value =
+        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+    let mut truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tools/webplatform/chrome/fonts-truth-157.json"
+    ))
+    .unwrap();
+    // #30: absolute window-order index, offset by the head-stuck non-configurable globals.
+    engine["win"][4] = serde_json::Value::Null;
+    truth["win"][4] = serde_json::Value::Null;
+    let mut bad = Vec::new();
+    for (k, want) in truth.as_object().unwrap() {
+        if &engine[k] != want {
+            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} probe(s) off:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// #28 - FontFace.width (CSS Fonts 4's rename of font-stretch, new between 146 and 157) and the exposed FontFaceSet
+/// interface, against real Chrome 157 (fonts-width-probe.js, 15 keys): width is its OWN accessor pair over the stretch
+/// slot, a descriptors dict carrying both lets `width` win (IDL converts members lexicographically), and
+/// document.fonts.constructor is the window's FontFaceSet - not a global_surface stub.
+#[tokio::test(flavor = "current_thread")]
+async fn fontface_width_and_fontfaceset_iface_match_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../../tools/webplatform/chrome/fonts-width-probe.js");
+    let result = rt
+        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+        .await
+        .unwrap();
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/fonts-truth-145.json"
+        "../../../../../tools/webplatform/chrome/fonts-width-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -32835,7 +32907,8 @@ async fn fonts_matches_chrome_truth() {
 }
 
 /// M4 knife 53 - the window's own ENUMERABLE keys (for-in + hasOwnProperty: what for-in, JSON.stringify, Object.assign and spread see;
-/// Object.keys / getOwnPropertyNames are patched by the engine and cannot be trusted for this) must be exactly Chrome 145's 237.
+/// Object.keys / getOwnPropertyNames are patched by the engine and cannot be trusted for this) must be exactly real Chrome 157's
+/// (enum-truth-157.json selfWin; 157 vs 145: +requestResize, -sharedStorage).
 /// Top-level function/var declarations are non-configurable enumerable window properties that no defineProperty can hide, so every
 /// script keeps its top level in a function scope and re-exports only the names others need (hidden); see analyze.mjs --gen-exports.
 #[tokio::test(flavor = "current_thread")]
@@ -32848,7 +32921,7 @@ async fn window_enumerable_own_keys_match_chrome_truth() {
         .unwrap();
     let engine: Vec<String> = serde_json::from_str(out.as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/enum-truth-145.json"
+        "../../../../../tools/webplatform/chrome/enum-truth-157.json"
     ))
     .unwrap();
     let mut chrome: Vec<String> = truth["selfWin"]
@@ -32867,7 +32940,7 @@ async fn window_enumerable_own_keys_match_chrome_truth() {
 }
 
 /// M4 knife 53 - the own-ENUMERABLE keys of ~200 objects (every element tag, nodes, ranges, events, XHR/WebSocket/streams, singletons,
-/// canvas, observers, URL family, ...) against Chrome 145 (chrome/enum-probe.js, enum-truth-145.json). for-in + hasOwnProperty is what
+/// canvas, observers, URL family, ...) against real Chrome 157 (chrome/enum-probe.js, enum-truth-157.json). for-in + hasOwnProperty is what
 /// for-in / JSON.stringify / Object.assign / spread see. KNOWN GAPS are listed explicitly and must shrink, never grow:
 ///   newdoc    - createHTMLDocument()/DOMParser documents are plain objects, not Documents
 ///   gain/ctxDest - Web Audio nodes are plain objects (GainNode/AudioDestinationNode identity missing)
@@ -32884,7 +32957,7 @@ async fn own_enumerable_keys_match_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/enum-truth-145.json"
+        "../../../../../tools/webplatform/chrome/enum-truth-157.json"
     ))
     .unwrap();
     const SKIP: &[&str] = &[
