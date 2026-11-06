@@ -235,7 +235,7 @@ fn prefer_mac_persona() -> bool {
     cfg!(target_os = "macos")
 }
 
-/// Chrome major from a UA string (`Chrome/145` → 154). None when absent.
+/// Chrome major from a UA string (`Chrome/157` → 157). None when absent.
 fn chrome_major_from_ua(ua: &str) -> Option<u32> {
     let rest = ua.split("Chrome/").nth(1)?;
     let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
@@ -246,18 +246,18 @@ fn chrome_major_from_ua(ua: &str) -> Option<u32> {
 /// source (`diting_net::CLAIMED_CHROME_MAJOR`, ungated #276 P2-6): UA
 /// strings, persona coercion, and the TLS preset face move together, and
 /// the coherence tripwire test runs next to the constant in every build.
-/// Why 145 and not a newer major: edge-routing reconnaissance (which UA
-/// majors the target edges route to production vs sandbox loops) plus
-/// the TLS preset ceiling — the site-specific routing table is private
-/// operational data (asset separation 2026-10-25); the value and its
-/// coherence invariant stay public.
+/// The value follows Chrome stable via chrome-target.toml (the wreq stack is
+/// vendored, so presets are self-owned — no upstream ceiling). Edge-routing
+/// recon (which UA majors route to production) is re-probed per bump — the
+/// site-specific routing table is private operational data (asset separation
+/// 2026-10-25); the value and its coherence invariant stay public.
 fn default_tls_chrome_major() -> u32 {
     diting::diting_net::CLAIMED_CHROME_MAJOR
 }
 
 /// Rewrite a UA whose Chrome major disagrees with the fleet-claimed major
-/// onto a same-OS Chrome/145 from the persona pool (Mac fallback). Returns
-/// the original string when already aligned.
+/// onto a same-OS fleet-major Chrome from the persona pool (Mac fallback).
+/// Returns the original string when already aligned.
 fn coerce_ua_to_tls(ua: &str) -> String {
     if chrome_major_from_ua(ua) == Some(default_tls_chrome_major()) {
         return ua.to_string();
@@ -277,16 +277,16 @@ fn coerce_ua_to_tls(ua: &str) -> String {
         .or_else(|| pool.first().copied())
         .unwrap_or_else(default_mac_chrome_ua);
     tracing::warn!(
-        "persona UA Chrome major mismatches fleet Chrome{} (TLS shape stays chrome145); rewriting to coherent pool UA",
+        "persona UA Chrome major mismatches fleet Chrome{}; rewriting to coherent pool UA",
         default_tls_chrome_major()
     );
     pick.to_string()
 }
 
 /// Resolve the UA hint for a fresh account persona teach:
-/// 1. explicit `persona_ua` / import UA when non-empty (fleet-major coerced to 154)
-/// 2. else `DITING_UA` when set (same coerce; TLS shape stays chrome145)
-/// 3. else Mac Chrome/145 when [`prefer_mac_persona`]
+/// 1. explicit `persona_ua` / import UA when non-empty (coerced to the fleet major)
+/// 2. else `DITING_UA` when set (same coerce)
+/// 3. else Mac fleet Chrome when [`prefer_mac_persona`]
 /// 4. else `None` → Win/Mac pool lottery in [`draw_persona`]
 pub fn resolve_ua_hint(explicit: Option<&str>) -> Option<String> {
     if let Some(u) = explicit.map(str::trim).filter(|u| !u.is_empty()) {
@@ -306,9 +306,9 @@ pub fn resolve_ua_hint(explicit: Option<&str>) -> Option<String> {
 
 /// Draw a fresh persona: random fp_seed (same uuid cut `Page::new` uses) and
 /// a UA — `ua_hint` after fleet-major coerce when given (an imported cURL's
-/// User-Agent is the human's device, but Chrome major must still be 154 to
-/// match the fleet claim; TLS JA3 stays chrome145-shaped), else a pick from
-/// the Chrome/145 Win+Mac pool keyed off the seed. On Darwin (or
+/// User-Agent is the human's device, but the Chrome major must still match
+/// the fleet claim), else a pick from the fleet-major Win+Mac pool keyed off
+/// the seed. On Darwin (or
 /// `DITING_PERSONA_OS=mac`) the pool draw is Mac-only.
 fn draw_persona(ua_hint: Option<&str>) -> Persona {
     let fp_seed = u64::from_be_bytes(uuid::Uuid::new_v4().into_bytes()[..8].try_into().unwrap());
@@ -363,7 +363,7 @@ fn teach_persona(record: &mut serde_json::Value, drawn: &Persona) -> Persona {
             if fixed == p.user_agent {
                 return p;
             }
-            // Normalize stored stale-major jars onto the fleet chrome145 once.
+            // Normalize stored stale-major jars onto the fleet major once.
             let normalized = Persona {
                 fp_seed: p.fp_seed,
                 user_agent: fixed,
@@ -1152,15 +1152,21 @@ mod tests {
         assert!(!resolve_use_proxy(&serde_json::json!({}), false));
     }
 
-    // The pool is the persona's fleet-UA contract: Chrome/145 only (matches
-    // the claimed major; TLS handshake shape stays chrome145), both desktop
-    // OSes present so Win/Mac is the differentiation axis — never Linux/X11.
+    // The pool is the persona's fleet-UA contract: the target major only
+    // (matches the claimed major), both desktop OSes present so Win/Mac is
+    // the differentiation axis — never Linux/X11.
     #[test]
-    fn persona_pool_is_chrome145_win_and_mac() {
+    fn persona_pool_is_fleet_chrome_win_and_mac() {
         let pool = persona_ua_pool();
         assert!(pool.len() >= 2, "pool: {pool:?}");
         for ua in &pool {
-            assert!(ua.contains("Chrome/145.0.0.0"), "out of family: {ua}");
+            assert!(
+                ua.contains(&format!(
+                    "Chrome/{}.0.0.0",
+                    diting::chrome_target::CHROME_MAJOR
+                )),
+                "out of family: {ua}"
+            );
             assert!(
                 !ua.contains("Linux") && !ua.contains("X11"),
                 "Linux must stay out of persona pool: {ua}"
@@ -1176,9 +1182,15 @@ mod tests {
 
     #[test]
     fn coerce_ua_rewrites_chrome_major_mismatch() {
-        let bad = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
+        let bad = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
         let fixed = coerce_ua_to_tls(bad);
-        assert!(fixed.contains("Chrome/145.0.0.0"), "got {fixed}");
+        assert!(
+            fixed.contains(&format!(
+                "Chrome/{}.0.0.0",
+                diting::chrome_target::CHROME_MAJOR
+            )),
+            "got {fixed}"
+        );
         assert!(fixed.contains("Macintosh"), "got {fixed}");
         let good = default_mac_chrome_ua();
         assert_eq!(coerce_ua_to_tls(good), good);
@@ -1191,9 +1203,15 @@ mod tests {
     #[test]
     fn draw_persona_honors_hint_then_pool() {
         let real = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
-        // Out-of-family Chrome major is rewritten onto fleet chrome145 same-OS.
+        // Out-of-family Chrome major is rewritten onto the fleet major, same-OS.
         let drawn = draw_persona(Some(real)).user_agent;
-        assert!(drawn.contains("Chrome/145.0.0.0"), "got {drawn}");
+        assert!(
+            drawn.contains(&format!(
+                "Chrome/{}.0.0.0",
+                diting::chrome_target::CHROME_MAJOR
+            )),
+            "got {drawn}"
+        );
         assert!(drawn.contains("Windows NT"), "got {drawn}");
         // Empty hints fall through to the pool — membership, not two random
         // draws agreeing (the pool holds two UAs, so that's a coin flip).
@@ -1262,7 +1280,10 @@ mod tests {
         let normalized = teach_persona(&mut stale, &drawn);
         assert_eq!(normalized.fp_seed, 42);
         assert!(
-            normalized.user_agent.contains("Chrome/145.0.0.0"),
+            normalized.user_agent.contains(&format!(
+                "Chrome/{}.0.0.0",
+                diting::chrome_target::CHROME_MAJOR
+            )),
             "got {}",
             normalized.user_agent
         );

@@ -272,6 +272,14 @@ pub struct TlsOptions {
     /// **Default:** `None`
     pub sigalgs_list: Option<Cow<'static, str>>,
 
+    /// Raw wire-value verify signature algorithms — what the ClientHello's
+    /// `signature_algorithms` extension carries, for schemes BoringSSL cannot
+    /// name (Chrome 157's ML-DSA lead). When set it wins the verify side over
+    /// [`Self::sigalgs_list`], which then only seeds the signing side.
+    ///
+    /// **Default:** `None`
+    pub sigalgs_verify_prefs: Option<Cow<'static, [u16]>>,
+
     /// Cipher suite configuration string.
     ///
     /// Uses BoringSSL's mini-language to select, enable, and prioritize ciphers.
@@ -495,6 +503,16 @@ impl TlsOptionsBuilder {
         self
     }
 
+    /// Sets the verify-side signature algorithms as raw TLS wire values.
+    #[inline]
+    pub fn sigalgs_verify_prefs<T>(mut self, prefs: T) -> Self
+    where
+        T: Into<Option<Cow<'static, [u16]>>>,
+    {
+        self.config.sigalgs_verify_prefs = prefs.into();
+        self
+    }
+
     /// Sets the certificate compression algorithms.
     #[inline]
     pub fn certificate_compressors<T>(mut self, algs: T) -> Self
@@ -594,6 +612,7 @@ impl Default for TlsOptions {
             curves_list: None,
             cipher_list: None,
             sigalgs_list: None,
+            sigalgs_verify_prefs: None,
             certificate_compressors: None,
             extension_permutation: None,
             aes_hw_override: None,

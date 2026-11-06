@@ -27,10 +27,10 @@ pub struct BrowserContext {
     #[allow(dead_code)]
     // gate is enforced at HttpClient construction; field kept for introspection
     pub allow_private_network: bool,
-    /// TLS fingerprint name override (stealth mode only): "chrome145",
-    /// "firefox133", etc. None → Chrome145. Kept as a String (not the
-    /// `Emulation` enum) so the field exists regardless of the `stealth`
-    /// feature; parsed into an `Emulation` lazily in the stealth client.
+    /// TLS fingerprint name override (stealth mode only): "chrome157",
+    /// "firefox133", etc. None → the chrome-target default. Kept as a String
+    /// (not the `Emulation` enum) so the field exists regardless of the
+    /// `stealth` feature; parsed into an `Emulation` lazily in the stealth client.
     #[cfg_attr(not(feature = "stealth"), allow(dead_code))]
     pub tls_fingerprint: Option<String>,
 }
@@ -162,9 +162,9 @@ impl BrowserContext {
             client.tls_fingerprint = tls_fingerprint.clone();
         }
         // Resolution chain: explicit per-context UA → DITING_UA → the
-        // fingerprint pool's stable default (macOS Chrome/145 UA; TLS shape
-        // stays chrome145 — pin or rotate via DITING_PROFILE /
-        // DITING_ROTATE_PROFILE; see profiles.rs).
+        // fingerprint pool's stable default (the chrome-target macOS Chrome
+        // UA; pin or rotate via DITING_PROFILE / DITING_ROTATE_PROFILE; see
+        // profiles.rs).
         let resolved_ua = user_agent.unwrap_or_else(|| {
             std::env::var("DITING_UA").unwrap_or_else(|_| {
                 crate::diting_browser::profiles::select_profile()

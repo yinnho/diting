@@ -17,7 +17,7 @@ use std::{
 use btls::{
     error::ErrorStack,
     ex_data::Index,
-    ssl::{Ssl, SslConnector, SslMethod, SslOptions, SslSessionCacheMode},
+    ssl::{Ssl, SslConnector, SslMethod, SslOptions, SslSessionCacheMode, SslSignatureAlgorithm},
 };
 use ext::SslConnectorBuilderExt;
 
@@ -400,6 +400,21 @@ impl TlsConnectorBuilder {
 
         // Set TLS signature algorithms list
         set_option_ref_try!(opts, sigalgs_list, connector, set_sigalgs_list);
+
+        // Raw verify prefs, for schemes BoringSSL cannot name (Chrome 157's ML-DSA lead).
+        // Applied after the string form so the raw list wins the ClientHello extension.
+        // The setter validates against BoringSSL's own scheme table, which predates
+        // ML-DSA — until the snapshot learns those values this fails and we keep the
+        // string list (logged, not fatal: the rest of the 157 face still ships).
+        if let Some(prefs) = opts.sigalgs_verify_prefs.as_deref() {
+            let prefs: Vec<_> = prefs
+                .iter()
+                .map(|v| SslSignatureAlgorithm::from(*v))
+                .collect();
+            if let Err(_e) = connector.set_verify_algorithm_prefs(&prefs) {
+                warn!("sigalgs_verify_prefs rejected ({_e:?}); keeping the string-list sigalgs");
+            }
+        }
 
         // Set TLS prreserve TLS 1.3 cipher list order
         set_option!(

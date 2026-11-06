@@ -31,10 +31,11 @@ pub const STEALTH_USER_AGENT: &str = crate::chrome_target::UA_DEFAULT;
 pub const DEFAULT_TLS_FINGERPRINT: &str = crate::chrome_target::TLS_PROFILE_NAME;
 
 /// Map a user-friendly TLS fingerprint name to a wreq-util `Profile`
-/// variant. Accepted values (case-insensitive): "chrome145"/"chrome",
-/// "chrome131", "firefox133"/"firefox", "firefox147", "safari17_5"/"safari",
-/// "safari18", "edge145"/"edge". Returns None for unknown names (caller falls
-/// back to Chrome145). Only meaningful when the `stealth` feature is enabled.
+/// variant. Accepted values (case-insensitive): "chrome"/"chrome157" (the
+/// current target), "chrome145", "chrome131", "firefox133"/"firefox",
+/// "firefox147", "safari17_5"/"safari", "safari18", "edge145"/"edge". Returns
+/// None for unknown names (caller falls back to the chrome-target default).
+/// Only meaningful when the `stealth` feature is enabled.
 /// (rc.28→rc.31: this used to return an `Emulation` variant directly; the
 /// flat enum is now `Profile`, and `Emulation` is the profile+platform
 /// builder passed to `ClientBuilder::emulation`.)
@@ -43,6 +44,7 @@ pub fn parse_tls_fingerprint(s: &str) -> Option<diting_profiles::Profile> {
     match s.to_ascii_lowercase().as_str() {
         "chrome" => Some(crate::chrome_target::target_tls_profile()),
         "chrome145" => Some(diting_profiles::Profile::Chrome145),
+        "chrome157" => Some(diting_profiles::Profile::Chrome157),
         "chrome131" => Some(diting_profiles::Profile::Chrome131),
         "firefox133" | "firefox" => Some(diting_profiles::Profile::Firefox133),
         "firefox147" => Some(diting_profiles::Profile::Firefox147),
@@ -113,11 +115,10 @@ fn fingerprint_family_version(name: &str) -> Option<(&'static str, u32)> {
 /// sec-ch-ua), so UA and ClientHello agree. UNGATED (#276 P2-6): this is
 /// the single source the account-persona coerce and the mismatch warning
 /// read — the days of a mirrored copy in diting/src/account.rs
-/// ended 2026-10-25. Why 145 and not a newer major: wreq-util's presets
-/// stop at 149 and the xhs edge routes UA majors non-monotonically —
-/// 145/154/157/158 reach production, 146–153 and 155/156 are bucketed
-/// into its SIT loop (customer.sit.xiaohongshu.com; 2026-10-17 probe).
-/// 145 is the only production-routed major that a real preset can back.
+/// ended 2026-10-25. The value follows Chrome stable via chrome-target
+/// (157 since 2026-11-06, #25): the wreq stack is vendored so presets are
+/// self-owned. The xhs edge routes UA majors non-monotonously (157 reaches
+/// production; 2026-10-17 probe — re-probe per bump before a large crawl).
 /// History: the fleet claimed 154 over a chrome145-shaped handshake from
 /// 2026-10-17 to 2026-10-20 (UA/TLS mismatch, 300015 on publish_render
 /// persisted); the 2026-10-20 restore made the pair coherent.
@@ -148,9 +149,9 @@ mod face_tripwire {
 /// Warn when the effective UA and the browser claim disagree on family or
 /// major version. With an explicit `tls_fingerprint`, coherence means the UA
 /// rides that fingerprint's family+major (operator chose the pair). With the
-/// default handshake, coherence means the fleet claim: Chrome/145 over the
-/// chrome145-shaped preset — "Chrome/152" in the UA over the fleet claim is
-/// the kind of tell WAFs diff (taobao compat report ⑤). Returns true when a
+/// default handshake, coherence means the fleet claim: UA major equal to the
+/// chrome-target major over the chrome-target preset — "Chrome/152" over a
+/// Chrome/157 fleet is the kind of tell WAFs diff (taobao compat report Ⅴ). Returns true when a
 /// mismatch was logged; `None` fingerprint means the default handshake.
 #[cfg(feature = "stealth")]
 pub fn warn_on_ua_tls_mismatch(ua: &str, tls_fingerprint: Option<&str>) -> bool {
@@ -662,9 +663,10 @@ impl StealthHttpClient {
             // match sec-ch-ua-platform; Chinese sites expect zh-CN).
             let ua = self.user_agent.read().await.clone();
             let lang = self.accept_language.read().await.clone();
-            // Emulation (wreq-util Chrome145) bakes Sec-Ch-Ua v=145 into the
-            // profile. Fleet UA is Chrome/145 — override brands to match UA,
-            // same as the plain client path. Leaving the bake-in is a WAF tell
+            // The emulation preset bakes its own major into Sec-Ch-Ua (the
+            // preset the profile table pins). The fleet UA follows
+            // chrome-target — override brands to match the UA, same as the
+            // plain client path. Leaving the bake-in is a WAF tell
             // (UA 154 + CH 145), measured on httpbin 2026-10-19.
             let (sec_ch_ua, platform) = crate::diting_net::client::derive_client_hints(&ua);
             // Request-local scripted headers (the fetch()/XHR escape hatch)
