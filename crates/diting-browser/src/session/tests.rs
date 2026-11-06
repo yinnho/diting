@@ -5446,3 +5446,43 @@ async fn state_snapshot_reaches_into_open_shadow_dom() {
 
     assert!(mgr.close_and_wait(&sid).await);
 }
+
+#[tokio::test]
+async fn test_await_reply_gives_up_on_zombie_thread() {
+    // A page whose JS swallows the watchdog's terminate (rusty_v8 #2088)
+    // never answers its command. Once the engine declares the session
+    // thread a zombie, the reply wait must fail instead of hanging the HTTP
+    // request — and, for lock-holding callers like /account/verify, the
+    // whole manager. The engine side (verdict on a real spin) is pinned in
+    // diting's test_watchdog_zombie_verdict_marks_and_lifts_owner_thread.
+    let (reply_tx, reply_rx) = tokio::sync::oneshot::channel::<u32>();
+    let (tid_tx, tid_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+    let stuck = std::thread::spawn(move || {
+        tid_tx.send(std::thread::current().id()).unwrap();
+        let _ = release_rx.recv();
+        drop(reply_tx);
+    });
+    let tid = tid_rx.recv().unwrap();
+    // Healthy-but-busy thread: no verdict, the wait keeps waiting.
+    let mut reply_rx = reply_rx;
+    let early = tokio::time::timeout(
+        Duration::from_millis(600),
+        super::manager::await_reply("s_zombie", tid, &mut reply_rx),
+    )
+    .await;
+    assert!(early.is_err(), "no verdict = keep waiting, got {early:?}");
+    diting::diting_js::runtime::set_zombie_thread_for_test(tid, true);
+    let t0 = Instant::now();
+    let r = super::manager::await_reply("s_zombie", tid, &mut reply_rx).await;
+    diting::diting_js::runtime::set_zombie_thread_for_test(tid, false);
+    match r {
+        Err(SessionError::ThreadDied(msg)) => {
+            assert!(msg.contains("zombie"), "names the zombie: {msg}")
+        }
+        other => panic!("expected the zombie verdict, got {other:?}"),
+    }
+    assert!(t0.elapsed() < Duration::from_secs(1), "gives up within one poll");
+    release_tx.send(()).unwrap();
+    stuck.join().unwrap();
+}

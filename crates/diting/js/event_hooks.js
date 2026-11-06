@@ -75,8 +75,13 @@
     // document → window edge is explicit (document.parentNode is null, but
     // Chrome's propagation path continues into the Window — bubbled element
     // events reach window listeners); it terminates there, the global is
-    // not a Node.
-    parent(target) {
+    // not a Node. DOM §4.5: a Document's get-the-parent is null for a
+    // `load` event — element/document loads (link, img, script, a synthetic
+    // dispatch) never reach window listeners; the real window load is
+    // dispatched AT window. Walking past it doubled web-vitals' whenReady
+    // listeners per link load on github.com (window capture 'load' that
+    // re-registers itself) — exponential sync work, a ~100s pump spin.
+    parent(target, ev) {
       // (刀68) IndexedDB's request -> transaction -> database bubbling hops
       // (hop table owned by indexeddb.js; plain EventTargets, not Nodes).
       const hop = globalThis.__diting_etParents;
@@ -90,7 +95,8 @@
       // Accept the live binding as well; detached elements (also null-parent)
       // stay out, and an iframe's contentDocument is not this realm's
       // document, so it does not jump to the main window.
-      if (target === DocC || target === globalThis.document) return globalThis;
+      const isLoad = ev !== undefined && ev !== null && ev.type === 'load';
+      if (target === DocC || target === globalThis.document) return isLoad ? null : globalThis;
       // (M3 B2c) frame content: the frame's root hangs off nothing, but its
       // owner is the frame document, and the frame document's next hop is
       // the frame window — the frame analog of the document → window edge,
@@ -100,7 +106,7 @@
       if (target._isIframeDocRoot) return target._ownerDoc || null;
       if (target.nodeType === 9 && target._iframeEl !== undefined) {
         const dv = target.defaultView;
-        return dv && dv !== globalThis ? dv : null;
+        return dv && dv !== globalThis && !isLoad ? dv : null;
       }
       return null;
     },
