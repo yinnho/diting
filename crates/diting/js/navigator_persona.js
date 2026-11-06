@@ -49,7 +49,7 @@ const __navStore = {
   get appVersion() { return this.userAgent.replace('Mozilla/', ''); },
   get platform() { return globalThis.__diting_platform_override || __ditingPlatformFromUA(); },
   product: "Gecko",
-  get userAgent() { return globalThis.__diting_ua || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"; },
+  get userAgent() { return globalThis.__diting_ua || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"; },
   get language() { return __ditingLangList()[0]; },
   get languages() {
     const list = __ditingLangList();

@@ -7,21 +7,27 @@
 # (tools/webplatform/capture/wire_capture.py against Chrome for Testing), regenerate, and
 # review the snapshot-fixture diff. Do NOT hard-code a Chrome version anywhere else.
 
-major        = 145
+major        = 157
 # Must be a version Google really published (checked offline against
 # tools/webplatform/chrome/cft-builds.json) - never extrapolate a build number.
-full_version = "145.0.7632.117"
+full_version = "157.0.8103.38"
 # wreq-util emulation preset used for the TLS/H2 handshake: "chrome<major>". build.rs
 # emits `wreq_util::Profile::Chrome<major>`, so a preset the TLS library lacks fails the build.
-tls_profile  = "chrome145"
+tls_profile  = "chrome157"
 platform     = "macOS"
 arch         = "arm64"
 
-# Why 145 and not the current stable (156.0.8078.73 on 2026-10-29) - keep this honest:
-#  * wreq-util 3.0.0-rc.14 presets stop at Chrome148, so 149..156 have no real handshake.
-#  * The xhs edge routes UA majors non-monotonically (2026-10-17 probe: 145/154/157/158 reach
-#    production, 146-153 and 155/156 land in its SIT loop). 145 is the only production-routed
-#    major a real preset can back. Re-probe before moving.
-#  * A UA/TLS mismatch is a measured WAF tell (UA 154 over a chrome145 handshake, 2026-10-19).
-# The lag to stable is reported by tools/check_coherence.py; closing it needs (a) our own
-# TLS preset for the new major and (b) a fresh xhs routing probe.
+# 2026-11-06: 145 -> 157, the first preset we own end to end (the wreq stack is vendored
+# in-repo, so no upstream preset ceiling ever again). Measured against local Chrome stable
+# 157.0.8103.38 (tools/webplatform/chrome/wire/chrome-157.0.8103.38.json):
+#  * ClientHello shape unchanged since 145 EXCEPT the signature_algorithms list now leads
+#    with GREASE + mldsa44/65/87 (RFC-ietf-tls-mldsa) - carried as raw wire values via
+#    ChromeTlsConfig's sigalgs_mldsa_grease; the BoringSSL snapshot btls 0.5.6 bundles
+#    rejects those values, so the transport degrades to the 8 classics until btls-sys
+#    updates (conn.rs probes, warns; the one remaining 157 fingerprint delta - #25).
+#  * H2 SETTINGS dropped the random GREASE setting Chrome 145 sent (http2 tier 3, not 4).
+#  * Navigation header order: accept-language moved after accept-encoding - the layout
+#    chrome_headers.rs already measured on Chrome 155, so no change there.
+# The xhs edge UA-major routing probe (old reason #2) was last run 2026-10-17 and routes
+# 157 to production; re-probe before relying on it for a large crawl. JS-interface truth
+# (version_prune) re-capture against CfT 157 is tracked in issue #25.

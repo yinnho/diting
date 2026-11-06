@@ -562,7 +562,7 @@ impl Page {
                 .tls_fingerprint
                 .as_deref()
                 .and_then(crate::diting_net::parse_tls_fingerprint)
-                .unwrap_or(diting_profiles::Profile::Chrome145);
+                .unwrap_or_else(crate::chrome_target::target_tls_profile);
             // Single source of truth for the page's identity: the context's
             // resolved UA drives every surface. Left to itself the stealth
             // client falls back to DITING_UA / a Linux default, which

@@ -1797,6 +1797,41 @@ mod_generator!(
 );
 
 mod_generator!(
+    v157,
+    tls_options!(9, CURVES_3),
+    http2_options!(3),
+    header_initializer_with_zstd_priority,
+    [
+        (
+            MacOS,
+            r#""Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157""#,
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
+        ),
+        (
+            Linux,
+            r#""Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157""#,
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
+        ),
+        (
+            Android,
+            r#""Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157""#,
+            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36"
+        ),
+        (
+            Windows,
+            r#""Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157""#,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
+        ),
+        (
+            IOS,
+            r#""Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157""#,
+            // No iOS capture; iOS 27 is current for a Chrome 157-era device. Reasoned, not measured.
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/157.0.0.0 Mobile/15E148 Safari/604.1"
+        )
+    ]
+);
+
+mod_generator!(
     edge143,
     v132::build_emulation,
     header_initializer_with_zstd_priority,

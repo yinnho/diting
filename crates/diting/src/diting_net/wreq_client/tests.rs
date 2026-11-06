@@ -52,7 +52,7 @@ const SAFARI17_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Apple
 fn ua_browser_version_parses_family_and_major() {
     assert_eq!(
         ua_browser_version(crate::diting_net::STEALTH_USER_AGENT),
-        Some(("chrome", 145))
+        Some(("chrome", crate::chrome_target::CHROME_MAJOR))
     );
     assert_eq!(ua_browser_version(CHROME152_UA), Some(("chrome", 152)));
     assert_eq!(ua_browser_version(EDGE126_UA), Some(("edge", 126)));
@@ -85,9 +85,43 @@ fn fingerprint_names_parse_to_versions() {
 }
 
 #[test]
+fn chrome157_preset_pins_h2_and_sigalg_face() {
+    // (#25) The 157 preset's wire face, pinned at the options level, independent of
+    // the TLS library: H2 without the GREASE setting (Chrome dropped it by 156) and
+    // verify sigalgs carrying the GREASE + ML-DSA lead. The transport degrades the
+    // sigalg lead on BoringSSL snapshots that reject the raw values; the data face
+    // stays pinned here either way. Byte truth: chrome-157.0.8103.38.json.
+    use diting_wire::IntoEmulation;
+    let emu = diting_profiles::Profile::Chrome157.into_emulation();
+    let h2 = emu.http2_options.as_ref().expect("h2 options");
+    assert!(!h2.grease_setting, "157 sends no H2 GREASE setting");
+    assert_eq!(
+        h2.max_concurrent_streams, None,
+        "157's SETTINGS has exactly the 4 standard entries"
+    );
+    let tls = emu.tls_options.as_ref().expect("tls options");
+    let prefs = tls
+        .sigalgs_verify_prefs
+        .as_ref()
+        .expect("157 raw sigalg prefs");
+    assert_eq!(
+        &prefs[1..],
+        &[0x0904, 0x0905, 0x0906, 0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0806, 0x0601][..],
+        "mldsa44/65/87 lead, then the 8 classics"
+    );
+    assert_eq!(prefs.len(), 12);
+    assert_eq!(prefs[0] & 0x0F0F, 0x0A0A, "GREASE lead has the 0x?A?A form");
+    assert_eq!(
+        tls.requested_trust_anchors.as_deref(),
+        Some(&[][..]),
+        "the 0xCA34 trust_anchors extension stays empty"
+    );
+}
+
+#[test]
 fn ua_tls_mismatch_warns_on_version_drift() {
     // Report's exact case: DITING_UA=Chrome/152 over the default
-    // Chrome145 handshake.
+    // chrome-target handshake.
     assert!(warn_on_ua_tls_mismatch(CHROME152_UA, None));
     // Family drift warns too.
     assert!(warn_on_ua_tls_mismatch(FIREFOX133_UA, None));

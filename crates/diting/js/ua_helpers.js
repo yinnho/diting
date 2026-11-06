@@ -33,7 +33,7 @@ function __ditingUADataPlatformFromUA() {
 // numbers (real Chrome reports four-part builds there, never x.0.0.0).
 function __ditingChromeMajorFromUA() {
   const m = String(globalThis.__diting_ua || "").match(/Chrome\/(\d+)/);
-  return m ? m[1] : "145";
+  return m ? m[1] : "157";
 }
 // Chromium's UA-CH GREASE, computed the way user_agent_utils.cc does instead
 // of pinning one generation's face: brand = "Not"+C[m%11]+"A"+C[(m+1)%11]
@@ -60,7 +60,7 @@ function __ditingBrandList(maj) {
 // shipped (e.g. 145.0.6509.41: build 6509 is Chrome 127's) is a fingerprint tell, so
 // this table must NEVER be extrapolated. Used ONLY by fullVersionList/uaFullVersion —
 // the reduced UA itself stays x.0.0.0.
-const __DITING_FULL_BUILD = { "130": "6723.116", "131": "6778.264", "132": "6834.159", "133": "6943.141", "134": "6998.165", "135": "7049.114", "136": "7103.113", "137": "7151.119", "138": "7204.183", "139": "7258.154", "140": "7339.207", "141": "7390.122", "142": "7444.175", "143": "7499.192", "144": "7559.133", "145": "7632.117", "146": "7680.165", "147": "7727.117", "148": "7778.178", "149": "7827.155", "150": "7871.124", "151": "7922.138", "152": "7977.82", "153": "8010.52", "154": "8037.92", "155": "8059.84", "156": "8078.73", "157": "8103.15", "158": "8127.2", "159": "8129.0" };
+const __DITING_FULL_BUILD = { "130": "6723.116", "131": "6778.264", "132": "6834.159", "133": "6943.141", "134": "6998.165", "135": "7049.114", "136": "7103.113", "137": "7151.119", "138": "7204.183", "139": "7258.154", "140": "7339.207", "141": "7390.122", "142": "7444.175", "143": "7499.192", "144": "7559.133", "145": "7632.117", "146": "7680.165", "147": "7727.117", "148": "7778.178", "149": "7827.155", "150": "7871.124", "151": "7922.138", "152": "7977.82", "153": "8010.52", "154": "8037.92", "155": "8059.84", "156": "8078.73", "157": "8103.38", "158": "8127.2", "159": "8129.0" };
 
 function __ditingNearestBuild(maj) {
   let best = null, bestD = Infinity;

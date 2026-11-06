@@ -50,6 +50,19 @@ macro_rules! tls_options {
             .alps_use_new_codepoint(true)
             .empty_trust_anchors(true))
     };
+    // (9) = (8) + GREASE/ML-DSA-led verify sigalgs, as sent by real Chrome 157.
+    // Degrades to (8)'s sigalgs on BoringSSL snapshots that reject the raw
+    // values (see `sigalgs_v157`) — the rest of the 157 face is identical.
+    (9, $curves:expr) => {
+        tls_options!(@build ChromeTlsConfig::builder()
+            .permute_extensions(true)
+            .enable_ech_grease(true)
+            .pre_shared_key(true)
+            .curves($curves)
+            .alps_use_new_codepoint(true)
+            .empty_trust_anchors(true)
+            .sigalgs_mldsa_grease(true))
+    };
 }
 
 pub const CURVES_1: &str = join!(":", "X25519", "P-256", "P-384");
@@ -87,6 +100,36 @@ pub const SIGALGS_LIST: &str = join!(
     "rsa_pkcs1_sha512"
 );
 
+/// Chrome 157's `signature_algorithms` after the GREASE lead: the ML-DSA trio
+/// (0x0904/0x0905/0x0906 — `mldsa44/65/87`, RFC-ietf-tls-mldsa; schemes this
+/// BoringSSL snapshot cannot name, hence raw wire values), then `SIGALGS_LIST`'s
+/// 8 classics. Measured on 157.0.8103.38 (tools/webplatform/chrome/wire/); the
+/// trio arrived between 146 and 156. The transport probes BoringSSL and degrades
+/// to the 8 classics until its snapshot learns the values (#25); advertising
+/// schemes we cannot verify would only matter if servers issued ML-DSA certs,
+/// which production does not yet.
+pub const SIGALGS_V157_TAIL: [u16; 11] = [
+    0x0904, 0x0905, 0x0906, 0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0806, 0x0601,
+];
+
+/// Chrome 157's full verify list: a `0x?A?A` GREASE value leads (drawn per
+/// emulation build; real Chrome redraws per connection). Unpredictable, not
+/// cryptographic — same trick as the HTTP/2 grease setting.
+fn sigalgs_v157() -> Vec<u16> {
+    use std::{
+        collections::hash_map::RandomState,
+        hash::{BuildHasher, Hasher},
+    };
+    let mut h = RandomState::new().build_hasher();
+    h.write_u8(0);
+    let r = h.finish();
+    let grease = 0x0A0A | ((((r >> 8) & 0xF) as u16) << 12) | ((((r >> 16) & 0xF) as u16) << 4);
+    let mut prefs = Vec::with_capacity(SIGALGS_V157_TAIL.len() + 1);
+    prefs.push(grease);
+    prefs.extend_from_slice(&SIGALGS_V157_TAIL);
+    prefs
+}
+
 pub const CERTIFICATE_COMPRESSORS: &[&'static dyn CertificateCompressor] = &[&BrotliCompressor];
 
 #[derive(TypedBuilder)]
@@ -119,6 +162,11 @@ pub struct ChromeTlsConfig {
     /// does (payload 0000); versions we have no capture for are left as they were.
     #[builder(default = false, setter(into))]
     empty_trust_anchors: bool,
+
+    /// Lead the verify sigalgs with GREASE + ML-DSA as Chrome 157 does
+    /// (see [`SIGALGS_V157_TAIL`]); `sigalgs_list` then only seeds the signing side.
+    #[builder(default = false, setter(into))]
+    sigalgs_mldsa_grease: bool,
 }
 
 impl From<ChromeTlsConfig> for TlsOptions {
@@ -129,6 +177,11 @@ impl From<ChromeTlsConfig> for TlsOptions {
             .enable_signed_cert_timestamps(true)
             .curves_list(val.curves)
             .sigalgs_list(val.sigalgs_list)
+            .sigalgs_verify_prefs(if val.sigalgs_mldsa_grease {
+                Some(std::borrow::Cow::Owned(sigalgs_v157()))
+            } else {
+                None
+            })
             .cipher_list(val.cipher_list)
             .min_tls_version(TlsVersion::TLS_1_2)
             .max_tls_version(TlsVersion::TLS_1_3)

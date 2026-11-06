@@ -47,8 +47,8 @@ pub struct FetchRequest {
     /// use the full browser.
     #[serde(default)]
     pub render_tier: RenderTier,
-    /// TLS fingerprint override (stealth mode only): "chrome145", "firefox133",
-    /// "safari17_5", "edge145", etc. None → Chrome145 default.
+    /// TLS fingerprint override (stealth mode only): "chrome157", "firefox133",
+    /// "safari17_5", "edge145", etc. None → chrome-target default.
     #[serde(default)]
     pub tls_fingerprint: Option<String>,
     /// Optional JS expression to evaluate after page load. The result is

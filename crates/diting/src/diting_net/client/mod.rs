@@ -810,7 +810,7 @@ impl HttpClient {
     /// client rustls-only rather than silently rewriting the scheme.
     /// The transport bakes the page's own handshake posture — the context
     /// `tls_fingerprint` profile and the UA-derived platform — instead of
-    /// a stock Chrome145/Linux default, so the escape hatch never swaps
+    /// the stock chrome-target default, so the escape hatch never swaps
     /// one JA3-mismatch tell for another (#116).
     #[cfg(feature = "stealth")]
     async fn legacy_transport(&self) -> Option<&Arc<crate::diting_net::StealthHttpClient>> {
@@ -827,7 +827,7 @@ impl HttpClient {
                     .tls_fingerprint
                     .as_deref()
                     .and_then(crate::diting_net::parse_tls_fingerprint)
-                    .unwrap_or(diting_profiles::Profile::Chrome145);
+                    .unwrap_or_else(crate::chrome_target::target_tls_profile);
                 let os =
                     crate::diting_net::emulation_os_for_ua(&self.user_agent.read().await.clone());
                 let client = crate::diting_net::StealthHttpClient::with_proxy_and_emulation(
