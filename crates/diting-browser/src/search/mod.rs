@@ -7,6 +7,7 @@ pub mod bing_news;
 pub mod duckduckgo;
 pub mod github_repos;
 pub mod hn;
+pub mod hongguo;
 pub mod huggingface;
 pub mod mdn;
 pub mod meilisearch;
@@ -223,6 +224,7 @@ impl SearchEngineRegistry {
         }
         register(Arc::new(huggingface::HuggingFaceEngine::new()));
         register(Arc::new(hn::HnEngine::new()));
+        register(Arc::new(hongguo::HongguoEngine::new()));
         register(Arc::new(npm::NpmEngine::new()));
         register(Arc::new(pypi::PypiEngine::new()));
         register(Arc::new(rubygems::RubygemsEngine::new()));
