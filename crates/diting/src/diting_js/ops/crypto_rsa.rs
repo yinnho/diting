@@ -10,6 +10,10 @@
 // (RSA-PSS/RSASSA sign is not absorbed yet) and restricts generateKey to
 // publicExponent 3 or 65537 — that policy lives in the JS shim; the ops
 // accept what they are given.
+//
+// rsa 0.10-rc swapped num-bigint for crypto-bigint's BoxedUint; integers
+// cross the op boundary as minimal big-endian bytes both ways
+// (from_be_slice_vartime / to_be_bytes_trimmed_vartime).
 // ---------------------------------------------------------------------------
 
 use super::*;
@@ -34,24 +38,25 @@ fn rsa_key_flat(sk: &rsa::RsaPrivateKey) -> Result<Vec<u8>, deno_error::JsErrorB
         .map_err(crypto_err)?
         .as_bytes()
         .to_vec();
-    let two_primes = sk.primes();
-    if two_primes.len() != 2 {
+    let primes = sk.primes();
+    if primes.len() != 2 {
         return Err(crypto_err("only two-prime RSA keys are supported"));
     }
-    let (p, q) = (&two_primes[0], &two_primes[1]);
-    let one = rsa::BigUint::from(1u8);
-    let dp = (sk.d() % (p - &one)).to_bytes_be();
-    let dq = (sk.d() % (q - &one)).to_bytes_be();
-    // qi = q^-1 mod p (RFC 8017 CRT coefficient). p is prime, so Fermat's
-    // little theorem gives the inverse as q^(p-2) mod p — no ModInverse
-    // trait import needed, plain modpow on the re-exported BigUint.
-    let two = rsa::BigUint::from(2u8);
-    let qi = q.modpow(&(p - &two), p).to_bytes_be();
-    let n = sk.n().to_bytes_be();
-    let e = sk.e().to_bytes_be();
-    let d = sk.d().to_bytes_be();
-    let pb = p.to_bytes_be();
-    let qb = q.to_bytes_be();
+    // CRT params come from rc's own precompute (dp/dq as uints, qi as a
+    // Montgomery form over p — retrieve() lifts it back to plain uint).
+    let (dp, dq, qi) = match (sk.dp(), sk.dq(), sk.qinv()) {
+        (Some(dp), Some(dq), Some(qi)) => (
+            dp.to_be_bytes_trimmed_vartime(),
+            dq.to_be_bytes_trimmed_vartime(),
+            qi.retrieve().to_be_bytes_trimmed_vartime(),
+        ),
+        _ => return Err(crypto_err("only two-prime RSA keys are supported")),
+    };
+    let n = sk.n_bytes();
+    let e = sk.e_bytes();
+    let d = sk.d().to_be_bytes_trimmed_vartime();
+    let pb = primes[0].to_be_bytes_trimmed_vartime();
+    let qb = primes[1].to_be_bytes_trimmed_vartime();
     Ok(rsa_flat([
         &pkcs8[..],
         &spki[..],
@@ -74,8 +79,8 @@ fn public_flat(pk: &rsa::RsaPublicKey) -> Result<Vec<u8>, deno_error::JsErrorBox
         .map_err(crypto_err)?
         .as_bytes()
         .to_vec();
-    let n = pk.n().to_bytes_be();
-    let e = pk.e().to_bytes_be();
+    let n = pk.n_bytes();
+    let e = pk.e_bytes();
     let empty: &[u8] = &[];
     Ok(rsa_flat([
         empty,
@@ -92,14 +97,22 @@ fn public_flat(pk: &rsa::RsaPublicKey) -> Result<Vec<u8>, deno_error::JsErrorBox
 }
 
 fn private_from_components(
-    n: rsa::BigUint,
-    e: rsa::BigUint,
-    d: rsa::BigUint,
-    p: rsa::BigUint,
-    q: rsa::BigUint,
+    n: rsa::BoxedUint,
+    e: rsa::BoxedUint,
+    d: rsa::BoxedUint,
+    p: rsa::BoxedUint,
+    q: rsa::BoxedUint,
 ) -> Result<rsa::RsaPrivateKey, deno_error::JsErrorBox> {
     rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q])
         .map_err(|_| crypto_err("invalid RSA private key components"))
+}
+
+/// rand_core 0.10's `CryptoRng` bound (what rsa's keygen/encrypt take) is
+/// infallible-only; the OS entropy source is a fallible `TryRng`
+/// (getrandom 0.4 `SysRng`). `UnwrapErr` bridges: it panics on OS-entropy
+/// failure, exactly like the old rand_core 0.6 `OsRng`.
+fn os_rng() -> rsa::rand_core::UnwrapErr<getrandom::SysRng> {
+    rsa::rand_core::UnwrapErr(getrandom::SysRng)
 }
 
 /// Generate an RSA keypair. `bits` is the modulus length; `e` the public
@@ -110,10 +123,10 @@ pub(crate) fn op_subtle_rsa_generate(
     bits: u32,
     #[buffer] e: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use rsa::BigUint;
-    let exponent = BigUint::from_bytes_be(e);
-    let sk = rsa::RsaPrivateKey::new_with_exp(&mut rand_core::OsRng, bits as usize, &exponent)
-        .map_err(crypto_err)?;
+    let exponent = rsa::BoxedUint::from_be_slice_vartime(e);
+    let sk =
+        rsa::RsaPrivateKey::new_with_exp(&mut os_rng(), bits as usize, exponent)
+            .map_err(crypto_err)?;
     rsa_key_flat(&sk)
 }
 
@@ -125,9 +138,11 @@ pub(crate) fn op_subtle_rsa_import_public(
     #[buffer] n: &[u8],
     #[buffer] e: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use rsa::BigUint;
-    let pk = rsa::RsaPublicKey::new(BigUint::from_bytes_be(n), BigUint::from_bytes_be(e))
-        .map_err(crypto_err)?;
+    let pk = rsa::RsaPublicKey::new(
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
+    )
+    .map_err(crypto_err)?;
     public_flat(&pk)
 }
 
@@ -154,13 +169,12 @@ pub(crate) fn op_subtle_rsa_import_private(
     #[buffer] p: &[u8],
     #[buffer] q: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use rsa::BigUint;
     let sk = private_from_components(
-        BigUint::from_bytes_be(n),
-        BigUint::from_bytes_be(e),
-        BigUint::from_bytes_be(d),
-        BigUint::from_bytes_be(p),
-        BigUint::from_bytes_be(q),
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
+        rsa::BoxedUint::from_be_slice_vartime(d),
+        rsa::BoxedUint::from_be_slice_vartime(p),
+        rsa::BoxedUint::from_be_slice_vartime(q),
     )?;
     rsa_key_flat(&sk)
 }
@@ -195,40 +209,37 @@ pub(crate) fn op_subtle_rsa_oaep(
     #[buffer] q: &[u8],
     #[buffer] data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use rsa::traits::PublicKeyParts;
     let pk = rsa::RsaPublicKey::new(
-        rsa::BigUint::from_bytes_be(n),
-        rsa::BigUint::from_bytes_be(e),
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
     )
     .map_err(crypto_err)?;
-    // The label is a string in this rsa release; WebCrypto labels are
-    // arbitrary bytes, but every real-world label is ASCII, so lossy
-    // conversion only bends for byte labels ≥ 0x80 (no probe pins those).
-    let label_str = String::from_utf8_lossy(label).into_owned();
+    // rc takes the label as raw bytes — arbitrary WebCrypto labels now pass
+    // through exactly (the 0.9 lossy-utf8 bend is gone).
     macro_rules! run {
         ($digest:ty) => {{
             let scheme = if label.is_empty() {
-                rsa::Oaep::new::<$digest>()
+                rsa::Oaep::<$digest>::new()
             } else {
-                rsa::Oaep::new_with_label::<$digest, _>(&label_str)
+                rsa::Oaep::<$digest>::new_with_label(label)
             };
             if encrypt {
-                pk.encrypt(&mut rand_core::OsRng, scheme, data)
+                pk.encrypt(&mut os_rng(), scheme, data)
                     .map_err(|_| crypto_err(""))?
             } else {
                 let sk = private_from_components(
-                    pk.n().clone(),
-                    pk.e().clone(),
-                    rsa::BigUint::from_bytes_be(d),
-                    rsa::BigUint::from_bytes_be(p),
-                    rsa::BigUint::from_bytes_be(q),
+                    rsa::BoxedUint::from_be_slice_vartime(n),
+                    rsa::BoxedUint::from_be_slice_vartime(e),
+                    rsa::BoxedUint::from_be_slice_vartime(d),
+                    rsa::BoxedUint::from_be_slice_vartime(p),
+                    rsa::BoxedUint::from_be_slice_vartime(q),
                 )?;
                 sk.decrypt(scheme, data).map_err(|_| crypto_err(""))?
             }
         }};
     }
     Ok(match hash {
-        "SHA-1" => run!(rsa_sha1::Sha1),
+        "SHA-1" => run!(sha1::Sha1),
         "SHA-256" => run!(rsa::sha2::Sha256),
         "SHA-384" => run!(rsa::sha2::Sha384),
         "SHA-512" => run!(rsa::sha2::Sha512),
@@ -240,9 +251,9 @@ pub(crate) fn op_subtle_rsa_oaep(
 // are deterministic, so the parity pin in runtime/tests.rs bakes a
 // Chrome-produced signature over a fixed jwk and asserts byte equality.
 // The padding scheme types ride rsa's own digest line (`rsa::sha2`,
-// `rsa_sha1` — AssociatedOid lives there), while the prehash is computed
-// with the top-level 0.11 sha crates: identical output bytes, and the
-// scheme only reads D's constants.
+// `sha1` — AssociatedOid lives there), while the prehash is computed
+// with the same crates: identical output bytes, and the scheme only
+// reads D's constants.
 fn rsassa_prehash(hash: &str, data: &[u8]) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     use sha2::Digest as _;
     Ok(match hash {
@@ -270,11 +281,11 @@ pub(crate) fn op_subtle_rsa_pkcs1v15_sign(
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     let prehash = rsassa_prehash(hash, data)?;
     let sk = private_from_components(
-        rsa::BigUint::from_bytes_be(n),
-        rsa::BigUint::from_bytes_be(e),
-        rsa::BigUint::from_bytes_be(d),
-        rsa::BigUint::from_bytes_be(p),
-        rsa::BigUint::from_bytes_be(q),
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
+        rsa::BoxedUint::from_be_slice_vartime(d),
+        rsa::BoxedUint::from_be_slice_vartime(p),
+        rsa::BoxedUint::from_be_slice_vartime(q),
     )?;
     macro_rules! run {
         ($digest:ty) => {{
@@ -283,7 +294,7 @@ pub(crate) fn op_subtle_rsa_pkcs1v15_sign(
         }};
     }
     Ok(match hash {
-        "SHA-1" => run!(rsa_sha1::Sha1),
+        "SHA-1" => run!(sha1::Sha1),
         "SHA-256" => run!(rsa::sha2::Sha256),
         "SHA-384" => run!(rsa::sha2::Sha384),
         "SHA-512" => run!(rsa::sha2::Sha512),
@@ -304,8 +315,8 @@ pub(crate) fn op_subtle_rsa_pkcs1v15_verify(
 ) -> Result<bool, deno_error::JsErrorBox> {
     let prehash = rsassa_prehash(hash, data)?;
     let pk = rsa::RsaPublicKey::new(
-        rsa::BigUint::from_bytes_be(n),
-        rsa::BigUint::from_bytes_be(e),
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
     )
     .map_err(crypto_err)?;
     macro_rules! run {
@@ -315,7 +326,7 @@ pub(crate) fn op_subtle_rsa_pkcs1v15_verify(
         }};
     }
     Ok(match hash {
-        "SHA-1" => run!(rsa_sha1::Sha1),
+        "SHA-1" => run!(sha1::Sha1),
         "SHA-256" => run!(rsa::sha2::Sha256),
         "SHA-384" => run!(rsa::sha2::Sha384),
         "SHA-512" => run!(rsa::sha2::Sha512),

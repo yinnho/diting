@@ -94,6 +94,15 @@ impl Drop for InFlightDecrement {
 /// attached with `.proxy()` at the call sites — and `.no_proxy()` must come
 /// BEFORE that attach, since it also clears any already-pushed proxy.
 pub fn reqwest_builder_no_env_proxy() -> reqwest::ClientBuilder {
+    // reqwest 0.13 rustls-no-provider: the TLS provider is the app's job.
+    // Ours is ring (the direct rustls pin's only enabled provider — the
+    // aws-lc-rs default that reqwest's plain `rustls` feature would force
+    // is deliberately not in the graph). Install once per process; a
+    // double install (already set) is fine to ignore.
+    static RING_INSTALLED: std::sync::Once = std::sync::Once::new();
+    RING_INSTALLED.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
     reqwest::Client::builder().no_proxy()
 }
 

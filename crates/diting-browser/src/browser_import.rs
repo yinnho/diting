@@ -309,11 +309,11 @@ fn chrome_key(password: &[u8]) -> [u8; 16] {
 /// Open one `encrypted_value`. None = not something this build can decrypt.
 fn chrome_decrypt(key: &[u8; 16], host: &str, enc: &[u8]) -> Option<String> {
     use cbc::cipher::block_padding::Pkcs7;
-    use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+    use cbc::cipher::{BlockModeDecrypt, KeyIvInit};
     let body = enc.strip_prefix(b"v10")?;
     let plain = cbc::Decryptor::<aes::Aes128>::new_from_slices(key, &[b' '; 16])
         .ok()?
-        .decrypt_padded_vec_mut::<Pkcs7>(body)
+        .decrypt_padded_vec::<Pkcs7>(body)
         .ok()?;
     let digest = <sha2::Sha256 as sha2::Digest>::digest(host.as_bytes());
     let value = match plain.strip_prefix(digest.as_slice()) {
@@ -381,7 +381,7 @@ mod tests {
 
     fn enc(key: &[u8; 16], host: &str, value: &str, hashed: bool) -> Vec<u8> {
         use cbc::cipher::block_padding::Pkcs7;
-        use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+        use cbc::cipher::{BlockModeEncrypt, KeyIvInit};
         let mut plain = Vec::new();
         if hashed {
             plain.extend_from_slice(&<sha2::Sha256 as sha2::Digest>::digest(host.as_bytes()));
@@ -391,7 +391,7 @@ mod tests {
         out.extend(
             cbc::Encryptor::<aes::Aes128>::new_from_slices(key, &[b' '; 16])
                 .unwrap()
-                .encrypt_padded_vec_mut::<Pkcs7>(&plain),
+                .encrypt_padded_vec::<Pkcs7>(&plain),
         );
         out
     }

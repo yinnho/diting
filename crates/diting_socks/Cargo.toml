@@ -1,0 +1,19 @@
+[package]
+# Vendored from tokio-socks 0.5.3 (2026-11-07) — the version number stays
+# the upstream one as a tracking signal, like the wreq family in VENDORED.md.
+name = "diting_socks"
+version = "0.5.3"
+edition = "2021"
+description = "SOCKS4/5 CONNECT tunneling — vendored & pruned from tokio-socks 0.5.3 (MIT)"
+license = "MIT"
+publish = false
+
+[dependencies]
+thiserror = "2"
+tokio = { version = "1", default-features = false, features = [
+    "net",
+    "io-util",
+] }
+
+# Vendor fork: upstream lint discipline applies (VENDORED.md), the
+# workspace [lints] table does not cover this crate.

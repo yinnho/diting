@@ -25,5 +25,9 @@ contributors; derived from the `h2` crate),
 licensed under the MIT License (see crates/diting_wire_h2/LICENSE), and has since been modified and is
 maintained here.
 
+The SOCKS4/5 tunneling (crates/diting_socks) was taken from the `tokio-socks` crate 0.5.3
+(MIT; see crates/diting_socks/LICENSE), and has since been pruned and modified
+(thiserror 1 → 2 among other changes); it is maintained here. See crates/VENDORED.md.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.
