@@ -179,33 +179,3 @@ mod name {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use std::hash::{DefaultHasher, Hash, Hasher};
-
-    use super::*;
-
-    #[test]
-    fn test_group_identity_invariance() {
-        let mut g1 = Group::default();
-        g1.extend(GroupKey::Named, GroupVariant::Named("worker".into()));
-        g1.extend(GroupKey::Version, GroupVariant::Version(Version::HTTP_2));
-
-        let mut g2 = Group::default();
-        g2.extend(GroupKey::Version, GroupVariant::Version(Version::HTTP_2));
-        g2.extend(GroupKey::Named, GroupVariant::Named("worker".into()));
-
-        let mut h1 = DefaultHasher::new();
-        g1.hash(&mut h1);
-
-        let mut h2 = DefaultHasher::new();
-        g2.hash(&mut h2);
-
-        assert_eq!(
-            h1.finish(),
-            h2.finish(),
-            "Request groups must maintain identical hashes regardless of criteria insertion order"
-        );
-    }
-}

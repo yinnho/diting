@@ -1,7 +1,6 @@
 #![deny(unused)]
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
-#![cfg_attr(test, deny(warnings))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # diting_wire

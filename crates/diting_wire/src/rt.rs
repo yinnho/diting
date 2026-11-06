@@ -147,12 +147,6 @@ impl Timer {
         Timer(Time::Timer(Arc::new(timer)))
     }
 
-    #[cfg(test)]
-    #[doc(hidden)]
-    pub fn empty() -> Self {
-        Timer(Time::Empty)
-    }
-
     /// Returns `true` if no timer implementation has been configured.
     #[inline]
     pub fn is_empty(&self) -> bool {

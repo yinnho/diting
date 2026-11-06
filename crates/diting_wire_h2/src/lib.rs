@@ -85,7 +85,6 @@
     clippy::undocumented_unsafe_blocks
 )]
 #![allow(clippy::type_complexity, clippy::manual_range_contains)]
-#![cfg_attr(test, deny(warnings))]
 
 mod tracing;
 

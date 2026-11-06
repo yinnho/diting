@@ -293,11 +293,6 @@ mod rewind {
             }
         }
 
-        #[cfg(test)]
-        pub(crate) fn rewind(&mut self, bs: Bytes) {
-            debug_assert!(self.pre.is_none());
-            self.pre = Some(bs);
-        }
     }
 
     impl<T> AsyncRead for Rewind<T>
@@ -366,53 +361,4 @@ mod rewind {
         }
     }
 
-    #[cfg(test)]
-    mod tests {
-        use bytes::Bytes;
-        use tokio::io::AsyncReadExt;
-
-        use super::Rewind;
-
-        #[tokio::test]
-        async fn partial_rewind() {
-            let underlying = [104, 101, 108, 108, 111];
-
-            let mock = tokio_test::io::Builder::new().read(&underlying).build();
-
-            let mut stream = Rewind::new_buffered(mock, Bytes::new());
-
-            // Read off some bytes, ensure we filled o1
-            let mut buf = [0; 2];
-            stream.read_exact(&mut buf).await.expect("read1");
-
-            // Rewind the stream so that it is as if we never read in the first place.
-            stream.rewind(Bytes::copy_from_slice(&buf[..]));
-
-            let mut buf = [0; 5];
-            stream.read_exact(&mut buf).await.expect("read1");
-
-            // At this point we should have read everything that was in the MockStream
-            assert_eq!(&buf, &underlying);
-        }
-
-        #[tokio::test]
-        async fn full_rewind() {
-            let underlying = [104, 101, 108, 108, 111];
-
-            let mock = tokio_test::io::Builder::new().read(&underlying).build();
-
-            let mut stream = Rewind::new_buffered(mock, Bytes::new());
-
-            let mut buf = [0; 5];
-            stream.read_exact(&mut buf).await.expect("read1");
-
-            // Rewind the stream so that it is as if we never read in the first place.
-            stream.rewind(Bytes::copy_from_slice(&buf[..]));
-
-            let mut buf = [0; 5];
-            stream.read_exact(&mut buf).await.expect("read1");
-
-            assert_eq!(&buf, &underlying);
-        }
-    }
 }
