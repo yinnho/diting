@@ -96,7 +96,7 @@ png = { version = "0.18", optional = true }
 image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 # #26 browser-profile import: Chrome macOS cookies are AES-128-CBC under a
 # PBKDF2-HMAC-SHA1 key; the snapshot copy of the profile db lives in a
 # private TempDir. Same versions the engine's WebCrypto already locks.
