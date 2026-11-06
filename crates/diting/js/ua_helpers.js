@@ -39,10 +39,14 @@ function __ditingChromeMajorFromUA() {
 // of pinning one generation's face: brand = "Not"+C[m%11]+"A"+C[(m+1)%11]
 // +"Brand", grease version = [8,99,24][m%3], and the [grease, Chromium,
 // browser] list is shuffled by ORD3[m%6] with shuffled[order[i]] = list[i].
-// Verified byte-exact against real Chrome 145 / 153 / 154 / 155 (two CDP
-// captures + upstream wreq-util tables). Both the JS face (brands/
+// Verified byte-exact against real Chrome 145 / 153 / 154 / 155 / 157
+// (CDP captures + upstream wreq-util tables; 157 = brands order, GREASE
+// brand "Not-A.Brand"@99 and fullVersionList 157.0.8103.38 all exact —
+// getHighEntropyValues probed 2026-11-06). Both the JS face (brands/
 // fullVersionList) and the engine's Sec-CH-UA header derive from this —
-// a wrong grease name or order is a header-vs-JS tell.
+// a wrong grease name or order is a header-vs-JS tell. (platformVersion
+// is persona-pool, NOT version-coupled: real 145/156/157 on one host all
+// report the host's OS version — see pools in fingerprint.js.)
 const __DITING_GREASE_CHARS = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
 const __DITING_GREASE_VERS = ["8", "99", "24"];
 const __DITING_ORD3 = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];

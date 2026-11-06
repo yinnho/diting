@@ -1106,6 +1106,38 @@ fn supports_conditions_evaluate() {
 }
 
 #[test]
+fn supports_157_retruth_extras_and_20_families() {
+    // #25: names probed true on real Chrome 157.0.8103.38 over the 750-name
+    // enumeration land in CHROME_EXTRA_PROPS; the no-layout-behind families
+    // (#20) stay false so feature detection takes fallback paths.
+    let css = r#"
+        @supports (text-fit: auto) { .tf { color: red; } }
+        @supports (window-drag: drag) { .wd { color: red; } }
+        @supports (column-rule: 1px solid red) { .cr { color: red; } }
+        @supports (x: 10px) { .svgx { color: red; } }
+        @supports (text-fit: subgrid) { .sub { color: red; } }
+        @supports (anchor-name: --a) { .an { color: red; } }
+        @supports (position-anchor: --a) { .pa { color: red; } }
+        @supports (scroll-timeline-name: --t) { .st { color: red; } }
+        @supports (animation-timeline: --t) { .at { color: red; } }
+        @supports (timeline-trigger-name: --t) { .tt { color: red; } }
+        @supports (interest-delay: 1s) { .id { color: red; } }
+        @supports (scroll-marker-group: after) { .sm { color: red; } }
+    "#;
+    let rules = parse_stylesheet(css);
+    let sels: Vec<&str> = rules.iter().map(|r| r.selector.as_str()).collect();
+    for present in [".tf", ".wd", ".cr", ".svgx"] {
+        assert!(sels.contains(&present), "157 extra must be true: {sels:?}");
+    }
+    for absent in [".sub", ".an", ".pa", ".st", ".at", ".tt", ".id", ".sm"] {
+        assert!(
+            !sels.contains(&absent),
+            "#20/no-layout family must stay false: {sels:?}"
+        );
+    }
+}
+
+#[test]
 fn layer_bodies_flatten_and_font_face_dropped() {
     let css = r#"
         @layer base { .in-layer { color: red; } }

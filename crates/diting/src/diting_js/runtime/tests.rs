@@ -1922,14 +1922,16 @@ fn window_own_prop_face_p2() {
             ['oncopy','oncut','onpaste','ondragexit','ontouchstart'].forEach(function(n){
                 r['gone_'+n] = !has(n);
             });
-            // PermissionsPolicy / XSLTProcessor are not in Chrome 145 (the pinned target; the older truth these
-            // assertions came from was Chrome 155) - see version_prune.js. Use interfaces 145 does have.
+            // Interfaces the pinned target (chrome-target.toml) exposes; the global_surface tables
+            // come from an older capture and version_prune.js reconciles the window face to the
+            // claimed version (2026-11-06: 157 HAS all three - the 145-era prune list flipped).
             r.throw_iface = typeof window.AbortController;
             r.throw_msg = (function(){ try { new IDBCursor(); return 'no-throw'; } catch(e){ return e.message; } })();
             r.throw_enum = Object.getOwnPropertyDescriptor(window,'IDBCursor').enumerable;
             r.ok_iface = typeof window.XMLSerializer;
             r.ok_new = window.XMLSerializer && (new XMLSerializer()) instanceof XMLSerializer;
-            r.gone145 = [typeof window.PermissionsPolicy, typeof window.XSLTProcessor, typeof window.Sanitizer];
+            r.face157 = [typeof window.PermissionsPolicy, typeof window.XSLTProcessor, typeof window.Sanitizer];
+            r.pruned = [typeof window.SharedStorage, typeof window.sharedStorage];
             r.method = typeof window.moveTo;
             r.method_enum = Object.getOwnPropertyDescriptor(window,'moveTo').enumerable;
             r.method_ctor = (function(){ try { new moveTo(); return 'no-throw'; } catch(e){ return e.message; } })();
@@ -1966,8 +1968,14 @@ fn window_own_prop_face_p2() {
     assert_eq!(obj["ok_iface"], "function");
     assert_eq!(obj["ok_new"], true);
     assert_eq!(
-        obj["gone145"],
-        serde_json::json!(["undefined", "undefined", "undefined"])
+        obj["face157"],
+        serde_json::json!(["function", "function", "function"]),
+        "157 exposes all three (truth: winkeys-truth-157.json)"
+    );
+    assert_eq!(
+        obj["pruned"],
+        serde_json::json!(["undefined", "undefined"]),
+        "the SharedStorage family left with 155; 157 prunes it (version_prune.js)"
     );
     assert_eq!(obj["method"], "function");
     assert_eq!(obj["method_enum"], true);

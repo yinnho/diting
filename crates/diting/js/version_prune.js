@@ -1,14 +1,16 @@
-// Version-coherence prune. chrome-target.toml pins Chrome 145 ("all layers the SAME real version"). The older window-key truth
-// the global_surface tables were generated from (chrome/fp-chrome*.json) was captured from Chrome 155 (fp-chrome.json carries
-// that UA), so it lists interfaces that 145 does not have. Chrome for Testing 145.0.7632.117 (the shape-audit truth) lacks every
-// name below: a page enumerating Object.getOwnPropertyNames(window) must not see them. (XSLTProcessor: XSLT was removed from
-// Chrome in 142.) FontFaceSet and CSSPseudoElement are also not exposed on the 145 window (document.fonts is a real FontFaceSet
-// from platform/fontfaceset.impl.js, whose interface object stays unexposed). Loaded LAST.
+// Version-coherence prune. chrome-target.toml pins Chrome 157 ("all layers the SAME real version").
+// The global_surface tables were generated from a Chrome 155 capture, so they can carry names the
+// claimed version lacks; this file subtracts those. Truth = Object.getOwnPropertyNames(globalThis)
+// on local Chrome 157.0.8103.38 (1239 keys; tools/webplatform/chrome/winkeys-truth-157.json).
+// 2026-11-06 re-truth: every name the 145-era GONE list pruned is back on the 157 window
+// (XSLTProcessor included - the Chrome 142 removal was reverted), so the list flipped: 157 REMOVED
+// the SharedStorage family that 155 still exposed. The remaining 157-vs-engine delta is four
+// names the tables never carried (CanvasPaintEvent, ElementGeometryUpdateEvent, ElementImage,
+// TrustedHTMLParserOptions) - engine capability gap tracked in issue #25, not prunable here.
+// Loaded LAST.
 (function () {
-  const GONE = ['AnimationTrigger', 'AudioPlaybackStats', 'HTMLCameraElement', 'HTMLMicrophoneElement', 'HTMLUserMediaElement',
-    'InteractionContentfulPaint', 'LanguageModel', 'NodeRange', 'OpaqueRange', 'PerformanceSoftNavigation', 'PermissionsPolicy',
-    'TimelineTriggerRange', 'TimelineTriggerRangeList', 'TimelineTrigger', 'XRCompositionLayer', 'XRCubeLayer', 'XRCylinderLayer',
-    'XREquirectLayer', 'XRLayerEvent', 'XRPlane', 'XRPlaneSet', 'XRProjectionLayer', 'XRQuadLayer', 'XRSubImage', 'XRWebGLSubImage',
-    'Sanitizer', 'XSLTProcessor', 'requestResize', 'FontFaceSet', 'CSSPseudoElement'];
+  const GONE = ['SharedStorage', 'SharedStorageAppendMethod', 'SharedStorageClearMethod',
+    'SharedStorageDeleteMethod', 'SharedStorageModifierMethod', 'SharedStorageSetMethod',
+    'SharedStorageWorklet', 'sharedStorage'];
   for (const n of GONE) { try { delete globalThis[n]; } catch (e) {} }
 })();

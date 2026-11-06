@@ -31,6 +31,9 @@ arch         = "arm64"
 #  * H2 SETTINGS dropped the random GREASE setting Chrome 145 sent (http2 tier 3, not 4).
 #  * Navigation header order: accept-language moved after accept-encoding - the layout
 #    chrome_headers.rs already measured on Chrome 155, so no change there.
-# The xhs edge UA-major routing probe (old reason #2) was last run 2026-10-17 and routes
-# 157 to production; re-probe before relying on it for a large crawl. JS-interface truth
-# (version_prune) re-capture against CfT 157 is tracked in issue #25.
+# The xhs edge UA-major routing probe (old reason #2), re-run 2026-11-06 on this
+# 157-coherent binary: UA 157 (default), 154 and 156 all reach production, no
+# customer.sit loop anywhere (tmp-agent/xhs-route-reprobe-1106.json). The 10-17
+# SIT wall fired on the TLS-145-shape binary; with the 157 handshake it did not
+# trigger even on mismatched UA legs. Issue #25 JS-interface re-truth is DONE
+# (version_prune re-captured vs local 157; cssnames 750; supports re-truthed).
