@@ -39,9 +39,11 @@ from crates.io links against our copy unchanged. Unlike the renamed crates above
 minimal-divergence fork: upstream files are byte-identical except for two additions —
 `patches/diting-mldsa-sigalgs.patch` (31 lines of C: three table entries + canonical-GREASE
 passthrough in `set_sigalg_prefs`; the ClientHello serializer and verify paths needed nothing)
-and its invocation in `build/main.rs`. When an upstream btls-sys release bundles a BoringSSL
-snapshot that knows the ML-DSA values, drop the patch file and the apply line and the `[patch]`
-entry. Building with `BORING_BSSL_SOURCE_PATH`/`BORING_BSSL_ASSUME_PATCHED` bypasses all crate
+and its invocation in `build/main.rs`. The copy itself never retires: it puts BoringSSL snapshot
+upgrades on OUR clock — persona bumps follow Chrome stable, and when the next bump needs a wire
+feature the upstream snapshot lacks, this is where we patch forward instead of waiting (same
+reason the wreq family is vendored). When upstream learns the ML-DSA values, only the 31-line
+delta is dropped; the `[patch.crates-io]` entry and the vendored tree stay. Building with `BORING_BSSL_SOURCE_PATH`/`BORING_BSSL_ASSUME_PATCHED` bypasses all crate
 patches, ours included — `diting_wire` degrades the sigalg lead then (conn.rs warns).
 
 `diting_wire_h2` was taken in a second step because `http2`'s `ExperimentalSettings` only accepts setting ids
@@ -51,5 +53,5 @@ the dependency alias `http2` (`package = "diting_wire_h2"`) so the vendored sour
 
 ## Security
 We own the HTTP/TLS client layer now. Watch: the upstream `0x676e67/wreq*` release notes and advisories,
-`cargo audit` for `http2`/`btls`, BoringSSL updates — upstream `btls-sys` releases bundle newer BoringSSL
-snapshots; when one knows the ML-DSA signature algorithms, retire our patch (see above).
+`cargo audit` for `http2`/`btls`, and upstream `btls-sys` releases — bundle a newer BoringSSL snapshot
+into the vendored copy on our schedule; drop our mldsa delta when the snapshot learns it.
