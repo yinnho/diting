@@ -8,7 +8,7 @@
 //! cross-check tests (background bbox exact, text ink extents and per-line
 //! band structure within the batch-3b ±2px ink tolerance).
 //!
-//! Not in this slice (tracked in docs/engine/render.md §25): border-radius,
+//! Not in this slice: border-radius,
 //! per-side border colors/styles, network-loaded images (data: PNG only),
 //! gradients, z-index/stacking contexts.
 

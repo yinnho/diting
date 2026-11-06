@@ -14,8 +14,8 @@
 //! locks the observed outputs. Where an assertion differs from the fork's
 //! expectation (noted in each comment), that behavior is fork-only: the day
 //! stock taffy absorbs the fix, the locked assertion here fails and names
-//! exactly what changed. See docs/engine/render.md §11 for the full
-//! eight-theme classification.
+//! exactly what changed. The full eight-theme classification lives
+//! with the absorbed fork notes.
 //!
 //! The bridge below (batch 2b) is the minimal vertical slice of upstream
 //! dom.rs's DOM→taffy mapping: display roles, box-model px, text-align

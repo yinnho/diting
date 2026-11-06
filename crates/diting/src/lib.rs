@@ -13,14 +13,13 @@ pub mod diting_net;
 // workspace split; the product re-exports them from `config`.
 pub mod env_knobs;
 // Cascade layer absorbed from upstream obscura-render (read-only slice,
-// not yet wired to the product pipeline — see docs/engine/render.md).
+// not yet wired to the product pipeline).
 pub mod diting_css;
 // Taffy fork-delta classification tests (obscura's vendored taffy vs the
-// stock 0.13.0 our blitz pipeline pins) — docs/engine/render.md §11.
+// stock 0.13.0 our blitz pipeline pins).
 #[cfg(feature = "screenshot")]
 pub mod diting_layout;
-// Bundled CJK font supply for /screenshot determinism (batch 3c) —
-// docs/engine/render.md §18.
+// Bundled CJK font supply for /screenshot determinism (batch 3c).
 #[cfg(feature = "screenshot")]
 pub mod diting_fonts;
 

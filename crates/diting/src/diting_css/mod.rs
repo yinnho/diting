@@ -7,7 +7,7 @@
 //! builds on, absorbed so upstream diffs stay readable and the behavior
 //! is locked by tests against our own diting_dom selectors.
 //!
-//! Deliberately out of scope for this slice (tracked in docs/engine/render.md):
+//! Deliberately out of scope for this slice:
 //! container queries, @keyframes/@property, shadow-tree scoping, the full 537
 //! property surface, and paint.
 
