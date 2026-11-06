@@ -210,7 +210,7 @@ async fn scrape_with_fetch(
                     // resp.content is raw HTML. Derive markdown from it.
                     let stripped = crate::render::strip_non_content(&resp.content);
                     let md = if wants_markdown {
-                        Some(html2md::parse_html(&stripped))
+                        Some(crate::html_md::parse_html(&stripped))
                     } else {
                         None
                     };
@@ -551,7 +551,7 @@ async fn scrape_with_session(
             // screenshot-only or html-only request.
             let markdown = if wants_markdown {
                 let stripped = crate::render::strip_non_content(&outcome.html);
-                Some(html2md::parse_html(&stripped))
+                Some(crate::html_md::parse_html(&stripped))
             } else {
                 None
             };

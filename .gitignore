@@ -80,3 +80,6 @@ web/zcode*
 # JS platform dependency analyzer deps (package-lock.json is committed)
 /tools/webplatform/analyze/node_modules/
 __pycache__/
+
+# #33 brotli golden fixture — decode-side pin, must travel with the repo
+!crates/diting_profiles/tests/fixtures/*.bin

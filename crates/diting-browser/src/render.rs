@@ -330,10 +330,10 @@ pub async fn http_fetch(
                 if h.is_empty() {
                     String::new()
                 } else {
-                    html2md::parse_html(&h)
+                    crate::html_md::parse_html(&h)
                 }
             } else {
-                html2md::parse_html(&body_html)
+                crate::html_md::parse_html(&body_html)
             }
         }
     };
