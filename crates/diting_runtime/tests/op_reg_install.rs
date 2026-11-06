@@ -53,6 +53,41 @@ fn __t_unit(#[string] s: &str) {
     let _ = s;
 }
 
+/// `#[object]` return face (absorbed from serde_v8 on the v8 152 bump).
+struct Tile {
+    w: usize,
+    data: Vec<u8>,
+}
+
+impl diting_runtime::op_glue::ToV8Object for Tile {
+    fn to_v8_object<'a, 'i>(
+        self,
+        scope: &mut v8::PinScope<'a, 'i>,
+    ) -> Result<v8::Local<'a, v8::Value>, diting_runtime::op_glue::EncodeError> {
+        use diting_runtime::op_glue::RustToV8Fallible;
+        let obj = v8::Object::new(scope);
+        let w = v8::Number::new(scope, self.w as f64);
+        let data = self.data.to_v8_fallible(scope)?;
+        let k = v8::String::new(scope, "w").unwrap();
+        obj.set(scope, k.into(), w.into()).unwrap();
+        let k = v8::String::new(scope, "data").unwrap();
+        obj.set(scope, k.into(), data).unwrap();
+        Ok(obj.into())
+    }
+}
+
+#[diting_op]
+#[object]
+fn __t_tile(#[buffer] b: &[u8]) -> Result<Tile, deno_error::JsErrorBox> {
+    if b.is_empty() {
+        return Err(deno_error::JsErrorBox::type_error("empty tile"));
+    }
+    Ok(Tile {
+        w: b.len(),
+        data: b.to_vec(),
+    })
+}
+
 fn vm_with_ops() -> Vm {
     let mut vm = Vm::new();
     let decls: Vec<OpDecl> = vec![
@@ -64,6 +99,7 @@ fn vm_with_ops() -> Vm {
         __t_own(),
         __t_rev(),
         __t_unit(),
+        __t_tile(),
     ];
     vm.install_ops(decls);
     vm
@@ -126,4 +162,49 @@ fn ops_survive_poll_rounds() {
     assert_eq!(vm.eval_string("__t_add(20, 22)").unwrap(), "42");
     vm.poll().unwrap();
     assert_eq!(vm.eval_string("__t_add(20, 23)").unwrap(), "43");
+}
+
+#[test]
+fn buffer_arg_reads_the_view_window_not_the_whole_store() {
+    // BufferSlice (absorbed V8Slice): byte_offset/byte_length of the view,
+    // a detached store reads as empty, and a non-Uint8Array is a TypeError.
+    let mut vm = vm_with_ops();
+    assert_eq!(
+        vm.eval_string("__t_rev(new Uint8Array([9,1,2,3,9]).subarray(1,4)).join(',')")
+            .unwrap(),
+        "3,2,1"
+    );
+    assert_eq!(
+        vm.eval_string("const u = new Uint8Array([1,2]); u.buffer.transfer(); __t_rev(u).length")
+            .unwrap(),
+        "0"
+    );
+    let err = vm.eval_string("__t_rev([1,2])").unwrap_err();
+    let diting_runtime::vm::LoopError::TickThrew(msg) = &err else {
+        panic!("expected TickThrew, got {err:?}");
+    };
+    assert!(
+        msg.contains("expected typed ArrayBufferView"),
+        "message was: {msg}"
+    );
+}
+
+#[test]
+fn object_return_builds_a_plain_object() {
+    let mut vm = vm_with_ops();
+    assert_eq!(
+        vm.eval_string(
+            "const t = __t_tile(new Uint8Array([4,5,6])); \
+             [Object.getPrototypeOf(t) === Object.prototype, Object.keys(t).join(), \
+              t.w, t.data instanceof Uint8Array, t.data.join()].join('|')"
+        )
+        .unwrap(),
+        "true|w,data|3|true|4,5,6"
+    );
+    // The Err arm still throws through to_v8_error.
+    let err = vm.eval_string("__t_tile(new Uint8Array(0))").unwrap_err();
+    let diting_runtime::vm::LoopError::TickThrew(msg) = &err else {
+        panic!("expected TickThrew, got {err:?}");
+    };
+    assert!(msg.contains("empty tile"), "message was: {msg}");
 }

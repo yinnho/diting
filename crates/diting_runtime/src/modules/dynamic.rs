@@ -302,7 +302,7 @@ impl ModuleMap {
         let mut still = Vec::new();
         let mut resolved_any = false;
         for eval in pending {
-            let promise = eval.promise.open(scope);
+            let promise = v8::Local::new(scope, &eval.promise);
             match promise.state() {
                 v8::PromiseState::Pending => still.push(eval),
                 v8::PromiseState::Fulfilled => {
@@ -336,7 +336,7 @@ impl ModuleMap {
         let Some(resolver) = self.dynamic_import_map.borrow_mut().remove(&load_id) else {
             return;
         };
-        let resolver = resolver.open(scope);
+        let resolver = v8::Local::new(scope, resolver);
         let Some(module) = self.get_handle(module_id).map(|h| v8::Local::new(scope, h)) else {
             return;
         };
@@ -358,7 +358,7 @@ impl ModuleMap {
         let Some(resolver) = self.dynamic_import_map.borrow_mut().remove(&load_id) else {
             return;
         };
-        let resolver = resolver.open(scope);
+        let resolver = v8::Local::new(scope, resolver);
         resolver.reject(scope, exception).unwrap();
         scope.perform_microtask_checkpoint();
     }
@@ -385,7 +385,9 @@ impl ModuleMap {
         };
         let namespace = module.get_module_namespace();
         for resolver in waiters {
-            resolver.open(scope).resolve(scope, namespace).unwrap();
+            v8::Local::new(scope, resolver)
+                .resolve(scope, namespace)
+                .unwrap();
         }
         scope.perform_microtask_checkpoint();
     }
@@ -400,7 +402,9 @@ impl ModuleMap {
         let Some(waiters) = waiters else { return };
         let exception = v8::Local::new(scope, exception);
         for resolver in waiters {
-            resolver.open(scope).reject(scope, exception).unwrap();
+            v8::Local::new(scope, resolver)
+                .reject(scope, exception)
+                .unwrap();
         }
         scope.perform_microtask_checkpoint();
     }

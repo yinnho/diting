@@ -7632,6 +7632,43 @@ async fn canvas_to_data_url_is_a_real_png() {
     assert_eq!(v[7], serde_json::json!("image/png"), "toBlob MIME");
 }
 
+/// fillText reaches the swash raster through op_canvas_text's `#[object]`
+/// return (hand-built since serde_v8 was absorbed on the v8 152 bump).
+/// canvas2d.js swallows an op failure into the noise-glyph fallback, which
+/// only ever writes full-alpha pixels — so anti-aliased edge pixels
+/// (0 < alpha < 255) prove the real tile arrived, with its fields intact.
+#[cfg(feature = "screenshot")]
+#[test]
+fn canvas_fill_text_uses_the_raster_tile_not_the_fallback() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"(() => {
+            const c = document.createElement('canvas');
+            c.width = 100; c.height = 30;
+            const x = c.getContext('2d');
+            x.textBaseline = 'top';
+            x.font = '14px Arial';
+            x.fillStyle = 'rgb(10,20,30)';
+            x.fillText('mm', 2, 2);
+            const d = x.getImageData(0, 0, 100, 30).data;
+            let ink = 0, edge = 0;
+            for (let i = 3; i < d.length; i += 4) {
+                if (d[i] > 0) ink++;
+                if (d[i] > 0 && d[i] < 255) edge++;
+            }
+            return JSON.stringify({ ink, edge });
+        })()"#,
+        )
+        .unwrap();
+    let got: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert!(got["ink"].as_u64().unwrap() > 0, "text drew ink: {got}");
+    assert!(
+        got["edge"].as_u64().unwrap() > 0,
+        "anti-aliased edges = the swash tile, not the full-alpha fallback: {got}"
+    );
+}
+
 /// (#117/F4) navigator/screen carry ZERO own enumerable props (Chrome
 /// ground truth: Object.keys(navigator) === []), the Chrome 145
 /// prototype key set is present, page writes against the getter-only
@@ -39980,7 +40017,7 @@ class Z extends HTMLElement{static get observedAttributes(){return ["p"]}}custom
 
 #[test]
 fn test_watchdog_zombie_verdict_marks_and_lifts_owner_thread() {
-    // rusty_v8 #2088 (our pinned 150.4.0): terminate_execution never lands
+    // rusty_v8 #2088 (reproduced on 150.4.0 and 152.2.0): terminate_execution never lands
     // inside a TurboFan-optimized loop calling Array.prototype.fill. This
     // loop is bounded (~7s) so it ends on its own: the terminate fired at
     // 200ms is swallowed (re-hammering too), the post-fire grace (3s under

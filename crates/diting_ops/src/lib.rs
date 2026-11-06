@@ -31,7 +31,7 @@
 //!   even infallible-typed returns encode fallibly), `bool` / `f64` / `i32`
 //!   (`RustToV8RetVal`), `Result<T, JsErrorBox>` for T = String/Vec<u8>/
 //!   bool (`Ok` arm encodes; `Err` arm throws via `error::to_v8_error`),
-//!   `#[serde] Result<T, JsErrorBox>` (SerdeMarker wrap).
+//!   `#[object] Result<T, JsErrorBox>` (ObjectMarker wrap, T: ToV8Object).
 //! - sync only: `async fn` is a compile error. The async four arrive with
 //!   the op driver host swap, where the settle-queue pipeline replaces
 //!   deno's deferred machinery.
@@ -99,8 +99,8 @@ enum RetKind {
     ResultBuffer,
     /// `Result<bool, JsErrorBox>`
     ResultBool,
-    /// `Result<T, JsErrorBox>` with `#[serde]`
-    ResultSerde,
+    /// `Result<T, JsErrorBox>` with `#[object]`
+    ResultObject,
 }
 
 fn at(item: &Ident, msg: &str) -> syn::Error {
@@ -128,7 +128,7 @@ fn expand(func: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     // ---- stacked attrs: return markers; the rest pass through -----------
     let mut ret_string = false;
     let mut ret_buffer = false;
-    let mut ret_serde = false;
+    let mut ret_object = false;
     let mut passthrough: Vec<syn::Attribute> = Vec::new();
     for attr in &func.attrs {
         let path = attr.path();
@@ -136,8 +136,8 @@ fn expand(func: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
             ret_string = true;
         } else if path.is_ident("buffer") {
             ret_buffer = true;
-        } else if path.is_ident("serde") {
-            ret_serde = true;
+        } else if path.is_ident("object") {
+            ret_object = true;
         } else if path.is_ident("smi") || path.is_ident("number") {
             return Err(at(
                 &name,
@@ -157,13 +157,13 @@ fn expand(func: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     }
 
     // ---- return type -----------------------------------------------------
-    let ret_kind = classify_return(&func.sig.output, ret_string, ret_buffer, ret_serde)
+    let ret_kind = classify_return(&func.sig.output, ret_string, ret_buffer, ret_object)
         .ok_or_else(|| {
             at(
                 &name,
                 "returns in the matrix: (), #[string] String, #[buffer] Vec<u8>, \
                  bool, f64, i32, Result<String/Vec<u8>/bool/T, JsErrorBox> \
-                 (#[string]/#[buffer]/#[serde] on the Result's Ok type)",
+                 (#[string]/#[buffer]/#[object] on the Result's Ok type)",
             )
         })?;
 
@@ -229,7 +229,7 @@ fn expand(func: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 | RetKind::ResultStr
                 | RetKind::ResultBuffer
                 | RetKind::ResultBool
-                | RetKind::ResultSerde
+                | RetKind::ResultObject
         );
     let has_state = kinds
         .iter()
@@ -410,7 +410,7 @@ fn decode_js_arg(ident: &Ident, kind: &ArgKind, idx: Literal) -> proc_macro2::To
             quote! {
                 let #ident = args.get(#idx as i32);
                 let #temp =
-                    match unsafe { ::diting_runtime::op_glue::to_v8_slice::<u8>(#ident) } {
+                    match ::diting_runtime::op_glue::to_v8_slice(#ident) {
                         ::core::result::Result::Ok(v) => v,
                         ::core::result::Result::Err(e) => {
                             ::diting_runtime::op_glue::throw_error_one_byte_info(&info, e);
@@ -478,7 +478,7 @@ fn return_encode(kind: RetKind) -> proc_macro2::TokenStream {
             ) {
                 ::core::result::Result::Ok(v) => rv.set(v),
                 ::core::result::Result::Err(rv_err) => {
-                    ::diting_runtime::op_glue::throw_serde_v8_error(
+                    ::diting_runtime::op_glue::throw_encode_error(
                         &mut scope,
                         &rv_err,
                     );
@@ -499,7 +499,7 @@ fn return_encode(kind: RetKind) -> proc_macro2::TokenStream {
                 ) {
                     ::core::result::Result::Ok(v) => rv.set(v),
                     ::core::result::Result::Err(rv_err) => {
-                        ::diting_runtime::op_glue::throw_serde_v8_error(
+                        ::diting_runtime::op_glue::throw_encode_error(
                             &mut scope,
                             &rv_err,
                         );
@@ -515,18 +515,18 @@ fn return_encode(kind: RetKind) -> proc_macro2::TokenStream {
             };
             result_match(inner)
         }
-        RetKind::ResultSerde => {
+        RetKind::ResultObject => {
             let inner = quote! {
                 match ::diting_runtime::op_glue::RustToV8Fallible::to_v8_fallible(
                     ::diting_runtime::op_glue::RustToV8Marker::<
-                        ::diting_runtime::op_glue::SerdeMarker,
+                        ::diting_runtime::op_glue::ObjectMarker,
                         _,
                     >::from(result),
                     &mut scope,
                 ) {
                     ::core::result::Result::Ok(v) => rv.set(v),
                     ::core::result::Result::Err(rv_err) => {
-                        ::diting_runtime::op_glue::throw_serde_v8_error(
+                        ::diting_runtime::op_glue::throw_encode_error(
                             &mut scope,
                             &rv_err,
                         );
@@ -645,7 +645,7 @@ fn classify_return(
     output: &ReturnType,
     ret_string: bool,
     ret_buffer: bool,
-    ret_serde: bool,
+    ret_object: bool,
 ) -> Option<RetKind> {
     if let ReturnType::Default = output {
         return Some(RetKind::Unit);
@@ -654,8 +654,8 @@ fn classify_return(
         ReturnType::Type(_, t) => t.as_ref(),
         ReturnType::Default => unreachable!(),
     };
-    if ret_serde {
-        // Result<T, JsErrorBox> with #[serde]
+    if ret_object {
+        // Result<T, JsErrorBox> with #[object]
         let ab = generic_path(ty, "Result")?;
         if ab.args.len() != 2 {
             return None;
@@ -666,7 +666,7 @@ fn classify_return(
         if !js_error_box(err) {
             return None;
         }
-        return Some(RetKind::ResultSerde);
+        return Some(RetKind::ResultObject);
     }
     if let Type::Path(p) = ty {
         if is_ident(&p.path, "bool") && !ret_string && !ret_buffer {
