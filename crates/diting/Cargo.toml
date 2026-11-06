@@ -200,3 +200,6 @@ diting_runtime = { path = "../diting_runtime" }
 # Test-only decode oracle for the hand-rolled canvas PNG encoder (#117):
 # the product never links it in default builds (it stays behind `screenshot`).
 png = "0.18"
+
+[lints]
+workspace = true

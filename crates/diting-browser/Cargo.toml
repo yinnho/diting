@@ -110,3 +110,6 @@ html5ever = "0.40"
 # auth.rs gate tests drive the axum Router via ServiceExt::oneshot (same
 # version axum 0.7.9 already compiles into the tree).
 tower = { version = "0.5", features = ["util"] }
+
+[lints]
+workspace = true

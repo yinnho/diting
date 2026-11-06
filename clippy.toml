@@ -1,0 +1,15 @@
+# 禁用名单（2026-11-06 #27）：只收当下守得住的条目——新增条目前先清零
+# 存量，否则 CI clippy 门一开就是假门。执行级在根 Cargo.toml 的
+# [workspace.lints.clippy]（deny）。姿势偷自 moli（lexmount/moli），
+# 名单内容按自家体检改写：他家 std::sync 全家→parking_lot 的名单暂缓，
+# 见根 Cargo.toml 注释（104 处 std::sync::Mutex 是迁徙不是配置）。
+disallowed-methods = [
+    # 库代码里 exit = 托管进程整死，比一次 500 恶劣得多。CLI 入口处用
+    # 带 reason 的 #[expect] 显式豁免（diting-browser/src/main.rs）。
+    { path = "std::process::exit", reason = "Library code must not kill the hosted process; degrade to an error return. CLI entrypoints use a scoped #[expect] with a reason." },
+    # UB 族：不愉快路径宁可 panic（可观测、可恢复）也不要静默未定义行为。
+    { path = "std::hint::unreachable_unchecked", reason = "UB on the unhappy path; plain unreachable!() panics observably instead." },
+    { path = "std::mem::forget", reason = "Silent leak; if ownership must really end, write the unsafe drop by hand with a comment so it greps." },
+]
+# 类型面暂无条目；名单从这里长，先清零存量再添行。
+disallowed-types = []
