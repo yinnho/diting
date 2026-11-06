@@ -4,12 +4,9 @@ use std::{
 };
 
 use bytes::Bytes;
+use diting_socks::{Socks4Stream, Socks5Stream, TargetAddr};
 use http::Uri;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_socks::{
-    TargetAddr,
-    tcp::{Socks4Stream, Socks5Stream},
-};
 use tower::Service;
 
 use super::Tunneling;
@@ -23,7 +20,7 @@ use crate::{
 pub enum SocksError {
     ConnectFailed(BoxError),
     DnsResolveFailure(BoxError),
-    Socks(tokio_socks::Error),
+    Socks(diting_socks::Error),
     Io(std::io::Error),
     Utf8(std::str::Utf8Error),
     DnsFailure,
@@ -66,8 +63,8 @@ impl From<std::str::Utf8Error> for SocksError {
     }
 }
 
-impl From<tokio_socks::Error> for SocksError {
-    fn from(err: tokio_socks::Error) -> Self {
+impl From<diting_socks::Error> for SocksError {
+    fn from(err: diting_socks::Error) -> Self {
         Self::Socks(err)
     }
 }

@@ -88,10 +88,12 @@ pub(crate) fn op_subtle_aes_gcm(
     type Aes192Gcm = AesGcm<Aes192, aes_gcm::aead::consts::U12>;
     type Aes256Gcm = AesGcm<Aes256, aes_gcm::aead::consts::U12>;
 
-    if iv.len() != 12 {
-        return Err(crypto_err("AES-GCM requires a 96-bit (12-byte) IV"));
-    }
-    let nonce = Nonce::from_slice(iv);
+    // cipher 0.5 deprecates Array::from_slice; the fallible TryFrom replaces
+    // both it and the manual length check (only a wrong-length IV can fail).
+    // Nonce<U12> — the size every variant below aliases (AesGcm<_, U12>).
+    let nonce: &Nonce<aes_gcm::aead::consts::U12> = iv
+        .try_into()
+        .map_err(|_| crypto_err("AES-GCM requires a 96-bit (12-byte) IV"))?;
     macro_rules! run {
         ($ty:ty) => {{
             let cipher = <$ty>::new_from_slice(key).map_err(crypto_err)?;
@@ -127,7 +129,7 @@ pub(crate) fn op_subtle_aes_cbc(
     #[buffer] data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     use cbc::cipher::block_padding::Pkcs7;
-    use cbc::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+    use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
     use cbc::{Decryptor, Encryptor};
 
     if iv.len() != 16 {
@@ -138,11 +140,11 @@ pub(crate) fn op_subtle_aes_cbc(
             if encrypt {
                 Encryptor::<$cipher>::new_from_slices(key, iv)
                     .map_err(crypto_err)?
-                    .encrypt_padded_vec_mut::<Pkcs7>(data)
+                    .encrypt_padded_vec::<Pkcs7>(data)
             } else {
                 Decryptor::<$cipher>::new_from_slices(key, iv)
                     .map_err(crypto_err)?
-                    .decrypt_padded_vec_mut::<Pkcs7>(data)
+                    .decrypt_padded_vec::<Pkcs7>(data)
                     .map_err(|_| crypto_err("AES-CBC decryption failed: invalid padding"))?
             }
         }};
@@ -217,7 +219,7 @@ pub(crate) fn op_subtle_aes_kw(
     #[buffer] key: &[u8],
     #[buffer] data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+    use aes::cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 
     const IV: [u8; 8] = [0xA6; 8];
     if data.is_empty() || !data.len().is_multiple_of(8) || data.len() < 16 {
@@ -402,6 +404,6 @@ pub(crate) fn op_random_bytes(len: u32) -> Result<Vec<u8>, deno_error::JsErrorBo
         return Err(crypto_err("requested random length exceeds 65536 bytes"));
     }
     let mut buf = vec![0u8; len as usize];
-    getrandom::getrandom(&mut buf).map_err(|e| crypto_err(format!("getrandom failed: {e}")))?;
+    getrandom::fill(&mut buf).map_err(|e| crypto_err(format!("getrandom failed: {e}")))?;
     Ok(buf)
 }

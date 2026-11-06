@@ -13,7 +13,8 @@ version = "0.10.0"
 [workspace]
 members = ["crates/diting-browser", "crates/diting", "crates/diting_ops",
            "crates/diting_runtime", "crates/diting_wire", "crates/diting_wire_proto",
-           "crates/diting_wire_rt", "crates/diting_profiles", "crates/diting_wire_h2"]
+           "crates/diting_wire_rt", "crates/diting_profiles", "crates/diting_wire_h2",
+           "crates/diting_socks"]
 resolver = "2"
 
 # Lint 单源（2026-11-06 #27）：各成员 `[lints] workspace = true` 继承这里，

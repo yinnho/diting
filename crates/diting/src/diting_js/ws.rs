@@ -222,13 +222,21 @@ impl WsConnectJob {
         };
 
         // A configured proxy terminates TCP at the proxy hop; direct
-        // otherwise. socks5/socks5h ride tokio_socks, http proxies become
+        // otherwise. socks5/socks5h ride diting_socks, http proxies become
         // CONNECT tunnels — tungstenite sees a plain stream either way.
         if let Some(proxy) = &self.proxy_url {
             let lower = proxy.to_ascii_lowercase();
             if lower.starts_with("socks5://") || lower.starts_with("socks5h://") {
-                let stream = tokio_socks::tcp::Socks5Stream::connect(
-                    proxy.as_str(),
+                // proxy_url carries the scheme (reqwest wants the full URL);
+                // the tunnel dials host:port, so strip it. The tokio-socks
+                // era fed the scheme in and std's resolver failed on it —
+                // this path never actually dialed until the vendoring fix.
+                let proxy_addr = proxy
+                    .split_once("://")
+                    .map(|(_, rest)| rest)
+                    .unwrap_or(proxy.as_str());
+                let stream = diting_socks::Socks5Stream::connect(
+                    proxy_addr,
                     (self.host.as_str(), self.port),
                 )
                 .await
@@ -348,8 +356,8 @@ impl WsConnectJob {
             tokio::select! {
                 out = outbound_rx.recv(), if !close_sent => {
                     let msg = match out {
-                        Some(WsOutbound::Text(t)) => tokio_tungstenite::tungstenite::Message::Text(t),
-                        Some(WsOutbound::Binary(b)) => tokio_tungstenite::tungstenite::Message::Binary(b),
+                        Some(WsOutbound::Text(t)) => tokio_tungstenite::tungstenite::Message::Text(t.into()),
+                        Some(WsOutbound::Binary(b)) => tokio_tungstenite::tungstenite::Message::Binary(b.into()),
                         Some(WsOutbound::Close(code, reason)) => {
                             let _ = ws.send(tokio_tungstenite::tungstenite::Message::Close(Some(
                                 tokio_tungstenite::tungstenite::protocol::CloseFrame {
@@ -378,8 +386,8 @@ impl WsConnectJob {
                 }
                 read = ws.next() => {
                     let ev = match read {
-                        Some(Ok(tokio_tungstenite::tungstenite::Message::Text(t))) => WsInbound::Text(t),
-                        Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(b))) => WsInbound::Binary(b),
+                        Some(Ok(tokio_tungstenite::tungstenite::Message::Text(t))) => WsInbound::Text(t.as_str().to_owned()),
+                        Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(b))) => WsInbound::Binary(b.into()),
                         Some(Ok(tokio_tungstenite::tungstenite::Message::Ping(p))) => {
                             let _ = ws.send(tokio_tungstenite::tungstenite::Message::Pong(p)).await;
                             continue;
@@ -655,7 +663,7 @@ fn http_host(u: &url::Url) -> String {
 fn generate_ws_key() -> String {
     use base64::Engine as _;
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("OS randomness unavailable");
+    getrandom::fill(&mut bytes).expect("OS randomness unavailable");
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 

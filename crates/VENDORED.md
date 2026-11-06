@@ -12,6 +12,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_profiles` | `wreq-util` | 3.0.0-rc.14 | Apache-2.0 | 0x676e67 and contributors |
 | `diting_wire_h2` | `http2` | 0.5.20 | MIT (derived from the `h2` crate) | 0x676e67, Carl Lerche, Sean McArthur and contributors |
 | `diting_btls_sys` | `btls-sys` | 0.5.6 | Apache-2.0 / BoringSSL (ISC-style) | 0x676e67, Alex Crichton, Steven Fackler, BoringSSL authors |
+| `diting_socks` | `tokio-socks` | 0.5.3 | MIT | Yilin Chen (sticnarf) and contributors |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
