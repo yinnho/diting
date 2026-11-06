@@ -44,6 +44,51 @@ pub(crate) use persist::RESTORE_SESSIONS_ENV_LOCK;
 pub static SESSIONS: std::sync::LazyLock<tokio::sync::Mutex<SessionManager>> =
     std::sync::LazyLock::new(|| tokio::sync::Mutex::new(SessionManager::new()));
 
+/// How often a pending reply re-checks its session thread's zombie verdict.
+const ZOMBIE_POLL: Duration = Duration::from_millis(250);
+
+fn zombie_error(session_id: &str) -> SessionError {
+    SessionError::ThreadDied(format!(
+        "session {session_id} is a zombie: page JS is spinning in an optimized loop that \
+         ignored the watchdog's terminate (rusty_v8 #2088 shape); the session was dropped — \
+         create a new one"
+    ))
+}
+
+/// Await a session's reply, giving up once the engine declares its thread a
+/// zombie (the watchdog's terminate never landed, see
+/// `diting::diting_js::runtime::is_zombie_thread`). Without this a page that
+/// swallows the terminate parks the request — and, for callers holding the
+/// manager lock, every session's requests — until the process is killed.
+pub(super) async fn await_reply<R>(
+    session_id: &str,
+    thread: std::thread::ThreadId,
+    rx: &mut oneshot::Receiver<R>,
+) -> Result<R, SessionError> {
+    loop {
+        tokio::select! {
+            r = &mut *rx => {
+                return r.map_err(|_| SessionError::ThreadDied("session thread died".to_string()));
+            }
+            _ = tokio::time::sleep(ZOMBIE_POLL) => {
+                if diting::diting_js::runtime::is_zombie_thread(thread) {
+                    return Err(zombie_error(session_id));
+                }
+            }
+        }
+    }
+}
+
+/// Drop a zombie session from the map after a reply gave up on it. The
+/// queued Close (and the dropped channel) make the thread exit should the
+/// spin ever end; until then it is unreachable either way.
+async fn evict_zombie(session_id: &str, err: &SessionError) {
+    if matches!(err, SessionError::ThreadDied(_)) {
+        let mut mgr = SESSIONS.lock().await;
+        mgr.evict_if_zombie(session_id);
+    }
+}
+
 /// Send one command through the global [`SESSIONS`] manager without holding
 /// its lock while the reply is in flight (#193). HTTP handlers and MCP tools
 /// used to lock SESSIONS across the whole `mgr.send(...).await`, so one long
@@ -62,18 +107,22 @@ where
     E: Into<SessionError> + Send + 'static,
     F: FnOnce(oneshot::Sender<Result<T, E>>) -> SessionCommand,
 {
-    let cmd_tx = {
+    let (cmd_tx, thread) = {
         let mut mgr = SESSIONS.lock().await;
         mgr.prepare_send(session_id, true)?
     };
-    let (reply_tx, reply_rx) = oneshot::channel();
+    let (reply_tx, mut reply_rx) = oneshot::channel();
     cmd_tx
         .send(make_cmd(reply_tx))
         .map_err(|_| SessionError::ThreadDied("session thread died".to_string()))?;
-    let result: Result<T, SessionError> = reply_rx
-        .await
-        .map_err(|_| SessionError::ThreadDied("session thread died".to_string()))?
-        .map_err(Into::into);
+    let reply = match await_reply(session_id, thread, &mut reply_rx).await {
+        Ok(r) => r,
+        Err(e) => {
+            evict_zombie(session_id, &e).await;
+            return Err(e);
+        }
+    };
+    let result: Result<T, SessionError> = reply.map_err(Into::into);
     if result.is_ok() {
         let mut mgr = SESSIONS.lock().await;
         mgr.persist_after_success(session_id).await;
@@ -132,18 +181,22 @@ where
     E: Into<SessionError> + Send + 'static,
     F: FnOnce(oneshot::Sender<Result<T, E>>) -> SessionCommand,
 {
-    let cmd_tx = {
+    let (cmd_tx, thread) = {
         let mut mgr = SESSIONS.lock().await;
         mgr.prepare_send(session_id, false)?
     };
-    let (reply_tx, reply_rx) = oneshot::channel();
+    let (reply_tx, mut reply_rx) = oneshot::channel();
     cmd_tx
         .send(make_cmd(reply_tx))
         .map_err(|_| SessionError::ThreadDied("session thread died".to_string()))?;
-    let result: Result<T, SessionError> = reply_rx
-        .await
-        .map_err(|_| SessionError::ThreadDied("session thread died".to_string()))?
-        .map_err(Into::into);
+    let reply = match await_reply(session_id, thread, &mut reply_rx).await {
+        Ok(r) => r,
+        Err(e) => {
+            evict_zombie(session_id, &e).await;
+            return Err(e);
+        }
+    };
+    let result: Result<T, SessionError> = reply.map_err(Into::into);
     // A read-only probe never refreshes login state either — the snapshot
     // already reflects the last working command.
     result
@@ -241,7 +294,7 @@ impl SessionManager {
         let thread_url = start_url.map(|s| s.to_string());
         let thread_account = account.clone();
         let thread_nav = std::sync::Arc::clone(&nav_shared);
-        std::thread::Builder::new()
+        let thread = std::thread::Builder::new()
             .name(format!("session-{}", &thread_id[..8.min(thread_id.len())]))
             // Deep stack for the V8 isolate — see server::v8_stack_size.
             // A default 2 MB thread dies on minified SPA recursion
@@ -259,7 +312,9 @@ impl SessionManager {
                     cmd_rx,
                 );
             })
-            .expect("failed to spawn session thread");
+            .expect("failed to spawn session thread")
+            .thread()
+            .id();
 
         self.sessions.insert(
             session_id.to_string(),
@@ -272,6 +327,7 @@ impl SessionManager {
                 persistent,
                 account,
                 nav_frame: nav_shared,
+                thread,
             },
         );
         // Fire-and-forget viewport pin: it queues ahead of anything the
@@ -530,7 +586,12 @@ impl SessionManager {
         &mut self,
         session_id: &str,
         renew: bool,
-    ) -> Result<mpsc::UnboundedSender<SessionCommand>, SessionError> {
+    ) -> Result<(mpsc::UnboundedSender<SessionCommand>, std::thread::ThreadId), SessionError> {
+        // A zombie (its isolate swallowed the watchdog's terminate) never
+        // reads its channel again: refuse and drop it instead of queueing.
+        if self.evict_if_zombie(session_id) {
+            return Err(zombie_error(session_id));
+        }
         if let Some(d) = self.dormant.get(session_id) {
             // On-access expiry mirrors evict_expired: a persistent shell
             // keeps its snapshot (promote straight to revival), anything
@@ -564,7 +625,7 @@ impl SessionManager {
                 if renew {
                     session.last_active = Instant::now();
                 }
-                return Ok(session.cmd_tx.clone());
+                return Ok((session.cmd_tx.clone(), session.thread));
             }
             // Idle-expired on access — same policy as send(): a persistent
             // session falls through to revival, anything else is Expired.
@@ -579,7 +640,7 @@ impl SessionManager {
         }
         if self.revive_session(session_id) {
             if let Some(session) = self.sessions.get(session_id) {
-                return Ok(session.cmd_tx.clone());
+                return Ok((session.cmd_tx.clone(), session.thread));
             }
         }
         Err(SessionError::NotFound(format!(
@@ -597,9 +658,9 @@ impl SessionManager {
         make_cmd: impl FnOnce(oneshot::Sender<Result<T, E>>) -> SessionCommand,
     ) -> Option<Result<T, E>> {
         let session = self.sessions.get(session_id)?;
-        let (reply_tx, reply_rx) = oneshot::channel();
+        let (reply_tx, mut reply_rx) = oneshot::channel();
         session.cmd_tx.send(make_cmd(reply_tx)).ok()?;
-        reply_rx.await.ok()
+        await_reply(session_id, session.thread, &mut reply_rx).await.ok()
     }
 
     /// Dispatch one command to a live session and refresh the persisted
@@ -616,16 +677,21 @@ impl SessionManager {
             .sessions
             .get(session_id)
             .ok_or_else(|| SessionError::NotFound(format!("session not found: {}", session_id)))?;
-        let (reply_tx, reply_rx) = oneshot::channel();
+        let thread = session.thread;
+        let (reply_tx, mut reply_rx) = oneshot::channel();
         session
             .cmd_tx
             .send(make_cmd(reply_tx))
             .map_err(|_| SessionError::ThreadDied("session thread died".to_string()))?;
 
-        let result: Result<T, SessionError> = reply_rx
-            .await
-            .map_err(|_| SessionError::ThreadDied("session thread died".to_string()))?
-            .map_err(Into::into);
+        let reply = match await_reply(session_id, thread, &mut reply_rx).await {
+            Ok(r) => r,
+            Err(e) => {
+                self.evict_if_zombie(session_id);
+                return Err(e);
+            }
+        };
+        let result: Result<T, SessionError> = reply.map_err(Into::into);
         if result.is_ok() {
             self.persist_after_success(session_id).await;
         }
@@ -658,6 +724,22 @@ impl SessionManager {
     /// done (idle eviction keeps it; that is the revive path).
     pub fn close(&mut self, session_id: &str) {
         self.close_inner(session_id, true);
+    }
+
+    /// Drop `session_id` if the engine has declared its thread a zombie.
+    /// Keeps the persistent snapshot: the login state is fine, only this
+    /// page's isolate is lost, so the next working command revives a fresh
+    /// thread under the same id. Returns whether it was evicted.
+    pub(super) fn evict_if_zombie(&mut self, session_id: &str) -> bool {
+        let zombie = self
+            .sessions
+            .get(session_id)
+            .is_some_and(|s| diting::diting_js::runtime::is_zombie_thread(s.thread));
+        if zombie {
+            tracing::warn!("session {session_id}: zombie thread (terminate swallowed) — dropped");
+            self.close_inner(session_id, false);
+        }
+        zombie
     }
 
     pub(super) fn close_inner(&mut self, session_id: &str, drop_snapshot: bool) {

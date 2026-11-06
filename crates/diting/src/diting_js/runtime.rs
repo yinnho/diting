@@ -24,7 +24,7 @@ mod watchdog;
 use drop_serialized::{SerializedDropRuntime, ISOLATE_CONSTRUCT_LOCK};
 use heap_guard::{install_heap_limit_guard, HeapLimitState};
 use watchdog::watchdog_terminate;
-pub use watchdog::{spawn_watchdog, WatchdogToken};
+pub use watchdog::{is_zombie_thread, set_zombie_thread_for_test, spawn_watchdog, WatchdogToken};
 
 // The eval/callFunctionOn wrapper-source builders (INLINE_EVAL_JS trampoline,
 // object slots, meta extraction, the #114 await-settle wrappers).

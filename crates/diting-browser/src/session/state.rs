@@ -273,6 +273,9 @@ pub(super) struct BrowserSession {
     /// while a navigation holds the V8 thread.
     #[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
     pub(super) nav_frame: std::sync::Arc<NavFrameShared>,
+    /// The session thread's id — the key of the engine's zombie verdict
+    /// (`diting::diting_js::runtime::is_zombie_thread`).
+    pub(super) thread: std::thread::ThreadId,
 }
 
 impl BrowserSession {

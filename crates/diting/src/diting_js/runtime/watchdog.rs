@@ -27,7 +27,53 @@ pub struct WatchdogToken {
     /// (and its subsequent recovery scripts) destroys the stack we want.
     /// `None` when the knob is off.
     sampler_stop: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    /// The isolate's own thread (every arm site runs on it). The post-fire
+    /// grace registers it in [`ZOMBIE_THREADS`]; a late resurface clears it.
+    owner: std::thread::ThreadId,
 }
+
+/// Threads whose isolate swallowed a terminate (rusty_v8 #2088 shape): the
+/// post-fire grace ran out without the owner coming back. Nothing can unwind
+/// such a thread, but whoever waits on it can stop waiting — the session
+/// layer checks this while awaiting a command reply, so one poisoned page
+/// fails its request instead of hanging it (and the manager lock) forever.
+static ZOMBIE_THREADS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashSet<std::thread::ThreadId>>,
+> = std::sync::LazyLock::new(Default::default);
+
+/// Whether `thread`'s isolate is currently declared a zombie (see
+/// [`ZOMBIE_THREADS`]). Cheap: one uncontended lock + a set probe.
+pub fn is_zombie_thread(thread: std::thread::ThreadId) -> bool {
+    ZOMBIE_THREADS
+        .lock()
+        .map(|z| z.contains(&thread))
+        .unwrap_or(false)
+}
+
+/// Test seam for the product's session layer (its reply wait keys on the
+/// verdict): declare or lift `thread` without driving a real spin.
+#[doc(hidden)]
+pub fn set_zombie_thread_for_test(thread: std::thread::ThreadId, zombie: bool) {
+    if let Ok(mut z) = ZOMBIE_THREADS.lock() {
+        if zombie {
+            z.insert(thread);
+        } else {
+            z.remove(&thread);
+        }
+    }
+}
+
+/// Fire → zombie verdict. A terminate cannot land inside a Rust op either:
+/// page JS that forces a seconds-long layout (#109: a 13s gBCR) leaves the
+/// owner unreachable but ALIVE, and a verdict there would fail a request
+/// that was about to succeed and drop a working session. 20s clears every
+/// legitimate op seen in the wild; only a true hole waits that long. The
+/// 3s mark below stays as an early warning in the log.
+const ZOMBIE_VERDICT_AFTER: std::time::Duration = if cfg!(test) {
+    std::time::Duration::from_secs(3)
+} else {
+    std::time::Duration::from_secs(20)
+};
 
 /// Debug knob (DITING_WATCHDOG_STACK_DUMP=1): dump the live JS stack of
 /// a synchronous overrun. Two producers share this callback:
@@ -186,6 +232,7 @@ pub fn spawn_watchdog(
     let fired_c = fired.clone();
     let resurfaced = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let resurfaced_c = resurfaced.clone();
+    let owner = std::thread::current().id();
     let join = std::thread::spawn(move || {
         let (lock, cvar) = &*pair_c;
         let mut cancelled = lock.lock().unwrap();
@@ -216,17 +263,72 @@ pub fn spawn_watchdog(
                 // nothing at our layer can reach it. Say so loudly instead
                 // of dying silent — 100ms polls so a normal recovery exits
                 // the grace (and the join) promptly.
-                for _ in 0..30 {
+                //
+                // Re-hammer from 500ms on: a single shot is not enough when
+                // the owner's poll-boundary heal (#50) cancels the landed
+                // terminate and the event loop moves on to the NEXT macrotask
+                // still inside the same pump — that task then runs with no
+                // wall at all. github.com/settings (2026-11-06): each link
+                // `load` reached a window listener that re-registers itself
+                // (web-vitals whenReady), listeners doubled per link, and the
+                // pump spun ~100s past one fire. The budget is spent the
+                // moment we fire; JS the owner runs before stop() is overrun
+                // by contract (the 500ms lets its short cleanup scripts pass).
+                let fired_at = std::time::Instant::now();
+                let mut next_hammer = fired_at + std::time::Duration::from_millis(500);
+                let mut warned = false;
+                loop {
                     if resurfaced_c.load(std::sync::atomic::Ordering::Relaxed) {
                         return;
+                    }
+                    let now = std::time::Instant::now();
+                    if now >= next_hammer {
+                        if let Some(stale) = stale.as_ref() {
+                            stale.store(true, std::sync::atomic::Ordering::SeqCst);
+                        }
+                        handle.terminate_execution();
+                        next_hammer = now + std::time::Duration::from_millis(250);
+                    }
+                    let since = now - fired_at;
+                    if !warned && since >= std::time::Duration::from_secs(3) {
+                        warned = true;
+                        eprintln!(
+                            "[watchdog] terminate fired (and re-issued) but the isolate has not \
+                             resurfaced within 3s — a long Rust op, or the optimized-loop \
+                             termination hole (rusty_v8 #2088 shape); zombie verdict at {}s",
+                            ZOMBIE_VERDICT_AFTER.as_secs()
+                        );
+                    }
+                    if since >= ZOMBIE_VERDICT_AFTER {
+                        break;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
                 eprintln!(
-                    "[watchdog] terminate fired but the isolate never resurfaced within 3s — \
-                     optimized-loop termination hole (rusty_v8 #2088 shape); this thread spins \
-                     forever and cannot be recovered, session is a zombie"
+                    "[watchdog] isolate never resurfaced within {}s of the fire — marking the \
+                     thread a zombie so its waiters fail instead of hanging (the verdict lifts \
+                     if it ever resurfaces)",
+                    ZOMBIE_VERDICT_AFTER.as_secs()
                 );
+                // An owner resurfacing right after this is fine: its
+                // cancel_and_join clears the mark only after joining us.
+                if let Ok(mut z) = ZOMBIE_THREADS.lock() {
+                    z.insert(owner);
+                }
+                // Keep knocking (1s cadence) until the owner is back: free
+                // for a true #2088 spin, and a heal-and-continue spin that
+                // outlived the grace still gets cut at its next JS entry.
+                let mut ticks = 0u32;
+                while !resurfaced_c.load(std::sync::atomic::Ordering::Relaxed) {
+                    ticks += 1;
+                    if ticks.is_multiple_of(10) {
+                        if let Some(stale) = stale.as_ref() {
+                            stale.store(true, std::sync::atomic::Ordering::SeqCst);
+                        }
+                        handle.terminate_execution();
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
                 return;
             }
             let (guard, _) = cvar.wait_timeout(cancelled, remaining).unwrap();
@@ -242,6 +344,7 @@ pub fn spawn_watchdog(
         fired,
         resurfaced,
         sampler_stop,
+        owner,
     }
 }
 
@@ -290,6 +393,15 @@ impl WatchdogToken {
         }
         if let Some(j) = self.join.take() {
             let _ = j.join();
+        }
+        // Late resurface after a zombie verdict (the spin did end on its
+        // own): the thread is live again. Its waiters already gave up, so
+        // this only matters for the next command — which must not be
+        // refused against a thread that is serving.
+        if let Ok(mut z) = ZOMBIE_THREADS.lock() {
+            if z.remove(&self.owner) {
+                eprintln!("[watchdog] zombie verdict lifted: the isolate resurfaced late");
+            }
         }
         if let Some(stop) = self.sampler_stop.take() {
             stop.store(true, std::sync::atomic::Ordering::Relaxed);

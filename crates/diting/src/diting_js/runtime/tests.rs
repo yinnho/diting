@@ -39976,3 +39976,117 @@ class Z extends HTMLElement{static get observedAttributes(){return ["p"]}}custom
     ];
     assert_eq!(got, want);
 }
+
+
+#[test]
+fn test_watchdog_zombie_verdict_marks_and_lifts_owner_thread() {
+    // rusty_v8 #2088 (our pinned 150.4.0): terminate_execution never lands
+    // inside a TurboFan-optimized loop calling Array.prototype.fill. This
+    // loop is bounded (~7s) so it ends on its own: the terminate fired at
+    // 200ms is swallowed (re-hammering too), the post-fire grace (3s under
+    // cfg(test), 20s in production — ZOMBIE_VERDICT_AFTER) runs out and must register
+    // the owner thread as a zombie (the session layer's cue to stop waiting
+    // on it), and the loop's natural end must lift the verdict again.
+    let (tid_tx, tid_rx) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let mut rt = setup_runtime("<html><body></body></html>");
+        tid_tx.send(std::thread::current().id()).unwrap();
+        let wd = rt.arm_watchdog(std::time::Duration::from_millis(200));
+        let t0 = std::time::Instant::now();
+        let _ = rt.evaluate(
+            "(() => { let x; for (let i = 0; i < 1500000; i++) x = new Array(64).fill(1); })()",
+        );
+        let ran = t0.elapsed();
+        let fired = rt.disarm_watchdog(wd);
+        (fired, ran)
+    });
+    let tid = tid_rx.recv().unwrap();
+    let t0 = std::time::Instant::now();
+    let mut marked = false;
+    while t0.elapsed() < std::time::Duration::from_secs(5) {
+        if crate::diting_js::runtime::is_zombie_thread(tid) {
+            marked = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    let (fired, ran) = worker.join().unwrap();
+    assert!(fired, "precondition: the watchdog fired");
+    assert!(
+        ran > std::time::Duration::from_secs(4),
+        "precondition: the terminate must NOT have landed (#2088 hole) — the loop ran {ran:?}"
+    );
+    assert!(marked, "the post-fire grace must declare the owner thread a zombie");
+    assert!(
+        !crate::diting_js::runtime::is_zombie_thread(tid),
+        "the late resurface must lift the verdict"
+    );
+}
+
+#[test]
+fn test_load_event_path_stops_at_document() {
+    // DOM §4.5: a Document's get-the-parent is null for `load` — an element
+    // or document load never reaches window listeners. github.com/settings
+    // (2026-11-06) ran web-vitals' whenReady, a window capture 'load'
+    // listener that re-registers a fresh one while readyState isn't
+    // complete; with the document → window hop every <link> load doubled
+    // the listeners — exponential sync work that pinned the pump ~100s.
+    let mut rt = setup_runtime("<html><head></head><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"(() => {
+            let calls = 0;
+            const R = () => { calls++; addEventListener('load', () => R(), true); };
+            addEventListener('load', () => R(), true);
+            let winHandler = 0;
+            window.onload = () => { winHandler++; };
+            const l = document.createElement('link');
+            document.head.appendChild(l);
+            let path = null;
+            l.addEventListener('load', e => { path = e.composedPath().length; });
+            for (let i = 0; i < 16; i++) l.dispatchEvent(new Event('load'));
+            document.dispatchEvent(new Event('load'));
+            let ping = 0;
+            addEventListener('ping', () => { ping++; });
+            l.dispatchEvent(new Event('ping', { bubbles: true }));
+            return JSON.stringify({ calls, winHandler, path, ping });
+        })()"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
+    assert_eq!(v["calls"], 0, "element/document load must not reach window capture listeners");
+    assert_eq!(v["winHandler"], 0, "nor window.onload");
+    assert_eq!(v["path"], 4, "composedPath = [link, head, html, document], no window");
+    assert_eq!(v["ping"], 1, "non-load events still propagate to window");
+}
+
+#[test]
+fn test_watchdog_rehammers_after_heal_and_continue() {
+    // A single terminate is not enough when the owner heals it (the #50
+    // poll-boundary cancel) and keeps running JS under the same, already
+    // fired token — the next task runs with no wall. Mimic that loop: four
+    // 3s spins, revived after each. The first is cut by the fire (200ms);
+    // the re-hammer (from fire+500ms, every 250ms) must cut the rest too.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let wd = rt.arm_watchdog(std::time::Duration::from_millis(200));
+    let t0 = std::time::Instant::now();
+    for _ in 0..4 {
+        let _ = rt.runtime.execute_script(
+            "<spin>",
+            "{ const end = Date.now() + 3000; while (Date.now() < end) {} }",
+        );
+        rt.runtime.revive();
+    }
+    let total = t0.elapsed();
+    let fired = rt.disarm_watchdog(wd);
+    assert!(fired, "precondition: the watchdog fired");
+    assert!(
+        total < std::time::Duration::from_secs(4),
+        "every spin after the heal must be re-terminated, took {total:?} (unbounded = ~9s)"
+    );
+    assert!(
+        !crate::diting_js::runtime::is_zombie_thread(std::thread::current().id()),
+        "a re-hammered spin resurfaces — no zombie verdict"
+    );
+    assert_eq!(rt.evaluate("1 + 1").unwrap().as_f64(), Some(2.0));
+}
