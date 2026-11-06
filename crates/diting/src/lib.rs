@@ -16,7 +16,7 @@ pub mod env_knobs;
 // not yet wired to the product pipeline).
 pub mod diting_css;
 // Taffy fork-delta classification tests (obscura's vendored taffy vs the
-// stock 0.13.0 our blitz pipeline pins).
+// stock release line; history — see diting_layout/fork_deltas.rs).
 #[cfg(feature = "screenshot")]
 pub mod diting_layout;
 // Bundled CJK font supply for /screenshot determinism (batch 3c).

@@ -11206,9 +11206,9 @@ mod fork_deltas;
 #[cfg(test)]
 mod fork_table_deltas;
 
-// (The dual-engine bridge_cross_check tests moved to the product crate with
-// the workspace split — src/bridge_cross_check.rs — so diting carries zero
-// blitz/product references; ARCHITECTURE.md §2 rule R2.)
+// (The dual-engine bridge_cross_check tests lived in the product crate until
+// the blitz reference pipeline was deleted 2026-11-06 — diting carries zero
+// blitz references and never did import any; ARCHITECTURE.md §2 rule R2.)
 
 #[cfg(test)]
 mod tests;

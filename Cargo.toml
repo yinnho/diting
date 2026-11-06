@@ -32,8 +32,10 @@ strip = true
 # full-width. main pushed the missing segment in the end-None branch
 # ("add a segment for the part of it below the last segment"); pin main
 # until a release carries it. Only place_floated_box's signature moved
-# (caller-defined id first param — #299's probe passes 0). The blitz git
-# copy of taffy (versioned 0.14.0) is a different source and stays.
+# (caller-defined id first param — #299's probe passes 0). (The blitz
+# reference pipeline's second taffy copy — 0.14.0 from blitz@916fa89 —
+# left the tree when that pipeline was deleted 2026-11-06; this 0.15 pin
+# is the only taffy now.)
 [patch.crates-io]
 taffy = { git = "https://github.com/DioxusLabs/taffy", rev = "802e497b69689e1c93be2d16e9d53a973971bcb2" }
 # btls-sys 0.5.6 with ONE local patch on the bundled BoringSSL snapshot

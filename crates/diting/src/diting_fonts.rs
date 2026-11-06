@@ -6,13 +6,10 @@
 //! Noto Sans SC subset (OFL — see diting_fonts/OFL.txt) at wght 400/700
 //! covering full GB2312 (6763 Han) + ASCII + the common non-GB2312 symbol
 //! blocks (Latin-1, General Punctuation, Arrows, Geometric/Misc Symbols,
-//! Dingbats — the ·/—/✓ tail GB2312's codec omits), and feeds BOTH engines:
-//!
-//! - the blitz pipeline via [`font_ctx`] — registered under the real family
-//!   name, hoisted to the head of fontique's Han script fallback so CJK text
-//!   resolves to these bytes on every machine, with system fonts kept as a
-//!   tail for chars outside GB2312 (and other scripts);
-//! - the diting layout/paint stack via [`font_book`].
+//! Dingbats — the ·/—/✓ tail GB2312's codec omits), and feeds the diting
+//! layout/paint stack via [`font_book`]. (The retired blitz reference
+//! pipeline used to consume these bytes through a parley FontContext —
+//! deleted 2026-11-06 with the pipeline itself.)
 //!
 //! The mono batch adds a third bundled face: Noto Sans Mono (OFL), instanced
 //! at wght 400 and subset to ASCII/Latin-1/punctuation/arrows/box-drawing —
@@ -26,12 +23,6 @@ use std::sync::Arc;
 
 use crate::diting_layout::text::FontBook;
 use crate::diting_layout::FaceBytes;
-
-/// Real family name, on purpose: pages that style `font-family: "Noto Sans
-/// SC"` (common on Chinese sites) hit the bundled bytes directly, and the
-/// name truthfully reflects the OFL-licensed source.
-#[cfg(feature = "blitz-reference")]
-pub const FAMILY: &str = "Noto Sans SC";
 
 const REGULAR: &[u8] = include_bytes!("diting_fonts/diting-cjk-regular.ttf");
 const BOLD: &[u8] = include_bytes!("diting_fonts/diting-cjk-bold.ttf");
@@ -94,77 +85,6 @@ fn faces_in_dir(dir: &std::path::Path) -> Vec<Vec<u8>> {
 /// bold mono runs shape the same face, and CJK in a mono run falls through
 /// to the pair above per-character.
 const MONO: &[u8] = include_bytes!("diting_fonts/diting-mono-regular.ttf");
-
-/// Build the parley FontContext for a blitz render: bundled faces registered,
-/// then hoisted to the head of the Han fallback chain ahead of whatever the
-/// built-in registry would pick, and appended to the generic sans/serif
-/// families so even a completely font-less machine resolves unstyled text.
-/// `system_fonts` stays on — the tail fallback for non-GB2312 codepoints.
-///
-/// Only the blitz reference pipeline consumes a parley FontContext (the
-/// diting stack goes through [`font_book`]), hence the feature gate.
-#[cfg(feature = "blitz-reference")]
-pub fn font_ctx() -> parley::FontContext {
-    build_ctx(true)
-}
-
-/// The production wiring with the system tail turned OFF — the render can
-/// only be carrying the bundled bytes. Entry point for the product crate's
-/// bundled-CJK claim test (`cjk_renders_without_system_fonts` in
-/// screenshot_reference.rs, home of the blitz pipeline since the workspace
-/// split; the engine itself must not depend on blitz).
-#[cfg(feature = "blitz-reference")]
-pub fn font_ctx_bundled_only() -> parley::FontContext {
-    build_ctx(false)
-}
-
-#[cfg(feature = "blitz-reference")]
-fn build_ctx(system_fonts: bool) -> parley::FontContext {
-    use parley::fontique::{
-        Collection, CollectionOptions, FallbackKey, FontInfoOverride, FontStyle, GenericFamily,
-        Script, SourceCache,
-    };
-
-    let mut ctx = parley::FontContext {
-        source_cache: SourceCache::new_shared(),
-        collection: Collection::new(CollectionOptions {
-            shared: false,
-            system_fonts,
-        }),
-    };
-    let mut families = Vec::new();
-    for (bytes, weight) in [(REGULAR, 400.0), (BOLD, 700.0)] {
-        let blob = parley::fontique::Blob::new(std::sync::Arc::new(bytes.to_vec()));
-        let info = FontInfoOverride {
-            family_name: Some(FAMILY),
-            weight: Some(parley::fontique::FontWeight::new(weight)),
-            style: Some(FontStyle::Normal),
-            ..Default::default()
-        };
-        for (family, _) in ctx.collection.register_fonts(blob, Some(info)) {
-            families.push(family);
-        }
-    }
-    if !families.is_empty() {
-        // Ours first, then whatever the built-in chain had (system Noto etc.)
-        // — `set_fallbacks` replaces, so chain the previous list back on.
-        let key = FallbackKey::new(Script::from_bytes(*b"Hani"), None);
-        let existing: Vec<_> = ctx.collection.fallback_families(key).collect();
-        let _ = ctx
-            .collection
-            .set_fallbacks(key, families.iter().copied().chain(existing));
-        // A machine with no fonts at all must still resolve generic text.
-        for generic in [
-            GenericFamily::SansSerif,
-            GenericFamily::Serif,
-            GenericFamily::Monospace,
-        ] {
-            ctx.collection
-                .append_generic_families(generic, families.iter().copied());
-        }
-    }
-    ctx
-}
 
 /// The same bundle as a [`FontBook`] for the diting layout/paint stack,
 /// with the monospace face installed (mono batch) and the platform's

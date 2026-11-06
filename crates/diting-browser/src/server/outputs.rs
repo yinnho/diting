@@ -9,15 +9,17 @@ use super::browser::{build_browser, inject_cookies, run_on_local_runtime};
 use crate::{ScreenshotRequest, ScreenshotResponse};
 use anyhow::Result;
 
-/// /screenshot: render the JS-rendered DOM of a page to a PNG via inlined Blitz.
+/// /screenshot: render the JS-rendered DOM of a page to a PNG via the diting
+/// engine.
 ///
 /// Unlike /fetch (which can short-circuit to raw HTTP for static pages), this
 /// always drives the diting browser so SPA/JS-rendered content is captured.
-/// The page's `document.documentElement.outerHTML` is then fed to Blitz for
-/// layout + paint — no Chromium. Sub-resources (images, head stylesheets) are
-/// pre-fetched through the page's own HTTP client (same cookies/UA/proxy, plus
-/// stealth TLS when enabled) and served to Blitz synchronously by
-/// PrefetchedNetProvider; misses answer empty so nothing blocks paint.
+/// The page's `document.documentElement.outerHTML` is then fed to the diting
+/// engine (own css+layout+paint stack) — no Chromium. Sub-resources (images,
+/// head stylesheets) are pre-fetched through the page's own HTTP client (same
+/// cookies/UA/proxy, plus stealth TLS when enabled) and served to the renderer
+/// synchronously by PrefetchedNetProvider; misses answer empty so nothing
+/// blocks paint.
 #[cfg(feature = "screenshot")]
 pub fn do_screenshot(req: ScreenshotRequest) -> Result<ScreenshotResponse> {
     run_on_local_runtime(move |_rt| {
@@ -81,45 +83,26 @@ pub fn do_screenshot(req: ScreenshotRequest) -> Result<ScreenshotResponse> {
 
             // Render off-thread-ish: layout/paint is sync and CPU-bound.
             // We're already on a blocking runtime thread, so just call it directly.
-            // Default engine is diting — our own css+layout+paint stack (no
-            // Stylo/vello/parley in the path). engine=blitz opts back into
-            // the Blitz reference pipeline for comparison renders — only
-            // available when compiled with the `blitz-reference` feature.
-            let rendered = if req.engine.as_deref() == Some("blitz") {
-                #[cfg(feature = "blitz-reference")]
-                {
-                    crate::screenshot_reference::render_html_to_png(
-                        &html,
-                        &final_url,
-                        req.width,
-                        req.height,
-                        req.scale,
-                        req.full_page,
-                        req.selector.as_deref(),
-                        req.selector_all,
-                        Some(&resources),
-                    )?
-                }
-                #[cfg(not(feature = "blitz-reference"))]
-                {
-                    anyhow::bail!(
-                        "engine=\"blitz\" requires the blitz-reference feature (this build renders with diting only)"
-                    );
-                }
-            } else {
-                crate::screenshot::render_html_to_png_diting(
-                    &html,
-                    &final_url,
-                    req.width,
-                    req.height,
-                    req.scale,
-                    req.full_page,
-                    req.selector.as_deref(),
-                    req.selector_all,
-                    &[],
-                    Some(&resources),
-                )?
-            };
+            // diting — our own css+layout+paint stack (no Stylo/vello/parley in
+            // the path) — is the only engine; "blitz" (the retired comparison
+            // pipeline, deleted 2026-11-06) gets an explicit error.
+            if let Some(e) = req.engine.as_deref().filter(|e| *e != "diting") {
+                anyhow::bail!(
+                    "engine={e:?} is not available (\"blitz\" was retired 2026-11-06; this build renders with diting only)"
+                );
+            }
+            let rendered = crate::screenshot::render_html_to_png_diting(
+                &html,
+                &final_url,
+                req.width,
+                req.height,
+                req.scale,
+                req.full_page,
+                req.selector.as_deref(),
+                req.selector_all,
+                &[],
+                Some(&resources),
+            )?;
 
             // Computed before the response struct moves `final_url`.
             let css_urls = crate::screenshot::stylesheet_hrefs(&html, &final_url);

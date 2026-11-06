@@ -1,8 +1,7 @@
 //! Screenshot rendering via the inlined diting engine: feed a JS-rendered
 //! HTML string to diting's own CSS cascade + Taffy box layout + paint stack
-//! and return a PNG. The Blitz reference pipeline lives in
-//! [`crate::screenshot_reference`] behind the opt-in `blitz-reference` feature —
-//! this module is the whole renderer in a production build.
+//! and return a PNG. (The blitz reference pipeline that used to sit beside
+//! this module was retired 2026-11-06 — diting is the only renderer.)
 //!
 //! This is the "paint what the agent already sees" layer — diting's
 //! V8 path has already run the page's JS and produced the final DOM; we
@@ -654,8 +653,7 @@ pub fn element_rects_diting(
 mod tests {
     use super::*;
 
-    /// Decode a small PNG and count pixels matching `pred` (test helper,
-    /// mirrored in screenshot_reference's tests so both modules stay standalone).
+    /// Decode a small PNG and count pixels matching `pred` (test helper).
     fn count_color(png_bytes: &[u8], pred: impl Fn((u8, u8, u8)) -> bool) -> usize {
         let decoder = png::Decoder::new(std::io::Cursor::new(png_bytes));
         let mut reader = decoder.read_info().expect("png read_info");
