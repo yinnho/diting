@@ -13,6 +13,7 @@ mod auth;
 // pptx_native/docgen 整目录住 src/authoring/，门控与注释随之内移。
 mod authoring;
 mod browser;
+mod browser_import;
 mod captcha;
 mod config;
 mod cookie;
@@ -80,7 +81,8 @@ use routers::acquisition::{
 #[cfg(feature = "screenshot")]
 use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
 use routers::sessions::{
-    account_delete_handler, account_login_handler, account_verify_handler, accounts_handler,
+    account_delete_handler, account_import_browser_handler, account_login_handler,
+    account_verify_handler, accounts_handler,
     flow_run_handler, import_curl_handler, max_body_bytes, session_challenges_handler,
     session_click_handler, session_click_xy_handler, session_clone_handler, session_close_handler,
     session_console_handler, session_cookie_trace_handler, session_cookies_handler,
@@ -433,6 +435,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/:name", delete(account_delete_handler))
         .route("/account/verify", post(account_verify_handler))
         .route("/account/login", post(account_login_handler))
+        .route("/account/import_browser", post(account_import_browser_handler))
         .route("/render", post(routers::render::render_handler))
         .route(
             "/render_markdown",

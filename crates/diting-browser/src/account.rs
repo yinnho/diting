@@ -107,6 +107,64 @@ fn seed_jar(jar: &CookieJar, cookies: &[String]) {
     }
 }
 
+/// `(name, domain, path)` of an export-form Set-Cookie line — the identity a
+/// jar keys on, so a merge replaces exactly what the jar would replace.
+fn cookie_identity(line: &str) -> Option<(String, String, String)> {
+    let mut parts = line.split(';');
+    let name = parts.next()?.split_once('=')?.0.trim().to_string();
+    let (mut domain, mut path) = (String::new(), "/".to_string());
+    for attr in parts {
+        if let Some((k, v)) = attr.trim().split_once('=') {
+            if k.eq_ignore_ascii_case("domain") {
+                domain = v.trim().trim_start_matches('.').to_ascii_lowercase();
+            } else if k.eq_ignore_ascii_case("path") {
+                path = v.trim().to_string();
+            }
+        }
+    }
+    Some((name, domain, path))
+}
+
+/// Merge imported cookies (#26, browser-profile import) into an account:
+/// same `(name, domain, path)` replaces, everything else the record held
+/// stays. Creates the account when absent. A live jar (sessions running as
+/// the account) gets the same lines seeded, so the import lands without a
+/// restart; a cold account picks them up from the record on first use.
+pub fn import_cookies(owner: &str, name: &str, cookies: &[String]) -> Result<usize, String> {
+    validate_name(name)?;
+    let total = crate::store::mutate_account(owner, name, |rec| merge_cookies(rec, cookies))?;
+    let key = (crate::store::norm_owner(owner), name.to_string());
+    let live = LIVE_JARS.lock().expect("live jar map poisoned").get(&key).cloned();
+    if let Some(jar) = live {
+        seed_jar(&jar, cookies);
+    }
+    Ok(total)
+}
+
+/// Pure half of [`import_cookies`]: fold `cookies` into `rec["cookies"]`,
+/// returning the merged count.
+fn merge_cookies(rec: &mut serde_json::Value, cookies: &[String]) -> usize {
+    let fresh: std::collections::HashSet<_> =
+        cookies.iter().filter_map(|c| cookie_identity(c)).collect();
+    let mut merged: Vec<serde_json::Value> = rec["cookies"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter(|v| {
+                    v.as_str()
+                        .and_then(cookie_identity)
+                        .is_none_or(|id| !fresh.contains(&id))
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    merged.extend(cookies.iter().cloned().map(serde_json::Value::String));
+    let n = merged.len();
+    rec["cookies"] = serde_json::Value::Array(merged);
+    n
+}
+
 /// The stored record, if any: `(record_json, updated_at_unix_secs)`. Writers
 /// go through [`crate::store::mutate_account`] (field-scoped, atomic) — a
 /// bare save helper here would reintroduce the lost-update race this layer
@@ -1051,6 +1109,49 @@ mod tests {
         // Restore the shared jar for other tests.
         shared.clear();
         scrub();
+    }
+
+    /// #26 merge: an import replaces exactly the (name, domain, path) the jar
+    /// would replace — leading dot and case on Domain folded — and leaves the
+    /// record's other cookies and fields alone.
+    #[test]
+    fn imported_cookies_merge_by_jar_identity() {
+        let mut rec = serde_json::json!({
+            "version": 1,
+            "verify": {"url": "https://www.taobao.com/"},
+            "cookies": [
+                "cookie2=OLD; Domain=.taobao.com; Path=/",
+                "cookie2=KEEP-OTHER-PATH; Domain=taobao.com; Path=/cart",
+                "t=KEEP; Domain=taobao.com; Path=/",
+            ],
+        });
+        let n = merge_cookies(
+            &mut rec,
+            &[
+                "cookie2=NEW; Domain=TaoBao.com; Path=/; Secure".to_string(),
+                "_tb_token_=T; Domain=taobao.com; Path=/".to_string(),
+            ],
+        );
+        let got: Vec<&str> = rec["cookies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "cookie2=KEEP-OTHER-PATH; Domain=taobao.com; Path=/cart",
+                "t=KEEP; Domain=taobao.com; Path=/",
+                "cookie2=NEW; Domain=TaoBao.com; Path=/; Secure",
+                "_tb_token_=T; Domain=taobao.com; Path=/",
+            ]
+        );
+        assert_eq!(n, 4);
+        assert_eq!(rec["verify"]["url"], "https://www.taobao.com/", "other fields untouched");
+        // A fresh record (the store's {"version":1}) just gains the list.
+        let mut blank = serde_json::json!({"version": 1});
+        assert_eq!(merge_cookies(&mut blank, &["a=1; Domain=x.test; Path=/".to_string()]), 1);
     }
 
     #[test]

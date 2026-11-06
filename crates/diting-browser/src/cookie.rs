@@ -59,3 +59,36 @@ impl CookieStore {
             .collect())
     }
 }
+
+/// Inverse of diting's `parse_http_date` for the cookie export form
+/// (session `Cookies` command, account records, browser-profile import): epoch seconds
+/// → "Wdy, DD Mon YYYY HH:MM:SS GMT". Dates outside the parser's accepted
+/// year range surface as None (the entry then round-trips as a session
+/// cookie — the old behavior — rather than a broken date).
+pub(crate) fn http_date(secs: i64) -> Option<String> {
+    if !(0..=253_402_300_799).contains(&secs) {
+        return None;
+    }
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (h, m, s) = (rem / 3600, (rem % 3600) / 60, rem % 60);
+    // civil_from_days (Hinnant): epoch-day → (year, month, day)
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let mth = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if mth <= 2 { y + 1 } else { y };
+    // Day 0 of the epoch was a Thursday.
+    let wd = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"][days.rem_euclid(7) as usize];
+    let mon = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ][(mth - 1) as usize];
+    Some(format!(
+        "{wd}, {d:02} {mon} {year:04} {h:02}:{m:02}:{s:02} GMT"
+    ))
+}

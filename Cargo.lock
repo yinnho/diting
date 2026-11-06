@@ -1016,11 +1016,13 @@ dependencies = [
 name = "diting-browser"
 version = "0.10.0"
 dependencies = [
+ "aes",
  "aes-gcm",
  "anyhow",
  "async-trait",
  "axum",
  "base64 0.22.1",
+ "cbc",
  "diting",
  "diting_profiles",
  "futures",
@@ -1030,6 +1032,7 @@ dependencies = [
  "http",
  "image",
  "libc",
+ "pbkdf2",
  "png",
  "pulldown-cmark",
  "reqwest",
@@ -1037,7 +1040,9 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
+ "sha1 0.11.0",
  "sha2 0.11.1",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tower",
