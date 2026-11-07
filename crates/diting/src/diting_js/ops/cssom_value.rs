@@ -149,6 +149,9 @@ pub(super) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "border-radius",
     "flex-direction",
     "flex-wrap",
+    "flex-grow",
+    "flex-shrink",
+    "flex-basis",
     "justify-content",
     "align-items",
     "opacity",
@@ -744,6 +747,29 @@ pub(super) fn computed_style_value(
             }
             .into(),
         ),
+        // Flex computed trio (takumi #2361): layout has consumed grow/
+        // shrink/basis all along (the shorthand's omitted basis is 0% in
+        // the cascade), but the snapshot never spelled them — sheet-sourced
+        // values fell through to the JS defaults ("0"/"1"/"auto") while
+        // inline ones only worked via the inline echo. Numbers are always
+        // initial-valued answers ("0"/"1"), so this arm can't shadow a
+        // caller that knows better. flex-basis computed value keeps the
+        // declared shape (px/% verbatim, em already folded by the cascade);
+        // auto is the initial and stays None there.
+        "flex-grow" => Some(format_number(s.flex_grow.unwrap_or(0.0))),
+        "flex-shrink" => Some(format_number(s.flex_shrink.unwrap_or(1.0))),
+        "flex-basis" => Some(match &s.flex_basis {
+            None => "auto".into(),
+            Some(Length::Px(v)) => format!("{}px", format_number(*v)),
+            Some(Length::Percent(p)) => format!("{}%", format_number(*p)),
+            Some(Length::MinContent) => "min-content".into(),
+            Some(Length::MaxContent) => "max-content".into(),
+            Some(Length::FitContent) => "fit-content".into(),
+            // No border box at this snapshot layer to spell a mixed calc,
+            // and the JS chain echoes the declared spelling anyway.
+            Some(Length::Calc { .. }) => return None,
+            Some(Length::Auto) => "auto".into(),
+        }),
         "justify-content" => Some(
             match s.justify_content {
                 Some(JustifyMode::FlexStart) => "flex-start",

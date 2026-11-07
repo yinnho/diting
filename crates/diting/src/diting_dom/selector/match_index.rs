@@ -314,7 +314,8 @@ impl DomTree {
                 }
             }
             if let Some(class) = &class {
-                for c in class.split_whitespace() {
+                // ASCII whitespace only, same as has_class (takumi #2400).
+                for c in class.split_ascii_whitespace() {
                     probe(&index.by_class, c);
                     if index.quirks {
                         probe(&index.by_class, &c.to_ascii_lowercase());
