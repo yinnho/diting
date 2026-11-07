@@ -768,6 +768,7 @@ dependencies = [
  "ctr",
  "deno_error",
  "diting_ops",
+ "diting_png",
  "diting_profiles",
  "diting_runtime",
  "diting_socks",
@@ -778,16 +779,16 @@ dependencies = [
  "futures",
  "futures-util",
  "getrandom 0.4.3",
+ "gif",
  "hkdf",
  "hmac",
  "html5ever",
  "http",
- "image",
+ "image-webp",
  "memmap2",
  "p256",
  "p384",
  "pbkdf2",
- "png",
  "precomputed-hash",
  "reqwest",
  "rsa",
@@ -809,6 +810,8 @@ dependencies = [
  "uuid",
  "v8",
  "webpki-roots",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -823,16 +826,15 @@ dependencies = [
  "base64",
  "cbc",
  "diting",
+ "diting_png",
  "diting_profiles",
  "ego-tree",
  "futures",
  "futures-util",
  "html5ever",
  "http",
- "image",
  "libc",
  "pbkdf2",
- "png",
  "pulldown-cmark",
  "reqwest",
  "rusqlite",
@@ -860,6 +862,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "diting_png"
+version = "0.18.1"
+dependencies = [
+ "bitflags",
+ "crc32fast",
+ "fdeflate",
+ "flate2",
+ "miniz_oxide 0.8.9",
 ]
 
 [[package]]
@@ -1713,24 +1726,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "image"
-version = "0.25.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
-dependencies = [
- "bytemuck",
- "byteorder-lite",
- "color_quant",
- "gif",
- "image-webp",
- "moxcms",
- "num-traits",
- "png",
- "zune-core",
- "zune-jpeg",
-]
-
-[[package]]
 name = "image-webp"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2029,16 +2024,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "moxcms"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
-dependencies = [
- "num-traits",
- "pxfm",
-]
-
-[[package]]
 name = "multiversion_no_op"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2274,19 +2259,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
-name = "png"
-version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61"
-dependencies = [
- "bitflags",
- "crc32fast",
- "fdeflate",
- "flate2",
- "miniz_oxide 0.8.9",
-]
-
-[[package]]
 name = "polyval"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2399,12 +2371,6 @@ name = "pulldown-cmark-escape"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
-
-[[package]]
-name = "pxfm"
-version = "0.1.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "quick-error"

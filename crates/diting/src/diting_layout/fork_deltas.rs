@@ -2388,9 +2388,9 @@ fn relative_img_src_hits_absolute_keyed_byte_table() {
     let rgba = vec![200u8, 40, 40, 255, 40, 40, 200, 255];
     let mut png_bytes = Vec::new();
     {
-        let mut enc = png::Encoder::new(&mut png_bytes, 2u32, 1u32);
-        enc.set_color(png::ColorType::Rgba);
-        enc.set_depth(png::BitDepth::Eight);
+        let mut enc = diting_png::Encoder::new(&mut png_bytes, 2u32, 1u32);
+        enc.set_color(diting_png::ColorType::Rgba);
+        enc.set_depth(diting_png::BitDepth::Eight);
         let mut writer = enc.write_header().unwrap();
         writer.write_image_data(&rgba).unwrap();
     }

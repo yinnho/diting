@@ -1908,7 +1908,7 @@ async fn screenshot_anonymous_flow_text_refreshes_on_style_write() {
             let png = STANDARD
                 .decode(v["image_base64"].as_str().expect("base64 body"))
                 .expect("decodable base64");
-            let decoder = png::Decoder::new(std::io::Cursor::new(&png));
+            let decoder = diting_png::Decoder::new(std::io::Cursor::new(&png));
             let mut reader = decoder.read_info().expect("png read_info");
             let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
             let info = reader.next_frame(&mut buf).expect("png decode");
@@ -2082,7 +2082,7 @@ async fn screenshot_paints_canvas_pixels_on_both_paths() {
         let png = STANDARD
             .decode(v["image_base64"].as_str().expect("base64 body"))
             .expect("decodable base64");
-        let decoder = png::Decoder::new(std::io::Cursor::new(&png));
+        let decoder = diting_png::Decoder::new(std::io::Cursor::new(&png));
         let mut reader = decoder.read_info().expect("png read_info");
         let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
         let info = reader.next_frame(&mut buf).expect("png decode");
@@ -2158,19 +2158,23 @@ async fn screenshot_default_frame_paints_typed_input_value() {
         let png = STANDARD
             .decode(v["image_base64"].as_str().expect("base64 body"))
             .expect("png bytes");
-        let img = image::load_from_memory(&png).expect("decode png").to_rgb8();
+        let img = diting::diting_layout::image::decode_png(&png).expect("decode png");
         // Dark ink inside the input rect (8,8,240x32) — the box fill and
         // any border are constant across both shots, so only the typed
         // text moves the count.
-        img.enumerate_pixels()
-            .filter(|(x, y, p)| {
-                *x >= 10
-                    && *x < 246
-                    && *y >= 10
-                    && *y < 38
-                    && p.0[0] < 100
-                    && p.0[1] < 100
-                    && p.0[2] < 100
+        let w = img.width as usize;
+        img.rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(i, px)| {
+                let (x, y) = (i % w, i / w);
+                (10..246).contains(&x)
+                    && (10..38).contains(&y)
+                    && px[0] < 100
+                    && px[1] < 100
+                    && px[2] < 100
             })
             .count()
     }

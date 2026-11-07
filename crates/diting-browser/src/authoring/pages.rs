@@ -361,15 +361,20 @@ fn paint_with_text(
 // ---------------------------------------------------------------------------
 
 /// Encode an RGBA frame as JPEG (the PDF embedding path; quality 1-100).
+/// Baseline JPEG has no alpha — the channels drop here — and the encoder is
+/// the house port of image 0.25.10's (#42 ④), so bytes match its output.
 pub fn jpeg_of(width: u32, height: u32, rgba: &[u8], quality: u8) -> Result<Vec<u8>, String> {
-    let img = image::RgbaImage::from_raw(width, height, rgba.to_vec())
-        .ok_or_else(|| "frame buffer size mismatch".to_string())?;
-    let rgb = image::DynamicImage::ImageRgba8(img).to_rgb8();
-    let mut out = std::io::Cursor::new(Vec::new());
-    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
-    rgb.write_with_encoder(encoder)
+    if rgba.len() != width as usize * height as usize * 4 {
+        return Err("frame buffer size mismatch".to_string());
+    }
+    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
+    for &[r, g, b, _] in rgba.as_chunks::<4>().0 {
+        rgb.extend_from_slice(&[r, g, b]);
+    }
+    let mut out = Vec::new();
+    diting::diting_layout::image::encode_jpeg_rgb(&mut out, &rgb, width, height, quality)
         .map_err(|e| format!("jpeg encode: {e}"))?;
-    Ok(out.into_inner())
+    Ok(out)
 }
 
 /// Encode an RGBA frame as PNG (the standalone-pages path).
@@ -377,9 +382,9 @@ pub fn png_of(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     {
         let mut encoder =
-            png::Encoder::new(std::io::Cursor::new(&mut out), width.max(1), height.max(1));
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
+            diting_png::Encoder::new(std::io::Cursor::new(&mut out), width.max(1), height.max(1));
+        encoder.set_color(diting_png::ColorType::Rgba);
+        encoder.set_depth(diting_png::BitDepth::Eight);
         let mut writer = encoder
             .write_header()
             .map_err(|e| format!("png header: {e}"))?;

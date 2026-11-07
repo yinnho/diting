@@ -29,5 +29,16 @@ The SOCKS4/5 tunneling (crates/diting_socks) was taken from the `tokio-socks` cr
 (MIT; see crates/diting_socks/LICENSE), and has since been pruned and modified
 (thiserror 1 → 2 among other changes); it is maintained here. See crates/VENDORED.md.
 
+The PNG codec (crates/diting_png) was taken from the `png` crate 0.18.1 by the image-rs
+contributors (MIT OR Apache-2.0; both license files are kept in the crate), and has since
+been pruned and modified; it is maintained here. See crates/VENDORED.md.
+
+The baseline JPEG encoder (crates/diting/src/diting_layout/image/jpeg_encode.rs) was taken
+from the `image` crate 0.25.10 (MIT OR Apache-2.0) by the image-rs developers and
+contributors, and pruned to the RGB8 face. Its forward DCT is a translation of jfdctint.c
+from the Independent JPEG Group's libjpeg 9a (obtained from http://www.ijg.org/files/);
+the IJG license conditions are reproduced verbatim in that file's header. This software is
+based in part on the work of the Independent JPEG Group.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.

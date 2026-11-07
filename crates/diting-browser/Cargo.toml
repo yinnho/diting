@@ -33,7 +33,7 @@ stealth = ["diting/stealth", "dep:diting_profiles"]
 # CSS+layout+paint stack, no Chromium required, no blitz. The engine's
 # render deps live in diting; the product face only needs encode/decode
 # (PNG/JPEG re-encode of the engine's rendered bytes).
-screenshot = ["diting/screenshot", "dep:image", "dep:png"]
+screenshot = ["diting/screenshot", "dep:diting_png"]
 
 [dependencies]
 diting = { path = "../diting" }
@@ -91,9 +91,9 @@ diting_profiles = { path = "../diting_profiles", optional = true }
 # (test-only feature no CI job enabled). History: the pin was 916fa89 for #878
 # (metrics-derived line-height normal); the yinnho/blitz fork retired earlier
 # via upstream blitz#636.
-png = { version = "0.18", optional = true }
-# jpeg/webp/gif are the only features we need.
-image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
+# Vendored png 0.18.1 (#42 ④) — the product face's PNG encode/decode;
+# JPEG re-encode goes through diting_layout::image's house encoder.
+diting_png = { path = "../diting_png", optional = true }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 
 aes-gcm = "0.11"

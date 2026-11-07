@@ -1,0 +1,26 @@
+[package]
+name = "diting_png"
+version = "0.18.1"
+edition = "2021"
+rust-version = "1.73"
+description = "PNG decoding and encoding (vendored from the png crate, maintained here)"
+license = "MIT OR Apache-2.0"
+publish = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "diting_png"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dependencies]
+bitflags = "2.0"
+crc32fast = "1.2.0"
+fdeflate = "0.3.3"
+flate2 = "1.0.35"
+miniz_oxide = { version = "0.8", features = ["simd"] }
