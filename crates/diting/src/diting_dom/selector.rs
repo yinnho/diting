@@ -751,8 +751,13 @@ impl<'a> Element for DomElement<'a> {
             .with_node(self.node_id, |n| {
                 n.get_attribute("class")
                     .map(|class_attr| {
+                        // HTML class tokens split on ASCII whitespace only
+                        // (takumi #2400): U+3000 and friends are ordinary
+                        // name characters, so `a\u{3000}b` is ONE token and
+                        // matches neither .a nor .b — str::split_whitespace
+                        // (Unicode) chopped it into two.
                         class_attr
-                            .split_whitespace()
+                            .split_ascii_whitespace()
                             .any(|c| case_sensitivity.eq(c.as_bytes(), name.0.as_bytes()))
                     })
                     .unwrap_or(false)

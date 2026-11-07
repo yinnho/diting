@@ -717,6 +717,24 @@ mod tree_tests {
             assert_eq!(node.get_attribute("class"), Some("foo bar"));
         }
 
+        /// HTML class tokens split on ASCII whitespace only (takumi #2400):
+        /// U+3000 IDEOGRAPHIC SPACE is an ordinary name character, so
+        /// `class="a\u{3000}b"` is ONE token — it must not match `.b` (or
+        /// `.a`). Both the direct matcher (has_class) and the match index
+        /// bucket path share the ASCII-only rule.
+        #[test]
+        fn test_query_selector_class_ascii_whitespace_only() {
+            let tree = parse_html("<div class=\"a\u{3000}b\">x</div><div class=\"c d\">y</div>");
+            // U+3000 must NOT split: neither .a nor .b matches the first div.
+            assert!(tree.query_selector(".a").unwrap().is_none());
+            assert!(tree.query_selector(".b").unwrap().is_none());
+            // Plain ASCII space still splits.
+            assert!(tree.query_selector(".c").unwrap().is_some());
+            assert!(tree.query_selector(".d").unwrap().is_some());
+            // The whole U+3000-joined token IS a class name.
+            assert!(tree.query_selector(".a\u{3000}b").unwrap().is_some());
+        }
+
         #[test]
         fn test_query_selector_id() {
             let tree = parse_html(r#"<div id="main">Content</div>"#);

@@ -10661,6 +10661,44 @@ fn test_set_range_text_chrome_pinned_selection() {
 }
 
 #[test]
+fn test_selection_api_throws_on_non_text_inputs() {
+    // obscura 11-04 absorption: the selection API is text-entry-only.
+    // On a checkbox, setSelectionRange/setRangeText/selectionStart writes
+    // throw InvalidStateError (before touching any mirror) and the
+    // getters answer null; a text input right next to it keeps working.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt
+        .evaluate(
+            r#"
+            const out = [];
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            document.body.appendChild(cb);
+            const name = (fn) => { try { fn(); out.push('no-throw'); } catch (e) { out.push(e.name); } };
+            name(() => cb.setSelectionRange(0, 1));
+            name(() => cb.setRangeText('x'));
+            name(() => { cb.selectionStart = 1; });
+            out.push(String(cb.selectionStart) + '/' + String(cb.selectionEnd));
+            const ti = document.createElement('input');
+            ti.value = 'hello';
+            document.body.appendChild(ti);
+            ti.setSelectionRange(1, 3);
+            ti.setRangeText('XY', 0, 0);
+            out.push(ti.value + '@' + ti.selectionStart + '-' + ti.selectionEnd);
+            return out.join('|');
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!(
+            "InvalidStateError|InvalidStateError|InvalidStateError|null/null|XYhello@3-5"
+        ),
+        "checkbox throws on all three, getters null; text input unaffected"
+    );
+}
+
+#[test]
 fn test_option_legacy_factory() {
     // glama.ai admin form chunk populates selects via `new Option(label,
     // value)`; without the global its hydration died on "Option is not

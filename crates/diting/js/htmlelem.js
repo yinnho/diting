@@ -679,12 +679,23 @@ _markNative(HTMLCanvasElement.prototype.toBlob);
 
 // selectionStart/End/Direction live on the two text-entry interfaces in
 // Chrome (刀55: they left Element.prototype with the rest of the sink).
+// Non-text inputs (checkbox/radio/button/file/…): the getters answer null
+// and the setters throw InvalidStateError — the same guard
+// setSelectionRange carries (obscura 11-04 absorption).
+const _ns_selTypeErr = function (el, method) {
+  const ty = String(el.getAttribute && el.getAttribute('type') || 'text').toLowerCase();
+  throw new DOMException(
+    "Failed to execute '" + method + "' on 'HTMLInputElement': The input element's type ('" + ty + "') does not support selection.",
+    'InvalidStateError');
+};
 for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.selectionStart) {
   Object.defineProperty(_C.prototype, 'selectionStart', {
     get: function() {
+      if (!_ns_isTextEntry(this)) return null;
       return _ns_selectionStart.get(this) ?? null;
     },
     set: function(v) {
+      if (!_ns_isTextEntry(this)) _ns_selTypeErr(this, 'selectionStart');
       _ns_selectionStart.set(this, v == null ? null : Math.max(0, parseInt(v, 10) || 0));
       _ns_mirrorSelection(this);
     },
@@ -696,9 +707,11 @@ for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) 
 for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.selectionEnd) {
   Object.defineProperty(_C.prototype, 'selectionEnd', {
     get: function() {
+      if (!_ns_isTextEntry(this)) return null;
       return _ns_selectionEnd.get(this) ?? null;
     },
     set: function(v) {
+      if (!_ns_isTextEntry(this)) _ns_selTypeErr(this, 'selectionEnd');
       _ns_selectionEnd.set(this, v == null ? null : Math.max(0, parseInt(v, 10) || 0));
       _ns_mirrorSelection(this);
     },
@@ -720,9 +733,12 @@ for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) 
   });
 }
 
-// setSelectionRange - set text selection range (input/textarea, 刀55)
+// setSelectionRange - set text selection range (input/textarea, 刀55).
+// Non-text inputs throw InvalidStateError before touching anything
+// (obscura 11-04): Chrome keeps the throw even for out-of-range args.
 for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.setSelectionRange) {
   _C.prototype.setSelectionRange = function setSelectionRange(start, end) {
+    if (!_ns_isTextEntry(this)) _ns_selTypeErr(this, 'setSelectionRange');
     let direction = arguments[2];
     start = Math.max(0, parseInt(start, 10) || 0);
     end = Math.max(0, parseInt(end, 10) || 0);
@@ -743,6 +759,7 @@ for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) 
 // length delta.
 for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) if (_C && !_C.prototype.setRangeText) {
   _C.prototype.setRangeText = function setRangeText(replacement) {
+    if (!_ns_isTextEntry(this)) _ns_selTypeErr(this, 'setRangeText');
     const strVal = String(this.value ?? '');
     const start = arguments[1] === undefined ? (this.selectionStart ?? 0) : Math.max(0, parseInt(arguments[1], 10) || 0);
     const end = arguments[2] === undefined ? (this.selectionEnd ?? 0) : Math.max(0, parseInt(arguments[2], 10) || 0);

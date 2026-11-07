@@ -136,6 +136,65 @@ fn backdrop_filter_computed_face() {
     );
 }
 
+/// Flex computed trio (takumi #2361 absorption): `flex: 1` computes
+/// grow/shrink/basis as 1/1/0% — layout consumed these all along, but the
+/// snapshot table never spelled them, so sheet-sourced values fell to the
+/// JS defaults ("0"/"1"/"auto"). Undeclared fields answer the initial
+/// values, and the declared spellings survive (px/% verbatim).
+#[cfg(feature = "screenshot")]
+#[test]
+fn flex_computed_trio_face() {
+    for prop in ["flex-grow", "flex-shrink", "flex-basis"] {
+        assert!(
+            super::cssom_value::COMPUTED_STYLE_PROPS.contains(&prop),
+            "{prop} missing from the props table"
+        );
+    }
+    // Undeclared: the initial trio 0/1/auto.
+    let s = crate::diting_css::ComputedStyle::default();
+    assert_eq!(
+        super::computed_style_value(&s, "flex-grow", None, None).as_deref(),
+        Some("0")
+    );
+    assert_eq!(
+        super::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        super::computed_style_value(&s, "flex-basis", None, None).as_deref(),
+        Some("auto")
+    );
+    // flex:1 → 1/1/0% (the shorthand's omitted basis), flex:2 3 40px as
+    // declared — the same apply path cascade_element runs.
+    let mut s = crate::diting_css::ComputedStyle::default();
+    crate::diting_css::apply_declarations(&mut s, "flex: 1");
+    assert_eq!(
+        super::computed_style_value(&s, "flex-grow", None, None).as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        super::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        super::computed_style_value(&s, "flex-basis", None, None).as_deref(),
+        Some("0%")
+    );
+    crate::diting_css::apply_declarations(&mut s, "flex: 2 3 40px");
+    assert_eq!(
+        super::computed_style_value(&s, "flex-grow", None, None).as_deref(),
+        Some("2")
+    );
+    assert_eq!(
+        super::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
+        Some("3")
+    );
+    assert_eq!(
+        super::computed_style_value(&s, "flex-basis", None, None).as_deref(),
+        Some("40px")
+    );
+}
+
 #[cfg(feature = "screenshot")]
 #[test]
 fn style_write_paint_only_diff_matrix() {
