@@ -34,9 +34,11 @@ screenshot = [
     # Taffy does diting's box layout.
     "dep:taffy",
     # Real glyph measurement + rasterization for diting_layout text leaves
-    # (render claim batches 3a/3b). Same stack upstream obscura-render builds
-    # on. scale/render are the outline raster features (3b paint).
-    "dep:swash",
+    # (render claim batches 3a/3b; stack upstream obscura-render built on).
+    # Vendored 2026-11-07 (#42 ③ / #45) — the font stack is ours, ring
+    # (skrifa/zeno/yazi) stays registry. scale/render are the outline
+    # raster features (3b paint).
+    "dep:diting_swash",
 ]
 
 [dependencies]
@@ -69,11 +71,11 @@ taffy = { version = "0.15", optional = true, default-features = false, features 
     # layout until the probe proves it.
     "float_layout",
 ] }
-# Shaped advances + font metrics (batch 3a) and glyph rasterization (3b) for
-# diting_layout text leaves. Same stack upstream obscura-render builds on.
-# default-features=false + explicit std/scale/render: no variations/simd knob
-# we don't use (default set is std+scale+render anyway — pin it explicitly).
-swash = { version = "0.2", optional = true, default-features = false, features = [
+# --- font stack (#42 ③ / #45: swash 0.2.10 vendored as diting_swash) ---
+# Shaping (ShapeContext — note: NOT behind a feature, always compiled),
+# metrics/scale and glyph rasterization for diting_layout text leaves and
+# canvas fillText. Explicit std/scale/render pin kept (no default face ride).
+diting_swash = { path = "../diting_swash", optional = true, default-features = false, features = [
     "std",
     "scale",
     "render",

@@ -17,7 +17,7 @@
 //! never re-font (a ja page's Latin stays in the primary face), and a
 //! slot with no matching face falls back to today's exact order.
 
-use swash::FontRef;
+use diting_swash::FontRef;
 
 /// Which unified-ideograph system a run's glyphs should come from —
 /// derived from the run's language tag ([`han_slot_for_lang`]) and matched
@@ -83,9 +83,9 @@ pub fn face_han_slot(bytes: &[u8]) -> Option<HanSlot> {
     let font = FontRef::from_index(bytes, 0)?;
     let mut name = String::new();
     for id in [
-        swash::StringId::Family,
-        swash::StringId::TypographicFamily,
-        swash::StringId::Full,
+        diting_swash::StringId::Family,
+        diting_swash::StringId::TypographicFamily,
+        diting_swash::StringId::Full,
     ] {
         if let Some(s) = font.localized_strings().find_by_id(id, None) {
             s.chars().for_each(|c| name.push(c));
@@ -123,10 +123,10 @@ pub fn face_han_slot(bytes: &[u8]) -> Option<HanSlot> {
         }
     }
     for ws in font.writing_systems() {
-        if ws.script_tag() == swash::tag_from_bytes(b"kana") {
+        if ws.script_tag() == diting_swash::tag_from_bytes(b"kana") {
             return Some(HanSlot::Japanese);
         }
-        if ws.script_tag() == swash::tag_from_bytes(b"hang") {
+        if ws.script_tag() == diting_swash::tag_from_bytes(b"hang") {
             return Some(HanSlot::Korean);
         }
     }

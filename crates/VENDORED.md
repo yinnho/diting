@@ -18,6 +18,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_markup5ever` | `markup5ever` | 0.40.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
 | `diting_cssparser` | `cssparser` | 0.38.0 | MPL-2.0 | Simon Sapin and contributors |
 | `diting_selectors` | `selectors` | 0.42.0 | MPL-2.0 | The Servo Project Developers |
+| `diting_swash` | `swash` | 0.2.10 | Apache-2.0 OR MIT | Chad Brokaw (dfrg) |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -122,6 +123,40 @@ html5ever serializer — and prunes what nothing used (fragment parsing,
 Provenance comments in the module header; scraper's MIT OR Apache-2.0
 attribution stays in `NOTICE`. `ego-tree` itself stays registry (generic tree
 utility, like `flate2` under `diting_png`).
+
+## Font stack (#42 ③ / #45, 2026-11-07)
+
+`swash` 0.2.10 — the whole font line: shaping (`shape::ShapeContext`, the
+HarfBuzz-class engine — NOT behind a feature, upstream compiles it always and
+our `diting_layout::text` shapes through it), metrics/scale (`ScaleContext`,
+`Scaler`, `Source::ColorBitmap` color-emoji strikes, the built-in PNG decoder
+over `yazi` zlib, `proxy::MetricsProxy`), and glyph rasterization (`render`,
+zeno outlines). Vendored as **`diting_swash`** for the CJK-fallback
+differentiation face (#42 ③): the font line is where our moat lives, and we
+were already paying rent in its deep corners — dfrg/swash#139 (width-0 EBDT
+bitmap → `chunks(0)` panic) is absorbed by a glyph denylist in
+`diting_layout/text.rs`; with the crate in-tree, fixing that at the source
+instead is on our clock.
+
+Intake: same shape as the other leaf vendors (png, socks) — tarball src, both
+LICENSEs, `test = false`/`doctest = false` equivalents via no test targets
+(upstream ships zero inline `#[cfg(test)]` — nothing to sweep), package + lib
+renamed, our README replacing upstream's. Pruned: the `libm` feature
+(no_std float math via `core_maths`) and its three guarded imports — we always
+run std. Everything else is untouched; the feature face (std/scale/render and
+the optional-dep structure) matches upstream exactly. No `#![crate_name]`
+attrs existed. Upstream took `skrifa ">= 0.31.1, <= 0.44"`; we pin `0.44`
+(the line in the lock) — the fontations train moves when we move it.
+
+Ring stays registry, none used directly outside this crate: `skrifa` 0.44
+(+`read-fonts`/`font-types`, the Google fontations family), `zeno` 0.3.3
+(path rasterizer), `yazi` 0.2.1 (zlib decode for the embedded PNG bitmaps).
+Reverse dependency was single-hop (`swash ← diting ← diting-browser`), so the
+manifest flip is one line plus the `dep:` feature key.
+
+Not in this batch: the CJK fallback work itself (exotic-script fallback,
+86quan emoji font absence — the font-fallback gap notes) — vendoring buys the
+right to fix at the source, the fixes are their own batches.
 
 ## Still external (on purpose)
 `btls` (the safe Rust wrapper; we call its API from `diting_wire`).

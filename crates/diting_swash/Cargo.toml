@@ -1,0 +1,33 @@
+[package]
+# Vendored from swash 0.2.10 (dfrg/swash, Chad Brokaw) on 2026-11-07 —
+# #42 ③ / #45. Version stays at upstream's for attribution. Intake
+# changes are recorded in the repository git history and
+# crates/VENDORED.md ("Font stack" section).
+name = "diting_swash"
+version = "0.2.10"
+edition = "2021"
+description = "Font introspection, complex text shaping and glyph rendering."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/dfrg/swash"
+readme = "README.md"
+
+# Features exactly as upstream ships them minus `libm` (the no_std math
+# path via core_maths — pruned at intake, we always run std; the three
+# `#[cfg(feature = "libm")]` imports went with it). scale/render optional
+# structure kept identical so the feature face is behavior-preserving.
+[features]
+default = ["std", "scale", "render"]
+render = ["scale", "zeno/eval"]
+scale = ["dep:yazi", "dep:zeno"]
+std = ["skrifa/std", "zeno?/std", "yazi?/std"]
+
+[lib]
+name = "diting_swash"
+path = "src/lib.rs"
+
+# Upstream took skrifa ">= 0.31.1, <= 0.44"; pinned to the line we ride
+# (0.44 is in the lock) — the fontations train moves when we move it.
+[dependencies]
+skrifa = { version = "0.44", default-features = false }
+yazi = { version = "0.2.1", optional = true, default-features = false }
+zeno = { version = "0.3.3", optional = true, default-features = false }
