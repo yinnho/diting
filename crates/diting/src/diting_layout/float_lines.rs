@@ -10,8 +10,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use taffy::tree::{LayoutInput, LayoutOutput, NodeId};
-use taffy::{BlockContext, Clear};
+use diting_taffy::tree::{LayoutInput, LayoutOutput, NodeId};
+use diting_taffy::{BlockContext, Clear};
 
 use super::text::{self, Token};
 use crate::diting_css::{TextAlign, WhiteSpace};
@@ -61,7 +61,7 @@ pub(super) fn measure(
     }
     let full = match (inputs.known_dimensions.width, inputs.available_space.width) {
         (Some(w), _) => w,
-        (None, taffy::AvailableSpace::Definite(w)) => w,
+        (None, diting_taffy::AvailableSpace::Definite(w)) => w,
         _ => return None,
     };
     if !ctx.has_active_floats(0.0) {
@@ -203,16 +203,16 @@ pub(super) fn measure(
         shift(s, l.width);
     }
     let widest = lines.iter().map(|l| l.width).fold(0.0, f32::max);
-    let size = taffy::geometry::Size {
+    let size = diting_taffy::geometry::Size {
         width: inputs.known_dimensions.width.unwrap_or(widest.ceil()),
         height: inputs.known_dimensions.height.unwrap_or(bottom + pad),
     };
-    if inputs.run_mode == taffy::RunMode::PerformLayout {
+    if inputs.run_mode == diting_taffy::RunMode::PerformLayout {
         SLOTS.with(|s| s.borrow_mut().insert(id, slots));
     }
     Some(LayoutOutput::from_sizes(
         size,
-        taffy::geometry::Rect {
+        diting_taffy::geometry::Rect {
             left: 0.0,
             top: 0.0,
             right: size.width,
@@ -279,12 +279,12 @@ pub(super) fn split(
 /// float, into the float's free slots), everything else by its style.
 pub(super) fn measure_node(
     fonts: &super::FontBook,
-    inputs: taffy::tree::LayoutInput,
-    id: taffy::tree::NodeId,
+    inputs: diting_taffy::tree::LayoutInput,
+    id: diting_taffy::tree::NodeId,
     ctx: Option<&mut super::TextLeaf>,
-    style: &taffy::Style,
-    block: Option<&mut taffy::BlockContext<'_>>,
-) -> taffy::tree::LayoutOutput {
+    style: &diting_taffy::Style,
+    block: Option<&mut diting_taffy::BlockContext<'_>>,
+) -> diting_taffy::tree::LayoutOutput {
     match ctx {
         Some(super::TextLeaf::Run {
             text,
@@ -338,11 +338,11 @@ pub(super) fn measure_node(
             super::measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, *line_clamp)
         }
         // Word leaves keep their style-driven sizing.
-        _ => taffy::compute_leaf_layout(
+        _ => diting_taffy::compute_leaf_layout(
             inputs,
             style,
             |_, _| 0.0,
-            |_, _| taffy::geometry::Size::ZERO,
+            |_, _| diting_taffy::geometry::Size::ZERO,
         ),
     }
 }

@@ -16,7 +16,7 @@ members = ["crates/diting-browser", "crates/diting", "crates/diting_ops",
            "crates/diting_wire_rt", "crates/diting_profiles", "crates/diting_wire_h2",
            "crates/diting_socks", "crates/diting_png", "crates/diting_html5ever",
            "crates/diting_markup5ever", "crates/diting_cssparser", "crates/diting_selectors",
-           "crates/diting_swash"]
+           "crates/diting_swash", "crates/diting_taffy"]
 resolver = "2"
 
 # Lint 单源（2026-11-06 #27）：各成员 `[lints] workspace = true` 继承这里，
@@ -47,19 +47,11 @@ strip = true
 # 当前瓶颈（bench auto 532ms）。要动它先带 bench 数字和构建机余量再来。
 
 # taffy 0.15.0 (2026-10-12) predates the float tail-segment fix our #300
-# graduation battery pinned: a float placed beside a shorter earlier float
-# (e.g. a 60px left float starting beside a 50px right float's last 10px)
-# had the part of its extent below the segment list's last end silently
-# dropped from the FloatContext, so text lines beside that tail wrapped
-# full-width. main pushed the missing segment in the end-None branch
-# ("add a segment for the part of it below the last segment"); pin main
-# until a release carries it. Only place_floated_box's signature moved
-# (caller-defined id first param — #299's probe passes 0). (The blitz
-# reference pipeline's second taffy copy — 0.14.0 from blitz@916fa89 —
-# left the tree when that pipeline was deleted 2026-11-06; this 0.15 pin
-# is the only taffy now.)
+# taffy patch pin retired 2026-11-07 (#42 ① / #46): the pinned tree
+# (main rev 802e497, taken for the #300 float tail-segment fix that 0.15.1
+# still lacks) is now vendored as crates/diting_taffy — same rev, our name.
+# The 0.15.1-side commits are an in-tree diff batch on our clock.
 [patch.crates-io]
-taffy = { git = "https://github.com/DioxusLabs/taffy", rev = "802e497b69689e1c93be2d16e9d53a973971bcb2" }
 # btls-sys 0.5.6 with ONE local patch on the bundled BoringSSL snapshot
 # (mldsa-sigalgs: SSL_SIGN_MLDSA44/65/87 + GREASE passthrough — Chrome 156+
 # ClientHello sigalgs lead, issue #25). Same name+version so btls 0.5.6 links

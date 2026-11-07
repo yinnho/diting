@@ -136,15 +136,15 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
         ) => LengthPercentageAuto::auto(),
         None => LengthPercentageAuto::auto(),
     };
-    // taffy::geometry::Rect spelled in full — this module's own Rect shadows
+    // diting_taffy::geometry::Rect spelled in full — this module's own Rect shadows
     // the prelude name.
-    s.margin = taffy::geometry::Rect {
+    s.margin = diting_taffy::geometry::Rect {
         top: lpa_zero(style.margin.top),
         right: lpa_zero(style.margin.right),
         bottom: lpa_zero(style.margin.bottom),
         left: lpa_zero(style.margin.left),
     };
-    s.padding = taffy::geometry::Rect {
+    s.padding = diting_taffy::geometry::Rect {
         top: lp(style.padding.top),
         right: lp(style.padding.right),
         bottom: lp(style.padding.bottom),
@@ -175,7 +175,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             0.0
         },
     );
-    s.border = taffy::geometry::Rect {
+    s.border = diting_taffy::geometry::Rect {
         top: LengthPercentage::length(bt),
         right: LengthPercentage::length(br),
         bottom: LengthPercentage::length(bb),
@@ -387,13 +387,13 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     // implicit `<name>-start`/`<name>-end` lines on both axes (CSS §8,
     // exactly the convention taffy's NamedLineResolver implements).
     if let Some(name) = &style.grid_area {
-        let start = taffy::style::GridPlacement::NamedLine(format!("{}-start", name), 1);
-        let end = taffy::style::GridPlacement::NamedLine(format!("{}-end", name), 1);
-        s.grid_row = taffy::geometry::Line {
+        let start = diting_taffy::style::GridPlacement::NamedLine(format!("{}-start", name), 1);
+        let end = diting_taffy::style::GridPlacement::NamedLine(format!("{}-end", name), 1);
+        s.grid_row = diting_taffy::geometry::Line {
             start: start.clone(),
             end: end.clone(),
         };
-        s.grid_column = taffy::geometry::Line { start, end };
+        s.grid_column = diting_taffy::geometry::Line { start, end };
     }
 
     // --- positioning + clamps (batch 2d) ---
@@ -426,7 +426,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             || style.bottom.is_some()
             || style.left.is_some())
     {
-        s.inset = taffy::geometry::Rect {
+        s.inset = diting_taffy::geometry::Rect {
             top: lpa_auto(style.top),
             right: lpa_auto(style.right),
             bottom: lpa_auto(style.bottom),
@@ -534,7 +534,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
 /// size resolution (indefinite containing block → plain max-content).
 pub(super) fn resolve_sizing_keywords(
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
     style: &ComputedStyle,
     fonts: &FontBook,
 ) {
@@ -550,7 +550,7 @@ pub(super) fn resolve_sizing_keywords(
     // would zero the TextLeaf runs (no measure fn attached).
     let measured =
         |taffy_tree: &mut TaffyTree<TextLeaf>, w: AvailableSpace| -> f32 {
-            let space = taffy::geometry::Size {
+            let space = diting_taffy::geometry::Size {
                 width: w,
                 height: AvailableSpace::MaxContent,
             };
@@ -592,7 +592,7 @@ pub(super) fn resolve_sizing_keywords(
                         | Some(TextLeaf::Replaced { .. })
                         | Some(TextLeaf::Pseudo { .. })
                         | None => {
-                            taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
+                            diting_taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
                         }
                     }
                 });
@@ -617,8 +617,8 @@ pub(super) fn resolve_sizing_keywords(
 /// diting_css track → taffy track: `1fr` maps to minmax(auto, 1fr), a px
 /// track is fixed, a % track is fixed percent (taffy resolves it against
 /// the grid container's content box), `auto` sizes to content.
-fn to_grid_track(track: GridTrack) -> taffy::style::GridTemplateComponent<String> {
-    use taffy::style::{MaxTrackSizingFunction, MinTrackSizingFunction, TrackSizingFunction};
+fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent<String> {
+    use diting_taffy::style::{MaxTrackSizingFunction, MinTrackSizingFunction, TrackSizingFunction};
     match track {
         GridTrack::Fr(f) => {
             let tsf: TrackSizingFunction = fr(f);
@@ -660,8 +660,8 @@ fn to_grid_track(track: GridTrack) -> taffy::style::GridTemplateComponent<String
 /// `grid-area: <name>` items reference.
 fn template_areas_from_matrix(
     matrix: &[Vec<String>],
-) -> Option<taffy::style::GridTemplateAreas<String>> {
-    use taffy::style::GridTemplateArea;
+) -> Option<diting_taffy::style::GridTemplateAreas<String>> {
+    use diting_taffy::style::GridTemplateArea;
     let cols = matrix.first()?.len();
     if cols == 0 || matrix.iter().any(|r| r.len() != cols) {
         return None;
@@ -694,7 +694,7 @@ fn template_areas_from_matrix(
             }
         }
     }
-    Some(taffy::style::GridTemplateAreas {
+    Some(diting_taffy::style::GridTemplateAreas {
         areas,
         row_count: matrix.len() as u16,
         column_count: cols as u16,

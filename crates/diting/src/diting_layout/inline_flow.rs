@@ -7,8 +7,8 @@
 //! wrapper's position, with the flex row's own rules (items top-aligned, the
 //! line as tall as its tallest item, no growing).
 
-use taffy::util::ResolveOrZero;
-use taffy::{
+use diting_taffy::util::ResolveOrZero;
+use diting_taffy::{
     AvailableSpace, BlockContext, BoxGenerationMode, Clear, CoreStyle, JustifyContent, Layout,
     LayoutInput, LayoutOutput, LayoutPartialTree, Line, NodeId, Point, RequestedAxis, Size,
     SizingMode,
@@ -17,12 +17,12 @@ use taffy::{
 struct Item {
     id: NodeId,
     size: Size<f32>,
-    margin: taffy::Rect<f32>,
-    border: taffy::Rect<f32>,
-    padding: taffy::Rect<f32>,
+    margin: diting_taffy::Rect<f32>,
+    border: diting_taffy::Rect<f32>,
+    padding: diting_taffy::Rect<f32>,
 }
 
-fn sized(width: f32, known: Size<Option<f32>>, mode: taffy::RunMode) -> LayoutInput {
+fn sized(width: f32, known: Size<Option<f32>>, mode: diting_taffy::RunMode) -> LayoutInput {
     LayoutInput {
         run_mode: mode,
         sizing_mode: SizingMode::InherentSize,
@@ -79,7 +79,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
             continue;
         }
         let size = tree
-            .compute_child_layout(k, sized(width, Size::NONE, taffy::RunMode::ComputeSize))
+            .compute_child_layout(k, sized(width, Size::NONE, diting_taffy::RunMode::ComputeSize))
             .size;
         items.push(Item {
             id: k,
@@ -161,7 +161,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
         height: inputs.known_dimensions.height.unwrap_or(total_h),
     };
 
-    if inputs.run_mode == taffy::RunMode::PerformLayout {
+    if inputs.run_mode == diting_taffy::RunMode::PerformLayout {
         for l in &lines {
             // A line wider than its band (unbreakable items) keeps the
             // band start — Chrome overflows rather than un-centering.
@@ -190,7 +190,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
                             width: Some(it.size.width),
                             height: Some(it.size.height),
                         },
-                        taffy::RunMode::PerformLayout,
+                        diting_taffy::RunMode::PerformLayout,
                     ),
                 );
                 let mut lo = Layout::with_order(*i as u32);

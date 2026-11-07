@@ -18,13 +18,13 @@ use std::rc::Rc;
 /// count). The start is signed: a line item cut from the middle of a run
 /// begins after some node's first chars.
 pub(crate) type Segs = Rc<[(NodeId, i32, u32)]>;
-pub(crate) type SrcMap = Rc<HashMap<taffy::tree::NodeId, Segs>>;
+pub(crate) type SrcMap = Rc<HashMap<diting_taffy::tree::NodeId, Segs>>;
 
 thread_local! {
     static PENDING: RefCell<Vec<(u32, NodeId)>> = const { RefCell::new(Vec::new()) };
     static FRAMES: Cell<u32> = const { Cell::new(0) };
     static CUR: Cell<Option<NodeId>> = const { Cell::new(None) };
-    static BUILDING: RefCell<HashMap<taffy::tree::NodeId, Segs>> = RefCell::new(HashMap::new());
+    static BUILDING: RefCell<HashMap<diting_taffy::tree::NodeId, Segs>> = RefCell::new(HashMap::new());
     static ACTIVE: RefCell<Option<SrcMap>> = const { RefCell::new(None) };
 }
 
@@ -78,7 +78,7 @@ pub(crate) fn cur() -> Option<NodeId> {
     CUR.with(|c| c.get())
 }
 
-pub(crate) fn register(leaf: taffy::tree::NodeId, segs: Vec<(NodeId, i32, u32)>) {
+pub(crate) fn register(leaf: diting_taffy::tree::NodeId, segs: Vec<(NodeId, i32, u32)>) {
     if !segs.is_empty() {
         BUILDING.with(|b| b.borrow_mut().insert(leaf, segs.into()));
     }
@@ -87,7 +87,7 @@ pub(crate) fn register(leaf: taffy::tree::NodeId, segs: Vec<(NodeId, i32, u32)>)
 /// Steal a leaf's build-time registration (used when a pre run is exploded
 /// into per-hard-line leaves — the original leaf dies and its segs must ride
 /// the replacements so Range/getClientRects still find the span's text).
-pub(crate) fn take_building(leaf: taffy::tree::NodeId) -> Option<Segs> {
+pub(crate) fn take_building(leaf: diting_taffy::tree::NodeId) -> Option<Segs> {
     BUILDING.with(|b| b.borrow_mut().remove(&leaf))
 }
 
@@ -129,7 +129,7 @@ impl Drop for Armed {
     }
 }
 
-pub(crate) fn lookup(leaf: taffy::tree::NodeId) -> Option<Segs> {
+pub(crate) fn lookup(leaf: diting_taffy::tree::NodeId) -> Option<Segs> {
     ACTIVE.with(|a| a.borrow().as_ref().and_then(|m| m.get(&leaf).cloned()))
 }
 
@@ -171,9 +171,9 @@ use super::TextLeaf;
 /// leaves are removed from the tree, like the flatten-path cleanup.
 pub(super) fn trim_run_edge_whitespace(
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    leaves: &mut Vec<taffy::tree::NodeId>,
+    leaves: &mut Vec<diting_taffy::tree::NodeId>,
 ) {
-    let is_ws = |tree: &TaffyTree<TextLeaf>, node: taffy::tree::NodeId| {
+    let is_ws = |tree: &TaffyTree<TextLeaf>, node: diting_taffy::tree::NodeId| {
         matches!(
             tree.get_node_context(node),
             Some(TextLeaf::Word { text, .. }) if text.trim().is_empty()

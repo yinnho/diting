@@ -1,0 +1,64 @@
+[package]
+# Vendored from taffy — upstream main rev 802e497 (the tree we rode via
+# [patch.crates-io] since #300; the 0.15.1 release DIVERGED from main and
+# lacks the float tail-segment fix, so the vendor pins this exact tree).
+# #42 ① / #46. Version 0.15.0 matches the registry release this rev tracks.
+# Intake changes are recorded in the repository git history and
+# crates/VENDORED.md ("Layout core" section).
+name = "diting_taffy"
+version = "0.15.0"
+edition = "2021"
+description = "A flexible UI layout library"
+license = "MIT"
+repository = "https://github.com/DioxusLabs/taffy"
+readme = "README.md"
+
+# Features exactly as upstream ships the set we ride (our old dep spec
+# enumerated the upstream default under default-features=false). Pruned at
+# intake: serde (derives for Style), parse/parse_faster (FromStr via
+# registry cssparser) and document-features — none enabled, none used;
+# their optional deps went with them. strict_provenance stays (pure cfg
+# knob, no dep).
+[features]
+default = [
+    "std",
+    "taffy_tree",
+    "flexbox",
+    "flexbox_balance",
+    "grid",
+    "block_layout",
+    "float_layout",
+    "calc",
+    "content_size",
+    "detailed_layout_info",
+]
+block_layout = []
+float_layout = []
+flexbox = []
+flexbox_balance = ["flexbox"]
+grid = ["dep:smallvec"]
+calc = []
+content_size = []
+detailed_layout_info = []
+# Pruned at intake: the optional deps `serde`, `cssparser` (parse) and
+# `document-features` are gone — never enabled, nothing uses them. Their
+# feature names stay declared as empty shells so the ~138 in-source
+# `#[cfg(feature = ...)]` gates resolve as known cfgs (code never compiles;
+# do NOT enable these — the deps they would need no longer exist).
+# strict_provenance/debug/profile stay as upstream ships them (pure knobs).
+serde = []
+parse = []
+parse_faster = ["parse"]
+strict_provenance = []
+debug = ["std"]
+profile = ["std"]
+taffy_tree = ["dep:slotmap"]
+std = ["slotmap?/std"]
+
+[lib]
+name = "diting_taffy"
+path = "src/lib.rs"
+
+[dependencies]
+slotmap = { version = "1.1", default-features = false, optional = true }
+smallvec = { version = "1.16", default-features = false, optional = true }

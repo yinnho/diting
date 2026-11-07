@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use taffy::{Display, FlexDirection, Style};
+use diting_taffy::{Display, FlexDirection, Style};
 
 use crate::diting_dom::tree::{DomTree, NodeId};
 
@@ -23,7 +23,7 @@ use super::{
 pub(super) fn pseudo_leaf_style<'a>(
     taffy_tree: &TaffyTree<TextLeaf>,
     styles: &'a HashMap<NodeId, ComputedStyle>,
-    node: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
 ) -> Option<&'a ComputedStyle> {
     match taffy_tree.get_node_context(node) {
         Some(TextLeaf::Pseudo { host, before }) => {
@@ -49,7 +49,7 @@ pub(super) fn append_pseudo_leaves(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
-    node: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
 ) {
@@ -64,7 +64,7 @@ pub(super) fn append_pseudo_leaves(
     if is_replaced_tag(&tag) || style.display == Some(CssDisplay::Table) {
         return;
     }
-    let mut children: Vec<taffy::tree::NodeId> =
+    let mut children: Vec<diting_taffy::tree::NodeId> =
         taffy_tree.children(node).unwrap_or_default().to_vec();
     let mut changed = false;
     if let Some(before) = &pair.before {
@@ -108,7 +108,7 @@ fn pseudo_inline_run_leaf(
     fonts: &FontBook,
     content: &str,
     ws: WhiteSpace,
-) -> Option<taffy::tree::NodeId> {
+) -> Option<diting_taffy::tree::NodeId> {
     let fs = p
         .font_size
         .unwrap_or(crate::diting_css::DEFAULT_ROOT_FONT_SIZE);
@@ -161,7 +161,7 @@ fn pseudo_leaf(
     host: NodeId,
     p: &ComputedStyle,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    children: &mut Vec<taffy::tree::NodeId>,
+    children: &mut Vec<diting_taffy::tree::NodeId>,
     fonts: &FontBook,
     is_before: bool,
 ) -> bool {
@@ -187,7 +187,7 @@ fn pseudo_leaf(
         }
         _ => p.display,
     };
-    let insert = |leaf: taffy::tree::NodeId, children: &mut Vec<taffy::tree::NodeId>| {
+    let insert = |leaf: diting_taffy::tree::NodeId, children: &mut Vec<diting_taffy::tree::NodeId>| {
         if is_before {
             children.insert(0, leaf);
         } else {

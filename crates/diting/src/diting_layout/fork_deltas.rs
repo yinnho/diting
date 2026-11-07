@@ -1,6 +1,6 @@
-use taffy::geometry::Point;
-use taffy::prelude::*;
-use taffy::tree::{LayoutInput, LayoutOutput};
+use diting_taffy::geometry::Point;
+use diting_taffy::prelude::*;
+use diting_taffy::tree::{LayoutInput, LayoutOutput};
 
 /// Intrinsic (min-content, max-content) inline size of a text-ish leaf.
 /// The Definite branch itself implements fit-content clamping, the way a
@@ -1807,7 +1807,7 @@ fn empty_inline_block_aligns_bottom_edge() {
 /// how diting_layout feeds it, this is where the divergence surfaces first.
 #[test]
 fn taffy_named_grid_area_placement() {
-    use taffy::style::{GridPlacement, GridTemplateArea, GridTemplateAreas};
+    use diting_taffy::style::{GridPlacement, GridTemplateArea, GridTemplateAreas};
 
     let area = |name: &str, rs: u16, re: u16, cs: u16, ce: u16| GridTemplateArea {
         name: name.into(),
@@ -1820,11 +1820,11 @@ fn taffy_named_grid_area_placement() {
     // end → `<n>-end` (CSS §8; taffy's NamedLineResolver implements the same
     // convention).
     let place = |name: &str| Style {
-        grid_row: taffy::geometry::Line {
+        grid_row: diting_taffy::geometry::Line {
             start: GridPlacement::NamedLine(format!("{}-start", name), 1),
             end: GridPlacement::NamedLine(format!("{}-end", name), 1),
         },
-        grid_column: taffy::geometry::Line {
+        grid_column: diting_taffy::geometry::Line {
             start: GridPlacement::NamedLine(format!("{}-start", name), 1),
             end: GridPlacement::NamedLine(format!("{}-end", name), 1),
         },
@@ -1901,14 +1901,14 @@ fn taffy_named_grid_area_placement() {
 /// WIDER than the track (196 + 12), never zero.
 #[test]
 fn taffy_grid_item_negative_margin_still_stretches() {
-    use taffy::style::{GridPlacement, GridTemplateArea, GridTemplateAreas};
+    use diting_taffy::style::{GridPlacement, GridTemplateArea, GridTemplateAreas};
 
     let place = |name: &str| Style {
-        grid_row: taffy::geometry::Line {
+        grid_row: diting_taffy::geometry::Line {
             start: GridPlacement::NamedLine(format!("{}-start", name), 1),
             end: GridPlacement::NamedLine(format!("{}-end", name), 1),
         },
-        grid_column: taffy::geometry::Line {
+        grid_column: diting_taffy::geometry::Line {
             start: GridPlacement::NamedLine(format!("{}-start", name), 1),
             end: GridPlacement::NamedLine(format!("{}-end", name), 1),
         },
@@ -1918,7 +1918,7 @@ fn taffy_grid_item_negative_margin_still_stretches() {
     tree.disable_rounding();
     let toc = tree
         .new_leaf(Style {
-            margin: taffy::geometry::Rect {
+            margin: diting_taffy::geometry::Rect {
                 top: LengthPercentageAuto::length(45.6),
                 right: LengthPercentageAuto::length(0.0),
                 bottom: LengthPercentageAuto::length(0.0),
