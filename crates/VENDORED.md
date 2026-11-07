@@ -19,7 +19,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_cssparser` | `cssparser` | 0.38.0 | MPL-2.0 | Simon Sapin and contributors |
 | `diting_selectors` | `selectors` | 0.42.0 | MPL-2.0 | The Servo Project Developers |
 | `diting_swash` | `swash` | 0.2.10 | Apache-2.0 OR MIT | Chad Brokaw (dfrg) |
-| `diting_taffy` | `taffy` (main rev `802e497`) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
+| `diting_taffy` | `taffy` (main rev `802e497` + #1358) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -172,12 +172,20 @@ patch pin because it carries the float tail-segment fix (#300: a float
 landing inside the last segment but taller than its remaining extent never
 pushed the new segment) — and the later 0.15.1 release DIVERGED from main
 (ahead 22 / behind 20) without that fix. The vendor freezes the exact tree
-the battery was green on. Version stays 0.15.0 (the release this rev tracks);
-absorbing the 0.15.1-side commits (float inset/clamp fixes, baseline
-consistency, the flexbox perf passes) is an in-tree diff batch gated by the
-layout parity battery, on our clock — fork_deltas' flip-face lesson applies
-there (upstream absorbing a fork expectation turns a locked "stock value"
-into the failure).
+the battery was green on. Version stays 0.15.0 (the release this rev tracks).
+
+The 0.15.1-side ledger closed the same day (#47): `git cherry` + per-commit
+diffing proved 14 of the 22 "ahead" commits are verbatim cherry-picks of
+main commits already in our pinned tree (the release branch cherry-picked
+FROM main, not the other way), 7 are benchmarks/changelog/version bumps, and
+exactly one real fix existed — #1358 (a hidden subtree's out-of-flow boxes
+never got their rounded layout reset, keeping the previous visible pass's
+`final_layout`, because `round_layout` only reaches OOF boxes through their
+containing block's hoisted child list). Those 4 lines are absorbed in-tree;
+with them there is nothing left in 0.15.1 we lack. The divergence's real
+substance is main being AHEAD: 20 commits beyond our pin at vendor time
+(incl. the #300 fix), and another 20 more upstream by the ledger close —
+the block/BFC campaign #1387–#1401 is the next absorption frontier.
 
 Intake: cargo's git checkout tree (src + LICENSE only; the repo's
 tests/benches/examples/docs/test_fixtures dropped), package + lib renamed,
