@@ -5,7 +5,7 @@
 //! whose top is above the float's bottom) then 0.
 
 use diting_taffy::prelude::*;
-use diting_taffy::{Clear, Float, FloatContext, FloatDirection};
+use diting_taffy::{Clear, Float, FloatContext, FloatDirection, FloatInsets};
 
 /// Words of `word_w` px separated by `space_w` px, as (width, is_space).
 fn words(n: usize, word_w: f32, space_w: f32) -> Vec<(f32, bool)> {
@@ -133,14 +133,14 @@ fn float_context_slots_give_chromes_line_offsets() {
             height: 50.0,
         },
         0.0,
-        [0.0, 0.0],
+        FloatInsets::ZERO,
         FloatDirection::Left,
         Clear::None,
     );
     assert_eq!((at.x, at.y), (0.0, 0.0));
     let toks = words(20, 36.0, 4.0);
     let lines = wrap_in_slots(&toks, 20.0, |y| {
-        let s = ctx.find_content_slot(y, [0.0, 0.0], Clear::None, None);
+        let s = ctx.find_content_slot(y, 0.0, FloatInsets::ZERO, Clear::None, None);
         (s.x, s.width)
     });
     eprintln!("lines (x, y): {lines:?}");
@@ -303,7 +303,7 @@ impl LayoutBlockContainer for N {
         // Slots are asked relative to this block's own top (the sub-context is
         // positioned at the child's estimated y).
         let lines = wrap_in_slots(&toks, line_h, |y| {
-            let s = ctx.find_content_slot(y, Clear::None, None);
+            let s = ctx.find_content_slot(y, 0.0, Clear::None, None);
             (s.x, s.width)
         });
         let height = lines.len() as f32 * line_h;

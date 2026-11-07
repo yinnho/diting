@@ -1245,12 +1245,16 @@ fn measure_text_leaf(
     // its own box, so the rect's extent equals the measured size.
     diting_taffy::tree::LayoutOutput::from_sizes(
         size,
-        diting_taffy::geometry::Rect {
-            left: 0.0,
-            top: 0.0,
-            right: size.width,
-            bottom: size.height,
-        },
+        // normal scroll origins: the leaf overflows only toward the inline end/block end
+        diting_taffy::tree::ScrollableOverflow::new(
+            diting_taffy::geometry::Rect {
+                left: 0.0,
+                top: 0.0,
+                right: size.width,
+                bottom: size.height,
+            },
+            diting_taffy::geometry::Point { x: false, y: false },
+        ),
     )
 }
 

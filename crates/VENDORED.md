@@ -19,7 +19,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_cssparser` | `cssparser` | 0.38.0 | MPL-2.0 | Simon Sapin and contributors |
 | `diting_selectors` | `selectors` | 0.42.0 | MPL-2.0 | The Servo Project Developers |
 | `diting_swash` | `swash` | 0.2.10 | Apache-2.0 OR MIT | Chad Brokaw (dfrg) |
-| `diting_taffy` | `taffy` (main rev `802e497` + #1358) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
+| `diting_taffy` | `taffy` (main rev `4aca4f49`) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -207,7 +207,30 @@ containing block's hoisted child list). Those 4 lines are absorbed in-tree;
 with them there is nothing left in 0.15.1 we lack. The divergence's real
 substance is main being AHEAD: 20 commits beyond our pin at vendor time
 (incl. the #300 fix), and another 20 more upstream by the ledger close —
-the block/BFC campaign #1387–#1401 is the next absorption frontier.
+absorbed the same week (#50).
+
+The block/BFC campaign sync (#50): upstream main moved 20 commits past the
+pin — one a twin of our #1358 absorption (the original #1356 on main), four
+junk (CI bump, benches, changelog, test helper), and 15 real fixes
+(#1383–#1401: float-inset accounting #1387/#1389/#1392, content-slot search
+over a content's full height #1386, BFC root vs floats #1384/#1385, BFC
+slot height #1394, block layout input folding #1383/#1395, collapse-through
+first-child margins #1397, replaced-block percentage widths in min-content
+#1401, packed `ScrollableOverflow` #1372, flexbox stretch→flex-start
+fallback on overflow #1363, grid baseline shim #1362, no_std MSRV f32
+#1374). Sync method: per-file three-way merge (base `802e497`, theirs
+`4aca4f49`, ours = the stripped vendor tree) — 16 of 17 files merged clean;
+flexbox.rs collided our test-strip with upstream's new tests (resolved to
+ours; the swallowed `scroll_origin_reversed` impl re-added by hand); two
+campaign-introduced inline test modules stripped brace-aware. API fallout,
+all behavior-preserving on our side: `find_content_slot` gained a
+content-height parameter (#1386) — we pass `0.0`, keeping the point-probe
+semantics our float line placement was verified against (adopting the
+full-height search is a behavior batch of its own); `LayoutOutput::from_sizes`
+takes the packed `ScrollableOverflow` (leaf call sites wrap their rect with
+normal scroll origins); `FloatInsets` replaces `[f32; 2]` insets at the
+float-context callsites. Gates: layout 273/273 (float graduation battery
+survived the base swap), engine 1506/1506, product 635/635.
 
 Intake: cargo's git checkout tree (src + LICENSE only; the repo's
 tests/benches/examples/docs/test_fixtures dropped), package + lib renamed,

@@ -81,13 +81,13 @@ pub(super) fn measure(
         if atomic {
             let mut y = 0.0f32;
             for l in &lines {
-                let mut s = ctx.find_content_slot(y, Clear::None, None);
+                let mut s = ctx.find_content_slot(y, 0.0, Clear::None, None);
                 let mut guard = 0;
                 while l.width > s.width.min(full).max(0.0) + 0.001
                     && s.segment_id.is_some()
                     && guard < 64
                 {
-                    s = ctx.find_content_slot(y, Clear::None, s.segment_id);
+                    s = ctx.find_content_slot(y, 0.0, Clear::None, s.segment_id);
                     y = y.max(s.y);
                     guard += 1;
                 }
@@ -95,7 +95,7 @@ pub(super) fn measure(
                 // the float bottoms — a line that fit in no band sits
                 // below the floats, and only clear reports that y.
                 if guard > 0 && s.segment_id.is_none() {
-                    y = y.max(ctx.find_content_slot(y, Clear::Both, None).y);
+                    y = y.max(ctx.find_content_slot(y, 0.0, Clear::Both, None).y);
                 }
                 slots.push(Slot {
                     x: s.x.max(0.0),
@@ -107,7 +107,7 @@ pub(super) fn measure(
         } else {
             for i in 0..lines.len() {
                 let y = i as f32 * line_height;
-                let s = ctx.find_content_slot(y, Clear::None, None);
+                let s = ctx.find_content_slot(y, 0.0, Clear::None, None);
                 slots.push(Slot {
                     x: s.x.max(0.0),
                     y,
@@ -120,7 +120,7 @@ pub(super) fn measure(
         let lines = text::greedy_wrap_by(tokens, ws, |i| {
             while slots.len() <= i {
                 let y = slots.len() as f32 * line_height;
-                let s = ctx.find_content_slot(y, Clear::None, None);
+                let s = ctx.find_content_slot(y, 0.0, Clear::None, None);
                 slots.push(Slot {
                     x: s.x.max(0.0),
                     y,
@@ -139,7 +139,7 @@ pub(super) fn measure(
         for (i, l) in lines.iter().enumerate() {
             while slots.len() <= i {
                 let y = slots.len() as f32 * line_height;
-                let s = ctx.find_content_slot(y, Clear::None, None);
+                let s = ctx.find_content_slot(y, 0.0, Clear::None, None);
                 slots.push(Slot {
                     x: s.x.max(0.0),
                     y,
@@ -147,7 +147,7 @@ pub(super) fn measure(
                 });
             }
             let y0 = (i as f32 * line_height).max(y);
-            let mut s = ctx.find_content_slot(y0, Clear::None, None);
+            let mut s = ctx.find_content_slot(y0, 0.0, Clear::None, None);
             if let Some(t) = l
                 .token_idx
                 .iter()
@@ -159,12 +159,12 @@ pub(super) fn measure(
                     && s.segment_id.is_some()
                     && guard < 64
                 {
-                    s = ctx.find_content_slot(y0, Clear::None, s.segment_id);
+                    s = ctx.find_content_slot(y0, 0.0, Clear::None, s.segment_id);
                     y = y.max(s.y);
                     guard += 1;
                 }
                 if guard > 0 && s.segment_id.is_none() {
-                    y = y.max(ctx.find_content_slot(y0, Clear::Both, None).y);
+                    y = y.max(ctx.find_content_slot(y0, 0.0, Clear::Both, None).y);
                 }
             }
             slots[i] = Slot {
@@ -212,12 +212,16 @@ pub(super) fn measure(
     }
     Some(LayoutOutput::from_sizes(
         size,
-        diting_taffy::geometry::Rect {
-            left: 0.0,
-            top: 0.0,
-            right: size.width,
-            bottom: size.height,
-        },
+        // normal scroll origins: the leaf overflows only toward the inline end/block end
+        diting_taffy::tree::ScrollableOverflow::new(
+            diting_taffy::geometry::Rect {
+                left: 0.0,
+                top: 0.0,
+                right: size.width,
+                bottom: size.height,
+            },
+            diting_taffy::geometry::Point { x: false, y: false },
+        ),
     ))
 }
 

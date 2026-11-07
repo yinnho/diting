@@ -4,7 +4,116 @@ use crate::style::{AlignItemsKeyword, AlignSelf, AlignmentSafety, AvailableSpace
 use crate::style_helpers::TaffyMaxContent;
 use crate::sys::DefaultCheapStr;
 use crate::tree::NodeId;
-use crate::util::sys::{f32_max, f32_min};
+use crate::util::sys::{abs, copysign, f32_max, f32_min};
+
+/// Scrollable overflow and the physical directions in which scrolling starts at the end edge.
+///
+/// The rectangle uses physical x/y coordinates relative to the client area's top-left edge.
+/// To obtain border-box coordinates, add `border.left`/`border.top`, plus the horizontal
+/// scrollbar gutter in RTL (where the vertical scrollbar is on the left). RTL does not mirror
+/// these coordinates. For a scroll container, unreachable overflow is clipped: on normal axes
+/// the start is zero, while on reversed axes the end is at most the client extent.
+/// Non-scroll containers retain all overflow, for propagation and hit testing, and have no flags.
+///
+/// Rectangles contain `(0, 0)`: left/top are non-positive and right/bottom non-negative.
+/// Algorithms accumulate ordinary rectangles from [`Rect::ZERO`] and pack them only at output.
+/// The sign bits of the stored right/bottom encode reversal, including when an extent is zero.
+/// Always use [`Self::rect`] before doing geometry with this value.
+#[derive(Copy, Clone, Debug)]
+pub struct ScrollableOverflow(Rect<f32>);
+
+impl ScrollableOverflow {
+    /// Empty overflow with normal scroll origins.
+    pub const ZERO: Self = Self(Rect::ZERO);
+
+    /// Pack an origin-containing rectangle and its physical scroll-origin directions.
+    #[inline]
+    pub fn new(rect: Rect<f32>, reversed: Point<bool>) -> Self {
+        debug_assert!(rect.left <= 0.0 && rect.top <= 0.0 && rect.right >= 0.0 && rect.bottom >= 0.0);
+        Self(Rect {
+            right: copysign(rect.right, if reversed.x { -1.0 } else { 1.0 }),
+            bottom: copysign(rect.bottom, if reversed.y { -1.0 } else { 1.0 }),
+            ..rect
+        })
+    }
+
+    /// The physical overflow rectangle, with the packed signs restored.
+    #[inline(always)]
+    pub fn rect(self) -> Rect<f32> {
+        Rect { right: abs(self.0.right), bottom: abs(self.0.bottom), ..self.0 }
+    }
+
+    /// The physical left overflow edge.
+    #[inline(always)]
+    pub fn left(self) -> f32 {
+        self.0.left
+    }
+
+    /// The physical right overflow edge, with its sign restored.
+    #[inline(always)]
+    pub fn right(self) -> f32 {
+        abs(self.0.right)
+    }
+
+    /// The physical top overflow edge.
+    #[inline(always)]
+    pub fn top(self) -> f32 {
+        self.0.top
+    }
+
+    /// The physical bottom overflow edge, with its sign restored.
+    #[inline(always)]
+    pub fn bottom(self) -> f32 {
+        abs(self.0.bottom)
+    }
+
+    /// Whether the physical x/y scroll origins are at the right/bottom edges.
+    #[inline(always)]
+    pub fn is_reversed(self) -> Point<bool> {
+        Point { x: self.0.right.is_sign_negative(), y: self.0.bottom.is_sign_negative() }
+    }
+
+    /// Swap the physical axes, preserving origin directions and signed zeroes.
+    #[inline]
+    pub fn transpose(self) -> Self {
+        Self(self.0.transpose())
+    }
+}
+
+impl From<(Rect<f32>, Point<bool>)> for ScrollableOverflow {
+    #[inline]
+    fn from((rect, reversed): (Rect<f32>, Point<bool>)) -> Self {
+        Self::new(rect, reversed)
+    }
+}
+
+impl Default for ScrollableOverflow {
+    #[inline]
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl PartialEq for ScrollableOverflow {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0.left.to_bits() == other.0.left.to_bits()
+            && self.0.right.to_bits() == other.0.right.to_bits()
+            && self.0.top.to_bits() == other.0.top.to_bits()
+            && self.0.bottom.to_bits() == other.0.bottom.to_bits()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for ScrollableOverflow {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("ScrollableOverflow", 2)?;
+        state.serialize_field("rect", &self.rect())?;
+        state.serialize_field("reversed", &self.is_reversed())?;
+        state.end()
+    }
+}
 
 /// Whether we are performing a full layout, or we merely need to size the node
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -475,7 +584,7 @@ pub struct LayoutOutput {
     #[cfg(feature = "content_size")]
     /// The scrollable overflow rectangle of the node's content
     /// (see [`Layout::scrollable_overflow_rect`] for the coordinate conventions)
-    pub scrollable_overflow_rect: Rect<f32>,
+    pub scrollable_overflow_rect: ScrollableOverflow,
     /// The first and last baselines of the node in the horizontal axis, if any
     pub baselines: Baselines,
     /// Top margin that can be collapsed with. This is used for CSS block layout and can be set to
@@ -511,7 +620,7 @@ impl LayoutOutput {
     pub const HIDDEN: Self = Self {
         size: Size::ZERO,
         #[cfg(feature = "content_size")]
-        scrollable_overflow_rect: Rect::ZERO,
+        scrollable_overflow_rect: ScrollableOverflow::ZERO,
         baselines: Baselines::NONE,
         top_margin: CollapsibleMarginSet::ZERO,
         bottom_margin: CollapsibleMarginSet::ZERO,
@@ -526,7 +635,8 @@ impl LayoutOutput {
     /// Constructor to create a `LayoutOutput` from just the size, scrollable overflow rectangle and baselines
     pub fn from_sizes_and_baselines(
         size: Size<f32>,
-        #[cfg_attr(not(feature = "content_size"), allow(unused_variables))] scrollable_overflow_rect: Rect<f32>,
+        #[cfg_attr(not(feature = "content_size"), allow(unused_variables))]
+        scrollable_overflow_rect: ScrollableOverflow,
         baselines: Baselines,
     ) -> Self {
         Self {
@@ -543,7 +653,7 @@ impl LayoutOutput {
     }
 
     /// Construct a `LayoutOutput` from just the container size and scrollable overflow rectangle
-    pub fn from_sizes(size: Size<f32>, scrollable_overflow_rect: Rect<f32>) -> Self {
+    pub fn from_sizes(size: Size<f32>, scrollable_overflow_rect: ScrollableOverflow) -> Self {
         Self::from_sizes_and_baselines(size, scrollable_overflow_rect, Baselines::NONE)
     }
 
@@ -569,7 +679,7 @@ impl LayoutOutput {
 
     /// Construct a `LayoutOutput` from just the container's size.
     pub fn from_outer_size(size: Size<f32>) -> Self {
-        Self::from_sizes(size, Rect::ZERO)
+        Self::from_sizes(size, ScrollableOverflow::ZERO)
     }
 }
 
@@ -593,14 +703,10 @@ pub struct Layout {
     /// (<https://www.w3.org/TR/css-overflow-3/#scrollable>), except that transforms are not
     /// accounted for.
     ///
-    /// Coordinates are measured from the node's *scroll origin*: the corner of the padding box at
-    /// the block-start/inline-start edge (the top-left corner in LTR, the top-*right* corner in
-    /// RTL), with `left`/`right` measuring along the inline axis in the direction of reachable
-    /// scrolling. The rectangle always contains the origin, so `left`/`top` are `<= 0.0` (negative
-    /// values represent overflow before the scroll origin, which is unreachable by scrolling) and
-    /// `right`/`bottom` are `>= 0.0` (representing the reachable extent of the content, which is
-    /// useful for computing a "scroll width/height" for scrollable nodes).
-    pub scrollable_overflow_rect: Rect<f32>,
+    /// See [`ScrollableOverflow`] for physical coordinates and reversed-origin flags.
+    /// A normal axis has range `0..scroll_width()` (or `scroll_height()`); a reversed axis
+    /// has range `-scroll_width()..0` (or `-scroll_height()..0`). The initial offset is zero.
+    pub scrollable_overflow_rect: ScrollableOverflow,
     /// The size of the scrollbars in each dimension. If there is no scrollbar then the size will be zero.
     pub scrollbar_size: Size<f32>,
     /// The size of the borders of the node
@@ -630,7 +736,7 @@ impl Layout {
             location: Point::ZERO,
             size: Size::zero(),
             #[cfg(feature = "content_size")]
-            scrollable_overflow_rect: Rect::ZERO,
+            scrollable_overflow_rect: ScrollableOverflow::ZERO,
             scrollbar_size: Size::zero(),
             border: Rect::zero(),
             padding: Rect::zero(),
@@ -649,7 +755,7 @@ impl Layout {
             size: Size::zero(),
             location: Point::ZERO,
             #[cfg(feature = "content_size")]
-            scrollable_overflow_rect: Rect::ZERO,
+            scrollable_overflow_rect: ScrollableOverflow::ZERO,
             scrollbar_size: Size::zero(),
             border: Rect::zero(),
             padding: Rect::zero(),
@@ -688,23 +794,30 @@ impl Layout {
 
 #[cfg(feature = "content_size")]
 impl Layout {
-    /// Return the maximum horizontal scroll offset of the node.
+    /// Return the magnitude of the reachable horizontal scroll range.
     /// This is the reachable extent of the content less the width of the padding box, floored at zero.
     pub fn scroll_width(&self) -> f32 {
+        if self.scrollable_overflow_rect.is_reversed().x {
+            return -self.scrollable_overflow_rect.left();
+        }
         f32_max(
             0.0,
-            self.scrollable_overflow_rect.right + f32_min(self.scrollbar_size.width, self.size.width) - self.size.width
+            self.scrollable_overflow_rect.right() + f32_min(self.scrollbar_size.width, self.size.width)
+                - self.size.width
                 + self.border.left
                 + self.border.right,
         )
     }
 
-    /// Return the maximum vertical scroll offset of the node.
+    /// Return the magnitude of the reachable vertical scroll range.
     /// This is the reachable extent of the content less the height of the padding box, floored at zero.
     pub fn scroll_height(&self) -> f32 {
+        if self.scrollable_overflow_rect.is_reversed().y {
+            return -self.scrollable_overflow_rect.top();
+        }
         f32_max(
             0.0,
-            self.scrollable_overflow_rect.bottom + f32_min(self.scrollbar_size.height, self.size.height)
+            self.scrollable_overflow_rect.bottom() + f32_min(self.scrollbar_size.height, self.size.height)
                 - self.size.height
                 + self.border.top
                 + self.border.bottom,
