@@ -135,9 +135,18 @@ over `yazi` zlib, `proxy::MetricsProxy`), and glyph rasterization (`render`,
 zeno outlines). Vendored as **`diting_swash`** for the CJK-fallback
 differentiation face (#42 ③): the font line is where our moat lives, and we
 were already paying rent in its deep corners — dfrg/swash#139 (width-0 EBDT
-bitmap → `chunks(0)` panic) is absorbed by a glyph denylist in
+bitmap → `chunks(0)` panic) was absorbed by a glyph denylist in
 `diting_layout/text.rs`; with the crate in-tree, fixing that at the source
 instead is on our clock.
+
+**First source modification (#48, 2026-11-07):** `strike.rs` `Bitmap::decode`
+gained upstream's one-line guard for zero-sized bitmaps (`w == 0 || h == 0 →
+decode fails`, callers fall through to the next source — the Png branch's
+`return false` precedent). Marked `upstream dfrg/swash#139` in-code; that fix
+is upstream's own suggested patch, verified by its reporter across SimSun's
+full BMP charmap. Our `render_guarded` panic guard RETIRED from this duty but
+stays deployed for the remaining debug-only arithmetic panic family
+(dfrg/swash#123-126, unfixed upstream).
 
 Intake: same shape as the other leaf vendors (png, socks) — tarball src, both
 LICENSEs, `test = false`/`doctest = false` equivalents via no test targets
