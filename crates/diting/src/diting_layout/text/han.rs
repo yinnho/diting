@@ -5,7 +5,10 @@
 //! one a page wants is carried by the nearest ancestor's `lang`/`xml:lang`
 //! attribute — the same signal upstream feeds Parley as the text locale.
 //! The engine's bundled pair is the SC slot (Noto Sans SC); vendor Han
-//! variants (ja/tc/ko faces) join through `--font-dir` as coverage tails.
+//! variants (ja/tc/ko faces) join as coverage tails through `--font-dir`
+//! or the host's script faces (`diting_fonts::platform_script_fonts`,
+//! #51 — macOS carries a ko face, Linux the noto ja/kr/tc ttcs; macOS's
+//! ja slot stays knob-only, no system face claims it).
 //! Before this module the fallback chain never looked at lang, so a
 //! `lang="ja"` page rendered every shared codepoint as the SC glyph —
 //! 薬/直/骨 reading Chinese on a Japanese page.
