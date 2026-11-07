@@ -1151,3 +1151,49 @@ async fn run_flow_set_files_derives_mime_from_extension() {
     let sid = receipt["session_id"].as_str().unwrap().to_string();
     assert!(mgr.close_and_wait(&sid).await);
 }
+
+/// The #44 transcript pair's no-tool posture: without DITING_OCR_BIN /
+/// DITING_ASR_MODEL the ops refuse with a receipt that names the knob —
+/// no spawn attempt, no panic, nothing to clean up. Same shape as the
+/// bare-build feature face: capability absence is an error, not a stub.
+#[tokio::test]
+async fn transcript_ops_refuse_without_tool_env() {
+    let _guard = crate::test_support::transcript_env_guard();
+    let vars = Map::new();
+    let frames =
+        exec_transcript_frames_step(&json!({ "input": "/nonexistent.mp4" }), &vars).await;
+    assert_eq!(
+        frames.unwrap_err(),
+        "transcript_frames: DITING_OCR_BIN not set — point it at the OCR helper (see the drama-transcript flow's docs)"
+    );
+    let audio = exec_transcript_audio_step(&json!({ "input": "/nonexistent.mp4" }), &vars).await;
+    assert_eq!(
+        audio.unwrap_err(),
+        "transcript_audio: DITING_ASR_MODEL not set — point it at a ggml whisper model (e.g. ~/.cache/whisper/ggml-base.bin)"
+    );
+}
+
+/// whisper.cpp stdout → segments. Pinned against real brew whisper-cli
+/// output (the `--no-prints -np` invocation the op uses): timestamped
+/// `[h:mm:ss.mmm --> h:mm:ss.mmm]  text` lines in, `{start_s, end_s,
+/// text}` out; system-info banners and empty-text timestamps (whisper
+/// prints those around music beds) fall through.
+#[test]
+fn parse_whisper_segments_parses_the_stable_shape() {
+    let stdout = "whisper_init_from_file_with_params_no_state: processing\n\
+                  system_info: n_threads = 8 / 8 | Metal\n\
+                  [00:00:02.440 --> 00:00:04.560]  我，林墨，今天正式拜入\n\
+                  [00:00:04.560 --> 00:00:06.000] 青云门\n\
+                  [00:00:06.000 --> 00:00:07.500]  \n\
+                  [00:00:07.500 --> 00:00:09.120]  You dare?\n";
+    let segs = parse_whisper_segments(stdout);
+    assert_eq!(segs.len(), 3, "banners and empty text dropped: {segs:?}");
+    assert_eq!(segs[0]["start_s"], json!(2.44));
+    assert_eq!(segs[0]["end_s"], json!(4.56));
+    assert_eq!(segs[0]["text"], json!("我，林墨，今天正式拜入"));
+    assert_eq!(segs[2]["text"], json!("You dare?"));
+    assert!(parse_whisper_segments("no brackets at all").is_empty());
+    // A bare bracket pair without the arrow is a different log line, not
+    // a segment.
+    assert!(parse_whisper_segments("[metal] mps graph created").is_empty());
+}
