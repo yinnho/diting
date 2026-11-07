@@ -34,9 +34,10 @@ const BOLD: &[u8] = include_bytes!("diting_fonts/diting-cjk-bold.ttf");
 /// per-char cascade; chars the bundle already covers keep bundle rendering,
 /// because appended faces are coverage tails, not named-family overrides
 /// (the diting stack doesn't route families). Dir faces precede the
-/// platform emoji: user intent beats auto-detection, and the emoji strike
-/// carries no text-script glyphs. Absent dir, unreadable files and
-/// unparseable faces all drop silently — the exact pre-knob posture.
+/// host's script faces (#51) and the platform emoji: user intent beats
+/// auto-detection, and the emoji strike carries no text-script glyphs.
+/// Absent dir, unreadable files and unparseable faces all drop silently —
+/// the exact pre-knob posture.
 static FONT_DIR: std::sync::RwLock<Option<std::path::PathBuf>> = std::sync::RwLock::new(None);
 
 /// Wire the `--font-dir` CLI flag (main.rs, parsed before server boot; the
@@ -111,7 +112,11 @@ fn build_book(dir_faces: Vec<Vec<u8>>) -> Arc<FontBook> {
     let book = FontBook::from_pairs(REGULAR.to_vec(), BOLD.to_vec())
         .expect("bundled CJK fonts parse (regenerate via scripts/make_font_bundle.py)")
         .with_mono(MONO.to_vec());
+    // Tail order is the cascade order: dir faces (user intent), then the
+    // host's script faces (#51), then emoji — the emoji strike carries no
+    // text glyphs, so it must lose every race it shouldn't win.
     let mut fallbacks: Vec<FaceBytes> = dir_faces.into_iter().map(FaceBytes::from).collect();
+    fallbacks.extend(platform_script_fonts());
     if let Some(emoji) = platform_emoji_font() {
         fallbacks.push(emoji);
     }
@@ -148,6 +153,134 @@ pub(crate) fn platform_emoji_font() -> Option<FaceBytes> {
     CANDIDATES
         .iter()
         .find_map(|path| FaceBytes::map_file(std::path::Path::new(path)))
+}
+
+/// Host script faces (#51): one row per script the bundled GB2312 pair
+/// carries no glyphs for, with ordered candidate paths — first readable
+/// file wins, a row whose files are all absent drops silently (the
+/// `platform_emoji_font` posture). macOS names the faces per script
+/// (Kailasa Tibetan, Thonburi Thai, …) and Helvetica carries the
+/// Cyrillic/Greek tail the subset omits; Linux rows are Debian's noto
+/// packaging, where the unified NotoSansCJK ttc's face 0 is the JP cut
+/// (it claims the Japanese slot by name token, as the KR/TC ttcs claim
+/// theirs). Windows keeps the emoji-only posture.
+///
+/// macOS has no dedicated Japanese face in the system set: kana ride the
+/// bundled pair and a ja page renders SC-shaped ideographs until a ja
+/// face arrives via `--font-dir` — the one script left to the knob.
+#[cfg(target_os = "macos")]
+const SCRIPT_FONT_TABLE: &[(&str, &[&str])] = &[
+    ("ko", &["/System/Library/Fonts/AppleSDGothicNeo.ttc"]),
+    ("th", &["/System/Library/Fonts/Supplemental/Thonburi.ttc"]),
+    ("bo", &["/System/Library/Fonts/Kailasa.ttc"]),
+    (
+        "hi",
+        &[
+            "/System/Library/Fonts/Kohinoor.ttc",
+            "/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc",
+        ],
+    ),
+    ("ar", &["/System/Library/Fonts/GeezaPro.ttc"]),
+    ("he", &["/System/Library/Fonts/ArialHB.ttc"]),
+    ("km", &["/System/Library/Fonts/Supplemental/Khmer MN.ttc"]),
+    ("lo", &["/System/Library/Fonts/Supplemental/Lao MN.ttc"]),
+    ("my", &["/System/Library/Fonts/NotoSansMyanmar.ttc"]),
+    (
+        "tale",
+        &["/System/Library/Fonts/Supplemental/NotoSansTaiLe-Regular.ttf"],
+    ),
+    ("cyrl", &["/System/Library/Fonts/Helvetica.ttc"]),
+];
+#[cfg(all(unix, not(target_os = "macos")))]
+const SCRIPT_FONT_TABLE: &[(&str, &[&str])] = &[
+    (
+        "ja",
+        &["/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"],
+    ),
+    (
+        "ko",
+        &["/usr/share/fonts/opentype/noto/NotoSansKR-Regular.ttc"],
+    ),
+    (
+        "tc",
+        &["/usr/share/fonts/opentype/noto/NotoSansTC-Regular.ttc"],
+    ),
+    (
+        "th",
+        &["/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf"],
+    ),
+    (
+        "bo",
+        &[
+            "/usr/share/fonts/truetype/noto/NotoSerifTibetan-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansTibetan-Regular.ttf",
+        ],
+    ),
+    (
+        "hi",
+        &["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"],
+    ),
+    (
+        "ar",
+        &["/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"],
+    ),
+    (
+        "km",
+        &["/usr/share/fonts/truetype/noto/NotoSansKhmer-Regular.ttf"],
+    ),
+    (
+        "lo",
+        &["/usr/share/fonts/truetype/noto/NotoSansLao-Regular.ttf"],
+    ),
+    (
+        "my",
+        &["/usr/share/fonts/truetype/noto/NotoSansMyanmar-Regular.ttf"],
+    ),
+];
+
+/// The [`SCRIPT_FONT_TABLE`] rows as mapped fallback faces. Faces are
+/// mapped, not read, and the fingerprint hashes the (path, len, mtime)
+/// ident — no face faults its pages until a page actually shapes from it,
+/// so a full table costs table-dir parses at book build and nothing after.
+pub(crate) fn platform_script_fonts() -> Vec<FaceBytes> {
+    #[cfg(not(any(target_os = "macos", unix)))]
+    {
+        Vec::new()
+    }
+    #[cfg(any(target_os = "macos", unix))]
+    {
+        SCRIPT_FONT_TABLE
+            .iter()
+            .filter_map(|(_, cands)| {
+                cands
+                    .iter()
+                    .find_map(|path| FaceBytes::map_file(std::path::Path::new(path)))
+            })
+            .collect()
+    }
+}
+
+/// First existing candidate path of `script`'s row — the test-side
+/// presence gate over the exact table the supply reads (the emoji-test
+/// posture: skip when the platform supplies no face, bite when it does
+/// and the book won't paint).
+#[cfg(test)]
+fn script_face_present(script: &str) -> Option<&'static str> {
+    #[cfg(not(any(target_os = "macos", unix)))]
+    {
+        let _ = script;
+        None
+    }
+    #[cfg(any(target_os = "macos", unix))]
+    {
+        SCRIPT_FONT_TABLE
+            .iter()
+            .find(|(s, _)| *s == script)?
+            .1
+            .iter()
+            .find(|p| std::path::Path::new(p).exists())
+            .copied()
+    }
 }
 
 /// The bundled pair as owned bytes — the raster-cache tests in
@@ -356,5 +489,82 @@ mod tests {
             (notdef - routed).abs() > 0.5,
             "base book must not cover U+E000 ({notdef} vs {routed})"
         );
+    }
+
+    /// The script table (#51): every row whose face this host supplies
+    /// must paint its named script through the production book — real ink,
+    /// not the empty raster a .notdef coverage miss would leave (the same
+    /// bite the emoji and dir-face tests use). Rows without a host face
+    /// skip (a font-less CI container stays green); the gate reads the
+    /// exact table the supply reads, so a path typo flips this to fail,
+    /// not to skip.
+    #[test]
+    fn script_faces_cover_their_named_scripts() {
+        let book = font_book();
+        let probes: &[(&str, char)] = &[
+            ("ja", 'あ'),
+            ("ko", '가'),
+            ("tc", '中'),
+            ("th", 'ก'),
+            ("bo", 'ཀ'),
+            ("hi", 'क'),
+            ("ar", 'م'),
+            ("he", 'א'),
+            ("km", 'ក'),
+            ("lo", 'ກ'),
+            ("my", 'က'),
+            ("tale", 'ᥐ'),
+            ("cyrl", 'Ж'),
+        ];
+        for (script, probe) in probes {
+            match script_face_present(script) {
+                Some(path) => {
+                    let raster = book.rasterize(
+                        &probe.to_string(),
+                        24.0,
+                        false,
+                        [0, 0, 0, 255],
+                        24.0 * 1.2,
+                        false,
+                        None,
+                    );
+                    assert!(
+                        raster.ink_bbox().is_some(),
+                        "{script} face {path} loaded but {probe} (U+{:04X}) paints no ink",
+                        *probe as u32
+                    );
+                }
+                None => eprintln!("skipping {script}: no host face"),
+            }
+        }
+    }
+
+    /// The slot-claiming rows (#51): a CJK face only upgrades ja/ko/tc
+    /// pages if `face_han_slot` classifies it into that slot — macOS's
+    /// Korean row carries no name token ("Apple SD Gothic Neo"), so this
+    /// also pins the hang-writing-system fallback on real host bytes; the
+    /// Linux noto ttcs claim by name token ("CJK JP" / "KR" / "TC").
+    #[test]
+    fn script_cjk_rows_claim_their_han_slots() {
+        use crate::diting_layout::text::{face_han_slot, HanSlot};
+        for (script, want) in [
+            ("ja", HanSlot::Japanese),
+            ("ko", HanSlot::Korean),
+            ("tc", HanSlot::Traditional),
+        ] {
+            match script_face_present(script) {
+                Some(path) => {
+                    let face = FaceBytes::map_file(std::path::Path::new(path))
+                        .expect("present path maps");
+                    let got = face_han_slot(&face);
+                    assert_eq!(
+                        got,
+                        Some(want),
+                        "{script} face {path} claims {got:?}, want {want:?}"
+                    );
+                }
+                None => eprintln!("skipping {script}: no host face"),
+            }
+        }
     }
 }
