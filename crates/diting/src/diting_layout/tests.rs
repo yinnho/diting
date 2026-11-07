@@ -236,7 +236,7 @@ mod incremental_match_tests {
     use crate::diting_css::{parse_stylesheet_for, CssMediaType};
     use crate::diting_dom::tree_sink::parse_html;
     use crate::diting_layout::compute_styles_timed;
-    use html5ever::ns;
+    use diting_html5ever::ns;
 
     #[test]
     fn css_keyed_rerun_reflects_mutations() {
@@ -295,18 +295,18 @@ mod incremental_match_tests {
 
     fn parse_element(tag: &str, class: &str) -> crate::diting_dom::tree::NodeData {
         use crate::diting_dom::tree::{Attribute, NodeData};
-        let name = html5ever::QualName {
+        let name = diting_html5ever::QualName {
             prefix: None,
             ns: ns!(html),
-            local: html5ever::LocalName::from(tag),
+            local: diting_html5ever::LocalName::from(tag),
         };
         NodeData::Element {
             name,
             attrs: vec![Attribute {
-                name: html5ever::QualName {
+                name: diting_html5ever::QualName {
                     prefix: None,
                     ns: ns!(),
-                    local: html5ever::LocalName::from("class"),
+                    local: diting_html5ever::LocalName::from("class"),
                 },
                 value: class.into(),
             }],

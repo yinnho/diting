@@ -61,7 +61,7 @@ pub type PrefetchedResources = HashMap<String, Arc<Vec<u8>>>;
 /// in such a sheet, so the suffix test silently dropped it and the page
 /// rendered as one stacked column.
 pub fn stylesheet_hrefs(html: &str, base_url: &str) -> std::collections::HashSet<String> {
-    use scraper::{Html, Selector};
+    use crate::htmlq::{Html, Selector};
 
     let mut out = std::collections::HashSet::new();
     let Ok(base) = url::Url::parse(base_url) else {
@@ -104,7 +104,7 @@ const MAX_RESOURCES: usize = 32;
 /// fetching every candidate multiplies state-changing GETs (#662's damage)
 /// and burns the cap so stylesheets stop fitting.
 fn collect_resource_urls(html: &str, base: &url::Url, viewport_width: f32) -> Vec<url::Url> {
-    use scraper::{ElementRef, Html, Selector};
+    use crate::htmlq::{ElementRef, Html, Selector};
 
     fn push_resolved(base: &url::Url, raw: &str, out: &mut Vec<url::Url>) {
         let raw = raw.trim();
@@ -557,9 +557,9 @@ pub fn render_html_to_png_diting(
     let mut png_bytes = Vec::with_capacity((out_w * out_h) as usize);
     {
         use std::io::Cursor;
-        let mut encoder = png::Encoder::new(Cursor::new(&mut png_bytes), out_w, out_h);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
+        let mut encoder = diting_png::Encoder::new(Cursor::new(&mut png_bytes), out_w, out_h);
+        encoder.set_color(diting_png::ColorType::Rgba);
+        encoder.set_depth(diting_png::BitDepth::Eight);
         let mut writer = encoder
             .write_header()
             .map_err(|e| anyhow::anyhow!("png encode header: {e}"))?;
@@ -655,7 +655,7 @@ mod tests {
 
     /// Decode a small PNG and count pixels matching `pred` (test helper).
     fn count_color(png_bytes: &[u8], pred: impl Fn((u8, u8, u8)) -> bool) -> usize {
-        let decoder = png::Decoder::new(std::io::Cursor::new(png_bytes));
+        let decoder = diting_png::Decoder::new(std::io::Cursor::new(png_bytes));
         let mut reader = decoder.read_info().expect("png read_info");
         let mut buf = vec![0; reader.output_buffer_size().expect("png output buffer size")];
         let info = reader.next_frame(&mut buf).expect("png decode");
@@ -1520,7 +1520,7 @@ mod opacity_pipeline_tests {
     use super::*;
 
     fn count_color(png_bytes: &[u8], pred: impl Fn((u8, u8, u8)) -> bool) -> usize {
-        let decoder = png::Decoder::new(std::io::Cursor::new(png_bytes));
+        let decoder = diting_png::Decoder::new(std::io::Cursor::new(png_bytes));
         let mut reader = decoder.read_info().expect("png read_info");
         let mut buf = vec![0; reader.output_buffer_size().expect("png output buffer size")];
         let info = reader.next_frame(&mut buf).expect("png decode");
@@ -1567,7 +1567,7 @@ mod opacity_pipeline_tests {
         // rows up to ≈ 85 — every other column holding yellow means the
         // band painted unrotated; zero yellow means the old skip.
         let is_yellow = |(r, g, b): (u8, u8, u8)| r > 230 && g > 180 && b < 80;
-        let decoder = png::Decoder::new(std::io::Cursor::new(&shot.png));
+        let decoder = diting_png::Decoder::new(std::io::Cursor::new(&shot.png));
         let mut reader = decoder.read_info().expect("png read_info");
         let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
         let info = reader.next_frame(&mut buf).expect("png decode");
@@ -1672,7 +1672,7 @@ mod opacity_pipeline_tests {
                 None,
             )
             .expect("render");
-            let decoder = png::Decoder::new(std::io::Cursor::new(&shot.png));
+            let decoder = diting_png::Decoder::new(std::io::Cursor::new(&shot.png));
             let mut reader = decoder.read_info().expect("png read_info");
             let mut buf = vec![0; reader.output_buffer_size().expect("png buffer size")];
             let info = reader.next_frame(&mut buf).expect("png decode");

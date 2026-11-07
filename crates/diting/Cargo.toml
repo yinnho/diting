@@ -117,10 +117,10 @@ encoding_rs = "0.8"
 tempfile = "3"
 url = "2"
 
-# --- html / dom parsing ---
-html5ever = "0.40"
-selectors = "0.41"
-cssparser = "0.38"
+# --- html / dom parsing (#42 ②: servo family vendored in-tree) ---
+diting_html5ever = { path = "../diting_html5ever" }
+diting_selectors = { path = "../diting_selectors" }
+diting_cssparser = { path = "../diting_cssparser" }
 precomputed-hash = "0.1"
 
 # --- V8 / JS runtime (claimed: diting_runtime, engine = v8 crate) ---

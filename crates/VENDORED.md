@@ -14,6 +14,10 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_btls_sys` | `btls-sys` | 0.5.6 | Apache-2.0 / BoringSSL (ISC-style) | 0x676e67, Alex Crichton, Steven Fackler, BoringSSL authors |
 | `diting_socks` | `tokio-socks` | 0.5.3 | MIT | Yilin Chen (sticnarf) and contributors |
 | `diting_png` | `png` | 0.18.1 | MIT OR Apache-2.0 | image-rs contributors (nokiatechxdct for `chunk.rs`) |
+| `diting_html5ever` | `html5ever` | 0.40.1 | MIT OR Apache-2.0 | The html5ever Project Developers |
+| `diting_markup5ever` | `markup5ever` | 0.40.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
+| `diting_cssparser` | `cssparser` | 0.38.0 | MPL-2.0 | Simon Sapin and contributors |
+| `diting_selectors` | `selectors` | 0.42.0 | MPL-2.0 | The Servo Project Developers |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -71,6 +75,53 @@ encoder (canvas `toDataURL`, quality 0.0–1.0, spec-default 0.92) pinned agains
 image-webp and gif as leaf codecs. Versions pin what image 0.25.10 wrapped at intake —
 decode output is unchanged from the `image`-crate baseline. GIF first-frame composition
 transparent-canvas semantics mirror image 0.25.10's (background color ignored).
+
+## Servo parse family (#42 ②, 2026-11-07)
+
+The four top crates of the Servo parse/match train are ours; `scraper` (and its
+`getopts` rider) left the tree with them. The intake reason is the version wall,
+not aesthetics: `selectors` releases on the Servo train and `scraper` pins the
+generation it was built against, so every selectors bump was either blocked on
+scraper or re-created a dual family (#38 was exactly this — 0.42's
+`parse_non_ts_pseudo_class(&str)` + by-value `Element` matching sat behind
+scraper's `^0.41`). With the top crates vendored, the whole train moves only
+when we say so; #38's wall dies permanently.
+
+**`diting_html5ever`** (0.40.1, MIT OR Apache-2.0), **`diting_markup5ever`**
+(0.40.0, MIT OR Apache-2.0), **`diting_cssparser`** (0.38.0, MPL-2.0),
+**`diting_selectors`** (0.42.0, MPL-2.0 — jumped straight past 0.41, absorbing
+#38's face migration into the intake). Same intake shape as the wire family:
+crates.io tarballs, both LICENSEs where dual (selectors ships no LICENSE file —
+MPL-2.0 text copied in from cssparser), `test = false`/`doctest = false`,
+tests/benches/examples/data/docs dropped, inline `#[cfg(test)]` modules stripped
+at intake (tail-sweep lesson), package + lib + in-source paths renamed
+(`markup5ever::` → `diting_markup5ever::` under html5ever, `cssparser::` →
+`diting_cssparser::` under selectors), and the two upstream
+`#![crate_name]`/`#![crate_type]` inner attributes dropped (they pin the
+canonical crate name and now contradict ours).
+
+Deliberately still registry — the small servo ring under the vendored tops:
+`tendril` 0.5, `web_atoms` 0.3 (markup5ever's), `servo_arc` 0.6, `to_shmem` 0.7
+(selectors 0.42's, optional feature — locked, never enabled), and
+`cssparser-macros` 0.7 (`match_byte!` — a 150-line proc-macro whose generated
+code is fully local, so it works unchanged against the renamed crate; upstream
+default features `fast_match_byte`/`fast_match_color` kept as-is for a
+behavior-preserving intake). Walls are dead because dependabot has no registry
+`selectors`/`html5ever` to bump in our graph anymore; when we WANT an upstream
+train update, the diff lands in these trees on our clock.
+
+**`htmlq`** (`diting-browser/src/htmlq.rs`, ~700 lines, ours) replaces
+`scraper` 0.29 for the ten call sites that used it (eight search engines,
+`html_md`, `render`/`screenshot` collectors). It ports the faces scraper
+actually gave us — `Html::parse_document` over an ego-tree + html5ever
+`TreeSink`, `Selector`/`ElementRef` over `diting_selectors` 0.42 by-value
+matching, text/attr/classes/ancestors navigation, outer/inner HTML via the
+html5ever serializer — and prunes what nothing used (fragment parsing,
+`root_element`, document-level `html()`, reversed select, error collection,
+`:hover`-family parsing stays a parse error exactly like scraper's default).
+Provenance comments in the module header; scraper's MIT OR Apache-2.0
+attribution stays in `NOTICE`. `ego-tree` itself stays registry (generic tree
+utility, like `flate2` under `diting_png`).
 
 ## Still external (on purpose)
 `btls` (the safe Rust wrapper; we call its API from `diting_wire`).

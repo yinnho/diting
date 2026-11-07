@@ -46,9 +46,9 @@ impl SearchEngine for BingImagesEngine {
 }
 
 fn parse_bing_images_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(html);
+    let document = crate::htmlq::Html::parse_document(html);
 
-    let anchor_selector = scraper::Selector::parse("a.iusc")
+    let anchor_selector = crate::htmlq::Selector::parse("a.iusc")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let anchors: Vec<_> = document.select(&anchor_selector).collect();

@@ -173,13 +173,13 @@ impl SearchEngine for DuckDuckGoEngine {
 }
 
 fn parse_ddg_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(html);
+    let document = crate::htmlq::Html::parse_document(html);
 
-    let link_sel = scraper::Selector::parse("a.result__a")
+    let link_sel = crate::htmlq::Selector::parse("a.result__a")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
     // Snippets live in a sibling <a class="result__snippet"> within the same
     // result wrapper; walk up from the link and query inside it.
-    let snippet_sel = scraper::Selector::parse("a.result__snippet")
+    let snippet_sel = crate::htmlq::Selector::parse("a.result__snippet")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let mut results: Vec<RawSearchResult> = Vec::new();

@@ -316,10 +316,10 @@ fn extract_quoted_string(s: &str) -> Option<String> {
 
 /// Parse Sogou WeChat HTML search results.
 fn parse_sogou_wechat_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(html);
+    let document = crate::htmlq::Html::parse_document(html);
 
     // Results are <li> elements with id starting with "sogou_vr_".
-    let item_selector = scraper::Selector::parse("li[id^=\"sogou_vr_\"]")
+    let item_selector = crate::htmlq::Selector::parse("li[id^=\"sogou_vr_\"]")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let items: Vec<_> = document.select(&item_selector).collect();
@@ -352,8 +352,8 @@ fn parse_sogou_wechat_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEng
     Ok(results)
 }
 
-fn extract_title(item: &scraper::ElementRef) -> String {
-    let selector = match scraper::Selector::parse("h3 a") {
+fn extract_title(item: &crate::htmlq::ElementRef) -> String {
+    let selector = match crate::htmlq::Selector::parse("h3 a") {
         Ok(s) => s,
         Err(_) => return String::new(),
     };
@@ -365,8 +365,8 @@ fn extract_title(item: &scraper::ElementRef) -> String {
         .to_string()
 }
 
-fn extract_url(item: &scraper::ElementRef) -> String {
-    let selector = match scraper::Selector::parse("h3 a") {
+fn extract_url(item: &crate::htmlq::ElementRef) -> String {
+    let selector = match crate::htmlq::Selector::parse("h3 a") {
         Ok(s) => s,
         Err(_) => return String::new(),
     };
@@ -384,11 +384,11 @@ fn extract_url(item: &scraper::ElementRef) -> String {
     }
 }
 
-fn extract_snippet(item: &scraper::ElementRef) -> String {
+fn extract_snippet(item: &crate::htmlq::ElementRef) -> String {
     // Try p.txt-info first.
     let selectors = ["p.txt-info", "p[class^=\"txt-info\"]", "div.txt-box p"];
     for sel_str in &selectors {
-        if let Ok(sel) = scraper::Selector::parse(sel_str) {
+        if let Ok(sel) = crate::htmlq::Selector::parse(sel_str) {
             if let Some(el) = item.select(&sel).next() {
                 let text: String = el.text().collect();
                 let trimmed = text.trim();

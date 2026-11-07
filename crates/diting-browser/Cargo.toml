@@ -70,9 +70,12 @@ http = "1"
 url = "2"
 urlencoding = "2"
 
-# --- html / dom parsing (product-side convenience wrappers) ---
-scraper = "0.29"
+# --- html / dom parsing (#42 ②: servo family vendored; htmlq = own query layer) ---
 ego-tree = "0.11"
+precomputed-hash = "0.1"
+diting_html5ever = { path = "../diting_html5ever" }
+diting_selectors = { path = "../diting_selectors" }
+diting_cssparser = { path = "../diting_cssparser" }
 
 base64 = "0.23"
 sha2 = "0.11"
@@ -110,10 +113,6 @@ name = "diting"
 path = "src/main.rs"
 
 [dev-dependencies]
-# CDP accessibility-domain tests build QualName'd element fixtures by hand
-# (moved with diting_cdp into the product crate; the engine still carries
-# its own copy for its parser tests).
-html5ever = "0.40"
 # auth.rs gate tests drive the axum Router via ServiceExt::oneshot (same
 # version axum 0.7.9 already compiles into the tree).
 tower = { version = "0.5", features = ["util"] }

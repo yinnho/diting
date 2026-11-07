@@ -127,11 +127,11 @@ fn looks_walled(html: &str) -> bool {
 
 /// Parse Sogou's HTML search results.
 fn parse_sogou_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(html);
+    let document = crate::htmlq::Html::parse_document(html);
 
-    let rb_selector = scraper::Selector::parse("div.rb")
+    let rb_selector = crate::htmlq::Selector::parse("div.rb")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
-    let vrwrap_selector = scraper::Selector::parse("div.vrwrap")
+    let vrwrap_selector = crate::htmlq::Selector::parse("div.vrwrap")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let mut results = Vec::new();
@@ -171,11 +171,11 @@ fn parse_sogou_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineErro
 }
 
 fn parse_sogou_standard_item(
-    item: &scraper::ElementRef,
+    item: &crate::htmlq::ElementRef,
     position: &mut usize,
 ) -> Option<RawSearchResult> {
-    let h3_selector = scraper::Selector::parse("h3.pt a").ok()?;
-    let ft_selector = scraper::Selector::parse("div.ft").ok()?;
+    let h3_selector = crate::htmlq::Selector::parse("h3.pt a").ok()?;
+    let ft_selector = crate::htmlq::Selector::parse("div.ft").ok()?;
 
     let link_el = item.select(&h3_selector).next()?;
     let title: String = link_el.text().collect();
@@ -206,13 +206,13 @@ fn parse_sogou_standard_item(
 }
 
 fn parse_sogou_vrwrap_item(
-    item: &scraper::ElementRef,
+    item: &crate::htmlq::ElementRef,
     position: &mut usize,
 ) -> Option<RawSearchResult> {
     // Try vr-title class first, then fallback to generic h3 a.
-    let h3_sel = scraper::Selector::parse("h3.vr-title a")
+    let h3_sel = crate::htmlq::Selector::parse("h3.vr-title a")
         .ok()
-        .or_else(|| scraper::Selector::parse("h3 a").ok())?;
+        .or_else(|| crate::htmlq::Selector::parse("h3 a").ok())?;
 
     let link_el = item.select(&h3_sel).next()?;
     let title: String = link_el.text().collect();
@@ -238,7 +238,7 @@ fn parse_sogou_vrwrap_item(
     })
 }
 
-fn extract_sogou_snippet(item: &scraper::ElementRef) -> String {
+fn extract_sogou_snippet(item: &crate::htmlq::ElementRef) -> String {
     // Try attribute-centent first, then fz-mid space-txt.
     let selectors = [
         "div.attribute-centent",
@@ -248,7 +248,7 @@ fn extract_sogou_snippet(item: &scraper::ElementRef) -> String {
     ];
 
     for sel_str in &selectors {
-        if let Ok(sel) = scraper::Selector::parse(sel_str) {
+        if let Ok(sel) = crate::htmlq::Selector::parse(sel_str) {
             if let Some(el) = item.select(&sel).next() {
                 let text: String = el.text().collect();
                 if !text.trim().is_empty() {

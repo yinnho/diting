@@ -28,6 +28,7 @@ mod firecrawl_compat;
 mod flow;
 mod har;
 mod html_md;
+mod htmlq;
 mod page;
 mod panel;
 mod panic_guard;

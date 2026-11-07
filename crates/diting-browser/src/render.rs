@@ -172,7 +172,7 @@ pub(crate) fn finalize_media(urls: Vec<String>) -> Vec<String> {
 /// attrs + srcset first candidate, og:image, video/audio sources + poster.
 /// No JS ran, so lazyload never landed; the data-* attributes are the lead.
 fn collect_media(html: &str) -> Vec<String> {
-    use scraper::{ElementRef, Html, Selector};
+    use crate::htmlq::{ElementRef, Html, Selector};
     let doc = Html::parse_document(html);
     let mut urls: Vec<String> = Vec::new();
     let take = |el: &ElementRef, attrs: &[&str], out: &mut Vec<String>| {
@@ -398,7 +398,7 @@ pub async fn http_fetch(
 /// Extract the outer HTML of the first element matching `selector` using
 /// `scraper`. Returns the full document if parsing/selecting fails.
 fn extract_selector_html(html: &str, selector: &str) -> String {
-    use scraper::{Html, Selector};
+    use crate::htmlq::{Html, Selector};
     let doc = Html::parse_document(html);
     let Ok(sel) = Selector::parse(selector) else {
         return html.to_string();

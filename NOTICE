@@ -40,5 +40,20 @@ from the Independent JPEG Group's libjpeg 9a (obtained from http://www.ijg.org/f
 the IJG license conditions are reproduced verbatim in that file's header. This software is
 based in part on the work of the Independent JPEG Group.
 
+The HTML parser (crates/diting_html5ever, from html5ever 0.40.1) and its support crate
+(crates/diting_markup5ever, from markup5ever 0.40.0) were taken from the html5ever
+Project Developers (MIT OR Apache-2.0; both license files are kept in each crate), and
+have since been pruned and modified; they are maintained here. The CSS parser
+(crates/diting_cssparser, from cssparser 0.38.0 by Simon Sapin and contributors) and the
+selector engine (crates/diting_selectors, from selectors 0.42.0 by the Servo Project
+Developers) are licensed under the Mozilla Public License 2.0 (MPL-2.0; the license text
+is kept in each crate); source-level modifications made here are available in full under
+this repository's git history. See crates/VENDORED.md.
+
+The HTML query layer (crates/diting-browser/src/htmlq.rs) is original code written here,
+but its tree-sink, element/select iteration and serialization shapes were modeled on the
+`scraper` crate 0.29 (MIT OR Apache-2.0) by June McEnroe and contributors; the
+crate itself is no longer used. See crates/VENDORED.md.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.
