@@ -139,14 +139,27 @@ bitmap → `chunks(0)` panic) was absorbed by a glyph denylist in
 `diting_layout/text.rs`; with the crate in-tree, fixing that at the source
 instead is on our clock.
 
-**First source modification (#48, 2026-11-07):** `strike.rs` `Bitmap::decode`
-gained upstream's one-line guard for zero-sized bitmaps (`w == 0 || h == 0 →
-decode fails`, callers fall through to the next source — the Png branch's
-`return false` precedent). Marked `upstream dfrg/swash#139` in-code; that fix
-is upstream's own suggested patch, verified by its reporter across SimSun's
-full BMP charmap. Our `render_guarded` panic guard RETIRED from this duty but
-stays deployed for the remaining debug-only arithmetic panic family
-(dfrg/swash#123-126, unfixed upstream).
+**First source modifications (#48/#49, 2026-11-07):**
+
+- `strike.rs` `Bitmap::decode` gained upstream's one-line guard for
+  zero-sized bitmaps (`w == 0 || h == 0 → decode fails`, callers fall
+  through to the next source — the Png branch's `return false`
+  precedent). Marked `upstream dfrg/swash#139` in-code; that fix is
+  upstream's own suggested patch, verified by its reporter across
+  SimSun's full BMP charmap. Our `render_guarded` panic guard RETIRED
+  from this duty but stays deployed for the remaining debug-only
+  arithmetic panic family (dfrg/swash#123-126, unfixed upstream).
+- The arithmetic trio (#49): `parse.rs check_range` non-short-circuit
+  `&` → `&&` (offset-past-end usize underflow; result provably
+  unchanged in every case), `metrics.rs` descent negations →
+  `wrapping_neg()` (i16::MIN descenders, three sites), `at.rs
+  script_language_count` → `wrapping_add(1)` (langSysCount u16::MAX).
+  All three verified with the issues' minimized fuzz fonts / byte-level
+  unit tests: pre-fix panics reproduce at the exact reported
+  file:line:col, post-fix clean. Debug-only family — release behavior
+  unchanged by construction. The fourth sibling (dfrg/swash#124) lives
+  in zeno (registry ring dep), not fixed here. Upstream PRs: swash#150
+  (#139), and the overflow trio under the same outreach policy.
 
 Intake: same shape as the other leaf vendors (png, socks) — tarball src, both
 LICENSEs, `test = false`/`doctest = false` equivalents via no test targets
