@@ -4,8 +4,8 @@
 //! at x=0 and overlaps the float; its line boxes sit at x = 50,50,50 (lines
 //! whose top is above the float's bottom) then 0.
 
-use taffy::prelude::*;
-use taffy::{Clear, Float, FloatContext, FloatDirection};
+use diting_taffy::prelude::*;
+use diting_taffy::{Clear, Float, FloatContext, FloatDirection};
 
 /// Words of `word_w` px separated by `space_w` px, as (width, is_space).
 fn words(n: usize, word_w: f32, space_w: f32) -> Vec<(f32, bool)> {
@@ -93,7 +93,7 @@ fn taffy_places_the_float_and_leaves_the_block_box_overlapping() {
             height: AvailableSpace::MaxContent,
         },
         |inputs, _, _, style| {
-            taffy::compute_leaf_layout(
+            diting_taffy::compute_leaf_layout(
                 inputs,
                 style,
                 |_, _| 0.0,
@@ -151,7 +151,7 @@ fn float_context_slots_give_chromes_line_offsets() {
 
 // --- Probe 3: our own tree, so the text node receives taffy's BlockContext ---
 
-use taffy::{
+use diting_taffy::{
     compute_block_layout, compute_cached_layout, compute_leaf_layout, compute_root_layout, Cache,
     CacheTree, Layout, LayoutBlockContainer, LayoutInput, LayoutOutput, LayoutPartialTree, NodeId,
     TraversePartialTree,
@@ -256,7 +256,7 @@ impl LayoutPartialTree for N {
     }
 }
 
-impl taffy::LayoutContainingBlock for N {
+impl diting_taffy::LayoutContainingBlock for N {
     type OofItemStyle<'a> = &'a Style;
     fn get_oof_item_style(&self, id: NodeId) -> &Style {
         &self.at(id).style
@@ -290,7 +290,7 @@ impl LayoutBlockContainer for N {
         &mut self,
         id: NodeId,
         inputs: LayoutInput,
-        block_ctx: Option<&mut taffy::BlockContext<'_>>,
+        block_ctx: Option<&mut diting_taffy::BlockContext<'_>>,
     ) -> LayoutOutput {
         let Kind::Text(toks, line_h) = &self.at(id).kind else {
             return self.compute_child_layout(id, inputs);

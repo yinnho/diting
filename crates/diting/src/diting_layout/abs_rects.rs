@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use taffy::style::Position;
+use diting_taffy::style::Position;
 
 use super::{Rect, TaffyTree, TextLeaf};
 use crate::diting_css::{ComputedStyle, Length};
@@ -35,11 +35,11 @@ fn translate_px(l: &Length, basis: f32) -> f32 {
 pub(super) fn collect(
     taffy_tree: &TaffyTree<TextLeaf>,
     styles: &HashMap<NodeId, ComputedStyle>,
-    node_map: &HashMap<taffy::tree::NodeId, NodeId>,
-    node: taffy::tree::NodeId,
+    node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
+    node: diting_taffy::tree::NodeId,
     offset: (f32, f32),
     cb: (f32, f32),
-    out: &mut HashMap<taffy::tree::NodeId, Rect>,
+    out: &mut HashMap<diting_taffy::tree::NodeId, Rect>,
 ) {
     let Ok(layout) = taffy_tree.layout(node) else {
         return;

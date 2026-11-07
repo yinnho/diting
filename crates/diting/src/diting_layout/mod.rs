@@ -27,7 +27,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use taffy::prelude::*;
+use diting_taffy::prelude::*;
 // Our own tree (flow_tree.rs) answers to the stock tree's name and methods.
 use flow_tree::FlowTree as TaffyTree;
 
@@ -291,8 +291,8 @@ fn fix_flex_basis_carry(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     parent: &ComputedStyle,
     styles: &HashMap<NodeId, ComputedStyle>,
-    node_map: &HashMap<taffy::tree::NodeId, NodeId>,
-    children: &[taffy::tree::NodeId],
+    node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
+    children: &[diting_taffy::tree::NodeId],
 ) {
     if parent.display != Some(CssDisplay::Flex) {
         return;
@@ -913,9 +913,9 @@ fn is_alignment_promote(s: &Style) -> bool {
 /// gives them under text-align.
 fn stretch_block_children_in_aligned_parent(
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &HashMap<taffy::tree::NodeId, NodeId>,
+    node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
     styles: &HashMap<NodeId, ComputedStyle>,
-    children: &[taffy::tree::NodeId],
+    children: &[diting_taffy::tree::NodeId],
 ) {
     for &n in children {
         let Some(&dom) = node_map.get(&n) else {
@@ -941,8 +941,8 @@ fn stretch_block_children_in_aligned_parent(
 fn collapse_adjacent_sibling_margins(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     styles: &HashMap<NodeId, ComputedStyle>,
-    node_map: &HashMap<taffy::tree::NodeId, NodeId>,
-    direct: &[taffy::tree::NodeId],
+    node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
+    direct: &[diting_taffy::tree::NodeId],
 ) {
     let px = |v: Option<crate::diting_css::Length>| match v {
         Some(crate::diting_css::Length::Px(px)) => Some(px),
@@ -993,8 +993,8 @@ fn collapse_adjacent_sibling_margins(
             taffy_tree.style(prev).cloned(),
             taffy_tree.style(next).cloned(),
         ) {
-            prev_style.margin.bottom = taffy::style::LengthPercentageAuto::length(0.0);
-            next_style.margin.top = taffy::style::LengthPercentageAuto::length(gap);
+            prev_style.margin.bottom = diting_taffy::style::LengthPercentageAuto::length(0.0);
+            next_style.margin.top = diting_taffy::style::LengthPercentageAuto::length(gap);
             let _ = taffy_tree.set_style(prev, prev_style);
             let _ = taffy_tree.set_style(next, next_style);
         }
@@ -1020,7 +1020,7 @@ fn build_word_leaves(
     han: Option<text::HanSlot>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-) -> Vec<taffy::tree::NodeId> {
+) -> Vec<diting_taffy::tree::NodeId> {
     let src_node = text_src::cur();
     let cur_range = std::cell::Cell::new((0u32, 0u32));
     let mut word_leaf = |seg_text: &str, seg_size: f32, is_space: bool| {
@@ -1196,14 +1196,14 @@ fn measure_text_leaf(
     tokens: &[text::Token],
     line_height: f32,
     pad: f32,
-    inputs: &taffy::tree::LayoutInput,
+    inputs: &diting_taffy::tree::LayoutInput,
     ws: WhiteSpace,
     line_clamp: Option<u32>,
-) -> taffy::tree::LayoutOutput {
+) -> diting_taffy::tree::LayoutOutput {
     let known = inputs.known_dimensions;
     let lh = line_height;
     if tokens.is_empty() {
-        return taffy::tree::LayoutOutput::HIDDEN;
+        return diting_taffy::tree::LayoutOutput::HIDDEN;
     }
     let widest_token = tokens.iter().map(|t| t.width).fold(0.0, f32::max);
 
@@ -1211,7 +1211,7 @@ fn measure_text_leaf(
         None
     } else {
         match inputs.available_space.width {
-            taffy::AvailableSpace::Definite(w) => Some(w),
+            diting_taffy::AvailableSpace::Definite(w) => Some(w),
             _ => None,
         }
     };
@@ -1227,7 +1227,7 @@ fn measure_text_leaf(
     }
     let min_content = matches!(
         inputs.available_space.width,
-        taffy::AvailableSpace::MinContent
+        diting_taffy::AvailableSpace::MinContent
     );
     // no-soft-wrap modes remove every soft wrap opportunity (CSS Text §5):
     // min-content rises to the full single line, same as max-content.
@@ -1236,16 +1236,16 @@ fn measure_text_leaf(
     } else {
         lines.iter().map(|l| l.width).fold(0.0, f32::max)
     };
-    let size = taffy::geometry::Size {
+    let size = diting_taffy::geometry::Size {
         width: known.width.unwrap_or(max_line.ceil()),
         height: known.height.unwrap_or(lines.len() as f32 * lh + pad),
     };
     // taffy >= 1b918ba replaced the `content_size: Size` second argument
     // with a scrollable-overflow `Rect`; a text leaf's content is exactly
     // its own box, so the rect's extent equals the measured size.
-    taffy::tree::LayoutOutput::from_sizes(
+    diting_taffy::tree::LayoutOutput::from_sizes(
         size,
-        taffy::geometry::Rect {
+        diting_taffy::geometry::Rect {
             left: 0.0,
             top: 0.0,
             right: size.width,
@@ -1284,7 +1284,7 @@ fn run_wrapper_style(ws: WhiteSpace) -> Style {
 /// #158 companion: leaves entering a no-soft-wrap run keep their measured
 /// width — flex's default shrink would squeeze them onto the one line,
 /// where Chrome lets the unbreakable content overflow instead.
-fn pin_leaf_widths(taffy_tree: &mut TaffyTree<TextLeaf>, leaves: &[taffy::tree::NodeId]) {
+fn pin_leaf_widths(taffy_tree: &mut TaffyTree<TextLeaf>, leaves: &[diting_taffy::tree::NodeId]) {
     for &l in leaves {
         taffy_tree.pin_shrink(l);
     }
@@ -1334,7 +1334,7 @@ fn ifc_white_space(
 /// break after content adds no height, and the line a break opens for
 /// following content is that content's own line. Not in `node_map` — the
 /// strut paints nothing and owns no DOM identity.
-fn br_strut_leaf(taffy_tree: &mut TaffyTree<TextLeaf>, lh: f32) -> Option<taffy::tree::NodeId> {
+fn br_strut_leaf(taffy_tree: &mut TaffyTree<TextLeaf>, lh: f32) -> Option<diting_taffy::tree::NodeId> {
     taffy_tree
         .new_leaf(Style {
             size: Size {
@@ -1595,7 +1595,7 @@ fn cb_height_definite(tree: &DomTree, styles: &HashMap<NodeId, ComputedStyle>, i
 /// invisible to its siblings' cache keys — (style, constraints) — so a
 /// cached text leaf would keep its float_lines slots wrapped against the
 /// float's old extent and paint across the repaired box.
-fn bust_subtree_cache(node: taffy::tree::NodeId, tree: &mut TaffyTree<TextLeaf>) {
+fn bust_subtree_cache(node: diting_taffy::tree::NodeId, tree: &mut TaffyTree<TextLeaf>) {
     let _ = tree.mark_dirty(node);
     for c in tree.children(node).unwrap_or_default().to_vec() {
         bust_subtree_cache(c, tree);
@@ -1606,8 +1606,8 @@ fn bust_subtree_cache(node: taffy::tree::NodeId, tree: &mut TaffyTree<TextLeaf>)
 /// their fixups shallow-first so an inner fixup feeds an outer one's basis.
 fn taffy_depth(
     taffy_tree: &TaffyTree<TextLeaf>,
-    node: taffy::tree::NodeId,
-    icb: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
+    icb: diting_taffy::tree::NodeId,
 ) -> usize {
     let (mut d, mut cur) = (0usize, node);
     while cur != icb {
@@ -1657,9 +1657,9 @@ fn build_replaced_leaf(
     styles: &HashMap<NodeId, ComputedStyle>,
     images: &HashMap<NodeId, DecodedImage>,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &mut HashMap<taffy::tree::NodeId, NodeId>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
     strut_descent: f32,
-) -> Option<taffy::tree::NodeId> {
+) -> Option<diting_taffy::tree::NodeId> {
     // #196: replaced elements skip build_element_inner's display gate (they
     // attach from three run-attach sites that call here directly), so a
     // display:none textarea — baidu/sina ship page templates as hidden
@@ -1856,7 +1856,7 @@ fn build_replaced_leaf(
         || style.bottom.is_some()
         || style.left.is_some()
     {
-        s.inset = taffy::geometry::Rect {
+        s.inset = diting_taffy::geometry::Rect {
             top: lpa_auto(style.top),
             right: lpa_auto(style.right),
             bottom: lpa_auto(style.bottom),
@@ -1877,7 +1877,7 @@ fn build_replaced_leaf(
         side_px(style.border_width.bottom),
         side_px(style.border_width.left),
     );
-    s.border = taffy::geometry::Rect {
+    s.border = diting_taffy::geometry::Rect {
         top: bw(bt),
         right: bw(br),
         bottom: bw(bb),
@@ -2009,14 +2009,14 @@ fn build_normal_sibling(
     images: &HashMap<NodeId, DecodedImage>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &mut HashMap<taffy::tree::NodeId, NodeId>,
-    flattened: &mut HashMap<NodeId, Vec<taffy::tree::NodeId>>,
-    run_wrappers: &mut Vec<taffy::tree::NodeId>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
+    flattened: &mut HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
+    run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
     meta: &mut TableBuildMeta,
     atomic_container: bool,
     font_size: f32,
     line_height: f32,
-    direct: &mut Vec<taffy::tree::NodeId>,
+    direct: &mut Vec<diting_taffy::tree::NodeId>,
 ) {
     let is_text = tree.with_node(child, |n| n.is_text()).unwrap_or(false);
     let child_tag = tree
@@ -2105,7 +2105,7 @@ fn build_normal_sibling(
         // single-segment runs are the overwhelmingly common case at
         // zone boundaries, and build_word_leaves + the run wrapper reproduce
         // the mixed-run path exactly.
-        let mut leaves: Vec<taffy::tree::NodeId> = Vec::new();
+        let mut leaves: Vec<diting_taffy::tree::NodeId> = Vec::new();
         if is_text {
             let text = tree
                 .with_node(child, |n| {
@@ -2403,14 +2403,14 @@ fn build_flow_column(
     images: &HashMap<NodeId, DecodedImage>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &mut HashMap<taffy::tree::NodeId, NodeId>,
-    flattened: &mut HashMap<NodeId, Vec<taffy::tree::NodeId>>,
-    run_wrappers: &mut Vec<taffy::tree::NodeId>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
+    flattened: &mut HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
+    run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
     meta: &mut TableBuildMeta,
     font_size: f32,
     lh_elem: f32,
     container_ws: WhiteSpace,
-) -> Vec<taffy::tree::NodeId> {
+) -> Vec<diting_taffy::tree::NodeId> {
     enum RunSeg {
         Text(
             String,
@@ -2426,16 +2426,16 @@ fn build_flow_column(
             bool,
             Option<text::HanSlot>,
         ),
-        Nodes(Vec<taffy::tree::NodeId>),
+        Nodes(Vec<diting_taffy::tree::NodeId>),
     }
-    let mut flow_children: Vec<taffy::tree::NodeId> = Vec::new();
+    let mut flow_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
     let mut run: Vec<RunSeg> = Vec::new();
     let mut run_clip: Option<NodeId> = None;
     let run_frame = text_src::new_frame();
     let flush_run = |run: &mut Vec<RunSeg>,
-                     flow_children: &mut Vec<taffy::tree::NodeId>,
+                     flow_children: &mut Vec<diting_taffy::tree::NodeId>,
                      taffy_tree: &mut TaffyTree<TextLeaf>,
-                     run_wrappers: &mut Vec<taffy::tree::NodeId>,
+                     run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
                      clip: Option<NodeId>| {
         if run.is_empty() {
             return;
@@ -2520,7 +2520,7 @@ fn build_flow_column(
             RunSeg::Text(.., w, _, _) if ws_rank(*w) > ws_rank(acc) => *w,
             _ => acc,
         });
-        let mut leaves: Vec<taffy::tree::NodeId> = Vec::new();
+        let mut leaves: Vec<diting_taffy::tree::NodeId> = Vec::new();
         for seg in segs {
             match seg {
                 RunSeg::Text(text, fs, bold, color, lh, deco, vs, mono, wsp, _, sc, han) => {
@@ -2802,8 +2802,8 @@ fn subtree_paints_nothing(tree: &DomTree, id: NodeId) -> bool {
 /// the post-layout fixup pass resolves its insets from the final row and
 /// placeholder boxes.
 struct SpanCell {
-    taffy: taffy::tree::NodeId,
-    placeholder: taffy::tree::NodeId,
+    taffy: diting_taffy::tree::NodeId,
+    placeholder: diting_taffy::tree::NodeId,
     dom: NodeId,
     col: usize,
     col_span: usize,
@@ -2815,7 +2815,7 @@ struct SpanCell {
 /// wrappers tagged with their GRID row index (rows without cells generate
 /// no wrapper) and the border inset the absolute offsets resolve against.
 struct TableSpans {
-    rows: Vec<(usize, taffy::tree::NodeId)>,
+    rows: Vec<(usize, diting_taffy::tree::NodeId)>,
     cells: Vec<SpanCell>,
     origin: (f32, f32),
 }
@@ -2880,11 +2880,11 @@ fn build_table(
     images: &HashMap<NodeId, DecodedImage>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &mut HashMap<taffy::tree::NodeId, NodeId>,
-    flattened: &mut HashMap<NodeId, Vec<taffy::tree::NodeId>>,
-    run_wrappers: &mut Vec<taffy::tree::NodeId>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
+    flattened: &mut HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
+    run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
     meta: &mut TableBuildMeta,
-) -> Option<taffy::tree::NodeId> {
+) -> Option<diting_taffy::tree::NodeId> {
     let tag_of = |nid: NodeId| -> String {
         tree.with_node(nid, |n| n.as_element().map(|e| e.local.to_string()))
             .flatten()
@@ -2985,7 +2985,7 @@ fn build_table(
     // behavior of the pre-span engine (no spans ⇒ column == cell index,
     // byte-identical attribution to the old path).
     struct CellSlot {
-        taffy: taffy::tree::NodeId,
+        taffy: diting_taffy::tree::NodeId,
         dom: NodeId,
         col: usize,
         col_span: usize,
@@ -3069,11 +3069,11 @@ fn build_table(
     // Placeholders owed to rows below by rowspan cells processed above: each
     // continuation row needs its own slot-holder leaf (a taffy node has one
     // parent), else its own cells collapse to x=0.
-    let mut pend_ph: Vec<Vec<(taffy::tree::NodeId, NodeId, usize, usize)>> =
+    let mut pend_ph: Vec<Vec<(diting_taffy::tree::NodeId, NodeId, usize, usize)>> =
         vec![Vec::new(); n_rows];
     // (grid row, wrapper node, cells) — wrappers only exist for rows that
     // produced at least one cell box.
-    let mut row_wrappers: Vec<(usize, taffy::tree::NodeId, Vec<CellSlot>)> = Vec::new();
+    let mut row_wrappers: Vec<(usize, diting_taffy::tree::NodeId, Vec<CellSlot>)> = Vec::new();
     // CSS2.2 §17.2.1 anonymous cell synthesis: a run of consecutive row
     // children that are not table-cells — bare text most of all (a real
     // HTML parser foster-parents it out of the table; ours keeps it in
@@ -3169,7 +3169,7 @@ fn build_table(
                     // flex row wrap a text run rides); a block-level member
                     // stacks the group vertically — the block-in-inline
                     // split reads top to bottom.
-                    let mut kids: Vec<taffy::tree::NodeId> = Vec::new();
+                    let mut kids: Vec<diting_taffy::tree::NodeId> = Vec::new();
                     for &mid in group {
                         build_normal_sibling(
                             mid,
@@ -3233,8 +3233,8 @@ fn build_table(
                             // entry; unwrapping-and-freeing it would strand
                             // a stale SlotMap key and panic the reparent
                             // pass on every rebuild (#119).
-                            let mut leaves: Vec<taffy::tree::NodeId> = Vec::new();
-                            let mut shells: Vec<taffy::tree::NodeId> = Vec::new();
+                            let mut leaves: Vec<diting_taffy::tree::NodeId> = Vec::new();
+                            let mut shells: Vec<diting_taffy::tree::NodeId> = Vec::new();
                             for w in &kids {
                                 if run_wrappers.contains(w) {
                                     shells.push(*w);
@@ -3411,17 +3411,17 @@ fn build_table(
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::STRETCH,
             flex_wrap: FlexWrap::NoWrap,
-            gap: taffy::geometry::Size {
+            gap: diting_taffy::geometry::Size {
                 width: LengthPercentage::length(gap),
                 height: LengthPercentage::length(0.0),
             },
-            size: taffy::geometry::Size {
+            size: diting_taffy::geometry::Size {
                 width: auto(),
                 height: row_height.map(Dimension::length).unwrap_or_else(auto),
             },
             ..Default::default()
         };
-        let cell_nodes: Vec<taffy::tree::NodeId> = cells.iter().map(|c| c.taffy).collect();
+        let cell_nodes: Vec<diting_taffy::tree::NodeId> = cells.iter().map(|c| c.taffy).collect();
         if let Ok(row_node) = taffy_tree.new_with_children(row_style, &cell_nodes) {
             // Only a real tr owns a DOM node to attribute the wrapper to;
             // an anonymous row's wrapper stays a pure layout stand-in.
@@ -3436,8 +3436,8 @@ fn build_table(
     // spanning its width (caption-side top is the UA default; bottom is out
     // of scope for v1). Previously the element was dropped entirely — no box
     // built — so wikipedia infobox captions were invisible.
-    let mut table_children: Vec<taffy::tree::NodeId> = Vec::with_capacity(row_wrappers.len() + 1);
-    let mut caption_node: Option<taffy::tree::NodeId> = None;
+    let mut table_children: Vec<diting_taffy::tree::NodeId> = Vec::with_capacity(row_wrappers.len() + 1);
+    let mut caption_node: Option<diting_taffy::tree::NodeId> = None;
     if let Some(cap) = caption_id {
         if let Some(cap_node) = build_element(
             tree,
@@ -3488,7 +3488,7 @@ fn build_table(
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::STRETCH,
                         flex_wrap: FlexWrap::NoWrap,
-                        gap: taffy::geometry::Size {
+                        gap: diting_taffy::geometry::Size {
                             width: LengthPercentage::length(0.0),
                             height: LengthPercentage::length(gap),
                         },
@@ -3593,7 +3593,7 @@ fn build_table(
             row_gutter[*row + *rspan] = row_gutter[*row + *rspan].max(e[2]);
         }
         let patch_cell = |taffy_tree: &mut TaffyTree<TextLeaf>,
-                          node: taffy::tree::NodeId,
+                          node: diting_taffy::tree::NodeId,
                           cell_dom: Option<NodeId>,
                           col: usize,
                           cspan: usize,
@@ -3609,7 +3609,7 @@ fn build_table(
             let gr = half(&col_gutter, col + cspan);
             let gt = half(&row_gutter, row);
             let gb = half(&row_gutter, row + rspan);
-            st.border = taffy::geometry::Rect {
+            st.border = diting_taffy::geometry::Rect {
                 top: LengthPercentage::length(0.0),
                 right: LengthPercentage::length(0.0),
                 bottom: LengthPercentage::length(0.0),
@@ -3617,7 +3617,7 @@ fn build_table(
             };
             let widen = |cur: &LengthPercentage, half: f32| -> LengthPercentage {
                 match cur.expand() {
-                    taffy::style::ExpandedLengthPercentage::Length(v) => {
+                    diting_taffy::style::ExpandedLengthPercentage::Length(v) => {
                         LengthPercentage::length(v + half)
                     }
                     _ => *cur,
@@ -3636,12 +3636,12 @@ fn build_table(
                         matches!(cs.box_sizing, Some(crate::diting_css::BoxSizing::BorderBox));
                     let e = edge_px(dom);
                     if !border_box && matches!(cs.width, Some(crate::diting_css::Length::Px(_))) {
-                        if let taffy::style::ExpandedDimension::Length(w) = st.size.width.expand() {
+                        if let diting_taffy::style::ExpandedDimension::Length(w) = st.size.width.expand() {
                             st.size.width = Dimension::length(w - e[1] - e[3] + gl + gr);
                         }
                     }
                     if !border_box && matches!(cs.height, Some(crate::diting_css::Length::Px(_))) {
-                        if let taffy::style::ExpandedDimension::Length(h) = st.size.height.expand()
+                        if let diting_taffy::style::ExpandedDimension::Length(h) = st.size.height.expand()
                         {
                             st.size.height = Dimension::length(h - e[0] - e[2] + gt + gb);
                         }
@@ -3683,8 +3683,8 @@ fn build_table(
     // maxima. The measured closure is the same TextLeaf dispatch as the
     // root pass — a plain compute_layout would zero the text runs.
     let measure_pass =
-        |taffy_tree: &mut TaffyTree<TextLeaf>, node: taffy::tree::NodeId| -> Option<(f32, f32)> {
-            let space = taffy::geometry::Size {
+        |taffy_tree: &mut TaffyTree<TextLeaf>, node: diting_taffy::tree::NodeId| -> Option<(f32, f32)> {
+            let space = diting_taffy::geometry::Size {
                 width: AvailableSpace::MaxContent,
                 height: AvailableSpace::MaxContent,
             };
@@ -3717,10 +3717,10 @@ fn build_table(
     // at the given width availability.
     let measure_cell =
         |taffy_tree: &mut TaffyTree<TextLeaf>,
-         node: taffy::tree::NodeId,
+         node: diting_taffy::tree::NodeId,
          width: AvailableSpace|
          -> (f32, f32) {
-            let space = taffy::geometry::Size {
+            let space = diting_taffy::geometry::Size {
                 width,
                 height: AvailableSpace::MaxContent,
             };
@@ -3763,7 +3763,7 @@ fn build_table(
                         | Some(TextLeaf::Replaced { .. })
                         | Some(TextLeaf::Pseudo { .. })
                         | None => {
-                            taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
+                            diting_taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
                         }
                     }
                 });
@@ -3778,7 +3778,7 @@ fn build_table(
     // their column; spanning cells then distribute their DEFICIT equally
     // across the spanned columns (the simple spec algorithm — a group
     // already wide enough takes nothing). Document order within each pass.
-    let lifted: HashMap<(usize, usize), taffy::tree::NodeId> = span_cells
+    let lifted: HashMap<(usize, usize), diting_taffy::tree::NodeId> = span_cells
         .iter()
         .map(|c| ((c.row, c.col), c.taffy))
         .collect();
@@ -4121,11 +4121,11 @@ fn build_element(
     images: &HashMap<NodeId, DecodedImage>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &mut HashMap<taffy::tree::NodeId, NodeId>,
-    flattened: &mut HashMap<NodeId, Vec<taffy::tree::NodeId>>,
-    run_wrappers: &mut Vec<taffy::tree::NodeId>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
+    flattened: &mut HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
+    run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
     meta: &mut TableBuildMeta,
-) -> Option<taffy::tree::NodeId> {
+) -> Option<diting_taffy::tree::NodeId> {
     // The float environment is a parent-to-child fact: inner reads what
     // the parent decided for THIS element and re-sets it for its own
     // children — restored here so a later sibling never inherits it.
@@ -4156,11 +4156,11 @@ fn build_element_inner(
     images: &HashMap<NodeId, DecodedImage>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
-    node_map: &mut HashMap<taffy::tree::NodeId, NodeId>,
-    flattened: &mut HashMap<NodeId, Vec<taffy::tree::NodeId>>,
-    run_wrappers: &mut Vec<taffy::tree::NodeId>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
+    flattened: &mut HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
+    run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
     meta: &mut TableBuildMeta,
-) -> Option<taffy::tree::NodeId> {
+) -> Option<diting_taffy::tree::NodeId> {
     // #187: an element missing from the styles map used to fall to
     // ComputedStyle::default(), whose display is None ≠ Some(None) — the
     // gate below passed and raw-text elements (<style>/<script>) laid
@@ -4278,16 +4278,16 @@ fn build_element_inner(
             bool,
             Option<text::HanSlot>,
         ),
-        Nodes(Vec<taffy::tree::NodeId>),
+        Nodes(Vec<diting_taffy::tree::NodeId>),
     }
-    let mut direct: Vec<taffy::tree::NodeId> = Vec::new();
+    let mut direct: Vec<diting_taffy::tree::NodeId> = Vec::new();
     let mut run: Vec<RunSeg> = Vec::new();
     let mut run_clip: Option<NodeId> = None;
     let run_frame = text_src::new_frame();
     let flush_run = |run: &mut Vec<RunSeg>,
-                     direct: &mut Vec<taffy::tree::NodeId>,
+                     direct: &mut Vec<diting_taffy::tree::NodeId>,
                      taffy_tree: &mut TaffyTree<TextLeaf>,
-                     run_wrappers: &mut Vec<taffy::tree::NodeId>,
+                     run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
                      clip: Option<NodeId>| {
         if run.is_empty() {
             return;
@@ -4433,7 +4433,7 @@ fn build_element_inner(
             RunSeg::Text(.., w, _, _) if ws_rank(*w) > ws_rank(acc) => *w,
             _ => acc,
         });
-        let mut leaves: Vec<taffy::tree::NodeId> = Vec::new();
+        let mut leaves: Vec<diting_taffy::tree::NodeId> = Vec::new();
         for seg in segs {
             match seg {
                 RunSeg::Text(text, fs, bold, color, lh, deco, vs, mono, wsp, _, sc, han) => {
@@ -4581,7 +4581,7 @@ fn build_element_inner(
                 flow_dom.push(cid);
                 has_flow_content = true;
             }
-            let mut row_children: Vec<taffy::tree::NodeId> = Vec::new();
+            let mut row_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
             for cid in flow_dom {
                 build_normal_sibling(
                     cid,
@@ -4602,7 +4602,7 @@ fn build_element_inner(
             }
             // The right-float group in REVERSED source order (CSS places
             // right floats inline-end first).
-            let mut right_children: Vec<taffy::tree::NodeId> = Vec::new();
+            let mut right_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
             for cid in right_floats.iter().rev() {
                 if let Some(f) = build_element(
                     tree,
@@ -4624,7 +4624,7 @@ fn build_element_inner(
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
                     flex_wrap: FlexWrap::Wrap,
-                    margin: taffy::geometry::Rect {
+                    margin: diting_taffy::geometry::Rect {
                         top: LengthPercentageAuto::length(0.0),
                         right: LengthPercentageAuto::length(0.0),
                         bottom: LengthPercentageAuto::length(0.0),
@@ -4748,9 +4748,9 @@ fn build_element_inner(
                     == opposite_side)
                 .then_some(bridge_end);
             if let Some(opp_idx) = opposite_at {
-                let mut pair_children: Vec<taffy::tree::NodeId> = Vec::new();
+                let mut pair_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
                 if run_len >= 2 {
-                    let mut inner: Vec<taffy::tree::NodeId> = Vec::new();
+                    let mut inner: Vec<diting_taffy::tree::NodeId> = Vec::new();
                     for cid in &child_ids[float_idx..run_end] {
                         if !is_float_child(cid) {
                             continue;
@@ -4894,7 +4894,7 @@ fn build_element_inner(
                         style.white_space.unwrap_or(WhiteSpace::Normal),
                     );
                     let float_right = run_side == Some(crate::diting_css::FloatSide::Right);
-                    let mut rail_children: Vec<taffy::tree::NodeId> = Vec::new();
+                    let mut rail_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
                     for &i in &rail_idx {
                         if let Some(f) = build_element(
                             tree,
@@ -4956,7 +4956,7 @@ fn build_element_inner(
                         },
                         &rail_children,
                     ) {
-                        let row_children: Vec<taffy::tree::NodeId> = match (float_right, column) {
+                        let row_children: Vec<diting_taffy::tree::NodeId> = match (float_right, column) {
                             (true, Some(col)) => vec![col, rail],
                             (true, None) => vec![rail],
                             (false, Some(col)) => vec![rail, col],
@@ -4995,7 +4995,7 @@ fn build_element_inner(
 
             if run_len >= 2 {
                 // --- 8c: the wrapping float-grid row -------------------------
-                let mut row_children: Vec<taffy::tree::NodeId> = Vec::new();
+                let mut row_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
                 for cid in &child_ids[float_idx..run_end] {
                     if !is_float_child(cid) {
                         continue;
@@ -5085,7 +5085,7 @@ fn build_element_inner(
             );
             let float_right = styles.get(&float_dom).and_then(|s| s.float_side)
                 == Some(crate::diting_css::FloatSide::Right);
-            let mut row_children: Vec<taffy::tree::NodeId> = Vec::new();
+            let mut row_children: Vec<diting_taffy::tree::NodeId> = Vec::new();
             if !flow_children.is_empty() {
                 if let Ok(column) = taffy_tree.new_with_children(
                     Style {
@@ -5471,7 +5471,7 @@ fn build_element_inner(
                         let _ = taffy_tree.remove(sub);
                         let normalized = text.replace("\r\n", "\n").replace("\r", "\n");
                         let lines: Vec<&str> = normalized.split('\n').collect();
-                        let mut flat: Vec<taffy::tree::NodeId> = Vec::new();
+                        let mut flat: Vec<diting_taffy::tree::NodeId> = Vec::new();
                         let mut char_at = 0u32;
                         for (i, line) in lines.iter().enumerate() {
                             if i > 0 {
@@ -6075,13 +6075,13 @@ fn map_rect_arr(m: [f32; 6], r: Rect) -> Rect {
 /// under rotation a horizontal line band is a vertical stripe, and the
 /// mapped bbox of each band is the closest an axis-aligned Bg can get.
 fn expand_wrapped_leaves(
-    node: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
     taffy_tree: &TaffyTree<TextLeaf>,
-    wrapper_set: &std::collections::HashSet<taffy::tree::NodeId>,
-    local_by_node: &HashMap<taffy::tree::NodeId, (Rect, [f32; 6])>,
+    wrapper_set: &std::collections::HashSet<diting_taffy::tree::NodeId>,
+    local_by_node: &HashMap<diting_taffy::tree::NodeId, (Rect, [f32; 6])>,
     fonts: &FontBook,
     pieces: &mut Vec<Rect>,
-    owners: &mut Vec<taffy::tree::NodeId>,
+    owners: &mut Vec<diting_taffy::tree::NodeId>,
 ) {
     if wrapper_set.contains(&node) {
         for c in taffy_tree.children(node).unwrap_or_default() {
@@ -6188,9 +6188,9 @@ fn text_baseline(fonts: &FontBook, font_size: f32, bold: bool, line_height: f32)
 /// behavior for a box with no in-flow line boxes.
 fn subtree_last_baseline(
     taffy_tree: &TaffyTree<TextLeaf>,
-    node: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
     rel_y: f32,
-    shifts: &HashMap<taffy::tree::NodeId, f32>,
+    shifts: &HashMap<diting_taffy::tree::NodeId, f32>,
     fonts: &FontBook,
     best: &mut Option<f32>,
 ) {
@@ -6266,17 +6266,17 @@ fn subtree_last_baseline(
 /// runs mixing font metrics or atomic boxes move.
 fn compute_baseline_shifts(
     taffy_tree: &TaffyTree<TextLeaf>,
-    run_wrappers: &[taffy::tree::NodeId],
+    run_wrappers: &[diting_taffy::tree::NodeId],
     fonts: &FontBook,
-) -> HashMap<taffy::tree::NodeId, f32> {
-    let mut shifts: HashMap<taffy::tree::NodeId, f32> = HashMap::new();
+) -> HashMap<diting_taffy::tree::NodeId, f32> {
+    let mut shifts: HashMap<diting_taffy::tree::NodeId, f32> = HashMap::new();
     // First-line baselines of processed wrappers: a nested wrapper (flattened
     // inline content) joins an outer run as ONE item and, as a flex
     // container, contributes its FIRST baseline (css-align, blitz#750's
     // Display::Flex arm).
-    let mut first_baselines: HashMap<taffy::tree::NodeId, f32> = HashMap::new();
+    let mut first_baselines: HashMap<diting_taffy::tree::NodeId, f32> = HashMap::new();
     // Inner wrappers first: outer runs read their shifts and first baselines.
-    let depth = |mut n: taffy::tree::NodeId| {
+    let depth = |mut n: diting_taffy::tree::NodeId| {
         let mut d = 0usize;
         while let Some(p) = taffy_tree.parent(n) {
             d += 1;
@@ -6311,7 +6311,7 @@ fn compute_baseline_shifts(
         }
         // Group into flex lines by y (taffy rounds locations to the pixel
         // grid, so same-line items share a y).
-        let mut lines: Vec<(f32, Vec<(taffy::tree::NodeId, f32)>)> = Vec::new();
+        let mut lines: Vec<(f32, Vec<(diting_taffy::tree::NodeId, f32)>)> = Vec::new();
         for child in children {
             let Ok(l) = taffy_tree.layout(child) else {
                 continue;
@@ -6357,9 +6357,9 @@ fn compute_baseline_shifts(
 /// Baseline of one run item below its border-box top.
 fn item_baseline(
     taffy_tree: &TaffyTree<TextLeaf>,
-    child: taffy::tree::NodeId,
-    shifts: &HashMap<taffy::tree::NodeId, f32>,
-    first_baselines: &HashMap<taffy::tree::NodeId, f32>,
+    child: diting_taffy::tree::NodeId,
+    shifts: &HashMap<diting_taffy::tree::NodeId, f32>,
+    first_baselines: &HashMap<diting_taffy::tree::NodeId, f32>,
     fonts: &FontBook,
     height: f32,
 ) -> f32 {
@@ -6446,17 +6446,17 @@ pub fn layout_dom_with_paint_order_and_images(
 /// to pay (43 solves × 114ms on the probe page).
 pub struct SolvedGeometry {
     taffy_tree: TaffyTree<TextLeaf>,
-    node_map: HashMap<taffy::tree::NodeId, NodeId>,
+    node_map: HashMap<diting_taffy::tree::NodeId, NodeId>,
     images: HashMap<NodeId, DecodedImage>,
     static_pos: HashMap<NodeId, (f32, f32)>,
-    baseline_shifts: HashMap<taffy::tree::NodeId, f32>,
-    run_wrappers: Vec<taffy::tree::NodeId>,
+    baseline_shifts: HashMap<diting_taffy::tree::NodeId, f32>,
+    run_wrappers: Vec<diting_taffy::tree::NodeId>,
     collapsed_edges: HashMap<NodeId, [bool; 4]>,
-    flattened: HashMap<NodeId, Vec<taffy::tree::NodeId>>,
+    flattened: HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
     /// The synthetic ICB the walk roots at; `None` marks an aborted solve
     /// (no element root, or a taffy error) — collect returns the same empty
     /// outputs the undivided pipeline returned on those paths.
-    icb_node: Option<taffy::tree::NodeId>,
+    icb_node: Option<diting_taffy::tree::NodeId>,
     /// Which DOM text node(s) each text leaf carries (range / client-rect queries).
     text_src: text_src::SrcMap,
 }
@@ -6548,7 +6548,7 @@ pub fn layout_solve_rooted(
     root: Option<NodeId>,
 ) -> SolvedGeometry {
     let mut taffy_tree = TaffyTree::new();
-    let mut node_map: HashMap<taffy::tree::NodeId, NodeId> = HashMap::new();
+    let mut node_map: HashMap<diting_taffy::tree::NodeId, NodeId> = HashMap::new();
 
     // Pre-pass (batches 5b + 6c, parallelized by #112): resolve every img
     // src through the ImageCache — data: URLs decode inline, http(s)/file
@@ -6622,12 +6622,12 @@ pub fn layout_solve_rooted(
 
     // Flattened inline wrappers (see build_element) recorded as
     // dom id → hoisted taffy children, for the union pass after the walk.
-    let mut flattened: HashMap<NodeId, Vec<taffy::tree::NodeId>> = HashMap::new();
+    let mut flattened: HashMap<NodeId, Vec<diting_taffy::tree::NodeId>> = HashMap::new();
     // Run wrappers (the IFC stand-in flex rows) recorded at assembly for the
     // post-layout baseline-alignment pass (blitz#750 family) — they can't be
     // re-identified structurally (inline-block boxes share the same taffy
     // style), so the builders log them as they create them.
-    let mut run_wrappers: Vec<taffy::tree::NodeId> = Vec::new();
+    let mut run_wrappers: Vec<diting_taffy::tree::NodeId> = Vec::new();
     // Table span bookkeeping (rowspan/colspan): build_table logs each spanned
     // table here; the post-layout fixup reads the placeholder geometry and
     // places the lifted absolute cells over their spanned band.
@@ -6668,8 +6668,8 @@ pub fn layout_solve_rooted(
             // max-content — probe: 500px child → html=500 instead of VW).
             display: Display::Block,
             size: Size {
-                width: taffy::style::Dimension::length(viewport_width),
-                height: taffy::style::Dimension::length(viewport_height),
+                width: diting_taffy::style::Dimension::length(viewport_width),
+                height: diting_taffy::style::Dimension::length(viewport_height),
             },
             ..Default::default()
         })
@@ -6696,7 +6696,7 @@ pub fn layout_solve_rooted(
     // mutation, so the main layout below starts from a clean cache.
     let mut static_pos: HashMap<NodeId, (f32, f32)> = HashMap::new();
     {
-        let needs_static: Vec<(taffy::tree::NodeId, NodeId)> = node_map
+        let needs_static: Vec<(diting_taffy::tree::NodeId, NodeId)> = node_map
             .iter()
             .filter(|(_, dom_id)| {
                 styles.get(*dom_id).is_some_and(|s| {
@@ -6720,7 +6720,7 @@ pub fn layout_solve_rooted(
                 )
                 .is_ok();
             if laid_out {
-                let mut now: HashMap<taffy::tree::NodeId, Rect> = HashMap::new();
+                let mut now: HashMap<diting_taffy::tree::NodeId, Rect> = HashMap::new();
                 abs_rects::collect(
                     &taffy_tree,
                     styles,
@@ -6749,7 +6749,7 @@ pub fn layout_solve_rooted(
                 // against the parent's content box. Recompute each axis
                 // whose insets are both auto; the harvested position stands
                 // everywhere else.
-                let dom_of: HashMap<NodeId, taffy::tree::NodeId> =
+                let dom_of: HashMap<NodeId, diting_taffy::tree::NodeId> =
                     node_map.iter().map(|(k, v)| (*v, *k)).collect();
                 for (tnid, dom_id) in &needs_static {
                     let (Some(style), Some(parent_dom), Some(entry)) = (
@@ -6851,9 +6851,9 @@ pub fn layout_solve_rooted(
     // positioned ancestors don't pin it — resolves to the root = the
     // initial containing block stand-in.
     {
-        let dom_of: HashMap<NodeId, taffy::tree::NodeId> =
+        let dom_of: HashMap<NodeId, diting_taffy::tree::NodeId> =
             node_map.iter().map(|(k, v)| (*v, *k)).collect();
-        let mut reparents: Vec<(taffy::tree::NodeId, taffy::tree::NodeId)> = node_map
+        let mut reparents: Vec<(diting_taffy::tree::NodeId, diting_taffy::tree::NodeId)> = node_map
             .iter()
             .filter_map(|(taffy_nid, dom_id)| {
                 let style = styles.get(dom_id)?;
@@ -6971,14 +6971,14 @@ pub fn layout_solve_rooted(
     // clamping their max-width (left float: shrink the right side; right
     // float: push the left edge past the float), then lay out again.
     {
-        let dom_of: HashMap<NodeId, taffy::tree::NodeId> =
+        let dom_of: HashMap<NodeId, diting_taffy::tree::NodeId> =
             node_map.iter().map(|(k, v)| (*v, *k)).collect();
-        let mut rects_now: HashMap<taffy::tree::NodeId, Rect> = HashMap::new();
+        let mut rects_now: HashMap<diting_taffy::tree::NodeId, Rect> = HashMap::new();
         fn abs_rects(
             taffy_tree: &TaffyTree<TextLeaf>,
-            node: taffy::tree::NodeId,
+            node: diting_taffy::tree::NodeId,
             offset: (f32, f32),
-            out: &mut HashMap<taffy::tree::NodeId, Rect>,
+            out: &mut HashMap<diting_taffy::tree::NodeId, Rect>,
         ) {
             let Ok(layout) = taffy_tree.layout(node) else {
                 return;
@@ -7000,7 +7000,7 @@ pub fn layout_solve_rooted(
         abs_rects(&taffy_tree, icb_node, (0.0, 0.0), &mut rects_now);
 
         // Float bands with the DOM node that owns each float.
-        let mut bands: Vec<(NodeId, taffy::tree::NodeId, Rect)> = Vec::new();
+        let mut bands: Vec<(NodeId, diting_taffy::tree::NodeId, Rect)> = Vec::new();
         for (tnid, dom_id) in node_map.iter() {
             let is_float = styles.get(dom_id).is_some_and(|s| s.float_side.is_some());
             if !is_float {
@@ -7209,7 +7209,7 @@ pub fn layout_solve_rooted(
     // through the `repaired` map (also read by the #245 pass below) without
     // another round-trip. height and margin/padding/inset keep the
     // percent-only placeholder (documented approximation).
-    let mut repaired: HashMap<taffy::tree::NodeId, f32> = HashMap::new();
+    let mut repaired: HashMap<diting_taffy::tree::NodeId, f32> = HashMap::new();
     {
         // A content-box percent width with padding/border is also repaired:
         // the box is pct * containing-block + the px edges (taffy resolves a
@@ -7234,7 +7234,7 @@ pub fn layout_solve_rooted(
                     && !matches!(s.box_sizing, Some(crate::diting_css::BoxSizing::BorderBox))
                     && edges_px(s) > 0.0)
         };
-        let mut fixups: Vec<(taffy::tree::NodeId, NodeId)> = node_map
+        let mut fixups: Vec<(diting_taffy::tree::NodeId, NodeId)> = node_map
             .iter()
             .filter(|(_, d)| styles.get(*d).is_some_and(has_calc_width))
             .map(|(t, d)| (*t, *d))
@@ -7387,7 +7387,7 @@ pub fn layout_solve_rooted(
                     || px(s.min_height)
                     || px(s.max_height))
         };
-        let mut fixups: Vec<(taffy::tree::NodeId, NodeId)> = node_map
+        let mut fixups: Vec<(diting_taffy::tree::NodeId, NodeId)> = node_map
             .iter()
             .filter(|(_, d)| styles.get(*d).is_some_and(needs))
             .map(|(t, d)| (*t, *d))
@@ -7522,7 +7522,7 @@ pub fn layout_solve_rooted(
                     )
                 })
         };
-        let mut fixups: Vec<(taffy::tree::NodeId, NodeId)> = node_map
+        let mut fixups: Vec<(diting_taffy::tree::NodeId, NodeId)> = node_map
             .iter()
             .filter(|(_, d)| {
                 let Some(st) = styles.get(*d) else {
@@ -7538,8 +7538,8 @@ pub fn layout_solve_rooted(
             let mut float_fixups = false;
             // host → final border-box width: a nested figure's outer sum
             // reads the inner host's repaired size, not the stale solve.
-            let mut sized: HashMap<taffy::tree::NodeId, f32> = HashMap::new();
-            let dom_of = |t: taffy::tree::NodeId| node_map.get(&t).copied();
+            let mut sized: HashMap<diting_taffy::tree::NodeId, f32> = HashMap::new();
+            let dom_of = |t: diting_taffy::tree::NodeId| node_map.get(&t).copied();
             for (tnid, dom_id) in fixups {
                 let Some(st) = styles.get(&dom_id) else {
                     continue;
@@ -7609,7 +7609,7 @@ pub fn layout_solve_rooted(
                 }
                 fn runs_under(
                     taffy_tree: &TaffyTree<TextLeaf>,
-                    node: taffy::tree::NodeId,
+                    node: diting_taffy::tree::NodeId,
                     fonts: &FontBook,
                 ) -> (f32, f32) {
                     if let Some(TextLeaf::Run {
@@ -7648,11 +7648,11 @@ pub fn layout_solve_rooted(
                 }
                 fn contribute(
                     taffy_tree: &TaffyTree<TextLeaf>,
-                    node: taffy::tree::NodeId,
+                    node: diting_taffy::tree::NodeId,
                     fonts: &FontBook,
                     styles: &HashMap<NodeId, ComputedStyle>,
-                    dom_of: &dyn Fn(taffy::tree::NodeId) -> Option<NodeId>,
-                    sized: &HashMap<taffy::tree::NodeId, f32>,
+                    dom_of: &dyn Fn(diting_taffy::tree::NodeId) -> Option<NodeId>,
+                    sized: &HashMap<diting_taffy::tree::NodeId, f32>,
                     floats_sum: &mut f32,
                     widest_float: &mut f32,
                     text_max: &mut f32,
@@ -7661,7 +7661,7 @@ pub fn layout_solve_rooted(
                     let is_float = taffy_tree
                         .style(node)
                         .ok()
-                        .is_some_and(|s| s.float != taffy::Float::None);
+                        .is_some_and(|s| s.float != diting_taffy::Float::None);
                     if let Some(TextLeaf::Run {
                         text,
                         font_size,
@@ -7857,13 +7857,13 @@ pub fn layout_solve_rooted(
                 let y_bot = last_layout.location.y + last_layout.size.height;
                 if let Ok(mut st) = taffy_tree.style(cell.taffy).cloned() {
                     st.position = Position::Absolute;
-                    st.inset = taffy::geometry::Rect {
+                    st.inset = diting_taffy::geometry::Rect {
                         left: LengthPercentageAuto::length((x - job.origin.0).max(0.0)),
                         top: LengthPercentageAuto::length((y_top - job.origin.1).max(0.0)),
                         right: LengthPercentageAuto::AUTO,
                         bottom: LengthPercentageAuto::AUTO,
                     };
-                    st.size = taffy::geometry::Size {
+                    st.size = diting_taffy::geometry::Size {
                         width: Dimension::length(ph.size.width.max(0.0)),
                         height: Dimension::length((y_bot - y_top).max(0.0)),
                     };
@@ -8153,7 +8153,7 @@ pub fn layout_collect_with_images(
     /// beside `Xf` because that map type is fn-scoped.
     struct ZEscape {
         z: i32,
-        child: taffy::tree::NodeId,
+        child: diting_taffy::tree::NodeId,
         offset: (f32, f32),
         xf: Xf,
         alpha: f32,
@@ -8185,7 +8185,7 @@ pub fn layout_collect_with_images(
     fn push_list_marker(
         tree: &DomTree,
         taffy_tree: &TaffyTree<TextLeaf>,
-        node: taffy::tree::NodeId,
+        node: diting_taffy::tree::NodeId,
         dom_id: NodeId,
         cs: &crate::diting_css::ComputedStyle,
         rect: Rect,
@@ -8236,7 +8236,7 @@ pub fn layout_collect_with_images(
         let mut mono = false;
         let mut han = None;
         let mut first_line_y = rect.y + side_px(cs.border_width.top) + side_px(cs.padding.top);
-        let mut stack: Vec<(taffy::tree::NodeId, f32, f32)> = vec![(node, 0.0, 0.0)];
+        let mut stack: Vec<(diting_taffy::tree::NodeId, f32, f32)> = vec![(node, 0.0, 0.0)];
         while let Some((n, ox, oy)) = stack.pop() {
             let kids = taffy_tree.children(n).unwrap_or_default();
             for &c in kids.iter().rev() {
@@ -8328,24 +8328,24 @@ pub fn layout_collect_with_images(
     fn collect(
         tree: &DomTree,
         taffy_tree: &TaffyTree<TextLeaf>,
-        node_map: &HashMap<taffy::tree::NodeId, NodeId>,
+        node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
         styles: &HashMap<NodeId, ComputedStyle>,
         fonts: &FontBook,
         images: &HashMap<NodeId, DecodedImage>,
         static_pos: &HashMap<NodeId, (f32, f32)>,
-        baseline_shifts: &HashMap<taffy::tree::NodeId, f32>,
+        baseline_shifts: &HashMap<diting_taffy::tree::NodeId, f32>,
         collapsed_edges: &HashMap<NodeId, [bool; 4]>,
         rects: &mut HashMap<NodeId, Rect>,
         local_geom: &mut HashMap<NodeId, (Rect, [f32; 6])>,
-        abs_by_node: &mut HashMap<taffy::tree::NodeId, Rect>,
-        local_by_node: &mut HashMap<taffy::tree::NodeId, (Rect, [f32; 6])>,
-        node_first_item: &mut HashMap<taffy::tree::NodeId, usize>,
+        abs_by_node: &mut HashMap<diting_taffy::tree::NodeId, Rect>,
+        local_by_node: &mut HashMap<diting_taffy::tree::NodeId, (Rect, [f32; 6])>,
+        node_first_item: &mut HashMap<diting_taffy::tree::NodeId, usize>,
         sticky_spans: &mut Vec<StickySpan>,
         scroller_spans: &mut Vec<StickySpan>,
         items: &mut Vec<PaintItem>,
         paint_order: &mut Vec<NodeId>,
         escaped: &mut Vec<ZEscape>,
-        node: taffy::tree::NodeId,
+        node: diting_taffy::tree::NodeId,
         offset: (f32, f32),
         viewport_width: f32,
         xf: Xf,
@@ -9998,9 +9998,9 @@ pub fn layout_collect_with_images(
             }
         }
     }
-    let mut abs_by_node: HashMap<taffy::tree::NodeId, Rect> = HashMap::new();
-    let mut local_by_node: HashMap<taffy::tree::NodeId, (Rect, [f32; 6])> = HashMap::new();
-    let mut node_first_item: HashMap<taffy::tree::NodeId, usize> = HashMap::new();
+    let mut abs_by_node: HashMap<diting_taffy::tree::NodeId, Rect> = HashMap::new();
+    let mut local_by_node: HashMap<diting_taffy::tree::NodeId, (Rect, [f32; 6])> = HashMap::new();
+    let mut node_first_item: HashMap<diting_taffy::tree::NodeId, usize> = HashMap::new();
     // The ICB is not in node_map → always a barrier, so the deferred band
     // never survives the walk — asserted rather than assumed.
     let mut root_escapes: Vec<ZEscape> = Vec::new();
@@ -10157,7 +10157,7 @@ pub fn layout_collect_with_images(
             // into wrapper); descend through wrappers so bands measure
             // text geometry, not wrapper spans.
             let mut pieces: Vec<Rect> = Vec::new();
-            let mut owners: Vec<taffy::tree::NodeId> = Vec::new();
+            let mut owners: Vec<diting_taffy::tree::NodeId> = Vec::new();
             for k in kids {
                 expand_wrapped_leaves(
                     *k,

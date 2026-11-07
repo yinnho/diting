@@ -1,7 +1,7 @@
 //! Our own layout tree: node storage plus the dispatch that picks a taffy
 //! algorithm per node.
 //!
-//! It exposes the same methods `diting_layout` used on `taffy::TaffyTree`
+//! It exposes the same methods `diting_layout` used on `diting_taffy::TaffyTree`
 //! (so it is aliased in as `TaffyTree` there), and runs the same taffy
 //! block / flex / grid algorithms. What it owns is the dispatch, which is the
 //! seam float wrapping needs: the stock tree never hands a text leaf the
@@ -18,11 +18,11 @@
 
 use super::inline_flow;
 use std::collections::HashSet;
-use taffy::style::{
+use diting_taffy::style::{
     AlignSelf, BoxGenerationMode, BoxSizing, Contain, ContainingBlockClaims, Dimension, Direction,
     LengthPercentageAuto, Overflow, Position,
 };
-use taffy::{
+use diting_taffy::{
     compute_block_layout, compute_cached_layout, compute_flexbox_layout, compute_grid_layout,
     compute_hidden_layout, compute_leaf_layout, compute_oof_layout, compute_root_layout,
     round_layout, BlockContext, Cache, CacheTree, CoreStyle, DetailedGridInfo, DetailedLayoutInfo,
@@ -31,7 +31,7 @@ use taffy::{
     NodeId, Point, Rect, RoundTree, RunMode, Size, Style, TaffyError, TraversePartialTree,
     TraverseTree,
 };
-use taffy::{AvailableSpace, FlexWrap};
+use diting_taffy::{AvailableSpace, FlexWrap};
 
 type Res<T> = Result<T, TaffyError>;
 
@@ -544,10 +544,10 @@ impl CoreStyle for StyleRef<'_> {
     fn margin(&self) -> Rect<LengthPercentageAuto> {
         CoreStyle::margin(self.s())
     }
-    fn padding(&self) -> Rect<taffy::LengthPercentage> {
+    fn padding(&self) -> Rect<diting_taffy::LengthPercentage> {
         CoreStyle::padding(self.s())
     }
-    fn border(&self) -> Rect<taffy::LengthPercentage> {
+    fn border(&self) -> Rect<diting_taffy::LengthPercentage> {
         CoreStyle::border(self.s())
     }
     fn contain(&self) -> Contain {

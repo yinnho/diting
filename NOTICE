@@ -60,5 +60,10 @@ Chad Brokaw (dfrg) and contributors (Apache-2.0 OR MIT; both license files are k
 in the crate), and has since been pruned and modified; it is maintained here.
 See crates/VENDORED.md.
 
+The layout core (crates/diting_taffy) was taken from the taffy project — upstream
+main revision 802e497 (Copyright (c) 2018 Visly Inc., Copyright the Taffy Authors,
+DioxusLabs; MIT; the license file is kept in the crate) — and has since been pruned
+and modified; it is maintained here. See crates/VENDORED.md.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.

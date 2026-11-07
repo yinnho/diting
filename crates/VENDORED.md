@@ -19,6 +19,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_cssparser` | `cssparser` | 0.38.0 | MPL-2.0 | Simon Sapin and contributors |
 | `diting_selectors` | `selectors` | 0.42.0 | MPL-2.0 | The Servo Project Developers |
 | `diting_swash` | `swash` | 0.2.10 | Apache-2.0 OR MIT | Chad Brokaw (dfrg) |
+| `diting_taffy` | `taffy` (main rev `802e497`) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -157,6 +158,47 @@ manifest flip is one line plus the `dep:` feature key.
 Not in this batch: the CJK fallback work itself (exotic-script fallback,
 86quan emoji font absence — the font-fallback gap notes) — vendoring buys the
 right to fix at the source, the fixes are their own batches.
+
+## Layout core (#42 ① / #46, 2026-11-07)
+
+The queue's endgame: taffy — flexbox, CSS grid, block+float layout — vendored
+as **`diting_taffy`**, retiring the last big differentiating registry dep and
+with it the `[patch.crates-io]` git pin we had carried since #300. #42's
+queue is now fully in-tree (parse family, font stack, image stack, layout
+core).
+
+**Pinned tree, not a release.** We rode upstream main rev `802e497` via the
+patch pin because it carries the float tail-segment fix (#300: a float
+landing inside the last segment but taller than its remaining extent never
+pushed the new segment) — and the later 0.15.1 release DIVERGED from main
+(ahead 22 / behind 20) without that fix. The vendor freezes the exact tree
+the battery was green on. Version stays 0.15.0 (the release this rev tracks);
+absorbing the 0.15.1-side commits (float inset/clamp fixes, baseline
+consistency, the flexbox perf passes) is an in-tree diff batch gated by the
+layout parity battery, on our clock — fork_deltas' flip-face lesson applies
+there (upstream absorbing a fork expectation turns a locked "stock value"
+into the failure).
+
+Intake: cargo's git checkout tree (src + LICENSE only; the repo's
+tests/benches/examples/docs/test_fixtures dropped), package + lib renamed,
+~3.6k lines of inline `#[cfg(test)]` modules and test-only items stripped —
+the strip runs brace-aware (strings/comments/char literals) because a naive
+brace count over-consumed past module ends on the first attempt and ate
+production traits behind them. Never-enabled feature faces went with their
+optional deps (`serde`, `parse`/`parse_faster` — the latter needed registry
+`cssparser`; `document-features`); their names stay declared as empty shells
+so the ~138 in-source cfg gates resolve as known (code never compiles — do
+not enable). `strict_provenance`/`debug`/`profile` kept as upstream ships
+(pure knobs). Ring stays registry: `slotmap` 1.1 (taffy_tree), `smallvec`
+1.16 (grid).
+
+Flip: one dep line in `crates/diting` (`dep:taffy` → `dep:diting_taffy`,
+path dep, same 10-feature explicit set = upstream default), 250 `taffy::`
+path renames across 13 `diting_layout` files (`fork_deltas.rs` is OUR test
+file locking fork expectations, not a second taffy build), and the root
+`[patch.crates-io]` taffy entry deleted. Gate faces: layout battery 273/273,
+engine screenshot face, product stealth,screenshot face, and
+`cargo tree -i taffy` empty.
 
 ## Still external (on purpose)
 `btls` (the safe Rust wrapper; we call its API from `diting_wire`).

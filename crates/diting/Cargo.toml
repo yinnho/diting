@@ -31,8 +31,8 @@ screenshot = [
     "dep:zune-core",
     "dep:image-webp",
     "dep:gif",
-    # Taffy does diting's box layout.
-    "dep:taffy",
+    # Taffy does diting's box layout (vendored as diting_taffy, #42 ①/#46).
+    "dep:diting_taffy",
     # Real glyph measurement + rasterization for diting_layout text leaves
     # (render claim batches 3a/3b; stack upstream obscura-render built on).
     # Vendored 2026-11-07 (#42 ③ / #45) — the font stack is ours, ring
@@ -42,22 +42,12 @@ screenshot = [
 ]
 
 [dependencies]
-# Taffy 0.15.x (2026-10-12, #270), patched to upstream main 802e497 in the
-# root Cargo.toml for the float tail-segment fix (#300: a float extending
-# past the segment list's last end had that extent dropped, so lines beside
-# it wrapped full-width; see the [patch.crates-io] note). The retired git
-# pin before 0.15.0 tracked blitz main (4142c9d→2d936b77, 2026-10-09) for
-# taffy #1286
-# indefinite percentage flex-basis (falls back to content sizing instead
-# of collapsing to 0, our #241), the #1278-#1284 grid family, and the
-# block-layout vertical-margins rework; 0.15.0 = that rev + #1293/#1242 +
-# the release bump, so the pin is gone. (The second taffy copy — 0.14.0,
-# riding along with the blitz reference pipeline — left the tree when that
-# pipeline was deleted 2026-11-06; 0.15 is now the only taffy.)
+# --- layout core (#42 ① / #46: taffy main 802e497 vendored as diting_taffy;
+# that rev carried the #300 float tail-segment fix that 0.15.1 lacks) ---
 # taffy_tree is additionally listed because the unified graph already enables
-# it (Cargo.lock shows taffy pulling slotmap) — an explicit no-op.
+# it (Cargo.lock shows it pulling slotmap) — an explicit no-op.
 # Used by diting_layout box layout and the fork-delta tests (docs/engine/render.md).
-taffy = { version = "0.15", optional = true, default-features = false, features = [
+diting_taffy = { path = "../diting_taffy", optional = true, default-features = false, features = [
     "std",
     "taffy_tree",
     "flexbox",

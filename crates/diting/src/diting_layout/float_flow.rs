@@ -67,8 +67,8 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use taffy::prelude::*;
-use taffy::{Clear, Float};
+use diting_taffy::prelude::*;
+use diting_taffy::{Clear, Float};
 
 use crate::diting_css::{
     ClearSide, ComputedStyle, Display as CssDisplay, FloatSide, Length, TextAlign,
@@ -250,7 +250,7 @@ pub(super) fn clear_of(side: Option<ClearSide>) -> Clear {
 /// Give a built child taffy's `float` / `clear`.
 pub(super) fn mark(
     taffy_tree: &mut super::flow_tree::FlowTree<super::TextLeaf>,
-    node: taffy::tree::NodeId,
+    node: diting_taffy::tree::NodeId,
     style: Option<&ComputedStyle>,
 ) {
     let Some(style) = style else { return };

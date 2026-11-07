@@ -816,6 +816,7 @@ dependencies = [
  "diting_selectors",
  "diting_socks",
  "diting_swash",
+ "diting_taffy",
  "diting_wire",
  "ecdsa",
  "ed25519-dalek",
@@ -840,7 +841,6 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2",
- "taffy",
  "tempfile",
  "thiserror",
  "tokio",
@@ -1004,6 +1004,14 @@ dependencies = [
  "skrifa",
  "yazi",
  "zeno",
+]
+
+[[package]]
+name = "diting_taffy"
+version = "0.15.0"
+dependencies = [
+ "slotmap",
+ "smallvec",
 ]
 
 [[package]]
@@ -3197,16 +3205,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
-]
-
-[[package]]
-name = "taffy"
-version = "0.15.0"
-source = "git+https://github.com/DioxusLabs/taffy?rev=802e497b69689e1c93be2d16e9d53a973971bcb2#802e497b69689e1c93be2d16e9d53a973971bcb2"
-dependencies = [
- "serde",
- "slotmap",
- "smallvec",
 ]
 
 [[package]]

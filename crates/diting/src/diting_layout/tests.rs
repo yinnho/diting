@@ -824,7 +824,7 @@ mod run_token_memo_tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Instant;
 
-    fn paragraph(tree: &mut TaffyTree<TextLeaf>, seed: usize) -> taffy::tree::NodeId {
+    fn paragraph(tree: &mut TaffyTree<TextLeaf>, seed: usize) -> diting_taffy::tree::NodeId {
         // CJK-heavy tokens: shaping + font-book fallback walk is the real
         // cost upstream measured on COLMAP, not 4-char ASCII words.
         let text = (0..8)
@@ -859,17 +859,17 @@ mod run_token_memo_tests {
 
     fn text_page() -> (
         TaffyTree<TextLeaf>,
-        taffy::tree::NodeId,
-        Vec<taffy::tree::NodeId>,
+        diting_taffy::tree::NodeId,
+        Vec<diting_taffy::tree::NodeId>,
     ) {
         let mut tree = TaffyTree::new();
-        let kids: Vec<taffy::tree::NodeId> = (0..40).map(|s| paragraph(&mut tree, s)).collect();
+        let kids: Vec<diting_taffy::tree::NodeId> = (0..40).map(|s| paragraph(&mut tree, s)).collect();
         let root = tree
             .new_with_children(
                 Style {
-                    display: taffy::style::Display::Flex,
-                    flex_direction: taffy::style::FlexDirection::Column,
-                    size: taffy::geometry::Size {
+                    display: diting_taffy::style::Display::Flex,
+                    flex_direction: diting_taffy::style::FlexDirection::Column,
+                    size: diting_taffy::geometry::Size {
                         width: Dimension::length(800.0),
                         height: Dimension::auto(),
                     },
@@ -883,12 +883,12 @@ mod run_token_memo_tests {
 
     fn solve(
         tree: &mut TaffyTree<TextLeaf>,
-        root: taffy::tree::NodeId,
+        root: diting_taffy::tree::NodeId,
         fonts: &FontBook,
         width: AvailableSpace,
         calls: &AtomicUsize,
     ) {
-        let space = taffy::geometry::Size {
+        let space = diting_taffy::geometry::Size {
             width,
             height: AvailableSpace::MaxContent,
         };
@@ -923,7 +923,7 @@ mod run_token_memo_tests {
                     );
                     measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, None)
                 }
-                _ => taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO),
+                _ => diting_taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO),
             }
         })
         .unwrap();
