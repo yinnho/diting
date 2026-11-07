@@ -1,4 +1,4 @@
-//! HTML → Markdown conversion on the scraper 0.29 / html5ever 0.40 stack.
+//! HTML → Markdown conversion on the htmlq / vendored html5ever 0.40 stack.
 //!
 //! Absorbs html2md's only used face (`parse_html`, four call sites in
 //! render.rs / firecrawl_compat.rs) so the old html5ever 0.39 generation
@@ -14,8 +14,8 @@
 //! literal asterisk. Whitespace collapses per HTML rules outside `pre`.
 
 use ego_tree::NodeRef;
-use scraper::node::Node;
-use scraper::Html;
+use crate::htmlq::Node;
+use crate::htmlq::Html;
 
 /// Convert an HTML document (or fragment) to markdown.
 pub fn parse_html(html: &str) -> String {
@@ -86,7 +86,7 @@ impl Converter {
         }
     }
 
-    fn element(&mut self, el: &scraper::node::Element, node: NodeRef<'_, Node>) {
+    fn element(&mut self, el: &crate::htmlq::Element, node: NodeRef<'_, Node>) {
         let tag: &str = &el.name.local;
         if SKIP.contains(&tag) {
             return;

@@ -8,11 +8,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use selectors::context::QuirksMode;
-use selectors::matching::{
+use diting_selectors::context::QuirksMode;
+use diting_selectors::matching::{
     MatchingContext, MatchingForInvalidation, MatchingMode, NeedsSelectorFlags,
 };
-use selectors::parser::{self, SelectorList};
+use diting_selectors::parser::{self, SelectorList};
 
 use super::{parse_selector, DitingSelector, DomElement};
 use crate::diting_css::split_top_level_commas;
@@ -270,7 +270,7 @@ impl DomTree {
         hits: &mut HashMap<usize, Vec<usize>>,
         pseudo_hits: &mut HashMap<usize, [Vec<usize>; 2]>,
     ) {
-        let mut caches = selectors::context::SelectorCaches::default();
+        let mut caches = diting_selectors::context::SelectorCaches::default();
         let mut context = MatchingContext::new(
             MatchingMode::Normal,
             None,
@@ -326,7 +326,7 @@ impl DomTree {
             let element = DomElement::new(self, desc_id);
             for ri in candidates.drain(..) {
                 if let Some(list) = index.entries[ri].as_ref() {
-                    if selectors::matching::matches_selector_list(list, &element, &mut context) {
+                    if diting_selectors::matching::matches_selector_list(list, element, &mut context) {
                         hits.entry(ri).or_default().push(desc_id.index());
                     }
                 }
@@ -334,9 +334,9 @@ impl DomTree {
                     let slots = [routing.before.as_ref(), routing.after.as_ref()];
                     for (slot, list) in slots.into_iter().enumerate() {
                         if let Some(list) = list {
-                            if selectors::matching::matches_selector_list(
+                            if diting_selectors::matching::matches_selector_list(
                                 list,
-                                &element,
+                                element,
                                 &mut context,
                             ) {
                                 pseudo_hits.entry(ri).or_default()[slot].push(desc_id.index());

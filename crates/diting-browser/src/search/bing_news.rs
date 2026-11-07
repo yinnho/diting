@@ -88,17 +88,17 @@ impl SearchEngine for BingNewsEngine {
 /// aria-labelled spans name the publisher and age — folded into the snippet
 /// the way the RSS engine folded pubDate.
 fn parse_bing_news_fragment(body: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(body);
+    let document = crate::htmlq::Html::parse_document(body);
 
-    let item_selector = scraper::Selector::parse("div.newsitem")
+    let item_selector = crate::htmlq::Selector::parse("div.newsitem")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
-    let link_selector = scraper::Selector::parse("a.title")
+    let link_selector = crate::htmlq::Selector::parse("a.title")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
-    let snippet_selector = scraper::Selector::parse("div.snippet")
+    let snippet_selector = crate::htmlq::Selector::parse("div.snippet")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
     // Bing's source bar class varies (source / t_source); substring-match the
     // class attribute the way SearXNG's contains(@class, "source") does.
-    let source_selector = scraper::Selector::parse("div[class*='source']")
+    let source_selector = crate::htmlq::Selector::parse("div[class*='source']")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let items: Vec<_> = document.select(&item_selector).collect();
@@ -126,7 +126,7 @@ fn parse_bing_news_fragment(body: &str) -> Result<Vec<RawSearchResult>, SearchEn
         // (publisher / age) plus the link's data-author, SearXNG's pair.
         let mut metadata: Vec<String> = Vec::new();
         if let Some(source) = item.select(&source_selector).next() {
-            let label_sel = scraper::Selector::parse("span[aria-label]")
+            let label_sel = crate::htmlq::Selector::parse("span[aria-label]")
                 .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
             if let Some(span) = source.select(&label_sel).next() {
                 let label = span

@@ -1212,7 +1212,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .map(|n| match &n.data {
                     NodeData::Document => "#document".to_string(),
                     NodeData::Element { name, .. } => {
-                        if name.ns == html5ever::ns!(html) {
+                        if name.ns == diting_html5ever::ns!(html) {
                             name.local.as_str().to_ascii_uppercase()
                         } else {
                             name.local.as_str().to_string()
@@ -1352,7 +1352,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             let name = dom.get_node(NodeId::new(nid)).and_then(|n| n.as_element().map(|name|
                 // HTML elements read uppercase (Chrome tagName convention);
                 // XML-namespace elements keep their source case.
-                if name.ns == html5ever::ns!(html) { name.local.as_str().to_ascii_uppercase() } else { name.local.as_str().to_string() }
+                if name.ns == diting_html5ever::ns!(html) { name.local.as_str().to_ascii_uppercase() } else { name.local.as_str().to_string() }
             )).unwrap_or_default();
             serde_json::to_string(&name).unwrap_or("\"\"".into())
         }
@@ -1666,12 +1666,12 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             // void elements self-close, XML elements always keep their
             // closing tag and text children.
             let ns = if arg2 == "http://www.w3.org/1999/xhtml" {
-                html5ever::ns!(html)
+                diting_html5ever::ns!(html)
             } else {
-                html5ever::Namespace::from(arg2.as_str())
+                diting_html5ever::Namespace::from(arg2.as_str())
             };
             dom.new_node(NodeData::Element {
-                name: html5ever::QualName::new(None, ns, html5ever::LocalName::from(arg1.as_str())),
+                name: diting_html5ever::QualName::new(None, ns, diting_html5ever::LocalName::from(arg1.as_str())),
                 attrs: vec![],
                 template_contents: None,
                 mathml_annotation_xml_integration_point: false,

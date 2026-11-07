@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn test_xml_elements_keep_closing_tag_and_children() {
         use crate::diting_dom::tree::{Attribute, NodeData};
-        use html5ever::{LocalName, Namespace, QualName};
+        use diting_html5ever::{LocalName, Namespace, QualName};
 
         // Report 2026-09-15: DOMParser XML `<img size="123">text</img>`
         // serialized as a self-closing HTML void element, dropping both the

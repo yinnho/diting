@@ -1,0 +1,27 @@
+[package]
+name = "diting_markup5ever"
+version = "0.40.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Common types for the HTML5 DOM (vendored from the markup5ever crate, maintained here)"
+license = "MIT OR Apache-2.0"
+publish = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "diting_markup5ever"
+path = "lib.rs"
+test = false
+doctest = false
+
+[features]
+serde = ["web_atoms/serde"]
+
+[dependencies]
+log = "0.4"
+tendril = "0.5"
+web_atoms = "0.3.0"

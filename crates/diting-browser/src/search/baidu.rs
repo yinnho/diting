@@ -113,8 +113,8 @@ fn looks_walled(html: &str) -> bool {
 /// A result container node: the outer card carries `result` /
 /// `c-container` classes; card internals stack their own `c-container`
 /// divs.
-fn is_result_container_node(node: &scraper::Node) -> bool {
-    matches!(node, scraper::node::Node::Element(el)
+fn is_result_container_node(node: &crate::htmlq::Node) -> bool {
+    matches!(node, crate::htmlq::Node::Element(el)
         if el.classes().any(|c| c == "result" || c == "c-container"))
 }
 
@@ -125,9 +125,9 @@ fn is_result_container_node(node: &scraper::Node) -> bool {
 /// container's `mu` attribute; the `h3 a` href is Baidu's `/link?url=`
 /// redirect wrapper.
 fn parse_baidu_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(html);
+    let document = crate::htmlq::Html::parse_document(html);
 
-    let link_sel = scraper::Selector::parse("h3 a")
+    let link_sel = crate::htmlq::Selector::parse("h3 a")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let mut results: Vec<RawSearchResult> = Vec::new();
@@ -150,7 +150,7 @@ fn parse_baidu_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineErro
         {
             continue;
         }
-        let Some(container) = scraper::ElementRef::wrap(container_node) else {
+        let Some(container) = crate::htmlq::ElementRef::wrap(container_node) else {
             continue;
         };
         let url = container
@@ -195,8 +195,8 @@ fn parse_baidu_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineErro
 /// Baidu's embedded JSON carries invalid `\-` escapes (their own bug —
 /// CSS custom properties like `--bottom-gap` land in a style string as
 /// `-\-bottom-gap`), so the escapes are repaired before serde sees it.
-fn baidu_snippet(item: &scraper::ElementRef) -> String {
-    if let Ok(sel) = scraper::Selector::parse("span[class*='summary-text']") {
+fn baidu_snippet(item: &crate::htmlq::ElementRef) -> String {
+    if let Ok(sel) = crate::htmlq::Selector::parse("span[class*='summary-text']") {
         let parts: Vec<String> = item
             .select(&sel)
             .map(|el| el.text().collect::<String>().trim().to_string())
@@ -207,7 +207,7 @@ fn baidu_snippet(item: &scraper::ElementRef) -> String {
         }
     }
 
-    if let Ok(sel) = scraper::Selector::parse("div.c-abstract") {
+    if let Ok(sel) = crate::htmlq::Selector::parse("div.c-abstract") {
         if let Some(el) = item.select(&sel).next() {
             let t: String = el.text().collect();
             if !t.trim().is_empty() {

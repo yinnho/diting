@@ -1,4 +1,4 @@
-use html5ever::{LocalName, Namespace, QualName};
+use diting_html5ever::{LocalName, Namespace, QualName};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -208,7 +208,7 @@ impl Node {
     pub fn set_attribute_ns(&mut self, ns: &str, qualified: &str, value: String) {
         if let NodeData::Element { attrs, .. } = &mut self.data {
             let (prefix, local) = match qualified.split_once(':') {
-                Some((p, l)) => (Some(html5ever::Prefix::from(p)), l),
+                Some((p, l)) => (Some(diting_html5ever::Prefix::from(p)), l),
                 None => (None, qualified),
             };
             if let Some(attr) = attrs

@@ -62,13 +62,13 @@ impl SearchEngine for BingEngine {
 
 /// Parse Bing's HTML search results.
 fn parse_bing_html(html: &str) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-    let document = scraper::Html::parse_document(html);
+    let document = crate::htmlq::Html::parse_document(html);
 
-    let item_selector = scraper::Selector::parse("ol#b_results li.b_algo")
+    let item_selector = crate::htmlq::Selector::parse("ol#b_results li.b_algo")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
-    let link_selector = scraper::Selector::parse("h2 a")
+    let link_selector = crate::htmlq::Selector::parse("h2 a")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
-    let snippet_selector = scraper::Selector::parse("p")
+    let snippet_selector = crate::htmlq::Selector::parse("p")
         .map_err(|e| SearchEngineError::Transient(format!("selector parse: {e}")))?;
 
     let items: Vec<_> = document.select(&item_selector).collect();

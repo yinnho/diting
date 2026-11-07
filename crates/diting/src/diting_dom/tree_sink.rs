@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::cell::Ref;
 use std::fmt;
 
-use html5ever::tendril::StrTendril;
-use html5ever::tree_builder::{ElemName, ElementFlags, NodeOrText, QuirksMode, TreeSink};
-use html5ever::{local_name, ns, Attribute as HtmlAttribute, LocalName, Namespace, QualName};
+use diting_html5ever::tendril::StrTendril;
+use diting_html5ever::tree_builder::{ElemName, ElementFlags, NodeOrText, QuirksMode, TreeSink};
+use diting_html5ever::{local_name, ns, Attribute as HtmlAttribute, LocalName, Namespace, QualName};
 
 use crate::diting_dom::tree::{Attribute, DomTree, NodeData, NodeId, ShadowRootMode};
 
@@ -263,8 +263,8 @@ impl TreeSink for DomTree {
 }
 
 pub fn parse_html(html: &str) -> DomTree {
-    use html5ever::tendril::TendrilSink;
-    use html5ever::{parse_document, ParseOpts};
+    use diting_html5ever::tendril::TendrilSink;
+    use diting_html5ever::{parse_document, ParseOpts};
 
     let tree = DomTree::new();
     let tree = parse_document(tree, ParseOpts::default())
@@ -285,8 +285,8 @@ pub fn parse_fragment(html: &str) -> DomTree {
 /// it. Parsing in an `<html>` context runs the "before head" insertion mode
 /// and synthesizes both `<head>` and `<body>` (see `DomTree::fragment_root`).
 pub fn parse_fragment_with_context(html: &str, context_name: QualName) -> DomTree {
-    use html5ever::tendril::TendrilSink;
-    use html5ever::{parse_fragment, ParseOpts};
+    use diting_html5ever::tendril::TendrilSink;
+    use diting_html5ever::{parse_fragment, ParseOpts};
 
     let tree = DomTree::new();
     let tree = parse_fragment(tree, ParseOpts::default(), context_name, vec![], true)

@@ -1,0 +1,28 @@
+[package]
+name = "diting_html5ever"
+version = "0.40.1"
+edition = "2021"
+rust-version = "1.85"
+description = "Browser-grade HTML5 parser (vendored from the html5ever crate, maintained here)"
+license = "MIT OR Apache-2.0"
+publish = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "diting_html5ever"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[features]
+serde = ["diting_markup5ever/serde"]
+trace_tokenizer = []
+
+[dependencies]
+diting_markup5ever = { path = "../diting_markup5ever" }
+log = "0.4"
+memchr = "2.8.0"

@@ -1,14 +1,14 @@
-use cssparser::{CowRcStr, ToCss};
-use html5ever::{ns, LocalName, Namespace};
+use diting_cssparser::ToCss;
+use diting_html5ever::{ns, LocalName, Namespace};
 use precomputed_hash::PrecomputedHash;
-use selectors::attr::{AttrSelectorOperation, CaseSensitivity, NamespaceConstraint};
-use selectors::context::QuirksMode;
-use selectors::matching::{
+use diting_selectors::attr::{AttrSelectorOperation, CaseSensitivity, NamespaceConstraint};
+use diting_selectors::context::QuirksMode;
+use diting_selectors::matching::{
     ElementSelectorFlags, MatchingContext, MatchingForInvalidation, MatchingMode,
     NeedsSelectorFlags,
 };
-use selectors::parser::{self, ParseRelative, SelectorParseErrorKind};
-use selectors::{Element, OpaqueElement, SelectorList};
+use diting_selectors::parser::{self, ParseRelative, SelectorParseErrorKind};
+use diting_selectors::{Element, OpaqueElement, SelectorList};
 
 use crate::diting_dom::tree::{DomTree, NodeData, NodeId};
 
@@ -45,7 +45,7 @@ impl AsRef<str> for CssString {
 
 impl ToCss for CssString {
     fn to_css<W: std::fmt::Write>(&self, dest: &mut W) -> std::fmt::Result {
-        cssparser::serialize_string(&self.0, dest)
+        diting_cssparser::serialize_string(&self.0, dest)
     }
 }
 
@@ -191,10 +191,7 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
         true
     }
 
-    fn parse_non_ts_pseudo_class(
-        &self,
-        name: CowRcStr<'i>,
-    ) -> Result<PseudoClass, cssparser::ParseError<Self::Error>> {
+    fn parse_non_ts_pseudo_class(&self, name: &str) -> Result<PseudoClass, diting_cssparser::ParseError<Self::Error>> {
         match name.as_ref() {
             "hover" => Ok(PseudoClass::Hover),
             "active" => Ok(PseudoClass::Active),
@@ -212,7 +209,7 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
             "read-write" => Ok(PseudoClass::ReadWrite),
             // 0.41: the error kind dropped its payload and the trait dropped
             // the SourceLocation param — ParseError::custom fills both.
-            _ => Err(cssparser::ParseError::custom(
+            _ => Err(diting_cssparser::ParseError::custom(
                 SelectorParseErrorKind::UnsupportedPseudoClassOrElement,
             )),
         }
@@ -602,7 +599,7 @@ impl<'a> Element for DomElement<'a> {
                     .map(|attrs| {
                         attrs
                             .iter()
-                            .any(|a| a.name.ns == html5ever::ns!() && a.name.local == local_name.0)
+                            .any(|a| a.name.ns == diting_html5ever::ns!() && a.name.local == local_name.0)
                     })
                     .unwrap_or(false)
             })
@@ -814,7 +811,7 @@ impl<'a> Element for DomElement<'a> {
         false
     }
 
-    fn add_element_unique_hashes(&self, _filter: &mut selectors::bloom::BloomFilter) -> bool {
+    fn add_element_unique_hashes(&self, _filter: &mut diting_selectors::bloom::BloomFilter) -> bool {
         false
     }
 }
@@ -834,7 +831,7 @@ const SELECTOR_CACHE_CAP: usize = 256;
 
 fn parse_selector_uncached(selector: &str) -> Result<SelectorList<DitingSelector>, String> {
     // 0.38: ParserInput is gone — Parser::new borrows the &str directly.
-    let mut parser = cssparser::Parser::new(selector);
+    let mut parser = diting_cssparser::Parser::new(selector);
     SelectorList::parse(&DitingSelectorParser, &mut parser, ParseRelative::No)
         .map_err(|e| format!("Failed to parse selector '{}': {:?}", selector, e))
 }
@@ -913,7 +910,7 @@ impl DomTree {
             }
         }
         let selector_list = parse_selector(selector)?;
-        let mut caches = selectors::context::SelectorCaches::default();
+        let mut caches = diting_selectors::context::SelectorCaches::default();
         let mut context = MatchingContext::new(
             MatchingMode::Normal,
             None,
@@ -928,9 +925,9 @@ impl DomTree {
             let is_element = self.with_node(desc_id, |n| n.is_element()).unwrap_or(false);
             if is_element {
                 let element = DomElement::new(self, desc_id);
-                if selectors::matching::matches_selector_list(
+                if diting_selectors::matching::matches_selector_list(
                     &selector_list,
-                    &element,
+                    element,
                     &mut context,
                 ) {
                     return Ok(Some(desc_id));
@@ -968,7 +965,7 @@ impl DomTree {
         selector: &str,
     ) -> Result<Vec<NodeId>, String> {
         let selector_list = parse_selector(selector)?;
-        let mut caches = selectors::context::SelectorCaches::default();
+        let mut caches = diting_selectors::context::SelectorCaches::default();
         let mut context = MatchingContext::new(
             MatchingMode::Normal,
             None,
@@ -984,9 +981,9 @@ impl DomTree {
             let is_element = self.with_node(desc_id, |n| n.is_element()).unwrap_or(false);
             if is_element {
                 let element = DomElement::new(self, desc_id);
-                if selectors::matching::matches_selector_list(
+                if diting_selectors::matching::matches_selector_list(
                     &selector_list,
-                    &element,
+                    element,
                     &mut context,
                 ) {
                     results.push(desc_id);
@@ -1007,7 +1004,7 @@ impl DomTree {
             return Ok(false);
         }
         let selector_list = parse_selector(selector)?;
-        let mut caches = selectors::context::SelectorCaches::default();
+        let mut caches = diting_selectors::context::SelectorCaches::default();
         let mut context = MatchingContext::new(
             MatchingMode::Normal,
             None,
@@ -1020,9 +1017,9 @@ impl DomTree {
         // `el.matches(':scope')` is true and is the idiom libraries use to
         // feature-detect :scope support.
         context.scope_element = Some(DomElement::new(self, nid).opaque());
-        Ok(selectors::matching::matches_selector_list(
+        Ok(diting_selectors::matching::matches_selector_list(
             &selector_list,
-            &DomElement::new(self, nid),
+            DomElement::new(self, nid),
             &mut context,
         ))
     }
