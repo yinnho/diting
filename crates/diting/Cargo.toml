@@ -93,7 +93,7 @@ thiserror = "2"
 tracing = "0.1"
 
 # --- http client (non-stealth path) ---
-reqwest = { version = "0.13", features = ["cookies", "gzip", "brotli", "deflate", "rustls-no-provider", "webpki-roots", "socks", "json", "stream", "form", "query"], default-features = false }
+reqwest = { version = "0.13", features = ["cookies", "gzip", "brotli", "deflate", "rustls-no-provider", "socks", "json", "stream", "form", "query"], default-features = false }
 # Page-facing WebSocket transport: handshake runs over our own TcpStream/TLS
 # stack (client_async validates the 101 upgrade itself); tokio-tungstenite is
 # only the wire codec. 0.30 rides tungstenite 0.30 — sha1 0.11 + rand 0.10,
