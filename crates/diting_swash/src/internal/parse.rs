@@ -36,7 +36,11 @@ impl<'a> Bytes<'a> {
     /// underlying data.
     pub fn check_range(&self, offset: usize, len: usize) -> bool {
         let end = self.0.len();
-        (offset < end) & (end - offset >= len)
+        // `&&` (not `&`): must short-circuit, else `end - offset`
+        // underflows for offset > end (upstream dfrg/swash#126). The
+        // result is unchanged — release builds already masked the
+        // wrapped difference with the first comparison.
+        (offset < end) && (end - offset >= len)
     }
 
     /// Returns an error if the specified range is not within the bounds of

@@ -331,7 +331,10 @@ pub fn script_language_count(b: &Bytes, script_offset: u32) -> u16 {
         return 0;
     }
     b.read::<u16>(script_offset as usize + 2)
-        .map(|n| n + 1)
+        // langSysCount is attacker-controlled; u16::MAX + 1 must not
+        // overflow (upstream dfrg/swash#123). wrapping matches the
+        // release-build behavior exactly.
+        .map(|n| n.wrapping_add(1))
         .unwrap_or(0)
 }
 
