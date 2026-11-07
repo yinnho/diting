@@ -55,5 +55,10 @@ but its tree-sink, element/select iteration and serialization shapes were modele
 `scraper` crate 0.29 (MIT OR Apache-2.0) by June McEnroe and contributors; the
 crate itself is no longer used. See crates/VENDORED.md.
 
+The font stack (crates/diting_swash) was taken from the `swash` crate 0.2.10 by
+Chad Brokaw (dfrg) and contributors (Apache-2.0 OR MIT; both license files are kept
+in the crate), and has since been pruned and modified; it is maintained here.
+See crates/VENDORED.md.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.

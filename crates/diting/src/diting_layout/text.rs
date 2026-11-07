@@ -26,11 +26,11 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::face_bytes::FaceBytes;
-use swash::proxy::MetricsProxy;
-use swash::scale::image::{Content, Image};
-use swash::scale::{Render, ScaleContext, Scaler, Source, StrikeWith};
-use swash::shape::ShapeContext;
-use swash::{FontRef, GlyphId};
+use diting_swash::proxy::MetricsProxy;
+use diting_swash::scale::image::{Content, Image};
+use diting_swash::scale::{Render, ScaleContext, Scaler, Source, StrikeWith};
+use diting_swash::shape::ShapeContext;
+use diting_swash::{FontRef, GlyphId};
 
 /// Which face a text segment shapes in: the primary bundle pair (weight
 /// selected by `bold`), the bundled monospace face (single-weight, like the
@@ -95,7 +95,7 @@ pub struct FontBook {
     /// book ([`crate::diting_fonts::font_book`] caches its instance).
     fingerprint: u64,
     /// swash cache identity of each face, made once (see `font_ref`).
-    keys: std::sync::OnceLock<Vec<(usize, usize, u32, swash::CacheKey)>>,
+    keys: std::sync::OnceLock<Vec<(usize, usize, u32, diting_swash::CacheKey)>>,
 }
 
 /// Hash a book's whole face set into the cache identity (see
