@@ -103,7 +103,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
     let mut lines: Vec<Line> = Vec::new();
     let mut cur: Option<Line> = None;
     let mut y = 0.0f32;
-    let mut slot = ctx.find_content_slot(y, Clear::None, None);
+    let mut slot = ctx.find_content_slot(y, 0.0, Clear::None, None);
     for (i, it) in items.iter().enumerate() {
         let outer_w = it.size.width + it.margin.left + it.margin.right;
         let outer_h = it.size.height + it.margin.top + it.margin.bottom;
@@ -116,7 +116,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
             } else {
                 y = l.y + l.h;
                 lines.push(l);
-                slot = ctx.find_content_slot(y, Clear::None, None);
+                slot = ctx.find_content_slot(y, 0.0, Clear::None, None);
             }
         }
         if cur.is_none() {
@@ -125,7 +125,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
             let mut guard = 0;
             while outer_w > slot.width.min(width) + 0.001 && slot.segment_id.is_some() && guard < 64
             {
-                slot = ctx.find_content_slot(y, Clear::None, slot.segment_id);
+                slot = ctx.find_content_slot(y, 0.0, Clear::None, slot.segment_id);
                 y = y.max(slot.y);
                 guard += 1;
             }
@@ -134,7 +134,7 @@ pub(super) fn layout<T: LayoutPartialTree>(
             // floats, and only clear reports that y (the float_lines
             // atomic-walk fix, #313).
             if guard > 0 && slot.segment_id.is_none() {
-                y = y.max(ctx.find_content_slot(y, Clear::Both, None).y);
+                y = y.max(ctx.find_content_slot(y, 0.0, Clear::Both, None).y);
             }
             let x0 = slot.x.max(0.0).min(width);
             cur = Some(Line {
