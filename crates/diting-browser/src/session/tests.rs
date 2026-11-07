@@ -3934,7 +3934,8 @@ async fn drag_follows_pointer_capture_slider() {
         })
         .await
         .unwrap();
-    let v: Value = serde_json::from_str(&out).expect("drag JSON");
+    // Validity check only: drag must answer well-formed JSON.
+    serde_json::from_str::<Value>(&out).expect("drag JSON");
 
     let out = mgr
             .send(&sid, |reply| SessionCommand::Eval {
@@ -5405,7 +5406,7 @@ async fn state_snapshot_reaches_into_open_shadow_dom() {
 
     let mut has_deep = false;
     let mut deep_index = None;
-    for (idx, line) in state.lines().enumerate() {
+    for line in state.lines() {
         if line.contains("Deep Button") {
             has_deep = true;
             // index is the bracketed [N] prefix

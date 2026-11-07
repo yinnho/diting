@@ -777,15 +777,9 @@ pub async fn render_timeline_video(
     // x264-side backpressure stall (its encode queue filling) parks the
     // writer instead of stalling the whole pump. Bounded channel keeps the
     // memory at a few in-flight frames.
-    enum FrameMsg {
-        Frame(Vec<u8>),
-        Eof,
-    }
-    let (tx, rx) = std::sync::mpsc::sync_channel::<FrameMsg>(3);
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(3);
     let writer = std::thread::spawn(move || -> Result<(), VideoError> {
-        let mut stdin = stdin;
-        let mut rx = rx;
-        while let Ok(FrameMsg::Frame(rgba)) = rx.recv() {
+        while let Ok(rgba) = rx.recv() {
             if rgba.len() != expect {
                 return Err(VideoError::FrameSizeMismatch {
                     expect,
@@ -802,7 +796,7 @@ pub async fn render_timeline_video(
 
     let mut written: u32 = 0;
     let t_send = Instant::now();
-    tx.send(FrameMsg::Frame(first))
+    tx.send(first)
         .map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
     phases.write += t_send.elapsed();
     written += 1;
@@ -814,7 +808,7 @@ pub async fn render_timeline_video(
             hardsub.burn(&mut rgba, w, h, t, fonts);
         }
         let t_send = Instant::now();
-        tx.send(FrameMsg::Frame(rgba))
+        tx.send(rgba)
             .map_err(|e| VideoError::FfmpegFailed(format!("writer died: {e}")))?;
         phases.write += t_send.elapsed();
         written += 1;
