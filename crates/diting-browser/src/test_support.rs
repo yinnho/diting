@@ -72,3 +72,41 @@ impl Drop for WorkflowDirGuard {
         drop(self.0.take());
     }
 }
+
+static TRANSCRIPT_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Clears `DITING_OCR_BIN` / `DITING_ASR_MODEL` for the test's duration
+/// (flow transcript ops: the no-tool error receipt is part of the
+/// contract) and restores whatever the invoking shell had on drop —
+/// a live-flow dev shell legitimately carries both.
+pub(crate) fn transcript_env_guard() -> TranscriptEnvGuard {
+    let guard = TRANSCRIPT_ENV_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let saved: Vec<(&'static str, Option<String>)> =
+        ["DITING_OCR_BIN", "DITING_ASR_MODEL"]
+            .into_iter()
+            .map(|k| (k, std::env::var(k).ok()))
+            .collect();
+    for (k, _) in &saved {
+        std::env::remove_var(k);
+    }
+    TranscriptEnvGuard(Some(guard), saved)
+}
+
+pub(crate) struct TranscriptEnvGuard(
+    Option<std::sync::MutexGuard<'static, ()>>,
+    Vec<(&'static str, Option<String>)>,
+);
+
+impl Drop for TranscriptEnvGuard {
+    fn drop(&mut self) {
+        for (k, v) in &self.1 {
+            match v {
+                Some(s) => std::env::set_var(k, s),
+                None => std::env::remove_var(k),
+            }
+        }
+        drop(self.0.take());
+    }
+}
