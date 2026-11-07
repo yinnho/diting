@@ -13,6 +13,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_wire_h2` | `http2` | 0.5.20 | MIT (derived from the `h2` crate) | 0x676e67, Carl Lerche, Sean McArthur and contributors |
 | `diting_btls_sys` | `btls-sys` | 0.5.6 | Apache-2.0 / BoringSSL (ISC-style) | 0x676e67, Alex Crichton, Steven Fackler, BoringSSL authors |
 | `diting_socks` | `tokio-socks` | 0.5.3 | MIT | Yilin Chen (sticnarf) and contributors |
+| `diting_png` | `png` | 0.18.1 | MIT OR Apache-2.0 | image-rs contributors (nokiatechxdct for `chunk.rs`) |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -34,6 +35,42 @@ carry no per-file banner (the whole crate is "modified"); `README.md` of each cr
   emptied/removed (compio runtime, hickory DNS, QUIC, websocket, cookies, json/form/query/multipart,
   system proxy, tracing, serde, ...). The dependency closure in `Cargo.lock` is exactly the old one
   (no package added, removed or re-versioned except the four crates swapped for ours).
+
+## Image stack (#42 ④, 2026-11-07)
+
+The `image` crate left the tree; what replaced it splits two ways.
+
+**`diting_png`** (full crate, renamed from `png` 0.18.1, crates.io tarball). Intake same
+shape as the wire family: both LICENSEs kept, `test = false`/`doctest = false`, tests and
+benches dropped including the inline `#[cfg(test)]` modules and their `test_utils` /
+`benchable_apis` helpers (tail-sweep lesson applied at intake this time). Beyond that:
+the `unstable` feature (portable_simd filter variants + `filter/simd.rs`) was pruned at
+intake — the four dead `#[cfg(feature = "unstable")]` blocks and the cfg_attr went with
+it — and `filter_paeth_stbi` is `#[cfg(target_arch = "x86_64")]` because only the x86_64
+`unfilter` calls it (upstream silenced nothing; we build both faces clean). Product use:
+decode with `Transformations::EXPAND` + gray/RGB→RGBA promotion (`diting_layout::image`),
+8-bit RGBA/RGB encode (screenshots, authoring pages, PPTX assets). The decode oracle in
+diting's dev-dependencies is the SAME vendored crate — an oracle that shipped its own
+copy would prove nothing about what we ship.
+
+**JPEG encoder** (partial, `crates/diting/src/diting_layout/image/jpeg_encode.rs`, from
+`image` 0.25.10 `codecs/jpeg/{encoder,entropy,transform}.rs`, MIT OR Apache-2.0). Only
+the baseline RGB8 face came over — the one `authoring/pages.rs`' PDF embedding used —
+as `encode_jpeg_rgb(out, rgb, w, h, quality)`: tables K.1–K.6, the bit writer,
+fixed-point RGB→YCbCr, and fdct (an IJG libjpeg 9a translation whose license block is
+kept verbatim in the file header; the IJG acknowledgment lives in `NOTICE`). Pruned:
+the generic `GenericImageView` machinery, gray path, ICC/EXIF/pixel-density surface,
+`image`'s error plumbing. Output is byte-identical to what `image` 0.25.10's
+`JpegEncoder` produced (fixed 1:1 JFIF, 4:4:4, libjpeg quality scaling). This is the
+SECOND house JPEG encoder on purpose: `diting_js/ops/canvas.rs` has its own 4:2:0
+encoder (canvas `toDataURL`, quality 0.0–1.0, spec-default 0.92) pinned against Chrome
+— different subsampling, different quality semantics, different master.
+
+**Decode legs now driven direct** (`diting_layout::image`): zune-jpeg (the decoder
+`image` 0.25.10 wrapped; colorspace selection and non-strict mode mirrored exactly),
+image-webp and gif as leaf codecs. Versions pin what image 0.25.10 wrapped at intake —
+decode output is unchanged from the `image`-crate baseline. GIF first-frame composition
+transparent-canvas semantics mirror image 0.25.10's (background color ignored).
 
 ## Still external (on purpose)
 `btls` (the safe Rust wrapper; we call its API from `diting_wire`).

@@ -782,16 +782,17 @@ pub(crate) fn op_canvas_text(
 mod tests {
     use super::*;
 
-    /// Decode through the dev-dependency `png` crate as the oracle: the
-    /// whole point of the encoder is that OTHER decoders accept it.
+    /// Decode through the dev-dependency `diting_png` (the vendored codec,
+    /// same crate the product links) as the oracle: the whole point of the
+    /// encoder is that OTHER decoders accept it.
     fn decode(png: &[u8]) -> (u32, u32, Vec<u8>) {
-        let mut dec = png::Decoder::new(std::io::Cursor::new(png));
-        dec.set_transformations(png::Transformations::EXPAND);
+        let mut dec = diting_png::Decoder::new(std::io::Cursor::new(png));
+        dec.set_transformations(diting_png::Transformations::EXPAND);
         let mut reader = dec.read_info().expect("header parses");
         let mut buf = vec![0u8; reader.output_buffer_size().unwrap_or(0)];
         let info = reader.next_frame(&mut buf).expect("frame decodes");
-        assert_eq!(info.color_type, png::ColorType::Rgba);
-        assert_eq!(info.bit_depth, png::BitDepth::Eight);
+        assert_eq!(info.color_type, diting_png::ColorType::Rgba);
+        assert_eq!(info.bit_depth, diting_png::BitDepth::Eight);
         (info.width, info.height, buf)
     }
 
@@ -926,7 +927,7 @@ mod tests {
 
     #[cfg(feature = "screenshot")]
     #[test]
-    fn canvas_jpeg_round_trips_through_image_crate() {
+    fn canvas_jpeg_round_trips_through_decode_jpeg() {
         let (w, h) = (137u32, 91u32);
         let mut rgba = vec![0u8; (w * h * 4) as usize];
         for y in 0..h {
@@ -939,20 +940,18 @@ mod tests {
             }
         }
         let jpg = canvas_jpeg_encode(w, h, &rgba, 0.95).unwrap();
-        let img = image::load_from_memory(&jpg).expect("decodes as JPEG");
-        assert_eq!((img.width(), img.height()), (w, h));
-        let rgb = img.to_rgb8();
-        let bytes = rgb.as_raw();
+        let img = crate::diting_layout::image::decode_jpeg(&jpg).expect("decodes as JPEG");
+        assert_eq!((img.width, img.height), (w, h));
+        let bytes = img.rgba.as_slice();
         for y in 0..h as usize {
             for x in 0..w as usize {
                 let s = (y * w as usize + x) * 4;
-                let di = (y * w as usize + x) * 3;
                 for c in 0..3 {
-                    let diff = (bytes[di + c] as i32 - rgba[s + c] as i32).abs();
+                    let diff = (bytes[s + c] as i32 - rgba[s + c] as i32).abs();
                     assert!(
                         diff <= 32,
                         "px ({x},{y}) ch{c}: {} vs {}",
-                        bytes[di + c],
+                        bytes[s + c],
                         rgba[s + c]
                     );
                 }

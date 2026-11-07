@@ -1,10 +1,7 @@
 //! data: URL PNG decoding (render claim batch 5b).
 //!
 //! The first real pixels behind an `<img>`: a self-contained, no-network
-//! data source whose bytes both engines can share — our side decodes the
-//! `src` attribute here, the blitz cross-check injects the SAME decoded
-//! RGBA into its img node (upstream loads images through its net layer,
-//! which the test harness does not wire).
+//! data source whose bytes any snapshot of the engine can share.
 //!
 //! `decode_data_url_png` accepts `data:image/png[;base64],<payload>` only:
 //! base64 is the one encoding real pages use for inline images, and the
@@ -17,11 +14,21 @@
 //! injected byte table for `http(s)` sources — the caller (the screenshot
 //! prefetch path, over diting_net) fetches the bodies; the cache only ever
 //! sees bytes. Batch 6d adds [`decode_jpeg`] and magic-byte dispatch in
-//! [`decode_bytes`] (JPEG is the dominant photo format on real pages);
-//! both engines decode through the same `image` crate so RGBA output is
-//! bit-identical. Issue #112 adds [`ImageCache::prefetch`]: the page's
+//! [`decode_bytes`] (JPEG is the dominant photo format on real pages).
+//! Issue #112 adds [`ImageCache::prefetch`]: the page's
 //! unique srcs decode across scoped worker threads before the serial
 //! layout walk, which then only clones cached `Arc`s.
+//!
+//! Since #42 ④ the codecs are driven directly (no `image` crate): PNG
+//! through the vendored `diting_png`, JPEG through zune-jpeg, WebP through
+//! image-webp, GIF through `gif`. Each decode leg reproduces the
+//! normalization `image` 0.25.10 applied when it wrapped the same codecs
+//! (colorspace selection, first-frame GIF composition, RGB→RGBA
+//! promotion), so decoded pixels are unchanged from the intake baseline.
+
+mod jpeg_encode;
+
+pub use jpeg_encode::encode_jpeg_rgb;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -198,9 +205,9 @@ pub fn decode_data_url_png(src: &str) -> Option<DecodedImage> {
 
 /// Decode fetched image bytes by magic-number sniffing (batch 6d) —
 /// content-type headers are untrusted/absent in practice. PNG, JPEG, WebP
-/// and GIF share the `image` crate with blitz's decoder
-/// (blitz-dom/src/net.rs `ImageHandler::parse`, `with_guessed_format`),
-/// so RGBA output is bit-identical for both engines.
+/// and GIF each land in their leaf codec ([`diting_png`], zune-jpeg,
+/// image-webp, `gif`), normalized to RGBA8 the way `image` 0.25.10's
+/// wrappers did at intake (#42 ④).
 pub fn decode_bytes(bytes: &[u8]) -> Option<DecodedImage> {
     if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         decode_png(bytes)
@@ -215,64 +222,132 @@ pub fn decode_bytes(bytes: &[u8]) -> Option<DecodedImage> {
     }
 }
 
-/// Decode JPEG bytes to RGBA8 via the same `image` crate path blitz uses.
+/// Decode JPEG bytes to RGBA8 through zune-jpeg, mirroring image 0.25.10's
+/// wrapper (#42 ④): non-strict, no dimension cap, output colorspace = the
+/// input's when it is one of RGB/RGBA/Luma/LumaA (else RGB), then promoted
+/// to RGBA.
 pub fn decode_jpeg(bytes: &[u8]) -> Option<DecodedImage> {
-    let img = image::load_from_memory_with_format(bytes, image::ImageFormat::Jpeg).ok()?;
-    let rgba = img.to_rgba8().into_raw();
-    Some(DecodedImage::new(img.width(), img.height(), rgba))
+    use zune_core::bytestream::ZCursor;
+    use zune_core::colorspace::ColorSpace;
+    use zune_core::options::DecoderOptions;
+
+    let options = DecoderOptions::default()
+        .set_strict_mode(false)
+        .set_max_width(usize::MAX)
+        .set_max_height(usize::MAX);
+    let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(bytes), options);
+    decoder.decode_headers().ok()?;
+    let (width, height) = decoder.dimensions()?;
+    let orig = decoder.input_colorspace()?;
+    let output = match orig {
+        ColorSpace::RGB | ColorSpace::RGBA | ColorSpace::Luma | ColorSpace::LumaA => orig,
+        _ => ColorSpace::RGB,
+    };
+    decoder.set_options(decoder.options().jpeg_set_out_colorspace(output));
+    let buf = decoder.decode().ok()?;
+    let rgba = match output {
+        ColorSpace::Luma => {
+            let mut out = Vec::with_capacity(buf.len() * 4);
+            out.extend(buf.iter().flat_map(|&g| [g, g, g, 255]));
+            out
+        }
+        ColorSpace::LumaA => {
+            let mut out = Vec::with_capacity(buf.len() * 2);
+            out.extend(buf.as_chunks::<2>().0.iter().flat_map(|&[g, a]| [g, g, g, a]));
+            out
+        }
+        ColorSpace::RGBA => buf,
+        _ => {
+            let mut out = Vec::with_capacity(buf.len() / 3 * 4);
+            out.extend(buf.as_chunks::<3>().0.iter().flat_map(|&[r, g, b]| [r, g, b, 255]));
+            out
+        }
+    };
+    Some(DecodedImage::new(width as u32, height as u32, rgba))
 }
 
-/// Decode WebP bytes (lossy and lossless) via the same `image` crate path
-/// blitz uses (batch 7b).
+/// Decode WebP bytes (lossy and lossless) through image-webp (batch 7b):
+/// `read_image` hands back RGB8 or RGBA8 depending on `has_alpha`; promote
+/// the former, so both legs land as RGBA8.
 pub fn decode_webp(bytes: &[u8]) -> Option<DecodedImage> {
-    let img = image::load_from_memory_with_format(bytes, image::ImageFormat::WebP).ok()?;
-    let rgba = img.to_rgba8().into_raw();
-    Some(DecodedImage::new(img.width(), img.height(), rgba))
+    let mut decoder = image_webp::WebPDecoder::new(std::io::Cursor::new(bytes)).ok()?;
+    let (w, h) = decoder.dimensions();
+    let has_alpha = decoder.has_alpha();
+    let mut buf = vec![0u8; decoder.output_buffer_size()?];
+    decoder.read_image(&mut buf).ok()?;
+    let rgba = if has_alpha {
+        buf
+    } else {
+        let mut out = Vec::with_capacity(buf.len() / 3 * 4);
+        out.extend(buf.as_chunks::<3>().0.iter().flat_map(|&[r, g, b]| [r, g, b, 255]));
+        out
+    };
+    Some(DecodedImage::new(w, h, rgba))
 }
 
 /// Decode a GIF's FIRST frame (batch 7e): static rendering has no
-/// animation timeline, and the first frame is what both engines' decoders
-/// hand back for `decode()`.
+/// animation timeline. The frame is composed at its `(left, top)` offset
+/// onto a fully transparent logical-screen canvas — the same first-frame
+/// semantics image 0.25.10 applied (background color deliberately
+/// ignored).
 pub fn decode_gif(bytes: &[u8]) -> Option<DecodedImage> {
-    let img = image::load_from_memory_with_format(bytes, image::ImageFormat::Gif).ok()?;
-    let rgba = img.to_rgba8().into_raw();
-    Some(DecodedImage::new(img.width(), img.height(), rgba))
+    let mut options = gif::DecodeOptions::new();
+    options.set_color_output(gif::ColorOutput::RGBA);
+    let mut reader = options.read_info(bytes).ok()?;
+    let (w, h) = (u32::from(reader.width()), u32::from(reader.height()));
+    let mut canvas = vec![0u8; w as usize * h as usize * 4];
+    let frame = reader.read_next_frame().ok()??;
+    let (fw, fh) = (frame.width as usize, frame.height as usize);
+    let (left, top) = (frame.left as usize, frame.top as usize);
+    // Rows that hang off the canvas (broken files) clamp rather than panic.
+    let copy = fw.min((w as usize).saturating_sub(left));
+    for row in 0..fh {
+        let dst_y = top + row;
+        if dst_y >= h as usize {
+            break;
+        }
+        let src_off = row * fw * 4;
+        let dst_off = (dst_y * w as usize + left) * 4;
+        canvas[dst_off..dst_off + copy * 4]
+            .copy_from_slice(&frame.buffer[src_off..src_off + copy * 4]);
+    }
+    Some(DecodedImage::new(w, h, canvas))
 }
 
 /// Decode PNG bytes to RGBA8 (palette and sub-byte formats expanded, gray
 /// promoted, missing alpha filled opaque) — the same normalization upstream
 /// applies before handing `RasterImageData` to the painter.
 pub fn decode_png(bytes: &[u8]) -> Option<DecodedImage> {
-    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
-    decoder.set_transformations(png::Transformations::EXPAND);
+    let mut decoder = diting_png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(diting_png::Transformations::EXPAND);
     let mut reader = decoder.read_info().ok()?;
     let mut buf = vec![0u8; reader.output_buffer_size().unwrap_or(0)];
     let info = reader.next_frame(&mut buf).ok()?;
     let (w, h) = (info.width, info.height);
     let rgba = match info.color_type {
-        png::ColorType::Rgba => buf,
-        png::ColorType::Rgb => {
+        diting_png::ColorType::Rgba => buf,
+        diting_png::ColorType::Rgb => {
             let mut out = Vec::with_capacity(buf.len() / 3 * 4);
-            for px in buf.chunks_exact(3) {
-                out.extend_from_slice(&[px[0], px[1], px[2], 255]);
+            for &[r, g, b] in buf.as_chunks::<3>().0 {
+                out.extend_from_slice(&[r, g, b, 255]);
             }
             out
         }
-        png::ColorType::Grayscale => {
+        diting_png::ColorType::Grayscale => {
             let mut out = Vec::with_capacity(buf.len() * 4);
-            for px in buf.chunks_exact(1) {
-                out.extend_from_slice(&[px[0], px[0], px[0], 255]);
+            for &g in &buf {
+                out.extend_from_slice(&[g, g, g, 255]);
             }
             out
         }
-        png::ColorType::GrayscaleAlpha => {
+        diting_png::ColorType::GrayscaleAlpha => {
             let mut out = Vec::with_capacity(buf.len() / 2 * 4);
-            for px in buf.chunks_exact(2) {
-                out.extend_from_slice(&[px[0], px[0], px[0], px[1]]);
+            for &[g, a] in buf.as_chunks::<2>().0 {
+                out.extend_from_slice(&[g, g, g, a]);
             }
             out
         }
-        png::ColorType::Indexed => return None, // EXPAND promised to remove this
+        diting_png::ColorType::Indexed => return None, // EXPAND promised to remove this
     };
     Some(DecodedImage::new(w, h, rgba))
 }
@@ -413,9 +488,9 @@ mod tests {
 
         let mut png_bytes = Vec::new();
         {
-            let mut enc = png::Encoder::new(&mut png_bytes, w, h);
-            enc.set_color(png::ColorType::Rgba);
-            enc.set_depth(png::BitDepth::Eight);
+            let mut enc = diting_png::Encoder::new(&mut png_bytes, w, h);
+            enc.set_color(diting_png::ColorType::Rgba);
+            enc.set_depth(diting_png::BitDepth::Eight);
             let mut writer = enc.write_header().unwrap();
             writer.write_image_data(&rgba).unwrap();
         }
@@ -443,9 +518,9 @@ mod tests {
         let rgba = vec![200u8, 40, 40, 255, 40, 40, 200, 255];
         let mut png_bytes = Vec::new();
         {
-            let mut enc = png::Encoder::new(&mut png_bytes, 2, 1);
-            enc.set_color(png::ColorType::Rgba);
-            enc.set_depth(png::BitDepth::Eight);
+            let mut enc = diting_png::Encoder::new(&mut png_bytes, 2, 1);
+            enc.set_color(diting_png::ColorType::Rgba);
+            enc.set_depth(diting_png::BitDepth::Eight);
             let mut writer = enc.write_header().unwrap();
             writer.write_image_data(&rgba).unwrap();
         }
@@ -518,9 +593,9 @@ mod tests {
             let rgba = vec![i as u8, 40, 200, 255, 40, 40, 200, 255];
             let mut png_bytes = Vec::new();
             {
-                let mut enc = png::Encoder::new(&mut png_bytes, 2, 1);
-                enc.set_color(png::ColorType::Rgba);
-                enc.set_depth(png::BitDepth::Eight);
+                let mut enc = diting_png::Encoder::new(&mut png_bytes, 2, 1);
+                enc.set_color(diting_png::ColorType::Rgba);
+                enc.set_depth(diting_png::BitDepth::Eight);
                 let mut writer = enc.write_header().unwrap();
                 writer.write_image_data(&rgba).unwrap();
             }
@@ -569,18 +644,14 @@ mod tests {
         cache.prefetch(&[]);
     }
 
-    /// JPEG bodies decode through the same `image` crate blitz uses, so
-    /// RGBA output is bit-identical: encode a solid JPEG, decode it via
-    /// `decode_bytes` (magic sniff) and via the data: URL path.
+    /// JPEG bodies: encode a solid image with the house encoder
+    /// (`encode_jpeg_rgb`, the port of image 0.25.10's baseline encoder),
+    /// decode it via `decode_bytes` (magic sniff) and via the data: URL
+    /// path.
     #[test]
     fn jpeg_decodes_and_sniffs_by_magic() {
         let mut jpeg_bytes = Vec::new();
-        image::DynamicImage::from(image::RgbImage::from_raw(4, 2, vec![204u8; 4 * 2 * 3]).unwrap())
-            .write_to(
-                &mut std::io::Cursor::new(&mut jpeg_bytes),
-                image::ImageFormat::Jpeg,
-            )
-            .expect("encodes");
+        encode_jpeg_rgb(&mut jpeg_bytes, &[204u8; 4 * 2 * 3], 4, 2, 75).expect("encodes");
         assert!(jpeg_bytes.starts_with(&[0xFF, 0xD8, 0xFF]), "JPEG magic");
 
         let decoded = decode_bytes(&jpeg_bytes).expect("sniffs and decodes JPEG");
@@ -608,32 +679,30 @@ mod tests {
     }
 
     /// WebP bodies decode through the RIFF/WEBP magic branch (batch 7b).
-    /// The lossless encoder keeps colors exact, so the decoded RGBA must
-    /// round-trip the source pixels bit-for-bit.
+    /// The fixture is a Pillow-encoded lossless VP8L with an alpha channel
+    /// (regenerated 2026-11-07: image 0.25.10's lossless WebP encoder left
+    /// with the crate, and image-webp is decode-only), so the decoded RGBA
+    /// must round-trip the source pixels bit-for-bit.
     #[test]
     fn webp_decodes_and_sniffs_by_magic() {
         let mut rgba = Vec::new();
         for y in 0..4u32 {
             for x in 0..6u32 {
                 let red = (x < 3) ^ (y < 2);
-                rgba.extend_from_slice(if red {
-                    &[200, 40, 40, 255]
+                let a = if (x, y) == (0, 0) { 128 } else { 255 };
+                let px: [u8; 4] = if red {
+                    [200, 40, 40, a]
                 } else {
-                    &[40, 40, 200, 255]
-                });
+                    [40, 40, 200, a]
+                };
+                rgba.extend_from_slice(&px);
             }
         }
-        let mut webp_bytes = Vec::new();
-        image::DynamicImage::from(image::RgbaImage::from_raw(6, 4, rgba.clone()).unwrap())
-            .write_to(
-                &mut std::io::Cursor::new(&mut webp_bytes),
-                image::ImageFormat::WebP,
-            )
-            .expect("encodes losslessly");
+        let webp_bytes = include_bytes!("fixtures/lossless.webp");
         assert_eq!(&webp_bytes[0..4], b"RIFF", "RIFF magic");
         assert_eq!(&webp_bytes[8..12], b"WEBP", "WEBP magic");
 
-        let decoded = decode_bytes(&webp_bytes).expect("sniffs and decodes WebP");
+        let decoded = decode_bytes(webp_bytes).expect("sniffs and decodes WebP");
         assert_eq!((decoded.width, decoded.height), (6, 4));
         assert_eq!(
             decoded.rgba.as_slice(),
@@ -686,19 +755,18 @@ mod tests {
         for i in 0..N {
             // Gradient + per-image offset: distinct bytes per URL (the cache
             // would dedupe identical srcs) and compressible like a photo.
-            let mut img = image::RgbImage::new(800, 800);
-            for (x, y, p) in img.enumerate_pixels_mut() {
-                *p = image::Rgb([
-                    ((x / 3) as u8).wrapping_add(i as u8 * 8),
-                    ((y / 3) as u8).wrapping_add(i as u8 * 5),
-                    (((x + y) / 4) as u8).wrapping_add(i as u8 * 3),
-                ]);
+            let mut rgb = Vec::with_capacity(800 * 800 * 3);
+            for y in 0..800u32 {
+                for x in 0..800u32 {
+                    rgb.extend_from_slice(&[
+                        ((x / 3) as u8).wrapping_add(i as u8 * 8),
+                        ((y / 3) as u8).wrapping_add(i as u8 * 5),
+                        (((x + y) / 4) as u8).wrapping_add(i as u8 * 3),
+                    ]);
+                }
             }
             let mut buf = Vec::new();
-            let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 75);
-            image::DynamicImage::ImageRgb8(img)
-                .write_with_encoder(enc)
-                .expect("encodes jpeg");
+            encode_jpeg_rgb(&mut buf, &rgb, 800, 800, 75).expect("encodes jpeg");
             jpgs.push(buf);
         }
 

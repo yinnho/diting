@@ -20,15 +20,17 @@ stealth = ["dep:diting_wire", "dep:diting_profiles"]
 # surface were retired 2026-11-06; diting's text stack is swash + its
 # own greedy_wrap, zero parley.)
 screenshot = [
-    "dep:png",
-    # JPEG/WebP/GIF decode for diting_layout's ImageCache (batches 6d/7b/7e).
-    # Animated GIFs take the first frame. `png` is needed by the CDP legacy
-    # path, which re-encodes JPEG captures from the rendered PNG bytes.
-    "dep:image",
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
+    # PNG codec, vendored as our own crate (#42 ④): decode with EXPAND for
+    # diting_layout::image, 8-bit RGBA/RGB encode for screenshot/canvas.
+    "dep:diting_png",
+    # JPEG/WebP/GIF decode for diting_layout's ImageCache (batches 6d/7b/7e),
+    # driven directly since the `image` crate left the tree (#42 ④):
+    # zune-jpeg decodes (output colorspace mirroring image 0.25's wrapper),
+    # image-webp and gif are leaf codecs. Animated GIFs take the first frame.
+    "dep:zune-jpeg",
+    "dep:zune-core",
+    "dep:image-webp",
+    "dep:gif",
     # Taffy does diting's box layout.
     "dep:taffy",
     # Real glyph measurement + rasterization for diting_layout text leaves
@@ -175,9 +177,15 @@ memmap2 = "0.9"
 diting_profiles = { path = "../diting_profiles", optional = true }
 
 # --- render output encoding (screenshot) ---
-png = { version = "0.18", optional = true }
-# Same version blitz-dom pins (0.25.x); jpeg/webp/gif are the only features we need.
-image = { version = "0.25", optional = true, default-features = false, features = ["jpeg", "webp", "gif"] }
+# Vendored png 0.18.1 (#42 ④) — see crates/VENDORED.md.
+diting_png = { path = "../diting_png", optional = true }
+# Leaf image codecs, driven directly by diting_layout::image since the
+# `image` crate left the tree (#42 ④). Versions pin what image 0.25.10
+# wrapped when we made the switch — decode output is byte-identical.
+zune-jpeg = { version = "0.5", optional = true }
+zune-core = { version = "0.5", optional = true }
+image-webp = { version = "0.2", optional = true }
+gif = { version = "0.14", optional = true }
 # rsa 0.10-rc: num-bigint → crypto-bigint, rides the digest 0.11 line
 # (sha2 is a mandatory dep; our own sha1/sha2 0.11 pins are the same crate
 # instances, so the scheme types bind directly — no feature pins needed).
@@ -201,7 +209,9 @@ diting_runtime = { path = "../diting_runtime" }
 [dev-dependencies]
 # Test-only decode oracle for the hand-rolled canvas PNG encoder (#117):
 # the product never links it in default builds (it stays behind `screenshot`).
-png = "0.18"
+# Same vendored crate as the product dep — an oracle that ships its own
+# copy would prove nothing about what we ship.
+diting_png = { path = "../diting_png" }
 
 [lints]
 workspace = true
