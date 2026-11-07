@@ -21,7 +21,6 @@
 
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use crate::session::{
     send_command, ScrollDirection, SessionCommand, SessionError, SessionManager, SESSIONS,
@@ -33,8 +32,7 @@ mod condition;
 mod resolve;
 
 pub use resolve::{
-    available_workflows, is_workflow_name, legacy_cwd_workflow_active, provision_workflow_dir,
-    resolve_flow_doc, workflow_dir,
+    legacy_cwd_workflow_active, provision_workflow_dir, resolve_flow_doc, workflow_dir,
 };
 mod timing;
 use condition::{eval_condition, js_truthy, CONDITION_OPS};

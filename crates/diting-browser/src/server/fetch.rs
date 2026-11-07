@@ -514,7 +514,12 @@ pub(crate) fn parse_layout_facts(v: &serde_json::Value) -> Option<crate::LayoutF
 /// prefetches through the bounded machinery the screenshot path uses
 /// (#279); without, the knob answers an empty table (the capability
 /// rides the feature, like /screenshot itself).
-async fn prefetch_resource_facts(page: &mut crate::page::Page) -> Vec<crate::ResourceFact> {
+async fn prefetch_resource_facts(
+    // Only the `screenshot` build reads the page; the bare build answers
+    // an empty table without touching it.
+    #[cfg_attr(not(feature = "screenshot"), allow(unused_variables))]
+    page: &mut crate::page::Page,
+) -> Vec<crate::ResourceFact> {
     #[cfg(feature = "screenshot")]
     {
         let t0 = std::time::Instant::now();

@@ -505,6 +505,8 @@ mod search_fallback_tests {
         /// One clean hit carrying `url`.
         Answer(&'static str),
         /// Ok(vec![]) — the query genuinely has no results.
+        /// Only constructed by the screenshot-gated test below.
+        #[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
         Empty,
     }
 

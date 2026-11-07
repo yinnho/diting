@@ -824,9 +824,9 @@ fn merge_results(results: Vec<RawSearchResult>, max_results: usize) -> Vec<Searc
             // best_title/best_url 无初值：pick 选定后无条件覆写（845 行起），
             // String::new() 是死赋值。best_snippet 保留空初值——最长者胜，
             // 空组也能落空串。
-            let mut best_title;
+            let best_title;
             let mut best_snippet = String::new();
-            let mut best_url;
+            let best_url;
             let mut cookies = Vec::new();
             let mut js_extract_result = None;
             let mut image: Option<ImageResult> = None;
