@@ -130,21 +130,21 @@ thread_local! {
 }
 
 /// Glyphs whose swash raster panicked and was absorbed by
-/// [`render_guarded`] — observability for the strike-decode panic family
-/// (dfrg/swash#139: a width-0 EBDT bitmap makes `chunks(0)` panic in
-/// release too; #123-126 are the debug-only arithmetic siblings). The
-/// zero-width-strike test flips this to prove the guard actually ran.
+/// [`render_guarded`] — observability for the strike-decode panic family.
+/// dfrg/swash#139 (width-0 EBDT bitmap → `chunks(0)` panic, release too)
+/// is now fixed at source in `diting_swash` (upstream guard, own #48), so
+/// the zero-width-strike shape no longer trips this; the counter now
+/// watches the remaining debug-only arithmetic siblings
+/// (dfrg/swash#123-126).
 static SWASH_PANIC_FALLBACKS: AtomicU64 = AtomicU64::new(0);
 
-/// Rasterize one glyph behind a panic guard. Malformed embedded bitmap
-/// tables (the SimSun blank-glyph shape: an EBLC/EBDT strike whose small
-/// metrics declare width 0) panic inside swash's `Bitmap::decode` — and
-/// the panic fires at the `Source::Bitmap` step of the fallback source
-/// list, aborting the whole line raster before the outline tail can run.
-/// Catching it here lets the caller retry the same glyph through a pure
-/// outline `Render`, the one source set that cannot touch the strike
-/// decoder. Blank glyphs raster to no ink either way, so the retry is
-/// pixel-identical for the shapes that actually trigger this.
+/// Rasterize one glyph behind a panic guard. The debug-only arithmetic
+/// overflow family (dfrg/swash#123-126: at.rs add / scale multiply /
+/// metrics negate / parse subtract) can panic inside a raster in test
+/// builds. Catching it here lets the caller retry the same glyph through
+/// a pure outline `Render`, the one source set that cannot touch the
+/// bitmap-strike decoder. (The release-too `chunks(0)` member of this
+/// family, swash#139, is fixed at source as of #48.)
 fn render_guarded(render: &Render, scaler: &mut Scaler, gid: GlyphId) -> Option<Image> {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render.render(scaler, gid))) {
         Ok(img) => img,
@@ -1032,11 +1032,13 @@ impl FontBook {
                     FaceSel::Fallback(_) => &fallback_sources[..],
                 };
                 let render = Render::new(sources);
-                // Outline-only retry behind the panic guard: a malformed
-                // embedded strike (zero-width EBDT, dfrg/swash#139) panics
-                // `Bitmap::decode` mid-list — before `fallback_sources`'
-                // own outline tail — so the retry needs a bare outline
-                // `Render` that cannot reach the strike decoder at all.
+                // Outline-only retry behind the panic guard: a raster that
+                // panics mid-list (the debug-only arithmetic family
+                // dfrg/swash#123-124 can panic inside a bitmap step before
+                // `fallback_sources`' own outline tail) gets a second
+                // chance through a bare outline `Render` that cannot reach
+                // the strike decoder at all. (The release-too member of
+                // that family, swash#139's chunks(0), is fixed at source.)
                 let outline_render = Render::new(&mono_sources[..]);
                 for (pen_x, dy, gid) in glyphs {
                     // swash rasterizes outlines with zeno Origin::BottomLeft,

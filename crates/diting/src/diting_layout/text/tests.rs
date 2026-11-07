@@ -194,14 +194,16 @@ fn budget_overflow_clears_all() {
     );
 }
 
-/// dfrg/swash#139 (own issue #19): a fallback face carrying an EBLC/EBDT
-/// strike whose glyph declares width 0 (SimSun's blank-bitmap shape)
-/// makes swash's `Bitmap::decode` call `chunks(0)` — a panic that fires
-/// in release builds too, at the `Source::Bitmap` step of
-/// `fallback_sources`, aborting the whole line raster before the
-/// outline tail can run. [`render_guarded`] must absorb it and re-raster
-/// the glyph outline-only. The fixture is OURS
-/// (`scripts/make_zero_width_ebdt_font.py`), no license tail.
+/// dfrg/swash#139 (own issue #19, source-fixed in #48): a fallback face
+/// carrying an EBLC/EBDT strike whose glyph declares width 0 (SimSun's
+/// blank-bitmap shape) used to make swash's `Bitmap::decode` call
+/// `chunks(0)` — a release-too panic at the `Source::Bitmap` step. The
+/// fix lives in `diting_swash` (upstream's one-line guard: zero-sized
+/// bitmaps fail the decode, callers fall through to the next source), so
+/// this fixture must now render WITHOUT tripping [`render_guarded`]:
+/// the counter staying put is the direct proof the source fix holds. The
+/// fixture is OURS (`scripts/make_zero_width_ebdt_font.py`), no license
+/// tail.
 #[test]
 fn zero_width_ebdt_strike_does_not_panic_the_raster() {
     let (reg, bold) = production_pair();
@@ -217,14 +219,14 @@ fn zero_width_ebdt_strike_does_not_panic_the_raster() {
     // fixture strike's ppem exactly.
     let tile = book.rasterize("\u{E000}", 12.0, false, [0, 0, 0, 255], 14.4, false, None);
     let after = SWASH_PANIC_FALLBACKS.load(Ordering::Relaxed);
-    assert!(
-        after > before,
-        "guard must actually fire (counter {before} -> {after}); \
-         without it this line raster aborts the whole render"
+    assert_eq!(
+        after, before,
+        "source fix must hold: the decode fails cleanly and the source list \
+         falls through to outline — no panic for the guard to absorb \
+         (counter {before} -> {after})"
     );
     // The glyph's outline is empty (numberOfContours 0), so the outline
-    // retry paints no ink — but the run still yields a well-formed tile
-    // instead of a poisoned/aborted raster.
+    // tail paints no ink — but the run still yields a well-formed tile.
     assert_eq!(tile.data.len(), tile.width * tile.height * 4);
     assert_eq!(tile.ink_bbox(), None, "empty glyph outline paints no ink");
 }
