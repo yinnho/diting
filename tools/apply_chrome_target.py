@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply crates/diting/chrome-target.toml to the places that cannot read it at build time.
+"""Apply crates/diting_env/chrome-target.toml to the places that cannot read it at build time.
 
 The Rust side derives everything from the toml via build.rs. The legacy JS sources baked into
 the V8 snapshot (bootstrap.js + the god-file split files) cannot, so three derived points are
@@ -16,10 +16,10 @@ Each anchor is scanned across ALL js/ files (a knife may move its host file); to
 import os, re, sys, tomllib
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-T = tomllib.load(open(os.path.join(ROOT, "crates/diting/chrome-target.toml"), "rb"))
+T = tomllib.load(open(os.path.join(ROOT, "crates/diting_env/chrome-target.toml"), "rb"))
 major, full = int(T["major"]), T["full_version"]
 build = ".".join(full.split(".")[2:])
-jsdir = os.path.join(ROOT, "crates/diting/js")
+jsdir = os.path.join(ROOT, "crates/diting_js/js")
 
 def _generated(name):
     # gen_* output (font_metrics.js is ~90MB) never carries the anchors;

@@ -8,7 +8,7 @@
 # block, and rewrite the per-canvas GL instance to a zero-own-property shape.
 import json, re, sys
 
-BS = "crates/diting/js/bootstrap.js"
+BS = "crates/diting_js/js/bootstrap.js"
 T = json.load(open("tools/webplatform/chrome/chrome-gl-const-tables.json"))
 
 def js_consts(obj):

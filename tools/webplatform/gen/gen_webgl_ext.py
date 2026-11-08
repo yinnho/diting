@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/webgl_ext.js from the Chrome 145 extension-object captures.
+"""Generate crates/diting_js/js/webgl_ext.js from the Chrome 145 extension-object captures.
 
   gen_webgl_ext.py [truth.json] [out.js]
     truth  default: tools/webplatform/chrome/webgl-ext-truth-145.json (webgl-ext-probe.js via probe_run.py chrome,
            DITING_CHROME_WEBGL=1 — software WebGL) folded with webgl-ext-truth-145-metal.json (DITING_CHROME_WEBGL=metal,
            the persona machine's real-GPU leg, 刀92) — shared extensions must agree byte-for-byte or the generator dies.
-    out    default: crates/diting/js/webgl_ext.js
+    out    default: crates/diting_js/js/webgl_ext.js
 
 Per extension name: the interface toStringTag + the prototype members (constants e--, methods ecw, with .length).
 The table is GPU-independent interface data; WHICH extensions a context supports stays the persona's choice
@@ -24,7 +24,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 truth_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'tools/webplatform/chrome/webgl-ext-truth-145.json')
-out_p = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'crates/diting/js/webgl_ext.js')
+out_p = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'crates/diting_js/js/webgl_ext.js')
 d = json.load(open(truth_p))
 metal_p = os.path.join(os.path.dirname(truth_p), 'webgl-ext-truth-145-metal.json')
 d2 = json.load(open(metal_p)) if os.path.exists(metal_p) else None

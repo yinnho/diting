@@ -59,7 +59,7 @@ decode with `Transformations::EXPAND` + gray/RGB→RGBA promotion (`diting_layou
 diting's dev-dependencies is the SAME vendored crate — an oracle that shipped its own
 copy would prove nothing about what we ship.
 
-**JPEG encoder** (partial, `crates/diting/src/diting_layout/image/jpeg_encode.rs`, from
+**JPEG encoder** (partial, `crates/diting_layout/src/image/jpeg_encode.rs`, from
 `image` 0.25.10 `codecs/jpeg/{encoder,entropy,transform}.rs`, MIT OR Apache-2.0). Only
 the baseline RGB8 face came over — the one `authoring/pages.rs`' PDF embedding used —
 as `encode_jpeg_rgb(out, rgb, w, h, quality)`: tables K.1–K.6, the bit writer,

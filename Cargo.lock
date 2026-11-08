@@ -801,58 +801,13 @@ dependencies = [
 name = "diting"
 version = "0.10.0"
 dependencies = [
- "aes",
- "aes-gcm",
- "base64",
- "cbc",
- "ctr",
- "deno_error",
- "diting_cssparser",
- "diting_html5ever",
- "diting_ops",
- "diting_png",
- "diting_profiles",
- "diting_runtime",
- "diting_selectors",
- "diting_socks",
- "diting_swash",
- "diting_taffy",
- "diting_wire",
- "ecdsa",
- "ed25519-dalek",
- "encoding_rs",
- "futures",
- "futures-util",
- "getrandom 0.4.3",
- "gif",
- "hkdf",
- "hmac",
- "http",
- "image-webp",
- "memmap2",
- "p256",
- "p384",
- "pbkdf2",
- "precomputed-hash",
- "reqwest",
- "rsa",
- "rustls",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-rustls",
- "tokio-tungstenite",
- "tracing",
- "url",
- "uuid",
- "v8",
- "webpki-roots",
- "zune-core",
- "zune-jpeg",
+ "diting_css",
+ "diting_dom",
+ "diting_env",
+ "diting_js",
+ "diting_layout",
+ "diting_net",
+ "diting_page",
 ]
 
 [[package]]
@@ -899,6 +854,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "diting_css"
+version = "0.10.0"
+dependencies = [
+ "diting_dom",
+]
+
+[[package]]
 name = "diting_cssparser"
 version = "0.38.0"
 dependencies = [
@@ -912,12 +874,95 @@ dependencies = [
 ]
 
 [[package]]
+name = "diting_dom"
+version = "0.10.0"
+dependencies = [
+ "diting_cssparser",
+ "diting_html5ever",
+ "diting_selectors",
+ "precomputed-hash",
+]
+
+[[package]]
+name = "diting_env"
+version = "0.10.0"
+dependencies = [
+ "diting_profiles",
+ "url",
+]
+
+[[package]]
 name = "diting_html5ever"
 version = "0.40.1"
 dependencies = [
  "diting_markup5ever",
  "log",
  "memchr",
+]
+
+[[package]]
+name = "diting_js"
+version = "0.10.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "base64",
+ "cbc",
+ "ctr",
+ "deno_error",
+ "diting_css",
+ "diting_dom",
+ "diting_env",
+ "diting_html5ever",
+ "diting_layout",
+ "diting_net",
+ "diting_ops",
+ "diting_png",
+ "diting_runtime",
+ "diting_socks",
+ "ecdsa",
+ "ed25519-dalek",
+ "futures-util",
+ "getrandom 0.4.3",
+ "hkdf",
+ "hmac",
+ "http",
+ "p256",
+ "p384",
+ "pbkdf2",
+ "reqwest",
+ "rsa",
+ "rustls",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+ "tracing",
+ "url",
+ "v8",
+ "webpki-roots",
+]
+
+[[package]]
+name = "diting_layout"
+version = "0.10.0"
+dependencies = [
+ "base64",
+ "diting_css",
+ "diting_dom",
+ "diting_html5ever",
+ "diting_png",
+ "diting_swash",
+ "diting_taffy",
+ "gif",
+ "image-webp",
+ "memmap2",
+ "tempfile",
+ "url",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -930,12 +975,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "diting_net"
+version = "0.10.0"
+dependencies = [
+ "diting_env",
+ "diting_profiles",
+ "diting_wire",
+ "encoding_rs",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "diting_ops"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "diting_page"
+version = "0.10.0"
+dependencies = [
+ "base64",
+ "diting_dom",
+ "diting_env",
+ "diting_js",
+ "diting_net",
+ "futures",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
 ]
 
 [[package]]

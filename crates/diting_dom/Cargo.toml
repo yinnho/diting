@@ -1,0 +1,18 @@
+[package]
+name = "diting_dom"
+version.workspace = true
+edition = "2021"
+description = "Diting engine: DOM tree, html5ever sink, selector matching, serialization."
+license = "Apache-2.0"
+repository = "https://github.com/yinnho/diting"
+publish = false
+
+[dependencies]
+# --- html / dom parsing (#42 ②: servo family vendored in-tree) ---
+diting_html5ever = { path = "../diting_html5ever" }
+diting_selectors = { path = "../diting_selectors" }
+diting_cssparser = { path = "../diting_cssparser" }
+precomputed-hash = "0.1"
+
+[lints]
+workspace = true

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/lift_own.js: move engine-kept INSTANCE own data properties to PROTOTYPE accessors.
+"""Generate crates/diting_js/js/lift_own.js: move engine-kept INSTANCE own data properties to PROTOTYPE accessors.
 
   gen_lift_own.py <instance-audit-engine.json> Class[,Class...] [out.js] [instance-audit-chrome.json]
 
@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
 E = json.load(open(sys.argv[1]))
 classes = sys.argv[2].split(',')
-out = sys.argv[3] if len(sys.argv) > 3 else os.path.join(HERE, '../../../crates/diting/js/lift_own.js')
+out = sys.argv[3] if len(sys.argv) > 3 else os.path.join(HERE, '../../../crates/diting_js/js/lift_own.js')
 # optional 4th arg: the Chrome-side instance audit; names Chrome's instance ALSO owns (ImageData.data) must stay own
 CI = json.load(open(sys.argv[4])) if len(sys.argv) > 4 else {}
 D = {}

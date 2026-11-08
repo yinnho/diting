@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Chrome-version coherence gate (owner ruling 2026-10-29: every layer is the SAME real Chrome).
 
-Single source: crates/diting/chrome-target.toml. This gate (offline, no build needed) checks:
+Single source: crates/diting_env/chrome-target.toml. This gate (offline, no build needed) checks:
   1. full_version is a version Google really published (vendored Chrome for Testing list)
   2. tls_profile == chrome<major>   (build.rs additionally fails the BUILD if wreq-util lacks it)
   3. the JS full-version table (__DITING_FULL_BUILD) agrees with full_version
@@ -14,7 +14,7 @@ Informational: how far the target lags Chrome stable.
 import json, os, re, subprocess, sys, tomllib
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-T = tomllib.load(open(os.path.join(ROOT, "crates/diting/chrome-target.toml"), "rb"))
+T = tomllib.load(open(os.path.join(ROOT, "crates/diting_env/chrome-target.toml"), "rb"))
 major, full = int(T["major"]), T["full_version"]
 cft = json.load(open(os.path.join(ROOT, "tools/webplatform/chrome/cft-builds.json")))
 errs = []
@@ -29,7 +29,7 @@ if build not in cft["builds"].get(str(major), []):
 if T["tls_profile"] != "chrome%d" % major:
     errs.append("tls_profile %r != chrome%d" % (T["tls_profile"], major))
 # 3. JS table  (刀19: the table lives in a split file — scan every engine js file)
-_js_dir = os.path.join(ROOT, "crates/diting/js")
+_js_dir = os.path.join(ROOT, "crates/diting_js/js")
 js = "\n".join(open(os.path.join(_js_dir, fn), encoding="utf8").read()
                for fn in sorted(os.listdir(_js_dir)) if fn.endswith(".js"))
 m = re.search(r"const __DITING_FULL_BUILD = \{(.*?)\};", js, re.S)
@@ -47,7 +47,9 @@ if not os.path.exists(os.path.join(ROOT, bundle)):
 
 # 5. literals
 PAT = [re.compile(r"Chrome/(\d{2,3})\b"), re.compile(r'"Chromium\\?";\s*v=\\?"(\d{2,3})')]
-files = subprocess.run(["git", "ls-files", "crates/diting/src", "crates/diting/js", "src"], cwd=ROOT,
+files = subprocess.run(["git", "ls-files", "crates/diting/src", "crates/diting_env/src", "crates/diting_dom/src", "crates/diting_css/src",
+                        "crates/diting_layout/src", "crates/diting_net/src", "crates/diting_js/src", "crates/diting_page/src",
+                        "crates/diting_js/js", "src"], cwd=ROOT,
                        capture_output=True, text=True).stdout.split()
 for f in files:
     if not f.endswith((".rs", ".js")):

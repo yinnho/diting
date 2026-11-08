@@ -244,7 +244,7 @@ pub struct Persona {
 
 /// UA pool for a fresh persona: Windows and macOS Chrome at the target major only.
 /// The target version is single-sourced in `diting::chrome_target`
-/// (crates/diting/chrome-target.toml): UA, Client Hints, TLS preset and JS surface
+/// (crates/diting_env/chrome-target.toml): UA, Client Hints, TLS preset and JS surface
 /// all follow it, so `warn_on_ua_tls_mismatch` stays quiet. TLS emulation OS follows the UA, so Win↔Mac is the free
 /// axis — hardware differentiation rides the fp_seed. Linux is excluded:
 /// the TLS/OS contract and the product default are Win↔Mac; X11 jars on a

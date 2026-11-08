@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/internal_names.js: the `_x` / `__x` own-property names the engine's own scripts put on
+"""Generate crates/diting_js/js/internal_names.js: the `_x` / `__x` own-property names the engine's own scripts put on
 platform-interface instances (`this._nid = ...`). The enumeration patch (bootstrap.js __diting_init) hides exactly these on
 instances of platform interfaces, so a page's own `_foo` expando on `document` / `performance` stays visible (Chrome-like)
 while engine helper state does not leak into Object.getOwnPropertyNames(instance)."""
 import os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-JS = os.path.join(HERE, '../../../crates/diting/js')
+JS = os.path.join(HERE, '../../../crates/diting_js/js')
 SKIP = {'platform_bundle.js', 'shape_fix.js', 'stub_members.js', 'sym_fix.js', 'internal_names.js', 'mixin_fix.js'}
 names = set()
 rx = re.compile(r'\bthis\.(_[A-Za-z0-9_]+)\b')

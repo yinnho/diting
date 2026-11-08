@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Generate crates/diting/js/global_surface.js from Chrome-155 truth captures.
+# Generate crates/diting_js/js/global_surface.js from Chrome-155 truth captures.
 # Sources (tools/webplatform/chrome/): fp-winkeys-diff.json (missing names — a
 # FROZEN historical input: the names the engine lacked when this was first
 # generated; it cannot be recomputed from today's engine), fp-chrome-shapes.json (typeof/
@@ -9,8 +9,8 @@ import json
 import os, sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 CHROME = os.path.join(ROOT, "tools", "webplatform", "chrome")
-# usage: <this script> [OUT_DIR]   (default: crates/diting/js — the checked-in artifact)
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "crates", "diting", "js")
+# usage: <this script> [OUT_DIR]   (default: crates/diting_js/js — the checked-in artifact)
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "crates", "diting_js", "js")
 
 shapes = json.load(open(os.path.join(CHROME, "fp-chrome-shapes.json")))
 objflags = json.load(open(os.path.join(CHROME, "fp-chrome-objflags.json")))
@@ -414,10 +414,10 @@ for (const [path, cls] of ET_SINGLETON) {
        ",\n  ".join("[%s,%s]" % (json.dumps(a), json.dumps(b)) for a, b in et_single)))
 
 open(os.path.join(OUT, "global_surface.js"), "w").write("".join(js))
-print("wrote crates/diting/js/global_surface.js:",
+print("wrote crates/diting_js/js/global_surface.js:",
       "throw=%d ok=%d method=%d obj-data=%d obj-getter=%d bool=%d undef=%d et-chain=%d et-alias=%d et-single=%d" % (
           len(groups["throw"]), len(groups["ok"]), len(groups["method"]),
           len(data_objs), len(acc_objs), len(groups["boolean"]), len(groups["undefined"]),
           len(et_chain), len(et_alias), len(et_single)))
 print("on* set for bootstrap swap:", len(on_all))
-json.dump(on_all, open(os.path.join(CHROME, "chrome-window-on-set.json") if OUT.endswith(os.path.join("crates","diting","js")) else os.devnull, "w"))
+json.dump(on_all, open(os.path.join(CHROME, "chrome-window-on-set.json") if OUT.endswith(os.path.join("crates","diting_js","js")) else os.devnull, "w"))

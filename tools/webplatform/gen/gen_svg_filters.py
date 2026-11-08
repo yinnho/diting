@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/svg_filters.js from chrome/svg-filters-truth-145.json (svg-filters-probe.js via probe_run.py chrome).
+"""Generate crates/diting_js/js/svg_filters.js from chrome/svg-filters-truth-145.json (svg-filters-probe.js via probe_run.py chrome).
 
 Real reflectors for the SVG interfaces that were pure stubs (getters answering undefined): mask, filter, mpath, script,
 textPath, view, the fe* primitives, the component-transfer functions and the light sources. Per member the capture gives
@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 D = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome/svg-filters-truth-145.json')))
 T = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome/shape-audit-truth-145.json')))
-out_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'crates/diting/js/svg_filters.js')
+out_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'crates/diting_js/js/svg_filters.js')
 KW = {
  'SVGFEBlendElement.mode': {'normal':1,'multiply':2,'screen':3,'darken':4,'lighten':5,'overlay':6,'color-dodge':7,'color-burn':8,'hard-light':9,'soft-light':10,'difference':11,'exclusion':12,'hue':13,'saturation':14,'color':15,'luminosity':16},
  'SVGFEColorMatrixElement.type': {'matrix':1,'saturate':2,'hueRotate':3,'luminanceToAlpha':4},

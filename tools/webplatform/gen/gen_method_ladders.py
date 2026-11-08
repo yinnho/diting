@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/method_ladders.js: WebIDL required-argument checks for the methods the engine lacks them on.
+"""Generate crates/diting_js/js/method_ladders.js: WebIDL required-argument checks for the methods the engine lacks them on.
 
 Chrome rejects a call with fewer arguments than the method's required count with
 `TypeError: Failed to execute 'm' on 'Interface': N argument(s) required, but only K present.` before touching the receiver
@@ -20,7 +20,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 T = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome/shape-audit-truth-145.json')))
-out_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'crates/diting/js/method_ladders.js')
+out_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'crates/diting_js/js/method_ladders.js')
 SYNC, PROM = {}, {}
 for _f in ('ladders-truth-145.json', 'ladders-inst-truth-145.json'):
     _L = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome', _f)))

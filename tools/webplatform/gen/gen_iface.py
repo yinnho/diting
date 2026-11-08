@@ -4,7 +4,7 @@
 usage: gen_iface.py <spec.json> <out.js> <module-name> [truth.json]
 
 Reads a slice written by extract_spec.py and emits ONE module file
-(crates/diting/js/platform/gen/<x>.gen.js) with a manifest header. The shape
+(crates/diting_js/js/platform/gen/<x>.gen.js) with a manifest header. The shape
 (constructor, prototype descriptors, arity, brand checks, conversions, Chrome
 message wording) comes from the IDL; behavior is delegated:
 

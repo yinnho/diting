@@ -1,0 +1,20 @@
+[package]
+name = "diting_env"
+version.workspace = true
+edition = "2021"
+description = "Diting engine leaf: DITING_* runtime knobs and the claimed Chrome target (chrome-target.toml)."
+license = "Apache-2.0"
+repository = "https://github.com/yinnho/diting"
+publish = false
+
+[features]
+default = []
+# The generated chrome_target carries target_tls_profile() behind this.
+stealth = ["dep:diting_profiles"]
+
+[dependencies]
+url = "2"
+diting_profiles = { path = "../diting_profiles", optional = true }
+
+[lints]
+workspace = true
