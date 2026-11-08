@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 pub mod selector;
 pub mod serialize;
 pub mod tree;

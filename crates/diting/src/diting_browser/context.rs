@@ -15,7 +15,6 @@ pub struct BrowserContext {
     /// construction and the lazy wreq client in page.rs. tls_fingerprint
     /// selects the wreq Emulation for that client (stealth builds only),
     /// so plain builds see both as unread.
-    #[cfg_attr(not(feature = "stealth"), allow(dead_code))]
     pub stealth: bool,
     pub storage_dir: Option<PathBuf>,
     /// When true, the http client allows fetching localhost / RFC1918 /
@@ -24,14 +23,12 @@ pub struct BrowserContext {
     /// (`diting_net::client::allow_file_access`, threat model = the
     /// operator's filesystem on a 0.0.0.0-bound server), while
     /// private-network is the broader SSRF gate from issue #4.
-    #[allow(dead_code)]
     // gate is enforced at HttpClient construction; field kept for introspection
     pub allow_private_network: bool,
     /// TLS fingerprint name override (stealth mode only): "chrome157",
     /// "firefox133", etc. None → the chrome-target default. Kept as a String
     /// (not the `Emulation` enum) so the field exists regardless of the
     /// `stealth` feature; parsed into an `Emulation` lazily in the stealth client.
-    #[cfg_attr(not(feature = "stealth"), allow(dead_code))]
     pub tls_fingerprint: Option<String>,
 }
 
@@ -192,12 +189,10 @@ impl BrowserContext {
         }
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // constructor-matrix coverage lives in this file's tests
     pub fn with_options(id: String, proxy_url: Option<String>, stealth: bool) -> Self {
         Self::with_full_options(id, proxy_url, stealth, None)
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // constructor-matrix coverage lives in this file's tests
     pub fn with_full_options(
         id: String,
         proxy_url: Option<String>,
@@ -246,27 +241,6 @@ impl BrowserContext {
             storage_dir: persistent.then(|| self.storage_dir.clone()).flatten(),
             allow_private_network: self.allow_private_network,
             tls_fingerprint: self.tls_fingerprint.clone(),
-        }
-    }
-
-    /// Persist cookies to disk if storage_dir is configured. Currently
-    /// unwired: the server builds a fresh Browser per request and never
-    /// passes a storage_dir, so no shutdown moment owns the jar. Parked
-    /// until session persistence lands (the load half in `_new_inner`
-    /// already works).
-    #[allow(dead_code)]
-    pub fn save_cookies(&self) {
-        if let Some(ref dir) = self.storage_dir {
-            if let Err(e) = std::fs::create_dir_all(dir) {
-                tracing::warn!("storage dir create failed ({}): {}", dir.display(), e);
-                return;
-            }
-            let cookie_path = dir.join("cookies.json");
-            if let Err(e) = self.cookie_jar.save_to_file(&cookie_path) {
-                tracing::warn!("Failed to save cookies to {}: {}", cookie_path.display(), e);
-            } else {
-                tracing::info!("Saved cookies to {}", cookie_path.display());
-            }
         }
     }
 }

@@ -5022,33 +5022,33 @@ fn ua_link_color_default_blue_for_href_anchors() {
 
 #[test]
 fn parse_color_with_origin_tags_modern_functions() {
-    use super::color::parse_color_with_origin;
+    use super::color::parse_color_with_scheme;
     // Modern: the twin slot fills, sRGB Color still parses for paint.
-    let (c, m) = parse_color_with_origin("oklch(70% 0.1 200)").unwrap();
+    let (c, m) = parse_color_with_scheme("oklch(70% 0.1 200)", false).unwrap();
     assert!(c.3 > 0, "paint colour still resolves");
     assert_eq!(m.map(|x| x.to_css()).as_deref(), Some("oklch(0.7 0.1 200)"));
 
-    let (_, m) = parse_color_with_origin("rgb(from red r g 255)").unwrap();
+    let (_, m) = parse_color_with_scheme("rgb(from red r g 255)", false).unwrap();
     assert_eq!(m.map(|x| x.to_css()).as_deref(), Some("color(srgb 1 0 1)"));
 
-    let (_, m) = parse_color_with_origin("color-mix(in srgb, red 50%, blue)").unwrap();
+    let (_, m) = parse_color_with_scheme("color-mix(in srgb, red 50%, blue)", false).unwrap();
     assert_eq!(
         m.map(|x| x.to_css()).as_deref(),
         Some("color(srgb 0.5 0 0.5)")
     );
 
-    let (_, m) = parse_color_with_origin("lab(50% 20 -30)").unwrap();
+    let (_, m) = parse_color_with_scheme("lab(50% 20 -30)", false).unwrap();
     assert_eq!(m.map(|x| x.to_css()).as_deref(), Some("lab(50 20 -30)"));
 
     // `none` channels survive verbatim.
-    let (_, m) = parse_color_with_origin("oklch(none 0.1 200)").unwrap();
+    let (_, m) = parse_color_with_scheme("oklch(none 0.1 200)", false).unwrap();
     assert_eq!(
         m.map(|x| x.to_css()).as_deref(),
         Some("oklch(none 0.1 200)")
     );
 
     // Alpha < 1 appends the slash form; 70% L normalises to 0.7.
-    let (_, m) = parse_color_with_origin("oklch(70% 0.1 200 / 0.5)").unwrap();
+    let (_, m) = parse_color_with_scheme("oklch(70% 0.1 200 / 0.5)", false).unwrap();
     assert_eq!(
         m.map(|x| x.to_css()).as_deref(),
         Some("oklch(0.7 0.1 200 / 0.5)")
@@ -5062,7 +5062,7 @@ fn parse_color_with_origin_tags_modern_functions() {
         "rgba(0,0,0,.5)",
         "hsl(120 100% 25%)",
     ] {
-        let (_, m) = parse_color_with_origin(legacy).unwrap();
+        let (_, m) = parse_color_with_scheme(legacy, false).unwrap();
         assert!(m.is_none(), "{legacy} should not tag modern");
     }
 }

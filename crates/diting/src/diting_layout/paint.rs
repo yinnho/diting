@@ -1,16 +1,8 @@
-//! Minimal raster paint (render claim batch 4a).
-//!
-//! The diting stack's first pixels: [`execute`] replays the document-order
-//! [`PaintItem`] list that [`layout_dom_with_paint`](super::layout_dom_with_paint)
-//! produced — solid background fills and wrapped text tiles — onto an RGBA
-//! [`Canvas`]. Upstream obscura-render draws the same two primitive kinds
-//! through vello_cpu scene encoding; we compare against exactly that in the
-//! cross-check tests (background bbox exact, text ink extents and per-line
-//! band structure within the batch-3b ±2px ink tolerance).
-//!
-//! Not in this slice: border-radius,
-//! per-side border colors/styles, network-loaded images (data: PNG only),
-//! gradients, z-index/stacking contexts.
+//! Raster paint: [`execute`] replays the [`PaintItem`] list that
+//! [`layout_dom_with_paint`](super::layout_dom_with_paint) and its siblings
+//! produce (backgrounds incl. gradients, borders/radius, text tiles, images,
+//! svg ops) onto an RGBA [`Canvas`], in the stacking order layout computed.
+//! Blend modes live in `paint/blend.rs`.
 
 use super::forms::{paint_form_control, paint_form_widget};
 use super::text::{

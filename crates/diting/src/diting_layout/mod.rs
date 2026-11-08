@@ -1,29 +1,15 @@
-//! Taffy fork-delta classification + minimal DOM→taffy layout bridge
-//! (render claim batch 2a / 2b).
+//! DOM → box tree → geometry: diting's layout stage (screenshot feature).
 //!
-//! Upstream obscura vendors `taffy 0.12.1 + 11 fork commits` (~1.8k net lines:
-//! geometric float clearance, margin-collapse metadata in the measure cache,
-//! preferred-aspect-ratio transfer, the `normal` alignment keyword, grid
-//! auto-margin fit-content sizing, track distribution limits, intrinsic-size
-//! containment, and a calc() resolver injection hook). Our product pipeline
-//! pins stock taffy 0.13.0 through blitz, and none of that fork work is in
-//! 0.13.0 (verified marker-by-marker; only float `clear_bottoms` partially
-//! landed, the segment-index high-water-marks remain).
+//! Entry points: `compute_styles*` runs the cascade over a `DomTree` into
+//! per-node `ComputedStyle`; `layout_solve*` maps that onto our taffy tree
+//! (`flow_tree.rs`, vendored `diting_taffy`) and solves it; `layout_collect*`
+//! / `layout_dom*` walk the solved tree into paint items (`paint.rs`) with
+//! text measured by swash (`text.rs`) and decoded images (`image.rs`).
+//! Floats, tables, positioned/sticky boxes, forms, SVG and pseudo-element
+//! content each live in their own submodule below.
 //!
-//! This module ports the fork's own regression scenarios to stock 0.13.0 and
-//! locks the observed outputs. Where an assertion differs from the fork's
-//! expectation (noted in each comment), that behavior is fork-only: the day
-//! stock taffy absorbs the fix, the locked assertion here fails and names
-//! exactly what changed. The full eight-theme classification lives
-//! with the absorbed fork notes.
-//!
-//! The bridge below (batch 2b) is the minimal vertical slice of upstream
-//! dom.rs's DOM→taffy mapping: display roles, box-model px, text-align
-//! promotion, and deterministic word-leaf text. Not modeled yet (upstream
-//! has, we absorb in later batches): float/table/multicol, replaced elements,
-//! position:absolute, em/rem/% lengths, flex/grid property pass-through.
-//! Same engine both sides of the cross-check (stock taffy 0.13.0), so the
-//! rect comparison isolates the BRIDGE, not the layout algorithm.
+//! The taffy fork-delta regression ports (obscura's forked taffy vs ours)
+//! are test-only and live in `fork_deltas.rs` / `fork_table_deltas.rs`.
 
 use std::collections::{HashMap, HashSet};
 

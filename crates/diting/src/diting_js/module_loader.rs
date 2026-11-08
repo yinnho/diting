@@ -35,7 +35,6 @@ pub struct DitingModuleLoader {
 }
 
 impl DitingModuleLoader {
-    #[cfg_attr(not(test), allow(dead_code))] // direct-connection shorthand; runtime.rs uses with_proxy
     pub fn new(base_url: &str) -> Self {
         Self::with_proxy(base_url, None)
     }
