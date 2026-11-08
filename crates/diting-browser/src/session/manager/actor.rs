@@ -9,6 +9,8 @@
 //! until the new document commits), and every other command parks FIFO in
 //! `nav_deferred`, replayed after the load lands.
 
+use super::super::commands::SessionClickResponse;
+use super::super::state::ConsoleFilter;
 use super::*;
 use crate::cookie::http_date;
 
@@ -149,7 +151,7 @@ pub(super) fn session_thread(
                 // in order. In-memory only, dies with the session; exported
                 // explicitly via the Export command. Declared before the
                 // initial navigation below (which moves start_url).
-                let mut recorder: Vec<RecordedAction> = vec![RecordedAction::Create {
+                let recorder: Vec<RecordedAction> = vec![RecordedAction::Create {
                     url: start_url.clone(),
                     use_proxy,
                     cookies: cookies.clone(),
@@ -178,7 +180,7 @@ pub(super) fn session_thread(
                 // so every navigation re-applies it — the page object survives
                 // navigations, but re-applying mirrors the CDP face's sync and
                 // keeps the group authoritative here.
-                let mut preload_scripts: Vec<String> = Vec::new();
+                let preload_scripts: Vec<String> = Vec::new();
                 if let Some(url) = start_url {
                     // Document-start group for the creation navigation —
                     // same path as explicit Navigate. Site recipes are
@@ -250,7 +252,7 @@ pub(super) fn session_thread(
                 try_inject_storage(&mut page, &mut pending_storage);
 
                 // Element index → _nid mapping (rebuilt on each /state call).
-                let mut element_map: HashMap<usize, u64> = HashMap::new();
+                let element_map: HashMap<usize, u64> = HashMap::new();
 
                 // Command loop. Between commands the JS event loop keeps
                 // running (200ms slices) instead of freezing on a blocking
@@ -279,8 +281,22 @@ pub(super) fn session_thread(
                 // pre-navigation frame cache and parks everything else
                 // here). Replayed in arrival order, ahead of cmd_rx — they
                 // were received first.
-                let mut pending_replay: std::collections::VecDeque<SessionCommand> =
+                let pending_replay: std::collections::VecDeque<SessionCommand> =
                     std::collections::VecDeque::new();
+                let mut actor = SessionActor {
+                    session_id,
+                    account,
+                    nav_shared,
+                    page,
+                    recorder,
+                    console_ring,
+                    pages_loaded,
+                    last_nav_error,
+                    preload_scripts,
+                    pending_storage,
+                    element_map,
+                    pending_replay,
+                };
                 loop {
                     // hosted-incident 10-14: a realm the heap guard has
                     // terminated three times is unmanageable — each trip
@@ -291,14 +307,14 @@ pub(super) fn session_thread(
                     // heap go back to the process, and the manager reports
                     // ThreadDied on the next touch (the snapshot survives
                     // for a clean revive if the operator wants one).
-                    if page.inner.heap_guard_strikes() >= 3 {
+                    if actor.page.inner.heap_guard_strikes() >= 3 {
                         tracing::warn!(
-                            url = %page.url(),
+                            url = %actor.page.url(),
                             "realm dropped: heap guard struck 3 times — isolate released, session thread exiting"
                         );
                         break;
                     }
-                    let cmd = if let Some(replay) = pending_replay.pop_front() {
+                    let cmd = if let Some(replay) = actor.pending_replay.pop_front() {
                         replay
                     } else {
                         let cmd = tokio::select! {
@@ -307,8 +323,8 @@ pub(super) fn session_thread(
                             Some(c) => c,
                             None => break,
                         },
-                        _ = page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
-                            drain_console(&mut page, &mut console_ring);
+                        _ = actor.page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
+                            drain_console(&mut actor.page, &mut actor.console_ring);
                             drain_budget = 0;
                             // #276 idle shrink: once the drain is spent the
                             // page has had a quiet 200ms slice — five more
@@ -319,7 +335,7 @@ pub(super) fn session_thread(
                             if idle_slices < 5 {
                                 idle_slices += 1;
                             } else if diting::env_knobs::realm_shrink() {
-                                page.shrink_js_heap();
+                                actor.page.shrink_js_heap();
                                 idle_slices = 0;
                             }
                             continue;
@@ -331,813 +347,36 @@ pub(super) fn session_thread(
                     // buys the next pump slice at full speed — the dialog
                     // mounts and module loads a click kicks off run in the
                     // idle pump, not in the command handler itself.
-                    page.note_command_arrived();
+                    actor.page.note_command_arrived();
                     match cmd {
-                        SessionCommand::Navigate { url, reply } => {
-                            // Budget first (local, free), then the per-domain
-                            // rate gate — same stance as the stateless paths.
-                            //
-                            // #193: the load runs to completion inside this
-                            // arm, but a biased select below keeps answering
-                            // the command channel while it does. A
-                            // default-shape screenshot poll is served the
-                            // pre-navigation frame (Chrome keeps the old
-                            // frame until the new document commits — a poll
-                            // that instead hangs behind the load reads as a
-                            // frozen browser); every other command parks in
-                            // FIFO and replays after the load lands, in
-                            // arrival order — the same order the cmd_rx
-                            // queue gave them before this arm existed.
-                            let mut nav_deferred: Vec<SessionCommand> = Vec::new();
-                            let result = match crate::rate::check_page_budget(pages_loaded)
-                                .and_then(|_| crate::rate::check_domain(&url))
-                            {
-                                Err(reason) => Err(reason),
-                                Ok(()) => {
-                                    // Document-start group + optional
-                                    // builtin names echoed on the nav
-                                    // response (empty while host
-                                    // auto-mount is off; recipe= still
-                                    // lands via the user group).
-                                    let builtin_preloads = crate::session::preload_recipes::builtin_names(&url);
-                                    page.inner.set_preload_scripts(crate::session::preload_recipes::effective_scripts(&url, &preload_scripts));
-                                    #[cfg(feature = "screenshot")]
-                                    let nav_frame = page.band_frame_cache.clone();
-                                    #[cfg(feature = "screenshot")]
-                                    let nav_frame_url = page.url();
-                                    // #195: publish the pre-navigation state and
-                                    // raise the in-flight flag BEFORE the load
-                                    // starts — from here the V8 thread may sit
-                                    // inside synchronous page JS for seconds,
-                                    // beyond this loop's polling reach (the
-                                    // in-arm serve below still answers while
-                                    // goto awaits the network; the sender side
-                                    // covers the script-held stretch).
-                                    #[cfg(feature = "screenshot")]
-                                    nav_shared.begin(nav_frame_url.clone(), nav_frame.clone());
-                                    // Scoped so the pinned goto (which holds
-                                    // &mut page) drops before the post-landing
-                                    // bookkeeping borrows the page again.
-                                    let nav_result = {
-                                        let mut goto = std::pin::pin!(page.goto(&url));
-                                        loop {
-                                            tokio::select! {
-                                                biased;
-                                                r = &mut goto => break r,
-                                                incoming = cmd_rx.recv() => {
-                                                    match incoming {
-                                                        // Channel closed: the session is dropping.
-                                                        // Finish the load so the page state is
-                                                        // consistent; the replies go nowhere.
-                                                        None => break goto.as_mut().await,
-                                                        #[cfg(feature = "screenshot")]
-                                                        Some(SessionCommand::Screenshot { width: None, height: None, full_page: false, selector: None, selector_all: false, dpr, reply }) => {
-                                                            // Same shape and dpr as the cached frame:
-                                                            // serve the pre-navigation PNG. Any other
-                                                            // request (explicit size, full_page,
-                                                            // selector, different dpr) needs the
-                                                            // page and parks like everything else.
-                                                            let scale = crate::session::screenshot::resolve_dpr(dpr);
-                                                            match nav_frame.as_ref().filter(|f| f.sig.7 == scale) {
-                                                                Some(f) => {
-                                                                    let _ = reply.send(Ok(crate::session::screenshot::cached_frame_json(&nav_frame_url, f.width, f.height, &f.png)));
-                                                                }
-                                                                None => nav_deferred.push(SessionCommand::Screenshot { width: None, height: None, full_page: false, selector: None, selector_all: false, dpr, reply }),
-                                                            }
-                                                        }
-                                                        Some(other) => nav_deferred.push(other),
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    };
-                                    // #195: the load is over (landed or failed)
-                                    // — sender-side old-frame answers stand
-                                    // down; polls go through the channel again.
-                                    nav_shared.end();
-                                    match nav_result {
-                                        Ok(()) => {
-                                            let final_url = page.url();
-                                            let title = page
-                                                .evaluate("document.title")
-                                                .as_str()
-                                                .filter(|s| !s.is_empty())
-                                                .map(|s| s.to_string());
-                                            let challenge = crate::har::challenge_kind(&final_url)
-                                                .map(|s| s.to_string());
-                                            element_map.clear();
-                                            pages_loaded += 1;
-                                            last_nav_error = None;
-                                            // A pending origin-gated storage
-                                            // blob may belong to exactly this
-                                            // landing (issue #141): the
-                                            // start_url-less session that
-                                            // idled on about:blank, or a
-                                            // login wizard's Navigate to the
-                                            // captured site.
-                                            try_inject_storage(&mut page, &mut pending_storage);
-                                            Ok(SessionNavResponse {
-                                                url: final_url,
-                                                title,
-                                                challenge,
-                                                redirected_from: page.inner.redirect_chain.clone(),
-                                                preloads: builtin_preloads.iter().map(|s| s.to_string()).collect(),
-                                            })
-                                        }
-                                        Err(e) => {
-                                            let msg = format!("navigation failed: {}", e);
-                                            last_nav_error = Some(msg.clone());
-                                            Err(msg)
-                                        }
-                                    }
-                                }
-                            };
-                            recorder.push(RecordedAction::Navigate {
-                                ok: result.is_ok(),
-                                url,
-                            });
-                            let _ = reply.send(result);
-                            pending_replay.extend(nav_deferred);
-                        }
-
-                        SessionCommand::SetPreload { scripts, reply } => {
-                            preload_scripts = scripts;
-                            page.inner.set_preload_scripts(preload_scripts.clone());
-                            let _ = reply.send(Ok(serde_json::json!({
-                                "count": preload_scripts.len(),
-                            })));
-                        }
-
-                        SessionCommand::SetContent { html, reply } => {
-                            // Local bytes on the same load path as a
-                            // navigation: base64 data URL (no escaping
-                            // games with # , % in the HTML), decoded by
-                            // the nav layer. pages_loaded stays put —
-                            // nothing walked the network, so the page
-                            // budget doesn't spend here.
-                            use base64::{engine::general_purpose::STANDARD, Engine as _};
-                            let url = format!(
-                                "data:text/html;base64,{}",
-                                STANDARD.encode(html.as_bytes())
-                            );
-                            page.inner.set_preload_scripts(preload_scripts.clone());
-                            // #195: a data: URL parses inline scripts on the
-                            // same V8 thread — a long script in setContent
-                            // HTML holds the actor exactly like a network
-                            // navigation, so publish + flag around it too.
-                            #[cfg(feature = "screenshot")]
-                            nav_shared.begin(page.url(), page.band_frame_cache.clone());
-                            let result = match page.goto(&url).await {
-                                Ok(()) => {
-                                    let title = page
-                                        .evaluate("document.title")
-                                        .as_str()
-                                        .filter(|s| !s.is_empty())
-                                        .map(|s| s.to_string());
-                                    element_map.clear();
-                                    last_nav_error = None;
-                                    Ok(serde_json::json!({
-                                        "bytes": html.len(),
-                                        "title": title,
-                                    }))
-                                }
-                                Err(e) => {
-                                    let msg = format!("setContent failed: {}", e);
-                                    last_nav_error = Some(msg.clone());
-                                    Err(msg)
-                                }
-                            };
-                            // #195: same stand-down as the Navigate arm.
-                            nav_shared.end();
-                            recorder.push(RecordedAction::SetContent {
-                                ok: result.is_ok(),
-                                html,
-                            });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::State { reply } => {
-                            element_map.clear();
-                            let result = extract_indexed_state(&mut page, &mut element_map)
-                                .map_err(|e| match &last_nav_error {
-                                    // #80: a failed navigation is the likely
-                                    // cause of a non-string extraction (no JS
-                                    // runtime on the fallback page) — say the
-                                    // navigation error instead of a stringness
-                                    // complaint the caller can't act on.
-                                    Some(nav) => format!(
-                                        "{} — the last navigation did not complete, \
-                                         the session is on the fallback page \
-                                         (state extraction: {})",
-                                        nav, e
-                                    ),
-                                    None => e,
-                                });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::Snapshot { reply } => {
-                            element_map.clear();
-                            let result = extract_snapshot(&mut page, &mut element_map)
-                                .map_err(|e| match &last_nav_error {
-                                    Some(nav) => format!(
-                                        "{} — the last navigation did not complete, \
-                                         the session is on the fallback page \
-                                         (snapshot extraction: {})",
-                                        nav, e
-                                    ),
-                                    None => e,
-                                });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::Click { index, reply } => {
-                            // A click that changes the page is a page walk and
-                            // spends the budget; one that only toggles state
-                            // (a checkbox, a menu) is free.
-                            let result = match crate::rate::check_page_budget(pages_loaded) {
-                                Err(reason) => Err(reason),
-                                Ok(()) => {
-                                    let before = page.url();
-                                    click_by_index(&mut page, &element_map, index)
-                                        .await
-                                        .inspect(|resp| {
-                                            if resp.url != before {
-                                                pages_loaded += 1;
-                                            }
-                                        })
-                                }
-                            };
-                            recorder.push(RecordedAction::Click { index, ok: result.is_ok() });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::Input { index, text, full_events, reply } => {
-                            let result = input_by_index(&mut page, &element_map, index, &text, full_events);
-                            // A filled Enter can submit the form implicitly
-                            // (#194) and a change listener can navigate by
-                            // itself — drain the queued navigation so the
-                            // next command sees the landing page, same
-                            // contract as the click path.
-                            let filled = result
-                                .as_ref()
-                                .map(|v| v.get("filled").and_then(Value::as_bool).unwrap_or(false))
-                                .unwrap_or(false);
-                            if filled {
-                                let _ = page.process_pending_navigation().await;
-                            }
-                            recorder.push(RecordedAction::Input {
-                                index,
-                                text,
-                                ok: filled,
-                            });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::SetFiles { selector, files, reply } => {
-                            let result = set_files_by_selector(&mut page, selector.as_deref(), &files);
-                            recorder.push(RecordedAction::SetFiles {
-                                selector,
-                                names: files
-                                    .iter()
-                                    .filter_map(|f| f.get("name").and_then(Value::as_str).map(str::to_owned))
-                                    .collect(),
-                                ok: result
-                                    .as_ref()
-                                    .map(|v| v.get("set").and_then(Value::as_bool).unwrap_or(false))
-                                    .unwrap_or(false),
-                            });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::ClickXY { x, y, button, click_count, reply } => {
-                            // A coordinate click can navigate exactly like an
-                            // indexed one, so it spends the same page budget.
-                            // #236: an eval error in the dispatch chain IS the
-                            // result — "coordinates accepted" no longer masquerades
-                            // as "event chain actually dispatched".
-                            let result = match crate::rate::check_page_budget(pages_loaded) {
-                                Err(reason) => Err(reason),
-                                Ok(()) => {
-                                    let before = page.url();
-                                    match click_xy(&mut page, x, y, &button, click_count).await {
-                                        Err(stage) => Err(format!("click dispatch incomplete: {stage}")),
-                                        Ok(()) => {
-                                            let _ = page.process_pending_navigation().await;
-                                            if page.url() != before {
-                                                pages_loaded += 1;
-                                            }
-                                            Ok(serde_json::json!({
-                                                "url": page.url(),
-                                                "x": x,
-                                                "y": y,
-                                            }).to_string())
-                                        }
-                                    }
-                                }
-                            };
-                            recorder.push(RecordedAction::ClickXY { x, y, ok: result.is_ok() });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::Drag { from_x, from_y, to_x, to_y, steps, delay_ms, humanize, reply } => {
-                            let steps = steps.clamp(1, 200);
-                            let delay_ms = delay_ms.min(1000);
-                            let result = match crate::rate::check_page_budget(pages_loaded) {
-                                Err(reason) => Err(reason),
-                                Ok(()) => {
-                                    let before = page.url();
-                                    match drag_xy(&mut page, from_x, from_y, to_x, to_y, steps, delay_ms, humanize).await {
-                                        Err(stage) => Err(format!("drag dispatch incomplete: {stage}")),
-                                        Ok(()) => {
-                                            let _ = page.process_pending_navigation().await;
-                                            if page.url() != before {
-                                                pages_loaded += 1;
-                                            }
-                                            Ok(serde_json::json!({
-                                                "url": page.url(),
-                                                "from": {"x": from_x, "y": from_y},
-                                                "to": {"x": to_x, "y": to_y},
-                                                "steps": steps,
-                                                "humanized": humanize,
-                                            }).to_string())
-                                        }
-                                    }
-                                }
-                            };
-                            recorder.push(RecordedAction::Drag { from_x, from_y, to_x, to_y, steps });
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::Scroll { direction, amount, reply } => {
-                            let dy = match direction {
-                                ScrollDirection::Up => -(amount as i32) * 100,
-                                ScrollDirection::Down => (amount as i32) * 100,
-                            };
-                            let js = format!("window.scrollBy(0, {})", dy);
-                            page.evaluate_with_timeout(&js, crate::page::INTERACTION_EVAL_TIMEOUT);
-                            recorder.push(RecordedAction::Scroll {
-                                direction: match direction {
-                                    ScrollDirection::Up => "up".to_string(),
-                                    ScrollDirection::Down => "down".to_string(),
-                                },
-                                amount,
-                            });
-                            let _ = reply.send(Ok(true));
-                        }
-
-                        SessionCommand::GetViewport { reply } => {
-                            let _ = reply.send(Ok(page.viewport_override()));
-                        }
-
-                        SessionCommand::Viewport { width, height, mobile, reply } => {
-                            // Unspecified dimensions keep the current ones
-                            // (Chrome's setDeviceMetricsOverride rule), so
-                            // read the live values before overriding.
-                            let probe = "(function(){return [innerWidth, innerHeight]})()";
-                            let current = {
-                                let v = page.evaluate_with_timeout(probe, crate::page::INTERACTION_EVAL_TIMEOUT);
-                                match (v.get(0).and_then(Value::as_f64), v.get(1).and_then(Value::as_f64)) {
-                                    (Some(w), Some(h)) if w > 0.0 && h > 0.0 => (w as f32, h as f32),
-                                    _ => (1920.0, 1000.0),
-                                }
-                            };
-                            let w = width.map(|v| v as f32).unwrap_or(current.0);
-                            let h = height.map(|v| v as f32).unwrap_or(current.1);
-                            page.set_viewport_override(w, h, mobile, None);
-                            let val = serde_json::json!({
-                                "width": w as u32,
-                                "height": h as u32,
-                                "mobile": mobile,
-                            });
-                            recorder.push(RecordedAction::Viewport { width: Some(w as u32), height: Some(h as u32), mobile });
-                            let _ = reply.send(Ok(val));
-                        }
-
-                        SessionCommand::Eval { script, timeout_ms, reply } => {
-                            let outcome = if !page.inner.has_js() {
-                                // #80: without a JS runtime every eval would
-                                // silently answer null (only document.title /
-                                // URL are stub-served) — a navigation that
-                                // "succeeded" into an error page leaves the
-                                // page runtime-less. Say it instead of null.
-                                Err(format!(
-                                    "page has no JS runtime — the last navigation did not \
-                                     complete{}; navigate again",
-                                    last_nav_error
-                                        .as_deref()
-                                        .map(|nav| format!(" ({})", nav))
-                                        .unwrap_or_default()
-                                ))
-                            } else {
-                                page.evaluate_async_checked(&script, timeout_ms).await
-                            };
-                            // A null result on the post-failure fallback page
-                            // (about:blank after a failed goto) reads as
-                            // "page is broken"; the navigation error is the
-                            // actionable truth, so surface it (#80). Real
-                            // values pass through untouched — the fallback
-                            // page is alive and the script genuinely ran.
-                            let outcome = match outcome {
-                                Ok(v) if v.is_null() && last_nav_error.is_some() => Err(format!(
-                                    "{} — the last navigation did not complete, \
-                                     the session is on the fallback page; navigate again",
-                                    last_nav_error.as_deref().unwrap_or_default()
-                                )),
-                                other => other,
-                            };
-                            recorder.push(RecordedAction::Eval { script });
-                            // Drain any JS-initiated navigation the script
-                            // started (location.href / form submit) so the
-                            // session's current URL moves with it — same
-                            // policy as click_by_index below.
-                            let _ = page.process_pending_navigation().await;
-                            let _ = reply.send(outcome.map_err(SessionError::Eval));
-                        }
-
-                        SessionCommand::Url { reply } => {
-                            let _ = reply.send(Ok(page.url()));
-                        }
-
-                        SessionCommand::Storage { reply } => {
-                            let collect = "(function(){ var ls={}, ss={}; \
-                                try { for (var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); ls[k]=localStorage.getItem(k); } } catch(e) {} \
-                                try { for (var i=0;i<sessionStorage.length;i++){ var k=sessionStorage.key(i); ss[k]=sessionStorage.getItem(k); } } catch(e) {} \
-                                return {local_storage: ls, session_storage: ss}; })()";
-                            let v = page.evaluate(collect);
-                            let payload = serde_json::json!({
-                                "url": page.url(),
-                                "local_storage": v.get("local_storage").cloned().unwrap_or(serde_json::json!({})),
-                                "session_storage": v.get("session_storage").cloned().unwrap_or(serde_json::json!({})),
-                            });
-                            let _ = reply.send(Ok(payload.to_string()));
-                        }
-
-                        SessionCommand::Console { filter, reply } => {
-                            drain_console(&mut page, &mut console_ring);
-                            let total = console_ring.len();
-                            let mut messages: Vec<Value> = console_ring
-                                .iter()
-                                .filter(|e| filter.matches(e))
-                                .cloned()
-                                .collect();
-                            let matched = messages.len();
-                            if let Some(cap) = filter.limit {
-                                if messages.len() > cap {
-                                    messages = messages.split_off(messages.len() - cap);
-                                }
-                            }
-                            let payload = serde_json::json!({
-                                "url": page.url(),
-                                "total": total,
-                                "matched": matched,
-                                "messages": messages,
-                            });
-                            let _ = reply.send(Ok(payload.to_string()));
-                        }
-
-                        SessionCommand::Dialog { action, prompt_text, reply } => {
-                            let out = match action.as_str() {
-                                "list" => {
-                                    drain_console(&mut page, &mut console_ring);
-                                    let (accept, prompt_text) = page.inner.dialog_policy();
-                                    let dialogs: Vec<Value> = console_ring
-                                        .iter()
-                                        .filter(|e| e["level"] == "dialog")
-                                        .cloned()
-                                        .collect();
-                                    Ok(serde_json::json!({
-                                        "policy": if accept { "accept" } else { "dismiss" },
-                                        "prompt_text": prompt_text,
-                                        "dialogs": dialogs,
-                                    }).to_string())
-                                }
-                                "accept" | "dismiss" => {
-                                    page.inner.set_dialog_policy(action == "accept", prompt_text);
-                                    let (accept, prompt_text) = page.inner.dialog_policy();
-                                    Ok(serde_json::json!({
-                                        "policy": if accept { "accept" } else { "dismiss" },
-                                        "prompt_text": prompt_text,
-                                    }).to_string())
-                                }
-                                other => Err(format!(
-                                    "unknown dialog action {:?} (expected list | accept | dismiss)",
-                                    other
-                                )),
-                            };
-                            let _ = reply.send(out);
-                        }
-
-                        SessionCommand::Cookies { reply } => {
-                            let url_str = page.url();
-                            // Full Set-Cookie form (Domain/flags included) so
-                            // snapshot/clone restores cross-subdomain login
-                            // state: bare name=value pairs re-anchor at
-                            // whatever URL the new session opens, losing
-                            // every sibling-domain cookie.
-                            let cookies: Vec<String> = page
-                                .context
-                                .cookie_jar
-                                .get_all_cookies()
-                                .into_iter()
-                                .map(|c| {
-                                    let mut s = format!(
-                                        "{}={}; Domain={}; Path={}",
-                                        c.name, c.value, c.domain, c.path
-                                    );
-                                    if let Some(exp) = c.expires {
-                                        // #203 (taobao half): the export IS
-                                        // the account record / snapshot
-                                        // format — dropping Expires turned
-                                        // every revived session into a
-                                        // replay of server-retired tokens
-                                        // (sessionExpired + havana bounce).
-                                        if let Some(date) = http_date(exp) {
-                                            s.push_str(&format!("; Expires={date}"));
-                                        }
-                                    }
-                                    if c.secure {
-                                        s.push_str("; Secure");
-                                    }
-                                    if c.http_only {
-                                        s.push_str("; HttpOnly");
-                                    }
-                                    if !c.same_site.is_empty() {
-                                        s.push_str(&format!("; SameSite={}", c.same_site));
-                                    }
-                                    s
-                                })
-                                .collect();
-                            let resp = serde_json::json!({ "url": url_str, "cookies": cookies });
-                            let _ = reply.send(Ok(resp.to_string()));
-                        }
-
-                        SessionCommand::CookieMeta { reply } => {
-                            // #102: metadata-only view — which cookies exist
-                            // and how they're scoped (domain/path/flags/
-                            // expiry), never the values. Cookie values are
-                            // credentials; the account face already holds
-                            // that line (AccountSummary), this is the same
-                            // discipline one layer down.
-                            let url_str = page.url();
-                            let cookies = page.context.cookie_jar.get_all_cookie_metadata();
-                            let resp = serde_json::json!({ "url": url_str, "cookies": cookies });
-                            let _ = reply.send(Ok(resp.to_string()));
-                        }
-
-                        SessionCommand::CookieTrace { reply } => {
-                            // #203: the mutation ring — the metadata-only
-                            // answer to "which response deleted unb/sn",
-                            // "which redirect hop minted the SSO cookie".
-                            // Read-only, values never enter the rows.
-                            let url_str = page.url();
-                            let trace = page.context.cookie_jar.cookie_trace();
-                            let resp = serde_json::json!({
-                                "url": url_str,
-                                "total": trace.len(),
-                                "trace": trace,
-                            });
-                            let _ = reply.send(Ok(resp.to_string()));
-                        }
-
-                        SessionCommand::Export { reply } => {
-                            let jsonl = recorder
-                                .iter()
-                                .filter_map(|a| serde_json::to_string(a).ok())
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            let _ = reply.send(Ok(jsonl));
-                        }
-
-                        SessionCommand::Network { media_only, include_bodies, include_headers, url_contains, body_max_chars, reply } => {
-                            page.inner.sync_js_network_events();
-                            let payload = if media_only {
-                                // Media elements and player iframes are never
-                                // fetched by the engine (no media/frame
-                                // loading), so they cannot surface in the
-                                // network log — collect their DOM sources and
-                                // merge them in as candidates.
-                                let dom = page
-                                    .evaluate(DOM_MEDIA_SCRIPT)
-                                    .as_str()
-                                    .unwrap_or("[]")
-                                    .to_string();
-                                let events = &page.inner.network_events;
-                                let mut media = crate::har::media_entries(events);
-                                merge_dom_candidates(&mut media, &dom);
-                                let body_of = |rid: &str| page.inner.get_response_body(rid);
-                                media.extend(crate::har::media_from_bodies(events, &body_of));
-                                serde_json::json!({
-                                    "url": page.url(),
-                                    "media": media,
-                                })
-                            } else {
-                                let events = &page.inner.network_events;
-                                let body_of = |rid: &str| page.inner.get_response_body(rid);
-                                let mut payload = serde_json::json!({
-                                    "url": page.url(),
-                                    // Current navigation generation (#101):
-                                    // rows with a lower "nav" below are
-                                    // earlier attempts' leftovers.
-                                    "nav": page.inner.navigation_epoch,
-                                    "total": events.len(),
-                                    "requests": crate::har::compact_events(events, include_headers),
-                                });
-                                // #116: hung script-initiated fetches are
-                                // invisible in the request log (entries land
-                                // at completion) — surface what is still
-                                // flying so a timed-out caller can tell a
-                                // slow save from a dead one before re-issuing.
-                                // #130: the key is always present, `[]` when
-                                // quiet — an absent field is indistinguishable
-                                // from a wrong endpoint / stale version for
-                                // the reading agent, so "zero in flight"
-                                // must read as an empty array, not silence.
-                                let in_flight = page.inner.scripted_in_flight();
-                                let now_ms = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .map(|d| d.as_millis() as u64)
-                                    .unwrap_or(0);
-                                payload["in_flight"] = json!(
-                                    in_flight.iter().map(|f| in_flight_row(f, now_ms)).collect::<Vec<_>>()
-                                );
-                                // Anti-bot challenges answer 200, so they
-                                // hide among successful rows — surface the
-                                // count at the top level so an agent that
-                                // just asks "did we get punished" doesn't
-                                // have to scan every URL. Same detection as
-                                // the Challenges command (URL shape + the
-                                // MTop risk-control bodies), so the numbers
-                                // agree. Same always-present contract as
-                                // in_flight (#130).
-                                let challenges =
-                                    crate::har::challenge_rows(events, &body_of).len();
-                                payload["challenges"] = json!(challenges);
-                                if include_bodies {
-                                    let filters = url_contains
-                                        .as_deref()
-                                        .map(|s| vec![s.to_string()])
-                                        .unwrap_or_default();
-                                    payload["xhr"] = json!(crate::har::xhr_bodies(
-                                        events, &filters, body_max_chars, include_headers, &body_of
-                                    ));
-                                }
-                                payload
-                            };
-                            let _ = reply.send(Ok(payload.to_string()));
-                        }
-
-                        SessionCommand::Har { reply } => {
-                            page.inner.sync_js_network_events();
-                            let title = page
-                                .evaluate("document.title")
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string();
-                            let events = &page.inner.network_events;
-                            let body_of = |rid: &str| page.inner.get_response_body(rid);
-                            let har = crate::har::har_log(&title, events, &body_of);
-                            let _ = reply.send(Ok(har.to_string()));
-                        }
-
-                        SessionCommand::Screenshot { width, height, full_page, selector, selector_all, dpr, reply } => {
-                            #[cfg(feature = "screenshot")]
-                            {
-                                let result = crate::session::screenshot::screenshot(
-                                    &mut page,
-                                    width,
-                                    height,
-                                    full_page,
-                                    selector.as_deref(),
-                                    selector_all,
-                                    dpr,
-                                )
-                                .await;
-                                let _ = reply.send(result);
-                            }
-                            #[cfg(not(feature = "screenshot"))]
-                            {
-                                let _ = (
-                                    &width, &height, &full_page, &selector, &selector_all, &dpr,
-                                );
-                                let _ = reply.send(Err(
-                                    "session screenshot requires the `screenshot` feature"
-                                        .to_string(),
-                                ));
-                            }
-                        }
-
-                        SessionCommand::Wait { selector, predicate, timeout_ms, reply } => {
-                            let result = if selector.is_some() == predicate.is_some() {
-                                Err("wait takes exactly one of `selector` or `predicate`"
-                                    .to_string())
-                            } else {
-                                crate::session::interact::wait(
-                                    &mut page,
-                                    selector.as_deref(),
-                                    predicate.as_deref(),
-                                    timeout_ms,
-                                )
-                                .await
-                            };
-                            let _ = reply.send(result);
-                        }
-
-                        SessionCommand::Challenges { reply } => {
-                            page.inner.sync_js_network_events();
-                            let events = &page.inner.network_events;
-                            let body_of = |rid: &str| page.inner.get_response_body(rid);
-                            let rows = crate::har::challenge_rows(events, &body_of);
-                            let mut payload = serde_json::json!({
-                                "url": page.url(),
-                                "total": rows.len(),
-                                "events": rows,
-                            });
-                            if !rows.is_empty() {
-                                // Which identity got walled matters as much as
-                                // the wall itself — a multi-account run wants
-                                // to know whether the scraper or the publisher
-                                // hit risk control.
-                                if let Some((_, name)) = &account {
-                                    payload["account"] = json!(name);
-                                }
-                                // Human handoff (taobao 0.4.1 report P1-6):
-                                // the engine detects and surfaces, it does not
-                                // auto-bypass. A person opens the live view
-                                // (served by the binary at /live), solves the
-                                // slider in this session, and the retry below
-                                // rides the x5sec cookie that solving sets.
-                                payload["handoff"] = json!(format!(
-                                    "anti-bot wall detected — hand this session to a human: open \
-                                     /live?session={session_id} in a browser (this engine's HTTP \
-                                     port; clicks, drags and typing land on the real page), solve \
-                                     the challenge there, then retry the same request in this session"
-                                ));
-                            } else {
-                                // #102: zero known signatures is not an auth
-                                // verdict. `total: 0` reads as "passed" to a
-                                // caller who can't see the detector's scope —
-                                // say in-band that it means "no wall fired",
-                                // and where the login question is actually
-                                // answered.
-                                payload["note"] = json!(
-                                    "no known challenge signatures in this session's traffic — \
-                                     absence of a wall, not a login verdict; check auth state \
-                                     separately (session_verdict / account_verify)"
-                                );
-                            }
-                            let _ = reply.send(Ok(payload.to_string()));
-                        }
-
-                        SessionCommand::Verdict { reply } => {
-                            // The fact sheet's inputs, all eval-free: the
-                            // risk-control rows, the main document's
-                            // status/size, console errors, and the current
-                            // URL. The classification itself is pure code
-                            // (verdict.rs) — no model, no page scripts.
-                            let started = std::time::Instant::now();
-                            drain_console(&mut page, &mut console_ring);
-                            page.inner.sync_js_network_events();
-                            let events = &page.inner.network_events;
-                            let body_of = |rid: &str| page.inner.get_response_body(rid);
-                            let rows = crate::har::challenge_rows(events, &body_of);
-                            let doc = events
-                                .iter()
-                                .rev()
-                                .find(|e| e.resource_type == "Document" && e.status != 0);
-                            let console_errors: Vec<&Value> = console_ring
-                                .iter()
-                                .filter(|e| e["level"] == "error")
-                                .collect();
-                            let console_last: Vec<String> = console_errors
-                                .iter()
-                                .rev()
-                                .take(3)
-                                .rev()
-                                .filter_map(|e| {
-                                    e["text"].as_str().map(|s| {
-                                        s.chars().take(160).collect::<String>()
-                                    })
-                                })
-                                .collect();
-                            let input = crate::verdict::VerdictInput {
-                                url: &page.url(),
-                                session_id: &session_id,
-                                account: account.as_ref().map(|(_, name)| name.as_str()),
-                                challenge_events: rows.len(),
-                                doc_status: doc.map(|e| e.status),
-                                doc_bytes: doc.map(|e| e.body_size),
-                                requests: events.len(),
-                                console_errors: console_errors.len(),
-                                console_last,
-                            };
-                            let payload = crate::verdict::fact_sheet(
-                                &input,
-                                started.elapsed().as_millis() as u64,
-                            );
-                            let _ = reply.send(Ok(payload.to_string()));
-                        }
-
+                        SessionCommand::Navigate { url, reply } => actor.on_navigate(url, reply, &mut cmd_rx).await,
+                        SessionCommand::SetPreload { scripts, reply } => actor.on_set_preload(scripts, reply).await,
+                        SessionCommand::SetContent { html, reply } => actor.on_set_content(html, reply).await,
+                        SessionCommand::State { reply } => actor.on_state(reply).await,
+                        SessionCommand::Snapshot { reply } => actor.on_snapshot(reply).await,
+                        SessionCommand::Click { index, reply } => actor.on_click(index, reply).await,
+                        SessionCommand::Input { index, text, full_events, reply } => actor.on_input(index, text, full_events, reply).await,
+                        SessionCommand::SetFiles { selector, files, reply } => actor.on_set_files(selector, files, reply).await,
+                        SessionCommand::ClickXY { x, y, button, click_count, reply } => actor.on_click_xy(x, y, button, click_count, reply).await,
+                        SessionCommand::Drag { from_x, from_y, to_x, to_y, steps, delay_ms, humanize, reply } => actor.on_drag(from_x, from_y, to_x, to_y, steps, delay_ms, humanize, reply).await,
+                        SessionCommand::Scroll { direction, amount, reply } => actor.on_scroll(direction, amount, reply).await,
+                        SessionCommand::GetViewport { reply } => actor.on_get_viewport(reply).await,
+                        SessionCommand::Viewport { width, height, mobile, reply } => actor.on_viewport(width, height, mobile, reply).await,
+                        SessionCommand::Eval { script, timeout_ms, reply } => actor.on_eval(script, timeout_ms, reply).await,
+                        SessionCommand::Url { reply } => actor.on_url(reply).await,
+                        SessionCommand::Storage { reply } => actor.on_storage(reply).await,
+                        SessionCommand::Console { filter, reply } => actor.on_console(filter, reply).await,
+                        SessionCommand::Dialog { action, prompt_text, reply } => actor.on_dialog(action, prompt_text, reply).await,
+                        SessionCommand::Cookies { reply } => actor.on_cookies(reply).await,
+                        SessionCommand::CookieMeta { reply } => actor.on_cookie_meta(reply).await,
+                        SessionCommand::CookieTrace { reply } => actor.on_cookie_trace(reply).await,
+                        SessionCommand::Export { reply } => actor.on_export(reply).await,
+                        SessionCommand::Network { media_only, include_bodies, include_headers, url_contains, body_max_chars, reply } => actor.on_network(media_only, include_bodies, include_headers, url_contains, body_max_chars, reply).await,
+                        SessionCommand::Har { reply } => actor.on_har(reply).await,
+                        SessionCommand::Screenshot { width, height, full_page, selector, selector_all, dpr, reply } => actor.on_screenshot(width, height, full_page, selector, selector_all, dpr, reply).await,
+                        SessionCommand::Wait { selector, predicate, timeout_ms, reply } => actor.on_wait(selector, predicate, timeout_ms, reply).await,
+                        SessionCommand::Challenges { reply } => actor.on_challenges(reply).await,
+                        SessionCommand::Verdict { reply } => actor.on_verdict(reply).await,
                         SessionCommand::Close { reply } => {
                             let _ = reply.send(());
                             break;
@@ -1146,7 +385,7 @@ pub(super) fn session_thread(
 
                     // The post-command drain happens in the pump arm above
                     // (stretched slice, preemptible by the next command).
-                    drain_console(&mut page, &mut console_ring);
+                    drain_console(&mut actor.page, &mut actor.console_ring);
                     // #278 on-demand layout: at a command boundary the
                     // session owns no live layout tree — idle RAM is the
                     // DOM plus the stamp counters, and the next geometry
@@ -1157,7 +396,7 @@ pub(super) fn session_thread(
                     // retain-across-commands posture.
                     #[cfg(feature = "screenshot")]
                     if diting::env_knobs::layout_release() {
-                        page.inner.release_layout();
+                        actor.page.inner.release_layout();
                     }
                     drain_budget = 1500;
                     idle_slices = 0;
@@ -1173,6 +412,1059 @@ pub(super) fn session_thread(
         eprintln!("actor task ended");
     }
     crate::release_mem::release_to_os();
+}
+
+/// The session thread's per-session state, one handler method per
+/// [`SessionCommand`]. `session_thread` owns the setup and the command loop
+/// (pump slices, nav replay, post-command drain); the handlers below own
+/// the commands. Each handler destructures the fields it touches, so its
+/// body reads exactly like the match arm it used to be.
+struct SessionActor {
+    session_id: String,
+    account: Option<(String, String)>,
+    nav_shared: std::sync::Arc<NavFrameShared>,
+    page: crate::page::Page,
+    /// Replay log: every page-changing action this session took, in order.
+    recorder: Vec<RecordedAction>,
+    /// Recent page console output, fed by drain_console after every command.
+    console_ring: std::collections::VecDeque<Value>,
+    /// Page budget counter (rate.rs): every page this session walks.
+    pages_loaded: u32,
+    /// Kept until the next navigation succeeds (#80).
+    last_nav_error: Option<String>,
+    /// Document-start preload group (#96), re-applied on every navigation.
+    preload_scripts: Vec<String>,
+    /// Origin-gated storage blob waiting for its landing (#141).
+    pending_storage: Option<Value>,
+    /// Element index → _nid mapping (rebuilt on each /state call).
+    element_map: HashMap<usize, u64>,
+    /// Commands parked while a navigation owned the page (#193).
+    pending_replay: std::collections::VecDeque<SessionCommand>,
+}
+
+impl SessionActor {
+    async fn on_navigate(
+        &mut self,
+        url: String,
+        reply: oneshot::Sender<Result<SessionNavResponse, String>>,
+        cmd_rx: &mut mpsc::UnboundedReceiver<SessionCommand>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            pages_loaded,
+            last_nav_error,
+            preload_scripts,
+            pending_storage,
+            element_map,
+            pending_replay,
+            nav_shared,
+            ..
+        } = self;
+        // Budget first (local, free), then the per-domain
+        // rate gate — same stance as the stateless paths.
+        //
+        // #193: the load runs to completion inside this
+        // arm, but a biased select below keeps answering
+        // the command channel while it does. A
+        // default-shape screenshot poll is served the
+        // pre-navigation frame (Chrome keeps the old
+        // frame until the new document commits — a poll
+        // that instead hangs behind the load reads as a
+        // frozen browser); every other command parks in
+        // FIFO and replays after the load lands, in
+        // arrival order — the same order the cmd_rx
+        // queue gave them before this arm existed.
+        let mut nav_deferred: Vec<SessionCommand> = Vec::new();
+        let result = match crate::rate::check_page_budget(*pages_loaded)
+            .and_then(|_| crate::rate::check_domain(&url))
+        {
+            Err(reason) => Err(reason),
+            Ok(()) => {
+                // Document-start group + optional
+                // builtin names echoed on the nav
+                // response (empty while host
+                // auto-mount is off; recipe= still
+                // lands via the user group).
+                let builtin_preloads = crate::session::preload_recipes::builtin_names(&url);
+                page.inner
+                    .set_preload_scripts(crate::session::preload_recipes::effective_scripts(
+                        &url,
+                        &preload_scripts,
+                    ));
+                #[cfg(feature = "screenshot")]
+                let nav_frame = page.band_frame_cache.clone();
+                #[cfg(feature = "screenshot")]
+                let nav_frame_url = page.url();
+                // #195: publish the pre-navigation state and
+                // raise the in-flight flag BEFORE the load
+                // starts — from here the V8 thread may sit
+                // inside synchronous page JS for seconds,
+                // beyond this loop's polling reach (the
+                // in-arm serve below still answers while
+                // goto awaits the network; the sender side
+                // covers the script-held stretch).
+                #[cfg(feature = "screenshot")]
+                nav_shared.begin(nav_frame_url.clone(), nav_frame.clone());
+                // Scoped so the pinned goto (which holds
+                // page) drops before the post-landing
+                // bookkeeping borrows the page again.
+                let nav_result = {
+                    let mut goto = std::pin::pin!(page.goto(&url));
+                    loop {
+                        tokio::select! {
+                            biased;
+                            r = &mut goto => break r,
+                            incoming = cmd_rx.recv() => {
+                                match incoming {
+                                    // Channel closed: the session is dropping.
+                                    // Finish the load so the page state is
+                                    // consistent; the replies go nowhere.
+                                    None => break goto.as_mut().await,
+                                    #[cfg(feature = "screenshot")]
+                                    Some(SessionCommand::Screenshot { width: None, height: None, full_page: false, selector: None, selector_all: false, dpr, reply }) => {
+                                        // Same shape and dpr as the cached frame:
+                                        // serve the pre-navigation PNG. Any other
+                                        // request (explicit size, full_page,
+                                        // selector, different dpr) needs the
+                                        // page and parks like everything else.
+                                        let scale = crate::session::screenshot::resolve_dpr(dpr);
+                                        match nav_frame.as_ref().filter(|f| f.sig.7 == scale) {
+                                            Some(f) => {
+                                                let _ = reply.send(Ok(crate::session::screenshot::cached_frame_json(&nav_frame_url, f.width, f.height, &f.png)));
+                                            }
+                                            None => nav_deferred.push(SessionCommand::Screenshot { width: None, height: None, full_page: false, selector: None, selector_all: false, dpr, reply }),
+                                        }
+                                    }
+                                    Some(other) => nav_deferred.push(other),
+                                }
+                            }
+                        }
+                    }
+                };
+                // #195: the load is over (landed or failed)
+                // — sender-side old-frame answers stand
+                // down; polls go through the channel again.
+                nav_shared.end();
+                match nav_result {
+                    Ok(()) => {
+                        let final_url = page.url();
+                        let title = page
+                            .evaluate("document.title")
+                            .as_str()
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string());
+                        let challenge =
+                            crate::har::challenge_kind(&final_url).map(|s| s.to_string());
+                        element_map.clear();
+                        *pages_loaded += 1;
+                        *last_nav_error = None;
+                        // A pending origin-gated storage
+                        // blob may belong to exactly this
+                        // landing (issue #141): the
+                        // start_url-less session that
+                        // idled on about:blank, or a
+                        // login wizard's Navigate to the
+                        // captured site.
+                        try_inject_storage(page, pending_storage);
+                        Ok(SessionNavResponse {
+                            url: final_url,
+                            title,
+                            challenge,
+                            redirected_from: page.inner.redirect_chain.clone(),
+                            preloads: builtin_preloads.iter().map(|s| s.to_string()).collect(),
+                        })
+                    }
+                    Err(e) => {
+                        let msg = format!("navigation failed: {}", e);
+                        *last_nav_error = Some(msg.clone());
+                        Err(msg)
+                    }
+                }
+            }
+        };
+        recorder.push(RecordedAction::Navigate {
+            ok: result.is_ok(),
+            url,
+        });
+        let _ = reply.send(result);
+        pending_replay.extend(nav_deferred);
+    }
+
+    async fn on_set_preload(
+        &mut self,
+        scripts: Vec<String>,
+        reply: oneshot::Sender<Result<Value, String>>,
+    ) {
+        let Self {
+            page,
+            preload_scripts,
+            ..
+        } = self;
+        *preload_scripts = scripts;
+        page.inner.set_preload_scripts(preload_scripts.clone());
+        let _ = reply.send(Ok(serde_json::json!({
+            "count": preload_scripts.len(),
+        })));
+    }
+
+    async fn on_set_content(
+        &mut self,
+        html: String,
+        reply: oneshot::Sender<Result<Value, String>>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            last_nav_error,
+            preload_scripts,
+            element_map,
+            nav_shared,
+            ..
+        } = self;
+        // Local bytes on the same load path as a
+        // navigation: base64 data URL (no escaping
+        // games with # , % in the HTML), decoded by
+        // the nav layer. pages_loaded stays put —
+        // nothing walked the network, so the page
+        // budget doesn't spend here.
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        let url = format!("data:text/html;base64,{}", STANDARD.encode(html.as_bytes()));
+        page.inner.set_preload_scripts(preload_scripts.clone());
+        // #195: a data: URL parses inline scripts on the
+        // same V8 thread — a long script in setContent
+        // HTML holds the actor exactly like a network
+        // navigation, so publish + flag around it too.
+        #[cfg(feature = "screenshot")]
+        nav_shared.begin(page.url(), page.band_frame_cache.clone());
+        let result = match page.goto(&url).await {
+            Ok(()) => {
+                let title = page
+                    .evaluate("document.title")
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string());
+                element_map.clear();
+                *last_nav_error = None;
+                Ok(serde_json::json!({
+                    "bytes": html.len(),
+                    "title": title,
+                }))
+            }
+            Err(e) => {
+                let msg = format!("setContent failed: {}", e);
+                *last_nav_error = Some(msg.clone());
+                Err(msg)
+            }
+        };
+        // #195: same stand-down as the Navigate arm.
+        nav_shared.end();
+        recorder.push(RecordedAction::SetContent {
+            ok: result.is_ok(),
+            html,
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_state(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self {
+            page,
+            last_nav_error,
+            element_map,
+            ..
+        } = self;
+        element_map.clear();
+        let result = extract_indexed_state(page, element_map).map_err(|e| match &last_nav_error {
+            // #80: a failed navigation is the likely
+            // cause of a non-string extraction (no JS
+            // runtime on the fallback page) — say the
+            // navigation error instead of a stringness
+            // complaint the caller can't act on.
+            Some(nav) => format!(
+                "{} — the last navigation did not complete, \
+                                         the session is on the fallback page \
+                                         (state extraction: {})",
+                nav, e
+            ),
+            None => e,
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_snapshot(&mut self, reply: oneshot::Sender<Result<serde_json::Value, String>>) {
+        let Self {
+            page,
+            last_nav_error,
+            element_map,
+            ..
+        } = self;
+        element_map.clear();
+        let result = extract_snapshot(page, element_map).map_err(|e| match &last_nav_error {
+            Some(nav) => format!(
+                "{} — the last navigation did not complete, \
+                                         the session is on the fallback page \
+                                         (snapshot extraction: {})",
+                nav, e
+            ),
+            None => e,
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_click(
+        &mut self,
+        index: usize,
+        reply: oneshot::Sender<Result<SessionClickResponse, String>>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            pages_loaded,
+            element_map,
+            ..
+        } = self;
+        // A click that changes the page is a page walk and
+        // spends the budget; one that only toggles state
+        // (a checkbox, a menu) is free.
+        let result = match crate::rate::check_page_budget(*pages_loaded) {
+            Err(reason) => Err(reason),
+            Ok(()) => {
+                let before = page.url();
+                click_by_index(page, &element_map, index)
+                    .await
+                    .inspect(|resp| {
+                        if resp.url != before {
+                            *pages_loaded += 1;
+                        }
+                    })
+            }
+        };
+        recorder.push(RecordedAction::Click {
+            index,
+            ok: result.is_ok(),
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_input(
+        &mut self,
+        index: usize,
+        text: String,
+        full_events: bool,
+        reply: oneshot::Sender<Result<Value, String>>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            element_map,
+            ..
+        } = self;
+        let result = input_by_index(page, &element_map, index, &text, full_events);
+        // A filled Enter can submit the form implicitly
+        // (#194) and a change listener can navigate by
+        // itself — drain the queued navigation so the
+        // next command sees the landing page, same
+        // contract as the click path.
+        let filled = result
+            .as_ref()
+            .map(|v| v.get("filled").and_then(Value::as_bool).unwrap_or(false))
+            .unwrap_or(false);
+        if filled {
+            let _ = page.process_pending_navigation().await;
+        }
+        recorder.push(RecordedAction::Input {
+            index,
+            text,
+            ok: filled,
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_set_files(
+        &mut self,
+        selector: Option<String>,
+        files: Vec<Value>,
+        reply: oneshot::Sender<Result<Value, String>>,
+    ) {
+        let Self { page, recorder, .. } = self;
+        let result = set_files_by_selector(page, selector.as_deref(), &files);
+        recorder.push(RecordedAction::SetFiles {
+            selector,
+            names: files
+                .iter()
+                .filter_map(|f| f.get("name").and_then(Value::as_str).map(str::to_owned))
+                .collect(),
+            ok: result
+                .as_ref()
+                .map(|v| v.get("set").and_then(Value::as_bool).unwrap_or(false))
+                .unwrap_or(false),
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_click_xy(
+        &mut self,
+        x: f64,
+        y: f64,
+        button: String,
+        click_count: u32,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            pages_loaded,
+            ..
+        } = self;
+        // A coordinate click can navigate exactly like an
+        // indexed one, so it spends the same page budget.
+        // #236: an eval error in the dispatch chain IS the
+        // result — "coordinates accepted" no longer masquerades
+        // as "event chain actually dispatched".
+        let result = match crate::rate::check_page_budget(*pages_loaded) {
+            Err(reason) => Err(reason),
+            Ok(()) => {
+                let before = page.url();
+                match click_xy(page, x, y, &button, click_count).await {
+                    Err(stage) => Err(format!("click dispatch incomplete: {stage}")),
+                    Ok(()) => {
+                        let _ = page.process_pending_navigation().await;
+                        if page.url() != before {
+                            *pages_loaded += 1;
+                        }
+                        Ok(serde_json::json!({
+                            "url": page.url(),
+                            "x": x,
+                            "y": y,
+                        })
+                        .to_string())
+                    }
+                }
+            }
+        };
+        recorder.push(RecordedAction::ClickXY {
+            x,
+            y,
+            ok: result.is_ok(),
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_drag(
+        &mut self,
+        from_x: f64,
+        from_y: f64,
+        to_x: f64,
+        to_y: f64,
+        steps: u32,
+        delay_ms: u64,
+        humanize: bool,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            pages_loaded,
+            ..
+        } = self;
+        let steps = steps.clamp(1, 200);
+        let delay_ms = delay_ms.min(1000);
+        let result = match crate::rate::check_page_budget(*pages_loaded) {
+            Err(reason) => Err(reason),
+            Ok(()) => {
+                let before = page.url();
+                match drag_xy(page, from_x, from_y, to_x, to_y, steps, delay_ms, humanize).await {
+                    Err(stage) => Err(format!("drag dispatch incomplete: {stage}")),
+                    Ok(()) => {
+                        let _ = page.process_pending_navigation().await;
+                        if page.url() != before {
+                            *pages_loaded += 1;
+                        }
+                        Ok(serde_json::json!({
+                            "url": page.url(),
+                            "from": {"x": from_x, "y": from_y},
+                            "to": {"x": to_x, "y": to_y},
+                            "steps": steps,
+                            "humanized": humanize,
+                        })
+                        .to_string())
+                    }
+                }
+            }
+        };
+        recorder.push(RecordedAction::Drag {
+            from_x,
+            from_y,
+            to_x,
+            to_y,
+            steps,
+        });
+        let _ = reply.send(result);
+    }
+
+    async fn on_scroll(
+        &mut self,
+        direction: ScrollDirection,
+        amount: u32,
+        reply: oneshot::Sender<Result<bool, String>>,
+    ) {
+        let Self { page, recorder, .. } = self;
+        let dy = match direction {
+            ScrollDirection::Up => -(amount as i32) * 100,
+            ScrollDirection::Down => (amount as i32) * 100,
+        };
+        let js = format!("window.scrollBy(0, {})", dy);
+        page.evaluate_with_timeout(&js, crate::page::INTERACTION_EVAL_TIMEOUT);
+        recorder.push(RecordedAction::Scroll {
+            direction: match direction {
+                ScrollDirection::Up => "up".to_string(),
+                ScrollDirection::Down => "down".to_string(),
+            },
+            amount,
+        });
+        let _ = reply.send(Ok(true));
+    }
+
+    async fn on_get_viewport(
+        &mut self,
+        reply: oneshot::Sender<Result<Option<(f32, f32, bool)>, String>>,
+    ) {
+        let Self { page, .. } = self;
+        let _ = reply.send(Ok(page.viewport_override()));
+    }
+
+    async fn on_viewport(
+        &mut self,
+        width: Option<u32>,
+        height: Option<u32>,
+        mobile: bool,
+        reply: oneshot::Sender<Result<Value, String>>,
+    ) {
+        let Self { page, recorder, .. } = self;
+        // Unspecified dimensions keep the current ones
+        // (Chrome's setDeviceMetricsOverride rule), so
+        // read the live values before overriding.
+        let probe = "(function(){return [innerWidth, innerHeight]})()";
+        let current = {
+            let v = page.evaluate_with_timeout(probe, crate::page::INTERACTION_EVAL_TIMEOUT);
+            match (
+                v.get(0).and_then(Value::as_f64),
+                v.get(1).and_then(Value::as_f64),
+            ) {
+                (Some(w), Some(h)) if w > 0.0 && h > 0.0 => (w as f32, h as f32),
+                _ => (1920.0, 1000.0),
+            }
+        };
+        let w = width.map(|v| v as f32).unwrap_or(current.0);
+        let h = height.map(|v| v as f32).unwrap_or(current.1);
+        page.set_viewport_override(w, h, mobile, None);
+        let val = serde_json::json!({
+            "width": w as u32,
+            "height": h as u32,
+            "mobile": mobile,
+        });
+        recorder.push(RecordedAction::Viewport {
+            width: Some(w as u32),
+            height: Some(h as u32),
+            mobile,
+        });
+        let _ = reply.send(Ok(val));
+    }
+
+    async fn on_eval(
+        &mut self,
+        script: String,
+        timeout_ms: Option<u64>,
+        reply: oneshot::Sender<Result<Value, SessionError>>,
+    ) {
+        let Self {
+            page,
+            recorder,
+            last_nav_error,
+            ..
+        } = self;
+        let outcome = if !page.inner.has_js() {
+            // #80: without a JS runtime every eval would
+            // silently answer null (only document.title /
+            // URL are stub-served) — a navigation that
+            // "succeeded" into an error page leaves the
+            // page runtime-less. Say it instead of null.
+            Err(format!(
+                "page has no JS runtime — the last navigation did not \
+                                     complete{}; navigate again",
+                last_nav_error
+                    .as_deref()
+                    .map(|nav| format!(" ({})", nav))
+                    .unwrap_or_default()
+            ))
+        } else {
+            page.evaluate_async_checked(&script, timeout_ms).await
+        };
+        // A null result on the post-failure fallback page
+        // (about:blank after a failed goto) reads as
+        // "page is broken"; the navigation error is the
+        // actionable truth, so surface it (#80). Real
+        // values pass through untouched — the fallback
+        // page is alive and the script genuinely ran.
+        let outcome = match outcome {
+            Ok(v) if v.is_null() && last_nav_error.is_some() => Err(format!(
+                "{} — the last navigation did not complete, \
+                                     the session is on the fallback page; navigate again",
+                last_nav_error.as_deref().unwrap_or_default()
+            )),
+            other => other,
+        };
+        recorder.push(RecordedAction::Eval { script });
+        // Drain any JS-initiated navigation the script
+        // started (location.href / form submit) so the
+        // session's current URL moves with it — same
+        // policy as click_by_index below.
+        let _ = page.process_pending_navigation().await;
+        let _ = reply.send(outcome.map_err(SessionError::Eval));
+    }
+
+    async fn on_url(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { page, .. } = self;
+        let _ = reply.send(Ok(page.url()));
+    }
+
+    async fn on_storage(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { page, .. } = self;
+        let collect = "(function(){ var ls={}, ss={}; \
+                                try { for (var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); ls[k]=localStorage.getItem(k); } } catch(e) {} \
+                                try { for (var i=0;i<sessionStorage.length;i++){ var k=sessionStorage.key(i); ss[k]=sessionStorage.getItem(k); } } catch(e) {} \
+                                return {local_storage: ls, session_storage: ss}; })()";
+        let v = page.evaluate(collect);
+        let payload = serde_json::json!({
+            "url": page.url(),
+            "local_storage": v.get("local_storage").cloned().unwrap_or(serde_json::json!({})),
+            "session_storage": v.get("session_storage").cloned().unwrap_or(serde_json::json!({})),
+        });
+        let _ = reply.send(Ok(payload.to_string()));
+    }
+
+    async fn on_console(
+        &mut self,
+        filter: ConsoleFilter,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        let Self {
+            page, console_ring, ..
+        } = self;
+        drain_console(page, console_ring);
+        let total = console_ring.len();
+        let mut messages: Vec<Value> = console_ring
+            .iter()
+            .filter(|e| filter.matches(e))
+            .cloned()
+            .collect();
+        let matched = messages.len();
+        if let Some(cap) = filter.limit {
+            if messages.len() > cap {
+                messages = messages.split_off(messages.len() - cap);
+            }
+        }
+        let payload = serde_json::json!({
+            "url": page.url(),
+            "total": total,
+            "matched": matched,
+            "messages": messages,
+        });
+        let _ = reply.send(Ok(payload.to_string()));
+    }
+
+    async fn on_dialog(
+        &mut self,
+        action: String,
+        prompt_text: Option<String>,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        let Self {
+            page, console_ring, ..
+        } = self;
+        let out = match action.as_str() {
+            "list" => {
+                drain_console(page, console_ring);
+                let (accept, prompt_text) = page.inner.dialog_policy();
+                let dialogs: Vec<Value> = console_ring
+                    .iter()
+                    .filter(|e| e["level"] == "dialog")
+                    .cloned()
+                    .collect();
+                Ok(serde_json::json!({
+                    "policy": if accept { "accept" } else { "dismiss" },
+                    "prompt_text": prompt_text,
+                    "dialogs": dialogs,
+                })
+                .to_string())
+            }
+            "accept" | "dismiss" => {
+                page.inner
+                    .set_dialog_policy(action == "accept", prompt_text);
+                let (accept, prompt_text) = page.inner.dialog_policy();
+                Ok(serde_json::json!({
+                    "policy": if accept { "accept" } else { "dismiss" },
+                    "prompt_text": prompt_text,
+                })
+                .to_string())
+            }
+            other => Err(format!(
+                "unknown dialog action {:?} (expected list | accept | dismiss)",
+                other
+            )),
+        };
+        let _ = reply.send(out);
+    }
+
+    async fn on_cookies(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { page, .. } = self;
+        let url_str = page.url();
+        // Full Set-Cookie form (Domain/flags included) so
+        // snapshot/clone restores cross-subdomain login
+        // state: bare name=value pairs re-anchor at
+        // whatever URL the new session opens, losing
+        // every sibling-domain cookie.
+        let cookies: Vec<String> = page
+            .context
+            .cookie_jar
+            .get_all_cookies()
+            .into_iter()
+            .map(|c| {
+                let mut s = format!(
+                    "{}={}; Domain={}; Path={}",
+                    c.name, c.value, c.domain, c.path
+                );
+                if let Some(exp) = c.expires {
+                    // #203 (taobao half): the export IS
+                    // the account record / snapshot
+                    // format — dropping Expires turned
+                    // every revived session into a
+                    // replay of server-retired tokens
+                    // (sessionExpired + havana bounce).
+                    if let Some(date) = http_date(exp) {
+                        s.push_str(&format!("; Expires={date}"));
+                    }
+                }
+                if c.secure {
+                    s.push_str("; Secure");
+                }
+                if c.http_only {
+                    s.push_str("; HttpOnly");
+                }
+                if !c.same_site.is_empty() {
+                    s.push_str(&format!("; SameSite={}", c.same_site));
+                }
+                s
+            })
+            .collect();
+        let resp = serde_json::json!({ "url": url_str, "cookies": cookies });
+        let _ = reply.send(Ok(resp.to_string()));
+    }
+
+    async fn on_cookie_meta(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { page, .. } = self;
+        // #102: metadata-only view — which cookies exist
+        // and how they're scoped (domain/path/flags/
+        // expiry), never the values. Cookie values are
+        // credentials; the account face already holds
+        // that line (AccountSummary), this is the same
+        // discipline one layer down.
+        let url_str = page.url();
+        let cookies = page.context.cookie_jar.get_all_cookie_metadata();
+        let resp = serde_json::json!({ "url": url_str, "cookies": cookies });
+        let _ = reply.send(Ok(resp.to_string()));
+    }
+
+    async fn on_cookie_trace(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { page, .. } = self;
+        // #203: the mutation ring — the metadata-only
+        // answer to "which response deleted unb/sn",
+        // "which redirect hop minted the SSO cookie".
+        // Read-only, values never enter the rows.
+        let url_str = page.url();
+        let trace = page.context.cookie_jar.cookie_trace();
+        let resp = serde_json::json!({
+            "url": url_str,
+            "total": trace.len(),
+            "trace": trace,
+        });
+        let _ = reply.send(Ok(resp.to_string()));
+    }
+
+    async fn on_export(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { recorder, .. } = self;
+        let jsonl = recorder
+            .iter()
+            .filter_map(|a| serde_json::to_string(a).ok())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let _ = reply.send(Ok(jsonl));
+    }
+
+    async fn on_network(
+        &mut self,
+        media_only: bool,
+        include_bodies: bool,
+        include_headers: bool,
+        url_contains: Option<String>,
+        body_max_chars: usize,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        let Self { page, .. } = self;
+        page.inner.sync_js_network_events();
+        let payload = if media_only {
+            // Media elements and player iframes are never
+            // fetched by the engine (no media/frame
+            // loading), so they cannot surface in the
+            // network log — collect their DOM sources and
+            // merge them in as candidates.
+            let dom = page
+                .evaluate(DOM_MEDIA_SCRIPT)
+                .as_str()
+                .unwrap_or("[]")
+                .to_string();
+            let events = &page.inner.network_events;
+            let mut media = crate::har::media_entries(events);
+            merge_dom_candidates(&mut media, &dom);
+            let body_of = |rid: &str| page.inner.get_response_body(rid);
+            media.extend(crate::har::media_from_bodies(events, &body_of));
+            serde_json::json!({
+                "url": page.url(),
+                "media": media,
+            })
+        } else {
+            let events = &page.inner.network_events;
+            let body_of = |rid: &str| page.inner.get_response_body(rid);
+            let mut payload = serde_json::json!({
+                "url": page.url(),
+                // Current navigation generation (#101):
+                // rows with a lower "nav" below are
+                // earlier attempts' leftovers.
+                "nav": page.inner.navigation_epoch,
+                "total": events.len(),
+                "requests": crate::har::compact_events(events, include_headers),
+            });
+            // #116: hung script-initiated fetches are
+            // invisible in the request log (entries land
+            // at completion) — surface what is still
+            // flying so a timed-out caller can tell a
+            // slow save from a dead one before re-issuing.
+            // #130: the key is always present, `[]` when
+            // quiet — an absent field is indistinguishable
+            // from a wrong endpoint / stale version for
+            // the reading agent, so "zero in flight"
+            // must read as an empty array, not silence.
+            let in_flight = page.inner.scripted_in_flight();
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            payload["in_flight"] = json!(in_flight
+                .iter()
+                .map(|f| in_flight_row(f, now_ms))
+                .collect::<Vec<_>>());
+            // Anti-bot challenges answer 200, so they
+            // hide among successful rows — surface the
+            // count at the top level so an agent that
+            // just asks "did we get punished" doesn't
+            // have to scan every URL. Same detection as
+            // the Challenges command (URL shape + the
+            // MTop risk-control bodies), so the numbers
+            // agree. Same always-present contract as
+            // in_flight (#130).
+            let challenges = crate::har::challenge_rows(events, &body_of).len();
+            payload["challenges"] = json!(challenges);
+            if include_bodies {
+                let filters = url_contains
+                    .as_deref()
+                    .map(|s| vec![s.to_string()])
+                    .unwrap_or_default();
+                payload["xhr"] = json!(crate::har::xhr_bodies(
+                    events,
+                    &filters,
+                    body_max_chars,
+                    include_headers,
+                    &body_of
+                ));
+            }
+            payload
+        };
+        let _ = reply.send(Ok(payload.to_string()));
+    }
+
+    async fn on_har(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self { page, .. } = self;
+        page.inner.sync_js_network_events();
+        let title = page
+            .evaluate("document.title")
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let events = &page.inner.network_events;
+        let body_of = |rid: &str| page.inner.get_response_body(rid);
+        let har = crate::har::har_log(&title, events, &body_of);
+        let _ = reply.send(Ok(har.to_string()));
+    }
+
+    async fn on_screenshot(
+        &mut self,
+        width: Option<u32>,
+        height: Option<u32>,
+        full_page: bool,
+        selector: Option<String>,
+        selector_all: bool,
+        dpr: Option<f32>,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        #[cfg(feature = "screenshot")]
+        {
+            let result = crate::session::screenshot::screenshot(
+                &mut self.page,
+                width,
+                height,
+                full_page,
+                selector.as_deref(),
+                selector_all,
+                dpr,
+            )
+            .await;
+            let _ = reply.send(result);
+        }
+        #[cfg(not(feature = "screenshot"))]
+        {
+            let _ = (&width, &height, &full_page, &selector, &selector_all, &dpr);
+            let _ = reply.send(Err(
+                "session screenshot requires the `screenshot` feature".to_string()
+            ));
+        }
+    }
+
+    async fn on_wait(
+        &mut self,
+        selector: Option<String>,
+        predicate: Option<String>,
+        timeout_ms: u64,
+        reply: oneshot::Sender<Result<String, String>>,
+    ) {
+        let Self { page, .. } = self;
+        let result = if selector.is_some() == predicate.is_some() {
+            Err("wait takes exactly one of `selector` or `predicate`".to_string())
+        } else {
+            crate::session::interact::wait(
+                page,
+                selector.as_deref(),
+                predicate.as_deref(),
+                timeout_ms,
+            )
+            .await
+        };
+        let _ = reply.send(result);
+    }
+
+    async fn on_challenges(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self {
+            page,
+            session_id,
+            account,
+            ..
+        } = self;
+        page.inner.sync_js_network_events();
+        let events = &page.inner.network_events;
+        let body_of = |rid: &str| page.inner.get_response_body(rid);
+        let rows = crate::har::challenge_rows(events, &body_of);
+        let mut payload = serde_json::json!({
+            "url": page.url(),
+            "total": rows.len(),
+            "events": rows,
+        });
+        if !rows.is_empty() {
+            // Which identity got walled matters as much as
+            // the wall itself — a multi-account run wants
+            // to know whether the scraper or the publisher
+            // hit risk control.
+            if let Some((_, name)) = &account {
+                payload["account"] = json!(name);
+            }
+            // Human handoff (taobao 0.4.1 report P1-6):
+            // the engine detects and surfaces, it does not
+            // auto-bypass. A person opens the live view
+            // (served by the binary at /live), solves the
+            // slider in this session, and the retry below
+            // rides the x5sec cookie that solving sets.
+            payload["handoff"] = json!(format!(
+                                    "anti-bot wall detected — hand this session to a human: open \
+                                     /live?session={session_id} in a browser (this engine's HTTP \
+                                     port; clicks, drags and typing land on the real page), solve \
+                                     the challenge there, then retry the same request in this session"
+                                ));
+        } else {
+            // #102: zero known signatures is not an auth
+            // verdict. `total: 0` reads as "passed" to a
+            // caller who can't see the detector's scope —
+            // say in-band that it means "no wall fired",
+            // and where the login question is actually
+            // answered.
+            payload["note"] = json!(
+                "no known challenge signatures in this session's traffic — \
+                                     absence of a wall, not a login verdict; check auth state \
+                                     separately (session_verdict / account_verify)"
+            );
+        }
+        let _ = reply.send(Ok(payload.to_string()));
+    }
+
+    async fn on_verdict(&mut self, reply: oneshot::Sender<Result<String, String>>) {
+        let Self {
+            page,
+            console_ring,
+            session_id,
+            account,
+            ..
+        } = self;
+        // The fact sheet's inputs, all eval-free: the
+        // risk-control rows, the main document's
+        // status/size, console errors, and the current
+        // URL. The classification itself is pure code
+        // (verdict.rs) — no model, no page scripts.
+        let started = std::time::Instant::now();
+        drain_console(page, console_ring);
+        page.inner.sync_js_network_events();
+        let events = &page.inner.network_events;
+        let body_of = |rid: &str| page.inner.get_response_body(rid);
+        let rows = crate::har::challenge_rows(events, &body_of);
+        let doc = events
+            .iter()
+            .rev()
+            .find(|e| e.resource_type == "Document" && e.status != 0);
+        let console_errors: Vec<&Value> = console_ring
+            .iter()
+            .filter(|e| e["level"] == "error")
+            .collect();
+        let console_last: Vec<String> = console_errors
+            .iter()
+            .rev()
+            .take(3)
+            .rev()
+            .filter_map(|e| {
+                e["text"]
+                    .as_str()
+                    .map(|s| s.chars().take(160).collect::<String>())
+            })
+            .collect();
+        let input = crate::verdict::VerdictInput {
+            url: &page.url(),
+            session_id: &session_id,
+            account: account.as_ref().map(|(_, name)| name.as_str()),
+            challenge_events: rows.len(),
+            doc_status: doc.map(|e| e.status),
+            doc_bytes: doc.map(|e| e.body_size),
+            requests: events.len(),
+            console_errors: console_errors.len(),
+            console_last,
+        };
+        let payload = crate::verdict::fact_sheet(&input, started.elapsed().as_millis() as u64);
+        let _ = reply.send(Ok(payload.to_string()));
+    }
 }
 
 #[cfg(test)]
