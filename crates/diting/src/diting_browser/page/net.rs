@@ -133,7 +133,6 @@ impl Page {
     /// (byte-exact); text bodies return their UTF-8 bytes. Returns None if
     /// the body was never cached (e.g. it exceeded
     /// DITING_NETWORK_BODY_BUFFER_BYTES) or the id is unknown.
-    #[cfg_attr(not(test), allow(dead_code))] // batch-2 kernel; CDP stream-take consumer pending
     pub fn take_response_body_raw(&mut self, request_id: &str) -> Option<Vec<u8>> {
         let stored = if let Some(body) = self.response_bodies.remove(request_id) {
             self.response_body_order.retain(|id| id != request_id);
@@ -159,7 +158,6 @@ impl Page {
     /// but the CDP layer reports it with the navigation's loaderId as the
     /// requestId (Chrome's `requestId === loaderId` convention). Without this
     /// alias, `Network.getResponseBody(loaderId)` misses (upstream #340).
-    #[cfg_attr(not(test), allow(dead_code))] // batch-2 kernel; pairs with get_response_body
     pub fn alias_response_body(&mut self, from_id: &str, to_id: &str) {
         if from_id == to_id || self.response_bodies.contains_key(to_id) {
             return;
@@ -223,7 +221,6 @@ impl Page {
     /// `enable_interception` to mutate or block. Returns a stable id; pass it
     /// to `off_request` to detach (upstream #408). Scoped to this page: it
     /// never sees sibling pages' requests and dies with the page.
-    #[cfg_attr(not(test), allow(dead_code))] // batch-2 kernel; wire at session init when /network lands
     pub fn on_request(&mut self, cb: crate::diting_net::RequestCallback) -> u64 {
         self.callbacks.add_request(cb)
     }
@@ -232,14 +229,12 @@ impl Page {
     /// receives, including its body. Non-blocking. The main path for crawlers
     /// that need to capture API response payloads. Returns a stable id.
     /// Page-scoped like `on_request`.
-    #[cfg_attr(not(test), allow(dead_code))] // batch-2 kernel; wire at session init when /network lands
     pub fn on_response(&mut self, cb: crate::diting_net::ResponseCallback) -> u64 {
         self.callbacks.add_response(cb)
     }
 
     /// Detach a request observer registered with `on_request`. Returns true
     /// if one was removed.
-    #[cfg_attr(not(test), allow(dead_code))] // pair-unregister for on_request
     pub fn off_request(&mut self, id: u64) -> bool {
         self.callbacks.remove_request(id)
     }

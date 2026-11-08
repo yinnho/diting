@@ -1,20 +1,8 @@
-//! diting_css — cascade layer (render-claim batch 1).
-//!
-//! A read-only port of the upstream obscura-render CSS layer's core:
-//! stylesheet parsing (rule splitting + at-rule dispatch) and a minimal
-//! computed-style model with inheritance. This module does NOT feed the
-//! product pipeline yet — it is the cascade primitive a future renderer
-//! builds on, absorbed so upstream diffs stay readable and the behavior
-//! is locked by tests against our own diting_dom selectors.
-//!
-//! Deliberately out of scope for this slice:
-//! container queries, @keyframes/@property, shadow-tree scoping, the full 537
-//! property surface, and paint.
-
-// Read-only slice: every consumer is a test until the renderer batch wires
-// this into a pipeline. The allow is the module-level honest statement of
-// that status (batch-3 triage tier 2).
-#![cfg_attr(not(test), allow(dead_code))]
+//! diting_css — the cascade: stylesheet parsing (rule splitting + at-rule
+//! dispatch incl. @media/@supports/@layer/@container/@keyframes/@property),
+//! selector matching against diting_dom, and the computed-style model with
+//! inheritance that diting_layout and the CSSOM ops read. Started as a port
+//! of upstream obscura-render's CSS layer (render-claim batch 1).
 
 use crate::diting_dom;
 
@@ -3275,6 +3263,7 @@ pub(crate) enum Importance {
 /// form of line-height scales while number multipliers stay (they multiply
 /// the now-scaled font size), and shadow offsets/blur/spread scale. The
 /// `zoom`/`zoom_accum` fields themselves are never touched here.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 pub(crate) fn scale_computed_px(c: &mut ComputedStyle, z: f32) {
     fn scale_len(l: &mut Length, z: f32) {
         match l {

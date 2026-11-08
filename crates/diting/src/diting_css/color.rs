@@ -2,18 +2,9 @@
 
 use super::*;
 
-/// `parse_color` plus the authored-space tag (#17): modern colour functions
-/// carry their space for the CSSOM face; every legacy form tags `None`.
-pub fn parse_color_with_origin(
-    v: &str,
-) -> Option<(Color, Option<super::color_modern::ModernColor>)> {
-    if let Some((c, m)) = super::color_modern::parse_with_origin(v) {
-        return Some((c, m));
-    }
-    parse_color(v).map(|c| (c, None))
-}
-
-/// `parse_color_with_origin` with the element's used color-scheme (#18):
+/// `parse_color` plus the authored-space tag (#17: modern colour functions
+/// carry their space for the CSSOM face, legacy forms tag `None`), with the
+/// element's used color-scheme (#18):
 /// `light-dark()` picks its branch before parsing, and the returned pair is
 /// the chosen branch's — modern-ness included.
 pub fn parse_color_with_scheme(
@@ -123,6 +114,7 @@ pub fn parse_color(v: &str) -> Option<Color> {
 /// with two decimals when they round-trip to the same 8-bit alpha (26/255
 /// → 0.1), else three (#17). Modern colour functions never come through
 /// here — they keep their authored space (color_modern::ModernColor).
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 pub(crate) fn rgb_css(c: &Color) -> String {
     if c.3 == 255 {
         return format!("rgb({}, {}, {})", c.0, c.1, c.2);

@@ -124,7 +124,6 @@ impl Page {
 
     /// Set a page-scoped navigation deadline in milliseconds; `None` restores
     /// the process-wide default.
-    #[cfg_attr(not(test), allow(dead_code))] // batch-1 upstream parity; wire when per-request nav timeout becomes an API input
     pub fn set_navigation_timeout(&mut self, ms: Option<u64>) {
         self.navigation_timeout_ms = ms;
     }
@@ -482,7 +481,6 @@ impl Page {
 
     /// Move the history cursor without re-navigating; used by
     /// Page.navigateToHistoryEntry which then drives the actual fetch.
-    #[cfg_attr(not(test), allow(dead_code))] // exercised by the history tests below
     pub fn set_history_index(&mut self, idx: usize) {
         if idx < self.history.len() {
             self.history_index = idx;

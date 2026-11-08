@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 pub mod blocklist;
 #[cfg(feature = "stealth")]
 pub mod chrome_headers;

@@ -13,7 +13,6 @@
 /// fields are the persona contract the UA implies — bootstrap derives the
 /// live values from the UA at runtime, tests cross-check them here, and
 /// nothing else reads them yet.
-#[allow(dead_code)]
 pub struct BrowserProfile {
     pub user_agent: &'static str,
     pub platform: &'static str,

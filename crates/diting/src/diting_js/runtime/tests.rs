@@ -30638,7 +30638,7 @@ fn location_parts_memo_absorbs_repeated_reads() {
 async fn dynamic_script_retries_once_on_network_failure_not_on_404() {
     let _guard = crate::diting_net::PRIVATE_NET_ENV_LOCK.lock().unwrap();
     std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
-    let (port, hits) = {
+    let (port, _hits) = {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port_now = l.local_addr().unwrap().port();
         let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));

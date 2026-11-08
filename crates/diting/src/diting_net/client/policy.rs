@@ -238,6 +238,7 @@ pub fn validate_url(url: &Url, allow_private_network: bool) -> Result<(), NetErr
 pub(crate) mod file_access_test {
     use std::sync::atomic::Ordering;
     static FILE_ACCESS_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[allow(dead_code)] // holding the guard is the effect
     struct FileAccessGuard(std::sync::MutexGuard<'static, ()>, bool);
     impl Drop for FileAccessGuard {
         fn drop(&mut self) {

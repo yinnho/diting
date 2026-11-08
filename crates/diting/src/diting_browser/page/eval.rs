@@ -42,7 +42,6 @@ impl Page {
         })
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // snapshot helper exercised by tests; DOM consumers read via evaluate
     pub fn with_dom<R>(&self, f: impl FnOnce(&DomTree) -> R) -> Option<R> {
         if let Some(js) = &self.js {
             return js.with_dom(f);

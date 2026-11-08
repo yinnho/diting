@@ -1078,6 +1078,7 @@ impl ModernColor {
     /// degrees, `none` kept as `none`; alpha appended as `/ a` only when
     /// < 1. Numbers use up to 6 significant digits, trimmed
     /// (`color-mix(in oklch,…)` → `oklch(0.539974 0.285457 326.643)`).
+    #[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
     pub(crate) fn to_css(&self) -> String {
         let n = num6;
         let (head, cs) = match self.space {
@@ -1113,6 +1114,7 @@ impl ModernColor {
 
 /// Chrome's serialisation: `%g` with 6 significant digits (`oklch(0.7 …)`
 /// stays `0.7`, `326.64294…` becomes `326.643`), trailing zeros trimmed.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 fn num6(x: f32) -> String {
     if x.is_nan() {
         return "none".into(); // Chrome keeps `none` channels verbatim (#17).
@@ -1152,7 +1154,9 @@ fn is_modern(v: &str) -> bool {
         && lower[open + 1..].trim_start().starts_with("from ")
 }
 
-/// `parse_with_origin` with the element's used color-scheme (#18):
+/// `parse` plus the authored-space tag — `(sRGB bytes for paint, modern
+/// spelling for the CSSOM face)`, `None` for legacy syntaxes — under the
+/// element's used color-scheme (#18):
 /// `light-dark()` resolves to its branch first, and the pair returned is
 /// the BRANCH's — Chrome serializes the chosen branch's own spelling.
 pub(super) fn parse_with_scheme(v: &str, ld: bool) -> Option<(Color, Option<ModernColor>)> {
@@ -1178,17 +1182,12 @@ pub(super) fn parse_with_scheme(v: &str, ld: bool) -> Option<(Color, Option<Mode
     Some((to_color(&col), modern))
 }
 
-/// `parse` plus the authored-space tag: `(sRGB bytes for paint, modern
-/// spelling for the CSSOM face)` — the tag is `None` for legacy syntaxes.
-pub(super) fn parse_with_origin(v: &str) -> Option<(Color, Option<ModernColor>)> {
-    parse_with_scheme(v, false)
-}
-
 /// Rewrite an authored image value (gradients, #17) into Chrome's computed
 /// spelling: every stop colour — bare keyword, hex, or colour function —
 /// re-serializes (legacy → rgb()/rgba(), modern → its own space), while
 /// positions/angles/functions pass through verbatim. `var()` is already
 /// substituted by the time the cascade stores the string.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 pub(crate) fn computed_image_text(v: &str) -> String {
     const FNS: &[&str] = &[
         "rgb",
@@ -1279,6 +1278,7 @@ pub(crate) fn computed_image_text(v: &str) -> String {
 /// Chrome spells gradient/layer separators as ", " whatever the author
 /// wrote (`conic-gradient(red,blue)` → `…, rgb(0, 0, 255))`). Commas two
 /// or more parens deep (url("a,b.png") payloads) keep verbatim.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 fn normalize_commas(v: &str) -> String {
     // `","` at paren depth ≤ 1 → `", "`, swallowing whatever whitespace
     // already follows the comma (authored ", " must not double up).
@@ -1336,12 +1336,14 @@ fn normalize_commas(v: &str) -> String {
 
 /// Whether the chars immediately ahead are `rl(` (so the `u` we just emitted
 /// opens a `url(` token); consumes them into the url run when true.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 fn rest_is_url_paren(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> bool {
     let mut probe = chars.clone();
     matches!((probe.next(), probe.next()), (Some('r'), Some('l'))) && probe.next() == Some('(')
 }
 
 /// Index just past the `)` closing the paren that opens at/after `from`.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 fn find_balanced(v: &str, from: usize) -> Option<usize> {
     let mut depth = 0i32;
     for (j, c) in v[from..].char_indices() {

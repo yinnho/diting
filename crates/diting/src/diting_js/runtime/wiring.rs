@@ -220,7 +220,6 @@ impl JsRuntime {
     /// Drain network events recorded for script-initiated requests into the
     /// owning Page's event list. Idempotent (the queue is taken), so calling
     /// repeatedly never duplicates events.
-    #[cfg_attr(not(test), allow(dead_code))] // drained by Page::sync_js_network_events; consumer pending
     pub fn take_js_network_events(&self) -> Vec<crate::diting_js::ops::JsNetworkEvent> {
         std::mem::take(&mut self.state.borrow_mut().js_network_events)
     }

@@ -90,13 +90,6 @@ impl BrowserBuilder {
         self.config.user_agent = Some(ua.into());
         self
     }
-    // Cookie-persistence knob. No caller sets it today; parked with the
-    // persistence feature (see BrowserContext::save_cookies).
-    #[allow(dead_code)]
-    pub fn storage_dir(mut self, dir: impl Into<std::path::PathBuf>) -> Self {
-        self.config.storage_dir = Some(dir.into());
-        self
-    }
     /// Override the TLS fingerprint (stealth mode only). Accepts names like
     /// "chrome145", "firefox133", "safari17_5", "edge145".
     pub fn tls_fingerprint(mut self, fp: impl Into<String>) -> Self {

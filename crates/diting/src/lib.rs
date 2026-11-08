@@ -12,11 +12,9 @@ pub mod diting_net;
 // Engine runtime knobs (DITING_* env), owned by the engine since the
 // workspace split; the product re-exports them from `config`.
 pub mod env_knobs;
-// Cascade layer absorbed from upstream obscura-render (read-only slice,
-// not yet wired to the product pipeline).
+// Cascade: stylesheet parse, selector match, computed values.
 pub mod diting_css;
-// Taffy fork-delta classification tests (obscura's vendored taffy vs the
-// stock release line; history — see diting_layout/fork_deltas.rs).
+// Layout + paint (taffy/swash), screenshot builds only.
 #[cfg(feature = "screenshot")]
 pub mod diting_layout;
 // Bundled CJK font supply for /screenshot determinism (batch 3c).

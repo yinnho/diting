@@ -435,6 +435,7 @@ pub(crate) fn inherit_custom(
 /// Registered initial values for names the element's map does not carry —
 /// the computed-style snapshot adds them so `getComputedStyle(el)
 /// .getPropertyValue('--x')` sees what `var(--x)` sees.
+#[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 pub(crate) fn missing_initials(custom: &HashMap<String, String>) -> Vec<(String, String)> {
     ACTIVE.with(|r| {
         r.borrow()

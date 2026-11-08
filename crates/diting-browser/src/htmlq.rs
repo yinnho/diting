@@ -83,6 +83,7 @@ impl Node {
     }
 
     /// Returns self as text.
+    #[cfg(test)]
     pub fn as_text(&self) -> Option<&Text> {
         match *self {
             Node::Text(ref t) => Some(t),
@@ -628,13 +629,9 @@ impl<'a> ElementRef<'a> {
     }
 
     /// Returns the inner HTML of this element.
+    #[cfg(test)]
     pub fn inner_html(&self) -> String {
         self.serialize_node(TraversalScope::ChildrenOnly(None))
-    }
-
-    /// Returns the value of an attribute.
-    pub fn attr(&self, attr: &str) -> Option<&'a str> {
-        self.value().attr(attr)
     }
 
     /// Returns an iterator over descendent text nodes.
@@ -645,6 +642,7 @@ impl<'a> ElementRef<'a> {
     }
 
     /// Iterate over all child nodes which are elements.
+    #[cfg_attr(not(feature = "screenshot"), allow(dead_code))] // screenshot.rs <picture> walk
     pub fn child_elements(&self) -> impl Iterator<Item = ElementRef<'a>> + use<'a> {
         self.children().filter_map(ElementRef::wrap)
     }
@@ -731,18 +729,6 @@ impl Selector {
         SelectorList::parse(&QParser, &mut parser, ParseRelative::No)
             .map(|selectors| Self { selectors })
             .map_err(|e| format!("{e:?}"))
-    }
-
-    /// Returns true if the element matches this selector.
-    pub fn matches(&self, element: ElementRef<'_>) -> bool {
-        self.matches_with_scope(element, None)
-    }
-
-    /// Returns true if the element matches this selector. The optional
-    /// `scope` argument specifies which element `:scope` refers to;
-    /// `None` means the root.
-    pub fn matches_with_scope(&self, element: ElementRef<'_>, scope: Option<ElementRef<'_>>) -> bool {
-        self.matches_with_scope_and_cache(element, scope, &mut Default::default())
     }
 
     fn matches_with_scope_and_cache(

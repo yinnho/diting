@@ -337,7 +337,6 @@ pub struct Page {
     /// Upstream frame-realm identifier: one Page can host sub-frame realms
     /// keyed by frame id. We run a single realm per page, so nothing reads
     /// it yet (frame-realm absorption is parked).
-    #[allow(dead_code)]
     pub frame_id: String,
     pub url: Option<Url>,
     pub dom: Option<DomTree>,
@@ -976,7 +975,6 @@ impl Page {
         }
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // storm control: park the realm between microtask bursts
     pub fn suspend_js(&mut self) {
         self.snapshot_session_storage();
         if let Some(js) = &self.js {
@@ -991,7 +989,6 @@ impl Page {
         self.js = None;
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // storm control: re-arm after suspend_js
     pub fn resume_js(&mut self) {
         if self.js.is_some() {
             return;
@@ -999,7 +996,6 @@ impl Page {
         self.init_js();
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // tests assert on the suspend/resume lifecycle
     pub fn has_js(&self) -> bool {
         self.js.is_some()
     }
@@ -1058,7 +1054,6 @@ impl Page {
         }
     }
 
-    #[cfg_attr(not(test), allow(dead_code))] // engine path is live (init_js runs these); no bin caller registers one yet
     pub fn set_preload_scripts(&mut self, scripts: Vec<String>) {
         self.preload_scripts = scripts;
     }
@@ -1066,7 +1061,6 @@ impl Page {
     /// Append one preload script, keeping any already registered (CDP
     /// `Page.addScriptToEvaluateOnNewDocument` is additive; our
     /// `set_preload_scripts` replaces the whole group).
-    #[cfg_attr(not(test), allow(dead_code))] // batch-1 absorption; wire at session init when a preload need lands
     pub fn add_preload_script(&mut self, script: String) {
         self.preload_scripts.push(script);
     }

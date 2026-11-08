@@ -16,7 +16,6 @@ autoexamples = false
 autotests = false
 autobenches = false
 license = "Apache-2.0"
-resolver = "3"
 
 [package.metadata.docs.rs]
 all-features = true

@@ -24,7 +24,6 @@ pub enum WaitUntil {
 impl WaitUntil {
     /// Parse a puppeteer/playwright `waitUntil` string. Unrecognized values
     /// fall back to `load`, matching Playwright's tolerance.
-    #[allow(dead_code)] // see the NetworkIdle0/2 doc above: one unit, one caller-to-be
     pub fn parse(s: &str) -> Self {
         match s {
             "domcontentloaded" => WaitUntil::DomContentLoaded,

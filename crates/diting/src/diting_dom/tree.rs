@@ -412,7 +412,9 @@ impl DomTree {
     }
 
     /// Escape hatch for mutation paths the dirty registry cannot describe:
-    /// the next incremental match sync rebuilds from scratch.
+    /// the next incremental match sync rebuilds from scratch. No production
+    /// mutation path needs it yet; the dirty-registry tests drive it.
+    #[cfg(test)]
     pub(crate) fn note_match_full(&self) {
         self.inner.borrow_mut().match_dirty.full = true;
     }
