@@ -40,7 +40,7 @@
 //!    infinitely down the tree. It is required by the `RoundTree` and
 //!    the `PrintTree` traits.
 //! ```rust
-//! # use taffy::*;
+//! # use diting_taffy::*;
 //! pub trait TraversePartialTree {
 //!     /// Type representing an iterator of the children of a node
 //!     type ChildIter<'a>: Iterator<Item = NodeId>
@@ -74,7 +74,7 @@
 //! node that only has access to it's immediate children.
 //!
 //! ```rust
-//! # use taffy::*;
+//! # use diting_taffy::*;
 //! pub trait LayoutPartialTree: TraversePartialTree {
 //!     /// Get a reference to the [`Style`] for this node.
 //!     fn get_style(&self, node_id: NodeId) -> &Style;
@@ -100,7 +100,7 @@
 //! As indicated by it's dependence on `TraverseTree`, it required full recursive access to the tree.
 //!
 //! ```rust
-//! # use taffy::*;
+//! # use diting_taffy::*;
 //! pub trait RoundTree: TraverseTree {
 //!     /// Get the node's unrounded layout
 //!     fn get_unrounded_layout(&self, node_id: NodeId) -> Layout;
@@ -117,7 +117,7 @@
 //! /// Trait used by the `print_tree` method which prints a debug representation
 //! ///
 //! /// As indicated by it's dependence on `TraverseTree`, it required full recursive access to the tree.
-//! # use taffy::*;
+//! # use diting_taffy::*;
 //! pub trait PrintTree: TraverseTree {
 //!     /// Get a debug label for the node (typically the type of node: flexbox, grid, text, image, etc)
 //!     fn get_debug_label(&self, node_id: NodeId) -> &'static str;
