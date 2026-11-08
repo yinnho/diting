@@ -21,7 +21,7 @@ An agent's total cost is browser efficiency × model efficiency. This is the bro
 
 ## What it does
 
-- **Full browser, no Chromium** — V8 + an owned Rust HTTP/CSS/layout/paint stack in one binary. Screenshots and rendering are built in; there is nothing to download and nothing to sandbox
+- **Full browser, no Chromium** — V8 + an owned Rust HTTP/CSS/layout/paint stack in one binary. Screenshots and rendering are built in; there is nothing to download and nothing to sandbox. Drove the most popular Chrome-based agent browser for a day and wrote down the difference first-hand: [WHY-NO-CHROMIUM.md](WHY-NO-CHROMIUM.md) — 2.4× faster cold start, one dependency instead of a second browser, flat memory curve, receipts per response
 - **Real TLS fingerprints** — production-grade impersonation that passes edge checks where fingerprint-less engines eat 403s; CAPTCHA and challenge pages are detected, waited on, and reported instead of handed over as content
 - **Stateful sessions** — login state injects, exports, and survives restarts. The same session id comes back logged in
 - **Tiered rendering** — static pages answer in ~100 ms; V8 spins up only when a page actually needs JS. Every response says which tier served it
