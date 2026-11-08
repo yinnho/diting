@@ -433,10 +433,11 @@ fn bounded_cancel_and_join(
                 true
             } else {
                 // Leak on purpose: the thread is stuck inside a V8 call or in
-                // its own exit. If the call ever returns, the loops in the
-                // thread see the resurface flag and it exits on its own —
-                // merely unjoined.
-                std::mem::forget(j);
+                // its own exit. Dropping a JoinHandle detaches the thread
+                // (it never joins), so this is the leak. If the call ever
+                // returns, the loops in the thread see the resurface flag
+                // and it exits on its own — merely unjoined.
+                drop(j);
                 false
             }
         }

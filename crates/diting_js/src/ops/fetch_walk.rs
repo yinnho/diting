@@ -161,6 +161,213 @@ fn buffered_preflight_parts(
     )
 }
 
+/// CORS preflight (Fetch §4.8): an OPTIONS request carrying Origin and the
+/// Access-Control-Request-* pair, answered by the method/header allow
+/// lists. A transport failure or a refusal is the fetch's network error;
+/// failure events go to `deps.failures` like every other hop.
+#[allow(clippy::too_many_arguments)]
+async fn cors_preflight(
+    deps: &mut FetchWalkDeps,
+    client: &reqwest::Client,
+    http_client: &Option<Arc<HttpClient>>,
+    url: &str,
+    method: &str,
+    page_origin: &str,
+    credentials: FetchCredentials,
+    req_method: &reqwest::Method,
+    unsafe_header_names: &[String],
+) -> Result<(), deno_error::JsErrorBox> {
+    // Owned copies so the body reads exactly as it did inline (preflight
+    // is the rare cross-origin non-simple path; three small clones).
+    let (url, method, page_origin) = (url.to_string(), method.to_string(), page_origin.to_string());
+    let mut preflight_request = client
+        .request(reqwest::Method::OPTIONS, &url)
+        .header("Origin", &page_origin)
+        .header("Access-Control-Request-Method", method.as_str());
+    if !unsafe_header_names.is_empty() {
+        preflight_request = preflight_request.header(
+            "Access-Control-Request-Headers",
+            unsafe_header_names.join(","),
+        );
+    }
+    // The preflight's three headers (never cookies — a CORS preflight
+    // is never credentialed), as one map so both transports send the
+    // same request.
+    let mut preflight_headers: HashMap<String, String> = HashMap::new();
+    preflight_headers.insert("Origin".to_string(), page_origin.clone());
+    preflight_headers.insert("Access-Control-Request-Method".to_string(), method.clone());
+    if !unsafe_header_names.is_empty() {
+        preflight_headers.insert(
+            "Access-Control-Request-Headers".to_string(),
+            unsafe_header_names.join(","),
+        );
+    }
+    // #116: the preflight rides the same transport the main request
+    // will — stealth-first on a stealth page, before plain rustls.
+    // `Some(Err)` records that the stealth stack already fired so the
+    // plain attempt's own legacy fallback stays gated (at most two
+    // transports per request); `None` (non-stealth build/context,
+    // SOCKS) leaves the plain path exactly as it was.
+    let stealth_preflight = match http_client.as_ref() {
+        Some(hc) => match url::Url::parse(&url) {
+            Ok(u) => {
+                hc.scripted_stealth_hop(
+                    &reqwest::Method::OPTIONS,
+                    &u,
+                    None,
+                    None,
+                    Some(&preflight_headers),
+                    false,
+                )
+                .await
+            }
+            Err(_) => None,
+        },
+        None => None,
+    };
+    let preflight_stealth_err = match &stealth_preflight {
+        Some(Err(se)) => Some(se.to_string()),
+        _ => None,
+    };
+    let (pf_headers, allowed_origin, allow_credentials, preflight_status) = match &stealth_preflight
+    {
+        Some(Ok(fr)) => buffered_preflight_parts(fr),
+        _ => match preflight_request.send().await {
+            Ok(p) => (
+                p.headers().clone(),
+                p.headers()
+                    .get("access-control-allow-origin")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string(),
+                p.headers()
+                    .get("access-control-allow-credentials")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string(),
+                p.status().as_u16(),
+            ),
+            Err(e) => {
+                // The plain preflight keeps the legacy-TLS escape
+                // hatch (a CBC-only endpoint kills the OPTIONS in
+                // the ClientHello before the main request — which
+                // does retry on connect-stage failure — ever ran)
+                // unless the stealth stack already fired above.
+                let fallback = match http_client.as_ref() {
+                    Some(hc) if preflight_stealth_err.is_none() => match url::Url::parse(&url) {
+                        Ok(u) => Some(
+                            hc.scripted_fetch_fallback(
+                                &reqwest::Method::OPTIONS,
+                                &u,
+                                &e.to_string(),
+                                None,
+                                None,
+                                e.is_connect(),
+                                Some(&preflight_headers),
+                                false,
+                            )
+                            .await,
+                        ),
+                        Err(_) => None,
+                    },
+                    _ => None,
+                };
+                match fallback {
+                    Some(Ok(fr)) => buffered_preflight_parts(&fr),
+                    _ => {
+                        let error = match preflight_stealth_err {
+                            Some(se) => format!(
+                                "CORS preflight failed: {e} (stealth transport also failed: {se})"
+                            ),
+                            None => format!("CORS preflight failed: {e}"),
+                        };
+                        deps.failures.push(FetchFailure {
+                            url: url.clone(),
+                            method: method.clone(),
+                            reason: error.clone(),
+                            final_url: url.clone(),
+                            redirects: Vec::new(),
+                            started: deps.started_unix,
+                        });
+                        return Err(deno_error::JsErrorBox::generic(error));
+                    }
+                }
+            }
+        },
+    };
+
+    // Every preflight rejection below is an early exit the JS side sees as
+    // a rejected promise — each must leave a status-0 network event with
+    // the reason, or the request vanishes from /network (the same ghost
+    // the taobao punished-mtop report chased on the response-side gate).
+    let mut reject_preflight = |message: String| -> deno_error::JsErrorBox {
+        deps.failures.push(FetchFailure {
+            url: url.clone(),
+            method: method.clone(),
+            reason: message.clone(),
+            final_url: url.clone(),
+            redirects: Vec::new(),
+            started: deps.started_unix,
+        });
+        deno_error::JsErrorBox::generic(message)
+    };
+
+    // Fetch validates the preflight's HTTP status before its CORS headers;
+    // the only observable difference is which error a 403-without-ACAO
+    // preflight reports.
+    if !(200..300).contains(&preflight_status) {
+        return Err(reject_preflight(format!(
+            "CORS preflight returned HTTP {}",
+            preflight_status
+        )));
+    }
+    if !cors_response_allows(
+        credentials,
+        &page_origin,
+        &allowed_origin,
+        &allow_credentials,
+    ) {
+        return Err(reject_preflight(format!(
+            "CORS preflight: Origin '{}' not allowed by Access-Control-Allow-Origin '{}'",
+            page_origin, allowed_origin
+        )));
+    }
+
+    // The preflight must actually authorize the method and the unsafe
+    // headers — a server that allows the origin but never listed the
+    // method/headers does not consent to this request (obscura "enforce
+    // CORS preflight permissions" fix, 04f0475).
+    let allowed_methods = parse_cors_header_list(&pf_headers, "access-control-allow-methods")
+        .ok_or_else(|| {
+            reject_preflight(
+                "CORS preflight returned an invalid Access-Control-Allow-Methods value".to_string(),
+            )
+        })?;
+    let allowed_headers = parse_cors_header_list(&pf_headers, "access-control-allow-headers")
+        .ok_or_else(|| {
+            reject_preflight(
+                "CORS preflight returned an invalid Access-Control-Allow-Headers value".to_string(),
+            )
+        })?;
+    let credentialed = credentials == FetchCredentials::Include;
+    if !preflight_allows_method(req_method, &allowed_methods, credentialed) {
+        return Err(reject_preflight(format!(
+            "CORS preflight did not allow method '{}'",
+            req_method
+        )));
+    }
+    if let Some(name) = unsafe_header_names
+        .iter()
+        .find(|name| !preflight_allows_header(name, &allowed_headers, credentialed))
+    {
+        return Err(reject_preflight(format!(
+            "CORS preflight did not allow request header '{}'",
+            name
+        )));
+    }
+    Ok(())
+}
+
 /// The transport half of op_fetch_url, shared verbatim by the deferred async
 /// op and the sync-XHR op (obscura#908): client selection, CORS preflight,
 /// the manual SSRF-revalidated redirect walk, scripted per-hop headers, the
@@ -222,193 +429,18 @@ pub(crate) async fn fetch_url_walk(
         && (!is_cors_safelisted_method(&req_method) || !unsafe_header_names.is_empty());
 
     if needs_preflight {
-        let mut preflight_request = client
-            .request(reqwest::Method::OPTIONS, &url)
-            .header("Origin", &page_origin)
-            .header("Access-Control-Request-Method", method.as_str());
-        if !unsafe_header_names.is_empty() {
-            preflight_request = preflight_request.header(
-                "Access-Control-Request-Headers",
-                unsafe_header_names.join(","),
-            );
-        }
-        // The preflight's three headers (never cookies — a CORS preflight
-        // is never credentialed), as one map so both transports send the
-        // same request.
-        let mut preflight_headers: HashMap<String, String> = HashMap::new();
-        preflight_headers.insert("Origin".to_string(), page_origin.clone());
-        preflight_headers.insert("Access-Control-Request-Method".to_string(), method.clone());
-        if !unsafe_header_names.is_empty() {
-            preflight_headers.insert(
-                "Access-Control-Request-Headers".to_string(),
-                unsafe_header_names.join(","),
-            );
-        }
-        // #116: the preflight rides the same transport the main request
-        // will — stealth-first on a stealth page, before plain rustls.
-        // `Some(Err)` records that the stealth stack already fired so the
-        // plain attempt's own legacy fallback stays gated (at most two
-        // transports per request); `None` (non-stealth build/context,
-        // SOCKS) leaves the plain path exactly as it was.
-        let stealth_preflight = match http_client.as_ref() {
-            Some(hc) => match url::Url::parse(&url) {
-                Ok(u) => {
-                    hc.scripted_stealth_hop(
-                        &reqwest::Method::OPTIONS,
-                        &u,
-                        None,
-                        None,
-                        Some(&preflight_headers),
-                        false,
-                    )
-                    .await
-                }
-                Err(_) => None,
-            },
-            None => None,
-        };
-        let preflight_stealth_err = match &stealth_preflight {
-            Some(Err(se)) => Some(se.to_string()),
-            _ => None,
-        };
-        let (pf_headers, allowed_origin, allow_credentials, preflight_status) =
-            match &stealth_preflight {
-                Some(Ok(fr)) => buffered_preflight_parts(fr),
-                _ => match preflight_request.send().await {
-                    Ok(p) => (
-                        p.headers().clone(),
-                        p.headers()
-                            .get("access-control-allow-origin")
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or("")
-                            .to_string(),
-                        p.headers()
-                            .get("access-control-allow-credentials")
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or("")
-                            .to_string(),
-                        p.status().as_u16(),
-                    ),
-                    Err(e) => {
-                        // The plain preflight keeps the legacy-TLS escape
-                        // hatch (a CBC-only endpoint kills the OPTIONS in
-                        // the ClientHello before the main request — which
-                        // does retry on connect-stage failure — ever ran)
-                        // unless the stealth stack already fired above.
-                        let fallback = match http_client.as_ref() {
-                            Some(hc) if preflight_stealth_err.is_none() => {
-                                match url::Url::parse(&url) {
-                                    Ok(u) => Some(
-                                        hc.scripted_fetch_fallback(
-                                            &reqwest::Method::OPTIONS,
-                                            &u,
-                                            &e.to_string(),
-                                            None,
-                                            None,
-                                            e.is_connect(),
-                                            Some(&preflight_headers),
-                                            false,
-                                        )
-                                        .await,
-                                    ),
-                                    Err(_) => None,
-                                }
-                            }
-                            _ => None,
-                        };
-                        match fallback {
-                            Some(Ok(fr)) => buffered_preflight_parts(&fr),
-                            _ => {
-                                let error = match preflight_stealth_err {
-                                    Some(se) => format!(
-                                        "CORS preflight failed: {e} (stealth transport also failed: {se})"
-                                    ),
-                                    None => format!("CORS preflight failed: {e}"),
-                                };
-                                deps.failures.push(FetchFailure {
-                                    url: url.clone(),
-                                    method: method.clone(),
-                                    reason: error.clone(),
-                                    final_url: url.clone(),
-                                    redirects: Vec::new(),
-                                    started: deps.started_unix,
-                                });
-                                return Err(deno_error::JsErrorBox::generic(error));
-                            }
-                        }
-                    }
-                },
-            };
-
-        // Every preflight rejection below is an early exit the JS side sees as
-        // a rejected promise — each must leave a status-0 network event with
-        // the reason, or the request vanishes from /network (the same ghost
-        // the taobao punished-mtop report chased on the response-side gate).
-        let mut reject_preflight = |message: String| -> deno_error::JsErrorBox {
-            deps.failures.push(FetchFailure {
-                url: url.clone(),
-                method: method.clone(),
-                reason: message.clone(),
-                final_url: url.clone(),
-                redirects: Vec::new(),
-                started: deps.started_unix,
-            });
-            deno_error::JsErrorBox::generic(message)
-        };
-
-        // Fetch validates the preflight's HTTP status before its CORS headers;
-        // the only observable difference is which error a 403-without-ACAO
-        // preflight reports.
-        if !(200..300).contains(&preflight_status) {
-            return Err(reject_preflight(format!(
-                "CORS preflight returned HTTP {}",
-                preflight_status
-            )));
-        }
-        if !cors_response_allows(
-            credentials,
+        cors_preflight(
+            deps,
+            &client,
+            &http_client,
+            &url,
+            &method,
             &page_origin,
-            &allowed_origin,
-            &allow_credentials,
-        ) {
-            return Err(reject_preflight(format!(
-                "CORS preflight: Origin '{}' not allowed by Access-Control-Allow-Origin '{}'",
-                page_origin, allowed_origin
-            )));
-        }
-
-        // The preflight must actually authorize the method and the unsafe
-        // headers — a server that allows the origin but never listed the
-        // method/headers does not consent to this request (obscura "enforce
-        // CORS preflight permissions" fix, 04f0475).
-        let allowed_methods = parse_cors_header_list(&pf_headers, "access-control-allow-methods")
-            .ok_or_else(|| {
-            reject_preflight(
-                "CORS preflight returned an invalid Access-Control-Allow-Methods value".to_string(),
-            )
-        })?;
-        let allowed_headers = parse_cors_header_list(&pf_headers, "access-control-allow-headers")
-            .ok_or_else(|| {
-            reject_preflight(
-                "CORS preflight returned an invalid Access-Control-Allow-Headers value".to_string(),
-            )
-        })?;
-        let credentialed = credentials == FetchCredentials::Include;
-        if !preflight_allows_method(&req_method, &allowed_methods, credentialed) {
-            return Err(reject_preflight(format!(
-                "CORS preflight did not allow method '{}'",
-                req_method
-            )));
-        }
-        if let Some(name) = unsafe_header_names
-            .iter()
-            .find(|name| !preflight_allows_header(name, &allowed_headers, credentialed))
-        {
-            return Err(reject_preflight(format!(
-                "CORS preflight did not allow request header '{}'",
-                name
-            )));
-        }
+            credentials,
+            &req_method,
+            &unsafe_header_names,
+        )
+        .await?;
     }
 
     // Follow redirects manually so the SSRF policy applies to every hop.
