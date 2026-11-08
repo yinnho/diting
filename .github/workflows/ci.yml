@@ -24,12 +24,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          # v2 (2026-11-03): the v2-key cache replayed the v8 build-script
+          # v3 (2026-11-08): the v2 key hit the same poisoning the v1 key
+          # did (2026-11-03): the cache replayed the v8 build-script
           # fingerprint without its OUT_DIR (librusty_v8.a) and every run
           # since failed at link. Fresh key = fresh cache = fresh download;
           # a stale cache self-heals on a key bump, so never reuse this key
           # across v8 asset changes.
-          key: test-screenshot-v2
+          key: test-screenshot-v3
       - name: Test
         # --workspace is load-bearing: the repo is a root-package workspace
         # (crates/diting), and without it cargo tests only the root package,
@@ -91,7 +92,7 @@ jobs:
         with:
           # Separate cache: clippy check fingerprints differ from the check/test
           # jobs; same v8 OUT_DIR poisoning caveat as the test job applies.
-          key: clippy-v1
+          key: clippy-v2
       - name: Clippy
         run: cargo clippy --workspace --all-targets --features stealth,screenshot
 
