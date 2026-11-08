@@ -1081,3 +1081,53 @@ async fn in_flight_counter_survives_cancelled_send() {
     );
     sink.abort();
 }
+
+/// Module scripts are CORS-mode with credentials "same-origin", on both
+/// transports: a cross-origin hop carries Origin and no cookies, a
+/// same-origin one carries cookies and no Origin; dest/mode match Chrome.
+#[tokio::test]
+async fn module_script_fetch_is_cors_with_same_origin_credentials() {
+    for stealth in [false, true] {
+        let (url, server) = loopback_header_echo().await;
+        let jar = Arc::new(CookieJar::new());
+        jar.set_cookie("sid=1", &url);
+        let mut client = HttpClient::with_full_options(jar, None, true);
+        client.rides_stealth = stealth;
+
+        let cross = client
+            .fetch_with_callbacks(
+                &url,
+                None,
+                ResourceType::ModuleScript,
+                Some("http://other.test/app"),
+            )
+            .await
+            .expect("echo answers");
+        let echo = String::from_utf8_lossy(&cross.body).to_string();
+        assert_eq!(
+            echoed(&echo, "sec-fetch-mode"),
+            vec!["cors"],
+            "stealth={stealth}: {echo}"
+        );
+        assert_eq!(
+            echoed(&echo, "sec-fetch-dest"),
+            vec!["script"],
+            "stealth={stealth}: {echo}"
+        );
+        assert_eq!(
+            echoed(&echo, "origin"),
+            vec!["http://other.test"],
+            "stealth={stealth}: {echo}"
+        );
+        assert!(echoed(&echo, "cookie").is_empty(), "stealth={stealth}: {echo}");
+
+        let same = client
+            .fetch_with_callbacks(&url, None, ResourceType::ModuleScript, Some(url.as_str()))
+            .await
+            .expect("echo answers");
+        let echo = String::from_utf8_lossy(&same.body).to_string();
+        assert!(echoed(&echo, "origin").is_empty(), "stealth={stealth}: {echo}");
+        assert_eq!(echoed(&echo, "cookie"), vec!["sid=1"], "stealth={stealth}: {echo}");
+        server.abort();
+    }
+}

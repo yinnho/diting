@@ -693,7 +693,19 @@ impl StealthHttpClient {
                 let header = self.cookie_jar.get_cookie_header_for(&current_url, &ctx);
                 (ctx, header)
             };
-            if include_cookies && !cookie_header.is_empty() {
+            // Module scripts: a cross-origin hop is CORS with credentials
+            // "same-origin" — Origin on, cookies off.
+            let module_origin = crate::client::metadata::cross_origin_module(
+                resource_type,
+                referrer.and_then(|s| url::Url::parse(s).ok()).as_ref(),
+                &current_url,
+            );
+            if let Some(origin) = &module_origin {
+                if !request_local("origin") {
+                    req = req.header("Origin", origin);
+                }
+            }
+            if include_cookies && module_origin.is_none() && !cookie_header.is_empty() {
                 req = req.header("Cookie", &cookie_header);
             }
 

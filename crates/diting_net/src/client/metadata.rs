@@ -24,6 +24,13 @@ pub(crate) fn metadata_for(rt: ResourceType) -> FetchMetadata {
             mode: "no-cors",
             default_accept: "*/*",
         },
+        // `<script type=module>` and import(): the CORS-mode fetch Chrome
+        // makes for module graphs.
+        ResourceType::ModuleScript => FetchMetadata {
+            dest: "script",
+            mode: "cors",
+            default_accept: "*/*",
+        },
         ResourceType::Stylesheet => FetchMetadata {
             dest: "style",
             mode: "no-cors",
@@ -46,12 +53,26 @@ pub(crate) fn is_navigation(rt: ResourceType) -> bool {
     matches!(rt, ResourceType::Document)
 }
 
+/// A module-script fetch is CORS-mode with credentials "same-origin": a
+/// cross-origin hop carries `Origin` and no cookies. `Some(origin)` is that
+/// case (the initiating document's origin); `None` is every other request.
+pub(crate) fn cross_origin_module(
+    rt: ResourceType,
+    initiator: Option<&url::Url>,
+    target: &url::Url,
+) -> Option<String> {
+    let initiator = initiator?;
+    (rt == ResourceType::ModuleScript && initiator.origin() != target.origin())
+        .then(|| initiator.origin().ascii_serialization())
+}
+
 /// CDP `Network.ResourceType`-shaped label for a request. Drives
 /// `RequestInfo.resource_type` and the page's NetworkEvent kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResourceType {
     Document,
     Script,
+    ModuleScript,
     Stylesheet,
     Image,
     Fetch,
@@ -61,7 +82,7 @@ impl ResourceType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Document => "Document",
-            Self::Script => "Script",
+            Self::Script | Self::ModuleScript => "Script",
             Self::Stylesheet => "Stylesheet",
             Self::Image => "Image",
             Self::Fetch => "Fetch",
