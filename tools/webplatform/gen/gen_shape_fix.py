@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/shape_fix.js from the whole-surface shape audit.
+"""Generate crates/diting_js/js/shape_fix.js from the whole-surface shape audit.
 
   gen_shape_fix.py <engine.json> [out.js]
 
@@ -16,7 +16,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
 E = json.load(open(sys.argv[1]))
-out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting/js/shape_fix.js')
+out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting_js/js/shape_fix.js')
 
 def parse(k):
     if k is None or k == 'err': return None

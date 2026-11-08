@@ -5,7 +5,7 @@ Inputs (all fetched into WORK, nothing checked in):
   WORK/wr/ed/idlparsed/*.json  curl -L https://codeload.github.com/w3c/webref/tar.gz/refs/heads/curated
                                | tar -xz --strip-components=1 --include='*/ed/idlparsed/*' -C WORK/wr
   WORK/bcd.json                https://unpkg.com/@mdn/browser-compat-data@5.6.30/data.json
-  engine snapshot              crates/diting/src/diting_js/runtime/surface_snapshot.txt
+  engine snapshot              crates/diting_js/src/runtime/surface_snapshot.txt
 
 Two-phase because member presence is probed on INSTANCES by the engine:
   1. python3 scripts/surface_webidl_diff.py WORK members   # writes WORK/stdmembers.json
@@ -21,7 +21,7 @@ import collections, glob, json, os, sys
 
 WORK, MODE = sys.argv[1], sys.argv[2]
 HERE = os.path.dirname(os.path.abspath(__file__))
-SNAP = os.path.join(HERE, '..', 'crates/diting/src/diting_js/runtime/surface_snapshot.txt')
+SNAP = os.path.join(HERE, '..', 'crates/diting_js/src/runtime/surface_snapshot.txt')
 OUT = os.path.join(HERE, '..', 'docs/SURFACE-WEBIDL.md')  # docs/ is local-only
 
 ifaces, partials, includes, mixins = {}, collections.defaultdict(list), [], {}

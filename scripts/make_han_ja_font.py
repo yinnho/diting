@@ -20,8 +20,8 @@ from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "crates/diting/src/diting_fonts/diting-cjk-regular.ttf"
-OUT = ROOT / "crates/diting/src/diting_fonts/test-han-ja-face.ttf"
+SRC = ROOT / "crates/diting_layout/src/diting_fonts/diting-cjk-regular.ttf"
+OUT = ROOT / "crates/diting_layout/src/diting_fonts/test-han-ja-face.ttf"
 
 # The name records that make the face classify as the Japanese slot: the
 # family and PostScript names carry the "JP" token `face_han_slot` scans

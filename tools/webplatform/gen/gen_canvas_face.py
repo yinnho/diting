@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# Generate crates/diting/js/canvas_face.js from Chrome blank-canvas captures.
+# Generate crates/diting_js/js/canvas_face.js from Chrome blank-canvas captures.
 # Source: tools/webplatform/chrome/xhs-chrome-blank-consts.json (CDP capture of real Chrome's
 # toDataURL on never-drawn canvases). Regenerate after re-shooting.
 import json
 import os, sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 CHROME = os.path.join(ROOT, "tools", "webplatform", "chrome")
-# usage: <this script> [OUT_DIR]   (default: crates/diting/js — the checked-in artifact)
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "crates", "diting", "js")
+# usage: <this script> [OUT_DIR]   (default: crates/diting_js/js — the checked-in artifact)
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "crates", "diting_js", "js")
 
 consts = json.load(open(os.path.join(CHROME, "xhs-chrome-blank-consts.json")))
 
@@ -107,4 +107,4 @@ HTMLCanvasElement.prototype.toBlob = function toBlob(cb, type, quality) {
 """ % ("\n".join(rows))
 
 open(os.path.join(OUT, "canvas_face.js"), "w").write(js)
-print("wrote crates/diting/js/canvas_face.js:", len(js), "bytes,", len(rows), "consts")
+print("wrote crates/diting_js/js/canvas_face.js:", len(js), "bytes,", len(rows), "consts")

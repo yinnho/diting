@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/stub_members.js: Chrome-shaped members for PURE-STUB interfaces.
+"""Generate crates/diting_js/js/stub_members.js: Chrome-shaped members for PURE-STUB interfaces.
 
   gen_stub_members.py <engine.json> [out.js]
 
@@ -17,7 +17,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
 E = json.load(open(sys.argv[1]))
-out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting/js/stub_members.js')
+out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting_js/js/stub_members.js')
 
 def member(name, k, val):
     parts = k.split(':')

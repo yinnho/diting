@@ -3,23 +3,23 @@
 //! One responsibility: load and run a page — network → DOM → CSS → layout →
 //! paint, with a built-in V8 runtime — and expose it through the `Page`-level
 //! API. No product concerns live here (ARCHITECTURE.md §2, rule R2).
+//!
+//! Facade since #58: the engine lives in the `diting_*` crates (env → dom →
+//! css → layout; net; js; page) and this crate re-exports them under their
+//! old module paths, so `diting::diting_dom::…` and friends keep working.
 
-pub mod chrome_target;
-pub mod diting_browser;
-pub mod diting_dom;
-pub mod diting_js;
-pub mod diting_net;
-// Engine runtime knobs (DITING_* env), owned by the engine since the
-// workspace split; the product re-exports them from `config`.
-pub mod env_knobs;
-// Cascade: stylesheet parse, selector match, computed values.
-pub mod diting_css;
-// Layout + paint (taffy/swash), screenshot builds only.
+pub use diting_css;
+pub use diting_dom;
+pub use diting_env::{chrome_target, env_knobs};
+pub use diting_js;
 #[cfg(feature = "screenshot")]
-pub mod diting_layout;
-// Bundled CJK font supply for /screenshot determinism (batch 3c).
+pub use diting_layout;
+pub use diting_net;
+pub use diting_page as diting_browser;
+// Bundled CJK font supply for /screenshot determinism (batch 3c) — lives
+// inside diting_layout (fonts and layout reference each other).
 #[cfg(feature = "screenshot")]
-pub mod diting_fonts;
+pub use diting_layout::diting_fonts;
 
 /// Source revision the engine was built from (build.rs git rev-parse;
 /// DITING_BUILD_COMMIT overrides for the .git-less 86quan tree).

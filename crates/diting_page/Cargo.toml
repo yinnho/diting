@@ -1,0 +1,31 @@
+[package]
+name = "diting_page"
+version.workspace = true
+edition = "2021"
+description = "Diting engine: the Page API (navigate/settle/context/lifecycle) over the JS runtime and network. Re-exported as diting::diting_browser."
+license = "Apache-2.0"
+repository = "https://github.com/yinnho/diting"
+publish = false
+
+[features]
+default = []
+screenshot = ["diting_js/screenshot"]
+stealth = ["diting_net/stealth", "diting_js/stealth", "diting_env/stealth"]
+
+[dependencies]
+diting_env = { path = "../diting_env" }
+diting_dom = { path = "../diting_dom" }
+diting_net = { path = "../diting_net" }
+diting_js = { path = "../diting_js" }
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+url = "2"
+base64 = "0.23"
+sha2 = "0.11"
+
+[lints]
+workspace = true

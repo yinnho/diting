@@ -35,6 +35,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = ROOT / "crates" / "diting"
+# #58: the engine is the facade plus its seven body crates; every engine rule
+# runs over all of them. js/ (the snapshot sources) lives with diting_js.
+ENGINE_CRATES = [ENGINE] + [
+    ROOT / "crates" / c
+    for c in ("diting_env", "diting_dom", "diting_css", "diting_layout",
+              "diting_net", "diting_js", "diting_page")
+]
+ENGINE_JS = ROOT / "crates" / "diting_js" / "js"
 PRODUCT = ROOT / "crates/diting-browser/src"
 
 # The faces: doors hold routing/parameter structs only (R3), and nothing may
@@ -83,19 +91,19 @@ GOD_FILE_CAP = 1500
 GOD_FILE_GRANDFATHER = {
     # bootstrap.js retired at 刀67: 17,447 -> 1,487 production lines, under the
     # cap — now enforced by the ordinary 1,500-line gate like every other file.
-    "crates/diting/src/diting_layout/mod.rs": 11574,  # float wrap series #313-#315 + #222 blend emission
-    "crates/diting/src/diting_css/mod.rs": 6727,  # post-0.6.0 compat surface bumps
-    "crates/diting/src/diting_js/ops/mod.rs": 5030,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
-    "crates/diting/src/diting_layout/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
-    "crates/diting/src/diting_layout/fork_deltas.rs": 2930,
-    "crates/diting/src/diting_js/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
+    "crates/diting_layout/src/lib.rs": 11574,  # float wrap series #313-#315 + #222 blend emission
+    "crates/diting_css/src/lib.rs": 6727,  # post-0.6.0 compat surface bumps
+    "crates/diting_js/src/ops/mod.rs": 5030,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
+    "crates/diting_layout/src/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
+    "crates/diting_layout/src/fork_deltas.rs": 2930,
+    "crates/diting_js/src/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
     "crates/diting-browser/src/authoring/docgen/workflow.rs": 1641,
     # tree.rs crossed the cap in the 2026-11-05 fmt reflow (1500 -> 1587, no
     # code added); 87 over — a split for the cap alone buys nothing (svg_root.js
     # precedent). Retires when the split program reaches it.
-    "crates/diting/src/diting_dom/tree.rs": 1587,
-    "crates/diting/js/svg_root.js": 1562,  # one family (SVG DOM root+attrs); 62 over — a split for the cap alone buys nothing
-    "crates/diting/js/domcore.js": 4836,  # DOM inheritance spine (Node/Element/Document, 刀3); Element class alone is 2,341 lines — the cap is unreachable without prototype-member-order surgery (shape fingerprint)
+    "crates/diting_dom/src/tree.rs": 1587,
+    "crates/diting_js/js/svg_root.js": 1562,  # one family (SVG DOM root+attrs); 62 over — a split for the cap alone buys nothing
+    "crates/diting_js/js/domcore.js": 4836,  # DOM inheritance spine (Node/Element/Document, 刀3); Element class alone is 2,341 lines — the cap is unreachable without prototype-member-order surgery (shape fingerprint)
 }
 
 # Generated concatenations. platform_bundle.js is bundle.py's output over the
@@ -104,7 +112,7 @@ GOD_FILE_GRANDFATHER = {
 # source module is individually under GOD_FILE_CAP. A cap on the bundle would
 # cap the module count, not any file's complexity.
 GOD_FILE_GENERATED = {
-    "crates/diting/js/platform_bundle.js",
+    "crates/diting_js/js/platform_bundle.js",
 }
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
@@ -118,6 +126,10 @@ def strip_comments(text: str) -> str:
 
 def rs_files(base: Path) -> list[Path]:
     return sorted(p for p in base.rglob("*.rs") if p.is_file())
+
+
+def engine_rs_files() -> list[Path]:
+    return [f for c in ENGINE_CRATES for f in rs_files(c)]
 
 
 def top_modules(base: Path) -> set[str]:
@@ -137,10 +149,11 @@ def rel(path: Path) -> str:
 
 def check_r1a() -> list[str]:
     """Engine never names a product module."""
-    product_only = top_modules(PRODUCT) - top_modules(ENGINE) - {"main"}
+    engine_mods = set().union(*(top_modules(c / "src") for c in ENGINE_CRATES))
+    product_only = top_modules(PRODUCT) - engine_mods - {"main"}
     pattern = re.compile(rf"\bcrate::({'|'.join(sorted(product_only))})\b")
     out = []
-    for f in rs_files(ENGINE):
+    for f in engine_rs_files():
         for i, line in enumerate(strip_comments(f.read_text()).splitlines(), 1):
             m = pattern.search(line)
             if m:
@@ -175,13 +188,13 @@ def check_r2a() -> list[str]:
     """Engine Cargo.toml carries no faces/product dependency."""
     pattern = re.compile(rf"^\s*({'|'.join(ENGINE_DENY_DEPS)})\w*\s*=", re.M)
     out = []
-    manifest = ENGINE / "Cargo.toml"
-    for i, line in enumerate(manifest.read_text().splitlines(), 1):
-        if pattern.search(line):
-            out.append(
-                f"{rel(manifest)}:{i}: engine depends on `{line.split('=')[0].strip()}` — "
-                "R2 engine purity: faces/product crates belong in the product Cargo.toml"
-            )
+    for manifest in (c / "Cargo.toml" for c in ENGINE_CRATES):
+        for i, line in enumerate(manifest.read_text().splitlines(), 1):
+            if pattern.search(line):
+                out.append(
+                    f"{rel(manifest)}:{i}: engine depends on `{line.split('=')[0].strip()}` — "
+                    "R2 engine purity: faces/product crates belong in the product Cargo.toml"
+                )
     return out
 
 
@@ -189,7 +202,7 @@ def check_r2b() -> list[str]:
     """Engine source never references blitz crates / the product cross-check."""
     pattern = re.compile(r"use\s+blitz|blitz\w*::|screenshot_reference")
     out = []
-    for f in rs_files(ENGINE):
+    for f in engine_rs_files():
         for i, line in enumerate(strip_comments(f.read_text()).splitlines(), 1):
             if pattern.search(line):
                 out.append(
@@ -312,8 +325,8 @@ def check_god_files() -> list[str]:
     seen = set()
     # The engine's baked-in realm JS (js/, executed into the V8 snapshot by
     # build.rs) is engine source that happens to be JS — same ratchet.
-    files = [f for base in (PRODUCT, ENGINE) for f in rs_files(base)]
-    files += sorted((ENGINE / "js").glob("*.js"))
+    files = rs_files(PRODUCT) + engine_rs_files()
+    files += sorted(ENGINE_JS.glob("*.js"))
     for f in files:
         if f.name == "tests.rs":  # colocated contract suites are a feature, not debt
             continue

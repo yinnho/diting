@@ -19,11 +19,11 @@ import * as eslintScope from 'eslint-scope';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
-const JS_DIR = path.join(ROOT, 'crates/diting/js');
+const JS_DIR = path.join(ROOT, 'crates/diting_js/js');
 
 // ---- load order, straight from build.rs (the single source today) ----------
 function loadOrder() {
-  const rs = fs.readFileSync(path.join(ROOT, 'crates/diting/build.rs'), 'utf8');
+  const rs = fs.readFileSync(path.join(ROOT, 'crates/diting_js/build.rs'), 'utf8');
   const re = /\("([A-Za-z0-9_.]+\.js)",\s*include_str!\("js\/([A-Za-z0-9_.]+)"\)\)/g;
   const out = [];
   for (let m; (m = re.exec(rs));) out.push(m[2]);
@@ -167,7 +167,7 @@ function collectProtoMutations(ast) {
 }
 
 // ---- module contract check (JS-PLATFORM-ARCH sec 3.3/3.5) --------------------
-// Every file under crates/diting/js/platform/ (except core.js) is a module whose
+// Every file under crates/diting_js/js/platform/ (except core.js) is a module whose
 // body runs as function (exports, require, P). Verified against its `//!`
 // manifest: (1) every FREE identifier is an ES builtin or declared as
 // `legacy:Name`; a name used while the body runs must be in requires-load;

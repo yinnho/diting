@@ -1,0 +1,67 @@
+[package]
+name = "diting_layout"
+version.workspace = true
+edition = "2021"
+description = "Diting engine render stack: box layout (taffy), text (swash), paint, images, bundled fonts. Consumed behind the `screenshot` feature."
+license = "Apache-2.0"
+repository = "https://github.com/yinnho/diting"
+publish = false
+
+# No features: this whole crate IS the render stack. Upper crates take it as
+# an optional dependency under their own `screenshot` feature.
+
+[dependencies]
+diting_dom = { path = "../diting_dom" }
+diting_css = { path = "../diting_css" }
+# --- layout core (#42 ① / #46: taffy main 802e497 vendored as diting_taffy;
+# that rev carried the #300 float tail-segment fix that 0.15.1 lacks) ---
+# taffy_tree is additionally listed because the unified graph already enables
+# it (Cargo.lock shows it pulling slotmap) — an explicit no-op.
+# Used by box layout and the fork-delta tests (docs/engine/render.md).
+diting_taffy = { path = "../diting_taffy", default-features = false, features = [
+    "std",
+    "taffy_tree",
+    "flexbox",
+    "flexbox_balance",
+    "grid",
+    "block_layout",
+    "content_size",
+    "calc",
+    "detailed_layout_info",
+    # Probe (#299): taffy's own float placement engine; unused by production
+    # layout until the probe proves it.
+    "float_layout",
+] }
+# --- font stack (#42 ③ / #45: swash 0.2.10 vendored as diting_swash) ---
+# Shaping (ShapeContext — note: NOT behind a feature, always compiled),
+# metrics/scale and glyph rasterization for text leaves and canvas
+# fillText. Explicit std/scale/render pin kept (no default face ride).
+diting_swash = { path = "../diting_swash", default-features = false, features = [
+    "std",
+    "scale",
+    "render",
+] }
+diting_html5ever = { path = "../diting_html5ever" }
+url = "2"
+base64 = "0.23"
+# Memory-mapped system fonts (the 183 MB color-emoji face stays on disk until
+# glyphs are touched).
+memmap2 = "0.9"
+# PNG codec, vendored as our own crate (#42 ④): decode with EXPAND for
+# image, 8-bit RGBA/RGB encode for screenshot/canvas.
+diting_png = { path = "../diting_png" }
+# JPEG/WebP/GIF decode for the ImageCache (batches 6d/7b/7e), driven
+# directly since the `image` crate left the tree (#42 ④): zune-jpeg decodes
+# (output colorspace mirroring image 0.25's wrapper), image-webp and gif are
+# leaf codecs. Versions pin what image 0.25.10 wrapped when we made the
+# switch — decode output is byte-identical. Animated GIFs take the first frame.
+zune-jpeg = "0.5"
+zune-core = "0.5"
+image-webp = "0.2"
+gif = "0.14"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

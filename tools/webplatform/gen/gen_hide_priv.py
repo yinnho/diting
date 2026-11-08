@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/hide_priv.js: hidden-slot accessors for the engine's `_x` private fields.
+"""Generate crates/diting_js/js/hide_priv.js: hidden-slot accessors for the engine's `_x` private fields.
 
   gen_hide_priv.py <enum-engine.json> [out.js]
 
@@ -13,7 +13,7 @@ of chrome/enum-probe.js (its `#chains` key holds each object's prototype-chain c
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 E = json.load(open(sys.argv[1]))
-out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting/js/hide_priv.js')
+out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting_js/js/hide_priv.js')
 chains = E.get('#chains', {})
 users = {}  # field -> list of chains
 for n, ks in E.items():

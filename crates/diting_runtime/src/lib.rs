@@ -12,7 +12,7 @@
 //! 三元组就地蒸发，零重投递。V8 对这层零立法（那是 deno_core 的私产传输
 //! 层），cancel 之后重投完全合法——但 deno_core 不做，我们只能自己做。
 //!
-//! JS 侧曾先遣落了半边（`crates/diting/js/core_base.js` 的 replay 停泊栈，
+//! JS 侧曾先遣落了半边（`crates/diting_js/js/core_base.js` 的 replay 停泊栈，
 //! 同一条法；10d 起随 deno 宿主退役，法正身全在本 crate）：tick 已开跑
 //! 才被打断的窗口，尾巴不再蒸发。剩 Rust 侧窗口（三元组 pop 了、tick
 //! 压根没被调）由本 crate 拿下 dispatch 闭环。

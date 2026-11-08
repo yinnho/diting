@@ -246,7 +246,7 @@ async fn main() -> anyhow::Result<()> {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| {
                     tracing_subscriber::EnvFilter::new(
-                        "diting=info,diting::diting_browser::page=warn,diting::diting_net::wreq_client=warn,diting::console=error",
+                        "diting=info,diting_page::page=warn,diting_net::wreq_client=warn,diting::console=error",
                     )
                 }),
         );

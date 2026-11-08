@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/diting/js/font_metrics.js from
+"""Generate crates/diting_js/js/font_metrics.js from
 tools/webplatform/chrome/fonts-metrics-truth-145.json (+ fonts-kern-truth-145.json).
 
 (刀97) canvas measureText per-glyph advance tables. Each name: `t` = index
@@ -79,7 +79,7 @@ CFKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-cfkill-truth-145.j
 # quoted/unquoted legs resolve to different real faces have the unquoted
 # rows parked in _meta.qdiff for a later resolver knife.
 FMFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-fmfill-truth-145.json')
-OUT = os.path.join(ROOT, 'crates/diting/js/font_metrics.js')
+OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics.js')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
 # generic resolution — monospace=Menlo, serif=Songti SC, cursive=Kaiti SC,

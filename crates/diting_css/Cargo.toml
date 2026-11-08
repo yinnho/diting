@@ -1,0 +1,14 @@
+[package]
+name = "diting_css"
+version.workspace = true
+edition = "2021"
+description = "Diting engine: CSS parse + cascade (ComputedStyle), hand-rolled over the DOM."
+license = "Apache-2.0"
+repository = "https://github.com/yinnho/diting"
+publish = false
+
+[dependencies]
+diting_dom = { path = "../diting_dom" }
+
+[lints]
+workspace = true

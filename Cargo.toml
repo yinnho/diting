@@ -11,7 +11,11 @@
 version = "0.10.0"
 
 [workspace]
-members = ["crates/diting-browser", "crates/diting", "crates/diting_ops",
+members = ["crates/diting-browser", "crates/diting",
+           # 引擎本体（#58 拆包）：门面 crates/diting 只 re-export
+           "crates/diting_env", "crates/diting_dom", "crates/diting_css", "crates/diting_layout",
+           "crates/diting_net", "crates/diting_js", "crates/diting_page",
+           "crates/diting_ops",
            "crates/diting_runtime", "crates/diting_wire", "crates/diting_wire_proto",
            "crates/diting_wire_rt", "crates/diting_profiles", "crates/diting_wire_h2",
            "crates/diting_socks", "crates/diting_png", "crates/diting_html5ever",
