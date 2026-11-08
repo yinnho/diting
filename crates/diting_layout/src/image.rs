@@ -30,6 +30,27 @@ mod jpeg_encode;
 
 pub use jpeg_encode::encode_jpeg_rgb;
 
+/// Encode an 8-bit RGBA frame as PNG — the one encoder the full-page
+/// screenshot, the page pump and the session frame path share.
+pub fn encode_png_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, String> {
+    let mut out = Vec::with_capacity((width as usize) * (height as usize));
+    {
+        let mut encoder = diting_png::Encoder::new(std::io::Cursor::new(&mut out), width, height);
+        encoder.set_color(diting_png::ColorType::Rgba);
+        encoder.set_depth(diting_png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| format!("png encode header: {e}"))?;
+        writer
+            .write_image_data(rgba)
+            .map_err(|e| format!("png encode data: {e}"))?;
+        writer
+            .finish()
+            .map_err(|e| format!("png encode finish: {e}"))?;
+    }
+    Ok(out)
+}
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;

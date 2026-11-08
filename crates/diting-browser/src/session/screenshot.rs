@@ -97,8 +97,11 @@ pub(super) async fn screenshot(
                 page.inner.fetch_band_images(missing).await;
                 grab(scale).map(|(f, _)| f).unwrap_or(frame)
             };
-            if let Ok(png) = crate::authoring::pages::png_of(frame.width, frame.height, &frame.rgba)
-            {
+            if let Ok(png) = diting::diting_layout::image::encode_png_rgba(
+                frame.width.max(1),
+                frame.height.max(1),
+                &frame.rgba,
+            ) {
                 page.band_frame_cache = Some(BandFrameCache {
                     sig,
                     width: frame.width,
