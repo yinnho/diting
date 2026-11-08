@@ -1009,6 +1009,51 @@ mod tree_tests {
             assert_eq!(none.len(), 0, "a:has(span.bt) should match nothing");
         }
 
+        /// #333: `:open` = details/dialog carrying the open attribute;
+        /// `:dir()` matches RESOLVED directionality — inheritance down the
+        /// chain, an own `dir` override, `auto` by the first strong
+        /// character (neutral-only text falls to ltr). Chrome 157 truth.
+        #[test]
+        fn test_open_and_dir_selectors() {
+            let tree = parse_html(
+                r#"<details open><summary>s</summary></details>
+                   <details><summary>t</summary></details>
+                   <dialog open></dialog><div></div>
+                   <div dir="rtl"><i id="a"></i><i id="b" dir="ltr"></i></div>
+                   <div id="auto_latin" dir="auto">hello</div>
+                   <div id="auto_arabic" dir="auto">مرحبا</div>
+                   <div id="auto_neutral" dir="auto">123</div>"#,
+            );
+            // :open — the open-attribute elements, nothing else.
+            assert_eq!(tree.query_selector_all("details:open").unwrap().len(), 1);
+            assert_eq!(tree.query_selector_all("dialog:open").unwrap().len(), 1);
+            assert_eq!(tree.query_selector_all("div:open").unwrap().len(), 0);
+            assert_eq!(
+                tree.query_selector_all("summary:open").unwrap().len(),
+                0,
+                ":open never matches a child of an open details"
+            );
+            // :dir() — resolved, not the raw attribute.
+            assert_eq!(tree.query_selector_all("#a:dir(rtl)").unwrap().len(), 1, "inherited");
+            assert_eq!(tree.query_selector_all("#a:dir(ltr)").unwrap().len(), 0);
+            assert_eq!(tree.query_selector_all("#b:dir(ltr)").unwrap().len(), 1, "own override");
+            assert_eq!(tree.query_selector_all("#b:dir(rtl)").unwrap().len(), 0);
+            // auto — first strong character resolves; neutral-only is ltr.
+            assert_eq!(tree.query_selector_all("#auto_latin:dir(ltr)").unwrap().len(), 1);
+            assert_eq!(tree.query_selector_all("#auto_latin:dir(rtl)").unwrap().len(), 0);
+            assert_eq!(tree.query_selector_all("#auto_arabic:dir(rtl)").unwrap().len(), 1);
+            assert_eq!(tree.query_selector_all("#auto_arabic:dir(ltr)").unwrap().len(), 0);
+            assert_eq!(tree.query_selector_all("#auto_neutral:dir(ltr)").unwrap().len(), 1);
+            // :not nesting keeps working around the new arms.
+            assert_eq!(
+                tree.query_selector_all("div:not(:dir(rtl))").unwrap().len(),
+                3,
+                "plain + auto_latin + auto_neutral"
+            );
+            // Bogus directions are a parse error, not a silent non-match.
+            assert!(crate::diting_dom::selector::parse_selector("div:dir(center)").is_err());
+        }
+
         #[test]
         fn test_query_selector_has_deep_and_bare_relative() {
             // :has with a descendant combinator several levels deep, and the bare

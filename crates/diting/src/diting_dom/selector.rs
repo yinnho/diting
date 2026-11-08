@@ -105,6 +105,14 @@ pub enum PseudoClass {
     Root,
     ReadOnly,
     ReadWrite,
+    /// #333: `details[open]` / `dialog[open]` — the static-DOM face of the
+    /// Selectors-4 state pseudo-class (open pickers are not modelled, same
+    /// posture as :hover before the interaction layer landed).
+    Open,
+    /// #333: `:dir(rtl)` / `:dir(ltr)` — resolved directionality, not the
+    /// raw attribute (an `ltr` child inside an `rtl` ancestor is `:dir(rtl)`
+    /// until its own `dir` overrides).
+    Dir { rtl: bool },
 }
 
 impl parser::NonTSPseudoClass for PseudoClass {
@@ -141,6 +149,9 @@ impl ToCss for PseudoClass {
             PseudoClass::Root => dest.write_str(":root"),
             PseudoClass::ReadOnly => dest.write_str(":read-only"),
             PseudoClass::ReadWrite => dest.write_str(":read-write"),
+            PseudoClass::Open => dest.write_str(":open"),
+            PseudoClass::Dir { rtl: true } => dest.write_str(":dir(rtl)"),
+            PseudoClass::Dir { rtl: false } => dest.write_str(":dir(ltr)"),
         }
     }
 }
@@ -207,12 +218,41 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
             "root" => Ok(PseudoClass::Root),
             "read-only" => Ok(PseudoClass::ReadOnly),
             "read-write" => Ok(PseudoClass::ReadWrite),
+            // #333: :open is a bare Selectors-4 state pseudo-class.
+            "open" => Ok(PseudoClass::Open),
             // 0.41: the error kind dropped its payload and the trait dropped
             // the SourceLocation param — ParseError::custom fills both.
             _ => Err(diting_cssparser::ParseError::custom(
                 SelectorParseErrorKind::UnsupportedPseudoClassOrElement,
             )),
         }
+    }
+
+    // #333: `:dir(ltr)` / `:dir(rtl)` — the functional pseudo-class. The
+    // argument is a fixed ident (case-insensitive per spec; Chrome takes
+    // lowercase only, so anything else drops the selector, same as Chrome's
+    // parse error).
+    fn parse_non_ts_functional_pseudo_class(
+        &self,
+        name: &str,
+        parser: &mut diting_cssparser::Parser<'_>,
+        _after_part: bool,
+    ) -> Result<PseudoClass, diting_cssparser::ParseError<Self::Error>> {
+        if name.eq_ignore_ascii_case("dir") {
+            let rtl = match parser.expect_ident().map(|i| i.as_ref()) {
+                Ok("ltr") => false,
+                Ok("rtl") => true,
+                _ => {
+                    return Err(diting_cssparser::ParseError::custom(
+                        SelectorParseErrorKind::UnsupportedPseudoClassOrElement,
+                    ))
+                }
+            };
+            return Ok(PseudoClass::Dir { rtl });
+        }
+        Err(diting_cssparser::ParseError::custom(
+            SelectorParseErrorKind::UnsupportedPseudoClassOrElement,
+        ))
     }
 }
 
@@ -238,6 +278,35 @@ impl<'a> DomElement<'a> {
                 return true;
             }
             cur = self.tree.with_node(id, |n| n.parent).flatten();
+        }
+        false
+    }
+
+    /// #333: resolved directionality for `:dir()`. The nearest `dir`
+    /// attribute on the self-or-ancestor chain wins; `auto` resolves by the
+    /// first strong-direction character of THAT element's text (no strong
+    /// character = ltr, the HTML directionality rule); invalid values fall
+    /// to ltr; an undirected chain is ltr.
+    fn resolved_dir_rtl(&self) -> bool {
+        let mut cur = Some(self.node_id);
+        while let Some(id) = cur {
+            let (parent, dir) = self
+                .tree
+                .with_node(id, |n| {
+                    (
+                        n.parent,
+                        n.get_attribute("dir").map(|d| d.trim().to_ascii_lowercase()),
+                    )
+                })
+                .unwrap_or((None, None));
+            if let Some(d) = dir {
+                return match d.as_str() {
+                    "rtl" => true,
+                    "auto" => first_strong_rtl(self.tree, id).unwrap_or(false),
+                    _ => false,
+                };
+            }
+            cur = parent;
         }
         false
     }
@@ -417,6 +486,33 @@ impl<'a> DomElement<'a> {
         }
         false
     }
+}
+
+/// #333: the first strong-direction character of a subtree's text in tree
+/// order — the HTML directionality algorithm's scan for `dir=auto`.
+/// Some(true) = RTL (Hebrew/Arabic/Syriac/Thaana blocks), Some(false) =
+/// LTR (alphabetic), None = no strong character (digits and punctuation are
+/// directionally neutral, so they never resolve an `auto`).
+fn first_strong_rtl(tree: &DomTree, root: NodeId) -> Option<bool> {
+    tree.descendants(root).into_iter().find_map(|id| {
+        tree.with_node(id, |n| match &n.data {
+            NodeData::Text { contents } => contents.chars().find_map(strong_dir),
+            _ => None,
+        })
+        .flatten()
+    })
+}
+
+/// One character's strong bidi direction, if it has one.
+fn strong_dir(c: char) -> Option<bool> {
+    let cp = c as u32;
+    if matches!(cp, 0x0590..=0x05FF | 0x0600..=0x06FF | 0x0700..=0x074F | 0x0780..=0x07BF) {
+        return Some(true);
+    }
+    if c.is_ascii_alphabetic() || matches!(cp, 0x00C0..=0x024F | 0x0370..=0x03FF | 0x0400..=0x04FF) {
+        return Some(false);
+    }
+    None
 }
 
 impl<'a> std::fmt::Debug for DomElement<'a> {
@@ -702,6 +798,23 @@ impl<'a> Element for DomElement<'a> {
             // is its negation over every element, not "has readonly attr".
             PseudoClass::ReadWrite => self.is_read_write(),
             PseudoClass::ReadOnly => !self.is_read_write(),
+            // #333: the static face of :open — details/dialog carrying the
+            // open attribute. `el.open = x` reflects to the attribute, so JS
+            // toggles match too; open pickers (select/input) are not modelled,
+            // the same posture as :hover before the interaction layer (#152).
+            PseudoClass::Open => self
+                .tree
+                .with_node(self.node_id, |n| {
+                    n.as_element().is_some_and(|e| {
+                        matches!(e.local.as_str(), "details" | "dialog")
+                            && n.get_attribute("open").is_some()
+                    })
+                })
+                .unwrap_or(false),
+            // #333: :dir() matches RESOLVED directionality — the nearest dir
+            // attribute on the self-or-ancestor chain wins, everything under
+            // it inherits (an undirected child inside dir=rtl is :dir(rtl)).
+            PseudoClass::Dir { rtl } => self.resolved_dir_rtl() == *rtl,
         }
     }
 
