@@ -8,7 +8,7 @@
 # 发版号单源：只有 diting-browser 和 crates/diting 继承。wire 家族 +
 # profiles 五个不继承——版本号贴上游 wreq 生态当跟踪信号（6.0.0-rc.31 等）；
 # ops / runtime 的 0.1.0 纯内部号没人消费，留在原地。
-version = "0.10.0"
+version = "0.11.0"
 
 [workspace]
 members = ["crates/diting-browser", "crates/diting", "crates/diting_authoring",

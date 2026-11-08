@@ -690,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "diting"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "diting_css",
  "diting_dom",
@@ -703,7 +703,7 @@ dependencies = [
 
 [[package]]
 name = "diting-browser"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -746,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "diting_authoring"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "base64",
  "diting",
@@ -761,7 +761,7 @@ dependencies = [
 
 [[package]]
 name = "diting_css"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "diting_dom",
 ]
@@ -781,7 +781,7 @@ dependencies = [
 
 [[package]]
 name = "diting_dom"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "diting_cssparser",
  "diting_html5ever",
@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "diting_env"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "diting_profiles",
  "url",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "diting_js"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -849,7 +849,7 @@ dependencies = [
 
 [[package]]
 name = "diting_layout"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "base64",
  "diting_css",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "diting_net"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "diting_env",
  "diting_profiles",
@@ -904,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "diting_page"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "base64",
  "diting_dom",
