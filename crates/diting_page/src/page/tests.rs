@@ -3114,7 +3114,7 @@ async fn stealth_page_script_fetch_rides_wreq_transport() {
     let context = Arc::new(BrowserContext::with_storage_and_network(
         "test-stealth".into(),
         None,
-        true, // stealth → scripted_rides_stealth on the context client
+        true, // stealth → rides_stealth on the context client
         None,
         None,
         true,

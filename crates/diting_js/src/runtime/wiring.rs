@@ -28,6 +28,7 @@ impl JsRuntime {
     }
 
     pub fn set_http_client(&self, client: std::sync::Arc<diting_net::HttpClient>) {
+        self.module_loader.set_http_client(client.clone());
         self.state.borrow_mut().http_client = Some(client);
     }
 

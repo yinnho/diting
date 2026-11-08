@@ -28,6 +28,11 @@ pub struct DitingModuleLoader {
     /// unreachable from here, so createObjectURL mirrors each entry in via
     /// `op_blob_register` and `import("blob:…")` resolves through this map.
     pub blob_store: Rc<RefCell<crate::ops::BlobStoreMap>>,
+    /// The page's context client when it rides the stealth transport
+    /// (`rides_stealth`): module scripts then go through it, so an import
+    /// presents the same handshake as the document. `None` keeps the shared
+    /// plain client below. Set via `JsRuntime::set_http_client`.
+    pub(crate) stealth_client: RefCell<Option<std::sync::Arc<diting_net::HttpClient>>>,
 }
 
 impl DitingModuleLoader {
@@ -52,7 +57,12 @@ impl DitingModuleLoader {
             proxy_url,
             import_map,
             blob_store,
+            stealth_client: RefCell::new(None),
         }
+    }
+
+    pub(crate) fn set_http_client(&self, client: std::sync::Arc<diting_net::HttpClient>) {
+        *self.stealth_client.borrow_mut() = client.rides_stealth.then_some(client);
     }
 }
 
@@ -263,6 +273,8 @@ impl ModuleLoader for DitingModuleLoader {
         // Capture the loader's proxy here so the async closure below owns a
         // plain Option<String> rather than borrowing &self across an `await`.
         let proxy_url = self.proxy_url.clone();
+        let stealth_client = self.stealth_client.borrow().clone();
+        let referrer = self.base_url.clone();
 
         ModuleLoadResponse::Async(Pin::from(Box::new(async move {
             // Same page-reachable policy as fetch()/XHR (obscura #849):
@@ -275,6 +287,29 @@ impl ModuleLoader for DitingModuleLoader {
                     "Failed to fetch module {}: {}",
                     url, reason
                 )));
+            }
+
+            if let Some(hc) = stealth_client {
+                let resp = hc
+                    .fetch_with_callbacks(
+                        &specifier,
+                        None,
+                        diting_net::ResourceType::Script,
+                        Some(referrer.as_str()),
+                    )
+                    .await
+                    .map_err(|e| io_err(format!("Failed to fetch module {}: {}", url, e)))?;
+                if !(200..300).contains(&resp.status) {
+                    return Err(io_err(format!("Module {} returned HTTP {}", url, resp.status)));
+                }
+                if resp.body.len() > crate::ops::fetch_body_byte_limit() {
+                    return Err(io_err(format!(
+                        "Module {} response body exceeded limit of {} bytes",
+                        url,
+                        crate::ops::fetch_body_byte_limit()
+                    )));
+                }
+                return decoded_module_source(&specifier, &url, resp.body);
             }
 
             // Reuse the process-wide cached client (same one op_fetch_url

@@ -826,7 +826,7 @@ async fn loopback_header_echo() -> (Url, tokio::task::JoinHandle<()>) {
 }
 
 /// #116: the flag is the gate. A plain (non-stealth) context never sets
-/// `scripted_rides_stealth`, so the hop answers `None` even against a
+/// `rides_stealth`, so the hop answers `None` even against a
 /// reachable URL and the caller keeps the plain client exactly as before.
 #[tokio::test]
 async fn scripted_stealth_hop_none_without_the_flag() {
@@ -850,7 +850,7 @@ async fn scripted_stealth_hop_none_without_the_flag() {
 async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
     let (url, server) = loopback_header_echo().await;
     let mut client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    client.scripted_rides_stealth = true;
+    client.rides_stealth = true;
     let persona_ua =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
     *client.user_agent.write().await = persona_ua.to_string();
@@ -904,7 +904,7 @@ async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
 #[tokio::test]
 async fn scripted_stealth_hop_err_on_closed_port() {
     let mut client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    client.scripted_rides_stealth = true;
+    client.rides_stealth = true;
     let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
     match client
         .scripted_stealth_hop(&Method::GET, &url, None, None, None, true)

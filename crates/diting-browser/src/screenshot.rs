@@ -219,10 +219,9 @@ pub async fn prefetch_render_resources(
     const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
     const PER_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
-    // Route through the same client the page navigated with: the stealth
-    // client when enabled, the plain one otherwise. The plain path carries the
-    // document as Referer (domain-whitelist image CDNs reject bare requests);
-    // the stealth path takes only a URL.
+    // The context client: on a stealth page it rides the emulating
+    // transport itself. The document rides along as Referer
+    // (domain-whitelist image CDNs reject bare requests).
     async fn fetch_via(
         page: &crate::page::Page,
         u: &url::Url,
@@ -233,9 +232,6 @@ pub async fn prefetch_render_resources(
         if page.inner.url_blocked(u.as_str()) {
             tracing::info!("Blocked prefetch by Network.setBlockedURLs: {}", u);
             return None;
-        }
-        if let Some(ref stealth) = page.inner.stealth_client {
-            return stealth.fetch(u).await.ok();
         }
         page.inner.http_client.fetch_subresource(u, doc).await.ok()
     }

@@ -521,7 +521,7 @@ impl StealthHttpClient {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn fetch_inner(
+    pub(crate) async fn fetch_inner(
         &self,
         url: &Url,
         referrer: Option<&str>,
