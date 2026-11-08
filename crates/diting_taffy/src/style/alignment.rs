@@ -8,8 +8,6 @@
 //! `SafeEnd`, `SafeFlexStart`, `SafeFlexEnd`, `SafeCenter` — are exposed as associated
 //! constants on the structs, so call sites read identically to the previous enum form.
 
-#[cfg(feature = "parse")]
-use crate::util::parse::{CssParseResult, FromCss, Parser, Token};
 
 use crate::style::Direction;
 
@@ -19,7 +17,6 @@ use crate::style::Direction;
 /// Compute paths match on this enum directly so every match is exhaustive and
 /// requires no `Safe*` siblings.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum AlignItemsKeyword {
     /// The layout mode's default alignment: usually `Stretch`, but `Start` in some cases.
@@ -64,7 +61,6 @@ pub enum AlignItemsKeyword {
 /// Compute paths match on this enum directly so every match is exhaustive and
 /// requires no `Safe*` siblings.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum AlignContentKeyword {
     /// The layout mode's default alignment: `Stretch` for flex and grid containers, `Start`
@@ -130,7 +126,6 @@ impl AlignContentKeyword {
 /// [css-align-overflow]: https://www.w3.org/TR/css-align-3/#overflow-values
 /// [css-align-abspos]: https://www.w3.org/TR/css-align-3/#auto-safety-position
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum AlignmentSafety {
     /// No overflow-position keyword specified. Behaves as `Unsafe`, except for absolutely
@@ -266,55 +261,7 @@ impl AlignItems {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for AlignItems {
-    fn from_css<'i>(input: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let first = input.expect_ident()?.clone();
-        cssparser::match_ignore_ascii_case! { &*first,
-            "safe" => {
-                let pos = input.expect_ident()?.clone();
-                cssparser::match_ignore_ascii_case! { &*pos,
-                    "start" => Ok(Self::SAFE_START),
-                    "end" => Ok(Self::SAFE_END),
-                    "flex-start" => Ok(Self::SAFE_FLEX_START),
-                    "flex-end" => Ok(Self::SAFE_FLEX_END),
-                    "self-start" => Ok(Self::SAFE_SELF_START),
-                    "self-end" => Ok(Self::SAFE_SELF_END),
-                    "center" => Ok(Self::SAFE_CENTER),
-                    _ => Err(input.new_unexpected_token_error(Token::Ident(pos))),
-                }
-            },
-            "unsafe" => {
-                let pos = input.expect_ident()?.clone();
-                let keyword = cssparser::match_ignore_ascii_case! { &*pos,
-                    "start" => AlignItemsKeyword::Start,
-                    "end" => AlignItemsKeyword::End,
-                    "flex-start" => AlignItemsKeyword::FlexStart,
-                    "flex-end" => AlignItemsKeyword::FlexEnd,
-                    "self-start" => AlignItemsKeyword::SelfStart,
-                    "self-end" => AlignItemsKeyword::SelfEnd,
-                    "center" => AlignItemsKeyword::Center,
-                    _ => return Err(input.new_unexpected_token_error(Token::Ident(pos))),
-                };
-                Ok(Self { keyword, safety: AlignmentSafety::Unsafe })
-            },
-            "normal" => Ok(Self::NORMAL),
-            "start" => Ok(Self::START),
-            "end" => Ok(Self::END),
-            "flex-start" => Ok(Self::FLEX_START),
-            "flex-end" => Ok(Self::FLEX_END),
-            "self-start" => Ok(Self::SELF_START),
-            "self-end" => Ok(Self::SELF_END),
-            "center" => Ok(Self::CENTER),
-            "baseline" => Ok(Self::BASELINE),
-            "stretch" => Ok(Self::STRETCH),
-            _ => Err(input.new_unexpected_token_error(Token::Ident(first))),
-        }
-    }
-}
 
-#[cfg(feature = "parse")]
-crate::util::parse::from_str_from_css!(AlignItems);
 
 /// Used to control how child nodes are aligned.
 /// Does not apply to Flexbox, and will be ignored if specified on a flex container.
@@ -409,51 +356,7 @@ impl AlignContent {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for AlignContent {
-    fn from_css<'i>(input: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let first = input.expect_ident()?.clone();
-        cssparser::match_ignore_ascii_case! { &*first,
-            "safe" => {
-                let pos = input.expect_ident()?.clone();
-                cssparser::match_ignore_ascii_case! { &*pos,
-                    "start" => Ok(Self::SAFE_START),
-                    "end" => Ok(Self::SAFE_END),
-                    "flex-start" => Ok(Self::SAFE_FLEX_START),
-                    "flex-end" => Ok(Self::SAFE_FLEX_END),
-                    "center" => Ok(Self::SAFE_CENTER),
-                    _ => Err(input.new_unexpected_token_error(Token::Ident(pos))),
-                }
-            },
-            "unsafe" => {
-                let pos = input.expect_ident()?.clone();
-                let keyword = cssparser::match_ignore_ascii_case! { &*pos,
-                    "start" => AlignContentKeyword::Start,
-                    "end" => AlignContentKeyword::End,
-                    "flex-start" => AlignContentKeyword::FlexStart,
-                    "flex-end" => AlignContentKeyword::FlexEnd,
-                    "center" => AlignContentKeyword::Center,
-                    _ => return Err(input.new_unexpected_token_error(Token::Ident(pos))),
-                };
-                Ok(Self { keyword, safety: AlignmentSafety::Unsafe })
-            },
-            "normal" => Ok(Self::NORMAL),
-            "start" => Ok(Self::START),
-            "end" => Ok(Self::END),
-            "flex-start" => Ok(Self::FLEX_START),
-            "flex-end" => Ok(Self::FLEX_END),
-            "center" => Ok(Self::CENTER),
-            "stretch" => Ok(Self::STRETCH),
-            "space-between" => Ok(Self::SPACE_BETWEEN),
-            "space-evenly" => Ok(Self::SPACE_EVENLY),
-            "space-around" => Ok(Self::SPACE_AROUND),
-            _ => Err(input.new_unexpected_token_error(Token::Ident(first))),
-        }
-    }
-}
 
-#[cfg(feature = "parse")]
-crate::util::parse::from_str_from_css!(AlignContent);
 
 /// Sets the distribution of space between and around content items.
 /// For Flexbox it controls alignment in the main axis.
@@ -468,203 +371,9 @@ pub type JustifyContent = AlignContent;
 // continue to deserialize correctly.
 // ---------------------------------------------------------------------------
 
-/// Canonical tag-string set accepted by [`AlignItems`] serde deserialization, used in
-/// `unknown_variant` errors. Mirrors the spellings produced by `Serialize`.
-#[cfg(feature = "serde")]
-const ALIGN_ITEMS_NAMES: &[&str] = &[
-    "Normal",
-    "Start",
-    "End",
-    "FlexStart",
-    "FlexEnd",
-    "SelfStart",
-    "SelfEnd",
-    "Center",
-    "Baseline",
-    "Stretch",
-    "SafeStart",
-    "SafeEnd",
-    "SafeFlexStart",
-    "SafeFlexEnd",
-    "SafeSelfStart",
-    "SafeSelfEnd",
-    "SafeCenter",
-    "UnsafeStart",
-    "UnsafeEnd",
-    "UnsafeFlexStart",
-    "UnsafeFlexEnd",
-    "UnsafeSelfStart",
-    "UnsafeSelfEnd",
-    "UnsafeCenter",
-];
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for AlignItems {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let name = match (self.keyword, self.safety) {
-            (AlignItemsKeyword::Start, AlignmentSafety::Default) => "Start",
-            (AlignItemsKeyword::End, AlignmentSafety::Default) => "End",
-            (AlignItemsKeyword::FlexStart, AlignmentSafety::Default) => "FlexStart",
-            (AlignItemsKeyword::FlexEnd, AlignmentSafety::Default) => "FlexEnd",
-            (AlignItemsKeyword::SelfStart, AlignmentSafety::Default) => "SelfStart",
-            (AlignItemsKeyword::SelfEnd, AlignmentSafety::Default) => "SelfEnd",
-            (AlignItemsKeyword::Center, AlignmentSafety::Default) => "Center",
-            (AlignItemsKeyword::Start, AlignmentSafety::Unsafe) => "UnsafeStart",
-            (AlignItemsKeyword::End, AlignmentSafety::Unsafe) => "UnsafeEnd",
-            (AlignItemsKeyword::FlexStart, AlignmentSafety::Unsafe) => "UnsafeFlexStart",
-            (AlignItemsKeyword::FlexEnd, AlignmentSafety::Unsafe) => "UnsafeFlexEnd",
-            (AlignItemsKeyword::SelfStart, AlignmentSafety::Unsafe) => "UnsafeSelfStart",
-            (AlignItemsKeyword::SelfEnd, AlignmentSafety::Unsafe) => "UnsafeSelfEnd",
-            (AlignItemsKeyword::Center, AlignmentSafety::Unsafe) => "UnsafeCenter",
-            (AlignItemsKeyword::Normal, _) => "Normal",
-            (AlignItemsKeyword::Baseline, _) => "Baseline",
-            (AlignItemsKeyword::Stretch, _) => "Stretch",
-            (AlignItemsKeyword::Start, AlignmentSafety::Safe) => "SafeStart",
-            (AlignItemsKeyword::End, AlignmentSafety::Safe) => "SafeEnd",
-            (AlignItemsKeyword::FlexStart, AlignmentSafety::Safe) => "SafeFlexStart",
-            (AlignItemsKeyword::FlexEnd, AlignmentSafety::Safe) => "SafeFlexEnd",
-            (AlignItemsKeyword::SelfStart, AlignmentSafety::Safe) => "SafeSelfStart",
-            (AlignItemsKeyword::SelfEnd, AlignmentSafety::Safe) => "SafeSelfEnd",
-            (AlignItemsKeyword::Center, AlignmentSafety::Safe) => "SafeCenter",
-        };
-        serializer.serialize_str(name)
-    }
-}
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for AlignItems {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct AlignItemsVisitor;
-        impl<'de> serde::de::Visitor<'de> for AlignItemsVisitor {
-            type Value = AlignItems;
-            fn expecting(&self, fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
-                fmt.write_str("an AlignItems variant tag string")
-            }
-            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(match v {
-                    "Normal" => AlignItems::NORMAL,
-                    "Start" => AlignItems::START,
-                    "End" => AlignItems::END,
-                    "FlexStart" => AlignItems::FLEX_START,
-                    "FlexEnd" => AlignItems::FLEX_END,
-                    "SelfStart" => AlignItems::SELF_START,
-                    "SelfEnd" => AlignItems::SELF_END,
-                    "Center" => AlignItems::CENTER,
-                    "Baseline" => AlignItems::BASELINE,
-                    "Stretch" => AlignItems::STRETCH,
-                    "SafeStart" => AlignItems::SAFE_START,
-                    "SafeEnd" => AlignItems::SAFE_END,
-                    "SafeFlexStart" => AlignItems::SAFE_FLEX_START,
-                    "SafeFlexEnd" => AlignItems::SAFE_FLEX_END,
-                    "SafeSelfStart" => AlignItems::SAFE_SELF_START,
-                    "SafeSelfEnd" => AlignItems::SAFE_SELF_END,
-                    "SafeCenter" => AlignItems::SAFE_CENTER,
-                    "UnsafeStart" => AlignItems::START.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeEnd" => AlignItems::END.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeFlexStart" => AlignItems::FLEX_START.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeFlexEnd" => AlignItems::FLEX_END.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeSelfStart" => AlignItems::SELF_START.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeSelfEnd" => AlignItems::SELF_END.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeCenter" => AlignItems::CENTER.with_safety(AlignmentSafety::Unsafe),
-                    other => return Err(E::unknown_variant(other, ALIGN_ITEMS_NAMES)),
-                })
-            }
-        }
-        deserializer.deserialize_str(AlignItemsVisitor)
-    }
-}
 
-/// Canonical tag-string set accepted by [`AlignContent`] serde deserialization, used in
-/// `unknown_variant` errors. Mirrors the spellings produced by `Serialize`.
-#[cfg(feature = "serde")]
-const ALIGN_CONTENT_NAMES: &[&str] = &[
-    "Normal",
-    "Start",
-    "End",
-    "FlexStart",
-    "FlexEnd",
-    "Center",
-    "Stretch",
-    "SpaceBetween",
-    "SpaceEvenly",
-    "SpaceAround",
-    "SafeStart",
-    "SafeEnd",
-    "SafeFlexStart",
-    "SafeFlexEnd",
-    "SafeCenter",
-    "UnsafeStart",
-    "UnsafeEnd",
-    "UnsafeFlexStart",
-    "UnsafeFlexEnd",
-    "UnsafeCenter",
-];
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for AlignContent {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let name = match (self.keyword, self.safety) {
-            (AlignContentKeyword::Start, AlignmentSafety::Default) => "Start",
-            (AlignContentKeyword::End, AlignmentSafety::Default) => "End",
-            (AlignContentKeyword::FlexStart, AlignmentSafety::Default) => "FlexStart",
-            (AlignContentKeyword::FlexEnd, AlignmentSafety::Default) => "FlexEnd",
-            (AlignContentKeyword::Center, AlignmentSafety::Default) => "Center",
-            (AlignContentKeyword::Start, AlignmentSafety::Unsafe) => "UnsafeStart",
-            (AlignContentKeyword::End, AlignmentSafety::Unsafe) => "UnsafeEnd",
-            (AlignContentKeyword::FlexStart, AlignmentSafety::Unsafe) => "UnsafeFlexStart",
-            (AlignContentKeyword::FlexEnd, AlignmentSafety::Unsafe) => "UnsafeFlexEnd",
-            (AlignContentKeyword::Center, AlignmentSafety::Unsafe) => "UnsafeCenter",
-            (AlignContentKeyword::Normal, _) => "Normal",
-            (AlignContentKeyword::Stretch, _) => "Stretch",
-            (AlignContentKeyword::SpaceBetween, _) => "SpaceBetween",
-            (AlignContentKeyword::SpaceEvenly, _) => "SpaceEvenly",
-            (AlignContentKeyword::SpaceAround, _) => "SpaceAround",
-            (AlignContentKeyword::Start, AlignmentSafety::Safe) => "SafeStart",
-            (AlignContentKeyword::End, AlignmentSafety::Safe) => "SafeEnd",
-            (AlignContentKeyword::FlexStart, AlignmentSafety::Safe) => "SafeFlexStart",
-            (AlignContentKeyword::FlexEnd, AlignmentSafety::Safe) => "SafeFlexEnd",
-            (AlignContentKeyword::Center, AlignmentSafety::Safe) => "SafeCenter",
-        };
-        serializer.serialize_str(name)
-    }
-}
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for AlignContent {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct AlignContentVisitor;
-        impl<'de> serde::de::Visitor<'de> for AlignContentVisitor {
-            type Value = AlignContent;
-            fn expecting(&self, fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
-                fmt.write_str("an AlignContent variant tag string")
-            }
-            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(match v {
-                    "Normal" => AlignContent::NORMAL,
-                    "Start" => AlignContent::START,
-                    "End" => AlignContent::END,
-                    "FlexStart" => AlignContent::FLEX_START,
-                    "FlexEnd" => AlignContent::FLEX_END,
-                    "Center" => AlignContent::CENTER,
-                    "Stretch" => AlignContent::STRETCH,
-                    "SpaceBetween" => AlignContent::SPACE_BETWEEN,
-                    "SpaceEvenly" => AlignContent::SPACE_EVENLY,
-                    "SpaceAround" => AlignContent::SPACE_AROUND,
-                    "SafeStart" => AlignContent::SAFE_START,
-                    "SafeEnd" => AlignContent::SAFE_END,
-                    "SafeFlexStart" => AlignContent::SAFE_FLEX_START,
-                    "SafeFlexEnd" => AlignContent::SAFE_FLEX_END,
-                    "SafeCenter" => AlignContent::SAFE_CENTER,
-                    "UnsafeStart" => AlignContent::START.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeEnd" => AlignContent::END.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeFlexStart" => AlignContent::FLEX_START.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeFlexEnd" => AlignContent::FLEX_END.with_safety(AlignmentSafety::Unsafe),
-                    "UnsafeCenter" => AlignContent::CENTER.with_safety(AlignmentSafety::Unsafe),
-                    other => return Err(E::unknown_variant(other, ALIGN_CONTENT_NAMES)),
-                })
-            }
-        }
-        deserializer.deserialize_str(AlignContentVisitor)
-    }
-}
 

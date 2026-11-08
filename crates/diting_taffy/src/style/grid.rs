@@ -10,10 +10,6 @@ use crate::sys::{DefaultCheapStr, Vec};
 use core::cmp::{max, min};
 use core::fmt::Debug;
 
-#[cfg(feature = "parse")]
-use crate::util::parse::{
-    from_str_from_css, parse_css_str_entirely, CssParseResult, FromCss, ParseError, Parser, Token,
-};
 
 /// Defines the value of the `grid-template-areas` property: the named areas plus the overall
 /// size (in tracks) of the area template.
@@ -21,7 +17,6 @@ use crate::util::parse::{
 /// The template may be larger than the extents of the named areas due to unnamed (`.`) cells,
 /// so the size is stored explicitly.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GridTemplateAreas<CustomIdent: CheapCloneStr> {
     /// The named grid areas
     pub areas: crate::util::sys::GridTrackVec<GridTemplateArea<CustomIdent>>,
@@ -33,10 +28,8 @@ pub struct GridTemplateAreas<CustomIdent: CheapCloneStr> {
 
 /// Defines a grid area
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GridTemplateArea<CustomIdent: CheapCloneStr> {
     /// The name of the grid area which
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "crate::util::deserialize_from_str"))]
     pub name: CustomIdent,
     /// The index of the row at which the grid area starts in grid coordinates.
     pub row_start: u16,
@@ -50,10 +43,8 @@ pub struct GridTemplateArea<CustomIdent: CheapCloneStr> {
 
 /// Defines a named grid line
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct NamedGridLine<CustomIdent: CheapCloneStr> {
     /// The name of the grid area which
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "crate::util::deserialize_from_str"))]
     pub name: CustomIdent,
     /// The index of the row at which the grid area starts in grid coordinates.
     pub index: u16,
@@ -318,7 +309,6 @@ pub trait GridItemStyle: CoreStyle {
 ///
 /// [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/grid-auto-flow)
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GridAutoFlow {
     /// Items are placed by filling each row in turn, adding new rows as necessary
     #[default]
@@ -331,46 +321,6 @@ pub enum GridAutoFlow {
     ColumnDense,
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for GridAutoFlow {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let mut axis: Option<&'static str> = None;
-        let mut dense = false;
-
-        for _ in 0..2 {
-            if let Ok(ident) = parser.try_parse(|parser| parser.expect_ident_cloned()) {
-                match &*ident {
-                    "row" => {
-                        axis = Some("row");
-                    }
-                    "column" => {
-                        axis = Some("column");
-                    }
-                    "dense" => dense = true,
-                    _ => {
-                        return Err(parser.new_unexpected_token_error(Token::Ident(ident)));
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-
-        match (axis, dense) {
-            (Some("row"), false) => Ok(Self::Row),
-            (Some("row") | None, true) => Ok(Self::RowDense),
-            (Some("column"), false) => Ok(Self::Column),
-            (Some("column"), true) => Ok(Self::ColumnDense),
-            (None, false) => {
-                let token = parser.next().cloned()?;
-                Err(parser.new_unexpected_token_error(token))
-            }
-            _ => unreachable!(),
-        }
-    }
-}
-#[cfg(feature = "parse")]
-from_str_from_css!(GridAutoFlow);
 
 impl GridAutoFlow {
     /// Whether grid auto placement uses the sparse placement algorithm or the dense placement algorithm
@@ -398,7 +348,6 @@ impl GridAutoFlow {
 /// `GenericGridPlacement<GridLine>` is aliased as GridPlacement and is exposed to users of Taffy to define styles.
 /// `GenericGridPlacement<OriginZeroLine>` is aliased as OriginZeroGridPlacement and is used internally for placement computations.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GenericGridPlacement<LineType: GridCoordinate> {
     /// Place item according to the auto-placement algorithm, and the parent's grid_auto_flow property
     Auto,
@@ -422,7 +371,6 @@ pub(crate) type NonNamedGridPlacement = GenericGridPlacement<GridLine>;
 ///
 /// [Specification](https://www.w3.org/TR/css3-grid-layout/#typedef-grid-row-start-grid-line)
 #[derive(Clone, PartialEq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GridPlacement<S: CheapCloneStr = DefaultCheapStr> {
     /// Place item according to the auto-placement algorithm, and the parent's grid_auto_flow property
     #[default]
@@ -463,79 +411,9 @@ impl<S: CheapCloneStr> TaffyGridSpan for Line<GridPlacement<S>> {
     }
 }
 
-#[cfg(feature = "parse")]
-/// Saturates an `i32` to the range representable by `i16`.
-fn saturating_i16(value: i32) -> i16 {
-    value.clamp(i16::MIN as i32, i16::MAX as i32) as i16
-}
 
-#[cfg(feature = "parse")]
-/// Saturates an `i32` to the range representable by `u16`.
-fn saturating_u16(value: i32) -> u16 {
-    value.clamp(u16::MIN as i32, u16::MAX as i32) as u16
-}
 
-#[cfg(feature = "parse")]
-impl<S: CheapCloneStr> FromCss for GridPlacement<S> {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let mut span = false;
-        let mut number = None;
-        let mut ident = None;
 
-        while !parser.is_exhausted() {
-            let token = parser.next()?.clone();
-            match &token {
-                Token::Ident(s) => match s.as_ref() {
-                    "auto" => {
-                        if span || number.is_some() || ident.is_some() {
-                            return Err(parser.new_unexpected_token_error(token));
-                        }
-                        parser.expect_exhausted()?;
-                        return Ok(Self::Auto);
-                    }
-                    "span" => {
-                        if span {
-                            return Err(parser.new_unexpected_token_error(token));
-                        }
-                        span = true;
-                    }
-                    other => {
-                        if ident.is_some() {
-                            return Err(parser.new_unexpected_token_error(token));
-                        }
-                        ident = Some(S::from(other));
-                    }
-                },
-                Token::Number { int_value: Some(value), .. } if *value != 0 => {
-                    if number.is_some() {
-                        return Err(parser.new_unexpected_token_error(token));
-                    }
-                    number = Some(*value);
-                }
-                _ => return Err(parser.new_unexpected_token_error(token)),
-            };
-        }
-
-        match (span, number, ident) {
-            (true, None, None) => Ok(Self::Span(0)),
-            (true, Some(number), None) => Ok(Self::Span(saturating_u16(number))),
-            (true, None, Some(ident)) => Ok(Self::NamedSpan(ident, 0)),
-            (true, Some(number), Some(ident)) => Ok(Self::NamedSpan(ident, saturating_u16(number))),
-            (false, Some(number), None) => Ok(Self::Line(GridLine::from(saturating_i16(number)))),
-            (false, Some(number), Some(ident)) => Ok(Self::NamedLine(ident, saturating_i16(number))),
-            (false, None, Some(ident)) => Ok(Self::NamedLine(ident, 0)),
-            (false, None, None) => Err(parser.new_error(cssparser::BasicParseErrorKind::EndOfInput)),
-        }
-    }
-}
-
-#[cfg(feature = "parse")]
-impl<S: CheapCloneStr> core::str::FromStr for GridPlacement<S> {
-    type Err = ParseError;
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        parse_css_str_entirely(input)
-    }
-}
 
 impl<S: CheapCloneStr> GridPlacement<S> {
     /// Apply a mapping function if the [`GridPlacement`] is a `Line`. Otherwise return `self` unmodified.
@@ -728,7 +606,6 @@ impl<S: CheapCloneStr> Default for Line<GridPlacement<S>> {
 /// on the size of it's contents, the amount of available space, and the sizing constraint the grid is being size under.
 /// See <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-columns>
 #[derive(Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct MaxTrackSizingFunction(pub(crate) CompactLength);
 impl TaffyZero for MaxTrackSizingFunction {
     const ZERO: Self = Self(CompactLength::ZERO);
@@ -790,61 +667,8 @@ impl From<MinTrackSizingFunction> for MaxTrackSizingFunction {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for MaxTrackSizingFunction {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let token = parser.next()?.clone();
-        match token {
-            Token::Percentage { unit_value, .. } => Ok(Self::percent(unit_value)),
-            Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::length(value)),
-            Token::Dimension { unit, value, .. } if unit == "fr" && value.is_sign_positive() => Ok(Self::fr(value)),
-            Token::Ident(ref ident) => match ident.as_ref() {
-                "auto" => Ok(Self::auto()),
-                "min-content" => Ok(Self::min_content()),
-                "max-content" => Ok(Self::max_content()),
-                _ => Err(parser.new_unexpected_token_error(token))?,
-            },
-            Token::Function(ref name) if name.as_ref() == "fit-content" => parser.parse_nested_block(|parser| {
-                let token = parser.next()?.clone();
-                match token {
-                    Token::Percentage { unit_value, .. } => Ok(Self::fit_content_percent(unit_value)),
-                    Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::fit_content_px(value)),
-                    token => Err(parser.new_unexpected_token_error(token))?,
-                }
-            }),
-            token => Err(parser.new_unexpected_token_error(token))?,
-        }
-    }
-}
 
-#[cfg(feature = "parse")]
-from_str_from_css!(MaxTrackSizingFunction);
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for MaxTrackSizingFunction {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let inner = CompactLength::deserialize(deserializer)?;
-        // Note: validation intentionally excludes the CALC_TAG as deserializing calc() values is not supported
-        if matches!(
-            inner.tag(),
-            CompactLength::LENGTH_TAG
-                | CompactLength::PERCENT_TAG
-                | CompactLength::AUTO_TAG
-                | CompactLength::MIN_CONTENT_TAG
-                | CompactLength::MAX_CONTENT_TAG
-                | CompactLength::FIT_CONTENT_PX_TAG
-                | CompactLength::FIT_CONTENT_PERCENT_TAG
-                | CompactLength::FR_TAG
-        ) {
-            Ok(Self(inner))
-        } else {
-            Err(serde::de::Error::custom("Invalid tag"))
-        }
-    }
-}
 
 impl MaxTrackSizingFunction {
     /// An absolute length in some abstract units. Users of Taffy may define what they correspond
@@ -1177,7 +1001,6 @@ impl From<ExpandedMaxTrackSizingFunction> for MaxTrackSizingFunction {
 /// on the size of it's contents, the amount of available space, and the sizing constraint the grid is being size under.
 /// See <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-columns>
 #[derive(Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct MinTrackSizingFunction(pub(crate) CompactLength);
 impl TaffyZero for MinTrackSizingFunction {
     const ZERO: Self = Self(CompactLength::ZERO);
@@ -1236,51 +1059,8 @@ impl From<MaxTrackSizingFunction> for MinTrackSizingFunction {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for MinTrackSizingFunction {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let token = parser.next()?.clone();
-        match token {
-            Token::Percentage { unit_value, .. } => Ok(Self::percent(unit_value)),
-            Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::length(value)),
-            Token::Ident(ref ident) => match ident.as_ref() {
-                "auto" => Ok(Self::auto()),
-                "min-content" => Ok(Self::min_content()),
-                "max-content" => Ok(Self::max_content()),
-                _ => Err(parser.new_unexpected_token_error(token))?,
-            },
-            token => Err(parser.new_unexpected_token_error(token))?,
-        }
-    }
-}
 
-#[cfg(feature = "parse")]
-from_str_from_css!(MinTrackSizingFunction);
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for MinTrackSizingFunction {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let inner = CompactLength::deserialize(deserializer)?;
-        // Note: validation intentionally excludes the CALC_TAG as deserializing calc() values is not supported
-        if matches!(
-            inner.tag(),
-            CompactLength::LENGTH_TAG
-                | CompactLength::PERCENT_TAG
-                | CompactLength::AUTO_TAG
-                | CompactLength::MIN_CONTENT_TAG
-                | CompactLength::MAX_CONTENT_TAG
-                | CompactLength::FIT_CONTENT_PX_TAG
-                | CompactLength::FIT_CONTENT_PERCENT_TAG
-        ) {
-            Ok(Self(inner))
-        } else {
-            Err(serde::de::Error::custom("Invalid tag"))
-        }
-    }
-}
 
 impl MinTrackSizingFunction {
     /// An absolute length in some abstract units. Users of Taffy may define what they correspond
@@ -1553,39 +1333,13 @@ impl From<Dimension> for TrackSizingFunction {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for TrackSizingFunction {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        // Try to parse a minmax() function
-        if let Ok(value) = parser.try_parse(|parser| {
-            parser.expect_function_matching("minmax")?;
-            parser.parse_nested_block(|parser| {
-                let min = MinTrackSizingFunction::from_css(parser)?;
-                parser.expect_comma()?;
-                let max = MaxTrackSizingFunction::from_css(parser)?;
 
-                Ok(Self { min, max })
-            })
-        }) {
-            return Ok(value);
-        }
-
-        // Else parse a max track sizing function
-        let max = MaxTrackSizingFunction::from_css(parser)?;
-        let min = max.into();
-        Ok(Self { min, max })
-    }
-}
-
-#[cfg(feature = "parse")]
-from_str_from_css!(TrackSizingFunction);
 
 /// The first argument to a repeated track definition. This type represents the type of automatic repetition to perform.
 ///
 /// See <https://www.w3.org/TR/css-grid-1/#auto-repeat> for an explanation of how auto-repeated track definitions work
 /// and the difference between AutoFit and AutoFill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RepetitionCount {
     /// Auto-repeating tracks should be generated to fit the container
     /// See: <https://developer.mozilla.org/en-US/docs/Web/CSS/repeat#auto-fill>
@@ -1624,25 +1378,9 @@ impl TryFrom<&str> for RepetitionCount {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for RepetitionCount {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        match parser.next()?.clone() {
-            Token::Number { int_value: Some(value), .. } if value.is_positive() => {
-                Ok(Self::Count(saturating_u16(value)))
-            }
-            Token::Ident(ident) if ident == "auto-fit" => Ok(Self::AutoFit),
-            Token::Ident(ident) if ident == "auto-fill" => Ok(Self::AutoFill),
-            token => Err(parser.new_unexpected_token_error(token))?,
-        }
-    }
-}
-#[cfg(feature = "parse")]
-from_str_from_css!(RepetitionCount);
 
 /// A typed representation of a `repeat(..)` in `grid-template-*` value
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GridTemplateRepetition<S: CheapCloneStr> {
     /// The number of the times the repeat is repeated
     pub count: RepetitionCount,
@@ -1684,7 +1422,6 @@ impl<S: CheapCloneStr> GenericRepetition for &'_ GridTemplateRepetition<S> {
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-columns>
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GridTemplateComponent<S: CheapCloneStr> {
     /// A single non-repeated track
     Single(TrackSizingFunction),
@@ -1750,38 +1487,8 @@ impl<S: CheapCloneStr> From<MinMax<MinTrackSizingFunction, MaxTrackSizingFunctio
     }
 }
 
-#[cfg(feature = "parse")]
-impl<S: CheapCloneStr> FromCss for GridTemplateComponent<S> {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        // Try to parse a minmax() function
-        if let Ok(value) = parser.try_parse(|parser| {
-            parser.expect_function_matching("repeat")?;
-            parser.parse_nested_block(|parser| {
-                let count = RepetitionCount::from_css(parser)?;
-                parser.expect_comma()?;
-                let tracks = GridTemplateTracks::<S, TrackSizingFunction>::from_css(parser)?;
-
-                Ok(Self::Repeat(GridTemplateRepetition { count, tracks: tracks.tracks, line_names: tracks.line_names }))
-            })
-        }) {
-            return Ok(value);
-        }
-
-        // Else parse a track sizing function
-        let track_sizing_function = TrackSizingFunction::from_css(parser)?;
-        Ok(Self::Single(track_sizing_function))
-    }
-}
-#[cfg(feature = "parse")]
-impl<S: CheapCloneStr> core::str::FromStr for GridTemplateComponent<S> {
-    type Err = ParseError;
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        parse_css_str_entirely(input)
-    }
-}
 
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[doc(hidden)]
 pub struct GridTemplateTracks<S: CheapCloneStr, Track> {
     /// The tracks to repeat
@@ -1796,110 +1503,10 @@ impl<S: CheapCloneStr, Track> Default for GridTemplateTracks<S, Track> {
     }
 }
 
-#[cfg(feature = "parse")]
-impl<S: CheapCloneStr, Track: FromCss + Debug> FromCss for GridTemplateTracks<S, Track> {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        fn try_parse_line_names<'i, S: CheapCloneStr>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Vec<S>> {
-            parser.try_parse(|parser| {
-                parser.expect_square_bracket_block()?;
-                parser.parse_nested_block(|parser| {
-                    let mut line_names = Vec::new();
-                    while !parser.is_exhausted() {
-                        line_names.push(S::from(parser.expect_ident_cloned()?.as_ref()));
-                    }
-                    Ok(line_names)
-                })
-            })
-        }
-
-        // Line name groups are positional (group `i` names line `i`), so a group is pushed for
-        // every line, empty when the line has no `[...]` in the source
-        let mut tracks = Self::default();
-        tracks.line_names.push(try_parse_line_names(parser).unwrap_or_default());
-
-        while !parser.is_exhausted() {
-            tracks.tracks.push(Track::from_css(parser)?);
-            tracks.line_names.push(try_parse_line_names(parser).unwrap_or_default());
-        }
-
-        if tracks.tracks.is_empty() {
-            return Err(parser.new_error(cssparser::BasicParseErrorKind::EndOfInput));
-        }
-
-        Ok(tracks)
-    }
-}
-#[cfg(feature = "parse")]
-impl<S: CheapCloneStr, Track: FromCss + Debug> core::str::FromStr for GridTemplateTracks<S, Track> {
-    type Err = ParseError;
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        parse_css_str_entirely(input)
-    }
-}
 
 #[derive(Default)]
 #[doc(hidden)]
 pub struct GridAutoTracks(pub Vec<TrackSizingFunction>);
 
-#[cfg(feature = "parse")]
-impl FromCss for GridAutoTracks {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let mut tracks = Self::default();
-        while !parser.is_exhausted() {
-            tracks.0.push(TrackSizingFunction::from_css(parser)?);
-        }
-        if tracks.0.is_empty() {
-            return Err(parser.new_error(cssparser::BasicParseErrorKind::EndOfInput));
-        }
-        Ok(tracks)
-    }
-}
-#[cfg(feature = "parse")]
-from_str_from_css!(GridAutoTracks);
 
-#[cfg(all(test, feature = "parse"))]
-mod tests {
-    use super::*;
-    use crate::sys::DefaultCheapStr;
-
-    #[test]
-    fn grid_placement_parser_saturates_numeric_values() {
-        assert_eq!(
-            "32768".parse::<GridPlacement<DefaultCheapStr>>().unwrap(),
-            GridPlacement::Line(GridLine::from(i16::MAX))
-        );
-        assert_eq!(
-            "-32769".parse::<GridPlacement<DefaultCheapStr>>().unwrap(),
-            GridPlacement::Line(GridLine::from(i16::MIN))
-        );
-        assert_eq!("span 65536".parse::<GridPlacement<DefaultCheapStr>>().unwrap(), GridPlacement::Span(u16::MAX));
-
-        let named_line = "32768 line".parse::<GridPlacement<DefaultCheapStr>>().unwrap();
-        assert!(matches!(named_line, GridPlacement::NamedLine(_, i16::MAX)));
-
-        let named_span = "span 65536 line".parse::<GridPlacement<DefaultCheapStr>>().unwrap();
-        assert!(matches!(named_span, GridPlacement::NamedSpan(_, u16::MAX)));
-    }
-
-    #[test]
-    fn repetition_parser_saturates_numeric_values() {
-        assert_eq!("65536".parse::<RepetitionCount>().unwrap(), RepetitionCount::Count(u16::MAX));
-
-        let component = "repeat(65536, 1px)".parse::<GridTemplateComponent<DefaultCheapStr>>().unwrap();
-        assert!(matches!(
-            component,
-            GridTemplateComponent::Repeat(GridTemplateRepetition { count: RepetitionCount::Count(u16::MAX), .. })
-        ));
-    }
-
-    #[test]
-    fn repetition_track_count_saturates() {
-        let repetition = GridTemplateRepetition::<DefaultCheapStr> {
-            count: RepetitionCount::Count(1),
-            tracks: vec![TrackSizingFunction::AUTO; u16::MAX as usize + 1],
-            line_names: Vec::new(),
-        };
-        assert_eq!((&repetition).track_count(), u16::MAX);
-    }
-}
 

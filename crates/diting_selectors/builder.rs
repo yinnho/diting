@@ -34,8 +34,6 @@ use smallvec::SmallVec;
 use std::cmp;
 use std::slice;
 
-#[cfg(feature = "to_shmem")]
-use to_shmem_derive::ToShmem;
 
 /// Top-level SelectorBuilder struct. This should be stack-allocated by the consumer and never
 /// moved (because it contains a lot of inline data that would be slow to memmove).
@@ -194,7 +192,6 @@ where
 
 /// Flags that indicate at which point of parsing a selector are we.
 #[derive(Clone, Copy, Default, Eq, PartialEq)]
-#[cfg_attr(feature = "to_shmem", derive(ToShmem))]
 pub(crate) struct SelectorFlags(u8);
 
 bitflags! {
@@ -231,7 +228,6 @@ impl SelectorFlags {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-#[cfg_attr(feature = "to_shmem", derive(ToShmem))]
 pub struct SpecificityAndFlags {
     /// There are two free bits here, since we use ten bits for each specificity
     /// kind (id, class, element).

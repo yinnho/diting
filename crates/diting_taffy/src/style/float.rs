@@ -5,7 +5,6 @@
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/CSS/float>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Float {
     /// The box is floated to the left
     Left,
@@ -16,19 +15,12 @@ pub enum Float {
     None,
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(Float,
-    "left" => Left,
-    "right" => Right,
-    "none" => None,
-);
 
 /// Whether a box that is definitely floated is floated to the left
 /// of to the right.
 ///
 /// This type is only used in the low-level parts of the
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum FloatDirection {
     /// The box is floated to the left
@@ -69,7 +61,6 @@ impl Float {
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/CSS/clear>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Clear {
     /// The box clears left-floated boxes
     Left,
@@ -82,10 +73,3 @@ pub enum Clear {
     None,
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(Clear,
-    "left" => Left,
-    "right" => Right,
-    "both" => Both,
-    "none" => None,
-);

@@ -40,18 +40,6 @@ grid = ["dep:smallvec"]
 calc = []
 content_size = []
 detailed_layout_info = []
-# Pruned at intake: the optional deps `serde`, `cssparser` (parse) and
-# `document-features` are gone — never enabled, nothing uses them. Their
-# feature names stay declared as empty shells so the ~138 in-source
-# `#[cfg(feature = ...)]` gates resolve as known cfgs (code never compiles;
-# do NOT enable these — the deps they would need no longer exist).
-# strict_provenance/debug/profile stay as upstream ships them (pure knobs).
-serde = []
-parse = []
-parse_faster = ["parse"]
-strict_provenance = []
-debug = ["std"]
-profile = ["std"]
 taffy_tree = ["dep:slotmap"]
 std = ["slotmap?/std"]
 

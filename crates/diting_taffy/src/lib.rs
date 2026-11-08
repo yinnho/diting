@@ -79,9 +79,6 @@ extern crate std;
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-#[cfg_attr(feature = "serde", macro_use)]
-#[cfg(feature = "serde")]
-extern crate serde;
 
 pub mod compute;
 pub mod geometry;
@@ -122,8 +119,6 @@ pub use crate::tree::TaffyTree;
 #[doc(inline)]
 pub use crate::util::print_tree;
 
-#[cfg(feature = "parse")]
-pub use parse::{ParseError, ParseResult};
 
 pub use crate::compute::*;
 pub use crate::geometry::*;

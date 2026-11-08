@@ -399,8 +399,6 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
 
     #[inline]
     fn bad_char_error(&self) {
-        #[cfg(feature = "trace_tokenizer")]
-        trace!("  error");
 
         let msg = if self.opts.exact_errors {
             Cow::from("Bad character")
@@ -414,8 +412,6 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
 
     #[inline]
     fn bad_eof_error(&self) {
-        #[cfg(feature = "trace_tokenizer")]
-        trace!("  error_eof");
 
         let msg = if self.opts.exact_errors {
             Cow::from("Unexpected EOF")
@@ -427,8 +423,6 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
     }
 
     fn emit_char(&self, c: char) {
-        #[cfg(feature = "trace_tokenizer")]
-        trace!("  emit");
 
         self.process_token_and_continue(match c {
             '\0' => NullCharacterToken,
@@ -490,8 +484,6 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
     }
 
     fn emit_temp_buf(&self) {
-        #[cfg(feature = "trace_tokenizer")]
-        trace!("  emit_temp");
 
         // FIXME: Make sure that clearing on emit is spec-compatible.
         let buf = mem::take(&mut *self.temp_buf.borrow_mut());
@@ -654,13 +646,7 @@ macro_rules! shorthand (
 
 // Tracing of tokenizer actions.  This adds significant bloat and compile time,
 // so it's behind a cfg flag.
-#[cfg(feature = "trace_tokenizer")]
-macro_rules! sh_trace ( ( $me:ident : $($cmds:tt)* ) => ({
-    trace!("  {:?}", stringify!($($cmds)*));
-    shorthand!($me : $($cmds)*);
-}));
 
-#[cfg(not(feature = "trace_tokenizer"))]
 macro_rules! sh_trace ( ( $me:ident : $($cmds:tt)* ) => ( shorthand!($me: $($cmds)*) ) );
 
 // A little DSL for sequencing shorthand actions.

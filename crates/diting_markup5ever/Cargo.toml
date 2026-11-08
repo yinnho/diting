@@ -19,7 +19,6 @@ test = false
 doctest = false
 
 [features]
-serde = ["web_atoms/serde"]
 
 [dependencies]
 log = "0.4"

@@ -19,8 +19,6 @@ test = false
 doctest = false
 
 [features]
-serde = ["diting_markup5ever/serde"]
-trace_tokenizer = []
 
 [dependencies]
 diting_markup5ever = { path = "../diting_markup5ever" }

@@ -24,30 +24,18 @@ mod compat {
         unsafe { core::mem::transmute(v) }
     }
 
-    /// Tag a pointer preserving provenance (requires Rust 1.84)
-    #[inline(always)]
-    #[cfg(all(target_pointer_width = "64", feature = "strict_provenance"))]
-    pub fn tag_ptr(ptr: *const (), tag: usize) -> *const () {
-        ptr.map_addr(|a| a | tag)
-    }
 
     /// Tag a pointer exposing provenance (works back to Rust 1.0)
     #[inline(always)]
-    #[cfg(all(target_pointer_width = "64", not(feature = "strict_provenance")))]
+    #[cfg(target_pointer_width = "64")]
     pub fn tag_ptr(ptr: *const (), tag: usize) -> *const () {
         (ptr as usize | tag) as *const ()
     }
 
-    /// Clear the tag bits of a pointer preserving provenance (requires Rust 1.84)
-    #[inline(always)]
-    #[cfg(all(target_pointer_width = "64", feature = "strict_provenance"))]
-    pub fn untag_ptr(ptr: *const (), mask: usize) -> *const () {
-        ptr.map_addr(|a| a & !mask)
-    }
 
     /// Clear the tag bits of a pointer exposing provenance (works back to Rust 1.0)
     #[inline(always)]
-    #[cfg(all(target_pointer_width = "64", not(feature = "strict_provenance")))]
+    #[cfg(target_pointer_width = "64")]
     pub fn untag_ptr(ptr: *const (), mask: usize) -> *const () {
         (ptr as usize & !mask) as *const ()
     }
@@ -122,19 +110,7 @@ mod inner {
             f32_from_bits((self.tagged_ptr as usize >> 32) as u32)
         }
 
-        /// Get the serialized value.
-        #[inline(always)]
-        #[cfg(feature = "serde")]
-        pub(super) fn serialized(self) -> u64 {
-            (self.tagged_ptr as usize as u64).rotate_left(32)
-        }
 
-        /// Derialized from a value.
-        #[inline(always)]
-        #[cfg(feature = "serde")]
-        pub(super) fn from_serialized(value: u64) -> Self {
-            Self { tagged_ptr: value.rotate_right(32) as usize as *const () }
-        }
     }
 }
 
@@ -198,19 +174,7 @@ mod inner {
             f32_from_bits(self.ptr as u32)
         }
 
-        /// Get the serialized value.
-        #[inline(always)]
-        #[cfg(feature = "serde")]
-        pub(super) fn serialized(self) -> u64 {
-            (self.tag as u64) << 32 | (self.ptr as u64)
-        }
 
-        /// Derialized from a value.
-        #[inline(always)]
-        #[cfg(feature = "serde")]
-        pub(super) fn from_serialized(value: u64) -> Self {
-            Self { tag: (value >> 32) as usize, ptr: (value & 0xFFFFFFFF) as usize as *const () }
-        }
     }
 }
 
@@ -611,54 +575,5 @@ impl TaffyFitContent for CompactLength {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for CompactLength {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[cfg(feature = "calc")]
-        {
-            if self.has_calc() {
-                Err(serde::ser::Error::custom("Cannot serialize Calc value"))
-            } else {
-                serializer.serialize_u64(self.0.serialized())
-            }
-        }
 
-        #[cfg(not(feature = "calc"))]
-        serializer.serialize_u64(self.0.serialized())
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for CompactLength {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let bits: u64 = u64::deserialize(deserializer)?;
-        let value = Self(CompactLengthInner::from_serialized(bits));
-        // Note: validation intentionally excludes the CALC_TAG as deserializing calc() values is not supported.
-        // All of the accepted tags have `NON_POINTER_BIT` set, so a calc() tag can never pass validation.
-        if matches!(
-            value.tag(),
-            CompactLength::LENGTH_TAG
-                | CompactLength::PERCENT_TAG
-                | CompactLength::AUTO_TAG
-                | CompactLength::MIN_CONTENT_TAG
-                | CompactLength::MAX_CONTENT_TAG
-                | CompactLength::FIT_CONTENT_KEYWORD_TAG
-                | CompactLength::FIT_CONTENT_PX_TAG
-                | CompactLength::FIT_CONTENT_PERCENT_TAG
-                | CompactLength::STRETCH_TAG
-                | CompactLength::CONTENT_TAG
-                | CompactLength::FR_TAG
-        ) {
-            Ok(value)
-        } else {
-            Err(serde::de::Error::custom("Cannot deserialize Calc value"))
-        }
-    }
-}
 

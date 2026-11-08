@@ -51,8 +51,6 @@ use core::fmt::Debug;
 
 #[cfg(feature = "grid")]
 use crate::geometry::Line;
-#[cfg(feature = "serde")]
-use crate::style_helpers;
 #[cfg(feature = "grid")]
 use crate::util::sys::GridTrackVec;
 
@@ -247,7 +245,6 @@ pub trait OofItemStyle: CoreStyle {
 ///
 /// The default values depends on on which feature flags are enabled. The order of precedence is: Flex, Grid, Block, None.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Display {
     /// The children will follow the block layout algorithm
     #[cfg(feature = "block_layout")]
@@ -289,18 +286,6 @@ impl Default for Display {
     }
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(Display,
-    "none" => None,
-    #[cfg(feature = "flexbox")]
-    "flex" => Flex,
-    #[cfg(feature = "grid")]
-    "grid" => Grid,
-    #[cfg(feature = "block_layout")]
-    "block" => Block,
-    #[cfg(feature = "block_layout")]
-    "flow-root" => FlowRoot,
-);
 
 impl core::fmt::Display for Display {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -321,7 +306,6 @@ impl core::fmt::Display for Display {
 /// An abstracted version of the CSS `display` property where any value other than "none" is represented by "normal"
 /// See: <https://www.w3.org/TR/css-display-3/#box-generation>
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BoxGenerationMode {
     /// The node generates a box in the regular way
     Normal,
@@ -350,7 +334,6 @@ impl Default for BoxGenerationMode {
 ///
 /// [`Position::Static`] is the default value, matching the default behavior in CSS.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Position {
     /// The item is laid out in normal flow. `inset` has no effect on statically positioned items,
     /// and they do not act as a containing block for absolutely positioned descendants.
@@ -419,14 +402,6 @@ impl ContainingBlockClaims {
     }
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(Position,
-    "static" => Static,
-    "relative" => Relative,
-    "absolute" => Absolute,
-    "fixed" => Fixed,
-    "sticky" => Sticky,
-);
 
 /// Specifies whether size styles for this node are assigned to the node's "content box" or "border box"
 ///
@@ -442,7 +417,6 @@ crate::util::parse::impl_parse_for_keyword_enum!(Position,
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/CSS/box-sizing>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BoxSizing {
     /// Size styles such size, min_size, max_size specify the box's "border box" (the size excluding margin but including padding/border)
     #[default]
@@ -451,11 +425,6 @@ pub enum BoxSizing {
     ContentBox,
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(BoxSizing,
-    "border-box" => BorderBox,
-    "content-box" => ContentBox,
-);
 
 /// How children overflowing their container should affect layout
 ///
@@ -471,7 +440,6 @@ crate::util::parse::impl_parse_for_keyword_enum!(BoxSizing,
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/overflow>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Overflow {
     /// The automatic minimum size of this node as a flexbox/grid item should be based on the size of its content.
     /// Content that overflows this node *should* contribute to the scroll region of its parent.
@@ -511,13 +479,6 @@ impl Overflow {
     }
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(Overflow,
-    "visible" => Visible,
-    "hidden" => Hidden,
-    "clip" => Clip,
-    "scroll" => Scroll,
-);
 
 /// The layout-affecting parts of the CSS `contain` property.
 ///
@@ -536,7 +497,6 @@ crate::util::parse::impl_parse_for_keyword_enum!(Overflow,
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/contain>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Contain(u8);
 
 impl Contain {
@@ -612,61 +572,10 @@ impl core::ops::BitOrAssign for Contain {
     }
 }
 
-#[cfg(feature = "parse")]
-impl crate::util::parse::FromCss for Contain {
-    fn from_css<'i>(input: &mut crate::util::parse::Parser<'i, '_>) -> crate::util::parse::CssParseResult<'i, Self> {
-        /// Duplicate-detection bit for the ignored `style` keyword, which does not map to a
-        /// `Contain` flag
-        const STYLE_BIT: u8 = 1 << 6;
-
-        let mut flags = Contain::NONE;
-        let mut seen: u8 = 0;
-
-        loop {
-            let ident = input.expect_ident()?.clone();
-            let (flag, seen_bit) = cssparser::match_ignore_ascii_case! { &*ident,
-                // Single-keyword values (only valid on their own; `parse_entirely` in the
-                // `FromStr` impl rejects trailing keywords, and a leading keyword before them
-                // is rejected by the `seen != 0` check below)
-                "none" | "content" => {
-                    if seen != 0 || !input.is_exhausted() {
-                        return Err(input.new_unexpected_token_error(crate::util::parse::Token::Ident(ident)));
-                    }
-                    return Ok(cssparser::match_ignore_ascii_case! { &*ident,
-                        "content" => Contain::CONTENT,
-                        _ => Contain::NONE,
-                    });
-                },
-                "layout" => (Contain::LAYOUT, Contain::LAYOUT.0),
-                "paint" => (Contain::PAINT, Contain::PAINT.0),
-                // `style` containment has no layout effect: accept and ignore it so that real
-                // CSS values round-trip
-                "style" => (Contain::NONE, STYLE_BIT),
-                _ => {
-                    return Err(input.new_unexpected_token_error(crate::util::parse::Token::Ident(ident)));
-                }
-            };
-
-            // Reject duplicate keywords
-            if seen & seen_bit != 0 {
-                return Err(input.new_unexpected_token_error(crate::util::parse::Token::Ident(ident)));
-            }
-            seen |= seen_bit;
-            flags |= flag;
-
-            if input.is_exhausted() {
-                return Ok(flags);
-            }
-        }
-    }
-}
-#[cfg(feature = "parse")]
-crate::util::parse::from_str_from_css!(Contain);
 
 /// Sets the direction of text, table and grid columns, and horizontal overflow.
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/direction>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Direction {
     #[default]
     /// Left-to-right
@@ -683,11 +592,6 @@ impl Direction {
     }
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(Direction,
-    "ltr" => Ltr,
-    "rtl" => Rtl,
-);
 
 /// A typed representation of the CSS style information for a single node.
 ///
@@ -704,8 +608,6 @@ crate::util::parse::impl_parse_for_keyword_enum!(Direction,
 ///
 /// If the behavior does not match the flexbox layout algorithm on the web, please file a bug!
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(default))]
 pub struct Style<S: CheapCloneStr = DefaultCheapStr> {
     /// This is a dummy field which is necessary to make Taffy compile with the `grid` feature disabled
     /// It should always be set to `core::marker::PhantomData`.
@@ -745,18 +647,14 @@ pub struct Style<S: CheapCloneStr = DefaultCheapStr> {
     /// What should the `position` value of this struct use as a base offset?
     pub position: Position,
     /// How should the position of this element be tweaked relative to the layout defined?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
     pub inset: Rect<LengthPercentageAuto>,
 
     // Size properties
     /// Sets the initial size of the item
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
     pub size: Size<Dimension>,
     /// Controls the minimum size of the item
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
     pub min_size: Size<LengthPercentageAuto>,
     /// Controls the maximum size of the item
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
     pub max_size: Size<LengthPercentageAuto>,
     /// Sets the preferred aspect ratio for the item
     ///
@@ -765,13 +663,10 @@ pub struct Style<S: CheapCloneStr = DefaultCheapStr> {
 
     // Spacing Properties
     /// How large should the margin be on each side?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
     pub margin: Rect<LengthPercentageAuto>,
     /// How large should the padding be on each side?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
     pub padding: Rect<LengthPercentage>,
     /// How large should the border be on each side?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
     pub border: Rect<LengthPercentage>,
 
     // Alignment properties
@@ -795,7 +690,6 @@ pub struct Style<S: CheapCloneStr = DefaultCheapStr> {
     pub justify_content: JustifyContent,
     /// How large should the gaps between items in a grid or flex container be?
     #[cfg(any(feature = "flexbox", feature = "grid"))]
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
     pub gap: Size<LengthPercentage>,
 
     // Block container properties

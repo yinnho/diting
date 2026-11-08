@@ -27,7 +27,6 @@ pub(crate) const MAX_OZ_LINE: i16 = MAX_GRID_TRACKS as i16;
 ///     (and counts down from there)
 ///   - 0 is not a valid index
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(transparent)]
 pub struct GridLine(i16);
 

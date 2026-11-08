@@ -84,7 +84,6 @@ use crate::tree::RequestedAxis;
 ///
 /// [Specification](https://www.w3.org/TR/css-flexbox-1/#flex-wrap-property)
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FlexWrap {
     /// Items will not wrap and stay on a single line
     #[default]
@@ -133,55 +132,7 @@ impl FlexWrap {
     }
 }
 
-#[cfg(all(feature = "parse", not(feature = "flexbox_balance")))]
-crate::util::parse::impl_parse_for_keyword_enum!(FlexWrap,
-    "nowrap" => NoWrap,
-    "wrap" => Wrap,
-    "wrap-reverse" => WrapReverse,
-);
 
-#[cfg(all(feature = "parse", feature = "flexbox_balance"))]
-impl crate::util::parse::FromCss for FlexWrap {
-    fn from_css<'i>(input: &mut crate::util::parse::Parser<'i, '_>) -> crate::util::parse::CssParseResult<'i, Self> {
-        let mut wrap: Option<Self> = None;
-        let mut balance = false;
-        let mut is_first = true;
-        loop {
-            let ident = if is_first {
-                input.expect_ident()?.clone()
-            } else {
-                match input.try_parse(|input| input.expect_ident().cloned()) {
-                    Ok(ident) => ident,
-                    Err(_) => break,
-                }
-            };
-            let is_valid = cssparser::match_ignore_ascii_case! { &ident,
-                "nowrap" => {
-                    if is_first {
-                        return Ok(Self::NoWrap);
-                    }
-                    false
-                },
-                "wrap" => wrap.replace(Self::Wrap).is_none(),
-                "wrap-reverse" => wrap.replace(Self::WrapReverse).is_none(),
-                "balance" => !core::mem::replace(&mut balance, true),
-                _ => false,
-            };
-            if !is_valid {
-                return Err(input.new_unexpected_token_error(crate::util::parse::Token::Ident(ident)));
-            }
-            is_first = false;
-        }
-        Ok(match (wrap, balance) {
-            (Some(Self::WrapReverse), true) => Self::BalanceReverse,
-            (_, true) => Self::Balance,
-            // At least one keyword is always parsed, so `wrap` must be `Some` if `balance` is false
-            (wrap, false) => wrap.unwrap_or(Self::NoWrap),
-        })
-    }
-}
-#[cfg(all(feature = "parse", feature = "flexbox_balance"))]
-crate::util::parse::from_str_from_css!(FlexWrap);
 
 /// The direction of the flexbox layout main axis.
 ///
@@ -195,7 +146,6 @@ crate::util::parse::from_str_from_css!(FlexWrap);
 ///
 /// [Specification](https://www.w3.org/TR/css-flexbox-1/#flex-direction-property)
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FlexDirection {
     /// Defines +x as the main axis
     ///
@@ -216,13 +166,6 @@ pub enum FlexDirection {
     ColumnReverse,
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(FlexDirection,
-    "row" => Row,
-    "column" => Column,
-    "row-reverse" => RowReverse,
-    "column-reverse" => ColumnReverse,
-);
 
 impl FlexDirection {
     #[inline]
