@@ -1,25 +1,15 @@
-#[cfg(feature = "stealth")]
 use std::collections::HashMap;
-#[cfg(feature = "stealth")]
 use std::error::Error;
-#[cfg(feature = "stealth")]
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(feature = "stealth")]
 use std::sync::Arc;
-#[cfg(feature = "stealth")]
 use std::time::Duration;
 
-#[cfg(feature = "stealth")]
 use tokio::sync::RwLock;
-#[cfg(feature = "stealth")]
 use url::Url;
 
-#[cfg(feature = "stealth")]
 use crate::client::{NetError, ResourceType, Response};
-#[cfg(feature = "stealth")]
 use crate::cookies::CookieJar;
 
-#[cfg(feature = "stealth")]
 pub const STEALTH_USER_AGENT: &str = diting_env::chrome_target::UA_DEFAULT;
 
 /// The TLS fingerprint stealth builds present by default. `with_proxy_and_os`
@@ -39,7 +29,6 @@ pub const DEFAULT_TLS_FINGERPRINT: &str = diting_env::chrome_target::TLS_PROFILE
 /// (rc.28→rc.31: this used to return an `Emulation` variant directly; the
 /// flat enum is now `Profile`, and `Emulation` is the profile+platform
 /// builder passed to `ClientBuilder::emulation`.)
-#[cfg(feature = "stealth")]
 pub fn parse_tls_fingerprint(s: &str) -> Option<diting_profiles::Profile> {
     match s.to_ascii_lowercase().as_str() {
         "chrome" => Some(diting_env::chrome_target::target_tls_profile()),
@@ -58,7 +47,6 @@ pub fn parse_tls_fingerprint(s: &str) -> Option<diting_profiles::Profile> {
 /// Derive the TLS emulation's OS from an advertised User-Agent. The
 /// fingerprint's platform (JA3 is OS-specific) must match the UA the
 /// transport sends — "shape coherence".
-#[cfg(feature = "stealth")]
 pub fn emulation_os_for_ua(ua: &str) -> diting_profiles::Platform {
     if ua.contains("Windows") {
         diting_profiles::Platform::Windows
@@ -76,7 +64,6 @@ pub fn emulation_os_for_ua(ua: &str) -> diting_profiles::Platform {
 /// Browser family + major version from a User-Agent ("Chrome/152.0.0.0" ->
 /// ("chrome", 152)). Edge is matched before Chrome because an Edge UA embeds
 /// both tokens; Safari's own version hides in `Version/`, not `Safari/`.
-#[cfg(feature = "stealth")]
 pub fn ua_browser_version(ua: &str) -> Option<(&'static str, u32)> {
     let (family, marker) = if ua.contains("Edg/") {
         ("edge", "Edg/")
@@ -96,7 +83,6 @@ pub fn ua_browser_version(ua: &str) -> Option<(&'static str, u32)> {
 
 /// (family, major version) for a TLS fingerprint name ("safari17_5" ->
 /// ("safari", 17)).
-#[cfg(feature = "stealth")]
 fn fingerprint_family_version(name: &str) -> Option<(&'static str, u32)> {
     let lower = name.to_ascii_lowercase();
     let digits = lower.find(|c: char| c.is_ascii_digit())?;
@@ -127,9 +113,9 @@ pub const CLAIMED_CHROME_MAJOR: u32 = diting_env::chrome_target::CHROME_MAJOR;
 #[cfg(test)]
 mod face_tripwire {
     /// #276 P2-6 "face follows": the preset name's numeric tail must equal
-    /// the claimed Chrome major. Bump one without the other and this fails
-    /// in every build (no stealth feature needed) — the mismatch that
-    /// lived in the README and the account mirror for days can't recur.
+    /// the claimed Chrome major. Bump one without the other and this fails —
+    /// the mismatch that lived in the README and the account mirror for days
+    /// can't recur.
     #[test]
     fn fleet_face_is_one_coherent_pair() {
         let tail = super::DEFAULT_TLS_FINGERPRINT
@@ -153,7 +139,6 @@ mod face_tripwire {
 /// chrome-target major over the chrome-target preset — "Chrome/152" over a
 /// Chrome/157 fleet is the kind of tell WAFs diff (taobao compat report Ⅴ). Returns true when a
 /// mismatch was logged; `None` fingerprint means the default handshake.
-#[cfg(feature = "stealth")]
 pub fn warn_on_ua_tls_mismatch(ua: &str, tls_fingerprint: Option<&str>) -> bool {
     let Some((ua_family, ua_major)) = ua_browser_version(ua) else {
         return false;
@@ -182,7 +167,6 @@ pub fn warn_on_ua_tls_mismatch(ua: &str, tls_fingerprint: Option<&str>) -> bool 
 /// GETs are idempotent, so a connection reset mid-request is safe to retry
 /// once. Some anti-bot frontends RST the first TLS connection from a fresh IP
 /// and only serve the retry.
-#[cfg(feature = "stealth")]
 async fn send_get_with_connection_reset_retry(
     request: diting_wire::RequestBuilder,
     url: &Url,
@@ -210,12 +194,10 @@ async fn send_get_with_connection_reset_retry(
 /// too (each hop is a fresh connect). The allow flag is read live:
 /// contexts flip it after construction (obscura#793 shape) and the env
 /// release (`DITING_ALLOW_PRIVATE_NETWORK`) ORs in at resolve time.
-#[cfg(feature = "stealth")]
 struct WreqSsrfGuardResolver {
     allow_flag: Arc<AtomicBool>,
 }
 
-#[cfg(feature = "stealth")]
 impl diting_wire::dns::Resolve for WreqSsrfGuardResolver {
     fn resolve(&self, name: diting_wire::dns::Name) -> diting_wire::dns::Resolving {
         let allow =
@@ -250,7 +232,6 @@ impl diting_wire::dns::Resolve for WreqSsrfGuardResolver {
     }
 }
 
-#[cfg(feature = "stealth")]
 pub struct StealthHttpClient {
     /// Proxy-configured client. None when no proxy is set.
     proxied_client: Option<diting_wire::Client>,
@@ -291,7 +272,6 @@ pub struct StealthHttpClient {
     pub block_trackers: bool,
 }
 
-#[cfg(feature = "stealth")]
 impl StealthHttpClient {
     pub fn new(cookie_jar: Arc<CookieJar>) -> Self {
         Self::with_proxy(cookie_jar, None)
@@ -998,6 +978,6 @@ impl StealthHttpClient {
     }
 }
 
-#[cfg(all(test, feature = "stealth"))]
-#[cfg(all(test, feature = "stealth"))]
+#[cfg(test)]
+#[cfg(test)]
 mod tests;

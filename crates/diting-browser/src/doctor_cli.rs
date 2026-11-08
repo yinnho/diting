@@ -48,7 +48,6 @@ fn features_check() -> Check {
     let feats: Vec<&str> = vec![
         #[cfg(feature = "screenshot")]
         "screenshot",
-        #[cfg(feature = "stealth")]
         "stealth",
     ];
     let detail = if feats.is_empty() {

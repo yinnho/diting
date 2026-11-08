@@ -10,7 +10,9 @@ publish = false
 [features]
 default = []
 screenshot = ["diting_js/screenshot"]
-stealth = ["diting_net/stealth", "diting_js/stealth", "diting_env/stealth"]
+# No-op: the wire/BoringSSL stack is always built. Kept so `--features stealth` in
+# CI, deploy and release commands keeps resolving.
+stealth = []
 
 [dependencies]
 diting_env = { path = "../diting_env" }

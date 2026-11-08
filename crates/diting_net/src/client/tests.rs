@@ -792,7 +792,6 @@ async fn untraced_fetch_stays_bare() {
 /// 127.0.0.1:1 is a closed port: both transports fail fast with
 /// connection refused, but the GET error must carry the legacy-attempt
 /// marker proving the fallback actually fired.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn legacy_tls_retries_get_transport_failures() {
     let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
@@ -808,7 +807,6 @@ async fn legacy_tls_retries_get_transport_failures() {
 /// 127.0.0.1:1 is a closed port: connection refused is connect-stage by
 /// definition, so a POST (with its body) rides the legacy retry just
 /// like a GET — the request provably never left the machine.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn legacy_tls_retries_connect_stage_post() {
     let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
@@ -829,7 +827,6 @@ async fn legacy_tls_retries_connect_stage_post() {
 /// request, then closes mid-body (Content-Length promises more than it
 /// delivers), which reqwest classifies as a body-read failure, not a
 /// connect failure.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 #[allow(clippy::await_holding_lock)] // the env guard must span the bind — that's the serialization
 async fn legacy_tls_keeps_post_error_after_the_request_left() {
@@ -875,7 +872,6 @@ async fn legacy_tls_keeps_post_error_after_the_request_left() {
 /// The op_fetch_url entry point takes a raw reqwest error string, not a
 /// NetError — same closed-port probe, same markers, proving the helper
 /// forwards into the guarded retry.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_fetch_fallback_fires_for_get() {
     let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
@@ -902,7 +898,6 @@ async fn scripted_fetch_fallback_fires_for_get() {
 
 /// A scripted POST flagged connect-stage rides the fallback with its
 /// body — the caller's classification is trusted only for this hop.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_fetch_fallback_retries_connect_stage_post() {
     let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
@@ -929,7 +924,6 @@ async fn scripted_fetch_fallback_retries_connect_stage_post() {
 
 /// A scripted POST that already left the machine (post-send failure)
 /// keeps its original error — the double-submit guard.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_fetch_fallback_keeps_post_error_after_send() {
     let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
@@ -961,7 +955,6 @@ async fn scripted_fetch_fallback_keeps_post_error_after_send() {
 /// A gate rejection travels as NetError::Network just like a transport
 /// failure — the re-validation inside the fallback is what keeps SSRF
 /// denials from ever reaching the legacy stack.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 #[allow(clippy::await_holding_lock)] // the env guard must span the fetch — that's the serialization
 async fn legacy_tls_never_retries_ssrf_gate_rejections() {
@@ -1052,7 +1045,6 @@ async fn loopback_header_echo() -> (Url, tokio::task::JoinHandle<()>) {
 /// #116: the flag is the gate. A plain (non-stealth) context never sets
 /// `scripted_rides_stealth`, so the hop answers `None` even against a
 /// reachable URL and the caller keeps plain reqwest exactly as before.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_stealth_hop_none_without_the_flag() {
     let (url, server) = loopback_header_echo().await;
@@ -1071,7 +1063,6 @@ async fn scripted_stealth_hop_none_without_the_flag() {
 /// the wreq stack — and the request the server sees carries the client's
 /// own identity: the synced UA and the hop's scripted headers, not the
 /// transport's stock defaults.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
     let (url, server) = loopback_header_echo().await;
@@ -1127,7 +1118,6 @@ async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
 
 /// `Some(Err)` — not `None` — is the "tried and failed" answer: the walk
 /// uses it to gate plain's own legacy fallback (at most two transports).
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_stealth_hop_err_on_closed_port() {
     let mut client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
@@ -1182,7 +1172,6 @@ async fn response_carries_request_header_snapshot() {
 /// wreq does not speak SOCKS — a SOCKS-proxy context answers `None` (the
 /// plain transport is the only option) instead of silently rewriting the
 /// scheme, mirroring `legacy_transport`.
-#[cfg(feature = "stealth")]
 #[tokio::test]
 async fn scripted_stealth_hop_none_for_socks_proxy() {
     let mut client = HttpClient::with_full_options(

@@ -19,7 +19,6 @@ pub use metadata::ResourceType;
 use metadata::{metadata_for, FetchMetadata};
 pub use observer::{CallbackRegistry, RequestCallback, RequestInfo, ResponseCallback};
 
-#[cfg(feature = "stealth")]
 pub(crate) use policy::custom_cert_store_requested;
 pub use policy::{
     allow_file_access, env_allows_private_network, parse_scoped_cidrs, set_allow_file_access,
@@ -251,7 +250,6 @@ pub struct HttpClient {
     /// fallback need, sharing this client's cookie jar and proxy posture;
     /// `None` means unavailable (non-stealth build, or a SOCKS proxy that
     /// wreq cannot speak).
-    #[cfg(feature = "stealth")]
     legacy_tls: tokio::sync::OnceCell<Option<Arc<crate::StealthHttpClient>>>,
 }
 
@@ -294,7 +292,6 @@ impl HttpClient {
             allow_private_network,
             scripted_rides_stealth: false,
             tls_fingerprint: None,
-            #[cfg(feature = "stealth")]
             legacy_tls: tokio::sync::OnceCell::new(),
         }
     }
@@ -629,7 +626,6 @@ impl HttpClient {
     /// None and rides transport defaults. `include_cookies` carries the
     /// fetch credentials policy (navigation requests are always
     /// credentialed).
-    #[cfg(feature = "stealth")]
     #[allow(clippy::too_many_arguments)]
     async fn retry_via_legacy_tls(
         &self,
@@ -681,22 +677,6 @@ impl HttpClient {
                 "{err}; legacy TLS transport also failed: {legacy_err}"
             ))),
         }
-    }
-
-    #[cfg(not(feature = "stealth"))]
-    #[allow(clippy::too_many_arguments)]
-    async fn retry_via_legacy_tls(
-        &self,
-        _method: Method,
-        _url: &Url,
-        err: NetError,
-        _body: Option<&[u8]>,
-        _content_type: Option<&str>,
-        _connect_stage: bool,
-        _request_headers: Option<&HashMap<String, String>>,
-        _include_cookies: bool,
-    ) -> Result<Response, NetError> {
-        Err(err)
     }
 
     /// Legacy-TLS fallback for scripted fetch()/XHR (`op_fetch_url`): the op
@@ -754,7 +734,6 @@ impl HttpClient {
     /// `Some(Err)` means the stealth stack was tried and failed, so the
     /// caller falls through to plain with its own legacy fallback gated
     /// off: a request never burns more than two transports.
-    #[cfg(feature = "stealth")]
     #[allow(clippy::too_many_arguments)]
     pub async fn scripted_stealth_hop(
         &self,
@@ -800,22 +779,6 @@ impl HttpClient {
         )
     }
 
-    /// Non-stealth stub: the whole question is moot, scripted hops stay
-    /// on plain reqwest exactly as before.
-    #[cfg(not(feature = "stealth"))]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn scripted_stealth_hop(
-        &self,
-        _method: &Method,
-        _url: &Url,
-        _body: Option<&[u8]>,
-        _content_type: Option<&str>,
-        _request_headers: Option<&HashMap<String, String>>,
-        _include_cookies: bool,
-    ) -> Option<Result<Response, NetError>> {
-        None
-    }
-
     /// Build the legacy transport on first fallback need, mirroring this
     /// client's cookie jar, proxy and private-network posture. wreq does
     /// not speak SOCKS5 (the #160 shape), so a SOCKS proxy leaves the
@@ -824,7 +787,6 @@ impl HttpClient {
     /// `tls_fingerprint` profile and the UA-derived platform — instead of
     /// the stock chrome-target default, so the escape hatch never swaps
     /// one JA3-mismatch tell for another (#116).
-    #[cfg(feature = "stealth")]
     async fn legacy_transport(&self) -> Option<&Arc<crate::StealthHttpClient>> {
         self.legacy_tls
             .get_or_init(|| async {

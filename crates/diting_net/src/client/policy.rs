@@ -20,7 +20,6 @@ pub const PRIVATE_NETWORK_HINT: &str =
 /// env var keep working unchanged.
 /// True when SSL_CERT_FILE / SSL_CERT_DIR point at a custom CA bundle.
 /// Empty strings count as unset — some environments export them empty.
-#[cfg(feature = "stealth")]
 pub(crate) fn custom_cert_store_requested(
     cert_file: Option<&std::ffi::OsStr>,
     cert_dir: Option<&std::ffi::OsStr>,

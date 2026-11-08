@@ -32,6 +32,10 @@ emulation = [
     "dep:flate2",
     "dep:zstd",
 ]
+# Test-only: compress_golden needs a runtime under diting_wire (see below).
+tokio-rt = [
+    "diting_wire/tokio-rt",
+]
 
 [lib]
 name = "diting_profiles"

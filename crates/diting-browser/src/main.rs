@@ -303,7 +303,6 @@ async fn main() -> anyhow::Result<()> {
     // the UA while the stealth transport keeps the chrome-target preset's
     // TLS handshake (chrome157 today); warn when the UA major disagrees
     // with that claim (WAF tell).
-    #[cfg(feature = "stealth")]
     if let Ok(ua) = std::env::var("DITING_UA") {
         diting::diting_net::warn_on_ua_tls_mismatch(&ua, None);
     }
@@ -661,10 +660,7 @@ fn health_body() -> serde_json::Value {
             .user_agent
             .to_string()
     });
-    #[cfg(feature = "stealth")]
     let tls = diting::diting_net::DEFAULT_TLS_FINGERPRINT;
-    #[cfg(not(feature = "stealth"))]
-    let tls = "off";
     serde_json::json!({
         "status": "ok",
         "engine": "diting",
@@ -681,7 +677,7 @@ fn health_body() -> serde_json::Value {
         "capabilities": {
             "screenshot": cfg!(feature = "screenshot"),
             "authoring": cfg!(feature = "authoring"),
-            "stealth": cfg!(feature = "stealth"),
+            "stealth": true,
             "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
         }
     })
@@ -737,7 +733,7 @@ async fn status_handler() -> axum::response::Html<String> {
     let version = env!("CARGO_PKG_VERSION");
     let caps = [
         ("screenshot", cfg!(feature = "screenshot")),
-        ("stealth", cfg!(feature = "stealth")),
+        ("stealth", true),
         (
             "captcha-solver",
             std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
@@ -844,7 +840,7 @@ async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse
     let capabilities = serde_json::json!({
         "screenshot": cfg!(feature = "screenshot"),
         "authoring": cfg!(feature = "authoring"),
-        "stealth": cfg!(feature = "stealth"),
+        "stealth": true,
         "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
         // Where an agent lands the flows it distills (and reads README.md).
         "workflow_dir": flow::workflow_dir().to_string_lossy(),
@@ -1031,9 +1027,6 @@ mod tests {
         // V8 reports like "15.0.274.2".
         let v8 = body["v8"].as_str().expect("v8 version present");
         assert!(v8.contains('.'), "V8 version expected, got: {v8}");
-        #[cfg(feature = "stealth")]
         assert_eq!(body["tls"], diting::diting_net::DEFAULT_TLS_FINGERPRINT);
-        #[cfg(not(feature = "stealth"))]
-        assert_eq!(body["tls"], "off");
     }
 }

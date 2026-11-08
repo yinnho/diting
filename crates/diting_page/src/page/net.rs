@@ -248,7 +248,6 @@ impl Page {
     /// (obscura #571).
     pub async fn set_extra_headers(&self, headers: std::collections::HashMap<String, String>) {
         self.http_client.set_extra_headers(headers.clone()).await;
-        #[cfg(feature = "stealth")]
         if let Some(ref stealth) = self.stealth_client {
             stealth.set_extra_headers(headers).await;
         }
@@ -278,7 +277,6 @@ impl Page {
     ) {
         if !ua.is_empty() {
             self.http_client.set_user_agent(ua).await;
-            #[cfg(feature = "stealth")]
             if let Some(ref stealth) = self.stealth_client {
                 stealth.set_user_agent(ua).await;
             }
@@ -293,7 +291,6 @@ impl Page {
         }
         if let Some(lang) = lang.filter(|l| !l.is_empty()) {
             self.http_client.set_accept_language(lang).await;
-            #[cfg(feature = "stealth")]
             if let Some(ref stealth) = self.stealth_client {
                 stealth.set_accept_language(lang).await;
             }

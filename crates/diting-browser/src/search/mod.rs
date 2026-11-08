@@ -1112,10 +1112,8 @@ fn normalize_socks5h(proxy: &str) -> String {
     }
 }
 
-/// Build a stealth wreq client. Returns None if the "stealth" feature is not
-/// enabled. The client is configured with proxy if DITING_PROXY is set and
+/// Build a stealth wreq client, with DITING_PROXY when it is set and
 /// `use_proxy` is true.
-#[cfg(feature = "stealth")]
 pub fn build_stealth_client(
     use_proxy: bool,
 ) -> Arc<diting::diting_net::wreq_client::StealthHttpClient> {
@@ -1132,15 +1130,8 @@ pub fn build_stealth_client(
     Arc::new(client)
 }
 
-#[cfg(not(feature = "stealth"))]
-#[allow(dead_code)] // public helper stub for non-stealth builds
-pub fn build_stealth_client(_use_proxy: bool) -> Option<()> {
-    None
-}
-
 /// Fetch a URL via the stealth client, returning the decoded text and the
 /// final URL. Handles CAPTCHA detection via 302 redirects.
-#[cfg(feature = "stealth")]
 pub async fn stealth_fetch(
     client: &diting::diting_net::wreq_client::StealthHttpClient,
     url: &str,

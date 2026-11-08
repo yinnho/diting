@@ -26,9 +26,9 @@ bin-dir = "diting-{ version }-{ target }/{ bin }{ binary-ext }"
 
 [features]
 default = ["authoring"]
-# Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL),
-# in the diting engine (crates/diting). Disable for plain reqwest-only builds.
-stealth = ["diting/stealth", "dep:diting_profiles"]
+# No-op: the wire/BoringSSL stack is always built. Kept so `--features stealth` in
+# CI, deploy and release commands keeps resolving.
+stealth = []
 # Screenshot rendering via the diting engine (crates/diting) — own
 # CSS+layout+paint stack, no Chromium required, no blitz. The engine's
 # render deps live in diting; the product face only needs encode/decode
@@ -89,7 +89,7 @@ sha2 = "0.11"
 # The browser-fidelity HTTP stack is OUR code now (crates/diting_wire*, diting_profiles;
 # vendored from wreq 6.0.0-rc.31 family, see crates/VENDORED.md). The product keeps the
 # platform emulation presets used by search personas.
-diting_profiles = { path = "../diting_profiles", optional = true }
+diting_profiles = { path = "../diting_profiles" }
 
 # Retired 2026-11-06: the blitz reference pipeline (DioxusLabs/blitz rev-pinned
 # + stylo_alias + a parley/fontique/anyrender/peniko fixture stack, feeding

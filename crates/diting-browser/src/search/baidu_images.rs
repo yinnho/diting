@@ -5,7 +5,6 @@ use super::{ImageResult, RawSearchResult, SearchEngine, SearchEngineError, Searc
 /// Baidu Image search. Uses Baidu's `acjson` JSON image-search endpoint and
 /// returns binary direct image links (curl -o downloadable), not page URLs.
 pub struct BaiduImagesEngine {
-    #[cfg(feature = "stealth")]
     stealth: Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>>,
     plain_client: reqwest::Client,
     /// One-time warmup: hit the image.baidu.com homepage so its cookies
@@ -17,14 +16,12 @@ pub struct BaiduImagesEngine {
 
 impl BaiduImagesEngine {
     pub fn new() -> Self {
-        #[cfg(feature = "stealth")]
         let stealth = {
             let s = super::build_stealth_client(false); // image.baidu.com is domestic.
             Some(s)
         };
 
         BaiduImagesEngine {
-            #[cfg(feature = "stealth")]
             stealth,
             plain_client: super::build_plain_client(10),
             warmed: tokio::sync::OnceCell::new(),
@@ -33,7 +30,6 @@ impl BaiduImagesEngine {
 
     async fn warm_up(&self) -> Result<(), SearchEngineError> {
         let url = "https://image.baidu.com/";
-        #[cfg(feature = "stealth")]
         if let Some(ref stealth) = self.stealth {
             return super::stealth_fetch(stealth.as_ref(), url)
                 .await
@@ -79,7 +75,6 @@ impl SearchEngine for BaiduImagesEngine {
         );
 
         let text;
-        #[cfg(feature = "stealth")]
         {
             text = if let Some(ref stealth) = self.stealth {
                 match super::stealth_fetch(stealth.as_ref(), &url).await {
@@ -89,10 +84,6 @@ impl SearchEngine for BaiduImagesEngine {
             } else {
                 super::plain_fetch(&self.plain_client, &url).await?
             };
-        }
-        #[cfg(not(feature = "stealth"))]
-        {
-            text = super::plain_fetch(&self.plain_client, &url).await?;
         }
 
         parse_baidu_images_json(&text)
