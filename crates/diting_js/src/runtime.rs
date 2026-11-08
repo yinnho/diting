@@ -35,7 +35,10 @@ mod eval_code;
 // (god-file ratchet).
 mod wiring;
 
-static SNAPSHOT: &[u8] = include_bytes!(env!("DITING_SNAPSHOT_PATH"));
+mod snapshot_blob {
+    include!(concat!(env!("OUT_DIR"), "/snapshot_blob.rs"));
+}
+use snapshot_blob::SNAPSHOT;
 
 /// Budget for awaiting a script's promise before declaring an eval timeout.
 /// The session eval face exposes this per-call (`timeout_ms`); callers that
