@@ -1,6 +1,7 @@
 //! The flow module's tests, split from the module root (ARCHITECTURE.md
 //! P2 god-file ratchet).
 use super::resolve::{available_workflows, is_workflow_name};
+use super::transcript::parse_whisper_segments;
 use super::*;
 
 #[test]
