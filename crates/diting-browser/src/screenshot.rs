@@ -649,21 +649,24 @@ pub fn element_rects_diting(
         .collect())
 }
 
+/// Pixels of a PNG whose RGB satisfies `pred` (shared by both test modules).
+#[cfg(test)]
+fn count_color(png_bytes: &[u8], pred: impl Fn((u8, u8, u8)) -> bool) -> usize {
+    let decoder = diting_png::Decoder::new(std::io::Cursor::new(png_bytes));
+    let mut reader = decoder.read_info().expect("png read_info");
+    let mut buf = vec![0; reader.output_buffer_size().expect("png output buffer size")];
+    let info = reader.next_frame(&mut buf).expect("png decode");
+    buf[..info.buffer_size()]
+        .chunks(4)
+        .filter(|px| pred((px[0], px[1], px[2])))
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// Decode a small PNG and count pixels matching `pred` (test helper).
-    fn count_color(png_bytes: &[u8], pred: impl Fn((u8, u8, u8)) -> bool) -> usize {
-        let decoder = diting_png::Decoder::new(std::io::Cursor::new(png_bytes));
-        let mut reader = decoder.read_info().expect("png read_info");
-        let mut buf = vec![0; reader.output_buffer_size().expect("png output buffer size")];
-        let info = reader.next_frame(&mut buf).expect("png decode");
-        buf[..info.buffer_size()]
-            .chunks(4)
-            .filter(|px| pred((px[0], px[1], px[2])))
-            .count()
-    }
 
     #[test]
     fn stylesheet_hrefs_resolve_extensionless_sheet_urls() {
@@ -1518,17 +1521,6 @@ mod tests {
 #[cfg(test)]
 mod opacity_pipeline_tests {
     use super::*;
-
-    fn count_color(png_bytes: &[u8], pred: impl Fn((u8, u8, u8)) -> bool) -> usize {
-        let decoder = diting_png::Decoder::new(std::io::Cursor::new(png_bytes));
-        let mut reader = decoder.read_info().expect("png read_info");
-        let mut buf = vec![0; reader.output_buffer_size().expect("png output buffer size")];
-        let info = reader.next_frame(&mut buf).expect("png decode");
-        buf[..info.buffer_size()]
-            .chunks(4)
-            .filter(|px| pred((px[0], px[1], px[2])))
-            .count()
-    }
 
     /// CSS `opacity` must hide TEXT, not just backgrounds: the layout walk
     /// folds element opacity into the text color's alpha and `colorize`
