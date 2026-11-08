@@ -23,7 +23,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use super::face_bytes::FaceBytes;
 use diting_swash::proxy::MetricsProxy;
@@ -1279,6 +1279,10 @@ pub fn baseline_offset(ascent: f32, descent: f32, line_height: f32) -> f32 {
 /// Budget: fixed 48 MB, clear-all on overflow. A page's working set is a
 /// few MB of tiles; the clear is a full re-raster of the next pass, rare
 /// enough in practice that LRU bookkeeping isn't worth its complexity.
+///
+/// Poison recovery (#336): process-wide, so a poisoned map would fail every
+/// later text paint; the guarded sections are single get/insert/clear calls
+/// (rasterization runs outside the lock), leaving the map intact.
 struct RasterCache;
 static RASTER_CACHE: std::sync::LazyLock<Mutex<HashMap<RasterKey, Arc<TextRaster>>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -1333,7 +1337,11 @@ struct RasterKey {
 
 impl RasterCache {
     fn get_or_insert(key: RasterKey, make: impl FnOnce() -> TextRaster) -> Arc<TextRaster> {
-        if let Some(hit) = RASTER_CACHE.lock().unwrap().get(&key) {
+        if let Some(hit) = RASTER_CACHE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&key)
+        {
             RASTER_CACHE_HITS.fetch_add(1, Ordering::Relaxed);
             return Arc::clone(hit);
         }
@@ -1343,7 +1351,7 @@ impl RasterCache {
         // exactness would buy nothing the clear-all policy can spend.
         let bytes = raster.data.len() + key.text.len() + 64;
         let max = RASTER_CACHE_MAX.load(Ordering::Relaxed);
-        let mut map = RASTER_CACHE.lock().unwrap();
+        let mut map = RASTER_CACHE.lock().unwrap_or_else(PoisonError::into_inner);
         if bytes >= max || RASTER_CACHE_BYTES.load(Ordering::Relaxed) + bytes > max {
             map.clear();
             RASTER_CACHE_BYTES.store(0, Ordering::Relaxed);
@@ -1357,7 +1365,10 @@ impl RasterCache {
     /// tests share the process-wide map).
     #[cfg(test)]
     fn reset() {
-        RASTER_CACHE.lock().unwrap().clear();
+        RASTER_CACHE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         RASTER_CACHE_BYTES.store(0, Ordering::Relaxed);
         RASTER_CACHE_HITS.store(0, Ordering::Relaxed);
         RASTER_CACHE_MISSES.store(0, Ordering::Relaxed);

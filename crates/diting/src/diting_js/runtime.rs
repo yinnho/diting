@@ -252,7 +252,9 @@ impl JsRuntime {
         // Disposal serializes through the same lock — see
         // `SerializedDropRuntime` (#108).
         let mut runtime = {
-            let _construct_guard = ISOLATE_CONSTRUCT_LOCK.lock().unwrap();
+            let _construct_guard = ISOLATE_CONSTRUCT_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             // One-shot before the first isolate: raise V8's own JS stack
             // ceiling. The default (~984 KB) is fine for hand-written code,
             // but minified SPA bundles (juejin.cn class) recurse past it and
@@ -343,7 +345,9 @@ impl JsRuntime {
         // construction lock, then switched off so page scripts never parse
         // `%Foo()` (Chrome: SyntaxError).
         {
-            let _natives_guard = ISOLATE_CONSTRUCT_LOCK.lock().unwrap();
+            let _natives_guard = ISOLATE_CONSTRUCT_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             v8::V8::set_flags_from_string("--allow-natives-syntax");
             let minted = runtime.execute_script(
                 "<anonymous>",
@@ -1367,7 +1371,9 @@ impl JsRuntime {
 
         let watchdog = std::thread::spawn(move || {
             let (lock, cvar) = &*pair_clone;
-            let mut cancelled = lock.lock().unwrap();
+            let mut cancelled = lock
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let deadline = std::time::Instant::now() + timeout;
 
             loop {
@@ -1377,7 +1383,9 @@ impl JsRuntime {
                     return;
                 }
 
-                let result = cvar.wait_timeout(cancelled, remaining).unwrap();
+                let result = cvar
+                    .wait_timeout(cancelled, remaining)
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 cancelled = result.0;
                 if *cancelled {
                     return;
@@ -1389,7 +1397,9 @@ impl JsRuntime {
 
         {
             let (lock, cvar) = &*pair;
-            let mut cancelled = lock.lock().unwrap();
+            let mut cancelled = lock
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             *cancelled = true;
             cvar.notify_one();
         }

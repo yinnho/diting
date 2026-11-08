@@ -964,3 +964,32 @@ fn same_site_receive_gate_blocks_cross_site_subresource_sets() {
     );
     assert!(jar.get_cookie_header(&same_site_origin).contains("optin="));
 }
+
+/// #336: a panic while holding the jar's write lock (ops catch_unwind
+/// keeps the process alive) poisons it; every later cookie access must
+/// still work instead of re-panicking on the poison.
+#[test]
+fn jar_survives_a_panic_under_its_write_locks() {
+    let jar = CookieJar::new();
+    let url = Url::parse("https://example.com/").unwrap();
+    jar.set_cookie("before=1; Path=/", &url);
+
+    let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _cookies = jar.cookies.write().unwrap();
+        let _trace = jar.trace.write().unwrap();
+        panic!("simulated op panic under the jar locks");
+    }));
+    assert!(poisoned.is_err());
+    assert!(jar.cookies.is_poisoned() && jar.trace.is_poisoned());
+
+    jar.set_cookie("after=2; Path=/", &url);
+    jar.set_cookie_from_js("js=3", &url);
+    let header = jar.get_cookie_header(&url);
+    assert!(header.contains("before=1"), "{header}");
+    assert!(header.contains("after=2"), "{header}");
+    assert_eq!(jar.get_all_cookies().len(), 3);
+    assert!(jar.cookie_trace().iter().any(|t| t.name == "js"));
+    jar.delete_cookies_filtered("before", "example.com", None);
+    jar.clear();
+    assert!(jar.get_cookie_header(&url).is_empty());
+}

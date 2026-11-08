@@ -1,3 +1,6 @@
+// Guards no data, so every taker recovers from poison (#336): one panic
+// during construction must not leave the process unable to build another
+// isolate, and the Drop-side taker panicking mid-unwind would abort.
 pub(super) static ISOLATE_CONSTRUCT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 use diting_runtime::vm::Vm;
@@ -71,7 +74,9 @@ impl Drop for SerializedDropRuntime {
             // of blocking the session thread in dispose forever.
             return;
         }
-        let _guard = ISOLATE_CONSTRUCT_LOCK.lock().unwrap();
+        let _guard = ISOLATE_CONSTRUCT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // SAFETY: `self` is being dropped and nothing touches the field
         // afterwards; `ManuallyDrop` suppressed the automatic drop, so this
         // read-then-drop runs the isolate teardown exactly once — here,

@@ -19,7 +19,7 @@
 //! clone can be woken from the posting thread directly.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::task::Waker;
 use std::time::Instant;
 
@@ -39,11 +39,17 @@ pub(crate) struct ForegroundEntry {
     waker: Mutex<Option<Waker>>,
 }
 
+// Every lock here recovers from poison (#336): posts arrive from V8 worker
+// threads, and one panic under a guard must not turn every later post into a
+// panic. The critical sections are single map/Vec/Option writes.
 static REGISTRY: OnceLock<Mutex<HashMap<usize, Arc<ForegroundEntry>>>> = OnceLock::new();
 
 /// Live-isolate count (memory forensics knob readers).
 pub fn registry_len() -> usize {
-    registry().lock().map(|r| r.len()).unwrap_or(0)
+    registry()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .len()
 }
 
 fn registry() -> &'static Mutex<HashMap<usize, Arc<ForegroundEntry>>> {
@@ -110,7 +116,11 @@ fn queue_delayed(key: usize, task: v8::Task, delay_in_seconds: f64) {
 }
 
 fn queue(qt: QueuedTask, key: usize) {
-    let entry = registry().lock().unwrap().get(&key).cloned();
+    let entry = registry()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&key)
+        .cloned();
     let Some(entry) = entry else {
         // deno_core's law, verbatim shape: an unregistered isolate's posts
         // are DROPPED (`else { return }` in its queue_task). Never run
@@ -124,8 +134,16 @@ fn queue(qt: QueuedTask, key: usize) {
         drop(qt);
         return;
     };
-    entry.tasks.lock().unwrap().push(qt);
-    let waker = entry.waker.lock().unwrap().clone();
+    entry
+        .tasks
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(qt);
+    let waker = entry
+        .waker
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
     if let Some(waker) = waker.as_ref() {
         waker.wake_by_ref();
     }
@@ -160,30 +178,33 @@ pub(crate) fn register(isolate_ptr: usize) -> Arc<ForegroundEntry> {
     });
     registry()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .insert(isolate_ptr, entry.clone());
     entry
 }
 
 pub(crate) fn deregister(isolate_ptr: usize) {
-    registry().lock().unwrap().remove(&isolate_ptr);
+    registry()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .remove(&isolate_ptr);
 }
 
 /// Fresh waker every pass, like the op driver's loop_waker cell.
 pub(crate) fn set_waker(entry: &ForegroundEntry, waker: &Waker) {
-    *entry.waker.lock().unwrap() = Some(waker.clone());
+    *entry.waker.lock().unwrap_or_else(PoisonError::into_inner) = Some(waker.clone());
 }
 
 /// Run every DUE task now, re-queueing the not-yet-due tail. MUST be called
 /// with the isolate entered — foreground tasks touch V8 (they resolve
 /// promises, run microtask-hungry callbacks). Returns how many ran.
 pub(crate) fn drain(entry: &ForegroundEntry) -> usize {
-    let tasks = std::mem::take(&mut *entry.tasks.lock().unwrap());
+    let tasks = std::mem::take(&mut *entry.tasks.lock().unwrap_or_else(PoisonError::into_inner));
     let now = Instant::now();
     let (due, later): (Vec<_>, Vec<_>) = tasks
         .into_iter()
         .partition(|qt| qt.due.is_none_or(|d| d <= now));
-    *entry.tasks.lock().unwrap() = later;
+    *entry.tasks.lock().unwrap_or_else(PoisonError::into_inner) = later;
     let count = due.len();
     for qt in due {
         qt.task.run();
@@ -200,7 +221,7 @@ pub(crate) fn has_pending(entry: &ForegroundEntry) -> bool {
     entry
         .tasks
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .any(|qt| qt.due.is_none_or(|d| d <= now))
 }

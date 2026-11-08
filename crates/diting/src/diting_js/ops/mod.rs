@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::io::Write as _;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError};
 
 use crate::diting_dom::{AttachShadowError, DomTree, NodeData, NodeId, ShadowRootMode};
 use crate::diting_net::{CookieJar, HttpClient};
@@ -4346,7 +4346,8 @@ fn op_set_cookie(state: &OpState, #[string] cookie_str: &str) {
 // copy lives in this process-global map, mirrored to one JSON file per
 // origin under DITING_STORAGE_DIR (falling back to the cookie store
 // dir). sessionStorage deliberately stays memory-only — per-tab lifetime is
-// the spec'd behavior.
+// the spec'd behavior. Both locks recover from poison (#336): they are
+// process-wide, and the guarded sections are single insert/get calls.
 static LOCAL_STORAGE: std::sync::LazyLock<
     std::sync::Mutex<HashMap<String, HashMap<String, String>>>,
 > = std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
@@ -4384,7 +4385,9 @@ fn storage_file(origin: &str) -> Option<std::path::PathBuf> {
 }
 
 fn storage_load_locked(origin: &str) {
-    let mut loaded = LOCAL_STORAGE_LOADED.lock().unwrap();
+    let mut loaded = LOCAL_STORAGE_LOADED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
     if !loaded.insert(origin.to_string()) {
         return;
     }
@@ -4399,7 +4402,7 @@ fn storage_load_locked(origin: &str) {
     };
     LOCAL_STORAGE
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .insert(origin.to_string(), entries);
 }
 
@@ -4407,7 +4410,7 @@ fn storage_load_locked(origin: &str) {
 #[string]
 fn op_storage_read(#[string] origin: &str) -> String {
     storage_load_locked(origin);
-    let map = LOCAL_STORAGE.lock().unwrap();
+    let map = LOCAL_STORAGE.lock().unwrap_or_else(PoisonError::into_inner);
     let entries = map.get(origin);
     serde_json::to_string(&entries.unwrap_or(&HashMap::new())).unwrap_or_else(|_| "{}".to_string())
 }
@@ -4422,7 +4425,7 @@ fn op_storage_write(#[string] origin: &str, #[string] json: &str) {
     storage_load_locked(origin);
     LOCAL_STORAGE
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .insert(origin.to_string(), entries);
     let Some(path) = storage_file(origin) else {
         return;
@@ -4442,7 +4445,7 @@ fn op_storage_write(#[string] origin: &str, #[string] json: &str) {
     }
     let payload = LOCAL_STORAGE
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .get(origin)
         .map(|entries| serde_json::to_string(entries).unwrap_or_else(|_| "{}".to_string()));
     let Some(payload) = payload else { return };
@@ -4488,8 +4491,14 @@ fn op_storage_write(#[string] origin: &str, #[string] json: &str) {
 
 #[cfg(test)]
 pub(crate) fn reset_local_storage_for_tests() {
-    LOCAL_STORAGE.lock().unwrap().clear();
-    LOCAL_STORAGE_LOADED.lock().unwrap().clear();
+    LOCAL_STORAGE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+    LOCAL_STORAGE_LOADED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
 }
 
 #[diting_op]

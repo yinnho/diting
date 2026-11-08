@@ -78,7 +78,11 @@ static TEST_OVERRIDE: std::sync::Mutex<Option<Signals>> = std::sync::Mutex::new(
 /// means the empty table.
 pub fn table() -> Signals {
     #[cfg(test)]
-    if let Some(t) = TEST_OVERRIDE.lock().unwrap().clone() {
+    if let Some(t) = TEST_OVERRIDE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+    {
         return t;
     }
     ENV_TABLE
@@ -119,7 +123,9 @@ pub(crate) fn demo_table() -> Signals {
 /// sees one consistent table.
 #[cfg(test)]
 pub(crate) fn set_for_tests(s: Signals) {
-    *TEST_OVERRIDE.lock().unwrap() = Some(s);
+    *TEST_OVERRIDE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(s);
 }
 
 /// URL-shape challenge for the network log face: strip query/fragment
