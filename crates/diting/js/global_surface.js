@@ -856,7 +856,14 @@ for (const [name, tag] of OBJ_GETTERS) {
 if (!SKIP('credentialless')) Object.defineProperty(globalThis, 'credentialless', { get() { return false; }, enumerable: true, configurable: true });
 if (!SKIP('originAgentCluster')) Object.defineProperty(globalThis, 'originAgentCluster', { get() { return true; }, enumerable: true, configurable: true });
 if (!SKIP('offscreenBuffering')) Object.defineProperty(globalThis, 'offscreenBuffering', { get() { return true; }, set() {}, enumerable: false, configurable: true });
-if (!SKIP('event')) Object.defineProperty(globalThis, 'event', { get() { return undefined; }, set() {}, enumerable: true, configurable: true });
+// #335: window.event is dispatch-driven state — the native EventTarget
+// dispatch sets it for the whole synchronous dispatch and restores the
+// previous value after (Chrome 157: visible in every sync listener, never
+// to async callbacks). A real slot behind the accessor replaces the
+// undefined-getter/swallow-setter stub, which silently ate the dispatch's
+// writes. Closure-local so no sweep ever sees the slot name.
+let __diting_window_event;
+if (!SKIP('event')) Object.defineProperty(globalThis, 'event', { get() { return __diting_window_event; }, set(v) { __diting_window_event = v; }, enumerable: true, configurable: true });
 
 // ---- EventTarget family chains (M4 knife 3): Chrome truth pins each
 // interface's prototype parent (tools/webplatform/chrome/

@@ -2340,6 +2340,64 @@ fn canvas_blank_readout_face_p3() {
     assert_eq!(v["face"][5], true, "toBlob toString native");
 }
 
+/// #335: window.event — the legacy IE global lives for the whole
+/// synchronous dispatch. Chrome 157 pinned 2026-11-08: 'click' inside the
+/// target handler AND every listener along the bubble path, nested
+/// dispatchEvent restores the OUTER event when the inner returns (stack
+/// discipline, not clear-to-undefined), undefined the moment the outermost
+/// dispatchEvent returns, and never visible to async callbacks.
+#[tokio::test(flavor = "current_thread")]
+async fn window_event_during_dispatch() {
+    let mut rt = setup_runtime("<html><body><button>b</button></body></html>");
+    let out = rt.evaluate(r#"
+        var b = document.querySelector('button');
+        var r = {};
+        var saw;
+        b.onclick = function () { saw = window.event ? window.event.type : 'undefined'; };
+        b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        r.in_handler = saw;
+        var docSaw;
+        document.addEventListener('click', function () {
+            docSaw = window.event ? window.event.type : 'undefined';
+        });
+        b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        r.on_bubble_path = docSaw;
+        r.after_return = String(window.event);
+        // nested dispatch: the inner overwrites, its return restores the outer
+        var nestedOuter, nestedInnerBack;
+        var inner = new Event('inner');
+        b.addEventListener('outer', function () {
+            nestedOuter = window.event.type;
+            var innerSaw;
+            b.addEventListener('inner', function () { innerSaw = window.event.type; }, { once: true });
+            b.dispatchEvent(inner);
+            nestedInnerBack = window.event.type;
+        }, { once: true });
+        b.dispatchEvent(new Event('outer'));
+        r.nested_outer = nestedOuter;
+        r.nested_inner_back = nestedInnerBack;
+        setTimeout(function () { window.__asyncSaw = String(window.event); }, 0);
+        b.dispatchEvent(new Event('click'));
+        JSON.stringify(r);
+    "#).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["in_handler"], serde_json::json!("click"), "target handler");
+    assert_eq!(v["on_bubble_path"], serde_json::json!("click"), "bubble path");
+    assert_eq!(v["after_return"], serde_json::json!("undefined"), "cleared after");
+    assert_eq!(v["nested_outer"], serde_json::json!("outer"));
+    assert_eq!(
+        v["nested_inner_back"], serde_json::json!("outer"),
+        "inner dispatch return restores the outer event, not undefined"
+    );
+    let _ = rt.run_event_loop_bounded(100).await;
+    let async_saw = rt.evaluate("window.__asyncSaw || 'never'").unwrap();
+    assert_eq!(
+        async_saw.as_str().unwrap_or("never"),
+        "undefined",
+        "async callbacks never see window.event"
+    );
+}
+
 /// (300015 P4) Two in-page-detectable faces the XHS create page reads:
 /// ① a DRAWN canvas through toDataURL('image/jpeg') must return real
 /// baseline-JPEG bytes (FF D8 … FF D9) under a jpeg prefix — the engine

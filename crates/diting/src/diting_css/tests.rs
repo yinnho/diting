@@ -4736,6 +4736,51 @@ fn math_functions_units_and_percent_expressions() {
     assert_eq!(eval_width_expr(&min_expr, 100.0), Some(100.0));
 }
 
+/// #334: Chrome 157 sqrt() dimension algebra, pinned 2026-11-08. Chrome
+/// accepts same-channel squared dimensions under sqrt (`sqrt(16px * 4px)` →
+/// 8px; `sqrt(100%)` → 10% — percentages sqrt as numbers-with-unit) and
+/// rejects first-power lengths, odd exponents, mixed channels, negatives,
+/// and squared dimensions anywhere else (`width: calc(16px * 4px)`,
+/// `hypot(9px * 1px, 16px)`, `pow(4px, 2)` all drop).
+#[test]
+fn sqrt_squared_dimensions_match_chrome() {
+    let fonts = FontCtx::default();
+    let px = |s: &str| match eval_math_call(s, &fonts) {
+        Some(Length::Px(v)) => Some((v * 100.0).round() / 100.0),
+        _ => None,
+    };
+    assert_eq!(px("sqrt(16px * 4px)"), Some(8.0));
+    assert_eq!(px("sqrt((16px * 4px + 9px * 9px))"), Some(12.04));
+    assert_eq!(px("calc(sqrt(16px * 4px) + 2px)"), Some(10.0));
+    assert_eq!(eval_math_call("sqrt(100%)", &fonts), Some(Length::Percent(10.0)));
+    assert_eq!(px("sqrt(16px)"), None, "px^0.5 is not a type");
+    assert_eq!(px("sqrt(2px * 8px * 2px)"), None, "px^1.5 is not a type");
+    assert_eq!(px("sqrt(-4px * 1px)"), None, "negative under sqrt");
+    assert_eq!(px("sqrt(4px * 25%)"), None, "mixed channels");
+    assert_eq!(px("calc(16px * 4px)"), None, "px^2 is not a length");
+    assert_eq!(px("pow(4px, 2)"), None, "pow stays number-domain");
+    assert_eq!(px("hypot(9px * 1px, 16px)"), None, "px^2 vs px mismatch");
+    assert_eq!(px("sqrt(256)"), None, "a bare number is not a width");
+}
+
+/// #334: the width slot survives a garbage declaration and honors `auto` —
+/// Chrome drops bad values at parse time (earlier cascade stands) and takes
+/// `auto` as the legal reset to the initial value.
+#[test]
+fn width_drops_garbage_and_applies_auto() {
+    let mut s = ComputedStyle::default();
+    let fonts = FontCtx::default();
+    apply_declarations_with(&mut s, "width: 100px", &fonts);
+    apply_declarations_with(&mut s, "width: sign(-5px)", &fonts);
+    assert_eq!(s.width, Some(Length::Px(100.0)), "garbage keeps the slot");
+    apply_declarations_with(&mut s, "width: sqrt(16px)", &fonts);
+    assert_eq!(s.width, Some(Length::Px(100.0)), "px^0.5 keeps the slot");
+    apply_declarations_with(&mut s, "width: sqrt(16px * 4px)", &fonts);
+    assert_eq!(s.width, Some(Length::Px(8.0)));
+    apply_declarations_with(&mut s, "width: auto", &fonts);
+    assert_eq!(s.width, None, "auto is the legal reset");
+}
+
 #[test]
 fn modern_colors_match_chrome_pixels() {
     // Chrome truth: canvas fillStyle -> getImageData on headless Chrome

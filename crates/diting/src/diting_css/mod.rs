@@ -4244,12 +4244,29 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 .is_some()
         }
         "width" => {
-            style.width = len_sizing(v);
-            style.width_expr = None;
-            if let (None, Some((l, e))) = (style.width, calc::pct_math(v, fonts)) {
-                (style.width, style.width_expr) = (Some(l), Some(e));
+            // `auto` is a LEGAL value (None IS the auto slot) — dropping it
+            // would strand an earlier `width: 200px` past an intended reset,
+            // the #65 height trap in miniature. Everything else that fails
+            // to reduce is a parse-time drop in Chrome: the already-cascaded
+            // slot survives untouched (box_offset posture, #334).
+            if v.eq_ignore_ascii_case("auto") {
+                style.width = None;
+                style.width_expr = None;
+                return true;
             }
-            style.width.is_some()
+            match (len_sizing(v), calc::pct_math(v, fonts)) {
+                (Some(l), _) => {
+                    style.width = Some(l);
+                    style.width_expr = None;
+                    true
+                }
+                (None, Some((l, e))) => {
+                    style.width = Some(l);
+                    style.width_expr = Some(e);
+                    true
+                }
+                (None, None) => false,
+            }
         }
         // `height: auto` must APPLY as Length::Auto, not drop: `auto` is a
         // legal value, and dropping the declaration leaves an earlier

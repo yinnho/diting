@@ -4,11 +4,19 @@ use super::*;
 
 /// A calc() intermediate value: a plain number (only legal as a `*`/`/`
 /// operand) or a length carrying its px and percent parts accumulated
-/// independently (percent in CSS 0-100 scale).
+/// independently (percent in CSS 0-100 scale). `Squared` is the product of
+/// two same-channel lengths (px·px or %·%) — #334: Chrome's sqrt() accepts
+/// exactly that shape and halves the exponent (`sqrt(16px * 4px)` → 8px,
+/// `sqrt(100%)` → 10%), while a first-power length under sqrt, mixed
+/// channels, or odd exponents stay invalid. Squared is consumed by sqrt()
+/// and the sum fold only; escaping to a property value rejects
+/// (`width: calc(16px * 4px)` is not a length, same as Chrome).
 #[derive(Debug, Clone, Copy)]
 enum CalcVal {
     Number(f32),
     Len { px: f32, percent: f32 },
+    /// Exactly one channel nonzero, by construction of the product rule.
+    Squared { px: f32, percent: f32 },
 }
 
 impl CalcVal {
@@ -16,6 +24,9 @@ impl CalcVal {
         match self {
             CalcVal::Len { px, percent } => (px, percent),
             CalcVal::Number(_) => (0.0, 0.0),
+            // Unreachable from the sum fold: expr_value branches on Squared
+            // before calling parts().
+            CalcVal::Squared { .. } => (0.0, 0.0),
         }
     }
 }
@@ -56,6 +67,9 @@ fn calcval_to_length(v: CalcVal) -> Option<Length> {
         CalcVal::Len { px, percent: 0.0 } => Some(Length::Px(px)),
         CalcVal::Len { px: 0.0, percent } => Some(Length::Percent(percent)),
         CalcVal::Len { px, percent } => Some(Length::Calc { percent, px }),
+        // A squared dimension is not a length — `calc(16px * 4px)` drops,
+        // same as Chrome (#334).
+        CalcVal::Squared { .. } => None,
     }
 }
 
@@ -163,6 +177,41 @@ impl CalcParser<'_> {
             };
             self.i += 1;
             let rhs = self.term_value()?;
+            // #334: squared dimensions sum within their own channel —
+            // `sqrt(16px*4px + 9px*9px)` — but never against a plain length
+            // or a number (channel mismatch is a type error, like Chrome).
+            if matches!(acc, CalcVal::Squared { .. }) || matches!(rhs, CalcVal::Squared { .. }) {
+                acc = match (acc, rhs) {
+                    (
+                        CalcVal::Squared {
+                            px: x,
+                            percent: 0.0,
+                        },
+                        CalcVal::Squared {
+                            px: y,
+                            percent: 0.0,
+                        },
+                    ) => CalcVal::Squared {
+                        px: if plus { x + y } else { x - y },
+                        percent: 0.0,
+                    },
+                    (
+                        CalcVal::Squared {
+                            px: 0.0,
+                            percent: x,
+                        },
+                        CalcVal::Squared {
+                            px: 0.0,
+                            percent: y,
+                        },
+                    ) => CalcVal::Squared {
+                        px: 0.0,
+                        percent: if plus { x + y } else { x - y },
+                    },
+                    _ => return None,
+                };
+                continue;
+            }
             if matches!(acc, CalcVal::Number(_)) || matches!(rhs, CalcVal::Number(_)) {
                 return None;
             }
@@ -191,6 +240,41 @@ impl CalcParser<'_> {
             let (n, val) = match (acc, rhs) {
                 (CalcVal::Number(n), v) => (n, v),
                 (v, CalcVal::Number(n)) => (n, v),
+                // #334: same-channel length products make a squared
+                // dimension (px·px / %·%); mixed channels and number·squared
+                // stay type errors, exactly Chrome's sqrt() feedstock.
+                (
+                    CalcVal::Len {
+                        px: x,
+                        percent: 0.0,
+                    },
+                    CalcVal::Len {
+                        px: y,
+                        percent: 0.0,
+                    },
+                ) if !div => {
+                    acc = CalcVal::Squared {
+                        px: x * y,
+                        percent: 0.0,
+                    };
+                    continue;
+                }
+                (
+                    CalcVal::Len {
+                        px: 0.0,
+                        percent: x,
+                    },
+                    CalcVal::Len {
+                        px: 0.0,
+                        percent: y,
+                    },
+                ) if !div => {
+                    acc = CalcVal::Squared {
+                        px: 0.0,
+                        percent: x * y,
+                    };
+                    continue;
+                }
                 _ => return None,
             };
             acc = match val {
@@ -245,6 +329,9 @@ impl CalcParser<'_> {
                         *percent
                     }
                 }
+                // Unreachable: the all_px/all_pct filters above reject
+                // squared dimensions before the ordering key is consulted.
+                CalcVal::Squared { .. } => 0.0,
             }
         };
         let pick = |lo: bool, a: &CalcVal, b: &CalcVal| {
@@ -487,6 +574,7 @@ impl CalcParser<'_> {
                     px: px.abs(),
                     percent: percent.abs(),
                 }),
+                CalcVal::Squared { .. } => None,
             },
             ("sign", 1) => {
                 let v = match a {
@@ -498,12 +586,33 @@ impl CalcParser<'_> {
                             percent
                         }
                     }
+                    CalcVal::Squared { .. } => return Some(None),
                 };
                 Some(CalcVal::Number(if v == 0.0 { 0.0 } else { v.signum() }))
             }
-            ("sqrt", 1) => Self::scalar(a)
-                .filter(|n| *n >= 0.0)
-                .map(|n| CalcVal::Number(n.sqrt())),
+            ("sqrt", 1) => match a {
+                CalcVal::Number(n) if n >= 0.0 => Some(CalcVal::Number(n.sqrt())),
+                // #334: px·px under sqrt halves back to px — Chrome accepts
+                // `sqrt(16px * 4px)` (→ 8px) while `sqrt(16px)` (px^0.5)
+                // stays invalid, so only the squared channel reduces.
+                CalcVal::Squared { px, percent } if px >= 0.0 && percent >= 0.0 => {
+                    Some(CalcVal::Len {
+                        px: px.sqrt(),
+                        percent: percent.sqrt(),
+                    })
+                }
+                // Chrome tracks percentages as numbers-with-unit, not
+                // dimensions: `sqrt(100%)` → 10% (the number sqrts, the
+                // unit stays singular) — verified Chrome 157.
+                CalcVal::Len {
+                    px: 0.0,
+                    percent,
+                } if percent >= 0.0 => Some(CalcVal::Len {
+                    px: 0.0,
+                    percent: percent.sqrt(),
+                }),
+                _ => None,
+            },
             ("exp", 1) => Self::scalar(a).map(|n| CalcVal::Number(n.exp())),
             ("log", 1) => Self::scalar(a)
                 .filter(|n| *n > 0.0)
@@ -532,6 +641,10 @@ impl CalcParser<'_> {
                         px: px.sqrt(),
                         percent: percent.sqrt(),
                     }),
+                    // Unreachable: pair() rejects squared dimensions, so a
+                    // Squared argument makes `total` None before this match
+                    // (Chrome rejects hypot(9px * 1px, 16px) the same way).
+                    CalcVal::Squared { .. } => None,
                 }
             }
             ("sin", 1) => Self::scalar(a).map(|n| CalcVal::Number(n.sin())),
@@ -551,6 +664,7 @@ impl CalcParser<'_> {
         Some(out.filter(|v| match v {
             CalcVal::Number(n) => n.is_finite(),
             CalcVal::Len { px, percent } => px.is_finite() && percent.is_finite(),
+            CalcVal::Squared { px, percent } => px.is_finite() && percent.is_finite(),
         }))
     }
 }

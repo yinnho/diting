@@ -823,6 +823,19 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
     };
     let mut flip: Option<Local<v8::Value>> = None;
     if !dead_unload {
+        // #335: window.event — the legacy IE global, alive for the whole
+        // synchronous dispatch. Save-and-restore (not clear-to-undefined) so
+        // a listener dispatching a nested event stacks correctly: the inner
+        // dispatch overwrites, its epilogue restores the outer event, and
+        // the outermost epilogue restores the initial undefined. Chrome 157:
+        // visible in every sync listener along the path, never to async
+        // callbacks (setTimeout sees undefined).
+        let global = scope.get_current_context().global(scope);
+        let ekey: v8::Local<v8::Value> = s(scope, "event").into();
+        let prev_event: v8::Local<v8::Value> = global
+            .get(scope, ekey)
+            .unwrap_or_else(|| v8::undefined(scope).into());
+        global.set(scope, ekey, evo.into());
         // Origin observation: fires once per dispatch, right after the target is
         // stamped (mouse offsetX/Y resolution for Nodes).
         if let Some(h) = h {
@@ -888,6 +901,10 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
                 invoke(scope, h, &ev, path[i], ty, 3, false);
             }
         }
+        // #335: pop the window.event stack — the last listener has run, so
+        // nothing page-visible observes the event from here (async callbacks
+        // queue with it already restored).
+        global.set(scope, ekey, prev_event);
     } // !dead_unload
       // dispatch epilogue: the spec clears the path; composedPath() returns
       // [] from here on (pathDone), not a recomputed walk.
