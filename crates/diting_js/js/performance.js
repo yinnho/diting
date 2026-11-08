@@ -263,6 +263,9 @@ class Performance {
     this._navEntry = null; this._paintEntries = null;
     this._resources = [];
     this._resourceCap = 250;
+    // Resource Timing §4.4 secondary buffer + "buffer full event pending" flag.
+    this._rtSecondary = [];
+    this._rtFullPending = false;
     // Hidden slots; the public timeOrigin/timing/navigation/memory are
     // prototype accessors (see the graft at the end of interface_sweep.js:
     // in Chrome `performance` is a real Performance whose own-property list
@@ -450,10 +453,38 @@ class Performance {
   // filed against the old always-empty buffer.
   _recordResource(o) {
     if (!o || typeof o.name !== 'string') return;
-    if (this._resources.length >= this._resourceCap) return;
     const re = new PerformanceResourceTiming(o, _RT_INTERNAL);
-    this._resources.push(re);
+    // Observers see every entry; the buffer cap only governs the buffer.
     _poEmit(re);
+    if (this._resources.length < this._resourceCap && !this._rtSecondary.length) {
+      this._resources.push(re);
+      return;
+    }
+    // Resource Timing §4.4: a full buffer parks the entry in the secondary
+    // buffer and fires `resourcetimingbufferfull` once; the page's handler
+    // clears or grows the buffer and the parked entries move in. Dropping
+    // silently (the old shape) lost every fetch/XHR after the first 250
+    // loads — on asset-heavy SPAs that is exactly the API traffic.
+    if (this._rtSecondary.length < Math.max(this._resourceCap, 250)) this._rtSecondary.push(re);
+    if (!this._rtFullPending) {
+      this._rtFullPending = true;
+      setTimeout(() => this._fireBufferFull(), 0);
+    }
+  }
+  _fireBufferFull() {
+    while (this._rtSecondary.length) {
+      if (this._resources.length >= this._resourceCap) {
+        try {
+          this.dispatchEvent(new Event('resourcetimingbufferfull', { bubbles: true }));
+        } catch (e) {}
+      }
+      const room = this._resourceCap - this._resources.length;
+      // The handler made no room: the parked entries are dropped (spec).
+      if (room <= 0) break;
+      this._resources.push(...this._rtSecondary.splice(0, room));
+    }
+    this._rtSecondary = [];
+    this._rtFullPending = false;
   }
   _rustResources() {
     let arr;
