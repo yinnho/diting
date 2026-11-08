@@ -28,6 +28,6 @@ path = "src/lib.rs"
 # Upstream took skrifa ">= 0.31.1, <= 0.44"; pinned to the line we ride
 # (0.44 is in the lock) — the fontations train moves when we move it.
 [dependencies]
-skrifa = { version = "0.44", default-features = false }
+skrifa = { version = "0.49", default-features = false }
 yazi = { version = "0.2.1", optional = true, default-features = false }
 zeno = { version = "0.3.3", optional = true, default-features = false }
