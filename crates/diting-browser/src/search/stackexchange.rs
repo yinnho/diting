@@ -40,7 +40,7 @@ impl SearchEngine for StackExchangeEngine {
 
         const SE_HEADERS: &[(&str, &str)] = &[
             ("Accept", "application/json"),
-            // The API 403s the default reqwest UA; a normal client UA passes.
+            // The API 403s a bare client UA; a normal browser UA passes.
             (
                 "User-Agent",
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",

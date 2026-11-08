@@ -171,6 +171,16 @@ impl Response {
             .map_err(|err| err.with_uri(self.uri))
     }
 
+    /// Next chunk of the body, `None` at the end. Trailers are skipped.
+    pub async fn chunk(&mut self) -> crate::Result<Option<Bytes>> {
+        while let Some(frame) = BodyExt::frame(self.res.body_mut()).await {
+            if let Ok(data) = frame.map_err(|err| err.with_uri(self.uri.clone()))?.into_data() {
+                return Ok(Some(data));
+            }
+        }
+        Ok(None)
+    }
+
 
     // extension methods
 

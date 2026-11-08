@@ -255,7 +255,7 @@ async fn egress_check() -> Check {
     // Same client policy as the engine (no implicit env proxy) so the check
     // answers the question that matters: can the ENGINE reach the web as
     // configured — not "does this shell have a working proxy".
-    let client = match diting::diting_net::client::reqwest_builder_no_env_proxy()
+    let client = match diting::diting_net::chrome_client_builder()
         .timeout(Duration::from_secs(10))
         .user_agent(format!("diting-doctor/{}", env!("CARGO_PKG_VERSION")))
         .build()

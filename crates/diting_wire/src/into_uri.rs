@@ -25,6 +25,8 @@ impl IntoUri for String {}
 impl IntoUri for &String {}
 impl IntoUri for Vec<u8> {}
 impl IntoUri for &[u8] {}
+impl IntoUri for url::Url {}
+impl IntoUri for &url::Url {}
 
 pub trait IntoUriSealed {
     // Besides parsing as a valid `Uri`.
@@ -67,6 +69,21 @@ impl IntoUriSealed for &String {
     #[inline]
     fn into_uri(self) -> Result<Uri> {
         IntoUriSealed::into_uri(self.as_str())
+    }
+}
+
+// A parsed `Url` serializes to valid ASCII (punycode host, percent-encoded
+// path), so the plain `Uri` parse never needs the fallback.
+impl IntoUriSealed for &url::Url {
+    fn into_uri(self) -> Result<Uri> {
+        IntoUriSealed::into_uri(self.as_str())
+    }
+}
+
+impl IntoUriSealed for url::Url {
+    #[inline]
+    fn into_uri(self) -> Result<Uri> {
+        IntoUriSealed::into_uri(&self)
     }
 }
 

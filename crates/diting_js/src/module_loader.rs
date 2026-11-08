@@ -28,10 +28,6 @@ pub struct DitingModuleLoader {
     /// unreachable from here, so createObjectURL mirrors each entry in via
     /// `op_blob_register` and `import("blob:…")` resolves through this map.
     pub blob_store: Rc<RefCell<crate::ops::BlobStoreMap>>,
-    /// The page's context HTTP client, set post-construction via
-    /// `JsRuntime::set_http_client`. Owns the legacy-TLS transport the fetch
-    /// falls back to when the plain-reqwest primary dies at handshake.
-    pub http_client: RefCell<Option<std::sync::Arc<diting_net::HttpClient>>>,
 }
 
 impl DitingModuleLoader {
@@ -56,14 +52,7 @@ impl DitingModuleLoader {
             proxy_url,
             import_map,
             blob_store,
-            http_client: RefCell::new(None),
         }
-    }
-
-    /// Wire the page's context HTTP client into the loader (called from
-    /// `JsRuntime::set_http_client`, which fires before any script runs).
-    pub fn set_http_client(&self, client: std::sync::Arc<diting_net::HttpClient>) {
-        *self.http_client.borrow_mut() = Some(client);
     }
 }
 
@@ -255,7 +244,7 @@ impl ModuleLoader for DitingModuleLoader {
         // data:/blob: resolve locally — no HTTP client can fetch either
         // scheme. fetch()/XHR and classic scripts already handle both on the
         // JS side (b12405d, f841205); the module path (import() and
-        // `<script type=module>`) used to die in validate_fetch_url/reqwest.
+        // `<script type=module>`) used to die in validate_fetch_url/the client.
         // Both are synchronous: no network, and the blob mirror is a
         // same-thread Rc (load() runs on the JS thread).
         match module_specifier.scheme() {
@@ -274,7 +263,6 @@ impl ModuleLoader for DitingModuleLoader {
         // Capture the loader's proxy here so the async closure below owns a
         // plain Option<String> rather than borrowing &self across an `await`.
         let proxy_url = self.proxy_url.clone();
-        let http_client = self.http_client.borrow().clone();
 
         ModuleLoadResponse::Async(Pin::from(Box::new(async move {
             // Same page-reachable policy as fetch()/XHR (obscura #849):
@@ -291,8 +279,8 @@ impl ModuleLoader for DitingModuleLoader {
 
             // Reuse the process-wide cached client (same one op_fetch_url
             // uses). Modern SPAs dynamic-import 20-50 chunks per page; the
-            // old code built a fresh reqwest::Client per import, each with
-            // its own empty connection pool, no reuse, fresh TLS init for
+            // old code built a fresh client per import, each with its own
+            // empty connection pool, no reuse, fresh TLS init for
             // every chunk. The cache means the first import on a given
             // proxy pays the build cost once and every chunk after reuses
             // the same warm pool.
@@ -311,62 +299,7 @@ impl ModuleLoader for DitingModuleLoader {
                 .await
             {
                 Ok(r) => r,
-                Err(e) => {
-                    // The module path rides the process-wide plain-reqwest
-                    // cache with no transport of its own; on a CBC-only CDN
-                    // (the g.alicdn.com shape) the GET died in the ClientHello
-                    // and every dynamic import() on the page failed even
-                    // though fetch()/XHR and classic scripts escaped via the
-                    // legacy-TLS hatch. Same one-shot retry: GET is
-                    // idempotent, modules carry no scripted headers beyond
-                    // Accept (the legacy client rides transport defaults), and
-                    // no cookies — the primary client shares no jar either,
-                    // so the retry keeps that posture. A non-connect failure
-                    // keeps the original error, same as every other caller.
-                    let fallback = match http_client.as_ref() {
-                        Some(hc) => match url::Url::parse(&url) {
-                            Ok(u) => Some(
-                                hc.scripted_fetch_fallback(
-                                    &reqwest::Method::GET,
-                                    &u,
-                                    &e.to_string(),
-                                    None,
-                                    None,
-                                    e.is_connect(),
-                                    None,
-                                    false,
-                                )
-                                .await,
-                            ),
-                            Err(_) => None,
-                        },
-                        None => None,
-                    };
-                    match fallback {
-                        Some(Ok(fr)) => {
-                            if !(200..300).contains(&fr.status) {
-                                return Err(io_err(format!(
-                                    "Module {} returned HTTP {}",
-                                    url, fr.status
-                                )));
-                            }
-                            let body_limit = crate::ops::fetch_body_byte_limit();
-                            if fr.body.len() > body_limit {
-                                return Err(io_err(format!(
-                                    "Module {} response body exceeded limit of {} bytes",
-                                    url, body_limit
-                                )));
-                            }
-                            return decoded_module_source(&specifier, &url, fr.body);
-                        }
-                        Some(Err(fe)) => {
-                            return Err(io_err(format!("Failed to fetch module {}: {}", url, fe)))
-                        }
-                        None => {
-                            return Err(io_err(format!("Failed to fetch module {}: {}", url, e)))
-                        }
-                    }
-                }
+                Err(e) => return Err(io_err(format!("Failed to fetch module {}: {}", url, e))),
             };
 
             if !resp.status().is_success() {
@@ -386,7 +319,7 @@ impl ModuleLoader for DitingModuleLoader {
             let body_limit = crate::ops::fetch_body_byte_limit();
             if let Some(len) = resp
                 .headers()
-                .get(reqwest::header::CONTENT_LENGTH)
+                .get(diting_net::wire::header::CONTENT_LENGTH)
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.trim().parse::<usize>().ok())
             {
@@ -419,8 +352,7 @@ impl ModuleLoader for DitingModuleLoader {
     }
 }
 
-/// UTF-8 decode + MODULE_TRACE bracketing + ModuleSource build — the tail
-/// both the streaming path and the legacy-TLS fallback converge on.
+/// UTF-8 decode + MODULE_TRACE bracketing + ModuleSource build.
 fn decoded_module_source(
     _specifier: &ModuleSpecifier,
     url: &str,

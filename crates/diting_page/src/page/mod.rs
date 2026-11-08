@@ -547,12 +547,6 @@ impl Page {
         // triggering a Target.closeTarget and "Frame has been detached".
         let frame_id = id.clone();
         let stealth_client = if context.stealth {
-            // The wreq client backing StealthHttpClient does not speak SOCKS5.
-            // Callers must validate the proxy scheme up front and fail loudly
-            // (see obscura-cli) rather than silently rewriting socks5:// to
-            // http://, which only works when the upstream happens to be a
-            // Clash-style mixed-mode proxy and breaks plain SOCKS5 servers
-            // like `ssh -ND` (#160).
             let emulation = context
                 .tls_fingerprint
                 .as_deref()

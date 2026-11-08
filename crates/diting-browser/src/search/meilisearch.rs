@@ -15,7 +15,7 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 /// Hits are returned as key-value snippets (SearXNG's KeyValue result shape):
 /// agents get every indexed field without us hardcoding a schema.
 pub struct MeilisearchEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
     base_url: String,
     index: String,
     auth_key: Option<String>,

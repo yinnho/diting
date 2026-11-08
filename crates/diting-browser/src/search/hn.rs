@@ -8,7 +8,7 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 /// for tech queries. SearXNG files hackernews under its "it" vertical; we
 /// don't have one, so general is the home.
 pub struct HnEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
 }
 
 impl HnEngine {

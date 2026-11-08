@@ -1,7 +1,6 @@
 //! The client module's tests, split from the module root (ARCHITECTURE.md
 //! P2 god-file ratchet).
 use super::*;
-use reqwest::dns::{Name, Resolve};
 use std::net::IpAddr;
 
 #[test]
@@ -455,36 +454,10 @@ fn validate_url_rejects_embedded_ipv6_literal_hosts() {
     }
 }
 
-#[tokio::test]
-#[allow(clippy::await_holding_lock)] // the env guard must span the await — that's the serialization
-async fn ssrf_guard_resolver_blocks_loopback_resolution() {
-    let _guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
-    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
-
-    let guarded = SsrfGuardResolver::new(false);
-    assert!(
-        guarded
-            .resolve(Name::from_str("localhost").unwrap())
-            .await
-            .is_err(),
-        "localhost must be rejected by the guarded resolver"
-    );
-
-    let permissive = SsrfGuardResolver::new(true);
-    assert!(
-        permissive
-            .resolve(Name::from_str("localhost").unwrap())
-            .await
-            .is_ok(),
-        "allow_private must pass localhost through"
-    );
-}
-
-use std::str::FromStr;
 
 /// Serve a canned 200 response on a NON-loopback local address.
 ///
-/// reqwest exempts loopback destinations from env-proxy matching (like
+/// The transport exempts loopback destinations from env-proxy matching (like
 /// Chrome's implicit localhost bypass), so a 127.0.0.1 fixture is blind
 /// to exactly the failure these tests pin — the first probe round here
 /// reported "env ignored" purely because of that exemption. The LAN
@@ -789,196 +762,6 @@ async fn untraced_fetch_stays_bare() {
     );
 }
 
-/// 127.0.0.1:1 is a closed port: both transports fail fast with
-/// connection refused, but the GET error must carry the legacy-attempt
-/// marker proving the fallback actually fired.
-#[tokio::test]
-async fn legacy_tls_retries_get_transport_failures() {
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
-    let err = client.fetch(&url).await.expect_err("closed port must fail");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("legacy TLS transport"),
-        "GET must reach the legacy retry, got: {msg}"
-    );
-}
-
-/// 127.0.0.1:1 is a closed port: connection refused is connect-stage by
-/// definition, so a POST (with its body) rides the legacy retry just
-/// like a GET — the request provably never left the machine.
-#[tokio::test]
-async fn legacy_tls_retries_connect_stage_post() {
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    let url = Url::parse("http://127.0.0.1:1/submit").unwrap();
-    let err = client
-        .fetch_with_method(Method::POST, &url, Some(b"a=1".to_vec()))
-        .await
-        .expect_err("closed port must fail");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("legacy TLS transport"),
-        "connect-stage POST must reach the legacy retry, got: {msg}"
-    );
-}
-
-/// A POST that failed AFTER the bytes went out must keep its original
-/// error — that is the double-submit guard. The fixture accepts the
-/// request, then closes mid-body (Content-Length promises more than it
-/// delivers), which reqwest classifies as a body-read failure, not a
-/// connect failure.
-#[tokio::test]
-#[allow(clippy::await_holding_lock)] // the env guard must span the bind — that's the serialization
-async fn legacy_tls_keeps_post_error_after_the_request_left() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    let _env = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
-    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move {
-        while let Ok((mut stream, _)) = listener.accept().await {
-            tokio::spawn(async move {
-                let mut buf = [0u8; 4096];
-                let _ = stream.read(&mut buf).await;
-                // Promise 100 bytes, deliver 3, close.
-                let _ = stream
-                    .write_all(
-                        b"HTTP/1.1 200 OK\r\ncontent-length: 100\r\nconnection: close\r\n\r\nabc",
-                    )
-                    .await;
-            });
-        }
-    });
-
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    let url = Url::parse(&format!("http://127.0.0.1:{port}/submit")).unwrap();
-    let err = client
-        .fetch_with_method(Method::POST, &url, Some(b"a=1".to_vec()))
-        .await
-        .expect_err("truncated body must fail");
-    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
-    let msg = err.to_string();
-    assert!(
-        !msg.contains("legacy TLS transport"),
-        "post-send POST failure must not be retried (double-submit), got: {msg}"
-    );
-    assert!(
-        msg.contains("Failed to read body"),
-        "the original transport error must surface, got: {msg}"
-    );
-}
-
-/// The op_fetch_url entry point takes a raw reqwest error string, not a
-/// NetError — same closed-port probe, same markers, proving the helper
-/// forwards into the guarded retry.
-#[tokio::test]
-async fn scripted_fetch_fallback_fires_for_get() {
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
-    let err = client
-        .scripted_fetch_fallback(
-            &Method::GET,
-            &url,
-            "error sending request",
-            None,
-            None,
-            false,
-            None,
-            true,
-        )
-        .await
-        .expect_err("closed port must fail");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("legacy TLS transport"),
-        "scripted GET must reach the legacy retry, got: {msg}"
-    );
-}
-
-/// A scripted POST flagged connect-stage rides the fallback with its
-/// body — the caller's classification is trusted only for this hop.
-#[tokio::test]
-async fn scripted_fetch_fallback_retries_connect_stage_post() {
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    let url = Url::parse("http://127.0.0.1:1/submit").unwrap();
-    let err = client
-        .scripted_fetch_fallback(
-            &Method::POST,
-            &url,
-            "error sending request",
-            Some(b"a=1".as_slice()),
-            Some("application/x-www-form-urlencoded"),
-            true,
-            None,
-            true,
-        )
-        .await
-        .expect_err("closed port must fail");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("legacy TLS transport"),
-        "connect-stage POST must reach the legacy retry, got: {msg}"
-    );
-}
-
-/// A scripted POST that already left the machine (post-send failure)
-/// keeps its original error — the double-submit guard.
-#[tokio::test]
-async fn scripted_fetch_fallback_keeps_post_error_after_send() {
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
-    let url = Url::parse("http://127.0.0.1:1/submit").unwrap();
-    let err = client
-        .scripted_fetch_fallback(
-            &Method::POST,
-            &url,
-            "error reading a body from connection",
-            Some(b"a=1".as_slice()),
-            Some("application/x-www-form-urlencoded"),
-            false,
-            None,
-            true,
-        )
-        .await
-        .expect_err("must fail");
-    let msg = err.to_string();
-    assert!(
-        !msg.contains("legacy TLS transport"),
-        "scripted POST must not be retried, got: {msg}"
-    );
-    assert!(
-        msg.contains("error reading a body from connection"),
-        "guard skip must surface the original transport error, got: {msg}"
-    );
-}
-
-/// A gate rejection travels as NetError::Network just like a transport
-/// failure — the re-validation inside the fallback is what keeps SSRF
-/// denials from ever reaching the legacy stack.
-#[tokio::test]
-#[allow(clippy::await_holding_lock)] // the env guard must span the fetch — that's the serialization
-async fn legacy_tls_never_retries_ssrf_gate_rejections() {
-    let _env = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
-    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
-    let client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, false);
-    let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
-    let err = client.fetch(&url).await.expect_err("gate must reject");
-    let msg = err.to_string();
-    assert!(
-        !msg.contains("legacy TLS transport"),
-        "SSRF denial must not fall through to the legacy stack, got: {msg}"
-    );
-    // The NetError::Network denial carries the same opt-in hint as the JS
-    // face (obscura#1108 absorption).
-    assert!(
-        msg.contains("private/internal IP address")
-            && msg.contains("--allow-private-network")
-            && msg.contains("DITING_ALLOW_PRIVATE_NETWORK"),
-        "policy denial must name the opt-in, got: {msg}"
-    );
-    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
-}
-
 /// Loopback twin of `header_echo_origin`: the response body is the
 /// received request head (lowercased `name: value` lines), so a test can
 /// assert exactly what went out on the wire. Binds 127.0.0.1 — callers
@@ -1044,7 +827,7 @@ async fn loopback_header_echo() -> (Url, tokio::task::JoinHandle<()>) {
 
 /// #116: the flag is the gate. A plain (non-stealth) context never sets
 /// `scripted_rides_stealth`, so the hop answers `None` even against a
-/// reachable URL and the caller keeps plain reqwest exactly as before.
+/// reachable URL and the caller keeps the plain client exactly as before.
 #[tokio::test]
 async fn scripted_stealth_hop_none_without_the_flag() {
     let (url, server) = loopback_header_echo().await;
@@ -1167,27 +950,6 @@ async fn response_carries_request_header_snapshot() {
             "snapshot entry {k} must match the wire the origin saw, echo: {echo}"
         );
     }
-}
-
-/// wreq does not speak SOCKS — a SOCKS-proxy context answers `None` (the
-/// plain transport is the only option) instead of silently rewriting the
-/// scheme, mirroring `legacy_transport`.
-#[tokio::test]
-async fn scripted_stealth_hop_none_for_socks_proxy() {
-    let mut client = HttpClient::with_full_options(
-        Arc::new(CookieJar::new()),
-        Some("socks5://127.0.0.1:1080"),
-        true,
-    );
-    client.scripted_rides_stealth = true;
-    let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
-    assert!(
-        client
-            .scripted_stealth_hop(&Method::GET, &url, None, None, None, true)
-            .await
-            .is_none(),
-        "SOCKS contexts must keep scripted hops on the plain transport"
-    );
 }
 
 /// #203: Fetch-Metadata follows the resource class and the initiator's SITE

@@ -164,6 +164,27 @@ pub fn warn_on_ua_tls_mismatch(ua: &str, tls_fingerprint: Option<&str>) -> bool 
     }
 }
 
+/// Builder for the product tools' one-shot clients (search engines,
+/// download, robots, captcha, flow HTTP steps): the env-proxy-free base
+/// plus the default Chrome emulation, platform taken from `DITING_UA`, so a
+/// tool request presents the same handshake a stealth session does.
+/// `DITING_STEALTH=0` drops the emulation (diagnostic backdoor).
+pub fn chrome_client_builder() -> diting_wire::ClientBuilder {
+    let builder = crate::client::client_builder_no_env_proxy();
+    if !diting_env::env_knobs::stealth_enabled() {
+        return builder;
+    }
+    let profile = parse_tls_fingerprint(DEFAULT_TLS_FINGERPRINT)
+        .unwrap_or_else(diting_env::chrome_target::target_tls_profile);
+    let os = emulation_os_for_ua(&std::env::var("DITING_UA").unwrap_or_default());
+    builder.emulation(
+        diting_profiles::Emulation::builder()
+            .profile(profile)
+            .platform(os)
+            .build(),
+    )
+}
+
 /// GETs are idempotent, so a connection reset mid-request is safe to retry
 /// once. Some anti-bot frontends RST the first TLS connection from a fresh IP
 /// and only serve the retry.
@@ -184,60 +205,12 @@ async fn send_get_with_connection_reset_retry(
     }
 }
 
-/// wreq twin of the reqwest-side `SsrfGuardResolver` (#247): resolve, then
-/// reject the whole request if ANY resolved address is in the SSRF deny-set.
-/// The stealth path previously carried only `validate_url`'s host-string
-/// check, so a public name resolving to 127.0.0.1 / 169.254.169.254 / an
-/// RFC1918 address sailed through on the transport release builds actually
-/// use — the resolver-level check closes the DNS-rebinding bypass using the
-/// very addresses wreq will dial. Redirect hops re-resolve through here
-/// too (each hop is a fresh connect). The allow flag is read live:
-/// contexts flip it after construction (obscura#793 shape) and the env
-/// release (`DITING_ALLOW_PRIVATE_NETWORK`) ORs in at resolve time.
-struct WreqSsrfGuardResolver {
-    allow_flag: Arc<AtomicBool>,
-}
-
-impl diting_wire::dns::Resolve for WreqSsrfGuardResolver {
-    fn resolve(&self, name: diting_wire::dns::Name) -> diting_wire::dns::Resolving {
-        let allow =
-            self.allow_flag.load(Ordering::Relaxed) || crate::client::env_allows_private_network();
-        let host = name.as_str().to_string();
-        Box::pin(async move {
-            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))
-                .await
-                .map_err(|e| -> Box<dyn Error + Send + Sync> { Box::new(e) })?
-                .collect();
-            if !allow {
-                let mut bad = None;
-                for sa in &addrs {
-                    if crate::client::forbidden_after_dns(sa.ip()).await {
-                        bad = Some(sa);
-                        break;
-                    }
-                }
-                if let Some(bad) = bad {
-                    return Err(format!(
-                        "SSRF blocked: '{}' resolves to forbidden address {}{}",
-                        host,
-                        bad.ip(),
-                        crate::client::policy::PRIVATE_NETWORK_HINT
-                    )
-                    .into());
-                }
-            }
-            let iter: diting_wire::dns::Addrs = Box::new(addrs.into_iter());
-            Ok(iter)
-        })
-    }
-}
-
 pub struct StealthHttpClient {
     /// Proxy-configured client. None when no proxy is set.
     proxied_client: Option<diting_wire::Client>,
     /// Proxy client for known-blocked domains, built when no explicit proxy
     /// was configured but `DITING_PROXY` is set. Same per-domain
-    /// fallback the reqwest transport applies, so stealth document requests
+    /// fallback the plain transport applies, so stealth document requests
     /// reach blocked origins too.
     auto_proxied_client: Option<diting_wire::Client>,
     /// Direct-connect client (no proxy). Always present.
@@ -310,12 +283,7 @@ impl StealthHttpClient {
             .platform(os)
             .build();
 
-        // .no_proxy() disables wreq's implicit env/system proxy matcher
-        // (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) — the engine's proxy decision is
-        // the explicit `proxy_url` below, nothing else. Must precede the
-        // .proxy() attach, which no_proxy() would otherwise clear.
-        let mut builder = diting_wire::Client::builder()
-            .no_proxy()
+        let mut builder = crate::client::client_builder_no_env_proxy()
             .emulation(emulation_opts)
             // read_timeout (per-chunk stall, #49), not a total-duration cap:
             // `.timeout()` kills a large-but-live body (32MB wasm over a slow
@@ -323,42 +291,17 @@ impl StealthHttpClient {
             // connect_timeout (#310): the read window only starts after the
             // handshake — without this, an unreachable host parks in SYN_SENT
             // until the OS gives up on TCP retries (~75s on macOS) with the
-            // in_flight count pinned the whole time. Aligned with the reqwest
-            // side's 10s (fetch_client.rs).
+            // in_flight count pinned the whole time. Aligned with the plain
+            // clients' 10s.
             .connect_timeout(Duration::from_secs(10))
             .read_timeout(Duration::from_secs(30))
             .redirect(diting_wire::redirect::Policy::none());
 
-        // #247: the post-DNS SSRF gate on the direct path. Replaces wreq's
-        // default GaiResolver (getaddrinfo) with the same lookup_host shape
-        // the reqwest-side guard uses — DNS is invisible to the TLS/JA3
-        // fingerprint, so the emulation is untouched.
+        // #247: the post-DNS SSRF gate on the direct path, shared with the
+        // plain clients. DNS is invisible to the TLS/JA3 fingerprint, so the
+        // emulation is untouched.
         if let Some(flag) = ssrf_flag {
-            builder = builder.dns_resolver(Arc::new(WreqSsrfGuardResolver { allow_flag: flag }));
-        }
-
-        // Honor SSL_CERT_FILE / SSL_CERT_DIR (opt-in only): when set, wire a
-        // cert store loaded from those paths, so hosts behind a private/
-        // national CA verify on the stealth path too. Unset (or a failed
-        // build) keeps wreq's bundled default roots — leaving
-        // `tls_cert_store` unset IS the default, so not calling it is
-        // byte-for-byte the old `CertStore::default()` behavior.
-        if crate::client::custom_cert_store_requested(
-            std::env::var_os("SSL_CERT_FILE").as_deref(),
-            std::env::var_os("SSL_CERT_DIR").as_deref(),
-        ) {
-            match diting_wire::tls::trust::CertStore::builder()
-                .set_default_paths()
-                .build()
-            {
-                Ok(store) => builder = builder.tls_cert_store(store),
-                Err(e) => {
-                    tracing::warn!(
-                        "SSL_CERT_FILE/SSL_CERT_DIR set but cert store failed to build ({}); using default roots",
-                        e
-                    );
-                }
-            }
+            builder = builder.dns_resolver(Arc::new(crate::client::SsrfGuardResolver::new(flag)));
         }
 
         if let Some(proxy) = proxy_url {
@@ -545,15 +488,12 @@ impl StealthHttpClient {
         .await
     }
 
-    /// Non-GET transport for the legacy-TLS fallback (`retry_via_legacy_tls`):
-    /// the escape hatch used to be GET-only, which stranded scripted POSTs on
-    /// CBC-only servers — now a connect-stage POST failure rides here with its
-    /// body and Content-Type. The method name is parsed rather than passed as
-    /// a type so the plain client's reqwest Method never has to unify with
-    /// wreq's. `request_headers` mirrors what the scripted attempt was
-    /// sending (Origin, Referer, Fetch-Metadata, client hints) — Referer-
-    /// checking WAFs 403 the bare shape even after the handshake succeeds —
-    /// and `include_cookies` carries the fetch credentials policy.
+    /// Any-method transport for the scripted stealth hop
+    /// (`HttpClient::scripted_stealth_hop`): body and Content-Type ride
+    /// along. `request_headers` is the hop's scripted header set (Origin,
+    /// Referer, Fetch-Metadata, client hints) — Referer-checking WAFs 403 the
+    /// bare shape even after the handshake succeeds — and `include_cookies`
+    /// carries the fetch credentials policy.
     #[allow(clippy::too_many_arguments)]
     pub async fn fetch_with_body(
         &self,
@@ -592,7 +532,7 @@ impl StealthHttpClient {
         include_cookies: bool,
         resource_type: ResourceType,
     ) -> Result<Response, NetError> {
-        // The stealth path must enforce the same SSRF rules as the reqwest
+        // The stealth path must enforce the same SSRF rules as the plain
         // path — without this, StealthHttpClient could reach loopback/private
         // addresses that HttpClient rejects. The per-context opt-in rides the
         // `allow_private_network` field (obscura#793 shape); the env var is
@@ -646,10 +586,8 @@ impl StealthHttpClient {
             // plain client path. Leaving the bake-in is a WAF tell
             // (UA 154 + CH 145), measured on httpbin 2026-10-19.
             let (sec_ch_ua, platform) = crate::client::derive_client_hints(&ua);
-            // Request-local scripted headers (the fetch()/XHR escape hatch)
-            // mirror what the primary reqwest attempt was sending and win
-            // over both the transport defaults and extra_headers, so the
-            // retry is the same request on another stack.
+            // Request-local scripted headers (the fetch()/XHR hop) win over
+            // both the transport defaults and extra_headers.
             let request_local = |name: &str| {
                 request_headers
                     .iter()
@@ -774,7 +712,7 @@ impl StealthHttpClient {
                 }
             }
 
-            // The legacy-TLS fallback rides here with a method and payload;
+            // The scripted stealth hop rides here with a method and payload;
             // the plain GET paths pass None for both. Content-Type only on
             // methods that can carry one — a GET advertising a content-type
             // is a WAF tell, and the body drops naturally when a 3xx
@@ -868,10 +806,11 @@ impl StealthHttpClient {
             let resp = match resp {
                 Ok(resp) => resp,
                 Err(e) => {
-                    // Mirror the reqwest path: name an unreachable configured
+                    // Mirror the plain path: name an unreachable configured
                     // proxy instead of folding it into "error sending request"
                     // (obscura#491).
-                    return Err(match (&self.proxy_url, e.is_connect()) {
+                    let unreachable = e.is_connect() || e.is_proxy_connect();
+                    return Err(match (&self.proxy_url, unreachable) {
                         (Some(proxy), true) => NetError::Network(format!(
                             "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
                             proxy, current_url, e
@@ -895,7 +834,7 @@ impl StealthHttpClient {
                     // too — an `credentials:'omit'` /
                     // withCredentials=false scripted fetch must not absorb
                     // the response's Set-Cookie into the jar. The plain
-                    // reqwest path already dropped these; the stealth walk
+                    // path already dropped these; the stealth walk
                     // applied them unconditionally, on every redirect hop.
                     if include_cookies {
                         self.cookie_jar

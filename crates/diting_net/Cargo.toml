@@ -2,7 +2,7 @@
 name = "diting_net"
 version.workspace = true
 edition = "2021"
-description = "Diting engine: HTTP client (plain reqwest + stealth wire stack), cookies, encodings, site/PSL tables."
+description = "Diting engine: HTTP client (diting_wire, plain and Chrome-emulating), cookies, encodings, site/PSL tables."
 license = "Apache-2.0"
 repository = "https://github.com/yinnho/diting"
 publish = false
@@ -20,15 +20,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tracing = "0.1"
-# --- http client (non-stealth path) ---
-reqwest = { version = "0.13", features = ["cookies", "gzip", "brotli", "deflate", "rustls-no-provider", "socks", "json", "stream", "form", "query"], default-features = false }
-# Same versions the tree already carries (reqwest rustls-tls path) — pinning
-# the same lines keeps the lockfile free of duplicate major versions.
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 encoding_rs = "0.8"
 tempfile = "3"
 url = "2"
-# --- stealth client (TLS fingerprint spoofing) ---
+# --- http stack (plain and emulating clients) ---
 # The browser-fidelity HTTP stack lives in this repository (vendored from the wreq
 # family, see crates/VENDORED.md) - no external pre-release pins to track.
 diting_profiles = { path = "../diting_profiles" }

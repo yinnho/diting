@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
-use reqwest::redirect::Policy;
-use reqwest::{Client, Method};
+use diting_wire::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
+use diting_wire::redirect::Policy;
+use diting_wire::{Client, Method};
 use tokio::sync::RwLock;
 use url::Url;
 
@@ -19,7 +19,7 @@ pub use metadata::ResourceType;
 use metadata::{metadata_for, FetchMetadata};
 pub use observer::{CallbackRegistry, RequestCallback, RequestInfo, ResponseCallback};
 
-pub(crate) use policy::custom_cert_store_requested;
+use policy::custom_cert_store_requested;
 pub use policy::{
     allow_file_access, env_allows_private_network, parse_scoped_cidrs, set_allow_file_access,
     set_allow_network, set_allow_private_network, validate_url, ScopedCidr,
@@ -79,30 +79,45 @@ impl Drop for InFlightDecrement {
     }
 }
 
-/// A reqwest builder with reqwest's implicit system/env proxy matcher turned
-/// off. Every HTTP client the engine builds goes through here.
+/// A client builder with the implicit system/env proxy matcher turned off.
+/// Every HTTP client the engine builds goes through here — the plain
+/// clients below and the stealth ones in `wreq_client`.
 ///
-/// reqwest reads `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` from the
-/// environment by default (loopback destinations are exempt, like Chrome's
-/// implicit localhost bypass), which silently routes engine traffic through
-/// a proxy the operator never configured in the engine — `use_proxy:false`
-/// fetches, search's direct-first tier, robots checks, downloads, all of
-/// it. When that env proxy dies, every public fetch fails with an error
-/// that never mentions a proxy (obscura#491). The engine's proxy decision
-/// is explicit instead: `DITING_PROXY` / the context `proxy_url`,
-/// attached with `.proxy()` at the call sites — and `.no_proxy()` must come
-/// BEFORE that attach, since it also clears any already-pushed proxy.
-pub fn reqwest_builder_no_env_proxy() -> reqwest::ClientBuilder {
-    // reqwest 0.13 rustls-no-provider: the TLS provider is the app's job.
-    // Ours is ring (the direct rustls pin's only enabled provider — the
-    // aws-lc-rs default that reqwest's plain `rustls` feature would force
-    // is deliberately not in the graph). Install once per process; a
-    // double install (already set) is fine to ignore.
-    static RING_INSTALLED: std::sync::Once = std::sync::Once::new();
-    RING_INSTALLED.call_once(|| {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    });
-    reqwest::Client::builder().no_proxy()
+/// The transport would otherwise read `HTTP_PROXY` / `HTTPS_PROXY` /
+/// `ALL_PROXY` from the environment, which silently routes engine traffic
+/// through a proxy the operator never configured in the engine —
+/// `use_proxy:false` fetches, search's direct-first tier, robots checks,
+/// downloads, all of it. When that env proxy dies, every public fetch fails
+/// with an error that never mentions a proxy (obscura#491). The engine's
+/// proxy decision is explicit instead: `DITING_PROXY` / the context
+/// `proxy_url`, attached with `.proxy()` at the call sites — and
+/// `.no_proxy()` must come BEFORE that attach, since it also clears any
+/// already-pushed proxy.
+///
+/// SSL_CERT_FILE / SSL_CERT_DIR (opt-in only) load a cert store from those
+/// paths, so hosts behind a private/national CA verify; unset (or a failed
+/// build) keeps the bundled default roots.
+pub fn client_builder_no_env_proxy() -> diting_wire::ClientBuilder {
+    let builder = diting_wire::Client::builder().no_proxy();
+    if !custom_cert_store_requested(
+        std::env::var_os("SSL_CERT_FILE").as_deref(),
+        std::env::var_os("SSL_CERT_DIR").as_deref(),
+    ) {
+        return builder;
+    }
+    match diting_wire::tls::trust::CertStore::builder()
+        .set_default_paths()
+        .build()
+    {
+        Ok(store) => builder.tls_cert_store(store),
+        Err(e) => {
+            tracing::warn!(
+                "SSL_CERT_FILE/SSL_CERT_DIR set but cert store failed to build ({}); using default roots",
+                e
+            );
+            builder
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -114,7 +129,7 @@ pub struct Response {
     pub redirected_from: Vec<Url>,
     /// The redirect trail WITH per-hop status: TARGET url + the 3xx that
     /// sent it — the same shape the network-event face reports (#203).
-    /// Filled by both engine walks (plain reqwest and the wreq stealth
+    /// Filled by both engine walks (plain and the wreq stealth
     /// stack), so the scripted-fetch walk can surface a stealth-served
     /// chain's hops (#231 — wreq resolves redirects internally and the
     /// trail used to vanish on the stealth build). Synthesized responses
@@ -232,25 +247,28 @@ pub struct HttpClient {
     pub allow_private_network: bool,
     /// #116 transport-layer fix: on a stealth page the JS fetch()/XHR hops
     /// ride the wreq emulation stack FIRST (same TLS fingerprint the
-    /// navigation above them presented) instead of plain rustls — one
+    /// navigation above them presented) instead of the plain client — one
     /// cookie jar behind two JA3s is a bot tell (the bilibili 412 lesson:
     /// the WAF holds the scripted request until xhr.timeout fires while
     /// the document request sailed through on the stealth handshake).
-    /// Set by `BrowserContext` when `context.stealth`; plain builds and
-    /// plain contexts never set it and scripted hops stay on reqwest.
+    /// Set by `BrowserContext` when `context.stealth`; plain contexts never
+    /// set it and scripted hops stay on the plain client.
     pub scripted_rides_stealth: bool,
     /// The context's requested TLS fingerprint (`tls_fingerprint` param),
-    /// baked into the wreq transport so the scripted hop and the legacy
-    /// escape hatch present the same profile — and the same platform,
-    /// derived from the UA — as the page's own stealth client.
+    /// baked into the wreq transport so the scripted hop presents the same
+    /// profile — and the same platform, derived from the UA — as the page's
+    /// own stealth client.
     pub tls_fingerprint: Option<String>,
-    /// Lazy legacy-TLS escape hatch (obscura#769 navigation layer): rustls
-    /// carries no TLS 1.2 CBC cipher suites, so CBC-only servers die in the
-    /// ClientHello while every browser connects. Built once on first
-    /// fallback need, sharing this client's cookie jar and proxy posture;
-    /// `None` means unavailable (non-stealth build, or a SOCKS proxy that
-    /// wreq cannot speak).
-    legacy_tls: tokio::sync::OnceCell<Option<Arc<crate::StealthHttpClient>>>,
+    /// Build the plain clients on [`crate::chrome_client_builder`] (Chrome
+    /// handshake + default headers) instead of the stock BoringSSL one. Set
+    /// before the first request; the product tools that borrow this client
+    /// (download) turn it on so a tool fetch presents the same handshake a
+    /// stealth session does.
+    pub emulate_chrome: bool,
+    /// The emulating transport scripted hops ride on a stealth page, built
+    /// once on first need, sharing this client's cookie jar and proxy
+    /// posture.
+    stealth_transport: tokio::sync::OnceCell<Arc<crate::StealthHttpClient>>,
 }
 
 impl HttpClient {
@@ -292,14 +310,23 @@ impl HttpClient {
             allow_private_network,
             scripted_rides_stealth: false,
             tls_fingerprint: None,
-            legacy_tls: tokio::sync::OnceCell::new(),
+            emulate_chrome: false,
+            stealth_transport: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    fn base_builder(&self) -> diting_wire::ClientBuilder {
+        if self.emulate_chrome {
+            crate::chrome_client_builder()
+        } else {
+            client_builder_no_env_proxy()
         }
     }
 
     async fn get_client(&self) -> &Client {
         self.client
             .get_or_init(|| async {
-                let mut builder = reqwest_builder_no_env_proxy()
+                let mut builder = self.base_builder()
                     .redirect(Policy::none())
                     // Browser timeout semantics (#49), not scraper semantics:
                     // `.timeout()` caps the WHOLE request — connect through body
@@ -317,20 +344,17 @@ impl HttpClient {
                     // was restarted. Keep the idle window short and send TCP
                     // keepalive so the pool reaps stale connections instead.
                     .pool_idle_timeout(Duration::from_secs(60))
-                    .tcp_keepalive(Duration::from_secs(30))
-                    .danger_accept_invalid_certs(false);
-                // No manual Accept-Encoding header: reqwest 0.12 with the
-                // gzip/brotli/deflate cargo features decodes by the RESPONSE's
-                // Content-Encoding header regardless of what we advertised
-                // (pinned by render.rs's unconditional-gzip fixture test), so
-                // Aliyun Tengine fronts that compress unrequested still
-                // decode. Advertising nothing keeps the request fingerprint
-                // plain; advertising would also be fine, but never set the
-                // header by hand — a manual Accept-Encoding disables reqwest's
-                // auto-decode and raw gzip then reaches the HTML parser.
+                    .tcp_keepalive(Duration::from_secs(30));
+                // No manual Accept-Encoding header: with the gzip/brotli/
+                // deflate/zstd features the client advertises and decodes on
+                // its own, by the RESPONSE's Content-Encoding (pinned by
+                // render.rs's unconditional-gzip fixture test), so Aliyun
+                // Tengine fronts that compress unrequested still decode. A
+                // manual Accept-Encoding disables the auto-decode and raw
+                // gzip then reaches the HTML parser.
 
                 if let Some(ref proxy) = self.proxy_url {
-                    if let Ok(p) = reqwest::Proxy::all(proxy.as_str()) {
+                    if let Ok(p) = diting_wire::Proxy::all(proxy.as_str()) {
                         builder = builder.proxy(p);
                     }
                 }
@@ -344,7 +368,7 @@ impl HttpClient {
     async fn get_direct_client(&self) -> &Client {
         self.direct_client
             .get_or_init(|| async {
-                reqwest_builder_no_env_proxy()
+                self.base_builder()
                     .redirect(Policy::none())
                     // read_timeout (per-chunk stall, #49), not a total-duration
                     // cap — see get_client.
@@ -354,14 +378,15 @@ impl HttpClient {
                     // half-dead pooled connections (bug #24).
                     .pool_idle_timeout(Duration::from_secs(60))
                     .tcp_keepalive(Duration::from_secs(30))
-                    .danger_accept_invalid_certs(false)
                     // SSRF guard: reject hostnames that resolve to a
                     // private/loopback IP at connect time (replaces the old
                     // TOCTOU pre-resolution check). Only on the direct client —
                     // with a proxy, the proxy resolves target DNS and the only
                     // local lookup is the proxy host itself, which is often
                     // deliberately a loopback address (e.g. socks5://127.0.0.1).
-                    .dns_resolver(Arc::new(SsrfGuardResolver::new(self.allow_private_network)))
+                    .dns_resolver(Arc::new(SsrfGuardResolver::new(Arc::new(
+                        std::sync::atomic::AtomicBool::new(self.allow_private_network),
+                    ))))
                     .build()
                     .expect("failed to build direct HTTP client")
             })
@@ -402,16 +427,15 @@ impl HttpClient {
         };
         self.auto_proxy_client
             .get_or_init(|| async move {
-                let mut builder = reqwest_builder_no_env_proxy()
+                let mut builder = self.base_builder()
                     .redirect(Policy::none())
                     // read_timeout (per-chunk stall, #49), not a total-duration
                     // cap — see get_client.
                     .read_timeout(Duration::from_secs(30))
                     .connect_timeout(Duration::from_secs(10))
                     .pool_idle_timeout(Duration::from_secs(60))
-                    .tcp_keepalive(Duration::from_secs(30))
-                    .danger_accept_invalid_certs(false);
-                if let Ok(p) = reqwest::Proxy::all(&proxy) {
+                    .tcp_keepalive(Duration::from_secs(30));
+                if let Ok(p) = diting_wire::Proxy::all(&proxy) {
                     builder = builder.proxy(p);
                 }
                 Some(
@@ -426,14 +450,14 @@ impl HttpClient {
 
     /// Read-only accessor for the proxy URL the client was configured with
     /// (if any). Exposed so callers outside the net module — notably
-    /// `op_fetch_url` in `diting-js` (#139) — can route their own reqwest
+    /// `op_fetch_url` in `diting-js` (#139) — can route their own
     /// requests through the same upstream proxy.
     pub fn proxy_url(&self) -> Option<&str> {
         self.proxy_url.as_deref()
     }
 
-    /// The reqwest client this request should use (context-scoped, tied to
-    /// this browser context). Cloning a `reqwest::Client` is cheap — it shares
+    /// The plain client this request should use (context-scoped, tied to
+    /// this browser context). Cloning a `Client` is cheap — it shares
     /// the underlying connection pool — so callers that need an owned handle
     /// (e.g. `op_fetch_url`, which builds a request and follows redirects
     /// itself) can take one without copying the pool.
@@ -557,166 +581,13 @@ impl HttpClient {
         resource_type: ResourceType,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
-        // The primary attempt borrows the body; ownership stays here so a
-        // retry can re-send it. `connect_failed` is the send-stage
-        // classification (DNS/TCP/TLS — the request never left the machine),
-        // the only regime where a non-idempotent retry cannot double-submit.
-        let mut connect_failed = false;
-        match self
-            .fetch_with_method_traced_inner(
-                initial_method.clone(),
-                url,
-                initial_body.as_deref(),
-                &mut connect_failed,
-                callbacks,
-                resource_type,
-                referrer,
-            )
-            .await
-        {
-            Ok(resp) => Ok(resp),
-            Err(e) => {
-                // Mirror what the primary attempt would have sent: the plain
-                // client hardcodes form-urlencoded on a POST with a body.
-                let fallback_body = initial_body.as_deref();
-                let fallback_ctype = if fallback_body.is_some() && initial_method == Method::POST {
-                    Some("application/x-www-form-urlencoded")
-                } else {
-                    None
-                };
-                self.retry_via_legacy_tls(
-                    initial_method,
-                    url,
-                    e,
-                    fallback_body,
-                    fallback_ctype,
-                    connect_failed,
-                    None,
-                    true,
-                )
-                .await
-            }
-        }
-    }
-
-    /// One legacy-TLS retry for transport failures (obscura#769 navigation
-    /// layer): rustls carries no TLS 1.2 CBC cipher suites, so a CBC-only
-    /// server dies in the ClientHello while every browser connects; the
-    /// stealth transport's BoringSSL stack still speaks CBC. Guards, in
-    /// order:
-    /// - GET/HEAD always retry (idempotent). Any other method retries only
-    ///   when `connect_stage` says the failure was connect-phase (DNS/TCP/
-    ///   TLS) — the request provably never left the machine, so a second
-    ///   attempt cannot double-submit. A failure after the bytes went out
-    ///   (body read, response-wait reset) keeps the original error. This is
-    ///   what lets a scripted form POST ride the escape hatch without
-    ///   re-submitting anything (taobao seller-backend shape);
-    /// - the URL must pass `validate_url` again. Gate rejections travel as
-    ///   `NetError::Network` just like transport failures, so the error
-    ///   type cannot fence them — the re-check can, and the legacy
-    ///   transport re-validates every hop it walks on top of that;
-    /// - redirect loops and an unavailable transport (non-stealth build,
-    ///   SOCKS proxy) pass the original error through unchanged.
-    ///
-    /// The legacy client shares the cookie jar and re-syncs identity at
-    /// attempt time. `request_headers` (the scripted fetch()/XHR path)
-    /// additionally mirrors the hop's browser-default headers — Origin,
-    /// Referer, Fetch-Metadata, client hints — so the retry is the same
-    /// request on another stack, not a bare one; the navigation path passes
-    /// None and rides transport defaults. `include_cookies` carries the
-    /// fetch credentials policy (navigation requests are always
-    /// credentialed).
-    #[allow(clippy::too_many_arguments)]
-    async fn retry_via_legacy_tls(
-        &self,
-        method: Method,
-        url: &Url,
-        err: NetError,
-        body: Option<&[u8]>,
-        content_type: Option<&str>,
-        connect_stage: bool,
-        request_headers: Option<&HashMap<String, String>>,
-        include_cookies: bool,
-    ) -> Result<Response, NetError> {
-        if matches!(err, NetError::TooManyRedirects(_)) {
-            return Err(err);
-        }
-        if !matches!(method, Method::GET | Method::HEAD) && !connect_stage {
-            return Err(err);
-        }
-        if validate_url(url, self.allow_private_network).is_err() {
-            return Err(err);
-        }
-        let Some(legacy) = self.legacy_transport().await else {
-            return Err(err);
-        };
-        legacy
-            .set_user_agent(&self.user_agent.read().await.clone())
-            .await;
-        legacy
-            .set_accept_language(&self.accept_language.read().await.clone())
-            .await;
-        legacy
-            .set_extra_headers(self.extra_headers.read().await.clone())
-            .await;
-        tracing::warn!("rustls transport failed for {url}; retrying once via legacy TLS transport");
-        match legacy
-            .fetch_with_body(
-                url,
-                None,
-                method.as_str(),
-                body,
-                content_type,
-                request_headers,
-                include_cookies,
-            )
-            .await
-        {
-            Ok(resp) => Ok(resp),
-            Err(legacy_err) => Err(NetError::Network(format!(
-                "{err}; legacy TLS transport also failed: {legacy_err}"
-            ))),
-        }
-    }
-
-    /// Legacy-TLS fallback for scripted fetch()/XHR (`op_fetch_url`): the op
-    /// walks redirects on a raw reqwest client it obtained via
-    /// `request_client()` and has no retry of its own, so a transport
-    /// failure there hands the error string here and gets the same
-    /// one-attempt BoringSSL escape hatch the subresource loaders use —
-    /// same guards (GET/HEAD always; other methods only when
-    /// `connect_stage` says the request never left the machine,
-    /// `validate_url` re-check, per-hop re-validation inside the stealth
-    /// redirect walk), same shared cookie jar and identity sync.
-    /// `request_headers` is the hop's rebuilt scripted header set (Origin,
-    /// Referer, Fetch-Metadata, client hints) — Referer-checking WAFs
-    /// 403 the bare shape even after the handshake succeeds (the taobao
-    /// seller-backend receipts proved the headered variant end to end).
-    /// `include_cookies` carries the fetch credentials policy.
-    /// `Err` carries the original transport error, or the combined message
-    /// when the legacy attempt fired and failed too (the `legacy TLS
-    /// transport` marker is how tests prove the fallback actually ran).
-    #[allow(clippy::too_many_arguments)]
-    pub async fn scripted_fetch_fallback(
-        &self,
-        method: &Method,
-        url: &Url,
-        transport_err: &str,
-        body: Option<&[u8]>,
-        content_type: Option<&str>,
-        connect_stage: bool,
-        request_headers: Option<&HashMap<String, String>>,
-        include_cookies: bool,
-    ) -> Result<Response, NetError> {
-        self.retry_via_legacy_tls(
-            method.clone(),
+        self.fetch_with_method_traced_inner(
+            initial_method,
             url,
-            NetError::Network(transport_err.to_string()),
-            body,
-            content_type,
-            connect_stage,
-            request_headers,
-            include_cookies,
+            initial_body.as_deref(),
+            callbacks,
+            resource_type,
+            referrer,
         )
         .await
     }
@@ -724,16 +595,14 @@ impl HttpClient {
     /// #116 transport-layer fix: the stealth-first scripted hop. On a
     /// stealth page the JS fetch()/XHR attempt rides the wreq emulation
     /// stack — the same TLS fingerprint the navigation above it presented
-    /// — BEFORE plain rustls: one cookie jar behind one JA3, not two.
+    /// — BEFORE the plain client: one cookie jar behind one JA3, not two.
     ///
-    /// Returns `None` when the stealth posture doesn't apply (non-stealth
-    /// build or context, or a SOCKS proxy wreq cannot speak) and the
-    /// caller keeps its plain reqwest path unchanged. `Some(Ok)` is a
-    /// complete response — redirects walked, cookies sent and stored,
+    /// Returns `None` when the stealth posture doesn't apply (a plain
+    /// context) and the caller keeps its plain path unchanged. `Some(Ok)`
+    /// is a complete response — redirects walked, cookies sent and stored,
     /// every hop re-validated against SSRF inside the stealth walk — and
-    /// `Some(Err)` means the stealth stack was tried and failed, so the
-    /// caller falls through to plain with its own legacy fallback gated
-    /// off: a request never burns more than two transports.
+    /// `Some(Err)` means the stealth stack was tried and failed; the
+    /// caller then falls through to plain.
     #[allow(clippy::too_many_arguments)]
     pub async fn scripted_stealth_hop(
         &self,
@@ -750,22 +619,21 @@ impl HttpClient {
         if validate_url(url, self.allow_private_network).is_err() {
             // A gate rejection is a policy answer, not a transport
             // failure — hand the URL to the plain path so the existing
-            // gate error surfaces keep their shape (the same stance
-            // `retry_via_legacy_tls` takes).
+            // gate error surfaces keep their shape.
             return None;
         }
-        let legacy = self.legacy_transport().await?;
-        legacy
+        let stealth = self.stealth_transport().await;
+        stealth
             .set_user_agent(&self.user_agent.read().await.clone())
             .await;
-        legacy
+        stealth
             .set_accept_language(&self.accept_language.read().await.clone())
             .await;
-        legacy
+        stealth
             .set_extra_headers(self.extra_headers.read().await.clone())
             .await;
         Some(
-            legacy
+            stealth
                 .fetch_with_body(
                     url,
                     None,
@@ -779,24 +647,14 @@ impl HttpClient {
         )
     }
 
-    /// Build the legacy transport on first fallback need, mirroring this
-    /// client's cookie jar, proxy and private-network posture. wreq does
-    /// not speak SOCKS5 (the #160 shape), so a SOCKS proxy leaves the
-    /// client rustls-only rather than silently rewriting the scheme.
-    /// The transport bakes the page's own handshake posture — the context
-    /// `tls_fingerprint` profile and the UA-derived platform — instead of
-    /// the stock chrome-target default, so the escape hatch never swaps
-    /// one JA3-mismatch tell for another (#116).
-    async fn legacy_transport(&self) -> Option<&Arc<crate::StealthHttpClient>> {
-        self.legacy_tls
+    /// Build the stealth transport on first need, mirroring this client's
+    /// cookie jar, proxy and private-network posture. It bakes the page's
+    /// own handshake posture — the context `tls_fingerprint` profile and the
+    /// UA-derived platform — instead of the stock chrome-target default, so
+    /// the scripted hop never swaps one JA3-mismatch tell for another (#116).
+    async fn stealth_transport(&self) -> &Arc<crate::StealthHttpClient> {
+        self.stealth_transport
             .get_or_init(|| async {
-                if self
-                    .proxy_url
-                    .as_deref()
-                    .is_some_and(|p| p.starts_with("socks"))
-                {
-                    return None;
-                }
                 let profile = self
                     .tls_fingerprint
                     .as_deref()
@@ -813,10 +671,9 @@ impl HttpClient {
                     self.allow_private_network,
                     std::sync::atomic::Ordering::Relaxed,
                 );
-                Some(Arc::new(client))
+                Arc::new(client)
             })
             .await
-            .as_ref()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -825,7 +682,6 @@ impl HttpClient {
         initial_method: Method,
         url: &Url,
         initial_body: Option<&[u8]>,
-        connect_failed: &mut bool,
         callbacks: Option<&CallbackRegistry>,
         resource_type: ResourceType,
         referrer: Option<&str>,
@@ -886,11 +742,11 @@ impl HttpClient {
                 }),
             );
             headers.insert(
-                reqwest::header::ACCEPT,
+                diting_wire::header::ACCEPT,
                 HeaderValue::from_static(default_accept),
             );
             headers.insert(
-                reqwest::header::ACCEPT_LANGUAGE,
+                diting_wire::header::ACCEPT_LANGUAGE,
                 HeaderValue::from_str(&self.accept_language.read().await.clone())
                     .unwrap_or_else(|_| HeaderValue::from_static("zh-CN,zh;q=0.9")),
             );
@@ -948,16 +804,16 @@ impl HttpClient {
                     let ref_value = Self::navigation_referrer(&source, &current_url);
                     if !ref_value.is_empty() {
                         if let Ok(v) = HeaderValue::from_str(&ref_value) {
-                            headers.insert(reqwest::header::REFERER, v);
+                            headers.insert(diting_wire::header::REFERER, v);
                         }
                     }
                     if method != Method::GET
                         && method != Method::HEAD
-                        && !headers.contains_key(reqwest::header::ORIGIN)
+                        && !headers.contains_key(diting_wire::header::ORIGIN)
                     {
                         let origin_value = source.origin().ascii_serialization();
                         if let Ok(v) = HeaderValue::from_str(&origin_value) {
-                            headers.insert(reqwest::header::ORIGIN, v);
+                            headers.insert(diting_wire::header::ORIGIN, v);
                         }
                     }
                 }
@@ -991,7 +847,7 @@ impl HttpClient {
             if !cookie_header.is_empty() {
                 match HeaderValue::from_str(&cookie_header) {
                     Ok(val) => {
-                        headers.insert(reqwest::header::COOKIE, val);
+                        headers.insert(diting_wire::header::COOKIE, val);
                     }
                     Err(_) => {
                         let filtered: String = cookie_header
@@ -1001,7 +857,7 @@ impl HttpClient {
                             .join("; ");
                         if !filtered.is_empty() {
                             if let Ok(val) = HeaderValue::from_str(&filtered) {
-                                headers.insert(reqwest::header::COOKIE, val);
+                                headers.insert(diting_wire::header::COOKIE, val);
                             }
                         }
                         tracing::debug!(
@@ -1028,7 +884,7 @@ impl HttpClient {
             // snapshot below sees the complete set.
             if body.is_some() && method == Method::POST {
                 headers.insert(
-                    reqwest::header::CONTENT_TYPE,
+                    diting_wire::header::CONTENT_TYPE,
                     HeaderValue::from_static("application/x-www-form-urlencoded"),
                 );
             }
@@ -1085,16 +941,12 @@ impl HttpClient {
                 Ok(resp) => resp,
                 Err(e) => {
                     drop(_in_flight);
-                    // Connect-phase (DNS/TCP/TLS) is the only failure regime
-                    // where a non-idempotent retry is safe — the request
-                    // never left the machine. Classify before the error is
-                    // stringified; the legacy-TLS fallback reads the flag.
-                    *connect_failed = e.is_connect();
                     // Name the culprit when the configured upstream proxy is
                     // the part that cannot be reached: the target URL alone
                     // reads as "site down" and sends the operator debugging
                     // the wrong layer (obscura#491's debugging cost).
-                    return Err(match (&self.proxy_url, e.is_connect()) {
+                    let unreachable = e.is_connect() || e.is_proxy_connect();
+                    return Err(match (&self.proxy_url, unreachable) {
                         (Some(proxy), true) => NetError::Network(format!(
                             "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
                             proxy, current_url, e
@@ -1107,7 +959,7 @@ impl HttpClient {
 
             let status = resp.status();
 
-            for val in resp.headers().get_all(reqwest::header::SET_COOKIE) {
+            for val in resp.headers().get_all(diting_wire::header::SET_COOKIE) {
                 if let Ok(s) = val.to_str() {
                     self.cookie_jar
                         .set_cookie_in_context(s, &current_url, &cookie_ctx, "http");
@@ -1117,7 +969,7 @@ impl HttpClient {
             let response_headers = crate::collect_response_headers(resp.headers());
 
             if status.is_redirection() {
-                if let Some(location) = resp.headers().get(reqwest::header::LOCATION) {
+                if let Some(location) = resp.headers().get(diting_wire::header::LOCATION) {
                     let location_str = location.to_str().map_err(|_| {
                         NetError::Network("Invalid redirect Location header".into())
                     })?;
@@ -1131,9 +983,9 @@ impl HttpClient {
                         status: status.as_u16(),
                     });
                     current_url = next_url;
-                    if status == reqwest::StatusCode::MOVED_PERMANENTLY
-                        || status == reqwest::StatusCode::FOUND
-                        || status == reqwest::StatusCode::SEE_OTHER
+                    if status == diting_wire::StatusCode::MOVED_PERMANENTLY
+                        || status == diting_wire::StatusCode::FOUND
+                        || status == diting_wire::StatusCode::SEE_OTHER
                     {
                         method = Method::GET;
                         body = None;

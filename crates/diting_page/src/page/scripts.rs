@@ -316,7 +316,7 @@ impl Page {
                     };
                     match fetched {
                         Ok(resp) => {
-                            // The reqwest path already notified observers. The
+                            // The plain path already notified observers. The
                             // wreq path has no callback hook, so fire them here
                             // with the headers that actually went out.
                             if stealth.is_some()

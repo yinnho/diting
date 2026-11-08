@@ -164,7 +164,7 @@ static FILE_ACCESS_FLAG: AtomicBool = AtomicBool::new(false);
 /// default since #246 — a LAN bind widens exactly this). Flipped by
 /// `--allow-file-access` or `DITING_ALLOW_FILE_ACCESS`. The gate
 /// itself lives in [`fetch_file_url`], the single choke point both
-/// transports (the reqwest funnel and the stealth client, redirect hops
+/// transports (the plain funnel and the stealth client, redirect hops
 /// included) already delegate to; the CDP-layer gates read this too.
 pub fn allow_file_access() -> bool {
     FILE_ACCESS_FLAG.load(Ordering::Relaxed) || env_flag("DITING_ALLOW_FILE_ACCESS")

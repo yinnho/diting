@@ -14,8 +14,40 @@ use std::borrow::Cow;
 
 /// Re-exports of TLS-related types from `btls` for public use.
 pub use btls::ssl::{ExtensionType, KeyShare};
+/// The stream [`connect_stream`] hands back.
+pub use tokio_btls::SslStream;
 use bytes::{BufMut, Bytes, BytesMut};
 use compress::CertificateCompressor;
+
+/// TLS client handshake over an already-connected stream, verified against
+/// the roots the HTTP clients use (bundled webpki roots). For transports that
+/// dial their own socket outside the HTTP stack — the page-facing WebSocket —
+/// so the process carries one TLS library. ALPN offers http/1.1 only: the
+/// caller speaks an HTTP/1.1 upgrade on top.
+pub async fn connect_stream<S>(stream: S, host: &str) -> crate::Result<tokio_btls::SslStream<S>>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use conn::SslConnectorBuilderExt as _;
+
+    let mut builder = btls::ssl::SslConnector::builder(btls::ssl::SslMethod::tls())
+        .map_err(crate::Error::tls)?
+        .set_cert_store(None)?;
+    builder
+        .set_alpn_protos(b"\x08http/1.1")
+        .map_err(crate::Error::tls)?;
+    let ssl = builder
+        .build()
+        .configure()
+        .and_then(|cfg| cfg.into_ssl(host))
+        .map_err(crate::Error::tls)?;
+    let mut tls = tokio_btls::SslStream::new(ssl, stream).map_err(crate::Error::tls)?;
+    std::pin::Pin::new(&mut tls)
+        .connect()
+        .await
+        .map_err(crate::Error::tls)?;
+    Ok(tls)
+}
 
 /// Http extension carrying extra TLS layer information.
 /// Made available to clients on responses when `tls_info` is set.

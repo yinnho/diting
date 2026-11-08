@@ -150,10 +150,6 @@ pub struct JsRuntime {
     /// already evaluated earlier as another graph's dependency) stays
     /// legal without this — the cache keeps the outcome readable too.
     module_evaluations: HashMap<ModuleId, Result<(), String>>,
-    /// Handle to the ES-module loader this runtime was built with. Kept so
-    /// `set_http_client` can reach the loader after construction (the Rc
-    /// also lives inside the Vm's module map, which gives nothing back).
-    module_loader: Rc<DitingModuleLoader>,
 }
 
 /// #332 leak-degrade: if any watchdog of this realm wedged (see
@@ -334,7 +330,7 @@ impl JsRuntime {
             .borrow_mut()
             .put(crate::ops::FetchSettlements::default());
 
-        runtime.install_modules(module_loader.clone());
+        runtime.install_modules(module_loader);
 
         runtime
             .execute_script(
@@ -417,7 +413,6 @@ impl JsRuntime {
             termination_unwound: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             watchdog_wedge: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             module_evaluations: HashMap::new(),
-            module_loader: module_loader.clone(),
         }
     }
 

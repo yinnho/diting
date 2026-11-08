@@ -15,8 +15,8 @@ pub enum SearchError {
     BadRequest(String),
 }
 
-/// Shared search engine registry. LazyLock so engine clients (reqwest/wreq)
-/// are built once on first use.
+/// Shared search engine registry. LazyLock so engine clients are built once
+/// on first use.
 pub(crate) static SEARCH_REGISTRY: std::sync::LazyLock<crate::search::SearchEngineRegistry> =
     std::sync::LazyLock::new(crate::search::SearchEngineRegistry::new);
 

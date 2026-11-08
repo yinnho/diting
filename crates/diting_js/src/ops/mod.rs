@@ -175,7 +175,7 @@ pub struct JsState {
     /// can fetch. Realm-scoped like the JS-side `__blobObjs`.
     pub(crate) blob_store: Rc<RefCell<BlobStoreMap>>,
     /// In-flight dynamic `<script src>` fetches. Dynamic scripts fetch via the
-    /// op-level reqwest client, invisible to the page-level http_client's
+    /// op-level client, invisible to the page-level http_client's
     /// active_requests() counter — without this, the post-script settle loop
     /// exits at its 500ms deadline while a slow external script is still in
     /// flight, and the CDP consumer snapshots before the script (and its
@@ -3505,7 +3505,7 @@ fn op_dialog(state: &OpState, #[string] kind: &str, #[string] message: &str) -> 
 /// twentieth hop still succeeds and the twenty-first fails.
 /// https://fetch.spec.whatwg.org/#http-redirect-fetch
 ///
-/// The reqwest default of 10 does not apply here: redirects are followed by
+/// A client's usual default of 10 does not apply here: redirects are followed by
 /// hand in this file, one hop per loop iteration, so each hop is re-checked
 /// against the SSRF rules (upstream 4b90ec3).
 pub(crate) const FETCH_REDIRECT_LIMIT: usize = 20;
@@ -3589,7 +3589,7 @@ fn gather_fetch_parts(
         }
     } else {
         // Fail closed (#252): an unparseable URL used to skip the gate
-        // entirely — harmless while reqwest re-parsed the same string with
+        // entirely — harmless while the client re-parsed the same string with
         // the same url crate, a hole the moment a transport disagrees. The
         // JS fetch entry throws Chrome's TypeError face before the op call,
         // so this is the backstop for direct op callers (module loader,
@@ -3648,7 +3648,7 @@ fn gather_fetch_parts(
             in_flight: gs.http_client.as_ref().map(|c| c.in_flight.clone()),
             in_flight_list: gs.http_client.as_ref().map(|c| c.in_flight_list.clone()),
             // #139: thread the configured proxy through to the per-request
-            // reqwest::Client. Without this, op_fetch_url silently bypasses
+            // diting_net::wire::Client. Without this, op_fetch_url silently bypasses
             // BrowserContext.proxy_url for every JS fetch() / XHR call.
             proxy_url: gs
                 .http_client
@@ -4257,7 +4257,7 @@ fn sync_xhr_timeout_ms() -> u64 {
 /// - CDP Fetch interception is skipped: a resolution cannot be delivered
 ///   while the dispatch that raised the request is parked here (the same
 ///   reason the async path's interception wait is bounded).
-/// - The shared reqwest client is touched from a second runtime.
+/// - The shared fetch client is touched from a second runtime.
 #[diting_op]
 #[string]
 fn op_fetch_url_sync(

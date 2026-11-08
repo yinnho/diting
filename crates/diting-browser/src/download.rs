@@ -7,8 +7,7 @@
 //! and a chunk-level stall timeout so a dead connection cannot hang forever.
 
 use anyhow::{anyhow, Context, Result};
-use futures_util::StreamExt;
-use reqwest::header::{ACCEPT, CONTENT_DISPOSITION, COOKIE, LOCATION, RANGE, USER_AGENT};
+use diting::diting_net::wire::header::{ACCEPT, CONTENT_DISPOSITION, COOKIE, LOCATION, RANGE, USER_AGENT};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -97,7 +96,8 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
     for raw in &req.cookies {
         jar.set_cookie(raw.trim(), &start_url);
     }
-    let client = HttpClient::with_full_options(jar.clone(), proxy.as_deref(), false);
+    let mut client = HttpClient::with_full_options(jar.clone(), proxy.as_deref(), false);
+    client.emulate_chrome = true;
     let rc = client.request_client(&req.url).await;
     let ua = client.user_agent.read().await.clone();
 
@@ -149,7 +149,7 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
         .map_err(anyhow::Error::msg)?;
 
     let status = resp.status();
-    if !(status == reqwest::StatusCode::OK || status == reqwest::StatusCode::PARTIAL_CONTENT) {
+    if !(status == diting::diting_net::wire::StatusCode::OK || status == diting::diting_net::wire::StatusCode::PARTIAL_CONTENT) {
         return Err(anyhow!("http {}: download failed", status.as_u16()));
     }
 
@@ -208,7 +208,7 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
                 .header(RANGE, format!("bytes={}-", len));
             let rr = builder.send().await?;
             let rs = rr.status();
-            if rs == reqwest::StatusCode::PARTIAL_CONTENT {
+            if rs == diting::diting_net::wire::StatusCode::PARTIAL_CONTENT {
                 return stream_to_file(
                     rr,
                     &part_path,
@@ -221,7 +221,7 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
                 )
                 .await;
             }
-            if rs == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+            if rs == diting::diting_net::wire::StatusCode::RANGE_NOT_SATISFIABLE {
                 return Err(anyhow!(
                     "resume rejected: http 416 (partial file of {}B unusable)",
                     len
@@ -246,7 +246,7 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
 
 #[allow(clippy::too_many_arguments)]
 async fn stream_to_file(
-    resp: reqwest::Response,
+    resp: diting::diting_net::wire::Response,
     part_path: &Path,
     start_offset: u64,
     content_type: Option<String>,
@@ -291,9 +291,9 @@ async fn stream_to_file(
         let hasher = hasher.clone();
         tokio::spawn(async move {
             let mut total: u64 = 0;
-            let mut stream = resp.bytes_stream();
+            let mut resp = resp;
             loop {
-                let next = match timeout(IDLE_TIMEOUT, stream.next()).await {
+                let next = match timeout(IDLE_TIMEOUT, resp.chunk()).await {
                     Ok(item) => item,
                     Err(_) => {
                         return Err(anyhow!(
@@ -302,8 +302,9 @@ async fn stream_to_file(
                         ));
                     }
                 };
-                let Some(chunk) = next else { break };
-                let chunk = chunk.map_err(|e| anyhow!("body read failed: {e}"))?;
+                let Some(chunk) = next.map_err(|e| anyhow!("body read failed: {e}"))? else {
+                    break;
+                };
                 file.write_all(&chunk)
                     .await
                     .map_err(|e| anyhow!("disk write failed: {e}"))?;
@@ -580,7 +581,7 @@ mod tests {
                     let mut buf = vec![0u8; 8192];
                     let n = sock.read(&mut buf).await.unwrap_or(0);
                     let raw = String::from_utf8_lossy(&buf[..n]).to_string();
-                    // reqwest normalizes request header names to lowercase.
+                    // Header names may arrive in any case.
                     let wants_range = raw.to_ascii_lowercase().contains("range:");
                     if wants_range {
                         let offset: u64 = raw

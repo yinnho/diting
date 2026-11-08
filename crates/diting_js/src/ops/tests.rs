@@ -343,8 +343,8 @@ fn cors_unsafe_header_names_sorted_and_lowercased() {
 // and never for the Authorization header (Fetch standard).
 #[test]
 fn preflight_permissions_respect_credentials_and_authorization() {
-    let put: reqwest::Method = reqwest::Method::PUT;
-    let get = reqwest::Method::GET;
+    let put: diting_net::wire::Method = diting_net::wire::Method::PUT;
+    let get = diting_net::wire::Method::GET;
 
     assert!(preflight_allows_method(&put, &["PUT", "POST"], true));
     assert!(preflight_allows_method(&get, &[], true)); // safelisted method
@@ -364,7 +364,7 @@ fn preflight_permissions_respect_credentials_and_authorization() {
 
 #[test]
 fn parse_cors_header_list_rejects_non_tokens() {
-    let mut headers = reqwest::header::HeaderMap::new();
+    let mut headers = diting_net::wire::header::HeaderMap::new();
     headers.insert("access-control-allow-methods", "GET, PUT".parse().unwrap());
     assert_eq!(
         parse_cors_header_list(&headers, "access-control-allow-methods"),

@@ -525,7 +525,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Standard proxy env vars do NOT configure this engine (reqwest/wreq's
+    // Standard proxy env vars do NOT configure this engine (the transport's
     // implicit env matcher is pinned off on every engine client); make that
     // visible once at startup instead of letting a shell proxy look
     // "configured" while fetches go direct (obscura#491).

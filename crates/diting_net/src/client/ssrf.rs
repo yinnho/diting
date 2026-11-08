@@ -1,9 +1,11 @@
 //! SSRF deny-set + the DNS-resolver guard — split from the module root
 //! (god-file ratchet). One coherent topic: which IPs the engine must never
-//! dial, and the reqwest resolver that enforces it at connect time.
+//! dial, and the resolver that enforces it at connect time.
 use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+use diting_wire::dns::{Addrs, Name, Resolve, Resolving};
 
 use super::policy::{env_allows_private_network, scoped_allow_network};
 
@@ -228,26 +230,30 @@ pub async fn forbidden_after_dns(ip: IpAddr) -> bool {
     !fake_ip_dns_active().await
 }
 
-/// reqwest DNS resolver that performs the lookup and then rejects the whole
-/// request if ANY resolved address is in the SSRF deny-set. This closes the
-/// DNS-rebinding bypass a host-string check alone cannot: a public name that
-/// resolves to 127.0.0.1 / 169.254.169.254 / an RFC1918 address is blocked at
-/// connect time, using the very addresses reqwest will dial. When private
-/// access is permitted (`--allow-private-network` or
-/// `DITING_ALLOW_PRIVATE_NETWORK`) the lookup passes through unfiltered.
+/// Resolve, then reject the whole request if ANY resolved address is in the
+/// SSRF deny-set (#247) — the check runs on the very addresses the client
+/// will dial, so a public name resolving to 127.0.0.1 / 169.254.169.254 /
+/// RFC1918 cannot slip past `validate_url`'s host-string check (DNS
+/// rebinding). Redirect hops re-resolve through here too. Only direct
+/// clients carry it: behind a proxy the target resolves at the proxy, and
+/// the proxy host itself is often deliberately loopback.
+///
+/// `allow_flag` is read live: contexts flip it after the client is built
+/// (obscura#793 shape), and `DITING_ALLOW_PRIVATE_NETWORK` ORs in at
+/// resolve time.
 pub struct SsrfGuardResolver {
-    allow_private: bool,
+    allow_flag: Arc<AtomicBool>,
 }
 
 impl SsrfGuardResolver {
-    pub fn new(allow_private: bool) -> Self {
-        Self { allow_private }
+    pub fn new(allow_flag: Arc<AtomicBool>) -> Self {
+        Self { allow_flag }
     }
 }
 
 impl Resolve for SsrfGuardResolver {
     fn resolve(&self, name: Name) -> Resolving {
-        let allow = self.allow_private || env_allows_private_network();
+        let allow = self.allow_flag.load(Ordering::Relaxed) || env_allows_private_network();
         let host = name.as_str().to_string();
         Box::pin(async move {
             let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))

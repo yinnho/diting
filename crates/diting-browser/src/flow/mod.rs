@@ -700,7 +700,7 @@ async fn exec_http_step(a: &Value, vars: &Map<String, Value>) -> Result<Value, S
         .and_then(|v| v.as_str())
         .unwrap_or("GET")
         .to_ascii_uppercase();
-    let method = reqwest::Method::from_str(&method_str)
+    let method = diting::diting_net::wire::Method::from_str(&method_str)
         .map_err(|_| format!("http: unsupported method {method_str:?}"))?;
     crate::rate::check_domain(&url_str).map_err(|e| format!("http: {e}"))?;
     let url: url::Url = url_str
@@ -709,11 +709,12 @@ async fn exec_http_step(a: &Value, vars: &Map<String, Value>) -> Result<Value, S
     validate_url(&url, diting_net::env_allows_private_network())
         .map_err(|e| format!("http: {e}"))?;
 
-    let client = HttpClient::with_full_options(
+    let mut client = HttpClient::with_full_options(
         std::sync::Arc::new(CookieJar::new()),
         crate::config::proxy_from_env().as_deref(),
         false,
     );
+    client.emulate_chrome = true;
     let rc = client.request_client(&url_str).await;
     let mut req = rc.request(method, url);
     if let Some(ms) = a.get("timeout_ms").and_then(|v| v.as_u64()) {
@@ -777,7 +778,7 @@ async fn exec_http_step(a: &Value, vars: &Map<String, Value>) -> Result<Value, S
         req = req.body(b.to_string());
     }
     if let Some(ct) = content_type {
-        req = req.header(reqwest::header::CONTENT_TYPE, ct);
+        req = req.header(diting::diting_net::wire::header::CONTENT_TYPE, ct);
     }
     if let Some(hs) = text.get("headers").and_then(|v| v.as_object()) {
         for (k, v) in hs {

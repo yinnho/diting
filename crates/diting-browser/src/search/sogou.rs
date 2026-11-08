@@ -2,23 +2,23 @@ use async_trait::async_trait;
 
 use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
-/// Sogou general search engine.
-///
-/// Uses plain reqwest (NOT wreq stealth) because wreq's Chrome emulation
-/// auto-injects sec-ch-ua/sec-fetch headers that trigger sogou's antispider
-/// (302 → /antispider). Plain reqwest with a standard browser UA works fine —
-/// even curl with no headers gets 200 from sogou.
+/// Sogou general search engine. Rides the shared Chrome-emulating search
+/// client; an earlier note blamed the emulation's sec-ch-ua/sec-fetch
+/// headers for sogou's 302 → /antispider, but the unified client served
+/// real results in the 11-08 live check. If the wall comes back,
+/// `.default_headers(false)` on the request keeps the Chrome handshake and
+/// drops only those headers.
 pub struct SogouEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
 }
 
 impl SogouEngine {
     pub fn new() -> Self {
-        let client = diting::diting_net::client::reqwest_builder_no_env_proxy()
+        let client = diting::diting_net::chrome_client_builder()
             .timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none())
+            .redirect(diting::diting_net::wire::redirect::Policy::none())
             .build()
-            .expect("failed to build reqwest client for sogou");
+            .expect("failed to build sogou client");
 
         SogouEngine { client }
     }

@@ -4,9 +4,9 @@ use base64::Engine;
 
 use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
-/// Bing search engine. Uses plain reqwest (Bing does not block standard TLS).
+/// Bing search engine.
 pub struct BingEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
 }
 
 impl BingEngine {

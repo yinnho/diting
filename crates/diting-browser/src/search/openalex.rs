@@ -14,7 +14,7 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 /// Transient, i.e. the engine is skipped for that one query, no suspension;
 /// arXiv still serves the category.
 pub struct OpenalexEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
 }
 
 impl OpenalexEngine {
