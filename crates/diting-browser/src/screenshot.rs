@@ -554,22 +554,8 @@ pub fn render_html_to_png_diting(
         );
     }
 
-    let mut png_bytes = Vec::with_capacity((out_w * out_h) as usize);
-    {
-        use std::io::Cursor;
-        let mut encoder = diting_png::Encoder::new(Cursor::new(&mut png_bytes), out_w, out_h);
-        encoder.set_color(diting_png::ColorType::Rgba);
-        encoder.set_depth(diting_png::BitDepth::Eight);
-        let mut writer = encoder
-            .write_header()
-            .map_err(|e| anyhow::anyhow!("png encode header: {e}"))?;
-        writer
-            .write_image_data(&buffer)
-            .map_err(|e| anyhow::anyhow!("png encode data: {e}"))?;
-        writer
-            .finish()
-            .map_err(|e| anyhow::anyhow!("png encode finish: {e}"))?;
-    }
+    let png_bytes = diting::diting_layout::image::encode_png_rgba(out_w, out_h, &buffer)
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     tracing::debug!(
         "screenshot(diting): {}x{} -> {} PNG bytes (content_height={}, rects={})",

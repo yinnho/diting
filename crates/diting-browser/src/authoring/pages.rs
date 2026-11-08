@@ -379,20 +379,7 @@ pub fn jpeg_of(width: u32, height: u32, rgba: &[u8], quality: u8) -> Result<Vec<
 
 /// Encode an RGBA frame as PNG (the standalone-pages path).
 pub fn png_of(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
-    {
-        let mut encoder =
-            diting_png::Encoder::new(std::io::Cursor::new(&mut out), width.max(1), height.max(1));
-        encoder.set_color(diting_png::ColorType::Rgba);
-        encoder.set_depth(diting_png::BitDepth::Eight);
-        let mut writer = encoder
-            .write_header()
-            .map_err(|e| format!("png header: {e}"))?;
-        writer
-            .write_image_data(rgba)
-            .map_err(|e| format!("png encode: {e}"))?;
-    }
-    Ok(out)
+    diting::diting_layout::image::encode_png_rgba(width.max(1), height.max(1), rgba)
 }
 
 /// CSS px → PDF points (96dpi assumption, the same one CSS `px` carries).
