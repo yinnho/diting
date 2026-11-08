@@ -11,7 +11,7 @@
 //! crop guide lines (`show_crop: true`) so an agent can verify nothing it
 //! cares about gets cut before shipping.
 
-use crate::authoring::docgen::theme::Theme;
+use crate::docgen::theme::Theme;
 
 pub struct CoverInput<'a> {
     pub title: &'a str,
@@ -186,7 +186,7 @@ fn inner_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::authoring::docgen::theme::LIGHT;
+    use crate::docgen::theme::LIGHT;
 
     #[test]
     fn square_cover_keeps_text_in_safe_band() {

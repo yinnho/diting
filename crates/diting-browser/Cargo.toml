@@ -25,7 +25,7 @@ pkg-url = "{ repo }/releases/download/v{ version }/diting-{ version }-{ target }
 bin-dir = "diting-{ version }-{ target }/{ bin }{ binary-ext }"
 
 [features]
-default = []
+default = ["authoring"]
 # Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL),
 # in the diting engine (crates/diting). Disable for plain reqwest-only builds.
 stealth = ["diting/stealth", "dep:diting_profiles"]
@@ -33,10 +33,15 @@ stealth = ["diting/stealth", "dep:diting_profiles"]
 # CSS+layout+paint stack, no Chromium required, no blitz. The engine's
 # render deps live in diting; the product face only needs encode/decode
 # (PNG/JPEG re-encode of the engine's rendered bytes).
-screenshot = ["diting/screenshot", "dep:diting_png"]
+screenshot = ["diting/screenshot", "dep:diting_png", "diting_authoring?/screenshot"]
+# Authoring cluster (crates/diting_authoring): /render and /render_markdown,
+# plus /video and /pdf with screenshot. On by default so every existing build
+# command ships it; `--no-default-features` builds the acquisition-only face.
+authoring = ["dep:diting_authoring"]
 
 [dependencies]
 diting = { path = "../diting" }
+diting_authoring = { path = "../diting_authoring", optional = true }
 # --- async runtime ---
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"

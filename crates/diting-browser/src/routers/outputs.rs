@@ -398,7 +398,7 @@ pub(crate) async fn screenshot_handler(
 /// Timeline video: seek the page's registered timelines frame by frame and
 /// encode the viewport bands to MP4 (ffmpeg pipe). Same threading pattern as
 /// /screenshot — V8 is !Send.
-#[cfg(feature = "screenshot")]
+#[cfg(all(feature = "screenshot", feature = "authoring"))]
 pub(crate) async fn video_handler(
     Json(req): Json<VideoRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -422,7 +422,7 @@ pub(crate) async fn video_handler(
 
 /// Page set: cut the page into pages (print pagination or per-selector
 /// slides) and package as PDF / PNGs. Same threading pattern as /screenshot.
-#[cfg(feature = "screenshot")]
+#[cfg(all(feature = "screenshot", feature = "authoring"))]
 pub(crate) async fn pdf_handler(
     Json(req): Json<PdfRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -507,7 +507,7 @@ mod screenshot_html_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "authoring"))]
 mod video_html_tests {
     use super::*;
 

@@ -169,7 +169,7 @@ fn base64_png(bytes: &[u8]) -> String {
 /// the seek loop (pause(t) → viewport band paint → ffmpeg stdin) runs while
 /// the browser is still up. Requires ffmpeg on PATH. See src/video.rs for
 /// the protocol.
-#[cfg(feature = "screenshot")]
+#[cfg(all(feature = "screenshot", feature = "authoring"))]
 pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
     run_on_local_runtime(move |_rt| {
         Box::pin(async move {
@@ -260,7 +260,7 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
 /// /video: the geometry comes from the live tree's layout, so the whole run
 /// happens while the browser is up. See src/pages.rs, src/ooxml.rs, and
 /// src/pptx_native.rs.
-#[cfg(feature = "screenshot")]
+#[cfg(all(feature = "screenshot", feature = "authoring"))]
 pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
     run_on_local_runtime(move |rt| {
         Box::pin(async move {

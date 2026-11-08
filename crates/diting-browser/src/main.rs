@@ -9,9 +9,11 @@ use serde::{Deserialize, Serialize};
 
 mod account;
 mod auth;
-// Authoring 线（出片/出文档，ARCHITECTURE.md §4/D4）：pages/video/ooxml/
-// pptx_native/docgen 整目录住 src/authoring/，门控与注释随之内移。
-mod authoring;
+// Authoring 线（出片/出文档，ARCHITECTURE.md §4/D4）：独立 crate
+// crates/diting_authoring，经 `authoring` feature 挂载（默认开）；别名保住
+// 产品侧 `crate::authoring::…` 的既有路径。
+#[cfg(feature = "authoring")]
+use diting_authoring as authoring;
 mod browser;
 mod browser_import;
 mod captcha;
@@ -81,7 +83,9 @@ use routers::acquisition::{
     search_engine_rows, search_handler,
 };
 #[cfg(feature = "screenshot")]
-use routers::outputs::{pdf_handler, screenshot_handler, video_handler};
+use routers::outputs::screenshot_handler;
+#[cfg(all(feature = "screenshot", feature = "authoring"))]
+use routers::outputs::{pdf_handler, video_handler};
 use routers::sessions::{
     account_delete_handler, account_import_browser_handler, account_login_handler,
     account_verify_handler, accounts_handler,
@@ -437,18 +441,24 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/:name", delete(account_delete_handler))
         .route("/account/verify", post(account_verify_handler))
         .route("/account/login", post(account_login_handler))
-        .route("/account/import_browser", post(account_import_browser_handler))
+        .route(
+            "/account/import_browser",
+            post(account_import_browser_handler),
+        );
+    #[cfg(feature = "authoring")]
+    let app = app
         .route("/render", post(routers::render::render_handler))
         .route(
             "/render_markdown",
             post(routers::render::render_markdown_handler),
         );
     #[cfg(feature = "screenshot")]
+    let app = app.route(
+        "/screenshot",
+        post(screenshot_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
+    );
+    #[cfg(all(feature = "screenshot", feature = "authoring"))]
     let app = app
-        .route(
-            "/screenshot",
-            post(screenshot_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
-        )
         .route(
             "/video",
             post(video_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
@@ -670,6 +680,7 @@ fn health_body() -> serde_json::Value {
         "tls": tls,
         "capabilities": {
             "screenshot": cfg!(feature = "screenshot"),
+            "authoring": cfg!(feature = "authoring"),
             "stealth": cfg!(feature = "stealth"),
             "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
         }
@@ -832,6 +843,7 @@ struct DoctorParams {
 async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse {
     let capabilities = serde_json::json!({
         "screenshot": cfg!(feature = "screenshot"),
+        "authoring": cfg!(feature = "authoring"),
         "stealth": cfg!(feature = "stealth"),
         "captcha_solver": std::env::var("CAPTCHA_SOLVER_API_KEY").is_ok(),
         // Where an agent lands the flows it distills (and reads README.md).
@@ -913,6 +925,23 @@ async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse
             }
         })
         .collect();
+    let endpoints: Vec<&str> = [
+        "/health",
+        "/doctor",
+        "/engines",
+        "/fetch",
+        "/click",
+        "/eval",
+        "/search",
+        "/download",
+        "/v1/scrape",
+        "/session/create",
+        "/session/list",
+        "/import/curl",
+    ]
+    .into_iter()
+    .chain(cfg!(feature = "authoring").then_some("/render_markdown"))
+    .collect();
     Json(serde_json::json!({
         "status": "ok",
         "engine": "diting",
@@ -921,11 +950,7 @@ async fn doctor_handler(Query(params): Query<DoctorParams>) -> impl IntoResponse
         "search_engines": search_engines,
         "available_engines": available_engines,
         "search_obs": crate::search::search_obs_snapshot(),
-        "endpoints": [
-            "/health", "/doctor", "/engines", "/fetch", "/click", "/eval",
-            "/search", "/download", "/v1/scrape", "/session/create",
-            "/session/list", "/import/curl", "/render_markdown"
-        ],
+        "endpoints": endpoints,
         "probe": probe,
     }))
 }

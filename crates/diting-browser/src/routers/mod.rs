@@ -4,5 +4,6 @@
 pub(crate) mod acquisition;
 #[cfg(feature = "screenshot")]
 pub(crate) mod outputs;
+#[cfg(feature = "authoring")]
 pub(crate) mod render;
 pub(crate) mod sessions;
