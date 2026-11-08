@@ -27,7 +27,7 @@ building a [`Shaper`].
 
 Here, we'll create a context and build a shaper for Arabic text at 16px:
 ```
-# use swash::{FontRef, CacheKey, shape::*, text::Script};
+# use diting_swash::{FontRef, CacheKey, shape::*, text::Script};
 # let font: FontRef = FontRef { data: &[], offset: 0, key: CacheKey::new() };
 // let font = ...;
 let mut context = ShapeContext::new();
@@ -43,7 +43,7 @@ method with an iterator that yields a sequence of values that are convertible
 to [`Setting<u16>`]. Tuples of (&str, u16) will work in a pinch. For example,
 you can enable discretionary ligatures like this:
 ```
-# use swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
+# use diting_swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
 # let font: FontRef = FontRef { data: &[], offset: 0, key: CacheKey::new() };
 // let font = ...;
 let mut context = ShapeContext::new();
@@ -64,7 +64,7 @@ Font variation settings are specified in a similar manner with the
 [`variations`](ShaperBuilder::variations) method but take an `f32`
 to define the value within the variation space for the requested axis:
 ```
-# use swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
+# use diting_swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
 # let font: FontRef = FontRef { data: &[], offset: 0, key: CacheKey::new() };
 // let font = ...;
 let mut context = ShapeContext::new();
@@ -83,7 +83,7 @@ Once we have a properly configured shaper, we need to feed it some
 clusters. The simplest approach is to call the [`add_str`](Shaper::add_str)
 method with a string:
 ```
-# use swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
+# use diting_swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
 # let font: FontRef = FontRef { data: &[], offset: 0, key: CacheKey::new() };
 # let mut context = ShapeContext::new();
 # let mut shaper = context.builder(font).build();
@@ -114,8 +114,8 @@ All of this is served by the functionality in the
 
 Let's see a somewhat contrived example that demonstrates the process:
 ```
-use swash::text::cluster::{CharCluster, CharInfo, Parser, Token};
-# use swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
+use diting_swash::text::cluster::{CharCluster, CharInfo, Parser, Token};
+# use diting_swash::{FontRef, CacheKey, shape::*, text::Script, tag_from_bytes};
 # let font: FontRef = FontRef { data: &[], offset: 0, key: CacheKey::new() };
 # let mut context = ShapeContext::new();
 let mut shaper = context.builder(font)
@@ -168,8 +168,8 @@ is where you apply them to the [`info`](Token::info) fields of your [`Token`]s.
 That last one deserves a quick example, showing how you might build a cluster
 parser with boundary analysis:
 ```
-use swash::text::{analyze, Script};
-use swash::text::cluster::{CharInfo, Parser, Token};
+use diting_swash::text::{analyze, Script};
+use diting_swash::text::cluster::{CharInfo, Parser, Token};
 let text = "a quick brown fox?";
 let mut parser = Parser::new(
     Script::Latin,
@@ -194,8 +194,8 @@ the return value of the [`CharCluster::map`] method which describes the
 [`Status`](crate::text::cluster::Status) of the mapping operation. This function
 will return the index of the best matching font:
 ```
-use swash::FontRef;
-use swash::text::cluster::{CharCluster, Status};
+use diting_swash::FontRef;
+use diting_swash::text::cluster::{CharCluster, Status};
 
 fn select_font<'a>(fonts: &[FontRef<'a>], cluster: &mut CharCluster) -> Option<usize> {
     let mut best = None;
