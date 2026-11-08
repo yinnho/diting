@@ -2,14 +2,11 @@
 use super::CompactLength;
 use crate::geometry::Rect;
 use crate::style_helpers::{FromLength, FromPercent, TaffyAuto, TaffyZero};
-#[cfg(feature = "parse")]
-use crate::util::parse::{from_str_from_css, CssParseResult, FromCss, Parser, Token};
 
 /// A unit of linear measurement
 ///
 /// This is commonly combined with [`Rect`], [`Point`](crate::geometry::Point) and [`Size<T>`](crate::geometry::Size).
 #[derive(Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct LengthPercentage(pub(crate) CompactLength);
 impl TaffyZero for LengthPercentage {
     const ZERO: Self = Self(CompactLength::ZERO);
@@ -25,18 +22,6 @@ impl FromPercent for LengthPercentage {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for LengthPercentage {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        match parser.next()?.clone() {
-            Token::Percentage { unit_value, .. } => Ok(Self::percent(unit_value)),
-            Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::length(value)),
-            token => Err(parser.new_unexpected_token_error(token))?,
-        }
-    }
-}
-#[cfg(feature = "parse")]
-from_str_from_css!(LengthPercentage);
 
 impl LengthPercentage {
     /// An absolute length in some abstract units. Users of Taffy may define what they correspond
@@ -126,27 +111,11 @@ impl From<ExpandedLengthPercentage> for LengthPercentage {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for LengthPercentage {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let inner = CompactLength::deserialize(deserializer)?;
-        // Note: validation intentionally excludes the CALC_TAG as deserializing calc() values is not supported
-        if matches!(inner.tag(), CompactLength::LENGTH_TAG | CompactLength::PERCENT_TAG) {
-            Ok(Self(inner))
-        } else {
-            Err(serde::de::Error::custom("Invalid tag"))
-        }
-    }
-}
 
 /// A unit of linear measurement
 ///
 /// This is commonly combined with [`Rect`], [`Point`](crate::geometry::Point) and [`Size<T>`](crate::geometry::Size).
 #[derive(Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct LengthPercentageAuto(pub(crate) CompactLength);
 impl TaffyZero for LengthPercentageAuto {
     const ZERO: Self = Self(CompactLength::ZERO);
@@ -170,19 +139,6 @@ impl From<LengthPercentage> for LengthPercentageAuto {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for LengthPercentageAuto {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        match parser.next()?.clone() {
-            Token::Percentage { unit_value, .. } => Ok(Self::percent(unit_value)),
-            Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::length(value)),
-            Token::Ident(ident) if ident == "auto" => Ok(Self::auto()),
-            token => Err(parser.new_unexpected_token_error(token))?,
-        }
-    }
-}
-#[cfg(feature = "parse")]
-from_str_from_css!(LengthPercentageAuto);
 
 impl LengthPercentageAuto {
     /// An absolute length in some abstract units. Users of Taffy may define what they correspond
@@ -305,27 +261,11 @@ impl From<ExpandedLengthPercentageAuto> for LengthPercentageAuto {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for LengthPercentageAuto {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let inner = CompactLength::deserialize(deserializer)?;
-        // Note: validation intentionally excludes the CALC_TAG as deserializing calc() values is not supported
-        if matches!(inner.tag(), CompactLength::LENGTH_TAG | CompactLength::PERCENT_TAG | CompactLength::AUTO_TAG) {
-            Ok(Self(inner))
-        } else {
-            Err(serde::de::Error::custom("Invalid tag"))
-        }
-    }
-}
 
 /// A unit of linear measurement
 ///
 /// This is commonly combined with [`Rect`], [`Point`](crate::geometry::Point) and [`Size<T>`](crate::geometry::Size).
 #[derive(Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Dimension(pub(crate) CompactLength);
 impl TaffyZero for Dimension {
     const ZERO: Self = Self(CompactLength::ZERO);
@@ -354,36 +294,6 @@ impl From<LengthPercentageAuto> for Dimension {
     }
 }
 
-#[cfg(feature = "parse")]
-impl FromCss for Dimension {
-    fn from_css<'i>(parser: &mut Parser<'i, '_>) -> CssParseResult<'i, Self> {
-        let token = parser.next()?.clone();
-        match token {
-            Token::Percentage { unit_value, .. } => Ok(Self::percent(unit_value)),
-            Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::length(value)),
-            Token::Ident(ref ident) => match ident.as_ref() {
-                "auto" => Ok(Self::auto()),
-                "min-content" => Ok(Self::min_content()),
-                "max-content" => Ok(Self::max_content()),
-                "fit-content" => Ok(Self::fit_content()),
-                "stretch" => Ok(Self::stretch()),
-                "content" => Ok(Self::content()),
-                _ => Err(parser.new_unexpected_token_error(token))?,
-            },
-            Token::Function(ref name) if name.as_ref() == "fit-content" => parser.parse_nested_block(|parser| {
-                let token = parser.next()?.clone();
-                match token {
-                    Token::Percentage { unit_value, .. } => Ok(Self::fit_content_percent(unit_value)),
-                    Token::Dimension { unit, value, .. } if unit == "px" => Ok(Self::fit_content_px(value)),
-                    token => Err(parser.new_unexpected_token_error(token))?,
-                }
-            }),
-            token => Err(parser.new_unexpected_token_error(token))?,
-        }
-    }
-}
-#[cfg(feature = "parse")]
-from_str_from_css!(Dimension);
 
 impl Dimension {
     /// An absolute length in some abstract units. Users of Taffy may define what they correspond
@@ -639,33 +549,6 @@ impl From<ExpandedDimension> for Dimension {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for Dimension {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let inner = CompactLength::deserialize(deserializer)?;
-        // Note: validation intentionally excludes the CALC_TAG as deserializing calc() values is not supported
-        if matches!(
-            inner.tag(),
-            CompactLength::LENGTH_TAG
-                | CompactLength::PERCENT_TAG
-                | CompactLength::AUTO_TAG
-                | CompactLength::MIN_CONTENT_TAG
-                | CompactLength::MAX_CONTENT_TAG
-                | CompactLength::FIT_CONTENT_KEYWORD_TAG
-                | CompactLength::FIT_CONTENT_PX_TAG
-                | CompactLength::FIT_CONTENT_PERCENT_TAG
-                | CompactLength::STRETCH_TAG
-                | CompactLength::CONTENT_TAG
-        ) {
-            Ok(Self(inner))
-        } else {
-            Err(serde::de::Error::custom("Invalid tag"))
-        }
-    }
-}
 
 impl Rect<Dimension> {
     /// Create a new Rect with length values

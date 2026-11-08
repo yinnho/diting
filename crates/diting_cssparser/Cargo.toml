@@ -26,8 +26,6 @@ doctest = false
 default = ["fast_match_byte", "fast_match_color"]
 fast_match_byte = ["dep:cssparser-macros"]
 fast_match_color = ["dep:phf"]
-bench = []
-skip_long_tests = []
 
 [dependencies]
 cssparser-macros = { version = "0.7.0", optional = true }

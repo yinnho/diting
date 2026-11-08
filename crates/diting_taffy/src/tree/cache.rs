@@ -83,7 +83,6 @@ fn size_mixed_cache_key(kd: Size<Option<f32>>, avs: Size<AvailableSpace>) -> u64
 
 /// Space-optimised cache key that packs bits into as small a size as possible
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 struct CacheKey {
     /// The initial cached size of the node itself
     kd_available_space: u64,
@@ -148,7 +147,6 @@ impl From<&LayoutInput> for CacheKey {
 /// so they only change for a given node when one of those changes. Rather than keying every entry
 /// on them, a [`Cache`] records the single mode that all of its entries were computed with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 struct CacheMode(u8);
 
 impl CacheMode {
@@ -200,7 +198,6 @@ pub fn cache_mode_change_evictions() -> usize {
 
 /// Cached intermediate layout results
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub(crate) struct CacheEntry<T> {
     /// The key for the cache entry
     key: CacheKey,
@@ -210,7 +207,6 @@ pub(crate) struct CacheEntry<T> {
 
 /// A cache for caching the results of a sizing a Grid Item or Flexbox Item
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Cache {
     /// The cache entry for the node's final layout
     final_layout_entry: Option<CacheEntry<LayoutOutput>>,

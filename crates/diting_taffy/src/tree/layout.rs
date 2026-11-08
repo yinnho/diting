@@ -104,20 +104,9 @@ impl PartialEq for ScrollableOverflow {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for ScrollableOverflow {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("ScrollableOverflow", 2)?;
-        state.serialize_field("rect", &self.rect())?;
-        state.serialize_field("reversed", &self.is_reversed())?;
-        state.end()
-    }
-}
 
 /// Whether we are performing a full layout, or we merely need to size the node
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum RunMode {
     /// A full layout for this node and all children should be computed
     PerformLayout,
@@ -130,7 +119,6 @@ pub enum RunMode {
 
 /// Whether styles should be taken into account when computing size
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum SizingMode {
     /// Only content contributions should be taken into account
     ContentSize,
@@ -140,7 +128,6 @@ pub enum SizingMode {
 
 /// A set of margins that are available for collapsing with for block layout's margin collapsing
 #[derive(Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct CollapsibleMarginSet {
     /// The largest positive margin
     positive: f32,
@@ -187,7 +174,6 @@ impl CollapsibleMarginSet {
 
 /// An axis that layout algorithms can be requested to compute a size for
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum RequestedAxis {
     /// The horizontal axis
     Horizontal,
@@ -230,7 +216,6 @@ impl TryFrom<RequestedAxis> for AbsoluteAxis {
 
 /// A struct containing the inputs constraints/hints for laying out a node, which are passed in by the parent
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct LayoutInput {
     /// Whether we only need to know the Node's size, or whether we need to perform a full layout
     pub run_mode: RunMode,
@@ -313,7 +298,6 @@ impl LayoutInput {
 /// A baseline is the line on which text sits. See <https://www.w3.org/TR/css-writing-modes-3/#intro-baselines>
 /// for details.
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Baselines {
     /// The first baseline of the node, if any
     pub first: Option<f32>,
@@ -562,7 +546,6 @@ impl<'a> IntoIterator for &'a OofCandidates {
 /// resolved within this area by the positioning pass itself (from the container's detailed grid
 /// info).
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct OofPositioningArea {
     /// The size of the area
     pub size: Size<f32>,
@@ -577,7 +560,6 @@ pub struct OofPositioningArea {
 /// If your node does not have a baseline (or you are unsure how to compute it), then simply return `Baselines::NONE`
 /// for the baselines field
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct LayoutOutput {
     /// The size of the node
     pub size: Size<f32>,
@@ -607,7 +589,6 @@ pub struct LayoutOutput {
     /// positioning pass ([`compute_oof_layout`](crate::compute_oof_layout)) then lays out those
     /// for which the node is the containing block and replaces this list with the unclaimed
     /// remainder.
-    #[cfg_attr(feature = "serde", serde(skip_serializing))]
     pub oof_candidates: OofCandidates,
     /// The node's inset-resolution area for out-of-flow boxes. Set by container layout
     /// algorithms for `RunMode::PerformLayout` runs; `None` for leaves and size-only runs
@@ -685,7 +666,6 @@ impl LayoutOutput {
 
 /// The final result of a layout algorithm for a single node.
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Layout {
     /// The relative ordering of the node
     ///

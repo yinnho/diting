@@ -73,7 +73,6 @@ pub trait BlockItemStyle: CoreStyle {
 
 /// Used by block layout to implement the legacy behaviour of `<center>` and `<div align="left | right | center">`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TextAlign {
     /// No special legacy text align behaviour.
     #[default]
@@ -86,10 +85,3 @@ pub enum TextAlign {
     LegacyCenter,
 }
 
-#[cfg(feature = "parse")]
-crate::util::parse::impl_parse_for_keyword_enum!(TextAlign,
-    "auto" => Auto,
-    "-webkit-left" => LegacyLeft,
-    "-webkit-right" => LegacyRight,
-    "-webkit-center" => LegacyCenter,
-);

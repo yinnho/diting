@@ -110,7 +110,6 @@ impl<T: Copy> InBothAbsAxis<T> {
 
 /// An axis-aligned UI rectangle
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Rect<T> {
     /// This can represent either the x-coordinate of the starting edge,
     /// or the amount of padding on the starting side.
@@ -332,8 +331,6 @@ impl Rect<f32> {
 
 /// An abstract "line". Represents any type that has a start and an end
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(default))]
 pub struct Line<T> {
     /// The start position of a line
     pub start: T,
@@ -371,7 +368,6 @@ impl<T: Add + Copy> Line<T> {
 /// container. Used for the space taken up by floats, and for the position of a containing block
 /// within a block formatting context.
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FloatInsets {
     /// The inset from the left edge
     pub left: f32,
@@ -413,7 +409,6 @@ impl Add for FloatInsets {
 
 /// The width and height of a [`Rect`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Size<T> {
     /// The x extent of the rectangle
     pub width: T,
@@ -712,7 +707,6 @@ impl Size<Dimension> {
 ///
 /// When used in association with a [`Rect`], represents the top-left corner.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Point<T> {
     /// The x-coordinate
     pub x: T,
@@ -808,7 +802,6 @@ impl<T> From<Point<T>> for Size<T> {
 
 /// Generic struct which holds a "min" value and a "max" value
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MinMax<Min, Max> {
     /// The value representing the minimum
     pub min: Min,

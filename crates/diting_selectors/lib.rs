@@ -3,7 +3,6 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 // Make |cargo bench| work.
-#![cfg_attr(feature = "bench", feature(test))]
 
 pub mod attr;
 pub mod bloom;
