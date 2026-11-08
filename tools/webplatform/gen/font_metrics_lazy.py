@@ -90,47 +90,50 @@ FIX_FAMILY = r'''  // (#lazy) Load-time fixups, verbatim from the eager init the
   const fixKrb = (e) => {
     if (e.krb) e.krbM = new Map(Object.entries(e.krb).map(([p, v]) => [numKey(p), v]));
   };
-  function fixSystemUiFace(fam, raw, t) {
-    const e = raw[t];
+  function fixSystemUiFace(fam, has, e, t) {
     fixK3f(e);
     if (t !== 'R') { const o = FT('TSP', t); if (o) e.k3s = tspMap(o); }
     if (fam.midM && !e.midM) e.midM = fam.midM;
     const m = sufMaps(t);
     if (m) { e.kkM = m.kkM; e.vM = m.vM; e.krbM = m.krbM; }
     if ((t === '100' || t === '200' || t === '300') && !e.kkM) { e.kr = fam.kr; e.kkM = fam.kkM; e.krbM = fam.krbM; }
-    if ((t === '600' || t === '800' || t === '900') && !e.kkM && raw.B) { const b = sufMaps('B'); e.kkM = b ? b.kkM : undefined; e.vM = b ? b.vM : undefined; e.krbM = b ? b.krbM : undefined; }
+    if ((t === '600' || t === '800' || t === '900') && !e.kkM && has('B')) { const b = sufMaps('B'); e.kkM = b ? b.kkM : undefined; e.vM = b ? b.vM : undefined; e.krbM = b ? b.krbM : undefined; }
     if (SU_AK.has(t)) e.ak = t;
     fixMaps(e);
     fixKrb(e);
     if (e && e.sba) e.sba = [new Map(Object.entries(e.sba.bump || {}).map(([k, v]) => [+k, v])), new Map(Object.entries(e.sba.arch || {}).map(([k, v]) => [+k, v]))];
   }
+  // Faces are stored one entry each (NAMES_F "family#face"); `__faces`
+  // lists them in source order. A face is fetched and fixed up on first
+  // read — the measuring code only ever reads tbl.f[face].
   function fixFamily(nk, fam) {
     const mm = MIDM.get(nk);
-    if (nk === 'system-ui') {
+    const sys = nk === 'system-ui';
+    if (sys) {
       const tspR = FT('TSP', 'R');
       if (tspR) fam.k3s = tspMap(tspR);
       if (mm) fam.midM = mm;
       fam.kkM = new Map(Object.entries(FT('SU', 'kk')).map(([k, v]) => [numKey(k), v]));
       fam.krbM = new Map(Object.entries(FT('SU', 'kb')).map(([k, o]) => [numKey(k), new Map(Object.entries(o).map(([px, v]) => [+px, v]))]));
       fam.ak = 'R';
-      const raw = fam.f;
-      if (raw) {
-        const done = new Set();
-        fam.f = new Proxy(raw, { get(t, k) {
-          if (typeof k === 'string' && !done.has(k) && Object.prototype.hasOwnProperty.call(t, k)) { done.add(k); fixSystemUiFace(fam, t, k); }
-          return t[k];
-        } });
-      }
-      return fam;
-    }
-    const fmap = fam.f;
-    if (fmap) for (const t in fmap) fixK3f(fmap[t]);
-    if (mm) {
+    } else if (mm) {
       fam.midM = mm;
-      if (fmap) for (const t in fmap) { if (!fmap[t].midM) fmap[t].midM = mm; }
     }
-    if (fmap) for (const t in fmap) fixMaps(fmap[t]);
-    if (fmap) for (const t in fmap) fixKrb(fmap[t]);
+    const keys = fam.__faces;
+    delete fam.__faces;
+    if (keys) {
+      const faces = new Set(keys);
+      const has = (t) => faces.has(t);
+      fam.f = new Proxy({}, { get(t, k) {
+        if (typeof k === 'string' && faces.has(k) && !Object.prototype.hasOwnProperty.call(t, k)) {
+          const e = FT('NAMES_F', nk + '#' + k);
+          t[k] = e;
+          if (sys) fixSystemUiFace(fam, has, e, k);
+          else { fixK3f(e); if (mm && !e.midM) e.midM = mm; fixMaps(e); fixKrb(e); }
+        }
+        return t[k];
+      } });
+    }
     return fam;
   }
 '''
@@ -194,6 +197,29 @@ def _spans(text):
     return out
 
 
+def _split_faces(family, raw, faces_tbl, blob):
+    """A family entry minus its `f` faces map: each face goes to its own
+    NAMES_F "family#face" entry (raw bytes), the body keeps `__faces` (the
+    face keys in source order) in place of `f`."""
+    members = _spans(raw)
+    keys = [k for k, _ in members]
+    if 'f' not in keys:
+        return raw
+    parts = []
+    for k, v in members:
+        if k != 'f':
+            parts.append('%s:%s' % (json.dumps(k), v))
+            continue
+        order = []
+        for t, fv in _spans(v):
+            b = fv.encode('ascii')
+            faces_tbl['%s#%s' % (family, t)] = [len(blob), len(b)]
+            blob += b
+            order.append(t)
+        parts.append('"__faces":%s' % json.dumps(order, separators=(',', ':')))
+    return '{' + ','.join(parts) + '}'
+
+
 def _replace_once(src, old, new):
     c = src.count(old)
     assert c == 1, 'font_metrics_lazy: expected one match, got %d for: %r' % (c, old[:120])
@@ -224,11 +250,16 @@ def lazify(src, data_path, index_path):
         seen.add(name)
         json.loads(payload)  # pure data, or this post-pass is wrong
         tbl = {}
+        faces_tbl = {}
         for key, raw in _spans(payload):
+            if name == 'NAMES':
+                raw = _split_faces(key, raw, faces_tbl, blob)
             b = raw.encode('ascii')
             tbl[key] = [len(blob), len(b)]
             blob += b
         index[name] = tbl
+        if name == 'NAMES':
+            index['NAMES_F'] = faces_tbl
         if name == 'ADV':
             out.append(HELPERS.rstrip('\n'))
             out.append("  const ADV = lazyArr('ADV', (v) => v);")
