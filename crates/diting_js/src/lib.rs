@@ -11,6 +11,7 @@ pub mod ws;
 pub mod snapshot_sources {
     include!(concat!(env!("OUT_DIR"), "/snapshot_sources_ascii.rs"));
 }
+pub(crate) mod font_tables;
 mod import_map;
 pub mod markdown;
 mod write_stream;

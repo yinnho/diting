@@ -788,6 +788,12 @@ fn op_dom(
 }
 
 fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> String {
+    // Font-metrics truth tables (font_tables.rs): pure data, no DOM or
+    // shared state needed — answered before the no-dom guard so a canvas in
+    // a DOM-less realm still measures.
+    if cmd == "font_table" {
+        return crate::font_tables::lookup(&arg1, &arg2);
+    }
     // Title write goes to shared state (the getter reads gs.title), so it must
     // happen before the immutable borrow below — and before the `gs.dom` early
     // return, since a document always has a title even with an empty tree.
