@@ -54,22 +54,27 @@ static ZOMBIE_THREADS: std::sync::LazyLock<
 /// Whether `thread`'s isolate is currently declared a zombie (see
 /// [`ZOMBIE_THREADS`]). Cheap: one uncontended lock + a set probe.
 pub fn is_zombie_thread(thread: std::thread::ThreadId) -> bool {
+    zombies().contains(&thread)
+}
+
+/// Poison-recovering guard on [`ZOMBIE_THREADS`] (#336): a poisoned set
+/// must not read as "nobody is a zombie" forever — the set's insert/remove
+/// critical sections leave it intact.
+fn zombies() -> std::sync::MutexGuard<'static, std::collections::HashSet<std::thread::ThreadId>> {
     ZOMBIE_THREADS
         .lock()
-        .map(|z| z.contains(&thread))
-        .unwrap_or(false)
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Test seam for the product's session layer (its reply wait keys on the
 /// verdict): declare or lift `thread` without driving a real spin.
 #[doc(hidden)]
 pub fn set_zombie_thread_for_test(thread: std::thread::ThreadId, zombie: bool) {
-    if let Ok(mut z) = ZOMBIE_THREADS.lock() {
-        if zombie {
-            z.insert(thread);
-        } else {
-            z.remove(&thread);
-        }
+    let mut z = zombies();
+    if zombie {
+        z.insert(thread);
+    } else {
+        z.remove(&thread);
     }
 }
 
@@ -264,7 +269,9 @@ pub fn spawn_watchdog(
     let owner = std::thread::current().id();
     let join = std::thread::spawn(move || {
         let (lock, cvar) = &*pair_c;
-        let mut cancelled = lock.lock().unwrap();
+        let mut cancelled = lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let deadline = std::time::Instant::now() + budget;
         loop {
             // Check first: stop() may have set this (and notified into the void)
@@ -341,9 +348,7 @@ pub fn spawn_watchdog(
                 );
                 // An owner resurfacing right after this is fine: its
                 // cancel_and_join clears the mark only after joining us.
-                if let Ok(mut z) = ZOMBIE_THREADS.lock() {
-                    z.insert(owner);
-                }
+                zombies().insert(owner);
                 // Keep knocking (1s cadence) until the owner is back: free
                 // for a true #2088 spin, and a heal-and-continue spin that
                 // outlived the grace still gets cut at its next JS entry.
@@ -360,7 +365,9 @@ pub fn spawn_watchdog(
                 }
                 return;
             }
-            let (guard, _) = cvar.wait_timeout(cancelled, remaining).unwrap();
+            let (guard, _) = cvar
+                .wait_timeout(cancelled, remaining)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             cancelled = guard;
             if *cancelled {
                 return;
@@ -394,7 +401,15 @@ fn bounded_cancel_and_join(
     {
         let (lock, cvar) = pair;
         loop {
-            if let Ok(mut cancelled) = lock.try_lock() {
+            // A poisoned pair (the watchdog thread panicked) is still ours
+            // to signal; skipping it would read as a wedge and leak the
+            // isolate (#336).
+            let acquired = match lock.try_lock() {
+                Ok(guard) => Some(guard),
+                Err(std::sync::TryLockError::Poisoned(e)) => Some(e.into_inner()),
+                Err(std::sync::TryLockError::WouldBlock) => None,
+            };
+            if let Some(mut cancelled) = acquired {
                 *cancelled = true;
                 drop(cancelled);
                 cvar.notify_one();
@@ -493,10 +508,8 @@ impl WatchdogToken {
             // own): the thread is live again. Its waiters already gave up, so
             // this only matters for the next command — which must not be
             // refused against a thread that is serving.
-            if let Ok(mut z) = ZOMBIE_THREADS.lock() {
-                if z.remove(&self.owner) {
-                    eprintln!("[watchdog] zombie verdict lifted: the isolate resurfaced late");
-                }
+            if zombies().remove(&self.owner) {
+                eprintln!("[watchdog] zombie verdict lifted: the isolate resurfaced late");
             }
         }
         if let Some(stop) = self.sampler_stop.take() {

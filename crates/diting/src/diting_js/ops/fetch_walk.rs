@@ -113,13 +113,15 @@ struct InFlightEntryGuard {
 
 impl Drop for InFlightEntryGuard {
     fn drop(&mut self) {
-        if let Ok(mut l) = self.list.lock() {
-            if let Some(pos) = l
-                .iter()
-                .position(|f| f.url == self.url && f.method == self.method)
-            {
-                l.remove(pos);
-            }
+        let mut l = self
+            .list
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(pos) = l
+            .iter()
+            .position(|f| f.url == self.url && f.method == self.method)
+        {
+            l.remove(pos);
         }
     }
 }
@@ -703,9 +705,9 @@ pub(crate) async fn fetch_url_walk(
                 method: current_method.as_str().to_string(),
                 dispatched_at_ms: crate::diting_net::client::epoch_ms(),
             };
-            if let Ok(mut l) = list.lock() {
-                l.push(entry);
-            }
+            list.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(entry);
             InFlightEntryGuard {
                 list: list.clone(),
                 url: current_url.clone(),

@@ -450,7 +450,10 @@ impl HttpClient {
     /// Currently-flying script-initiated fetch()/XHR hops (per-redirect-hop,
     /// like the counter). Readers compute `age_ms` from `dispatched_at_ms`.
     pub fn scripted_in_flight(&self) -> Vec<InFlightScripted> {
-        self.in_flight_list.lock().unwrap().clone()
+        self.in_flight_list
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     pub async fn fetch(&self, url: &Url) -> Result<Response, NetError> {

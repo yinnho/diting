@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::RwLock;
+use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use url::Url;
 
 const DEFAULT_SAME_SITE: &str = "Lax";
@@ -107,6 +107,21 @@ impl CookieJar {
         }
     }
 
+    // Poison recovery (#336): one jar is shared by every request and
+    // document.cookie write of a context, and ops survive panics via
+    // catch_unwind — a plain unwrap would turn one panic under the write
+    // lock into a panic on every later cookie access. Recovering is sound:
+    // the critical sections are single HashMap insert/remove/retain/clear
+    // calls, which leave the map intact; a seeding batch can at worst land
+    // half-applied, each cookie whole.
+    fn jar_read(&self) -> RwLockReadGuard<'_, HashMap<String, DomainCookies>> {
+        self.cookies.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn jar_write(&self) -> RwLockWriteGuard<'_, HashMap<String, DomainCookies>> {
+        self.cookies.write().unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn record_trace(
         &self,
         source: &'static str,
@@ -118,7 +133,7 @@ impl CookieJar {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
-        let mut trace = self.trace.write().unwrap();
+        let mut trace = self.trace.write().unwrap_or_else(PoisonError::into_inner);
         if trace.len() == COOKIE_TRACE_CAP {
             trace.pop_front();
         }
@@ -140,7 +155,12 @@ impl CookieJar {
 
     /// The mutation ring, oldest first. Metadata only — never a value.
     pub fn cookie_trace(&self) -> Vec<CookieTraceEntry> {
-        self.trace.read().unwrap().iter().cloned().collect()
+        self.trace
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .cloned()
+            .collect()
     }
 
     pub fn set_cookie(&self, set_cookie_str: &str, url: &Url) {
@@ -290,7 +310,7 @@ impl CookieJar {
             if exp <= now {
                 // An expired Set-Cookie is a deletion of the matching
                 // (name, path) entry, not a no-op.
-                let mut cookies = self.cookies.write().unwrap();
+                let mut cookies = self.jar_write();
                 if let Some(domain_cookies) = cookies.get_mut(&domain) {
                     domain_cookies.remove(&(name.clone(), path.clone()));
                 }
@@ -328,7 +348,7 @@ impl CookieJar {
         };
 
         {
-            let mut cookies = self.cookies.write().unwrap();
+            let mut cookies = self.jar_write();
             cookies
                 .entry(domain.clone())
                 .or_default()
@@ -344,7 +364,7 @@ impl CookieJar {
         let host = url.host_str().unwrap_or("");
         let path = url.path();
         let is_secure = is_trustworthy_origin(url);
-        let cookies = self.cookies.read().unwrap();
+        let cookies = self.jar_read();
 
         let mut matching: Vec<String> = Vec::new();
 
@@ -386,7 +406,7 @@ impl CookieJar {
         let host = url.host_str().unwrap_or("");
         let path = url.path();
         let is_secure = is_trustworthy_origin(url);
-        let cookies = self.cookies.read().unwrap();
+        let cookies = self.jar_read();
 
         let mut matching: Vec<String> = Vec::new();
 
@@ -422,7 +442,7 @@ impl CookieJar {
     }
 
     pub fn get_all_cookies(&self) -> Vec<CookieInfo> {
-        let cookies = self.cookies.read().unwrap();
+        let cookies = self.jar_read();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -452,7 +472,7 @@ impl CookieJar {
     /// same live, unexpired walk, minus every value — the "what auth state
     /// exists" answer for callers who must not hold credentials.
     pub fn get_all_cookie_metadata(&self) -> Vec<CookieMetadata> {
-        let cookies = self.cookies.read().unwrap();
+        let cookies = self.jar_read();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -484,7 +504,7 @@ impl CookieJar {
         // baseline — when each cookie appeared.
         let mut seeded: Vec<CookieEntry> = Vec::with_capacity(cookies.len());
         {
-            let mut jar = self.cookies.write().unwrap();
+            let mut jar = self.jar_write();
             for cookie in cookies {
                 let same_site = if cookie.same_site.is_empty() {
                     DEFAULT_SAME_SITE.to_string()
@@ -525,7 +545,7 @@ impl CookieJar {
         let host = url.host_str().unwrap_or("");
         let path = url.path();
         let is_secure = is_trustworthy_origin(url);
-        let cookies = self.cookies.read().unwrap();
+        let cookies = self.jar_read();
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -656,7 +676,7 @@ impl CookieJar {
         // HttpOnly session cookie. Like every document.cookie failure, the
         // write is a silent no-op, never an exception.
         {
-            let cookies = self.cookies.read().unwrap();
+            let cookies = self.jar_read();
             if cookies
                 .get(&domain)
                 .and_then(|dc| dc.get(&(name.clone(), path.clone())))
@@ -672,7 +692,7 @@ impl CookieJar {
                 .unwrap_or_default()
                 .as_secs();
             if exp <= now {
-                let mut cookies = self.cookies.write().unwrap();
+                let mut cookies = self.jar_write();
                 if let Some(domain_cookies) = cookies.get_mut(&domain) {
                     domain_cookies.remove(&(name.clone(), path.clone()));
                 }
@@ -710,7 +730,7 @@ impl CookieJar {
         };
 
         {
-            let mut cookies = self.cookies.write().unwrap();
+            let mut cookies = self.jar_write();
             cookies
                 .entry(domain.clone())
                 .or_default()
@@ -720,7 +740,7 @@ impl CookieJar {
     }
 
     pub fn delete_cookies_filtered(&self, name: &str, domain: &str, path: Option<&str>) {
-        let mut cookies = self.cookies.write().unwrap();
+        let mut cookies = self.jar_write();
         let matches_path = |entry_path: &str| match path {
             Some(p) => entry_path == p,
             None => true,
@@ -744,7 +764,7 @@ impl CookieJar {
     }
 
     pub fn clear(&self) {
-        self.cookies.write().unwrap().clear();
+        self.jar_write().clear();
     }
 
     /// Serialize all non-expired cookies to a JSON file.
@@ -752,7 +772,7 @@ impl CookieJar {
     pub fn save_to_file(&self, path: &std::path::Path) -> Result<(), std::io::Error> {
         use std::io::Write;
 
-        let cookies = self.cookies.read().unwrap();
+        let cookies = self.jar_read();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

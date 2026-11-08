@@ -281,7 +281,10 @@ async fn stream_to_file(
         let prefix = tokio::fs::read(part_path)
             .await
             .with_context(|| format!("hashing existing partial {}", part_path.display()))?;
-        hasher.lock().unwrap().update(&prefix);
+        hasher
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .update(&prefix);
     }
 
     let writer_task: JoinHandle<Result<u64>> = {
@@ -304,7 +307,10 @@ async fn stream_to_file(
                 file.write_all(&chunk)
                     .await
                     .map_err(|e| anyhow!("disk write failed: {e}"))?;
-                hasher.lock().unwrap().update(&chunk);
+                hasher
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .update(&chunk);
                 total += chunk.len() as u64;
                 if start_offset + total > MAX_FILE_BYTES {
                     return Err(anyhow!("exceeds {}B hard limit", MAX_FILE_BYTES));
@@ -325,7 +331,11 @@ async fn stream_to_file(
         .await
         .with_context(|| format!("finalize {}", final_path.display()))?;
 
-    let digest = hasher.lock().unwrap().clone().finalize();
+    let digest = hasher
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+        .finalize();
     let sha256 = digest
         .iter()
         .map(|b| format!("{:02x}", b))
