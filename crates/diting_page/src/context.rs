@@ -150,12 +150,12 @@ impl BrowserContext {
             // stealth on both transports (obscura#995); unset keeps the
             // documented stealth default.
             client.block_trackers = diting_net::blocklist::block_trackers_from_env();
-            // #116: on a stealth page the JS fetch()/XHR hops must ride the
-            // wreq emulation stack too — one jar behind one JA3, matching
-            // the navigation's handshake. The fingerprint feeds the
-            // transport the scripted hop builds, so every stack this
-            // context can present agrees.
-            client.scripted_rides_stealth = true;
+            // #116: on a stealth page subresources and the JS fetch()/XHR
+            // hops ride the wreq emulation stack too — one jar behind one
+            // JA3, matching the navigation's handshake. The fingerprint
+            // feeds that transport, so every stack this context can
+            // present agrees.
+            client.rides_stealth = true;
             client.tls_fingerprint = tls_fingerprint.clone();
         }
         // Resolution chain: explicit per-context UA → DITING_UA → the
@@ -221,7 +221,7 @@ impl BrowserContext {
             // #116: the copy keeps the template's scripted-transport posture
             // (see `_new_with_jar`) so a CDP-isolated context presents the
             // same handshake on both document and script hops.
-            client.scripted_rides_stealth = true;
+            client.rides_stealth = true;
             client.tls_fingerprint = self.tls_fingerprint.clone();
         }
         if let Ok(mut guard) = client.user_agent.try_write() {

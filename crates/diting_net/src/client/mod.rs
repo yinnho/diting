@@ -245,15 +245,16 @@ pub struct HttpClient {
     /// through in addition to the `DITING_ALLOW_PRIVATE_NETWORK` env var.
     /// Set via `--allow-private-network` on the CLI (issue #33).
     pub allow_private_network: bool,
-    /// #116 transport-layer fix: on a stealth page the JS fetch()/XHR hops
-    /// ride the wreq emulation stack FIRST (same TLS fingerprint the
-    /// navigation above them presented) instead of the plain client — one
-    /// cookie jar behind two JA3s is a bot tell (the bilibili 412 lesson:
-    /// the WAF holds the scripted request until xhr.timeout fires while
-    /// the document request sailed through on the stealth handshake).
-    /// Set by `BrowserContext` when `context.stealth`; plain contexts never
-    /// set it and scripted hops stay on the plain client.
-    pub scripted_rides_stealth: bool,
+    /// On a stealth page every request this client makes rides the wreq
+    /// emulation stack (same TLS fingerprint the navigation presented):
+    /// stylesheets, module scripts, render prefetches and form posts
+    /// through the `fetch*` entry points, and JS fetch()/XHR hops through
+    /// [`Self::scripted_stealth_hop`] — one cookie jar behind two JA3s is a
+    /// bot tell (#116, the bilibili 412 lesson: the WAF held the scripted
+    /// request until xhr.timeout fired while the document sailed through on
+    /// the stealth handshake). Set by `BrowserContext` when
+    /// `context.stealth`; plain contexts never set it.
+    pub rides_stealth: bool,
     /// The context's requested TLS fingerprint (`tls_fingerprint` param),
     /// baked into the wreq transport so the scripted hop presents the same
     /// profile — and the same platform, derived from the UA — as the page's
@@ -308,7 +309,7 @@ impl HttpClient {
             in_flight_list: Arc::new(std::sync::Mutex::new(Vec::new())),
             block_trackers: false,
             allow_private_network,
-            scripted_rides_stealth: false,
+            rides_stealth: false,
             tls_fingerprint: None,
             emulate_chrome: false,
             stealth_transport: tokio::sync::OnceCell::new(),
@@ -581,6 +582,18 @@ impl HttpClient {
         resource_type: ResourceType,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
+        if self.rides_stealth && url.scheme() != "file" {
+            return self
+                .fetch_via_stealth(
+                    initial_method,
+                    url,
+                    initial_body.as_deref(),
+                    callbacks,
+                    resource_type,
+                    referrer,
+                )
+                .await;
+        }
         self.fetch_with_method_traced_inner(
             initial_method,
             url,
@@ -590,6 +603,75 @@ impl HttpClient {
             referrer,
         )
         .await
+    }
+
+    /// The stealth-context arm of the `fetch*` entry points: same request on
+    /// the emulating transport — per-class Fetch-Metadata, Chrome header
+    /// order and Priority come from the stealth walk, which also re-validates
+    /// SSRF per hop and stores cookies. The transport has no observer hook,
+    /// so callbacks fire here with the headers that actually went out, and
+    /// the in-flight counter the settle loop reads covers it like the plain
+    /// path.
+    async fn fetch_via_stealth(
+        &self,
+        method: Method,
+        url: &Url,
+        body: Option<&[u8]>,
+        callbacks: Option<&CallbackRegistry>,
+        resource_type: ResourceType,
+        referrer: Option<&str>,
+    ) -> Result<Response, NetError> {
+        // Mirror the plain path's default for a POST with a body.
+        let content_type = (body.is_some() && method == Method::POST)
+            .then_some("application/x-www-form-urlencoded");
+        let stealth = self.synced_stealth_transport().await;
+        self.in_flight
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let in_flight = InFlightDecrement(Some(self.in_flight.clone()));
+        let resp = stealth
+            .fetch_inner(
+                url,
+                referrer,
+                method.clone(),
+                body,
+                content_type,
+                None,
+                true,
+                resource_type,
+            )
+            .await;
+        drop(in_flight);
+        let resp = resp?;
+        if let Some(cbs) = callbacks {
+            if cbs.has_request_callbacks().await || cbs.has_response_callbacks().await {
+                let info = RequestInfo {
+                    url: resp.url.clone(),
+                    method: method.as_str().to_string(),
+                    headers: resp.request_headers.clone(),
+                    resource_type,
+                };
+                cbs.fire_request(&info).await;
+                cbs.fire_response(&info, &resp).await;
+            }
+        }
+        Ok(resp)
+    }
+
+    /// The stealth transport with this client's current identity (UA,
+    /// Accept-Language, extra headers) copied in — they can change after
+    /// the transport was built.
+    async fn synced_stealth_transport(&self) -> &Arc<crate::StealthHttpClient> {
+        let stealth = self.stealth_transport().await;
+        stealth
+            .set_user_agent(&self.user_agent.read().await.clone())
+            .await;
+        stealth
+            .set_accept_language(&self.accept_language.read().await.clone())
+            .await;
+        stealth
+            .set_extra_headers(self.extra_headers.read().await.clone())
+            .await;
+        stealth
     }
 
     /// #116 transport-layer fix: the stealth-first scripted hop. On a
@@ -613,7 +695,7 @@ impl HttpClient {
         request_headers: Option<&HashMap<String, String>>,
         include_cookies: bool,
     ) -> Option<Result<Response, NetError>> {
-        if !self.scripted_rides_stealth {
+        if !self.rides_stealth {
             return None;
         }
         if validate_url(url, self.allow_private_network).is_err() {
@@ -622,16 +704,7 @@ impl HttpClient {
             // gate error surfaces keep their shape.
             return None;
         }
-        let stealth = self.stealth_transport().await;
-        stealth
-            .set_user_agent(&self.user_agent.read().await.clone())
-            .await;
-        stealth
-            .set_accept_language(&self.accept_language.read().await.clone())
-            .await;
-        stealth
-            .set_extra_headers(self.extra_headers.read().await.clone())
-            .await;
+        let stealth = self.synced_stealth_transport().await;
         Some(
             stealth
                 .fetch_with_body(
@@ -648,7 +721,7 @@ impl HttpClient {
     }
 
     /// Build the stealth transport on first need, mirroring this client's
-    /// cookie jar, proxy and private-network posture. It bakes the page's
+    /// cookie jar, proxy, private-network and tracker-blocking posture. It bakes the page's
     /// own handshake posture — the context `tls_fingerprint` profile and the
     /// UA-derived platform — instead of the stock chrome-target default, so
     /// the scripted hop never swaps one JA3-mismatch tell for another (#116).
@@ -661,7 +734,7 @@ impl HttpClient {
                     .and_then(crate::parse_tls_fingerprint)
                     .unwrap_or_else(diting_env::chrome_target::target_tls_profile);
                 let os = crate::emulation_os_for_ua(&self.user_agent.read().await.clone());
-                let client = crate::StealthHttpClient::with_proxy_and_emulation(
+                let mut client = crate::StealthHttpClient::with_proxy_and_emulation(
                     self.cookie_jar.clone(),
                     self.proxy_url.as_deref(),
                     Some(os),
@@ -671,6 +744,7 @@ impl HttpClient {
                     self.allow_private_network,
                     std::sync::atomic::Ordering::Relaxed,
                 );
+                client.block_trackers = self.block_trackers;
                 Arc::new(client)
             })
             .await
