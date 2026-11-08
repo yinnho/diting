@@ -80,6 +80,8 @@ CFKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-cfkill-truth-145.j
 # rows parked in _meta.qdiff for a later resolver knife.
 FMFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-fmfill-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics.js')
+DATA_OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics_data.tables')
+INDEX_OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics_index.json')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
 # generic resolution — monospace=Menlo, serif=Songti SC, cursive=Kaiti SC,
@@ -1759,6 +1761,9 @@ def main():
     lines.append('  };')
     lines.append('})();')
     src = '\n'.join(lines) + '\n'
+    # Big tables leave the snapshot (per-realm heap): see font_metrics_lazy.py.
+    from font_metrics_lazy import lazify
+    src = lazify(src, DATA_OUT, INDEX_OUT)
     open(OUT, 'w', encoding='utf8').write(src)
     spots_n = sum(1 for n in names.values() if 's' in n)
     print('wrote %s: %d unique tables, %d names, %d generics, %d fonts with size overrides, '

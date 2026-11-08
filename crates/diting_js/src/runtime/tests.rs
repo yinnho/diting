@@ -40115,7 +40115,10 @@ class Z extends HTMLElement{static get observedAttributes(){return ["p"]}}custom
 fn test_watchdog_zombie_verdict_marks_and_lifts_owner_thread() {
     // rusty_v8 #2088 (reproduced on 150.4.0 and 152.2.0): terminate_execution never lands
     // inside a TurboFan-optimized loop calling Array.prototype.fill. This
-    // loop is bounded (~7s) so it ends on its own: the terminate fired at
+    // loop is bounded (~7s) so it ends on its own (90M iterations: once the
+    // font tables left the snapshot the realm heap went 326MB -> 8MB and the
+    // old 1.5M-iteration loop dropped from ~7s of GC to ~130ms, finishing
+    // before the watchdog could even fire): the terminate fired at
     // 200ms is swallowed (re-hammering too), the post-fire grace (3s under
     // cfg(test), 20s in production — ZOMBIE_VERDICT_AFTER) runs out and must register
     // the owner thread as a zombie (the session layer's cue to stop waiting
@@ -40127,7 +40130,7 @@ fn test_watchdog_zombie_verdict_marks_and_lifts_owner_thread() {
         let wd = rt.arm_watchdog(std::time::Duration::from_millis(200));
         let t0 = std::time::Instant::now();
         let _ = rt.evaluate(
-            "(() => { let x; for (let i = 0; i < 1500000; i++) x = new Array(64).fill(1); })()",
+            "(() => { let x; for (let i = 0; i < 90000000; i++) x = new Array(64).fill(1); })()",
         );
         let ran = t0.elapsed();
         let fired = rt.disarm_watchdog(wd);
