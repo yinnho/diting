@@ -234,7 +234,6 @@ pub async fn prefetch_render_resources(
             tracing::info!("Blocked prefetch by Network.setBlockedURLs: {}", u);
             return None;
         }
-        #[cfg(feature = "stealth")]
         if let Some(ref stealth) = page.inner.stealth_client {
             return stealth.fetch(u).await.ok();
         }

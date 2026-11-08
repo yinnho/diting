@@ -9,13 +9,11 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 ///
 /// Connectivity: html.duckduckgo.com is unreachable from CN networks, and the
 /// relay/exit IPs we share with other tenants get anomaly-flagged regardless
-/// of UA. Stealth builds fetch through the wreq client (emulated Chrome
-/// TLS+UA — the plain-reqwest fingerprint was the other half of the anomaly
-/// trigger; SearXNG migrated its whole fleet to curl_cffi for the same
-/// reason): direct first, then DITING_PROXY. Non-stealth builds keep
-/// the plain reqwest path.
+/// of UA. Fetches go through the wreq client (emulated Chrome TLS+UA — the
+/// plain-reqwest fingerprint was the other half of the anomaly trigger;
+/// SearXNG migrated its whole fleet to curl_cffi for the same reason):
+/// direct first, then DITING_PROXY.
 pub struct DuckDuckGoEngine {
-    #[cfg(feature = "stealth")]
     stealth: std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>,
 }
 
@@ -24,7 +22,6 @@ impl DuckDuckGoEngine {
         DuckDuckGoEngine {
             // No UA override: the coherent built-in Chrome TLS+UA identity is
             // the entire point of the stealth client.
-            #[cfg(feature = "stealth")]
             stealth: super::build_stealth_client(false),
         }
     }
@@ -32,7 +29,6 @@ impl DuckDuckGoEngine {
     /// Proxied stealth client resolved per request via [`super::search_proxy_url`]
     /// (DITING_PROXY or live local :8800) so a late-starting stunnel
     /// still gets used.
-    #[cfg(feature = "stealth")]
     fn stealth_proxied(
         &self,
     ) -> Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>> {
@@ -50,7 +46,6 @@ impl DuckDuckGoEngine {
     /// anchors falls through to the proxied attempt. A flagged exit IP still
     /// returns a real 200 DDG page — the returned body is unvalidated so the
     /// caller's anomaly check can classify it.
-    #[cfg(feature = "stealth")]
     async fn fetch_results_html(&self, url: &str) -> Result<String, SearchEngineError> {
         let mut rejected: Option<String> = None;
         let mut last_err: Option<SearchEngineError> = None;
@@ -109,11 +104,6 @@ impl DuckDuckGoEngine {
         Err(last_err
             .unwrap_or_else(|| SearchEngineError::Transient("no fetch path succeeded".into())))
     }
-
-    #[cfg(not(feature = "stealth"))]
-    async fn fetch_results_html(&self, url: &str) -> Result<String, SearchEngineError> {
-        super::get_direct_first_if(url, DDG_HEADERS, super::proxied_plain_client, has_results).await
-    }
 }
 
 /// Result pages carry `a.result__a` anchors; anomaly challenges are real DDG
@@ -121,9 +111,6 @@ impl DuckDuckGoEngine {
 fn has_results(body: &str) -> bool {
     body.contains("result__a")
 }
-
-#[cfg(not(feature = "stealth"))]
-const DDG_HEADERS: &[(&str, &str)] = &[("User-Agent", diting::chrome_target::UA_DEFAULT)];
 
 #[async_trait]
 impl SearchEngine for DuckDuckGoEngine {

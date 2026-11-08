@@ -22,8 +22,6 @@
 //! Headers a list does not name keep wreq's default placement (after the
 //! named ones), which is where Chrome puts unknown author headers closest to.
 
-#![cfg(feature = "stealth")]
-
 use diting_wire::header::OrigHeaderMap;
 
 use crate::client::ResourceType;

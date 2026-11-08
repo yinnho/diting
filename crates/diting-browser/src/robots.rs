@@ -300,7 +300,6 @@ async fn fetch_policy(origin: &str) -> Policy {
                     // refused because rustls ships no CBC suites. One last
                     // attempt rides the BoringSSL transport — same honest
                     // UA, same proxy decision — before denying.
-                    #[cfg(feature = "stealth")]
                     match fetch_policy_via_legacy_tls(origin).await {
                         Ok(policy) => return policy,
                         Err(legacy) => {
@@ -309,8 +308,6 @@ async fn fetch_policy(origin: &str) -> Policy {
                             ))
                         }
                     }
-                    #[cfg(not(feature = "stealth"))]
-                    return Policy::DenyAll(format!("network: {first}; retry: {second}"));
                 }
             }
         }
@@ -371,7 +368,6 @@ fn policy_from_robots_response(status: u16, body: &[u8]) -> Policy {
 /// unchanged: the borrowed part of the stealth client is its cipher shelf,
 /// never its name — the advertised User-Agent (what `User-agent:` group
 /// matching keys on) stays the honest product token.
-#[cfg(feature = "stealth")]
 async fn fetch_policy_via_legacy_tls(origin: &str) -> Result<Policy, String> {
     let client = diting::diting_net::StealthHttpClient::with_proxy(
         std::sync::Arc::new(diting::diting_net::CookieJar::new()),

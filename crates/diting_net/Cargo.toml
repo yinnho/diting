@@ -9,9 +9,9 @@ publish = false
 
 [features]
 default = []
-# Stealth HTTP client with TLS/JA3 fingerprint spoofing via wreq (BoringSSL).
-# Disable for plain reqwest-only builds.
-stealth = ["dep:diting_wire", "dep:diting_profiles", "diting_env/stealth"]
+# No-op: the wire/BoringSSL stack is always built. Kept so `--features stealth` in
+# CI, deploy and release commands keeps resolving.
+stealth = []
 
 [dependencies]
 diting_env = { path = "../diting_env" }
@@ -31,15 +31,15 @@ url = "2"
 # --- stealth client (TLS fingerprint spoofing) ---
 # The browser-fidelity HTTP stack lives in this repository (vendored from the wreq
 # family, see crates/VENDORED.md) - no external pre-release pins to track.
-diting_profiles = { path = "../diting_profiles", optional = true }
+diting_profiles = { path = "../diting_profiles" }
 
 # prefix-symbols renames BoringSSL exports to avoid clashing with system OpenSSL,
 # but the renaming is only correct on Linux/Android (per the wreq README it came from).
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-diting_wire = { path = "../diting_wire", optional = true, features = ["prefix-symbols", "socks", "gzip", "brotli", "deflate", "zstd"] }
+diting_wire = { path = "../diting_wire", features = ["prefix-symbols", "socks", "gzip", "brotli", "deflate", "zstd"] }
 
 [target.'cfg(not(any(target_os = "linux", target_os = "android")))'.dependencies]
-diting_wire = { path = "../diting_wire", optional = true, features = ["socks", "gzip", "brotli", "deflate", "zstd"] }
+diting_wire = { path = "../diting_wire", features = ["socks", "gzip", "brotli", "deflate", "zstd"] }
 
 [lints]
 workspace = true

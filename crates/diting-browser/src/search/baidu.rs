@@ -24,21 +24,18 @@ const HEADERS: &[(&str, &str)] = &[
 /// check below, that parsed to zero results and read as "no hits" while
 /// `/engines` showed the engine healthy (v0.3.2 Windows report P1-1).
 pub struct BaiduEngine {
-    #[cfg(feature = "stealth")]
     stealth: Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>>,
     plain_client: reqwest::Client,
 }
 
 impl BaiduEngine {
     pub fn new() -> Self {
-        #[cfg(feature = "stealth")]
         let stealth = {
             let s = super::build_stealth_client(false); // Baidu direct (domestic)
             Some(s)
         };
 
         BaiduEngine {
-            #[cfg(feature = "stealth")]
             stealth,
             plain_client: super::build_plain_client(10),
         }
@@ -72,7 +69,6 @@ impl SearchEngine for BaiduEngine {
         );
 
         let html;
-        #[cfg(feature = "stealth")]
         {
             html = if let Some(ref stealth) = self.stealth {
                 match super::stealth_fetch(stealth.as_ref(), &url).await {
@@ -82,10 +78,6 @@ impl SearchEngine for BaiduEngine {
             } else {
                 super::plain_fetch_with(&self.plain_client, &url, HEADERS).await?
             };
-        }
-        #[cfg(not(feature = "stealth"))]
-        {
-            html = super::plain_fetch_with(&self.plain_client, &url, HEADERS).await?;
         }
 
         // The 200-body wall variant: the page is nothing but a captcha

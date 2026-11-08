@@ -64,7 +64,6 @@ fn hex_val(b: u8) -> Option<u8> {
     }
 }
 
-#[cfg(feature = "stealth")]
 use diting_net::StealthHttpClient;
 
 /// Returns true when a JS-initiated navigation would step from a
@@ -521,7 +520,6 @@ pub struct Page {
     /// realm re-freezes one window after the last command; a parked burner
     /// (no commands) keeps the original containment.
     busy_probe_pending: bool,
-    #[cfg(feature = "stealth")]
     pub stealth_client: Option<Arc<StealthHttpClient>>,
 }
 
@@ -548,7 +546,6 @@ impl Page {
         // Page.getFrameTree return a frame the client cannot match,
         // triggering a Target.closeTarget and "Frame has been detached".
         let frame_id = id.clone();
-        #[cfg(feature = "stealth")]
         let stealth_client = if context.stealth {
             // The wreq client backing StealthHttpClient does not speak SOCKS5.
             // Callers must validate the proxy scheme up front and fail loudly
@@ -634,7 +631,6 @@ impl Page {
             busy_mark: None,
             busy_frozen: false,
             busy_probe_pending: false,
-            #[cfg(feature = "stealth")]
             stealth_client,
         }
     }
@@ -735,7 +731,6 @@ impl Page {
         } else {
             Some(self.referrer.as_str())
         };
-        #[cfg(feature = "stealth")]
         if let Some(ref stealth) = self.stealth_client {
             return stealth.fetch_navigation(url, referrer).await;
         }
@@ -827,17 +822,12 @@ impl Page {
         let ua_to_set = if let Ok(ua) = self.http_client.user_agent.try_read() {
             ua.clone()
         } else {
-            #[cfg(feature = "stealth")]
             {
                 if self.stealth_client.is_some() {
                     diting_net::STEALTH_USER_AGENT.to_string()
                 } else {
                     String::new()
                 }
-            }
-            #[cfg(not(feature = "stealth"))]
-            {
-                String::new()
             }
         };
         if !ua_to_set.is_empty() {

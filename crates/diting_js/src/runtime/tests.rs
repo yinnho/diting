@@ -14724,7 +14724,6 @@ async fn preflight_http_status_reported_before_origin() {
 /// stack's BoringSSL connects). A closed port fails both transports
 /// fast; the JS-visible rejection must carry the legacy marker for GET
 /// (fallback fired).
-#[cfg(feature = "stealth")]
 #[tokio::test(flavor = "current_thread")]
 async fn fetch_transport_failure_falls_back_to_legacy_tls() {
     let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
@@ -14773,7 +14772,6 @@ async fn fetch_transport_failure_falls_back_to_legacy_tls() {
 /// fires for the body-carrying method too and the marker must appear.
 /// The post-send arm (no retry, double-submit guard) is pinned at the
 /// client layer; this e2e pins the op's `is_connect` gate feeding it.
-#[cfg(feature = "stealth")]
 #[tokio::test(flavor = "current_thread")]
 async fn fetch_transport_failure_post_rides_connect_stage_fallback() {
     let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();

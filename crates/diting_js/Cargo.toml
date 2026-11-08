@@ -12,7 +12,9 @@ default = []
 # Layout/paint-backed ops (layout_rect, paint_order, computed_style, canvas
 # raster, screenshot) — without it they take the cfg(not) arms.
 screenshot = ["dep:diting_layout"]
-stealth = ["diting_net/stealth", "diting_env/stealth"]
+# No-op: the wire/BoringSSL stack is always built. Kept so `--features stealth` in
+# CI, deploy and release commands keeps resolving.
+stealth = []
 
 [dependencies]
 diting_env = { path = "../diting_env" }

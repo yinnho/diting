@@ -337,12 +337,10 @@ impl Page {
             .collect();
         let base = self.url_string();
         let client = self.http_client.clone();
-        #[cfg(feature = "stealth")]
         let stealth = self.stealth_client.clone();
         let futs = urls.into_iter().map(|u| {
             let client = client.clone();
             let base = base.clone();
-            #[cfg(feature = "stealth")]
             let stealth = stealth.clone();
             async move {
                 let Ok(parsed) = url::Url::parse(&u) else {
@@ -352,7 +350,6 @@ impl Page {
                     return None;
                 }
                 let resp = tokio::time::timeout(PER_REQUEST_TIMEOUT, async {
-                    #[cfg(feature = "stealth")]
                     if let Some(ref s) = stealth {
                         return s.fetch_subresource(&parsed, Some(base.as_str())).await.ok();
                     }

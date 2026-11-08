@@ -3050,9 +3050,7 @@ async fn network_rows_attribute_to_navigation_generation() {
 /// the /probe request's own head back as the body, logging every
 /// request head verbatim so a test can assert both WHAT went out on
 /// the wire and HOW MANY times (the no-double-transport guarantee).
-/// Stealth-test-only (its sole caller is the #116 stealth-page test);
-/// cfg'd out alongside it so non-stealth builds see no dead fixture.
-#[cfg(feature = "stealth")]
+/// Its sole caller is the #116 stealth-page test.
 fn recording_echo_origin() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -3109,7 +3107,6 @@ fn recording_echo_origin() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>
 /// plain reqwest main hop sends no sec-fetch-* at all), and exactly
 /// ONE /probe hit proves the successful stealth hop short-circuits
 /// plain instead of burning both transports.
-#[cfg(feature = "stealth")]
 #[tokio::test(flavor = "current_thread")]
 async fn stealth_page_script_fetch_rides_wreq_transport() {
     let _g = net_test_guard();
