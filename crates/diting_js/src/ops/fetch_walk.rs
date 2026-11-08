@@ -21,11 +21,11 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use url::Url;
 
 /// op_fetch_url's terminal response. The manual redirect walk yields a live
-/// reqwest response; the legacy-TLS fallback (transport failure on the raw
-/// client) yields an already-buffered engine response whose redirects were
-/// resolved — and per-hop revalidated — inside the HttpClient.
+/// response; the stealth-first hop yields an already-buffered engine
+/// response whose redirects were resolved — and per-hop revalidated —
+/// inside the HttpClient.
 enum OpFetchOutcome {
-    Live(reqwest::Response),
+    Live(diting_net::wire::Response),
     Buffered(diting_net::Response),
 }
 
@@ -132,19 +132,18 @@ fn header_present(headers: &HashMap<String, String>, name: &str) -> bool {
     headers.keys().any(|k| k.eq_ignore_ascii_case(name))
 }
 
-/// Convert a buffered `diting_net::Response` (stealth-hop or legacy-fallback
-/// shape) into the CORS preflight decision tuple: headers as a HeaderMap for
+/// Convert a buffered `diting_net::Response` (the stealth-first preflight,
+/// #116) into the CORS preflight decision tuple: headers as a HeaderMap for
 /// the method/header list parsers below, the two CORS answer headers, the
-/// status. The conversion the legacy-fallback path used to do inline; the
-/// stealth-first preflight needs the identical one (#116).
+/// status.
 fn buffered_preflight_parts(
     fr: &diting_net::Response,
-) -> (reqwest::header::HeaderMap, String, String, u16) {
-    let mut headers = reqwest::header::HeaderMap::new();
+) -> (diting_net::wire::header::HeaderMap, String, String, u16) {
+    let mut headers = diting_net::wire::header::HeaderMap::new();
     for (name, value) in &fr.headers {
         if let (Ok(n), Ok(v)) = (
-            reqwest::header::HeaderName::try_from(name.as_str()),
-            reqwest::header::HeaderValue::try_from(value.as_str()),
+            diting_net::wire::header::HeaderName::try_from(name.as_str()),
+            diting_net::wire::header::HeaderValue::try_from(value.as_str()),
         ) {
             headers.insert(n, v);
         }
@@ -168,20 +167,20 @@ fn buffered_preflight_parts(
 #[allow(clippy::too_many_arguments)]
 async fn cors_preflight(
     deps: &mut FetchWalkDeps,
-    client: &reqwest::Client,
+    client: &diting_net::wire::Client,
     http_client: &Option<Arc<HttpClient>>,
     url: &str,
     method: &str,
     page_origin: &str,
     credentials: FetchCredentials,
-    req_method: &reqwest::Method,
+    req_method: &diting_net::wire::Method,
     unsafe_header_names: &[String],
 ) -> Result<(), deno_error::JsErrorBox> {
     // Owned copies so the body reads exactly as it did inline (preflight
     // is the rare cross-origin non-simple path; three small clones).
     let (url, method, page_origin) = (url.to_string(), method.to_string(), page_origin.to_string());
     let mut preflight_request = client
-        .request(reqwest::Method::OPTIONS, &url)
+        .request(diting_net::wire::Method::OPTIONS, &url)
         .header("Origin", &page_origin)
         .header("Access-Control-Request-Method", method.as_str());
     if !unsafe_header_names.is_empty() {
@@ -203,16 +202,13 @@ async fn cors_preflight(
         );
     }
     // #116: the preflight rides the same transport the main request
-    // will — stealth-first on a stealth page, before plain rustls.
-    // `Some(Err)` records that the stealth stack already fired so the
-    // plain attempt's own legacy fallback stays gated (at most two
-    // transports per request); `None` (non-stealth build/context,
-    // SOCKS) leaves the plain path exactly as it was.
+    // will — stealth-first on a stealth page, before the plain client.
+    // `None` (plain context) leaves the plain path exactly as it was.
     let stealth_preflight = match http_client.as_ref() {
         Some(hc) => match url::Url::parse(&url) {
             Ok(u) => {
                 hc.scripted_stealth_hop(
-                    &reqwest::Method::OPTIONS,
+                    &diting_net::wire::Method::OPTIONS,
                     &u,
                     None,
                     None,
@@ -248,50 +244,21 @@ async fn cors_preflight(
                 p.status().as_u16(),
             ),
             Err(e) => {
-                // The plain preflight keeps the legacy-TLS escape
-                // hatch (a CBC-only endpoint kills the OPTIONS in
-                // the ClientHello before the main request — which
-                // does retry on connect-stage failure — ever ran)
-                // unless the stealth stack already fired above.
-                let fallback = match http_client.as_ref() {
-                    Some(hc) if preflight_stealth_err.is_none() => match url::Url::parse(&url) {
-                        Ok(u) => Some(
-                            hc.scripted_fetch_fallback(
-                                &reqwest::Method::OPTIONS,
-                                &u,
-                                &e.to_string(),
-                                None,
-                                None,
-                                e.is_connect(),
-                                Some(&preflight_headers),
-                                false,
-                            )
-                            .await,
-                        ),
-                        Err(_) => None,
-                    },
-                    _ => None,
-                };
-                match fallback {
-                    Some(Ok(fr)) => buffered_preflight_parts(&fr),
-                    _ => {
-                        let error = match preflight_stealth_err {
-                            Some(se) => format!(
-                                "CORS preflight failed: {e} (stealth transport also failed: {se})"
-                            ),
-                            None => format!("CORS preflight failed: {e}"),
-                        };
-                        deps.failures.push(FetchFailure {
-                            url: url.clone(),
-                            method: method.clone(),
-                            reason: error.clone(),
-                            final_url: url.clone(),
-                            redirects: Vec::new(),
-                            started: deps.started_unix,
-                        });
-                        return Err(deno_error::JsErrorBox::generic(error));
+                let error = match preflight_stealth_err {
+                    Some(se) => {
+                        format!("CORS preflight failed: {e} (stealth transport also failed: {se})")
                     }
-                }
+                    None => format!("CORS preflight failed: {e}"),
+                };
+                deps.failures.push(FetchFailure {
+                    url: url.clone(),
+                    method: method.clone(),
+                    reason: error.clone(),
+                    final_url: url.clone(),
+                    redirects: Vec::new(),
+                    started: deps.started_unix,
+                });
+                return Err(deno_error::JsErrorBox::generic(error));
             }
         },
     };
@@ -413,7 +380,7 @@ pub(crate) async fn fetch_url_walk(
             .map_err(deno_error::JsErrorBox::generic)?,
     };
 
-    let req_method: reqwest::Method = method.parse().unwrap_or(reqwest::Method::GET);
+    let req_method: diting_net::wire::Method = method.parse().unwrap_or(diting_net::wire::Method::GET);
 
     let is_cross_origin = request_origin(&url)
         .map(|initial| !page_origin.is_empty() && initial != page_origin)
@@ -444,7 +411,7 @@ pub(crate) async fn fetch_url_walk(
     }
 
     // Follow redirects manually so the SSRF policy applies to every hop.
-    // reqwest's auto-follow would bypass validate_fetch_url on the redirect
+    // The client's auto-follow would bypass validate_fetch_url on the redirect
     // target and let an attacker-allowed origin 302 to http://127.0.0.1
     // (GHSA-8v6v-g4rh-jmcm).
     let mut current_url = url.clone();
@@ -474,10 +441,6 @@ pub(crate) async fn fetch_url_walk(
     let mut cors_tainted = request_origin(&url)
         .map(|o| o != page_origin)
         .unwrap_or(false);
-    // #116: sticky across hops — once the stealth stack has fired for this
-    // request (Ok or Err), plain's own legacy fallback stays off: a request
-    // never burns more than two transports.
-    let mut stealth_fired = false;
     // #97: the header set of the hop that produced the final response —
     // rebuilt every iteration alongside `hop_headers` (assigned before any
     // hop can break or continue), so after the loop it holds the LAST hop's
@@ -516,7 +479,7 @@ pub(crate) async fn fetch_url_walk(
             .map(|o| o != page_origin)
             .unwrap_or(false);
         let method_needs_origin =
-            current_method != reqwest::Method::GET && current_method != reqwest::Method::HEAD;
+            current_method != diting_net::wire::Method::GET && current_method != diting_net::wire::Method::HEAD;
         if method_needs_origin || current_is_cross_origin {
             req = req.header("Origin", &page_origin);
         }
@@ -623,7 +586,7 @@ pub(crate) async fn fetch_url_walk(
                 let doc = Url::parse(&document_url).unwrap_or_else(|_| target.clone());
                 let ref_val = fetch_referer(&referrer_policy, &referrer_init, &doc, &target);
                 if !ref_val.is_empty() {
-                    req = req.header(reqwest::header::REFERER, ref_val);
+                    req = req.header(diting_net::wire::header::REFERER, ref_val);
                 }
             }
         }
@@ -664,9 +627,8 @@ pub(crate) async fn fetch_url_walk(
         }
 
         // #116: the hop's full outbound header set as one map. The
-        // stealth-first attempt below and the legacy fallback in the Err
-        // arm both send THIS — the same request on another stack, not a
-        // near-copy rebuilt per site. Custom (filtered) headers ride as
+        // stealth-first attempt below sends THIS — the same request on
+        // another stack, not a near-copy rebuilt per site. Custom (filtered) headers ride as
         // the script shaped them; each browser default joins only when
         // the script didn't set its own (the same gates the plain hop's
         // .header() calls above apply).
@@ -709,7 +671,7 @@ pub(crate) async fn fetch_url_walk(
         final_hop_headers = hop_headers.clone();
         // #228: HAR/network faces read the wire set — the hop's headers plus
         // the Cookie the transport sent. Nav rows always had it; script rows
-        // lost it because the cookie only ever touched the reqwest builder.
+        // lost it because the cookie only ever touched the request builder.
         if let Some(ck) = &hop_cookie_header {
             final_hop_headers.insert("Cookie".to_string(), ck.clone());
         }
@@ -748,7 +710,7 @@ pub(crate) async fn fetch_url_walk(
         });
 
         // #116 stealth-first hop: on a stealth page the scripted request
-        // rides the wreq emulation stack BEFORE plain rustls — the same
+        // rides the wreq emulation stack BEFORE the plain client — the same
         // TLS fingerprint the navigation above it presented, so the cookie
         // jar never appears behind two JA3s (the bilibili-412-shaped tell
         // that held scripted requests until xhr.timeout fired while the
@@ -756,9 +718,8 @@ pub(crate) async fn fetch_url_walk(
         // request here: the stealth walk re-validates SSRF per hop,
         // downgrades 303-class redirects and stores cookies itself.
         // Some(Err) means the stealth stack fired and failed — fall
-        // through to plain with plain's legacy fallback gated off below.
-        // None keeps the plain path exactly as it was (non-stealth
-        // build/context, SOCKS proxy).
+        // through to plain. None (plain context) keeps the plain path
+        // exactly as it was.
         let stealth_hop = match http_client.as_ref() {
             Some(hc) => match url::Url::parse(&current_url) {
                 Ok(u) => {
@@ -776,101 +737,30 @@ pub(crate) async fn fetch_url_walk(
             },
             None => None,
         };
-        match stealth_hop {
-            Some(Ok(buffered)) => {
-                drop(_in_flight);
-                // #231: the stealth walk resolved its redirects inside the
-                // client — adopt the trail (target+status hops and the
-                // url-only chain) so the network face reports the wander
-                // on the stealth build too, not just the final URL.
-                redirect_hops.extend(buffered.redirect_hops.iter().cloned());
-                redirect_chain.extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
-                break OpFetchOutcome::Buffered(buffered);
-            }
-            Some(Err(_)) => {
-                stealth_fired = true;
-            }
-            None => {}
+        if let Some(Ok(buffered)) = stealth_hop {
+            drop(_in_flight);
+            // #231: the stealth walk resolved its redirects inside the
+            // client — adopt the trail (target+status hops and the
+            // url-only chain) so the network face reports the wander
+            // on the stealth build too, not just the final URL.
+            redirect_hops.extend(buffered.redirect_hops.iter().cloned());
+            redirect_chain.extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
+            break OpFetchOutcome::Buffered(buffered);
         }
 
         let resp = match req.send().await {
             Ok(r) => r,
             Err(e) => {
                 drop(_in_flight);
-                // Scripted fetch()/XHR walked this far on a raw reqwest
-                // client with no retry of its own — the one subresource path
-                // the Tier2 fallback didn't cover (the g.alicdn.com shape:
-                // plain rustls dies on the handshake, the stealth stack's
-                // BoringSSL connects). A GET/HEAD transport failure gets the
-                // same one-shot legacy-TLS escape hatch the script and
-                // stylesheet loaders use; any other method rides only when
-                // the failure is connect-stage (DNS/TCP/TLS — the request
-                // provably never left the machine), so a POST form submit
-                // cannot double-submit (taobao seller-backend shape:
-                // CBC-only endpoints killed every publish POST at the
-                // handshake). The retry sends the hop's merged header set
-                // (customs + Origin, UA, Fetch-Metadata, client hints —
-                // `hop_headers`, not a rebuilt near-copy) and the
-                // credentials policy. On a stealth page the stealth-first
-                // attempt above already rode this same transport, so the
-                // fallback stays gated (#116: at most two transports).
-                let fallback = match http_client.as_ref() {
-                    Some(hc)
-                        if !stealth_fired
-                            && (current_method == reqwest::Method::GET
-                                || current_method == reqwest::Method::HEAD
-                                || e.is_connect()) =>
-                    {
-                        match url::Url::parse(&current_url) {
-                            Ok(u) => Some(
-                                hc.scripted_fetch_fallback(
-                                    &current_method,
-                                    &u,
-                                    &e.to_string(),
-                                    (!current_body.is_empty()).then_some(current_body.as_slice()),
-                                    hop_ctype.as_deref(),
-                                    e.is_connect(),
-                                    Some(&hop_headers),
-                                    credentials_allowed,
-                                )
-                                .await,
-                            ),
-                            Err(_) => None,
-                        }
-                    }
-                    _ => None,
-                };
-                match fallback {
-                    Some(Ok(buffered)) => {
-                        // #231: same adoption for the legacy-TLS fallback —
-                        // its redirects were walked client-side as well.
-                        redirect_hops.extend(buffered.redirect_hops.iter().cloned());
-                        redirect_chain.extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
-                        break OpFetchOutcome::Buffered(buffered);
-                    }
-                    Some(Err(fallback_err)) => {
-                        deps.failures.push(FetchFailure {
-                            url: url.clone(),
-                            method: current_method.as_str().to_string(),
-                            reason: fallback_err.to_string(),
-                            final_url: current_url.clone(),
-                            redirects: redirect_hops.clone(),
-                            started: deps.started_unix,
-                        });
-                        return Err(deno_error::JsErrorBox::generic(fallback_err.to_string()));
-                    }
-                    None => {
-                        deps.failures.push(FetchFailure {
-                            url: url.clone(),
-                            method: current_method.as_str().to_string(),
-                            reason: e.to_string(),
-                            final_url: current_url.clone(),
-                            redirects: redirect_hops.clone(),
-                            started: deps.started_unix,
-                        });
-                        return Err(deno_error::JsErrorBox::generic(e.to_string()));
-                    }
-                }
+                deps.failures.push(FetchFailure {
+                    url: url.clone(),
+                    method: current_method.as_str().to_string(),
+                    reason: e.to_string(),
+                    final_url: current_url.clone(),
+                    redirects: redirect_hops.clone(),
+                    started: deps.started_unix,
+                });
+                return Err(deno_error::JsErrorBox::generic(e.to_string()));
             }
         };
 
@@ -882,7 +772,7 @@ pub(crate) async fn fetch_url_walk(
                     let send_ctx = diting_net::cookies::SendContext::subresource(
                         !diting_net::site::is_same_site(&fetch_initiator, &parsed_url),
                     );
-                    for val in resp.headers().get_all(reqwest::header::SET_COOKIE) {
+                    for val in resp.headers().get_all(diting_net::wire::header::SET_COOKIE) {
                         if let Ok(s) = val.to_str() {
                             jar.set_cookie_in_context(s, &parsed_url, &send_ctx, "http");
                         }
@@ -897,7 +787,7 @@ pub(crate) async fn fetch_url_walk(
 
         let location_header = resp
             .headers()
-            .get(reqwest::header::LOCATION)
+            .get(diting_net::wire::header::LOCATION)
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
         let Some(location) = location_header else {
@@ -1025,10 +915,10 @@ pub(crate) async fn fetch_url_walk(
         let status_code = resp.status().as_u16();
         let method_downgrades = status_code == 303
             || ((status_code == 301 || status_code == 302)
-                && current_method != reqwest::Method::GET
-                && current_method != reqwest::Method::HEAD);
+                && current_method != diting_net::wire::Method::GET
+                && current_method != diting_net::wire::Method::HEAD);
         if method_downgrades {
-            current_method = reqwest::Method::GET;
+            current_method = diting_net::wire::Method::GET;
             current_body.clear();
             strip_body_headers = true;
         }
@@ -1039,7 +929,7 @@ pub(crate) async fn fetch_url_walk(
         current_url = next_url.to_string();
     };
 
-    // The legacy fallback resolved (and revalidated) its redirects inside
+    // The stealth hop resolved (and revalidated) its redirects inside
     // the HttpClient; adopt its final URL so the CORS check and the passive
     // observers below see where the content actually came from.
     let mut wire_request_headers: Option<std::collections::HashMap<String, String>> = None;
@@ -1217,8 +1107,8 @@ pub(crate) async fn fetch_url_walk(
     );
     let resp_body_base64 = BASE64.encode(&resp_bytes);
 
-    // #228: the transport's own wire snapshot when one exists (stealth /
-    // legacy-TLS Buffered outcomes), else the walk's reconstruction (plain
+    // #228: the transport's own wire snapshot when one exists (stealth
+    // Buffered outcome), else the walk's reconstruction (plain
     // Live path — hop headers + the Cookie inserted at hop build time).
     let event_request_headers = wire_request_headers
         .as_ref()

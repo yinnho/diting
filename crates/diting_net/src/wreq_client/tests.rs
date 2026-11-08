@@ -19,9 +19,9 @@ async fn wreq_ssrf_guard_resolver_blocks_loopback_resolution() {
     let _guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
     std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
 
-    let guarded = super::WreqSsrfGuardResolver {
-        allow_flag: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-    };
+    let guarded = crate::client::SsrfGuardResolver::new(Arc::new(
+        std::sync::atomic::AtomicBool::new(false),
+    ));
     assert!(
         guarded
             .resolve(diting_wire::dns::Name::new("localhost".into()))
@@ -30,9 +30,9 @@ async fn wreq_ssrf_guard_resolver_blocks_loopback_resolution() {
         "localhost must be rejected by the guarded resolver"
     );
 
-    let permissive = super::WreqSsrfGuardResolver {
-        allow_flag: Arc::new(std::sync::atomic::AtomicBool::new(true)),
-    };
+    let permissive = crate::client::SsrfGuardResolver::new(Arc::new(
+        std::sync::atomic::AtomicBool::new(true),
+    ));
     assert!(
         permissive
             .resolve(diting_wire::dns::Name::new("localhost".into()))
@@ -193,7 +193,7 @@ async fn stealth_client_decodes_gzip_response() {
     assert_eq!(resp.text(), PLAIN_BODY, "gzip body must be decompressed");
 }
 
-// The stealth path must enforce the same SSRF rules as the reqwest path.
+// The stealth path must enforce the same SSRF rules as the plain path.
 #[tokio::test]
 #[allow(clippy::await_holding_lock)] // the env guard must span the fetch — that's the serialization
 async fn stealth_fetch_rejects_loopback() {
@@ -258,7 +258,7 @@ async fn probe_blocklist_gate_live() {
 }
 
 // obscura#793 same shape: the per-context allow-private flag must ride
-// the stealth client, not only the reqwest one — with the env var unset,
+// the stealth client, not only the plain one — with the env var unset,
 // the flag alone decides.
 #[allow(clippy::await_holding_lock)] // env-lock guard spans the fixture fetch, as above
 #[tokio::test]
@@ -468,7 +468,7 @@ async fn method_recording_fixture() -> (u16, Arc<std::sync::Mutex<Vec<String>>>)
     (port, log)
 }
 
-/// The legacy-TLS fallback's POST transport: method, body and declared
+/// The scripted stealth hop's POST transport: method, body and declared
 /// Content-Type must all reach the wire (`fetch_with_body` used to be
 /// GET-only — the taobao seller-backend shape this exists for).
 #[allow(clippy::await_holding_lock)] // env-lock guard spans the fixture fetch, as above
@@ -584,7 +584,7 @@ async fn stealth_post_redirect_downgrades_301_preserves_307() {
 /// the rebuilt per-hop headers (Origin, Referer, Fetch-Metadata) reach
 /// the wire and win over the transport's defaults, while the credentials
 /// policy gates the cookie jar — a `credentials: 'omit'` POST rides the
-/// legacy transport without leaking the session cookie (the taobao
+/// stealth transport without leaking the session cookie (the taobao
 /// seller-backend receipts proved the headered variant end to end).
 #[allow(clippy::await_holding_lock)] // env-lock guard spans the fixture fetch, as above
 #[tokio::test]

@@ -19,7 +19,7 @@ use btls::{
     ex_data::Index,
     ssl::{Ssl, SslConnector, SslMethod, SslOptions, SslSessionCacheMode, SslSignatureAlgorithm},
 };
-use ext::SslConnectorBuilderExt;
+pub(crate) use ext::SslConnectorBuilderExt;
 
 use crate::tls::ffi;
 use http::{Uri, Version};

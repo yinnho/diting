@@ -146,8 +146,7 @@ pub trait SearchEngine: Send + Sync {
     fn base_captcha_suspend(&self) -> Duration {
         Duration::from_secs(300)
     }
-    /// Execute a search. The engine must handle its own HTTP client selection
-    /// (stealth wreq vs plain reqwest) internally.
+    /// Execute a search. The engine holds and picks its own HTTP client.
     async fn search(
         &self,
         query: &str,
@@ -191,8 +190,7 @@ impl SearchEngineRegistry {
             state: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        // Register engines. Each engine internally decides whether to use
-        // wreq (stealth) or reqwest (plain), and holds its own client.
+        // Register engines; each holds its own client.
         // DITING_DISABLE_ENGINES / DITING_BING_NEWS=0 drop names
         // before register — CN research ops use this to silence bing_news.
         let disabled = disabled_engines();
@@ -992,7 +990,6 @@ pub fn html_unescape(s: &str) -> String {
         .replace("&nbsp;", " ")
 }
 
-/// Build a plain reqwest client suitable for search (no auto-redirect, 15s timeout).
 /// Strip inline markup (`<em>` highlights and friends) from a text run
 /// lifted out of SERP HTML or embedded JSON. Shared by the engines that
 /// read highlight-tagged snippets (baidu, and friends).
@@ -1010,12 +1007,14 @@ pub(crate) fn strip_tags(s: &str) -> String {
     out.trim().to_string()
 }
 
-pub fn build_plain_client(timeout_secs: u64) -> reqwest::Client {
-    diting::diting_net::client::reqwest_builder_no_env_proxy()
+/// One-shot search client: Chrome-emulating, no auto-redirect, total
+/// `timeout_secs` cap.
+pub fn build_plain_client(timeout_secs: u64) -> diting::diting_net::wire::Client {
+    diting::diting_net::chrome_client_builder()
         .timeout(Duration::from_secs(timeout_secs))
-        .redirect(reqwest::redirect::Policy::none())
+        .redirect(diting::diting_net::wire::redirect::Policy::none())
         .build()
-        .expect("failed to build reqwest client for search")
+        .expect("failed to build search client")
 }
 
 /// Resolve the proxy URL used by search engines' retry / proxy-first legs.
@@ -1070,30 +1069,30 @@ fn local_socks_proxy_up(addr: &str) -> bool {
     up
 }
 
-/// Build a reqwest client through [`search_proxy_url`] — the proxy-retry /
+/// Build a search client through [`search_proxy_url`] — the proxy-retry /
 /// proxy-first leg of [`get_direct_first_if`]. Returns None when no proxy is
 /// configured and the local 8800 stunnel is down. Shared by every
 /// direct-first engine (bing_news, duckduckgo, wikipedia, huggingface,
 /// github, arxiv, …).
-pub(crate) fn proxied_plain_client() -> Option<reqwest::Client> {
+pub(crate) fn proxied_plain_client() -> Option<diting::diting_net::wire::Client> {
     proxied_plain_client_timeout(12)
 }
 
 /// Like [`proxied_plain_client`] with an explicit timeout — challenge/geo
 /// retries use a ≤2s budget so dual-path Object-moved spam does not eat the
 /// full 12s (aginxos REQ search-captcha-challenge).
-pub(crate) fn proxied_plain_client_timeout(timeout_secs: u64) -> Option<reqwest::Client> {
+pub(crate) fn proxied_plain_client_timeout(timeout_secs: u64) -> Option<diting::diting_net::wire::Client> {
     search_proxy_url().map(|proxy_str| {
-        let mut builder = diting::diting_net::client::reqwest_builder_no_env_proxy()
+        let mut builder = diting::diting_net::chrome_client_builder()
             .timeout(Duration::from_secs(timeout_secs))
-            .redirect(reqwest::redirect::Policy::none());
-        match reqwest::Proxy::all(&proxy_str) {
+            .redirect(diting::diting_net::wire::redirect::Policy::none());
+        match diting::diting_net::wire::Proxy::all(&proxy_str) {
             Ok(p) => builder = builder.proxy(p),
             Err(e) => tracing::warn!("search: proxy scheme rejected: {}", e),
         }
         builder
             .build()
-            .expect("failed to build proxied reqwest client for search")
+            .expect("failed to build proxied search client")
     })
 }
 
@@ -1185,19 +1184,19 @@ pub async fn stealth_fetch(
     Ok((text, final_url))
 }
 
-/// Fetch a URL via plain reqwest, returning the decoded text. Handles
+/// Fetch a URL via a one-shot search client, returning the decoded text. Handles
 /// charset decoding for Chinese engines (GBK/GB2312). Follows non-CAPTCHA
 /// redirects up to `max_redirects` hops.
-pub async fn plain_fetch(client: &reqwest::Client, url: &str) -> Result<String, SearchEngineError> {
+pub async fn plain_fetch(client: &diting::diting_net::wire::Client, url: &str) -> Result<String, SearchEngineError> {
     plain_fetch_with(client, url, &[]).await
 }
 
-/// `plain_fetch` with per-request headers. Engines served to a plain
-/// (non-stealth) client MUST send a browser UA — a headerless reqwest is
-/// fingerprinted as a bot on sight (v0.3.2 Windows report: baidu walled
+/// `plain_fetch` with per-request headers. Engines MUST send a browser UA
+/// (with `DITING_STEALTH=0` nothing else supplies one) — a headerless client
+/// is fingerprinted as a bot on sight (v0.3.2 Windows report: baidu walled
 /// the engine while /engines showed it healthy).
 pub async fn plain_fetch_with(
-    client: &reqwest::Client,
+    client: &diting::diting_net::wire::Client,
     url: &str,
     headers: &[(&str, &str)],
 ) -> Result<String, SearchEngineError> {

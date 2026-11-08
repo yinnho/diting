@@ -27,7 +27,7 @@ pub(crate) fn cors_response_allows(
     }
 }
 
-pub(crate) fn is_cors_safelisted_method(method: &reqwest::Method) -> bool {
+pub(crate) fn is_cors_safelisted_method(method: &diting_net::wire::Method) -> bool {
     matches!(method.as_str(), "GET" | "HEAD" | "POST")
 }
 
@@ -175,7 +175,7 @@ pub(crate) fn cors_unsafe_request_header_names(
 }
 
 pub(crate) fn parse_cors_header_list<'a>(
-    headers: &'a reqwest::header::HeaderMap,
+    headers: &'a diting_net::wire::header::HeaderMap,
     name: &'static str,
 ) -> Option<Vec<&'a str>> {
     let mut items = Vec::new();
@@ -193,7 +193,7 @@ pub(crate) fn parse_cors_header_list<'a>(
 }
 
 pub(crate) fn preflight_allows_method(
-    method: &reqwest::Method,
+    method: &diting_net::wire::Method,
     allowed: &[&str],
     credentialed: bool,
 ) -> bool {

@@ -24,10 +24,6 @@
 //!   robots.txt as allow-all is how Lightpanda ended up banned from half of
 //!   public infrastructure (their #3156/#3234) — the gate denies while the
 //!   server is in trouble, with a short negative TTL so recovery is quick.
-//!   One carve-out: when the failure is a TLS handshake the default stack
-//!   cannot speak at all — a CBC-only TLS 1.2 server (obscura#769) — a
-//!   final attempt rides the BoringSSL transport before denying, still
-//!   under the honest product UA.
 //! * private / loopback hosts → exempt (the operator's own network).
 
 use std::collections::HashMap;
@@ -250,14 +246,13 @@ fn honor_env() -> bool {
 }
 
 /// Fetch and classify the host's robots.txt. Uses the honest product UA and
-/// the instance's global proxy setting on the plain rustls client, with a
-/// short timeout; robots.txt is small. When rustls cannot even complete the
-/// handshake — a CBC-only TLS 1.2 server (obscura#769) — one last attempt
-/// rides the BoringSSL transport ([`fetch_policy_via_legacy_tls`]), still
-/// under the honest product UA: what the stealth client lends is its cipher
-/// shelf, never its name.
+/// the instance's global proxy setting, with a short timeout; robots.txt is
+/// small. The client carries the Chrome handshake (and with it the CBC
+/// suites CBC-only TLS 1.2 servers need, obscura#769) but never Chrome's
+/// name: the User-Agent `User-agent:` groups match on stays the product
+/// token.
 async fn fetch_policy(origin: &str) -> Policy {
-    let mut builder = diting::diting_net::client::reqwest_builder_no_env_proxy()
+    let mut builder = diting::diting_net::chrome_client_builder()
         .timeout(Duration::from_secs(5))
         .user_agent(format!(
             "{PRODUCT_TOKEN}/{} (+https://browser.aginx.net)",
@@ -273,7 +268,7 @@ async fn fetch_policy(origin: &str) -> Policy {
         // robots is judged from our direct IP — fine, robots content is
         // path-based, not client-IP-based.
         if crate::config::should_auto_proxy(origin) {
-            if let Ok(p) = reqwest::Proxy::all(&proxy) {
+            if let Ok(p) = diting::diting_net::wire::Proxy::all(&proxy) {
                 builder = builder.proxy(p);
             }
         }
@@ -295,19 +290,7 @@ async fn fetch_policy(origin: &str) -> Policy {
             match client.get(format!("{origin}/robots.txt")).send().await {
                 Ok(r) => r,
                 Err(second) => {
-                    // A rustls double-failure includes the obscura#769 case:
-                    // CBC-only TLS 1.2 server, TCP fine, every handshake
-                    // refused because rustls ships no CBC suites. One last
-                    // attempt rides the BoringSSL transport — same honest
-                    // UA, same proxy decision — before denying.
-                    match fetch_policy_via_legacy_tls(origin).await {
-                        Ok(policy) => return policy,
-                        Err(legacy) => {
-                            return Policy::DenyAll(format!(
-                                "network: {first}; retry: {second}; legacy-tls: {legacy}"
-                            ))
-                        }
-                    }
+                    return Policy::DenyAll(format!("network: {first}; retry: {second}"))
                 }
             }
         }
@@ -339,8 +322,7 @@ async fn fetch_policy(origin: &str) -> Policy {
     policy_from_robots_response(status, &body)
 }
 
-/// Classify a fetched robots.txt (HTTP status + body) into a policy. Shared
-/// by both transports so the legacy-TLS fallback speaks identical semantics.
+/// Classify a fetched robots.txt (HTTP status + body) into a policy.
 fn policy_from_robots_response(status: u16, body: &[u8]) -> Policy {
     match status {
         404 | 410 => Policy::AllowAll,
@@ -358,36 +340,6 @@ fn policy_from_robots_response(status: u16, body: &[u8]) -> Policy {
         // what hammered a site into crisis. Short negative TTL above.
         code => Policy::DenyAll(format!("http {code}")),
     }
-}
-
-/// Last-resort transport for the robots.txt fetch (obscura#769): the
-/// primary client is rustls, which carries no TLS 1.2 CBC cipher suites at
-/// all — against a CBC-only server both attempts die in the handshake while
-/// the site is perfectly healthy for every browser. The stealth transport's
-/// BoringSSL stack still speaks CBC, so retry once through it. Identity is
-/// unchanged: the borrowed part of the stealth client is its cipher shelf,
-/// never its name — the advertised User-Agent (what `User-agent:` group
-/// matching keys on) stays the honest product token.
-async fn fetch_policy_via_legacy_tls(origin: &str) -> Result<Policy, String> {
-    let client = diting::diting_net::StealthHttpClient::with_proxy(
-        std::sync::Arc::new(diting::diting_net::CookieJar::new()),
-        None,
-    );
-    client
-        .set_user_agent(&format!(
-            "{PRODUCT_TOKEN}/{} (+https://browser.aginx.net)",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .await;
-    let url = Url::parse(&format!("{origin}/robots.txt")).map_err(|e| format!("url: {e}"))?;
-    let resp = match tokio::time::timeout(Duration::from_secs(5), client.fetch(&url)).await {
-        Ok(Ok(r)) => r,
-        Ok(Err(e)) => return Err(e.to_string()),
-        Err(_) => return Err("timeout".into()),
-    };
-    let mut body = resp.body;
-    body.truncate(MAX_ROBOTS_BYTES);
-    Ok(policy_from_robots_response(resp.status, &body))
 }
 
 /// Parse a robots.txt body into the policy for our product token.

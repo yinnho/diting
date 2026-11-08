@@ -254,18 +254,22 @@ async fn solve_with_2captcha(
         _ => return CaptchaSolveResult::NotAttempted,
     };
 
-    let client = reqwest::Client::new();
+    let client = diting::diting_net::chrome_client_builder().build().expect("captcha client");
 
     // Submit task
-    let res = client
-        .post("https://2captcha.com/in.php")
-        .form(&[
+    let form = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([
             ("key", config.api_key.as_str()),
             ("method", method),
             ("sitekey", sitekey),
             ("pageurl", url),
             ("json", "1"),
         ])
+        .finish();
+    let res = client
+        .post("https://2captcha.com/in.php")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(form)
         .timeout(std::time::Duration::from_secs(30))
         .send()
         .await;
@@ -285,7 +289,12 @@ async fn solve_with_2captcha(
         request: String,
     }
 
-    let submit = match resp.json::<SubmitResponse>().await {
+    let submit = match resp
+        .bytes()
+        .await
+        .map_err(|e| e.to_string())
+        .and_then(|b| serde_json::from_slice::<SubmitResponse>(&b).map_err(|e| e.to_string()))
+    {
         Ok(s) => s,
         Err(e) => {
             return CaptchaSolveResult::Failed {
@@ -309,14 +318,18 @@ async fn solve_with_2captcha(
         std::time::Instant::now() + std::time::Duration::from_secs(config.default_timeout_secs);
 
     while std::time::Instant::now() < deadline {
-        let res = client
-            .get("https://2captcha.com/res.php")
-            .query(&[
+        let poll_url = url::Url::parse_with_params(
+            "https://2captcha.com/res.php",
+            [
                 ("key", config.api_key.as_str()),
                 ("action", "get"),
                 ("id", &task_id),
                 ("json", "1"),
-            ])
+            ],
+        )
+        .expect("static base URL");
+        let res = client
+            .get(poll_url)
             .timeout(std::time::Duration::from_secs(30))
             .send()
             .await;
@@ -328,7 +341,14 @@ async fn solve_with_2captcha(
                     status: u8,
                     request: String,
                 }
-                match r.json::<PollResponse>().await {
+                match r
+                    .bytes()
+                    .await
+                    .map_err(|e| e.to_string())
+                    .and_then(|b| {
+                        serde_json::from_slice::<PollResponse>(&b).map_err(|e| e.to_string())
+                    })
+                {
                     Ok(poll) => {
                         if poll.status == 1 {
                             return CaptchaSolveResult::Solved {

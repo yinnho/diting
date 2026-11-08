@@ -64,7 +64,7 @@ impl std::error::Error for ModuleLoaderError {}
 
 /// A loaded module's body. deno's `ModuleSource` also carries
 /// `module_url_found` (redirect aliasing), a module type, and a code-cache
-/// slot; our HTTP loader keys everything under the SPECIFIED url (reqwest
+/// slot; our HTTP loader keys everything under the SPECIFIED url (the client
 /// follows redirects transparently and the module runs under the URL the
 /// page asked for — the same posture the current diting loader has), only
 /// ever produces JavaScript, and caches nothing. One field, no lies.

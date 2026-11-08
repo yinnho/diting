@@ -147,7 +147,7 @@ impl Page {
         // arbitrarily long (we've measured 60+ seconds on JS-heavy news
         // sites), wedging every other in-flight CDP request because the
         // dispatcher holds the lock across the entire handler. 30 seconds
-        // matches reqwest's default per-request timeout — the worst case is
+        // matches the clients' 30s read timeout — the worst case is
         // one slow primary GET plus one slow JS-redirect chain step. Override
         // with `DITING_NAV_TIMEOUT_MS=NN`, or set a page-scoped deadline when
         // the automation request already has an explicit timeout.

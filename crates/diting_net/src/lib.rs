@@ -6,6 +6,10 @@ pub mod encoding;
 pub mod site;
 pub mod wreq_client;
 
+/// The HTTP stack itself, for crates that build their own requests
+/// (diting_js's fetch/XHR walk and module loader).
+pub use diting_wire as wire;
+
 pub use client::{
     env_allows_private_network, CallbackRegistry, HttpClient, InFlightScripted, NetError,
     RedirectHop, RequestCallback, RequestInfo, ResourceType, Response, ResponseCallback,
@@ -27,7 +31,7 @@ pub use site::{is_same_site, registrable_domain, sec_fetch_site};
 /// everything" convention is a known, documented divergence (the map type
 /// carries one value per name, so both faces share it).
 pub fn collect_response_headers(
-    headers: &reqwest::header::HeaderMap,
+    headers: &diting_wire::header::HeaderMap,
 ) -> std::collections::HashMap<String, String> {
     use std::collections::HashMap;
 
@@ -49,8 +53,8 @@ pub fn collect_response_headers(
         .collect()
 }
 pub use wreq_client::{
-    emulation_os_for_ua, parse_tls_fingerprint, warn_on_ua_tls_mismatch, StealthHttpClient,
-    STEALTH_USER_AGENT,
+    chrome_client_builder, emulation_os_for_ua, parse_tls_fingerprint, warn_on_ua_tls_mismatch,
+    StealthHttpClient, STEALTH_USER_AGENT,
 };
 pub use wreq_client::{CLAIMED_CHROME_MAJOR, DEFAULT_TLS_FINGERPRINT};
 
@@ -98,7 +102,7 @@ pub(crate) static PRIVATE_NET_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex:
 #[cfg(test)]
 mod collect_headers_tests {
     use super::collect_response_headers;
-    use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+    use diting_wire::header::{HeaderMap, HeaderName, HeaderValue};
 
     fn map(pairs: &[(&str, &str)]) -> HeaderMap {
         let mut h = HeaderMap::new();

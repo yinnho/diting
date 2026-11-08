@@ -6,14 +6,13 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 
 /// Sogou WeChat search engine. Searches WeChat public account articles.
 ///
-/// Uses plain reqwest for BOTH search and /link redirect resolution.
-/// weixin.sogou.com search doesn't check TLS fingerprint (curl works fine).
-/// wreq stealth (even with Linux UA) sometimes triggers /link's antispider
-/// due to its auto-injected sec-ch-ua/sec-fetch headers. And with macOS UA
-/// (needed for WeChat article fetching), the search page itself triggers
-/// antispider. Plain reqwest avoids both issues.
+/// One client for BOTH search and /link redirect resolution (the shared
+/// Chrome-emulating search client; real results in the 11-08 live check).
+/// The old stealth client sometimes tripped /link's antispider with its
+/// auto-injected sec-ch-ua/sec-fetch headers — if that returns,
+/// `.default_headers(false)` drops them while keeping the handshake.
 pub struct SogouWechatEngine {
-    plain_client: reqwest::Client,
+    plain_client: diting::diting_net::wire::Client,
 }
 
 impl SogouWechatEngine {
@@ -43,18 +42,14 @@ impl SearchEngine for SogouWechatEngine {
         query: &str,
         params: SearchParams,
     ) -> Result<Vec<RawSearchResult>, SearchEngineError> {
-        // Use plain reqwest for the entire search + redirect resolution flow.
-        // weixin.sogou.com doesn't check TLS fingerprint (curl works fine),
-        // and plain reqwest avoids the Chrome Client Hints headers that
-        // wreq stealth auto-injects (which trigger /link's antispider).
-        reqwest_search_and_resolve(&self.plain_client, query, params.pageno).await
+        search_and_resolve(&self.plain_client, query, params.pageno).await
     }
 }
 
-/// Use plain reqwest to search weixin.sogou.com and resolve /link redirect URLs.
+/// Search weixin.sogou.com and resolve /link redirect URLs.
 /// Returns Err(Captcha) when CAPTCHA is detected, so the engine gets suspended.
-async fn reqwest_search_and_resolve(
-    plain_client: &reqwest::Client,
+async fn search_and_resolve(
+    plain_client: &diting::diting_net::wire::Client,
     query: &str,
     pageno: usize,
 ) -> Result<Vec<RawSearchResult>, SearchEngineError> {
@@ -64,7 +59,7 @@ async fn reqwest_search_and_resolve(
         pageno,
     );
 
-    // Step 1: Search with plain reqwest, collect cookies.
+    // Step 1: Search, collect cookies.
     let resp = match plain_client
         .get(&search_url)
         .header("User-Agent", diting::chrome_target::UA_DEFAULT)
@@ -78,7 +73,7 @@ async fn reqwest_search_and_resolve(
     {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!("sogou_wechat: reqwest search failed: {}", e);
+            tracing::warn!("sogou_wechat: search failed: {}", e);
             return Err(SearchEngineError::Transient(format!(
                 "search request failed: {}",
                 e
@@ -100,7 +95,7 @@ async fn reqwest_search_and_resolve(
     }
     let cookie_header = cookies.join("; ");
     tracing::debug!(
-        "sogou_wechat: reqwest search cookies: '{}' len={}",
+        "sogou_wechat: search cookies: '{}' len={}",
         cookie_header,
         cookie_header.len()
     );
@@ -108,7 +103,7 @@ async fn reqwest_search_and_resolve(
     let html = match resp.text().await {
         Ok(t) => t,
         Err(e) => {
-            tracing::warn!("sogou_wechat: reqwest search read body failed: {}", e);
+            tracing::warn!("sogou_wechat: search read body failed: {}", e);
             return Err(SearchEngineError::Transient(format!(
                 "read body failed: {}",
                 e
@@ -118,7 +113,7 @@ async fn reqwest_search_and_resolve(
 
     // Check for CAPTCHA.
     if html.contains("antispider") || html.contains("用户频率限制") {
-        tracing::warn!("sogou_wechat: reqwest search hit CAPTCHA");
+        tracing::warn!("sogou_wechat: search hit CAPTCHA");
         return Err(SearchEngineError::Captcha {
             url: search_url.clone(),
             captcha_type: Some(crate::captcha::CaptchaType::SliderCaptcha),
@@ -129,7 +124,7 @@ async fn reqwest_search_and_resolve(
     let mut results = match parse_sogou_wechat_html(&html) {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!("sogou_wechat: reqwest parse failed: {:?}", e);
+            tracing::warn!("sogou_wechat: parse failed: {:?}", e);
             return Err(SearchEngineError::Transient(format!(
                 "parse failed: {:?}",
                 e

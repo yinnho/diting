@@ -7,6 +7,14 @@
 //! and the product re-exports them from `config` so call sites are
 //! unchanged.
 
+/// Chrome emulation on the wire (TLS/H2 handshake + default headers),
+/// default on. `DITING_STEALTH=0` is the diagnostic backdoor: the same
+/// transport with BoringSSL's stock handshake, for telling a site's
+/// fingerprint gate apart from everything else.
+pub fn stealth_enabled() -> bool {
+    !matches!(std::env::var("DITING_STEALTH").ok().as_deref(), Some("0"))
+}
+
 /// The upstream proxy URL, read once per call site from the environment:
 /// `DITING_PROXY`.
 pub fn proxy_from_env() -> Option<String> {
@@ -93,8 +101,8 @@ pub fn should_auto_proxy(url: &str) -> bool {
 }
 
 /// First standard proxy env var that is set, as "NAME=value". Used to warn
-/// that the engine ignores these: every engine client pins reqwest/wreq's
-/// implicit env/system proxy matcher off (see `reqwest_builder_no_env_proxy`),
+/// that the engine ignores these: every engine client pins the transport's
+/// implicit env/system proxy matcher off (see `client_builder_no_env_proxy`),
 /// so `DITING_PROXY` is the only knob that routes engine traffic
 /// through a proxy. Without the warning, a shell-level proxy (clash, corp
 /// egress) silently looks "configured" while the engine fetches direct.

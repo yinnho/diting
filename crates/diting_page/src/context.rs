@@ -152,9 +152,9 @@ impl BrowserContext {
             client.block_trackers = diting_net::blocklist::block_trackers_from_env();
             // #116: on a stealth page the JS fetch()/XHR hops must ride the
             // wreq emulation stack too — one jar behind one JA3, matching
-            // the navigation's handshake. The fingerprint feeds the same
-            // transport the legacy-TLS escape hatch builds, so every stack
-            // this context can present agrees.
+            // the navigation's handshake. The fingerprint feeds the
+            // transport the scripted hop builds, so every stack this
+            // context can present agrees.
             client.scripted_rides_stealth = true;
             client.tls_fingerprint = tls_fingerprint.clone();
         }
@@ -269,7 +269,7 @@ mod tests {
     }
 
     // obscura#995: stealth welds tracker blocking on, and the env release
-    // must unwind it on the context's reqwest transport too (the stealth
+    // must unwind it on the context's plain transport too (the stealth
     // transport reads the same env at its own construction).
     #[tokio::test(flavor = "current_thread")]
     async fn stealth_context_block_trackers_honors_env_release() {

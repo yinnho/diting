@@ -14718,103 +14718,6 @@ async fn preflight_http_status_reported_before_origin() {
     );
 }
 
-/// op_fetch_url walks redirects on a raw reqwest client — the one
-/// subresource path that had no Tier2 legacy-TLS fallback (the
-/// g.alicdn.com shape: plain rustls dies on the handshake, the stealth
-/// stack's BoringSSL connects). A closed port fails both transports
-/// fast; the JS-visible rejection must carry the legacy marker for GET
-/// (fallback fired).
-#[tokio::test(flavor = "current_thread")]
-async fn fetch_transport_failure_falls_back_to_legacy_tls() {
-    let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
-    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
-
-    let mut rt = setup_runtime("<html><body></body></html>");
-    rt.set_http_client(std::sync::Arc::new(
-        diting_net::HttpClient::with_full_options(
-            std::sync::Arc::new(diting_net::CookieJar::new()),
-            None,
-            true,
-        ),
-    ));
-
-    let result = rt
-        .call_function_on_remote(
-            r#"async () => {
-                    try {
-                        await fetch("http://127.0.0.1:1/dead");
-                        return "unexpectedly-resolved";
-                    } catch (e) {
-                        return "rejected:" + (e && e.message);
-                    }
-                }"#,
-            None,
-            &[],
-            true,
-            true,
-        )
-        .await
-        .unwrap();
-    let msg = result
-        .value
-        .unwrap()
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-    assert!(
-        msg.contains("legacy TLS transport"),
-        "GET transport failure must surface the legacy fallback attempt, got: {msg}"
-    );
-}
-
-/// Same closed-port probe with a POST: connection refused is
-/// connect-stage — the request never left the machine — so the fallback
-/// fires for the body-carrying method too and the marker must appear.
-/// The post-send arm (no retry, double-submit guard) is pinned at the
-/// client layer; this e2e pins the op's `is_connect` gate feeding it.
-#[tokio::test(flavor = "current_thread")]
-async fn fetch_transport_failure_post_rides_connect_stage_fallback() {
-    let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
-    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
-
-    let mut rt = setup_runtime("<html><body></body></html>");
-    rt.set_http_client(std::sync::Arc::new(
-        diting_net::HttpClient::with_full_options(
-            std::sync::Arc::new(diting_net::CookieJar::new()),
-            None,
-            true,
-        ),
-    ));
-
-    let result = rt
-        .call_function_on_remote(
-            r#"async () => {
-                    try {
-                        await fetch("http://127.0.0.1:1/submit", { method: "POST", body: "k=v" });
-                        return "unexpectedly-resolved";
-                    } catch (e) {
-                        return "rejected:" + (e && e.message);
-                    }
-                }"#,
-            None,
-            &[],
-            true,
-            true,
-        )
-        .await
-        .unwrap();
-    let msg = result
-        .value
-        .unwrap()
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-    assert!(
-        msg.starts_with("rejected:") && msg.contains("legacy TLS transport"),
-        "connect-stage POST must surface the legacy fallback attempt, got: {msg}"
-    );
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn test_fetch_url_input_decodes_binary_body_base64() {
     // Serves a binary body from a real local server: the bootstrap deletes
@@ -17644,7 +17547,7 @@ fn test_element_from_point_non_numeric_returns_null() {
 }
 
 // Issue #139 — proxy_url must thread through to both the ES-module
-// loader (module_loader.rs) and op_fetch_url's reqwest client
+// loader (module_loader.rs) and op_fetch_url's client
 // (ops.rs::build_request_client). Pre-fix both built clients with
 // `Client::builder().build()` — no proxy — so JS fetch/XHR and
 // dynamic imports silently bypassed BrowserContext.proxy_url.
@@ -18430,7 +18333,7 @@ async fn throwing_onerror_does_not_reenter_error_pipeline() {
 
 // b12405d closed fetch()/XHR and classic <script src=data:>; the module
 // path was the remaining gap — import() and <script type=module> died in
-// the Rust module loader (validate_fetch_url/reqwest). The loader now
+// the Rust module loader (validate_fetch_url/the client). The loader now
 // resolves data: locally, with Chromium's module MIME gate: empty essence
 // reads as text/plain and is refused, classic-style MIME blindness does
 // not apply here.

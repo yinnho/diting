@@ -10,7 +10,7 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 /// Connectivity: html.duckduckgo.com is unreachable from CN networks, and the
 /// relay/exit IPs we share with other tenants get anomaly-flagged regardless
 /// of UA. Fetches go through the wreq client (emulated Chrome TLS+UA — the
-/// plain-reqwest fingerprint was the other half of the anomaly trigger;
+/// old rustls fingerprint was the other half of the anomaly trigger;
 /// SearXNG migrated its whole fleet to curl_cffi for the same reason):
 /// direct first, then DITING_PROXY.
 pub struct DuckDuckGoEngine {

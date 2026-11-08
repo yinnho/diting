@@ -3104,7 +3104,7 @@ fn recording_echo_origin() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>
 /// The echo body landing in window.__got proves the response resolves
 /// the promise through the new Buffered path; the recorded head proves
 /// the request carried the fetch()-shaped Fetch-Metadata trio (the
-/// plain reqwest main hop sends no sec-fetch-* at all), and exactly
+/// plain main hop sends no sec-fetch-* at all), and exactly
 /// ONE /probe hit proves the successful stealth hop short-circuits
 /// plain instead of burning both transports.
 #[tokio::test(flavor = "current_thread")]

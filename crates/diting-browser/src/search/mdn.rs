@@ -9,7 +9,7 @@ use super::{RawSearchResult, SearchEngine, SearchEngineError, SearchParams};
 /// (#179/#181). SearXNG ships mdn in "it" — we're stricter because our
 /// general pool is default-on.
 pub struct MdnEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
 }
 
 impl MdnEngine {

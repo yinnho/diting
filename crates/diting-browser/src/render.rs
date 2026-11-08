@@ -255,7 +255,8 @@ pub async fn http_fetch(
         }
     }
 
-    let client = HttpClient::with_full_options(jar, proxy, false);
+    let mut client = HttpClient::with_full_options(jar, proxy, false);
+    client.emulate_chrome = true;
     let resp = client.fetch(&parsed).await.map_err(|e| e.to_string())?;
 
     // Non-200 → let Tier 2 try (it handles redirects/challenges differently).

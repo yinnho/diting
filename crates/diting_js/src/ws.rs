@@ -132,7 +132,7 @@ struct WsConnectJob {
 
 enum WsStream {
     Plain(TcpStream),
-    Tls(Box<tokio_rustls::client::TlsStream<TcpStream>>),
+    Tls(Box<diting_net::wire::tls::SslStream<TcpStream>>),
 }
 
 impl AsyncRead for WsStream {
@@ -227,7 +227,7 @@ impl WsConnectJob {
         if let Some(proxy) = &self.proxy_url {
             let lower = proxy.to_ascii_lowercase();
             if lower.starts_with("socks5://") || lower.starts_with("socks5h://") {
-                // proxy_url carries the scheme (reqwest wants the full URL);
+                // proxy_url carries the scheme (the HTTP client wants the full URL);
                 // the tunnel dials host:port, so strip it. The tokio-socks
                 // era fed the scheme in and std's resolver failed on it —
                 // this path never actually dialed until the vendoring fix.
@@ -423,17 +423,8 @@ impl WsConnectJob {
 async fn tls_upgrade(
     tcp: TcpStream,
     host: &str,
-) -> Result<tokio_rustls::client::TlsStream<TcpStream>, String> {
-    let mut roots = rustls::RootCertStore::empty();
-    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let config = rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-    let connector = tokio_rustls::TlsConnector::from(Arc::new(config));
-    let server_name = rustls::pki_types::ServerName::try_from(host.to_string())
-        .map_err(|e| format!("invalid TLS server name '{host}': {e}"))?;
-    connector
-        .connect(server_name, tcp)
+) -> Result<diting_net::wire::tls::SslStream<TcpStream>, String> {
+    diting_net::wire::tls::connect_stream(tcp, host)
         .await
         .map_err(|e| format!("TLS handshake with '{host}' failed: {e}"))
 }

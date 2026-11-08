@@ -219,8 +219,8 @@ pub async fn prefetch_render_resources(
     const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
     const PER_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
-    // Route through the same client the page navigated with: stealth wreq
-    // when enabled, plain reqwest otherwise. The plain path carries the
+    // Route through the same client the page navigated with: the stealth
+    // client when enabled, the plain one otherwise. The plain path carries the
     // document as Referer (domain-whitelist image CDNs reject bare requests);
     // the stealth path takes only a URL.
     async fn fetch_via(

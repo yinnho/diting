@@ -6,7 +6,7 @@ use super::{ImageResult, RawSearchResult, SearchEngine, SearchEngineError, Searc
 /// returns binary direct image links (curl -o downloadable), not page URLs.
 pub struct BaiduImagesEngine {
     stealth: Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>>,
-    plain_client: reqwest::Client,
+    plain_client: diting::diting_net::wire::Client,
     /// One-time warmup: hit the image.baidu.com homepage so its cookies
     /// (BAIDUID et al.) land in the client's jar before the first acjson
     /// call. From a cold jar Baidu answers acjson with antiFlag=1 (empty

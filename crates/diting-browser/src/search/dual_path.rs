@@ -13,10 +13,10 @@ use super::{
     SearchEngineError,
 };
 
-/// Flatten a reqwest error's source chain (hyper/tokio causes) into one
+/// Flatten a transport error's source chain (hyper/tokio causes) into one
 /// string — the top-level Display alone hides whether a failure was
 /// connect/timeout/TLS, which is the one bit remote diagnosis needs.
-fn err_chain(e: &reqwest::Error) -> String {
+fn err_chain(e: &diting::diting_net::wire::Error) -> String {
     let mut out = e.to_string();
     let mut src = std::error::Error::source(e);
     while let Some(s) = src {
@@ -140,7 +140,7 @@ pub async fn get_direct_first<F>(
     build_proxied_client: F,
 ) -> Result<String, SearchEngineError>
 where
-    F: FnOnce() -> Option<reqwest::Client>,
+    F: FnOnce() -> Option<diting::diting_net::wire::Client>,
 {
     get_direct_first_if(url, headers, build_proxied_client, |_| true).await
 }
@@ -161,7 +161,7 @@ pub async fn get_direct_first_if<F>(
     body_ok: impl Fn(&str) -> bool,
 ) -> Result<String, SearchEngineError>
 where
-    F: FnOnce() -> Option<reqwest::Client>,
+    F: FnOnce() -> Option<diting::diting_net::wire::Client>,
 {
     let host = Url::parse(url)
         .ok()

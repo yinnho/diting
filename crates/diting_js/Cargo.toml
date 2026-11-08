@@ -27,7 +27,6 @@ tokio = { version = "1", features = ["full"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 serde_json = "1"
 tracing = "0.1"
-reqwest = { version = "0.13", features = ["cookies", "gzip", "brotli", "deflate", "rustls-no-provider", "socks", "json", "stream", "form", "query"], default-features = false }
 # Page-facing WebSocket transport: handshake runs over our own TcpStream/TLS
 # stack (client_async validates the 101 upgrade itself); tokio-tungstenite is
 # only the wire codec. 0.30 rides tungstenite 0.30 — sha1 0.11 + rand 0.10,
@@ -37,9 +36,6 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = [
     "handshake",
 ] }
 http = "1"
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
-webpki-roots = "1.0"
 # SOCKS tunneling for the WebSocket dial — vendored tokio-socks (0.5.3
 # upstream, crates/VENDORED.md); the crates.io crate pins thiserror 1.
 diting_socks = { path = "../diting_socks" }

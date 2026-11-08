@@ -25,7 +25,7 @@ const HEADERS: &[(&str, &str)] = &[
 /// `/engines` showed the engine healthy (v0.3.2 Windows report P1-1).
 pub struct BaiduEngine {
     stealth: Option<std::sync::Arc<diting::diting_net::wreq_client::StealthHttpClient>>,
-    plain_client: reqwest::Client,
+    plain_client: diting::diting_net::wire::Client,
 }
 
 impl BaiduEngine {

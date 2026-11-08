@@ -6,7 +6,7 @@ use super::{ImageResult, RawSearchResult, SearchEngine, SearchEngineError, Searc
 /// fragments where each result anchor (`a.iusc`) carries an embedded JSON `m`
 /// attribute with the direct image link (`murl`) and source page (`purl`).
 pub struct BingImagesEngine {
-    client: reqwest::Client,
+    client: diting::diting_net::wire::Client,
 }
 
 impl BingImagesEngine {

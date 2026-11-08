@@ -242,7 +242,7 @@ impl Page {
     /// Fan `Network.setExtraHTTPHeaders` out to every transport this page
     /// can issue requests from. A stealth page fetches its main document
     /// through the wreq stealth client (`fetch_document`) while JS
-    /// fetch()/XHR keep using the plain reqwest one — writing the extras to
+    /// fetch()/XHR keep using the plain one — writing the extras to
     /// the plain client alone silently drops them from document requests,
     /// which is exactly the header a CDP client set them to control
     /// (obscura #571).
