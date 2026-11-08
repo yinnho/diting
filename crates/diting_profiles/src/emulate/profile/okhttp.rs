@@ -119,8 +119,6 @@ fn build_emulation(
         headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
         headers.insert(USER_AGENT, HeaderValue::from_static(user_agent));
-        #[cfg(feature = "emulation-compression")]
-        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
         headers
     });
 

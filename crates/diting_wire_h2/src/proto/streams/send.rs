@@ -239,8 +239,6 @@ impl Send {
         let is_reset = stream.state.is_reset();
         let is_closed = stream.state.is_closed();
         let is_empty = stream.pending_send.is_empty();
-        #[cfg(feature = "tracing")]
-        let stream_id = stream.id;
 
         tracing::trace!(
             "send_reset(..., reason={:?}, initiator={:?}, stream={:?}, ..., \

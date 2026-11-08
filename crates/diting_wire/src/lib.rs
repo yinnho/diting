@@ -251,47 +251,27 @@
 
 macro_rules! if_tokio_rt {
     (block: { $($tt:tt)* }) => {
-        #[cfg(all(feature = "tokio-rt", not(feature = "compio-rt")))]
+        #[cfg(feature = "tokio-rt")]
         $($tt)*
     };
     ($($item:item)*) => {$(
-        #[cfg(all(feature = "tokio-rt", not(feature = "compio-rt")))]
+        #[cfg(feature = "tokio-rt")]
         $item
     )*};
 }
 
-macro_rules! if_compio_rt {
-    (block: { $($tt:tt)* }) => {
-        #[cfg(all(feature = "compio-rt", not(feature = "tokio-rt")))]
-        $($tt)*
-    };
-    ($($item:item)*) => {$(
-        #[cfg(all(feature = "compio-rt", not(feature = "tokio-rt")))]
-        $item
-    )*};
-}
 
-macro_rules! if_all_rt {
-    (block: { $($tt:tt)* }) => {
-        #[cfg(all(feature = "tokio-rt", feature = "compio-rt"))]
-        $($tt)*
-    };
-    ($($item:item)*) => {$(
-        #[cfg(all(feature = "tokio-rt", feature = "compio-rt"))]
-        $item
-    )*};
-}
 
 macro_rules! if_any_rt {
     ($($item:item)*) => {$(
-        #[cfg(any(feature = "tokio-rt", feature = "compio-rt"))]
+        #[cfg(feature = "tokio-rt")]
         $item
     )*};
 }
 
 macro_rules! if_no_rt {
     (block: { $($tt:tt)* }) => {
-        #[cfg(not(any(feature = "tokio-rt", feature = "compio-rt")))]
+        #[cfg(not(feature = "tokio-rt"))]
         $($tt)*
     };
 }
@@ -312,18 +292,12 @@ mod rt;
 mod sync;
 mod util;
 
-#[cfg(feature = "cookies")]
-pub mod cookie;
 pub mod dns;
 pub mod header;
 pub mod redirect;
 pub mod retry;
 pub mod tls;
 
-#[cfg(feature = "multipart")]
-pub use self::client::multipart;
-#[cfg(feature = "ws")]
-pub use self::client::ws;
 pub use self::{
     client::{
         Client, ClientBuilder,
@@ -371,14 +345,8 @@ fn _assert_impls() {
 
     assert_send::<Request>();
     assert_send::<RequestBuilder>();
-    #[cfg(feature = "ws")]
-    assert_send::<ws::WebSocketRequestBuilder>();
 
     assert_send::<Response>();
-    #[cfg(feature = "ws")]
-    assert_send::<ws::WebSocketResponse>();
-    #[cfg(feature = "ws")]
-    assert_send::<ws::WebSocket>();
 
     assert_send::<Error>();
     assert_sync::<Error>();
@@ -582,56 +550,3 @@ pub fn request<T: IntoUri>(method: Method, uri: T) -> RequestBuilder {
     Client::new().request(method, uri)
 }
 
-/// Shortcut method to quickly make a WebSocket request.
-///
-/// See also the methods on the
-/// [`diting_wire::ws::WebSocketRequestBuilder`](./ws/struct.WebSocketRequestBuilder.html) type.
-///
-/// **NOTE**: This function creates a new internal `Client` on each call,
-/// and so should not be used if making many requests. Create a
-/// [`Client`](./struct.Client.html) instead.
-///
-/// # Examples
-///
-/// ```rust
-/// # async fn run() -> diting_wire::Result<()> {
-/// use futures_util::{SinkExt, StreamExt, TryStreamExt};
-/// use diting_wire::{header, ws::message::Message};
-///
-/// let resp = diting_wire::websocket("wss://echo.websocket.org")
-///     .header(header::USER_AGENT, env!("CARGO_PKG_NAME"))
-///     .read_buffer_size(1024 * 1024)
-///     .send()
-///     .await?;
-///
-/// assert_eq!(resp.version(), http::Version::HTTP_11);
-///
-/// let websocket = resp.into_websocket().await?;
-/// if let Some(protocol) = websocket.protocol() {
-///     println!("WebSocket subprotocol: {:?}", protocol);
-/// }
-///
-/// let (mut tx, mut rx) = websocket.split();
-///
-/// tokio::spawn(async move {
-///     for i in 1..11 {
-///         if let Err(err) = tx.send(Message::text(format!("Hello, World! {i}"))).await {
-///             eprintln!("failed to send message: {err}");
-///         }
-///     }
-/// });
-///
-/// while let Some(message) = rx.try_next().await? {
-///     if let Message::Text(text) = message {
-///         println!("received: {text}");
-///     }
-/// }
-/// # Ok(())
-/// # }
-/// ```
-#[inline]
-#[cfg(feature = "ws")]
-#[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
-pub fn websocket<T: IntoUri>(uri: T) -> ws::WebSocketRequestBuilder {
-    Client::new().websocket(uri)
-}

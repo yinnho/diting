@@ -11,10 +11,8 @@ macro_rules! define_enum {
         $(#[$meta])*
         #[non_exhaustive]
         #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
-        #[cfg_attr(feature = "emulation-serde", derive(Deserialize, Serialize))]
         pub enum $name {
             $(
-                #[cfg_attr(feature = "emulation-serde", serde(rename = $rename))]
                 $variant,
             )*
         }
@@ -60,10 +58,8 @@ macro_rules! define_enum {
         $(#[$meta])*
         #[non_exhaustive]
         #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
-        #[cfg_attr(feature = "emulation-serde", derive(Deserialize, Serialize))]
         pub enum $name {
             $(
-                #[cfg_attr(feature = "emulation-serde", serde(rename = $rename))]
                 $variant,
             )*
         }
@@ -110,20 +106,10 @@ macro_rules! header_chrome_ua {
 macro_rules! header_chrome_accept {
     ($headers:expr) => {
         $headers.insert(ACCEPT, HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"));
-        #[cfg(feature = "emulation-compression")]
-        $headers.insert(
-            ACCEPT_ENCODING,
-            HeaderValue::from_static("gzip, deflate, br"),
-        );
         $headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
     };
     (zstd, $headers:expr) => {
         $headers.insert(ACCEPT, HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"));
-        #[cfg(feature = "emulation-compression")]
-        $headers.insert(
-            ACCEPT_ENCODING,
-            HeaderValue::from_static("gzip, deflate, br, zstd"),
-        );
         $headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
     }
 }
@@ -144,11 +130,6 @@ macro_rules! header_firefox_accept {
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             ),
         );
-        #[cfg(feature = "emulation-compression")]
-        $headers.insert(
-            ACCEPT_ENCODING,
-            HeaderValue::from_static("gzip, deflate, br"),
-        );
         $headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
     };
     (zstd, $headers:expr) => {
@@ -157,11 +138,6 @@ macro_rules! header_firefox_accept {
             HeaderValue::from_static(
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             ),
-        );
-        #[cfg(feature = "emulation-compression")]
-        $headers.insert(
-            ACCEPT_ENCODING,
-            HeaderValue::from_static("gzip, deflate, br, zstd"),
         );
         $headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
     };

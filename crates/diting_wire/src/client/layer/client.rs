@@ -30,12 +30,6 @@ use http_body::Body;
 use pool::Ver;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tower::{BoxError, util::Oneshot};
-#[cfg(feature = "cookies")]
-use {
-    crate::cookie::{CookieStore, Cookies},
-    http::header::COOKIE,
-    std::sync::Arc,
-};
 
 use self::lazy::{Started as Lazy, lazy};
 use crate::{
@@ -62,8 +56,6 @@ pub(crate) struct HttpClient<C, B> {
     h1_builder: conn::http1::Builder,
     h2_builder: conn::http2::Builder<Executor>,
     pool: pool::Pool<PoolClient<B>, ConnectionId>,
-    #[cfg(feature = "cookies")]
-    cookie_store: RequestConfig<Arc<dyn CookieStore>>,
 }
 
 #[derive(Clone, Copy)]
@@ -283,33 +275,7 @@ where
             authority_form(req.uri_mut());
         }
 
-        #[cfg(feature = "cookies")]
-        let cookie_store = self.cookie_store.fetch(req.extensions()).cloned();
 
-        #[cfg(feature = "cookies")]
-        if let Some(ref cookie_store) = cookie_store {
-            let headers = req.headers_mut();
-
-            if !headers.contains_key(COOKIE) {
-                let version = if pooled.is_http2() {
-                    Version::HTTP_2
-                } else {
-                    Version::HTTP_11
-                };
-
-                match cookie_store.cookies(&uri, version) {
-                    Cookies::Compressed(value) => {
-                        headers.insert(COOKIE, value);
-                    }
-                    Cookies::Uncompressed(values) => {
-                        for value in values {
-                            headers.append(COOKIE, value);
-                        }
-                    }
-                    Cookies::Empty => (),
-                }
-            }
-        }
 
         let mut res = match pooled.try_send_request(req).await {
             Ok(res) => res,
@@ -330,17 +296,6 @@ where
             }
         };
 
-        #[cfg(feature = "cookies")]
-        if let Some(cookie_store) = cookie_store {
-            let mut cookies = res
-                .headers()
-                .get_all(http::header::SET_COOKIE)
-                .iter()
-                .peekable();
-            if cookies.peek().is_some() {
-                cookie_store.set_cookies(&mut cookies, &uri);
-            }
-        }
 
         // If the Connector included 'extra' info, add to Response...
         pooled.conn_info.set_extras(res.extensions_mut());
@@ -695,8 +650,6 @@ impl<C: Clone, B> Clone for HttpClient<C, B> {
             h2_builder: self.h2_builder.clone(),
             connector: self.connector.clone(),
             pool: self.pool.clone(),
-            #[cfg(feature = "cookies")]
-            cookie_store: self.cookie_store.clone(),
         }
     }
 }
@@ -812,8 +765,6 @@ pub struct Builder {
     h2_builder: conn::http2::Builder<Executor>,
     pool_config: pool::Config,
     pool_timer: Timer,
-    #[cfg(feature = "cookies")]
-    cookie_store: Option<Arc<dyn CookieStore>>,
 }
 
 // ===== impl Builder =====
@@ -836,8 +787,6 @@ impl Builder {
                 max_pool_size: None,
             },
             pool_timer: Timer::default(),
-            #[cfg(feature = "cookies")]
-            cookie_store: None,
         }
     }
 
@@ -934,13 +883,6 @@ impl Builder {
         self
     }
 
-    /// Provide a cookie store for automatic cookie management.
-    #[inline]
-    #[cfg(feature = "cookies")]
-    pub fn cookie_store(mut self, cookie_store: Option<Arc<dyn CookieStore>>) -> Self {
-        self.cookie_store = cookie_store;
-        self
-    }
 
     /// Combine the configuration of this builder with a connector to create a `HttpClient`.
     pub fn build<C, B>(self, connector: C) -> HttpClient<C, B>
@@ -961,8 +903,6 @@ impl Builder {
             h1_builder: self.h1_builder,
             h2_builder: self.h2_builder,
             pool: pool::Pool::new(self.pool_config, exec, timer),
-            #[cfg(feature = "cookies")]
-            cookie_store: RequestConfig::new(self.cookie_store),
         }
     }
 }

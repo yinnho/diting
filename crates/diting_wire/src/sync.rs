@@ -12,13 +12,9 @@
 //! - Otherwise, it wraps [`std::sync::Mutex`] and [`std::sync::RwLock`], using `.unwrap_or_else(|e|
 //!   e.into_inner())` to silently recover from poisoning.
 
-#[cfg(feature = "parking_lot")]
-pub use parking_lot::*;
 
-#[cfg(not(feature = "parking_lot"))]
 pub use self::std::*;
 
-#[cfg(not(feature = "parking_lot"))]
 mod std {
     use std::{
         ops::{Deref, DerefMut},

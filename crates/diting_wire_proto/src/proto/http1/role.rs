@@ -108,8 +108,6 @@ impl Http1Transaction for Client {
 
     type Outgoing = RequestLine;
 
-    #[cfg(feature = "tracing")]
-    const LOG: &'static str = "{role=client}";
 
     fn parse(
         buf: &mut BytesMut,

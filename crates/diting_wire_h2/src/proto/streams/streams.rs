@@ -1540,9 +1540,6 @@ impl OpaqueStreamRef {
 
 impl fmt::Debug for OpaqueStreamRef {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        #[cfg(feature = "parking_lot")]
-        let lock_result = self.inner.try_lock();
-        #[cfg(not(feature = "parking_lot"))]
         let lock_result = self.inner.try_lock().ok();
 
         match lock_result {

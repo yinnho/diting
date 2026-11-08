@@ -26,8 +26,6 @@ pub(crate) trait Http1Transaction {
 
     type Outgoing: Default;
 
-    #[cfg(feature = "tracing")]
-    const LOG: &'static str;
 
     fn parse(
         bytes: &mut BytesMut,

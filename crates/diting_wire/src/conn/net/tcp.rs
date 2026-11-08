@@ -18,8 +18,6 @@
 #[cfg(feature = "tokio-rt")]
 pub mod tokio;
 
-#[cfg(feature = "compio-rt")]
-pub mod compio;
 
 use std::{
     collections::VecDeque,

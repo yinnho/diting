@@ -8,8 +8,6 @@ use std::{
 mod gai;
 mod resolve;
 
-#[cfg(feature = "hickory-dns")]
-pub(crate) mod hickory;
 
 pub use self::{
     gai::GaiResolver,

@@ -146,8 +146,6 @@ use crate::frame::{
 use crate::proto::{self, Error};
 use crate::{tracing, FlowControl, PingPong, RecvStream, SendStream};
 
-#[cfg(feature = "tracing")]
-use ::tracing::Instrument;
 use bytes::{Buf, Bytes};
 use http::{uri, HeaderMap, Method, Request, Response, Version};
 use std::fmt;
@@ -1368,13 +1366,7 @@ where
 {
     let builder = Builder::new();
 
-    #[cfg(feature = "tracing")]
-    return builder
-        .handshake(io)
-        .instrument(::tracing::trace_span!("client_handshake"))
-        .await;
 
-    #[cfg(not(feature = "tracing"))]
     return builder.handshake(io).await;
 }
 
@@ -1648,14 +1640,6 @@ impl PushPromises {
     }
 }
 
-#[cfg(feature = "stream")]
-impl futures_core::Stream for PushPromises {
-    type Item = Result<PushPromise, crate::Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.poll_push_promise(cx)
-    }
-}
 
 // ===== impl PushPromise =====
 
@@ -1778,8 +1762,6 @@ impl Peer {
 impl proto::Peer for Peer {
     type Poll = Response<()>;
 
-    #[cfg(feature = "tracing")]
-    const NAME: &'static str = "Client";
 
     fn r#dyn() -> proto::DynPeer {
         proto::DynPeer::Client

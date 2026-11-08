@@ -50,56 +50,7 @@ impl Body {
         ))
     }
 
-    /// Wrap a futures `Stream` in a box inside `Body`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use diting_wire::Body;
-    /// # use futures_util;
-    /// # fn main() {
-    /// let chunks: Vec<Result<_, ::std::io::Error>> = vec![Ok("hello"), Ok(" "), Ok("world")];
-    ///
-    /// let stream = futures_util::stream::iter(chunks);
-    ///
-    /// let body = Body::wrap_stream(stream);
-    /// # }
-    /// ```
-    ///
-    /// # Optional
-    ///
-    /// This requires the `stream` feature to be enabled.
-    #[cfg(feature = "stream")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-    pub fn wrap_stream<S>(stream: S) -> Body
-    where
-        S: futures_util::stream::TryStream + Send + 'static,
-        S::Error: Into<BoxError>,
-        Bytes: From<S::Ok>,
-    {
-        Body::stream(stream)
-    }
 
-    #[cfg(any(feature = "stream", feature = "multipart"))]
-    pub(crate) fn stream<S>(stream: S) -> Body
-    where
-        S: futures_util::stream::TryStream + Send + 'static,
-        S::Error: Into<BoxError>,
-        Bytes: From<S::Ok>,
-    {
-        use futures_util::TryStreamExt;
-        use http_body::Frame;
-        use http_body_util::StreamBody;
-        use sync_wrapper::SyncStream;
-
-        let body = StreamBody::new(SyncStream::new(
-            stream
-                .map_ok(Bytes::from)
-                .map_ok(Frame::data)
-                .map_err(Into::into),
-        ));
-        Body(Either::Right(body.boxed()))
-    }
 
     #[inline]
     pub(crate) fn empty() -> Body {
@@ -111,11 +62,6 @@ impl Body {
         Body(Either::Left(Full::new(chunk)))
     }
 
-    #[inline]
-    #[cfg(feature = "multipart")]
-    pub(crate) fn content_length(&self) -> Option<u64> {
-        self.0.size_hint().exact()
-    }
 
     #[inline]
     pub(crate) fn try_clone(&self) -> Option<Body> {
@@ -175,13 +121,6 @@ impl From<&'static str> for Body {
     }
 }
 
-#[cfg(all(feature = "tokio-rt", feature = "stream"))]
-impl From<tokio::fs::File> for Body {
-    #[inline]
-    fn from(file: tokio::fs::File) -> Body {
-        Body::wrap_stream(tokio_util::io::ReaderStream::new(file))
-    }
-}
 
 impl HttpBody for Body {
     type Data = Bytes;

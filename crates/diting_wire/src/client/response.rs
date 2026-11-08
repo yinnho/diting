@@ -6,20 +6,10 @@ use std::{
 
 use bytes::Bytes;
 use diting_wire_proto::ext::ReasonPhrase;
-#[cfg(feature = "charset")]
-use encoding_rs::{Encoding, UTF_8};
-#[cfg(feature = "stream")]
-use futures_util::Stream;
 use http::{HeaderMap, StatusCode, Uri, Version};
 use http_body::{Body as HttpBody, Frame};
 use http_body_util::{BodyExt, Collected};
-#[cfg(feature = "charset")]
-use mime::Mime;
-#[cfg(feature = "json")]
-use serde::de::DeserializeOwned;
 
-#[cfg(feature = "cookies")]
-use crate::cookie;
 use crate::{
     Body, Error,
     conn::{Connected, http::HttpInfo},
@@ -97,22 +87,6 @@ impl Response {
         HttpBody::size_hint(self.res.body()).exact()
     }
 
-    /// Retrieve the cookies contained in the [`Response`].
-    ///
-    /// Note that invalid 'Set-Cookie' headers will be ignored.
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `cookies` feature to be enabled.
-    #[cfg(feature = "cookies")]
-    pub fn cookies(&self) -> impl Iterator<Item = cookie::Cookie<'_>> {
-        self.res
-            .headers()
-            .get_all(crate::header::SET_COOKIE)
-            .iter()
-            .map(cookie::Cookie::parse)
-            .filter_map(Result::ok)
-    }
 
     /// Get the local address used to get this [`Response`].
     pub fn local_addr(&self) -> Option<SocketAddr> {
@@ -162,12 +136,7 @@ impl Response {
     /// # }
     /// ```
     pub async fn text(self) -> crate::Result<String> {
-        #[cfg(feature = "charset")]
-        {
-            self.text_with_charset("utf-8").await
-        }
 
-        #[cfg(not(feature = "charset"))]
         {
             let full = self.bytes().await?;
             let text = String::from_utf8_lossy(&full);
@@ -175,116 +144,7 @@ impl Response {
         }
     }
 
-    /// Get the full response text given a specific encoding.
-    ///
-    /// This method decodes the response body with BOM sniffing
-    /// and with malformed sequences replaced with the
-    /// [`char::REPLACEMENT_CHARACTER`].
-    /// You can provide a default encoding for decoding the raw message, while the
-    /// `charset` parameter of `Content-Type` header is still prioritized. For more information
-    /// about the possible encoding name, please go to [`encoding_rs`] docs.
-    ///
-    /// Note that the BOM is stripped from the returned String.
-    ///
-    /// [`encoding_rs`]: https://docs.rs/encoding_rs/0.8/encoding_rs/#relationship-with-windows-code-pages
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `encoding_rs` feature enabled.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    /// let content = diting_wire::Client::new()
-    ///     .get("http://httpbin.org/range/26")
-    ///     .send()
-    ///     .await?
-    ///     .text_with_charset("utf-8")
-    ///     .await?;
-    ///
-    /// println!("text: {content:?}");
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[cfg(feature = "charset")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "charset")))]
-    pub async fn text_with_charset(
-        self,
-        default_encoding: impl AsRef<str>,
-    ) -> crate::Result<String> {
-        let content_type = self
-            .headers()
-            .get(crate::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.parse::<Mime>().ok());
-        let encoding_name = content_type
-            .as_ref()
-            .and_then(|mime| mime.get_param("charset").map(|charset| charset.as_str()))
-            .unwrap_or(default_encoding.as_ref());
-        let encoding = Encoding::for_label(encoding_name.as_bytes()).unwrap_or(UTF_8);
 
-        let full = self.bytes().await?;
-        let (text, _, _) = encoding.decode(&full);
-        Ok(text.into_owned())
-    }
-
-    /// Try to deserialize the response body as JSON.
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `json` feature enabled.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # extern crate diting_wire;
-    /// # extern crate serde;
-    /// #
-    /// # use diting_wire::Error;
-    /// # use serde::Deserialize;
-    /// #
-    /// // This `derive` requires the `serde` dependency.
-    /// #[derive(Deserialize)]
-    /// struct Ip {
-    ///     origin: String,
-    /// }
-    ///
-    /// # async fn run() -> Result<(), Error> {
-    /// let ip = diting_wire::Client::new()
-    ///     .get("http://httpbin.org/ip")
-    ///     .send()
-    ///     .await?
-    ///     .json::<Ip>()
-    ///     .await?;
-    ///
-    /// println!("ip: {}", ip.origin);
-    /// # Ok(())
-    /// # }
-    /// #
-    /// # fn main() { }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// This method fails whenever the response body is not in JSON format
-    /// or it cannot be properly deserialized to target type `T`. For more
-    /// details please see [`serde_json::from_reader`].
-    ///
-    /// [`serde_json::from_reader`]: https://docs.serde.rs/serde_json/fn.from_reader.html
-    #[cfg(feature = "json")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
-    pub async fn json<T: DeserializeOwned>(self) -> crate::Result<T> {
-        match http_body_util::BodyExt::collect(self.res.into_body())
-            .await
-            .map(Collected::<Bytes>::to_bytes)
-        {
-            Ok(full) => serde_json::from_slice(&full)
-                .map_err(Error::decode)
-                .map_err(|err| err.with_uri(self.uri)),
-            Err(err) => Err(err.with_uri(self.uri)),
-        }
-    }
 
     /// Get the full response body as [`Bytes`].
     ///
@@ -311,36 +171,6 @@ impl Response {
             .map_err(|err| err.with_uri(self.uri))
     }
 
-    /// Convert the response into a [`Stream`] of [`Bytes`] from the body.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use futures_util::StreamExt;
-    ///
-    /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut stream = diting_wire::Client::new()
-    ///     .get("http://httpbin.org/ip")
-    ///     .send()
-    ///     .await?
-    ///     .bytes_stream();
-    ///
-    /// while let Some(item) = stream.next().await {
-    ///     println!("Chunk: {:?}", item?);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `stream` feature to be enabled.
-    #[inline]
-    #[cfg(feature = "stream")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-    pub fn bytes_stream(self) -> impl Stream<Item = crate::Result<Bytes>> {
-        http_body_util::BodyDataStream::new(self.res.into_body())
-    }
 
     // extension methods
 
