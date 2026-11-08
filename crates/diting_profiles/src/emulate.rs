@@ -4,8 +4,6 @@ pub mod compress;
 pub mod profile;
 
 use profile::{chrome::*, firefox::*, okhttp::*, opera::*, safari::*};
-#[cfg(feature = "emulation-serde")]
-use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
 
 define_enum!(

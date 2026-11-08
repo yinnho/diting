@@ -97,13 +97,7 @@ impl Default for Executor {
             return Executor(Arc::new(diting_wire_rt::rt::tokio::TokioExecutor::new()))
         });
 
-        if_compio_rt!(block: {
-            return Executor(Arc::new(diting_wire_rt::rt::compio::CompioExecutor::new()))
-        });
 
-        if_all_rt!(block: {
-            return Executor(Arc::new(diting_wire_rt::rt::tokio::TokioExecutor::new()))
-        });
 
         if_no_rt!(block:{
             panic!(
@@ -161,13 +155,7 @@ impl Default for Timer {
             return Timer(rt::Time::Timer(Arc::new(diting_wire_rt::rt::tokio::TokioTimer::new())))
         });
 
-        if_compio_rt!(block: {
-            return Timer(rt::Time::Timer(Arc::new(diting_wire_rt::rt::compio::CompioTimer::new())))
-        });
 
-        if_all_rt!(block: {
-            return Timer(rt::Time::Timer(Arc::new(diting_wire_rt::rt::tokio::TokioTimer::new())))
-        });
 
         if_no_rt!(block: {
             Timer(Time::Empty)

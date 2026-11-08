@@ -23,7 +23,6 @@ rustdoc-args = [
 targets = ["x86_64-unknown-linux-gnu"]
 
 [features]
-compio-rt = []
 default = [
     "emulation",
 ]
@@ -33,12 +32,6 @@ emulation = [
     "dep:flate2",
     "dep:zstd",
 ]
-emulation-compression = []
-emulation-serde = []
-tokio-rt = [
-    "diting_wire/tokio-rt",
-]
-tower-delay = []
 
 [lib]
 name = "diting_profiles"

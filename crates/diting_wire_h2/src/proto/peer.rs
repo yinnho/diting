@@ -10,8 +10,6 @@ use std::fmt;
 pub(crate) trait Peer {
     /// Message type polled from the transport
     type Poll: fmt::Debug;
-    #[cfg(feature = "tracing")]
-    const NAME: &'static str;
 
     fn r#dyn() -> Dyn;
 

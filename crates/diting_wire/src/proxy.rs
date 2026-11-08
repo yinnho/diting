@@ -1,9 +1,5 @@
-#[cfg(all(target_os = "macos", feature = "system-proxy"))]
-mod mac;
 #[cfg(unix)]
 mod uds;
-#[cfg(all(windows, feature = "system-proxy"))]
-mod win;
 
 pub(crate) mod matcher;
 

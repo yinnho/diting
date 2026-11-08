@@ -2,13 +2,7 @@ if_tokio_rt! {
     mod tokio;
 }
 
-if_compio_rt!(
-    mod compio;
-);
 
-if_all_rt!(
-    mod tokio;
-);
 
 use std::net::SocketAddr;
 

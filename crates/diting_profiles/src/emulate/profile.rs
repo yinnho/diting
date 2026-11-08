@@ -6,8 +6,6 @@ pub mod okhttp;
 pub mod opera;
 pub mod safari;
 
-#[cfg(feature = "emulation-compression")]
-use diting_wire::header::ACCEPT_ENCODING;
 use diting_wire::{
     Group,
     header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderName, HeaderValue, USER_AGENT},

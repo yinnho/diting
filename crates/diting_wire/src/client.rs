@@ -6,10 +6,6 @@ pub(super) mod request;
 pub(super) mod response;
 pub(super) mod upgrade;
 
-#[cfg(feature = "multipart")]
-pub mod multipart;
-#[cfg(feature = "ws")]
-pub mod ws;
 
 use std::{
     borrow::Cow,
@@ -37,8 +33,6 @@ use tower::{
     feature = "deflate",
 ))]
 use self::layer::decoder::{AcceptEncoding, DecompressionLayer};
-#[cfg(feature = "ws")]
-use self::ws::WebSocketRequestBuilder;
 use self::{
     body::Body,
     emulate::IntoEmulation,
@@ -53,10 +47,6 @@ use self::{
     request::{Request, RequestBuilder},
     response::Response,
 };
-#[cfg(feature = "cookies")]
-use crate::cookie;
-#[cfg(feature = "hickory-dns")]
-use crate::dns::hickory::HickoryDnsResolver;
 use crate::{
     IntoUri, Method, Proxy,
     conn::{
@@ -199,10 +189,6 @@ struct Config {
     redirect_policy: redirect::Policy,
     referer: bool,
     timeout_options: TimeoutOptions,
-    #[cfg(feature = "cookies")]
-    cookie_store: Option<Arc<dyn cookie::CookieStore>>,
-    #[cfg(feature = "hickory-dns")]
-    hickory_dns: bool,
     dns_overrides: HashMap<Cow<'static, str>, Vec<SocketAddr>>,
     dns_resolver: Option<Arc<dyn Resolve>>,
     http_version_pref: HttpVersionPref,
@@ -286,10 +272,6 @@ impl Client {
                 redirect_policy: redirect::Policy::none(),
                 referer: true,
                 timeout_options: TimeoutOptions::default(),
-                #[cfg(feature = "hickory-dns")]
-                hickory_dns: cfg!(feature = "hickory-dns"),
-                #[cfg(feature = "cookies")]
-                cookie_store: None,
                 dns_overrides: HashMap::new(),
                 dns_resolver: None,
                 http_version_pref: HttpVersionPref::All,
@@ -398,16 +380,6 @@ impl Client {
         RequestBuilder::new(self.clone(), req)
     }
 
-    /// Upgrades the [`RequestBuilder`] to perform a
-    /// websocket handshake. This returns a wrapped type, so you must do
-    /// this after you set up your request, and just before you send the
-    /// request.
-    #[inline]
-    #[cfg(feature = "ws")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
-    pub fn websocket<U: IntoUri>(&self, uri: U) -> WebSocketRequestBuilder {
-        WebSocketRequestBuilder::new(self.request(Method::GET, uri))
-    }
 
     /// Executes a `Request`.
     ///
@@ -488,8 +460,6 @@ impl ClientBuilder {
             let resolver = {
                 let mut resolver: Arc<dyn Resolve> = match config.dns_resolver {
                     Some(dns_resolver) => dns_resolver,
-                    #[cfg(feature = "hickory-dns")]
-                    None if config.hickory_dns => Arc::new(HickoryDnsResolver::new()),
                     None => Arc::new(GaiResolver::new()),
                 };
 
@@ -565,10 +535,6 @@ impl ClientBuilder {
             #[allow(unused_mut)]
             let mut builder = HttpClient::builder(config.executor);
 
-            #[cfg(feature = "cookies")]
-            {
-                builder = builder.cookie_store(config.cookie_store);
-            }
 
             builder
                 .http1_options(config.http1_options)
@@ -745,45 +711,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Enable a persistent cookie store for the client.
-    ///
-    /// Cookies received in responses will be preserved and included in
-    /// additional requests.
-    ///
-    /// By default, no cookie store is used.
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `cookies` feature to be enabled.
-    #[inline]
-    #[cfg(feature = "cookies")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
-    pub fn cookie_store(mut self, enable: bool) -> ClientBuilder {
-        if enable {
-            self.cookie_provider(Arc::new(cookie::Jar::default()))
-        } else {
-            self.config.cookie_store = None;
-            self
-        }
-    }
 
-    /// Set the persistent cookie store for the client.
-    ///
-    /// Cookies received in responses will be passed to this store, and
-    /// additional requests will query this store for cookies.
-    ///
-    /// By default, no cookie store is used.
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `cookies` feature to be enabled.
-    #[inline]
-    #[cfg(feature = "cookies")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
-    pub fn cookie_provider<C: cookie::IntoCookieStore>(mut self, cookie_store: C) -> ClientBuilder {
-        self.config.cookie_store = Some(cookie_store.into_shared());
-        self
-    }
 
     /// Enable auto gzip decompression by checking the `Content-Encoding` response header.
     ///
@@ -1527,18 +1455,6 @@ impl ClientBuilder {
 
     // DNS options
 
-    /// Disables the hickory-dns async resolver.
-    ///
-    /// This method exists even if the optional `hickory-dns` feature is not enabled.
-    /// This can be used to ensure a `Client` doesn't use the hickory-dns async resolver
-    /// even if another dependency were to enable the optional `hickory-dns` feature.
-    #[inline]
-    #[cfg(feature = "hickory-dns")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "hickory-dns")))]
-    pub fn no_hickory_dns(mut self) -> ClientBuilder {
-        self.config.hickory_dns = false;
-        self
-    }
 
     /// Override DNS resolution for specific domains to a particular IP address.
     ///

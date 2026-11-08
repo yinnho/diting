@@ -10,12 +10,8 @@
 //! This abstraction allows high-availability systems to avoid poisoning and to seamlessly
 //! switch between standard and high-performance synchronization primitives.
 
-#[cfg(feature = "parking_lot")]
-pub use parking_lot::Mutex;
-#[cfg(not(feature = "parking_lot"))]
 pub use std_mutex::Mutex;
 
-#[cfg(not(feature = "parking_lot"))]
 mod std_mutex {
     use std::{
         fmt,

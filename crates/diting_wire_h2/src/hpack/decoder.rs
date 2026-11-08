@@ -502,10 +502,6 @@ impl Table {
         }
     }
 
-    #[cfg(feature = "tracing")]
-    fn size(&self) -> usize {
-        self.size
-    }
 
     /// Returns the entry located at the given index.
     ///

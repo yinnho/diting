@@ -27,9 +27,6 @@ brotli = [
     "dep:tower-http",
     "tower-http?/decompression-br",
 ]
-charset = []
-compio-rt = []
-cookies = []
 default = [
     "webpki-roots",
     "tokio-rt",
@@ -38,35 +35,25 @@ deflate = [
     "dep:tower-http",
     "tower-http?/decompression-deflate",
 ]
-form = []
 gzip = [
     "dep:tower-http",
     "tower-http?/decompression-gzip",
 ]
-hickory-dns = []
-json = []
-multipart = []
-parking_lot = []
 prefix-symbols = [
     "btls/prefix-symbols",
 ]
-query = []
 socks = [
     "dep:diting_socks",
 ]
-stream = []
-system-proxy = []
 tokio-rt = [
     "tokio/rt",
     "tokio/net",
     "tokio/fs",
     "diting_wire_rt/tokio-rt",
 ]
-tracing = []
 webpki-roots = [
     "dep:webpki-root-certs",
 ]
-ws = []
 zstd = [
     "dep:tower-http",
     "tower-http?/decompression-zstd",

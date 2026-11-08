@@ -19,9 +19,6 @@ autobenches = false
 license = "MIT"
 
 [features]
-parking_lot = []
-stream = []
-tracing = []
 unstable = []
 
 [lib]

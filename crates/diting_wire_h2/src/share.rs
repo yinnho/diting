@@ -6,8 +6,6 @@ use bytes::{Buf, Bytes};
 use http::HeaderMap;
 
 use std::fmt;
-#[cfg(feature = "stream")]
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 /// Sends the body stream and trailers to the remote peer.
@@ -460,14 +458,6 @@ impl RecvStream {
     }
 }
 
-#[cfg(feature = "stream")]
-impl futures_core::Stream for RecvStream {
-    type Item = Result<Bytes, crate::Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.poll_data(cx)
-    }
-}
 
 impl fmt::Debug for RecvStream {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {

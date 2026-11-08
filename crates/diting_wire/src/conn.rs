@@ -20,7 +20,7 @@ use std::{
 };
 
 use ::http::{Extensions, HeaderMap, HeaderValue};
-#[cfg(any(feature = "tokio-rt", feature = "compio-rt"))]
+#[cfg(feature = "tokio-rt")]
 use net::TcpConnector;
 use pin_project_lite::pin_project;
 use tls_info::TlsInfoFactory;

@@ -6,13 +6,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(feature = "form", feature = "json", feature = "multipart"))]
-use http::header::CONTENT_TYPE;
 use http::{Extensions, Uri, Version};
-#[cfg(any(feature = "query", feature = "form", feature = "json"))]
-use serde::Serialize;
-#[cfg(feature = "multipart")]
-use {super::multipart, bytes::Bytes, http::header::CONTENT_LENGTH};
 
 #[cfg(any(
     feature = "gzip",
@@ -29,8 +23,6 @@ use super::{
         timeout::TimeoutOptions,
     },
 };
-#[cfg(feature = "cookies")]
-use crate::cookie::{CookieStore, IntoCookieStore};
 use crate::{
     Error, Method, Proxy,
     config::{RequestConfig, RequestConfigValue},
@@ -386,124 +378,8 @@ impl RequestBuilder {
         self
     }
 
-    /// Modify the query string of the URI.
-    ///
-    /// Modifies the URI of this request, adding the parameters provided.
-    /// This method appends and does not overwrite. This means that it can
-    /// be called multiple times and that existing query parameters are not
-    /// overwritten if the same key is used. The key will simply show up
-    /// twice in the query string.
-    /// Calling `.query(&[("foo", "a"), ("foo", "b")])` gives `"foo=a&foo=b"`.
-    ///
-    /// # Note
-    /// This method does not support serializing a single key-value
-    /// pair. Instead of using `.query(("key", "val"))`, use a sequence, such
-    /// as `.query(&[("key", "val")])`. It's also possible to serialize structs
-    /// and maps into a key-value pair.
-    ///
-    /// # Errors
-    /// This method will fail if the object you provide cannot be serialized
-    /// into a query string.
-    #[cfg(feature = "query")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "query")))]
-    pub fn query<T: Serialize + ?Sized>(mut self, query: &T) -> RequestBuilder {
-        let mut error = None;
-        if let Ok(ref mut req) = self.request {
-            match serde_html_form::to_string(query) {
-                Ok(serializer) => {
-                    let uri = req.uri_mut();
-                    uri.set_query(serializer);
-                }
-                Err(err) => error = Some(Error::builder(err)),
-            }
-        }
-        if let Some(err) = error {
-            self.request = Err(err);
-        }
-        self
-    }
 
-    /// Send a form body.
-    ///
-    /// Sets the body to the uri encoded serialization of the passed value,
-    /// and also sets the `Content-Type: application/x-www-form-urlencoded`
-    /// header.
-    ///
-    /// ```rust
-    /// # use diting_wire::Error;
-    /// # use std::collections::HashMap;
-    /// #
-    /// # async fn run() -> Result<(), Error> {
-    /// let mut params = HashMap::new();
-    /// params.insert("lang", "rust");
-    ///
-    /// let client = diting_wire::Client::new();
-    /// let res = client
-    ///     .post("http://httpbin.org")
-    ///     .form(&params)
-    ///     .send()
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// This method fails if the passed value cannot be serialized into
-    /// uri encoded format
-    #[cfg(feature = "form")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "form")))]
-    pub fn form<T: Serialize + ?Sized>(mut self, form: &T) -> RequestBuilder {
-        if let Ok(ref mut req) = self.request {
-            match serde_html_form::to_string(form) {
-                Ok(body) => {
-                    const HEADER_VALUE: HeaderValue =
-                        HeaderValue::from_static("application/x-www-form-urlencoded");
 
-                    req.headers_mut()
-                        .entry(CONTENT_TYPE)
-                        .or_insert(HEADER_VALUE);
-                    req.body_mut().replace(body.into());
-                }
-                Err(err) => self.request = Err(Error::builder(err)),
-            }
-        }
-        self
-    }
-
-    /// Send a JSON body.
-    ///
-    /// Serializes the value as JSON and sets the resulting bytes as the request body.
-    ///
-    /// Sets `Content-Type` to `application/json` unless it is already set.
-    ///
-    /// # Optional
-    ///
-    /// This requires the optional `json` feature enabled.
-    ///
-    /// # Errors
-    ///
-    /// Serialization can fail if `T`'s implementation of `Serialize` decides to
-    /// fail, or if `T` contains a map with non-string keys.
-    #[cfg(feature = "json")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
-    pub fn json<T: Serialize + ?Sized>(mut self, json: &T) -> RequestBuilder {
-        if let Ok(ref mut req) = self.request {
-            match serde_json::to_vec(json) {
-                Ok(body) => {
-                    const HEADER_VALUE: HeaderValue = HeaderValue::from_static("application/json");
-
-                    req.headers_mut()
-                        .entry(CONTENT_TYPE)
-                        .or_insert(HEADER_VALUE);
-                    req.body_mut().replace(body.into());
-                }
-                Err(err) => self.request = Err(Error::builder(err)),
-            }
-        }
-
-        self
-    }
 
     /// Set the request body.
     pub fn body<T: Into<Body>>(mut self, body: T) -> RequestBuilder {
@@ -513,50 +389,6 @@ impl RequestBuilder {
         self
     }
 
-    /// Sends a multipart/form-data body.
-    ///
-    /// ```
-    /// # use diting_wire::Error;
-    ///
-    /// # async fn run() -> Result<(), Error> {
-    /// let client = diting_wire::Client::new();
-    /// let form = diting_wire::multipart::Form::new()
-    ///     .text("key3", "value3")
-    ///     .text("key4", "value4");
-    ///
-    /// let response = client.post("your uri").multipart(form).send().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[cfg(feature = "multipart")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "multipart")))]
-    pub fn multipart(mut self, mut multipart: multipart::Form) -> RequestBuilder {
-        if let Ok(ref mut req) = self.request {
-            match HeaderValue::from_maybe_shared(Bytes::from(format!(
-                "multipart/form-data; boundary={}",
-                multipart.boundary()
-            ))) {
-                Ok(content_type) => {
-                    req.headers_mut()
-                        .entry(CONTENT_TYPE)
-                        .or_insert(content_type);
-
-                    if let Some(length) = multipart.compute_length() {
-                        req.headers_mut()
-                            .entry(CONTENT_LENGTH)
-                            .or_insert_with(|| HeaderValue::from(length));
-                    }
-
-                    *req.body_mut() = Some(multipart.stream())
-                }
-                Err(err) => {
-                    self.request = Err(Error::builder(err));
-                }
-            };
-        }
-
-        self
-    }
 
     /// Set HTTP version
     pub fn version(mut self, version: Version) -> RequestBuilder {
@@ -577,18 +409,6 @@ impl RequestBuilder {
         self
     }
 
-    /// Set the persistent cookie store for the request.
-    #[cfg(feature = "cookies")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
-    pub fn cookie_provider<C: IntoCookieStore>(mut self, cookie_store: C) -> RequestBuilder {
-        if let Ok(ref mut req) = self.request {
-            use std::sync::Arc;
-
-            req.config_mut::<Arc<dyn CookieStore>>()
-                .replace(cookie_store.into_shared());
-        }
-        self
-    }
 
     /// Sets if this request will announce that it accepts gzip encoding.
     #[cfg(feature = "gzip")]

@@ -82,9 +82,6 @@ pub(crate) trait UriExt {
     /// Returns the port of the URI, or the default port for the scheme if none is specified.
     fn port_or_default(&self) -> u16;
 
-    /// Sets the query component of the URI, replacing any existing query.
-    #[cfg(feature = "query")]
-    fn set_query(&mut self, query: String);
 
     /// Returns the username and password from the URI's userinfo, if present.
     fn userinfo(&self) -> (Option<&str>, Option<&str>);
@@ -130,31 +127,6 @@ impl UriExt for Uri {
         }
     }
 
-    #[cfg(feature = "query")]
-    fn set_query(&mut self, query: String) {
-        use http::uri::PathAndQuery;
-
-        if query.is_empty() {
-            return;
-        }
-
-        let path = self.path();
-        let parts = match PathAndQuery::from_maybe_shared(Bytes::from(format!("{path}?{query}"))) {
-            Ok(path_and_query) => {
-                let mut parts = self.clone().into_parts();
-                parts.path_and_query.replace(path_and_query);
-                parts
-            }
-            Err(_err) => {
-                debug!("Failed to set query in URI: {_err}");
-                return;
-            }
-        };
-
-        if let Ok(uri) = Uri::from_parts(parts) {
-            *self = uri;
-        }
-    }
 
     fn userinfo(&self) -> (Option<&str>, Option<&str>) {
         self.authority()

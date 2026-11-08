@@ -27,8 +27,6 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [features]
 default = []
-full = []
-tracing = []
 
 [[test]]
 name = "grease_setting"

@@ -194,11 +194,7 @@ impl Builder {
         #[allow(unused_mut)]
         let mut builder = Self::from_env();
 
-        #[cfg(all(target_os = "macos", feature = "system-proxy"))]
-        super::mac::with_system(&mut builder);
 
-        #[cfg(all(windows, feature = "system-proxy"))]
-        super::win::with_system(&mut builder);
 
         builder
     }

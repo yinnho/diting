@@ -15,7 +15,6 @@ autobenches = false
 license = "Apache-2.0"
 
 [features]
-compio-rt = []
 default = [
     "tokio-rt",
 ]
