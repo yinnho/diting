@@ -130,6 +130,14 @@ pub struct JsRuntime {
     /// leaks — the next loop entry (nothing JS executing then) resets it
     /// via the bootstrap recovery hook.
     termination_unwound: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// #332: set by a WatchdogToken whose cancel ceremony blew
+    /// `WATCHDOG_CANCEL_GRACE` (the watchdog thread is wedged inside
+    /// terminate_execution, or in its own exit). Flows into every token at
+    /// arm time so the orphaned-arm Drop path can report it too; this
+    /// struct's Drop reads it to skip the isolate teardown — the wedged
+    /// thread holds the rusty_v8 handle mutex that
+    /// `IsolateHandle::dispose()` would block on forever.
+    watchdog_wedge: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Per-module evaluation outcome cache (upstream 4f6d256): browsers
     /// evaluate a module script exactly once per document. Our module map
     /// treats a second mod_evaluate of the same ModuleId like the spec's
@@ -142,6 +150,24 @@ pub struct JsRuntime {
     /// `set_http_client` can reach the loader after construction (the Rc
     /// also lives inside the Vm's module map, which gives nothing back).
     module_loader: Rc<DitingModuleLoader>,
+}
+
+/// #332 leak-degrade: if any watchdog of this realm wedged (see
+/// [`crate::diting_js::runtime::WatchdogToken`]'s cancel ceremony), the
+/// isolate handle's rusty_v8 mutex is still in the wedged thread's hands —
+/// the normal `SerializedDropRuntime` teardown would block on it forever,
+/// one step after the join already gave up. Mark the leak BEFORE the field
+/// drops run (`runtime` is the first field, so its Drop is the first to
+/// fire and cannot intervene itself).
+impl Drop for JsRuntime {
+    fn drop(&mut self) {
+        if self
+            .watchdog_wedge
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            self.runtime.mark_isolate_wedged();
+        }
+    }
 }
 
 /// Extract a display message from a caught panic payload (`&str`, `String`,
@@ -371,7 +397,7 @@ impl JsRuntime {
         );
 
         JsRuntime {
-            runtime: SerializedDropRuntime(std::mem::ManuallyDrop::new(runtime)),
+            runtime: SerializedDropRuntime::new(runtime),
             state,
             object_store: HashMap::new(),
             object_counter: 0,
@@ -381,6 +407,7 @@ impl JsRuntime {
             v8_active_ns: std::cell::Cell::new(0),
             stale_termination: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             termination_unwound: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            watchdog_wedge: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             module_evaluations: HashMap::new(),
             module_loader: module_loader.clone(),
         }

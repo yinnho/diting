@@ -27,6 +27,16 @@ pub struct WatchdogToken {
     /// (and its subsequent recovery scripts) destroys the stack we want.
     /// `None` when the knob is off.
     sampler_stop: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    /// #332: the realm's wedge flag, shared from the owning JsRuntime at arm
+    /// time (like `stale_termination` flows into the thread closure). Set by
+    /// [`WatchdogToken::cancel_and_join`] when the cancel ceremony blew the
+    /// [`WATCHDOG_CANCEL_GRACE`] wall; the runtime's Drop reads it to skip
+    /// the isolate teardown (the wedged thread holds the same rusty_v8
+    /// handle mutex `IsolateHandle::dispose()` needs). Living in the token —
+    /// not written back through a runtime pointer — is what lets the
+    /// ORPHANED-arm Drop path (tokio preemption between arm and disarm)
+    /// report the wedge too.
+    wedge_flag: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// The isolate's own thread (every arm site runs on it). The post-fire
     /// grace registers it in [`ZOMBIE_THREADS`]; a late resurface clears it.
     owner: std::thread::ThreadId,
@@ -74,6 +84,24 @@ const ZOMBIE_VERDICT_AFTER: std::time::Duration = if cfg!(test) {
 } else {
     std::time::Duration::from_secs(20)
 };
+
+/// #332: the wall for the whole cancel ceremony in
+/// [`WatchdogToken::cancel_and_join`] — acquiring the pair mutex AND
+/// joining the thread. The mutex belongs to the watchdog thread from its
+/// first lock until it returns (the cvar park releases it only while
+/// parked; post-fire it stays in its hands across the grace and
+/// keep-knocking loops, both of which poll `resurfaced` every 100ms, so a
+/// healthy watchdog completes the ceremony within ~150ms of a cancel).
+/// The hang this bounds: a watchdog wedged INSIDE
+/// `terminate_execution()` — rusty_v8's `with_isolate_ptr` holds the
+/// handle's `isolate_mutex` across the FFI call — never releases the pair
+/// mutex and never exits, and the owner's blocking `lock()`/`join()` then
+/// pinned every session of a loaded server forever. Past the grace the
+/// token leaks the thread on purpose and marks the realm wedged (see
+/// `wedge_flag`) so its isolate teardown is skipped too: the same handle
+/// mutex blocks `IsolateHandle::dispose()`. One thread + one heap leak
+/// per incident, loudly logged, instead of a hang.
+const WATCHDOG_CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Debug knob (DITING_WATCHDOG_STACK_DUMP=1): dump the live JS stack of
 /// a synchronous overrun. Two producers share this callback:
@@ -204,6 +232,7 @@ pub fn spawn_watchdog(
     handle: IsolateHandle,
     budget: std::time::Duration,
     stale: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    wedge_flag: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 ) -> WatchdogToken {
     let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
     let fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -344,8 +373,60 @@ pub fn spawn_watchdog(
         fired,
         resurfaced,
         sampler_stop,
+        wedge_flag,
         owner,
     }
+}
+
+/// The bounded half of the #332 cancel ceremony, factored out so the wedge
+/// test can drive it without a live isolate: signal the pair (try_lock — the
+/// mutex may be held for the wedge's lifetime by a watchdog stuck inside
+/// `terminate_execution`, and a blocking `lock()` is exactly the loaded-server
+/// hang), then join (poll [`std::thread::JoinHandle::is_finished`] — a
+/// blocking join pins the owner on the same wedge). Returns
+/// `(signalled, joined)`; `false` in either slot is the wedge verdict.
+fn bounded_cancel_and_join(
+    pair: &(std::sync::Mutex<bool>, std::sync::Condvar),
+    mut join: Option<std::thread::JoinHandle<()>>,
+    deadline: std::time::Instant,
+) -> (bool, bool) {
+    let mut signalled = false;
+    {
+        let (lock, cvar) = pair;
+        loop {
+            if let Ok(mut cancelled) = lock.try_lock() {
+                *cancelled = true;
+                drop(cancelled);
+                cvar.notify_one();
+                signalled = true;
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+    let joined = match join.take() {
+        None => true,
+        Some(j) => {
+            while !j.is_finished() && std::time::Instant::now() < deadline {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            if j.is_finished() {
+                let _ = j.join();
+                true
+            } else {
+                // Leak on purpose: the thread is stuck inside a V8 call or in
+                // its own exit. If the call ever returns, the loops in the
+                // thread see the resurface flag and it exits on its own —
+                // merely unjoined.
+                std::mem::forget(j);
+                false
+            }
+        }
+    };
+    (signalled, joined)
 }
 
 impl Drop for WatchdogToken {
@@ -376,31 +457,46 @@ impl WatchdogToken {
         self.fired.load(std::sync::atomic::Ordering::SeqCst)
     }
 
-    /// Shared cancel path for Drop and stop(): flip the cancel flag, join the
-    /// watchdog thread, then halt the stack-dump sampler. Joining first
-    /// guarantees the sampler stops AFTER the watchdog can no longer fire, so
-    /// its last in-flight request can at worst dump a healthy stack once.
+    /// Shared cancel path for Drop and stop(): flip the resurface flag, run
+    /// the #332-bounded ceremony, then halt the stack-dump sampler. Joining
+    /// before the sampler stops guarantees the sampler halts only AFTER the
+    /// watchdog can no longer fire, so its last in-flight request can at
+    /// worst dump a healthy stack once.
     fn cancel_and_join(&mut self) {
         // Before the mutex: the post-fire grace poll in the watchdog thread
         // reads this flag, and the mutex is in that thread's hands until the
         // grace ends.
         self.resurfaced
             .store(true, std::sync::atomic::Ordering::Relaxed);
-        {
-            let (lock, cvar) = &*self.pair;
-            *lock.lock().unwrap() = true;
-            cvar.notify_one();
-        }
-        if let Some(j) = self.join.take() {
-            let _ = j.join();
-        }
-        // Late resurface after a zombie verdict (the spin did end on its
-        // own): the thread is live again. Its waiters already gave up, so
-        // this only matters for the next command — which must not be
-        // refused against a thread that is serving.
-        if let Ok(mut z) = ZOMBIE_THREADS.lock() {
-            if z.remove(&self.owner) {
-                eprintln!("[watchdog] zombie verdict lifted: the isolate resurfaced late");
+        let (signalled, joined) = bounded_cancel_and_join(
+            &self.pair,
+            self.join.take(),
+            std::time::Instant::now() + WATCHDOG_CANCEL_GRACE,
+        );
+        if !signalled || !joined {
+            eprintln!(
+                "[watchdog] #332 wedge: the watchdog did not finish its cancel \
+                 ceremony within {}ms (signalled={signalled}, joined={joined} — \
+                 stuck inside terminate_execution or in thread exit) — leaking the \
+                 thread; this realm's isolate teardown will be skipped (the same \
+                 rusty_v8 handle mutex is wedged)",
+                WATCHDOG_CANCEL_GRACE.as_millis()
+            );
+            if let Some(w) = &self.wedge_flag {
+                w.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+            // A zombie-verdict entry, if one landed, stays: without a join
+            // there is no proof the thread is gone, and waiters must keep
+            // failing fast on this realm instead of hanging behind it.
+        } else {
+            // Late resurface after a zombie verdict (the spin did end on its
+            // own): the thread is live again. Its waiters already gave up, so
+            // this only matters for the next command — which must not be
+            // refused against a thread that is serving.
+            if let Ok(mut z) = ZOMBIE_THREADS.lock() {
+                if z.remove(&self.owner) {
+                    eprintln!("[watchdog] zombie verdict lifted: the isolate resurfaced late");
+                }
             }
         }
         if let Some(stop) = self.sampler_stop.take() {
@@ -452,6 +548,7 @@ impl super::JsRuntime {
             self.runtime.isolate_handle(),
             budget,
             Some(self.stale_termination.clone()),
+            Some(self.watchdog_wedge.clone()),
         )
     }
 
@@ -654,5 +751,91 @@ impl super::JsRuntime {
             msg.to_string(),
             log_url,
         ));
+    }
+}
+
+#[cfg(test)]
+mod cancel_grace_tests {
+    use super::*;
+
+    /// #332: a watchdog stuck holding the pair mutex (the post-fire state —
+    /// a thread wedged inside terminate_execution never parks in the cvar
+    /// again, so it never releases) must turn into a bounded leak, not a
+    /// blocking lock + join. Healthy threads still signal and join.
+    #[test]
+    fn bounded_ceremony_leaks_a_stuck_holder_and_joins_a_healthy_one() {
+        // Wedge: a thread that takes the pair mutex and stays parked on a
+        // foreign condvar with the guard in hand — it never checks the
+        // cancel flag and never exits.
+        let pair = std::sync::Arc::new((
+            std::sync::Mutex::new(false),
+            std::sync::Condvar::new(),
+        ));
+        let release = std::sync::Arc::new((
+            std::sync::Mutex::new(false),
+            std::sync::Condvar::new(),
+        ));
+        let pair_c = pair.clone();
+        let release_c = release.clone();
+        let stuck = std::thread::spawn(move || {
+            // Take the pair mutex IN this thread, then park on a foreign
+            // condvar with the guard in hand — the exact posture of a
+            // watchdog wedged past its fire (never parks in the pair's own
+            // cvar again, so it never observes the cancel flag).
+            let _hold = pair_c.0.lock().unwrap();
+            let (rlock, rcvar) = &*release_c;
+            let mut done = rlock.lock().unwrap();
+            while !*done {
+                done = rcvar.wait(done).unwrap();
+            }
+        });
+        // Let the wedge take effect before the ceremony starts.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_millis(300);
+        let t0 = std::time::Instant::now();
+        let (signalled, joined) =
+            bounded_cancel_and_join(&pair, Some(stuck), deadline);
+        let took = t0.elapsed();
+        assert!(
+            !signalled && !joined,
+            "a mutex-holding never-exiting thread must be declared wedged"
+        );
+        assert!(
+            took < std::time::Duration::from_secs(2),
+            "the ceremony must bound, took {took:?}"
+        );
+
+        // Healthy shape: a thread that parks in its OWN pair's cvar (the
+        // normal watchdog posture) wakes on the notify and exits; both
+        // slots true and fast. Fresh pair — the wedged one is still held.
+        let healthy_pair = std::sync::Arc::new((
+            std::sync::Mutex::new(false),
+            std::sync::Condvar::new(),
+        ));
+        let healthy = std::thread::spawn({
+            let pair = healthy_pair.clone();
+            move || {
+                let (lock, cvar) = &*pair;
+                let mut cancelled = lock.lock().unwrap();
+                while !*cancelled {
+                    cancelled = cvar.wait(cancelled).unwrap();
+                }
+            }
+        });
+        let (signalled, joined) = bounded_cancel_and_join(
+            &healthy_pair,
+            Some(healthy),
+            std::time::Instant::now() + std::time::Duration::from_millis(300),
+        );
+        assert!(
+            signalled && joined,
+            "a parked, well-behaved watchdog must signal and join"
+        );
+
+        // Release the wedge so the leaked thread can die with the test.
+        *release.0.lock().unwrap() = true;
+        release.1.notify_one();
     }
 }
