@@ -18,12 +18,12 @@
 use std::collections::HashMap;
 
 use super::graph::{
-    label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt, Rect,
-    RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
+    arrowhead, label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt,
+    Rect, RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
 };
 use super::sigil;
 use super::spec::{text_units, DataflowFlow, DataflowNode, DataflowSpec};
-use super::theme::Theme;
+use super::theme::{variant_style, Theme};
 use super::tx;
 
 // ---------------------------------------------------------------------------
@@ -445,21 +445,6 @@ fn measured_bounds(
 // SVG emission
 // ---------------------------------------------------------------------------
 
-/// (stroke, width, dash, label fill) per flow variant — emphasis rides
-/// heavier (1.8px vs 1.4px) exactly like the reference. Sizes and dash
-/// patterns are this adapter's typography; colors come from the theme.
-fn variant_style(
-    theme: &Theme,
-    variant: &str,
-) -> (&'static str, i32, Option<&'static str>, &'static str) {
-    match variant {
-        "emphasis" => (theme.ink, 18, None, theme.ink),
-        "security" => (theme.danger, 14, None, theme.danger),
-        "dashed" => (theme.skip, 14, Some("6 4"), theme.skip),
-        _ => (theme.ink_soft, 14, None, theme.ink_soft),
-    }
-}
-
 fn fitted_font(text: &str, available: i32, preferred: i32, minimum: i32) -> i32 {
     let units = text_units(text) as i32;
     let by_width = available * 10 / (units * TEXT_WIDTH_FACTOR);
@@ -648,33 +633,6 @@ fn emit_svg(
     }
     s.push_str("</svg>");
     s
-}
-
-/// Explicit triangle at the route's end, aimed along its last segment
-/// (diting svg v1 draws paths, not marker refs).
-fn arrowhead(points: &[Pt], fill: &str) -> String {
-    if points.len() < 2 {
-        return String::new();
-    }
-    let tip = points[points.len() - 1];
-    let prev = points[points.len() - 2];
-    let (dx, dy) = (tip.0 - prev.0, tip.1 - prev.1);
-    let len = (dx.abs() + dy.abs()).max(1);
-    let (ux, uy) = (dx / len, dy / len);
-    // 6px back along the segment, ±2.5px across.
-    let base_x = tip.0 - ux * 60;
-    let base_y = tip.1 - uy * 60;
-    let (px, py) = (-uy, ux);
-    format!(
-        "<path d=\"M {} {} L {} {} L {} {} Z\" fill=\"{}\"/>",
-        tx(tip.0),
-        tx(tip.1),
-        tx(base_x + px * 25),
-        tx(base_y + py * 25),
-        tx(base_x - px * 25),
-        tx(base_y - py * 25),
-        fill
-    )
 }
 
 #[cfg(test)]

@@ -19,8 +19,8 @@
 use std::collections::HashMap;
 
 use super::graph::{
-    label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt, Rect,
-    RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
+    arrowhead, label_point, label_rect, plan_grid_edge, polyline_d, Corridors, PlacedRoute, Pt,
+    Rect, RouteError, RouteKind, RouteRepair, RouteRequest, RouteScene, Side, COLUMN_COUNT, PX,
 };
 use super::sigil;
 use super::spec::{
@@ -802,33 +802,6 @@ fn emit_svg(
     }
     s.push_str("</svg>");
     s
-}
-
-/// Explicit triangle at the route's end, aimed along its last segment
-/// (diting svg v1 draws paths, not marker refs).
-fn arrowhead(points: &[Pt], fill: &str) -> String {
-    if points.len() < 2 {
-        return String::new();
-    }
-    let tip = points[points.len() - 1];
-    let prev = points[points.len() - 2];
-    let (dx, dy) = (tip.0 - prev.0, tip.1 - prev.1);
-    let len = (dx.abs() + dy.abs()).max(1);
-    let (ux, uy) = (dx / len, dy / len);
-    // 6px back along the segment, ±2.5px across.
-    let base_x = tip.0 - ux * 60;
-    let base_y = tip.1 - uy * 60;
-    let (px, py) = (-uy, ux);
-    format!(
-        "<path d=\"M {} {} L {} {} L {} {} Z\" fill=\"{}\"/>",
-        tx(tip.0),
-        tx(tip.1),
-        tx(base_x + px * 25),
-        tx(base_y + py * 25),
-        tx(base_x - px * 25),
-        tx(base_y - py * 25),
-        fill
-    )
 }
 
 #[cfg(test)]
