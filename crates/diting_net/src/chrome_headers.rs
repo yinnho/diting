@@ -37,7 +37,7 @@ pub fn priority(rt: ResourceType) -> &'static str {
         ResourceType::Document => "u=0, i",
         ResourceType::Stylesheet => "u=0",
         ResourceType::Image => "u=2, i",
-        ResourceType::Script | ResourceType::Fetch => "u=1, i",
+        ResourceType::Script | ResourceType::ModuleScript | ResourceType::Fetch => "u=1, i",
     }
 }
 

@@ -1164,7 +1164,12 @@ impl JsRuntime {
         let source_code = match client {
             Some(c) => {
                 let resp = c
-                    .fetch(&specifier)
+                    .fetch_with_callbacks(
+                        &specifier,
+                        None,
+                        diting_net::ResourceType::ModuleScript,
+                        Some(self.module_loader.base_url.as_str()),
+                    )
                     .await
                     .map_err(|e| format!("Module fetch failed ({}): {}", url, e))?;
                 if !(200..=299).contains(&resp.status) {

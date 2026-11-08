@@ -294,7 +294,7 @@ impl ModuleLoader for DitingModuleLoader {
                     .fetch_with_callbacks(
                         &specifier,
                         None,
-                        diting_net::ResourceType::Script,
+                        diting_net::ResourceType::ModuleScript,
                         Some(referrer.as_str()),
                     )
                     .await

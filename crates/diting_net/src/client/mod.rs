@@ -909,9 +909,21 @@ impl HttpClient {
             } else {
                 crate::cookies::SendContext::subresource(cross_site)
             };
-            let cookie_header = self
-                .cookie_jar
-                .get_cookie_header_for(&current_url, &cookie_ctx);
+            // Module scripts: a cross-origin hop is CORS with credentials
+            // "same-origin" — Origin on, cookies off.
+            let module_origin =
+                metadata::cross_origin_module(resource_type, initiator.as_ref(), &current_url);
+            if let Some(origin) = &module_origin {
+                if let Ok(v) = HeaderValue::from_str(origin) {
+                    headers.insert(diting_wire::header::ORIGIN, v);
+                }
+            }
+            let cookie_header = if module_origin.is_some() {
+                String::new()
+            } else {
+                self.cookie_jar
+                    .get_cookie_header_for(&current_url, &cookie_ctx)
+            };
             tracing::debug!(
                 "Cookie header for {}: {} cookies ({} bytes)",
                 current_url.host_str().unwrap_or("?"),
