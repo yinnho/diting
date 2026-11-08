@@ -11196,6 +11196,46 @@ fn test_stealth_webgl_chrome_truth_interface_shape() {
     );
 }
 
+/// Resource Timing §4.4: a full buffer parks new entries and fires
+/// `resourcetimingbufferfull`; a handler that clears (or grows) the buffer
+/// gets the parked entries back, no handler drops them. The old shape
+/// dropped silently — on asset-heavy pages (fxg create page, ~250 boot
+/// loads) every later fetch/XHR vanished from the buffer.
+#[tokio::test(flavor = "current_thread")]
+async fn resource_timing_buffer_full_event_refills_after_clear() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let res = rt
+        .call_function_on_remote(
+            r#"async () => {
+                const out = {};
+                const tick = () => new Promise((r) => setTimeout(r, 0));
+                const rec = (n) => performance._recordResource({ name: n, startTime: 0, duration: 1, initiatorType: 'fetch' });
+                performance.setResourceTimingBufferSize(2);
+                let fired = 0;
+                rec('a'); rec('b'); rec('c');
+                await tick(); await tick();
+                out.noHandler = performance.getEntriesByType('resource').map((e) => e.name).join(',');
+                performance.onresourcetimingbufferfull = () => { fired++; performance.clearResourceTimings(); };
+                rec('d'); rec('e');
+                await tick(); await tick();
+                out.fired = fired;
+                out.afterClear = performance.getEntriesByType('resource').map((e) => e.name).join(',');
+                return JSON.stringify(out);
+            }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let v =
+        serde_json::from_str::<serde_json::Value>(res.value.unwrap().as_str().unwrap()).unwrap();
+    assert_eq!(v["noHandler"], "a,b", "no handler: the parked entry is dropped");
+    assert_eq!(v["fired"], 1, "one event per full episode");
+    assert_eq!(v["afterClear"], "d,e", "the handler's clear lets the parked entries in");
+}
+
 /// #126: the resource-timing buffer carries REAL entries from both
 /// faces — the navigation pipeline's fetch timings (Rust-recorded,
 /// epoch-stamped, converted into the resource clock) and the fetch/XHR
