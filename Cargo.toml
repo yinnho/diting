@@ -11,7 +11,7 @@
 version = "0.10.0"
 
 [workspace]
-members = ["crates/diting-browser", "crates/diting",
+members = ["crates/diting-browser", "crates/diting", "crates/diting_authoring",
            # 引擎本体（#58 拆包）：门面 crates/diting 只 re-export
            "crates/diting_env", "crates/diting_dom", "crates/diting_css", "crates/diting_layout",
            "crates/diting_net", "crates/diting_js", "crates/diting_page",

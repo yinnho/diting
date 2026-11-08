@@ -27,8 +27,8 @@ use std::collections::{BTreeSet, HashMap};
 
 use serde::Deserialize;
 
-use crate::authoring::ooxml::{pptx_package, A_NS, PPTX_SP_TREE_HEAD, P_NS, R_NS, XML_DECL};
-use crate::authoring::pages::PageError;
+use crate::ooxml::{pptx_package, A_NS, PPTX_SP_TREE_HEAD, P_NS, R_NS, XML_DECL};
+use crate::pages::PageError;
 use diting::diting_browser::Page;
 use diting::diting_css::{parse_color, parse_linear_gradient, Color};
 
@@ -310,7 +310,7 @@ fn absolutize(src: &str, base: &str) -> String {
 
 /// CSS px → EMU (914400 per inch at 96 dpi).
 fn emu(px: f32) -> u64 {
-    (px.max(0.0) * (crate::authoring::ooxml::PX_TO_EMU as f32)).round() as u64
+    (px.max(0.0) * (crate::ooxml::PX_TO_EMU as f32)).round() as u64
 }
 
 /// A shape fill: the three states an element's background can land in.
@@ -728,7 +728,7 @@ fn pack(slides: &[WalkedSlide], media: &Media) -> Vec<u8> {
 #[cfg(all(test, feature = "screenshot"))]
 mod tests {
     use super::*;
-    use crate::authoring::ooxml::entries_of;
+    use crate::ooxml::entries_of;
     use diting::diting_browser::lifecycle::WaitUntil;
     use diting::diting_browser::{BrowserContext, Page as EnginePage};
     use std::io::{Read, Write};
@@ -1107,7 +1107,7 @@ html,body{margin:0;padding:0}
     #[tokio::test(flavor = "current_thread")]
     async fn deck_from_live_page() {
         // A real 1x1 PNG as a data: URI so the image path runs end-to-end.
-        let png = crate::authoring::pages::png_of(1, 1, &[255, 0, 0, 255]).expect("png encode");
+        let png = crate::pages::png_of(1, 1, &[255, 0, 0, 255]).expect("png encode");
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         let html: &'static str = Box::leak(
             DECK_HTML

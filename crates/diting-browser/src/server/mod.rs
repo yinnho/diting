@@ -35,7 +35,9 @@ pub use fetch::{do_click, do_eval, do_fetch};
 #[cfg(test)]
 pub(crate) use fetch::{media_from_eval, parse_layout_facts};
 #[cfg(feature = "screenshot")]
-pub use outputs::{do_pdf, do_screenshot, do_video};
+pub use outputs::do_screenshot;
+#[cfg(all(feature = "screenshot", feature = "authoring"))]
+pub use outputs::{do_pdf, do_video};
 
 #[cfg(test)]
 pub(crate) use search::do_search_with_registry;

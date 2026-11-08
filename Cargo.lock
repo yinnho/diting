@@ -774,6 +774,7 @@ dependencies = [
  "base64",
  "cbc",
  "diting",
+ "diting_authoring",
  "diting_cssparser",
  "diting_html5ever",
  "diting_png",
@@ -803,6 +804,21 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+]
+
+[[package]]
+name = "diting_authoring"
+version = "0.10.0"
+dependencies = [
+ "base64",
+ "diting",
+ "pulldown-cmark",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
