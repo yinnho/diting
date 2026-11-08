@@ -3668,43 +3668,67 @@ fn strip_important(value: &str) -> (String, bool) {
 
 fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx) -> bool {
     let v = value.trim();
-    // Length arm helper: parse + fold em/rem against the font context;
-    // calc() bodies route through the evaluator (same folding per term).
-    let len = |val: &str| -> Option<Length> {
-        let t = val.trim();
-        if let Some(l) = eval_math_call(t, fonts) {
-            return Some(l);
+    apply_display(style, name, value, v, fonts)
+        .or_else(|| apply_paint_text(style, name, value, v, fonts))
+        .or_else(|| apply_font_image(style, name, value, v, fonts))
+        .or_else(|| apply_box_model(style, name, value, v, fonts))
+        .or_else(|| apply_text_sizing(style, name, value, v, fonts))
+        .or_else(|| apply_effects(style, name, value, v, fonts))
+        .or_else(|| apply_logical_motion(style, name, value, v, fonts))
+        .or_else(|| apply_flex_grid(style, name, value, v, fonts))
+        .or_else(|| apply_position(style, name, value, v, fonts))
+        .unwrap_or(false)
+}
+
+/// Length arm helper for `apply_one`: parse + fold em/rem against the font
+/// context; calc() bodies route through the evaluator (same folding per term).
+fn css_len(val: &str, fonts: &FontCtx) -> Option<Length> {
+    let t = val.trim();
+    if let Some(l) = eval_math_call(t, fonts) {
+        return Some(l);
+    }
+    parse_css_length(t).map(|l| resolve_len(l, fonts))
+}
+
+/// Sizing keywords first: only the width family accepts them (the match
+/// arms decide legality); everything else is a regular length.
+fn css_len_sizing(val: &str, fonts: &FontCtx) -> Option<Length> {
+    match val.trim().to_ascii_lowercase().as_str() {
+        "min-content" => Some(Length::MinContent),
+        "max-content" => Some(Length::MaxContent),
+        "fit-content" => Some(Length::FitContent),
+        _ => css_len(val, fonts),
+    }
+}
+
+/// Box-offset slot (#129 family): `auto` is a legal value that resets the
+/// slot to the initial value; anything else unparseable is a declaration
+/// Chrome drops at parse time — the already-cascaded slot must survive
+/// untouched (a reset would yank a positioned box to its static spot).
+fn css_box_offset(slot: &mut Option<Length>, v: &str, fonts: &FontCtx) -> bool {
+    if v.eq_ignore_ascii_case("auto") {
+        *slot = None;
+        return true;
+    }
+    match css_len(v, fonts) {
+        Some(l) => {
+            *slot = Some(l);
+            true
         }
-        parse_css_length(t).map(|l| resolve_len(l, fonts))
-    };
-    // Sizing keywords first: only the width family accepts them (the match
-    // arms below decide legality); everything else is a regular length.
-    let len_sizing = |val: &str| -> Option<Length> {
-        match val.trim().to_ascii_lowercase().as_str() {
-            "min-content" => Some(Length::MinContent),
-            "max-content" => Some(Length::MaxContent),
-            "fit-content" => Some(Length::FitContent),
-            _ => len(val),
-        }
-    };
-    // Box-offset slot (#129 family): `auto` is a legal value that resets the
-    // slot to the initial value; anything else unparseable is a declaration
-    // Chrome drops at parse time — the already-cascaded slot must survive
-    // untouched (a reset would yank a positioned box to its static spot).
-    let box_offset = |slot: &mut Option<Length>| -> bool {
-        if v.eq_ignore_ascii_case("auto") {
-            *slot = None;
-            return true;
-        }
-        match len(v) {
-            Some(l) => {
-                *slot = Some(l);
-                true
-            }
-            None => false,
-        }
-    };
-    match name {
+        None => false,
+    }
+}
+
+/// `apply_one` family: display, table and list layout keywords, vertical-align.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_display(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    Some(match name {
         "display" => {
             // inline-flex/inline-grid (#107) and inline-table (its follow-up):
             // Fusion's .next-input family is `display: inline-table;
@@ -3738,7 +3762,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "none" => Some(Display::None),
                 "-webkit-box" => Some(Display::Block),
                 "-webkit-inline-box" => Some(Display::InlineBlock),
-                _ => return false,
+                _ => return Some(false),
             };
             style.webkit_box = webkit_box;
             style.display_from_ua = false;
@@ -3748,7 +3772,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.border_collapse = match v {
                 "collapse" => Some(BorderCollapse::Collapse),
                 "separate" => Some(BorderCollapse::Separate),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -3756,7 +3780,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.table_layout = match v {
                 "auto" => Some(TableLayout::Auto),
                 "fixed" => Some(TableLayout::Fixed),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -3797,11 +3821,25 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                     Some(Length::Percent(p)) => {
                         style.vertical_align = Some(VerticalAlign::Percent(p))
                     }
-                    _ => return false,
+                    _ => return Some(false),
                 },
             }
             true
         }
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: text decoration, color/color-scheme, SVG fill/stroke.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_paint_text(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    _fonts: &FontCtx,
+) -> Option<bool> {
+    Some(match name {
         "text-decoration-line" => match parse_text_decoration(v, false) {
             Some(d) => {
                 style.text_decoration_line = Some(d);
@@ -3860,7 +3898,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             } else {
                 match parse_color(v) {
                     Some(c) => SvgPaint::Color(c),
-                    None => return false,
+                    None => return Some(false),
                 }
             };
             if name == "fill" {
@@ -3898,6 +3936,20 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             }
             _ => false,
         },
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: font shorthand, image/mask/clip-path layers, font-family, background.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_font_image(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    Some(match name {
         // `font` shorthand: `[ <style> || <variant> || <weight> || <stretch> ]?
         // <size> [ / <line-height> ]? <family>`. font-style/variant/stretch
         // tokens are accepted and skipped (the style struct models none of
@@ -4030,6 +4082,21 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             }
             applied
         }
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: margins, paddings, borders.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_box_model(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    let len = |val: &str| css_len(val, fonts);
+    Some(match name {
         "margin" => {
             let sides = expand_sides(v, fonts);
             style.margin = sides;
@@ -4059,7 +4126,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             // padding: auto is illegal - drop the declaration.
             if v.eq_ignore_ascii_case("auto") {
-                return false;
+                return Some(false);
             }
             set_side(&mut style.padding, name, len(v));
             true
@@ -4093,7 +4160,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                                 color = Some(c);
                                 color_modern = m;
                             }
-                            None => return false,
+                            None => return Some(false),
                         }
                     }
                 }
@@ -4147,7 +4214,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                                 color = Some(c);
                                 color_modern = m;
                             }
-                            None => return false,
+                            None => return Some(false),
                         }
                     }
                 }
@@ -4183,7 +4250,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "thick" => Some(Length::Px(5.0)),
                 _ => len(v),
             };
-            let Some(l) = l else { return false };
+            let Some(l) = l else { return Some(false) };
             match name {
                 "border-top-width" => style.border_width.top = Some(l),
                 "border-right-width" => style.border_width.right = Some(l),
@@ -4217,6 +4284,22 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 style.border_color_modern = m;
             })
             .is_some(),
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: font-size, width/height, text alignment and spacing.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_text_sizing(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    let len = |val: &str| css_len(val, fonts);
+    let len_sizing = |val: &str| css_len_sizing(val, fonts);
+    Some(match name {
         "font-size" => {
             // Resolved by the cascade's font-size pre-pass (em/% need the
             // PARENT font-size); here only px/keywords can apply directly.
@@ -4238,7 +4321,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             if v.eq_ignore_ascii_case("auto") {
                 style.width = None;
                 style.width_expr = None;
-                return true;
+                return Some(true);
             }
             match (len_sizing(v), calc::pct_math(v, fonts)) {
                 (Some(l), _) => {
@@ -4314,7 +4397,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 // parsing it keeps the computed face honest and lets
                 // text-align-last target justify paragraphs' last line.
                 "justify" => Some(TextAlign::Justify),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4327,7 +4410,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "right" => Some(TextAlignLast::Right),
                 "end" => Some(TextAlignLast::End),
                 "justify" => Some(TextAlignLast::Justify),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4335,7 +4418,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.direction = match v {
                 "ltr" => Some(TextDirection::Ltr),
                 "rtl" => Some(TextDirection::Rtl),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4346,7 +4429,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             // geometry this layer lacks) — rejected like other %-lengths.
             if v.eq_ignore_ascii_case("normal") {
                 style.word_spacing = None;
-                return true;
+                return Some(true);
             }
             match len(v) {
                 Some(Length::Px(px)) => {
@@ -4360,7 +4443,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.font_variant_caps = match v {
                 "small-caps" => Some(true),
                 "normal" => Some(false),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4370,16 +4453,30 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "uppercase" => Some(TextTransform::Uppercase),
                 "lowercase" => Some(TextTransform::Lowercase),
                 "capitalize" => Some(TextTransform::Capitalize),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: containers, overflow, shadows/filters, clamping, transforms.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_effects(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    Some(match name {
         "container-type" => {
             style.container_type = match v {
                 "size" => ContainerType::Size,
                 "inline-size" => ContainerType::InlineSize,
                 "normal" => ContainerType::Normal,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4408,7 +4505,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             let (a, b) = match v.split_whitespace().collect::<Vec<_>>().as_slice() {
                 [one] => (*one, *one),
                 [x, y] => (*x, *y),
-                _ => return false,
+                _ => return Some(false),
             };
             let kw = |t: &str| match t {
                 "visible" => Some(Overflow::Visible),
@@ -4419,7 +4516,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 _ => None,
             };
             let (Some(x), Some(y)) = (kw(a), kw(b)) else {
-                return false;
+                return Some(false);
             };
             style.overflow_x = Some(x);
             style.overflow_y = Some(y);
@@ -4434,7 +4531,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "auto" => Some(Overflow::Auto),
                 _ => None,
             }) else {
-                return false;
+                return Some(false);
             };
             if name.ends_with("-x") {
                 style.overflow_x = Some(o);
@@ -4446,7 +4543,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         "box-shadow" => {
             if v.eq_ignore_ascii_case("none") {
                 style.box_shadow = None;
-                return true;
+                return Some(true);
             }
             match parse_box_shadow(v, style.color, fonts) {
                 Some(layers) if !layers.is_empty() => {
@@ -4459,7 +4556,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         "backdrop-filter" => {
             if v.eq_ignore_ascii_case("none") {
                 style.backdrop_blur = None;
-                return true;
+                return Some(true);
             }
             match parse_backdrop_blur(v, fonts) {
                 Some(px) => {
@@ -4495,7 +4592,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         "text-shadow" => {
             if v.eq_ignore_ascii_case("none") {
                 style.text_shadow = None;
-                return true;
+                return Some(true);
             }
             match parse_text_shadow(v, style.color, fonts) {
                 Some(layers) if !layers.is_empty() => {
@@ -4513,7 +4610,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "pre-wrap" => Some(WhiteSpace::PreWrap),
                 "pre-line" => Some(WhiteSpace::PreLine),
                 "break-spaces" => Some(WhiteSpace::BreakSpaces),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4521,7 +4618,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.text_overflow = match v {
                 "clip" => Some(TextOverflow::Clip),
                 "ellipsis" => Some(TextOverflow::Ellipsis),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4538,7 +4635,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             } else {
                 match head.parse::<u32>() {
                     Ok(n) if n >= 1 => Some(n),
-                    _ => return false,
+                    _ => return Some(false),
                 }
             };
             true
@@ -4552,7 +4649,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.webkit_box_vertical = match v {
                 "vertical" | "block-axis" => true,
                 "horizontal" | "inline-axis" => false,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4563,7 +4660,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "cover" => Some(ObjectFit::Cover),
                 "none" => Some(ObjectFit::None),
                 "scale-down" => Some(ObjectFit::ScaleDown),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4573,7 +4670,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "auto" => None,
                 _ => match v.parse::<i32>() {
                     n @ Ok(_) => n.ok(),
-                    Err(_) => return false,
+                    Err(_) => return Some(false),
                 },
             };
             true
@@ -4610,6 +4707,21 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.transform_origin = parse_transform_origin(v, fonts);
             style.transform_origin.is_some()
         }
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: logical box edges, opacity/zoom, animation/transition, radius.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_logical_motion(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    let len = |val: &str| css_len(val, fonts);
+    Some(match name {
         // CSS logical box longhands (#244): horizontal-tb maps block→
         // top/bottom, inline→left/right. Our direction face doesn't mirror
         // inline flow (rtl is a read/alignment face), so inline-start=left
@@ -4625,7 +4737,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         | "padding-inline-end" => {
             if name.starts_with("padding") && v.eq_ignore_ascii_case("auto") {
                 // padding: auto is illegal — drop the declaration.
-                return false;
+                return Some(false);
             }
             let len_v = if v.eq_ignore_ascii_case("auto") {
                 Some(Length::Auto)
@@ -4653,13 +4765,13 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
         "margin-block" | "margin-inline" | "padding-block" | "padding-inline" => {
             let parts: Vec<&str> = split_sides(v);
             if parts.is_empty() || parts.len() > 2 {
-                return false;
+                return Some(false);
             }
             let (a, b) = (parts[0], if parts.len() == 2 { parts[1] } else { parts[0] });
             if name.starts_with("padding")
                 && (a.eq_ignore_ascii_case("auto") || b.eq_ignore_ascii_case("auto"))
             {
-                return false;
+                return Some(false);
             }
             let mk = |t: &str| {
                 if t.eq_ignore_ascii_case("auto") {
@@ -4670,7 +4782,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             };
             let (start, end) = match (mk(a), mk(b)) {
                 (Some(s), Some(e)) => (s, e),
-                _ => return false,
+                _ => return Some(false),
             };
             let block = name.ends_with("block");
             let margins = name.starts_with("margin");
@@ -4820,12 +4932,12 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 Some(vals.into_iter().flatten().collect())
             };
             let Some(h) = parse_list(horiz) else {
-                return false;
+                return Some(false);
             };
             let vlist = match vert {
                 Some(s) => match parse_list(s) {
                     Some(v) if v.len() == h.len() => v,
-                    _ => return false,
+                    _ => return Some(false),
                 },
                 None => h.clone(),
             };
@@ -4878,17 +4990,32 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 [x, y] => {
                     style.object_position = Some((*x, *y));
                 }
-                _ => return false,
+                _ => return Some(false),
             }
             true
         }
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: flex and grid alignment and tracks.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_flex_grid(
+    style: &mut ComputedStyle,
+    name: &str,
+    _value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    let len = |val: &str| css_len(val, fonts);
+    Some(match name {
         "flex-direction" => {
             style.flex_direction = match v {
                 "row" => Some(FlexDirection::Row),
                 "row-reverse" => Some(FlexDirection::RowReverse),
                 "column" => Some(FlexDirection::Column),
                 "column-reverse" => Some(FlexDirection::ColumnReverse),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4896,7 +5023,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.flex_wrap = match v {
                 "nowrap" => Some(FlexWrapMode::NoWrap),
                 "wrap" => Some(FlexWrapMode::Wrap),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4908,7 +5035,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "space-between" => Some(JustifyMode::SpaceBetween),
                 "space-around" => Some(JustifyMode::SpaceAround),
                 "space-evenly" => Some(JustifyMode::SpaceEvenly),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4918,7 +5045,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "flex-start" | "start" => Some(AlignMode::FlexStart),
                 "center" => Some(AlignMode::Center),
                 "flex-end" | "end" => Some(AlignMode::FlexEnd),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4941,7 +5068,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "space-evenly" => Some(AlignContentMode::SpaceEvenly),
                 "stretch" => Some(AlignContentMode::Stretch),
                 "normal" | "auto" => None,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4964,7 +5091,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 }
                 "center" => Some(AlignMode::Center),
                 "flex-end" | "end" | "self-end" | "last baseline" => Some(AlignMode::FlexEnd),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4981,7 +5108,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "start" | "left" | "self-start" | "stretch" => Some(JustifyMode::FlexStart),
                 "center" => Some(JustifyMode::Center),
                 "end" | "right" | "self-end" => Some(JustifyMode::FlexEnd),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -4995,7 +5122,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "start" | "left" | "stretch" | "legacy left" => Some(JustifyMode::FlexStart),
                 "center" | "legacy center" => Some(JustifyMode::Center),
                 "end" | "right" | "legacy right" => Some(JustifyMode::FlexEnd),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -5032,7 +5159,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                     let t = tok.trim();
                     if t.eq_ignore_ascii_case("auto") {
                         if basis.is_some() {
-                            return false;
+                            return Some(false);
                         }
                         basis = Some(None);
                     } else if let Some(n) = parse_num_f32(t) {
@@ -5041,15 +5168,15 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                         } else if shrink.is_none() {
                             shrink = Some(n);
                         } else {
-                            return false;
+                            return Some(false);
                         }
                     } else if let Some(l) = len(t) {
                         if basis.is_some() {
-                            return false;
+                            return Some(false);
                         }
                         basis = Some(Some(l));
                     } else {
-                        return false;
+                        return Some(false);
                     }
                 }
                 match grow {
@@ -5135,6 +5262,22 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             }
             true
         }
+        _ => return None,
+    })
+}
+
+/// `apply_one` family: position/float/clear, generated content, insets, min/max sizes.
+/// `None` = not this family's property; the caller tries the next one.
+fn apply_position(
+    style: &mut ComputedStyle,
+    name: &str,
+    value: &str,
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<bool> {
+    let len = |val: &str| css_len(val, fonts);
+    let box_offset = |slot: &mut Option<Length>| css_box_offset(slot, v, fonts);
+    Some(match name {
         "position" => {
             style.position = match v {
                 "static" => Some(PositionMode::Static),
@@ -5142,7 +5285,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "absolute" => Some(PositionMode::Absolute),
                 "fixed" => Some(PositionMode::Fixed),
                 "sticky" => Some(PositionMode::Sticky),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -5151,7 +5294,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "left" => Some(FloatSide::Left),
                 "right" => Some(FloatSide::Right),
                 "none" => None,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -5163,7 +5306,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
                 "inline-start" => Some(ClearSide::InlineStart),
                 "inline-end" => Some(ClearSide::InlineEnd),
                 "none" => None,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -5265,7 +5408,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.box_sizing = match v {
                 "content-box" => Some(BoxSizing::ContentBox),
                 "border-box" => Some(BoxSizing::BorderBox),
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -5273,7 +5416,7 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.background_clip_text = match v {
                 "text" => true,
                 "border-box" | "padding-box" | "content-box" => false,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
@@ -5284,12 +5427,12 @@ fn apply_one(style: &mut ComputedStyle, name: &str, value: &str, fonts: &FontCtx
             style.box_decoration_clone = match v {
                 "clone" => true,
                 "slice" => false,
-                _ => return false,
+                _ => return Some(false),
             };
             true
         }
-        _ => false,
-    }
+        _ => return None,
+    })
 }
 
 /// `aspect-ratio: 1.5` or `16 / 9` (width / height).

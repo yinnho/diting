@@ -179,31 +179,53 @@ pub(super) fn computed_style_value(
     cssom_tag: Option<&str>,
     cb_inline: Option<f32>,
 ) -> Option<String> {
-    use diting_css::*;
-    let color = |c: &Color| {
-        if c.3 == 255 {
-            format!("rgb({}, {}, {})", c.0, c.1, c.2)
+    computed_box(s, prop, cssom_tag, cb_inline)
+        .or_else(|| computed_text(s, prop, cssom_tag, cb_inline))
+        .or_else(|| computed_color_spacing(s, prop, cssom_tag, cb_inline))
+        .or_else(|| computed_radius_layout(s, prop, cssom_tag, cb_inline))
+        .or_else(|| computed_flex_grid(s, prop, cssom_tag, cb_inline))
+        .or_else(|| computed_transform_motion(s, prop, cssom_tag, cb_inline))
+        .flatten()
+}
+
+/// Chrome's computed color spelling: `rgb()` when opaque, else `rgba()`
+/// with the shortest alpha that round-trips to the same 8-bit value.
+#[cfg(feature = "screenshot")]
+fn cssom_color(c: &diting_css::Color) -> String {
+    if c.3 == 255 {
+        format!("rgb({}, {}, {})", c.0, c.1, c.2)
+    } else {
+        // Chrome: two decimals when they round-trip to the same 8-bit
+        // alpha (26/255 -> 0.1), else three (0.102 style).
+        let exact = c.3 as f32 / 255.0;
+        let two = (exact * 100.0).round() / 100.0;
+        let a = if (two * 255.0).round() as u8 == c.3 {
+            format!("{:.2}", two)
         } else {
-            // Chrome: two decimals when they round-trip to the same 8-bit
-            // alpha (26/255 -> 0.1), else three (0.102 style).
-            let exact = c.3 as f32 / 255.0;
-            let two = (exact * 100.0).round() / 100.0;
-            let a = if (two * 255.0).round() as u8 == c.3 {
-                format!("{:.2}", two)
-            } else {
-                format!("{:.3}", exact)
-            };
-            let a = a.trim_end_matches('0').trim_end_matches('.');
-            format!(
-                "rgba({}, {}, {}, {})",
-                c.0,
-                c.1,
-                c.2,
-                if a.is_empty() { "0" } else { a }
-            )
-        }
-    };
-    match prop {
+            format!("{:.3}", exact)
+        };
+        let a = a.trim_end_matches('0').trim_end_matches('.');
+        format!(
+            "rgba({}, {}, {}, {})",
+            c.0,
+            c.1,
+            c.2,
+            if a.is_empty() { "0" } else { a }
+        )
+    }
+}
+
+/// `computed_style_value` slice `position` … `background-clip`; outer `None` =
+/// not this slice's property, the caller tries the next one.
+#[cfg(feature = "screenshot")]
+fn computed_box(
+    s: &diting_css::ComputedStyle,
+    prop: &str,
+    cssom_tag: Option<&str>,
+    _cb_inline: Option<f32>,
+) -> Option<Option<String>> {
+    use diting_css::*;
+    Some(match prop {
         "position" => Some(
             match s.position {
                 Some(PositionMode::Relative) => "relative",
@@ -217,7 +239,7 @@ pub(super) fn computed_style_value(
         "display" => {
             if s.display_from_ua {
                 if let Some(ua) = ua_display_cssom(cssom_tag) {
-                    return Some(ua.to_string());
+                    return Some(Some(ua.to_string()));
                 }
             }
             Some(
@@ -378,6 +400,21 @@ pub(super) fn computed_style_value(
             }
             .into(),
         ),
+        _ => return None,
+    })
+}
+
+/// `computed_style_value` slice `overflow` … `line-clamp`; outer `None` =
+/// not this slice's property, the caller tries the next one.
+#[cfg(feature = "screenshot")]
+fn computed_text(
+    s: &diting_css::ComputedStyle,
+    prop: &str,
+    _cssom_tag: Option<&str>,
+    _cb_inline: Option<f32>,
+) -> Option<Option<String>> {
+    use diting_css::*;
+    Some(match prop {
         "overflow" => {
             let (x, y) = s.resolved_overflow();
             Some(if x == y {
@@ -498,16 +535,32 @@ pub(super) fn computed_style_value(
             Some(n) => n.to_string(),
             None => "none".into(),
         }),
+        _ => return None,
+    })
+}
+
+/// `computed_style_value` slice `color` … `transform-origin`; outer `None` =
+/// not this slice's property, the caller tries the next one.
+#[cfg(feature = "screenshot")]
+fn computed_color_spacing(
+    s: &diting_css::ComputedStyle,
+    prop: &str,
+    _cssom_tag: Option<&str>,
+    cb_inline: Option<f32>,
+) -> Option<Option<String>> {
+    use diting_css::*;
+    let color = |c: &Color| cssom_color(c);
+    Some(match prop {
         // #17: modern colour functions keep their authored space in the
         // computed value (oklch(0.7 0.1 200), color(srgb …)); legacy forms
         // collapse to rgb()/rgba().
         "color" => Some(match s.color_modern {
             Some(m) => m.to_css(),
-            None => s.color.as_ref().map(&color)?,
+            None => s.color.as_ref().map(color)?,
         }),
         "background-color" => Some(match s.background_color_modern {
             Some(m) => m.to_css(),
-            None => s.background_color.as_ref().map(&color)?,
+            None => s.background_color.as_ref().map(color)?,
         }),
         // #18: declared tokens verbatim, both undeclared and `normal` (and
         // `unset`/`initial`) report the initial "normal".
@@ -625,6 +678,22 @@ pub(super) fn computed_style_value(
                 .unwrap_or((Length::Percent(50.0), Length::Percent(50.0)));
             format!("{} {} 0px", spell(&x), spell(&y))
         }),
+        _ => return None,
+    })
+}
+
+/// `computed_style_value` slice `border-radius` … `flex-direction`; outer `None` =
+/// not this slice's property, the caller tries the next one.
+#[cfg(feature = "screenshot")]
+fn computed_radius_layout(
+    s: &diting_css::ComputedStyle,
+    prop: &str,
+    _cssom_tag: Option<&str>,
+    _cb_inline: Option<f32>,
+) -> Option<Option<String>> {
+    use diting_css::*;
+    let color = |c: &Color| cssom_color(c);
+    Some(match prop {
         // Chrome's computed border-radius collapses equal corners (up to the
         // shortest form that round-trips); elliptical corners serialize with
         // the slash form. Percent stays percent — resolving against the box
@@ -740,6 +809,21 @@ pub(super) fn computed_style_value(
             }
             .into(),
         ),
+        _ => return None,
+    })
+}
+
+/// `computed_style_value` slice `flex-wrap` … `rotate`; outer `None` =
+/// not this slice's property, the caller tries the next one.
+#[cfg(feature = "screenshot")]
+fn computed_flex_grid(
+    s: &diting_css::ComputedStyle,
+    prop: &str,
+    _cssom_tag: Option<&str>,
+    _cb_inline: Option<f32>,
+) -> Option<Option<String>> {
+    use diting_css::*;
+    Some(match prop {
         "flex-wrap" => Some(
             match s.flex_wrap {
                 Some(FlexWrapMode::Wrap) => "wrap",
@@ -767,7 +851,7 @@ pub(super) fn computed_style_value(
             Some(Length::FitContent) => "fit-content".into(),
             // No border box at this snapshot layer to spell a mixed calc,
             // and the JS chain echoes the declared spelling anyway.
-            Some(Length::Calc { .. }) => return None,
+            Some(Length::Calc { .. }) => return Some(None),
             Some(Length::Auto) => "auto".into(),
         }),
         "justify-content" => Some(
@@ -856,6 +940,21 @@ pub(super) fn computed_style_value(
             None => Some("none".into()),
             Some(deg) => Some(format!("{}deg", format_number(deg))),
         },
+        _ => return None,
+    })
+}
+
+/// `computed_style_value` slice `scale` … `transition-timing-function`; outer `None` =
+/// not this slice's property, the caller tries the next one.
+#[cfg(feature = "screenshot")]
+fn computed_transform_motion(
+    s: &diting_css::ComputedStyle,
+    prop: &str,
+    _cssom_tag: Option<&str>,
+    _cb_inline: Option<f32>,
+) -> Option<Option<String>> {
+    use diting_css::*;
+    Some(match prop {
         "scale" => match s.scale_prop {
             None => Some("none".into()),
             Some((x, y)) if (x - y).abs() < f32::EPSILON => Some(format_number(x)),
@@ -923,8 +1022,8 @@ pub(super) fn computed_style_value(
                 .map(|t| t.easing)
                 .unwrap_or(Easing::CubicBezier(0.25, 0.1, 0.25, 1.0)),
         )),
-        _ => None,
-    }
+        _ => return None,
+    })
 }
 
 /// Minimal float spelling: integral values print without a fraction (Chrome

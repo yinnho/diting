@@ -4,9 +4,9 @@ use std::io::Write as _;
 use std::rc::Rc;
 use std::sync::{Arc, PoisonError};
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use diting_dom::{AttachShadowError, DomTree, NodeData, NodeId, ShadowRootMode};
 use diting_net::{CookieJar, HttpClient};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use diting_ops::diting_op;
 use diting_runtime::state::OpState;
 use url::Url;
@@ -161,8 +161,7 @@ pub struct JsState {
     pub dialog_prompt_text: Option<String>,
     /// The document's input stream for `document.write()`, created on the
     /// first call. Why the calls share one parser is in `write_stream`.
-    pub(crate) write_stream:
-        std::cell::RefCell<Option<crate::write_stream::DocumentWriteStream>>,
+    pub(crate) write_stream: std::cell::RefCell<Option<crate::write_stream::DocumentWriteStream>>,
     /// HTML's per-script "already started" flag. This is native page state
     /// rather than wrapper state, because it must survive moves and clones and
     /// because fragment parsing can create nodes before a JS wrapper exists.
@@ -330,8 +329,7 @@ pub struct JsState {
     /// invalidation (geometry never moves), which also moves `layout_rev` so
     /// the damage signature lets the screencast/screenshot caches see it.
     #[cfg(feature = "screenshot")]
-    pub canvas_images:
-        std::cell::RefCell<HashMap<NodeId, diting_layout::DecodedImage>>,
+    pub canvas_images: std::cell::RefCell<HashMap<NodeId, diting_layout::DecodedImage>>,
     /// Sticky (v2): per-node scroll-dependent shift map ([dx, dy] in
     /// document space), memoized per (epoch, layout_rev, root scroll,
     /// viewport, scroll_gen) — scroll and viewport moves don't bump the
@@ -508,9 +506,7 @@ impl JsState {
             dialog_prompt_text: None,
             write_stream: std::cell::RefCell::new(None),
             already_started_scripts: RefCell::new(HashSet::new()),
-            import_map: Rc::new(RefCell::new(
-                crate::import_map::ImportMap::default(),
-            )),
+            import_map: Rc::new(RefCell::new(crate::import_map::ImportMap::default())),
             blob_store: Rc::new(RefCell::new(HashMap::new())),
             dynamic_script_fetches: std::cell::Cell::new(0),
             callbacks: None,
@@ -800,15 +796,50 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         gs.borrow_mut().title = arg1;
         return "null".into();
     }
-    // Style/tree writes don't all bump the DomTree epoch (attribute-level
-    // mutations don't allocate nodes), so the memoized layout run must be
-    // dropped explicitly at the write commands — the bootstrap mirrors
-    // this set as _DOM_MUTATION_COMMANDS for its getComputedStyle
-    // snapshot epoch, and both sides see the same op_dom traffic through
-    // the same choke point.
     #[cfg(feature = "screenshot")]
+    drop_layout_on_write(state, &cmd, &arg1, &arg2);
+    let (arg1, arg2) = match dom_cmd_mut_state(state, &cmd, arg1, arg2) {
+        Ok(answer) => return answer,
+        Err(args) => args,
+    };
+    let gs = state.borrow::<SharedState>().clone();
+    let gs = gs.borrow();
+    // The history seed answers without a DOM tree and must survive the
+    // no-dom guard: bootstrap reads these to re-seed its history stack
+    // before any page script runs (obscura#1105).
+    if cmd == "history_pos" {
+        return gs.history_pos.to_string();
+    }
+    if cmd == "history_total" {
+        return gs.history_total.to_string();
+    }
+    let dom = match &gs.dom {
+        Some(d) => d,
+        None => return "null".to_string(),
+    };
+
+    dom_cmd_document(&gs, dom, &cmd, arg1, arg2)
+        .or_else(|(arg1, arg2)| dom_cmd_query(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_tree(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_attr_state(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_mutate(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_create(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_sheets(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_geometry(&gs, dom, &cmd, arg1, arg2))
+        .or_else(|(arg1, arg2)| dom_cmd_scroll_style(&gs, dom, &cmd, arg1, arg2))
+        .unwrap_or_else(|_| "null".into())
+}
+
+/// Style/tree writes don't all bump the DomTree epoch (attribute-level
+/// mutations don't allocate nodes), so the memoized layout run must be
+/// dropped explicitly at the write commands — the bootstrap mirrors
+/// this set as _DOM_MUTATION_COMMANDS for its getComputedStyle
+/// snapshot epoch, and both sides see the same op_dom traffic through
+/// the same choke point.
+#[cfg(feature = "screenshot")]
+fn drop_layout_on_write(state: &OpState, cmd: &str, arg1: &str, arg2: &str) {
     if matches!(
-        cmd.as_str(),
+        cmd,
         "append_child"
             | "insert_before"
             | "remove_child"
@@ -844,7 +875,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // Chrome's style system dedupes equal declarations.
         let mut paint_only = false;
         let mut identity = false;
-        if cmd.as_str() == "set_attribute"
+        if cmd == "set_attribute"
             && arg2
                 .split_once('\0')
                 .is_some_and(|(name, _)| name.eq_ignore_ascii_case("style"))
@@ -868,9 +899,9 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // fetch triggers read (class/id/style, width/height/colspan/…,
         // disabled/checked/href/src/rel) is deliberately NOT in the inert
         // set. The DOM write below still happens either way.
-        let attr_name = match cmd.as_str() {
+        let attr_name = match cmd {
             "set_attribute" => arg2.split_once('\0').map(|(n, _)| n),
-            "remove_attribute" => Some(arg2.as_str()),
+            "remove_attribute" => Some(arg2),
             _ => None,
         };
         let inert = attr_name.is_some_and(|n| {
@@ -886,6 +917,13 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             }
         }
     }
+}
+
+/// `op_dom` commands that write shared state through a mutable borrow
+/// (viewport, media env, root scroll, CSS clock, transition registry), so
+/// they answer before the read-only borrow the families share.
+#[cfg_attr(not(feature = "screenshot"), allow(unused_variables))]
+fn dom_cmd_mut_state(state: &OpState, cmd: &str, arg1: String, arg2: String) -> DomCmd {
     // Persona viewport: needs a mutable borrow, so it runs before the main
     // read-only `gs` alias below (same pattern as set_document_title).
     #[cfg(feature = "screenshot")]
@@ -899,7 +937,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             // Any rects memoized under the old ICB are stale now.
             gs.drop_layout();
         }
-        return "ok".into();
+        return Ok("ok".into());
     }
     // Emulated media environment from CDP `Emulation.setEmulatedMedia`
     // (Playwright's page.emulateMedia). The bootstrap recomputes its
@@ -921,7 +959,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             gs.media_overrides.features = features;
             gs.drop_layout();
         }
-        return "ok".into();
+        return Ok("ok".into());
     }
     // Root-scroller offset mirror from the bootstrap (viewport roots only;
     // element-level scrolling is not mirrored). The bootstrap already clamps
@@ -934,7 +972,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         if x.is_finite() && y.is_finite() {
             gs.borrow_mut().scroll_offset = (x.max(0.0), y.max(0.0));
         }
-        return "ok".into();
+        return Ok("ok".into());
     }
     // CSS animation clock, driven by the video pump. Negative/NaN rejected;
     // t=0 (the pre-delay state) is a legal sample.
@@ -949,7 +987,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 gs.drop_paint_only();
             }
         }
-        return "ok".into();
+        return Ok("ok".into());
     }
     // Transition registry (JS face detects the trigger and hands us the
     // before/after computed values). The a2 slot carries a JSON blob —
@@ -961,17 +999,17 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
     if cmd == "add_css_transition" {
         let gs = state.borrow::<SharedState>().clone();
         let Some(nid) = arg1.parse::<u32>().ok().map(NodeId::new) else {
-            return "ok".into();
+            return Ok("ok".into());
         };
         let Ok(v) = serde_json::from_str::<serde_json::Value>(&arg2) else {
-            return "ok".into();
+            return Ok("ok".into());
         };
         let Some(prop) = v
             .get("prop")
             .and_then(|x| x.as_str())
             .map(|s| s.to_ascii_lowercase())
         else {
-            return "ok".into();
+            return Ok("ok".into());
         };
         let parse_val = |name: &str, s: &str| -> Option<diting_css::TransitionValue> {
             match name {
@@ -1010,7 +1048,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .and_then(|x| x.as_str())
                 .and_then(|s| parse_val(&prop, s)),
         ) else {
-            return "ok".into();
+            return Ok("ok".into());
         };
         let duration = (v.get("duration").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32) / 1000.0;
         let delay = (v.get("delay").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32) / 1000.0;
@@ -1020,7 +1058,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             || delay < 0.0
             || duration + delay <= 0.0
         {
-            return "ok".into();
+            return Ok("ok".into());
         }
         let easing = v
             .get("easing")
@@ -1047,31 +1085,26 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         });
         drop(list);
         gs.drop_paint_only();
-        return "ok".into();
+        return Ok("ok".into());
     }
-    let gs = state.borrow::<SharedState>().clone();
-    let gs = gs.borrow();
-    // The history seed answers without a DOM tree and must survive the
-    // no-dom guard: bootstrap reads these to re-seed its history stack
-    // before any page script runs (obscura#1105).
-    if cmd == "history_pos" {
-        return gs.history_pos.to_string();
-    }
-    if cmd == "history_total" {
-        return gs.history_total.to_string();
-    }
-    let dom = match &gs.dom {
-        Some(d) => d,
-        None => return "null".to_string(),
-    };
+    Err((arg1, arg2))
+}
 
-    // Node-id args that fail to parse must NOT silently become node 0 (the
-    // document root) — a fake-receiver call like
-    // `Element.prototype.setHTMLUnsafe.call({})` would otherwise wipe the
-    // whole document. Mutating commands no-op on an invalid id.
-    let parse_nid = |s: &str| -> Option<NodeId> { s.parse::<u32>().ok().map(NodeId::new) };
+/// One `op_dom` family's answer, or the args handed back: not this
+/// family's command, the dispatcher tries the next one.
+type DomCmd = Result<String, (String, String)>;
 
-    match cmd.as_str() {
+/// Node-id args that fail to parse must NOT silently become node 0 (the
+/// document root) — a fake-receiver call like
+/// `Element.prototype.setHTMLUnsafe.call({})` would otherwise wipe the
+/// whole document. Mutating commands no-op on an invalid id.
+fn parse_nid(s: &str) -> Option<NodeId> {
+    s.parse::<u32>().ok().map(NodeId::new)
+}
+
+/// `op_dom` family: document-level reads: ids, title/url/referrer, base url, doctype.
+fn dom_cmd_document(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
         "document_node_id" => dom.document().index().to_string(),
         "document_title" => serde_json::to_string(&gs.title).unwrap_or("\"\"".into()),
         "document_referrer" => serde_json::to_string(&gs.referrer).unwrap_or("\"\"".into()),
@@ -1080,7 +1113,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         // Referrer Policy"): header-delivered policy beats every <meta
         // name=referrer>; "" = no policy (callers apply the spec default).
         "document_referrer_policy" => {
-            let policy = resolve_referrer_policy_from(&gs, dom);
+            let policy = resolve_referrer_policy_from(gs, dom);
             serde_json::to_string(&policy).unwrap_or("\"\"".into())
         }
         // Document BASE url (HTML §document-base-url): the document URL with
@@ -1115,7 +1148,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                         .map(|name| name.local.as_str() == "html")
                         .unwrap_or(false)
                     {
-                        return cid.index().to_string();
+                        return Ok(cid.index().to_string());
                     }
                 }
             }
@@ -1130,18 +1163,25 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                         system_id,
                     } = &n.data
                     {
-                        return serde_json::json!({
+                        return Ok(serde_json::json!({
                             "name": name,
                             "publicId": public_id,
                             "systemId": system_id,
                             "nodeId": cid.index(),
                         })
-                        .to_string();
+                        .to_string());
                     }
                 }
             }
             "null".into()
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: selector queries and matching.
+fn dom_cmd_query(_gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
         "get_element_by_id" => dom
             .get_element_by_id(&arg1)
             .map(|id| id.index().to_string())
@@ -1191,6 +1231,13 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 "0".into()
             }
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: node identity and tree/shadow navigation.
+fn dom_cmd_tree(_gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
         "node_type" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
             dom.get_node(NodeId::new(nid))
@@ -1233,7 +1280,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "parent_node" | "first_child" | "last_child" | "next_sibling" | "prev_sibling" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
             dom.get_node(NodeId::new(nid))
-                .and_then(|n| match cmd.as_str() {
+                .and_then(|n| match cmd {
                     "parent_node" => n.parent,
                     "first_child" => n.first_child,
                     "last_child" => n.last_child,
@@ -1368,6 +1415,19 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .and_then(|n| n.as_element().map(|name| name.ns.as_str().to_string()));
             serde_json::to_string(&ns).unwrap_or("null".into())
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: attributes and live form/interaction state.
+fn dom_cmd_attr_state(
+    _gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
+    Ok(match cmd {
         "get_attribute" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
             let val = dom
@@ -1394,7 +1454,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_attribute" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             if let Some((name, value)) = arg2.split_once('\0') {
                 if name == "id" {
@@ -1420,7 +1480,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_live_value" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             dom.with_node_mut(node_id, |n| n.set_live_value(arg2.to_string()));
             "true".into()
@@ -1432,7 +1492,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_live_checked" | "set_live_indeterminate" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             dom.with_node_mut(node_id, |n| {
                 if cmd == "set_live_checked" {
@@ -1452,7 +1512,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_focused" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             if arg2 == "1" {
                 dom.set_focused_node(Some(node_id));
@@ -1470,7 +1530,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_hover" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             if arg2 == "1" {
                 dom.set_hovered_node(Some(node_id));
@@ -1482,7 +1542,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_active" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             if arg2 == "1" {
                 dom.set_active_node(Some(node_id));
@@ -1500,18 +1560,25 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_selection" => {
             let node_id = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             let Some((start, end)) = arg2.split_once(',') else {
-                return "false".into();
+                return Ok("false".into());
             };
             let (Ok(start), Ok(end)) = (start.trim().parse::<usize>(), end.trim().parse::<usize>())
             else {
-                return "false".into();
+                return Ok("false".into());
             };
             dom.set_selection(Some((node_id, start, end)));
             "true".into()
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: serialization and tree mutation (innerHTML, append/insert/remove, document.write).
+fn dom_cmd_mutate(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
         "inner_html" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
             serde_json::to_string(&dom.inner_html(NodeId::new(nid))).unwrap_or("\"\"".into())
@@ -1523,7 +1590,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "append_child" => {
             let (parent, child) = match (parse_nid(&arg1), parse_nid(&arg2)) {
                 (Some(p), Some(c)) => (p, c),
-                _ => return "false".into(),
+                _ => return Ok("false".into()),
             };
             dom.append_child(parent, child);
             "true".into()
@@ -1531,7 +1598,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "remove_child" => {
             let child = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             dom.remove_child(child);
             "true".into()
@@ -1539,7 +1606,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "insert_before" => {
             let (new_node, ref_node) = match (parse_nid(&arg1), parse_nid(&arg2)) {
                 (Some(n), Some(r)) => (n, r),
-                _ => return "false".into(),
+                _ => return Ok("false".into()),
             };
             dom.insert_before(ref_node, new_node);
             "true".into()
@@ -1547,7 +1614,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "remove_attribute" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             dom.with_node_mut(nid, |n| {
                 if let NodeData::Element { attrs, .. } = &mut n.data {
@@ -1560,7 +1627,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_inner_html" => {
             let target = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             let children = dom.children(target);
             for child in children {
@@ -1582,7 +1649,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 // innerHTML-created scripts are inert per spec — mark them
                 // started so a later move/clone never executes them.
                 for child in dom.children(target) {
-                    mark_script_subtree_started(&gs, child);
+                    mark_script_subtree_started(gs, child);
                 }
             }
             "true".into()
@@ -1597,8 +1664,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "document_write" => {
             gs.pending_write_nav.set(true);
             let mut slot = gs.write_stream.borrow_mut();
-            let stream =
-                slot.get_or_insert_with(crate::write_stream::DocumentWriteStream::new);
+            let stream = slot.get_or_insert_with(crate::write_stream::DocumentWriteStream::new);
             let pairs: Vec<[i32; 2]> = stream
                 .write(&arg2, dom)
                 .iter()
@@ -1619,7 +1685,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "set_text_content" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "false".into(),
+                None => return Ok("false".into()),
             };
             dom.with_node_mut(nid, |n| match &mut n.data {
                 NodeData::Text { contents } => {
@@ -1635,11 +1701,18 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             });
             "true".into()
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: node creation, cloning and structural predicates.
+fn dom_cmd_create(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
         "create_document_fragment" => dom.new_node(NodeData::Document).index().to_string(),
         "clone_node" => {
             let nid = match arg1.parse::<u32>() {
                 Ok(n) => n,
-                Err(_) => return "-1".into(),
+                Err(_) => return Ok("-1".into()),
             };
             let source = NodeId::new(nid);
             match dom.clone_node(source, arg2 == "true") {
@@ -1671,7 +1744,11 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 diting_html5ever::Namespace::from(arg2.as_str())
             };
             dom.new_node(NodeData::Element {
-                name: diting_html5ever::QualName::new(None, ns, diting_html5ever::LocalName::from(arg1.as_str())),
+                name: diting_html5ever::QualName::new(
+                    None,
+                    ns,
+                    diting_html5ever::LocalName::from(arg1.as_str()),
+                ),
                 attrs: vec![],
                 template_contents: None,
                 mathml_annotation_xml_integration_point: false,
@@ -1795,6 +1872,13 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
             }
             cur.index().to_string()
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: external stylesheets, resource timings, CSS rule parsing.
+fn dom_cmd_sheets(gs: &JsState, _dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
         // External stylesheet bodies (absolute URL → CSS text) fetched at
         // navigation. document.styleSheets reads this to build real
         // CSSStyleSheet entries for <link rel=stylesheet> elements — the
@@ -1870,7 +1954,14 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .collect();
             serde_json::Value::Array(arr).to_string()
         }
-        "text_rects" | "elem_rects" => text_geom::run(&gs, dom, &cmd, &arg1, &arg2),
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: layout geometry: rects, paint order, local geometry, event offsets.
+fn dom_cmd_geometry(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+    Ok(match cmd {
+        "text_rects" | "elem_rects" => text_geom::run(gs, dom, cmd, &arg1, &arg2),
         // Real layout geometry for one element, from the diting_css +
         // diting_layout pipeline. Memoized per tree epoch; a stale epoch
         // (any node allocation/free since the last run) re-lays-out. Returns
@@ -1881,10 +1972,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "layout_rect" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let rect = gs.layout_cache.borrow().as_ref().and_then(|(e, (m, ..))| {
                 if *e == epoch {
                     m.get(&nid).copied()
@@ -1898,7 +1989,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 // same in-flow + sticky pairing the paint side applies).
                 // Plain elements read a zero entry — bytes unchanged.
                 Some([x, y, w, h]) => {
-                    let sh = *sticky_shifts(&gs, dom).get(&nid).unwrap_or(&[0.0, 0.0]);
+                    let sh = *sticky_shifts(gs, dom).get(&nid).unwrap_or(&[0.0, 0.0]);
                     format!("[{},{},{},{}]", x + sh[0], y + sh[1], w, h)
                 }
                 None => {
@@ -1929,7 +2020,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         #[cfg(feature = "screenshot")]
         "paint_order" => {
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let order = gs
                 .layout_cache
                 .borrow()
@@ -1966,10 +2057,10 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "local_geom" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
             let geom = guard.as_ref().and_then(|(e, run)| {
                 if *e == epoch {
@@ -1986,7 +2077,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 // offset inverse-mapping and exact-shape hit tests land on
                 // the visual geometry.
                 Some(([x, y, w, h], [a, b, c, d, e, f])) => {
-                    let sh = *sticky_shifts(&gs, dom).get(&nid).unwrap_or(&[0.0, 0.0]);
+                    let sh = *sticky_shifts(gs, dom).get(&nid).unwrap_or(&[0.0, 0.0]);
                     format!(
                         "[{},{},{},{},{},{},{},{},{},{}]",
                         x + sh[0],
@@ -2019,17 +2110,17 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "iframe_layout_rect" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             let mut root = nid;
             while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
                 root = p;
             }
             if root == dom.document() {
-                return "null".into();
+                return Ok("null".into());
             }
             let (vw, vh) = parse_iframe_viewport(&arg2);
-            let run = iframe_layout_run(&gs, dom, root, vw, vh);
+            let run = iframe_layout_run(gs, dom, root, vw, vh);
             match run.0.get(&nid) {
                 Some(&[x, y, w, h]) => format!("[{},{},{},{}]", x, y, w, h),
                 // A fresh run without the nid = boxless element in the iframe
@@ -2045,17 +2136,17 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "iframe_local_geom" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             let mut root = nid;
             while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
                 root = p;
             }
             if root == dom.document() {
-                return "null".into();
+                return Ok("null".into());
             }
             let (vw, vh) = parse_iframe_viewport(&arg2);
-            let run = iframe_layout_run(&gs, dom, root, vw, vh);
+            let run = iframe_layout_run(gs, dom, root, vw, vh);
             match run.4.get(&nid) {
                 Some(&([x, y, w, h], [a, b, c, d, e, f])) => {
                     format!(
@@ -2076,32 +2167,32 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "event_offset" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             let Some((px, py)) = arg2.split_once(',').and_then(|(xs, ys)| {
                 let x = xs.trim().parse::<f32>().ok()?;
                 let y = ys.trim().parse::<f32>().ok()?;
                 Some((x, y))
             }) else {
-                return "null".into();
+                return Ok("null".into());
             };
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
             let Some((_, run)) = guard.as_ref().filter(|(e, _)| *e == epoch) else {
-                return "null".into();
+                return Ok("null".into());
             };
             let Some(&([bx, by, _, _], [a, b, c, d, ex, ey])) = run.4.get(&nid) else {
-                return "null".into();
+                return Ok("null".into());
             };
             let det = a * d - b * c;
             if det.abs() < 1e-9 {
-                return "null".into();
+                return Ok("null".into());
             }
             let lx = (d * (px - ex) - c * (py - ey)) / det;
             let ly = (a * (py - ey) - b * (px - ex)) / det;
             if !lx.is_finite() || !ly.is_finite() {
-                return "null".into();
+                return Ok("null".into());
             }
             // Padding edge = border box origin + border + padding on each
             // axis. Px dominates click targets; percent/calc sides answer
@@ -2119,6 +2210,20 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 format!("[{},{}]", lx - bx, ly - by)
             }
         }
+        _ => return Err((arg1, arg2)),
+    })
+}
+
+/// `op_dom` family: scroll extents/containers and computed style.
+#[cfg_attr(not(feature = "screenshot"), allow(unused_variables))] // only the null stubs remain
+fn dom_cmd_scroll_style(
+    gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
+    Ok(match cmd {
         // CSSOM scrollWidth/scrollHeight for one element as "[w,h]", from
         // the same layout run as `layout_rect`: the element's own box
         // unioned with every laid-out DOM descendant's overflow extent
@@ -2134,18 +2239,18 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "scroll_extent" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
             let Some((_, (rects, _, styles, items, _, _, _))) =
                 guard.as_ref().filter(|(e, _)| *e == epoch)
             else {
-                return "null".into();
+                return Ok("null".into());
             };
             let Some(&[ox, oy, ow, oh]) = rects.get(&nid) else {
-                return "null".into();
+                return Ok("null".into());
             };
             let is_root = dom
                 .with_node(nid, |n| {
@@ -2203,10 +2308,9 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 .flatten()
                 .unwrap_or(false);
             if is_html {
-                let eff =
-                    diting_layout::effective_viewport_overflow(dom, styles, nid, |id| {
-                        rects.contains_key(&id)
-                    });
+                let eff = diting_layout::effective_viewport_overflow(dom, styles, nid, |id| {
+                    rects.contains_key(&id)
+                });
                 if matches!(
                     eff,
                     diting_css::Overflow::Hidden | diting_css::Overflow::Clip
@@ -2225,15 +2329,15 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         #[cfg(feature = "screenshot")]
         "is_scroll_container" => {
             let Some(nid) = parse_nid(&arg1) else {
-                return "0".into();
+                return Ok("0".into());
             };
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let guard = gs.layout_cache.borrow();
             let Some((_, (rects, _, styles, _, _, _, _))) =
                 guard.as_ref().filter(|(e, _)| *e == epoch)
             else {
-                return "0".into();
+                return Ok("0".into());
             };
             if is_element_scroller(dom, rects, styles, nid) {
                 "1".into()
@@ -2248,7 +2352,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         #[cfg(feature = "screenshot")]
         "set_node_scroll" => {
             let Some(nid) = parse_nid(&arg1) else {
-                return "ok".into();
+                return Ok("ok".into());
             };
             if let Some((x, y)) = arg2
                 .split_once('\0')
@@ -2277,7 +2381,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "computed_style" => {
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
-                None => return "null".into(),
+                None => return Ok("null".into()),
             };
             // Pseudo-element face (batch 102): arg2 routes to the host's
             // cascaded ::before/::after styles. The JS wrapper validates the
@@ -2299,7 +2403,7 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
                 })
                 .flatten();
             let epoch = dom.epoch();
-            ensure_layout_run(&gs, dom, epoch);
+            ensure_layout_run(gs, dom, epoch);
             let style_and_cb = gs.layout_cache.borrow().as_ref().and_then(|(e, r)| {
                 if *e != epoch {
                     return None;
@@ -2365,8 +2469,8 @@ fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: String) -> Str
         "iframe_layout_rect" => "null".into(),
         #[cfg(not(feature = "screenshot"))]
         "iframe_local_geom" => "null".into(),
-        _ => "null".into(),
-    }
+        _ => return Err((arg1, arg2)),
+    })
 }
 
 /// Inline style string as an effective property map (lowercased names,
@@ -2605,13 +2709,8 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                 probe.dom_boxes()
             }
         };
-        let plan = diting_layout::container_plan(
-            dom,
-            &styles_map,
-            &probe_boxes,
-            &containers,
-            base_len,
-        );
+        let plan =
+            diting_layout::container_plan(dom, &styles_map, &probe_boxes, &containers, base_len);
         if !plan.extra_rules.is_empty() {
             rules.extend(plan.extra_rules);
             styles_map = diting_layout::compute_styles_gated(
@@ -2630,8 +2729,7 @@ fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
     // Refresh the attribute-selector name pool the write path consults for
     // inert-attribute invalidation skips (obscura#983). Sits after the
     // container stage so @container inner rules join the pool too.
-    *gs.attr_selector_names.borrow_mut() =
-        Some(diting_css::collect_selector_attr_names(&rules));
+    *gs.attr_selector_names.borrow_mut() = Some(diting_css::collect_selector_attr_names(&rules));
     let t_styles = t0.elapsed();
     // Finite animations span delay + duration * iterations. An endless one
     // can't pin a length on its own, so it contributes nothing unless it is
@@ -2834,12 +2932,8 @@ fn iframe_layout_run(
             css.push('\n');
         }
     }
-    let (rules, keyframes) = diting_css::parse_stylesheet_timed_with(
-        &css,
-        (vw, vh),
-        gs.media_type,
-        &gs.media_overrides,
-    );
+    let (rules, keyframes) =
+        diting_css::parse_stylesheet_timed_with(&css, (vw, vh), gs.media_type, &gs.media_overrides);
     let styles_map = diting_layout::compute_styles_timed_within(
         dom,
         &rules,
@@ -2960,9 +3054,9 @@ fn is_element_scroller(
         .flatten();
     match tag.as_deref() {
         Some("html") => false,
-        Some("body") => !diting_layout::body_overflow_propagates(dom, styles, id, |x| {
-            rects.contains_key(&x)
-        }),
+        Some("body") => {
+            !diting_layout::body_overflow_propagates(dom, styles, id, |x| rects.contains_key(&x))
+        }
         _ => true,
     }
 }
@@ -3062,10 +3156,8 @@ fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f3
         d
     });
 
-    let resolve = |l: &Option<Length>, port: f32| {
-        l.as_ref()
-            .map(|l| diting_layout::sticky_inset_px(l, port))
-    };
+    let resolve =
+        |l: &Option<Length>, port: f32| l.as_ref().map(|l| diting_layout::sticky_inset_px(l, port));
     // Border widths count only with a border-style — the clip walk's
     // side_px rule; the scrollport is the padding box.
     let side_px = |l: &Option<Length>| match l {
@@ -3098,8 +3190,8 @@ fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f3
                 // tfoot — UA-mapped to TableRow, same as tr) and rows are
                 // walked past, not clamped to. Without the skip a sticky
                 // tr clamps to its 30px-tall thead box and never moves.
-                let table_internal = styles.get(&p).and_then(|st| st.display)
-                    == Some(diting_css::Display::TableRow);
+                let table_internal =
+                    styles.get(&p).and_then(|st| st.display) == Some(diting_css::Display::TableRow);
                 if !table_internal {
                     if let Some(&r) = rects.get(&p) {
                         cb = Some((p, r));
@@ -3446,8 +3538,7 @@ impl FetchCredentials {
 struct FetchRequestInit {
     cookie_jar: Option<Arc<CookieJar>>,
     in_flight: Option<Arc<std::sync::atomic::AtomicU32>>,
-    in_flight_list:
-        Option<std::sync::Arc<std::sync::Mutex<Vec<diting_net::InFlightScripted>>>>,
+    in_flight_list: Option<std::sync::Arc<std::sync::Mutex<Vec<diting_net::InFlightScripted>>>>,
     proxy_url: Option<String>,
     http_client: Option<Arc<HttpClient>>,
     callbacks: Option<std::sync::Arc<diting_net::CallbackRegistry>>,
@@ -4843,9 +4934,7 @@ fn svg_measure(state: &OpState, nid: u32) -> Option<diting_layout::svg::PathMeas
         diting_dom::NodeData::Element { name, .. } => name.local.as_str(),
         _ => return None,
     };
-    diting_layout::svg::build_path_measure(tag, &|a| {
-        node.get_attribute(a).map(|s| s.to_string())
-    })
+    diting_layout::svg::build_path_measure(tag, &|a| node.get_attribute(a).map(|s| s.to_string()))
 }
 
 /// (#78) Sub-ms wall clock for performance.now(). Chrome coarsens the timer
