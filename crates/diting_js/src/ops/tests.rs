@@ -7,6 +7,7 @@ use super::cors::{
 };
 use super::crypto_secret::{pbkdf2_derive, PBKDF2_MAX_ITERATIONS, PBKDF2_MAX_OUTPUT_BYTES};
 use super::image_header_dimensions;
+use super::video_header_meta;
 use super::{validate_fetch_url, FetchCredentials};
 
 /// Header-only dimension parsing for the four formats op_image_info
@@ -547,4 +548,97 @@ fn pbkdf2_derives_within_limits() {
     let dk = pbkdf2_derive("SHA-256", b"password", b"salt", 1_000, 32)
         .expect("ordinary parameters must derive successfully");
     assert_eq!(dk.len(), 32, "derived key must have the requested length");
+}
+
+/// One `[size][type]` box around a payload — the builder for the mp4
+/// parser tests below.
+fn vbox(ty: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+    let mut v = Vec::with_capacity(8 + payload.len());
+    v.extend_from_slice(&((8 + payload.len()) as u32).to_be_bytes());
+    v.extend_from_slice(ty);
+    v.extend_from_slice(payload);
+    v
+}
+
+/// mp4/quicktime moov walk: mvhd v0/v1 duration, tkhd v0/v1 16.16 dims,
+/// the 90° rotation matrix swapping the axes, moov behind mdat, the
+/// audio-only face, and the truncation/garbage contract (None, never a
+/// panic). Distinctive numbers throughout — a 1×1 or 0.0 here could pass
+/// via some other fallback. Offset tables pinned against a real Chrome
+/// probe (2026-11-09: a 2.6MB promo mp4 reported 1280×720 / d=36).
+#[test]
+fn video_header_meta_mp4_faces() {
+    // mvhd v0: timescale(1000)@12, duration(36000)@16 → 36.0s.
+    let mut mvhd = vec![0u8; 20];
+    mvhd[12..16].copy_from_slice(&1000u32.to_be_bytes());
+    mvhd[16..20].copy_from_slice(&36000u32.to_be_bytes());
+    // tkhd v0: dims at +76/+80 as 16.16 (identity matrix: units at
+    // m[0]=+40 and m[4]=+56, off-diagonal zero).
+    let mut tkhd = vec![0u8; 84];
+    tkhd[40..44].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[0]
+    tkhd[56..60].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[4]
+    tkhd[76..80].copy_from_slice(&(1280u32 << 16).to_be_bytes());
+    tkhd[80..84].copy_from_slice(&(720u32 << 16).to_be_bytes());
+    let trak = vbox(b"trak", &vbox(b"tkhd", &tkhd));
+    let moov = vbox(b"moov", &[vbox(b"mvhd", &mvhd), trak.clone()].concat());
+    // faststart (moov first) and plain (moov after mdat) both parse.
+    let faststart = [vbox(b"ftyp", b"isomiso2avc1mp41"), moov.clone(), vbox(b"mdat", &[0u8; 16].as_ref().as_ref())].concat();
+    let m = video_header_meta(&faststart).expect("faststart moov must parse");
+    assert_eq!((m.width, m.height), (1280, 720));
+    assert_eq!(m.duration_secs, Some(36.0));
+    let plain = [vbox(b"ftyp", b"isom"), vbox(b"mdat", &[0u8; 8].as_ref().as_ref()), moov.clone()].concat();
+    assert_eq!(video_header_meta(&plain).unwrap().width, 1280);
+
+    // v1 headers: 8-byte times and duration push every later field.
+    let mut mvhd1 = vec![0u8; 32];
+    mvhd1[0] = 1;
+    mvhd1[20..24].copy_from_slice(&600u32.to_be_bytes());
+    mvhd1[24..32].copy_from_slice(&1750u64.to_be_bytes());
+    let mut tkhd1 = vec![0u8; 96];
+    tkhd1[0] = 1;
+    tkhd1[88..92].copy_from_slice(&(62u32 << 16).to_be_bytes());
+    tkhd1[92..96].copy_from_slice(&(33u32 << 16).to_be_bytes());
+    let moov1 = vbox(b"moov", &[vbox(b"mvhd", &mvhd1), vbox(b"trak", &vbox(b"tkhd", &tkhd1))].concat());
+    let m1 = video_header_meta(&moov1).expect("v1 moov must parse");
+    assert_eq!((m1.width, m1.height), (62, 33));
+    assert_eq!(m1.duration_secs, Some(1750.0 / 600.0));
+
+    // 90° rotation: the units leave the diagonal (m[0]=m[4]=0, ±0x10000
+    // at m[1]/m[3]) → the display axes swap.
+    let mut rot = tkhd.clone();
+    rot[40..44].copy_from_slice(&0u32.to_be_bytes()); // matrix[0]
+    rot[44..48].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[1]
+    rot[52..56].copy_from_slice(&((-0x0001_0000i32) as u32).to_be_bytes()); // matrix[3]
+    rot[56..60].copy_from_slice(&0u32.to_be_bytes()); // matrix[4]
+    let moov_rot = vbox(b"moov", &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &rot))].concat());
+    let mr = video_header_meta(&moov_rot).expect("rotated moov must parse");
+    assert_eq!((mr.width, mr.height), (720, 1280), "quarter turn swaps the axes");
+
+    // Audio-only: mvhd present, tkhd carries 0×0 → metadata at 0×0 dims.
+    let mut sound = vec![0u8; 84];
+    let moov_audio = vbox(b"moov", &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &sound))].concat());
+    let ma = video_header_meta(&moov_audio).expect("audio moov must parse");
+    assert_eq!((ma.width, ma.height), (0, 0));
+    assert_eq!(ma.duration_secs, Some(36.0));
+
+    // Unknown/infinite duration markers (all-ones, zero) report None.
+    for marker in [u32::MAX, 0] {
+        let mut live = vec![0u8; 20];
+        live[12..16].copy_from_slice(&1000u32.to_be_bytes());
+        live[16..20].copy_from_slice(&marker.to_be_bytes());
+        let moov_live = vbox(b"moov", &[vbox(b"mvhd", &live), trak.clone()].concat());
+        let ml = video_header_meta(&moov_live).expect("moov parses without duration");
+        assert_eq!(ml.duration_secs, None);
+    }
+
+    // Garbage and truncation: None, never a panic. (A severed mdat is
+    // NOT truncation to us — metadata lives in moov, Chrome fires
+    // loadedmetadata for such a file too; only a severed moov is.)
+    assert!(video_header_meta(b"not a box at all").is_none());
+    assert!(video_header_meta(&[]).is_none());
+    let mut cut = moov.clone();
+    cut.truncate(cut.len() - 20); // severed inside the moov box itself
+    assert!(video_header_meta(&cut).is_none());
+    // A lone ftyp (no moov) is not metadata.
+    assert!(video_header_meta(&vbox(b"ftyp", b"isom")).is_none());
 }

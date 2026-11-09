@@ -7236,6 +7236,99 @@ async fn image_blob_url_backfills_natural_dimensions() {
     assert_eq!(v["missingRes"], serde_json::json!("error"));
 }
 
+/// #59 REQ-1: a blob-backed `<video>` must reach Chrome's local-source
+/// metadata face — the video sibling of the two image tests above.
+/// Probe-pinned (real Chrome 157 + a 2.6MB mp4, 2026-11-09): emptied →
+/// loadstart → durationchange → resize → loadedmetadata → progress →
+/// suspend → loadeddata → canplay → canplaythrough, with dims/duration/
+/// readyState=4 visible from durationchange on. Composers gate their
+/// upload INIT on this face — the X one dead-ends on a preview parked at
+/// 0×0/NaN and never hits upload.twitter.com. Unparsable bytes keep the
+/// stub face (no events, 0×0, NaN duration).
+#[tokio::test(flavor = "current_thread")]
+async fn video_blob_source_reaches_chrome_metadata_face() {
+    // Hand-built ftyp + moov{mvhd timescale=1000 duration=36000,
+    // trak{tkhd identity 1280×720}} — offset tables shared with the
+    // ops::tests parser pins.
+    let box_of = |ty: &[u8; 4], payload: &[u8]| -> Vec<u8> {
+        let mut v = Vec::with_capacity(8 + payload.len());
+        v.extend_from_slice(&((8 + payload.len()) as u32).to_be_bytes());
+        v.extend_from_slice(ty);
+        v.extend_from_slice(payload);
+        v
+    };
+    let mut mvhd = vec![0u8; 20];
+    mvhd[12..16].copy_from_slice(&1000u32.to_be_bytes());
+    mvhd[16..20].copy_from_slice(&36000u32.to_be_bytes());
+    let mut tkhd = vec![0u8; 84];
+    tkhd[40..44].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[0]
+    tkhd[56..60].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[4]
+    tkhd[76..80].copy_from_slice(&(1280u32 << 16).to_be_bytes());
+    tkhd[80..84].copy_from_slice(&(720u32 << 16).to_be_bytes());
+    let moov = box_of(b"moov", &[box_of(b"mvhd", &mvhd), box_of(b"trak", &box_of(b"tkhd", &tkhd))].concat());
+    let mp4 = [box_of(b"ftyp", b"isom"), moov].concat();
+    let b64 = {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(&mp4)
+    };
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url("https://example.com/page");
+    let result = rt
+        .call_function_on_remote(
+            &format!(
+                r#"async () => {{
+                    const bin = Uint8Array.from(atob("{b64}"), c => c.charCodeAt(0));
+                    const f = new File([bin], 'a.mp4', {{ type: 'video/mp4' }});
+                    const url = URL.createObjectURL(f);
+                    const v = document.createElement('video');
+                    const seen = [];
+                    const EVS = ['emptied','loadstart','durationchange','resize','loadedmetadata','progress','suspend','loadeddata','canplay','canplaythrough'];
+                    for (const e of EVS) v.addEventListener(e, () => seen.push(e + '@rs' + v.readyState + '@' + v.videoWidth + 'x' + v.videoHeight + '@' + v.duration), false);
+                    v.src = url;
+                    await new Promise(r => v.addEventListener('canplaythrough', r, {{ once: true }}));
+                    // Garbage bytes: the stub face must survive untouched.
+                    const gv = document.createElement('video');
+                    let gFired = 0;
+                    for (const e of EVS) gv.addEventListener(e, () => {{ gFired++; }}, false);
+                    gv.src = URL.createObjectURL(new File([new Uint8Array([104, 105])], 'g.mp4', {{ type: 'video/mp4' }}));
+                    gv.load();
+                    await new Promise(r => setTimeout(r, 60));
+                    return {{
+                        seen: seen.join(','),
+                        w: v.videoWidth, h: v.videoHeight, d: v.duration,
+                        rs: v.readyState, ns: v.networkState, csrc: v.currentSrc.slice(0, 5),
+                        gFired, gRs: gv.readyState, gW: gv.videoWidth, gD: String(gv.duration),
+                    }};
+                }}"#
+            ),
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+
+    let v = result.value.unwrap();
+    // Chrome's probe order verbatim, values visible from durationchange on.
+    assert_eq!(
+        v["seen"],
+        serde_json::json!("emptied@rs0@0x0@NaN,loadstart@rs0@0x0@NaN,durationchange@rs4@1280x720@36,resize@rs4@1280x720@36,loadedmetadata@rs4@1280x720@36,progress@rs4@1280x720@36,suspend@rs4@1280x720@36,loadeddata@rs4@1280x720@36,canplay@rs4@1280x720@36,canplaythrough@rs4@1280x720@36")
+    );
+    assert_eq!(v["w"], serde_json::json!(1280));
+    assert_eq!(v["h"], serde_json::json!(720));
+    assert_eq!(v["d"].as_f64(), Some(36.0)); // JS numbers lose the .0 face in JSON
+    assert_eq!(v["rs"], serde_json::json!(4));
+    assert_eq!(v["ns"], serde_json::json!(1));
+    assert_eq!(v["csrc"], serde_json::json!("blob:"));
+    // Stub face intact for garbage.
+    assert_eq!(v["gFired"], serde_json::json!(0));
+    assert_eq!(v["gRs"], serde_json::json!(0));
+    assert_eq!(v["gW"], serde_json::json!(0));
+    assert_eq!(v["gD"], serde_json::json!("NaN"));
+}
+
 /// createImageBitmap must resolve a bitmap with header-parsed dims. The
 /// old stub resolved 0×0 for everything and the xhs publish page's
 /// upload pipeline gated on it silently — files landed in input.files,

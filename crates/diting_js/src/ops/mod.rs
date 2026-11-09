@@ -3404,6 +3404,8 @@ pub(crate) use crypto_secret::{
 };
 pub use fetch_gate::validate_fetch_url;
 use image_info::image_header_dimensions;
+mod video_info;
+use video_info::video_header_meta;
 mod crypto_rsa;
 pub(crate) use crypto_rsa::{
     op_subtle_rsa_generate, op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private,
@@ -4405,6 +4407,28 @@ fn op_image_info(#[string] body_base64: String) -> String {
     serde_json::json!({ "width": w, "height": h }).to_string()
 }
 
+/// `op_video_info(body_base64)` — the media-element sibling of
+/// op_image_info: container-header metadata (mp4/quicktime moov walk →
+/// width/height/duration) backing the blob-source metadata face. Same
+/// contract: `{"ok":false}` on unparsable input and the JS side keeps
+/// the stub face, so nothing changes for sources we can't read.
+#[diting_op]
+#[string]
+fn op_video_info(#[string] body_base64: String) -> String {
+    let bytes = BASE64.decode(body_base64.as_bytes()).unwrap_or_default();
+    match video_header_meta(&bytes) {
+        Some(m) => {
+            let duration = match m.duration_secs {
+                Some(d) => serde_json::json!(d),
+                // No duration marker: the HTML face answers Infinity.
+                None => serde_json::json!({ "infinite": true }),
+            };
+            serde_json::json!({ "ok": true, "width": m.width, "height": m.height, "duration": duration }).to_string()
+        }
+        None => r#"{"ok":false}"#.to_string(),
+    }
+}
+
 #[diting_op]
 #[string]
 fn op_get_cookies(state: &OpState) -> String {
@@ -4984,6 +5008,7 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         op_fetch_take(),
         op_fetch_url_sync(),
         op_image_info(),
+        op_video_info(),
         op_canvas_png(),
         op_canvas_jpeg(),
         #[cfg(feature = "screenshot")]
