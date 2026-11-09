@@ -362,10 +362,12 @@ pub(super) fn extract_indexed_state(
 /// absorbed those yet, so the CDP bridge ships them as a self-contained
 /// preload until they land in the engine proper.
 ///
-/// `markTrusted` is a no-op today because diting's Event.isTrusted currently
-/// returns true unconditionally; once bootstrap absorbs the #303 WeakSet, this
-/// same helper name becomes the real marker and the Input domain needs no
-/// change.
+/// `markTrusted` is the engine's real marker since #60 (event_facade.js
+/// publishes it over the lexical _eventState writer): engine-originated
+/// input — clicks, hovers, set_files, slider drags — carries
+/// isTrusted=true like Chrome's native input pipeline, while page-JS
+/// events stay false. The `||` fallback below only arms when this preload
+/// somehow runs without the engine bundle (bare harness tests).
 /// Wrapped in an IIFE: `Page.evaluate` treats its argument as a single
 /// expression unless it starts with var/let/const/if/for/while/return, so the
 /// bare multi-statement form parsed as `return (a; b; c)` — a SyntaxError —
@@ -406,8 +408,9 @@ globalThis.__diting_setInputFiles = function(el, specs) {
     return new File([bytes], s.name || "", { type: s.type || "" });
   });
   el._files = __diting_makeFileList(files);
-  try { el.dispatchEvent(new Event("input", { bubbles: true })); } catch (_e) {}
-  try { el.dispatchEvent(new Event("change", { bubbles: true })); } catch (_e) {}
+  // Native file selection fires trusted input/change (#60).
+  try { el.dispatchEvent(globalThis.__diting_markTrusted(new Event("input", { bubbles: true }))); } catch (_e) {}
+  try { el.dispatchEvent(globalThis.__diting_markTrusted(new Event("change", { bubbles: true }))); } catch (_e) {}
 };
 // Chrome's mousedown default action for text-entry controls: focus and
 // place the caret. A real click hit-tests the text and puts the caret at
@@ -457,7 +460,7 @@ globalThis.__diting_rangeMouseDown = globalThis.__diting_rangeMouseDown || funct
     v = Math.max(min, Math.min(max, v));
     const old = String(t.value ?? "");
     globalThis.__diting_setFieldValue(t, "value", String(v));
-    t.dispatchEvent(new Event("input", { bubbles: true }));
+    t.dispatchEvent(globalThis.__diting_markTrusted(new Event("input", { bubbles: true })));
     globalThis.__diting_range_down = { el: t, old: old };
   } catch (_e) {}
 };

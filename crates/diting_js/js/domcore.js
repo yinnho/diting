@@ -3710,8 +3710,10 @@ class Document extends Node {
     if (!el || !_ns_isTextEntry(el) || el.disabled || el.readOnly) return false;
     const text = String(value);
     // Chrome's beforeinput is cancelable; a page veto aborts the insert but
-    // the command itself still ran (execCommand answers true).
-    const bi = new InputEvent('beforeinput', { inputType: 'insertText', data: text, bubbles: true, cancelable: true });
+    // the command itself still ran (execCommand answers true). Both events
+    // ride Chrome's editing pipeline, so they are trusted (#60) — a page
+    // listener reading isTrusted===false would flag every automated fill.
+    const bi = globalThis.__diting_markTrusted(new InputEvent('beforeinput', { inputType: 'insertText', data: text, bubbles: true, cancelable: true }));
     if (!el.dispatchEvent(bi)) return true;
     const cur = String(el.value ?? '');
     const s = _ns_selectionStart.get(el) ?? cur.length;
@@ -3719,7 +3721,7 @@ class Document extends Node {
     el.value = cur.slice(0, s) + text + cur.slice(e);
     const caret = s + text.length;
     el.setSelectionRange(caret, caret);
-    el.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: text, bubbles: true }));
+    el.dispatchEvent(globalThis.__diting_markTrusted(new InputEvent('input', { inputType: 'insertText', data: text, bubbles: true })));
     return true;
   }
 }

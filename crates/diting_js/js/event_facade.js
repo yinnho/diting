@@ -30,6 +30,17 @@
 // (never a global property, so page JS still cannot see it) before the delete.
 const _eventState = globalThis.__diting_event_state;
 delete globalThis.__diting_event_state;
+// The trusted-marker face for engine input paths (#60): interact's click/
+// hover helpers, set_files input/change, execCommand's beforeinput/input.
+// Chrome fires those trusted (browser-native pipeline); page JS can never
+// reach the writer — this closure keeps _eventState lexical while a
+// __diting_-prefixed global rides the machinery sweep off the page face.
+// interact.rs preloads a `|| no-op` fallback under the same name; bootstrap
+// runs first, so the fallback never wins.
+globalThis.__diting_markTrusted = function (ev) {
+  _eventState(ev, "isTrusted", true);
+  return ev;
+};
 // (M3 B1) window dispatches through the native EventTarget core: the trio
 // installed here IS the native one (the runtime installs it on
 // EventTarget.prototype before any JS runs). global_surface.js relocates
