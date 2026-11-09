@@ -28,6 +28,15 @@
       "slots": ["title", "subtitle", "svg_b64", "url"],
       "panel": "1080x2340",
       "note": "二维码上屏页。svg_b64=base64(SVG)（ASCII，白底黑模块含静区），页内 atob 还原——base64 字母表无转义字符，过转义槽无损。"
+    },
+    {
+      "id": "zodiac",
+      "file": "zodiac.html",
+      "title": "十二星座本周运势",
+      "matches": ["星座", "运势", "zodiac", "horoscope"],
+      "slots": [],
+      "panel": "1080x1920",
+      "note": "零槽位自生成确定性视频页：内容以 ISO 周号为种（mulberry32），同周重渲字节级一致，跨周自动换内容；FORCE 常量可锁历史周回归。30.0s/24fps 竖屏，配 /video。"
     }
   ]
 }
