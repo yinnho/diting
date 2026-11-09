@@ -58,7 +58,11 @@ globalThis.Blob = globalThis.Blob || class Blob {
     if (e < s) e = s;
     const out = new Blob([], contentType != null ? { type: contentType } : {});
     out._bytes = this._bytes.slice(s, e);
-    out.size = out._bytes.length;
+    // size rides the lift slot like the constructor write: lift_own's RO
+    // prototype getter has no setter, and the direct assignment throws in
+    // strict realms — x.com's chunked video APPEND is the first page-side
+    // slice() caller (image flows upload the File whole), 2026-11-09.
+    __diting_liftSlot(out).size = out._bytes.length;
     return out;
   }
   text() { return Promise.resolve(new TextDecoder().decode(this._bytes)); }

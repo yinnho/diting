@@ -13154,6 +13154,50 @@ fn blob_urls_are_chrome_shaped_and_non_blob_input_throws() {
         );
 }
 
+// x.com's video APPEND chunker (2026-11-09) was the first page-side
+// Blob.prototype.slice caller. lift_own's RO prototype size getter has no
+// setter, and slice()'s old direct `out.size =` assignment threw in strict
+// realms ("Cannot set property size of #<Blob> which has only a getter"),
+// killing the upload pipeline before INIT ever fired. slice must write the
+// lift slot like the constructor; size itself stays read-only.
+#[test]
+fn blob_slice_survives_strict_realms_and_sizes_chunks() {
+    let mut rt = JsRuntime::with_base_url("https://example.com/page");
+    let result = rt
+            .evaluate(
+                r#"return (() => {
+                    'use strict';
+                    const out = {};
+                    const b = new Blob(['0123456789abcdef'], {type: 'text/plain'});
+                    const mid = b.slice(4, 8);
+                    out.mid = [mid.size, mid.type];
+                    out.typed = b.slice(0, 4, 'TEXT/PLAIN').type;
+                    out.tail = b.slice(-3).size;
+                    out.clamped = b.slice(8, 4).size;
+                    out.isBlob = mid instanceof Blob;
+                    out.readsBack = mid.slice(0, 2).size;
+                    const f = new File(['xyz'], 'a.bin', {type: 'application/octet-stream'});
+                    out.fileSlice = [f.slice(1).size, f.name, f.size];
+                    out.assignStillThrows = (() => { try { b.size = 5; return 'no-throw'; } catch (e) { return e.name; } })();
+                    return out;
+                })()"#,
+            )
+            .unwrap();
+    let out = result.as_object().expect("object result");
+    assert_eq!(out["mid"], serde_json::json!([4, ""]));
+    assert_eq!(out["typed"], serde_json::json!("text/plain"));
+    assert_eq!(out["tail"], serde_json::json!(3));
+    assert_eq!(out["clamped"], serde_json::json!(0));
+    assert_eq!(out["isBlob"], serde_json::json!(true));
+    assert_eq!(out["readsBack"], serde_json::json!(2));
+    assert_eq!(out["fileSlice"], serde_json::json!([2, "a.bin", 3]));
+    assert_eq!(
+        out["assignStillThrows"],
+        serde_json::json!("TypeError"),
+        "size must stay read-only — the fix rides the lift slot, not an own property"
+    );
+}
+
 // importScripts() was a silent no-op stub: Yahoo Finance's worker imports
 // protobuf at startup, got `undefined` instead, and the SDK died to a
 // TypeError pages could not see (obscura#827 family). The worker source
