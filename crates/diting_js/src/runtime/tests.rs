@@ -13198,6 +13198,42 @@ fn blob_slice_survives_strict_realms_and_sizes_chunks() {
     );
 }
 
+// #60: engine input paths carry isTrusted=true — Chrome's editing pipeline
+// (execCommand insertText) and native file selection fire trusted events,
+// and a site reading isTrusted on composer input is the cheapest automation
+// tell there is. Page-JS events must STAY false with isTrusted as the only
+// own key (the #303 face this fix must not regress).
+#[tokio::test(flavor = "current_thread")]
+async fn engine_input_events_are_trusted_and_page_events_stay_false() {
+    let mut rt = setup_runtime("<html><body><input id=i></body></html>");
+    let result = rt
+            .evaluate(
+                r#"return (() => {
+                    const out = {};
+                    const i = document.getElementById('i');
+                    const e = new Event('x');
+                    out.pageEvent = e.isTrusted;
+                    out.ownKeys = Object.getOwnPropertyNames(e);
+                    const seen = {};
+                    i.addEventListener('beforeinput', (ev) => { seen.bi = ev.isTrusted; });
+                    i.addEventListener('input', (ev) => { seen.in = ev.isTrusted; });
+                    i.focus();
+                    document.execCommand('insertText', false, 'hi');
+                    out.execCmd = [seen.bi, seen.in, i.value];
+                    return out;
+                })()"#,
+            )
+            .unwrap();
+    let out = result.as_object().expect("object result");
+    assert_eq!(out["pageEvent"], serde_json::json!(false), "page-JS events stay untrusted");
+    assert_eq!(out["ownKeys"], serde_json::json!(["isTrusted"]));
+    assert_eq!(
+        out["execCmd"],
+        serde_json::json!([true, true, "hi"]),
+        "execCommand rides the editing pipeline — its beforeinput/input must be trusted like Chrome's"
+    );
+}
+
 // importScripts() was a silent no-op stub: Yahoo Finance's worker imports
 // protobuf at startup, got `undefined` instead, and the SDK died to a
 // TypeError pages could not see (obscura#827 family). The worker source
