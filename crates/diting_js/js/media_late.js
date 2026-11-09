@@ -47,3 +47,27 @@
   // AFTER the bundle and clobbered the module's on* accessors back to data
   // props - the block is deleted, not relocated (legacy only shrinks).
 })();
+
+// Blob-source metadata (see htmlelem.js _mediaMetaLoad): assigning .src
+// on a media element is what starts Chrome's resource selection, so it
+// is also what must trigger the local-source metadata face. The gen
+// layer's src accessor delegates to Element.prototype's reflected src;
+// wrap it to also trigger. This satellite is the right home because it
+// runs after the bundle — Element.prototype's src only exists once the
+// platform modules have loaded.
+(function () {
+  const MED = globalThis.HTMLMediaElement && globalThis.HTMLMediaElement.prototype;
+  if (!MED) return;
+  const d = Object.getOwnPropertyDescriptor(MED, 'src') ||
+    Object.getOwnPropertyDescriptor(globalThis.Element && globalThis.Element.prototype, 'src');
+  if (!d || !d.get || !d.set) return;
+  Object.defineProperty(MED, 'src', {
+    get: d.get,
+    set: function (v) {
+      d.set.call(this, v);
+      if (globalThis.__ditingMediaMetaLoad) globalThis.__ditingMediaMetaLoad(this, String(v));
+    },
+    enumerable: d.enumerable,
+    configurable: true,
+  });
+})();

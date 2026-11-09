@@ -651,6 +651,80 @@ for (const [k, v] of Object.entries({ NETWORK_EMPTY: 0, NETWORK_IDLE: 1, NETWORK
     HAVE_NOTHING: 0, HAVE_METADATA: 1, HAVE_CURRENT_DATA: 2, HAVE_FUTURE_DATA: 3, HAVE_ENOUGH_DATA: 4 })) {
   Object.defineProperty(HTMLMediaElement, k, { value: v, enumerable: true });
 }
+// videoWidth/videoHeight + currentSrc: engine-owned faces reading the
+// per-element metadata stashed by _mediaMetaLoad below. Defined here in
+// the bootstrap so the platform's gen layer keeps them ("engine-owned,
+// kept") instead of installing its `return 0` / `return ''` stubs; the
+// gen reseat walk relocates them into Chrome's own order.
+Object.defineProperties(HTMLVideoElement.prototype, {
+  videoWidth: { configurable: true, get() { return this._videoW || 0; } },
+  videoHeight: { configurable: true, get() { return this._videoH || 0; } },
+});
+Object.defineProperty(HTMLMediaElement.prototype, 'currentSrc', {
+  configurable: true,
+  get() { return this._mediaCurrentSrc || ''; },
+});
+// Blob-sourced media metadata — the video sibling of the Image #52 dims
+// fix. Chrome, handed a fully-local mp4, reaches HAVE_ENOUGH_DATA and
+// fires emptied → loadstart → durationchange → resize → loadedmetadata →
+// progress → suspend → loadeddata → canplay → canplaythrough, with the
+// final dims/duration/readyState already visible at durationchange
+// (probe: real Chrome 157 + a 2.6MB mp4, 2026-11-09). Composers gate
+// their upload INIT on that face — the X one dead-ends on a preview
+// <video> parked at 0×0/NaN, same disease class as the xhs image case —
+// so local sources report it through the same header-only discipline
+// (op_video_info; no decoder, no demuxer). http(s)/data: sources and
+// MediaSource-attached elements keep the existing stub/MSE faces.
+const _mediaMetaLoad = function (el, srcHint) {
+  const src = String(srcHint || (el.getAttribute && el.getAttribute('src')) || '');
+  if (!src.startsWith('blob:')) return;
+  if (el._mediaSource) return; // MSE owns this element
+  if (globalThis.__mediaSources && globalThis.__mediaSources[src]) return; // MSE URL
+  const blob = globalThis.__blobObjs && globalThis.__blobObjs[src];
+  if (!(blob && blob._bytes instanceof Uint8Array)) return;
+  let info = null;
+  try {
+    // Bytes → base64 in 32k chunks, same as the Image/createImageBitmap path.
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < blob._bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, blob._bytes.subarray(i, i + CHUNK));
+    }
+    info = JSON.parse(_OPS.op_video_info(btoa(bin)));
+  } catch (e) { return; }
+  if (!info || info.ok !== true) return;
+  const d = info.duration;
+  const dur = (d && typeof d === 'object') ? Infinity : Number(d);
+  const token = __def(el, '_mediaMetaToken', (el._mediaMetaToken || 0) + 1);
+  setTimeout(function () {
+    if (el._mediaMetaToken !== token) return; // a newer src/load() won
+    try {
+      el.dispatchEvent(new Event('emptied'));
+      __def(el, '_mediaNetworkState', 0);
+      __def(el, '_mediaReadyState', 0);
+      __def(el, '_videoW', 0);
+      __def(el, '_videoH', 0);
+      __def(el, '_mediaDuration', undefined);
+      el.dispatchEvent(new Event('loadstart'));
+      __def(el, '_mediaNetworkState', 2); // NETWORK_LOADING
+      __def(el, '_mediaCurrentSrc', src);
+      __def(el, '_videoW', info.width | 0);
+      __def(el, '_videoH', info.height | 0);
+      __def(el, '_mediaDuration', dur);
+      __def(el, '_mediaReadyState', 4); // HAVE_ENOUGH_DATA — source fully local
+      el.dispatchEvent(new Event('durationchange'));
+      if (el.tagName === 'VIDEO') el.dispatchEvent(new Event('resize'));
+      el.dispatchEvent(new Event('loadedmetadata'));
+      el.dispatchEvent(new Event('progress'));
+      __def(el, '_mediaNetworkState', 1); // NETWORK_IDLE
+      el.dispatchEvent(new Event('suspend'));
+      el.dispatchEvent(new Event('loadeddata'));
+      el.dispatchEvent(new Event('canplay'));
+      el.dispatchEvent(new Event('canplaythrough'));
+    } catch (e) {}
+  }, 0);
+};
+globalThis.__ditingMediaMetaLoad = _mediaMetaLoad;
 HTMLMediaElement.prototype.play = function() {
   const wasPaused = this._playing !== true;
   __def(this, '_playing', true);
@@ -668,7 +742,7 @@ HTMLMediaElement.prototype.pause = function() {
     setTimeout(() => { try { this.dispatchEvent(new Event('pause')); } catch (_) {} }, 0);
   }
 };
-HTMLMediaElement.prototype.load = function() {};
+HTMLMediaElement.prototype.load = function() { _mediaMetaLoad(this); };
 _markNative(HTMLMediaElement.prototype.play);
 _markNative(HTMLMediaElement.prototype.pause);
 _markNative(HTMLMediaElement.prototype.load);
