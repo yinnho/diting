@@ -37,6 +37,24 @@
       "slots": [],
       "panel": "1080x1920",
       "note": "零槽位自生成确定性视频页：内容以 ISO 周号为种（mulberry32），同周重渲字节级一致，跨周自动换内容；FORCE 常量可锁历史周回归。30.0s/24fps 竖屏，配 /video。"
+    },
+    {
+      "id": "zodiac_sign",
+      "file": "zodiac_sign.html",
+      "title": "单星座本周运势",
+      "matches": ["星座", "运势", "zodiac", "horoscope"],
+      "slots": ["sign"],
+      "panel": "1080x1920",
+      "note": "合辑版 zodiac 的单星座分条：12.0s/24fps。{{sign}}=0..11（白羊..双鱼），替换 `var SIGN = {{sign}};`。内容种子与合辑同式（week*31+sign*7+isoYear），同周同星座与合辑内容一致；FORCE 可锁历史周。"
+    },
+    {
+      "id": "zodiac_cover",
+      "file": "zodiac_cover.html",
+      "title": "十二星座周运势封面",
+      "matches": ["星座", "运势", "封面", "cover"],
+      "slots": [],
+      "panel": "1080x460",
+      "note": "零槽位静态封面页（2.35:1），周号/日期/星象与 zodiac.html 同源；配 /screenshot 直出 PNG，feed 封面与中心 1:1 分享裁切双安全。"
     }
   ]
 }

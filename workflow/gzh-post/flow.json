@@ -1,0 +1,47 @@
+{
+  "vars": {},
+  "create": {
+    "url": "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={{appid}}&secret={{secret}}"
+  },
+  "steps": [
+    {
+      "op": "eval",
+      "args": {
+        "script": "(function(){var m=(document.body.innerText||'').match(/\"access_token\":\"([^\"]+)\"/);if(!m){throw new Error('取 access_token 失败（40164=出口 IP 不在公众号白名单）: '+(document.body.innerText||'').slice(0,200));}return m[1];})()"
+      },
+      "save": "token"
+    },
+    {
+      "op": "eval",
+      "args": {
+        "timeout_ms": 180000,
+        "script": "(async function(){var P={{payload}};var tk='{{token}}';function fd(b64,name){var b=atob(b64);var u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);var f=new FormData();f.append('media',new Blob([u],{type:'image/png'}),name);return f;}async function up(path,f){var r=await fetch('https://api.weixin.qq.com'+path+'access_token='+tk,{method:'POST',body:f});var t=await r.text();var j;try{j=JSON.parse(t);}catch(e){throw new Error(path+' 非JSON响应: '+t.slice(0,120));}if(j.errcode){throw new Error(path+' errcode '+j.errcode+': '+j.errmsg);}return j;}var out={urls:{},thumb_media_id:''};var list=P.images||[];for(var i=0;i<list.length;i++){var im=list[i];if(im.usage==='material'){var j1=await up('/cgi-bin/material/add_material?type=image&',fd(im.b64,im.name||'cover.png'));out.thumb_media_id=j1.media_id;}else{var j2=await up('/cgi-bin/media/uploadimg?',fd(im.b64,im.name||('img'+i+'.png')));out.urls[im.key]=j2.url;}}if(!out.thumb_media_id){throw new Error('images 里缺 usage=material 的封面图');}return out;})()"
+      },
+      "save": "uploads"
+    },
+    {
+      "op": "eval",
+      "args": {
+        "script": "(function(){var P={{payload}};var U={{uploads}};var a=P.articles&&P.articles[0];if(!a){throw new Error('payload.articles[0] 缺失');}var c=a.content||'';Object.keys(U.urls).forEach(function(k){c=c.split('[['+k+']]').join(U.urls[k]);});var left=c.match(/\\[\\[[A-Za-z0-9_]+\\]\\]/);if(left){throw new Error('content 有未替换占位: '+left[0]);}a.content=c;a.thumb_media_id=U.thumb_media_id;return [a];})()"
+      },
+      "save": "articles"
+    },
+    {
+      "op": "eval",
+      "args": {
+        "timeout_ms": 120000,
+        "script": "(async function(){var r=await fetch('https://api.weixin.qq.com/cgi-bin/draft/add?access_token={{token}}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({articles:{{articles}}})});var t=await r.text();var j;try{j=JSON.parse(t);}catch(e){throw new Error('draft/add 非JSON响应: '+t.slice(0,120));}if(j.errcode){throw new Error('draft/add errcode '+j.errcode+': '+j.errmsg);}return {media_id:j.media_id};})()"
+      },
+      "save": "draft"
+    },
+    {
+      "op": "eval",
+      "args": {
+        "timeout_ms": 120000,
+        "script": "(async function(){var r=await fetch('https://api.weixin.qq.com/cgi-bin/freepublish/submit?access_token={{token}}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_id:'{{draft.media_id}}'})});var t=await r.text();var j={};try{j=JSON.parse(t);}catch(e){}return {http:r.status,errcode:(j.errcode===undefined?null:j.errcode),errmsg:(j.errmsg||''),publish_id:(j.publish_id||'')};})()"
+      },
+      "save": "publish"
+    },
+    { "op": "close", "args": {} }
+  ]
+}
