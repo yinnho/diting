@@ -19,6 +19,14 @@
       },
       "save": "materials"
     },
+    {
+      "op": "eval",
+      "args": {
+        "timeout_ms": 120000,
+        "script": "(async function(){var P={{payload}};var M={{materials}};var list=(M.media_ids||[]).map(function(id){return {image_media_id:id};});if(!list.length){throw new Error('无素材 media_id');}var body={articles:[{article_type:'newspic',title:P.title,content:P.content,need_open_comment:1,only_fans_can_comment:0,image_info:{image_list:list}}]};var r=await fetch('https://api.weixin.qq.com/cgi-bin/draft/add?access_token={{token}}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var t=await r.text();var j;try{j=JSON.parse(t);}catch(e){throw new Error('draft/add 非JSON: '+t.slice(0,120));}if(j.errcode){throw new Error('draft/add errcode '+j.errcode+': '+j.errmsg);}return {media_id:j.media_id,type:'newspic'};})()"
+      },
+      "save": "draft"
+    },
     { "op": "close", "args": {} }
   ]
 }

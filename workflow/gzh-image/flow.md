@@ -1,31 +1,34 @@
-# gzh-image — 公众号贴图（图片消息）备料 flow
+# gzh-image — 公众号贴图（图片消息/小绿书）草稿 flow
 
-## API 真相（2026-11-09 定版查证）
+**2026-11-09 修正定版：图片消息草稿有 API**——官方 `draft/add` 支持
+`article_type:"newspic"` ＋ `image_info.image_list[{image_media_id}]`（传**永久素材**
+media_id 列表），content 纯文本（`\n` 换行）。该类型未写入官方文档（配方来源：
+wxmp/Gitee ccsang 的小绿书自动化实测；读侧 `draft/get` 连 image_list 都能读回，
+比开放社区抱怨的「读不全」要好）。**全程 AppID/Secret 纯 API，无需网页登录。**
 
-后台的「图片消息」（真·贴图，小绿书样式）**没有官方创建 API**：
+## 流程（终点=草稿箱，人工点「发表」）
 
-- `draft/add` 只收**文章**素材；
-- 群发图片 `message/mass/sendall`（msgtype=image）需**认证**——本号（个人未认证
-  订阅号）实测 48001（sendall/send/preview/user/get 同）；
-- 连「读取」图片消息类草稿都是开放社区 2024 年仍在反映的 API 缺口
-  （draft/get 拿不到图片消息的多图正文）。
+1. token（client_credential）
+2. `material/add_material` ×N —— 12 卡入永久素材库（逐张独立成败，partial 返回）
+3. `draft/add` ＋ `article_type:"newspic"` —— 图片消息草稿（图序=素材顺序）
+4. close
 
-→ **API 能做的＝备料**：`material/add_material` 把图传进永久素材库（本 flow，
-实测可用）。「发」在后台：新建群发 → **图片** → 素材库选图（每条 ≤9 张，
-12 星座卡拆两条或挑 9 张）。
+群发/发布 API（mass/sendall、freepublish/submit）对个人未认证订阅号仍 48001，
+「发表」在后台点——按 owner 定版，本来就不自动发。
 
 ## 运行
 
 ```bash
-python3 workflow/gzh-image/run_image.py    # 渲本周 12 卡 → 传素材库
+python3 workflow/gzh-image/run_image.py    # 渲本周 12 卡 → 素材库 → 贴图草稿
 ```
 
-流程：token → `add_material` ×N（逐张独立成败，配额撞墙 partial 返回）→ close。
-`materials {media_ids[], names[], errors[]}` 落回执。
+## vars 契约
+
+- `payload.images[]`：`{b64, name}`（上传顺序即草稿图序）
+- `payload.title` / `payload.content`：标题与纯文本正文（星座目录）
+- save：`token`、`materials{media_ids[],names[],errors[]}`、`draft{media_id,type}`
 
 ## 姊妹
 
-- `gzh-post`（图文模式）：draft/add 建文章草稿，后台点「发表」。
-- `gzh-weekly`：一键周更（图文草稿 + 贴图备料）。
-- 长期全自动化真·贴图的两条路：账号认证（mass API 开通后加 sendall 步即可，
-  见 git 历史），或网页后台自动化（需 mp 登录态，引擎目前跑不起 mp 登录页）。
+- `gzh-post`（图文）：draft/add 文章草稿。
+- `gzh-weekly`：一键 = 图文草稿 + 贴图草稿，双双躺在草稿箱。
