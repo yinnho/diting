@@ -1,18 +1,31 @@
-# gzh-image — 公众号贴图模式（图片合集草稿）
+# gzh-image — 公众号贴图（图片消息）备料 flow
 
-**2026-11-09 定版：贴图＝正文只有图的草稿，复用 `gzh-post` 同一条 flow**（纯 API
-模式，终点＝草稿箱）。本目录只留 runner，不再单独维护 flow.json——旧的
-sendall 推送版已退役（个人未认证订阅号 mass/sendall/send/preview 实测全 48001，
-且 owner 定版「放在草稿箱就可以了」）。
+## API 真相（2026-11-09 定版查证）
+
+后台的「图片消息」（真·贴图，小绿书样式）**没有官方创建 API**：
+
+- `draft/add` 只收**文章**素材；
+- 群发图片 `message/mass/sendall`（msgtype=image）需**认证**——本号（个人未认证
+  订阅号）实测 48001（sendall/send/preview/user/get 同）；
+- 连「读取」图片消息类草稿都是开放社区 2024 年仍在反映的 API 缺口
+  （draft/get 拿不到图片消息的多图正文）。
+
+→ **API 能做的＝备料**：`material/add_material` 把图传进永久素材库（本 flow，
+实测可用）。「发」在后台：新建群发 → **图片** → 素材库选图（每条 ≤9 张，
+12 星座卡拆两条或挑 9 张）。
+
+## 运行
 
 ```bash
-python3 workflow/gzh-image/run_image.py     # 渲本周 12 卡 → 图片合集草稿
+python3 workflow/gzh-image/run_image.py    # 渲本周 12 卡 → 传素材库
 ```
 
-产出：草稿《本周星座卡（MM.DD—MM.DD）｜本周星象》——引导段 + 每星座
-「星座名小标 + 卡图」，封面同 zodiac_cover。与 `gzh-post/run.py`（图文）共享
-assets.py（周期数据 + 渲一次多处用）。一键两种模式：`gzh-weekly/run.py`。
+流程：token → `add_material` ×N（逐张独立成败，配额撞墙 partial 返回）→ close。
+`materials {media_ids[], names[], errors[]}` 落回执。
 
-后台对应操作：草稿箱该草稿点「发表」即成文章；若想发**图片消息**（朋友圈式
-多图推送），用素材库选图——12 卡已作为永久素材在库（`gzh-post` flow 的 cover
-步传的；如需全套入库再跑一次 `add_material`，见 git 历史里的旧 flow）。
+## 姊妹
+
+- `gzh-post`（图文模式）：draft/add 建文章草稿，后台点「发表」。
+- `gzh-weekly`：一键周更（图文草稿 + 贴图备料）。
+- 长期全自动化真·贴图的两条路：账号认证（mass API 开通后加 sendall 步即可，
+  见 git 历史），或网页后台自动化（需 mp 登录态，引擎目前跑不起 mp 登录页）。
