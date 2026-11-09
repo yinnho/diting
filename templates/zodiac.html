@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<!-- id: zodiac  十二星座本周运势 · 30s 竖屏确定性视频页（diting /video 管线）
+     零槽位：内容以 ISO 周号为种自动生成（mulberry32(week*31 + i*7 + isoYear)），
+     同周重渲字节级一致，跨周自动换新内容；FORCE 常量可锁定历史周做回归。
+     时间线 intro 2.2s + 12×2.15s + outro 2.0s = 30.0s，24fps；动画只写
+     transform/opacity（引擎寻帧的廉价失效路径 #395/#398）。
+     真元素装饰、无伪元素（REQ #415）。家族：weather/reply 磷光读数页。
+     渲染：POST /video {"html":本页全文, "fps":24, "width":1080, "height":1920} -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1080">
+<title>十二星座本周运势</title>
+<style>
+:root {
+  --bg: #060a07;
+  --bg-glow: #0d1811;
+  --fg: #d8e6d8;
+  --accent: #3dfd8f;
+  --muted: #7d9484;
+  --dim: #23352a;
+  --scan: rgba(63, 221, 143, 0.03);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); }
+body {
+  width: 1080px; height: 1920px; overflow: hidden;
+  color: var(--fg);
+  font: 400 38px/1.7 ui-monospace, "Noto Sans Mono", monospace;
+  position: relative;
+}
+.fx {
+  position: fixed; inset: 0; pointer-events: none; z-index: 90;
+  background:
+    repeating-linear-gradient(to bottom, var(--scan) 0 1px, transparent 1px 6px),
+    radial-gradient(120% 46% at 50% 0%, var(--bg-glow), transparent 70%),
+    linear-gradient(to bottom, transparent 76%, rgba(0,0,0,0.55));
+}
+/* 星尘层：真 span 点，容器只做 transform 漂移 */
+.stars-layer { position: fixed; inset: -300px 0 0 0; pointer-events: none; z-index: 1; }
+.stars-layer span { position: absolute; color: var(--accent); }
+/* 卡片层：15 张叠放，动画只碰 opacity/transform */
+.card {
+  position: fixed; inset: 0; padding: 150px 88px 130px;
+  opacity: 0; transform: translateY(46px); z-index: 10;
+}
+.cmd { color: var(--muted); font-size: 30px; border-bottom: 1px solid var(--dim); padding-bottom: 30px; }
+.cmd .p { color: var(--accent); }
+/* intro */
+.h1 { margin-top: 150px; font-size: 168px; line-height: 1.22; font-weight: 600; letter-spacing: 0.04em; }
+.h1 em { font-style: normal; color: var(--accent); }
+.range { margin-top: 60px; font-size: 52px; color: var(--fg); }
+.range .sep { color: var(--dim); padding: 0 20px; }
+.weeknote { margin-top: 26px; font-size: 36px; color: var(--muted); }
+.weeknote b { color: var(--fg); font-weight: 400; }
+/* sign card */
+.sname { margin-top: 90px; font-size: 210px; line-height: 1.1; font-weight: 600; letter-spacing: 0.06em; }
+.smeta { margin-top: 10px; font-size: 42px; color: var(--muted); letter-spacing: 0.18em; }
+.rate { margin-top: 64px; font-size: 96px; letter-spacing: 18px; line-height: 1; }
+.rate .st { color: var(--muted); opacity: 0.16; }
+.rate .st.on { color: var(--accent); opacity: 1; }
+.kw { margin-top: 78px; font-size: 84px; line-height: 1.35; color: var(--accent); font-weight: 600; }
+.adv { margin-top: 20px; font-size: 44px; line-height: 1.6; color: var(--fg); max-width: 900px; }
+.spec { margin-top: 74px; max-width: 920px; }
+.spec .row { display: flex; align-items: baseline; padding: 26px 0; border-bottom: 1px solid var(--dim); }
+.spec .row:first-child { border-top: 1px solid var(--dim); }
+.spec .k { color: var(--muted); font-size: 32px; white-space: nowrap; }
+.spec .fill { flex: 1; margin: 0 24px; border-bottom: 3px dotted var(--dim); transform: translateY(-10px); }
+.spec .v { color: var(--fg); font-size: 42px; font-weight: 600; white-space: nowrap; }
+.spec .v em { font-style: normal; color: var(--accent); }
+/* 进度条：12 段真实格子，填充走 background-color */
+.prog { position: fixed; left: 88px; right: 88px; bottom: 74px; display: flex; gap: 10px; z-index: 20; }
+.prog i { flex: 1; height: 10px; border: 1px solid var(--dim); }
+.prog i.done { background: var(--accent); border-color: var(--accent); }
+.prog i.cur { border-color: var(--accent); }
+.plabel { position: fixed; right: 88px; bottom: 108px; font-size: 28px; color: var(--muted); z-index: 20; }
+/* outro */
+.out1 { margin-top: 320px; font-size: 120px; line-height: 1.5; font-weight: 600; }
+.out1 em { font-style: normal; color: var(--accent); }
+.out2 { margin-top: 70px; font-size: 44px; color: var(--muted); }
+.src { position: fixed; left: 88px; bottom: 74px; font-size: 26px; color: var(--dim); z-index: 20; }
+.src .k2 { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="stars-layer" id="dust"></div>
+<div class="fx" aria-hidden="true"></div>
+
+<div class="card" id="c0">
+  <p class="cmd"><span class="p">&gt; </span>horoscope --week <span id="wkTag"></span></p>
+  <p class="h1">十二星座<br><em>本周运势</em></p>
+  <p class="range"><span id="d0"></span><span class="sep">—</span><span id="d1"></span><span class="sep">·</span>W<span id="wn"></span></p>
+  <p class="weeknote">本周星象：<b id="wkNote"></b></p>
+</div>
+
+<div class="card" id="cS"></div>
+
+<div class="card" id="c14">
+  <p class="cmd"><span class="p">&gt; </span>horoscope --next-week</p>
+  <p class="out1">下周见。<br><em>好运常驻。</em></p>
+  <p class="out2">关注不迷路 · 每周一更</p>
+  <p class="src"><span class="k2">render: </span>diting /video · deterministic</p>
+</div>
+
+<div class="prog" id="prog"></div>
+<div class="plabel" id="plabel"></div>
+
+<script>
+(function () {
+  /* ---- 周期锁定：默认取当天所在 ISO 周；FORCE 可锁定历史周做回归 ---- */
+  var FORCE = null;   /* 例：{year:2026, week:46, d0:'11.09', d1:'11.15'} */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function isoCal(d) {
+    var t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var dow = (t.getDay() + 6) % 7;                 /* Mon=0..Sun=6 */
+    var thu = new Date(t.getFullYear(), t.getMonth(), t.getDate() - dow + 3);
+    var j4 = new Date(thu.getFullYear(), 0, 4);
+    var jd = (j4.getDay() + 6) % 7;
+    var j4thu = new Date(j4.getFullYear(), 0, 4 - jd + 3);
+    var week = Math.round((thu - j4thu) / 604800000) + 1;
+    var mon = new Date(thu.getFullYear(), thu.getMonth(), thu.getDate() - 3);
+    return { year: thu.getFullYear(), week: week,
+             d0: pad2(mon.getMonth() + 1) + '.' + pad2(mon.getDate()),
+             d1: (function () {
+               var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+               return pad2(sun.getMonth() + 1) + '.' + pad2(sun.getDate());
+             })() };
+  }
+  var cal = FORCE || isoCal(new Date());
+  var YEAR = cal.year, WEEK = cal.week;
+
+  /* ---- 确定性内容：mulberry32(week*31 + i*7 + isoYear) ---- */
+  var SIGNS = [
+    ["白羊座","ARIES","3.21—4.19"], ["金牛座","TAURUS","4.20—5.20"],
+    ["双子座","GEMINI","5.21—6.21"], ["巨蟹座","CANCER","6.22—7.22"],
+    ["狮子座","LEO","7.23—8.22"], ["处女座","VIRGO","8.23—9.22"],
+    ["天秤座","LIBRA","9.23—10.23"], ["天蝎座","SCORPIO","10.24—11.22"],
+    ["射手座","SAGITTARIUS","11.23—12.21"], ["摩羯座","CAPRICORN","12.22—1.19"],
+    ["水瓶座","AQUARIUS","1.20—2.18"], ["双鱼座","PISCES","2.19—3.20"]
+  ];
+  var NOTES = ["金星入庙，暖意先行","满月收尾，旧事清账","火象主扬，宜快不宜拖",
+    "水象主静，蓄力为上","风向聚议，多听少辩","土象固本，落袋为安",
+    "新月开局，许愿要早","水星逆行，回看旧路","木星撑腰，格局放大",
+    "火星换座，节奏重排","水星顺行，暗流回稳","日月同宫，内外合一"];
+  var KWS = ["锋面过境","引力回升","暗流平息","信号清晰","轨道交会","静风蓄势","潮位回涨","热斑转移","视界打开","杂音退散","重心下沉","缺环补齐"];
+  var ADVS = ["宜先手，后发则被动","把悬而未决的事收口","旧线索里藏新答案","答应自己的事先兑现","慢半拍反而是优势","别替别人的课题消耗自己","直觉准，但别声张","该拒绝的那次就拒绝","小赢积成大势","盯过程，结果自己来","留白处正是转机","先立界限，再谈给予"];
+  var COLORS = ["磷光绿","雾紫","铁灰","暖橙","月白","黛蓝","砂金","苔原绿","烟粉","藏青","琥珀","银灰"];
+  var YI = ["先手","复盘","断舍离","示弱","闭环","远行","表白","签约","独处","开工","提薪","撒手"];
+  var JI = ["逞强","口头承诺","深夜决定","翻旧账","抢答","代劳","贪杯","硬刚","all in","内耗","迟到","回群"];
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var DATA = SIGNS.map(function (s, i) {
+    var r = rng(WEEK * 31 + i * 7 + YEAR);
+    return {
+      name: s[0], en: s[1], range: s[2],
+      stars: 2 + Math.floor(r() * 4),          /* 2..5 */
+      kw: KWS[Math.floor(r() * KWS.length)],
+      adv: ADVS[Math.floor(r() * ADVS.length)],
+      color: COLORS[Math.floor(r() * COLORS.length)],
+      num: 1 + Math.floor(r() * 9),
+      yi: YI[Math.floor(r() * YI.length)],
+      ji: JI[Math.floor(r() * JI.length)]
+    };
+  });
+  document.getElementById('wkTag').textContent = YEAR + '-W' + WEEK;
+  document.getElementById('d0').textContent = cal.d0;
+  document.getElementById('d1').textContent = cal.d1;
+  document.getElementById('wn').textContent = WEEK;
+  document.getElementById('wkNote').textContent = NOTES[WEEK % NOTES.length];
+
+  /* ---- DOM 组装（真元素，无伪元素） ---- */
+  var cS = document.getElementById('cS');
+  var cards = [document.getElementById('c0')];
+  DATA.forEach(function (d, i) {
+    var el = (i === 0) ? cS : cS.cloneNode(false);
+    el.id = 'cS' + i;
+    el.innerHTML =
+      '<p class="cmd"><span class="p">&gt; </span>horoscope --week W' + WEEK + ' ' + d.name + '</p>' +
+      '<p class="sname">' + d.name + '</p>' +
+      '<p class="smeta">' + d.en + ' · ' + d.range + '</p>' +
+      '<p class="rate" id="rate' + i + '">' +
+        '<span class="st">★</span><span class="st">★</span><span class="st">★</span><span class="st">★</span><span class="st">★</span>' +
+      '</p>' +
+      '<p class="kw">「' + d.kw + '」</p>' +
+      '<p class="adv">' + d.adv + '</p>' +
+      '<div class="spec">' +
+        '<div class="row"><span class="k">综合运势</span><span class="fill"></span><span class="v"><em>' + d.stars + '.0</em> / 5</span></div>' +
+        '<div class="row"><span class="k">幸运色</span><span class="fill"></span><span class="v">' + d.color + '</span></div>' +
+        '<div class="row"><span class="k">幸运数字</span><span class="fill"></span><span class="v"><em>' + d.num + '</em></span></div>' +
+        '<div class="row"><span class="k">宜</span><span class="fill"></span><span class="v">' + d.yi + '</span></div>' +
+        '<div class="row"><span class="k">忌</span><span class="fill"></span><span class="v">' + d.ji + '</span></div>' +
+      '</div>';
+    if (i > 0) document.body.insertBefore(el, document.getElementById('c14'));
+    cards.push(el);
+  });
+  cards.push(document.getElementById('c14'));
+
+  /* 进度条 12 格 */
+  var prog = document.getElementById('prog');
+  var cells = [];
+  for (var c = 0; c < 12; c++) {
+    var cell = document.createElement('i');
+    prog.appendChild(cell);
+    cells.push(cell);
+  }
+  var plabel = document.getElementById('plabel');
+
+  /* 星尘：静态点，容器慢漂移（30s×8px/s=240px，层高预留） */
+  var dust = document.getElementById('dust');
+  var sr = rng(YEAR * 100 + WEEK);
+  for (var s = 0; s < 42; s++) {
+    var dot = document.createElement('span');
+    dot.textContent = '·';
+    var sz = 26 + Math.floor(sr() * 60);
+    dot.style.left = Math.floor(sr() * 1040) + 'px';
+    dot.style.top = Math.floor(sr() * 2150) + 'px';
+    dot.style.fontSize = sz + 'px';
+    dot.style.opacity = (0.05 + sr() * 0.12).toFixed(2);
+    dust.appendChild(dot);
+  }
+
+  /* ---- 时间线（引擎寻帧协议） ---- */
+  var INTRO = 2.2, SLOT = 2.15, N = 12, OUTRO = 2.0;
+  var DUR = INTRO + SLOT * N + OUTRO;   /* 30.0s */
+  var starEls = DATA.map(function (d, i) {
+    return Array.prototype.slice.call(document.querySelectorAll('#cS' + i + ' .st'));
+  });
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function ease(p) { return p * p * (3 - 2 * p); }
+
+  window.__timelines = {
+    main: {
+      duration: function () { return DUR; },
+      pause: function (t) {
+        /* 星尘漂移 */
+        dust.style.transform = 'translateY(' + (-t * 8).toFixed(1) + 'px)';
+        /* 当前三卡索引（跨界瞬时切换，重叠淡入淡出） */
+        var idx, start, len;
+        if (t < INTRO) { idx = 0; start = 0; len = INTRO; }
+        else if (t < INTRO + SLOT * N) {
+          var k = Math.floor((t - INTRO) / SLOT);
+          idx = k + 1; start = INTRO + k * SLOT; len = SLOT;
+        } else { idx = N + 1; start = INTRO + SLOT * N; len = OUTRO; }
+        var local = t - start;
+        for (var i = 0; i < cards.length; i++) {
+          var el = cards[i];
+          if (i === idx) {
+            var fin = ease(clamp01(local / 0.25));
+            var fout = ease(clamp01((len - local) / 0.18));
+            var vis = fin * fout;
+            el.style.opacity = vis.toFixed(3);
+            el.style.transform = 'translateY(' + (46 * (1 - fin) - 30 * (1 - fout)).toFixed(1) + 'px)';
+          } else {
+            el.style.opacity = '0';
+          }
+        }
+        /* 星级逐颗点亮（星座卡前 0.7s） */
+        if (idx >= 1 && idx <= N) {
+          var d = DATA[idx - 1];
+          var sts = starEls[idx - 1];
+          for (var q = 0; q < 5; q++) {
+            var on = (q < d.stars) && local > 0.25 + q * 0.09;
+            sts[q].className = on ? 'st on' : 'st';
+          }
+        }
+        /* 进度条 */
+        var cur = (idx >= 1 && idx <= N) ? idx - 1 : -1;
+        for (var p = 0; p < 12; p++) {
+          cells[p].className = p < cur ? 'done' : (p === cur ? 'cur' : '');
+        }
+        plabel.textContent = cur >= 0 ? (cur + 1) + ' / 12' : '';
+        prog.style.opacity = (idx >= 1 && idx <= N) ? '1' : '0';
+      }
+    }
+  };
+})();
+</script>
+</body>
+</html>
