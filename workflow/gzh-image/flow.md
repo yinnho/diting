@@ -32,3 +32,10 @@ python3 workflow/gzh-image/run_image.py    # 渲本周 12 卡 → 素材库 → 
 
 - `gzh-post`（图文）：draft/add 文章草稿。
 - `gzh-weekly`：一键 = 图文草稿 + 贴图草稿，双双躺在草稿箱。
+
+## 坑（2026-11-09 实测）
+
+**直连 python 调微信 API 必须 `json.dumps(..., ensure_ascii=False).encode('utf-8')`**：
+默认的 `\uXXXX` 转义虽是合法 JSON，微信服务端却按字面存储——newspic 草稿标题/正文
+整串乱码就是这么来的（图文没中招是因为它走 flow 的 JS fetch，UTF-8 直传）。
+`run_image.py` 走 flow 路径天然免疫；此坑只属于临时直连脚本。
