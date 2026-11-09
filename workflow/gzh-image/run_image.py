@@ -1,62 +1,47 @@
 #!/usr/bin/env python3
-# gzh-image 周更一键（贴图模式）：渲染本周 12 张星座卡 → 全部传公众号永久素材库
-# → （可选）尝试 sendall 推送。凭据 ~/.dupconfig [gzh]，不进仓库。
-# 用法: python3 workflow/gzh-image/run_image.py [--push 1] [--dry]
-import base64, configparser, datetime, json, os, sys, urllib.request
+# gzh-image 周更（贴图模式）：12 张星座卡 → 图片合集草稿（正文只有图）。
+# 复用 gzh-post 同一条 flow（纯 API 模式），终点=草稿箱。凭据 ~/.dupconfig [gzh]。
+# 用法: python3 workflow/gzh-image/run_image.py [--dry]
+import json, os, sys
 
-BASE = "http://127.0.0.1:8089"
-ROOT = __file__.rsplit("/workflow/", 1)[0]
-sys.path.insert(0, os.path.join(ROOT, "workflow", "gzh-post"))
-from run import SIGNS, iso_cal, render_png, post  # noqa: E402
+sys.path.insert(0, os.path.join(__file__.rsplit("/workflow/", 1)[0], "workflow", "gzh-post"))
+from assets import SIGNS, week_ctx, render_assets, b64, run_flow, read_creds  # noqa: E402
+
+
+def build_payload(ctx, a):
+    """贴图 payload：正文＝引导段 + 12 张卡（[[IMGi]] 由 flow 回填）。"""
+    content = ('<section style="background:#060a07;padding:20px 18px;color:#d8e6d8;font-size:15px;line-height:1.9;">'
+               '<p style="font-size:17px;color:#3dfd8f;font-weight:600;margin:0;">十二星座本周运势 · 星座卡合集</p>'
+               '<p style="color:#9db3a4;margin:8px 0 0;">' + ctx['d0'] + '—' + ctx['d1'] + ' · W' + str(ctx['week']) +
+               ' · ' + ctx['note'] + '。十二张卡，收藏慢慢看。</p></section>')
+    for i, (en, cn, enu, _) in enumerate(SIGNS):
+        content += ('<section style="background:#0a120c;padding:14px 18px 18px;margin:10px 0 0;">'
+                    '<p style="color:#3dfd8f;font-size:14px;font-weight:600;margin:0 0 8px;">' + cn +
+                    ' <span style="color:#7d9484;font-size:12px;font-weight:400;">' + enu + '</span></p>'
+                    '<img src="[[IMG' + str(i) + ']]" style="width:100%;border-radius:6px;"></section>')
+    assert "{{" not in content
+    images = [{"key": "cover", "usage": "material", "b64": b64(a["cover"]), "name": "cover.png"}]
+    images += [{"key": "IMG" + str(i), "usage": "uploadimg", "b64": b64(p),
+                "name": f"{i+1:02d}_{en}.png"} for i, (en, _, _, _) in enumerate(SIGNS) for p in [a["cards"][i]]]
+    return {"articles": [{
+        "title": f"本周星座卡（{ctx['d0']}—{ctx['d1']}）｜{ctx['note']}",
+        "author": "AginxOS",
+        "digest": f"十二星座运势卡合集 · {ctx['note']}。",
+        "content": content, "need_open_comment": 1, "only_fans_can_comment": 0}],
+        "images": images}
 
 
 def main():
     dry = "--dry" in sys.argv
-    push = ("--push" in sys.argv and
-            sys.argv[sys.argv.index("--push") + 1] not in ("0", "false"))
-    cp = configparser.ConfigParser()
-    cp.read(os.path.expanduser("~/.dupconfig"))
-    appid, secret = cp["gzh"]["appid"], cp["gzh"]["secret"]
-
-    year, week, d0, d1 = iso_cal(datetime.date.today())
-    outdir = f"{ROOT}/docs/zodiac_w{week}/article"
-    os.makedirs(outdir, exist_ok=True)
-    tpl = open(f"{ROOT}/templates/zodiac.html").read()
-    assert tpl.count("\n})();\n</script>") == 1
-    images = []
-    for i, (en, cn, _, _) in enumerate(SIGNS):
-        t = 2.2 + i * 2.15 + 1.9
-        html = tpl.replace("\n})();\n</script>",
-                           "\nwindow.__timelines.main.pause(" + str(t) + ");\n})();\n</script>")
-        png = render_png(html, 1080, 1920, f"{outdir}/card_{en}.png")
-        images.append({"b64": base64.b64encode(png).decode(), "name": f"{i+1:02d}_{en}.png"})
-        print(f"{cn} 卡 {len(png)//1024}KB")
+    appid, secret = read_creds()
+    ctx = week_ctx()
+    a = render_assets(ctx)
     if dry:
-        print("（--dry：素材已渲染，未上传）")
+        print("（--dry：素材已渲染，未建草稿）")
         return
-
-    print(f"POST /flow/run gzh-image（{len(images)} 张，push={push}）…")
-    r = post("/flow/run", {"name": "gzh-image", "vars": {
-        "appid": appid, "secret": secret,
-        "payload": {"images": images}, "push": push}})
-    saved = r.get("saved") or {}
-    if r.get("failed_step") is not None:
-        print(f"失败于步骤 {r['failed_step']}: {r.get('reason', '')[:300]}")
-        print(f"接管会话: {r.get('live_qr', '')}")
-        raise SystemExit(1)
-    m = saved.get("materials") or {}
-    print(f"素材库新传 {len(m.get('media_ids', []))}/{len(images)} 张：")
-    for n, mid in zip(m.get("names", []), m.get("media_ids", [])):
-        print(f"  {n} → {mid[:24]}…")
-    for e in m.get("errors", []):
-        print(f"  失败 {e['name']}: errcode {e['errcode']} {e['errmsg'][:60]}")
-    p = saved.get("push_result") or {}
-    if p.get("skipped"):
-        print("未尝试推送（push=false）——去 mp.weixin.qq.com 新建群发→图片，素材库里直接选。")
-    elif p.get("errcode") == 0 or p.get("msg_id"):
-        print(f"已推送 sendall: msg_id={p.get('msg_id')}")
-    else:
-        print(f"sendall errcode {p.get('errcode')}（{p.get('errmsg', '')[:60]}）——未认证号无群发 API，走后台图片消息。")
+    payload = build_payload(ctx, a)
+    print(f"POST /flow/run gzh-post 贴图（payload {len(json.dumps(payload))//1024}KB）…")
+    run_flow("gzh-post", {"appid": appid, "secret": secret, "payload": payload})
 
 
 if __name__ == "__main__":
