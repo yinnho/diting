@@ -99,7 +99,7 @@ const __ditingFetchImpl = async (input, init = {}) => {
       _scheduleAfter(0, 0, () => {
         if (!blob || !(blob._bytes instanceof Uint8Array)) {
           __recordFetchTiming(_rtT0, url, _rtInit, null);
-          reject(new TypeError('Failed to fetch: ' + url));
+          reject(new TypeError('Failed to fetch'));
           return;
         }
         // Copy: Chrome snapshots blob contents at fetch time; sharing the stored
@@ -215,7 +215,14 @@ const __ditingFetchImpl = async (input, init = {}) => {
   __armFetchProbeHeartbeat();
   opCall.then(
     function (raw) { _fetchStage('opok', _fk); __inflightFetches.delete(_fk); _resOuter(raw); },
-    function (e) { _fetchStage('operr', _fk); __inflightFetches.delete(_fk); _rejOuter(e); }
+    // #62: transport-layer failures reach the page exactly as Chrome
+    // delivers them — TypeError "Failed to fetch" — never the engine's
+    // internal reason ("error sending request for uri ..."), which was
+    // itself a face tell. The real reason rides the js_network_event.
+    function (e) {
+      _fetchStage('operr', _fk); __inflightFetches.delete(_fk);
+      _rejOuter(new TypeError('Failed to fetch'));
+    }
   );
   // Mid-flight abort: race the op against the signal. There is no JS-to-Rust
   // cancellation channel, so the underlying walk keeps going and its eventual
@@ -245,7 +252,10 @@ const __ditingFetchImpl = async (input, init = {}) => {
       throw new TypeError('Failed to fetch');
     }
     if (parsed.corsBlocked) {
-      throw new TypeError('Failed to fetch: ' + (parsed.corsError || 'CORS error'));
+      // Chrome keeps the CORS reason in the console and hands the page a
+      // bare TypeError "Failed to fetch" — the detailed reason used to ride
+      // the rejection message, a string no real browser produces (#62).
+      throw new TypeError('Failed to fetch');
     }
     const respType = parsed.status === 0 ? "opaque" : (fetchMode === "no-cors" ? "opaque" : "basic");
     const responseBody = parsed.bodyBase64 ? _base64ToUint8Array(parsed.bodyBase64) : (parsed.body || "");
