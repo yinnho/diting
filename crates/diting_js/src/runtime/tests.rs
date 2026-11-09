@@ -14112,6 +14112,65 @@ async fn cors_refused_fetch_records_status_zero_event_with_reason() {
     );
 }
 
+/// #62: transport-layer failures surface to the page exactly as Chrome
+/// delivers them — a TypeError whose message is exactly "Failed to fetch".
+/// The raw engine reason ("error sending request for uri ...") used to ride
+/// the rejection, a string no real browser produces and a face tell on any
+/// page that inspects e.message; the detailed reason belongs to the network
+/// event, not the promise.
+#[allow(clippy::await_holding_lock)] // the env guard must span the await — that's the serialization
+#[tokio::test(flavor = "current_thread")]
+async fn transport_error_fetch_rejects_with_chrome_typeerror_face() {
+    let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+
+    // Bind then drop: a port nothing listens on, so the connection is
+    // refused at the transport layer (no CORS leg involved — simple GET).
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url("https://example.com/page");
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                    try {
+                        await fetch("http://127.0.0.1:PORT/api");
+                        return "not-blocked";
+                    } catch (e) {
+                        return [e && e.name, e && e.message, e instanceof TypeError]
+                            .map(v => String(v)).join("|");
+                    }
+                }"#
+            .replace("PORT", &port.to_string())
+            .as_str(),
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let face = result
+        .value
+        .unwrap()
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    assert_eq!(face, "TypeError|Failed to fetch|true", "got: {face}");
+
+    // The observability split Chrome achieves with the console, we keep in
+    // the network event: the refusal records status 0 with the real reason.
+    let events = rt.take_js_network_events();
+    let refused = events
+        .iter()
+        .find(|e| e.url.contains(&format!(":{port}/api")))
+        .expect("refused fetch must leave a network event");
+    assert_eq!(refused.status, 0);
+}
+
 /// Preflight permission enforcement (obscura "enforce CORS preflight
 /// permissions", 04f0475 same-hole): a preflight that allows the origin
 /// but never lists Access-Control-Allow-Methods does not consent to a
@@ -14180,10 +14239,9 @@ async fn preflight_without_allow_methods_blocks_the_actual_request() {
         .as_str()
         .unwrap_or_default()
         .to_string();
-    assert!(
-        msg.starts_with("rejected:CORS preflight did not allow method 'PUT'"),
-        "server listed no Allow-Methods; the PUT must be refused, got: {msg}"
-    );
+    // #62: Chrome's page face is the bare TypeError; the method refusal
+    // reason rides the network event.
+    assert_eq!(msg, "rejected:Failed to fetch", "got: {msg}");
 
     // The actual request never reached the wire: only the OPTIONS hop.
     let served = requests.lock().unwrap().clone();
@@ -14921,13 +14979,22 @@ async fn preflight_http_status_reported_before_origin() {
         .as_str()
         .unwrap_or_default()
         .to_string();
+    // #62: the page face is Chrome's bare TypeError — the diagnostic lives
+    // in the network event (Chrome's console-equivalent split).
+    assert_eq!(msg, "rejected:Failed to fetch", "got: {msg}");
+    let events = rt.take_js_network_events();
+    let pf = events
+        .iter()
+        .find(|e| e.url.contains(&format!(":{port}/api")))
+        .expect("403 preflight must leave a network event");
+    let reason = pf.error.as_deref().unwrap_or("");
     assert!(
-        msg.contains("CORS preflight returned HTTP 403"),
-        "403 preflight must report its status, got: {msg}"
+        reason.contains("CORS preflight returned HTTP 403"),
+        "403 preflight must report its status in the event, got: {reason}"
     );
     assert!(
-        !msg.contains("not in Access-Control-Allow-Origin"),
-        "status check must fire before the origin check, got: {msg}"
+        !reason.contains("not in Access-Control-Allow-Origin"),
+        "status check must fire before the origin check, got: {reason}"
     );
 }
 
@@ -16273,10 +16340,7 @@ async fn fetch_honors_request_credentials_across_origins() {
         ).await.unwrap();
     std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
 
-    let expected = format!(
-            "r1:200|r2:200|r3:200|c:Failed to fetch: CORS error: credentialed request requires Access-Control-Allow-Origin 'http://127.0.0.1:{}' and Access-Control-Allow-Credentials 'true'",
-            port_a
-        );
+    let expected = "r1:200|r2:200|r3:200|c:Failed to fetch".to_string();
     assert_eq!(result.value.unwrap(), serde_json::json!(expected));
     let c1 = cookie_rx
         .recv_timeout(std::time::Duration::from_secs(5))
@@ -16494,9 +16558,7 @@ async fn same_origin_credentialed_fetch_redirected_cross_origin_names_bounce_hos
         .as_str()
         .unwrap_or_default()
         .to_string();
-    let expected_deny = format!(
-            "deny:Failed to fetch: CORS error: credentialed request requires Access-Control-Allow-Origin 'http://127.0.0.1:{port_a}' and Access-Control-Allow-Credentials 'true' (after redirect to 'http://127.0.0.1:{port_deny}/bounced')"
-        );
+    let expected_deny = "deny:Failed to fetch".to_string();
     assert_eq!(got, format!("{expected_deny}|allow:200"), "got: {got}");
     assert_eq!(
         redirect_rx

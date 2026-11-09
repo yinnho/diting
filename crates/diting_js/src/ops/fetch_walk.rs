@@ -221,14 +221,26 @@ async fn cors_preflight(
         },
         None => None,
     };
-    let preflight_stealth_err = match &stealth_preflight {
-        Some(Err(se)) => Some(se.to_string()),
-        _ => None,
-    };
     let (pf_headers, allowed_origin, allow_credentials, preflight_status) = match &stealth_preflight
     {
         Some(Ok(fr)) => buffered_preflight_parts(fr),
-        _ => match preflight_request.send().await {
+        // #62: no plain retry for a preflight the stealth stack could not
+        // carry — same one-face-per-session rule as the main hop. Chrome
+        // rejects the fetch (network failure) instead of re-asking on a
+        // second, un-emulated TLS stack.
+        Some(Err(se)) => {
+            let error = format!("CORS preflight failed: {se}");
+            deps.failures.push(FetchFailure {
+                url: url.clone(),
+                method: method.clone(),
+                reason: error.clone(),
+                final_url: url.clone(),
+                redirects: Vec::new(),
+                started: deps.started_unix,
+            });
+            return Err(deno_error::JsErrorBox::generic(error));
+        }
+        None => match preflight_request.send().await {
             Ok(p) => (
                 p.headers().clone(),
                 p.headers()
@@ -244,12 +256,7 @@ async fn cors_preflight(
                 p.status().as_u16(),
             ),
             Err(e) => {
-                let error = match preflight_stealth_err {
-                    Some(se) => {
-                        format!("CORS preflight failed: {e} (stealth transport also failed: {se})")
-                    }
-                    None => format!("CORS preflight failed: {e}"),
-                };
+                let error = format!("CORS preflight failed: {e}");
                 deps.failures.push(FetchFailure {
                     url: url.clone(),
                     method: method.clone(),
@@ -746,6 +753,26 @@ pub(crate) async fn fetch_url_walk(
             redirect_hops.extend(buffered.redirect_hops.iter().cloned());
             redirect_chain.extend(buffered.redirect_hops.iter().map(|h| h.url.clone()));
             break OpFetchOutcome::Buffered(buffered);
+        }
+        if let Some(Err(e)) = stealth_hop {
+            // #62: a stealth page never swaps TLS stacks mid-session.
+            // Chrome fails the fetch when its connection fails; the old
+            // fall-through to the plain client let one transient
+            // ProxyConnect resurface the request on the raw, un-emulated
+            // face — the same cookie jar behind two JA3s the hop comment
+            // above warns about. The JS face converts this to TypeError
+            // "Failed to fetch"; the real reason stays in the network
+            // event for observability.
+            drop(_in_flight);
+            deps.failures.push(FetchFailure {
+                url: url.clone(),
+                method: current_method.as_str().to_string(),
+                reason: e.to_string(),
+                final_url: current_url.clone(),
+                redirects: redirect_hops.clone(),
+                started: deps.started_unix,
+            });
+            return Err(deno_error::JsErrorBox::generic(e.to_string()));
         }
 
         let resp = match req.send().await {
