@@ -98,6 +98,22 @@ if (!globalThis.crypto.subtle) {
     if (n === "SHA-1" || n === "SHA-256" || n === "SHA-384" || n === "SHA-512") return n;
     throw new DOMException("Unsupported hash algorithm: " + (h && (h.name || h)), "NotSupportedError");
   }
+  // A required [EnforceRange] unsigned long member of an algorithm dictionary,
+  // converted with Chrome's own WebCrypto messages (Chrome 157, probed):
+  // absent -> "Missing required property"; ToNumber NaN (an explicit
+  // undefined, a non-numeric string, an object) -> "Is not a number";
+  // +-Infinity or outside [0, 2^32-1] after truncation -> "Outside of numeric
+  // range". 1.7 truncates to 1, -0.5 and null to 0 (left to the caller's own
+  // range rule). `>>> 0` turned -1 into 4294967295 instead.
+  function enforceUint32Member(dict, member, op, dictName) {
+    const pre = "Failed to execute '" + op + "' on 'SubtleCrypto': " + dictName + ": " + member + ": ";
+    if (!(member in dict)) throw new TypeError(pre + "Missing required property");
+    const n = Number(dict[member]);
+    if (Number.isNaN(n)) throw new TypeError(pre + "Is not a number");
+    const t = Math.trunc(n);
+    if (!Number.isFinite(t) || t < 0 || t > 4294967295) throw new TypeError(pre + "Outside of numeric range");
+    return t + 0;
+  }
   const hashBlockSize = (hash) => (hash === "SHA-384" || hash === "SHA-512" ? 128 : 64);
 
   function b64urlToBytes(s) {
@@ -702,9 +718,10 @@ if (!globalThis.crypto.subtle) {
       const bytes = keyBytes(baseKey);
       const lenBytes = Math.ceil((length || 0) / 8);
       if (alg.name === "PBKDF2") {
-        const hash = normalizeHash(alg.hash);
+        // Chrome's member order: salt, iterations, hash.
         const salt = toBytes(alg.salt);
-        const iterations = alg.iterations >>> 0;
+        const iterations = enforceUint32Member(alg, "iterations", "deriveBits", "Pbkdf2Params");
+        const hash = normalizeHash(alg.hash);
         return bufferOf(await offThread("pbkdf2", hash, iterations, lenBytes, bytes, salt));
       }
       if (alg.name === "HKDF") {
@@ -717,6 +734,10 @@ if (!globalThis.crypto.subtle) {
     },
 
     async deriveKey(algorithm, baseKey, derivedKeyAlgorithm, extractable, keyUsages) {
+      // Chrome normalizes the derivation params first, and names deriveKey in
+      // the conversion error (deriveBits below would say deriveBits).
+      const pAlg = normalizeAlgo(algorithm);
+      if (pAlg.name === "PBKDF2") enforceUint32Member(pAlg, "iterations", "deriveKey", "Pbkdf2Params");
       const dAlg = normalizeAlgo(derivedKeyAlgorithm);
       let bits;
       if (dAlg.name === "HMAC") {
