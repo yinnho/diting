@@ -18,7 +18,8 @@ Checks:
                         doc mentions of upstream bugs are fine).
   R3   faces are thin — no `unsafe` anywhere in a face (comment-stripped).
   G    god-file ratchet — production line count only. For .rs files, lines inside
-                        #[cfg(test)]-gated items (and whole files named tests.rs)
+                        #[cfg(test)]-gated items (and whole files named tests.rs,
+                        or reachable only via a #[cfg(test)] `mod name;` decl)
                         do not count; .js sources count every line. Cap is
                         GOD_FILE_CAP; files over the cap at ratchet time are
                         grandfathered at their production count and may not grow.
@@ -95,7 +96,11 @@ GOD_FILE_GRANDFATHER = {
     "crates/diting_css/src/lib.rs": 6727,  # post-0.6.0 compat surface bumps
     "crates/diting_js/src/ops/mod.rs": 5030,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
     "crates/diting_layout/src/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
-    "crates/diting_layout/src/fork_deltas.rs": 2930,
+    # fork_deltas.rs retired 2026-11-10 (#64): the whole file is test-only —
+    # `#[cfg(test)] mod fork_deltas;` in lib.rs — but the gate lived outside
+    # the file, so the counter billed its 2,930 lines as production. Files
+    # reachable only through a cfg(test)-gated mod decl are now exempt (see
+    # cfg_test_mod_files), same spirit as tests.rs.
     "crates/diting_js/src/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
     # tree.rs crossed the cap in the 2026-11-05 fmt reflow (1500 -> 1587, no
     # code added); 87 over — a split for the cap alone buys nothing (svg_root.js
@@ -318,6 +323,40 @@ def count_production_lines(path: Path) -> int:
     return n
 
 
+def cfg_test_mod_files(bases: list[Path]) -> set[Path]:
+    """Files whose only inclusion is a `#[cfg(test)] mod name;` declaration.
+
+    The gate lives in the parent (lib.rs), so the module file itself carries
+    no marker and the god-file ratchet would bill its whole body as
+    production. Same exemption spirit as tests.rs — fork_deltas.rs and its
+    siblings are documented test-only regression ports (lib.rs header).
+    Attr stack must be contiguous (rustc attachment rule), so a stray
+    comment between attr and decl does not falsely gate a file.
+    """
+    mod_re = re.compile(r"^\s*mod\s+([a-z_][a-z0-9_]*)\s*;")
+    gated: set[Path] = set()
+    for base in bases:
+        for f in rs_files(base):
+            lines = f.read_text().splitlines()
+            for i, line in enumerate(lines):
+                m = mod_re.match(line)
+                if not m:
+                    continue
+                j = i - 1
+                test_gated = False
+                while j >= 0 and is_attr_line(lines[j]):
+                    if is_test_only_cfg_attr(lines[j]):
+                        test_gated = True
+                    j -= 1
+                if not test_gated:
+                    continue
+                name = m.group(1)
+                for cand in (f.parent / f"{name}.rs", f.parent / name / "mod.rs"):
+                    if cand.exists():
+                        gated.add(cand)
+    return gated
+
+
 def check_god_files() -> list[str]:
     """Ratchet: production-line cap for new files, no growth for grandfathered ones."""
     out = []
@@ -326,8 +365,11 @@ def check_god_files() -> list[str]:
     # build.rs) is engine source that happens to be JS — same ratchet.
     files = rs_files(PRODUCT) + engine_rs_files()
     files += sorted(ENGINE_JS.glob("*.js"))
+    test_only_mods = cfg_test_mod_files([PRODUCT] + ENGINE_CRATES)
     for f in files:
         if f.name == "tests.rs":  # colocated contract suites are a feature, not debt
+            continue
+        if f in test_only_mods:  # gate sits on the mod decl, not in the file
             continue
         lines = count_production_lines(f)
         key = rel(f)
