@@ -1,3 +1,7 @@
+// Vendored (crates/VENDORED.md): upstream code keeps its byte shape —
+// house clippy rules do not police this crate (#64).
+#![allow(clippy::all)]
+
 //! An asynchronous, HTTP/2 server and client implementation.
 //!
 //! This library implements the [HTTP/2] specification. The implementation is

@@ -1,3 +1,7 @@
+// Vendored (crates/VENDORED.md): upstream code keeps its byte shape —
+// house clippy rules do not police this crate (#64).
+#![allow(clippy::all)]
+
 //! # PNG encoder and decoder
 //!
 //! This crate contains a PNG encoder and decoder. It supports reading of single lines or whole frames.
