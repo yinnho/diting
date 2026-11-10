@@ -212,6 +212,58 @@ fn enter_tokio_context() -> Option<tokio::runtime::EnterGuard<'static>> {
     Some(runtime.enter())
 }
 
+/// V8 flag one-shots that MUST run before the process's first isolate:
+/// after V8 initializes, flag writes on frozen flags are a V8_Fatal.
+/// Called under `ISOLATE_CONSTRUCT_LOCK` by both [`JsRuntime::warmup`]
+/// and the realm constructor — the statics live here so every caller
+/// shares the same process-wide `Once`s.
+fn v8_flags_before_first_isolate() {
+    // One-shot before the first isolate: raise V8's own JS stack
+    // ceiling. The default (~984 KB) is fine for hand-written code,
+    // but minified SPA bundles (juejin.cn class) recurse past it and
+    // the page dies with `RangeError: Maximum call stack size
+    // exceeded` before it renders. The flag is in KB; keep a 2 MB
+    // margin under the hosting thread's native stack, which callers
+    // size to match (config::js_stack_mb, default 32 MB).
+    static V8_STACK_FLAG: std::sync::Once = std::sync::Once::new();
+    V8_STACK_FLAG.call_once(|| {
+        let kb = env_knobs::js_stack_mb().saturating_sub(2).max(1) * 1024;
+        // Returns (); V8 itself logs to stderr if a flag is rejected,
+        // which would leave the default ~984 KB ceiling in place.
+        // Must precede V8 init: lets the document.all mint below flip
+        // --allow-natives-syntax on and off again (frozen flags make
+        // any later set_flags_from_string a V8_Fatal).
+        v8::V8::set_flags_from_string("--no-freeze-flags-after-init");
+        v8::V8::set_flags_from_string(&format!("--stack-size={kb}"));
+    });
+    // #224: same one-shot shape for the old-space ceiling. V8's
+    // default (~1400MB) stood — doudian's publish boot crossed it
+    // mid-commit and the heap guard severed the form init chain
+    // (getCategoryDetail took 7 minutes to complete; getSchema
+    // retries lost their op deliveries entirely). Commerce-scale
+    // heaps are legal; raise the ceiling and let the pressure-GC
+    // escalation (#224 A1) handle a page that still won't fit.
+    // `DITING_JS_HEAP_MB=0` keeps V8's default.
+    static V8_HEAP_FLAG: std::sync::Once = std::sync::Once::new();
+    V8_HEAP_FLAG.call_once(|| {
+        let mb = env_knobs::js_heap_mb();
+        if mb > 0 {
+            v8::V8::set_flags_from_string(&format!("--max-old-space-size={mb}"));
+        }
+    });
+    // Forensics escape hatch (#225): verbatim extra flags, applied
+    // before the first isolate like the two above. `--prof` is the
+    // one that motivated the knob — its sampler thread sees wedges
+    // that ignore interrupt checks.
+    static V8_EXTRA_FLAG: std::sync::Once = std::sync::Once::new();
+    V8_EXTRA_FLAG.call_once(|| {
+        let extra = env_knobs::v8_extra_flags();
+        if !extra.trim().is_empty() {
+            v8::V8::set_flags_from_string(extra.trim());
+        }
+    });
+}
+
 impl JsRuntime {
     /// #276 idle shrink: full-GC the realm (delegates to Vm::shrink_heap).
     /// Called by Page at idle command boundaries; see the knob doc.
@@ -221,6 +273,23 @@ impl JsRuntime {
 
     pub fn new() -> Self {
         Self::with_base_url("about:blank")
+    }
+
+    /// Serve-start warm-up: build and drop ONE bare isolate under the
+    /// construct lock so session/blocking threads never race V8's
+    /// first-isolate JSDispatchTable init (upstream obscura #430 — the
+    /// race lives in V8's isolate machinery, not in our snapshot). The
+    /// old warm-up built a full runtime here, reading and deserializing
+    /// the whole startup snapshot (blob pages resident + cage dirty,
+    /// ~10 MB idle RSS) only to drop it; the first real realm pays the
+    /// restore instead — and a corrupt embedded blob now panics at
+    /// first session rather than at serve start.
+    pub fn warmup() {
+        let _construct_guard = ISOLATE_CONSTRUCT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        v8_flags_before_first_isolate();
+        drop(Vm::new());
     }
 
     pub fn with_base_url(base_url: &str) -> Self {
@@ -263,50 +332,7 @@ impl JsRuntime {
             let _construct_guard = ISOLATE_CONSTRUCT_LOCK
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            // One-shot before the first isolate: raise V8's own JS stack
-            // ceiling. The default (~984 KB) is fine for hand-written code,
-            // but minified SPA bundles (juejin.cn class) recurse past it and
-            // the page dies with `RangeError: Maximum call stack size
-            // exceeded` before it renders. The flag is in KB; keep a 2 MB
-            // margin under the hosting thread's native stack, which callers
-            // size to match (config::js_stack_mb, default 32 MB).
-            static V8_STACK_FLAG: std::sync::Once = std::sync::Once::new();
-            V8_STACK_FLAG.call_once(|| {
-                let kb = env_knobs::js_stack_mb().saturating_sub(2).max(1) * 1024;
-                // Returns (); V8 itself logs to stderr if a flag is rejected,
-                // which would leave the default ~984 KB ceiling in place.
-                // Must precede V8 init: lets the document.all mint below flip
-                // --allow-natives-syntax on and off again (frozen flags make
-                // any later set_flags_from_string a V8_Fatal).
-                v8::V8::set_flags_from_string("--no-freeze-flags-after-init");
-                v8::V8::set_flags_from_string(&format!("--stack-size={kb}"));
-            });
-            // #224: same one-shot shape for the old-space ceiling. V8's
-            // default (~1400MB) stood — doudian's publish boot crossed it
-            // mid-commit and the heap guard severed the form init chain
-            // (getCategoryDetail took 7 minutes to complete; getSchema
-            // retries lost their op deliveries entirely). Commerce-scale
-            // heaps are legal; raise the ceiling and let the pressure-GC
-            // escalation (#224 A1) handle a page that still won't fit.
-            // `DITING_JS_HEAP_MB=0` keeps V8's default.
-            static V8_HEAP_FLAG: std::sync::Once = std::sync::Once::new();
-            V8_HEAP_FLAG.call_once(|| {
-                let mb = env_knobs::js_heap_mb();
-                if mb > 0 {
-                    v8::V8::set_flags_from_string(&format!("--max-old-space-size={mb}"));
-                }
-            });
-            // Forensics escape hatch (#225): verbatim extra flags, applied
-            // before the first isolate like the two above. `--prof` is the
-            // one that motivated the knob — its sampler thread sees wedges
-            // that ignore interrupt checks.
-            static V8_EXTRA_FLAG: std::sync::Once = std::sync::Once::new();
-            V8_EXTRA_FLAG.call_once(|| {
-                let extra = env_knobs::v8_extra_flags();
-                if !extra.trim().is_empty() {
-                    v8::V8::set_flags_from_string(extra.trim());
-                }
-            });
+            v8_flags_before_first_isolate();
             // #276 shared-source campaign: restore-side const mint (pure
             // data — OneByteConst needs no isolate; the build script did
             // the bake-side twin).
