@@ -5639,9 +5639,9 @@ fn build_element_inner(
     // surfaced as body text at the top-left). A coverage gap now renders
     // hidden: a blank box beats leaked CSS text. The author-override path
     // (an explicit display present in the map) is untouched.
-    let style = match styles.get(&id) {
-        Some(s) => s.clone(),
-        None => return None,
+    let style = {
+        let s = styles.get(&id)?;
+        s.clone()
     };
     if style.display == Some(CssDisplay::None) {
         return None;
@@ -7716,6 +7716,7 @@ fn repair_wrap_host_intrinsics(
                 // max-content of runs under it + padding/border) — Chrome
                 // places those BFCs beside the float on the preferred line
                 // (#315). A plain block contributes nothing.
+                #[allow(clippy::too_many_arguments)] // shape mirrors run_tokens'
                 fn run_pref(
                     text: &str,
                     font_size: f32,
@@ -7795,6 +7796,7 @@ fn repair_wrap_host_intrinsics(
                     }
                     (max_c, min_c)
                 }
+                #[allow(clippy::too_many_arguments)] // one &mut per tracked min/max
                 fn contribute(
                     taffy_tree: &TaffyTree<TextLeaf>,
                     node: diting_taffy::tree::NodeId,

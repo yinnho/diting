@@ -490,7 +490,7 @@ impl SessionActor {
                 page.inner
                     .set_preload_scripts(crate::session::preload_recipes::effective_scripts(
                         &url,
-                        &preload_scripts,
+                        preload_scripts,
                     ));
                 #[cfg(feature = "screenshot")]
                 let nav_frame = page.band_frame_cache.clone();
@@ -730,7 +730,7 @@ impl SessionActor {
             Err(reason) => Err(reason),
             Ok(()) => {
                 let before = page.url();
-                click_by_index(page, &element_map, index)
+                click_by_index(page, element_map, index)
                     .await
                     .inspect(|resp| {
                         if resp.url != before {
@@ -759,7 +759,7 @@ impl SessionActor {
             element_map,
             ..
         } = self;
-        let result = input_by_index(page, &element_map, index, &text, full_events);
+        let result = input_by_index(page, element_map, index, &text, full_events);
         // A filled Enter can submit the form implicitly
         // (#194) and a change listener can navigate by
         // itself — drain the queued navigation so the
@@ -850,6 +850,7 @@ impl SessionActor {
         let _ = reply.send(result);
     }
 
+    #[allow(clippy::too_many_arguments)] // one arg per drag protocol field
     async fn on_drag(
         &mut self,
         from_x: f64,
@@ -925,6 +926,7 @@ impl SessionActor {
         let _ = reply.send(Ok(true));
     }
 
+    #[allow(clippy::type_complexity)] // mirrors viewport_override's tuple
     async fn on_get_viewport(
         &mut self,
         reply: oneshot::Sender<Result<Option<(f32, f32, bool)>, String>>,
@@ -1306,6 +1308,7 @@ impl SessionActor {
         let _ = reply.send(Ok(har.to_string()));
     }
 
+    #[allow(clippy::too_many_arguments)] // one arg per screenshot protocol field
     async fn on_screenshot(
         &mut self,
         width: Option<u32>,
@@ -1453,7 +1456,7 @@ impl SessionActor {
             .collect();
         let input = crate::verdict::VerdictInput {
             url: &page.url(),
-            session_id: &session_id,
+            session_id,
             account: account.as_ref().map(|(_, name)| name.as_str()),
             challenge_events: rows.len(),
             doc_status: doc.map(|e| e.status),

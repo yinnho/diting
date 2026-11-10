@@ -870,7 +870,9 @@ html,body{{margin:0;padding:0;width:400px;font-size:16px;line-height:20px;color:
     fn has_ink(frame: &diting::diting_js::ops::BandFrame) -> bool {
         frame
             .rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .any(|px| px[0] != 255 || px[1] != 255 || px[2] != 255)
     }
 
@@ -896,7 +898,9 @@ html,body{margin:0;padding:0}
         let blue_px = |p: &PageImage| {
             p_rgba_frame(p)
                 .rgba
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .filter(|px| px[0] < 100 && px[1] < 130 && px[2] > 140)
                 .count()
         };

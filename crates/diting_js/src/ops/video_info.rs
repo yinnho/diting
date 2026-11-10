@@ -84,7 +84,7 @@ fn next_box(b: &[u8], i: usize) -> Option<BoxRange> {
     } else if size == 0 {
         size = b.len() - i; // box runs to end of data
     }
-    if size < header || i.checked_add(size).map_or(true, |e| e > b.len()) {
+    if size < header || i.checked_add(size).is_none_or(|e| e > b.len()) {
         return None;
     }
     Some(BoxRange {

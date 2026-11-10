@@ -6,6 +6,7 @@
 //! Two size presets:
 //!   - `square`   1024×1024 — the公众号大封面 upload shape
 //!   - `wide`     1080×460  — the 2.35:1 feed crop already applied
+//!
 //! The square layout keeps all text inside the **center safe area** (the
 //! region that survives WeChat's 2.35:1 center crop) and can overlay the
 //! crop guide lines (`show_crop: true`) so an agent can verify nothing it

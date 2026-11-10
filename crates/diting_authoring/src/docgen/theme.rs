@@ -626,6 +626,21 @@ pub static EDITORIAL_DARK: Theme = Theme {
     },
 };
 
+/// (stroke, width, dash, label fill) per flow variant — emphasis rides
+/// heavier (1.8px vs 1.4px) exactly like the reference. Sizes and dash
+/// patterns are this adapter's typography; colors come from the theme.
+pub fn variant_style(
+    theme: &Theme,
+    variant: &str,
+) -> (&'static str, i32, Option<&'static str>, &'static str) {
+    match variant {
+        "emphasis" => (theme.ink, 18, None, theme.ink),
+        "security" => (theme.danger, 14, None, theme.danger),
+        "dashed" => (theme.skip, 14, Some("6 4"), theme.skip),
+        _ => (theme.ink_soft, 14, None, theme.ink_soft),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -732,20 +747,5 @@ mod tests {
                 other.preset
             );
         }
-    }
-}
-
-/// (stroke, width, dash, label fill) per flow variant — emphasis rides
-/// heavier (1.8px vs 1.4px) exactly like the reference. Sizes and dash
-/// patterns are this adapter's typography; colors come from the theme.
-pub fn variant_style(
-    theme: &Theme,
-    variant: &str,
-) -> (&'static str, i32, Option<&'static str>, &'static str) {
-    match variant {
-        "emphasis" => (theme.ink, 18, None, theme.ink),
-        "security" => (theme.danger, 14, None, theme.danger),
-        "dashed" => (theme.skip, 14, Some("6 4"), theme.skip),
-        _ => (theme.ink_soft, 14, None, theme.ink_soft),
     }
 }

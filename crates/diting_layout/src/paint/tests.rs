@@ -745,7 +745,9 @@ fn form_widgets_paint_checked_state() {
     // red-channel-only probe; the gray border sits above 80).
     let ink = c
         .data
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| p[0] < 80 && p[1] < 80 && p[2] < 80 && p[3] > 200)
         .count();
     assert!(ink > 4, "the ✓ must leave dark ink; got {ink} px");
@@ -762,7 +764,9 @@ fn form_widgets_paint_checked_state() {
     assert_eq!(px(&c, 6, 6), field, "field still paints");
     let ink = c
         .data
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| p[0] < 80 && p[1] < 80 && p[2] < 80 && p[3] > 200)
         .count();
     assert_eq!(ink, 0, "unchecked must carry no ink");
@@ -1293,7 +1297,7 @@ fn text_band_edges() {
     ];
     let mut band = Canvas::new_filled(40, 80, [255, 255, 255, 255]);
     execute_band(&items, &fonts, &mut band, 0.0, 100.0);
-    let ink = band.data.chunks_exact(4).any(|p| p[0] < 128);
+    let ink = band.data.as_chunks::<4>().0.iter().any(|p| p[0] < 128);
     assert!(ink, "straddling text must paint into the band");
     // The far text must not have painted anything (only "edge" ink).
     let dark_rows: Vec<usize> = (0..80)

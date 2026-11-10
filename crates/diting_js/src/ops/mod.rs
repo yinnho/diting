@@ -4920,10 +4920,9 @@ fn op_svg_path_point(_: &OpState, #[smi] _: u32, _: f64) -> String {
 fn svg_measure(state: &OpState, nid: u32) -> Option<diting_layout::svg::PathMeasure> {
     let gs = state.borrow::<SharedState>().clone();
     let gs = gs.borrow();
-    let dom = match &gs.dom {
-        Some(d) => d,
-        None => return None,
-    };
+    // `&gs.dom?` is the lint's shape but moves out of the RefCell borrow;
+    // `as_ref()` keeps the Option borrowed.
+    let dom = gs.dom.as_ref()?;
     let node = dom.get_node(NodeId::new(nid))?;
     let tag = match &node.data {
         diting_dom::NodeData::Element { name, .. } => name.local.as_str(),

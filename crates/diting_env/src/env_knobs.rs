@@ -251,6 +251,27 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
     }
 }
 
+/// `DITING_REALM_SHRINK` (default ON, `0` opts out): full-GC each
+/// realm right after init, plus the idle shrink for parked sessions
+/// (#276). Measured: ~2ms per realm build for ~1.4MB physical back per
+/// realm (25-realm concurrent peak −7.6%); the deeper tier was measured
+/// DEAD (critical pressure + double GC buys 33KB more — the live set is
+/// the floor).
+pub fn realm_shrink() -> bool {
+    std::env::var("DITING_REALM_SHRINK")
+        .map(|v| v != "0")
+        .unwrap_or(true)
+}
+
+/// `DITING_REALM_HEAP_STATS`: log each realm's V8 heap statistics at
+/// two points (post snapshot restore, post realm init) so the per-isolate
+/// memory cost can be decomposed (#276 memory work). Off by default.
+pub fn realm_heap_stats() -> bool {
+    std::env::var("DITING_REALM_HEAP_STATS")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{app_data_dir, ephemeral, should_auto_proxy};
@@ -317,25 +338,4 @@ mod tests {
             dir.display()
         );
     }
-}
-
-/// `DITING_REALM_SHRINK` (default ON, `0` opts out): full-GC each
-/// realm right after init, plus the idle shrink for parked sessions
-/// (#276). Measured: ~2ms per realm build for ~1.4MB physical back per
-/// realm (25-realm concurrent peak −7.6%); the deeper tier was measured
-/// DEAD (critical pressure + double GC buys 33KB more — the live set is
-/// the floor).
-pub fn realm_shrink() -> bool {
-    std::env::var("DITING_REALM_SHRINK")
-        .map(|v| v != "0")
-        .unwrap_or(true)
-}
-
-/// `DITING_REALM_HEAP_STATS`: log each realm's V8 heap statistics at
-/// two points (post snapshot restore, post realm init) so the per-isolate
-/// memory cost can be decomposed (#276 memory work). Off by default.
-pub fn realm_heap_stats() -> bool {
-    std::env::var("DITING_REALM_HEAP_STATS")
-        .map(|v| v != "0" && !v.is_empty())
-        .unwrap_or(false)
 }

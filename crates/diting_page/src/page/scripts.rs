@@ -214,8 +214,8 @@ impl Page {
         );
         let all_to_execute: Vec<ScriptInfo> = scripts
             .into_iter()
-            .chain(deferred.into_iter())
-            .chain(async_scripts.into_iter())
+            .chain(deferred)
+            .chain(async_scripts)
             .collect();
 
         let mut resolved: Vec<(usize, String)> = Vec::new();

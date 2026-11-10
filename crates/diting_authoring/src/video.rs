@@ -1404,7 +1404,9 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
         .await
         .expect("frame at t=2");
         let dark = |f: &[u8]| {
-            f.chunks_exact(4)
+            f.as_chunks::<4>()
+                .0
+                .iter()
                 .filter(|p| p[0] < 60 && p[1] < 60 && p[2] < 60)
                 .count()
         };
@@ -1703,7 +1705,7 @@ html,body{margin:0;padding:0;width:800px;height:450px;background:#ffffff}
         let fonts = diting::diting_fonts::font_book();
         let (w, h) = (400u32, 240u32);
         let mut frame = vec![40u8; (w * h * 4) as usize];
-        for px in frame.chunks_exact_mut(4) {
+        for px in frame.as_chunks_mut::<4>().0 {
             px[3] = 255;
         }
         let mut hs = Hardsub::parse("1\n00:00:00,000 --> 00:00:02,000\n测试字幕\n");

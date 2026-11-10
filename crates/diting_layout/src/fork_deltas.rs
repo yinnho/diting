@@ -2484,7 +2484,9 @@ fn emoji_text_paints_colored_ink_e2e() {
     crate::paint::execute(&items, &crate::diting_fonts::font_book(), &mut c);
     let colored = c
         .data
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|px| {
             px[3] > 128
                 && (px[0] as i32 - px[1] as i32)
@@ -2495,7 +2497,9 @@ fn emoji_text_paints_colored_ink_e2e() {
         .count();
     let dark = c
         .data
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|px| px[3] > 200 && px[0] < 100 && px[1] < 100 && px[2] < 100)
         .count();
     assert!(

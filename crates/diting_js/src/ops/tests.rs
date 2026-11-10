@@ -585,7 +585,7 @@ fn video_header_meta_mp4_faces() {
     let faststart = [
         vbox(b"ftyp", b"isomiso2avc1mp41"),
         moov.clone(),
-        vbox(b"mdat", &[0u8; 16].as_ref().as_ref()),
+        vbox(b"mdat", [0u8; 16].as_ref()),
     ]
     .concat();
     let m = video_header_meta(&faststart).expect("faststart moov must parse");
@@ -593,7 +593,7 @@ fn video_header_meta_mp4_faces() {
     assert_eq!(m.duration_secs, Some(36.0));
     let plain = [
         vbox(b"ftyp", b"isom"),
-        vbox(b"mdat", &[0u8; 8].as_ref().as_ref()),
+        vbox(b"mdat", [0u8; 8].as_ref()),
         moov.clone(),
     ]
     .concat();
@@ -635,7 +635,7 @@ fn video_header_meta_mp4_faces() {
     );
 
     // Audio-only: mvhd present, tkhd carries 0×0 → metadata at 0×0 dims.
-    let mut sound = vec![0u8; 84];
+    let sound = vec![0u8; 84];
     let moov_audio = vbox(
         b"moov",
         &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &sound))].concat(),

@@ -916,7 +916,9 @@ fn parse_points(v: &str) -> Vec<(f32, f32)> {
         .filter(|t| !t.is_empty())
         .filter_map(|t| t.parse::<f32>().ok())
         .collect();
-    nums.chunks_exact(2)
+    nums.as_chunks::<2>()
+        .0
+        .iter()
         .filter_map(|c| c.first().zip(c.get(1)).map(|(&a, &b)| (a, b)))
         .collect()
 }
@@ -1671,7 +1673,13 @@ mod tests {
         };
         let mut canvas = Canvas::new_filled(120, 40, [255, 255, 255, 255]);
         paint_svg(&r, &rect, &fonts, &mut canvas, 0.0, 0.0, 1.0);
-        let ink = canvas.data.chunks_exact(4).filter(|p| p[0] < 128).count();
+        let ink = canvas
+            .data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[0] < 128)
+            .count();
         assert!(
             ink > 20,
             "svg text must paint ink regardless of host fonts ({ink} px)"

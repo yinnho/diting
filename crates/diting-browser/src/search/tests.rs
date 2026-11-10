@@ -538,11 +538,13 @@ async fn probation_lands_and_clears() {
 #[test]
 fn section_for_hit_finds_nearest_heading() {
     let uniq = format!("https://example.com/sec-test-{}", std::process::id());
-    let mut resp = crate::FetchResponse::default();
-    resp.url = uniq.clone();
-    resp.title = Some("T".into());
-    resp.content = "# Rust Book\n\nintro text\n\n## References and Borrowing\n\nborrows the value without taking ownership.\n".into();
-    resp.tier = Some("http");
+    let resp = crate::FetchResponse {
+        url: uniq.clone(),
+        title: Some("T".into()),
+        content: "# Rust Book\n\nintro text\n\n## References and Borrowing\n\nborrows the value without taking ownership.\n".into(),
+        tier: Some("http"),
+        ..Default::default()
+    };
     let _ = crate::store::record_fetch(crate::store::REST_OWNER, &resp);
     let hit = crate::store::section_for_hit(&uniq, &["borrows"]);
     assert_eq!(

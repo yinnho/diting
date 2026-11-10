@@ -159,7 +159,7 @@ impl Canvas {
     /// — this slice models no html/body propagation yet).
     pub fn new_filled(width: usize, height: usize, color: [u8; 4]) -> Self {
         let mut data = vec![0u8; width * height * 4];
-        for px in data.chunks_exact_mut(4) {
+        for px in data.as_chunks_mut::<4>().0 {
             px.copy_from_slice(&color);
         }
         Self {
@@ -894,11 +894,8 @@ impl Canvas {
                 let av = planes[3][row * rw + col] as u32;
                 let i = (gy as usize * self.width + gx as usize) * 4;
                 for (c, plane) in planes.iter().take(3).enumerate() {
-                    self.data[i + c] = if av == 0 {
-                        0
-                    } else {
-                        (((plane[row * rw + col] as u32) * 255 + av / 2) / av).min(255) as u8
-                    };
+                    let q = (plane[row * rw + col] as u32) * 255 + av / 2;
+                    self.data[i + c] = q.checked_div(av).map_or(0, |v| v.min(255) as u8);
                 }
                 self.data[i + 3] = av as u8;
             }
@@ -1607,7 +1604,7 @@ fn paint_text_decorations(
             let tw = w.ceil().max(1.0) as usize;
             let th = thickness as usize;
             let mut tile = vec![0u8; tw * th * 4];
-            for px in tile.chunks_exact_mut(4) {
+            for px in tile.as_chunks_mut::<4>().0 {
                 px.copy_from_slice(&color);
             }
             out.blit_rgba_affine(&tile, tw, th, lx as f64, ly as f64);
@@ -3176,7 +3173,7 @@ fn stamp_text_shadow(
     }
     let mut alpha = vec![0u8; pw * ph];
     for (row, src_row) in r.data.chunks_exact(r.width * 4).enumerate() {
-        for (col, p) in src_row.chunks_exact(4).enumerate() {
+        for (col, p) in src_row.as_chunks::<4>().0.iter().enumerate() {
             alpha[(row + pad) * pw + col + pad] = p[3];
         }
     }

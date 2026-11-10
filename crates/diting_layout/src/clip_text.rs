@@ -36,7 +36,8 @@ fn inline_spec(
 ) -> Option<InlineGradientSpec> {
     let mut cur = tree.with_node(text_node, |n| n.parent).flatten()?;
     loop {
-        if let Some(s) = styles.get(&cur) {
+        {
+            let s = styles.get(&cur)?;
             if s.display != Some(CssDisplay::Inline) {
                 return None;
             }
@@ -56,8 +57,6 @@ fn inline_spec(
                     ));
                 }
             }
-        } else {
-            return None;
         }
         cur = tree.with_node(cur, |n| n.parent).flatten()?;
     }

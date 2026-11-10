@@ -305,9 +305,8 @@ async fn connect_timeout_caps_syn_sent() {
     // empty-response convention for failed dials. What is NOT
     // acceptable is silence for 75s, which the elapsed bound above
     // already excludes.
-    match outcome {
-        Ok(resp) => assert_eq!(resp.status, 0, "a failed dial must surface as status 0"),
-        Err(_) => {}
+    if let Ok(resp) = outcome {
+        assert_eq!(resp.status, 0, "a failed dial must surface as status 0")
     }
 }
 

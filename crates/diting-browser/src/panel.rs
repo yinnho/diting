@@ -166,7 +166,7 @@ mod on {
             let mut tap: Option<(i32, i32)> = None;
             let mut lift: Option<i32> = None;
             self.y_in_frame = false;
-            for chunk in buf[..n].chunks_exact(24) {
+            for chunk in buf[..n].as_chunks::<24>().0 {
                 let ev = unsafe { std::ptr::read_unaligned(chunk.as_ptr() as *const InputEvent) };
                 match (ev.type_, ev.code) {
                     (EV_ABS, ABS_MT_TRACKING_ID) => {
@@ -306,7 +306,7 @@ mod on {
         for row in 0..rows {
             let src = &rgba[row * stride..];
             let dst = &mut cache.px[(y0 + row) * cache.w..(y0 + row) * cache.w + w];
-            for (d, px) in dst.iter_mut().zip(src.chunks_exact(4)) {
+            for (d, px) in dst.iter_mut().zip(src.as_chunks::<4>().0) {
                 *d = ((px[0] as u32) << 16) | ((px[1] as u32) << 8) | px[2] as u32;
             }
         }

@@ -465,11 +465,9 @@ unsafe extern "C" fn setter(info: *const FunctionCallbackInfo) {
         }
         // Legacy IE alias: truthy stopPropagation; setting it false does
         // NOT clear the flag.
-        "cancelBubble" => {
-            if args.get(0).boolean_value(scope) {
-                let t = b(scope, true);
-                put(scope, st, S_STOPPED, t);
-            }
+        "cancelBubble" if args.get(0).boolean_value(scope) => {
+            let t = b(scope, true);
+            put(scope, st, S_STOPPED, t);
         }
         _ => {}
     }

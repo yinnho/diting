@@ -344,12 +344,10 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             // The hook and the post-join both live in this async block —
             // a plain Rc<RefCell<Vec>> avoids Send bounds a raw pointer or
             // Arc<Mutex> would force (spawn_blocking gets only the rgba).
+            type BandJob = tokio::task::JoinHandle<Result<(u32, u32, Vec<u8>), String>>;
             #[allow(clippy::rc_buffer)]
-            let handles: std::rc::Rc<
-                std::cell::RefCell<
-                    Vec<tokio::task::JoinHandle<Result<(u32, u32, Vec<u8>), String>>>,
-                >,
-            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let handles: std::rc::Rc<std::cell::RefCell<Vec<BandJob>>> =
+                std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
             let set = if format != "png" {
                 let hh = handles.clone();
                 let quality = req.jpeg_quality;

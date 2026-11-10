@@ -31567,7 +31567,7 @@ async fn test_iframe_realm_dispatch_rides_native_core() {
 }
 
 /// M4 knife 1: the geometry family (DOMPoint/DOMRect/DOMQuad/DOMMatrix*
-/// + WebKitCSSMatrix) is generated shape (gen/geometry.gen.js) + behavior
+/// and WebKitCSSMatrix) is generated shape (gen/geometry.gen.js) + behavior
 /// module (geometry.impl.js). The probe runs against the live engine and is
 /// diffed key-by-key against real Chrome 145 (captured via
 /// tools/webplatform/capture/probe_run.py). KNOWN_GEOMETRY_GAPS is a
@@ -31891,22 +31891,19 @@ async fn element_staged_members_match_chrome_truth() {
     let mut bad = Vec::new();
     for (k, want) in truth.as_object().unwrap() {
         let got = &engine[k];
-        match k.as_str() {
-            "csm.face" => {
-                let (g, w) = (got.as_array().unwrap(), want.as_array().unwrap());
-                if !(g.len() == w.len()
-                    && g[0] == w[0]
-                    && g[1] == w[1]
-                    && g[2] == eng_gcs
-                    && w[2] == tru_gcs)
-                {
-                    bad.push(format!(
-                        "csm.face: engine {got} (own gcs {eng_gcs}) chrome {want} (own gcs {tru_gcs})"
-                    ));
-                }
-                continue;
+        if k.as_str() == "csm.face" {
+            let (g, w) = (got.as_array().unwrap(), want.as_array().unwrap());
+            if !(g.len() == w.len()
+                && g[0] == w[0]
+                && g[1] == w[1]
+                && g[2] == eng_gcs
+                && w[2] == tru_gcs)
+            {
+                bad.push(format!(
+                    "csm.face: engine {got} (own gcs {eng_gcs}) chrome {want} (own gcs {tru_gcs})"
+                ));
             }
-            _ => {}
+            continue;
         }
         let known = KNOWN_GAPS.contains(&k.as_str());
         if got != want && !known {
@@ -33765,10 +33762,7 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
     // ---- shape truths (extra class = 0) ----
     assert_eq!(v["acOwn"], serde_json::json!("baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor,sinkId,onsinkchange,setSinkId"));
-    assert_eq!(
-        v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"),
-        false
-    );
+    assert!(!v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"));
     assert_eq!(v["mediaOwn"], serde_json::json!("media,constructor"));
     assert_eq!(v["scopeOwn"], serde_json::json!("start,end,constructor")); // 刀75: Chrome 145 CSSScopeRule.start/end
     assert_eq!(v["condOwn"], serde_json::json!("conditionText,constructor"));
@@ -33802,10 +33796,7 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
         v["gpuOwn"],
         serde_json::json!("features,limits,info,requestDevice,constructor")
     );
-    assert_eq!(
-        v["wtOwn"].as_str().unwrap().contains("congestionControl"),
-        false
-    );
+    assert!(!v["wtOwn"].as_str().unwrap().contains("congestionControl"));
     assert_eq!(v["navCPU"], serde_json::json!("undefined"));
     assert_eq!(v["docRP"], serde_json::json!("undefined"));
     // ---- behavior through the moved/deleted faces ----
@@ -36776,7 +36767,7 @@ async fn knife72_svg_parent_chain() {
     );
     assert_eq!(
         o["graphics"],
-        serde_json::json!(vec!["objectobjectobjectobjectfunction"; 10].join("|"))
+        serde_json::json!(["objectobjectobjectobjectfunction"; 10].join("|"))
     );
     assert_eq!(
         o["transform"],

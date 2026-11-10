@@ -4688,7 +4688,8 @@ fn width_drops_garbage_and_applies_auto() {
 fn modern_colors_match_chrome_pixels() {
     // Chrome truth: canvas fillStyle -> getImageData on headless Chrome
     // (sRGB, out-of-gamut clipped). +-1 per channel absorbs float rounding.
-    let cases: &[(&str, (i32, i32, i32, i32))] = &[
+    type Rgba8 = (i32, i32, i32, i32);
+    let cases: &[(&str, Rgba8)] = &[
         ("rgb(0 0 0 / 50%)", (0, 0, 0, 128)),
         ("rgb(255 0 0 / 0.5)", (255, 0, 0, 128)),
         ("rgba(255,0,0,.5)", (255, 0, 0, 128)),

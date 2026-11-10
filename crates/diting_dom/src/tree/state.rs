@@ -38,7 +38,7 @@ impl DomTree {
         // ancestor chain re-match when focus moves — stamp both ends so
         // the incremental matcher stays live (the old always-full match
         // picked this up implicitly).
-        for node in prev.into_iter().chain(id.into_iter()) {
+        for node in prev.into_iter().chain(id) {
             self.note_restyle(node);
         }
     }
@@ -66,7 +66,7 @@ impl DomTree {
             inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
             prev
         };
-        for end in prev.into_iter().chain(id.into_iter()) {
+        for end in prev.into_iter().chain(id) {
             for node in self.ancestor_chain(end) {
                 self.note_restyle(node);
             }
@@ -93,7 +93,7 @@ impl DomTree {
             inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
             prev
         };
-        for end in prev.into_iter().chain(id.into_iter()) {
+        for end in prev.into_iter().chain(id) {
             for node in self.ancestor_chain(end) {
                 self.note_restyle(node);
             }

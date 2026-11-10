@@ -1172,7 +1172,7 @@ pub(super) fn parse_with_scheme(v: &str, ld: bool) -> Option<(Color, Option<Mode
         }
     }
     let col = parse_col(trimmed, ld)?;
-    let modern = is_modern(trimmed).then(|| ModernColor {
+    let modern = is_modern(trimmed).then_some(ModernColor {
         space: col.space,
         c: col.c,
         a: col.a,
