@@ -10101,6 +10101,59 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_pbkdf2_iterations_enforce_range_faces() {
+    // Pbkdf2Params.iterations is a required [EnforceRange] unsigned long.
+    // Every face below is Chrome 157's (headless probe, file://); we used to
+    // `>>> 0` it, so -1 became 4294967295 and failed the iteration cap as an
+    // OperationError. Members convert salt, iterations, hash — a bad hash
+    // still reports the iterations error first.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const S = crypto.subtle, enc = new TextEncoder();
+        const face = async (p) => { try { const v = await p; return 'ok:' + (v && v.byteLength); } catch (e) { return e.name + ': ' + e.message; } };
+        const base = await S.importKey('raw', enc.encode('pw'), 'PBKDF2', false, ['deriveBits', 'deriveKey']);
+        const P = (it) => ({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('s'), iterations: it });
+        const r = {};
+        for (const [k, it] of [['neg1', -1], ['big', 4294967296], ['frac', 1.7], ['negfrac', -0.5], ['nan', NaN], ['inf', Infinity],
+                               ['str', '3'], ['badstr', 'x'], ['nul', null], ['bool', true], ['obj', {}], ['undef', undefined]]) {
+            r[k] = await face(S.deriveBits(P(it), base, 256));
+        }
+        r.missing = await face(S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('s') }, base, 256));
+        r.keyNeg = await face(S.deriveKey(P(-1), base, { name: 'AES-GCM', length: 128 }, true, ['encrypt']));
+        r.order = await face(S.deriveBits({ name: 'PBKDF2', hash: 'NOPE', salt: enc.encode('s'), iterations: -1 }, base, 256));
+        return r;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let bits = |m: &str| {
+        format!("TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: iterations: {m}")
+    };
+    let zero = "OperationError: PBKDF2 requires iterations > 0";
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!({
+            "neg1": bits("Outside of numeric range"),
+            "big": bits("Outside of numeric range"),
+            "frac": "ok:32",
+            "negfrac": zero,
+            "nan": bits("Is not a number"),
+            "inf": bits("Outside of numeric range"),
+            "str": "ok:32",
+            "badstr": bits("Is not a number"),
+            "nul": zero,
+            "bool": "ok:32",
+            "obj": bits("Is not a number"),
+            "undef": bits("Is not a number"),
+            "missing": bits("Missing required property"),
+            "keyNeg": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': Pbkdf2Params: iterations: Outside of numeric range",
+            "order": bits("Outside of numeric range"),
+        })
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_pbkdf2_zero_iterations_is_an_operation_error() {
     // Chrome 157 (headless probe, file://): zero iterations is an
     // OperationError checked before the length — so length 0 fails the same
