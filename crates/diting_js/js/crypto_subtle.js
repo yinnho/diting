@@ -341,14 +341,27 @@ if (!globalThis.crypto.subtle) {
     if (ev !== 3n && ev !== 65537n) {
       throw new DOMException("The \"publicExponent\" must be either 3 or 65537", "OperationError");
     }
-    const m = rsaUnflat(runOp(() => _OPS.op_subtle_rsa_generate(bits, eBytes)));
-    const algorithm = {
-      name: alg.name, modulusLength: bits,
-      publicExponent: new Uint8Array(m.e), hash: { name: hash },
-    };
-    const pub = makeKey("public", true, algorithm, usages.filter((u) => face.pub.includes(u)), m);
-    const priv = makeKey("private", extractable, algorithm, usages.filter((u) => face.priv.includes(u)), m);
-    return { publicKey: pub, privateKey: priv };
+    // Off the JS thread (#69): a keygen is 30-200ms of CPU in a debug build,
+    // and as a sync op the caller's whole chain ran as one wall — long enough
+    // for the eval patience watchdog to behead it.
+    // (A plain function returning the async tail, not an async function:
+    // the generated exports rely on Annex B block hoisting.)
+    return (async () => {
+      let flat;
+      try { flat = await _OPS.op_subtle_rsa_generate_async(bits, Number(ev)); }
+      catch (e) { throw new DOMException(e && e.message !== undefined ? String(e.message) : String(e), "OperationError"); }
+      const bin = atob(flat);
+      const raw = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+      const m = rsaUnflat(raw);
+      const algorithm = {
+        name: alg.name, modulusLength: bits,
+        publicExponent: new Uint8Array(m.e), hash: { name: hash },
+      };
+      const pub = makeKey("public", true, algorithm, usages.filter((u) => face.pub.includes(u)), m);
+      const priv = makeKey("private", extractable, algorithm, usages.filter((u) => face.priv.includes(u)), m);
+      return { publicKey: pub, privateKey: priv };
+    })();
   }
 
   const subtle = {

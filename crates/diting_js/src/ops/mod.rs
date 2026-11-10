@@ -3408,9 +3408,9 @@ mod video_info;
 pub(crate) use video_info::op_video_info;
 mod crypto_rsa;
 pub(crate) use crypto_rsa::{
-    op_subtle_rsa_generate, op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private,
-    op_subtle_rsa_import_public, op_subtle_rsa_import_spki, op_subtle_rsa_oaep,
-    op_subtle_rsa_pkcs1v15_sign, op_subtle_rsa_pkcs1v15_verify,
+    op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private, op_subtle_rsa_import_public,
+    op_subtle_rsa_import_spki, op_subtle_rsa_oaep, op_subtle_rsa_pkcs1v15_sign,
+    op_subtle_rsa_pkcs1v15_verify, rsa_generate_flat,
 };
 
 /// The page's text-ink extent alone ((width, height) in CSS px), from the
@@ -4992,7 +4992,6 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         op_subtle_aes_cbc(),
         op_subtle_aes_ctr(),
         op_subtle_aes_kw(),
-        op_subtle_rsa_generate(),
         op_subtle_rsa_import_public(),
         op_subtle_rsa_import_spki(),
         op_subtle_rsa_import_private(),

@@ -9775,6 +9775,79 @@ async fn test_webcrypto_rsa_oaep_import_export_cipher() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn eval_patience_spares_a_chain_of_short_chunks() {
+    // #69: the eval patience watchdog was armed once per wait and fired 500ms
+    // in on whatever happened to run — a caller's own chain of short chunks
+    // crossing the mark got beheaded, its promise never settled, and the eval
+    // sat out the whole 5s budget. Thirty 25ms chunks (~750ms) contain no
+    // wall at all; patience must only ever cut one.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        let done = 0;
+        for (let i = 0; i < 30; i++) {
+            await new Promise(r => setTimeout(r, 0));
+            const t = Date.now(); while (Date.now() - t < 25) {}
+            done++;
+        }
+        return done;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(result.value.unwrap(), serde_json::json!(30));
+    assert_eq!(rt.watchdog_fired_total(), 0, "no wall, no fire");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn eval_patience_spares_medium_chunks_past_the_mark() {
+    // #69 second face: once 500ms of WAIT had elapsed, every remaining tick
+    // escalated to the #66 throttled pump (each tick fenced at 2x50ms) even
+    // though no wall had ever been seen — so on a saturated runner an
+    // ordinary 100-200ms chunk past the mark got beheaded (ECDSA/OAEP
+    // batteries: 5.1s EVAL_TIMEOUT). Six 150ms chunks: none is a wall.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        let done = 0;
+        for (let i = 0; i < 6; i++) {
+            await new Promise(r => setTimeout(r, 0));
+            const t = Date.now(); while (Date.now() - t < 150) {}
+            done++;
+        }
+        return done;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(result.value.unwrap(), serde_json::json!(6));
+    assert_eq!(rt.watchdog_fired_total(), 0, "no wall, no fire");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_keygen_runs_off_the_js_thread() {
+    // #69: RSA keygen (30-200ms of CPU each in a debug build) was a sync op,
+    // so a few back-to-back generateKey calls ran as one continuous wall and
+    // the patience watchdog beheaded the caller's chain. Off the JS thread,
+    // twelve of them (well past patience in total) settle untouched.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const kinds = [];
+        for (let i = 0; i < 12; i++) {
+            const p = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 1024,
+                publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+            kinds.push(p.privateKey.type);
+        }
+        return kinds.length;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(result.value.unwrap(), serde_json::json!(12));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_webcrypto_rsassa_pkcs1v15_sign_verify() {
     let mut rt = setup_runtime("<html><body></body></html>");
     // #273: RSASSA-PKCS1-v1_5 (JWT RS256) faces pinned from Chrome 155.
