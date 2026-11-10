@@ -3403,9 +3403,9 @@ pub(crate) use crypto_secret::{
     op_subtle_aes_kw, op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, op_subtle_pbkdf2,
 };
 pub use fetch_gate::validate_fetch_url;
-use image_info::image_header_dimensions;
+pub(crate) use image_info::op_image_info;
 mod video_info;
-use video_info::video_header_meta;
+pub(crate) use video_info::op_video_info;
 mod crypto_rsa;
 pub(crate) use crypto_rsa::{
     op_subtle_rsa_generate, op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private,
@@ -4392,41 +4392,6 @@ fn op_fetch_url_sync(
         record_fetch_network_event(state, ev);
     }
     Ok(outcome.json)
-}
-
-/// `op_image_info(body_base64)` — the dimensions op backing the Image
-/// shim's `naturalWidth/naturalHeight`. Returns `{"width":w,"height":h}`;
-/// unparsable input yields 0×0 and the JS side keeps its old fallback, so
-/// the load/error contract (#41: transport status decides) is untouched —
-/// this only fills in real numbers when they're available.
-#[diting_op]
-#[string]
-fn op_image_info(#[string] body_base64: String) -> String {
-    let bytes = BASE64.decode(body_base64.as_bytes()).unwrap_or_default();
-    let (w, h) = image_header_dimensions(&bytes).unwrap_or((0, 0));
-    serde_json::json!({ "width": w, "height": h }).to_string()
-}
-
-/// `op_video_info(body_base64)` — the media-element sibling of
-/// op_image_info: container-header metadata (mp4/quicktime moov walk →
-/// width/height/duration) backing the blob-source metadata face. Same
-/// contract: `{"ok":false}` on unparsable input and the JS side keeps
-/// the stub face, so nothing changes for sources we can't read.
-#[diting_op]
-#[string]
-fn op_video_info(#[string] body_base64: String) -> String {
-    let bytes = BASE64.decode(body_base64.as_bytes()).unwrap_or_default();
-    match video_header_meta(&bytes) {
-        Some(m) => {
-            let duration = match m.duration_secs {
-                Some(d) => serde_json::json!(d),
-                // No duration marker: the HTML face answers Infinity.
-                None => serde_json::json!({ "infinite": true }),
-            };
-            serde_json::json!({ "ok": true, "width": m.width, "height": m.height, "duration": duration }).to_string()
-        }
-        None => r#"{"ok":false}"#.to_string(),
-    }
 }
 
 #[diting_op]

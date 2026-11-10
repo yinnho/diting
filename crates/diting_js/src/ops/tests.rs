@@ -6,8 +6,8 @@ use super::cors::{
     preflight_allows_method,
 };
 use super::crypto_secret::{pbkdf2_derive, PBKDF2_MAX_ITERATIONS, PBKDF2_MAX_OUTPUT_BYTES};
-use super::image_header_dimensions;
-use super::video_header_meta;
+use super::image_info::image_header_dimensions;
+use super::video_info::video_header_meta;
 use super::{validate_fetch_url, FetchCredentials};
 
 /// Header-only dimension parsing for the four formats op_image_info
