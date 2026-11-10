@@ -129,10 +129,10 @@ impl super::JsRuntime {
         // them measurably disturbed a legitimate engine-side batch even
         // with no watchdog able to fire (the #224 animation-sweep test
         // lost 130 of 600 starts to a 10ms tick floor + per-tick arm
-        // ceremony). Once the patience watchdog fires — or patience simply
-        // elapses — every remaining tick escalates to the #66 throttled
-        // pump, capping each wall at 2x the tick, the same containment the
-        // driver's outer slices already apply everywhere else.
+        // ceremony). Once the patience watchdog fires, every remaining tick
+        // escalates to the #66 throttled pump, capping each wall at 2x the
+        // tick, the same containment the driver's outer slices already
+        // apply everywhere else.
         // Patience never outlives the wait itself (a short-budget eval
         // breaks on its deadline and disarms this below).
         let mut patience_wd = Some(self.arm_watchdog(std::time::Duration::from_millis(
@@ -170,22 +170,28 @@ impl super::JsRuntime {
             if escalated {
                 let _ = self.run_event_loop_bounded_throttled(50).await;
             } else {
-                let patience_left = (start
-                    + tokio::time::Duration::from_millis(Self::EVAL_WALL_PATIENCE_MS))
-                .saturating_duration_since(now);
-                if patience_left.is_zero() {
-                    escalated = true;
-                    if let Some(w) = patience_wd.take() {
-                        let _ = self.disarm_watchdog(w);
-                    }
-                    let _ = self.run_event_loop_bounded_throttled(50).await;
-                } else {
-                    let _ = tokio::time::timeout(
-                        tokio::time::Duration::from_millis(tick_ms),
-                        self.run_event_loop(),
-                    )
-                    .await;
+                // #69: patience is per WALL, not per wait. Armed once, it
+                // fired 500ms into the wait on whatever was running — a
+                // caller's own chain of short awaits (four RSA keygens)
+                // crossing the mark got beheaded and the eval sat out its
+                // full 5s budget. And escalating once patience merely
+                // ELAPSED fenced every later tick at 2x50ms with no wall ever
+                // seen, so a saturated runner's ordinary 150ms chunk died
+                // too (ECDSA/OAEP batteries). Pushed at every tick, the
+                // watchdog stays on duty for the whole wait and only fires on
+                // one tick running past patience — a real wall — and only
+                // that fire escalates.
+                if let Some(w) = patience_wd.as_ref() {
+                    w.push_deadline(
+                        tokio::time::Duration::from_millis(Self::EVAL_WALL_PATIENCE_MS)
+                            .min(deadline.saturating_duration_since(now)),
+                    );
                 }
+                let _ = tokio::time::timeout(
+                    tokio::time::Duration::from_millis(tick_ms),
+                    self.run_event_loop(),
+                )
+                .await;
             }
             if wd.fired() {
                 break;

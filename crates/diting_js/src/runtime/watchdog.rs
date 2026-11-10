@@ -40,6 +40,11 @@ pub struct WatchdogToken {
     /// The isolate's own thread (every arm site runs on it). The post-fire
     /// grace registers it in [`ZOMBIE_THREADS`]; a late resurface clears it.
     owner: std::thread::ThreadId,
+    /// [`WatchdogToken::push_deadline`]: a later deadline, as nanos past
+    /// `base` (0 = never pushed). The thread re-reads it when its wait runs
+    /// out, so a push costs one atomic op — no re-arm ceremony.
+    pushed: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    base: std::time::Instant,
 }
 
 /// Threads whose isolate swallowed a terminate (rusty_v8 #2088 shape): the
@@ -267,12 +272,15 @@ pub fn spawn_watchdog(
     let resurfaced = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let resurfaced_c = resurfaced.clone();
     let owner = std::thread::current().id();
+    let base = std::time::Instant::now();
+    let pushed = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let pushed_c = pushed.clone();
     let join = std::thread::spawn(move || {
         let (lock, cvar) = &*pair_c;
         let mut cancelled = lock
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let deadline = std::time::Instant::now() + budget;
+        let mut deadline = base + budget;
         loop {
             // Check first: stop() may have set this (and notified into the void)
             // before this thread even started, which happens constantly for fast
@@ -282,7 +290,15 @@ pub fn spawn_watchdog(
             if *cancelled {
                 return;
             }
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let mut remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                let p = pushed_c.load(std::sync::atomic::Ordering::SeqCst);
+                let later = base + std::time::Duration::from_nanos(p);
+                if p != 0 && later > deadline {
+                    deadline = later;
+                    remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                }
+            }
             if remaining.is_zero() {
                 fired_c.store(true, std::sync::atomic::Ordering::SeqCst);
                 if let Some(stale) = stale.as_ref() {
@@ -382,6 +398,8 @@ pub fn spawn_watchdog(
         sampler_stop,
         wedge_flag,
         owner,
+        pushed,
+        base,
     }
 }
 
@@ -523,6 +541,16 @@ impl WatchdogToken {
     /// while keeping the token alive for the final `stop()`.
     pub fn fired(&self) -> bool {
         self.fired.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Move the deadline to `from_now` past now (never earlier). Turns a
+    /// one-shot wall-clock budget into "this long of CONTINUOUS work": the
+    /// eval patience watchdog is pushed at every pump tick (#69).
+    pub fn push_deadline(&self, from_now: std::time::Duration) {
+        let at = (std::time::Instant::now() + from_now).saturating_duration_since(self.base);
+        let nanos = u64::try_from(at.as_nanos()).unwrap_or(u64::MAX).max(1);
+        self.pushed
+            .fetch_max(nanos, std::sync::atomic::Ordering::SeqCst);
     }
 }
 

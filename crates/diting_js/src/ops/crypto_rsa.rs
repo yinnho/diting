@@ -116,17 +116,16 @@ fn os_rng() -> rsa::rand_core::UnwrapErr<getrandom::SysRng> {
 }
 
 /// Generate an RSA keypair. `bits` is the modulus length; `e` the public
-/// exponent as big-endian bytes. Returns the full ten-section payload.
-#[diting_op]
-#[buffer]
-pub(crate) fn op_subtle_rsa_generate(
-    bits: u32,
-    #[buffer] e: &[u8],
-) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    let exponent = rsa::BoxedUint::from_be_slice_vartime(e);
+/// exponent. Returns the full ten-section payload. Plain fn, not an op: the
+/// async glue (`op_subtle_rsa_generate_async`) runs it on the blocking pool —
+/// a keygen is 30-200ms of CPU in a debug build, and as a sync op it pinned
+/// the JS thread long enough for the eval patience watchdog to behead the
+/// caller's own promise chain (#69).
+pub(crate) fn rsa_generate_flat(bits: u32, e: u32) -> Result<Vec<u8>, String> {
+    let exponent = rsa::BoxedUint::from_be_slice_vartime(&e.to_be_bytes());
     let sk = rsa::RsaPrivateKey::new_with_exp(&mut os_rng(), bits as usize, exponent)
-        .map_err(crypto_err)?;
-    rsa_key_flat(&sk)
+        .map_err(|e| e.to_string())?;
+    rsa_key_flat(&sk).map_err(|e| e.to_string())
 }
 
 /// Import a public key from (n, e) big-endian integers (JWK path). Returns

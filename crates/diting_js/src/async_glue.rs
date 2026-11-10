@@ -207,6 +207,52 @@ pub fn op_fetch_url_decl() -> OpDecl {
     )
 }
 
+// ── op_subtle_rsa_generate_async ──────────────────────────────────────
+
+/// `op_subtle_rsa_generate_async(bits, e)` — RSA keygen on the blocking pool
+/// (Chrome runs WebCrypto off the main thread too). Resolves the standard
+/// base64 of the ten-section payload (async ops resolve strings); rejects
+/// with the keygen error text. `e` arrives as a number — the JS side has
+/// already pinned it to 3 or 65537.
+fn op_subtle_rsa_generate_async_impl(info: *const v8::FunctionCallbackInfo) -> usize {
+    let info = unsafe { &*info };
+    let parts: v8::FunctionCallbackInfoParts<'_> = info.get_parts();
+    let args = v8::FunctionCallbackArguments::from_function_callback_info_parts(info, &parts);
+    let isolate = unsafe { v8::Isolate::ref_from_raw_isolate_ptr(&parts.isolate) };
+    let promise_id = to_i32_option(&args.get(0)).unwrap_or_default();
+    let (Some(bits), Some(e)) = (to_f64_option(&args.get(1)), to_f64_option(&args.get(2))) else {
+        throw_error_one_byte_info(info, "expected f64");
+        return 1;
+    };
+    let (bits, e) = (bits as u32, e as u32);
+    let fut = async move {
+        use base64::Engine as _;
+        let flat = match tokio::runtime::Handle::try_current() {
+            Ok(h) => h
+                .spawn_blocking(move || super::ops::rsa_generate_flat(bits, e))
+                .await
+                .map_err(|e| e.to_string())?,
+            Err(_) => super::ops::rsa_generate_flat(bits, e),
+        }?;
+        Ok(base64::engine::general_purpose::STANDARD.encode(flat))
+    };
+    spawn_async_op(isolate, promise_id, fut);
+    0
+}
+
+unsafe extern "C" fn op_subtle_rsa_generate_async_entry(info: *const v8::FunctionCallbackInfo) {
+    op_subtle_rsa_generate_async_impl(info);
+}
+
+pub fn op_subtle_rsa_generate_async_decl() -> OpDecl {
+    async_decl(
+        "op_subtle_rsa_generate_async",
+        2,
+        op_subtle_rsa_generate_async_entry as _,
+        op_subtle_rsa_generate_async_impl,
+    )
+}
+
 // Re-exported for the 10d assembly: the full async-four decl list our host
 // installs alongside the sync ops (ops::our_decls()).
 pub fn all_decls() -> Vec<OpDecl> {
@@ -215,5 +261,6 @@ pub fn all_decls() -> Vec<OpDecl> {
         op_sleep_decl(),
         op_ws_open_decl(),
         op_ws_next_message_decl(),
+        op_subtle_rsa_generate_async_decl(),
     ]
 }
