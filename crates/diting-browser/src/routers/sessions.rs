@@ -449,7 +449,8 @@ pub(crate) async fn account_import_browser_handler(
     Json(req): Json<AccountImportBrowserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     account::validate_name(&req.name).map_err(AppError::BadRequest)?;
-    let browser = crate::browser_import::Browser::parse(&req.browser).map_err(AppError::BadRequest)?;
+    let browser =
+        crate::browser_import::Browser::parse(&req.browser).map_err(AppError::BadRequest)?;
     let name = req.name.clone();
     let (out, total) = tokio::task::spawn_blocking(move || {
         let out = crate::browser_import::import(browser, req.profile.as_deref(), &req.domains)?;

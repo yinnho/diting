@@ -263,7 +263,6 @@ pub(super) struct BoxState {
     text_gradient: Option<(TextGradient, [f32; 6])>,
 }
 
-
 /// The element-box pass of one `collect` frame (moved out of its body
 /// verbatim): backgrounds, borders, replaced content, clip/transform/blend
 /// brackets and scroller spans for the boxed DOM element `dom_id`.
@@ -676,7 +675,6 @@ pub(super) struct Out<'a> {
     pub(super) items: &'a mut Vec<PaintItem>,
     pub(super) paint_order: &'a mut Vec<NodeId>,
 }
-
 
 /// Stacking-band split of one `collect` frame's children (moved out
 /// verbatim): each child lands in the negative / in-flow / positive z band,

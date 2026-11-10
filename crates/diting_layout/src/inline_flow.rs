@@ -79,7 +79,10 @@ pub(super) fn layout<T: LayoutPartialTree>(
             continue;
         }
         let size = tree
-            .compute_child_layout(k, sized(width, Size::NONE, diting_taffy::RunMode::ComputeSize))
+            .compute_child_layout(
+                k,
+                sized(width, Size::NONE, diting_taffy::RunMode::ComputeSize),
+            )
             .size;
         items.push(Item {
             id: k,

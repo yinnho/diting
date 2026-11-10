@@ -7,7 +7,9 @@
 //! and a chunk-level stall timeout so a dead connection cannot hang forever.
 
 use anyhow::{anyhow, Context, Result};
-use diting::diting_net::wire::header::{ACCEPT, CONTENT_DISPOSITION, COOKIE, LOCATION, RANGE, USER_AGENT};
+use diting::diting_net::wire::header::{
+    ACCEPT, CONTENT_DISPOSITION, COOKIE, LOCATION, RANGE, USER_AGENT,
+};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -149,7 +151,9 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
         .map_err(anyhow::Error::msg)?;
 
     let status = resp.status();
-    if !(status == diting::diting_net::wire::StatusCode::OK || status == diting::diting_net::wire::StatusCode::PARTIAL_CONTENT) {
+    if !(status == diting::diting_net::wire::StatusCode::OK
+        || status == diting::diting_net::wire::StatusCode::PARTIAL_CONTENT)
+    {
         return Err(anyhow!("http {}: download failed", status.as_u16()));
     }
 

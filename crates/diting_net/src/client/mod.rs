@@ -327,7 +327,8 @@ impl HttpClient {
     async fn get_client(&self) -> &Client {
         self.client
             .get_or_init(|| async {
-                let mut builder = self.base_builder()
+                let mut builder = self
+                    .base_builder()
                     .redirect(Policy::none())
                     // Browser timeout semantics (#49), not scraper semantics:
                     // `.timeout()` caps the WHOLE request — connect through body
@@ -428,7 +429,8 @@ impl HttpClient {
         };
         self.auto_proxy_client
             .get_or_init(|| async move {
-                let mut builder = self.base_builder()
+                let mut builder = self
+                    .base_builder()
                     .redirect(Policy::none())
                     // read_timeout (per-chunk stall, #49), not a total-duration
                     // cap — see get_client.

@@ -1,6 +1,5 @@
 use diting_cssparser::ToCss;
 use diting_html5ever::{ns, LocalName, Namespace};
-use precomputed_hash::PrecomputedHash;
 use diting_selectors::attr::{AttrSelectorOperation, CaseSensitivity, NamespaceConstraint};
 use diting_selectors::context::QuirksMode;
 use diting_selectors::matching::{
@@ -9,6 +8,7 @@ use diting_selectors::matching::{
 };
 use diting_selectors::parser::{self, ParseRelative, SelectorParseErrorKind};
 use diting_selectors::{Element, OpaqueElement, SelectorList};
+use precomputed_hash::PrecomputedHash;
 
 use crate::tree::{DomTree, NodeData, NodeId};
 
@@ -112,7 +112,9 @@ pub enum PseudoClass {
     /// #333: `:dir(rtl)` / `:dir(ltr)` — resolved directionality, not the
     /// raw attribute (an `ltr` child inside an `rtl` ancestor is `:dir(rtl)`
     /// until its own `dir` overrides).
-    Dir { rtl: bool },
+    Dir {
+        rtl: bool,
+    },
 }
 
 impl parser::NonTSPseudoClass for PseudoClass {
@@ -202,7 +204,10 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
         true
     }
 
-    fn parse_non_ts_pseudo_class(&self, name: &str) -> Result<PseudoClass, diting_cssparser::ParseError<Self::Error>> {
+    fn parse_non_ts_pseudo_class(
+        &self,
+        name: &str,
+    ) -> Result<PseudoClass, diting_cssparser::ParseError<Self::Error>> {
         match name.as_ref() {
             "hover" => Ok(PseudoClass::Hover),
             "active" => Ok(PseudoClass::Active),
@@ -295,7 +300,8 @@ impl<'a> DomElement<'a> {
                 .with_node(id, |n| {
                     (
                         n.parent,
-                        n.get_attribute("dir").map(|d| d.trim().to_ascii_lowercase()),
+                        n.get_attribute("dir")
+                            .map(|d| d.trim().to_ascii_lowercase()),
                     )
                 })
                 .unwrap_or((None, None));
@@ -509,7 +515,8 @@ fn strong_dir(c: char) -> Option<bool> {
     if matches!(cp, 0x0590..=0x05FF | 0x0600..=0x06FF | 0x0700..=0x074F | 0x0780..=0x07BF) {
         return Some(true);
     }
-    if c.is_ascii_alphabetic() || matches!(cp, 0x00C0..=0x024F | 0x0370..=0x03FF | 0x0400..=0x04FF) {
+    if c.is_ascii_alphabetic() || matches!(cp, 0x00C0..=0x024F | 0x0370..=0x03FF | 0x0400..=0x04FF)
+    {
         return Some(false);
     }
     None
@@ -693,9 +700,9 @@ impl<'a> Element for DomElement<'a> {
             .with_node(self.node_id, |node| {
                 node.attrs()
                     .map(|attrs| {
-                        attrs
-                            .iter()
-                            .any(|a| a.name.ns == diting_html5ever::ns!() && a.name.local == local_name.0)
+                        attrs.iter().any(|a| {
+                            a.name.ns == diting_html5ever::ns!() && a.name.local == local_name.0
+                        })
                     })
                     .unwrap_or(false)
             })
@@ -929,7 +936,10 @@ impl<'a> Element for DomElement<'a> {
         false
     }
 
-    fn add_element_unique_hashes(&self, _filter: &mut diting_selectors::bloom::BloomFilter) -> bool {
+    fn add_element_unique_hashes(
+        &self,
+        _filter: &mut diting_selectors::bloom::BloomFilter,
+    ) -> bool {
         false
     }
 }

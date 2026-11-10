@@ -97,7 +97,10 @@ impl super::JsRuntime {
         }
     }
 
-    pub(super) fn info_from_meta(meta: &serde_json::Value, object_id: Option<String>) -> RemoteObjectInfo {
+    pub(super) fn info_from_meta(
+        meta: &serde_json::Value,
+        object_id: Option<String>,
+    ) -> RemoteObjectInfo {
         let js_type = meta
             .get("type")
             .and_then(|v| v.as_str())

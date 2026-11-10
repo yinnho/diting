@@ -4,7 +4,9 @@ use std::fmt;
 
 use diting_html5ever::tendril::StrTendril;
 use diting_html5ever::tree_builder::{ElemName, ElementFlags, NodeOrText, QuirksMode, TreeSink};
-use diting_html5ever::{local_name, ns, Attribute as HtmlAttribute, LocalName, Namespace, QualName};
+use diting_html5ever::{
+    local_name, ns, Attribute as HtmlAttribute, LocalName, Namespace, QualName,
+};
 
 use crate::tree::{Attribute, DomTree, NodeData, NodeId, ShadowRootMode};
 

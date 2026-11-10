@@ -24,11 +24,11 @@ use std::ops::Deref;
 use diting_html5ever::tendril::StrTendril;
 use diting_html5ever::tendril::TendrilSink;
 use diting_html5ever::{
-    Attribute, LocalName, Namespace, QualName, driver, expanded_name, local_name, ns, serialize,
-    tree_builder::{NodeOrText, QuirksMode, TreeSink},
+    driver, expanded_name, local_name, ns, serialize,
     serialize::{Serialize, SerializeOpts, Serializer, TraversalScope},
+    tree_builder::{NodeOrText, QuirksMode, TreeSink},
+    Attribute, LocalName, Namespace, QualName,
 };
-use diting_selectors::SelectorList;
 use diting_selectors::attr::{AttrSelectorOperation, CaseSensitivity, NamespaceConstraint};
 use diting_selectors::bloom::BloomFilter;
 use diting_selectors::context::SelectorCaches;
@@ -38,8 +38,9 @@ use diting_selectors::matching::{
 };
 use diting_selectors::parser::{self, ParseRelative, SelectorParseErrorKind};
 use diting_selectors::OpaqueElement;
-use ego_tree::NodeRef;
+use diting_selectors::SelectorList;
 use ego_tree::iter::{Edge, Traverse};
+use ego_tree::NodeRef;
 use ego_tree::{NodeId, Tree};
 use precomputed_hash::PrecomputedHash;
 
@@ -221,8 +222,10 @@ pub struct Element {
 
 impl Element {
     fn new(name: QualName, attributes: Vec<Attribute>) -> Self {
-        let mut attrs: Vec<(QualName, StrTendril)> =
-            attributes.into_iter().map(|attr| (attr.name, attr.value)).collect();
+        let mut attrs: Vec<(QualName, StrTendril)> = attributes
+            .into_iter()
+            .map(|attr| (attr.name, attr.value))
+            .collect();
         attrs.sort_unstable_by(|lhs, rhs| lhs.0.cmp(&rhs.0));
         Element {
             attrs,
@@ -481,14 +484,13 @@ impl TreeSink for HtmlTreeSink {
                 }
 
                 NodeOrText::AppendText(text) => {
-                    let did_concat =
-                        sibling.prev_sibling().is_some_and(|mut n| match n.value() {
-                            Node::Text(t) => {
-                                t.text.push_tendril(&text);
-                                true
-                            }
-                            _ => false,
-                        });
+                    let did_concat = sibling.prev_sibling().is_some_and(|mut n| match n.value() {
+                        Node::Text(t) => {
+                            t.text.push_tendril(&text);
+                            true
+                        }
+                        _ => false,
+                    });
 
                     if !did_concat {
                         sibling.insert_before(Node::Text(Text { text }));
@@ -520,7 +522,10 @@ impl TreeSink for HtmlTreeSink {
         };
 
         for attr in attrs {
-            if let Err(idx) = element.attrs.binary_search_by(|(name, _)| name.cmp(&attr.name)) {
+            if let Err(idx) = element
+                .attrs
+                .binary_search_by(|(name, _)| name.cmp(&attr.name))
+            {
                 element.attrs.insert(idx, (attr.name, attr.value));
             }
         }
@@ -677,9 +682,11 @@ impl<'a> Iterator for Select<'a, '_> {
             if let Edge::Open(node) = edge {
                 if let Some(element) = ElementRef::wrap(node) {
                     if element.parent().is_some()
-                        && self
-                            .selector
-                            .matches_with_scope_and_cache(element, None, &mut self.caches)
+                        && self.selector.matches_with_scope_and_cache(
+                            element,
+                            None,
+                            &mut self.caches,
+                        )
                     {
                         return Some(element);
                     }
@@ -1087,7 +1094,10 @@ mod tests {
     fn scoped_select_under_element() {
         let html = r#"<ol><li class="item"><a href="/1">first</a></li><li><a href="/2">second</a></li></ol>"#;
         let doc = Html::parse_document(html);
-        let item = doc.select(&Selector::parse("li.item").unwrap()).next().unwrap();
+        let item = doc
+            .select(&Selector::parse("li.item").unwrap())
+            .next()
+            .unwrap();
         let link = item.select(&Selector::parse("a").unwrap()).next().unwrap();
         assert_eq!(link.value().attr("href"), Some("/1"));
         assert_eq!(link.text().collect::<String>(), "first");
@@ -1097,7 +1107,10 @@ mod tests {
     fn ancestors_and_classes() {
         let html = r#"<div class="result"><div class="c-container"><h3><a>x</a></h3></div></div>"#;
         let doc = Html::parse_document(html);
-        let link = doc.select(&Selector::parse("h3 a").unwrap()).next().unwrap();
+        let link = doc
+            .select(&Selector::parse("h3 a").unwrap())
+            .next()
+            .unwrap();
         let hit = link
             .ancestors()
             .find(|a| {
@@ -1124,7 +1137,10 @@ mod tests {
         // must merge them into one text node.
         let doc = Html::parse_document("<p>hello world</p>");
         let p = doc.select(&Selector::parse("p").unwrap()).next().unwrap();
-        let text_nodes: Vec<&str> = p.children().filter_map(|c| c.value().as_text().map(|t| &**t)).collect();
+        let text_nodes: Vec<&str> = p
+            .children()
+            .filter_map(|c| c.value().as_text().map(|t| &**t))
+            .collect();
         assert_eq!(text_nodes, vec!["hello world"]);
     }
 

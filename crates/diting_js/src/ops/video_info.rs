@@ -44,8 +44,14 @@ fn next_box(b: &[u8], i: usize) -> Option<BoxRange> {
             return None;
         }
         let big = u64::from_be_bytes([
-            b[i + 8], b[i + 9], b[i + 10], b[i + 11],
-            b[i + 12], b[i + 13], b[i + 14], b[i + 15],
+            b[i + 8],
+            b[i + 9],
+            b[i + 10],
+            b[i + 11],
+            b[i + 12],
+            b[i + 13],
+            b[i + 14],
+            b[i + 15],
         ]);
         if big > usize::MAX as u64 {
             return None;
@@ -58,7 +64,11 @@ fn next_box(b: &[u8], i: usize) -> Option<BoxRange> {
     if size < header || i.checked_add(size).map_or(true, |e| e > b.len()) {
         return None;
     }
-    Some(BoxRange { ty, payload: i + header, end: i + size })
+    Some(BoxRange {
+        ty,
+        payload: i + header,
+        end: i + size,
+    })
 }
 
 /// tkhd video size. The width/height offsets are version-dependent
@@ -68,7 +78,11 @@ fn next_box(b: &[u8], i: usize) -> Option<BoxRange> {
 /// diagonal — the display axes swap. Sound/hint tracks carry 0×0 and
 /// are skipped.
 fn tkhd_video_size(p: &[u8]) -> Option<(u32, u32)> {
-    let (dim_off, matrix_off) = if p.first() == Some(&1) { (88usize, 52usize) } else { (76usize, 40usize) };
+    let (dim_off, matrix_off) = if p.first() == Some(&1) {
+        (88usize, 52usize)
+    } else {
+        (76usize, 40usize)
+    };
     if p.len() < dim_off + 8 {
         return None;
     }
@@ -99,7 +113,11 @@ fn tkhd_video_size(p: &[u8]) -> Option<(u32, u32)> {
 /// live/streaming marker) mean "no duration": the HTML face reports
 /// `Infinity`, not a number.
 fn mvhd_duration_secs(p: &[u8]) -> Option<f64> {
-    let (ts_off, dur_off, wide) = if p.first() == Some(&1) { (20usize, 24usize, true) } else { (12usize, 16usize, false) };
+    let (ts_off, dur_off, wide) = if p.first() == Some(&1) {
+        (20usize, 24usize, true)
+    } else {
+        (12usize, 16usize, false)
+    };
     if p.len() < if wide { dur_off + 8 } else { dur_off + 4 } {
         return None;
     }
@@ -109,8 +127,14 @@ fn mvhd_duration_secs(p: &[u8]) -> Option<f64> {
     }
     let raw = if wide {
         let d = u64::from_be_bytes([
-            p[dur_off], p[dur_off + 1], p[dur_off + 2], p[dur_off + 3],
-            p[dur_off + 4], p[dur_off + 5], p[dur_off + 6], p[dur_off + 7],
+            p[dur_off],
+            p[dur_off + 1],
+            p[dur_off + 2],
+            p[dur_off + 3],
+            p[dur_off + 4],
+            p[dur_off + 5],
+            p[dur_off + 6],
+            p[dur_off + 7],
         ]);
         if d == 0 || d >= u32::MAX as u64 {
             return None;
@@ -169,5 +193,9 @@ fn moov_meta(moov: &[u8]) -> Option<VideoHeaderMeta> {
         return None;
     }
     let (width, height) = size.unwrap_or((0, 0));
-    Some(VideoHeaderMeta { width, height, duration_secs })
+    Some(VideoHeaderMeta {
+        width,
+        height,
+        duration_secs,
+    })
 }

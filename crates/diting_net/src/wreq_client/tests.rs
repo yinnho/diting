@@ -19,9 +19,8 @@ async fn wreq_ssrf_guard_resolver_blocks_loopback_resolution() {
     let _guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
     std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
 
-    let guarded = crate::client::SsrfGuardResolver::new(Arc::new(
-        std::sync::atomic::AtomicBool::new(false),
-    ));
+    let guarded =
+        crate::client::SsrfGuardResolver::new(Arc::new(std::sync::atomic::AtomicBool::new(false)));
     assert!(
         guarded
             .resolve(diting_wire::dns::Name::new("localhost".into()))
@@ -30,9 +29,8 @@ async fn wreq_ssrf_guard_resolver_blocks_loopback_resolution() {
         "localhost must be rejected by the guarded resolver"
     );
 
-    let permissive = crate::client::SsrfGuardResolver::new(Arc::new(
-        std::sync::atomic::AtomicBool::new(true),
-    ));
+    let permissive =
+        crate::client::SsrfGuardResolver::new(Arc::new(std::sync::atomic::AtomicBool::new(true)));
     assert!(
         permissive
             .resolve(diting_wire::dns::Name::new("localhost".into()))

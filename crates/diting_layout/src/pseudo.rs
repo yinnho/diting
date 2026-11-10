@@ -181,7 +181,8 @@ fn pseudo_leaf(
         }
         _ => p.display,
     };
-    let insert = |leaf: diting_taffy::tree::NodeId, children: &mut Vec<diting_taffy::tree::NodeId>| {
+    let insert = |leaf: diting_taffy::tree::NodeId,
+                  children: &mut Vec<diting_taffy::tree::NodeId>| {
         if is_before {
             children.insert(0, leaf);
         } else {

@@ -24,7 +24,11 @@ pub(super) async fn exec_transcript_frames_step(
         .and_then(|v| v.as_f64())
         .unwrap_or(2.0)
         .clamp(0.5, 10.0);
-    let scale = a.get("scale").and_then(|v| v.as_u64()).unwrap_or(640).clamp(320, 1920);
+    let scale = a
+        .get("scale")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(640)
+        .clamp(320, 1920);
     let ocr_bin = std::env::var("DITING_OCR_BIN").unwrap_or_default();
     if ocr_bin.is_empty() {
         return Err(
@@ -107,7 +111,9 @@ pub(super) async fn exec_transcript_frames_step(
     });
     if frames.is_empty() {
         let _ = std::fs::remove_dir_all(&dir);
-        return Err(format!("transcript_frames: no frames extracted from {input:?}"));
+        return Err(format!(
+            "transcript_frames: no frames extracted from {input:?}"
+        ));
     }
     if pts_s.len() != frames.len() {
         let _ = std::fs::remove_dir_all(&dir);
@@ -175,7 +181,11 @@ pub(super) async fn exec_transcript_audio_step(
         .and_then(|v| v.as_str())
         .unwrap_or("zh")
         .to_string();
-    let threads = a.get("threads").and_then(|v| v.as_u64()).unwrap_or(8).clamp(1, 16);
+    let threads = a
+        .get("threads")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(8)
+        .clamp(1, 16);
     let model = std::env::var("DITING_ASR_MODEL").unwrap_or_default();
     if model.is_empty() {
         return Err(
@@ -184,8 +194,7 @@ pub(super) async fn exec_transcript_audio_step(
                 .into(),
         );
     }
-    let asr_bin =
-        std::env::var("DITING_ASR_BIN").unwrap_or_else(|_| "whisper-cli".to_string());
+    let asr_bin = std::env::var("DITING_ASR_BIN").unwrap_or_else(|_| "whisper-cli".to_string());
     let wav = std::env::temp_dir().join(format!(
         "diting-asr-{:x}.wav",
         std::time::SystemTime::now()
@@ -273,9 +282,13 @@ pub(super) fn parse_whisper_segments(stdout: &str) -> Vec<Value> {
     for l in stdout.lines() {
         let l = l.trim();
         let Some(open) = l.find('[') else { continue };
-        let Some(close) = l[open..].find(']') else { continue };
+        let Some(close) = l[open..].find(']') else {
+            continue;
+        };
         let inner = &l[open + 1..open + close];
-        let Some(arrow) = inner.find("-->") else { continue };
+        let Some(arrow) = inner.find("-->") else {
+            continue;
+        };
         let (Some(st), Some(en)) = (parse(&inner[..arrow]), parse(&inner[arrow + 3..])) else {
             continue;
         };

@@ -14,9 +14,15 @@ use super::*;
 #[derive(Debug, Clone, Copy)]
 enum CalcVal {
     Number(f32),
-    Len { px: f32, percent: f32 },
+    Len {
+        px: f32,
+        percent: f32,
+    },
     /// Exactly one channel nonzero, by construction of the product rule.
-    Squared { px: f32, percent: f32 },
+    Squared {
+        px: f32,
+        percent: f32,
+    },
 }
 
 impl CalcVal {
@@ -604,10 +610,7 @@ impl CalcParser<'_> {
                 // Chrome tracks percentages as numbers-with-unit, not
                 // dimensions: `sqrt(100%)` → 10% (the number sqrts, the
                 // unit stays singular) — verified Chrome 157.
-                CalcVal::Len {
-                    px: 0.0,
-                    percent,
-                } if percent >= 0.0 => Some(CalcVal::Len {
+                CalcVal::Len { px: 0.0, percent } if percent >= 0.0 => Some(CalcVal::Len {
                     px: 0.0,
                     percent: percent.sqrt(),
                 }),

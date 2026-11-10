@@ -4652,7 +4652,10 @@ fn sqrt_squared_dimensions_match_chrome() {
     assert_eq!(px("sqrt(16px * 4px)"), Some(8.0));
     assert_eq!(px("sqrt((16px * 4px + 9px * 9px))"), Some(12.04));
     assert_eq!(px("calc(sqrt(16px * 4px) + 2px)"), Some(10.0));
-    assert_eq!(eval_math_call("sqrt(100%)", &fonts), Some(Length::Percent(10.0)));
+    assert_eq!(
+        eval_math_call("sqrt(100%)", &fonts),
+        Some(Length::Percent(10.0))
+    );
     assert_eq!(px("sqrt(16px)"), None, "px^0.5 is not a type");
     assert_eq!(px("sqrt(2px * 8px * 2px)"), None, "px^1.5 is not a type");
     assert_eq!(px("sqrt(-4px * 1px)"), None, "negative under sqrt");

@@ -554,8 +554,8 @@ mod tests {
         ] {
             match script_face_present(script) {
                 Some(path) => {
-                    let face = FaceBytes::map_file(std::path::Path::new(path))
-                        .expect("present path maps");
+                    let face =
+                        FaceBytes::map_file(std::path::Path::new(path)).expect("present path maps");
                     let got = face_han_slot(&face);
                     assert_eq!(
                         got,

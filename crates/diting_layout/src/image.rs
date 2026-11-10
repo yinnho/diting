@@ -274,13 +274,23 @@ pub fn decode_jpeg(bytes: &[u8]) -> Option<DecodedImage> {
         }
         ColorSpace::LumaA => {
             let mut out = Vec::with_capacity(buf.len() * 2);
-            out.extend(buf.as_chunks::<2>().0.iter().flat_map(|&[g, a]| [g, g, g, a]));
+            out.extend(
+                buf.as_chunks::<2>()
+                    .0
+                    .iter()
+                    .flat_map(|&[g, a]| [g, g, g, a]),
+            );
             out
         }
         ColorSpace::RGBA => buf,
         _ => {
             let mut out = Vec::with_capacity(buf.len() / 3 * 4);
-            out.extend(buf.as_chunks::<3>().0.iter().flat_map(|&[r, g, b]| [r, g, b, 255]));
+            out.extend(
+                buf.as_chunks::<3>()
+                    .0
+                    .iter()
+                    .flat_map(|&[r, g, b]| [r, g, b, 255]),
+            );
             out
         }
     };
@@ -300,7 +310,12 @@ pub fn decode_webp(bytes: &[u8]) -> Option<DecodedImage> {
         buf
     } else {
         let mut out = Vec::with_capacity(buf.len() / 3 * 4);
-        out.extend(buf.as_chunks::<3>().0.iter().flat_map(|&[r, g, b]| [r, g, b, 255]));
+        out.extend(
+            buf.as_chunks::<3>()
+                .0
+                .iter()
+                .flat_map(|&[r, g, b]| [r, g, b, 255]),
+        );
         out
     };
     Some(DecodedImage::new(w, h, rgba))
@@ -813,11 +828,8 @@ mod tests {
             s
         };
         let tree = diting_dom::tree_sink::parse_html(&html);
-        let rules = diting_css::parse_stylesheet_for(
-            "",
-            (1280.0, 900.0),
-            diting_css::CssMediaType::Screen,
-        );
+        let rules =
+            diting_css::parse_stylesheet_for("", (1280.0, 900.0), diting_css::CssMediaType::Screen);
         let t = Instant::now();
         let styles = crate::compute_styles(&tree, &rules, (1280.0, 900.0));
         let t_styles = t.elapsed();
@@ -851,8 +863,7 @@ mod tests {
         assert_eq!(n_img_items, N, "every img must carry decoded pixels");
 
         let t = Instant::now();
-        let mut canvas =
-            crate::paint::Canvas::new_filled(1280, 900, [255, 255, 255, 255]);
+        let mut canvas = crate::paint::Canvas::new_filled(1280, 900, [255, 255, 255, 255]);
         crate::paint::execute(&items, &fonts, &mut canvas);
         let t_paint = t.elapsed();
 

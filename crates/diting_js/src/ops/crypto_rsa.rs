@@ -124,9 +124,8 @@ pub(crate) fn op_subtle_rsa_generate(
     #[buffer] e: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     let exponent = rsa::BoxedUint::from_be_slice_vartime(e);
-    let sk =
-        rsa::RsaPrivateKey::new_with_exp(&mut os_rng(), bits as usize, exponent)
-            .map_err(crypto_err)?;
+    let sk = rsa::RsaPrivateKey::new_with_exp(&mut os_rng(), bits as usize, exponent)
+        .map_err(crypto_err)?;
     rsa_key_flat(&sk)
 }
 

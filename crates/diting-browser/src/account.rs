@@ -134,7 +134,11 @@ pub fn import_cookies(owner: &str, name: &str, cookies: &[String]) -> Result<usi
     validate_name(name)?;
     let total = crate::store::mutate_account(owner, name, |rec| merge_cookies(rec, cookies))?;
     let key = (crate::store::norm_owner(owner), name.to_string());
-    let live = LIVE_JARS.lock().expect("live jar map poisoned").get(&key).cloned();
+    let live = LIVE_JARS
+        .lock()
+        .expect("live jar map poisoned")
+        .get(&key)
+        .cloned();
     if let Some(jar) = live {
         seed_jar(&jar, cookies);
     }
@@ -1148,10 +1152,16 @@ mod tests {
             ]
         );
         assert_eq!(n, 4);
-        assert_eq!(rec["verify"]["url"], "https://www.taobao.com/", "other fields untouched");
+        assert_eq!(
+            rec["verify"]["url"], "https://www.taobao.com/",
+            "other fields untouched"
+        );
         // A fresh record (the store's {"version":1}) just gains the list.
         let mut blank = serde_json::json!({"version": 1});
-        assert_eq!(merge_cookies(&mut blank, &["a=1; Domain=x.test; Path=/".to_string()]), 1);
+        assert_eq!(
+            merge_cookies(&mut blank, &["a=1; Domain=x.test; Path=/".to_string()]),
+            1
+        );
     }
 
     #[test]

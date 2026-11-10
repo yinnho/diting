@@ -582,11 +582,21 @@ fn video_header_meta_mp4_faces() {
     let trak = vbox(b"trak", &vbox(b"tkhd", &tkhd));
     let moov = vbox(b"moov", &[vbox(b"mvhd", &mvhd), trak.clone()].concat());
     // faststart (moov first) and plain (moov after mdat) both parse.
-    let faststart = [vbox(b"ftyp", b"isomiso2avc1mp41"), moov.clone(), vbox(b"mdat", &[0u8; 16].as_ref().as_ref())].concat();
+    let faststart = [
+        vbox(b"ftyp", b"isomiso2avc1mp41"),
+        moov.clone(),
+        vbox(b"mdat", &[0u8; 16].as_ref().as_ref()),
+    ]
+    .concat();
     let m = video_header_meta(&faststart).expect("faststart moov must parse");
     assert_eq!((m.width, m.height), (1280, 720));
     assert_eq!(m.duration_secs, Some(36.0));
-    let plain = [vbox(b"ftyp", b"isom"), vbox(b"mdat", &[0u8; 8].as_ref().as_ref()), moov.clone()].concat();
+    let plain = [
+        vbox(b"ftyp", b"isom"),
+        vbox(b"mdat", &[0u8; 8].as_ref().as_ref()),
+        moov.clone(),
+    ]
+    .concat();
     assert_eq!(video_header_meta(&plain).unwrap().width, 1280);
 
     // v1 headers: 8-byte times and duration push every later field.
@@ -598,7 +608,10 @@ fn video_header_meta_mp4_faces() {
     tkhd1[0] = 1;
     tkhd1[88..92].copy_from_slice(&(62u32 << 16).to_be_bytes());
     tkhd1[92..96].copy_from_slice(&(33u32 << 16).to_be_bytes());
-    let moov1 = vbox(b"moov", &[vbox(b"mvhd", &mvhd1), vbox(b"trak", &vbox(b"tkhd", &tkhd1))].concat());
+    let moov1 = vbox(
+        b"moov",
+        &[vbox(b"mvhd", &mvhd1), vbox(b"trak", &vbox(b"tkhd", &tkhd1))].concat(),
+    );
     let m1 = video_header_meta(&moov1).expect("v1 moov must parse");
     assert_eq!((m1.width, m1.height), (62, 33));
     assert_eq!(m1.duration_secs, Some(1750.0 / 600.0));
@@ -610,13 +623,23 @@ fn video_header_meta_mp4_faces() {
     rot[44..48].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[1]
     rot[52..56].copy_from_slice(&((-0x0001_0000i32) as u32).to_be_bytes()); // matrix[3]
     rot[56..60].copy_from_slice(&0u32.to_be_bytes()); // matrix[4]
-    let moov_rot = vbox(b"moov", &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &rot))].concat());
+    let moov_rot = vbox(
+        b"moov",
+        &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &rot))].concat(),
+    );
     let mr = video_header_meta(&moov_rot).expect("rotated moov must parse");
-    assert_eq!((mr.width, mr.height), (720, 1280), "quarter turn swaps the axes");
+    assert_eq!(
+        (mr.width, mr.height),
+        (720, 1280),
+        "quarter turn swaps the axes"
+    );
 
     // Audio-only: mvhd present, tkhd carries 0×0 → metadata at 0×0 dims.
     let mut sound = vec![0u8; 84];
-    let moov_audio = vbox(b"moov", &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &sound))].concat());
+    let moov_audio = vbox(
+        b"moov",
+        &[vbox(b"mvhd", &mvhd), vbox(b"trak", &vbox(b"tkhd", &sound))].concat(),
+    );
     let ma = video_header_meta(&moov_audio).expect("audio moov must parse");
     assert_eq!((ma.width, ma.height), (0, 0));
     assert_eq!(ma.duration_secs, Some(36.0));

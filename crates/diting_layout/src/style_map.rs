@@ -188,10 +188,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     // Percent sizes pass through as percent in both modes — "percent +
     // padding px" has no taffy Dimension shape, so a % size keeps its padding
     // inside (border-box behavior) even under authored content-box.
-    let border_box = matches!(
-        style.box_sizing,
-        Some(diting_css::BoxSizing::BorderBox)
-    );
+    let border_box = matches!(style.box_sizing, Some(diting_css::BoxSizing::BorderBox));
     s.size = Size {
         width: match style.width {
             Some(diting_css::Length::Px(w)) => Dimension::length(if border_box {
@@ -203,9 +200,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             // Mixed calc rides in as a percent-only placeholder; the px part
             // is resolved against the real containing block in the post-
             // layout calc repair pass (height keeps the placeholder).
-            Some(diting_css::Length::Calc { percent, .. }) => {
-                Dimension::percent(percent / 100.0)
-            }
+            Some(diting_css::Length::Calc { percent, .. }) => Dimension::percent(percent / 100.0),
             // width/min/max: auto is the CSS initial value = unset. Sizing
             // keywords ride in as auto — resolve_sizing_keywords replaces
             // them with the measured intrinsic width right after the node
@@ -224,9 +219,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             } else {
                 h + side_px(style.padding.top) + side_px(style.padding.bottom) + bt + bb
             }),
-            Some(diting_css::Length::Percent(p)) if pct_h_resolves => {
-                Dimension::percent(p / 100.0)
-            }
+            Some(diting_css::Length::Percent(p)) if pct_h_resolves => Dimension::percent(p / 100.0),
             Some(diting_css::Length::Calc { percent, .. }) if pct_h_resolves => {
                 Dimension::percent(percent / 100.0)
             }
@@ -591,9 +584,12 @@ pub(super) fn resolve_sizing_keywords(
                         Some(TextLeaf::Word { .. })
                         | Some(TextLeaf::Replaced { .. })
                         | Some(TextLeaf::Pseudo { .. })
-                        | None => {
-                            diting_taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
-                        }
+                        | None => diting_taffy::compute_leaf_layout(
+                            inputs,
+                            style,
+                            |_, _| 0.0,
+                            |_, _| Size::ZERO,
+                        ),
                     }
                 });
             taffy_tree.layout(node).map(|l| l.size.width).unwrap_or(0.0)
@@ -618,7 +614,9 @@ pub(super) fn resolve_sizing_keywords(
 /// track is fixed, a % track is fixed percent (taffy resolves it against
 /// the grid container's content box), `auto` sizes to content.
 fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent<String> {
-    use diting_taffy::style::{MaxTrackSizingFunction, MinTrackSizingFunction, TrackSizingFunction};
+    use diting_taffy::style::{
+        MaxTrackSizingFunction, MinTrackSizingFunction, TrackSizingFunction,
+    };
     match track {
         GridTrack::Fr(f) => {
             let tsf: TrackSizingFunction = fr(f);

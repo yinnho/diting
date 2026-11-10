@@ -7,9 +7,9 @@ mod style_text_leak_tests {
     // the styles map fell to ComputedStyle::default() — display None ≠
     // Some(None) — and built, laying its raw text as a visible run. The
     // gate now hides uncovered elements outright; these pin both halves.
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     // A <style> under a VISIBLE parent (body) — the coverage-gap hazard
     // shape. A head-hosted style is masked by head's own display:none entry,
@@ -86,9 +86,9 @@ mod hidden_replaced_tests {
     // pin the baidu shape (parse-time inline attribute), the author-rule
     // shape, a second family member (input), and the visible control that
     // must keep painting.
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     // A form control's value is NOT a PaintItem::Text — the replaced paint
     // walk wraps it in PaintItem::Replaced { alt } (with form: Some(_)), so
@@ -233,9 +233,9 @@ mod incremental_match_tests {
     // selector-layer differential test pins the hit sets; this pins the
     // observable cascade — a class flip and a structural insert must both
     // land in the returned ComputedStyles when the key is unchanged.
+    use crate::compute_styles_timed;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::compute_styles_timed;
     use diting_html5ever::ns;
 
     #[test]
@@ -325,9 +325,9 @@ mod grid_percent_track_tests {
     // time, which dropped the whole declaration and collapsed the grid to
     // one auto column. Pin the resolved geometry: a % track sizes against
     // the grid container's content box, and 1fr eats the remainder.
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn layout(sheet: &str, body: &str) -> HashMap<NodeId, Rect> {
         let html = format!("<html><body>{body}</body></html>");
@@ -389,9 +389,9 @@ mod reparent_anchoring_tests {
     // parent's flow position), a collapsed top margin displaces the CB and
     // the abs box follows its final position, and an abs box with no
     // positioned ancestor falls back to the ICB.
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn layout(sheet: &str, body: &str) -> HashMap<NodeId, Rect> {
         let html = format!("<html><body>{body}</body></html>");
@@ -564,9 +564,9 @@ mod reparent_anchoring_tests {
 /// the whole Chrome-parity matrix.
 #[cfg(test)]
 mod abspos_self_align_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn abs_at(sheet: &str) -> (f32, f32) {
         let html = r#"<html><body><div id="c"><div id="abs"></div></div></body></html>"#;
@@ -758,9 +758,9 @@ mod abspos_self_align_tests {
 
 #[cfg(test)]
 mod paint_token_memo_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     /// The collection walk hands each Run leaf's measure-time wrap tokens to
     /// its Text paint item (obscura#983's paint half): identity maps carry
@@ -863,7 +863,8 @@ mod run_token_memo_tests {
         Vec<diting_taffy::tree::NodeId>,
     ) {
         let mut tree = TaffyTree::new();
-        let kids: Vec<diting_taffy::tree::NodeId> = (0..40).map(|s| paragraph(&mut tree, s)).collect();
+        let kids: Vec<diting_taffy::tree::NodeId> =
+            (0..40).map(|s| paragraph(&mut tree, s)).collect();
         let root = tree
             .new_with_children(
                 Style {
@@ -923,7 +924,9 @@ mod run_token_memo_tests {
                     );
                     measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, None)
                 }
-                _ => diting_taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO),
+                _ => {
+                    diting_taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, |_, _| Size::ZERO)
+                }
             }
         })
         .unwrap();
@@ -1013,9 +1016,9 @@ mod box_shadow_paint_tests {
     // UNDER the element's own background, inset layers one per layer
     // ABOVE it (still under the border) — both emit orders reversed
     // (first-declared layer paints on top).
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn items(sheet: &str, body: &str) -> Vec<PaintItem> {
         let html = format!("<html><body>{body}</body></html>");
@@ -1195,9 +1198,9 @@ mod white_space_pre_family_tests {
     // with white-space: normal, blank source lines own a line box, and
     // whitespace-only pre content still keeps its line (the flush_run
     // preserve gate).
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn pre_rect(body: &str) -> Rect {
         let html = format!("<html><body>{body}</body></html>");
@@ -1290,10 +1293,8 @@ def</pre>"#,
 /// live.
 #[cfg(test)]
 mod sticky_tests {
+    use crate::{apply_sticky_to_items, sticky_axis_shift, sticky_inset_px, PaintItem, Rect};
     use diting_css::Length;
-    use crate::{
-        apply_sticky_to_items, sticky_axis_shift, sticky_inset_px, PaintItem, Rect,
-    };
 
     fn bg(x: f32, y: f32) -> PaintItem {
         PaintItem::Bg {
@@ -1487,9 +1488,9 @@ mod sticky_tests {
 /// edge is pinned too: separators BETWEEN inline siblings must survive.
 #[cfg(test)]
 mod batch_124_leading_ws_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn text_x(body: &str, needle: &str) -> f32 {
         let html = format!("<html><body>{body}</body></html>");
@@ -1687,9 +1688,9 @@ mod batch_124_leading_ws_tests {
 /// text bands so glyphs stay uncovered.
 #[cfg(test)]
 mod batch_125_inline_fragment_deco_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn items(sheet: &str, body: &str) -> Vec<PaintItem> {
         let html = format!("<html><body>{body}</body></html>");
@@ -2052,9 +2053,9 @@ mod batch_125_inline_fragment_deco_tests {
 
 #[cfg(test)]
 mod container_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_full, CssMediaType, MediaOverrides};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn by_id(tree: &DomTree, id: &str) -> NodeId {
         tree.query_selector_all(&format!("#{id}")).unwrap()[0]
@@ -2062,10 +2063,7 @@ mod container_tests {
 
     /// Pass 1 styles → solve → container plan, mirroring layout_run_all's
     /// probe stage (no geometry cache here, so the probe always solves).
-    fn plan_for(
-        sheet: &str,
-        body: &str,
-    ) -> (DomTree, Vec<diting_css::ParsedRule>, ContainerPlan) {
+    fn plan_for(sheet: &str, body: &str) -> (DomTree, Vec<diting_css::ParsedRule>, ContainerPlan) {
         let html = format!("<html><head><style>{sheet}</style></head><body>{body}</body></html>");
         let tree = parse_html(&html);
         let (rules, _kf, containers) = parse_stylesheet_full(
@@ -2131,18 +2129,9 @@ mod container_tests {
             &plan.gates,
             (1280.0, 720.0),
         );
-        assert_eq!(
-            styles[&i1].color,
-            Some(diting_css::Color(255, 0, 0, 255))
-        );
-        assert_eq!(
-            styles[&i2].color,
-            Some(diting_css::Color(0, 0, 255, 255))
-        );
-        assert_eq!(
-            styles[&i3].color,
-            Some(diting_css::Color(0, 0, 255, 255))
-        );
+        assert_eq!(styles[&i1].color, Some(diting_css::Color(255, 0, 0, 255)));
+        assert_eq!(styles[&i2].color, Some(diting_css::Color(0, 0, 255, 255)));
+        assert_eq!(styles[&i3].color, Some(diting_css::Color(0, 0, 255, 255)));
     }
 
     #[test]
@@ -2221,9 +2210,9 @@ mod float_continuation_tests {
     // its full width and only its inner line boxes shorten. On the tmall
     // publish form this collapsed the width:auto/margin:auto cards to ~95px
     // because a feedback float's band stuck out of its shrunk parent.
+    use crate::{compute_styles, layout_dom};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom};
 
     const VW: f32 = 1280.0;
 
@@ -2322,9 +2311,9 @@ mod float_continuation_tests {
 /// giant values (height + margin, both 3e38) never overflow to inf.
 #[cfg(test)]
 mod finite_giant_values_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     #[test]
     fn giant_finite_lengths_resolve_to_finite_geometry() {
@@ -2367,10 +2356,10 @@ mod anon_cell_stale_key_tests {
     // freeing it stranded a stale SlotMap key that panicked the reparent
     // pass's parent() on every layout rebuild. The merge must only unwrap
     // kids that are actually registered run wrappers.
-    use diting_css::{parse_stylesheet_for, CssMediaType};
-    use diting_dom::tree_sink::parse_html;
     use crate::compute_styles;
     use crate::layout_dom_with_paint_order_and_images;
+    use diting_css::{parse_stylesheet_for, CssMediaType};
+    use diting_dom::tree_sink::parse_html;
 
     fn layout(
         sheet: &str,
@@ -2444,9 +2433,9 @@ mod inline_block_interior_tests {
     // children stack and width:auto fills the box. The flex-row IFC
     // stand-in used to make them row items: content-sized shrink-to-fit
     // (the tmall cascade columns collapsed to 21px min-content).
+    use crate::{compute_styles, layout_dom};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom};
 
     const VW: f32 = 1280.0;
 
@@ -2566,9 +2555,9 @@ mod block_in_inline_tests {
     // shrink-to-fit row item: shobserver export pages had ARTICLE inside
     // inline A#source self-measure 1092px inside a 740px .container,
     // clipping the article's right edge off-viewport.
+    use crate::{compute_styles, layout_dom};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom};
 
     const VW: f32 = 1280.0;
 
@@ -2658,9 +2647,9 @@ mod text_align_block_children_tests {
     // alignment stand-in used to shrink EVERY item to content width: on the
     // 1688 punish page `body, p { text-align: center }` collapsed the whole
     // nc-slider chain (`#nocaptcha` … `.nc_scale`) to 0-width tracks.
+    use crate::{compute_styles, layout_dom};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom};
 
     const VW: f32 = 1280.0;
 
@@ -2745,9 +2734,9 @@ mod pseudo_inline_style_tests {
     // control). The merge is now conditional on the pseudo's own text style
     // matching the run's; a diverging pseudo becomes its own leaf and keeps
     // its declared style.
+    use crate::{compute_styles, layout_dom_with_paint_order_and_images, PaintItem};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom_with_paint_order_and_images, PaintItem};
 
     const ACCENT: [u8; 4] = [255, 51, 102, 255];
 
@@ -2864,11 +2853,9 @@ mod pseudo_empty_box_tests {
     // TextLeaf::Pseudo (host id + side) and paint claims the pseudo's own
     // decoration layers; abspos/fixed position blockifies the display so
     // the undeclared-display overlay shape survives at all.
+    use crate::{compute_styles, layout_dom_with_paint_order_and_images, paint, PaintItem, Rect};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{
-        compute_styles, layout_dom_with_paint_order_and_images, paint, PaintItem, Rect,
-    };
 
     fn render(sheet: &str, body: &str) -> (Vec<PaintItem>, paint::Canvas) {
         let html = format!(
@@ -2996,9 +2983,9 @@ mod abspos_float_shrink_tests {
     // 188 = float 150 + "hello" 38). The float:left container shape was
     // already correct (it rides the run machinery's own sizing); these
     // tests pin both so the fix can't drift either way.
+    use crate::{compute_styles, layout_dom};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom};
 
     const VW: f32 = 1280.0;
 
@@ -3099,9 +3086,9 @@ mod abspos_float_shrink_tests {
 /// execute inks the right device pixels.
 #[cfg(test)]
 mod dpr_scale_items_tests {
+    use crate::{paint, PaintItem};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{paint, PaintItem};
 
     fn collect(sheet: &str, body: &str) -> Vec<PaintItem> {
         let html = format!(
@@ -3291,19 +3278,16 @@ mod dpr_scale_items_tests {
 /// keep logical order.
 #[cfg(test)]
 mod direction_rtl_tests {
+    use crate::*;
     use diting_css::{parse_stylesheet_for, CssMediaType, TextAlign, TextDirection};
     use diting_dom::tree_sink::parse_html;
-    use crate::*;
 
     fn styles_for(
         sheet: &str,
         body: &str,
     ) -> (
         diting_dom::tree::DomTree,
-        std::collections::HashMap<
-            diting_dom::tree::NodeId,
-            diting_css::ComputedStyle,
-        >,
+        std::collections::HashMap<diting_dom::tree::NodeId, diting_css::ComputedStyle>,
     ) {
         let html = format!("<html><body>{body}</body></html>");
         let tree = parse_html(&html);
@@ -3520,9 +3504,9 @@ mod direction_rtl_tests {
 /// so the surviving runs stay one contiguous line.
 #[cfg(test)]
 mod abspos_inline_root_tests {
+    use crate::{compute_styles, layout_dom_with_paint_order_and_images, PaintItem};
     use diting_css::{parse_stylesheet_for, CssMediaType};
     use diting_dom::tree_sink::parse_html;
-    use crate::{compute_styles, layout_dom_with_paint_order_and_images, PaintItem};
 
     fn render(body: &str) -> Vec<PaintItem> {
         let html = format!("<html><body style=\"margin:0\">{body}</body></html>");
@@ -3661,8 +3645,9 @@ mod css_cascade_via_layout_tests {
 
     #[test]
     fn vw_threads_through_compute_styles_viewport() {
-        let tree =
-            diting_dom::tree_sink::parse_html(r#"<div style="width: 50vw; font-size: 2vh">x</div>"#);
+        let tree = diting_dom::tree_sink::parse_html(
+            r#"<div style="width: 50vw; font-size: 2vh">x</div>"#,
+        );
         let d = tree.query_selector("div").unwrap().unwrap();
         let at_800 = crate::compute_styles(&tree, &[], (800.0, 600.0));
         let at_400 = crate::compute_styles(&tree, &[], (400.0, 600.0));

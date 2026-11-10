@@ -517,8 +517,7 @@ pub(crate) fn parse_layout_facts(v: &serde_json::Value) -> Option<crate::LayoutF
 async fn prefetch_resource_facts(
     // Only the `screenshot` build reads the page; the bare build answers
     // an empty table without touching it.
-    #[cfg_attr(not(feature = "screenshot"), allow(unused_variables))]
-    page: &mut crate::page::Page,
+    #[cfg_attr(not(feature = "screenshot"), allow(unused_variables))] page: &mut crate::page::Page,
 ) -> Vec<crate::ResourceFact> {
     #[cfg(feature = "screenshot")]
     {

@@ -15,7 +15,6 @@ pub(crate) mod font_tables;
 mod import_map;
 mod write_stream;
 
-
 /// The V8 version the kernel actually executes scripts on (#102) — the
 /// engine truth behind the UA string a site sees. Safe to call before any
 /// isolate exists (a static string in the binary).
