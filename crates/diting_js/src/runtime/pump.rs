@@ -102,36 +102,91 @@ impl super::JsRuntime {
     where
         F: FnMut(&mut Self) -> bool,
     {
-        let deadline =
-            tokio::time::Instant::now() + tokio::time::Duration::from_millis(max_total_ms);
+        let start = tokio::time::Instant::now();
+        let deadline = start + tokio::time::Duration::from_millis(max_total_ms);
         let mut tick_ms: u64 = 1;
-        // The tokio timeout below only fires between slices; a promise callback
-        // that spins synchronously (or a microtask storm) pins the thread
-        // INSIDE run_event_loop where the timeout cannot reach. Bound the
-        // whole wait with the V8 watchdog: on fire, exit early (disarm cancels
-        // the termination so the isolate stays usable).
+        // Whole-wait backstop: every tick below is bounded (the patience
+        // watchdog until escalation, 2x tick after), so this only fires when
+        // that containment itself fails — e.g. a wedged disarm (#332 face).
+        // On fire, exit early (disarm cancels the termination so the isolate
+        // stays usable).
         let wd = self.arm_watchdog(std::time::Duration::from_millis(max_total_ms + 500));
+        // #63: with the raw loop, a synchronous page wall inside a tick runs
+        // to COMPLETION — the only bound was the whole-budget watchdog above
+        // — so a 1.2s wall starves both the awaited promise's timer delivery
+        // (its wake needs a microtask checkpoint the wall is sitting on) and
+        // the done_check that would notice the settle (measured on the fetch
+        // + behead-storm repro: a nominal 100ms promise read js+1259ms /
+        // rust+2478ms = one full wall per half; the wheel itself was healthy
+        // throughout — patrols and arms all sane). Containment, in two
+        // phases: while patience remains the ticks stay BYTE-IDENTICAL to
+        // the raw shape below — the only new intervention is this one
+        // patience watchdog, armed at wait start, which beheads the first
+        // wall at EVAL_WALL_PATIENCE_MS (legitimate mid-commit page work
+        // gets the same patience defense as WATCHDOG_HEADROOM_MS;
+        // Rust-side walls are terminate-immune regardless). Do NOT route
+        // these ticks through run_event_loop_bounded_with_headroom: routing
+        // them measurably disturbed a legitimate engine-side batch even
+        // with no watchdog able to fire (the #224 animation-sweep test
+        // lost 130 of 600 starts to a 10ms tick floor + per-tick arm
+        // ceremony). Once the patience watchdog fires — or patience simply
+        // elapses — every remaining tick escalates to the #66 throttled
+        // pump, capping each wall at 2x the tick, the same containment the
+        // driver's outer slices already apply everywhere else.
+        // Patience never outlives the wait itself (a short-budget eval
+        // breaks on its deadline and disarms this below).
+        let mut patience_wd = Some(self.arm_watchdog(std::time::Duration::from_millis(
+            Self::EVAL_WALL_PATIENCE_MS.min(max_total_ms),
+        )));
+        let mut escalated = false;
         // False on deadline/watchdog: the caller must not read a result slot
         // the script never assigned (that's how a timeout used to become a
         // silent `null`).
         let mut settled = false;
         loop {
+            // The patience watchdog beheaded a wall mid-tick (the tick above
+            // just returned from its terminate). Disarm FIRST — the fired
+            // disarm clears the stale termination flag and revives the
+            // isolate — so done_check's probe runs clean, and fall through
+            // to containment for the rest of this wait.
+            if patience_wd.as_ref().is_some_and(|w| w.fired()) {
+                escalated = true;
+                if let Some(w) = patience_wd.take() {
+                    self.disarm_watchdog(w);
+                }
+            }
             if done_check(self) {
                 settled = true;
                 break;
             }
-            if tokio::time::Instant::now() >= deadline {
+            let now = tokio::time::Instant::now();
+            if now >= deadline {
                 break;
             }
             // Pump for a short slice. If the loop returns idle in <tick_ms,
             // run_event_loop returns Ok and we check the predicate again.
             // #50: routed through Self::run_event_loop so each poll first
             // clears a terminate flag the watchdog left on a parked isolate.
-            let _ = tokio::time::timeout(
-                tokio::time::Duration::from_millis(tick_ms),
-                self.run_event_loop(),
-            )
-            .await;
+            if escalated {
+                let _ = self.run_event_loop_bounded_throttled(50).await;
+            } else {
+                let patience_left = (start
+                    + tokio::time::Duration::from_millis(Self::EVAL_WALL_PATIENCE_MS))
+                .saturating_duration_since(now);
+                if patience_left.is_zero() {
+                    escalated = true;
+                    if let Some(w) = patience_wd.take() {
+                        let _ = self.disarm_watchdog(w);
+                    }
+                    let _ = self.run_event_loop_bounded_throttled(50).await;
+                } else {
+                    let _ = tokio::time::timeout(
+                        tokio::time::Duration::from_millis(tick_ms),
+                        self.run_event_loop(),
+                    )
+                    .await;
+                }
+            }
             if wd.fired() {
                 break;
             }
@@ -140,6 +195,9 @@ impl super::JsRuntime {
             if tick_ms < 50 {
                 tick_ms = (tick_ms * 2).min(50);
             }
+        }
+        if let Some(w) = patience_wd.take() {
+            let _ = self.disarm_watchdog(w);
         }
         if self.disarm_watchdog(wd) {
             tracing::warn!("promise wait terminated by watchdog (sync spin in event loop)");

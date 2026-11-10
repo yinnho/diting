@@ -5077,9 +5077,21 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
 
     let mut rt = setup_runtime("<html><body></body></html>");
     rt.set_url(&format!("http://127.0.0.1:{}/page", port));
+    // A/B knobs: DITING_REPRO_NO_SPIN=1 drops the beheading bait,
+    // DITING_REPRO_NO_CHURN=1 drops the sustained page pressure — the 2x2
+    // matrix attributes the eval-latency reading (quiet-realm heal path vs
+    // ceremony wall vs queue pressure).
+    let spins_on = std::env::var("DITING_REPRO_NO_SPIN").ok().as_deref() != Some("1");
+    let churn_on = std::env::var("DITING_REPRO_NO_CHURN").ok().as_deref() != Some("1");
+    let churn_target = if churn_on { 600.0 } else { 0.0 };
+    rt.evaluate(&format!(
+        "globalThis.__SPIN = {spins_on}; globalThis.__CHURN = {churn_on};"
+    ))
+    .unwrap();
     rt.evaluate(
         r#"
         globalThis.__ok = 0; globalThis.__legs = 0; globalThis.__spins = 0;
+        globalThis.__churnTicks = 0;
         const burst = (n) => { for (let i = 0; i < n; i++)
             setTimeout(() => {
                 const d = document.createElement('div');
@@ -5092,13 +5104,26 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
                 if (k < 4) { burst(40); leg(k + 16); }
             }, () => { globalThis.__ok++; }); };
         for (let k = 0; k < 16; k++) leg(k);
+        // Sustained page-scheduler pressure (the x.com furnace's missing
+        // ingredient): 14 items per 20ms tick = ~700 macrotasks/s, running
+        // the whole storm window instead of one-shot bursts. Re-arm first —
+        // a beheaded self-chain never reschedules itself (learned above).
+        (function churn() {
+            if (!globalThis.__CHURN || globalThis.__churnTicks++ >= 600) return;
+            setTimeout(churn, 20);
+            for (let i = 0; i < 14; i++)
+                setTimeout(() => {
+                    const s = document.createElement('span');
+                    document.body.appendChild(s); document.body.removeChild(s);
+                }, 0);
+        })();
         (function spin() {
             // Re-arm BEFORE the payload spins: a beheaded payload unwinds
             // without running anything after its spin loop, so a reschedule
             // placed there dies with the first fire (observed: two runs,
             // spins frozen at 2, fires=2). Pre-arming keeps the bait alive
             // for all twenty rounds.
-            if (globalThis.__spins++ >= 20) return;
+            if (!globalThis.__SPIN || globalThis.__spins++ >= 20) return;
             setTimeout(spin, 50);
             setTimeout(() => { const t = Date.now();
                 while (Date.now() - t < 1200) {}
@@ -5121,6 +5146,7 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
     let mut furnace_slices = 0usize;
     let mut beats_prev = 0f64;
     let mut eval_worst_ms: u128 = 0;
+    let mut eval_samples: Vec<String> = Vec::new();
     let mut samples: Vec<String> = Vec::new();
     for slice in 0..150 {
         let _ = rt.run_event_loop_bounded_throttled(100).await;
@@ -5128,9 +5154,37 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
             let t0 = std::time::Instant::now();
             let victim = rt
                 .call_function_on_remote(
+                    // The victim reports its OWN latency plus wheel/queue
+                    // snapshots from both ends of the wait. q0/q1 = macrotask
+                    // queue length: a big q1 at resolve means the due timer
+                    // starved behind ready items (drain fairness). a0/a1 =
+                    // wheel armedIn (ms to the armed sleep's deadline;
+                    // negative = the armed deadline is already past = #240
+                    // corpse face); sw/pat/wk = stale wakes / patrol passes /
+                    // wakes DURING the victim's wait. Careful reading patrols:
+                    // a healthy wheel still runs patrols for far-future arms
+                    // (the fetch heartbeat), so pat>0 alone is NOT the corpse
+                    // face — that is an overdue top with a stale/past a0 plus
+                    // stale wakes. Drain starvation shows as q1>>0. The face
+                    // this test actually caught: every counter healthy, victim
+                    // still ~1.2s late = a synchronous page wall sitting on
+                    // the microtask checkpoint the wake needed (the #63
+                    // eval-pump fix; js latency ≈ one wall per half).
+                    // rd = entries the #63 recover hook delivered
+                    // synchronously — the guaranteed-progress channel when
+                    // the severable wakes (wk) die with each behead.
                     r#"async () => {
+                            const t0 = Date.now();
+                            const s0 = __MT_STATE();
                             await new Promise((r) => setTimeout(r, 100));
-                            return 'ok';
+                            const s1 = __MT_STATE();
+                            return 'ok+' + (Date.now() - t0)
+                                + ' q0=' + s0.qlen + ' q1=' + s1.qlen
+                                + ' a0=' + s0.wheel.armedIn + ' a1=' + s1.wheel.armedIn
+                                + ' sw=' + (s1.wheel.staleWakes - s0.wheel.staleWakes)
+                                + ' pat=' + (s1.wheel.patrols - s0.wheel.patrols)
+                                + ' wk=' + (s1.wheel.wakes - s0.wheel.wakes)
+                                + ' rd=' + (s1.wheel.recovers - s0.wheel.recovers);
                         }"#,
                     None,
                     &[],
@@ -5139,8 +5193,8 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
                 )
                 .await;
             eval_worst_ms = eval_worst_ms.max(t0.elapsed().as_millis());
-            samples.push(format!(
-                "eval-await {:?} in {}ms",
+            eval_samples.push(format!(
+                "{:?} rust={}ms",
                 victim.map(|v| v.value),
                 t0.elapsed().as_millis()
             ));
@@ -5180,7 +5234,12 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
             .unwrap()
             .as_f64()
             .unwrap_or(99.0);
-        if ok >= legs && spins > 20.0 {
+        let churn = rt
+            .evaluate("globalThis.__churnTicks")
+            .unwrap()
+            .as_f64()
+            .unwrap_or(0.0);
+        if ok >= legs && (!spins_on || spins > 20.0) && churn > churn_target {
             break;
         }
     }
@@ -5207,6 +5266,9 @@ async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
     }
     let tail = &samples[samples.len().saturating_sub(12)..];
     println!("#63 repro sample tail: {tail:?}");
+    let head = &samples[..samples.len().min(18)];
+    println!("#63 repro sample head: {head:?}");
+    println!("#63 repro eval samples: {eval_samples:?}");
     println!(
         "#63 repro: worst_qlen={worst_qlen} furnace_slices={furnace_slices} eval_worst_ms={eval_worst_ms} fires={}",
         rt.watchdog_fired_total()
@@ -5522,6 +5584,7 @@ async fn timer_wheel_state_counters_surface_in_mt_state() {
         "\"staleWakes\":",
         "\"throws\":",
         "\"patrols\":",
+        "\"recovers\":",
     ] {
         assert!(v.contains(key), "wheel state must expose {key}: {v}");
     }
