@@ -97,7 +97,11 @@ pub struct Imported {
 /// data root, or a path to the profile directory / cookie db; None = the
 /// default profile), keeping cookies whose host matches one of `domains`
 /// (exact or subdomain; empty = all).
-pub fn import(browser: Browser, profile: Option<&str>, domains: &[String]) -> Result<Imported, String> {
+pub fn import(
+    browser: Browser,
+    profile: Option<&str>,
+    domains: &[String],
+) -> Result<Imported, String> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64);
@@ -109,7 +113,10 @@ pub fn import(browser: Browser, profile: Option<&str>, domains: &[String]) -> Re
             read_chrome(&db, &key)?
         }
     };
-    let mut out = Imported { undecryptable, ..Default::default() };
+    let mut out = Imported {
+        undecryptable,
+        ..Default::default()
+    };
     for r in rows {
         let host = r.host.trim_start_matches('.');
         if !domains.is_empty()
@@ -189,10 +196,18 @@ fn firefox_default(root: &Path, file: &str) -> Result<PathBuf, String> {
     let mut best: Option<(bool, std::time::SystemTime, PathBuf)> = None;
     for e in entries.flatten() {
         let db = e.path().join(file);
-        let Ok(meta) = std::fs::metadata(&db) else { continue };
-        let release = e.file_name().to_string_lossy().ends_with(".default-release");
+        let Ok(meta) = std::fs::metadata(&db) else {
+            continue;
+        };
+        let release = e
+            .file_name()
+            .to_string_lossy()
+            .ends_with(".default-release");
         let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
-        if best.as_ref().is_none_or(|(r, t, _)| (release, mtime) > (*r, *t)) {
+        if best
+            .as_ref()
+            .is_none_or(|(r, t, _)| (release, mtime) > (*r, *t))
+        {
             best = Some((release, mtime, db));
         }
     }
@@ -267,7 +282,11 @@ fn read_firefox(db: &Path) -> Result<Vec<Row>, String> {
                 value: r.get(2)?,
                 path: r.get(3)?,
                 // Newer Firefox stores expiry in ms; seconds never reach 1e11.
-                expires: Some(if expiry > 100_000_000_000 { expiry / 1000 } else { expiry }),
+                expires: Some(if expiry > 100_000_000_000 {
+                    expiry / 1000
+                } else {
+                    expiry
+                }),
                 secure: r.get::<_, i64>(5)? != 0,
                 http_only: r.get::<_, i64>(6)? != 0,
                 same_site: match r.get::<_, i64>(7)? {
@@ -278,7 +297,8 @@ fn read_firefox(db: &Path) -> Result<Vec<Row>, String> {
             })
         })
         .map_err(|e| format!("read moz_cookies: {e}"))?;
-    rows.collect::<Result<_, _>>().map_err(|e| format!("read moz_cookies: {e}"))
+    rows.collect::<Result<_, _>>()
+        .map_err(|e| format!("read moz_cookies: {e}"))
 }
 
 // ---------------------------------------------------------------- Chrome
@@ -291,7 +311,10 @@ fn keychain_password() -> Result<Vec<u8>, String> {
         .output()
         .map_err(|e| format!("cannot run `security`: {e}"))?;
     if !out.status.success() {
-        return Err("Keychain refused \"Chrome Safe Storage\" (denied, or Chrome never ran as this user)".into());
+        return Err(
+            "Keychain refused \"Chrome Safe Storage\" (denied, or Chrome never ran as this user)"
+                .into(),
+        );
     }
     let mut pw = out.stdout;
     while pw.last().is_some_and(|b| *b == b'\n' || *b == b'\r') {
@@ -426,7 +449,10 @@ mod tests {
     fn chrome_key_is_pbkdf2_sha1_saltysalt_1003() {
         // Independent oracle: python3 -c "import hashlib; print(hashlib.pbkdf2_hmac(
         //   'sha1', b'fixture-safe-storage', b'saltysalt', 1003, 16).hex())"
-        let hex: String = chrome_key(KEY_PW).iter().map(|b| format!("{b:02x}")).collect();
+        let hex: String = chrome_key(KEY_PW)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         assert_eq!(hex, "db16859dab5511521615299fa064b832");
     }
 
@@ -439,13 +465,37 @@ mod tests {
             dir.path(),
             &[
                 // schema >= 24: SHA-256(host_key) leads the plaintext
-                (".taobao.com", "cookie2", "", enc(&key, ".taobao.com", "c2-value", true), ff, 1, 0),
+                (
+                    ".taobao.com",
+                    "cookie2",
+                    "",
+                    enc(&key, ".taobao.com", "c2-value", true),
+                    ff,
+                    1,
+                    0,
+                ),
                 // pre-24: bare plaintext
-                ("www.example.com", "sid", "", enc(&key, "www.example.com", "s-value", false), 0, 0, 1),
+                (
+                    "www.example.com",
+                    "sid",
+                    "",
+                    enc(&key, "www.example.com", "s-value", false),
+                    0,
+                    0,
+                    1,
+                ),
                 // plaintext column (very old rows / unencrypted builds)
                 ("plain.test", "p", "pv", Vec::new(), ff, 0, -1),
                 // wrong key and a non-v10 tag: counted, never guessed
-                ("x.test", "bad", "", enc(&chrome_key(b"other"), "x.test", "zz", true), ff, 0, 2),
+                (
+                    "x.test",
+                    "bad",
+                    "",
+                    enc(&chrome_key(b"other"), "x.test", "zz", true),
+                    ff,
+                    0,
+                    2,
+                ),
                 ("y.test", "v11", "", b"v11garbage-bytes".to_vec(), ff, 0, 2),
             ],
         );
@@ -467,7 +517,10 @@ mod tests {
             rows[0].to_set_cookie(),
             "cookie2=c2-value; Domain=taobao.com; Path=/; Expires=Fri, 01 Jan 2100 00:00:00 GMT; Secure; HttpOnly; SameSite=None"
         );
-        assert_eq!(rows[1].to_set_cookie(), "sid=s-value; Domain=www.example.com; Path=/; HttpOnly; SameSite=Lax");
+        assert_eq!(
+            rows[1].to_set_cookie(),
+            "sid=s-value; Domain=www.example.com; Path=/; HttpOnly; SameSite=Lax"
+        );
     }
 
     #[test]
@@ -486,9 +539,17 @@ mod tests {
         .unwrap();
         drop(c);
         let rows = read_firefox(&p).unwrap();
-        assert_eq!(rows.len(), 2, "container cookies stay out of the default jar");
+        assert_eq!(
+            rows.len(),
+            2,
+            "container cookies stay out of the default jar"
+        );
         assert_eq!(rows[0].to_set_cookie(), "a=1; Domain=example.com; Path=/; Expires=Fri, 01 Jan 2100 00:00:00 GMT; Secure; SameSite=Lax");
-        assert_eq!(rows[1].expires, Some(4_102_444_800), "ms expiry folds to seconds");
+        assert_eq!(
+            rows[1].expires,
+            Some(4_102_444_800),
+            "ms expiry folds to seconds"
+        );
         assert_eq!(rows[1].same_site, "Strict");
     }
 
@@ -508,9 +569,15 @@ mod tests {
         .unwrap();
         let mut wal = p.as_os_str().to_owned();
         wal.push("-wal");
-        assert!(PathBuf::from(wal).exists(), "fixture keeps the row in the WAL");
+        assert!(
+            PathBuf::from(wal).exists(),
+            "fixture keeps the row in the WAL"
+        );
         let rows = read_firefox(&p).unwrap();
-        assert_eq!(rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["fresh"]);
+        assert_eq!(
+            rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(),
+            ["fresh"]
+        );
         drop(live);
     }
 
@@ -532,9 +599,22 @@ mod tests {
         )
         .unwrap();
         drop(c);
-        let out = import(Browser::Firefox, Some(p.to_str().unwrap()), &["taobao.com".to_string()]).unwrap();
-        let names: Vec<&str> = out.cookies.iter().map(|s| s.split('=').next().unwrap()).collect();
-        assert_eq!(names, ["keep", "sub"], "suffix match is label-bounded: nottaobao.com stays out");
+        let out = import(
+            Browser::Firefox,
+            Some(p.to_str().unwrap()),
+            &["taobao.com".to_string()],
+        )
+        .unwrap();
+        let names: Vec<&str> = out
+            .cookies
+            .iter()
+            .map(|s| s.split('=').next().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            ["keep", "sub"],
+            "suffix match is label-bounded: nottaobao.com stays out"
+        );
         assert_eq!((out.skipped_expired, out.skipped_invalid), (1, 1));
         assert_eq!(out.domains.get("taobao.com"), Some(&1));
         assert_eq!(out.domains.get("login.taobao.com"), Some(&1));

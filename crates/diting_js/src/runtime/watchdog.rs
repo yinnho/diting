@@ -781,14 +781,9 @@ mod cancel_grace_tests {
         // Wedge: a thread that takes the pair mutex and stays parked on a
         // foreign condvar with the guard in hand — it never checks the
         // cancel flag and never exits.
-        let pair = std::sync::Arc::new((
-            std::sync::Mutex::new(false),
-            std::sync::Condvar::new(),
-        ));
-        let release = std::sync::Arc::new((
-            std::sync::Mutex::new(false),
-            std::sync::Condvar::new(),
-        ));
+        let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let release =
+            std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
         let pair_c = pair.clone();
         let release_c = release.clone();
         let stuck = std::thread::spawn(move || {
@@ -806,11 +801,9 @@ mod cancel_grace_tests {
         // Let the wedge take effect before the ceremony starts.
         std::thread::sleep(std::time::Duration::from_millis(100));
 
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_millis(300);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(300);
         let t0 = std::time::Instant::now();
-        let (signalled, joined) =
-            bounded_cancel_and_join(&pair, Some(stuck), deadline);
+        let (signalled, joined) = bounded_cancel_and_join(&pair, Some(stuck), deadline);
         let took = t0.elapsed();
         assert!(
             !signalled && !joined,
@@ -824,10 +817,8 @@ mod cancel_grace_tests {
         // Healthy shape: a thread that parks in its OWN pair's cvar (the
         // normal watchdog posture) wakes on the notify and exits; both
         // slots true and fast. Fresh pair — the wedged one is still held.
-        let healthy_pair = std::sync::Arc::new((
-            std::sync::Mutex::new(false),
-            std::sync::Condvar::new(),
-        ));
+        let healthy_pair =
+            std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
         let healthy = std::thread::spawn({
             let pair = healthy_pair.clone();
             move || {

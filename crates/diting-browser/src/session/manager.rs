@@ -660,7 +660,9 @@ impl SessionManager {
         let session = self.sessions.get(session_id)?;
         let (reply_tx, mut reply_rx) = oneshot::channel();
         session.cmd_tx.send(make_cmd(reply_tx)).ok()?;
-        await_reply(session_id, session.thread, &mut reply_rx).await.ok()
+        await_reply(session_id, session.thread, &mut reply_rx)
+            .await
+            .ok()
     }
 
     /// Dispatch one command to a live session and refresh the persisted

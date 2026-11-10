@@ -83,11 +83,10 @@ pub(crate) fn transcript_env_guard() -> TranscriptEnvGuard {
     let guard = TRANSCRIPT_ENV_LOCK
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    let saved: Vec<(&'static str, Option<String>)> =
-        ["DITING_OCR_BIN", "DITING_ASR_MODEL"]
-            .into_iter()
-            .map(|k| (k, std::env::var(k).ok()))
-            .collect();
+    let saved: Vec<(&'static str, Option<String>)> = ["DITING_OCR_BIN", "DITING_ASR_MODEL"]
+        .into_iter()
+        .map(|k| (k, std::env::var(k).ok()))
+        .collect();
     for (k, _) in &saved {
         std::env::remove_var(k);
     }

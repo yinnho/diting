@@ -2179,9 +2179,19 @@ fn conn_uad_face_p6() {
     // Chrome] placed by ORD3[m%6] (shuffled[order[i]] = list[i]).
     let m = diting_env::chrome_target::CHROME_MAJOR as usize;
     const C: [&str; 11] = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
-    const ORD3: [[usize; 3]; 6] = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+    const ORD3: [[usize; 3]; 6] = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
     let list = [
-        (format!("Not{}A{}Brand", C[m % 11], C[(m + 1) % 11]), ["8", "99", "24"][m % 3].to_string()),
+        (
+            format!("Not{}A{}Brand", C[m % 11], C[(m + 1) % 11]),
+            ["8", "99", "24"][m % 3].to_string(),
+        ),
         ("Chromium".to_string(), m.to_string()),
         ("Google Chrome".to_string(), m.to_string()),
     ];
@@ -2191,7 +2201,11 @@ fn conn_uad_face_p6() {
     }
     let brands: serde_json::Value =
         serde_json::from_str(obj["u_json_brands"].as_str().unwrap()).unwrap();
-    assert_eq!(brands, serde_json::Value::Array(want), "UA-CH brands for Chrome {m}");
+    assert_eq!(
+        brands,
+        serde_json::Value::Array(want),
+        "UA-CH brands for Chrome {m}"
+    );
     assert_eq!(obj["ni_type"], "function");
     assert_eq!(obj["nuad_type"], "function");
     assert_eq!(
@@ -2381,12 +2395,25 @@ async fn window_event_during_dispatch() {
         JSON.stringify(r);
     "#).unwrap();
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
-    assert_eq!(v["in_handler"], serde_json::json!("click"), "target handler");
-    assert_eq!(v["on_bubble_path"], serde_json::json!("click"), "bubble path");
-    assert_eq!(v["after_return"], serde_json::json!("undefined"), "cleared after");
+    assert_eq!(
+        v["in_handler"],
+        serde_json::json!("click"),
+        "target handler"
+    );
+    assert_eq!(
+        v["on_bubble_path"],
+        serde_json::json!("click"),
+        "bubble path"
+    );
+    assert_eq!(
+        v["after_return"],
+        serde_json::json!("undefined"),
+        "cleared after"
+    );
     assert_eq!(v["nested_outer"], serde_json::json!("outer"));
     assert_eq!(
-        v["nested_inner_back"], serde_json::json!("outer"),
+        v["nested_inner_back"],
+        serde_json::json!("outer"),
         "inner dispatch return restores the outer event, not undefined"
     );
     let _ = rt.run_event_loop_bounded(100).await;
@@ -7265,7 +7292,14 @@ async fn video_blob_source_reaches_chrome_metadata_face() {
     tkhd[56..60].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // matrix[4]
     tkhd[76..80].copy_from_slice(&(1280u32 << 16).to_be_bytes());
     tkhd[80..84].copy_from_slice(&(720u32 << 16).to_be_bytes());
-    let moov = box_of(b"moov", &[box_of(b"mvhd", &mvhd), box_of(b"trak", &box_of(b"tkhd", &tkhd))].concat());
+    let moov = box_of(
+        b"moov",
+        &[
+            box_of(b"mvhd", &mvhd),
+            box_of(b"trak", &box_of(b"tkhd", &tkhd)),
+        ]
+        .concat(),
+    );
     let mp4 = [box_of(b"ftyp", b"isom"), moov].concat();
     let b64 = {
         use base64::Engine;
@@ -11324,9 +11358,15 @@ async fn resource_timing_buffer_full_event_refills_after_clear() {
         .unwrap();
     let v =
         serde_json::from_str::<serde_json::Value>(res.value.unwrap().as_str().unwrap()).unwrap();
-    assert_eq!(v["noHandler"], "a,b", "no handler: the parked entry is dropped");
+    assert_eq!(
+        v["noHandler"], "a,b",
+        "no handler: the parked entry is dropped"
+    );
     assert_eq!(v["fired"], 1, "one event per full episode");
-    assert_eq!(v["afterClear"], "d,e", "the handler's clear lets the parked entries in");
+    assert_eq!(
+        v["afterClear"], "d,e",
+        "the handler's clear lets the parked entries in"
+    );
 }
 
 /// #126: the resource-timing buffer carries REAL entries from both
@@ -12631,9 +12671,7 @@ async fn release_object_with_adversarial_id_is_inert() {
     assert_eq!(probe.value.unwrap(), serde_json::json!(true));
 }
 
-fn setup_runtime_with_cookies(
-    html: &str,
-) -> (JsRuntime, std::sync::Arc<diting_net::CookieJar>) {
+fn setup_runtime_with_cookies(html: &str) -> (JsRuntime, std::sync::Arc<diting_net::CookieJar>) {
     let dom = diting_dom::parse_html(html);
     let jar = std::sync::Arc::new(diting_net::CookieJar::new());
     let rt = JsRuntime::new();
@@ -13207,8 +13245,8 @@ fn blob_slice_survives_strict_realms_and_sizes_chunks() {
 async fn engine_input_events_are_trusted_and_page_events_stay_false() {
     let mut rt = setup_runtime("<html><body><input id=i></body></html>");
     let result = rt
-            .evaluate(
-                r#"return (() => {
+        .evaluate(
+            r#"return (() => {
                     const out = {};
                     const i = document.getElementById('i');
                     const e = new Event('x');
@@ -13222,10 +13260,14 @@ async fn engine_input_events_are_trusted_and_page_events_stay_false() {
                     out.execCmd = [seen.bi, seen.in, i.value];
                     return out;
                 })()"#,
-            )
-            .unwrap();
+        )
+        .unwrap();
     let out = result.as_object().expect("object result");
-    assert_eq!(out["pageEvent"], serde_json::json!(false), "page-JS events stay untrusted");
+    assert_eq!(
+        out["pageEvent"],
+        serde_json::json!(false),
+        "page-JS events stay untrusted"
+    );
     assert_eq!(out["ownKeys"], serde_json::json!(["isTrusted"]));
     assert_eq!(
         out["execCmd"],
@@ -33193,12 +33235,18 @@ async fn window_own_property_face_matches_chrome_truth() {
     );
     for k in ["nonConfigurable", "replace"] {
         if engine[k] != truth[k] {
-            bad.push(format!("{k}:\n   engine {}\n   chrome {}", engine[k], truth[k]));
+            bad.push(format!(
+                "{k}:\n   engine {}\n   chrome {}",
+                engine[k], truth[k]
+            ));
         }
     }
     for (n, want) in truth["accessors"].as_object().unwrap() {
         if &engine["accessors"][n] != want {
-            bad.push(format!("accessor {n}:\n   engine {}\n   chrome {want}", engine["accessors"][n]));
+            bad.push(format!(
+                "accessor {n}:\n   engine {}\n   chrome {want}",
+                engine["accessors"][n]
+            ));
         }
     }
     assert!(bad.is_empty(), "{} off:\n{}", bad.len(), bad.join("\n"));
@@ -40220,7 +40268,6 @@ class Z extends HTMLElement{static get observedAttributes(){return ["p"]}}custom
     assert_eq!(got, want);
 }
 
-
 #[test]
 fn test_watchdog_zombie_verdict_marks_and_lifts_owner_thread() {
     // rusty_v8 #2088 (reproduced on 150.4.0 and 152.2.0): terminate_execution never lands
@@ -40262,7 +40309,10 @@ fn test_watchdog_zombie_verdict_marks_and_lifts_owner_thread() {
         ran > std::time::Duration::from_secs(4),
         "precondition: the terminate must NOT have landed (#2088 hole) — the loop ran {ran:?}"
     );
-    assert!(marked, "the post-fire grace must declare the owner thread a zombie");
+    assert!(
+        marked,
+        "the post-fire grace must declare the owner thread a zombie"
+    );
     assert!(
         !crate::runtime::is_zombie_thread(tid),
         "the late resurface must lift the verdict"
@@ -40300,9 +40350,15 @@ fn test_load_event_path_stops_at_document() {
         )
         .unwrap();
     let v: serde_json::Value = serde_json::from_str(v.as_str().unwrap()).unwrap();
-    assert_eq!(v["calls"], 0, "element/document load must not reach window capture listeners");
+    assert_eq!(
+        v["calls"], 0,
+        "element/document load must not reach window capture listeners"
+    );
     assert_eq!(v["winHandler"], 0, "nor window.onload");
-    assert_eq!(v["path"], 4, "composedPath = [link, head, html, document], no window");
+    assert_eq!(
+        v["path"], 4,
+        "composedPath = [link, head, html, document], no window"
+    );
     assert_eq!(v["ping"], 1, "non-load events still propagate to window");
 }
 

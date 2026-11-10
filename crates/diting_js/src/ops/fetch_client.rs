@@ -53,7 +53,9 @@ pub(crate) async fn select_request_client(
     cached_request_client(proxy_url)
 }
 
-pub(super) fn build_request_client(proxy_url: Option<&str>) -> Result<diting_net::wire::Client, String> {
+pub(super) fn build_request_client(
+    proxy_url: Option<&str>,
+) -> Result<diting_net::wire::Client, String> {
     // Redirects are followed manually below so each hop can be re-validated
     // against the same SSRF policy as the initial URL (GHSA-8v6v-g4rh-jmcm).
     // With the client's default auto-follow, an attacker-controlled origin can

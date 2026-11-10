@@ -88,17 +88,16 @@ use routers::outputs::screenshot_handler;
 use routers::outputs::{pdf_handler, video_handler};
 use routers::sessions::{
     account_delete_handler, account_import_browser_handler, account_login_handler,
-    account_verify_handler, accounts_handler,
-    flow_run_handler, import_curl_handler, max_body_bytes, session_challenges_handler,
-    session_click_handler, session_click_xy_handler, session_clone_handler, session_close_handler,
-    session_console_handler, session_cookie_trace_handler, session_cookies_handler,
-    session_create_handler, session_dialog_handler, session_drag_handler, session_eval_handler,
-    session_export_handler, session_har_handler, session_input_handler, session_list_handler,
-    session_navigate_handler, session_network_handler, session_preload_handler, session_qr_handler,
-    session_qr_live_handler, session_screenshot_handler, session_scroll_handler,
-    session_set_files_handler, session_snapshot_handler, session_state_handler,
-    session_storage_handler, session_verdict_handler, session_viewport_handler,
-    session_wait_handler, sessions_handler,
+    account_verify_handler, accounts_handler, flow_run_handler, import_curl_handler,
+    max_body_bytes, session_challenges_handler, session_click_handler, session_click_xy_handler,
+    session_clone_handler, session_close_handler, session_console_handler,
+    session_cookie_trace_handler, session_cookies_handler, session_create_handler,
+    session_dialog_handler, session_drag_handler, session_eval_handler, session_export_handler,
+    session_har_handler, session_input_handler, session_list_handler, session_navigate_handler,
+    session_network_handler, session_preload_handler, session_qr_handler, session_qr_live_handler,
+    session_screenshot_handler, session_scroll_handler, session_set_files_handler,
+    session_snapshot_handler, session_state_handler, session_storage_handler,
+    session_verdict_handler, session_viewport_handler, session_wait_handler, sessions_handler,
 };
 
 use server::do_fetch;
@@ -280,14 +279,20 @@ async fn main() -> anyhow::Result<()> {
 
     // CLI face: doctor's contract is "exit code = diagnosis outcome", the one
     // place the process exit ban doesn't apply (see clippy.toml).
-    #[expect(clippy::disallowed_methods, reason = "doctor subcommand exits with its diagnosis code")]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "doctor subcommand exits with its diagnosis code"
+    )]
     if args.get(1).map(String::as_str) == Some("doctor") {
         std::process::exit(doctor_cli::run().await);
     }
 
     // A typo'd or stale recipe (the historical `--port` never bound anything)
     // must not start a silently-misconfigured server.
-    #[expect(clippy::disallowed_methods, reason = "usage error exits 2 by CLI convention")]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "usage error exits 2 by CLI convention"
+    )]
     if let Some(bad) = first_unknown_flag(&args) {
         eprintln!("diting: unrecognized argument {bad:?} (see --help)");
         std::process::exit(2);

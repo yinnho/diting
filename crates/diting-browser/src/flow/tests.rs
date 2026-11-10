@@ -1161,8 +1161,7 @@ async fn run_flow_set_files_derives_mime_from_extension() {
 async fn transcript_ops_refuse_without_tool_env() {
     let _guard = crate::test_support::transcript_env_guard();
     let vars = Map::new();
-    let frames =
-        exec_transcript_frames_step(&json!({ "input": "/nonexistent.mp4" }), &vars).await;
+    let frames = exec_transcript_frames_step(&json!({ "input": "/nonexistent.mp4" }), &vars).await;
     assert_eq!(
         frames.unwrap_err(),
         "transcript_frames: DITING_OCR_BIN not set — point it at the OCR helper (see the drama-transcript flow's docs)"

@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 
-use super::{get_direct_first, RawSearchResult, SearchEngine, SearchEngineError, SearchParams,
-           proxied_plain_client};
+use super::{
+    get_direct_first, proxied_plain_client, RawSearchResult, SearchEngine, SearchEngineError,
+    SearchParams,
+};
 
 // ---------------------------------------------------------------------------
 // 红果短剧 (com.phoenix.read, aid=8662) — 漫剧三榜免签引擎.
@@ -47,9 +49,21 @@ struct RankBoard {
 }
 
 const BOARDS: [RankBoard; 3] = [
-    RankBoard { key: "recommend", sub: "comic_series_hot_rank", label: "推荐" },
-    RankBoard { key: "hot", sub: "comic_series_hot_play", label: "热播" },
-    RankBoard { key: "new", sub: "comic_series_new_rank", label: "新剧" },
+    RankBoard {
+        key: "recommend",
+        sub: "comic_series_hot_rank",
+        label: "推荐",
+    },
+    RankBoard {
+        key: "hot",
+        sub: "comic_series_hot_play",
+        label: "热播",
+    },
+    RankBoard {
+        key: "new",
+        sub: "comic_series_new_rank",
+        label: "新剧",
+    },
 ];
 
 /// Exact board selection: "hot"/"热播"/"新剧"/"recommend" (ASCII
@@ -90,11 +104,13 @@ fn build_rank_url(sub: &str, offset: Option<&str>, session: &str) -> String {
         qs.push('&');
     }
     qs.push_str("_rticket=");
-    qs.push_str(&std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0)
-        .to_string());
+    qs.push_str(
+        &std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+            .to_string(),
+    );
     format!("https://{API_HOST}/reading/bookapi/bookmall/cell/change/v?{qs}")
 }
 
@@ -110,8 +126,7 @@ struct RankItem {
 }
 
 /// Parse one rank page. Returns (items, has_more, next_offset).
-fn parse_rank_json(body: &str) -> Result<(Vec<RankItem>, bool, Option<String>), SearchEngineError>
-{
+fn parse_rank_json(body: &str) -> Result<(Vec<RankItem>, bool, Option<String>), SearchEngineError> {
     let parsed: serde_json::Value = serde_json::from_str(body)
         .map_err(|e| SearchEngineError::Transient(format!("json parse: {e}")))?;
     let code = parsed.get("code").and_then(|v| v.as_i64()).unwrap_or(-1);
@@ -126,13 +141,20 @@ fn parse_rank_json(body: &str) -> Result<(Vec<RankItem>, bool, Option<String>), 
         .and_then(|d| d.get("cell_view"))
         .cloned()
         .unwrap_or_default();
-    let has_more = view.get("has_more").and_then(|v| v.as_bool()).unwrap_or(false);
+    let has_more = view
+        .get("has_more")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let next_offset = view
         .get("next_offset")
         .and_then(|v| v.as_i64())
         .map(|v| v.to_string());
     let mut items = Vec::new();
-    for cell in view.get("cell_data").and_then(|v| v.as_array()).unwrap_or(&Vec::new()) {
+    for cell in view
+        .get("cell_data")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&Vec::new())
+    {
         // video_data is a list on this face (upstream python tolerates both).
         let v = match cell.get("video_data") {
             Some(serde_json::Value::Array(a)) => a.first().cloned().unwrap_or_default(),
@@ -145,7 +167,11 @@ fn parse_rank_json(body: &str) -> Result<(Vec<RankItem>, bool, Option<String>), 
             .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string();
-        let title = v.get("title").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let title = v
+            .get("title")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         if series_id.is_empty() || title.is_empty() {
             continue;
         }
@@ -153,9 +179,17 @@ fn parse_rank_json(body: &str) -> Result<(Vec<RankItem>, bool, Option<String>), 
             series_id,
             title,
             episode_cnt: v.get("episode_cnt").and_then(|x| x.as_u64()).unwrap_or(0),
-            score: v.get("score").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            score: v
+                .get("score")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
             play_cnt: v.get("play_cnt").and_then(|x| x.as_u64()).unwrap_or(0),
-            copyright: v.get("copyright").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            copyright: v
+                .get("copyright")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
             desc: v
                 .get("video_desc")
                 .and_then(|x| x.as_str())

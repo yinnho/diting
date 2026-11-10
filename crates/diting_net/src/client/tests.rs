@@ -454,7 +454,6 @@ fn validate_url_rejects_embedded_ipv6_literal_hosts() {
     }
 }
 
-
 /// Serve a canned 200 response on a NON-loopback local address.
 ///
 /// The transport exempts loopback destinations from env-proxy matching (like
@@ -1119,15 +1118,25 @@ async fn module_script_fetch_is_cors_with_same_origin_credentials() {
             vec!["http://other.test"],
             "stealth={stealth}: {echo}"
         );
-        assert!(echoed(&echo, "cookie").is_empty(), "stealth={stealth}: {echo}");
+        assert!(
+            echoed(&echo, "cookie").is_empty(),
+            "stealth={stealth}: {echo}"
+        );
 
         let same = client
             .fetch_with_callbacks(&url, None, ResourceType::ModuleScript, Some(url.as_str()))
             .await
             .expect("echo answers");
         let echo = String::from_utf8_lossy(&same.body).to_string();
-        assert!(echoed(&echo, "origin").is_empty(), "stealth={stealth}: {echo}");
-        assert_eq!(echoed(&echo, "cookie"), vec!["sid=1"], "stealth={stealth}: {echo}");
+        assert!(
+            echoed(&echo, "origin").is_empty(),
+            "stealth={stealth}: {echo}"
+        );
+        assert_eq!(
+            echoed(&echo, "cookie"),
+            vec!["sid=1"],
+            "stealth={stealth}: {echo}"
+        );
         server.abort();
     }
 }

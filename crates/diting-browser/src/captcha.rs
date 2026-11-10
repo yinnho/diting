@@ -254,7 +254,9 @@ async fn solve_with_2captcha(
         _ => return CaptchaSolveResult::NotAttempted,
     };
 
-    let client = diting::diting_net::chrome_client_builder().build().expect("captcha client");
+    let client = diting::diting_net::chrome_client_builder()
+        .build()
+        .expect("captcha client");
 
     // Submit task
     let form = url::form_urlencoded::Serializer::new(String::new())
@@ -341,14 +343,9 @@ async fn solve_with_2captcha(
                     status: u8,
                     request: String,
                 }
-                match r
-                    .bytes()
-                    .await
-                    .map_err(|e| e.to_string())
-                    .and_then(|b| {
-                        serde_json::from_slice::<PollResponse>(&b).map_err(|e| e.to_string())
-                    })
-                {
+                match r.bytes().await.map_err(|e| e.to_string()).and_then(|b| {
+                    serde_json::from_slice::<PollResponse>(&b).map_err(|e| e.to_string())
+                }) {
                     Ok(poll) => {
                         if poll.status == 1 {
                             return CaptchaSolveResult::Solved {

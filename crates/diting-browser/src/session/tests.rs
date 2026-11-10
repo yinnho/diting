@@ -5487,7 +5487,10 @@ async fn test_await_reply_gives_up_on_zombie_thread() {
         }
         other => panic!("expected the zombie verdict, got {other:?}"),
     }
-    assert!(t0.elapsed() < Duration::from_secs(1), "gives up within one poll");
+    assert!(
+        t0.elapsed() < Duration::from_secs(1),
+        "gives up within one poll"
+    );
     release_tx.send(()).unwrap();
     stuck.join().unwrap();
 }

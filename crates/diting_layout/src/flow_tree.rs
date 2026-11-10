@@ -17,7 +17,6 @@
 //! single reallocation of tens of MB).
 
 use super::inline_flow;
-use std::collections::HashSet;
 use diting_taffy::style::{
     AlignSelf, BoxGenerationMode, BoxSizing, Contain, ContainingBlockClaims, Dimension, Direction,
     LengthPercentageAuto, Overflow, Position,
@@ -32,6 +31,7 @@ use diting_taffy::{
     TraverseTree,
 };
 use diting_taffy::{AvailableSpace, FlexWrap};
+use std::collections::HashSet;
 
 type Res<T> = Result<T, TaffyError>;
 

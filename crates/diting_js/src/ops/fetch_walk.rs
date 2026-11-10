@@ -387,7 +387,8 @@ pub(crate) async fn fetch_url_walk(
             .map_err(deno_error::JsErrorBox::generic)?,
     };
 
-    let req_method: diting_net::wire::Method = method.parse().unwrap_or(diting_net::wire::Method::GET);
+    let req_method: diting_net::wire::Method =
+        method.parse().unwrap_or(diting_net::wire::Method::GET);
 
     let is_cross_origin = request_origin(&url)
         .map(|initial| !page_origin.is_empty() && initial != page_origin)
@@ -485,8 +486,8 @@ pub(crate) async fn fetch_url_walk(
         let current_is_cross_origin = request_origin(&current_url)
             .map(|o| o != page_origin)
             .unwrap_or(false);
-        let method_needs_origin =
-            current_method != diting_net::wire::Method::GET && current_method != diting_net::wire::Method::HEAD;
+        let method_needs_origin = current_method != diting_net::wire::Method::GET
+            && current_method != diting_net::wire::Method::HEAD;
         if method_needs_origin || current_is_cross_origin {
             req = req.header("Origin", &page_origin);
         }

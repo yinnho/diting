@@ -1703,7 +1703,6 @@ impl JsRuntime {
         })
     }
 
-
     /// `v8_to_json` cannot tell a stored `undefined` from a missing value —
     /// both come back as JSON null — so the byValue read-backs ask the
     /// runtime for the stored value's typeof first (obscura#779).
@@ -1717,7 +1716,6 @@ impl JsRuntime {
             .map_err(|e| format!("JS error: {}", e))?;
         Ok(self.v8_to_json(probe)?.as_bool().unwrap_or(false))
     }
-
 }
 
 impl Default for JsRuntime {

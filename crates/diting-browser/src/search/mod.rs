@@ -1081,7 +1081,9 @@ pub(crate) fn proxied_plain_client() -> Option<diting::diting_net::wire::Client>
 /// Like [`proxied_plain_client`] with an explicit timeout — challenge/geo
 /// retries use a ≤2s budget so dual-path Object-moved spam does not eat the
 /// full 12s (aginxos REQ search-captcha-challenge).
-pub(crate) fn proxied_plain_client_timeout(timeout_secs: u64) -> Option<diting::diting_net::wire::Client> {
+pub(crate) fn proxied_plain_client_timeout(
+    timeout_secs: u64,
+) -> Option<diting::diting_net::wire::Client> {
     search_proxy_url().map(|proxy_str| {
         let mut builder = diting::diting_net::chrome_client_builder()
             .timeout(Duration::from_secs(timeout_secs))
@@ -1187,7 +1189,10 @@ pub async fn stealth_fetch(
 /// Fetch a URL via a one-shot search client, returning the decoded text. Handles
 /// charset decoding for Chinese engines (GBK/GB2312). Follows non-CAPTCHA
 /// redirects up to `max_redirects` hops.
-pub async fn plain_fetch(client: &diting::diting_net::wire::Client, url: &str) -> Result<String, SearchEngineError> {
+pub async fn plain_fetch(
+    client: &diting::diting_net::wire::Client,
+    url: &str,
+) -> Result<String, SearchEngineError> {
     plain_fetch_with(client, url, &[]).await
 }
 

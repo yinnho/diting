@@ -300,7 +300,10 @@ impl ModuleLoader for DitingModuleLoader {
                     .await
                     .map_err(|e| io_err(format!("Failed to fetch module {}: {}", url, e)))?;
                 if !(200..300).contains(&resp.status) {
-                    return Err(io_err(format!("Module {} returned HTTP {}", url, resp.status)));
+                    return Err(io_err(format!(
+                        "Module {} returned HTTP {}",
+                        url, resp.status
+                    )));
                 }
                 if resp.body.len() > crate::ops::fetch_body_byte_limit() {
                     return Err(io_err(format!(

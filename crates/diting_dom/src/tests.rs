@@ -390,8 +390,7 @@ mod tree_tests {
         // A parsed namespaced attribute stores prefix separately from the local
         // name (xlink:href -> prefix="xlink", local="href"). set_attribute must
         // match on the qualified name, or it silently pushes a duplicate.
-        let tree =
-            crate::tree_sink::parse_html(r##"<svg><use xlink:href="#icon"/></svg>"##);
+        let tree = crate::tree_sink::parse_html(r##"<svg><use xlink:href="#icon"/></svg>"##);
         let use_el = tree.query_selector("use").unwrap().unwrap();
 
         tree.with_node_mut(use_el, |n| n.set_attribute("xlink:href", "#other".into()));
@@ -464,9 +463,8 @@ mod tree_tests {
         // A cloned <template> carries the SOURCE tree's contents NodeId, which
         // in the destination tree indexes an unrelated slot. The import must
         // allocate a fresh contents document and remap the reference.
-        let source = crate::tree_sink::parse_html(
-            r#"<div><template><span>tmpl</span></template></div>"#,
-        );
+        let source =
+            crate::tree_sink::parse_html(r#"<div><template><span>tmpl</span></template></div>"#);
         let dest = DomTree::new();
         let host = dest.new_node(NodeData::Element {
             name: QualName::new(None, ns!(html), local_name!("div")),
@@ -1034,16 +1032,49 @@ mod tree_tests {
                 ":open never matches a child of an open details"
             );
             // :dir() — resolved, not the raw attribute.
-            assert_eq!(tree.query_selector_all("#a:dir(rtl)").unwrap().len(), 1, "inherited");
+            assert_eq!(
+                tree.query_selector_all("#a:dir(rtl)").unwrap().len(),
+                1,
+                "inherited"
+            );
             assert_eq!(tree.query_selector_all("#a:dir(ltr)").unwrap().len(), 0);
-            assert_eq!(tree.query_selector_all("#b:dir(ltr)").unwrap().len(), 1, "own override");
+            assert_eq!(
+                tree.query_selector_all("#b:dir(ltr)").unwrap().len(),
+                1,
+                "own override"
+            );
             assert_eq!(tree.query_selector_all("#b:dir(rtl)").unwrap().len(), 0);
             // auto — first strong character resolves; neutral-only is ltr.
-            assert_eq!(tree.query_selector_all("#auto_latin:dir(ltr)").unwrap().len(), 1);
-            assert_eq!(tree.query_selector_all("#auto_latin:dir(rtl)").unwrap().len(), 0);
-            assert_eq!(tree.query_selector_all("#auto_arabic:dir(rtl)").unwrap().len(), 1);
-            assert_eq!(tree.query_selector_all("#auto_arabic:dir(ltr)").unwrap().len(), 0);
-            assert_eq!(tree.query_selector_all("#auto_neutral:dir(ltr)").unwrap().len(), 1);
+            assert_eq!(
+                tree.query_selector_all("#auto_latin:dir(ltr)")
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                tree.query_selector_all("#auto_latin:dir(rtl)")
+                    .unwrap()
+                    .len(),
+                0
+            );
+            assert_eq!(
+                tree.query_selector_all("#auto_arabic:dir(rtl)")
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                tree.query_selector_all("#auto_arabic:dir(ltr)")
+                    .unwrap()
+                    .len(),
+                0
+            );
+            assert_eq!(
+                tree.query_selector_all("#auto_neutral:dir(ltr)")
+                    .unwrap()
+                    .len(),
+                1
+            );
             // :not nesting keeps working around the new arms.
             assert_eq!(
                 tree.query_selector_all("div:not(:dir(rtl))").unwrap().len(),
@@ -1073,10 +1104,7 @@ mod tree_tests {
                     .len(),
                 1
             );
-            assert!(
-                crate::selector::parse_selector("section:has(article:has(li))")
-                    .is_err()
-            );
+            assert!(crate::selector::parse_selector("section:has(article:has(li))").is_err());
         }
 
         #[test]

@@ -327,7 +327,11 @@ impl DomTree {
             let element = DomElement::new(self, desc_id);
             for ri in candidates.drain(..) {
                 if let Some(list) = index.entries[ri].as_ref() {
-                    if diting_selectors::matching::matches_selector_list(list, element, &mut context) {
+                    if diting_selectors::matching::matches_selector_list(
+                        list,
+                        element,
+                        &mut context,
+                    ) {
                         hits.entry(ri).or_default().push(desc_id.index());
                     }
                 }

@@ -13,9 +13,9 @@
 //! this markdown is agent-facing output, and `\*` noise reads worse than a
 //! literal asterisk. Whitespace collapses per HTML rules outside `pre`.
 
-use ego_tree::NodeRef;
-use crate::htmlq::Node;
 use crate::htmlq::Html;
+use crate::htmlq::Node;
+use ego_tree::NodeRef;
 
 /// Convert an HTML document (or fragment) to markdown.
 pub fn parse_html(html: &str) -> String {
@@ -32,8 +32,23 @@ const SKIP: [&str; 6] = ["script", "style", "noscript", "template", "head", "svg
 
 /// Block-level tags: force a paragraph boundary before and after.
 const BLOCK: [&str; 17] = [
-    "p", "div", "section", "article", "header", "footer", "nav", "main", "aside", "figure",
-    "figcaption", "form", "fieldset", "hr", "blockquote", "details", "summary",
+    "p",
+    "div",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "nav",
+    "main",
+    "aside",
+    "figure",
+    "figcaption",
+    "form",
+    "fieldset",
+    "hr",
+    "blockquote",
+    "details",
+    "summary",
 ];
 
 #[derive(Default)]
@@ -108,7 +123,10 @@ impl Converter {
             "img" => {
                 let alt = el.attr("alt").unwrap_or_default();
                 let src = el.attr("src").unwrap_or_default();
-                let title = el.attr("title").map(|t| format!(" \"{t}\"")).unwrap_or_default();
+                let title = el
+                    .attr("title")
+                    .map(|t| format!(" \"{t}\""))
+                    .unwrap_or_default();
                 if !src.is_empty() {
                     self.push_inline(&format!("![{alt}]({src}{title})"));
                 }
@@ -222,10 +240,14 @@ impl Converter {
             // list continues on the next line, indented one level deeper.
             let nested = li.children().find(|c| is_tag(*c, "ul") || is_tag(*c, "ol"));
             let marker = if ordered {
-                let n = self.counters.last_mut().map(|c| {
-                    *c += 1;
-                    *c
-                }).unwrap_or(1);
+                let n = self
+                    .counters
+                    .last_mut()
+                    .map(|c| {
+                        *c += 1;
+                        *c
+                    })
+                    .unwrap_or(1);
                 format!("{n}. ")
             } else {
                 "- ".to_string()
@@ -340,7 +362,10 @@ fn collect_text(node: NodeRef<'_, Node>, out: &mut String) {
 fn class_lang(classes: &str) -> String {
     classes
         .split_whitespace()
-        .find_map(|c| c.strip_prefix("language-").or_else(|| c.strip_prefix("lang-")))
+        .find_map(|c| {
+            c.strip_prefix("language-")
+                .or_else(|| c.strip_prefix("lang-"))
+        })
         .unwrap_or_default()
         .to_string()
 }
