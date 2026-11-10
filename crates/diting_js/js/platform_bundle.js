@@ -2125,23 +2125,23 @@ for (const u of ['Hz', 'Q', 'cap', 'ch', 'cm', 'cqb', 'cqh', 'cqi', 'cqmax', 'cq
 // arithmetic and the family-wide toString, and 刀88 pins zero VISIBLE own
 // props — so the slots are hidden own properties, same as the hand-written
 // face this module replaced.
-exports.ctor = function ctor(iface, self, ctx, args, parsed) {
+exports.ctor = function ctor(iface, target, ctx, args, parsed) {
   // parsed rides the B.ctor 5th parameter: [valueNumber, unitString]
   // already converted by the generated preamble.
   const unit = P.asciiLower(parsed[1]);
   if (!UNITS[unit]) P.fail(ctor, 'Invalid unit: ' + parsed[1], ctx);
-  Object.defineProperty(self, '_v', { value: parsed[0], writable: true, enumerable: false, configurable: true });
-  Object.defineProperty(self, '_u', { value: unit, writable: true, enumerable: false, configurable: true });
+  Object.defineProperty(target, '_v', { value: parsed[0], writable: true, enumerable: false, configurable: true });
+  Object.defineProperty(target, '_u', { value: unit, writable: true, enumerable: false, configurable: true });
 };
 
-exports.get = function get(iface, member, self) {
-  if (self === null || typeof self !== 'object' || self._u === undefined) P.illegal(get);
-  return member === 'value' ? self._v : self._u;
+exports.get = function get(iface, member, target) {
+  if (target === null || typeof target !== 'object' || target._u === undefined) P.illegal(get);
+  return member === 'value' ? target._v : target._u;
 };
 
-exports.set = function set(iface, member, self, v) {
-  if (member !== 'value' || self === null || typeof self !== 'object' || self._u === undefined) P.illegal(set);
-  self._v = P.conv.double(v, "Failed to set the 'value' property on 'CSSUnitValue'", set);
+exports.set = function set(iface, member, target, v) {
+  if (member !== 'value' || target === null || typeof target !== 'object' || target._u === undefined) P.illegal(set);
+  target._v = P.conv.double(v, "Failed to set the 'value' property on 'CSSUnitValue'", set);
 };
 
 // typedom_math (loads later, after global_surface) reads
