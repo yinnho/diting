@@ -9848,6 +9848,56 @@ async fn webcrypto_rsa_keygen_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_pbkdf2_runs_off_the_js_thread() {
+    // #69 follow-up: PBKDF2 is real CPU (OWASP's recommended 600k iterations
+    // is ~2.7s in a debug build). As a sync op one derivation was one
+    // continuous wall on the JS thread, and the eval patience watchdog
+    // beheaded the caller. Off the thread it settles, bytes unchanged
+    // (vector from Python's hashlib.pbkdf2_hmac).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const S = crypto.subtle, enc = new TextEncoder();
+        const base = await S.importKey('raw', enc.encode('password'), 'PBKDF2', false, ['deriveBits']);
+        const bits = await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('salt'), iterations: 200000 }, base, 256);
+        return Array.from(new Uint8Array(bits), x => x.toString(16).padStart(2, '0')).join('');
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!("ca64cfe28ca5559c62fba4afcb19f26889a67d5b135e571bffb087647e01becd")
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_sign_runs_off_the_js_thread() {
+    // #69 follow-up: an RSA private-key signature is tens of ms in a debug
+    // build, and a JWT-style run of them on the JS thread chained into one
+    // wall past patience — the caller got beheaded. Off the thread, 32
+    // 2048-bit sign+verify rounds settle.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const S = crypto.subtle, enc = new TextEncoder();
+        const pair = await S.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
+            publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+        let ok = 0;
+        for (let i = 0; i < 32; i++) {
+            const msg = enc.encode('jwt-' + i);
+            const sig = await S.sign('RSASSA-PKCS1-v1_5', pair.privateKey, msg);
+            if (await S.verify('RSASSA-PKCS1-v1_5', pair.publicKey, sig, msg)) ok++;
+        }
+        return ok;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(result.value.unwrap(), serde_json::json!(32));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_webcrypto_rsassa_pkcs1v15_sign_verify() {
     let mut rt = setup_runtime("<html><body></body></html>");
     // #273: RSASSA-PKCS1-v1_5 (JWT RS256) faces pinned from Chrome 155.

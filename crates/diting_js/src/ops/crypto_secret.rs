@@ -335,19 +335,6 @@ pub(crate) fn pbkdf2_derive(
     Ok(dk)
 }
 
-/// PBKDF2 key derivation. `length` is the derived-bits output in bytes.
-#[diting_op]
-#[buffer]
-pub(crate) fn op_subtle_pbkdf2(
-    #[string] hash: &str,
-    #[buffer] password: &[u8],
-    #[buffer] salt: &[u8],
-    iterations: u32,
-    length: u32,
-) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    pbkdf2_derive(hash, password, salt, iterations, length)
-}
-
 /// HKDF key derivation. `length` is the output length in bytes. An empty salt
 /// behaves as RFC 5869 specifies (HMAC zero-pads it to the block size, which is
 /// what browsers do).
