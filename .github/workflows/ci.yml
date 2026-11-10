@@ -96,6 +96,22 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --features stealth,screenshot
 
+  fmt:
+    # #64: format gate over every house crate. Vendored trees keep upstream
+    # byte-shape (the taffy-family diff3 sync face depends on it) and are
+    # exempt via crates/VENDORED.md — the script reads that table, so the
+    # exemption list has exactly one source of truth.
+    name: cargo fmt (house crates)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: rustfmt
+      - name: Format gate
+        run: scripts/gate_fmt.sh
+
   layers:
     # ARCHITECTURE.md §2 R1-R3 as greppable tripwires plus the god-file
     # ratchet (§6 P2). The compile-time guarantee is the workspace dep
