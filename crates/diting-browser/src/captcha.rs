@@ -10,19 +10,15 @@ use serde::{Deserialize, Serialize};
 /// Type of CAPTCHA encountered.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CaptchaType {
     CloudflareTurnstile,
     RecaptchaV2,
     RecaptchaV3,
     Hcaptcha,
     SliderCaptcha,
+    #[default]
     Unknown,
-}
-
-impl Default for CaptchaType {
-    fn default() -> Self {
-        CaptchaType::Unknown
-    }
 }
 
 /// A CAPTCHA event reported in an API response.

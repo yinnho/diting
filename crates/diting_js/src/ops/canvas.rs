@@ -903,7 +903,7 @@ mod tests {
         let (w, h) = (64u32, 64u32);
         let mut rgba = vec![0u8; (w * h * 4) as usize];
         let mut seed = 0x2545F491u32;
-        for px in rgba.chunks_exact_mut(4) {
+        for px in rgba.as_chunks_mut::<4>().0 {
             seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
             px[0] = (seed >> 16) as u8;
             px[1] = (seed >> 8) as u8;
@@ -965,7 +965,13 @@ mod tests {
         let tile = canvas_text_tile("mm", 14.0, false, false, [10, 20, 30, 255]);
         assert!(tile.width > 0 && tile.height > 0);
         assert_eq!(tile.data.len(), tile.width * tile.height * 4);
-        let ink = tile.data.chunks_exact(4).filter(|px| px[3] > 0).count();
+        let ink = tile
+            .data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|px| px[3] > 0)
+            .count();
         assert!(ink > 0, "glyph raster carries coverage");
         let empty = canvas_text_tile("", 14.0, false, false, [0, 0, 0, 255]);
         assert_eq!((empty.width, empty.height), (0, 0));

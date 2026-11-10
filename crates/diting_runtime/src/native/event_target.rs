@@ -157,7 +157,7 @@ fn receiver<'a>(
         .get(scope, gk.into())
         .and_then(|v| Local::<v8::Function>::try_from(v).ok())?;
     let u = v8::undefined(scope);
-    let mut cur = gop.call(scope, u.into(), &[this.into()]);
+    let mut cur = gop.call(scope, u.into(), &[this]);
     for _ in 0..64 {
         let p = cur?;
         if p.is_null() || p.is_undefined() {
@@ -894,11 +894,11 @@ unsafe extern "C" fn dispatch(info: *const FunctionCallbackInfo) {
         }
         // bubble phase
         if ev.truthy(scope, S_BUBBLES) {
-            for i in 1..path.len() {
+            for &target in &path[1..] {
                 if ev.truthy(scope, S_STOPPED) {
                     break;
                 }
-                invoke(scope, h, &ev, path[i], ty, 3, false);
+                invoke(scope, h, &ev, target, ty, 3, false);
             }
         }
         // #335: pop the window.event stack — the last listener has run, so

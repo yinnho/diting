@@ -1131,7 +1131,7 @@ fn colorize_layered(alpha: &[u8], layer: Option<&[u8]>, color: [u8; 4]) -> Vec<u
     let mut data = colorize(alpha, color);
     let Some(layer) = layer else { return data };
     let ca = color[3] as u16;
-    for (i, px) in layer.chunks_exact(4).enumerate() {
+    for (i, px) in layer.as_chunks::<4>().0.iter().enumerate() {
         let a = px[3];
         if a == 0 || i * 4 + 4 > data.len() {
             continue;

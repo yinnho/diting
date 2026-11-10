@@ -208,7 +208,7 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
         &self,
         name: &str,
     ) -> Result<PseudoClass, diting_cssparser::ParseError<Self::Error>> {
-        match name.as_ref() {
+        match name {
             "hover" => Ok(PseudoClass::Hover),
             "active" => Ok(PseudoClass::Active),
             "focus" => Ok(PseudoClass::Focus),

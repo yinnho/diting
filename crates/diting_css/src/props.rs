@@ -308,12 +308,11 @@ fn initial_ok(alts: &[Alt], v: &str) -> bool {
 fn build(syntax: &str, inherits: bool, initial: Option<&str>) -> Option<RegProp> {
     let alts = parse_syntax(syntax)?;
     let initial = initial.map(|s| s.trim().to_string());
-    match &alts {
-        None => {}
-        Some(a) => {
-            if !initial_ok(a, initial.as_deref()?) {
-                return None;
-            }
+    // Guard form can't host the `?` (and edition 2021 has no let-chains to
+    // collapse the nesting); the universal-`*` arm must not return None.
+    if let Some(a) = &alts {
+        if !initial_ok(a, initial.as_deref()?) {
+            return None;
         }
     }
     Some(RegProp {

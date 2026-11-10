@@ -61,12 +61,9 @@ fn suffix_start(labels: &[&str]) -> usize {
         for cand in candidates {
             match list.rules.get(&cand) {
                 Some(&true) => exception = Some(start),
-                Some(&false) => {
-                    if best.is_none_or(|b| start < b) {
-                        best = Some(start);
-                    }
-                }
-                None => {}
+                // Longest rule wins: keep the smallest start index.
+                Some(&false) if best.is_none_or(|b| start < b) => best = Some(start),
+                _ => {}
             }
         }
     }

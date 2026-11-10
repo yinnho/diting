@@ -424,10 +424,10 @@ pub fn parse_srcset(srcset: &str) -> Vec<SrcsetCandidate> {
                 continue; // unknown descriptor unit → entry invalid per spec
             }
         }
-        // A bare-URL candidate means 1x.
+        // A bare-URL candidate means 1x (density stays None downstream).
         out.push(SrcsetCandidate {
             url: url.to_string(),
-            density: Some(density.unwrap_or(1.0)).filter(|_| density.is_some()),
+            density,
             width,
         });
     }

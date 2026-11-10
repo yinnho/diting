@@ -394,7 +394,9 @@ mod tests {
         assert!(raster.ink_bbox().is_some(), "the emoji must have ink");
         let colored = raster
             .data
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .filter(|p| {
                 p[3] > 128
                     && (p[0] as i32 - p[1] as i32)

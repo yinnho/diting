@@ -106,7 +106,9 @@ fn repeated_rasterize_shares_the_cached_tile() {
     );
     let ink = |r: &TextRaster| {
         r.data
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .filter(|p| p[3] > 200)
             .map(|p| (p[0], p[1], p[2]))
             .max()

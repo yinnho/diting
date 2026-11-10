@@ -49,10 +49,10 @@ pub(super) fn substitute_vars(
     let tail = &value[end + 1..];
     let replacement = match super::props::lookup(custom, name) {
         Some(v) => substitute_vars(&v, custom, depth + 1)?,
-        None => match fallback {
-            Some(f) => substitute_vars(f.trim(), custom, depth + 1)?,
-            None => return None,
-        },
+        None => {
+            let f = fallback?;
+            substitute_vars(f.trim(), custom, depth + 1)?
+        }
     };
     // The tail may contain further var() references.
     let tail = substitute_vars(tail, custom, depth)?;
