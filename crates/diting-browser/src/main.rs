@@ -256,7 +256,7 @@ async fn main() -> anyhow::Result<()> {
     subscriber.init();
 
     // Before anything else can die: the crash hook must be in place before
-    // the first engine warmup, not after (device died mid-search with no
+    // the first isolate construction, not after (device died mid-search with no
     // trace; REQ #414).
     crash::install();
 
@@ -312,12 +312,15 @@ async fn main() -> anyhow::Result<()> {
         diting::diting_net::warn_on_ua_tls_mismatch(&ua, None);
     }
 
-    // Warm up V8 on the main thread before any session/blocking thread creates
-    // an isolate: the first isolate's JSDispatchTable init is not safe to race
-    // from several threads (upstream obscura #430; construction itself is
-    // serialized inside the runtime). A bare isolate guards the race — no
-    // snapshot restore, so an idle serve does not carry the blob's pages.
-    diting::diting_js::runtime::JsRuntime::warmup();
+    // V8 init is deferred to the first session: both production isolate
+    // constructions (session realms and one-shot ops) serialize through
+    // ISOLATE_CONSTRUCT_LOCK and set the pre-first-isolate flags inside
+    // that lock, so the #430 first-isolate race is guarded by the lock,
+    // not by an eager bare isolate at boot. Warmup used to build one here,
+    // costing ~7.8 MiB resident on an idle serve that may never run a
+    // page (12MB-idle 对拍, plan ①); the first session now pays the
+    // platform init inline, measured ~1-2 ms, and 12-way concurrent
+    // first-session creates on a cold serve came back clean.
 
     // Opt-in relaxations, parsed before any mode branches. Both were
     // previously documented as CLI flags without wiring (only the env vars

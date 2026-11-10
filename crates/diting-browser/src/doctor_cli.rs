@@ -1,6 +1,6 @@
 //! `diting doctor` — standalone self-check for self-hosters.
 //!
-//! Runs BEFORE the server boots (and before the V8 warmup in main): binary
+//! Runs BEFORE the server boots (V8 init is deferred to the first session): binary
 //! capabilities, the bundled font supply, environment posture, and one live
 //! egress probe — the four things that decide "why doesn't my instance
 //! fetch/screenshot anything". Human-readable output; exit code 1 iff a

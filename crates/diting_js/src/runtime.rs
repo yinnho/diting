@@ -190,7 +190,7 @@ fn panic_payload_message(payload: Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-/// Sync callers (tests, warmup) have no ambient tokio runtime, but the
+/// Sync callers (tests) have no ambient tokio runtime, but the
 /// async op BODIES (op_sleep's Handle::try_current guard, the fetch/ws
 /// futures' reactor) need one or they silently no-op. This enters a
 /// process-lifetime background runtime; the returned guard must
@@ -214,8 +214,10 @@ fn enter_tokio_context() -> Option<tokio::runtime::EnterGuard<'static>> {
 
 /// V8 flag one-shots that MUST run before the process's first isolate:
 /// after V8 initializes, flag writes on frozen flags are a V8_Fatal.
-/// Called under `ISOLATE_CONSTRUCT_LOCK` by both [`JsRuntime::warmup`]
-/// and the realm constructor — the statics live here so every caller
+/// Called under `ISOLATE_CONSTRUCT_LOCK` by the realm constructor (the
+/// retired serve-start warmup was the other caller; every construction
+/// path sets these inside the lock, so deferring V8 init to the first
+/// session is race-free) — the statics live here so every caller
 /// shares the same process-wide `Once`s.
 fn v8_flags_before_first_isolate() {
     // One-shot before the first isolate: raise V8's own JS stack
@@ -275,23 +277,6 @@ impl JsRuntime {
         Self::with_base_url("about:blank")
     }
 
-    /// Serve-start warm-up: build and drop ONE bare isolate under the
-    /// construct lock so session/blocking threads never race V8's
-    /// first-isolate JSDispatchTable init (upstream obscura #430 — the
-    /// race lives in V8's isolate machinery, not in our snapshot). The
-    /// old warm-up built a full runtime here, reading and deserializing
-    /// the whole startup snapshot (blob pages resident + cage dirty,
-    /// ~10 MB idle RSS) only to drop it; the first real realm pays the
-    /// restore instead — and a corrupt embedded blob now panics at
-    /// first session rather than at serve start.
-    pub fn warmup() {
-        let _construct_guard = ISOLATE_CONSTRUCT_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        v8_flags_before_first_isolate();
-        drop(Vm::new());
-    }
-
     pub fn with_base_url(base_url: &str) -> Self {
         Self::with_base_url_and_proxy(base_url, None)
     }
@@ -315,8 +300,8 @@ impl JsRuntime {
 
         // Our Vm spawns no V8-platform tasks of its own, but async op
         // BODIES park on tokio (op_sleep guards with Handle::try_current;
-        // the fetch/ws futures need the reactor) — sync callers (tests,
-        // warmup) have no ambient runtime, so the ops would silently
+        // the fetch/ws futures need the reactor) — sync callers (tests)
+        // have no ambient runtime, so the ops would silently
         // no-op. Enter a process-lifetime background runtime; the guard
         // needs to outlive only the construction below, but keeping it to
         // the end of the function costs nothing.
