@@ -77,10 +77,10 @@ jobs:
     # exists so the list bites. Whole workspace: the vendored wire family's
     # dead upstream test code was cut 2026-11-06 (VENDORED.md), so they build
     # under --all-targets like everyone else; their [lints] stay upstream's,
-    # not the workspace table. The ~130 warn-level findings this job prints
-    # are known debt; folding them to zero and flipping on -D warnings is the
-    # follow-up (249-256 precedent).
-    name: cargo clippy (workspace)
+    # not the workspace table. #64: the warn-level backlog was folded to zero
+    # (vendored crates got root #![allow(clippy::all)] instead — their
+    # byte-shape is the diff3 sync face) and the gate flipped to -D warnings.
+    name: cargo clippy (workspace, -D warnings)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -92,9 +92,9 @@ jobs:
         with:
           # Separate cache: clippy check fingerprints differ from the check/test
           # jobs; same v8 OUT_DIR poisoning caveat as the test job applies.
-          key: clippy-v2
+          key: clippy-v3
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --features stealth,screenshot
+        run: cargo clippy --workspace --all-targets --features stealth,screenshot -- -D warnings
 
   fmt:
     # #64: format gate over every house crate. Vendored trees keep upstream
