@@ -518,6 +518,12 @@ fn credentialed_cors_requires_exact_origin_and_allow_credentials() {
 // Without caps, a huge iteration count pins the single-threaded runtime and
 // a huge output length forces an unbounded allocation.
 #[test]
+fn pbkdf2_rejects_zero_iterations() {
+    let err = pbkdf2_derive("SHA-256", b"pw", b"salt", 0, 0).unwrap_err();
+    assert_eq!(err.to_string(), "PBKDF2 requires iterations > 0");
+}
+
+#[test]
 fn pbkdf2_rejects_excessive_iterations() {
     let err = pbkdf2_derive("SHA-256", b"pw", b"salt", PBKDF2_MAX_ITERATIONS + 1, 32)
         .expect_err("iteration count above the cap must be rejected");

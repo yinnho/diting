@@ -129,7 +129,7 @@ if (!globalThis.crypto.subtle) {
     }
   }
 
-  // The CPU-heavy ops (RSA keygen + private-key sign, PBKDF2) run off the JS
+  // The CPU-heavy ops (RSA keygen, private-key sign + OAEP, PBKDF2) run off the JS
   // thread like Chrome's (#69): as sync ops a caller's chain of them ran as
   // one wall, and the eval patience watchdog beheaded it. Same error face as
   // runOp: a Rust-side failure is an OperationError with its text.
@@ -743,7 +743,7 @@ if (!globalThis.crypto.subtle) {
 
     async unwrapKey(format, wrappedKey, unwrappingKey, unwrapAlgorithm, unwrappedKeyAlgorithm, extractable, keyUsages) {
       checkUsageStrings("unwrapKey", keyUsages || []);
-      const decrypted = subtleCipher(false, unwrapAlgorithm, unwrappingKey, toBytes(wrappedKey), true);
+      const decrypted = await subtleCipher(false, unwrapAlgorithm, unwrappingKey, toBytes(wrappedKey), true);
       const keyData = format === "jwk"
         ? JSON.parse(new TextDecoder().decode(new Uint8Array(decrypted)))
         : decrypted;
@@ -769,9 +769,11 @@ if (!globalThis.crypto.subtle) {
       const label = alg.label != null ? toBytes(alg.label) : new Uint8Array(0);
       const hash = (key.algorithm && key.algorithm.hash && key.algorithm.hash.name) || "SHA-256";
       const empty = new Uint8Array(0);
-      return bufferOf(runOp(() => _OPS.op_subtle_rsa_oaep(
-        encrypt, hash, label, m.n, m.e,
-        encrypt ? empty : m.d, encrypt ? empty : m.p, encrypt ? empty : m.q, input)));
+      // Off the JS thread (decrypt is a private-key op): the only arm of
+      // this function that answers with a promise — every caller awaits.
+      // (An async IIFE, not .then: a page may patch Promise.prototype.then.)
+      return (async () => bufferOf(await offThread("rsa_oaep", hash, encrypt ? 1 : 0, 0, label, m.n, m.e,
+        encrypt ? empty : m.d, encrypt ? empty : m.p, encrypt ? empty : m.q, input)))();
     }
     if (alg.name === "AES-KW") {
       if (!viaWrap) {

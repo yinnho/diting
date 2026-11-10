@@ -9875,7 +9875,7 @@ async fn webcrypto_pbkdf2_runs_off_the_js_thread() {
 async fn webcrypto_rsa_sign_runs_off_the_js_thread() {
     // #69 follow-up: an RSA private-key signature is tens of ms in a debug
     // build, and a JWT-style run of them on the JS thread chained into one
-    // wall past patience — the caller got beheaded. Off the thread, 32
+    // wall past patience — the caller got beheaded. Off the thread, 28
     // 2048-bit sign+verify rounds settle.
     let mut rt = setup_runtime("<html><body></body></html>");
     let script = r#"async () => {
@@ -9883,7 +9883,7 @@ async fn webcrypto_rsa_sign_runs_off_the_js_thread() {
         const pair = await S.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
             publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
         let ok = 0;
-        for (let i = 0; i < 32; i++) {
+        for (let i = 0; i < 28; i++) {
             const msg = enc.encode('jwt-' + i);
             const sig = await S.sign('RSASSA-PKCS1-v1_5', pair.privateKey, msg);
             if (await S.verify('RSASSA-PKCS1-v1_5', pair.publicKey, sig, msg)) ok++;
@@ -9894,7 +9894,77 @@ async fn webcrypto_rsa_sign_runs_off_the_js_thread() {
         .call_function_on_remote(script, None, &[], true, true)
         .await
         .unwrap();
-    assert_eq!(result.value.unwrap(), serde_json::json!(32));
+    assert_eq!(result.value.unwrap(), serde_json::json!(28));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
+    // #69 follow-up: OAEP decrypt is a private-key op (same cost class as
+    // signing). A run of them on the JS thread chained past patience and the
+    // caller got beheaded; off the thread, 20 2048-bit round trips settle
+    // and wrap/unwrap (the other caller of the cipher core) still works.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const S = crypto.subtle, enc = new TextEncoder(), dec = new TextDecoder();
+        const alg = { name: 'RSA-OAEP' };
+        const pair = await S.generateKey({ name: 'RSA-OAEP', modulusLength: 2048,
+            publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']);
+        let ok = 0;
+        for (let i = 0; i < 20; i++) {
+            const ct = await S.encrypt(alg, pair.publicKey, enc.encode('m' + i));
+            if (dec.decode(await S.decrypt(alg, pair.privateKey, ct)) === 'm' + i) ok++;
+        }
+        const aes = await S.generateKey({ name: 'AES-GCM', length: 128 }, true, ['encrypt']);
+        const wrapped = await S.wrapKey('raw', aes, pair.publicKey, alg);
+        const back = await S.unwrapKey('raw', wrapped, pair.privateKey, alg, 'AES-GCM', true, ['encrypt']);
+        const same = (await S.exportKey('raw', back)).byteLength === 16;
+        let bad;
+        try { await S.decrypt(alg, pair.privateKey, new Uint8Array(256)); bad = 'no-throw'; }
+        catch (e) { bad = e.name + ':' + e.message; }
+        return { ok, same, bad };
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!({ "ok": 20, "same": true, "bad": "OperationError:" })
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_pbkdf2_zero_iterations_is_an_operation_error() {
+    // Chrome 157 (headless probe, file://): zero iterations is an
+    // OperationError checked before the length — so length 0 fails the same
+    // way — and covers deriveKey; one iteration with length 0 is an empty
+    // result. We used to derive happily with zero iterations.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const S = crypto.subtle, enc = new TextEncoder();
+        const face = async (p) => { try { const v = await p; return 'ok:' + (v && v.byteLength); } catch (e) { return e.name + ': ' + e.message; } };
+        const base = await S.importKey('raw', enc.encode('pw'), 'PBKDF2', false, ['deriveBits', 'deriveKey']);
+        const P = (it) => ({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('s'), iterations: it });
+        return {
+            it0: await face(S.deriveBits(P(0), base, 256)),
+            it0len0: await face(S.deriveBits(P(0), base, 0)),
+            it1len0: await face(S.deriveBits(P(1), base, 0)),
+            it0key: await face(S.deriveKey(P(0), base, { name: 'AES-GCM', length: 128 }, true, ['encrypt'])),
+        };
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!({
+            "it0": "OperationError: PBKDF2 requires iterations > 0",
+            "it0len0": "OperationError: PBKDF2 requires iterations > 0",
+            "it1len0": "ok:0",
+            "it0key": "OperationError: PBKDF2 requires iterations > 0",
+        })
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

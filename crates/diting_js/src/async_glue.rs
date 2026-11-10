@@ -14,8 +14,8 @@
 //!
 //! 10d 翻转后本模块是这四个 op 的唯一宿主（`ops::our_decls()` 把
 //! `all_decls()` 并进同步表一起装进 `Deno.core.ops`）——`#[op2]` 桩已死。
-//! #69 后多一个 `op_subtle_async`：吃 CPU 的 WebCrypto（RSA keygen/签名、
-//! PBKDF2）挪到 blocking 池跑，不占 JS 线程。
+//! #69 后多一个 `op_subtle_async`：吃 CPU 的 WebCrypto（RSA keygen/签名/
+//! OAEP、PBKDF2）挪到 blocking 池跑，不占 JS 线程。
 
 use diting_runtime::op_glue::{
     throw_error_one_byte_info, to_f64_option, to_i32_option, to_string, to_v8_slice,
@@ -213,11 +213,11 @@ pub fn op_fetch_url_decl() -> OpDecl {
 
 // ── op_subtle_async ───────────────────────────────────────────────────
 
-/// The WebCrypto work that is real CPU — RSA keygen and private-key signing,
-/// PBKDF2 — as one async op on the blocking pool (Chrome runs WebCrypto off
+/// The WebCrypto work that is real CPU — RSA keygen, private-key signing and
+/// OAEP, PBKDF2 — as one async op on the blocking pool (Chrome runs WebCrypto off
 /// the main thread too). As sync ops a caller's chain of them ran as one
 /// continuous wall and the eval patience watchdog beheaded it (#69).
-/// `op_subtle_async(kind, hash, a, b, buf0..buf5)`: the numbers and buffers
+/// `op_subtle_async(kind, hash, a, b, buf0..buf6)`: the numbers and buffers
 /// mean what `kind` says (below). Resolves the standard base64 of the output
 /// bytes (async ops resolve strings); rejects with the error text, which the
 /// JS side surfaces as OperationError.
@@ -226,16 +226,21 @@ fn subtle_async_run(
     hash: &str,
     a: u32,
     b: u32,
-    bufs: &[Vec<u8>; 6],
+    bufs: &[Vec<u8>; 7],
 ) -> Result<Vec<u8>, String> {
-    use super::ops::{pbkdf2_derive, rsa_generate_flat, rsa_pkcs1v15_sign};
+    use super::ops::{pbkdf2_derive, rsa_generate_flat, rsa_oaep, rsa_pkcs1v15_sign};
     match kind {
         // a = modulus bits, b = public exponent (JS pins it to 3 or 65537)
         "rsa_generate" => rsa_generate_flat(a, b),
         // bufs = n, e, d, p, q, data
         "rsa_sign" => {
-            let [n, e, d, p, q, data] = bufs;
+            let [n, e, d, p, q, data, _] = bufs;
             rsa_pkcs1v15_sign(hash, n, e, d, p, q, data).map_err(|e| e.to_string())
+        }
+        // a = 1 encrypt / 0 decrypt; bufs = label, n, e, d, p, q, data
+        "rsa_oaep" => {
+            let [label, n, e, d, p, q, data] = bufs;
+            rsa_oaep(a != 0, hash, label, n, e, d, p, q, data).map_err(|e| e.to_string())
         }
         // bufs[0] = password, bufs[1] = salt; a = iterations, b = length bytes
         "pbkdf2" => pbkdf2_derive(hash, &bufs[0], &bufs[1], a, b).map_err(|e| e.to_string()),
@@ -261,7 +266,7 @@ fn op_subtle_async_impl(info: *const v8::FunctionCallbackInfo) -> usize {
     let (a, b) = (a as u32, b as u32);
     // Copied out now: the blocking thread must not touch V8 backing stores.
     // An absent slot is an empty buffer.
-    let bufs: [Vec<u8>; 6] = std::array::from_fn(|i| {
+    let bufs: [Vec<u8>; 7] = std::array::from_fn(|i| {
         to_v8_slice(args.get(5 + i as i32))
             .map(|s| s.as_ref().to_vec())
             .unwrap_or_default()
@@ -286,7 +291,7 @@ unsafe extern "C" fn op_subtle_async_entry(info: *const v8::FunctionCallbackInfo
 pub fn op_subtle_async_decl() -> OpDecl {
     async_decl(
         "op_subtle_async",
-        10,
+        11,
         op_subtle_async_entry as _,
         op_subtle_async_impl,
     )
