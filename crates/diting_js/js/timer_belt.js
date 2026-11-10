@@ -119,7 +119,21 @@ function _fetchStage(tag, fk) {
   if (_fetchRing.length > 64) _fetchRing.shift();
 }
 let _timerPatrol = false;
-const _timerPatrolFn = () => {
+// #71: one patrol chain per wheel, enforced by generation — same contract as
+// the macrotask chain's _mtGen. Every path that drops the latch (the recover
+// hook, a rejected wake sleep) then arms a fresh chain while the previous
+// one's 1500ms sleep is still in flight, and that old chain re-armed itself
+// forever: an idle x.com serve ended up with ~1200 parallel chains (47.8M
+// patrols in 16h, ~800/s). A superseded chain now dies on its next wake.
+let _timerPatrolGen = 0;
+const _timerArmPatrol = () => {
+  _timerPatrol = true;
+  const gen = ++_timerPatrolGen;
+  const next = () => _timerPatrolFn(gen);
+  _OPS.op_sleep(1500).then(next, next);
+};
+const _timerPatrolFn = (gen) => {
+  if (gen !== undefined && gen !== _timerPatrolGen) return;
   _timerPatrol = false;
   _wheelPatrols++;
   const e = _timerHeap[0];
@@ -127,10 +141,7 @@ const _timerPatrolFn = () => {
     if (_timerArmed !== Infinity) _timerWake(_timerArmed);
     else _timerArmNext();
   }
-  if (_timerHeap.length && !_timerPatrol) {
-    _timerPatrol = true;
-    _OPS.op_sleep(1500).then(_timerPatrolFn, _timerPatrolFn);
-  }
+  if (_timerHeap.length && !_timerPatrol) _timerArmPatrol();
 };
 const _timerArmNext = () => {
   const e = _timerHeap[0];
@@ -138,10 +149,7 @@ const _timerArmNext = () => {
   const prev = _timerArmed;
   _timerArmed = e.d;
   try {
-    if (!_timerPatrol && _timerHeap.length) {
-      _timerPatrol = true;
-      _OPS.op_sleep(1500).then(_timerPatrolFn, _timerPatrolFn);
-    }
+    if (!_timerPatrol && _timerHeap.length) _timerArmPatrol();
     const wait = Math.max(0, e.d - Date.now());
     _OPS.op_sleep(wait).then(() => _timerWake(e.d), () => { _timerPatrolFn(); });
   } catch (err) {
@@ -172,7 +180,39 @@ const _scheduleAfter = (delay, level, fn) => {
   // that boundary), so even delay-0 timers round-trip through op_sleep:
   // a resolved async op is the cheapest true event-loop turn the runtime
   // offers.
-  _timerPush({ d: Date.now() + d, s: _timerSeq++, f: fn });
+  const o = Date.now() + d;
+  _timerPush({ d: _timerAlign(o, level), o, l: level, s: _timerSeq++, f: fn });
+  _timerArmNext();
+};
+
+// #70 background budget, Chrome's hidden-tab policy (the engine sets the
+// level from how long the session has gone without a command; visibility
+// itself is not touched — pages and flows key behaviour off it): level 1
+// aligns every timer wake-up to the next whole second; level 2 (Chrome's
+// intensive wake-up throttling, 5 more minutes on) aligns chained timers —
+// nesting level > 4 — to the next whole minute. An unwatched x.com session
+// otherwise ran at foreground speed for 16h (1.55M fetches, 1270
+// macrotasks/s). Entries keep their original deadline `o`, so a level
+// change re-derives every pending deadline: a command arriving after an
+// idle stretch gets its timers back on time instead of waiting out a
+// minute boundary.
+let _timerBackground = 0;
+const _timerAlign = (o, level) => {
+  if (_timerBackground === 0) return o;
+  const step = _timerBackground >= 2 && level > 4 ? 60000 : 1000;
+  return Math.ceil(o / step) * step;
+};
+globalThis.__diting_set_background = (lv) => {
+  const level = lv | 0;
+  if (level === _timerBackground) return;
+  _timerBackground = level;
+  if (!_timerHeap.length) return;
+  for (const e of _timerHeap) if (e.o !== undefined) e.d = _timerAlign(e.o, e.l);
+  // A sorted array is a valid min-heap under the same order.
+  _timerHeap.sort((a, b) => (_timerLess(a, b) ? -1 : _timerLess(b, a) ? 1 : 0));
+  // The armed sleep may now be for a deadline that moved: drop the gate so
+  // the next arm covers the new top (the old sleep wakes stale and no-ops).
+  _timerArmed = Infinity;
   _timerArmNext();
 };
 
@@ -341,15 +381,27 @@ globalThis.__diting_mt_recover_termination = () => {
 // with work queued can only be a corpse.
 globalThis.__diting_mt_stalled = () =>
   _mtArmed && _mtQLen() > 0 && Date.now() - _mtLastBeat > 600;
-// #240 wheel stall predicate, same witness contract: a healthy wheel runs
-// a due heap-top within one event-loop turn of its deadline. A heap-top
-// 600ms past due can only be a corpse (stale armed gate + latched
-// patrol) — the pump force-recovers, which re-arms the wheel. The
-// recover itself is idempotent, so a busy page that merely fell behind
-// pays one redundant arm, nothing more.
+// #240 wheel stall predicate, same witness contract: a heap-top past due
+// with a wheel that has STOPPED (stale armed gate + latched patrol) is a
+// corpse — the pump force-recovers, which re-arms the wheel. #71: overdue
+// alone is not a corpse. On a loaded host a live wheel runs 600-700ms
+// behind for hours (wakes still climbing every look), and calling that a
+// stall fired the recover — a synchronous delivery of every due entry —
+// plus a multi-KB post-mortem line ~1/s at peak, piling load onto the very
+// lag that tripped it (20699 hits in 16h on an idle x.com serve). So a
+// corpse is overdue AND no wheel progress for 1.5s across looks.
+let _wheelSeenProgress = -1, _wheelSeenAt = 0;
 globalThis.__diting_wheel_stalled = () => {
   const e = _timerHeap[0];
-  return !!e && e.d <= Date.now() - 600;
+  const now = Date.now();
+  if (!e || e.d > now - 600) { _wheelSeenProgress = -1; return false; }
+  const progress = _wheelWakes + _wheelRecoverDelivers;
+  if (progress !== _wheelSeenProgress) {
+    _wheelSeenProgress = progress;
+    _wheelSeenAt = now;
+    return false;
+  }
+  return now - _wheelSeenAt > 1500;
 };
 // #240 face-2 detector: a fetch whose op settled (opok/operr — the outer
 // promise resolved or rejected) but whose chained .then continuation

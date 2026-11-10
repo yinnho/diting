@@ -276,6 +276,11 @@ pub(super) fn session_thread(
                 let mut drain_budget: u64 = 0;
                 // #276: consecutive quiet 200ms pump slices — the idle-shrink clock.
                 let mut idle_slices: u32 = 0;
+                // #70: the background-budget clock — time since the last
+                // command, and the timer level currently applied.
+                let background_after = diting::env_knobs::background_after_secs();
+                let mut last_command_at = std::time::Instant::now();
+                let mut timer_background: u8 = 0;
                 // #193: commands that arrived while a navigation owned the
                 // page (the Navigate arm serves screenshots from the
                 // pre-navigation frame cache and parks everything else
@@ -338,6 +343,20 @@ pub(super) fn session_thread(
                                 actor.page.shrink_js_heap();
                                 idle_slices = 0;
                             }
+                            if background_after > 0 {
+                                let idle = last_command_at.elapsed().as_secs();
+                                let level = if idle >= 2 * background_after {
+                                    2
+                                } else if idle >= background_after {
+                                    1
+                                } else {
+                                    0
+                                };
+                                if level != timer_background {
+                                    actor.page.set_timer_background(level);
+                                    timer_background = level;
+                                }
+                            }
                             continue;
                         }
                     };
@@ -348,6 +367,11 @@ pub(super) fn session_thread(
                     // mounts and module loads a click kicks off run in the
                     // idle pump, not in the command handler itself.
                     actor.page.note_command_arrived();
+                    last_command_at = std::time::Instant::now();
+                    if timer_background != 0 {
+                        actor.page.set_timer_background(0);
+                        timer_background = 0;
+                    }
                     match cmd {
                         SessionCommand::Navigate { url, reply } => actor.on_navigate(url, reply, &mut cmd_rx).await,
                         SessionCommand::SetPreload { scripts, reply } => actor.on_set_preload(scripts, reply).await,

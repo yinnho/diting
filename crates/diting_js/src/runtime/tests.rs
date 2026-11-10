@@ -4607,6 +4607,62 @@ fn test_console_log() {
         .unwrap();
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn console_error_lines_carry_the_native_stack() {
+    // #72: V8's Error `stack` is an own accessor, and the console formatter
+    // (which never runs page getters — the xhs mnsv2 tripwire) skipped it,
+    // so every uncaught error logged one line with no frames: an idle x.com
+    // serve's 1737 "reading 'kind'" TypeErrors were untraceable. The native
+    // getter is safe to call; a planted getter and a page prepareStackTrace
+    // must still never run.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.execute_script(
+        "page.js",
+        "function readKind(o) { return o.kind; }
+         setTimeout(() => readKind(undefined), 0);
+         Promise.resolve().then(() => readKind(undefined));
+         globalThis.__planted = 0;
+         const e = new Error('planted');
+         Object.defineProperty(e, 'stack', { get() { globalThis.__planted++; return 'x'; } });
+         console.log(e);",
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(200).await;
+    let lines: Vec<String> = rt
+        .take_pending_console_calls()
+        .into_iter()
+        .map(|(_level, msg, _url)| msg)
+        .collect();
+    let sync = lines
+        .iter()
+        .find(|m| m.starts_with("TypeError: Cannot read properties of undefined (reading 'kind')"));
+    let rejected = lines.iter().find(|m| {
+        m.starts_with(
+            "Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'kind')",
+        )
+    });
+    assert!(
+        sync.is_some_and(|m| m.contains("at readKind")),
+        "sync throw keeps its frames: {lines:?}"
+    );
+    assert!(
+        rejected.is_some_and(|m| m.contains("at readKind")),
+        "rejection keeps its frames: {lines:?}"
+    );
+    assert_eq!(
+        rt.evaluate("globalThis.__planted").unwrap().as_f64(),
+        Some(0.0)
+    );
+    rt.execute_script(
+        "page2.js",
+        "globalThis.__pst = 0;
+         Error.prepareStackTrace = () => { globalThis.__pst++; return 'p'; };
+         console.log(new Error('fresh'));",
+    )
+    .unwrap();
+    assert_eq!(rt.evaluate("globalThis.__pst").unwrap().as_f64(), Some(0.0));
+}
+
 #[test]
 fn test_console_calls_are_queued_for_cdp() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -5407,6 +5463,109 @@ async fn timer_fires_after_script_timeout_beheads_dispatch_window() {
 /// one the port tests use for `_mtQueue`): stale the heap-top entry,
 /// point `armed` at it with no sleep covering it, latch the patrol.
 #[tokio::test(flavor = "current_thread")]
+async fn timer_background_budget_aligns_and_lifts() {
+    // #70: an unwatched session's timers get Chrome's hidden-tab budget.
+    // Level 1 aligns a wake-up to the next whole second; level 2 aligns
+    // chained timers (nesting > 4) to the next minute; dropping back to 0
+    // re-derives every pending deadline, so a chained timer parked on a
+    // minute boundary fires on time once a command arrives.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        __diting_set_background(1);
+        const t0 = Date.now();
+        const fired = await new Promise(r => setTimeout(() => r(Date.now()), 10));
+        const aligned = fired >= Math.ceil((t0 + 10) / 1000) * 1000;
+        __diting_set_background(0);
+        const t1 = Date.now();
+        await new Promise(r => setTimeout(r, 10));
+        const fgFast = Date.now() - t1 < 500;
+        // A chain six deep, run at foreground speed up to the fifth link; the
+        // budget goes to level 2 right before the sixth (nesting > 4) is
+        // scheduled, so it parks on the next minute boundary.
+        let deepAt = 0;
+        const deep = new Promise(r => {
+            const step = (n) => setTimeout(() => {
+                if (n === 6) { deepAt = Date.now(); r(); return; }
+                if (n === 5) __diting_set_background(2);
+                step(n + 1);
+            }, 0);
+            step(1);
+        });
+        await new Promise(r => setTimeout(r, 300));
+        const parked = deepAt === 0;
+        const liftAt = Date.now();
+        __diting_set_background(0);
+        await deep;
+        return { aligned, fgFast, parked, liftedPromptly: deepAt - liftAt < 500 };
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!({ "aligned": true, "fgFast": true, "parked": true, "liftedPromptly": true })
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn timer_wheel_recover_does_not_multiply_patrol_chains() {
+    // #71: each recover dropped the patrol latch and armed a new 1500ms
+    // chain while the old one was still in flight, and the old one re-armed
+    // itself forever — one leaked chain per recover. An idle x.com serve
+    // (20699 false-positive recovers) ran ~1200 parallel chains, ~800
+    // patrols/s. Twenty recovers must leave one chain: ~2 patrols in 3s.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate("setTimeout(() => {}, 600000);").unwrap();
+    let _ = rt.run_event_loop_bounded(100).await;
+    for _ in 0..20 {
+        rt.evaluate("__diting_mt_recover_termination()").unwrap();
+        let _ = rt.run_event_loop_bounded(20).await;
+    }
+    let p0 = rt
+        .evaluate("__MT_STATE().wheel.patrols")
+        .unwrap()
+        .as_f64()
+        .unwrap();
+    for _ in 0..30 {
+        let _ = rt.run_event_loop_bounded(100).await;
+    }
+    let p1 = rt
+        .evaluate("__MT_STATE().wheel.patrols")
+        .unwrap()
+        .as_f64()
+        .unwrap();
+    assert!(
+        p1 - p0 <= 4.0,
+        "patrols in 3s: {} (one chain is ~2)",
+        p1 - p0
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn timer_wheel_behind_but_moving_is_not_a_stall() {
+    // #71: an unattended x.com serve ran its wheel 600-700ms behind for
+    // hours with wakes still climbing, and the witness called it a corpse
+    // 20699 times in 16h — each hit a forced synchronous delivery plus a
+    // multi-KB post-mortem line. Behind-but-moving must stay false however
+    // long it lasts; only a wheel with no progress for 1.5s is a corpse.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let overdue_top = "setTimeout(() => {}, 5); _timerHeap[0].d -= 700;";
+    rt.evaluate(overdue_top).unwrap();
+    for _ in 0..4 {
+        assert_eq!(
+            rt.evaluate("globalThis.__diting_wheel_stalled()").unwrap(),
+            serde_json::Value::Bool(false)
+        );
+        // The wheel moves between looks (deliveries land), yet the heap top
+        // stays overdue — the loaded-host steady state.
+        rt.evaluate("__diting_mt_recover_termination()").unwrap();
+        rt.evaluate(overdue_top).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(600));
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn timer_wheel_corpse_healed_by_pump_witness() {
     let mut rt = setup_runtime("<html><body></body></html>");
     // Pin the witness contract (house style from #227's predicate
@@ -5432,10 +5591,18 @@ async fn timer_wheel_corpse_healed_by_pump_witness() {
              _timerPatrol = true;",
     )
     .unwrap();
+    // #71: overdue alone is not a corpse — the first look only records the
+    // wheel's progress; a corpse is overdue with no progress for 1.5s.
+    assert_eq!(
+        rt.evaluate("globalThis.__diting_wheel_stalled()").unwrap(),
+        serde_json::Value::Bool(false),
+        "first look at an overdue heap-top just records progress"
+    );
+    std::thread::sleep(std::time::Duration::from_millis(1600));
     assert_eq!(
         rt.evaluate("globalThis.__diting_wheel_stalled()").unwrap(),
         serde_json::Value::Bool(true),
-        "precondition: a stale-past-due heap-top must trip the witness"
+        "precondition: a stale-past-due heap-top with no progress must trip the witness"
     );
 
     // Pump: the loop-entry witness must force-recover the wheel and

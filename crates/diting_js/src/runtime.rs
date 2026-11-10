@@ -116,6 +116,10 @@ pub struct JsRuntime {
     /// microtask loop re-queues itself on the next pump, so pumping it again
     /// just re-feeds the storm).
     watchdog_fired_total: std::cell::Cell<u64>,
+    /// #71: when the last #240 stall post-mortem was written, and how many
+    /// hits were folded since — the dump is rate-limited per realm.
+    stall_log_at: std::cell::Cell<Option<std::time::Instant>>,
+    stall_log_folded: std::cell::Cell<u64>,
     /// #66: cumulative wall time actually spent inside `poll_event_loop`
     /// across this realm's life (nanoseconds). Pure execution time — a poll
     /// that finds nothing ready registers the reactor bookkeeping only, so
@@ -427,6 +431,8 @@ impl JsRuntime {
             isolate_handle,
             heap_limit_state,
             watchdog_fired_total: std::cell::Cell::new(0),
+            stall_log_at: std::cell::Cell::new(None),
+            stall_log_folded: std::cell::Cell::new(0),
             v8_active_ns: std::cell::Cell::new(0),
             stale_termination: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             termination_unwound: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),

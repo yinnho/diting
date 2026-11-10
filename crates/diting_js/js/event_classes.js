@@ -79,7 +79,10 @@ _evxRo(globalThis.PromiseRejectionEvent, ['promise', 'reason']);
     // the dispatch path never arms; do our own console report when the event
     // was not prevented.
     if (!e.defaultPrevented) {
-      try { console.error('Uncaught (in promise) ' + String(reason)); } catch (err) {}
+      // The reason itself, not String(reason): an Error formats with its
+      // stack (#72), anything else with the console's preview — Chrome's
+      // "Uncaught (in promise)" line shows both.
+      try { console.error('Uncaught (in promise)', reason); } catch (err) {}
     }
     return true;
   });
