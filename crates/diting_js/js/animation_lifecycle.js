@@ -301,7 +301,13 @@ function _scheduleAnimationCheck(root) {
       for (const r of _animPendingChecks) _animSweepWork.push(r);
       _animPendingChecks.clear();
     }
-    _maybeArmSweepCont();
+    // First slice runs INLINE in the seeding microtask, not on the 4ms
+    // continuation timer: a small batch (the common case) lands its starts in
+    // the same tick as the mutation, so the sweep costs no extra pump
+    // round-trip. _drainSweepSlice pre-arms the continuation before working,
+    // so a big batch — or a beheaded inline slice — still resumes on the
+    // timer with the same invariants.
+    _drainSweepSlice();
     // Transition diffs ride the same drain (one recompute per batch, the
     // elements already warm from the animation pass). Attribute-write
     // callers only — subtree insertions must not arm diffs.
