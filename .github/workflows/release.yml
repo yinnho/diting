@@ -125,7 +125,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y cmake clang libclang-dev
           curl -fsSL https://ziglang.org/download/0.16.0/zig-aarch64-linux-0.16.0.tar.xz | sudo tar -xJ -C /opt
           echo "/opt/zig-aarch64-linux-0.16.0" >> "$GITHUB_PATH"
-      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2
+      - uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2
         if: matrix.zig
         with:
           tool: cargo-zigbuild
@@ -179,7 +179,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
       - name: Publish release
         if: env.PUBLISH == 'true'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: ${{ env.DITING_REF }}
           body: ${{ steps.notes.outputs.body }}
