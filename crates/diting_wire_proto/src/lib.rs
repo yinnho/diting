@@ -1,3 +1,7 @@
+// Vendored (crates/VENDORED.md): upstream code keeps its byte shape —
+// house clippy rules do not police this crate (#64).
+#![allow(clippy::all)]
+
 #![deny(unused)]
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
