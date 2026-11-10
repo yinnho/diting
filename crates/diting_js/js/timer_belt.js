@@ -315,6 +315,8 @@ const _mtWindow = (body) => {
 let _wheelRecoverDelivers = 0; // due entries delivered by the recover hook
 globalThis.__diting_mt_recover_termination = () => {
   _mtDepth = 0; __probeInflightFetches();
+  // #224: the animation sweep's guards leak the same way as _mtDepth.
+  try { _animHealAfterBehead(); } catch (_) {}
   if (_mtQLen()) _mtArm();
   _timerPatrol = false;
   if (_timerHeap.length) {

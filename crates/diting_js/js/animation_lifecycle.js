@@ -31,6 +31,7 @@
 // Comma-separated animation lists are tracked by their first name only.
 const _animTracked = new Map();      // nid -> animation state
 let _animScanDepth = 0;              // dispatch handlers mutate too — reentrancy guard
+let _animWalk = null, _animWalkIdx = 0; // candidates mid-check; a beheading leaves them set
 const _animDeferredChecks = new Set();
 
 function _cssSeconds(v) {
@@ -135,6 +136,13 @@ function _startAnimation(el, name, facts) {
 // tracked elements still get their cancel/change handling unthrottled, and
 // quiet pages never come near the cap — zero behavioral delta there.
 let _animEpochSpent = -1, _animEpochBudget = 0, _animOverflowQueued = false;
+// Insertion generations: every insert-driven check stamps its root with a
+// fresh gen, its walk candidates inherit it, and a start records the gen it
+// ran under — so a re-check can tell "same insertion" from "re-inserted".
+let _animInsertGen = 0;
+const _animInsertStamp = new WeakMap(); // inserted root -> gen
+const _animLastInsert = new WeakMap();  // element -> newest gen it entered under
+let _animStarted = new WeakMap();       // element -> { name, gen } of its last start
 const _animCappedTail = new Set();
 const _ANIM_EPOCH_CAP = 512;
 function _animationCheckOne(el) {
@@ -158,9 +166,12 @@ function _animationCheckOne(el) {
       setTimeout(() => {
         _animOverflowQueued = false;
         _animEpochBudget = 0;
-        for (const e of _animCappedTail) _animDeferredChecks.add(e);
+        // Through the sliced sweep, not a one-shot drain: the tail gets the
+        // committed cursor and the pre-armed continuation, so a beheading
+        // here resumes instead of stranding it.
+        for (const e of _animCappedTail) _animSweepWork.push(e);
         _animCappedTail.clear();
-        _drainDeferredAnimationChecks();
+        _drainSweepSlice();
       }, 50);
     }
     return;
@@ -168,8 +179,19 @@ function _animationCheckOne(el) {
   _animEpochBudget++;
   const facts = _animFactsOf(el);
   const name = facts.name;
+  const prev = _animStarted.get(el);
+  if (prev && prev.name !== name) _animStarted.delete(el);
   if (existing && existing.name !== name) _cancelAnimation(el._nid, existing);
-  if (name && (!existing || existing.name !== name)) _startAnimation(el, name, facts);
+  if (name && (!existing || existing.name !== name)) {
+    // Already ran for this insertion: one insert is often looked at twice
+    // (a batch root's walk, then the element as its own root), and once the
+    // gap outlives a short animation its end timer has untracked it — the
+    // second look restarted it (flood test: 711 starts of 600 on a slowed
+    // runner). Chrome restarts only on a new animation-name or re-insertion.
+    if (!existing && prev && prev.name === name && (_animLastInsert.get(el) || 0) <= prev.gen) return;
+    _animStarted.set(el, { name, gen: _animInsertGen });
+    _startAnimation(el, name, facts);
+  }
 }
 
 // A page with no CSS anywhere cannot start an animation, but the check's
@@ -194,14 +216,17 @@ function _animationCssGate() {
 
 // Collect animation-capable elements (class or style attribute) from a
 // subtree that just entered the document, plus the root itself. The cap
-// bounds the per-element computed-style reads on big insertions.
-function _animationCheckIn(root) {
+// bounds the per-element computed-style reads on big insertions. `solo`
+// checks the root alone — the heal's re-queue of a beheaded walk's remainder.
+function _animationCheckIn(root, solo) {
   if (!root || root.nodeType !== 1 || !root.isConnected) return;
   if (_animScanDepth > 0) { _animDeferredChecks.add(root); return; }
   if (!_animationCssGate()) {
     // CSS just disappeared: anything still tracked lost its declarations —
     // cancel them the way Chrome does when its sheet is removed mid-run.
     if (_animTracked.size) _cancelAnimationsInSubtree(document.documentElement);
+    // Every declaration is gone, so a sheet landing later starts afresh.
+    _animStarted = new WeakMap();
     return;
   }
   if (_animCssTransition > 0) {
@@ -221,18 +246,33 @@ function _animationCheckIn(root) {
   }
   _animScanDepth = 1;
   try {
-    _animationCheckOne(root);
-    let count = 1;
-    for (const sel of ["[class]", "[style]"]) {
-      const ids = _domParse("query_selector_all_scoped", root._nid, sel) || [];
-      for (const id of ids) {
-        if (count >= 128) break;
-        const el = _wrapEl(+id);
-        if (el) { _animationCheckOne(el); count++; }
+    // Candidates first (the queries are cheap — no cascade), then the
+    // per-candidate reads with the walk position published: a beheading
+    // mid-read leaves exactly the unchecked remainder for the heal.
+    const walk = [root];
+    const stamp = solo ? 0 : (_animInsertStamp.get(root) || 0);
+    if (!solo) {
+      for (const sel of ["[class]", "[style]"]) {
+        const ids = _domParse("query_selector_all_scoped", root._nid, sel) || [];
+        for (const id of ids) {
+          if (walk.length >= 128) break;
+          const el = _wrapEl(+id);
+          if (el) walk.push(el);
+        }
+        if (walk.length >= 128) break;
       }
-      if (count >= 128) break;
+    }
+    if (stamp) {
+      for (const el of walk) if ((_animLastInsert.get(el) || 0) < stamp) _animLastInsert.set(el, stamp);
+    }
+    _animWalk = walk;
+    _animWalkIdx = 0;
+    while (_animWalkIdx < walk.length) {
+      _animationCheckOne(walk[_animWalkIdx]);
+      _animWalkIdx++;
     }
   } catch (e) {}
+  _animWalk = null;
   _animScanDepth = 0;
   _drainDeferredAnimationChecks();
 }
@@ -269,8 +309,10 @@ const _ANIM_SWEEP_SLICE_MS = 40;
 // root's full-cascade check can outwall the eval pump's 500ms patience, and
 // the watchdog's terminate is uncatchable — it unwinds the slice wherever it
 // stands. Two invariants make that harmless: the cursor commits BEFORE each
-// check (a beheaded slice never re-runs an element — re-running a finished
-// animation would restart it), and the next continuation timer is armed
+// check (a beheaded slice never re-runs the roots it already finished —
+// re-running a finished animation would restart it; only the unchecked
+// remainder of a cut walk is re-queued, see _animHealAfterBehead), and the
+// next continuation timer is armed
 // BEFORE the slice does its work (a beheaded slice always leaves a pending
 // timer behind, so the batch resumes instead of starving). A stray 4ms no-op
 // continuation per burst is the price; the timer only ever arms while sweep
@@ -280,18 +322,57 @@ function _maybeArmSweepCont() {
   _animSweepContArmed = true;
   setTimeout(_drainSweepSlice, 4);
 }
+// The same terminate also skips every flag reset on its way out: beheaded
+// inside _animationCheckIn, _animScanDepth stays 1 for the realm's lifetime
+// and every later check just parks in _animDeferredChecks (the flood test
+// froze at starts=127/272/405 of 600 when a loaded runner's first layout
+// outwalled patience). The engine's termination recovery point
+// (__diting_mt_recover_termination, run at loop entry after a real fire) is
+// the one moment nothing JS is on the stack, so anything still held there is
+// the beheading's leftover: reset the guards and hand the parked roots to the
+// committed-cursor sweep. NOT at slice entry: a slice can legitimately start
+// with a check still on the stack (a listener's dispatch hops through Rust),
+// and healing there double-checked the open walk — measured starts=693 of 600.
+// The walk that was cut goes back too, as solo checks from the candidate
+// being read on: the cursor had already passed its root, so its unchecked
+// tail was lost (the flood test then stopped at 599). Only the remainder —
+// re-walking the whole root restarted animations that had already ended
+// under it (601). The candidate that was mid-read is safe to repeat:
+// _animationCheckOne leaves one already tracked under its name alone.
+function _animHealAfterBehead() {
+  _animScanDepth = 0;
+  _animDrainingDeferred = false;
+  if (_animWalk) {
+    for (let i = _animWalkIdx; i < _animWalk.length; i++) _animSweepWork.push({ _animSolo: _animWalk[i] });
+    _animWalk = null;
+  }
+  if (_animDeferredChecks.size) {
+    for (const e of _animDeferredChecks) _animSweepWork.push(e);
+    _animDeferredChecks.clear();
+  }
+  // A continuation armed before the fire may be the severed one; a duplicate
+  // arm is a no-op slice.
+  _animSweepContArmed = false;
+  _maybeArmSweepCont();
+}
 function _drainSweepSlice() {
   _animSweepContArmed = false;
   _maybeArmSweepCont();
   const t0 = Date.now();
   while (_animSweepIdx < _animSweepWork.length) {
-    _animationCheckIn(_animSweepWork[_animSweepIdx++]);
+    const w = _animSweepWork[_animSweepIdx++];
+    if (w._animSolo) _animationCheckIn(w._animSolo, true);
+    else _animationCheckIn(w);
     if (_animSweepIdx < _animSweepWork.length && Date.now() - t0 > _ANIM_SWEEP_SLICE_MS) break;
   }
   if (_animSweepIdx >= _animSweepWork.length) { _animSweepWork.length = 0; _animSweepIdx = 0; }
 }
-function _scheduleAnimationCheck(root) {
+// `inserted`: the root just entered the document (not an attribute write) —
+// stamps a fresh insertion gen, so animations that already ran under an
+// earlier insertion of the same elements start again.
+function _scheduleAnimationCheck(root, inserted) {
   if (!root || root.nodeType !== 1) return;
+  if (inserted) _animInsertStamp.set(root, ++_animInsertGen);
   _animPendingChecks.add(root);
   if (_animCheckQueued) return;
   _animCheckQueued = true;
@@ -319,11 +400,19 @@ function _scheduleAnimationCheck(root) {
   });
 }
 
+// Removed one at a time, not snapshot-and-clear: a beheaded drain leaves its
+// unchecked remainder in the set for _animHealAfterBehead to pick up. The
+// flag keeps nested checkIn tail drains from recursing once per element —
+// the outer loop visits whatever they add (Set iteration sees insertions).
+let _animDrainingDeferred = false;
 function _drainDeferredAnimationChecks() {
-  if (_animDeferredChecks.size === 0) return;
-  const pending = Array.from(_animDeferredChecks);
-  _animDeferredChecks.clear();
-  for (const el of pending) _animationCheckIn(el);
+  if (_animDrainingDeferred || _animDeferredChecks.size === 0) return;
+  _animDrainingDeferred = true;
+  for (const el of _animDeferredChecks) {
+    _animDeferredChecks.delete(el);
+    _animationCheckIn(el);
+  }
+  _animDrainingDeferred = false;
 }
 
 function _animNodeInSubtree(el, root) {
@@ -473,6 +562,7 @@ function _scheduleTransitionCheck(el) {
   const hide = (globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []));
   const d = (n, v) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { value: v, writable: true, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
   const a = (n, get, set) => { if (own(n)) return; try { Object.defineProperty(globalThis, n, { get, set, enumerable: false, configurable: true }); hide.push(n); } catch (e) {} };
+  d('_animHealAfterBehead', _animHealAfterBehead);
   d('_cancelAnimationsInSubtree', _cancelAnimationsInSubtree);
   d('_cancelTransitionsInSubtree', _cancelTransitionsInSubtree);
   d('_dispatchAnimationEvent', _dispatchAnimationEvent);

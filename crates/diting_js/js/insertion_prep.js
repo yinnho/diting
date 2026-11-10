@@ -32,7 +32,7 @@ function __prepareInsertedSubtree(root) {
   __prepareInsertedStylesheetLinksIn(root);
   __prepareInsertedStylesIn(root);
   // Elements entering the document start their CSS animations.
-  _scheduleAnimationCheck(root);
+  _scheduleAnimationCheck(root, true);
 }
 
 // --- dynamic <style> load events ---------------------------------------

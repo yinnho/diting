@@ -892,7 +892,7 @@ class Element extends Node {
       __prepareInsertedStylesheetLinksIn(this);
       __prepareInsertedStylesIn(this);
       // Markup-level animations start when the markup enters the document.
-      _scheduleAnimationCheck(this);
+      _scheduleAnimationCheck(this, true);
     }
     if (globalThis.__mutationObservers?.length) {
       newChildren = _domParse("child_nodes", this._nid) || [];

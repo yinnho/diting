@@ -24523,6 +24523,127 @@ async fn test_css_animation_flood_epoch_cap_defers_not_starves() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn test_css_animation_sweep_survives_behead_inside_check() {
+    // #224 second hole: a wall inside _animationCheckIn's computed-style read
+    // (on a loaded runner, the first layout's font-book init) gets beheaded by
+    // the eval patience watchdog mid-check. The terminate skipped the reset of
+    // the reentrancy depth, and a depth stuck at 1 turned every later check
+    // into a silent defer — the flood test froze at starts=127/272/405 of
+    // 600. The wall here is a one-shot page wrapper around getComputedStyle
+    // (the sweep resolves the global per call); the insert waits a tick so it
+    // runs inside the pump, under patience.
+    let mut rt = setup_runtime(
+        "<html><head><style>@keyframes fade{from{opacity:1}to{opacity:0}} .box{animation:fade 60ms linear;}</style></head><body></body></html>",
+    );
+    let script = r#"async () => {
+        let starts = 0, walled = false;
+        document.body.addEventListener('animationstart', () => starts++);
+        const realGcs = globalThis.getComputedStyle;
+        globalThis.getComputedStyle = function (el, p) {
+            if (!walled && el.className === 'box') { walled = true; const t = Date.now(); while (Date.now() - t < 800) {} }
+            return realGcs.call(this, el, p);
+        };
+        await new Promise(r => setTimeout(r, 10));
+        for (let i = 0; i < 30; i++) {
+            const el = document.createElement('div');
+            el.setAttribute('class', 'box');
+            document.body.appendChild(el);
+        }
+        for (let round = 0; starts < 30 && round < 60; round++) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+        return { starts, walled };
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["starts"],
+        serde_json::json!(30),
+        "starts after behead: {v}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_css_animation_second_look_does_not_restart_ended() {
+    // #224: one insert is looked at twice — the body scan (an animation*
+    // listener landed) walks the new boxes, then each box comes up again as
+    // its own inserted root. Slow reads stretch that gap past a short
+    // animation, its end timer untracks it, and the second look used to start
+    // it again (flood test: 711 starts of 600 on a slowed runner).
+    let mut rt = setup_runtime(
+        "<html><head><style>@keyframes fade{from{opacity:1}to{opacity:0}} .box{animation:fade 10ms linear;}</style></head><body></body></html>",
+    );
+    let script = r#"async () => {
+        let starts = 0, ends = 0;
+        const realGcs = globalThis.getComputedStyle;
+        globalThis.getComputedStyle = function (el, p) {
+            if (el.className === 'box') { const t = Date.now(); while (Date.now() - t < 25) {} }
+            return realGcs.call(this, el, p);
+        };
+        document.body.addEventListener('animationstart', () => starts++);
+        document.body.addEventListener('animationend', () => ends++);
+        for (let i = 0; i < 5; i++) {
+            const el = document.createElement('div');
+            el.setAttribute('class', 'box');
+            document.body.appendChild(el);
+        }
+        for (let round = 0; ends < 5 && round < 40; round++) {
+            await new Promise(r => setTimeout(r, 25));
+        }
+        await new Promise(r => setTimeout(r, 200));
+        return { starts, ends };
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!({ "starts": 5, "ends": 5 })
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_css_animation_reinsert_and_rename_still_restart() {
+    // The second-look guard must not swallow Chrome's real restarts: a
+    // re-insertion and a new animation-name both start the animation again.
+    let mut rt = setup_runtime(
+        "<html><head><style>@keyframes fade{from{opacity:1}to{opacity:0}} @keyframes spin{from{opacity:0}to{opacity:1}} .box{animation:fade 10ms linear;} .box2{animation:spin 10ms linear;}</style></head><body></body></html>",
+    );
+    let script = r#"async () => {
+        const seq = [];
+        document.body.addEventListener('animationstart', (e) => seq.push(e.animationName));
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        const el = document.createElement('div');
+        el.setAttribute('class', 'box');
+        document.body.appendChild(el);
+        await wait(60);
+        el.setAttribute('data-x', '1');
+        el.style.color = 'red';
+        await wait(60);
+        el.remove();
+        document.body.appendChild(el);
+        await wait(60);
+        el.setAttribute('class', 'box2');
+        await wait(60);
+        el.setAttribute('class', 'box');
+        await wait(60);
+        return seq;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!(["fade", "fade", "spin", "fade"])
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_css_animation_cancel_on_class_removal() {
     // Removing the animation between start and end must fire animationcancel
     // and suppress animationend (the pending end timer is cleared).
