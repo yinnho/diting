@@ -98,20 +98,26 @@ if (!globalThis.crypto.subtle) {
     if (n === "SHA-1" || n === "SHA-256" || n === "SHA-384" || n === "SHA-512") return n;
     throw new DOMException("Unsupported hash algorithm: " + (h && (h.name || h)), "NotSupportedError");
   }
-  // A required [EnforceRange] unsigned long member of an algorithm dictionary,
-  // converted with Chrome's own WebCrypto messages (Chrome 157, probed):
-  // absent -> "Missing required property"; ToNumber NaN (an explicit
-  // undefined, a non-numeric string, an object) -> "Is not a number";
-  // +-Infinity or outside [0, 2^32-1] after truncation -> "Outside of numeric
-  // range". 1.7 truncates to 1, -0.5 and null to 0 (left to the caller's own
-  // range rule). `>>> 0` turned -1 into 4294967295 instead.
-  function enforceUint32Member(dict, member, op, dictName) {
+  // An [EnforceRange] integer member of an algorithm dictionary (octet,
+  // unsigned short, unsigned long — `max` 255 / 65535 / 2^32-1), converted
+  // with Chrome's own WebCrypto messages (Chrome 157, probed): absent ->
+  // "Missing required property" (or undefined back for an optional member);
+  // ToNumber NaN (an explicit undefined, a non-numeric string, an object) ->
+  // "Is not a number"; +-Infinity or outside [0, max] after truncation ->
+  // "Outside of numeric range". 256.9 truncates to 256, null to 0 (left to
+  // each algorithm's own range rule). The old reads were ad hoc: `>>> 0`
+  // turned -1 into 4294967295, `x || default` took 0 as "absent".
+  const OCTET = 255, USHORT = 65535, ULONG = 4294967295;
+  function enforceIntMember(dict, member, op, dictName, max, optional) {
     const pre = "Failed to execute '" + op + "' on 'SubtleCrypto': " + dictName + ": " + member + ": ";
-    if (!(member in dict)) throw new TypeError(pre + "Missing required property");
+    if (!(member in dict)) {
+      if (optional) return undefined;
+      throw new TypeError(pre + "Missing required property");
+    }
     const n = Number(dict[member]);
     if (Number.isNaN(n)) throw new TypeError(pre + "Is not a number");
     const t = Math.trunc(n);
-    if (!Number.isFinite(t) || t < 0 || t > 4294967295) throw new TypeError(pre + "Outside of numeric range");
+    if (!Number.isFinite(t) || t < 0 || t > max) throw new TypeError(pre + "Outside of numeric range");
     return t + 0;
   }
   const hashBlockSize = (hash) => (hash === "SHA-384" || hash === "SHA-512" ? 128 : 64);
@@ -162,7 +168,7 @@ if (!globalThis.crypto.subtle) {
   function keyAlgorithmFor(alg, bytes) {
     switch (alg.name) {
       case "HMAC":
-        return { name: "HMAC", hash: { name: normalizeHash(alg.hash) }, length: bytes.length * 8 };
+        return { name: "HMAC", hash: { name: normalizeHash(alg.hash) }, length: typeof alg.length === "number" ? alg.length : bytes.length * 8 };
       case "AES-CTR": case "AES-CBC": case "AES-GCM": case "AES-KW":
         // Chrome 155 dropped 192-bit AES (BoringShell): raw import of a
         // 24-byte key is an OperationError; the jwk path reports a DataError
@@ -361,7 +367,7 @@ if (!globalThis.crypto.subtle) {
     const face = rsaFace(alg.name);
     const combined = face.pub.concat(face.priv);
     checkKeyUsages(usages, combined, false);
-    const bits = alg.modulusLength;
+    const bits = enforceIntMember(alg, "modulusLength", "generateKey", "RsaHashedKeyGenParams", ULONG);
     if (!Number.isInteger(bits) || bits < 256 || bits > 8192 || bits % 8 !== 0) {
       throw new DOMException("The modulus length must be a multiple of 8 bits and >= 256 and <= 8192", "OperationError");
     }
@@ -374,7 +380,12 @@ if (!globalThis.crypto.subtle) {
     // A plain function returning the async tail, not an async function: the
     // generated exports rely on Annex B block hoisting.
     return (async () => {
-      const m = rsaUnflat(await offThread("rsa_generate", "", bits, Number(ev)));
+      // A keygen the backend refuses (Chrome 157: any modulus under 512 bits)
+      // is an OperationError with no text — not the backend's wording.
+      let flat;
+      try { flat = await offThread("rsa_generate", "", bits, Number(ev)); }
+      catch (e) { throw new DOMException("", "OperationError"); }
+      const m = rsaUnflat(flat);
       const algorithm = {
         name: alg.name, modulusLength: bits,
         publicExponent: new Uint8Array(m.e), hash: { name: hash },
@@ -485,6 +496,16 @@ if (!globalThis.crypto.subtle) {
       let expectedAlg = null;
       if (alg.name === "HMAC") {
         const hash = requireHashParam(alg, "importKey", "HmacImportParams");
+        const L = enforceIntMember(alg, "length", "importKey", "HmacImportParams", ULONG, true);
+        if (L !== undefined) {
+          // Chrome: within the key's last byte — (bytes*8 - 8, bytes*8].
+          if (L > bytes.length * 8 || L <= bytes.length * 8 - 8) {
+            throw new DOMException("The optional HMAC key length must be shorter than the key data, and by no more than 7 bits.", "DataError");
+          }
+          alg.length = L;
+        } else {
+          delete alg.length;
+        }
         checkKeyUsages(keyUsages || [], ["sign", "verify"], false);
         // "SHA-1".slice(4) === "1" too — no special case needed.
         expectedAlg = "HS" + hash.slice(4);
@@ -593,12 +614,15 @@ if (!globalThis.crypto.subtle) {
         checkUsageStrings("generateKey", keyUsages || []);
         const hash = requireHashParam(alg, "generateKey", "HmacKeyGenParams");
         checkKeyUsages(keyUsages || [], ["sign", "verify"], false);
-        const len = alg.length ? Math.ceil(alg.length / 8) : hashBlockSize(hash);
+        const bitsLen = enforceIntMember(alg, "length", "generateKey", "HmacKeyGenParams", ULONG, true);
+        if (bitsLen === 0) throw new DOMException("HMAC key length must not be zero", "OperationError");
+        const len = bitsLen !== undefined ? Math.ceil(bitsLen / 8) : hashBlockSize(hash);
         const bytes = _OPS.op_random_bytes(len);
         return makeKey("secret", extractable, { name: "HMAC", hash: { name: hash }, length: len * 8 }, keyUsages, bytes);
       }
       if (alg.name === "AES-CTR" || alg.name === "AES-CBC" || alg.name === "AES-GCM" || alg.name === "AES-KW") {
         checkUsageStrings("generateKey", keyUsages || []);
+        alg.length = enforceIntMember(alg, "length", "generateKey", "AesKeyGenParams", USHORT);
         if (alg.length === 192) {
           throw new DOMException("192-bit AES keys are not supported", "OperationError");
         }
@@ -720,7 +744,7 @@ if (!globalThis.crypto.subtle) {
       if (alg.name === "PBKDF2") {
         // Chrome's member order: salt, iterations, hash.
         const salt = toBytes(alg.salt);
-        const iterations = enforceUint32Member(alg, "iterations", "deriveBits", "Pbkdf2Params");
+        const iterations = enforceIntMember(alg, "iterations", "deriveBits", "Pbkdf2Params", ULONG);
         const hash = normalizeHash(alg.hash);
         return bufferOf(await offThread("pbkdf2", hash, iterations, lenBytes, bytes, salt));
       }
@@ -737,15 +761,21 @@ if (!globalThis.crypto.subtle) {
       // Chrome normalizes the derivation params first, and names deriveKey in
       // the conversion error (deriveBits below would say deriveBits).
       const pAlg = normalizeAlgo(algorithm);
-      if (pAlg.name === "PBKDF2") enforceUint32Member(pAlg, "iterations", "deriveKey", "Pbkdf2Params");
+      if (pAlg.name === "PBKDF2") enforceIntMember(pAlg, "iterations", "deriveKey", "Pbkdf2Params", ULONG);
       const dAlg = normalizeAlgo(derivedKeyAlgorithm);
       let bits;
       if (dAlg.name === "HMAC") {
-        bits = dAlg.length || hashBlockSize(normalizeHash(dAlg.hash)) * 8;
+        const L = enforceIntMember(dAlg, "length", "deriveKey", "HmacImportParams", ULONG, true);
+        // Chrome 157 raises this one as a TypeError here (an OperationError
+        // in generateKey) — probed, pinned as is.
+        if (L === 0) throw new TypeError("HMAC key length must not be zero");
+        bits = L !== undefined ? L : hashBlockSize(normalizeHash(dAlg.hash)) * 8;
       } else if (dAlg.name === "AES-CTR" || dAlg.name === "AES-CBC" || dAlg.name === "AES-GCM" || dAlg.name === "AES-KW") {
-        bits = dAlg.length;
-        if (bits !== 128 && bits !== 192 && bits !== 256) {
-          throw new DOMException("AES key length must be 128, 192, or 256 bits", "OperationError");
+        bits = enforceIntMember(dAlg, "length", "deriveKey", "AesDerivedKeyParams", USHORT);
+        // Same faces as generateKey (Chrome 157 probed): 192-bit AES is gone.
+        if (bits === 192) throw new DOMException("192-bit AES keys are not supported", "OperationError");
+        if (bits !== 128 && bits !== 256) {
+          throw new DOMException("AES key length must be 128 or 256 bits", "OperationError");
         }
       } else {
         throw new DOMException("deriveKey does not support deriving " + dAlg.name, "NotSupportedError");
@@ -777,6 +807,7 @@ if (!globalThis.crypto.subtle) {
   // direct encrypt/decrypt call with NotSupportedError).
   function subtleCipher(encrypt, algorithm, key, data, viaWrap) {
     const alg = normalizeAlgo(algorithm);
+    const cipherOp = viaWrap ? (encrypt ? "wrapKey" : "unwrapKey") : (encrypt ? "encrypt" : "decrypt");
     const input = toBytes(data);
     if (alg.name === "RSA-OAEP") {
       const m = rsaMaterial(key);
@@ -820,7 +851,11 @@ if (!globalThis.crypto.subtle) {
     if (alg.name === "AES-GCM") {
       const iv = toBytes(alg.iv);
       const aad = alg.additionalData != null ? toBytes(alg.additionalData) : new Uint8Array(0);
-      const tagLength = alg.tagLength == null ? 128 : alg.tagLength;
+      const tl = enforceIntMember(alg, "tagLength", cipherOp, "AeadParams", OCTET, true);
+      const tagLength = tl === undefined ? 128 : tl;
+      if (![32, 64, 96, 104, 112, 120, 128].includes(tagLength)) {
+        throw new DOMException("The tag length is invalid: Must be 32, 64, 96, 104, 112, 120, or 128 bits", "OperationError");
+      }
       if (tagLength !== 128) {
         throw new DOMException("Only a 128-bit AES-GCM tag length is supported", "NotSupportedError");
       }
@@ -832,7 +867,10 @@ if (!globalThis.crypto.subtle) {
     }
     if (alg.name === "AES-CTR") {
       const counter = toBytes(alg.counter);
-      const length = alg.length >>> 0;
+      const length = enforceIntMember(alg, "length", cipherOp, "AesCtrParams", OCTET);
+      if (length < 1 || length > 128) {
+        throw new DOMException("The \"length\" member must be >= 1 and <= 128", "OperationError");
+      }
       return bufferOf(runOp(() => _OPS.op_subtle_aes_ctr(bytes, counter, length, input)));
     }
     throw new DOMException((encrypt ? "encrypt" : "decrypt") + " does not support " + alg.name, "NotSupportedError");

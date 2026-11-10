@@ -10101,6 +10101,151 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_numeric_members_enforce_range_like_chrome() {
+    // Every [EnforceRange] integer member of the WebCrypto algorithm
+    // dictionaries — RsaHashedKeyGenParams.modulusLength, Aes{KeyGen,Derived
+    // Key}Params.length, Hmac{KeyGen,Import}Params.length, AeadParams.tagLength,
+    // AesCtrParams.length — across ten values (negative, NaN, Infinity,
+    // explicit undefined, null, a fraction, a numeric string, past the
+    // octet/ushort/ulong ceilings) plus absence. The expected object is Chrome
+    // 157's own output for this exact script (headless, file://), verbatim:
+    // the conversion messages, each algorithm's range face after it, and the
+    // wrap/derive method names. The reads used to be ad hoc (`>>> 0`,
+    // `x || default`, no check at all on HMAC import length).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+  const S = crypto.subtle, enc = new TextEncoder();
+  const face = async (f) => { try { const v = await f(); return 'ok' + (v && v.byteLength !== undefined ? ':' + v.byteLength : v && v.algorithm ? ':' + JSON.stringify(v.algorithm.length ?? v.algorithm.modulusLength ?? '') : (v && v.privateKey ? ':pair' : '')); } catch (e) { return e.name + ': ' + e.message; } };
+  const vals = [['neg', -1], ['nan', NaN], ['inf', Infinity], ['undef', undefined], ['nul', null], ['frac', 256.9], ['str', '256'], ['u16', 65536], ['u8', 256], ['u32', 4294967296]];
+  const r = {};
+  const run = async (tag, mk, absent) => {
+    for (const [k, v] of vals) r[tag + '.' + k] = await face(() => mk(v));
+    if (absent) r[tag + '.missing'] = await face(absent);
+  };
+  await run('aesGen', (v) => S.generateKey({ name: 'AES-GCM', length: v }, true, ['encrypt']), () => S.generateKey({ name: 'AES-GCM' }, true, ['encrypt']));
+  await run('hmacGen', (v) => S.generateKey({ name: 'HMAC', hash: 'SHA-256', length: v }, true, ['sign']), null);
+  const raw = new Uint8Array(32);
+  await run('hmacImp', (v) => S.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256', length: v }, true, ['sign']), null);
+  await run('rsaGen', (v) => S.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: v, publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-256' }, true, ['sign']), () => S.generateKey({ name: 'RSASSA-PKCS1-v1_5', publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-256' }, true, ['sign']));
+  const gk = await S.generateKey({ name: 'AES-GCM', length: 128 }, true, ['encrypt', 'decrypt']);
+  await run('gcmTag', (v) => S.encrypt({ name: 'AES-GCM', iv: new Uint8Array(12), tagLength: v }, gk, enc.encode('x')), null);
+  const ck = await S.generateKey({ name: 'AES-CTR', length: 128 }, true, ['encrypt', 'decrypt']);
+  await run('ctrLen', (v) => S.encrypt({ name: 'AES-CTR', counter: new Uint8Array(16), length: v }, ck, enc.encode('x')), () => S.encrypt({ name: 'AES-CTR', counter: new Uint8Array(16) }, ck, enc.encode('x')));
+  r['ctrDec.neg'] = await face(() => S.decrypt({ name: 'AES-CTR', counter: new Uint8Array(16), length: -1 }, ck, new Uint8Array(1)));
+  const base = await S.importKey('raw', enc.encode('pw'), 'PBKDF2', false, ['deriveKey']);
+  const P = { name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('s'), iterations: 1 };
+  await run('dkAes', (v) => S.deriveKey(P, base, { name: 'AES-GCM', length: v }, true, ['encrypt']), () => S.deriveKey(P, base, { name: 'AES-GCM' }, true, ['encrypt']));
+  await run('dkHmac', (v) => S.deriveKey(P, base, { name: 'HMAC', hash: 'SHA-256', length: v }, true, ['sign']), null);
+  for (const L of [192, 100, 512]) r['dkAes' + L] = await face(() => S.deriveKey(P, base, { name: 'AES-GCM', length: L }, true, ['encrypt']));
+  for (const m of [256, 504]) r['rsa' + m] = await face(() => S.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: m, publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-256' }, true, ['sign']));
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "aesGen.neg": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Outside of numeric range",
+ "aesGen.nan": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Is not a number",
+ "aesGen.inf": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Outside of numeric range",
+ "aesGen.undef": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Is not a number",
+ "aesGen.nul": "OperationError: AES key length must be 128 or 256 bits",
+ "aesGen.frac": "ok:256",
+ "aesGen.str": "ok:256",
+ "aesGen.u16": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Outside of numeric range",
+ "aesGen.u8": "ok:256",
+ "aesGen.u32": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Outside of numeric range",
+ "aesGen.missing": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': AesKeyGenParams: length: Missing required property",
+ "hmacGen.neg": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': HmacKeyGenParams: length: Outside of numeric range",
+ "hmacGen.nan": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': HmacKeyGenParams: length: Is not a number",
+ "hmacGen.inf": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': HmacKeyGenParams: length: Outside of numeric range",
+ "hmacGen.undef": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': HmacKeyGenParams: length: Is not a number",
+ "hmacGen.nul": "OperationError: HMAC key length must not be zero",
+ "hmacGen.frac": "ok:256",
+ "hmacGen.str": "ok:256",
+ "hmacGen.u16": "ok:65536",
+ "hmacGen.u8": "ok:256",
+ "hmacGen.u32": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': HmacKeyGenParams: length: Outside of numeric range",
+ "hmacImp.neg": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: length: Outside of numeric range",
+ "hmacImp.nan": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: length: Is not a number",
+ "hmacImp.inf": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: length: Outside of numeric range",
+ "hmacImp.undef": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: length: Is not a number",
+ "hmacImp.nul": "DataError: The optional HMAC key length must be shorter than the key data, and by no more than 7 bits.",
+ "hmacImp.frac": "ok:256",
+ "hmacImp.str": "ok:256",
+ "hmacImp.u16": "DataError: The optional HMAC key length must be shorter than the key data, and by no more than 7 bits.",
+ "hmacImp.u8": "ok:256",
+ "hmacImp.u32": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: length: Outside of numeric range",
+ "rsaGen.neg": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: modulusLength: Outside of numeric range",
+ "rsaGen.nan": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: modulusLength: Is not a number",
+ "rsaGen.inf": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: modulusLength: Outside of numeric range",
+ "rsaGen.undef": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: modulusLength: Is not a number",
+ "rsaGen.nul": "OperationError: The modulus length must be a multiple of 8 bits and >= 256 and <= 8192",
+ "rsaGen.frac": "OperationError: ",
+ "rsaGen.str": "OperationError: ",
+ "rsaGen.u16": "OperationError: The modulus length must be a multiple of 8 bits and >= 256 and <= 8192",
+ "rsaGen.u8": "OperationError: ",
+ "rsaGen.u32": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: modulusLength: Outside of numeric range",
+ "rsaGen.missing": "TypeError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: modulusLength: Missing required property",
+ "gcmTag.neg": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "gcmTag.nan": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Is not a number",
+ "gcmTag.inf": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "gcmTag.undef": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Is not a number",
+ "gcmTag.nul": "OperationError: The tag length is invalid: Must be 32, 64, 96, 104, 112, 120, or 128 bits",
+ "gcmTag.frac": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "gcmTag.str": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "gcmTag.u16": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "gcmTag.u8": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "gcmTag.u32": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: tagLength: Outside of numeric range",
+ "ctrLen.neg": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.nan": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Is not a number",
+ "ctrLen.inf": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.undef": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Is not a number",
+ "ctrLen.nul": "OperationError: The \"length\" member must be >= 1 and <= 128",
+ "ctrLen.frac": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.str": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.u16": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.u8": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.u32": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "ctrLen.missing": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: length: Missing required property",
+ "ctrDec.neg": "TypeError: Failed to execute 'decrypt' on 'SubtleCrypto': AesCtrParams: length: Outside of numeric range",
+ "dkAes.neg": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Outside of numeric range",
+ "dkAes.nan": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Is not a number",
+ "dkAes.inf": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Outside of numeric range",
+ "dkAes.undef": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Is not a number",
+ "dkAes.nul": "OperationError: AES key length must be 128 or 256 bits",
+ "dkAes.frac": "ok:256",
+ "dkAes.str": "ok:256",
+ "dkAes.u16": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Outside of numeric range",
+ "dkAes.u8": "ok:256",
+ "dkAes.u32": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Outside of numeric range",
+ "dkAes.missing": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Missing required property",
+ "dkHmac.neg": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': HmacImportParams: length: Outside of numeric range",
+ "dkHmac.nan": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': HmacImportParams: length: Is not a number",
+ "dkHmac.inf": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': HmacImportParams: length: Outside of numeric range",
+ "dkHmac.undef": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': HmacImportParams: length: Is not a number",
+ "dkHmac.nul": "TypeError: HMAC key length must not be zero",
+ "dkHmac.frac": "ok:256",
+ "dkHmac.str": "ok:256",
+ "dkHmac.u16": "ok:65536",
+ "dkHmac.u8": "ok:256",
+ "dkHmac.u32": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': HmacImportParams: length: Outside of numeric range",
+ "dkAes192": "OperationError: 192-bit AES keys are not supported",
+ "dkAes100": "OperationError: AES key length must be 128 or 256 bits",
+ "dkAes512": "OperationError: AES key length must be 128 or 256 bits",
+ "rsa256": "OperationError: ",
+ "rsa504": "OperationError: "
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_pbkdf2_iterations_enforce_range_faces() {
     // Pbkdf2Params.iterations is a required [EnforceRange] unsigned long.
     // Every face below is Chrome 157's (headless probe, file://); we used to
