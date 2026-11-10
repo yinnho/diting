@@ -313,6 +313,11 @@ pub(crate) fn pbkdf2_derive(
     iterations: u32,
     length: u32,
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
+    // Chrome 157 (probed): checked before the length, so length 0 with zero
+    // iterations still fails this way.
+    if iterations == 0 {
+        return Err(crypto_err("PBKDF2 requires iterations > 0"));
+    }
     if iterations > PBKDF2_MAX_ITERATIONS {
         return Err(crypto_err(format!(
             "PBKDF2 iteration count {iterations} exceeds the supported maximum of {PBKDF2_MAX_ITERATIONS}"

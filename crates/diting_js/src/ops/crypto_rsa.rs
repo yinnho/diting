@@ -193,19 +193,20 @@ pub(crate) fn op_subtle_rsa_import_pkcs8(
 /// OAEP label. The encrypt arm takes only (n, e); the decrypt arm takes the
 /// full private components. Any crypto failure (corrupt ciphertext, label
 /// mismatch, wrong length) surfaces as the WebCrypto OperationError with an
-/// empty message, matching Chrome.
-#[diting_op]
-#[buffer]
-pub(crate) fn op_subtle_rsa_oaep(
+/// empty message, matching Chrome. Plain fn: decrypt is a private-key op
+/// (same cost class as signing), so both arms run on the blocking pool via
+/// `op_subtle_async` (#69).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn rsa_oaep(
     encrypt: bool,
-    #[string] hash: &str,
-    #[buffer] label: &[u8],
-    #[buffer] n: &[u8],
-    #[buffer] e: &[u8],
-    #[buffer] d: &[u8],
-    #[buffer] p: &[u8],
-    #[buffer] q: &[u8],
-    #[buffer] data: &[u8],
+    hash: &str,
+    label: &[u8],
+    n: &[u8],
+    e: &[u8],
+    d: &[u8],
+    p: &[u8],
+    q: &[u8],
+    data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     let pk = rsa::RsaPublicKey::new(
         rsa::BoxedUint::from_be_slice_vartime(n),
