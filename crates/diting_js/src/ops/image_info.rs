@@ -1,4 +1,18 @@
 //! Image header dimension sniffing (god-file ratchet split from mod.rs, pure move).
+use super::*;
+
+/// `op_image_info(body_base64)` — the dimensions op backing the Image
+/// shim's `naturalWidth/naturalHeight`. Returns `{"width":w,"height":h}`;
+/// unparsable input yields 0×0 and the JS side keeps its old fallback, so
+/// the load/error contract (#41: transport status decides) is untouched —
+/// this only fills in real numbers when they're available.
+#[diting_op]
+#[string]
+pub(crate) fn op_image_info(#[string] body_base64: String) -> String {
+    let bytes = BASE64.decode(body_base64.as_bytes()).unwrap_or_default();
+    let (w, h) = image_header_dimensions(&bytes).unwrap_or((0, 0));
+    serde_json::json!({ "width": w, "height": h }).to_string()
+}
 
 /// Natural dimensions from an image header alone — PNG IHDR, GIF logical
 /// screen descriptor, JPEG SOFn, WebP canvas (VP8X / VP8 / VP8L). Sites

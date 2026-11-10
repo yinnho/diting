@@ -1,5 +1,28 @@
 //! Video container header metadata (god-file ratchet split, the media
 //! sibling of image_info.rs).
+use super::*;
+
+/// `op_video_info(body_base64)` — the media-element sibling of
+/// op_image_info: container-header metadata (mp4/quicktime moov walk →
+/// width/height/duration) backing the blob-source metadata face. Same
+/// contract: `{"ok":false}` on unparsable input and the JS side keeps
+/// the stub face, so nothing changes for sources we can't read.
+#[diting_op]
+#[string]
+pub(crate) fn op_video_info(#[string] body_base64: String) -> String {
+    let bytes = BASE64.decode(body_base64.as_bytes()).unwrap_or_default();
+    match video_header_meta(&bytes) {
+        Some(m) => {
+            let duration = match m.duration_secs {
+                Some(d) => serde_json::json!(d),
+                // No duration marker: the HTML face answers Infinity.
+                None => serde_json::json!({ "infinite": true }),
+            };
+            serde_json::json!({ "ok": true, "width": m.width, "height": m.height, "duration": duration }).to_string()
+        }
+        None => r#"{"ok":false}"#.to_string(),
+    }
+}
 
 /// Metadata from an mp4/quicktime header alone — the video counterpart of
 /// `image_header_dimensions`. `moov/mvhd` carries timescale+duration,
