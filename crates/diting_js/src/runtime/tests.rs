@@ -5034,6 +5034,229 @@ async fn timer_fires_after_watchdog_beheads_macrotask_payload() {
     );
 }
 
+/// Issue #63, synthetic repro of the release-repro shape (2026-11-10
+/// timeline burst): a 16-leg fetch storm against a slow endpoint, DOM-churn
+/// macrotask bursts on every settlement, and self-chained 1.2s synchronous
+/// payloads that the throttled 100ms pump wall beheads — all on one realm,
+/// the x.com burst's ingredients without x.com. A healthy realm rides it
+/// out: every leg settles, the trampoline depth returns to 0, and a fresh
+/// timer still fires afterwards. The churn family (#227/#240/#63) instead
+/// eats the storm — legs rot armed without opok, continuations vanish with
+/// each beheading. #[ignore] while the race is live (a live race must not
+/// gate CI); run with --ignored to observe the signature, un-ignore when
+/// the root-cause batch lands.
+#[allow(clippy::await_holding_lock)] // the env guard must span the awaits — that's the serialization
+#[tokio::test(flavor = "current_thread")]
+#[ignore = "#63: live race repro; run with --ignored to see the churn signature"]
+async fn fetch_storm_with_sync_overrun_bait_stays_healthy() {
+    let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        // One connection per leg; 1500ms think-time keeps every leg in
+        // flight across the beheading rounds. 64 accepts covers both storm
+        // waves plus the follow-up generation; the listener drop ends the loop.
+        for _ in 0..64 {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+                let _ = stream.write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok",
+                );
+                let _ = stream.flush();
+            });
+        }
+    });
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url(&format!("http://127.0.0.1:{}/page", port));
+    rt.evaluate(
+        r#"
+        globalThis.__ok = 0; globalThis.__legs = 0; globalThis.__spins = 0;
+        const burst = (n) => { for (let i = 0; i < n; i++)
+            setTimeout(() => {
+                const d = document.createElement('div');
+                for (let j = 0; j < 20; j++) d.appendChild(document.createElement('span'));
+                document.body.appendChild(d); document.body.removeChild(d);
+            }, 0); };
+        const leg = (k) => { globalThis.__legs++;
+            fetch('/slow?k=' + k).then(r => r.text()).then(() => {
+                globalThis.__ok++;
+                if (k < 4) { burst(40); leg(k + 16); }
+            }, () => { globalThis.__ok++; }); };
+        for (let k = 0; k < 16; k++) leg(k);
+        (function spin() {
+            // Re-arm BEFORE the payload spins: a beheaded payload unwinds
+            // without running anything after its spin loop, so a reschedule
+            // placed there dies with the first fire (observed: two runs,
+            // spins frozen at 2, fires=2). Pre-arming keeps the bait alive
+            // for all twenty rounds.
+            if (globalThis.__spins++ >= 20) return;
+            setTimeout(spin, 50);
+            setTimeout(() => { const t = Date.now();
+                while (Date.now() - t < 1200) {}
+                // Second wave from inside the overrun window — the burst
+                // arrives WHILE the realm is busy being beheaded, x.com shape.
+                if (globalThis.__spins === 9)
+                    for (let k = 32; k < 40; k++) leg(k);
+            }, 0);
+        })();
+        "#,
+    )
+    .unwrap();
+
+    // Storm window (~15s of 100ms throttled slices): sample the witnesses so
+    // a local run prints the signature (beats furnace, qlen, watchdog fires,
+    // in-flight legs) whether or not the race bites. Every 15th slice also
+    // fires the #63 victim — an async eval (the flow auth-ctx shape: promise
+    // + timer) that must settle inside its budget even mid-storm.
+    let mut worst_qlen = 0usize;
+    let mut furnace_slices = 0usize;
+    let mut beats_prev = 0f64;
+    let mut eval_worst_ms: u128 = 0;
+    let mut samples: Vec<String> = Vec::new();
+    for slice in 0..150 {
+        let _ = rt.run_event_loop_bounded_throttled(100).await;
+        if slice % 15 == 7 {
+            let t0 = std::time::Instant::now();
+            let victim = rt
+                .call_function_on_remote(
+                    r#"async () => {
+                            await new Promise((r) => setTimeout(r, 100));
+                            return 'ok';
+                        }"#,
+                    None,
+                    &[],
+                    true,
+                    true,
+                )
+                .await;
+            eval_worst_ms = eval_worst_ms.max(t0.elapsed().as_millis());
+            samples.push(format!(
+                "eval-await {:?} in {}ms",
+                victim.map(|v| v.value),
+                t0.elapsed().as_millis()
+            ));
+        }
+        let s = rt.evaluate("globalThis.__MT_STATE()").unwrap();
+        let beats = s.get("beats").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let qlen = s.get("qlen").and_then(|v| v.as_f64()).unwrap_or(0.0) as usize;
+        let lag = s.get("lag").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        worst_qlen = worst_qlen.max(qlen);
+        if beats - beats_prev > 20.0 {
+            furnace_slices += 1; // >200 beats in one 100ms slice
+        }
+        beats_prev = beats;
+        samples.push(format!(
+            "beats={} qlen={} lag={} inflight={} fires={}",
+            beats as u64,
+            qlen,
+            lag as u64,
+            rt.evaluate("globalThis.__inflightFetches.size")
+                .unwrap()
+                .as_f64()
+                .unwrap_or(0.0) as u64,
+            rt.watchdog_fired_total(),
+        ));
+        let ok = rt
+            .evaluate("globalThis.__ok")
+            .unwrap()
+            .as_f64()
+            .unwrap_or(0.0);
+        let legs = rt
+            .evaluate("globalThis.__legs")
+            .unwrap()
+            .as_f64()
+            .unwrap_or(-1.0);
+        let spins = rt
+            .evaluate("globalThis.__spins")
+            .unwrap()
+            .as_f64()
+            .unwrap_or(99.0);
+        if ok >= legs && spins > 20.0 {
+            break;
+        }
+    }
+
+    // Drain window (bounded 15s): a healthy realm settles every leg even
+    // after twenty beheadings — the armed-without-opok legs never do.
+    let mut settled = false;
+    for _ in 0..75 {
+        let _ = rt.run_event_loop_bounded(200).await;
+        let ok = rt
+            .evaluate("globalThis.__ok")
+            .unwrap()
+            .as_f64()
+            .unwrap_or(0.0);
+        let legs = rt
+            .evaluate("globalThis.__legs")
+            .unwrap()
+            .as_f64()
+            .unwrap_or(-1.0);
+        if ok >= legs {
+            settled = true;
+            break;
+        }
+    }
+    let tail = &samples[samples.len().saturating_sub(12)..];
+    println!("#63 repro sample tail: {tail:?}");
+    println!(
+        "#63 repro: worst_qlen={worst_qlen} furnace_slices={furnace_slices} eval_worst_ms={eval_worst_ms} fires={}",
+        rt.watchdog_fired_total()
+    );
+
+    assert!(
+        settled,
+        "storm legs never settled — the #63 armed-no-opok signature (see sample tail above)"
+    );
+    assert!(
+        eval_worst_ms < 5000,
+        "an async eval mid-storm took {eval_worst_ms}ms — the #63 EVAL_TIMEOUT victim"
+    );
+    assert_eq!(
+        rt.evaluate("globalThis.__diting_fetch_stalled()")
+            .unwrap()
+            .as_bool(),
+        Some(false),
+        "a settled leg lost its continuation — #240 face-2 stall"
+    );
+    assert_eq!(
+        rt.evaluate("globalThis.__MT_STATE()")
+            .unwrap()
+            .get("depth")
+            .and_then(|v| v.as_f64()),
+        Some(0.0),
+        "trampoline depth must not stay leaked after the storm"
+    );
+    // Probe liveness after the storm: a fresh timer must still fire.
+    rt.evaluate(
+        "globalThis.__probe = false; setTimeout(() => { globalThis.__probe = true; }, 100);",
+    )
+    .unwrap();
+    let mut probed = false;
+    for _ in 0..20 {
+        let _ = rt.run_event_loop_bounded(200).await;
+        if rt
+            .evaluate("globalThis.__probe")
+            .unwrap()
+            .as_bool()
+            .unwrap_or(false)
+        {
+            probed = true;
+            break;
+        }
+    }
+    assert!(probed, "probe timer never fired after the storm");
+    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+}
+
 /// Issue #227 regression, native-core shape: a dispatch window beheaded
 /// by the script-timeout watchdog used to leak `_mtDepth > 0` (the JS
 /// `_mtWindow` finally died with the stack), wedging every timer chain
