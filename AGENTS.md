@@ -16,5 +16,7 @@ cargo test --workspace --features screenshot   # if the rusty_v8 fetch stalls, p
 - A god-file ratchet failure is fixed by splitting code out, never by
   raising the recorded count.
 - Push target is the `diting` remote (`origin` is the retired repo).
-- Clippy is warn-level for now; folding the backlog to zero and flipping
-  `-D warnings` is tracked in #64.
+- Clippy runs at `-D warnings` over the whole workspace (stealth,screenshot
+  face, all targets): a new warning fails CI, fix it or scope an `#[allow]`
+  with a reason at the site. Vendored crates carry `#![allow(clippy::all)]`
+  at their root instead — upstream byte-shape wins (#64).
