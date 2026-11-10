@@ -310,8 +310,9 @@ async fn main() -> anyhow::Result<()> {
     // Warm up V8 on the main thread before any session/blocking thread creates
     // an isolate: the first isolate's JSDispatchTable init is not safe to race
     // from several threads (upstream obscura #430; construction itself is
-    // serialized inside the runtime).
-    std::mem::drop(diting::diting_js::runtime::JsRuntime::new());
+    // serialized inside the runtime). A bare isolate guards the race — no
+    // snapshot restore, so an idle serve does not carry the blob's pages.
+    diting::diting_js::runtime::JsRuntime::warmup();
 
     // Opt-in relaxations, parsed before any mode branches. Both were
     // previously documented as CLI flags without wiring (only the env vars
