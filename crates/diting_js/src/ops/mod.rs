@@ -3400,7 +3400,7 @@ mod image_info;
 pub(crate) use cors::request_origin;
 pub(crate) use crypto_secret::{
     crypto_err, op_random_bytes, op_subtle_aes_cbc, op_subtle_aes_ctr, op_subtle_aes_gcm,
-    op_subtle_aes_kw, op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, op_subtle_pbkdf2,
+    op_subtle_aes_kw, op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, pbkdf2_derive,
 };
 pub use fetch_gate::validate_fetch_url;
 pub(crate) use image_info::op_image_info;
@@ -3409,8 +3409,8 @@ pub(crate) use video_info::op_video_info;
 mod crypto_rsa;
 pub(crate) use crypto_rsa::{
     op_subtle_rsa_import_pkcs8, op_subtle_rsa_import_private, op_subtle_rsa_import_public,
-    op_subtle_rsa_import_spki, op_subtle_rsa_oaep, op_subtle_rsa_pkcs1v15_sign,
-    op_subtle_rsa_pkcs1v15_verify, rsa_generate_flat,
+    op_subtle_rsa_import_spki, op_subtle_rsa_oaep, op_subtle_rsa_pkcs1v15_verify,
+    rsa_generate_flat, rsa_pkcs1v15_sign,
 };
 
 /// The page's text-ink extent alone ((width, height) in CSS px), from the
@@ -4997,9 +4997,7 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         op_subtle_rsa_import_private(),
         op_subtle_rsa_import_pkcs8(),
         op_subtle_rsa_oaep(),
-        op_subtle_rsa_pkcs1v15_sign(),
         op_subtle_rsa_pkcs1v15_verify(),
-        op_subtle_pbkdf2(),
         op_subtle_hkdf(),
         op_subtle_ecdsa_generate(),
         op_subtle_ecdsa_import_private(),

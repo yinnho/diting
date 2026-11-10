@@ -14,8 +14,12 @@
 //!
 //! 10d 翻转后本模块是这四个 op 的唯一宿主（`ops::our_decls()` 把
 //! `all_decls()` 并进同步表一起装进 `Deno.core.ops`）——`#[op2]` 桩已死。
+//! #69 后多一个 `op_subtle_async`：吃 CPU 的 WebCrypto（RSA keygen/签名、
+//! PBKDF2）挪到 blocking 池跑，不占 JS 线程。
 
-use diting_runtime::op_glue::{throw_error_one_byte_info, to_f64_option, to_i32_option, to_string};
+use diting_runtime::op_glue::{
+    throw_error_one_byte_info, to_f64_option, to_i32_option, to_string, to_v8_slice,
+};
 use diting_runtime::op_reg::{OpCtx, OpDecl, SlowFn, SlowFnImpl};
 use diting_runtime::spawn_async_op;
 
@@ -207,53 +211,88 @@ pub fn op_fetch_url_decl() -> OpDecl {
     )
 }
 
-// ── op_subtle_rsa_generate_async ──────────────────────────────────────
+// ── op_subtle_async ───────────────────────────────────────────────────
 
-/// `op_subtle_rsa_generate_async(bits, e)` — RSA keygen on the blocking pool
-/// (Chrome runs WebCrypto off the main thread too). Resolves the standard
-/// base64 of the ten-section payload (async ops resolve strings); rejects
-/// with the keygen error text. `e` arrives as a number — the JS side has
-/// already pinned it to 3 or 65537.
-fn op_subtle_rsa_generate_async_impl(info: *const v8::FunctionCallbackInfo) -> usize {
+/// The WebCrypto work that is real CPU — RSA keygen and private-key signing,
+/// PBKDF2 — as one async op on the blocking pool (Chrome runs WebCrypto off
+/// the main thread too). As sync ops a caller's chain of them ran as one
+/// continuous wall and the eval patience watchdog beheaded it (#69).
+/// `op_subtle_async(kind, hash, a, b, buf0..buf5)`: the numbers and buffers
+/// mean what `kind` says (below). Resolves the standard base64 of the output
+/// bytes (async ops resolve strings); rejects with the error text, which the
+/// JS side surfaces as OperationError.
+fn subtle_async_run(
+    kind: &str,
+    hash: &str,
+    a: u32,
+    b: u32,
+    bufs: &[Vec<u8>; 6],
+) -> Result<Vec<u8>, String> {
+    use super::ops::{pbkdf2_derive, rsa_generate_flat, rsa_pkcs1v15_sign};
+    match kind {
+        // a = modulus bits, b = public exponent (JS pins it to 3 or 65537)
+        "rsa_generate" => rsa_generate_flat(a, b),
+        // bufs = n, e, d, p, q, data
+        "rsa_sign" => {
+            let [n, e, d, p, q, data] = bufs;
+            rsa_pkcs1v15_sign(hash, n, e, d, p, q, data).map_err(|e| e.to_string())
+        }
+        // bufs[0] = password, bufs[1] = salt; a = iterations, b = length bytes
+        "pbkdf2" => pbkdf2_derive(hash, &bufs[0], &bufs[1], a, b).map_err(|e| e.to_string()),
+        _ => Err(format!("unknown subtle op {kind}")),
+    }
+}
+
+fn op_subtle_async_impl(info: *const v8::FunctionCallbackInfo) -> usize {
     let info = unsafe { &*info };
     let parts: v8::FunctionCallbackInfoParts<'_> = info.get_parts();
     let args = v8::FunctionCallbackArguments::from_function_callback_info_parts(info, &parts);
     let isolate = unsafe { v8::Isolate::ref_from_raw_isolate_ptr(&parts.isolate) };
+    let mut scope_store = unsafe { v8::CallbackScope::new(info) };
+    let scope = unsafe { std::pin::Pin::new_unchecked(&mut scope_store) };
+    let mut scope = scope.init();
     let promise_id = to_i32_option(&args.get(0)).unwrap_or_default();
-    let (Some(bits), Some(e)) = (to_f64_option(&args.get(1)), to_f64_option(&args.get(2))) else {
+    let kind = to_string(&mut scope, &args.get(1));
+    let hash = to_string(&mut scope, &args.get(2));
+    let (Some(a), Some(b)) = (to_f64_option(&args.get(3)), to_f64_option(&args.get(4))) else {
         throw_error_one_byte_info(info, "expected f64");
         return 1;
     };
-    let (bits, e) = (bits as u32, e as u32);
+    let (a, b) = (a as u32, b as u32);
+    // Copied out now: the blocking thread must not touch V8 backing stores.
+    // An absent slot is an empty buffer.
+    let bufs: [Vec<u8>; 6] = std::array::from_fn(|i| {
+        to_v8_slice(args.get(5 + i as i32))
+            .map(|s| s.as_ref().to_vec())
+            .unwrap_or_default()
+    });
     let fut = async move {
         use base64::Engine as _;
-        let flat = match tokio::runtime::Handle::try_current() {
-            Ok(h) => h
-                .spawn_blocking(move || super::ops::rsa_generate_flat(bits, e))
-                .await
-                .map_err(|e| e.to_string())?,
-            Err(_) => super::ops::rsa_generate_flat(bits, e),
+        let run = move || subtle_async_run(&kind, &hash, a, b, &bufs);
+        let out = match tokio::runtime::Handle::try_current() {
+            Ok(h) => h.spawn_blocking(run).await.map_err(|e| e.to_string())?,
+            Err(_) => run(),
         }?;
-        Ok(base64::engine::general_purpose::STANDARD.encode(flat))
+        Ok(base64::engine::general_purpose::STANDARD.encode(out))
     };
     spawn_async_op(isolate, promise_id, fut);
     0
 }
 
-unsafe extern "C" fn op_subtle_rsa_generate_async_entry(info: *const v8::FunctionCallbackInfo) {
-    op_subtle_rsa_generate_async_impl(info);
+unsafe extern "C" fn op_subtle_async_entry(info: *const v8::FunctionCallbackInfo) {
+    op_subtle_async_impl(info);
 }
 
-pub fn op_subtle_rsa_generate_async_decl() -> OpDecl {
+pub fn op_subtle_async_decl() -> OpDecl {
     async_decl(
-        "op_subtle_rsa_generate_async",
-        2,
-        op_subtle_rsa_generate_async_entry as _,
-        op_subtle_rsa_generate_async_impl,
+        "op_subtle_async",
+        10,
+        op_subtle_async_entry as _,
+        op_subtle_async_impl,
     )
 }
 
-// Re-exported for the 10d assembly: the full async-four decl list our host
+// Re-exported for the 10d assembly: the full async decl list our host
 // installs alongside the sync ops (ops::our_decls()).
 pub fn all_decls() -> Vec<OpDecl> {
     vec![
@@ -261,6 +300,6 @@ pub fn all_decls() -> Vec<OpDecl> {
         op_sleep_decl(),
         op_ws_open_decl(),
         op_ws_next_message_decl(),
-        op_subtle_rsa_generate_async_decl(),
+        op_subtle_async_decl(),
     ]
 }

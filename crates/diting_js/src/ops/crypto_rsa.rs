@@ -117,7 +117,7 @@ fn os_rng() -> rsa::rand_core::UnwrapErr<getrandom::SysRng> {
 
 /// Generate an RSA keypair. `bits` is the modulus length; `e` the public
 /// exponent. Returns the full ten-section payload. Plain fn, not an op: the
-/// async glue (`op_subtle_rsa_generate_async`) runs it on the blocking pool —
+/// async glue (`op_subtle_async`) runs it on the blocking pool —
 /// a keygen is 30-200ms of CPU in a debug build, and as a sync op it pinned
 /// the JS thread long enough for the eval patience watchdog to behead the
 /// caller's own promise chain (#69).
@@ -265,17 +265,17 @@ fn rsassa_prehash(hash: &str, data: &[u8]) -> Result<Vec<u8>, deno_error::JsErro
 
 /// RSASSA-PKCS1-v1_5 sign. Takes the private components; returns the
 /// modulus-length signature. Crypto failures surface as an empty-message
-/// OperationError, matching Chrome.
-#[diting_op]
-#[buffer]
-pub(crate) fn op_subtle_rsa_pkcs1v15_sign(
-    #[string] hash: &str,
-    #[buffer] n: &[u8],
-    #[buffer] e: &[u8],
-    #[buffer] d: &[u8],
-    #[buffer] p: &[u8],
-    #[buffer] q: &[u8],
-    #[buffer] data: &[u8],
+/// OperationError, matching Chrome. Plain fn: a private-key op (2048-bit is
+/// tens of ms in a debug build, 4096 several times that), so it runs on the
+/// blocking pool via `op_subtle_async` (#69).
+pub(crate) fn rsa_pkcs1v15_sign(
+    hash: &str,
+    n: &[u8],
+    e: &[u8],
+    d: &[u8],
+    p: &[u8],
+    q: &[u8],
+    data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     let prehash = rsassa_prehash(hash, data)?;
     let sk = private_from_components(
