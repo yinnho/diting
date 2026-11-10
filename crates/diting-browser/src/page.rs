@@ -231,6 +231,12 @@ impl Page {
         self.inner.note_command_arrived()
     }
 
+    /// #70: the realm's timer background budget (0 foreground, 1 one-second
+    /// alignment, 2 one-minute alignment for chained timers).
+    pub fn set_timer_background(&mut self, level: u8) {
+        self.inner.set_timer_background(level)
+    }
+
     /// Scroll the page by a relative offset.
     pub fn scroll_by(&mut self, dx: i32, dy: i32) {
         self.evaluate(&format!("window.scrollBy({}, {})", dx, dy));

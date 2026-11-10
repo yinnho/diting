@@ -27,6 +27,24 @@ const _peek = (v, k) => {
   return v[k];
 };
 const _PEEK_GETTER = Symbol("getter");
+// #72: V8's own Error `stack` is an own ACCESSOR too (one native getter
+// shared by every error), so the rule above dropped every stack and an
+// unattended serve logged 1737 "reading 'kind'" TypeErrors with no clue
+// where. The native getter runs no page code unless the page installed
+// Error.prepareStackTrace, so it is safe to invoke exactly then; a getter
+// the page planted is still never called.
+const _NATIVE_STACK_GET = (() => {
+  try { const d = Object.getOwnPropertyDescriptor(new Error(""), "stack"); return d && d.get; } catch (e) { return undefined; }
+})();
+const _errStack = (v) => {
+  const d = Object.getOwnPropertyDescriptor(v, "stack");
+  if (!d) return undefined;
+  if ("value" in d) return d.value;
+  if (d.get && d.get === _NATIVE_STACK_GET && !Object.getOwnPropertyDescriptor(Error, "prepareStackTrace")) {
+    try { return d.get.call(v); } catch (e) { return undefined; }
+  }
+  return undefined;
+};
 const _fmtVal = (v, depth, seen) => {
   if (v === null) return "null";
   if (v === undefined) return "undefined";
@@ -36,7 +54,7 @@ const _fmtVal = (v, depth, seen) => {
   if (t === "function") return "[Function" + (v.name ? ": " + v.name : "") + "]";
   try {
     if (v instanceof Error) {
-      const st = _peek(v, "stack");
+      const st = _errStack(v);
       if (typeof st === "string" && st) return st;
       const nm = _peek(v, "name"), msg = _peek(v, "message");
       return (typeof nm === "string" ? nm : "Error") + (typeof msg === "string" && msg ? ": " + msg : "");

@@ -768,17 +768,37 @@ impl super::JsRuntime {
             .map(|v| v == serde_json::Value::Bool(true))
             .unwrap_or(false);
         if stalled {
-            if let Ok(serde_json::Value::String(s)) =
-                self.evaluate("globalThis.__diting_mt_dump ? __diting_mt_dump() : null")
-            {
-                tracing::warn!("#240 stall post-mortem (mt/wheel/fetch ring): {}", s);
+            // #71: the recover always runs; the post-mortem (a multi-KB line)
+            // is written at most once a minute per realm, with the hits
+            // folded in between — an unattended serve wrote 32MB of these.
+            let now = std::time::Instant::now();
+            let due = self
+                .stall_log_at
+                .get()
+                .is_none_or(|t| now.duration_since(t) >= std::time::Duration::from_secs(60));
+            if due {
+                if let Ok(serde_json::Value::String(s)) =
+                    self.evaluate("globalThis.__diting_mt_dump ? __diting_mt_dump() : null")
+                {
+                    tracing::warn!(
+                        "#240 stall post-mortem (mt/wheel/fetch ring; {} more hits folded since the last): {}",
+                        self.stall_log_folded.get(),
+                        s
+                    );
+                }
+                self.stall_log_at.set(Some(now));
+                self.stall_log_folded.set(0);
+            } else {
+                self.stall_log_folded.set(self.stall_log_folded.get() + 1);
             }
             let _ = self.runtime.execute_script(
                 "<mt-force-recover>",
                 "if (globalThis.__diting_mt_recover_termination) \
                  globalThis.__diting_mt_recover_termination()",
             );
-            tracing::warn!("#227/#240: re-armed stalled macrotask chain / timer wheel");
+            if due {
+                tracing::warn!("#227/#240: re-armed stalled macrotask chain / timer wheel");
+            }
         }
     }
 

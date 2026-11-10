@@ -257,6 +257,18 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
 /// realm (25-realm concurrent peak −7.6%); the deeper tier was measured
 /// DEAD (critical pressure + double GC buys 33KB more — the live set is
 /// the floor).
+/// #70 `DITING_BACKGROUND_AFTER_SECS`: how long a session may go without a
+/// command before its timers get Chrome's hidden-tab budget (wake-ups
+/// aligned to 1s; twice that long and chained timers align to 1min). The
+/// next command lifts it. Default 300 (Chrome's own 5-minute step); 0 keeps
+/// every session at foreground speed forever.
+pub fn background_after_secs() -> u64 {
+    std::env::var("DITING_BACKGROUND_AFTER_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(300)
+}
+
 pub fn realm_shrink() -> bool {
     std::env::var("DITING_REALM_SHRINK")
         .map(|v| v != "0")

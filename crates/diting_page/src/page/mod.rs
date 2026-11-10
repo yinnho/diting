@@ -538,6 +538,17 @@ impl Page {
         }
     }
 
+    /// #70: put the realm's timers on a background budget — 0 foreground,
+    /// 1 wake-ups aligned to 1s, 2 chained timers aligned to 1min (see
+    /// `__diting_set_background` in timer_belt.js).
+    pub fn set_timer_background(&mut self, level: u8) {
+        if let Some(js) = self.js.as_mut() {
+            let _ = js.evaluate(&format!(
+                "globalThis.__diting_set_background && __diting_set_background({level})"
+            ));
+        }
+    }
+
     pub fn new(id: String, context: Arc<BrowserContext>) -> Self {
         let http_client = context.http_client.clone();
         // Chromium convention: the main frame's frameId == the targetId.
