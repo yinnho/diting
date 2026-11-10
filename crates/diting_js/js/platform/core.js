@@ -69,7 +69,72 @@ const __platform = (function () {
       const t = Math.trunc(n);
       return ((t % 4294967296) + 4294967296) % 4294967296;
     },
+    // 刀#67: restricted double — ToNumber then the finite check; unrestricted
+    // passes NaN/Infinity through. Symbol guard mirrors DOMString: Chrome's
+    // message is the native V8 text, the prefix is ours.
+    double(v, prefix, fn) {
+      if (typeof v === 'symbol') fail(fn, 'Cannot convert a Symbol value to a number', prefix);
+      const n = Number(v);
+      if (!isFinite(n)) fail(fn, 'The provided double value is non-finite.', prefix);
+      return n;
+    },
+    unrestrictedDouble(v, prefix, fn) {
+      if (typeof v === 'symbol') fail(fn, 'Cannot convert a Symbol value to a number', prefix);
+      return Number(v);
+    },
+    // sequence<T>: an Object with @@iterator first (a primitive — even an
+    // iterable string — "cannot be converted to a sequence"), then per-item
+    // conversion through `item`. Iterator exceptions PROPAGATE (WebIDL);
+    // audio.js's old hand-rolled seq swallowed them, an unpinned exotic.
+    sequence(v, item, prefix, fn) {
+      if (v === null || (typeof v !== 'object' && typeof v !== 'function') || typeof v[Symbol.iterator] !== 'function') {
+        fail(fn, 'The provided value cannot be converted to a sequence.', prefix);
+      }
+      const a = [];
+      for (const x of v) a.push(item(x));
+      return a;
+    },
   };
+
+  // 刀#67: WebIDL dictionary expansion. Members are [name, kind, flags] in
+  // the CALLER's order (Chrome's read order — lexicographic by name per
+  // V8, but quirks like IIRFilterOptions stay expressible); flags {req, def}
+  // for required/default. Reads go through plain property access so getter
+  // side effects and getter exceptions are preserved (spec semantics, not
+  // an optimization detail). kind: 'double' | 'unrestricted double' |
+  // 'DOMString' | 'unsigned long' | 'boolean' | 'seq:double' | a function
+  // (raw, tail, fn) => value escape hatch for one-off shapes.
+  function dict(prefix, v, dictName, members, fn) {
+    const o = (v === null || v === undefined) ? {} : v;
+    if (typeof o !== 'object' && typeof o !== 'function') fail(fn, "The provided value is not of type '" + dictName + "'.", prefix);
+    const out = {};
+    for (const m of members) {
+      const name = m[0], k = m[1], fl = m[2] || {};
+      const tail = prefix + ": Failed to read the '" + name + "' property from '" + dictName + "'";
+      const raw = o[name];
+      if (raw === undefined) {
+        if (fl.req) fail(fn, "Failed to read the '" + name + "' property from '" + dictName + "': Required member is undefined.", prefix);
+        out[name] = 'def' in fl ? fl.def : null;
+      } else if (typeof k === 'function') {
+        out[name] = k(raw, tail, fn);
+      } else if (k === 'double') {
+        out[name] = conv.double(raw, tail, fn);
+      } else if (k === 'unrestricted double') {
+        out[name] = conv.unrestrictedDouble(raw, tail, fn);
+      } else if (k === 'DOMString') {
+        out[name] = conv.DOMString(raw, tail, fn);
+      } else if (k === 'unsigned long') {
+        out[name] = conv.unsignedLong(raw, tail, fn);
+      } else if (k === 'boolean') {
+        out[name] = conv.boolean(raw);
+      } else if (k === 'seq:double') {
+        out[name] = conv.sequence(raw, (x) => conv.double(x, tail, fn), tail, fn);
+      } else {
+        fail(fn, 'P.dict: unknown kind ' + k, null);
+      }
+    }
+    return out;
+  }
 
   // ---- shape helpers: one place decides descriptors and nativeness ----
   function setFn(fn, name, length) {
@@ -308,6 +373,13 @@ const __platform = (function () {
     return bad;
   }
 
-  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify, parseIntAttr, asciiLower };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify, parseIntAttr, asciiLower, dict };
+  // hidden bridge for BELT scripts (they load before this bundle, so they
+  // read it lazily at CALL time — never at their load): one prelude, two
+  // consumers — bundle modules get P as their module parameter, legacy belt
+  // files reach for __diting_P. First belt consumer: audio.js dict/sequence/
+  // double grind (issue #67). Like the __diting_objects family: hidden,
+  // configurable, so window_order's engine-only pass can rank it.
+  Object.defineProperty(globalThis, '__diting_P', { value: P, writable: true, enumerable: false, configurable: true });
   return P;
 })();

@@ -1,0 +1,47 @@
+{
+ "_meta": {
+  "chrome": "Google Chrome 157.0.8103.40",
+  "date": "2026-11-10",
+  "origin": "http://127.0.0.1 (ephemeral)",
+  "probe": "chrome/cssunit-probe.js"
+ },
+ "result": {
+  "ctor.arity": "THROW TypeError: Failed to construct 'CSSUnitValue': 2 arguments required, but only 1 present.",
+  "ctor.arity0": "THROW TypeError: Failed to construct 'CSSUnitValue': 2 arguments required, but only 0 present.",
+  "ctor.badunit": "THROW TypeError: Failed to construct 'CSSUnitValue': Invalid unit: bogus",
+  "ctor.badunit.upper": "THROW TypeError: Failed to construct 'CSSUnitValue': Invalid unit: BOGUS",
+  "ctor.enumerable": true,
+  "ctor.infinity": "THROW TypeError: Failed to construct 'CSSUnitValue': The provided double value is non-finite.",
+  "ctor.nan": "THROW TypeError: Failed to construct 'CSSUnitValue': The provided double value is non-finite.",
+  "ctor.symbol": "THROW TypeError: Failed to construct 'CSSUnitValue': Cannot convert a Symbol value to a number",
+  "ctor.unitnum": "THROW TypeError: Failed to construct 'CSSUnitValue': Invalid unit: 5",
+  "ctor.valstr": [
+   2.5,
+   "px"
+  ],
+  "get.unit": "px",
+  "get.value": 1.5,
+  "json": "{}",
+  "nonew": "THROW TypeError: Failed to construct 'CSSUnitValue': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+  "set.unit": "SET-THREW-NOT",
+  "set.value": 9,
+  "set.value.nan": "THROW TypeError: Failed to set the 'value' property on 'CSSUnitValue': The provided double value is non-finite.",
+  "shape.CSSUnitValue": {
+   "len": 2,
+   "members": {
+    "constructor": "function",
+    "unit": "ro",
+    "value": "rw"
+   },
+   "name": "CSSUnitValue",
+   "order": [
+    "value",
+    "unit",
+    "constructor"
+   ],
+   "parent": "CSSNumericValue",
+   "statics": {},
+   "tag": "[object CSSUnitValue]"
+  }
+ }
+}

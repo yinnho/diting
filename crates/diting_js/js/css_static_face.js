@@ -1,41 +1,21 @@
 (function () { // @@SCOPE
 // god-file split (刀35, CSS static face): CSS.supports (routes to the
 // Rust @supports evaluator — the old false-stub broke doudian's React
-// hydration #418/#203), CSS.escape, the 刀88 typed-om unit family
-// (CSSUnitValue constructible + 64 CSS.px-style factories), and the
-// unit table. All installs are same-file member loads; later loaders
-// extend the namespace — css_register.js installs registerProperty, a
-// guarded IIFE in typedom_math.js (#336, far later) reads the members
-// at its load. css_reg/cssFactory/cssUnits are file-private.
-// registerProperty comment preserved below.
+// hydration #418/#203), CSS.escape, and the 刀88 typed-om unit factories.
+// All installs are same-file member loads; later loaders extend the
+// namespace — css_register.js installs registerProperty, a guarded IIFE in
+// typedom_math.js (#336, far later) reads the members at its load.
 // CSS.supports routes to the Rust @supports evaluator (op_css_supports).
 // The old `return false` stub answered "unsupported" to every probe, so
 // feature-detecting pages took fallback render branches that diverged from
 // their SSR HTML — doudian's publish page then failed React hydration
 // (#418) and discarded the whole server DOM (#203).
-// 刀88: typed-om unit family (Chrome 145 truth k88-typedom/k88-mini).
-// CSSUnitValue is a real constructible value object — value rw / unit ro as
-// PROTOTYPE accessors (strict unit set throws V8's own getter-only message),
-// no own enumerable keys, constructor LAST in own-name order. The unit set
-// is exactly the 64 CSS factory names, canonical unit = lowercased name
-// (Hz→hz, kHz→khz, Q→q); factories take a plain double (CSS.px(CSS.px(3))
-// throws non-finite in 145 — no CSSNumericValue bypass on the factories,
-// only the CSSMath* ctors accept numeric values).
-const __diting_cssUnits = {};
-for (const __u of ['Hz', 'Q', 'cap', 'ch', 'cm', 'cqb', 'cqh', 'cqi', 'cqmax', 'cqmin', 'cqw', 'deg', 'dpcm', 'dpi', 'dppx', 'dvb', 'dvh', 'dvi', 'dvmax', 'dvmin', 'dvw', 'em', 'ex', 'fr', 'grad', 'ic', 'in', 'kHz', 'lh', 'lvb', 'lvh', 'lvi', 'lvmax', 'lvmin', 'lvw', 'mm', 'ms', 'number', 'pc', 'percent', 'pt', 'px', 'rad', 'rcap', 'rch', 'rem', 'rex', 'ric', 'rlh', 's', 'svb', 'svh', 'svi', 'svmax', 'svmin', 'svw', 'turn', 'vb', 'vh', 'vi', 'vmax', 'vmin', 'vw', 'x']) __diting_cssUnits[__u.toLowerCase()] = true;
-globalThis.CSSUnitValue = function CSSUnitValue(value, unit) {
-  if (arguments.length < 2) throw new TypeError("Failed to construct 'CSSUnitValue': 2 arguments required, but only " + arguments.length + " present.");
-  const v = Number(value);
-  if (!isFinite(v)) throw new TypeError("Failed to construct 'CSSUnitValue': The provided double value is non-finite.");
-  const u = String(unit);
-  if (!__diting_cssUnits[u]) throw new TypeError("Failed to construct 'CSSUnitValue': Invalid unit: " + u);
-  __def(this, '_v', v);
-  __def(this, '_u', u);
-  __hideOwn(this);
-};
-Object.defineProperty(globalThis.CSSUnitValue.prototype, 'value', { get() { return this._v; }, set(v) { this._v = Number(v); }, enumerable: true, configurable: true });
-Object.defineProperty(globalThis.CSSUnitValue.prototype, 'unit', { get() { return this._u; }, enumerable: true, configurable: true });
-{ const __P = globalThis.CSSUnitValue.prototype, __c = __P.constructor; delete __P.constructor; Object.defineProperty(__P, 'constructor', { value: __c, writable: true, configurable: true }); }
+// 刀88: the typed-om unit family. The CSSUnitValue CLASS moved to the
+// generator (issue #67 gen family): platform/gen/cssunit.gen.js builds it
+// from the css-typed-om IDL — arity + double/USVString conversion preamble,
+// unit validation and slot storage live in platform/cssunit.impl.js. The
+// factories below still mint through the public ctor at CALL time, and the
+// unit table lives in the impl module now.
 const __diting_cssReg = new Set();
 const __diting_cssFactory = (name, unit) => {
   const f = function (v) {

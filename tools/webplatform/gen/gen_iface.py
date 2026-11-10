@@ -121,16 +121,28 @@ def conv_expr(t, v, ctx_js, argno=None, what="arg", fn="__f"):
     ctx_js is a JS expression for the 'Failed to ...' prefix."""
     n = tname(t)
     nullable = is_nullable(t)
-    if n in ("DOMString", "USVString"):
-        c = "conv.%s(%s, %s, %s)" % (n, v, ctx_js, fn)
+    if what == "dict":
+        # Chrome wraps every per-member conversion failure, primitives included
+        # (AnimationEventInit truth: "...': Failed to read the 'elapsedTime'
+        # property from 'AnimationEventInit': The provided double value is
+        # non-finite."). FIELD/DICT are in scope at the expansion site.
+        ctx_js = ctx_js + " + \": Failed to read the '\" + FIELD + \"' property from '\" + DICT + \"'\""
+    if n in ("DOMString", "USVString", "CSSOMString"):
+        # CSSOMString is Blink's USVString typedef — same message shapes,
+        # lone surrogates get replaced (unpinned exotic either way).
+        c = "conv.%s(%s, %s, %s)" % ("USVString" if n == "CSSOMString" else n, v, ctx_js, fn)
     elif n == "unsigned long":
         c = "conv.unsignedLong(%s, %s, %s)" % (v, ctx_js, fn)
     elif n == "boolean":
         c = "conv.boolean(%s)" % v
+    elif n == "double":
+        c = "conv.double(%s, %s, %s)" % (v, ctx_js, fn)
+    elif n == "unrestricted double":
+        c = "conv.unrestrictedDouble(%s, %s, %s)" % (v, ctx_js, fn)
     elif n in N and N[n]["type"] == "interface":
         # interface type: brand check against that interface's slots
         if what == "dict":
-            c = "(is%s(%s) ? %s : P.fail(%s, \"Failed to convert value to '%s'.\", %s + \": Failed to read the '\" + FIELD + \"' property from '\" + DICT + \"'\"))" % (n, v, v, fn, n, ctx_js)
+            c = "(is%s(%s) ? %s : P.fail(%s, \"Failed to convert value to '%s'.\", %s))" % (n, v, v, fn, n, ctx_js)
         else:
             c = "(is%s(%s) ? %s : P.fail(%s, \"parameter %d is not of type '%s'.\", %s))" % (n, v, v, fn, argno, n, ctx_js)
     else:
@@ -165,6 +177,9 @@ expect = []
 requires_load = set()
 requires_call = set()
 has_value = False
+# set by the branch that owns each interface; a module can mix (storage.json
+# has both the no-ctor Storage skeleton and StorageEvent) — print the union.
+strategies = set()
 W = out.append
 
 
@@ -1129,6 +1144,7 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
 
     # ------------------------------------------------------------------ event
     elif cons and inherits == "Event":
+        strategies.add("event")
         W("const slots%s = new WeakMap();" % name)
         W("function is%s(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slots%s.has(v); }" % (name, name))
         dict_name = name + "Init"
@@ -1189,6 +1205,7 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
         # geometry family: pure-value classes. SHAPE here (from IDL + the
         # Chrome truth overlay), BEHAVIOR in the paired impl module (B).
         has_value = True
+        strategies.add("value")
         shape = TRUTH.get("shape." + name)
         if not shape:
             raise SystemExit("gen_iface value: %s needs a shape.<%s> overlay in the truth file" % (module, name))
@@ -1202,9 +1219,37 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
         W("  if (!new.target) P.fail(%s, \"Please use the 'new' operator, this DOM object constructor cannot be called as a function.\", \"Failed to construct '%s'\");" % (name, name))
         W("  const ctx = \"Failed to construct '%s'\";" % name)
         W("  P.args(ctx, arguments.length, %d, %s);" % (req, name))
-        W("  B.ctor('%s', this, ctx, arguments);" % name)
+        # 刀#67: per-argument WebIDL conversion preamble. The parsed values ride
+        # B.ctor's new 5th parameter (impls that predate it ignore it — raw
+        # `arguments` stays the 4th). Optional args: absent OR undefined takes
+        # the IDL default (event-strategy semantics), required go through
+        # conv_expr with its Chrome message shapes. Interfaces whose ctor takes
+        # anything conv_expr cannot express (DOMMatrix's union init, variadics)
+        # keep the preamble-free legacy form — their impl does its own rich
+        # conversion (string / sequence / dict ladders).
+        SIMPLE_ARG_TYPES = ("DOMString", "USVString", "CSSOMString", "unsigned long", "boolean", "double", "unrestricted double")
+        simple = all(
+            not p.get("variadic") and tname(p["idlType"]) in SIMPLE_ARG_TYPES
+            for p in cons[0]["arguments"])
+        parsed = []
+        if simple:
+            for i, p in enumerate(cons[0]["arguments"]):
+                cv = conv_expr(p["idlType"], "arguments[%d]" % i, "ctx", i + 1, fn=name)
+                if p.get("optional"):
+                    dflt = js_default(p.get("default"))
+                    W("  const a%d = (arguments.length > %d && arguments[%d] !== undefined) ? %s : %s;" % (i, i, i, cv, dflt))
+                else:
+                    W("  const a%d = %s;" % (i, cv))
+                parsed.append("a%d" % i)
+        W("  B.ctor('%s', this, ctx, arguments%s);" % (name, (", [" + ", ".join(parsed) + "]") if parsed else ""))
         W("}")
-        parent_expr = inherits if inherits else None
+        # parent: only a class THIS module emits can be referenced (bare
+        # identifier, in scope by the topological order above). A parent that
+        # lives outside the slice (CSSUnitValue -> CSSNumericValue, a stub
+        # global_surface mints AFTER platform_bundle) would be a load-time
+        # ReferenceError — leave it unset; global_surface's AUDIT_CHAIN wires
+        # the prototype link after its mint.
+        parent_expr = inherits if inherits in _seen_order else None
         W("const proto%s = P.iface(%s, '%s', %d%s);" % (name, name, name, req, ", " + parent_expr if parent_expr else ""))
         # members in Chrome's own-property install order, emitted directly
         # (Chrome interleaves `constructor` mid-order on some interfaces);
@@ -1269,9 +1314,7 @@ header = [
     "//! requires-load: " + ", ".join(sorted(requires_load)),
     "//! requires-call: " + (", ".join(sorted(requires_call)) or "-"),
     "",
-    "// Backing protocol for strategy 'backing' (see gen_iface.py docstring): the object",
-    "// passed to createStorage() implements length, key(i), getItem(k), setItem(k,v),",
-    "// removeItem(k), clear() and supportedPropertyNames().",
+    "// Strategy %s (see gen_iface.py docstring)." % ("/".join(sorted(strategies)) or "skeleton"),
     "const conv = P.conv;",
     "",
 ]

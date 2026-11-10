@@ -200,20 +200,27 @@ globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioCont
   // 刀87: Chrome 145 ladder (k87-ctor-e/f) — 0 args / 1 non-object / exactly 2
   // are TypeErrors; the 1-arg dict reads length then sampleRate (required);
   // the 3-arg path range-checks channels → frames → sampleRate.
+  // issue #67: the dict read + double coercion ride the platform prelude
+  // (__diting_P) — same message shapes, one implementation. Belt scripts load
+  // before the bundle, so the handle is read lazily here, never at load.
   constructor(ch, len, rate) {
     super();
     const PRE = "Failed to construct 'OfflineAudioContext': ";
     if (arguments.length === 0) throw new TypeError(PRE + "1 argument required, but only 0 present.");
     if (arguments.length === 2) throw new TypeError(PRE + "Overload resolution failed.");
     if (arguments.length === 1) {
-      if (ch === null || typeof ch !== 'object') throw new TypeError(PRE + "The provided value is not of type 'OfflineAudioContextOptions'.");
-      len = ch.length;
-      rate = ch.sampleRate;
-      if (len === undefined) throw new TypeError(PRE + "Failed to read the 'length' property from 'OfflineAudioContextOptions': Required member is undefined.");
-      if (rate === undefined) throw new TypeError(PRE + "Failed to read the 'sampleRate' property from 'OfflineAudioContextOptions': Required member is undefined.");
-      ch = ch.numberOfChannels === undefined ? 1 : ch.numberOfChannels;
+      // WebIDL dictionary order: length < numberOfChannels < sampleRate.
+      // The P helpers append their own ": " — feed them the colonless prefix
+      // (PRE keeps its trailing ": " for the plain string-concat rows above).
+      const DICTPRE = "Failed to construct 'OfflineAudioContext'";
+      const o = globalThis.__diting_P.dict(DICTPRE, ch, 'OfflineAudioContextOptions', [
+        ['length', 'double', { req: true }],
+        ['numberOfChannels', 'unsigned long', { def: 1 }],
+        ['sampleRate', 'double', { req: true }],
+      ], OfflineAudioContext);
+      ch = o.numberOfChannels; len = o.length; rate = o.sampleRate;
     }
-    const dbl = (v) => { const n = Number(v); if (!isFinite(n)) throw new TypeError(PRE + "The provided double value is non-finite."); return n; };
+    const dbl = (v) => globalThis.__diting_P.conv.double(v, "Failed to construct 'OfflineAudioContext'", OfflineAudioContext);
     const cn = dbl(ch), ln = dbl(len), rn = dbl(rate);
     if (cn < 1 || cn > 32) throw new DOMException(PRE + "The number of channels provided (" + cn + ") is outside the range [1, 32].", 'NotSupportedError');
     if (ln < 1) throw new DOMException(PRE + "The number of frames provided (" + ln + ") is less than the minimum bound (1).", 'NotSupportedError');
@@ -304,27 +311,27 @@ globalThis.BiquadFilterNode = function BiquadFilterNode(ctx) {
 Object.setPrototypeOf(globalThis.BiquadFilterNode.prototype, globalThis.AudioNode.prototype);
 try { Object.defineProperty(globalThis.BiquadFilterNode, 'length', { value: 1, configurable: true }); } catch (e) {}
 globalThis.IIRFilterNode = function IIRFilterNode(ctx, options) {
-  if (arguments.length < 2) throw new TypeError("Failed to construct 'IIRFilterNode': 2 arguments required, but only " + arguments.length + " present.");
-  if (!(ctx instanceof globalThis.BaseAudioContext)) throw new TypeError("Failed to construct 'IIRFilterNode': parameter 1 is not of type 'BaseAudioContext'.");
-  const PRE = "Failed to construct 'IIRFilterNode': Failed to read the '";
-  const seq = (v, name) => {
-    if (v === undefined) throw new TypeError(PRE + name + "' property from 'IIRFilterOptions': Required member is undefined.");
-    // WebIDL sequence conversion demands an Object first — a primitive
-    // (even an iterable string like 'x') is "cannot be converted to a sequence".
-    let a = null;
-    if (Array.isArray(v)) a = v;
-    else if (v !== null && (typeof v === 'object' || typeof v === 'function') && typeof v[Symbol.iterator] === 'function') { try { a = Array.from(v); } catch (e) { a = null; } }
-    if (!a) throw new TypeError(PRE + name + "' property from 'IIRFilterOptions': The provided value cannot be converted to a sequence.");
-    for (const x of a) { if (!isFinite(Number(x))) throw new TypeError(PRE + name + "' property from 'IIRFilterOptions': The provided double value is non-finite."); }
-    return a.map(Number);
-  };
-  const fb = seq(options && options.feedback, 'feedback');
-  const ff = seq(options && options.feedforward, 'feedforward');
+  // issue #67: arity + dictionary + sequence ride the platform prelude
+  // (__diting_P, read lazily — belt loads before the bundle). Message shapes
+  // are unchanged (knife87 pins); two faces moved CLOSER to Chrome: a
+  // non-object options now fails "not of type 'IIRFilterOptions'" instead of
+  // the required-member error, and iterator exceptions PROPAGATE instead of
+  // being swallowed (WebIDL; the old try/catch was an unpinned exotic).
+  const P = globalThis.__diting_P;
+  P.args("Failed to construct 'IIRFilterNode'", arguments.length, 2, IIRFilterNode);
+  if (!(ctx instanceof globalThis.BaseAudioContext)) P.fail(IIRFilterNode, "parameter 1 is not of type 'BaseAudioContext'.", "Failed to construct 'IIRFilterNode'");
+  const o = P.dict("Failed to construct 'IIRFilterNode'", options, 'IIRFilterOptions', [
+    // WebIDL dictionary order: feedback < feedforward (both required
+    // sequences of double — knife87 pins feedback firing first).
+    ['feedback', 'seq:double', { req: true }],
+    ['feedforward', 'seq:double', { req: true }],
+  ], IIRFilterNode);
+  const fb = o.feedback, ff = o.feedforward;
   if (fb[0] === 0) throw new DOMException("Failed to construct 'IIRFilterNode': First feedback coefficient cannot be zero.", 'InvalidStateError');
   if (!ff.some((x) => x !== 0)) throw new DOMException("Failed to construct 'IIRFilterNode': At least one feedforward coefficient must be non-zero.", 'InvalidStateError');
-  const o = _audioNode(ctx, { feedforward: ff, feedback: fb });
-  Object.setPrototypeOf(o, IIRFilterNode.prototype);
-  return o;
+  const n = _audioNode(ctx, { feedforward: ff, feedback: fb });
+  Object.setPrototypeOf(n, IIRFilterNode.prototype);
+  return n;
 };
 Object.setPrototypeOf(globalThis.IIRFilterNode.prototype, globalThis.AudioNode.prototype);
 // (刀87) shape truth 145: getFrequencyResponse lives on the PROTOTYPE

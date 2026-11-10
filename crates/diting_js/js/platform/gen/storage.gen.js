@@ -5,9 +5,7 @@
 //! requires-load: legacy:Event, legacy:_markNative
 //! requires-call: legacy:Event
 
-// Backing protocol for strategy 'backing' (see gen_iface.py docstring): the object
-// passed to createStorage() implements length, key(i), getItem(k), setItem(k,v),
-// removeItem(k), clear() and supportedPropertyNames().
+// Strategy event (see gen_iface.py docstring).
 const conv = P.conv;
 
 // ---- Storage (generated from tools/webplatform/spec/storage.json) ----
@@ -65,11 +63,11 @@ function StorageEvent(type) {
   const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
   const s = {};
   const DICT = 'StorageEventInit';
-  { const FIELD = 'key'; const raw = (init === undefined || init === null) ? undefined : init.key; s.key = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
-  { const FIELD = 'newValue'; const raw = (init === undefined || init === null) ? undefined : init.newValue; s.newValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
-  { const FIELD = 'oldValue'; const raw = (init === undefined || init === null) ? undefined : init.oldValue; s.oldValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
+  { const FIELD = 'key'; const raw = (init === undefined || init === null) ? undefined : init.key; s.key = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent)); }
+  { const FIELD = 'newValue'; const raw = (init === undefined || init === null) ? undefined : init.newValue; s.newValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent)); }
+  { const FIELD = 'oldValue'; const raw = (init === undefined || init === null) ? undefined : init.oldValue; s.oldValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent)); }
   { const FIELD = 'storageArea'; const raw = (init === undefined || init === null) ? undefined : init.storageArea; s.storageArea = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : (isStorage(raw) ? raw : P.fail(StorageEvent, "Failed to convert value to 'Storage'.", ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'"))); }
-  { const FIELD = 'url'; const raw = (init === undefined || init === null) ? undefined : init.url; s.url = (raw === undefined) ? "" : conv.USVString(raw, ctx, StorageEvent); }
+  { const FIELD = 'url'; const raw = (init === undefined || init === null) ? undefined : init.url; s.url = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent); }
   slotsStorageEvent.set(self, s);
   return self;
 }
