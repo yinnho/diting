@@ -24493,11 +24493,16 @@ async fn test_css_animation_flood_epoch_cap_defers_not_starves() {
             el.setAttribute('class', 'box');
             document.body.appendChild(el);
         }
-        // Let the drain run, then bump the epoch (a data-* write is a
-        // mutation without touching class/style); the overflow macrotask
-        // (50ms) picks up the capped tail even without the bump.
-        await new Promise(r => setTimeout(r, 140));
-        document.body.setAttribute('data-bump', '1');
+        // 600 synchronous inserts > the 512/epoch cap: the tail defers. The
+        // sweep runs in bounded slices, so landing everything is a liveness
+        // property, not a speed one — poll for it (bumping the epoch each
+        // round the way a flooding page does; the overflow macrotask also
+        // picks up the capped tail without the bump) instead of betting on a
+        // fixed wall-clock window that a slow CI runner blows through.
+        for (let round = 0; starts < 600 && round < 60; round++) {
+            await new Promise(r => setTimeout(r, 50));
+            document.body.setAttribute('data-bump', String(round));
+        }
         await new Promise(r => setTimeout(r, 50));
         return { starts, ends };
     }"#;
