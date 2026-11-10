@@ -303,11 +303,31 @@ const _mtWindow = (body) => {
 // timer/interval/rAF rots for the rest of the session while fetches and
 // evals stay fine. Unlatch the patrol and force a fresh arm for whatever
 // is actually pending.
+// #63: the re-arm alone still loses under SUSTAINED overruns. The fresh
+// arm is itself a severable op_sleep, so a behead cadence faster than the
+// wake latency severs each heal's arm again — ping-pong, no forward
+// progress (synthetic storm, 2/3 runs: victim timer 1.28s past due with
+// pat=7/sw=3/wk=2 riding the window; production face = EVAL_TIMEOUT at
+// the 5s budget). This point is the one moment the engine guarantees no
+// JS is executing, so the recover now DELIVERS the due heap entries
+// synchronously — same shape as `_timerWake`'s pop loop, one guaranteed
+// step of forward progress per fire instead of racing the next one.
+let _wheelRecoverDelivers = 0; // due entries delivered by the recover hook
 globalThis.__diting_mt_recover_termination = () => {
   _mtDepth = 0; __probeInflightFetches();
   if (_mtQLen()) _mtArm();
   _timerPatrol = false;
-  if (_timerHeap.length) { _timerArmed = Infinity; _timerArmNext(); }
+  if (_timerHeap.length) {
+    _timerArmed = Infinity;
+    const now = Date.now();
+    let e;
+    while ((e = _timerHeap[0]) && e.d <= now) {
+      _timerPop();
+      _wheelRecoverDelivers++;
+      try { e.f(); } catch (err) { _wheelThrows++; globalThis.__diting_reportUncaughtError(err); }
+    }
+    _timerArmNext();
+  }
 };
 // #227 stall predicate for the engine pump — the only witness independent
 // of JS continuations. A terminate severs the drain's op_sleep
@@ -376,7 +396,9 @@ globalThis.__diting_mt_dump = () => JSON.stringify({
 // #240: `wheel` exposes the timer wheel's state machine — the counters
 // name the kill when a corpse re-forms (wakes/stale tell whether sleeps
 // deliver, throws whether op calls fired synchronously, patrols whether
-// the safety net lived).
+// the safety net lived). #63: rd counts due entries the recover hook had
+// to deliver synchronously — under sustained beheads it is the only
+// channel that still makes progress (wakes die with each severed arm).
 globalThis.__MT_STATE = () => ({
   depth: _mtDepth, armed: _mtArmed, qlen: _mtQLen(), defers: _mtDefers,
   beats: _mtBeats, items: _mtItems, rearms: _mtRearms,
@@ -387,6 +409,7 @@ globalThis.__MT_STATE = () => ({
     patrol: _timerPatrol,
     wakes: _wheelWakes, staleWakes: _wheelStale,
     throws: _wheelThrows, patrols: _wheelPatrols,
+    recovers: _wheelRecoverDelivers,
   },
 });
 
