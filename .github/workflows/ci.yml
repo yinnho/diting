@@ -16,12 +16,15 @@ concurrency:
 
 jobs:
   test:
-    name: cargo test --features screenshot
+    name: cargo nextest (--features screenshot)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39
+        with:
+          tool: cargo-nextest
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           # v3 (2026-11-08): the v2 key hit the same poisoning the v1 key
@@ -32,10 +35,22 @@ jobs:
           # across v8 asset changes.
           key: test-screenshot-v3
       - name: Test
-        # --workspace is load-bearing: the repo is a root-package workspace
-        # (crates/diting), and without it cargo tests only the root package,
-        # silently dropping the engine crate's unit tests.
-        run: cargo test --workspace --features screenshot
+        # #64 ⑤-3: nextest over libtest = per-process isolation (feature
+        # bleed between tests in one binary dies), retries (.config/
+        # nextest.toml ci profile — absorbs the 2 known timing flakes in
+        # the 110-identity battery without hiding a real flake), and 2.7x
+        # faster on this face. --workspace stays load-bearing: the repo is
+        # a root-package workspace (crates/diting), and without it only the
+        # root package runs, silently dropping the engine crate's tests.
+        # Local gate (AGENTS.md) stays cargo test — same face, no extra
+        # tooling required to contribute.
+        run: cargo nextest run --workspace --features screenshot --profile ci
+      - name: Doctests
+        # nextest doesn't run doctests. The face is small and real:
+        # diting_swash 17 + diting_taffy 4 — upstream doc examples double
+        # as a free conformance check on the vendored API surface (the
+        # other vendored families carry doctest = false per VENDORED.md).
+        run: cargo test --workspace --features screenshot --doc
 
   webplatform-fresh:
     # JS-PLATFORM-ARCH M0: generated JS must equal what the checked-in
