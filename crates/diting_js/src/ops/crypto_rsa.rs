@@ -96,6 +96,33 @@ fn public_flat(pk: &rsa::RsaPublicKey) -> Result<Vec<u8>, deno_error::JsErrorBox
     ]))
 }
 
+/// Chrome 157 (BoringSSL) imports and generates RSA keys from 512 bits up;
+/// rsa's own default floor is 1024, which refused every 512-1023 key Chrome
+/// takes. Size failures carry [`RSA_TOO_SMALL`] so the JS side can give each
+/// format Chrome's own face (an empty DataError, or OperationError for a jwk
+/// public key).
+pub(crate) const RSA_MIN_BITS: usize = 512;
+pub(crate) const RSA_TOO_SMALL: &str = "RSA modulus too small";
+
+fn rsa_public(
+    n: rsa::BoxedUint,
+    e: rsa::BoxedUint,
+) -> Result<rsa::RsaPublicKey, deno_error::JsErrorBox> {
+    if (n.bits_vartime() as usize) < RSA_MIN_BITS {
+        return Err(crypto_err(RSA_TOO_SMALL));
+    }
+    rsa::RsaPublicKey::new_with_size_limits(n, e, RSA_MIN_BITS..=rsa::RsaPublicKey::MAX_SIZE)
+        .map_err(crypto_err)
+}
+
+fn check_private_size(sk: &rsa::RsaPrivateKey) -> Result<(), deno_error::JsErrorBox> {
+    use rsa::traits::PublicKeyParts;
+    if (sk.n().bits_vartime() as usize) < RSA_MIN_BITS {
+        return Err(crypto_err(RSA_TOO_SMALL));
+    }
+    Ok(())
+}
+
 fn private_from_components(
     n: rsa::BoxedUint,
     e: rsa::BoxedUint,
@@ -103,6 +130,9 @@ fn private_from_components(
     p: rsa::BoxedUint,
     q: rsa::BoxedUint,
 ) -> Result<rsa::RsaPrivateKey, deno_error::JsErrorBox> {
+    if (n.bits_vartime() as usize) < RSA_MIN_BITS {
+        return Err(crypto_err(RSA_TOO_SMALL));
+    }
     rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q])
         .map_err(|_| crypto_err("invalid RSA private key components"))
 }
@@ -121,9 +151,15 @@ fn os_rng() -> rsa::rand_core::UnwrapErr<getrandom::SysRng> {
 /// a keygen is 30-200ms of CPU in a debug build, and as a sync op it pinned
 /// the JS thread long enough for the eval patience watchdog to behead the
 /// caller's own promise chain (#69).
+/// `bits` arrives already rounded down to a multiple of 128 (Chrome's
+/// BoringSSL keygen does that: 520 -> 512, 1016 -> 896); the floor is
+/// [`RSA_MIN_BITS`], not rsa's 1024 — hence the unchecked constructor.
 pub(crate) fn rsa_generate_flat(bits: u32, e: u32) -> Result<Vec<u8>, String> {
+    if (bits as usize) < RSA_MIN_BITS {
+        return Err(RSA_TOO_SMALL.to_string());
+    }
     let exponent = rsa::BoxedUint::from_be_slice_vartime(&e.to_be_bytes());
-    let sk = rsa::RsaPrivateKey::new_with_exp(&mut os_rng(), bits as usize, exponent)
+    let sk = rsa::RsaPrivateKey::new_with_exp_unchecked(&mut os_rng(), bits as usize, exponent)
         .map_err(|e| e.to_string())?;
     rsa_key_flat(&sk).map_err(|e| e.to_string())
 }
@@ -136,11 +172,10 @@ pub(crate) fn op_subtle_rsa_import_public(
     #[buffer] n: &[u8],
     #[buffer] e: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    let pk = rsa::RsaPublicKey::new(
+    let pk = rsa_public(
         rsa::BoxedUint::from_be_slice_vartime(n),
         rsa::BoxedUint::from_be_slice_vartime(e),
-    )
-    .map_err(crypto_err)?;
+    )?;
     public_flat(&pk)
 }
 
@@ -150,8 +185,23 @@ pub(crate) fn op_subtle_rsa_import_public(
 pub(crate) fn op_subtle_rsa_import_spki(
     #[buffer] spki: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use rsa::pkcs8::DecodePublicKey;
-    let pk = rsa::RsaPublicKey::from_public_key_der(spki).map_err(crypto_err)?;
+    // Decoded by hand (rsa's own SPKI decode ends in RsaPublicKey::new, i.e.
+    // the 1024-bit floor); same steps: rsaEncryption OID, then the PKCS#1
+    // RSAPublicKey inside the bit string.
+    use rsa::pkcs8::der::Decode as _;
+    let info = rsa::pkcs8::SubjectPublicKeyInfoRef::from_der(spki).map_err(crypto_err)?;
+    if info.algorithm.oid != rsa::pkcs1::ALGORITHM_OID {
+        return Err(crypto_err("SPKI algorithm is not rsaEncryption"));
+    }
+    let bits = info
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| crypto_err("SPKI key bit string is not octet-aligned"))?;
+    let k = rsa::pkcs1::RsaPublicKeyRef::from_der(bits).map_err(crypto_err)?;
+    let pk = rsa_public(
+        rsa::BoxedUint::from_be_slice_vartime(k.modulus.as_bytes()),
+        rsa::BoxedUint::from_be_slice_vartime(k.public_exponent.as_bytes()),
+    )?;
     public_flat(&pk)
 }
 
@@ -185,6 +235,7 @@ pub(crate) fn op_subtle_rsa_import_pkcs8(
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     use rsa::pkcs8::DecodePrivateKey;
     let sk = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8).map_err(crypto_err)?;
+    check_private_size(&sk)?;
     rsa_key_flat(&sk)
 }
 
@@ -208,11 +259,10 @@ pub(crate) fn rsa_oaep(
     q: &[u8],
     data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    let pk = rsa::RsaPublicKey::new(
+    let pk = rsa_public(
         rsa::BoxedUint::from_be_slice_vartime(n),
         rsa::BoxedUint::from_be_slice_vartime(e),
-    )
-    .map_err(crypto_err)?;
+    )?;
     // rc takes the label as raw bytes — arbitrary WebCrypto labels now pass
     // through exactly (the 0.9 lossy-utf8 bend is gone).
     macro_rules! run {
@@ -313,11 +363,10 @@ pub(crate) fn op_subtle_rsa_pkcs1v15_verify(
     #[buffer] data: &[u8],
 ) -> Result<bool, deno_error::JsErrorBox> {
     let prehash = rsassa_prehash(hash, data)?;
-    let pk = rsa::RsaPublicKey::new(
+    let pk = rsa_public(
         rsa::BoxedUint::from_be_slice_vartime(n),
         rsa::BoxedUint::from_be_slice_vartime(e),
-    )
-    .map_err(crypto_err)?;
+    )?;
     macro_rules! run {
         ($digest:ty) => {{
             pk.verify(rsa::Pkcs1v15Sign::new::<$digest>(), &prehash, signature)

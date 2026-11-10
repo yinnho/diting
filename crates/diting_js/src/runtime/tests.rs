@@ -10101,6 +10101,111 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_512_to_1023_bits_like_chrome() {
+    // rsa's default floor is 1024 bits; Chrome 157 (BoringSSL) takes RSA from
+    // 512. For 256/384/504/512/520/768-bit keys (fixed test keys, generated
+    // for this test only) the script imports jwk private / jwk public / spki /
+    // pkcs8, signs+verifies and runs an OAEP-SHA-1 round trip; then keygen at
+    // seven sizes. Expected = Chrome 157's output for this exact script
+    // (headless, file://): under 512 an empty DataError (OperationError for a
+    // jwk public key); keygen rounds down to a multiple of 128 and reports
+    // what it made (520 -> 512, 1016 -> 896, 1032 -> 1024). We used to refuse
+    // every 512-1023 key, accept sub-512 private keys, and generate 1032 as
+    // 1032.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+  const S = crypto.subtle, enc = new TextEncoder();
+  const KEYS = {"256": {"jwk": {"kty": "RSA", "n": "wUe4fClKoVWmx6YxVIaAD7khSVvGa3JNd-xHb7agjE0", "e": "AQAB", "d": "rPshc44JCwd7Mqfc8odFyDxDK99x_vcTQm_9kpI0xgk", "p": "91DAPoOv9bnWQP0CbzVFKw", "q": "yBE302CuKUg2tsl39KkoZw", "dp": "vvtjyaLF0fsVYhA_vgMkCw", "dq": "rs2EdlaZtQ4YaBqdiZIm7w", "qi": "VMKANKb0NCqbVqGwa7aPeQ", "ext": true}, "spki": "MDwwDQYJKoZIhvcNAQEBBQADKwAwKAIhAMFHuHwpSqFVpsemMVSGgA+5IUlbxmtyTXfsR2+2oIxNAgMBAAE=", "pkcs8": "MIHEAgEAMA0GCSqGSIb3DQEBAQUABIGvMIGsAgEAAiEAwUe4fClKoVWmx6YxVIaAD7khSVvGa3JNd+xHb7agjE0CAwEAAQIhAKz7IXOOCQsHezKn3PKHRcg8Qyvfcf73E0Jv/ZKSNMYJAhEA91DAPoOv9bnWQP0CbzVFKwIRAMgRN9NgrilINrbJd/SpKGcCEQC++2PJosXR+xViED++AyQLAhEArs2EdlaZtQ4YaBqdiZIm7wIQVMKANKb0NCqbVqGwa7aPeQ=="}, "384": {"jwk": {"kty": "RSA", "n": "p7J4Q6nunb4V-TELvwnnj2TKmEqa_Ii5g7oHyeCeC6vvOR2Zu--K7oUu17qwsD7H", "e": "AQAB", "d": "PEvDSjDzhuwt4mdsHchl5f0Liy5oA5z04fshpijtzp-3AD9IMaEmNb-cRSvfcgxh", "p": "1uWtx4rgcft6jRgPJ7cttiE-gMqeq_W1", "q": "x8Wq3e8kHkHivyk2ySKYKKO14fPNB_AL", "dp": "OvaeLgge-WdlAt29GsqaEkUg3zm5O7mZ", "dq": "uFkbRTQSE23fTWI98TvgR9hS1lDBympj", "qi": "f7qg732sbsyzCNXFkBGoX2MTzXNIKxpk", "ext": true}, "spki": "MEwwDQYJKoZIhvcNAQEBBQADOwAwOAIxAKeyeEOp7p2+FfkxC78J549kyphKmvyIuYO6B8ngngur7zkdmbvviu6FLte6sLA+xwIDAQAB", "pkcs8": "MIIBCgIBADANBgkqhkiG9w0BAQEFAASB9TCB8gIBAAIxAKeyeEOp7p2+FfkxC78J549kyphKmvyIuYO6B8ngngur7zkdmbvviu6FLte6sLA+xwIDAQABAjA8S8NKMPOG7C3iZ2wdyGXl/QuLLmgDnPTh+yGmKO3On7cAP0gxoSY1v5xFK99yDGECGQDW5a3HiuBx+3qNGA8nty22IT6Ayp6r9bUCGQDHxard7yQeQeK/KTbJIpgoo7Xh880H8AsCGDr2ni4IHvlnZQLdvRrKmhJFIN85uTu5mQIZALhZG0U0EhNt301iPfE74EfYUtZQwcpqYwIYf7qg732sbsyzCNXFkBGoX2MTzXNIKxpk"}, "504": {"jwk": {"kty": "RSA", "n": "56aQAxwTwiL8FXXvkNp28yqLhOLYIk32kNy-Het5uCuKO5NO1QnTCL8wCR4z6ndsTD5rPy7JrVdhs2UG72Bl", "e": "AQAB", "d": "cA1UufxZ3l133JWopUPXp_YbeNMVwzo9G4N7fxOJVCsYYOX20YxV85cQ-gJyIQhA9eB4Dwcgt4D4Z8LI4upB", "p": "D6yomJT2XQm8NGpONLlBMQlflPf0Ua5w3IGbKOApLBE", "q": "DsdkEwslKAFyvzW2O6EvdCA4W5ZcMS6YmWa9KJAxkxU", "dp": "Cwt68allwEFv4O9XlEdF7KvSMkJWYogs9vRMxQzPdkE", "dq": "DCpAzBQuf6HBjHdwC-GAKDylZ257cNiEMDGLnyoiRIk", "qi": "A0QuFuWubZ9yKMMto53YsKZ3yewurgvkZ_8S1Mt2X9Y", "ext": true}, "spki": "MFswDQYJKoZIhvcNAQEBBQADSgAwRwJAAOemkAMcE8Ii/BV175DadvMqi4Ti2CJN9pDcvh3rebgrijuTTtUJ0wi/MAkeM+p3bEw+az8uya1XYbNlBu9gZQIDAQAB", "pkcs8": "MIIBTwIBADANBgkqhkiG9w0BAQEFAASCATkwggE1AgEAAkAA56aQAxwTwiL8FXXvkNp28yqLhOLYIk32kNy+Het5uCuKO5NO1QnTCL8wCR4z6ndsTD5rPy7JrVdhs2UG72BlAgMBAAECP3ANVLn8Wd5dd9yVqKVD16f2G3jTFcM6PRuDe38TiVQrGGDl9tGMVfOXEPoCciEIQPXgeA8HILeA+GfCyOLqQQIgD6yomJT2XQm8NGpONLlBMQlflPf0Ua5w3IGbKOApLBECIA7HZBMLJSgBcr81tjuhL3QgOFuWXDEumJlmvSiQMZMVAiALC3rxqWXAQW/g71eUR0Xsq9IyQlZiiCz29EzFDM92QQIgDCpAzBQuf6HBjHdwC+GAKDylZ257cNiEMDGLnyoiRIkCIANELhblrm2fcijDLaOd2LCmd8nsLq4L5Gf/EtTLdl/W"}, "512": {"jwk": {"kty": "RSA", "n": "reMJvT0oiWNpoOLCJIuiOoep59SHfoRbMtUTbgVGmDcGA7nOtHaqMBwq-7iVzW7KpOFYU0anaVOanU4oGp2Y0w", "e": "AQAB", "d": "TfX33N95uDdZGWfxUT9FieZfN_Cimweud9jucCpvXzi2ToTcW8bFnb7h2R0XSJEDpnCTaxg6gL6o61P2ucCNWQ", "p": "5mAbYI8N8Ju1QYT6cFfD0GVG1hpttkegl2g1g_bzvM0", "q": "wTpuX4DoJpzFOEb_qTjaFZEkXj4CISfAx_9J6zFArB8", "dp": "0zbOIutFhpHbzuRSkGmG-CvClE3KxNJK5EYAuqrRsQk", "dq": "KrIPi1i_czC2v02o1ipyvcs5Xv2SmOLgzRBSs_5JDP8", "qi": "F7GU9FQVM1yf5K5JJ1vRYGgCk5TRcDEM5kxHBv4LrEo", "ext": true}, "spki": "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAK3jCb09KIljaaDiwiSLojqHqefUh36EWzLVE24FRpg3BgO5zrR2qjAcKvu4lc1uyqThWFNGp2lTmp1OKBqdmNMCAwEAAQ==", "pkcs8": "MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAreMJvT0oiWNpoOLCJIuiOoep59SHfoRbMtUTbgVGmDcGA7nOtHaqMBwq+7iVzW7KpOFYU0anaVOanU4oGp2Y0wIDAQABAkBN9ffc33m4N1kZZ/FRP0WJ5l838KKbB6532O5wKm9fOLZOhNxbxsWdvuHZHRdIkQOmcJNrGDqAvqjrU/a5wI1ZAiEA5mAbYI8N8Ju1QYT6cFfD0GVG1hpttkegl2g1g/bzvM0CIQDBOm5fgOgmnMU4Rv+pONoVkSRePgIhJ8DH/0nrMUCsHwIhANM2ziLrRYaR287kUpBphvgrwpRNysTSSuRGALqq0bEJAiAqsg+LWL9zMLa/TajWKnK9yzle/ZKY4uDNEFKz/kkM/wIgF7GU9FQVM1yf5K5JJ1vRYGgCk5TRcDEM5kxHBv4LrEo="}, "520": {"jwk": {"kty": "RSA", "n": "5Fl4bwZ7eLsMGZtiPEwgnhx8zxIpGeFbkZrt_uTbTemoNfPqK1uGh8DVeB5DkDBSj4fnQY_LKGJyuRX80fp4gSM", "e": "AQAB", "d": "eeMgG_NT2N_O16RPTWw9ROhj3owNEFlwbUpLm3FBdlcgYASQK77Dv0QIX8KTfdc2X0PY0IGwnwDGvDWOIm96rQE", "p": "D__dVIZOajaHjTJZqYDC-ue5vG2t48vjyMcCpT-o9AXj", "q": "DkW2dAm54Pt487ToVYBxIbBOq_HafVjTVemdH7DlZHvB", "dp": "CpQuf0XysU3u4NBq8qW9xnLTn6CRuq5EpavYtvTZvMfr", "dq": "BeO2msO4tKKREuBAT6glByXeEQ5Ifxk8fGNet0kkIAcB", "qi": "BOGQt_wZ46DTARjodJQkgCW5KG_ooyASvDkiaO5n5vIW", "ext": true}, "spki": "MF0wDQYJKoZIhvcNAQEBBQADTAAwSQJCAORZeG8Ge3i7DBmbYjxMIJ4cfM8SKRnhW5Ga7f7k203pqDXz6itbhofA1XgeQ5AwUo+H50GPyyhicrkV/NH6eIEjAgMBAAE=", "pkcs8": "MIIBWAIBADANBgkqhkiG9w0BAQEFAASCAUIwggE+AgEAAkIA5Fl4bwZ7eLsMGZtiPEwgnhx8zxIpGeFbkZrt/uTbTemoNfPqK1uGh8DVeB5DkDBSj4fnQY/LKGJyuRX80fp4gSMCAwEAAQJBeeMgG/NT2N/O16RPTWw9ROhj3owNEFlwbUpLm3FBdlcgYASQK77Dv0QIX8KTfdc2X0PY0IGwnwDGvDWOIm96rQECIQ//3VSGTmo2h40yWamAwvrnubxtrePL48jHAqU/qPQF4wIhDkW2dAm54Pt487ToVYBxIbBOq/HafVjTVemdH7DlZHvBAiEKlC5/RfKxTe7g0Grypb3GctOfoJG6rkSlq9i29Nm8x+sCIQXjtprDuLSikRLgQE+oJQcl3hEOSH8ZPHxjXrdJJCAHAQIhBOGQt/wZ46DTARjodJQkgCW5KG/ooyASvDkiaO5n5vIW"}, "768": {"jwk": {"kty": "RSA", "n": "pnAdqi8K0-Mke6AFu7jwZq2acKLphr9via_ag2y0C-n6trgG3zqdZT-iZ33zYUM2M2-m76ZPYrhQIGDhYh6Z8n4jxIy3Mz5u5gBeiJnSjlw74vl5ZCVMn_LoXCtjEtTZ", "e": "AQAB", "d": "BmemHJh22DSTgNZlohW52pmvqcn7Jp5TUn8b75bNTvAQH9vxF8IPsIfEXiswpHuLmIdqn5NqmPLfbpqevM2_d4-VewaGgzlPWmcajsggQrfdU3aDdzvPsyLgl1hZrZ2p", "p": "ysRG94jeCkMKgaJYklwejrj42PGapLaccS--S_3Sc0-kr8UmuE_IweauHHkR-17r", "q": "0iI5S8Cl45N7eMaEz03svc0utzpSLYIUQwe_gzBMJme9O1dZmW7mB5thNG9r5JJL", "dp": "N1jmSjEo8sIj_wiyhpjwmmKxQn6IiMdz4o12s0WAiYtG19fH3u2gThVKl2kQ2H2r", "dq": "iQ7dhDVhfjBh5oLFeVmAQsQj5krZ8ujXQmk5Vt4XrS0Y1i3BOTyGOQv1uPe7zdhF", "qi": "bVLuC9SSFltiLK2BfiPNDYWQerA0Gy0fq-x-K5BWb9Rh-HSzgdyrz2uuIhiIOZfN", "ext": true}, "spki": "MHwwDQYJKoZIhvcNAQEBBQADawAwaAJhAKZwHaovCtPjJHugBbu48GatmnCi6Ya/b4mv2oNstAvp+ra4Bt86nWU/omd982FDNjNvpu+mT2K4UCBg4WIemfJ+I8SMtzM+buYAXoiZ0o5cO+L5eWQlTJ/y6FwrYxLU2QIDAQAB", "pkcs8": "MIIB5AIBADANBgkqhkiG9w0BAQEFAASCAc4wggHKAgEAAmEApnAdqi8K0+Mke6AFu7jwZq2acKLphr9via/ag2y0C+n6trgG3zqdZT+iZ33zYUM2M2+m76ZPYrhQIGDhYh6Z8n4jxIy3Mz5u5gBeiJnSjlw74vl5ZCVMn/LoXCtjEtTZAgMBAAECYAZnphyYdtg0k4DWZaIVudqZr6nJ+yaeU1J/G++WzU7wEB/b8RfCD7CHxF4rMKR7i5iHap+Tapjy326anrzNv3ePlXsGhoM5T1pnGo7IIEK33VN2g3c7z7Mi4JdYWa2dqQIxAMrERveI3gpDCoGiWJJcHo64+NjxmqS2nHEvvkv90nNPpK/FJrhPyMHmrhx5Efte6wIxANIiOUvApeOTe3jGhM9N7L3NLrc6Ui2CFEMHv4MwTCZnvTtXWZlu5gebYTRva+SSSwIwN1jmSjEo8sIj/wiyhpjwmmKxQn6IiMdz4o12s0WAiYtG19fH3u2gThVKl2kQ2H2rAjEAiQ7dhDVhfjBh5oLFeVmAQsQj5krZ8ujXQmk5Vt4XrS0Y1i3BOTyGOQv1uPe7zdhFAjBtUu4L1JIWW2IsrYF+I80NhZB6sDQbLR+r7H4rkFZv1GH4dLOB3KvPa64iGIg5l80="}};
+  const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : (typeof v === 'string' ? v : 'ok:' + JSON.stringify(v)); } catch (e) { return e.name + ': ' + e.message; } };
+  const SS = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, OA = { name: 'RSA-OAEP', hash: 'SHA-1' };
+  const r = {};
+  for (const bits of Object.keys(KEYS)) {
+    const K = KEYS[bits];
+    const pubJwk = { kty: 'RSA', n: K.jwk.n, e: K.jwk.e, ext: true };
+    r[bits + '.jwkPriv'] = await face(async () => { await S.importKey('jwk', K.jwk, SS, true, ['sign']); });
+    r[bits + '.jwkPub'] = await face(async () => { await S.importKey('jwk', pubJwk, SS, true, ['verify']); });
+    r[bits + '.spki'] = await face(async () => { const k = await S.importKey('spki', b64(K.spki), SS, true, ['verify']); return 'ok:' + k.algorithm.modulusLength; });
+    r[bits + '.pkcs8'] = await face(async () => { const k = await S.importKey('pkcs8', b64(K.pkcs8), SS, true, ['sign']); return 'ok:' + k.algorithm.modulusLength; });
+    r[bits + '.signVerify'] = await face(async () => {
+      const sk = await S.importKey('jwk', K.jwk, SS, true, ['sign']);
+      const pk = await S.importKey('jwk', pubJwk, SS, true, ['verify']);
+      const sig = await S.sign(SS, sk, enc.encode('m'));
+      return 'ok:' + sig.byteLength + ':' + (await S.verify(SS, pk, sig, enc.encode('m')));
+    });
+    r[bits + '.oaep'] = await face(async () => {
+      const sk = await S.importKey('jwk', K.jwk, OA, true, ['decrypt']);
+      const pk = await S.importKey('jwk', pubJwk, OA, true, ['encrypt']);
+      const ct = await S.encrypt(OA, pk, enc.encode('hi'));
+      return 'ok:' + new TextDecoder().decode(await S.decrypt(OA, sk, ct));
+    });
+  }
+  for (const m of [504, 512, 520, 576, 640, 1016, 1032]) r['gen' + m] = await face(async () => {
+    const p = await S.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: m, publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+    const sig = await S.sign(SS, p.privateKey, enc.encode('m'));
+    return 'ok:' + p.publicKey.algorithm.modulusLength + ':' + sig.byteLength + ':' + (await S.verify(SS, p.publicKey, sig, enc.encode('m')));
+  });
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "256.jwkPriv": "DataError: ",
+ "256.jwkPub": "OperationError: ",
+ "256.spki": "DataError: ",
+ "256.pkcs8": "DataError: ",
+ "256.signVerify": "DataError: ",
+ "256.oaep": "DataError: ",
+ "384.jwkPriv": "DataError: ",
+ "384.jwkPub": "OperationError: ",
+ "384.spki": "DataError: ",
+ "384.pkcs8": "DataError: ",
+ "384.signVerify": "DataError: ",
+ "384.oaep": "DataError: ",
+ "504.jwkPriv": "DataError: ",
+ "504.jwkPub": "OperationError: ",
+ "504.spki": "DataError: ",
+ "504.pkcs8": "DataError: ",
+ "504.signVerify": "DataError: ",
+ "504.oaep": "DataError: ",
+ "512.jwkPriv": "ok",
+ "512.jwkPub": "ok",
+ "512.spki": "ok:512",
+ "512.pkcs8": "ok:512",
+ "512.signVerify": "ok:64:true",
+ "512.oaep": "ok:hi",
+ "520.jwkPriv": "ok",
+ "520.jwkPub": "ok",
+ "520.spki": "ok:520",
+ "520.pkcs8": "ok:520",
+ "520.signVerify": "ok:65:true",
+ "520.oaep": "ok:hi",
+ "768.jwkPriv": "ok",
+ "768.jwkPub": "ok",
+ "768.spki": "ok:768",
+ "768.pkcs8": "ok:768",
+ "768.signVerify": "ok:96:true",
+ "768.oaep": "ok:hi",
+ "gen504": "OperationError: ",
+ "gen512": "ok:512:64:true",
+ "gen520": "ok:512:64:true",
+ "gen576": "ok:512:64:true",
+ "gen640": "ok:640:80:true",
+ "gen1016": "ok:896:112:true",
+ "gen1032": "ok:1024:128:true"
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_numeric_members_enforce_range_like_chrome() {
     // Every [EnforceRange] integer member of the WebCrypto algorithm
     // dictionaries — RsaHashedKeyGenParams.modulusLength, Aes{KeyGen,Derived

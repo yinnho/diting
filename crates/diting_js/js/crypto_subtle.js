@@ -310,6 +310,17 @@ if (!globalThis.crypto.subtle) {
   // names differ). The jwk ladder follows Chrome's order: kty → usage set
   // (which depends on d's presence) → required members n,e,d,p,q,dp,dq,qi
   // → strict b64url → alg/use/key_ops/ext.
+  // Under 512 bits Chrome 157 refuses an RSA import with an empty DataError —
+  // or an empty OperationError for a jwk public key; the ops flag the size
+  // with one sentinel message and each format maps it here.
+  const RSA_TOO_SMALL = "RSA modulus too small";
+  function rsaImportOp(fn, smallFace) {
+    try { return fn(); }
+    catch (e) {
+      if (e && e.message === RSA_TOO_SMALL) throw new DOMException("", smallFace);
+      throw e;
+    }
+  }
   function rsaImportKey(format, keyData, alg, extractable, usages) {
     checkUsageStrings("importKey", usages);
     const hash = requireHashParam(alg, "importKey", "RsaHashedImportParams");
@@ -317,11 +328,11 @@ if (!globalThis.crypto.subtle) {
     let m, type;
     if (format === "spki") {
       checkKeyUsages(usages, face.pub, true);
-      m = rsaUnflat(runOp(() => _OPS.op_subtle_rsa_import_spki(toBytes(keyData))));
+      m = rsaUnflat(runOp(() => rsaImportOp(() => _OPS.op_subtle_rsa_import_spki(toBytes(keyData)), "DataError")));
       type = "public";
     } else if (format === "pkcs8") {
       checkKeyUsages(usages, face.priv, false);
-      m = rsaUnflat(runOp(() => _OPS.op_subtle_rsa_import_pkcs8(toBytes(keyData))));
+      m = rsaUnflat(runOp(() => rsaImportOp(() => _OPS.op_subtle_rsa_import_pkcs8(toBytes(keyData)), "DataError")));
       type = "private";
     } else if (format === "jwk") {
       const jwk = keyData;
@@ -341,11 +352,11 @@ if (!globalThis.crypto.subtle) {
         const p = jwkMemberBytes(jwk, "p");
         const q = jwkMemberBytes(jwk, "q");
         jwkValidateCommon(jwk, extractable, usages, expected);
-        m = rsaUnflat(runOp(() => _OPS.op_subtle_rsa_import_private(n, e, d, p, q)));
+        m = rsaUnflat(runOp(() => rsaImportOp(() => _OPS.op_subtle_rsa_import_private(n, e, d, p, q), "DataError")));
         type = "private";
       } else {
         jwkValidateCommon(jwk, extractable, usages, expected);
-        m = rsaUnflat(runOp(() => _OPS.op_subtle_rsa_import_public(n, e)));
+        m = rsaUnflat(runOp(() => rsaImportOp(() => _OPS.op_subtle_rsa_import_public(n, e), "OperationError")));
         type = "public";
       }
     } else {
@@ -379,15 +390,18 @@ if (!globalThis.crypto.subtle) {
     }
     // A plain function returning the async tail, not an async function: the
     // generated exports rely on Annex B block hoisting.
+    // Chrome's BoringSSL keygen rounds the size down to a multiple of 128 and
+    // reports what it made (Chrome 157: 520 -> 512, 1016 -> 896, 1032 ->
+    // 1024); under 512 after rounding it refuses.
+    const made = Math.floor(bits / 128) * 128;
     return (async () => {
-      // A keygen the backend refuses (Chrome 157: any modulus under 512 bits)
-      // is an OperationError with no text — not the backend's wording.
+      // A refused keygen is an OperationError with no text (Chrome 157).
       let flat;
-      try { flat = await offThread("rsa_generate", "", bits, Number(ev)); }
+      try { flat = await offThread("rsa_generate", "", made, Number(ev)); }
       catch (e) { throw new DOMException("", "OperationError"); }
       const m = rsaUnflat(flat);
       const algorithm = {
-        name: alg.name, modulusLength: bits,
+        name: alg.name, modulusLength: made,
         publicExponent: new Uint8Array(m.e), hash: { name: hash },
       };
       const pub = makeKey("public", true, algorithm, usages.filter((u) => face.pub.includes(u)), m);
