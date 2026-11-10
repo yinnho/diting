@@ -46,11 +46,16 @@ jobs:
         # tooling required to contribute.
         run: cargo nextest run --workspace --features screenshot --profile ci
       - name: Doctests
-        # nextest doesn't run doctests. The face is small and real:
-        # diting_swash 17 + diting_taffy 4 — upstream doc examples double
-        # as a free conformance check on the vendored API surface (the
-        # other vendored families carry doctest = false per VENDORED.md).
-        run: cargo test --workspace --features screenshot --doc
+        # nextest doesn't run doctests. The face lives in exactly two
+        # crates: diting_swash 17 + diting_taffy 4 — upstream doc examples
+        # double as a free conformance check on the vendored API surface.
+        # Scoped by -p, NOT --workspace: the other vendored families carry
+        # `[lib] doctest = false` (renamed crates make upstream examples
+        # un-compilable), and cargo's explicit --doc flag OVERRIDES that
+        # target flag — a --workspace --doc leg would force cssparser's
+        # examples into compiling against a crate name that no longer
+        # exists (verified 1.99.1).
+        run: cargo test -p diting_swash -p diting_taffy --doc
 
   webplatform-fresh:
     # JS-PLATFORM-ARCH M0: generated JS must equal what the checked-in
