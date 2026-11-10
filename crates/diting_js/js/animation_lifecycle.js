@@ -49,13 +49,27 @@ function _dispatchAnimationEvent(el, type, name, elapsed) {
   } catch (e) {}
 }
 
-function _animationNameOf(el) {
+// One computed-style read per candidate: the name gate and the timing facts
+// need the SAME cascade, and the cascade is the whole per-candidate cost
+// (#224). _animationCheckOne used to read it twice — _animationNameOf's read
+// for the gate, then _startAnimation's own read for duration/delay/count —
+// which doubled every sweep for nothing.
+function _animFactsOf(el) {
+  const facts = { name: null, duration: 0, delay: 0, infinite: false, iterations: 1 };
   try {
-    const raw = String(getComputedStyle(el).getPropertyValue("animation-name") || "").trim();
-    if (!raw || raw === "none") return null;
-    const first = raw.split(",")[0].trim();
-    return first && first !== "none" ? first : null;
-  } catch (e) { return null; }
+    const cs = getComputedStyle(el);
+    const raw = String(cs.getPropertyValue("animation-name") || "").trim();
+    if (raw && raw !== "none") {
+      const first = raw.split(",")[0].trim();
+      facts.name = first && first !== "none" ? first : null;
+    }
+    facts.duration = Math.max(0, _cssSeconds(cs.getPropertyValue("animation-duration")));
+    facts.delay = _cssSeconds(cs.getPropertyValue("animation-delay"));
+    const iterRaw = String(cs.getPropertyValue("animation-iteration-count") || "1").trim();
+    facts.infinite = iterRaw === "infinite";
+    facts.iterations = facts.infinite ? 1 : (parseFloat(iterRaw) || 0);
+  } catch (e) {}
+  return facts;
 }
 
 function _cancelAnimation(nid, st) {
@@ -65,16 +79,9 @@ function _cancelAnimation(nid, st) {
   _dispatchAnimationEvent(st.el, "animationcancel", st.name, st.startElapsed);
 }
 
-function _startAnimation(el, name) {
-  let duration = 0, delay = 0, infinite = false, iterations = 1;
-  try {
-    const cs = getComputedStyle(el);
-    duration = Math.max(0, _cssSeconds(cs.getPropertyValue("animation-duration")));
-    delay = _cssSeconds(cs.getPropertyValue("animation-delay"));
-    const iterRaw = String(cs.getPropertyValue("animation-iteration-count") || "1").trim();
-    infinite = iterRaw === "infinite";
-    iterations = infinite ? 1 : (parseFloat(iterRaw) || 0);
-  } catch (e) {}
+function _startAnimation(el, name, facts) {
+  const f = facts || { duration: 0, delay: 0, infinite: false, iterations: 1 };
+  const duration = f.duration, delay = f.delay, infinite = f.infinite, iterations = f.iterations;
   const startElapsed = delay < 0 ? -delay : 0;
   const st = { el, name, startElapsed, endTimer: null, iterTimer: null };
   _animTracked.set(el._nid, st);
@@ -159,9 +166,10 @@ function _animationCheckOne(el) {
     return;
   }
   _animEpochBudget++;
-  const name = _animationNameOf(el);
+  const facts = _animFactsOf(el);
+  const name = facts.name;
   if (existing && existing.name !== name) _cancelAnimation(el._nid, existing);
-  if (name && (!existing || existing.name !== name)) _startAnimation(el, name);
+  if (name && (!existing || existing.name !== name)) _startAnimation(el, name, facts);
 }
 
 // A page with no CSS anywhere cannot start an animation, but the check's
@@ -238,8 +246,50 @@ function _animationCheckIn(root) {
 // section does the work once on the final tree, which is also Chrome's own
 // coalescing: style recalc and animationstart happen at the next rendering
 // opportunity, never mid-task.
+//
+// Bounded slices (#224 CI face): the drain used to run the whole batch as
+// ONE synchronous wall, and a big mount (600 animated inserts on a slow CI
+// runner) blew past the eval pump's 500ms patience wall — the watchdog
+// beheaded the drain mid-batch and every un-checked element was lost
+// forever (nothing re-arms them; a data-* write never schedules checks) —
+// exactly the starvation this family forbids. The sweep now yields every
+// _ANIM_SWEEP_SLICE_MS of work and continues on a short timer, so no tick
+// the pump waits on carries more than a slice plus one root's capped walk
+// (<128 candidates) — comfortably inside every watchdog budget. The
+// continuation timer only ever arms mid-burst on animation-heavy mounts
+// (the same condition that arms the 50ms overflow macrotask below), NOT
+// per mutation — the always-pending 0ms tick that broke nav settle never
+// comes back.
 const _animPendingChecks = new Set();
-let _animCheckQueued = false;
+const _animSweepWork = [];
+let _animCheckQueued = false, _animSweepContArmed = false;
+let _animSweepIdx = 0; // committed cursor: work[0, idx) already checked
+const _ANIM_SWEEP_SLICE_MS = 40;
+// The sweep must survive being beheaded mid-slice: under heavy load even one
+// root's full-cascade check can outwall the eval pump's 500ms patience, and
+// the watchdog's terminate is uncatchable — it unwinds the slice wherever it
+// stands. Two invariants make that harmless: the cursor commits BEFORE each
+// check (a beheaded slice never re-runs an element — re-running a finished
+// animation would restart it), and the next continuation timer is armed
+// BEFORE the slice does its work (a beheaded slice always leaves a pending
+// timer behind, so the batch resumes instead of starving). A stray 4ms no-op
+// continuation per burst is the price; the timer only ever arms while sweep
+// work is pending (animation-heavy mounts), never per mutation.
+function _maybeArmSweepCont() {
+  if (_animSweepContArmed || _animSweepIdx >= _animSweepWork.length) return;
+  _animSweepContArmed = true;
+  setTimeout(_drainSweepSlice, 4);
+}
+function _drainSweepSlice() {
+  _animSweepContArmed = false;
+  _maybeArmSweepCont();
+  const t0 = Date.now();
+  while (_animSweepIdx < _animSweepWork.length) {
+    _animationCheckIn(_animSweepWork[_animSweepIdx++]);
+    if (_animSweepIdx < _animSweepWork.length && Date.now() - t0 > _ANIM_SWEEP_SLICE_MS) break;
+  }
+  if (_animSweepIdx >= _animSweepWork.length) { _animSweepWork.length = 0; _animSweepIdx = 0; }
+}
 function _scheduleAnimationCheck(root) {
   if (!root || root.nodeType !== 1) return;
   _animPendingChecks.add(root);
@@ -247,9 +297,11 @@ function _scheduleAnimationCheck(root) {
   _animCheckQueued = true;
   Promise.resolve().then(() => {
     _animCheckQueued = false;
-    const batch = Array.from(_animPendingChecks);
-    _animPendingChecks.clear();
-    for (const r of batch) _animationCheckIn(r);
+    if (_animPendingChecks.size) {
+      for (const r of _animPendingChecks) _animSweepWork.push(r);
+      _animPendingChecks.clear();
+    }
+    _maybeArmSweepCont();
     // Transition diffs ride the same drain (one recompute per batch, the
     // elements already warm from the animation pass). Attribute-write
     // callers only — subtree insertions must not arm diffs.
