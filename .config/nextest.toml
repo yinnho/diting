@@ -1,0 +1,6 @@
+# #64 ⑤-3: the ci profile CI runs (`cargo nextest run --profile ci`).
+# Two retries absorb the known timing flakes (the 110-identity battery has
+# 2) without hiding a genuinely flaky test — three consecutive failures
+# still fails the job.
+[profile.ci]
+retries = 2
