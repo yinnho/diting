@@ -156,20 +156,11 @@ globalThis.InputEvent = class extends UIEvent { constructor(t,o={}) { super(t,o)
 _evxProps(globalThis.InputEvent, ['data', 'inputType']);
 globalThis.ErrorEvent = class extends Event { constructor(t,o={}) { super(t,o);_evx.set(this,{message:o.message||"",filename:o.filename||"",lineno:o.lineno||0,colno:o.colno||0,error:o.error||null}); } };
 _evxRo(globalThis.ErrorEvent, ['message','filename','lineno','colno','error']);
-globalThis.AnimationEvent = class AnimationEvent extends Event {
-  // WebIDL AnimationEventInit: animationName "" / elapsedTime 0 /
-  // pseudoElement "" defaults.
-  constructor(t, o = {}) {
-    if (arguments.length < 1) throw new TypeError("Failed to construct 'AnimationEvent': 1 argument required, but only 0 present.");
-    super(t, o);
-    _evx.set(this, {
-      animationName: o.animationName !== undefined ? String(o.animationName) : "",
-      elapsedTime: o.elapsedTime !== undefined ? Number(o.elapsedTime) : 0,
-      pseudoElement: o.pseudoElement !== undefined ? String(o.pseudoElement) : "",
-    });
-  }
-};
-_evxRo(globalThis.AnimationEvent, ['animationName', 'elapsedTime', 'pseudoElement']);
+// AnimationEvent moved to the generator (issue #67 probe family):
+// platform/gen/animationevent.gen.js builds it from the css-animations IDL
+// (arity + AnimationEventInit dictionary expansion + Chrome message shapes)
+// with zero generator changes — the class below is deleted. animation_lifecycle
+// dispatches through the public ctor either way.
 globalThis.TransitionEvent = class TransitionEvent extends Event {
   // WebIDL TransitionEventInit: propertyName "" / elapsedTime 0 /
   // pseudoElement "" defaults (blitz#863 family 2). Was an empty Event

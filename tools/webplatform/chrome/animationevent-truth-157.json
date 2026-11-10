@@ -1,0 +1,56 @@
+{
+ "_meta": {
+  "chrome": "Google Chrome 157.0.8103.40",
+  "date": "2026-11-10",
+  "origin": "http://127.0.0.1 (ephemeral)",
+  "probe": "chrome//tmp/anev-probe.js"
+ },
+ "result": {
+  "arity": "THROW TypeError: Failed to construct 'AnimationEvent': 1 argument required, but only 0 present.",
+  "brand.plainobj": false,
+  "init.bubbles": true,
+  "init.default": [
+   "",
+   0,
+   ""
+  ],
+  "init.nan.elapsed": "THROW TypeError: Failed to construct 'AnimationEvent': Failed to read the 'elapsedTime' property from 'AnimationEventInit': The provided double value is non-finite.",
+  "init.null": [
+   "",
+   0,
+   ""
+  ],
+  "init.num": "THROW TypeError: Failed to construct 'AnimationEvent': The provided value is not of type 'AnimationEventInit'.",
+  "init.plain": [
+   "foo",
+   2.5,
+   "::before",
+   false,
+   "x"
+  ],
+  "nonew": "THROW TypeError: Failed to construct 'AnimationEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+  "shape": {
+   "len": 1,
+   "members": {
+    "animation": "ro",
+    "animationName": "ro",
+    "constructor": "function",
+    "elapsedTime": "ro",
+    "pseudoElement": "ro",
+    "pseudoTarget": "ro"
+   },
+   "name": "AnimationEvent",
+   "order": [
+    "animationName",
+    "elapsedTime",
+    "pseudoElement",
+    "pseudoTarget",
+    "animation",
+    "constructor"
+   ],
+   "parent": "Event",
+   "tag": "[object AnimationEvent]"
+  },
+  "sub.of.event": true
+ }
+}

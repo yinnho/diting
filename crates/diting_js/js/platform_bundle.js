@@ -72,7 +72,72 @@ const __platform = (function () {
       const t = Math.trunc(n);
       return ((t % 4294967296) + 4294967296) % 4294967296;
     },
+    // 刀#67: restricted double — ToNumber then the finite check; unrestricted
+    // passes NaN/Infinity through. Symbol guard mirrors DOMString: Chrome's
+    // message is the native V8 text, the prefix is ours.
+    double(v, prefix, fn) {
+      if (typeof v === 'symbol') fail(fn, 'Cannot convert a Symbol value to a number', prefix);
+      const n = Number(v);
+      if (!isFinite(n)) fail(fn, 'The provided double value is non-finite.', prefix);
+      return n;
+    },
+    unrestrictedDouble(v, prefix, fn) {
+      if (typeof v === 'symbol') fail(fn, 'Cannot convert a Symbol value to a number', prefix);
+      return Number(v);
+    },
+    // sequence<T>: an Object with @@iterator first (a primitive — even an
+    // iterable string — "cannot be converted to a sequence"), then per-item
+    // conversion through `item`. Iterator exceptions PROPAGATE (WebIDL);
+    // audio.js's old hand-rolled seq swallowed them, an unpinned exotic.
+    sequence(v, item, prefix, fn) {
+      if (v === null || (typeof v !== 'object' && typeof v !== 'function') || typeof v[Symbol.iterator] !== 'function') {
+        fail(fn, 'The provided value cannot be converted to a sequence.', prefix);
+      }
+      const a = [];
+      for (const x of v) a.push(item(x));
+      return a;
+    },
   };
+
+  // 刀#67: WebIDL dictionary expansion. Members are [name, kind, flags] in
+  // the CALLER's order (Chrome's read order — lexicographic by name per
+  // V8, but quirks like IIRFilterOptions stay expressible); flags {req, def}
+  // for required/default. Reads go through plain property access so getter
+  // side effects and getter exceptions are preserved (spec semantics, not
+  // an optimization detail). kind: 'double' | 'unrestricted double' |
+  // 'DOMString' | 'unsigned long' | 'boolean' | 'seq:double' | a function
+  // (raw, tail, fn) => value escape hatch for one-off shapes.
+  function dict(prefix, v, dictName, members, fn) {
+    const o = (v === null || v === undefined) ? {} : v;
+    if (typeof o !== 'object' && typeof o !== 'function') fail(fn, "The provided value is not of type '" + dictName + "'.", prefix);
+    const out = {};
+    for (const m of members) {
+      const name = m[0], k = m[1], fl = m[2] || {};
+      const tail = prefix + ": Failed to read the '" + name + "' property from '" + dictName + "'";
+      const raw = o[name];
+      if (raw === undefined) {
+        if (fl.req) fail(fn, "Failed to read the '" + name + "' property from '" + dictName + "': Required member is undefined.", prefix);
+        out[name] = 'def' in fl ? fl.def : null;
+      } else if (typeof k === 'function') {
+        out[name] = k(raw, tail, fn);
+      } else if (k === 'double') {
+        out[name] = conv.double(raw, tail, fn);
+      } else if (k === 'unrestricted double') {
+        out[name] = conv.unrestrictedDouble(raw, tail, fn);
+      } else if (k === 'DOMString') {
+        out[name] = conv.DOMString(raw, tail, fn);
+      } else if (k === 'unsigned long') {
+        out[name] = conv.unsignedLong(raw, tail, fn);
+      } else if (k === 'boolean') {
+        out[name] = conv.boolean(raw);
+      } else if (k === 'seq:double') {
+        out[name] = conv.sequence(raw, (x) => conv.double(x, tail, fn), tail, fn);
+      } else {
+        fail(fn, 'P.dict: unknown kind ' + k, null);
+      }
+    }
+    return out;
+  }
 
   // ---- shape helpers: one place decides descriptors and nativeness ----
   function setFn(fn, name, length) {
@@ -311,7 +376,14 @@ const __platform = (function () {
     return bad;
   }
 
-  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify, parseIntAttr, asciiLower };
+  const P = { define, boot, conv, fail, args, illegal, iface, seal, method, getter, accessor, stat, reflector, expose, exposeValue, expect, verify, parseIntAttr, asciiLower, dict };
+  // hidden bridge for BELT scripts (they load before this bundle, so they
+  // read it lazily at CALL time — never at their load): one prelude, two
+  // consumers — bundle modules get P as their module parameter, legacy belt
+  // files reach for __diting_P. First belt consumer: audio.js dict/sequence/
+  // double grind (issue #67). Like the __diting_objects family: hidden,
+  // configurable, so window_order's engine-only pass can rank it.
+  Object.defineProperty(globalThis, '__diting_P', { value: P, writable: true, enumerable: false, configurable: true });
   return P;
 })();
 
@@ -2016,6 +2088,65 @@ const NAMES = [
 const { list, set } = __diting_cssNames;
 list.length = 0;
 for (const n of NAMES) { list.push(n); set.add(n); }
+});
+
+// ---- module cssunit (L2) ----
+__platform.define("cssunit", function (exports, require, P) {
+"use strict";
+// issue #67 pilot (CSSUnitValue, the gen family): behavior only. The class
+// shape — arity, per-arg double/DOMString conversion preamble, prototype
+// accessors value/unit, expose — is generated from the cssom-typedom IDL in
+// gen/cssunit.gen.js; this module validates the unit and stores the two
+// slots. Every non-obvious fact is pinned by a key in
+// tools/webplatform/chrome/cssunit-truth-157.json (real Chrome 157):
+//   ctor.valstr / ctor.unitnum — unit is ascii-lowercased BEFORE the table
+//     check and the error message keeps the ORIGINAL spelling, so 'PX' is a
+//     legal unit storing "px" and a unit of 5 fails as "Invalid unit: 5"
+//     (the hand-written face rejected 'PX' outright — migrated face bug).
+//   set.value.nan — the value SETTER re-checks finiteness under the
+//     "Failed to set the 'value' property on 'CSSUnitValue'" prefix.
+//   set.unit — sloppy assignment to the read-only unit is a silent no-op
+//     (getter-only property; strict callers throw V8's own message).
+// The prototype parent CSSNumericValue is NOT wired here: platform_bundle
+// loads before global_surface mints the CSSNumericValue stub, so the link
+// comes from global_surface's AUDIT_CHAIN (["CSSUnitValue","CSSNumericValue"]),
+// which runs after the mint in the same file.
+'use strict';
+
+// exactly the 64 CSS factory names (css_static_face 刀88 table, unchanged);
+// 'number' is what typedom_math's CSSMath* kids carry, 'percent' included.
+const UNITS = {};
+for (const u of ['Hz', 'Q', 'cap', 'ch', 'cm', 'cqb', 'cqh', 'cqi', 'cqmax', 'cqmin', 'cqw', 'deg', 'dpcm', 'dpi', 'dppx', 'dvb', 'dvh', 'dvi', 'dvmax', 'dvmin', 'dvw', 'em', 'ex', 'fr', 'grad', 'ic', 'in', 'kHz', 'lh', 'lvb', 'lvh', 'lvi', 'lvmax', 'lvmin', 'lvw', 'mm', 'ms', 'number', 'pc', 'percent', 'pt', 'px', 'rad', 'rcap', 'rch', 'rem', 'rex', 'ric', 'rlh', 's', 'svb', 'svh', 'svi', 'svmax', 'svmin', 'svw', 'turn', 'vb', 'vh', 'vi', 'vmax', 'vmin', 'vw', 'x']) {
+  UNITS[u.toLowerCase()] = true;
+}
+
+// SLOT LAYOUT IS A CROSS-FILE CONTRACT, not an implementation detail:
+// typedom_math.js (~15 sites) reads x._v / x._u directly for the CSSMath*
+// arithmetic and the family-wide toString, and 刀88 pins zero VISIBLE own
+// props — so the slots are hidden own properties, same as the hand-written
+// face this module replaced.
+exports.ctor = function ctor(iface, self, ctx, args, parsed) {
+  // parsed rides the B.ctor 5th parameter: [valueNumber, unitString]
+  // already converted by the generated preamble.
+  const unit = P.asciiLower(parsed[1]);
+  if (!UNITS[unit]) P.fail(ctor, 'Invalid unit: ' + parsed[1], ctx);
+  Object.defineProperty(self, '_v', { value: parsed[0], writable: true, enumerable: false, configurable: true });
+  Object.defineProperty(self, '_u', { value: unit, writable: true, enumerable: false, configurable: true });
+};
+
+exports.get = function get(iface, member, self) {
+  if (self === null || typeof self !== 'object' || self._u === undefined) P.illegal(get);
+  return member === 'value' ? self._v : self._u;
+};
+
+exports.set = function set(iface, member, self, v) {
+  if (member !== 'value' || self === null || typeof self !== 'object' || self._u === undefined) P.illegal(set);
+  self._v = P.conv.double(v, "Failed to set the 'value' property on 'CSSUnitValue'", set);
+};
+
+// typedom_math (loads later, after global_surface) reads
+// globalThis.CSSUnitValue at call time for its CSSMath* kids; the CSS
+// factories in css_static_face.js do the same — nothing to wire here.
 });
 
 // ---- module docmisc (L2) ----
@@ -4162,6 +4293,68 @@ const fontsGet = function () { if (this === null || typeof this !== 'object') P.
 P.getter(Document.prototype, 'fonts', fontsGet);
 });
 
+// ---- module gen/animationevent (L2) ----
+__platform.define("gen/animationevent", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- AnimationEvent (generated from tools/webplatform/spec/css-animations.json) ----
+const slotsAnimationEvent = new WeakMap();
+function isAnimationEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsAnimationEvent.has(v); }
+function AnimationEvent(type) {
+  if (!new.target) P.fail(AnimationEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'AnimationEvent'");
+  const ctx = "Failed to construct 'AnimationEvent'";
+  P.args(ctx, arguments.length, 1, AnimationEvent);
+  const t = conv.DOMString(type, ctx, AnimationEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(AnimationEvent, "The provided value is not of type 'AnimationEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'AnimationEventInit';
+  { const FIELD = 'animationName'; const raw = (init === undefined || init === null) ? undefined : init.animationName; s.animationName = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
+  { const FIELD = 'elapsedTime'; const raw = (init === undefined || init === null) ? undefined : init.elapsedTime; s.elapsedTime = (raw === undefined) ? 0.0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
+  { const FIELD = 'pseudoElement'; const raw = (init === undefined || init === null) ? undefined : init.pseudoElement; s.pseudoElement = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
+  slotsAnimationEvent.set(self, s);
+  return self;
+}
+const protoAnimationEvent = P.iface(AnimationEvent, 'AnimationEvent', 1, Event);
+P.getter(protoAnimationEvent, 'animationName', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.animationName; });
+P.getter(protoAnimationEvent, 'elapsedTime', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.elapsedTime; });
+P.getter(protoAnimationEvent, 'pseudoElement', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoElement; });
+P.seal(AnimationEvent);
+P.expose('AnimationEvent', AnimationEvent);
+exports.AnimationEvent = AnimationEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "AnimationEvent", "statics": []});
+});
+
+// ---- module gen/cssunit (L2) ----
+__platform.define("gen/cssunit", function (exports, require, P) {
+"use strict";
+// Strategy value (see gen_iface.py docstring).
+const conv = P.conv;
+
+const B = require('cssunit');
+
+// ---- CSSUnitValue (generated from tools/webplatform/spec/css-typed-om.json) ----
+function CSSUnitValue() {
+  if (!new.target) P.fail(CSSUnitValue, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'CSSUnitValue'");
+  const ctx = "Failed to construct 'CSSUnitValue'";
+  P.args(ctx, arguments.length, 2, CSSUnitValue);
+  const a0 = conv.double(arguments[0], ctx, CSSUnitValue);
+  const a1 = conv.USVString(arguments[1], ctx, CSSUnitValue);
+  B.ctor('CSSUnitValue', this, ctx, arguments, [a0, a1]);
+}
+const protoCSSUnitValue = P.iface(CSSUnitValue, 'CSSUnitValue', 2);
+P.accessor(protoCSSUnitValue, 'value', function __f() { return B.get('CSSUnitValue', 'value', this); }, function __f(v) { B.set('CSSUnitValue', 'value', this, v); });
+P.getter(protoCSSUnitValue, 'unit', function __f() { return B.get('CSSUnitValue', 'unit', this); });
+P.seal(CSSUnitValue);
+P.expose('CSSUnitValue', CSSUnitValue);
+P.expect({"length": 2, "members": [{"kind": "accessor", "length": 0, "name": "value"}, {"kind": "getter", "length": 0, "name": "unit"}], "name": "CSSUnitValue", "statics": []});
+
+if (B.ready) B.ready();
+});
+
 // ---- module geometry (L2) ----
 __platform.define("geometry", function (exports, require, P) {
 "use strict";
@@ -5067,9 +5260,7 @@ exports.stat = stat;
 // ---- module gen/geometry (L2) ----
 __platform.define("gen/geometry", function (exports, require, P) {
 "use strict";
-// Backing protocol for strategy 'backing' (see gen_iface.py docstring): the object
-// passed to createStorage() implements length, key(i), getItem(k), setItem(k,v),
-// removeItem(k), clear() and supportedPropertyNames().
+// Strategy value (see gen_iface.py docstring).
 const conv = P.conv;
 
 const B = require('geometry');
@@ -5185,7 +5376,11 @@ function DOMPointReadOnly() {
   if (!new.target) P.fail(DOMPointReadOnly, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMPointReadOnly'");
   const ctx = "Failed to construct 'DOMPointReadOnly'";
   P.args(ctx, arguments.length, 0, DOMPointReadOnly);
-  B.ctor('DOMPointReadOnly', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMPointReadOnly) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMPointReadOnly) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMPointReadOnly) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMPointReadOnly) : 1;
+  B.ctor('DOMPointReadOnly', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMPointReadOnly = P.iface(DOMPointReadOnly, 'DOMPointReadOnly', 0);
 P.getter(protoDOMPointReadOnly, 'x', function __f() { return B.get('DOMPointReadOnly', 'x', this); });
@@ -5204,7 +5399,11 @@ function DOMPoint() {
   if (!new.target) P.fail(DOMPoint, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMPoint'");
   const ctx = "Failed to construct 'DOMPoint'";
   P.args(ctx, arguments.length, 0, DOMPoint);
-  B.ctor('DOMPoint', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMPoint) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMPoint) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMPoint) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMPoint) : 1;
+  B.ctor('DOMPoint', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMPoint = P.iface(DOMPoint, 'DOMPoint', 0, DOMPointReadOnly);
 P.accessor(protoDOMPoint, 'x', function __f() { return B.get('DOMPoint', 'x', this); }, function __f(v) { B.set('DOMPoint', 'x', this, v); });
@@ -5241,7 +5440,11 @@ function DOMRectReadOnly() {
   if (!new.target) P.fail(DOMRectReadOnly, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMRectReadOnly'");
   const ctx = "Failed to construct 'DOMRectReadOnly'";
   P.args(ctx, arguments.length, 0, DOMRectReadOnly);
-  B.ctor('DOMRectReadOnly', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMRectReadOnly) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMRectReadOnly) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMRectReadOnly) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMRectReadOnly) : 0;
+  B.ctor('DOMRectReadOnly', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMRectReadOnly = P.iface(DOMRectReadOnly, 'DOMRectReadOnly', 0);
 P.getter(protoDOMRectReadOnly, 'x', function __f() { return B.get('DOMRectReadOnly', 'x', this); });
@@ -5263,7 +5466,11 @@ function DOMRect() {
   if (!new.target) P.fail(DOMRect, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMRect'");
   const ctx = "Failed to construct 'DOMRect'";
   P.args(ctx, arguments.length, 0, DOMRect);
-  B.ctor('DOMRect', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMRect) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMRect) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMRect) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMRect) : 0;
+  B.ctor('DOMRect', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMRect = P.iface(DOMRect, 'DOMRect', 0, DOMRectReadOnly);
 P.accessor(protoDOMRect, 'x', function __f() { return B.get('DOMRect', 'x', this); }, function __f(v) { B.set('DOMRect', 'x', this, v); });
@@ -6970,9 +7177,7 @@ if (P_Track) {
 // ---- module gen/storage (L2) ----
 __platform.define("gen/storage", function (exports, require, P) {
 "use strict";
-// Backing protocol for strategy 'backing' (see gen_iface.py docstring): the object
-// passed to createStorage() implements length, key(i), getItem(k), setItem(k,v),
-// removeItem(k), clear() and supportedPropertyNames().
+// Strategy event (see gen_iface.py docstring).
 const conv = P.conv;
 
 // ---- Storage (generated from tools/webplatform/spec/storage.json) ----
@@ -7030,11 +7235,11 @@ function StorageEvent(type) {
   const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
   const s = {};
   const DICT = 'StorageEventInit';
-  { const FIELD = 'key'; const raw = (init === undefined || init === null) ? undefined : init.key; s.key = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
-  { const FIELD = 'newValue'; const raw = (init === undefined || init === null) ? undefined : init.newValue; s.newValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
-  { const FIELD = 'oldValue'; const raw = (init === undefined || init === null) ? undefined : init.oldValue; s.oldValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx, StorageEvent)); }
+  { const FIELD = 'key'; const raw = (init === undefined || init === null) ? undefined : init.key; s.key = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent)); }
+  { const FIELD = 'newValue'; const raw = (init === undefined || init === null) ? undefined : init.newValue; s.newValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent)); }
+  { const FIELD = 'oldValue'; const raw = (init === undefined || init === null) ? undefined : init.oldValue; s.oldValue = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent)); }
   { const FIELD = 'storageArea'; const raw = (init === undefined || init === null) ? undefined : init.storageArea; s.storageArea = (raw === undefined) ? null : ((raw === null || raw === undefined) ? null : (isStorage(raw) ? raw : P.fail(StorageEvent, "Failed to convert value to 'Storage'.", ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'"))); }
-  { const FIELD = 'url'; const raw = (init === undefined || init === null) ? undefined : init.url; s.url = (raw === undefined) ? "" : conv.USVString(raw, ctx, StorageEvent); }
+  { const FIELD = 'url'; const raw = (init === undefined || init === null) ? undefined : init.url; s.url = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", StorageEvent); }
   slotsStorageEvent.set(self, s);
   return self;
 }

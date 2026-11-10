@@ -5,9 +5,7 @@
 //! requires-load: geometry, legacy:_markNative
 //! requires-call: -
 
-// Backing protocol for strategy 'backing' (see gen_iface.py docstring): the object
-// passed to createStorage() implements length, key(i), getItem(k), setItem(k,v),
-// removeItem(k), clear() and supportedPropertyNames().
+// Strategy value (see gen_iface.py docstring).
 const conv = P.conv;
 
 const B = require('geometry');
@@ -123,7 +121,11 @@ function DOMPointReadOnly() {
   if (!new.target) P.fail(DOMPointReadOnly, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMPointReadOnly'");
   const ctx = "Failed to construct 'DOMPointReadOnly'";
   P.args(ctx, arguments.length, 0, DOMPointReadOnly);
-  B.ctor('DOMPointReadOnly', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMPointReadOnly) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMPointReadOnly) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMPointReadOnly) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMPointReadOnly) : 1;
+  B.ctor('DOMPointReadOnly', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMPointReadOnly = P.iface(DOMPointReadOnly, 'DOMPointReadOnly', 0);
 P.getter(protoDOMPointReadOnly, 'x', function __f() { return B.get('DOMPointReadOnly', 'x', this); });
@@ -142,7 +144,11 @@ function DOMPoint() {
   if (!new.target) P.fail(DOMPoint, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMPoint'");
   const ctx = "Failed to construct 'DOMPoint'";
   P.args(ctx, arguments.length, 0, DOMPoint);
-  B.ctor('DOMPoint', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMPoint) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMPoint) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMPoint) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMPoint) : 1;
+  B.ctor('DOMPoint', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMPoint = P.iface(DOMPoint, 'DOMPoint', 0, DOMPointReadOnly);
 P.accessor(protoDOMPoint, 'x', function __f() { return B.get('DOMPoint', 'x', this); }, function __f(v) { B.set('DOMPoint', 'x', this, v); });
@@ -179,7 +185,11 @@ function DOMRectReadOnly() {
   if (!new.target) P.fail(DOMRectReadOnly, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMRectReadOnly'");
   const ctx = "Failed to construct 'DOMRectReadOnly'";
   P.args(ctx, arguments.length, 0, DOMRectReadOnly);
-  B.ctor('DOMRectReadOnly', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMRectReadOnly) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMRectReadOnly) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMRectReadOnly) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMRectReadOnly) : 0;
+  B.ctor('DOMRectReadOnly', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMRectReadOnly = P.iface(DOMRectReadOnly, 'DOMRectReadOnly', 0);
 P.getter(protoDOMRectReadOnly, 'x', function __f() { return B.get('DOMRectReadOnly', 'x', this); });
@@ -201,7 +211,11 @@ function DOMRect() {
   if (!new.target) P.fail(DOMRect, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'DOMRect'");
   const ctx = "Failed to construct 'DOMRect'";
   P.args(ctx, arguments.length, 0, DOMRect);
-  B.ctor('DOMRect', this, ctx, arguments);
+  const a0 = (arguments.length > 0 && arguments[0] !== undefined) ? conv.unrestrictedDouble(arguments[0], ctx, DOMRect) : 0;
+  const a1 = (arguments.length > 1 && arguments[1] !== undefined) ? conv.unrestrictedDouble(arguments[1], ctx, DOMRect) : 0;
+  const a2 = (arguments.length > 2 && arguments[2] !== undefined) ? conv.unrestrictedDouble(arguments[2], ctx, DOMRect) : 0;
+  const a3 = (arguments.length > 3 && arguments[3] !== undefined) ? conv.unrestrictedDouble(arguments[3], ctx, DOMRect) : 0;
+  B.ctor('DOMRect', this, ctx, arguments, [a0, a1, a2, a3]);
 }
 const protoDOMRect = P.iface(DOMRect, 'DOMRect', 0, DOMRectReadOnly);
 P.accessor(protoDOMRect, 'x', function __f() { return B.get('DOMRect', 'x', this); }, function __f(v) { B.set('DOMRect', 'x', this, v); });

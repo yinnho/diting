@@ -19,6 +19,9 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_canvas_face.py
   python3 $WP/gen/gen_window_order.py "$WINORDER"
   python3 $WP/gen/gen_iface.py $WP/spec/storage.json crates/diting_js/js/platform/gen/storage.gen.js gen/storage
+  python3 $WP/gen/gen_iface.py $WP/spec/geometry.json crates/diting_js/js/platform/gen/geometry.gen.js gen/geometry $WP/chrome/geometry-truth-145.json
+  python3 $WP/gen/gen_iface.py $WP/spec/css-typed-om.json crates/diting_js/js/platform/gen/cssunit.gen.js gen/cssunit $WP/chrome/cssunit-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
   python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-145.json patch-common
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlmedia.gen.js gen/htmlmedia $WP/chrome/htmlmedia-truth-145.json patch-media
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlreflect.gen.js gen/htmlreflect $WP/chrome/htmlreflect-truth-145.json patch-reflect
@@ -45,6 +48,18 @@ done
 python3 $WP/gen/gen_iface.py $WP/spec/storage.json "$tmp/storage.gen.js" gen/storage >/dev/null
 diff -q "$tmp/storage.gen.js" crates/diting_js/js/platform/gen/storage.gen.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform/gen/storage.gen.js is stale vs gen_iface.py" >&2; fail=1; }
+# 3a. the value-strategy modules (geometry, cssunit) carry their own truth
+# files; cssunit is the issue #67 gen-family pilot (ctor conversion preamble).
+gen_value() { # <spec> <name> <truth>
+  python3 $WP/gen/gen_iface.py "$WP/spec/$1" "$tmp/$2.gen.js" "gen/$2" "$WP/chrome/$3" >/dev/null
+  diff -q "$tmp/$2.gen.js" "crates/diting_js/js/platform/gen/$2.gen.js" >/dev/null \
+    || { echo "FAIL: crates/diting_js/js/platform/gen/$2.gen.js is stale vs gen_iface.py" >&2; fail=1; }
+}
+gen_value geometry.json geometry geometry-truth-145.json
+gen_value css-typed-om.json cssunit cssunit-truth-157.json
+python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json "$tmp/animationevent.gen.js" gen/animationevent >/dev/null
+diff -q "$tmp/animationevent.gen.js" crates/diting_js/js/platform/gen/animationevent.gen.js >/dev/null \
+  || { echo "FAIL: crates/diting_js/js/platform/gen/animationevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
 # 3b. the patch-strategy modules (HTMLElement common layer, media/image family,
 # HTML reflect family) are measured-truth products too: regenerate and diff
 gen_patch() { # <spec> <name> <truth> <strategy>

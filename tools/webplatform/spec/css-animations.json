@@ -1,0 +1,189 @@
+{
+ "includes": [],
+ "names": {
+  "AnimationEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface AnimationEvent : Event {\n  constructor(CSSOMString type, optional AnimationEventInit animationEventInitDict = {});\n  readonly attribute CSSOMString animationName;\n  readonly attribute double elapsedTime;\n  readonly attribute CSSOMString pseudoElement;\n};",
+   "href": "https://drafts.csswg.org/css-animations-1/#animationevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "CSSOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "AnimationEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "animationEventInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationevent-animationevent",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationevent-animationname",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "animationName",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationevent-elapsedtime",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "elapsedTime",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationevent-pseudoelement",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "pseudoElement",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "AnimationEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "AnimationEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary AnimationEventInit : EventInit {\n  CSSOMString animationName = \"\";\n  double elapsedTime = 0.0;\n  CSSOMString pseudoElement = \"\";\n};",
+   "href": "https://drafts.csswg.org/css-animations-1/#dictdef-animationeventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "string",
+      "value": ""
+     },
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationeventinit-animationname",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSOMString",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "animationName",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "number",
+      "value": "0.0"
+     },
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationeventinit-elapsedtime",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "elapsedTime",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "string",
+      "value": ""
+     },
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/css-animations-1/#dom-animationeventinit-pseudoelement",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSOMString",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "pseudoElement",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "AnimationEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "AnimationEvent": "https://drafts.csswg.org/css-animations-1/",
+  "AnimationEventInit": "https://drafts.csswg.org/css-animations-1/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}
