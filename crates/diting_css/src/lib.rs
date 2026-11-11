@@ -65,7 +65,7 @@ fn media_pref_default(name: &str) -> Option<&'static str> {
 
 /// One flattened stylesheet rule: selector text plus its declaration block.
 /// Selectors are compiled lazily by the cascade via diting_dom.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct ParsedRule {
     pub selector: String,
     pub declarations: String,

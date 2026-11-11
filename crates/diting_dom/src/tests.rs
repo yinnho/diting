@@ -1831,20 +1831,15 @@ mod tree_tests {
                     check(&stage, key, if key == key_b { late_sel } else { base_sel });
                 }
 
-                // Cross-key round trip at the end: K -> other -> K must equal a
-                // fresh full match each time.
+                // Cross-key round trip at the end: K -> other -> K must agree
+                // with a fresh full match on every attached element each time
+                // (the box now follows the selector list, not the key, so the
+                // late list carries over instead of rebuilding).
                 let other = if key == key_a { key_b } else { key_a };
-                let fresh = tree.rule_match_sets(&selectors_late);
-                assert_eq!(
-                    tree.rule_match_sets_incremental(&selectors_late, other),
-                    fresh,
-                    "seed {seed} cross-key"
-                );
-                assert_eq!(
-                    tree.rule_match_sets_incremental(&selectors_late, key),
-                    fresh,
-                    "seed {seed} key-back"
-                );
+                check("cross-key", other, late_sel);
+                check("key-back", key, late_sel);
+                check("back-to-base", other, base_sel);
+                check("base-to-late", key, late_sel);
             }
         }
 

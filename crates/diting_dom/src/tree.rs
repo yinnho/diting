@@ -326,9 +326,9 @@ pub(crate) struct DomTreeInner {
     /// mutation methods themselves so no caller can forget.
     match_dirty: MatchDirty,
     /// The persisted rule-match state for
-    /// [`super::selector::MatchCacheBox`]-keyed incremental syncs (#111):
-    /// compiled buckets + live hit sets, valid while the css bytes are
-    /// unchanged and every mutation carried a stamp.
+    /// [`super::selector::MatchCacheBox`] incremental syncs (#111):
+    /// compiled buckets + live hit sets for one selector list, valid while
+    /// every mutation carried a stamp.
     match_cache: Option<MatchCacheBox>,
     /// The layout crate's cascade memo (opaque; see tree/caches.rs).
     style_memo: Option<Box<dyn std::any::Any>>,
