@@ -10101,6 +10101,118 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_pss_jwk_like_chrome() {
+    // RSA-PSS jwk import/export against Chrome 157 (headless, file://; the
+    // expected object is its output for this exact script, fixed 1024-bit
+    // test key): export member order, alg PS1..PS512, key_ops, ext, byte-exact
+    // members; import faces for alg families, use, key_ops (subset, dup),
+    // ext, kty, missing/garbled members, missing CRT members, usages. Two
+    // faces were ours alone until this pinned them: the non-extractable
+    // export message, and a jwk whose dp/dq/qi don't match d/p/q (Chrome
+    // refuses with an empty DataError; we recomputed and accepted).
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle;
+  const K = {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true};
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : (typeof v === 'string' ? v : 'ok:' + JSON.stringify(v)); } catch (e) { return e.name + ': ' + e.message; } };
+  const PSS = (h) => ({ name: 'RSA-PSS', hash: h });
+  const pub = { kty: 'RSA', n: K.n, e: K.e };
+  const priv = Object.assign({}, K); delete priv.ext;
+  const W = (base, extra) => Object.assign({}, base, extra);
+  const drop = (base, m) => { const o = Object.assign({}, base); delete o[m]; return o; };
+  const imp = (jwk, h, ex, us) => face(async () => { const k = await S.importKey('jwk', jwk, PSS(h), ex, us); return k.type + '/' + k.extractable + '/' + k.usages + '/' + k.algorithm.hash.name + '/' + k.algorithm.modulusLength; });
+  // export shapes
+  const skE = await S.importKey('jwk', priv, PSS('SHA-256'), true, ['sign']);
+  const pkE = await S.importKey('jwk', pub, PSS('SHA-384'), true, ['verify']);
+  r.privExport = await face(async () => { const j = await S.exportKey('jwk', skE); return JSON.stringify({ keys: Object.keys(j), alg: j.alg, key_ops: j.key_ops, ext: j.ext, same: ['n','e','d','p','q','dp','dq','qi'].every(m => j[m] === K[m]) }); });
+  r.pubExport = await face(async () => { const j = await S.exportKey('jwk', pkE); return JSON.stringify({ keys: Object.keys(j), alg: j.alg, key_ops: j.key_ops, ext: j.ext, same: j.n === K.n && j.e === K.e }); });
+  r.pubFromPriv = await face(async () => { const j = await S.exportKey('jwk', await S.importKey('jwk', W(pub, {}), PSS('SHA-512'), true, [])); return JSON.stringify({ keys: Object.keys(j), alg: j.alg, key_ops: j.key_ops }); });
+  r.privNoExtract = await face(async () => { const k = await S.importKey('jwk', priv, PSS('SHA-256'), false, ['sign']); return S.exportKey('jwk', k).then(() => 'exported'); });
+  // import faces
+  for (const h of ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512']) r['algOk.' + h] = await imp(W(pub, { alg: 'PS' + (h === 'SHA-1' ? '1' : h.slice(4)) }), h, true, ['verify']);
+  r.noAlg = await imp(pub, 'SHA-256', true, ['verify']);
+  r.algRS = await imp(W(pub, { alg: 'RS256' }), 'SHA-256', true, ['verify']);
+  r.algOAEP = await imp(W(pub, { alg: 'RSA-OAEP-256' }), 'SHA-256', true, ['verify']);
+  r.algBogus = await imp(W(pub, { alg: 'PS999' }), 'SHA-256', true, ['verify']);
+  r.algLower = await imp(W(pub, { alg: 'ps256' }), 'SHA-256', true, ['verify']);
+  r.useSig = await imp(W(pub, { use: 'sig' }), 'SHA-256', true, ['verify']);
+  r.useEnc = await imp(W(pub, { use: 'enc' }), 'SHA-256', true, ['verify']);
+  r.keyOpsOk = await imp(W(pub, { key_ops: ['verify'] }), 'SHA-256', true, ['verify']);
+  r.keyOpsMiss = await imp(W(pub, { key_ops: ['sign'] }), 'SHA-256', true, ['verify']);
+  r.keyOpsSuper = await imp(W(priv, { key_ops: ['sign', 'verify'] }), 'SHA-256', true, ['sign']);
+  r.keyOpsDup = await imp(W(pub, { key_ops: ['verify', 'verify'] }), 'SHA-256', true, ['verify']);
+  r.extFalse = await imp(W(pub, { ext: false }), 'SHA-256', true, ['verify']);
+  r.extFalseOk = await imp(W(pub, { ext: false }), 'SHA-256', false, ['verify']);
+  r.ktyEC = await imp(W(pub, { kty: 'EC' }), 'SHA-256', true, ['verify']);
+  r.noN = await imp(drop(pub, 'n'), 'SHA-256', true, ['verify']);
+  r.noE = await imp(drop(pub, 'e'), 'SHA-256', true, ['verify']);
+  r.badB64 = await imp(W(pub, { n: K.n.slice(0, -2) + '+/' }), 'SHA-256', true, ['verify']);
+  r.nNum = await imp(W(pub, { n: 12345 }), 'SHA-256', true, ['verify']);
+  for (const m of ['p', 'q', 'dp', 'dq', 'qi']) r['privNo.' + m] = await imp(drop(priv, m), 'SHA-256', true, ['sign']);
+  r.privOnlyD = await imp({ kty: 'RSA', n: K.n, e: K.e, d: K.d }, 'SHA-256', true, ['sign']);
+  r.privVerifyUsage = await imp(priv, 'SHA-256', true, ['verify']);
+  r.pubSignUsage = await imp(pub, 'SHA-256', true, ['sign']);
+  r.privEmptyUsage = await imp(priv, 'SHA-256', true, []);
+  r.pubEmptyUsage = await imp(pub, 'SHA-256', true, []);
+  r.oth = await imp(W(priv, { oth: [] }), 'SHA-256', true, ['sign']);
+  r.badDp = await imp(W(priv, { dp: K.dq }), 'SHA-256', true, ['sign']);
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "privExport": "{\"keys\":[\"alg\",\"d\",\"dp\",\"dq\",\"e\",\"ext\",\"key_ops\",\"kty\",\"n\",\"p\",\"q\",\"qi\"],\"alg\":\"PS256\",\"key_ops\":[\"sign\"],\"ext\":true,\"same\":true}",
+ "pubExport": "{\"keys\":[\"alg\",\"e\",\"ext\",\"key_ops\",\"kty\",\"n\"],\"alg\":\"PS384\",\"key_ops\":[\"verify\"],\"ext\":true,\"same\":true}",
+ "pubFromPriv": "{\"keys\":[\"alg\",\"e\",\"ext\",\"key_ops\",\"kty\",\"n\"],\"alg\":\"PS512\",\"key_ops\":[]}",
+ "privNoExtract": "InvalidAccessError: Failed to execute 'exportKey' on 'SubtleCrypto': key is not extractable",
+ "algOk.SHA-1": "public/true/verify/SHA-1/1024",
+ "algOk.SHA-256": "public/true/verify/SHA-256/1024",
+ "algOk.SHA-384": "public/true/verify/SHA-384/1024",
+ "algOk.SHA-512": "public/true/verify/SHA-512/1024",
+ "noAlg": "public/true/verify/SHA-256/1024",
+ "algRS": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "algOAEP": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "algBogus": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "algLower": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "useSig": "public/true/verify/SHA-256/1024",
+ "useEnc": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "keyOpsOk": "public/true/verify/SHA-256/1024",
+ "keyOpsMiss": "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "keyOpsSuper": "private/true/sign/SHA-256/1024",
+ "keyOpsDup": "DataError: The \"key_ops\" member of the JWK dictionary contains duplicate usages.",
+ "extFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "extFalseOk": "public/false/verify/SHA-256/1024",
+ "ktyEC": "DataError: The JWK \"kty\" member was not \"RSA\"",
+ "noN": "DataError: The required JWK member \"n\" was missing",
+ "noE": "DataError: The required JWK member \"e\" was missing",
+ "badB64": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "nNum": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "privNo.p": "DataError: The required JWK member \"p\" was missing",
+ "privNo.q": "DataError: The required JWK member \"q\" was missing",
+ "privNo.dp": "DataError: The required JWK member \"dp\" was missing",
+ "privNo.dq": "DataError: The required JWK member \"dq\" was missing",
+ "privNo.qi": "DataError: The required JWK member \"qi\" was missing",
+ "privOnlyD": "DataError: The required JWK member \"p\" was missing",
+ "privVerifyUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "pubSignUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "privEmptyUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "pubEmptyUsage": "public/true//SHA-256/1024",
+ "oth": "private/true/sign/SHA-256/1024",
+ "badDp": "DataError: "
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_rsa_pss_like_chrome() {
     // RSA-PSS used to fall through to the OAEP face (encrypt/decrypt usages,
     // RSA-OAEP jwk algs, no sign/verify at all). With a fixed 1024-bit test

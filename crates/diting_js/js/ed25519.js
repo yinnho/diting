@@ -101,7 +101,7 @@ if (globalThis.__diting_subtle_hooks && globalThis.crypto && globalThis.crypto.s
   subtle.exportKey = async function exportKey(format, key) {
     if (!keyIsEd(key)) return orig.exportKey(format, key);
     const m = keyBytes(key);
-    if (!key.extractable) throw err("Key is not extractable", "InvalidAccessError");
+    if (!key.extractable) throw err("Failed to execute 'exportKey' on 'SubtleCrypto': key is not extractable", "InvalidAccessError");
     if (format === "raw" || format === "spki") {
       if (key.type !== "public") throw err("Key is not of type 'public'", "InvalidAccessError");
       return bufferOf(format === "raw" ? m.pub : cat(SPKI, m.pub));
