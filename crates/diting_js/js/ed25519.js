@@ -99,15 +99,15 @@ if (globalThis.__diting_subtle_hooks && globalThis.crypto && globalThis.crypto.s
   };
 
   subtle.exportKey = async function exportKey(format, key) {
-    if (!keyIsEd(key)) return orig.exportKey(format, key);
+    if (!keyIsEd(key) || !["raw", "spki", "pkcs8", "jwk"].includes(format)) return orig.exportKey(format, key);
     const m = keyBytes(key);
     if (!key.extractable) throw err("Failed to execute 'exportKey' on 'SubtleCrypto': key is not extractable", "InvalidAccessError");
     if (format === "raw" || format === "spki") {
-      if (key.type !== "public") throw err("Key is not of type 'public'", "InvalidAccessError");
+      if (key.type !== "public") throw err("The key is not of the expected type", "InvalidAccessError");
       return bufferOf(format === "raw" ? m.pub : cat(SPKI, m.pub));
     }
     if (format === "pkcs8") {
-      if (key.type !== "private") throw err("Key is not of type 'private'", "InvalidAccessError");
+      if (key.type !== "private") throw err("The key is not of the expected type", "InvalidAccessError");
       return bufferOf(cat(PKCS8, m.seed));
     }
     if (format === "jwk") {
@@ -124,20 +124,21 @@ if (globalThis.__diting_subtle_hooks && globalThis.crypto && globalThis.crypto.s
   };
 
   subtle.sign = async function sign(algorithm, key, data) {
-    if (!isEd(algorithm) && !keyIsEd(key)) return orig.sign(algorithm, key, data);
-    if (!isEd(algorithm) || !keyIsEd(key)) throw err("Key algorithm does not match the requested algorithm", "InvalidAccessError");
+    if ((!isEd(algorithm) && !keyIsEd(key)) || !(key instanceof CryptoKey)) return orig.sign(algorithm, key, data);
+    // Chrome 157's order and texts: algorithm, usages, then the key type.
+    if (!isEd(algorithm) || !keyIsEd(key)) throw err("key.algorithm does not match that of operation", "InvalidAccessError");
     const m = keyBytes(key);
-    if (key.type !== "private") throw err("Key is not of type 'private'", "InvalidAccessError");
-    if (!key.usages.includes("sign")) throw err("This CryptoKey cannot be used for signing", "InvalidAccessError");
+    if (!key.usages.includes("sign")) throw err("key.usages does not permit this operation", "InvalidAccessError");
+    if (key.type !== "private") throw err("The key is not of the expected type", "InvalidAccessError");
     return bufferOf(runOp(() => _OPS.op_subtle_ed25519_sign(m.seed, toBytes(data))));
   };
 
   subtle.verify = async function verify(algorithm, key, signature, data) {
-    if (!isEd(algorithm) && !keyIsEd(key)) return orig.verify(algorithm, key, signature, data);
-    if (!isEd(algorithm) || !keyIsEd(key)) throw err("Key algorithm does not match the requested algorithm", "InvalidAccessError");
+    if ((!isEd(algorithm) && !keyIsEd(key)) || !(key instanceof CryptoKey)) return orig.verify(algorithm, key, signature, data);
+    if (!isEd(algorithm) || !keyIsEd(key)) throw err("key.algorithm does not match that of operation", "InvalidAccessError");
     const m = keyBytes(key);
-    if (key.type !== "public") throw err("Key is not of type 'public'", "InvalidAccessError");
-    if (!key.usages.includes("verify")) throw err("This CryptoKey cannot be used for verifying", "InvalidAccessError");
+    if (!key.usages.includes("verify")) throw err("key.usages does not permit this operation", "InvalidAccessError");
+    if (key.type !== "public") throw err("The key is not of the expected type", "InvalidAccessError");
     return runOp(() => _OPS.op_subtle_ed25519_verify(m.pub, toBytes(signature), toBytes(data)));
   };
 

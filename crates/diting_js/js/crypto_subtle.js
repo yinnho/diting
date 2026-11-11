@@ -329,6 +329,35 @@ if (!globalThis.crypto.subtle) {
       throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
     }
   }
+  // The checks Chrome runs before an operation looks at anything (157):
+  // argument types and the key format enum, then the algorithm normalized
+  // for that operation — an unknown name, or a known one the operation
+  // doesn't take, each with its own face.
+  function requireCryptoKey(v, method, n) {
+    if (!(v instanceof CryptoKey)) {
+      throw new TypeError("Failed to execute '" + method + "' on 'SubtleCrypto': parameter " + n + " is not of type 'CryptoKey'.");
+    }
+  }
+  function requireFormat(format, method) {
+    if (format !== "raw" && format !== "spki" && format !== "pkcs8" && format !== "jwk") {
+      throw new TypeError("Failed to execute '" + method + "' on 'SubtleCrypto': Invalid keyFormat argument: " + format);
+    }
+  }
+  const KNOWN_ALGOS = Object.assign({}, ALGO_CANON, {
+    "ED25519": "Ed25519", "X25519": "X25519", "SHA-1": "SHA-1", "SHA-256": "SHA-256", "SHA-384": "SHA-384", "SHA-512": "SHA-512",
+  });
+  const CIPHER_ALGS = ["RSA-OAEP", "AES-CTR", "AES-CBC", "AES-GCM"];
+  const WRAP_ALGS = CIPHER_ALGS.concat("AES-KW");
+  const IMPORT_ALGS = Object.values(KNOWN_ALGOS).filter((n) => n.indexOf("SHA-") !== 0);
+  function normalizeFor(algorithm, method, supported) {
+    const alg = normalizeAlgo(algorithm);
+    const name = KNOWN_ALGOS[alg.name.toUpperCase()];
+    const pre = "Failed to execute '" + method + "' on 'SubtleCrypto': ";
+    if (!name) throw new DOMException(pre + "Algorithm: Unrecognized name", "NotSupportedError");
+    if (!supported.includes(name)) throw new DOMException(pre + name + ": Unsupported operation: " + method, "NotSupportedError");
+    alg.name = name;
+    return alg;
+  }
   const HASH_LEN = { "SHA-1": 20, "SHA-256": 32, "SHA-384": 48, "SHA-512": 64 };
   // HKDF/PBKDF2 bits after the dictionary is read; `usage` is the one the
   // base key must carry (deriveBits, or deriveKey when deriveKey calls in).
@@ -349,6 +378,26 @@ if (!globalThis.crypto.subtle) {
     if (length % 8) throw new DOMException("Length for PBKDF2 key derivation must be a multiple of 8 bits.", "OperationError");
     if (p.iterations === 0) throw new DOMException("PBKDF2 requires iterations > 0", "OperationError");
     return bufferOf(await offThread("pbkdf2", p.hash, p.iterations, length / 8, bytes, p.salt));
+  }
+
+  // ECDH bits; `usage` is what the base key must carry (deriveBits, or
+  // deriveKey when deriveKey calls in). Chrome 157: algorithm, usages, then
+  // the key type.
+  function ecdhDeriveBits(alg, baseKey, length, usage) {
+    requireBaseKey(baseKey, alg, usage);
+    const m = ecMaterial(baseKey);
+    if (baseKey.type !== "private") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
+    const pub = alg.public;
+    const pm = ecMaterial(pub);
+    if (pub.type !== "public" || pm.curve !== m.curve) {
+      throw new DOMException("The ECDH 'public' key is of the wrong type or curve", "InvalidAccessError");
+    }
+    const secret = runOp(() => _OPS.op_subtle_ecdh_derive_bits(m.curve, m.scalar, pm.sec1));
+    if (length == null) return bufferOf(secret);
+    if (length <= 0 || length % 8 !== 0 || length / 8 > secret.length) {
+      throw new DOMException("Invalid ECDH deriveBits length", "OperationError");
+    }
+    return bufferOf(secret.subarray(0, length / 8));
   }
 
   // RSA-OAEP key material: a ten-section flat payload from the Rust ops
@@ -537,7 +586,8 @@ if (!globalThis.crypto.subtle) {
     },
 
     async importKey(format, keyData, algorithm, extractable, keyUsages) {
-      const alg = normalizeAlgo(algorithm);
+      requireFormat(format, "importKey");
+      const alg = normalizeFor(algorithm, "importKey", IMPORT_ALGS);
       if (alg.name === "ECDSA" || alg.name === "ECDH") {
         const crv = String(alg.namedCurve || "");
         if (!(crv in ECDSA_CURVES)) {
@@ -684,6 +734,8 @@ if (!globalThis.crypto.subtle) {
     },
 
     async exportKey(format, key) {
+      requireCryptoKey(key, "exportKey", 2);
+      requireFormat(format, "exportKey");
       const bytes = keyBytes(key);
       if (isKdf(key.algorithm.name)) {
         throw new DOMException("Failed to execute 'exportKey' on 'SubtleCrypto': " + key.algorithm.name + ": Unsupported operation: exportKey", "NotSupportedError");
@@ -692,11 +744,11 @@ if (!globalThis.crypto.subtle) {
       if (key.algorithm && (key.algorithm.name === "ECDSA" || key.algorithm.name === "ECDH")) {
         const m = ecMaterial(key);
         if (format === "raw" || format === "spki") {
-          if (key.type !== "public") throw new DOMException("Key is not of type 'public'", "InvalidAccessError");
+          if (key.type !== "public") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
           return bufferOf(format === "raw" ? m.sec1 : m.spki);
         }
         if (format === "pkcs8") {
-          if (key.type !== "private") throw new DOMException("Key is not of type 'private'", "InvalidAccessError");
+          if (key.type !== "private") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
           return bufferOf(m.pkcs8);
         }
         if (format === "jwk") {
@@ -766,7 +818,7 @@ if (!globalThis.crypto.subtle) {
         jwk.kty = "oct";
         return jwk;
       }
-      throw new DOMException("Only 'raw' and 'jwk' export is supported", "NotSupportedError");
+      throw new DOMException("Unsupported export key format for algorithm", "NotSupportedError");
     },
 
     async generateKey(algorithm, extractable, keyUsages) {
@@ -825,11 +877,12 @@ if (!globalThis.crypto.subtle) {
     },
 
     async sign(algorithm, key, data) {
+      requireCryptoKey(key, "sign", 2);
       const alg = normalizeAlgo(algorithm);
       if (alg.name === "ECDSA") {
+        requireBaseKey(key, alg, "sign");
         const m = ecMaterial(key);
-        if (key.type !== "private") throw new DOMException("Key is not of type 'private'", "InvalidAccessError");
-        if (!key.usages.includes("sign")) throw new DOMException("This CryptoKey cannot be used for signing", "InvalidAccessError");
+        if (key.type !== "private") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
         const hash = normalizeHash(alg.hash || (key.algorithm.hash && key.algorithm.hash.name));
         return bufferOf(runOp(() => _OPS.op_subtle_ecdsa_sign(m.curve, hash, m.pkcs8, toBytes(data))));
       }
@@ -862,11 +915,12 @@ if (!globalThis.crypto.subtle) {
     },
 
     async verify(algorithm, key, signature, data) {
+      requireCryptoKey(key, "verify", 2);
       const alg = normalizeAlgo(algorithm);
       if (alg.name === "ECDSA") {
+        requireBaseKey(key, alg, "verify");
         const m = ecMaterial(key);
-        if (key.type !== "public") throw new DOMException("Key is not of type 'public'", "InvalidAccessError");
-        if (!key.usages.includes("verify")) throw new DOMException("This CryptoKey cannot be used for verifying", "InvalidAccessError");
+        if (key.type !== "public") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
         const hash = normalizeHash(alg.hash || (key.algorithm.hash && key.algorithm.hash.name));
         return runOp(() => _OPS.op_subtle_ecdsa_verify(m.curve, hash, m.sec1, toBytes(signature), toBytes(data)));
       }
@@ -897,36 +951,26 @@ if (!globalThis.crypto.subtle) {
       throw new DOMException("verify does not support " + alg.name, "NotSupportedError");
     },
 
-    async encrypt(algorithm, key, data) { return subtleCipher(true, algorithm, key, data, false); },
-    async decrypt(algorithm, key, data) { return subtleCipher(false, algorithm, key, data, false); },
+    async encrypt(algorithm, key, data) {
+      requireCryptoKey(key, "encrypt", 2);
+      return subtleCipher(true, algorithm, key, data, false);
+    },
+    async decrypt(algorithm, key, data) {
+      requireCryptoKey(key, "decrypt", 2);
+      return subtleCipher(false, algorithm, key, data, false);
+    },
 
     async deriveBits(algorithm, baseKey, length) {
+      requireCryptoKey(baseKey, "deriveBits", 2);
       const alg = normalizeAlgo(algorithm);
       if (isKdf(alg.name)) return kdfDeriveBits(alg, kdfParams(alg, "deriveBits"), baseKey, length, "deriveBits");
-      if (alg.name === "ECDH") {
-        requireBaseKey(baseKey, alg);
-        const m = ecMaterial(baseKey);
-        if (baseKey.type !== "private") throw new DOMException("Key is not of type 'private'", "InvalidAccessError");
-        if (!baseKey.usages.includes("deriveBits") && !baseKey.usages.includes("deriveKey")) {
-          throw new DOMException("This CryptoKey cannot be used for derivation", "InvalidAccessError");
-        }
-        const pub = alg.public;
-        const pm = ecMaterial(pub);
-        if (pub.type !== "public" || pm.curve !== m.curve) {
-          throw new DOMException("The ECDH 'public' key is of the wrong type or curve", "InvalidAccessError");
-        }
-        const secret = runOp(() => _OPS.op_subtle_ecdh_derive_bits(m.curve, m.scalar, pm.sec1));
-        if (length == null) return bufferOf(secret);
-        if (length <= 0 || length % 8 !== 0 || length / 8 > secret.length) {
-          throw new DOMException("Invalid ECDH deriveBits length", "OperationError");
-        }
-        return bufferOf(secret.subarray(0, length / 8));
-      }
+      if (alg.name === "ECDH") return ecdhDeriveBits(alg, baseKey, length, "deriveBits");
       keyBytes(baseKey);
       throw new DOMException("deriveBits does not support " + alg.name, "NotSupportedError");
     },
 
     async deriveKey(algorithm, baseKey, derivedKeyAlgorithm, extractable, keyUsages) {
+      requireCryptoKey(baseKey, "deriveKey", 2);
       // Chrome normalizes the derivation params first, and names deriveKey in
       // the conversion error (deriveBits below would say deriveBits).
       const pAlg = normalizeAlgo(algorithm);
@@ -955,29 +999,58 @@ if (!globalThis.crypto.subtle) {
       } else {
         throw new DOMException("deriveKey does not support deriving " + dAlg.name, "NotSupportedError");
       }
-      const derivedBits = kdf
-        ? await kdfDeriveBits(pAlg, kdf, baseKey, bits, "deriveKey")
-        : await this.deriveBits(algorithm, baseKey, bits);
+      let derivedBits;
+      if (kdf) derivedBits = await kdfDeriveBits(pAlg, kdf, baseKey, bits, "deriveKey");
+      else if (pAlg.name === "ECDH") derivedBits = ecdhDeriveBits(pAlg, baseKey, bits, "deriveKey");
+      else {
+        keyBytes(baseKey);
+        throw new DOMException("deriveKey does not support " + pAlg.name, "NotSupportedError");
+      }
       return this.importKey("raw", derivedBits, derivedKeyAlgorithm, extractable, keyUsages);
     },
 
     async wrapKey(format, key, wrappingKey, wrapAlgorithm) {
-      if (keyMaterial.has(key) && isKdf(key.algorithm.name)) {
+      // Chrome 157's order: argument types, format, the wrapping algorithm and
+      // key, then the key being wrapped (extractable, exportable as format).
+      requireCryptoKey(key, "wrapKey", 2);
+      requireCryptoKey(wrappingKey, "wrapKey", 3);
+      requireFormat(format, "wrapKey");
+      const alg = normalizeFor(wrapAlgorithm, "wrapKey", WRAP_ALGS);
+      requireBaseKey(wrappingKey, alg, "wrapKey");
+      keyBytes(key);
+      // A KDF key can't be exported at all — that face wins over its
+      // (always false) extractable, as in exportKey.
+      if (isKdf(key.algorithm.name)) {
         throw new DOMException(key.algorithm.name + ": Unsupported operation: exportKey", "NotSupportedError");
       }
+      if (!key.extractable) throw new DOMException("key is not extractable", "InvalidAccessError");
       const exported = await this.exportKey(format, key);
       const bytes = format === "jwk"
         ? new TextEncoder().encode(JSON.stringify(exported))
         : new Uint8Array(exported);
-      return subtleCipher(true, wrapAlgorithm, wrappingKey, bytes, true);
+      return subtleCipher(true, alg, wrappingKey, bytes, true);
     },
 
     async unwrapKey(format, wrappedKey, unwrappingKey, unwrapAlgorithm, unwrappedKeyAlgorithm, extractable, keyUsages) {
+      requireCryptoKey(unwrappingKey, "unwrapKey", 3);
+      requireFormat(format, "unwrapKey");
+      const alg = normalizeFor(unwrapAlgorithm, "unwrapKey", WRAP_ALGS);
+      normalizeFor(unwrappedKeyAlgorithm, "unwrapKey", IMPORT_ALGS);
       checkUsageStrings("unwrapKey", keyUsages || []);
-      const decrypted = await subtleCipher(false, unwrapAlgorithm, unwrappingKey, toBytes(wrappedKey), true);
-      const keyData = format === "jwk"
-        ? JSON.parse(new TextDecoder().decode(new Uint8Array(decrypted)))
-        : decrypted;
+      requireBaseKey(unwrappingKey, alg, "unwrapKey");
+      // Decrypt before the new key's own checks: a tampered blob is an
+      // OperationError even when the usages are wrong too (Chrome 157).
+      const decrypted = await subtleCipher(false, alg, unwrappingKey, toBytes(wrappedKey), true);
+      let keyData = decrypted;
+      if (format === "jwk") {
+        // Strict UTF-8, then JSON, and it has to be an object (Chrome 157);
+        // a leading BOM is fine.
+        try { keyData = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(decrypted))); }
+        catch (e) { keyData = null; }
+        if (keyData === null || typeof keyData !== "object" || Array.isArray(keyData)) {
+          throw new DOMException("JWK input could not be parsed to a JSON dictionary", "DataError");
+        }
+      }
       return this.importKey(format, keyData, unwrappedKeyAlgorithm, extractable, keyUsages);
     },
   };
@@ -986,15 +1059,15 @@ if (!globalThis.crypto.subtle) {
   // AES-KW path — Chrome exposes AES-KW only through wrapping, and rejects a
   // direct encrypt/decrypt call with NotSupportedError).
   function subtleCipher(encrypt, algorithm, key, data, viaWrap) {
-    const alg = normalizeAlgo(algorithm);
     const cipherOp = viaWrap ? (encrypt ? "wrapKey" : "unwrapKey") : (encrypt ? "encrypt" : "decrypt");
+    // The key must carry the operation's own usage: an encrypt-only key
+    // doesn't wrap, a wrap-only key doesn't decrypt (Chrome 157; we used to
+    // take either of the pair).
+    const alg = normalizeFor(algorithm, cipherOp, viaWrap ? WRAP_ALGS : CIPHER_ALGS);
+    requireBaseKey(key, alg, cipherOp);
     const input = toBytes(data);
     if (alg.name === "RSA-OAEP") {
       const m = rsaMaterial(key);
-      const needed = encrypt ? ["encrypt", "wrapKey"] : ["decrypt", "unwrapKey"];
-      if (!key.usages.some((u) => needed.includes(u))) {
-        throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
-      }
       if ((encrypt && key.type !== "public") || (!encrypt && key.type !== "private")) {
         throw new DOMException("The key is not of the expected type", "InvalidAccessError");
       }
@@ -1008,16 +1081,7 @@ if (!globalThis.crypto.subtle) {
         encrypt ? empty : m.d, encrypt ? empty : m.p, encrypt ? empty : m.q, input)))();
     }
     if (alg.name === "AES-KW") {
-      if (!viaWrap) {
-        throw new DOMException(
-          "Failed to execute '" + (encrypt ? "encrypt" : "decrypt") + "' on 'SubtleCrypto': AES-KW: Unsupported operation: " + (encrypt ? "encrypt" : "decrypt"),
-          "NotSupportedError");
-      }
       const bytes = keyBytes(key);
-      const needed = encrypt ? ["encrypt", "wrapKey"] : ["decrypt", "unwrapKey"];
-      if (!key.usages.some((u) => needed.includes(u))) {
-        throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
-      }
       // Chrome 157's order: too short first (a wrap needs 16 bytes, an unwrap
       // the 24 of a wrapped 16), then the 8-byte multiple, both directions.
       if (input.length < (encrypt ? 16 : 24)) throw new DOMException("The provided data is too small", "OperationError");
@@ -1027,10 +1091,6 @@ if (!globalThis.crypto.subtle) {
       return bufferOf(runOp(() => _OPS.op_subtle_aes_kw(encrypt, bytes, input)));
     }
     const bytes = keyBytes(key);
-    const needed = encrypt ? ["encrypt", "wrapKey"] : ["decrypt", "unwrapKey"];
-    if (!key.usages.some((u) => needed.includes(u))) {
-      throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
-    }
     // Chrome 157 faces (probed): a missing BufferSource member is the
     // dictionary TypeError; wrong iv/counter sizes and failed decrypts are
     // OperationErrors (empty for a failed authentication or padding).
@@ -1072,7 +1132,6 @@ if (!globalThis.crypto.subtle) {
         throw new DOMException(e && e.message !== undefined ? String(e.message) : String(e), "OperationError");
       }
     }
-    throw new DOMException((encrypt ? "encrypt" : "decrypt") + " does not support " + alg.name, "NotSupportedError");
   }
 
   globalThis.CryptoKey = CryptoKey;

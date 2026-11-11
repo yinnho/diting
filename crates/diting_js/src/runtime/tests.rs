@@ -43172,3 +43172,282 @@ async fn webcrypto_kdf_params_like_chrome() {
     .unwrap();
     assert_eq!(result.value.unwrap(), expected);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_wrap_and_operation_checks_like_chrome() {
+    // wrapKey/unwrapKey against Chrome 157 (headless, file://): AES-KW/GCM/
+    // CBC/CTR wrapping HMAC, AES and EC keys as raw/jwk/pkcs8, ciphertexts
+    // byte for byte (so the jwk text is Chrome's too); then the checks every
+    // operation runs and their order — argument types, the format enum, the
+    // algorithm normalized per operation (unknown name vs unsupported
+    // operation), the key's algorithm and its exact usage, the key type —
+    // plus unwrap's decrypt-before-import and JWK-parse faces. Expected =
+    // Chrome's output for this exact script. We used to let an encrypt key
+    // wrap and a wrap key decrypt, skip the algorithm match, and speak our
+    // own texts.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => { const r = {};
+{
+  const S = crypto.subtle;
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const bytes = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + seed) & 255);
+  const hex = (b) => Array.from(new Uint8Array(b), v => v.toString(16).padStart(2, '0')).join('');
+  const dec = (b) => new TextDecoder().decode(b);
+  const W = {
+    kw: await S.importKey('raw', bytes(16, 1), 'AES-KW', false, ['wrapKey', 'unwrapKey']),
+    gcm: await S.importKey('raw', bytes(16, 2), 'AES-GCM', false, ['wrapKey', 'unwrapKey', 'encrypt', 'decrypt']),
+    cbc: await S.importKey('raw', bytes(32, 3), 'AES-CBC', false, ['wrapKey', 'unwrapKey', 'decrypt']),
+    ctr: await S.importKey('raw', bytes(16, 4), 'AES-CTR', false, ['wrapKey', 'unwrapKey']),
+  };
+  const P = {
+    kw: 'AES-KW',
+    gcm: { name: 'AES-GCM', iv: bytes(12, 5) },
+    cbc: { name: 'AES-CBC', iv: bytes(16, 6) },
+    ctr: { name: 'AES-CTR', counter: bytes(16, 7), length: 64 },
+  };
+  const T = {
+    hmac: [await S.importKey('raw', bytes(32, 8), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign', 'verify']), { name: 'HMAC', hash: 'SHA-256' }, ['verify', 'sign']],
+    hmac20: [await S.importKey('raw', bytes(20, 8), { name: 'HMAC', hash: 'SHA-1' }, true, ['sign']), { name: 'HMAC', hash: 'SHA-1' }, ['sign']],
+    aes: [await S.importKey('raw', bytes(16, 9), 'AES-GCM', true, ['encrypt', 'decrypt']), 'AES-GCM', ['decrypt', 'encrypt']],
+    aes256: [await S.importKey('raw', bytes(32, 9), 'AES-CBC', true, ['encrypt']), 'AES-CBC', ['encrypt']],
+  };
+  const ec = await S.importKey('jwk', { kty: 'EC', crv: 'P-256', x: '3ekkyaO3PdweD_LJdGppCjgug4xpSwnfzlxsZ8mUckc', y: 'J9MK4hpOl4phnZys9R7KrQKhLGiSvJIehTHECuSVmY0', d: 'HTxafpsvTG2OChs8XX6fCitMbY4PGjtcfZ4fKktsjQ4' }, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']);
+  for (const w of Object.keys(W)) for (const t of Object.keys(T)) for (const fmt of ['raw', 'jwk']) {
+    r[`${w}.${t}.${fmt}`] = await face(async () => {
+      const [k, alg, us] = T[t];
+      const c = await S.wrapKey(fmt, k, W[w], P[w]);
+      const u = await S.unwrapKey(fmt, c, W[w], P[w], alg, true, us);
+      return hex(c) + '|' + JSON.stringify(u.algorithm) + JSON.stringify(u.usages) + u.extractable + '|' + hex(await S.exportKey('raw', u));
+    });
+  }
+  for (const w of Object.keys(W)) for (const fmt of ['pkcs8', 'jwk']) r[`${w}.ec.${fmt}`] = await face(async () => {
+    const c = await S.wrapKey(fmt, ec, W[w], P[w]);
+    const u = await S.unwrapKey(fmt, c, W[w], P[w], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+    return (w === 'kw' || fmt === 'pkcs8' ? hex(c) : c.byteLength) + '|' + JSON.stringify(u.algorithm) + u.type + u.extractable + JSON.stringify(u.usages);
+  });
+  r['jwkText'] = await face(async () => dec(await S.decrypt(P.gcm, W.gcm, await S.wrapKey('jwk', T.hmac[0], W.gcm, P.gcm))));
+  r['jwkTextEc'] = await face(async () => dec(await S.decrypt(P.gcm, W.gcm, await S.wrapKey('jwk', ec, W.gcm, P.gcm))));
+  r['jwkTextAes'] = await face(async () => dec(await S.decrypt(P.gcm, W.gcm, await S.wrapKey('jwk', T.aes[0], W.gcm, P.gcm))));
+  // refusals
+  const ne = await S.importKey('raw', bytes(16, 9), 'AES-GCM', false, ['encrypt']);
+  r['e.notExtractable'] = await face(async () => { await S.wrapKey('raw', ne, W.kw, 'AES-KW'); });
+  r['e.noWrapUsage'] = await face(async () => { await S.wrapKey('raw', T.aes[0], await S.importKey('raw', bytes(16, 1), 'AES-GCM', false, ['encrypt']), P.gcm); });
+  r['e.noUnwrapUsage'] = await face(async () => { await S.unwrapKey('raw', bytes(24, 1), await S.importKey('raw', bytes(16, 1), 'AES-KW', false, ['wrapKey']), 'AES-KW', 'AES-GCM', true, ['encrypt']); });
+  r['e.algMismatch'] = await face(async () => { await S.wrapKey('raw', T.aes[0], W.gcm, P.cbc); });
+  r['e.encryptAlgAsWrap'] = await face(async () => { await S.wrapKey('raw', T.aes[0], W.kw, P.gcm); });
+  r['e.hmacWrapAlg'] = await face(async () => { await S.wrapKey('raw', T.aes[0], T.hmac[0], { name: 'HMAC' }); });
+  r['e.ecdsaWrapAlg'] = await face(async () => { await S.wrapKey('raw', T.aes[0], ec, { name: 'ECDSA', hash: 'SHA-256' }); });
+  r['e.kwJwkNot8'] = await face(async () => { const k = await S.importKey('raw', bytes(16, 9), 'AES-CTR', true, ['encrypt']); return hex(await S.wrapKey('jwk', k, W.kw, 'AES-KW')); });
+  r['e.kwRawNot8'] = await face(async () => { await S.wrapKey('raw', T.hmac20[0], W.kw, 'AES-KW'); });
+  r['e.kwRaw20pad'] = await face(async () => hex(await S.wrapKey('raw', await S.importKey('raw', bytes(20, 8), { name: 'HMAC', hash: 'SHA-1' }, true, ['sign']), W.kw, 'AES-KW')));
+  r['e.badFormat'] = await face(async () => { await S.wrapKey('spki', T.aes[0], W.kw, 'AES-KW'); });
+  r['e.rawEc'] = await face(async () => { await S.wrapKey('raw', ec, W.gcm, P.gcm); });
+  r['e.unwrapBadJson'] = await face(async () => { const c = await S.encrypt(P.gcm, W.gcm, new TextEncoder().encode('{not json')); await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapJsonArray'] = await face(async () => { const c = await S.encrypt(P.gcm, W.gcm, new TextEncoder().encode('[1,2]')); await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapJsonNum'] = await face(async () => { const c = await S.encrypt(P.gcm, W.gcm, new TextEncoder().encode('5')); await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapJsonBom'] = await face(async () => { const j = '﻿' + JSON.stringify({ kty: 'oct', k: 'AAAAAAAAAAAAAAAAAAAAAA' }); const c = await S.encrypt(P.gcm, W.gcm, new TextEncoder().encode(j)); const u = await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); return JSON.stringify(u.algorithm); });
+  r['e.unwrapJsonBadUtf8'] = await face(async () => { const c = await S.encrypt(P.gcm, W.gcm, Uint8Array.of(0x7b, 0xff, 0x7d)); await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapTamper'] = await face(async () => { const c = new Uint8Array(await S.wrapKey('raw', T.aes[0], W.gcm, P.gcm)); c[0] ^= 1; await S.unwrapKey('raw', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapBadUsage'] = await face(async () => { const c = await S.wrapKey('raw', T.aes[0], W.gcm, P.gcm); await S.unwrapKey('raw', c, W.gcm, P.gcm, 'AES-GCM', true, ['sign']); });
+  r['e.unwrapBadUsageTamper'] = await face(async () => { const c = new Uint8Array(await S.wrapKey('raw', T.aes[0], W.gcm, P.gcm)); c[0] ^= 1; await S.unwrapKey('raw', c, W.gcm, P.gcm, 'AES-GCM', true, ['sign']); });
+  r['e.unwrapKdfExt'] = await face(async () => { const c = await S.wrapKey('raw', T.aes[0], W.gcm, P.gcm); await S.unwrapKey('raw', c, W.gcm, P.gcm, 'HKDF', true, ['deriveBits']); });
+  r['e.unwrapKdf'] = await face(async () => { const c = await S.wrapKey('raw', T.aes[0], W.gcm, P.gcm); const u = await S.unwrapKey('raw', c, W.gcm, P.gcm, 'HKDF', false, ['deriveBits']); return JSON.stringify(u.algorithm) + u.extractable; });
+  r['e.unwrapAesWrongLen'] = await face(async () => { const c = await S.wrapKey('raw', T.hmac20[0], W.gcm, P.gcm); await S.unwrapKey('raw', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapJwkAlgMismatch'] = await face(async () => { const c = await S.wrapKey('jwk', T.aes[0], W.gcm, P.gcm); await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-CBC', true, ['encrypt']); });
+  r['e.unwrapJwkExtFalse'] = await face(async () => { const c = await S.encrypt(P.gcm, W.gcm, new TextEncoder().encode(JSON.stringify({ kty: 'oct', k: 'AAAAAAAAAAAAAAAAAAAAAA', ext: false }))); await S.unwrapKey('jwk', c, W.gcm, P.gcm, 'AES-GCM', true, ['encrypt']); });
+  r['e.unwrapNonExtract'] = await face(async () => { const c = await S.wrapKey('raw', T.aes[0], W.gcm, P.gcm); const u = await S.unwrapKey('raw', c, W.gcm, P.gcm, 'AES-GCM', false, ['encrypt']); return u.extractable + JSON.stringify(u.usages); });
+  r['e.unwrapUnknownUsage'] = await face(async () => { await S.unwrapKey('raw', bytes(24, 1), W.kw, 'AES-KW', 'AES-GCM', true, ['bogus']); });
+  r['e.wrapKeyNotKey'] = await face(async () => { await S.wrapKey('raw', {}, W.kw, 'AES-KW'); });
+  r['e.unwrapKeyIsWrappingSelf'] = await face(async () => { const k = await S.importKey('raw', bytes(16, 1), 'AES-KW', true, ['wrapKey', 'unwrapKey']); return hex(await S.wrapKey('raw', k, k, 'AES-KW')); });
+  r['e.gcmTagLenWrap'] = await face(async () => { const p = { name: 'AES-GCM', iv: bytes(12, 5), tagLength: 96 }; const c = await S.wrapKey('raw', T.aes[0], W.gcm, p); const u = await S.unwrapKey('raw', c, W.gcm, p, 'AES-GCM', true, ['encrypt']); return hex(c) + hex(await S.exportKey('raw', u)); });
+  r['e.decryptWithWrapOnly'] = await face(async () => { await S.decrypt(P.ctr, W.ctr, bytes(16, 1)); });
+}
+{
+  const S = crypto.subtle;
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const bytes = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + seed) & 255);
+  const aes = await S.importKey('raw', bytes(16, 9), 'AES-GCM', true, ['encrypt', 'decrypt']);
+  const hm = await S.importKey('raw', bytes(16, 9), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+  const kw = await S.importKey('raw', bytes(16, 1), 'AES-KW', false, ['wrapKey', 'unwrapKey']);
+  const iv = { name: 'AES-GCM', iv: bytes(12, 1) };
+  r['x.exportSpkiAes'] = await face(async () => { await S.exportKey('spki', aes); });
+  r['x.exportPkcs8Hmac'] = await face(async () => { await S.exportKey('pkcs8', hm); });
+  r['x.exportBogus'] = await face(async () => { await S.exportKey('bogus', hm); });
+  r['x.encryptHmac'] = await face(async () => { await S.encrypt({ name: 'HMAC' }, hm, bytes(4, 1)); });
+  r['x.decryptEcdsa'] = await face(async () => { await S.decrypt({ name: 'ECDSA' }, hm, bytes(4, 1)); });
+  r['x.encryptMismatch'] = await face(async () => { await S.encrypt({ name: 'AES-CBC', iv: bytes(16, 1) }, aes, bytes(4, 1)); });
+  r['x.encryptNotKey'] = await face(async () => { await S.encrypt(iv, {}, bytes(4, 1)); });
+  r['x.signNotKey'] = await face(async () => { await S.sign('HMAC', {}, bytes(4, 1)); });
+  r['x.exportNotKey'] = await face(async () => { await S.exportKey('raw', {}); });
+  r['x.unwrapNotKey'] = await face(async () => { await S.unwrapKey('raw', bytes(24, 1), {}, 'AES-KW', 'AES-GCM', true, ['encrypt']); });
+  r['x.wrapWrappingNotKey'] = await face(async () => { await S.wrapKey('raw', aes, {}, 'AES-KW'); });
+  r['x.wrapBadFormat'] = await face(async () => { await S.wrapKey('bogus', aes, kw, 'AES-KW'); });
+  r['x.wrapNotExtractableAndNoUsage'] = await face(async () => { const ne = await S.importKey('raw', bytes(16, 9), 'AES-GCM', false, ['encrypt']); await S.wrapKey('raw', ne, await S.importKey('raw', bytes(16, 1), 'AES-KW', false, ['unwrapKey']), 'AES-KW'); });
+  r['x.wrapSpkiAesThenNotExtract'] = await face(async () => { const ne = await S.importKey('raw', bytes(16, 9), 'AES-GCM', false, ['encrypt']); await S.wrapKey('spki', ne, kw, 'AES-KW'); });
+  r['x.unwrapImportAlgBad'] = await face(async () => { await S.unwrapKey('raw', bytes(24, 1), kw, 'AES-KW', 'FOO', true, ['encrypt']); });
+  r['x.unwrapImportAlgVsUsage'] = await face(async () => { await S.unwrapKey('raw', bytes(24, 1), await S.importKey('raw', bytes(16, 1), 'AES-KW', false, ['wrapKey']), 'AES-KW', 'FOO', true, ['encrypt']); });
+  r['x.unwrapWithEncryptAlg'] = await face(async () => { await S.unwrapKey('raw', bytes(24, 1), kw, { name: 'HMAC' }, 'AES-GCM', true, ['encrypt']); });
+  r['x.unwrapFormatBad'] = await face(async () => { await S.unwrapKey('spki', bytes(24, 1), kw, 'AES-KW', 'AES-GCM', true, ['encrypt']); });
+  r['x.encryptUnknownAlg'] = await face(async () => { await S.encrypt({ name: 'FOO' }, aes, bytes(4, 1)); });
+  r['x.wrapUnknownAlg'] = await face(async () => { await S.wrapKey('raw', aes, kw, 'FOO'); });
+  const ecK = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const dhK = await S.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const edK = await S.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  r['t.ecSignPublic'] = await face(async () => { await S.sign({ name: 'ECDSA', hash: 'SHA-256' }, ecK.publicKey, bytes(4, 1)); });
+  r['t.ecVerifyPrivate'] = await face(async () => { await S.verify({ name: 'ECDSA', hash: 'SHA-256' }, ecK.privateKey, bytes(64, 1), bytes(4, 1)); });
+  r['t.ecdhPublicBase'] = await face(async () => { await S.deriveBits({ name: 'ECDH', public: dhK.publicKey }, dhK.publicKey, 256); });
+  r['t.ecPkcs8Public'] = await face(async () => { await S.exportKey('pkcs8', ecK.publicKey); });
+  r['t.edSignPublic'] = await face(async () => { await S.sign('Ed25519', edK.publicKey, bytes(4, 1)); });
+  r['t.edVerifyPrivate'] = await face(async () => { await S.verify('Ed25519', edK.privateKey, bytes(64, 1), bytes(4, 1)); });
+  r['t.edRawPrivate'] = await face(async () => { await S.exportKey('raw', edK.privateKey); });
+  r['t.edPkcs8Public'] = await face(async () => { await S.exportKey('pkcs8', edK.publicKey); });
+  r['t.edSpkiPrivate'] = await face(async () => { await S.exportKey('spki', edK.privateKey); });
+  r['x.importBogusFmt'] = await face(async () => { await S.importKey('bogus', bytes(16, 1), 'AES-GCM', true, ['encrypt']); });
+  r['x.importBogusFmtBadAlg'] = await face(async () => { await S.importKey('bogus', bytes(16, 1), 'FOO', true, ['encrypt']); });
+  r['x.importBadAlg'] = await face(async () => { await S.importKey('raw', bytes(16, 1), 'FOO', true, ['encrypt']); });
+  r['x.verifyNotKey'] = await face(async () => { await S.verify('HMAC', {}, bytes(4, 1), bytes(4, 1)); });
+  r['x.deriveBitsNotKey'] = await face(async () => { await S.deriveBits({ name: 'HKDF' }, {}, 8); });
+  r['x.deriveKeyNotKey'] = await face(async () => { await S.deriveKey({ name: 'HKDF' }, {}, 'AES-GCM', true, ['encrypt']); });
+  r['x.encryptNotKeyBadAlg'] = await face(async () => { await S.encrypt({ name: 'FOO' }, {}, bytes(4, 1)); });
+  r['x.wrapBadFmtNotKey'] = await face(async () => { await S.wrapKey('bogus', {}, kw, 'AES-KW'); });
+  r['x.wrapBadFmtBadAlg'] = await face(async () => { await S.wrapKey('bogus', aes, kw, 'FOO'); });
+  r['x.encryptEd25519'] = await face(async () => { await S.encrypt({ name: 'Ed25519' }, aes, bytes(4, 1)); });
+  r['x.encryptSha'] = await face(async () => { await S.encrypt({ name: 'SHA-256' }, aes, bytes(4, 1)); });
+  r['x.encryptLower'] = await face(async () => { await S.encrypt({ name: 'aes-cbc', iv: bytes(16, 1) }, aes, bytes(4, 1)); });
+  r['x.wrapEcRawPublic'] = await face(async () => { const k = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']); return (await S.wrapKey('raw', k.publicKey, kw, 'AES-KW')).byteLength; });
+  r['x.wrapEcSpkiPrivate'] = await face(async () => { const k = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']); await S.wrapKey('spki', k.privateKey, kw, 'AES-KW'); });
+  r['x.exportEcSpkiPrivate'] = await face(async () => { const k = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']); await S.exportKey('spki', k.privateKey); });
+  r['x.exportEcRawPrivate'] = await face(async () => { const k = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']); await S.exportKey('raw', k.privateKey); });
+}
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "kw.hmac.raw": "b204be7b7ced046ddbc3db76431f939d909cc0fe2589dac42ae6ef1e62248a0435b1bae55eb3e7e4|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "kw.hmac.jwk": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "kw.hmac20.raw": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "kw.hmac20.jwk": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "kw.aes.raw": "6f1509d9e8addf581ffe57f5ed58fbcb8eda6ac3c10dc39b|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "kw.aes.jwk": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "kw.aes256.raw": "9ecfa456eb35ca3335635f4725d4f7581d7146730773cbc10cdbf673650d25f10e73ab4de5e43692|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "kw.aes256.jwk": "9933dda2abe3e306ab823c6dfdadf7c7a416eeb6d589c0a2512d341df046ba3b11f83b296a3593e88c7ffa3e4b83a5b4049bca3c85e0aa16367f8eb6ffc11c8bd62e59c437b05e55eec81301f0f7f2f29d97e1e0a8aced3b8888218f0d9d7c73f2515980ee70aeb6181cc122a3a008a8a5fea78d33c627cb|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "gcm.hmac.raw": "f82cb1128bea120dd1bedee3ff6583b1b70920f69faac8aa9b8ca8a65b65ed7f3a85422bb1a376419f7f2b9c6a88a9ba|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "gcm.hmac.jwk": "8b2382097009ce24a9b896490daea1a08a0cf61349cf8c847e0540226d6691bf09f3716307f4ac01b6b6ab9236ffeee6bdd17788c1d198c6339a01adff1a036e689e5631b4337db547362f05c55867e1c6dfb9cdf8ff672e2ef08540f959eecbce702a76fca63e3fddd2e20ed47ba2623f8e2253acae2feae1de042172564fce541e27cc|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "gcm.hmac20.raw": "f82cb1128bea120dd1bedee3ff6583b1b70920f61cac0df11ae7121a51dd601b1c758c9f|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-1\"},\"length\":160}[\"sign\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7",
+ "gcm.hmac20.jwk": "8b2382097009ce24a9b8955e17aee8fa9b56b84501ce9bdd394240736d1ff0cd19a6177d70bb8947a69384b508f6c7f5bdf709adc9d6d2ca62d05083ce393e6653b53f3c97403b844f152f74cb1169ece092f39cb5a6482e20920d949b5157fc65f51d0b54cf5b0c83|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-1\"},\"length\":160}[\"sign\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7",
+ "gcm.aes.raw": "f92fb01d8ae9130ad0bddfdcfe6682b6e3db47043e82e832da96091645a4c3a1|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "gcm.aes.jwk": "8b2382097009ce24a0da96447ccfc0a0c356e7490799c485695c07656d3791c66881713266eba40792f0abb316d8e6eb95c25daaa0f7e08b6cde198dd21f0e7950e4275dee07268e5a027d5dc51f20fcfcd3bbc7aab11e5171bb895aa257f69fc4613732f89ed4728ecc4b4550fd593aed46a0eac5|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "gcm.aes256.raw": "f92fb01d8ae9130ad0bddfdcfe6682b6b60a21f99ea9c9ad9a8fa9b95a66ec783a4664cf0d7b0470c4bf38e97f1037b7|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "gcm.aes256.jwk": "8b2382097009ce24a0d9914a78cecea0c356e7490799c485695c07656d3791c66881713266eba40792f0abb316d8e6eb95c25daaa0f7e7c56d934a82df050b6d40a17c64805a0ab81e233978c51f20f3fcc996d1aab61e3606bb8740b807b5cddf201e3ca7ef176add83b4189535a2708d58a2b875ec8376fb44019964ea35dd|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "cbc.hmac.raw": "161a90f9194455663badb63eee909e9502db890682dacd72b4125c57b9d5a9e525a0742fc974456baa4105dcd55fe0ea|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "cbc.hmac.jwk": "51d0660d56614bfa60ce2f2542c6d19280aef36d7ce6d92dca5bd00bb9560a16e08e658705298fa4c615337f67df5f6c31a86199ab9d90fe62131c2dc9526c8f5ba622475d0b2913250da54c72d01b2c4306b163149ebf3fbc9bfad0bf2595389485344e84f820de6600aa41be356692025e0319d21dfceafa7aa0bbd744cb35|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "cbc.hmac20.raw": "161a90f9194455663badb63eee909e95169d46c513984550e9c68f71037c626d|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-1\"},\"length\":160}[\"sign\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7",
+ "cbc.hmac20.jwk": "f20bf0e39cb98cec979248899fa90c24fe854f42b06971ea886ae160431cc7fc0ab6b4d01c8d8883d7bf31cfbcfe0e4c486b11302356370239fc353a6c76838535896705e0a138a46c5748b5a72232f3e3860d54fef2ee6847a7ec021e5efaf3|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-1\"},\"length\":160}[\"sign\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7",
+ "cbc.aes.raw": "baaf8a3694c4e8997507e146fa7e50cf4dc9cbb302dbeb1ef756abdfeabeb4c4|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "cbc.aes.jwk": "3ec443aec94835713f46cd0c91e58607f16d2bd0ac8d765e4afe70a0f1a9a0df15ce32991743e6a37982bb710ff1ce4ca157b9f6a91ac66707a848e98c2598bc832a9ef61ebaaabcee2df764ed21d134a7300e892c5a51f122b16d262d7474c7c7f0d816915af196bfec4a25b5616c3e|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "cbc.aes256.raw": "baaf8a3694c4e8997507e146fa7e50cfc8324f360794c03d893f7a37a5e0a1bfb9298ac68b779fdfec3bbaad8e207335|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "cbc.aes256.jwk": "e9d98b341c836b7fc3a4bffd77740364c98628d3e1ac8d841275971e55f2b39a52f2878592642957b39ce91f2b12d39b22f4943acaf562e853387e31fc178250e723d469ea949a3194c715484cb769218487dff06baf39248511e7d223f4a78c1f7d57ee5e64cc6880f9323c276c7299f591280a6440074275edf48ea5c371ae|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "ctr.hmac.raw": "ad09b0cf4f711d4d03b9670b5d56fd22e2aaeb25853d2fec6574853526c1a575|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "ctr.hmac.jwk": "de0683d4b492c1647bbf2fa1af9ddf33dfaf3dc053586bc280fd6db110c2d9b5d9918562dc030160484456c0854fbb7a4e359fc54295b453c9d23691edc86a999ace4aed303c2f96899b96a8e43d43391a691c644e8834e4caf188782c460f35ad10b526e8eeddad9b6b43465c195a3c3a9fac0c|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":256}[\"sign\",\"verify\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83",
+ "ctr.hmac20.raw": "ad09b0cf4f711d4d03b9670b5d56fd22e2aaeb25|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-1\"},\"length\":160}[\"sign\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7",
+ "ctr.hmac20.jwk": "de0683d4b492c1647bbf2cb6b59d9669cef573961b597c9bc7ba6de010bbb8c7c9c4e37cab4c2426586179e7bb4692694e13e1e04a92fe5f989867bfdceb5791a1e523e0134f69a781b896d9ea744d343c24563503d11be4c4|{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-1\"},\"length\":160}[\"sign\"]true|082d52779cc1e60b30557a9fc4e90e33587da2c7",
+ "ctr.aes.raw": "ac0ab1c04e721c4a02ba66345c55fc25|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "ctr.aes.jwk": "de0683d4b492c16472dd2facdefcbe3396f52c9a1d0e23c397a42af61093d9ccb8e38533bd1c09666c0256e1a568b3776626b5e723b3cc1e96962eb1c0cd678ea2b43b816a0874ad94afc4f0e47a042420651e6e1cc64d9b95ba846277481761a701a862ec|{\"name\":\"AES-GCM\",\"length\":128}[\"encrypt\",\"decrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34",
+ "ctr.aes256.raw": "ac0ab1c04e721c4a02ba66345c55fc25e3a9ea2a843e2eeb6477842a27c2a472|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "ctr.aes256.jwk": "de0683d4b492c16472de28a2dafdb03396f52c9a1d0e23c397a42af61093d9ccb8e38533bd1c09666c0256e1a568b3776626b5e723b3cb5097db7dbecdd7629ab2f160b80455589bd08e80d5e47a042b207f33781cc14dfce2ba8a786d185433bc40816cb3a7f4f89b3a15501d575a2e|{\"name\":\"AES-CBC\",\"length\":256}[\"encrypt\"]true|092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84",
+ "kw.ec.pkcs8": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "kw.ec.jwk": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "gcm.ec.pkcs8": "c0806467162bc415e7ec8efa7342b080ee728a1bf5f330cc1828654d226cd8fe4bc326272fb2b44a4aea90a9e08493a2afc4a7cfdbf5cc274fe649b4d6de7e2368aa90086d264baf287fd0c0c3faa12fa46cd7b1280c48663493da0058f9a5f6a2dd8d4ce9e3aa878dfeb1a4fca39a43cb7061b3f47320e579e5bdc64fb6e7c52ffce290e2349d421617d6a696b4868db3c8e33cddbb66472f91|{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}privatefalse[\"sign\"]",
+ "gcm.ec.jwk": "222|{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}privatefalse[\"sign\"]",
+ "cbc.ec.pkcs8": "a4e3e92458247c0e710ee0b9e3477b87c5000f501f0036959ad251c8048705da5e5e2a1534155e935d685217e9cc03c92ee18ae51488e6a1d8a5c93d2f08768d44c1a80b917482cd1d1d67b4140b8f029bc50c4067a87ea270e43b75834464ec28e598458dde745c3873f76e305b31d4fe91bc3ff676aa994e4b14c3d679021383369c75574c6f9e48ac8fd025c8a583|{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}privatefalse[\"sign\"]",
+ "cbc.ec.jwk": "208|{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}privatefalse[\"sign\"]",
+ "ctr.ec.pkcs8": "95a565bad2b0cb5535eb3712d171ce13bbd141c8ef64d78ae6d048de5fc890f49ba1d226f445192bb4186dfb5334c63e5c204f8258b1e0b2b5ae7e88c40c17d49afa8cd4e929198ce6d2696de29f85f778da72189e7b1bacd092d7388de64408c1bd121cfdab4915cb4710ec74c1621dce61efec05c3708e3d67a83bdf190a54d8f25c0994bfaca33e4c|{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}privatefalse[\"sign\"]",
+ "ctr.ec.jwk": "206|{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}privatefalse[\"sign\"]",
+ "jwkText": "{\"alg\":\"HS256\",\"ext\":true,\"k\":\"CC1Sd5zB5gswVXqfxOkOM1h9osfsETZbgKXK7xQ5XoM\",\"key_ops\":[\"sign\",\"verify\"],\"kty\":\"oct\"}",
+ "jwkTextEc": "{\"crv\":\"P-256\",\"d\":\"HTxafpsvTG2OChs8XX6fCitMbY4PGjtcfZ4fKktsjQ4\",\"ext\":true,\"key_ops\":[\"sign\"],\"kty\":\"EC\",\"x\":\"3ekkyaO3PdweD_LJdGppCjgug4xpSwnfzlxsZ8mUckc\",\"y\":\"J9MK4hpOl4phnZys9R7KrQKhLGiSvJIehTHECuSVmY0\"}",
+ "jwkTextAes": "{\"alg\":\"A128GCM\",\"ext\":true,\"k\":\"CS5TeJ3C5wwxVnugxeoPNA\",\"key_ops\":[\"encrypt\",\"decrypt\"],\"kty\":\"oct\"}",
+ "e.notExtractable": "InvalidAccessError: key is not extractable",
+ "e.noWrapUsage": "InvalidAccessError: key.usages does not permit this operation",
+ "e.noUnwrapUsage": "InvalidAccessError: key.usages does not permit this operation",
+ "e.algMismatch": "InvalidAccessError: key.algorithm does not match that of operation",
+ "e.encryptAlgAsWrap": "InvalidAccessError: key.algorithm does not match that of operation",
+ "e.hmacWrapAlg": "NotSupportedError: Failed to execute 'wrapKey' on 'SubtleCrypto': HMAC: Unsupported operation: wrapKey",
+ "e.ecdsaWrapAlg": "NotSupportedError: Failed to execute 'wrapKey' on 'SubtleCrypto': ECDSA: Unsupported operation: wrapKey",
+ "e.kwJwkNot8": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "e.kwRawNot8": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "e.kwRaw20pad": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "e.badFormat": "NotSupportedError: Unsupported export key format for algorithm",
+ "e.rawEc": "InvalidAccessError: The key is not of the expected type",
+ "e.unwrapBadJson": "DataError: JWK input could not be parsed to a JSON dictionary",
+ "e.unwrapJsonArray": "DataError: JWK input could not be parsed to a JSON dictionary",
+ "e.unwrapJsonNum": "DataError: JWK input could not be parsed to a JSON dictionary",
+ "e.unwrapJsonBom": "{\"name\":\"AES-GCM\",\"length\":128}",
+ "e.unwrapJsonBadUtf8": "DataError: JWK input could not be parsed to a JSON dictionary",
+ "e.unwrapTamper": "OperationError: ",
+ "e.unwrapBadUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "e.unwrapBadUsageTamper": "OperationError: ",
+ "e.unwrapKdfExt": "SyntaxError: KDF keys must set extractable=false",
+ "e.unwrapKdf": "{\"name\":\"HKDF\"}false",
+ "e.unwrapAesWrongLen": "DataError: AES key data must be 128 or 256 bits",
+ "e.unwrapJwkAlgMismatch": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "e.unwrapJwkExtFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "e.unwrapNonExtract": "false[\"encrypt\"]",
+ "e.unwrapUnknownUsage": "TypeError: Failed to execute 'unwrapKey' on 'SubtleCrypto': Invalid keyUsages argument",
+ "e.wrapKeyNotKey": "TypeError: Failed to execute 'wrapKey' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "e.unwrapKeyIsWrappingSelf": "7303454cef329cc2660c7f1604c4ce1c61f31e8ebd2cba83",
+ "e.gcmTagLenWrap": "f92fb01d8ae9130ad0bddfdcfe6682b6e3db47043e82e832da960916092e53789dc2e70c31567ba0c5ea0f34",
+ "e.decryptWithWrapOnly": "InvalidAccessError: key.usages does not permit this operation",
+ "x.exportSpkiAes": "NotSupportedError: Unsupported export key format for algorithm",
+ "x.exportPkcs8Hmac": "NotSupportedError: Unsupported export key format for algorithm",
+ "x.exportBogus": "TypeError: Failed to execute 'exportKey' on 'SubtleCrypto': Invalid keyFormat argument: bogus",
+ "x.encryptHmac": "NotSupportedError: Failed to execute 'encrypt' on 'SubtleCrypto': HMAC: Unsupported operation: encrypt",
+ "x.decryptEcdsa": "NotSupportedError: Failed to execute 'decrypt' on 'SubtleCrypto': ECDSA: Unsupported operation: decrypt",
+ "x.encryptMismatch": "InvalidAccessError: key.algorithm does not match that of operation",
+ "x.encryptNotKey": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.signNotKey": "TypeError: Failed to execute 'sign' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.exportNotKey": "TypeError: Failed to execute 'exportKey' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.unwrapNotKey": "TypeError: Failed to execute 'unwrapKey' on 'SubtleCrypto': parameter 3 is not of type 'CryptoKey'.",
+ "x.wrapWrappingNotKey": "TypeError: Failed to execute 'wrapKey' on 'SubtleCrypto': parameter 3 is not of type 'CryptoKey'.",
+ "x.wrapBadFormat": "TypeError: Failed to execute 'wrapKey' on 'SubtleCrypto': Invalid keyFormat argument: bogus",
+ "x.wrapNotExtractableAndNoUsage": "InvalidAccessError: key.usages does not permit this operation",
+ "x.wrapSpkiAesThenNotExtract": "InvalidAccessError: key is not extractable",
+ "x.unwrapImportAlgBad": "NotSupportedError: Failed to execute 'unwrapKey' on 'SubtleCrypto': Algorithm: Unrecognized name",
+ "x.unwrapImportAlgVsUsage": "NotSupportedError: Failed to execute 'unwrapKey' on 'SubtleCrypto': Algorithm: Unrecognized name",
+ "x.unwrapWithEncryptAlg": "NotSupportedError: Failed to execute 'unwrapKey' on 'SubtleCrypto': HMAC: Unsupported operation: unwrapKey",
+ "x.unwrapFormatBad": "OperationError: ",
+ "x.encryptUnknownAlg": "NotSupportedError: Failed to execute 'encrypt' on 'SubtleCrypto': Algorithm: Unrecognized name",
+ "x.wrapUnknownAlg": "NotSupportedError: Failed to execute 'wrapKey' on 'SubtleCrypto': Algorithm: Unrecognized name",
+ "t.ecSignPublic": "InvalidAccessError: key.usages does not permit this operation",
+ "t.ecVerifyPrivate": "InvalidAccessError: key.usages does not permit this operation",
+ "t.ecdhPublicBase": "InvalidAccessError: key.usages does not permit this operation",
+ "t.ecPkcs8Public": "InvalidAccessError: The key is not of the expected type",
+ "t.edSignPublic": "InvalidAccessError: key.usages does not permit this operation",
+ "t.edVerifyPrivate": "InvalidAccessError: key.usages does not permit this operation",
+ "t.edRawPrivate": "InvalidAccessError: The key is not of the expected type",
+ "t.edPkcs8Public": "InvalidAccessError: The key is not of the expected type",
+ "t.edSpkiPrivate": "InvalidAccessError: The key is not of the expected type",
+ "x.importBogusFmt": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyFormat argument: bogus",
+ "x.importBogusFmtBadAlg": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyFormat argument: bogus",
+ "x.importBadAlg": "NotSupportedError: Failed to execute 'importKey' on 'SubtleCrypto': Algorithm: Unrecognized name",
+ "x.verifyNotKey": "TypeError: Failed to execute 'verify' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.deriveBitsNotKey": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.deriveKeyNotKey": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.encryptNotKeyBadAlg": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.wrapBadFmtNotKey": "TypeError: Failed to execute 'wrapKey' on 'SubtleCrypto': parameter 2 is not of type 'CryptoKey'.",
+ "x.wrapBadFmtBadAlg": "TypeError: Failed to execute 'wrapKey' on 'SubtleCrypto': Invalid keyFormat argument: bogus",
+ "x.encryptEd25519": "NotSupportedError: Failed to execute 'encrypt' on 'SubtleCrypto': Ed25519: Unsupported operation: encrypt",
+ "x.encryptSha": "NotSupportedError: Failed to execute 'encrypt' on 'SubtleCrypto': SHA-256: Unsupported operation: encrypt",
+ "x.encryptLower": "InvalidAccessError: key.algorithm does not match that of operation",
+ "x.wrapEcRawPublic": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes",
+ "x.wrapEcSpkiPrivate": "InvalidAccessError: The key is not of the expected type",
+ "x.exportEcSpkiPrivate": "InvalidAccessError: The key is not of the expected type",
+ "x.exportEcRawPrivate": "InvalidAccessError: The key is not of the expected type"
+}"#,
+    )
+    .unwrap();
+    assert_eq!(result.value.unwrap(), expected);
+}
