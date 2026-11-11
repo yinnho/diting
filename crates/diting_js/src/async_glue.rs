@@ -213,8 +213,8 @@ pub fn op_fetch_url_decl() -> OpDecl {
 
 // ── op_subtle_async ───────────────────────────────────────────────────
 
-/// The WebCrypto work that is real CPU — RSA keygen, private-key signing and
-/// OAEP, PBKDF2 — as one async op on the blocking pool (Chrome runs WebCrypto off
+/// The WebCrypto work that is real CPU — RSA keygen, private-key signing
+/// (PKCS#1 v1.5 and PSS) and OAEP, PBKDF2 — as one async op on the blocking pool (Chrome runs WebCrypto off
 /// the main thread too). As sync ops a caller's chain of them ran as one
 /// continuous wall and the eval patience watchdog beheaded it (#69).
 /// `op_subtle_async(kind, hash, a, b, buf0..buf6)`: the numbers and buffers
@@ -228,7 +228,7 @@ fn subtle_async_run(
     b: u32,
     bufs: &[Vec<u8>; 7],
 ) -> Result<Vec<u8>, String> {
-    use super::ops::{pbkdf2_derive, rsa_generate_flat, rsa_oaep, rsa_pkcs1v15_sign};
+    use super::ops::{pbkdf2_derive, rsa_generate_flat, rsa_oaep, rsa_pkcs1v15_sign, rsa_pss_sign};
     match kind {
         // a = modulus bits, b = public exponent (JS pins it to 3 or 65537)
         "rsa_generate" => rsa_generate_flat(a, b),
@@ -236,6 +236,11 @@ fn subtle_async_run(
         "rsa_sign" => {
             let [n, e, d, p, q, data, _] = bufs;
             rsa_pkcs1v15_sign(hash, n, e, d, p, q, data).map_err(|e| e.to_string())
+        }
+        // a = saltLength; bufs = n, e, d, p, q, data
+        "rsa_pss_sign" => {
+            let [n, e, d, p, q, data, _] = bufs;
+            rsa_pss_sign(hash, n, e, d, p, q, data, a).map_err(|e| e.to_string())
         }
         // a = 1 encrypt / 0 decrypt; bufs = label, n, e, d, p, q, data
         "rsa_oaep" => {

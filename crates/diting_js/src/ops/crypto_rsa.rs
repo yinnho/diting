@@ -381,3 +381,84 @@ pub(crate) fn op_subtle_rsa_pkcs1v15_verify(
         _ => return Err(crypto_err("unsupported RSASSA hash")),
     })
 }
+
+/// RSA-PSS sign (#69 family: a private-key op, so it runs on the blocking
+/// pool via `op_subtle_async`). `salt_len` is RsaPssParams.saltLength,
+/// already EnforceRange-converted; a salt the modulus cannot hold
+/// (emLen - hLen - 2) fails inside rsa, surfaced as Chrome's empty-message
+/// OperationError.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn rsa_pss_sign(
+    hash: &str,
+    n: &[u8],
+    e: &[u8],
+    d: &[u8],
+    p: &[u8],
+    q: &[u8],
+    data: &[u8],
+    salt_len: u32,
+) -> Result<Vec<u8>, deno_error::JsErrorBox> {
+    let prehash = rsassa_prehash(hash, data)?;
+    let sk = private_from_components(
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
+        rsa::BoxedUint::from_be_slice_vartime(d),
+        rsa::BoxedUint::from_be_slice_vartime(p),
+        rsa::BoxedUint::from_be_slice_vartime(q),
+    )?;
+    let salt = salt_len as usize;
+    macro_rules! run {
+        ($digest:ty) => {{
+            sk.sign_with_rng(
+                &mut os_rng(),
+                rsa::pss::Pss::<$digest>::new_with_salt(salt),
+                &prehash,
+            )
+            .map_err(|_| crypto_err(""))?
+        }};
+    }
+    Ok(match hash {
+        "SHA-1" => run!(sha1::Sha1),
+        "SHA-256" => run!(rsa::sha2::Sha256),
+        "SHA-384" => run!(rsa::sha2::Sha384),
+        "SHA-512" => run!(rsa::sha2::Sha512),
+        _ => return Err(crypto_err("unsupported RSA-PSS hash")),
+    })
+}
+
+/// RSA-PSS verify with an exact salt length. Every mismatch — wrong salt
+/// length, a salt the modulus cannot hold, short or tampered signature — is
+/// `false`, never an error (Chrome 157).
+#[diting_op]
+pub(crate) fn op_subtle_rsa_pss_verify(
+    #[string] hash: &str,
+    #[buffer] n: &[u8],
+    #[buffer] e: &[u8],
+    #[buffer] signature: &[u8],
+    #[buffer] data: &[u8],
+    salt_len: u32,
+) -> Result<bool, deno_error::JsErrorBox> {
+    let prehash = rsassa_prehash(hash, data)?;
+    let pk = rsa_public(
+        rsa::BoxedUint::from_be_slice_vartime(n),
+        rsa::BoxedUint::from_be_slice_vartime(e),
+    )?;
+    let salt = salt_len as usize;
+    macro_rules! run {
+        ($digest:ty) => {{
+            pk.verify(
+                rsa::pss::Pss::<$digest>::new_with_salt(salt),
+                &prehash,
+                signature,
+            )
+            .is_ok()
+        }};
+    }
+    Ok(match hash {
+        "SHA-1" => run!(sha1::Sha1),
+        "SHA-256" => run!(rsa::sha2::Sha256),
+        "SHA-384" => run!(rsa::sha2::Sha384),
+        "SHA-512" => run!(rsa::sha2::Sha512),
+        _ => return Err(crypto_err("unsupported RSA-PSS hash")),
+    })
+}
