@@ -10101,6 +10101,116 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_spki_malformed_like_chrome() {
+    // SPKI RSA public keys built by hand from a fixed 1024-bit test key, each
+    // wrong in one place — garbage, truncated, trailing byte, EC / RSASSA-PSS
+    // OIDs, absent or non-NULL parameters, unused bits, inner PKCS#1
+    // truncated / trailing / extra field, even or tiny or huge e, e = n, even
+    // or zero n, negative or non-minimal INTEGERs — imported as RSA-PSS (and
+    // verified against a Chrome-made signature), RSASSA and OAEP. Expected =
+    // Chrome 157's output for this exact script (headless, file://): every
+    // refusal is an empty DataError. We accepted absent/non-NULL parameters
+    // and surfaced the rest as OperationErrors with decoder text.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle, enc = new TextEncoder();
+  const D = {"v": {"ok": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQAB", "garbage": "CQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERQ==", "truncated": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5k=", "trailing": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQABAA==", "oidEC": "MIGlMBMGByqGSM49AgEGCCqGSM49AwEHA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQAB", "oidPSS": "MIGdMAsGCSqGSIb3DQEBCgOBjQAwgYkCgYEAz/1dpivZhivMVP0wpXd7Syp6oYK+EhI+pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV+/+xH+goha7dsuZYYIuKzcf/0dcP8NTRGKovTfI/pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMcCAwEAAQ==", "noNullParams": "MIGdMAsGCSqGSIb3DQEBAQOBjQAwgYkCgYEAz/1dpivZhivMVP0wpXd7Syp6oYK+EhI+pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV+/+xH+goha7dsuZYYIuKzcf/0dcP8NTRGKovTfI/pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMcCAwEAAQ==", "paramsInt": "MIGgMA4GCSqGSIb3DQEBAQIBAAOBjQAwgYkCgYEAz/1dpivZhivMVP0wpXd7Syp6oYK+EhI+pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV+/+xH+goha7dsuZYYIuKzcf/0dcP8NTRGKovTfI/pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMcCAwEAAQ==", "unusedBits": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNATCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQAB", "innerTruncated": "MIGcMA0GCSqGSIb3DQEBAQUAA4GKADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwID", "innerTrailing": "MIGhMA0GCSqGSIb3DQEBAQUAA4GPADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQABAAA=", "innerExtraField": "MIGiMA0GCSqGSIb3DQEBAQUAA4GQADCBjAKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQABAgEA", "eEven": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQAC", "eOne": "MIGdMA0GCSqGSIb3DQEBAQUAA4GLADCBhwKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIBAQ==", "nEven": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMyAIDAQAB", "nZero": "MBwwDQYJKoZIhvcNAQEBBQADCwAwCAIBAAIDAQAB", "nNegative": "MIGeMA0GCSqGSIb3DQEBAQUAA4GMADCBiAKBgM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAE=", "nNonMinimal": "MIGgMA0GCSqGSIb3DQEBAQUAA4GOADCBigKBggAAz/1dpivZhivMVP0wpXd7Syp6oYK+EhI+pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV+/+xH+goha7dsuZYYIuKzcf/0dcP8NTRGKovTfI/pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMcCAwEAAQ==", "eNonMinimal": "MIGgMA0GCSqGSIb3DQEBAQUAA4GOADCBigKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIEAAEAAQ==", "eHuge": "MIGiMA0GCSqGSIb3DQEBAQUAA4GQADCBjAKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIGAQAAAAAB", "eqN": "MIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxw=="}, "pssSig": "62a9dfaa7fcc556957c7b056ae40c4178130d17dd05e3605932fd5c281d5a327ec80ba158bb97797c5d267ca0ad1345199d8506efb71b4ebbde7a444ca8d1160d2e12e5446d464735adc398eea6931ee38946cb5652fcdee75417c9c1f365fa713bf6948b20667b1e3e4c2855186b0d9e1c40ff7799351d50a4e2a09462fda29"};
+  const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const unhex = (h) => Uint8Array.from(h.match(/../g), x => parseInt(x, 16));
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const msg = enc.encode('diting-pss');
+  for (const [tag, alg, us] of [['pss', { name: 'RSA-PSS', hash: 'SHA-256' }, ['verify']], ['pkcs1', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, ['verify']], ['oaep', { name: 'RSA-OAEP', hash: 'SHA-256' }, ['encrypt']]]) {
+    for (const [k, der] of Object.entries(D.v)) {
+      r[tag + '.' + k] = await face(async () => {
+        const pk = await S.importKey('spki', b64(der), alg, true, us);
+        let extra = '';
+        if (tag === 'pss') extra = ':' + (await S.verify({ name: 'RSA-PSS', saltLength: 32 }, pk, unhex(D.pssSig), msg));
+        return 'ok:' + pk.algorithm.modulusLength + ':' + pk.algorithm.publicExponent.join('.') + extra;
+      });
+    }
+  }
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "pss.ok": "ok:1024:1.0.1:true",
+ "pss.garbage": "DataError: ",
+ "pss.truncated": "DataError: ",
+ "pss.trailing": "DataError: ",
+ "pss.oidEC": "DataError: ",
+ "pss.oidPSS": "DataError: ",
+ "pss.noNullParams": "DataError: ",
+ "pss.paramsInt": "DataError: ",
+ "pss.unusedBits": "DataError: ",
+ "pss.innerTruncated": "DataError: ",
+ "pss.innerTrailing": "DataError: ",
+ "pss.innerExtraField": "DataError: ",
+ "pss.eEven": "DataError: ",
+ "pss.eOne": "DataError: ",
+ "pss.nEven": "DataError: ",
+ "pss.nZero": "DataError: ",
+ "pss.nNegative": "DataError: ",
+ "pss.nNonMinimal": "DataError: ",
+ "pss.eNonMinimal": "DataError: ",
+ "pss.eHuge": "DataError: ",
+ "pss.eqN": "DataError: ",
+ "pkcs1.ok": "ok:1024:1.0.1",
+ "pkcs1.garbage": "DataError: ",
+ "pkcs1.truncated": "DataError: ",
+ "pkcs1.trailing": "DataError: ",
+ "pkcs1.oidEC": "DataError: ",
+ "pkcs1.oidPSS": "DataError: ",
+ "pkcs1.noNullParams": "DataError: ",
+ "pkcs1.paramsInt": "DataError: ",
+ "pkcs1.unusedBits": "DataError: ",
+ "pkcs1.innerTruncated": "DataError: ",
+ "pkcs1.innerTrailing": "DataError: ",
+ "pkcs1.innerExtraField": "DataError: ",
+ "pkcs1.eEven": "DataError: ",
+ "pkcs1.eOne": "DataError: ",
+ "pkcs1.nEven": "DataError: ",
+ "pkcs1.nZero": "DataError: ",
+ "pkcs1.nNegative": "DataError: ",
+ "pkcs1.nNonMinimal": "DataError: ",
+ "pkcs1.eNonMinimal": "DataError: ",
+ "pkcs1.eHuge": "DataError: ",
+ "pkcs1.eqN": "DataError: ",
+ "oaep.ok": "ok:1024:1.0.1",
+ "oaep.garbage": "DataError: ",
+ "oaep.truncated": "DataError: ",
+ "oaep.trailing": "DataError: ",
+ "oaep.oidEC": "DataError: ",
+ "oaep.oidPSS": "DataError: ",
+ "oaep.noNullParams": "DataError: ",
+ "oaep.paramsInt": "DataError: ",
+ "oaep.unusedBits": "DataError: ",
+ "oaep.innerTruncated": "DataError: ",
+ "oaep.innerTrailing": "DataError: ",
+ "oaep.innerExtraField": "DataError: ",
+ "oaep.eEven": "DataError: ",
+ "oaep.eOne": "DataError: ",
+ "oaep.nEven": "DataError: ",
+ "oaep.nZero": "DataError: ",
+ "oaep.nNegative": "DataError: ",
+ "oaep.nNonMinimal": "DataError: ",
+ "oaep.eNonMinimal": "DataError: ",
+ "oaep.eHuge": "DataError: ",
+ "oaep.eqN": "DataError: "
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_rsa_pkcs8_crt_consistency_like_chrome() {
     // PKCS#8 RSA private keys built by hand from a fixed 1024-bit test key,
     // each wrong in one place: dp/dq/qi/d/n/e, qi = 0, dp + (p-1) (right
