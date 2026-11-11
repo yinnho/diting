@@ -30,6 +30,16 @@ static SHARED_COOKIE_JAR: std::sync::LazyLock<Arc<CookieJar>> = std::sync::LazyL
         return jar;
     }
     let path = cookie_store_path();
+    // #65: DITING_STORE=0 reads as "don't touch the disk" but only switches
+    // off the local store — this jar still restores and persists. Say so the
+    // one time it matters (a bench run under STORE=0 carried 384 production
+    // cookies without a hint).
+    if !crate::store::is_enabled() {
+        tracing::warn!(
+            "DITING_STORE=0 switches off the local store only: the shared cookie jar still reads and writes {} — set DITING_EPHEMERAL=1 to keep every persistent face in memory",
+            path.display()
+        );
+    }
     match jar.load_from_file(&path) {
         Ok(n) if n > 0 => {
             tracing::info!("restored {} cookies from {}", n, path.display());
