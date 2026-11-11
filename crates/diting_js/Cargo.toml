@@ -93,7 +93,7 @@ ed25519-dalek = { version = "3", default-features = false, features = ["fast", "
 # instances, so the scheme types bind directly — no feature pins needed).
 # hazmat: the unchecked keygen — Chrome generates RSA from 512 bits, rsa's
 # checked keygen floors at 1024 (the 512 floor is enforced in crypto_rsa.rs).
-rsa = { version = "=0.10.0-rc.21", features = ["hazmat"] }
+rsa = { version = "=0.10.0-rc.22", features = ["hazmat"] }
 # rsa re-exports rand_core, so no own pin. getrandom rides 0.4 with the
 # rsa rc (rand_core 0.6 → getrandom 0.2 is gone); sys_rng exposes SysRng
 # implementing rand_core 0.10's TryRng.
