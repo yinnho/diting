@@ -1026,7 +1026,10 @@ impl HttpClient {
             // can no longer strand it at +1 for the session's life.
             let _in_flight = InFlightDecrement(Some(self.in_flight.clone()));
             let resp = match req_builder.send().await {
-                Ok(resp) => resp,
+                Ok(resp) => {
+                    crate::progress::mark_response_started();
+                    resp
+                }
                 Err(e) => {
                     drop(_in_flight);
                     // Name the culprit when the configured upstream proxy is

@@ -359,6 +359,26 @@ impl Page {
         // and matches what real Chrome does for a given origin.
         use futures::StreamExt as _;
         let external_total = fetch_futures.len();
+        // Per fetch: does it block parsing (classic sync / defer — Chrome
+        // waits for these however long the network takes), and has its
+        // response started (headers back = a live transfer, not a dead
+        // server)? See the deadline rule on the loop below.
+        let blocking: Vec<bool> = fetch_tasks
+            .iter()
+            .map(|(idx, _)| !all_to_execute[*idx].is_async)
+            .collect();
+        let started: Vec<std::sync::Arc<std::sync::atomic::AtomicBool>> = (0..external_total)
+            .map(|_| std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)))
+            .collect();
+        let fetch_futures: Vec<_> = fetch_futures
+            .into_iter()
+            .enumerate()
+            .map(|(k, f)| {
+                let flag = started[k].clone();
+                async move { (k, diting_net::progress::track_response_start(flag, f).await) }
+            })
+            .collect();
+        let mut settled = vec![false; external_total];
         // #79: count arrivals so a fetch-phase overrun can say how much of
         // the page's script surface landed before the deadline — the item-
         // wise loop below keeps those bodies, and the warn names the count.
@@ -366,7 +386,7 @@ impl Page {
         let arrivals_counter = arrivals.clone();
         let fetch_stream = futures::stream::iter(fetch_futures)
             .buffer_unordered(16)
-            .inspect(move |result| {
+            .inspect(move |(_, result)| {
                 if result.is_some() {
                     arrivals_counter.set(arrivals_counter.get() + 1);
                 }
@@ -376,13 +396,43 @@ impl Page {
         // had already landed. On deadline we keep whatever arrived; the
         // execution phase below runs those bodies plus every inline script
         // on a fresh budget.
+        //
+        // The deadline cuts DEAD fetches, not slow ones: past it we keep
+        // waiting while some parse-blocking script's response has started
+        // (its body is still flowing — the transport's own read-stall
+        // timeout ends it if it stops), and give up on the rest: fetches
+        // with no response yet (the hung server #79 pinned) and async
+        // scripts (Chrome doesn't block on them). x.com behind a slow proxy
+        // was the case: its vendor bundle was live at 10s, got dropped, main
+        // ran without it and the app reported /i/script-load-failure.
+        // SCRIPT_FETCH_BACKSTOP bounds a body that trickles forever.
+        const SCRIPT_FETCH_BACKSTOP: tokio::time::Duration = tokio::time::Duration::from_secs(120);
+        let fetch_backstop = script_deadline
+            + SCRIPT_FETCH_BACKSTOP
+                .saturating_sub(tokio::time::Duration::from_millis(script_deadline_ms));
         let mut fetch_stream = std::pin::pin!(fetch_stream);
         let mut fetch_results: Vec<_> = Vec::with_capacity(external_total);
-        while tokio::time::Instant::now() < script_deadline {
+        let mut cut = false;
+        loop {
+            let now = tokio::time::Instant::now();
+            if now >= script_deadline {
+                let live = (0..external_total).any(|k| {
+                    blocking[k]
+                        && !settled[k]
+                        && started[k].load(std::sync::atomic::Ordering::Relaxed)
+                });
+                if !live || now >= fetch_backstop {
+                    cut = true;
+                    break;
+                }
+            }
             match tokio::time::timeout(tokio::time::Duration::from_millis(50), fetch_stream.next())
                 .await
             {
-                Ok(Some(item)) => fetch_results.push(item),
+                Ok(Some((k, item))) => {
+                    settled[k] = true;
+                    fetch_results.push(item);
+                }
                 // Stream drained: every fetch future settled or errored out.
                 Ok(None) => break,
                 // Slice elapsed with work still in flight — re-check the
@@ -390,7 +440,7 @@ impl Page {
                 Err(_) => {}
             }
         }
-        if tokio::time::Instant::now() >= script_deadline {
+        if cut {
             tracing::warn!(
                 "execute_scripts: fetch deadline reached after {}/{} script bodies \
                  arrived; the {} arrived bodies and all inline scripts still execute \

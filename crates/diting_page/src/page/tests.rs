@@ -3500,6 +3500,71 @@ async fn fetch_overrun_keeps_arrived_bodies_and_inline_scripts() {
     );
 }
 
+/// The deadline's other edge: a parse-blocking script whose response has
+/// STARTED but whose body is still flowing past the deadline is a slow
+/// network, not a dead server — Chrome waits for it, and so must we (the
+/// transport's own read-stall timeout ends a body that stops). x.com behind
+/// a slow proxy: the vendor bundle was live at 10s and got dropped, main.js
+/// ran without it, and the app showed its script-load-failure page.
+#[tokio::test(flavor = "current_thread")]
+async fn slow_but_live_blocking_script_outlives_the_fetch_deadline() {
+    let _net = net_test_guard();
+    let _deadline = script_deadline_guard("500");
+    // Headers at once, then the body in pieces over ~2s.
+    let slow = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let slow_port = slow.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        use std::io::{Read as _, Write as _};
+        let Ok((mut stream, _)) = slow.accept() else {
+            return;
+        };
+        let mut buf = [0u8; 4096];
+        let _ = stream.read(&mut buf);
+        let body = "window.__vendor = 'loaded'; /* ".to_string() + &"x".repeat(4000) + " */";
+        let _ = write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.flush();
+        for chunk in body.as_bytes().chunks(body.len() / 8 + 1) {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            let _ = stream.write_all(chunk);
+            let _ = stream.flush();
+        }
+    });
+    let port = local_http_server_typed(vec![
+        (
+            "/doc.html",
+            200,
+            "text/html",
+            format!(
+                r#"<html><head>
+                        <script src="http://127.0.0.1:{slow_port}/vendor.js"></script>
+                        <script src="/main.js"></script>
+                    </head><body>ok</body></html>"#
+            ),
+        ),
+        (
+            "/main.js",
+            200,
+            "application/javascript",
+            "window.__main = window.__vendor === 'loaded' ? 'with-vendor' : 'without-vendor';"
+                .to_string(),
+        ),
+    ]);
+    let mut p = test_page();
+    p.navigate(&format!("http://127.0.0.1:{port}/doc.html"))
+        .await
+        .unwrap();
+    assert_eq!(p.evaluate("window.__vendor"), serde_json::json!("loaded"));
+    assert_eq!(
+        p.evaluate("window.__main"),
+        serde_json::json!("with-vendor"),
+        "the script after the slow one must see it, in document order"
+    );
+}
+
 /// The per-script 5s guard's other half: a script killed by ITS OWN
 /// watchdog (not the phase deadline's) used to leave V8's termination
 /// flag pending, so every later script on the page died instantly —
