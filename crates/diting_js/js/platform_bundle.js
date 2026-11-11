@@ -7548,7 +7548,7 @@ function IntersectionObserver(callback) {
   }
   const trackVisibility = o.trackVisibility === undefined ? false : Boolean(o.trackVisibility);
   const self = Reflect.construct(Object, [], new.target);
-  slots.set(self, { callback, root, rootMargin, scrollMargin, thresholds: ths, delay, trackVisibility, targets: new Set(), connected: true, fires: 0 });
+  slots.set(self, { callback, root, rootMargin, scrollMargin, thresholds: ths, delay, trackVisibility, targets: new Set(), connected: true, fires: 0, sent: new WeakMap() });
   live.push(self);
   return self;
 }
@@ -7561,14 +7561,29 @@ P.getter(IP, 'thresholds', function __f() { return Object.freeze(slot(this, __f)
 P.getter(IP, 'delay', function __f() { return slot(this, __f).delay; });
 P.getter(IP, 'trackVisibility', function __f() { return slot(this, __f).trackVisibility; });
 
-function fire(self, s, targets) {
+// `changedOnly` (the DOM-mutation re-fire): a target is re-delivered only
+// when its box moved since the entry it last got — an infinite-scroll
+// sentinel that new content pushed down re-fires (pattern 2), targets whose
+// geometry didn't change stay quiet. Without it every DOM mutation
+// re-delivered every target of every observer, and x.com's virtualized
+// timeline answered each delivery with more DOM, which re-fired them all
+// again (#63 family: the realm sat in the #66 busy freeze). observe()'s own
+// initial fire and burst schedule stay unconditional — bounded (six per
+// target), and what lets the geometry-naive sentinel pattern complete when
+// the appended content has no height.
+function fire(self, s, targets, changedOnly) {
   if (!s.connected || !targets.length || s.fires >= MAX_FIRES) return;
-  s.fires++;
   const vw = globalThis.innerWidth || 1280, vh = globalThis.innerHeight || 720;
-  const records = targets.map((target) => {
+  const records = [];
+  for (const target of targets) {
     const r = target.getBoundingClientRect ? target.getBoundingClientRect() : { x: 0, y: 0, width: 100, height: 20 };
-    return mkEntry({ target, isIntersecting: true, intersectionRatio: 1, boundingClientRect: r, intersectionRect: r, rootBounds: { x: 0, y: 0, width: vw, height: vh } });
-  });
+    const key = r.x + ',' + r.y + ',' + r.width + ',' + r.height;
+    if (changedOnly && s.sent.get(target) === key) continue;
+    s.sent.set(target, key);
+    records.push(mkEntry({ target, isIntersecting: true, intersectionRatio: 1, boundingClientRect: r, intersectionRect: r, rootBounds: { x: 0, y: 0, width: vw, height: vh } }));
+  }
+  if (!records.length) return;
+  s.fires++;
   try { s.callback.call(self, records, self); } catch (e) { globalThis.__diting_reportUncaughtError(e); }
 }
 P.method(IP, 'disconnect', 0, function __f() {
@@ -7597,6 +7612,7 @@ P.method(IP, 'unobserve', 1, function __f(el) {
   P.args("Failed to execute 'unobserve' on 'IntersectionObserver'", arguments.length, 1, __f);
   if (!(el instanceof Element)) P.fail(__f, "parameter 1 is not of type 'Element'.", "Failed to execute 'unobserve' on 'IntersectionObserver'");
   s.targets.delete(el);
+  s.sent.delete(el); // a later observe() delivers its initial entry again
 });
 P.seal(IntersectionObserver);
 
@@ -7608,7 +7624,7 @@ P.seal(IntersectionObserver);
       const s = slots.get(obs);
       if (!s.connected) continue;
       const ts = [...s.targets];
-      if (ts.length) fire(obs, s, ts);
+      if (ts.length) fire(obs, s, ts, true);
     }
   };
   const wireUp = () => {

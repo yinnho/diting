@@ -328,6 +328,7 @@
   Object.defineProperty(CS, '_cssomChanged', {
     value() {
       if (typeof globalThis.__adoptedResync === 'function') globalThis.__adoptedResync();
+      if (typeof globalThis.__diting_cssomBump === 'function') globalThis.__diting_cssomBump();
       const el = this.ownerNode;
       if (el && el.nodeType === 1 && String(el.tagName).toLowerCase() === 'style' && el._nid != null) {
         try { _domRaw('ext_sheet_put', '\u0000style:' + el._nid, '\u0002' + sheetText(this)); } catch (e) {}

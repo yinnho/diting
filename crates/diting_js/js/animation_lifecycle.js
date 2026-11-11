@@ -148,6 +148,12 @@ const _ANIM_EPOCH_CAP = 512;
 function _animationCheckOne(el) {
   if (!_nodeInDocument(el)) return;
   const existing = _animTracked.get(el._nid);
+  // Before the epoch budget: an element that can't animate costs one
+  // selector match, not a cascade, so it doesn't spend the cap either.
+  if (!existing && _animCannotAnimate(el)) {
+    _animStarted.delete(el); // same outcome as a read that found no name
+    return;
+  }
   if (_animEpochSpent !== _ditingMutationEpoch) {
     _animEpochSpent = _ditingMutationEpoch;
     _animEpochBudget = 0;
@@ -212,6 +218,73 @@ function _animationCssGate() {
   } catch (e) { _animCssPossible = true; }
   _animCssTransition = (!was && _animCssPossible) ? 1 : ((was && !_animCssPossible) ? -1 : 0);
   return _animCssPossible;
+}
+
+// Which elements could animate at all: an element only gets an
+// animation-name from a rule that declares one (or its own style
+// attribute). So the stylesheets' animation-declaring selectors, joined into
+// one list, are a cheap pre-filter — one el.matches() (selector matching
+// only, no cascade) instead of the full computed-style read for every
+// candidate. On x.com that read was the page's CPU: react-native-web inserts
+// thousands of elements and the sweep cascaded each one, 96% busy for 30s,
+// the #66 freeze kicked in and beheaded the realm every slice after that.
+// Rebuilt only when the sheet signature moves (<style> text lengths, <link>
+// hrefs, CSSOM edits via __diting_cssomBump — insertRule doesn't touch the
+// <style> text). Selectors the engine can't parse can't match in its
+// cascade either, so they are dropped; pseudo-element ones (::before)
+// never animate the element itself. null = no pre-filter (read failed).
+let _animSelEpoch = -1, _animSelSig = null, _animSel = null, _transSel = null, _animCssomGen = 0;
+globalThis.__diting_cssomBump = () => { _animCssomGen++; };
+// Same pass, two lists: animation-declaring and transition-declaring rules.
+function _animCandidateSelector(trans) {
+  if (_animSelEpoch === _ditingMutationEpoch) return trans ? _transSel : _animSel;
+  _animSelEpoch = _ditingMutationEpoch;
+  let sig = String(_animCssomGen);
+  try {
+    for (const n of document.querySelectorAll('style, link[rel~="stylesheet"]')) {
+      sig += '|' + (n.tagName === 'STYLE' ? 's' + String(n.textContent || '').length : 'l' + n.getAttribute('href'));
+    }
+  } catch (e) { _animSelSig = null; _animSel = _transSel = null; return null; }
+  if (sig === _animSelSig) return trans ? _transSel : _animSel;
+  _animSelSig = sig;
+  const sels = [], tsels = [];
+  const collect = (rules) => {
+    for (const r of rules || []) {
+      if (r.type === 1) {
+        const text = r.style ? r.style.cssText : '';
+        const anim = /animation/i.test(text), tr = /transition/i.test(text);
+        if (anim || tr) {
+          for (const one of String(r.selectorText || '').split(',')) {
+            const t = one.trim();
+            if (!t || /::|:(before|after|first-line|first-letter|marker|placeholder|selection)\b/i.test(t)) continue;
+            try { document.querySelector(t); } catch (e) { continue; }
+            if (anim) sels.push(t);
+            if (tr) tsels.push(t);
+          }
+        }
+      } else if (r.cssRules) {
+        collect(r.cssRules);
+      }
+    }
+  };
+  try {
+    for (const sh of document.styleSheets) {
+      let rules = null;
+      try { rules = sh.cssRules; } catch (e) { _animSel = _transSel = null; return null; }
+      collect(rules);
+    }
+  } catch (e) { _animSel = _transSel = null; return null; }
+  _animSel = sels.join(', ');
+  _transSel = tsels.join(', ');
+  return trans ? _transSel : _animSel;
+}
+function _animCannotAnimate(el, trans) {
+  const sel = _animCandidateSelector(trans);
+  if (sel === null) return false;
+  const inline = el.getAttribute('style');
+  if (inline && (trans ? /transition/i : /animation/i).test(inline)) return false;
+  if (sel === '') return true;
+  try { return !el.matches(sel); } catch (e) { return false; }
 }
 
 // Collect animation-capable elements (class or style attribute) from a
@@ -515,6 +588,14 @@ function _cancelTransitionsInSubtree(root) {
 function _transitionCheckOne(el) {
   if (!el || el.nodeType !== 1 || el._nid == null) return;
   if (!_nodeInDocument(el)) return;
+  // Same pre-filter as animations: no transition-declaring rule matches and
+  // no earlier snapshot to keep fresh = nothing can transition from here.
+  // Known edge: one write that both makes an element transition-capable and
+  // changes a watched property finds no "before" snapshot and starts no
+  // transition (Chrome would); the cascade read per write is what put x.com
+  // into the busy freeze, and transitions are declared on the base class in
+  // the common case, so the element is already capable before the change.
+  if (!_transLast.has(el) && !_transTracked.has(el._nid) && _animCannotAnimate(el, true)) return;
   let snap = null;
   try { snap = getComputedStyle(el); } catch (e) { return; }
   const now = {};

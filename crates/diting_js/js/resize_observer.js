@@ -14,12 +14,25 @@ globalThis.ResizeObserver = class ResizeObserver {
     this._targets = new Set();
     this._connected = true;
     this._fireCount = 0;
+    this._sent = new WeakMap();
     __hideOwn(this);
   }
+  // Chrome's rule: the first observation always notifies, later ones only
+  // when the size changed. The 200/800ms re-checks catch a size that settles
+  // after late layout; they used to re-deliver unchanged sizes too — three
+  // callbacks per observed element, each answered with a re-render.
   _fireFor(targets) {
     if (!this._connected || !targets.length) return;
-    const records = targets.map(target => {
+    const rects = [];
+    for (const target of targets) {
       const r = target.getBoundingClientRect ? target.getBoundingClientRect() : { x: 0, y: 0, width: 100, height: 20 };
+      const key = (r.width || 100) + 'x' + (r.height || 20);
+      if (this._sent.get(target) === key) continue;
+      this._sent.set(target, key);
+      rects.push([target, r]);
+    }
+    if (!rects.length) return;
+    const records = rects.map(([target, r]) => {
       return {
         target,
         contentRect: { x: r.x || 0, y: r.y || 0, width: r.width || 100, height: r.height || 20, top: r.top || 0, left: r.left || 0, bottom: r.bottom || 20, right: r.right || 100 },
@@ -44,7 +57,7 @@ globalThis.ResizeObserver = class ResizeObserver {
       }, delay);
     });
   }
-  unobserve(el) { this._targets.delete(el); }
+  unobserve(el) { this._targets.delete(el); this._sent.delete(el); }
   disconnect() { this._connected = false; this._targets.clear(); }
   // 刀57: takeRecords deleted — Chrome's ResizeObserver.prototype carries
   // only observe/unobserve/disconnect; pending-record draining is a
