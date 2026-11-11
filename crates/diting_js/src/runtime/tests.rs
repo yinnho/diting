@@ -43557,3 +43557,48 @@ async fn eval_result_is_seen_at_the_next_task_boundary() {
     }
     assert_eq!(rt.watchdog_fired_total(), 0);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn observers_redeliver_only_on_change() {
+    // IntersectionObserver's DOM-mutation re-fire used to re-deliver every
+    // target of every live observer on each mutation batch, and
+    // ResizeObserver re-delivered the same size at 200/800ms — on x.com's
+    // virtualized timeline each delivery caused more DOM, which re-fired them
+    // all (the realm sat in the #66 busy freeze). A mutation that doesn't
+    // move the target must not re-deliver it; a size that didn't change must
+    // not re-notify (Chrome: first observation, then on change only).
+    let mut rt = setup_runtime("<html><body><div id=t style='width:50px;height:20px'></div><div id=other></div></body></html>");
+    let script = r#"async () => {
+        const t = document.getElementById('t');
+        let io = 0, ro = 0;
+        new IntersectionObserver(() => { io++; }).observe(t);
+        new ResizeObserver(() => { ro++; }).observe(t);
+        await new Promise(r => setTimeout(r, 20));
+        const ioFirst = io, roFirst = ro;
+        // Mutations elsewhere that leave t where it is.
+        for (let i = 0; i < 20; i++) {
+            document.getElementById('other').appendChild(document.createElement('span'));
+            await new Promise(r => setTimeout(r, 5));
+        }
+        await new Promise(r => setTimeout(r, 1000));
+        return { ioFirst, roFirst, roAfter: ro, ioMutationRedeliveries: io - ioFirst };
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(v["ioFirst"], serde_json::json!(1));
+    assert_eq!(v["roFirst"], serde_json::json!(1));
+    assert_eq!(
+        v["roAfter"],
+        serde_json::json!(1),
+        "unchanged size re-notified: {v}"
+    );
+    // The burst schedule (120/500ms within the window) may still deliver;
+    // the 20 mutation batches must add nothing on top of it.
+    assert!(
+        v["ioMutationRedeliveries"].as_f64().unwrap() <= 2.0,
+        "mutation batches re-delivered an unmoved target: {v}"
+    );
+}
