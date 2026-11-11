@@ -10106,6 +10106,135 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_aes_cipher_params_like_chrome() {
+    // AES encrypt/decrypt parameters against Chrome 157, ciphertexts byte for
+    // byte (deterministic keys/IVs): GCM with 0..32-byte IVs, every tag size
+    // (32..128) plus invalid ones, AAD, tamper, too-short input, missing iv;
+    // CBC IV sizes, padding failures; CTR counter sizes, counter widths
+    // 1..128 including wrap-around and overflow; KW wrap/unwrap sizes.
+    // Expected = Chrome 157's output for this exact script (headless,
+    // file://). We used to take only 12-byte GCM IVs and 128-bit tags, only
+    // 32/64/128-bit CTR counters, and spoke our own error texts.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle, enc = new TextEncoder();
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const bytes = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + seed) & 255);
+  const hex = (b) => Array.from(new Uint8Array(b), v => v.toString(16).padStart(2, '0')).join('');
+  const key = async (name, n, us) => S.importKey('raw', bytes(n, 11), name, true, us || ['encrypt', 'decrypt']);
+  const pt = bytes(37, 3), aad = bytes(9, 5);
+  // GCM
+  const g = await key('AES-GCM', 16);
+  for (const n of [0, 1, 8, 12, 16, 32]) r['gcm.iv' + n] = await face(async () => { const c = await S.encrypt({ name: 'AES-GCM', iv: bytes(n, 7) }, g, pt); const p = await S.decrypt({ name: 'AES-GCM', iv: bytes(n, 7) }, g, c); return hex(c) + ':' + (hex(p) === hex(pt)); });
+  for (const t of [32, 64, 96, 104, 112, 120, 128, 0, 40, 136]) r['gcm.tag' + t] = await face(async () => { const P = { name: 'AES-GCM', iv: bytes(12, 7), tagLength: t }; const c = await S.encrypt(P, g, pt); const p = await S.decrypt(P, g, c); return hex(c) + ':' + (hex(p) === hex(pt)); });
+  r['gcm.aad'] = await face(async () => { const P = { name: 'AES-GCM', iv: bytes(12, 7), additionalData: aad }; const c = await S.encrypt(P, g, pt); return hex(c) + ':' + (hex(await S.decrypt(P, g, c)) === hex(pt)); });
+  r['gcm.aadMismatch'] = await face(async () => { const c = await S.encrypt({ name: 'AES-GCM', iv: bytes(12, 7), additionalData: aad }, g, pt); return hex(await S.decrypt({ name: 'AES-GCM', iv: bytes(12, 7) }, g, c)); });
+  r['gcm.tamper'] = await face(async () => { const c = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: bytes(12, 7) }, g, pt)); c[3] ^= 1; return hex(await S.decrypt({ name: 'AES-GCM', iv: bytes(12, 7) }, g, c)); });
+  r['gcm.shortCt'] = await face(async () => hex(await S.decrypt({ name: 'AES-GCM', iv: bytes(12, 7) }, g, bytes(15, 1))));
+  r['gcm.shortCt96'] = await face(async () => hex(await S.decrypt({ name: 'AES-GCM', iv: bytes(12, 7), tagLength: 96 }, g, bytes(11, 1))));
+  r['gcm.emptyPt'] = await face(async () => hex(await S.encrypt({ name: 'AES-GCM', iv: bytes(12, 7) }, g, new Uint8Array(0))));
+  r['gcm.noIv'] = await face(async () => hex(await S.encrypt({ name: 'AES-GCM' }, g, pt)));
+  r['gcm.256'] = await face(async () => hex(await S.encrypt({ name: 'AES-GCM', iv: bytes(12, 7) }, await key('AES-GCM', 32), pt)));
+  // CBC
+  const b = await key('AES-CBC', 16);
+  for (const n of [0, 15, 16, 17]) r['cbc.iv' + n] = await face(async () => { const c = await S.encrypt({ name: 'AES-CBC', iv: bytes(n, 2) }, b, pt); return hex(c) + ':' + (hex(await S.decrypt({ name: 'AES-CBC', iv: bytes(n, 2) }, b, c)) === hex(pt)); });
+  r['cbc.emptyPt'] = await face(async () => hex(await S.encrypt({ name: 'AES-CBC', iv: bytes(16, 2) }, b, new Uint8Array(0))));
+  r['cbc.blockPt'] = await face(async () => hex(await S.encrypt({ name: 'AES-CBC', iv: bytes(16, 2) }, b, bytes(32, 1))));
+  r['cbc.decNotBlock'] = await face(async () => hex(await S.decrypt({ name: 'AES-CBC', iv: bytes(16, 2) }, b, bytes(31, 1))));
+  r['cbc.decEmpty'] = await face(async () => hex(await S.decrypt({ name: 'AES-CBC', iv: bytes(16, 2) }, b, new Uint8Array(0))));
+  r['cbc.badPad'] = await face(async () => hex(await S.decrypt({ name: 'AES-CBC', iv: bytes(16, 2) }, b, bytes(32, 1))));
+  r['cbc.noIv'] = await face(async () => hex(await S.encrypt({ name: 'AES-CBC' }, b, pt)));
+  // CTR
+  const c = await key('AES-CTR', 16);
+  for (const n of [0, 15, 16, 17]) r['ctr.counter' + n] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', counter: bytes(n, 4), length: 64 }, c, pt)));
+  for (const L of [1, 8, 64, 127, 128]) r['ctr.len' + L] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', counter: bytes(16, 4), length: L }, c, pt)));
+  const ff = new Uint8Array(16).fill(0xff);
+  r['ctr.wrap8'] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', counter: ff, length: 8 }, c, bytes(48, 1))));
+  r['ctr.wrap128'] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', counter: ff, length: 128 }, c, bytes(48, 1))));
+  r['ctr.overflow2'] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', counter: bytes(16, 4), length: 2 }, c, bytes(16 * 5, 1))));
+  r['ctr.overflow1'] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', counter: bytes(16, 4), length: 1 }, c, bytes(16 * 3, 1))));
+  r['ctr.noCounter'] = await face(async () => hex(await S.encrypt({ name: 'AES-CTR', length: 64 }, c, pt)));
+  // KW
+  const kw = await key('AES-KW', 16, ['wrapKey', 'unwrapKey']);
+  for (const n of [8, 15, 16, 24, 32]) r['kw.wrap' + n] = await face(async () => { const k = await S.importKey('raw', bytes(n, 6), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']); const w = await S.wrapKey('raw', k, kw, 'AES-KW'); const u = await S.unwrapKey('raw', w, kw, 'AES-KW', { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']); return hex(w) + ':' + hex(await S.exportKey('raw', u)); });
+  r['kw.unwrapBad'] = await face(async () => { const u = await S.unwrapKey('raw', bytes(24, 1), kw, 'AES-KW', { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']); return hex(await S.exportKey('raw', u)); });
+  r['kw.unwrapShort'] = await face(async () => { const u = await S.unwrapKey('raw', bytes(16, 1), kw, 'AES-KW', { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']); return 'unwrapped'; });
+  r['kw.unwrapNot8'] = await face(async () => { const u = await S.unwrapKey('raw', bytes(25, 1), kw, 'AES-KW', { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']); return 'unwrapped'; });
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "gcm.iv0": "OperationError: ",
+ "gcm.iv1": "0ee174beae6a3f9f347cba3701a2bba900d12e79cbb66dc7c95b8d8506a917bc52b8c05fba80254b58e494d9c01dfcce996ac701e4:true",
+ "gcm.iv8": "0c28539cb44d31c44e20fc892c2d135e141b0a425e3780c8a78329d8ed82e710b05b4316a8e110f452f60194993d2bf74400020854:true",
+ "gcm.iv12": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a18f0a321102e5b6d5:true",
+ "gcm.iv16": "b3df94acd52733fe0523b6fd9db67223f86459d5f6458ed2f69aab78de1cfbe259cf3be9afcc2025f717c7f7b98d28563f47e47865:true",
+ "gcm.iv32": "19480a79d5df2eb51245146207ba23406a97b58b05bf5c3c979e7af7baccd9e9a62e954f8b71a391fead9dcc255d1cf3662b2316d4:true",
+ "gcm.tag32": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e0:true",
+ "gcm.tag64": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a1:true",
+ "gcm.tag96": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a18f0a3211:true",
+ "gcm.tag104": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a18f0a321102:true",
+ "gcm.tag112": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a18f0a321102e5:true",
+ "gcm.tag120": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a18f0a321102e5b6:true",
+ "gcm.tag128": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d25a23443e04ae581a18f0a321102e5b6d5:true",
+ "gcm.tag0": "OperationError: The tag length is invalid: Must be 32, 64, 96, 104, 112, 120, or 128 bits",
+ "gcm.tag40": "OperationError: The tag length is invalid: Must be 32, 64, 96, 104, 112, 120, or 128 bits",
+ "gcm.tag136": "OperationError: The tag length is invalid: Must be 32, 64, 96, 104, 112, 120, or 128 bits",
+ "gcm.aad": "dd923f168541dc020198ebd309497af319d21a81c8a9b4197f9cd295cc14dd19af7eb45d255906e769180113aa03411c1baee437c0:true",
+ "gcm.aadMismatch": "OperationError: ",
+ "gcm.tamper": "OperationError: ",
+ "gcm.shortCt": "OperationError: The provided data is too small",
+ "gcm.shortCt96": "OperationError: The provided data is too small",
+ "gcm.emptyPt": "188199675cd3bca345a36d6f2663144a",
+ "gcm.noIv": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AeadParams: iv: Missing required property",
+ "gcm.256": "2c81e831e61b3227dbc1d7315d5d05b547402ce24c88418574bc6a2e9c12ae87b5c6365f74da84f053b901bb72799809e1ea327092",
+ "cbc.iv0": "OperationError: The \"iv\" has an unexpected length -- must be 16 bytes",
+ "cbc.iv15": "OperationError: The \"iv\" has an unexpected length -- must be 16 bytes",
+ "cbc.iv16": "f3c3afc7b82c07ad09f7f628e138c213ac43f6cf5401a6386f875f2cdbf3a25b1fc5490009333728389bcf748548e33d:true",
+ "cbc.iv17": "OperationError: The \"iv\" has an unexpected length -- must be 16 bytes",
+ "cbc.emptyPt": "d4979466e490e5f5bcc0c487ccb0f7ea",
+ "cbc.blockPt": "5d160e67f214f9c388703e743c4f0ead4bd4c6dc3d432f037a8d240db8da6f06041835fb8455b919ad3d19cb30efea53",
+ "cbc.decNotBlock": "OperationError: ",
+ "cbc.decEmpty": "OperationError: ",
+ "cbc.badPad": "OperationError: ",
+ "cbc.noIv": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCbcParams: iv: Missing required property",
+ "ctr.counter0": "OperationError: The \"counter\" has an unexpected length -- must be 16 bytes",
+ "ctr.counter15": "OperationError: The \"counter\" has an unexpected length -- must be 16 bytes",
+ "ctr.counter16": "5dac03e194412eb922cf00950c0571b56d8614519732ef694e955fc2564a97ed8d6ee1632d",
+ "ctr.counter17": "OperationError: The \"counter\" has an unexpected length -- must be 16 bytes",
+ "ctr.len1": "DataError: The input is too large for the counter length.",
+ "ctr.len8": "5dac03e194412eb922cf00950c0571b56d8614519732ef694e955fc2564a97ed8d6ee1632d",
+ "ctr.len64": "5dac03e194412eb922cf00950c0571b56d8614519732ef694e955fc2564a97ed8d6ee1632d",
+ "ctr.len127": "5dac03e194412eb922cf00950c0571b56d8614519732ef694e955fc2564a97ed8d6ee1632d",
+ "ctr.len128": "5dac03e194412eb922cf00950c0571b56d8614519732ef694e955fc2564a97ed8d6ee1632d",
+ "ctr.wrap8": "bbb89f0a415836d320b98c3e04fda16e99711dfa391bef96f3f1f324bfa8aa6a9e2bbd063a1f5a094ee381e0a2142536",
+ "ctr.wrap128": "bbb89f0a415836d320b98c3e04fda16e00bd335c335efbcc97b08fd3fae3a57a1a7b14c29fb969d19536b344b8b6e215",
+ "ctr.overflow2": "DataError: The input is too large for the counter length.",
+ "ctr.overflow1": "DataError: The input is too large for the counter length.",
+ "ctr.noCounter": "TypeError: Failed to execute 'encrypt' on 'SubtleCrypto': AesCtrParams: counter: Missing required property",
+ "kw.wrap8": "OperationError: The provided data is too small",
+ "kw.wrap15": "OperationError: The provided data is too small",
+ "kw.wrap16": "b9c4049a1f997a40b928302e2a324c3ae295f280823d08f0:062b50759abfe4092e53789dc2e70c31",
+ "kw.wrap24": "dbe2470b7d58383effca56c1015cd81d89e62a4355c200797f4357d4b252351f:062b50759abfe4092e53789dc2e70c31567ba0c5ea0f3459",
+ "kw.wrap32": "378d7aa2876d64d0b089fd88e8153a6f61f41f0f4fa4a10aa6deb79056e86601a540dff26e0e0d83:062b50759abfe4092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81",
+ "kw.unwrapBad": "OperationError: ",
+ "kw.unwrapShort": "OperationError: The provided data is too small",
+ "kw.unwrapNot8": "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes"
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_hmac_aes_import_like_chrome() {
     // HMAC and AES (GCM/CBC/CTR/KW) raw + jwk imports: raw sizes 0..64, jwk
     // alg of the right mode at the right/wrong size and of another mode, 24-

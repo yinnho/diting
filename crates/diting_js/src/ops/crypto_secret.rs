@@ -69,10 +69,38 @@ pub(crate) fn op_subtle_hmac(
     })
 }
 
-/// AES-GCM encrypt/decrypt. WebCrypto's ciphertext carries the auth tag
-/// appended, which is exactly RustCrypto's combined form, so this maps 1:1.
-/// Restricted to a 96-bit IV and 128-bit tag (the WebCrypto defaults and the
-/// overwhelming majority of real usage); the shim rejects other tag lengths.
+/// Chrome 157's faces for cipher failures the JS side cannot see coming:
+/// AES-CTR's input outgrowing its counter (a DataError there).
+pub(crate) const AES_CTR_OVERFLOW: &str = "AES-CTR counter overflow";
+
+/// One AES block encryption for the key's size — the core GCM/CTR are built on.
+type AesBlockFn = Box<dyn Fn([u8; 16]) -> [u8; 16]>;
+fn aes_block(key: &[u8]) -> Result<AesBlockFn, deno_error::JsErrorBox> {
+    use aes::cipher::{BlockCipherEncrypt, KeyInit};
+    macro_rules! with {
+        ($c:ty) => {{
+            let c = <$c>::new_from_slice(key).map_err(crypto_err)?;
+            Box::new(move |b: [u8; 16]| {
+                let mut blk = aes::Block::from(b);
+                c.encrypt_block(&mut blk);
+                blk.into()
+            })
+        }};
+    }
+    Ok(match key.len() {
+        16 => with!(aes::Aes128),
+        24 => with!(aes::Aes192),
+        32 => with!(aes::Aes256),
+        _ => return Err(crypto_err("AES key must be 128, 192, or 256 bits")),
+    })
+}
+
+/// AES-GCM per NIST SP 800-38D, by hand: Chrome 157 takes any non-empty IV
+/// (J0 = GHASH of the IV unless it is 96 bits) and tags of 4..=16 bytes
+/// (the full tag's prefix); aes-gcm pins both as type parameters. `tag_len`
+/// is in bytes and already validated (32..128 bits, Chrome's set). Decrypt
+/// input is ciphertext || tag, checked to hold the tag on the JS side. Any
+/// authentication failure is Chrome's empty-message OperationError.
 #[diting_op]
 #[buffer]
 pub(crate) fn op_subtle_aes_gcm(
@@ -81,41 +109,75 @@ pub(crate) fn op_subtle_aes_gcm(
     #[buffer] iv: &[u8],
     #[buffer] aad: &[u8],
     #[buffer] data: &[u8],
+    tag_len: u32,
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use aes_gcm::aead::{Aead, KeyInit, Payload};
-    use aes_gcm::aes::{Aes192, Aes256};
-    use aes_gcm::{AesGcm, Nonce};
-    type Aes192Gcm = AesGcm<Aes192, aes_gcm::aead::consts::U12>;
-    type Aes256Gcm = AesGcm<Aes256, aes_gcm::aead::consts::U12>;
-
-    // cipher 0.5 deprecates Array::from_slice; the fallible TryFrom replaces
-    // both it and the manual length check (only a wrong-length IV can fail).
-    // Nonce<U12> — the size every variant below aliases (AesGcm<_, U12>).
-    let nonce: &Nonce<aes_gcm::aead::consts::U12> = iv
-        .try_into()
-        .map_err(|_| crypto_err("AES-GCM requires a 96-bit (12-byte) IV"))?;
-    macro_rules! run {
-        ($ty:ty) => {{
-            let cipher = <$ty>::new_from_slice(key).map_err(crypto_err)?;
-            if encrypt {
-                cipher
-                    .encrypt(nonce, Payload { msg: data, aad })
-                    .map_err(|_| crypto_err("AES-GCM encryption failed"))?
-            } else {
-                cipher
-                    .decrypt(nonce, Payload { msg: data, aad })
-                    .map_err(|_| {
-                        crypto_err("AES-GCM decryption failed: authentication tag mismatch")
-                    })?
-            }
-        }};
+    use ghash::universal_hash::UniversalHash;
+    let t = tag_len as usize;
+    if iv.is_empty() || !(4..=16).contains(&t) {
+        return Err(crypto_err(""));
     }
-    Ok(match key.len() {
-        16 => run!(aes_gcm::Aes128Gcm),
-        24 => run!(Aes192Gcm),
-        32 => run!(Aes256Gcm),
-        _ => return Err(crypto_err("AES-GCM key must be 128, 192, or 256 bits")),
-    })
+    let enc = aes_block(key)?;
+    let h = enc([0u8; 16]);
+    let ghash = |chunks: &[&[u8]]| -> [u8; 16] {
+        let mut g = ghash::GHash::new(&ghash::Key::from(h));
+        for c in chunks {
+            g.update_padded(c);
+        }
+        g.finalize().into()
+    };
+    let bits = |n: usize| ((n as u64) * 8).to_be_bytes();
+    let j0: [u8; 16] = if iv.len() == 12 {
+        let mut j = [0u8; 16];
+        j[..12].copy_from_slice(iv);
+        j[15] = 1;
+        j
+    } else {
+        let mut lens = [0u8; 16];
+        lens[8..].copy_from_slice(&bits(iv.len()));
+        ghash(&[iv, &lens])
+    };
+    let inc32 = |b: &mut [u8; 16]| {
+        let n = u32::from_be_bytes([b[12], b[13], b[14], b[15]]).wrapping_add(1);
+        b[12..].copy_from_slice(&n.to_be_bytes());
+    };
+    let gctr = |input: &[u8]| -> Vec<u8> {
+        let mut ctr = j0;
+        let mut out = Vec::with_capacity(input.len());
+        for chunk in input.chunks(16) {
+            inc32(&mut ctr);
+            let ks = enc(ctr);
+            out.extend(chunk.iter().zip(ks.iter()).map(|(a, b)| a ^ b));
+        }
+        out
+    };
+    let tag_of = |ct: &[u8]| -> [u8; 16] {
+        let mut lens = [0u8; 16];
+        lens[..8].copy_from_slice(&bits(aad.len()));
+        lens[8..].copy_from_slice(&bits(ct.len()));
+        let s = ghash(&[aad, ct, &lens]);
+        let e = enc(j0);
+        std::array::from_fn(|i| s[i] ^ e[i])
+    };
+    if encrypt {
+        let mut out = gctr(data);
+        let tag = tag_of(&out);
+        out.extend_from_slice(&tag[..t]);
+        Ok(out)
+    } else {
+        if data.len() < t {
+            return Err(crypto_err(""));
+        }
+        let (ct, tag) = data.split_at(data.len() - t);
+        let want = tag_of(ct);
+        let diff = want[..t]
+            .iter()
+            .zip(tag)
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b));
+        if diff != 0 {
+            return Err(crypto_err(""));
+        }
+        Ok(gctr(ct))
+    }
 }
 
 /// AES-CBC encrypt/decrypt with PKCS#7 padding (the only padding WebCrypto
@@ -145,7 +207,7 @@ pub(crate) fn op_subtle_aes_cbc(
                 Decryptor::<$cipher>::new_from_slices(key, iv)
                     .map_err(crypto_err)?
                     .decrypt_padded_vec::<Pkcs7>(data)
-                    .map_err(|_| crypto_err("AES-CBC decryption failed: invalid padding"))?
+                    .map_err(|_| crypto_err(""))?
             }
         }};
     }
@@ -157,9 +219,11 @@ pub(crate) fn op_subtle_aes_cbc(
     })
 }
 
-/// AES-CTR. Encrypt and decrypt are the same keystream XOR. `counter_length` is
-/// the WebCrypto counter width in bits; it selects the RustCrypto CTR flavor so
-/// only the low `counter_length` bits of the 16-byte block increment.
+/// AES-CTR. Encrypt and decrypt are the same keystream XOR. Only the low
+/// `counter_length` bits (1..=128, validated on the JS side) of the 16-byte
+/// block count, wrapping inside that width; an input needing more blocks
+/// than the counter has values is AES_CTR_OVERFLOW (Chrome 157's DataError).
+/// By hand: ctr's flavors stop at 32/64/128-bit counters.
 #[diting_op]
 #[buffer]
 pub(crate) fn op_subtle_aes_ctr(
@@ -168,40 +232,28 @@ pub(crate) fn op_subtle_aes_ctr(
     counter_length: u32,
     #[buffer] data: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use ctr::cipher::{KeyIvInit, StreamCipher};
-
-    if counter.len() != 16 {
-        return Err(crypto_err("AES-CTR requires a 16-byte counter block"));
+    let block: [u8; 16] = counter.try_into().map_err(|_| crypto_err(""))?;
+    if !(1..=128).contains(&counter_length) {
+        return Err(crypto_err(""));
     }
-    let mut buf = data.to_vec();
-    macro_rules! run {
-        ($ty:ty) => {{
-            <$ty>::new_from_slices(key, counter)
-                .map_err(crypto_err)?
-                .apply_keystream(&mut buf);
-        }};
+    let blocks = data.len().div_ceil(16) as u128;
+    if counter_length < 128 && blocks > (1u128 << counter_length) {
+        return Err(crypto_err(AES_CTR_OVERFLOW));
     }
-    macro_rules! by_key {
-        ($flavor:ident) => {
-            match key.len() {
-                16 => run!(ctr::$flavor<aes::Aes128>),
-                24 => run!(ctr::$flavor<aes::Aes192>),
-                32 => run!(ctr::$flavor<aes::Aes256>),
-                _ => return Err(crypto_err("AES-CTR key must be 128, 192, or 256 bits")),
-            }
-        };
+    let enc = aes_block(key)?;
+    let base = u128::from_be_bytes(block);
+    let mask = if counter_length == 128 {
+        u128::MAX
+    } else {
+        (1u128 << counter_length) - 1
+    };
+    let mut out = Vec::with_capacity(data.len());
+    for (i, chunk) in data.chunks(16).enumerate() {
+        let low = (base & mask).wrapping_add(i as u128) & mask;
+        let ks = enc(((base & !mask) | low).to_be_bytes());
+        out.extend(chunk.iter().zip(ks.iter()).map(|(a, b)| a ^ b));
     }
-    match counter_length {
-        128 => by_key!(Ctr128BE),
-        64 => by_key!(Ctr64BE),
-        32 => by_key!(Ctr32BE),
-        _ => {
-            return Err(crypto_err(
-                "AES-CTR supports counter lengths of 32, 64, or 128 bits",
-            ))
-        }
-    }
-    Ok(buf)
+    Ok(out)
 }
 
 /// AES-KW key wrap / unwrap (RFC 3394) — Chrome exposes this face only via

@@ -811,10 +811,8 @@ name = "diting_js"
 version = "0.11.0"
 dependencies = [
  "aes",
- "aes-gcm",
  "base64",
  "cbc",
- "ctr",
  "deno_error",
  "diting_css",
  "diting_dom",
@@ -830,6 +828,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "getrandom",
+ "ghash",
  "hkdf",
  "hmac",
  "http",
