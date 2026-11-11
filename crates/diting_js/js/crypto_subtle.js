@@ -191,9 +191,8 @@ if (!globalThis.crypto.subtle) {
       case "HMAC":
         return { name: "HMAC", hash: { name: normalizeHash(alg.hash) }, length: typeof alg.length === "number" ? alg.length : bytes.length * 8 };
       case "AES-CTR": case "AES-CBC": case "AES-GCM": case "AES-KW":
-        // Chrome 155 dropped 192-bit AES (BoringShell): raw import of a
-        // 24-byte key is an OperationError; the jwk path reports a DataError
-        // ("right length" wording) in the oct import branch above us.
+        // Chrome 155 dropped 192-bit AES (BoringSSL): a 24-byte key is an
+        // OperationError, raw and jwk alike (Chrome 157).
         if (bytes.length === 24) {
           throw new DOMException("192-bit AES keys are not supported", "OperationError");
         }
@@ -566,16 +565,19 @@ if (!globalThis.crypto.subtle) {
           throw new DOMException("The JWK \"kty\" member was not \"oct\"", "DataError");
         }
         jwkRequire(keyData, "k");
-        bytes = jwkMemberBytes(keyData, "k");
-        if (bytes.length === 24) {
-          throw new DOMException("The JWK \"k\" member did not include the right length of key data for the given algorithm.", "DataError");
-        }
+        // "" is zero bytes of key — each algorithm's own length rule names it
+        // (Chrome 157), not a base64 failure. A 24-byte k is 192-bit AES:
+        // the shared OperationError below, as for raw (Chrome 157; 155's jwk
+        // path said DataError).
+        bytes = keyData.k === "" ? new Uint8Array(0) : jwkMemberBytes(keyData, "k");
       } else {
         throw new DOMException("Only 'raw' and symmetric 'jwk' key formats are supported", "NotSupportedError");
       }
       let expectedAlg = null;
       if (alg.name === "HMAC") {
         const hash = requireHashParam(alg, "importKey", "HmacImportParams");
+        // Before the length rule — even an explicit length: 0 (Chrome 157).
+        if (bytes.length === 0) throw new DOMException("HMAC key data must not be empty", "DataError");
         const L = enforceIntMember(alg, "length", "importKey", "HmacImportParams", ULONG, true);
         if (L !== undefined) {
           // Chrome: within the key's last byte — (bytes*8 - 8, bytes*8].
@@ -592,7 +594,18 @@ if (!globalThis.crypto.subtle) {
       } else if (alg.name === "AES-CTR" || alg.name === "AES-CBC" || alg.name === "AES-GCM" || alg.name === "AES-KW") {
         checkKeyUsages(keyUsages || [],
           alg.name === "AES-KW" ? ["wrapKey", "unwrapKey"] : ["encrypt", "decrypt", "wrapKey", "unwrapKey"], false);
-        expectedAlg = "A" + (bytes.length * 8) + alg.name.slice(4);
+        // A jwk alg of another AES mode (or no AES alg at all) is the generic
+        // inconsistency; the right mode at another size says the key length
+        // is wrong for it (Chrome 157).
+        if (format === "jwk" && keyData.alg !== undefined) {
+          const am = /^A(128|192|256)(GCM|CBC|CTR|KW)$/.exec(keyData.alg);
+          if (!am || am[2] !== alg.name.slice(4)) {
+            throw new DOMException("The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call", "DataError");
+          }
+          if (Number(am[1]) !== bytes.length * 8) {
+            throw new DOMException("The JWK \"k\" member did not include the right length of key data for the given algorithm.", "DataError");
+          }
+        }
       } else if (alg.name === "PBKDF2" || alg.name === "HKDF") {
         checkKeyUsages(keyUsages || [], ["deriveKey", "deriveBits"], false);
       }
