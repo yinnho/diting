@@ -10101,6 +10101,118 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_jwk_integer_members_like_chrome() {
+    // RSA jwk members are minimal big-endian unsigned integers. Public keys
+    // with invalid n/e (even, 1, zero, oversize e; e = n; even, zero, 511-bit
+    // n) and malformed encodings (empty, leading zero, padded, standard
+    // base64), imported as RSA-PSS / RSASSA / OAEP; then every private member
+    // (d, p, q, dp, dq, qi, n) with a leading zero or empty. Fixed 1024-bit
+    // test key. Expected = Chrome 157's output for this exact script
+    // (headless, file://): invalid values are an empty OperationError,
+    // encodings get their own DataError text. We passed rsa's wording
+    // through, read "" as a base64 failure, and accepted leading zeros.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle;
+  const V = {"ok": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB"}, "eEven": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAC"}, "eOne": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQ"}, "eThree": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "Aw"}, "eHuge": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAAAAAB"}, "e33bit": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAAAAE"}, "eZero": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AA"}, "eEmpty": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": ""}, "eLeadZero": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AAEAAQ"}, "eqN": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc"}, "nEven": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMg", "e": "AQAB"}, "nZero": {"n": "AA", "e": "AQAB"}, "nEmpty": {"n": "", "e": "AQAB"}, "nLeadZero": {"n": "AM_9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv_sR_oKIWu3bLmWGCLis3H_9HXD_DU0RiqL03yP6caec-cDaBtrVsE88MaYR_DgMT2WCUbMAsK9jmczH", "e": "AQAB"}, "nPadded": {"n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc=", "e": "AQAB"}, "nStdB64": {"n": "z/1dpivZhivMVP0wpXd7Syp6oYK+EhI+pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV+/+xH+goha7dsuZYYIuKzcf/0dcP8NTRGKovTfI/pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB"}, "n511": {"n": "Z_6u0xXswxXmKn6YUru9pZU9UMFfCQkfUuE4suneRDzA4AZ3Lwyk70UJeeWCWBvE3noFxuHsqehHmUvUHwBE8Q", "e": "AQAB"}};
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  for (const [tag, alg, us] of [['pss', { name: 'RSA-PSS', hash: 'SHA-256' }, ['verify']], ['pkcs1', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, ['verify']], ['oaep', { name: 'RSA-OAEP', hash: 'SHA-256' }, ['encrypt']]]) {
+    for (const [k, m] of Object.entries(V)) {
+      r[tag + '.' + k] = await face(async () => {
+        const pk = await S.importKey('jwk', Object.assign({ kty: 'RSA' }, m), alg, true, us);
+        const j = await S.exportKey('jwk', pk);
+        return 'ok:' + pk.algorithm.modulusLength + ':' + pk.algorithm.publicExponent.join('.') + ':' + (j.n === m.n) + ':' + (j.e === m.e);
+      });
+    }
+  }
+  const P = {"lz.d": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "ADOc1QtyYDVaUwdYGSVGhBMABJRlxFLpsiAiI0-4flWDiX4l91Tkg580tkVHQO-VqJl6Gg_g5OJWo-JTHg3cxlqLgGD839UHCBJsGGiKuEqCt1GqdGtnb3Xi2fhcPUCeDaOwhf5m11_1J9mnMTEA_6gme2oGD2UKVqge2pDo77yB", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "empty.d": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "lz.p": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "ANwLd_bt7H2kOcMdkTlQUCcZf2K_Rt_3e3p4VxAlQ_hpZCwmA4eiuPChPLwHMsMpODlkDAM_SFq8OggHyGwCuAc", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "empty.p": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "lz.q": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "APH5oTL4-Is8pu6YOd-jicL1ArPQuQuZUlbTBn-9yrrw2ZJblohhbF0xT_nJeN72f1kg7I8n9dZRCcBXrlqLlUE", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "empty.q": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "lz.dp": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "AD4tw3V0X-pU-LmI5luStUOHMfbeZBGvpiXCUZ_PV_ifF15eU4sFUUs11KqxQgfh4vBctARK4pA5NhDE2j6jOgs", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "empty.dp": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "lz.dq": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "ADu8Z6pAwoMFJyTR2b-3DMRfXhpsFbKiWCxtDjas8QZzfRLfn2rtuiXLjbXZoghRDCFBuoSg1dThzql4O-fIe8E", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "empty.dq": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "lz.qi": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "AMx_KXW8pcargKvl0sCCyMDuJYTguWAMmDWYKTUumfAZ0sSJzcB15R-Kw_YNFn2aIP9HAcoD29S9HEKPcn_nZII", "ext": true}, "empty.qi": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "", "ext": true}, "lz.n": {"kty": "RSA", "n": "AM_9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv_sR_oKIWu3bLmWGCLis3H_9HXD_DU0RiqL03yP6caec-cDaBtrVsE88MaYR_DgMT2WCUbMAsK9jmczH", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}};
+  for (const [k, j] of Object.entries(P)) {
+    try { await S.importKey('jwk', j, { name: 'RSA-PSS', hash: 'SHA-256' }, true, ['sign']); r['priv.' + k] = 'ok'; }
+    catch (e) { r['priv.' + k] = e.name + ': ' + e.message; }
+  }
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "pss.ok": "ok:1024:1.0.1:true:true",
+ "pss.eEven": "OperationError: ",
+ "pss.eOne": "OperationError: ",
+ "pss.eThree": "ok:1024:3:true:true",
+ "pss.eHuge": "OperationError: ",
+ "pss.e33bit": "ok:1024:1.0.0.0.1:true:true",
+ "pss.eZero": "OperationError: ",
+ "pss.eEmpty": "DataError: The JWK \"e\" member was empty.",
+ "pss.eLeadZero": "DataError: The JWK \"e\" member contained a leading zero.",
+ "pss.eqN": "OperationError: ",
+ "pss.nEven": "OperationError: ",
+ "pss.nZero": "OperationError: ",
+ "pss.nEmpty": "DataError: The JWK \"n\" member was empty.",
+ "pss.nLeadZero": "DataError: The JWK \"n\" member contained a leading zero.",
+ "pss.nPadded": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "pss.nStdB64": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "pss.n511": "OperationError: ",
+ "pkcs1.ok": "ok:1024:1.0.1:true:true",
+ "pkcs1.eEven": "OperationError: ",
+ "pkcs1.eOne": "OperationError: ",
+ "pkcs1.eThree": "ok:1024:3:true:true",
+ "pkcs1.eHuge": "OperationError: ",
+ "pkcs1.e33bit": "ok:1024:1.0.0.0.1:true:true",
+ "pkcs1.eZero": "OperationError: ",
+ "pkcs1.eEmpty": "DataError: The JWK \"e\" member was empty.",
+ "pkcs1.eLeadZero": "DataError: The JWK \"e\" member contained a leading zero.",
+ "pkcs1.eqN": "OperationError: ",
+ "pkcs1.nEven": "OperationError: ",
+ "pkcs1.nZero": "OperationError: ",
+ "pkcs1.nEmpty": "DataError: The JWK \"n\" member was empty.",
+ "pkcs1.nLeadZero": "DataError: The JWK \"n\" member contained a leading zero.",
+ "pkcs1.nPadded": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "pkcs1.nStdB64": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "pkcs1.n511": "OperationError: ",
+ "oaep.ok": "ok:1024:1.0.1:true:true",
+ "oaep.eEven": "OperationError: ",
+ "oaep.eOne": "OperationError: ",
+ "oaep.eThree": "ok:1024:3:true:true",
+ "oaep.eHuge": "OperationError: ",
+ "oaep.e33bit": "ok:1024:1.0.0.0.1:true:true",
+ "oaep.eZero": "OperationError: ",
+ "oaep.eEmpty": "DataError: The JWK \"e\" member was empty.",
+ "oaep.eLeadZero": "DataError: The JWK \"e\" member contained a leading zero.",
+ "oaep.eqN": "OperationError: ",
+ "oaep.nEven": "OperationError: ",
+ "oaep.nZero": "OperationError: ",
+ "oaep.nEmpty": "DataError: The JWK \"n\" member was empty.",
+ "oaep.nLeadZero": "DataError: The JWK \"n\" member contained a leading zero.",
+ "oaep.nPadded": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "oaep.nStdB64": "DataError: The JWK member \"n\" could not be base64url decoded or contained padding",
+ "oaep.n511": "OperationError: ",
+ "priv.lz.d": "DataError: The JWK \"d\" member contained a leading zero.",
+ "priv.empty.d": "DataError: The JWK \"d\" member was empty.",
+ "priv.lz.p": "DataError: The JWK \"p\" member contained a leading zero.",
+ "priv.empty.p": "DataError: The JWK \"p\" member was empty.",
+ "priv.lz.q": "DataError: The JWK \"q\" member contained a leading zero.",
+ "priv.empty.q": "DataError: The JWK \"q\" member was empty.",
+ "priv.lz.dp": "DataError: The JWK \"dp\" member contained a leading zero.",
+ "priv.empty.dp": "DataError: The JWK \"dp\" member was empty.",
+ "priv.lz.dq": "DataError: The JWK \"dq\" member contained a leading zero.",
+ "priv.empty.dq": "DataError: The JWK \"dq\" member was empty.",
+ "priv.lz.qi": "DataError: The JWK \"qi\" member contained a leading zero.",
+ "priv.empty.qi": "DataError: The JWK \"qi\" member was empty.",
+ "priv.lz.n": "DataError: The JWK \"n\" member contained a leading zero."
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_rsa_spki_malformed_like_chrome() {
     // SPKI RSA public keys built by hand from a fixed 1024-bit test key, each
     // wrong in one place — garbage, truncated, trailing byte, EC / RSASSA-PSS
