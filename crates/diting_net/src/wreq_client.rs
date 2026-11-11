@@ -816,7 +816,10 @@ impl StealthHttpClient {
                 req.send().await
             };
             let resp = match resp {
-                Ok(resp) => resp,
+                Ok(resp) => {
+                    crate::progress::mark_response_started();
+                    resp
+                }
                 Err(e) => {
                     // Mirror the plain path: name an unreachable configured
                     // proxy instead of folding it into "error sending request"
