@@ -1,0 +1,228 @@
+{
+ "_meta": {
+  "chrome": "Google Chrome 157.0.8103.40",
+  "date": "2026-11-11",
+  "origin": "http://127.0.0.1 (ephemeral)",
+  "probe": "chrome/vttcue-probe.js"
+ },
+ "result": {
+  "ctor.arity0": "THROW TypeError: Failed to construct 'VTTCue': 3 arguments required, but only 0 present.",
+  "ctor.arity2": "THROW TypeError: Failed to construct 'VTTCue': 3 arguments required, but only 2 present.",
+  "ctor.defaults": [
+   1,
+   2,
+   "hi",
+   "",
+   true,
+   "auto",
+   "auto",
+   100,
+   "center",
+   "",
+   false,
+   null
+  ],
+  "ctor.enumMsg": true,
+  "ctor.et": [
+   1,
+   true,
+   true
+  ],
+  "ctor.infEnd": [
+   0,
+   null,
+   "",
+   "",
+   true,
+   "auto",
+   "auto",
+   100,
+   "center",
+   "",
+   false,
+   null
+  ],
+  "ctor.infStart": "THROW TypeError: Failed to construct 'VTTCue': The provided double value is non-finite.",
+  "ctor.nanEnd": "THROW TypeError: Failed to construct 'VTTCue': The endTime is not a number.",
+  "ctor.nanStart": "THROW TypeError: Failed to construct 'VTTCue': The provided double value is non-finite.",
+  "ctor.negEnd": [
+   5,
+   -1,
+   "",
+   "",
+   true,
+   "auto",
+   "auto",
+   100,
+   "center",
+   "",
+   false,
+   null
+  ],
+  "ctor.nullText": "null",
+  "ctor.objText": "obj",
+  "ctor.order": [
+   "s",
+   "e",
+   "t",
+   "Failed to construct 'VTTCue': The endTime is not a number."
+  ],
+  "ctor.own": 0,
+  "ctor.strNums": [
+   2,
+   3.5,
+   "7",
+   "",
+   true,
+   "auto",
+   "auto",
+   100,
+   "center",
+   "",
+   false,
+   null
+  ],
+  "ctor.symStart": "THROW TypeError: Failed to construct 'VTTCue': Cannot convert a Symbol value to a number",
+  "ctor.symText": "THROW TypeError: Failed to construct 'VTTCue': Cannot convert a Symbol value to a string",
+  "desc.proto": [
+   "vertical:ec",
+   "snapToLines:ec",
+   "line:ec",
+   "position:ec",
+   "size:ec",
+   "align:ec",
+   "text:ec",
+   "getCueAsHTML:ecw",
+   "constructor:-cw"
+  ],
+  "desc.window": [
+   true,
+   false,
+   true
+  ],
+  "fn.lengths": {
+   "constructor": [
+    "VTTCue",
+    3
+   ],
+   "get align": [
+    "get align",
+    0
+   ],
+   "get line": [
+    "get line",
+    0
+   ],
+   "get position": [
+    "get position",
+    0
+   ],
+   "get size": [
+    "get size",
+    0
+   ],
+   "get snapToLines": [
+    "get snapToLines",
+    0
+   ],
+   "get text": [
+    "get text",
+    0
+   ],
+   "get vertical": [
+    "get vertical",
+    0
+   ],
+   "getCueAsHTML": [
+    "getCueAsHTML",
+    0
+   ],
+   "set align": [
+    "set align",
+    1
+   ],
+   "set line": [
+    "set line",
+    1
+   ],
+   "set position": [
+    "set position",
+    1
+   ],
+   "set size": [
+    "set size",
+    1
+   ],
+   "set snapToLines": [
+    "set snapToLines",
+    1
+   ],
+   "set text": [
+    "set text",
+    1
+   ],
+   "set vertical": [
+    "set vertical",
+    1
+   ]
+  },
+  "get.illegal": "THROW TypeError: Illegal invocation",
+  "html": "<b>x</b> &amp; <span class=\"a b\">y</span><span title=\"Bob\">z</span>",
+  "html.illegal": "THROW TypeError: Illegal invocation",
+  "json": "{}",
+  "nonew": "THROW TypeError: Failed to construct 'VTTCue': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+  "set.align": [
+   "left",
+   "left"
+  ],
+  "set.line": [
+   -3.5,
+   "auto"
+  ],
+  "set.lineBad": "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value 'x' is not a valid enum value of type AutoKeyword.",
+  "set.lineNaN": "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided double value is non-finite.",
+  "set.position": [
+   40,
+   "auto"
+  ],
+  "set.positionRange": "THROW DOMException(IndexSizeError): Failed to set the 'position' property on 'VTTCue': The value provided (101) is outside the range [0, 100].",
+  "set.size": 0,
+  "set.sizeNaN": "THROW TypeError: Failed to set the 'size' property on 'VTTCue': The provided double value is non-finite.",
+  "set.sizeRange": "THROW DOMException(IndexSizeError): Failed to set the 'size' property on 'VTTCue': The value provided (-1) is outside the range [0, 100].",
+  "set.snap": false,
+  "set.text": "5",
+  "set.vertical": [
+   "rl",
+   "rl"
+  ],
+  "shape.VTTCue": {
+   "len": 3,
+   "members": {
+    "align": "rw",
+    "constructor": "function",
+    "getCueAsHTML": "function",
+    "line": "rw",
+    "position": "rw",
+    "size": "rw",
+    "snapToLines": "rw",
+    "text": "rw",
+    "vertical": "rw"
+   },
+   "name": "VTTCue",
+   "order": [
+    "vertical",
+    "snapToLines",
+    "line",
+    "position",
+    "size",
+    "align",
+    "text",
+    "getCueAsHTML",
+    "constructor"
+   ],
+   "parent": "TextTrackCue",
+   "statics": {},
+   "tag": "[object VTTCue]"
+  }
+ }
+}

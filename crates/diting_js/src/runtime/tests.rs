@@ -43451,3 +43451,36 @@ async fn webcrypto_wrap_and_operation_checks_like_chrome() {
     .unwrap();
     assert_eq!(result.value.unwrap(), expected);
 }
+
+/// Issue #67 marginal-cost family: VTTCue is generated (gen/vttcue.gen.js from
+/// the webvtt IDL slice, with NO generator change) plus a behavior module
+/// (platform/vttcue.impl.js). tools/webplatform/chrome/vttcue-probe.js is
+/// diffed key by key against real Chrome 157 (vttcue-truth-157.json), no
+/// known gaps. The hand-written face this replaced was off on four keys:
+/// argument conversion order (endTime's NaN check fired before text was
+/// converted), the Symbol messages' ctx prefix, a Symbol text taken silently,
+/// and the message own-property enumerability.
+#[test]
+fn vttcue_matches_chrome_truth() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let probe = include_str!("../../../../tools/webplatform/chrome/vttcue-probe.js");
+    let engine: serde_json::Value =
+        serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tools/webplatform/chrome/vttcue-truth-157.json"
+    ))
+    .unwrap();
+    let mut bad = Vec::new();
+    for (k, want) in truth["result"].as_object().unwrap() {
+        let got = &engine[k];
+        if got != want {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} probe(s) off:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
