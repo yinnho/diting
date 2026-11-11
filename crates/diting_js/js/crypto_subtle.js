@@ -329,6 +329,18 @@ if (!globalThis.crypto.subtle) {
       throw e;
     }
   }
+  // An RSA jwk member is a big-endian unsigned integer in minimal form:
+  // Chrome 157 refuses an empty one and one with a leading zero byte, for
+  // every member (n, e, d, p, q, dp, dq, qi) — probed.
+  // A lone zero byte ("AA") is the value 0, not a leading zero — it fails
+  // later as an invalid key, the way Chrome does.
+  function rsaJwkUint(jwk, mem) {
+    if (jwk[mem] === "") throw new DOMException("The JWK \"" + mem + "\" member was empty.", "DataError");
+    const b = jwkMemberBytes(jwk, mem);
+    if (b.length === 0) throw new DOMException("The JWK \"" + mem + "\" member was empty.", "DataError");
+    if (b.length > 1 && b[0] === 0) throw new DOMException("The JWK \"" + mem + "\" member contained a leading zero.", "DataError");
+    return b;
+  }
   // Big-endian integers equal regardless of leading zero bytes.
   function sameUint(a, b) {
     let i = 0, j = 0;
@@ -360,14 +372,15 @@ if (!globalThis.crypto.subtle) {
       checkKeyUsages(usages, isPriv ? face.priv : face.pub, !isPriv);
       jwkRequire(jwk, "n");
       jwkRequire(jwk, "e");
-      const n = jwkMemberBytes(jwk, "n");
-      const e = jwkMemberBytes(jwk, "e");
+      const n = rsaJwkUint(jwk, "n");
+      const e = rsaJwkUint(jwk, "e");
       const expected = face.alg[hash];
       if (isPriv) {
         for (const mem of ["d", "p", "q", "dp", "dq", "qi"]) jwkRequire(jwk, mem);
-        const d = jwkMemberBytes(jwk, "d");
-        const p = jwkMemberBytes(jwk, "p");
-        const q = jwkMemberBytes(jwk, "q");
+        const d = rsaJwkUint(jwk, "d");
+        const p = rsaJwkUint(jwk, "p");
+        const q = rsaJwkUint(jwk, "q");
+        const crt = { dp: rsaJwkUint(jwk, "dp"), dq: rsaJwkUint(jwk, "dq"), qi: rsaJwkUint(jwk, "qi") };
         jwkValidateCommon(jwk, extractable, usages, expected);
         m = rsaUnflat(runOp(() => rsaImportOp(() => _OPS.op_subtle_rsa_import_private(n, e, d, p, q), "DataError")));
         // The key is rebuilt from (n, e, d, p, q); the CRT members the jwk
@@ -375,7 +388,7 @@ if (!globalThis.crypto.subtle) {
         // checks the key) refuses a mismatch with an empty DataError, where
         // we used to recompute and silently accept.
         for (const mem of ["dp", "dq", "qi"]) {
-          if (!sameUint(jwkMemberBytes(jwk, mem), m[mem])) throw new DOMException("", "DataError");
+          if (!sameUint(crt[mem], m[mem])) throw new DOMException("", "DataError");
         }
         type = "private";
       } else {

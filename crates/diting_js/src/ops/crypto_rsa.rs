@@ -162,7 +162,9 @@ pub(crate) fn rsa_generate_flat(bits: u32, e: u32) -> Result<Vec<u8>, String> {
 }
 
 /// Import a public key from (n, e) big-endian integers (JWK path). Returns
-/// the payload with only the public sections set.
+/// the payload with only the public sections set. An n/e that is not a
+/// valid RSA public key (even or 1 or oversize e, e >= n, even or zero n) is
+/// Chrome 157's empty-message OperationError — not rsa's wording.
 #[diting_op]
 #[buffer]
 pub(crate) fn op_subtle_rsa_import_public(
@@ -172,7 +174,14 @@ pub(crate) fn op_subtle_rsa_import_public(
     let pk = rsa_public(
         rsa::BoxedUint::from_be_slice_vartime(n),
         rsa::BoxedUint::from_be_slice_vartime(e),
-    )?;
+    )
+    .map_err(|err| {
+        if err.to_string() == RSA_TOO_SMALL {
+            err
+        } else {
+            crypto_err("")
+        }
+    })?;
     public_flat(&pk)
 }
 
