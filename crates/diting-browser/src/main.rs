@@ -31,6 +31,7 @@ mod flow;
 mod har;
 mod html_md;
 mod htmlq;
+mod legacy_data;
 mod page;
 mod panel;
 mod panic_guard;
@@ -297,6 +298,14 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("diting: unrecognized argument {bad:?} (see --help)");
         std::process::exit(2);
     }
+
+    // Compat bridge, the data half (v0.10.0 rename): carry the pre-rename
+    // cookie jar and localStorage into the new app-data directory once,
+    // before the server reads them. Server path only: the jar persists by
+    // rewriting the file from memory, so a CLI run (doctor) migrating under a
+    // live pre-upgrade server would be overwritten by that server's next
+    // persist — with the one-shot marker already set.
+    legacy_data::run();
 
     // The workflow directory is the agent's home for its own flows; a failure
     // here costs the manual on disk, not the server.
