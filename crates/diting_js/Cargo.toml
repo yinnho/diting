@@ -78,6 +78,7 @@ hkdf = "0.13"
 ecdsa = { version = "0.17", default-features = false, features = ["digest", "pkcs8", "pem", "std"] }
 p256 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
 p384 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
+p521 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
 # sec1: the ECPrivateKey structure inside PKCS#8, decoded by hand so the
 # import can check what Chrome checks (curve params, embedded public key).
 # Same instance elliptic-curve already pulls in.

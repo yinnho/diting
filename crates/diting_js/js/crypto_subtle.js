@@ -49,7 +49,7 @@ if (!globalThis.crypto.subtle) {
   // u16-BE length-prefixed sections in this order: [pkcs8, sec1 point,
   // scalar, spki]. A key's keyMaterial entry is {curve, pkcs8, sec1, scalar,
   // spki} with the private-only sections null on public keys and vice versa.
-  const ECDSA_CURVES = { "P-256": 32, "P-384": 48 };
+  const ECDSA_CURVES = { "P-256": 32, "P-384": 48, "P-521": 66 };
   // The jwk "alg" an ECDSA key of each curve must carry when it has one (ECDH
   // keys are not alg-checked — Chrome 157).
   const ECDSA_JWK_ALG = { "P-256": "ES256", "P-384": "ES384", "P-521": "ES512" };

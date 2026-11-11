@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// WebCrypto ECDSA (P-256 / P-384) and ECDH. The key material travels between
+// WebCrypto ECDSA (P-256 / P-384 / P-521) and ECDH. The key material travels between
 // the JS shim and these ops as a flat payload of four u16-BE length-prefixed
 // sections in this order: [pkcs8 DER (private), SEC1 uncompressed point
 // (public), scalar bytes (private), SPKI DER (public)]. Absent sections carry
@@ -40,6 +40,10 @@ macro_rules! ecdsa_curves {
             }
             "P-384" => {
                 use p384 as ec;
+                $($body)*
+            }
+            "P-521" => {
+                use p521 as ec;
                 $($body)*
             }
             _ => return Err(crypto_err(format!("unsupported named curve {}", $curve))),
@@ -115,10 +119,10 @@ fn ec_point(curve: &str, point: &[u8]) -> Result<Vec<u8>, deno_error::JsErrorBox
     })
 }
 
-/// A key parsed on its own curve `found` but requested as `wanted`: Chrome
-/// names the curve clash only for a key that is valid where it says it is.
-fn ec_other_curve(found: &str, check: impl FnOnce() -> bool) -> deno_error::JsErrorBox {
-    if found == "P-521" || check() {
+/// A key of another curve than the one requested: Chrome names the curve
+/// clash only for a key that is valid on the curve it says it is on.
+fn ec_other_curve(check: impl FnOnce() -> bool) -> deno_error::JsErrorBox {
+    if check() {
         crypto_err(EC_CURVE_MISMATCH)
     } else {
         crypto_err(EC_INVALID)
@@ -199,7 +203,7 @@ pub(crate) fn op_subtle_ecdsa_import_private(
         })
     };
     if found != curve {
-        return Err(ec_other_curve(found, || build(found).is_ok()));
+        return Err(ec_other_curve(|| build(found).is_ok()));
     }
     build(curve)
 }
@@ -238,7 +242,7 @@ pub(crate) fn op_subtle_ecdsa_import_public(
                 .as_bytes()
                 .ok_or_else(|| crypto_err(EC_INVALID))?;
             if found != curve {
-                return Err(ec_other_curve(found, || ec_point(found, bits).is_ok()));
+                return Err(ec_other_curve(|| ec_point(found, bits).is_ok()));
             }
             ec_point(curve, bits)?
         } else {
@@ -261,7 +265,7 @@ pub(crate) fn op_subtle_ecdsa_import_public(
 }
 
 /// ECDSA sign. `pkcs8` is the private key's PKCS#8 DER; output is the P1363
-/// raw signature (64 bytes for P-256, 96 for P-384).
+/// raw signature (64 bytes for P-256, 96 for P-384, 132 for P-521).
 #[diting_op]
 #[buffer]
 pub(crate) fn op_subtle_ecdsa_sign(
