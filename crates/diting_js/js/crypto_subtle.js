@@ -324,6 +324,15 @@ if (!globalThis.crypto.subtle) {
       throw e;
     }
   }
+  // Big-endian integers equal regardless of leading zero bytes.
+  function sameUint(a, b) {
+    let i = 0, j = 0;
+    while (i < a.length && a[i] === 0) i++;
+    while (j < b.length && b[j] === 0) j++;
+    if (a.length - i !== b.length - j) return false;
+    for (; i < a.length; i++, j++) if (a[i] !== b[j]) return false;
+    return true;
+  }
   function rsaImportKey(format, keyData, alg, extractable, usages) {
     checkUsageStrings("importKey", usages);
     const hash = requireHashParam(alg, "importKey", "RsaHashedImportParams");
@@ -356,6 +365,13 @@ if (!globalThis.crypto.subtle) {
         const q = jwkMemberBytes(jwk, "q");
         jwkValidateCommon(jwk, extractable, usages, expected);
         m = rsaUnflat(runOp(() => rsaImportOp(() => _OPS.op_subtle_rsa_import_private(n, e, d, p, q), "DataError")));
+        // The key is rebuilt from (n, e, d, p, q); the CRT members the jwk
+        // carries must be the ones those imply — Chrome 157 (BoringSSL
+        // checks the key) refuses a mismatch with an empty DataError, where
+        // we used to recompute and silently accept.
+        for (const mem of ["dp", "dq", "qi"]) {
+          if (!sameUint(jwkMemberBytes(jwk, mem), m[mem])) throw new DOMException("", "DataError");
+        }
         type = "private";
       } else {
         jwkValidateCommon(jwk, extractable, usages, expected);
@@ -541,7 +557,7 @@ if (!globalThis.crypto.subtle) {
 
     async exportKey(format, key) {
       const bytes = keyBytes(key);
-      if (!key.extractable) throw new DOMException("Key is not extractable", "InvalidAccessError");
+      if (!key.extractable) throw new DOMException("Failed to execute 'exportKey' on 'SubtleCrypto': key is not extractable", "InvalidAccessError");
       if (key.algorithm && (key.algorithm.name === "ECDSA" || key.algorithm.name === "ECDH")) {
         const m = ecMaterial(key);
         if (format === "raw" || format === "spki") {
