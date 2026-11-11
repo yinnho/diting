@@ -65,8 +65,12 @@ pub use text::FontBook;
 use text_src::trim_run_edge_whitespace;
 mod container_units;
 mod style_map;
+mod style_memo;
+#[cfg(test)]
+mod style_memo_tests;
 use container_units::bake_container_units;
 use style_map::{resolve_sizing_keywords, side_px, to_taffy_style};
+pub use style_memo::clear_style_memo;
 
 /// Absolute (page-relative) border-box rect of a DOM element after layout.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -9167,6 +9171,8 @@ fn compute_styles_impl(
         gated: Option<(usize, &HashMap<usize, Vec<usize>>)>,
         viewport: (f32, f32),
         zoom_accum: f32,
+        memo: &mut Option<style_memo::MemoRun>,
+        parent_version: Option<u64>,
     ) {
         let Some(tag) = tree
             .with_node(nid, |n| n.as_element().map(|e| e.local.to_string()))
@@ -9174,9 +9180,10 @@ fn compute_styles_impl(
         else {
             return;
         };
-        let matched: Vec<(&diting_css::ParsedRule, u32)> = node_rules[nid.index()]
+        let matched_idx: Vec<(usize, u32)> = node_rules[nid.index()]
             .iter()
-            .filter_map(|&(ri, spec)| {
+            .copied()
+            .filter(|&(ri, _)| {
                 // The per-rule match sets were precomputed once (below); this
                 // used to scan the ENTIRE rule table per element — with real
                 // sheet sizes (tmall publish: 17,300 rules × 7,678 elements
@@ -9186,35 +9193,57 @@ fn compute_styles_impl(
                 // cascade order matches the old scan exactly.
                 // @container arms (index >= base) cascade only on elements
                 // the container plan gated through a passing container.
-                if let Some((base, gates)) = gated {
-                    if ri >= base
-                        && gates
-                            .get(&ri)
-                            .is_none_or(|v| v.binary_search(&nid.index()).is_err())
-                    {
-                        return None;
+                match gated {
+                    Some((base, gates)) => {
+                        ri < base
+                            || gates
+                                .get(&ri)
+                                .is_some_and(|v| v.binary_search(&nid.index()).is_ok())
                     }
+                    None => true,
                 }
-                Some((&rules[ri], spec))
             })
             .collect();
-        let inline = tree
-            .with_node(nid, |n| n.get_attribute("style").map(|s| s.to_string()))
-            .flatten();
-        let t_c = std::time::Instant::now();
-        let cs = diting_css::cascade_element(
-            &tag,
-            tree,
+        let key = style_memo::ElemKey {
             nid,
-            &matched,
-            parent,
-            inline.as_deref(),
+            tag: &tag,
+            matched: &matched_idx,
+            parent_version,
             root_fs,
-            viewport,
-        );
+        };
+        let t_c = std::time::Instant::now();
+        // A memo miss keeps one copy of the raw output for the record.
+        let (mut cs, fresh) = match memo.as_ref().and_then(|m| m.lookup(tree, &key)) {
+            Some(remembered) => (remembered, None),
+            None => {
+                let matched: Vec<(&diting_css::ParsedRule, u32)> = matched_idx
+                    .iter()
+                    .map(|&(ri, spec)| (&rules[ri], spec))
+                    .collect();
+                let inline = tree
+                    .with_node(nid, |n| n.get_attribute("style").map(|s| s.to_string()))
+                    .flatten();
+                let raw = diting_css::cascade_element(
+                    &tag,
+                    tree,
+                    nid,
+                    &matched,
+                    parent,
+                    inline.as_deref(),
+                    root_fs,
+                    viewport,
+                );
+                match memo {
+                    Some(_) => (raw.clone(), Some(raw)),
+                    None => (raw, None),
+                }
+            }
+        };
         T_CASCADE.with(|c| c.set(c.get() + t_c.elapsed().as_nanos() as u64));
-        let mut cs = cs;
+        // The memo holds raw cascade output; everything after it (animation
+        // sample, counters, pseudos, zoom) re-runs each pass.
         diting_css::sample_css_animation(&mut cs, keyframes, css_time);
+        let my_version = memo.as_mut().map(|m| m.record(tree, &key, fresh, &cs));
         // #120 zoom: this node's accumulated factor — ancestors' product
         // times THIS element's own declaration (`zoom_declared`, never the
         // inherited `zoom`, which already carries the ancestor factor).
@@ -9321,6 +9350,8 @@ fn compute_styles_impl(
                     gated,
                     viewport,
                     z,
+                    memo,
+                    my_version,
                 );
             } else {
                 // Slot-assigned nodes inherit from a style already pulled
@@ -9349,6 +9380,8 @@ fn compute_styles_impl(
                     gated,
                     viewport,
                     z,
+                    memo,
+                    None,
                 );
             }
         }
@@ -9521,6 +9554,18 @@ fn compute_styles_impl(
     let has_pseudo = !sets.pseudo_hits.is_empty();
     let t_buckets = t_styles.elapsed();
 
+    // The memo rides the document faces only: a within-run styles an orphan
+    // subtree against a default root, and the plain uncached face
+    // (screenshot paths, css_key None) is one-shot. DITING_STYLE_MEMO=0
+    // turns it off for A/B triage.
+    let memo_slot = match (within_root, gated, css_key) {
+        (Some(_), _, _) => None,
+        (None, Some(_), _) => Some(1),
+        (None, None, Some(_)) => Some(0),
+        (None, None, None) => None,
+    }
+    .filter(|_| std::env::var("DITING_STYLE_MEMO").as_deref() != Ok("0"));
+    let mut memo = memo_slot.map(|slot| style_memo::MemoRun::begin(tree, slot, rules, viewport));
     let mut out = HashMap::new();
     let mut counters = CounterState::default();
     match within_root {
@@ -9541,6 +9586,8 @@ fn compute_styles_impl(
             gated,
             viewport,
             1.0,
+            &mut memo,
+            Some(style_memo::ROOT_PARENT),
         ),
         None => {
             for child in tree.children(tree.document()) {
@@ -9561,6 +9608,8 @@ fn compute_styles_impl(
                     gated,
                     viewport,
                     1.0,
+                    &mut memo,
+                    Some(style_memo::ROOT_PARENT),
                 );
             }
         }
@@ -9570,6 +9619,10 @@ fn compute_styles_impl(
     if !transitions.is_empty() {
         diting_css::sample_css_transitions(transitions, css_time, &mut out);
     }
+    let (memo_hits, memo_misses) = memo.as_ref().map_or((0, 0), |m| (m.hits, m.misses));
+    if let Some(m) = memo {
+        m.finish(tree);
+    }
     if styles_trace {
         let total_matched: usize = node_rules.iter().map(|v| v.len()).sum();
         let (a_cascade, a_pseudo, a_children) = (
@@ -9578,9 +9631,11 @@ fn compute_styles_impl(
             T_CHILDREN.with(|c| c.get()),
         );
         eprintln!(
-            "[styles-trace] rules={} elements={} rule_match_sets={} matched={} match={:?} buckets={:?} walk={:?} cascade={:?} pseudo={:?} children={:?} total={:?}",
+            "[styles-trace] rules={} elements={} memo_hits={} memo_misses={} rule_match_sets={} matched={} match={:?} buckets={:?} walk={:?} cascade={:?} pseudo={:?} children={:?} total={:?}",
             rules.len(),
             out.len(),
+            memo_hits,
+            memo_misses,
             sets.hits.len(),
             total_matched,
             t_match,

@@ -18,13 +18,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Alt {
     Literal(String),
     Typed { ty: String, mult: char },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct RegProp {
     /// `None` = universal syntax (`*`).
     alts: Option<Vec<Alt>>,
@@ -328,6 +328,25 @@ fn insert(name: &str, p: RegProp) {
         r.map.insert(name.to_string(), p);
         rebuild(&mut r);
     });
+}
+
+/// The active registry as a comparable value. The cascade reads it
+/// (inheritance, initial values, syntax checks), so a style memo keys on
+/// it: two equal snapshots cascade identically.
+#[derive(Debug, PartialEq)]
+pub struct RegistrySnapshot(Vec<(String, RegProp)>);
+
+pub fn registry_snapshot() -> RegistrySnapshot {
+    ACTIVE.with(|r| {
+        let mut v: Vec<(String, RegProp)> = r
+            .borrow()
+            .map
+            .iter()
+            .map(|(k, p)| (k.clone(), p.clone()))
+            .collect();
+        v.sort_by(|a, b| a.0.cmp(&b.0));
+        RegistrySnapshot(v)
+    })
 }
 
 /// A new stylesheet parse starts: drop the previous document's `@property`

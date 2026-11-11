@@ -330,8 +330,12 @@ pub(crate) struct DomTreeInner {
     /// compiled buckets + live hit sets, valid while the css bytes are
     /// unchanged and every mutation carried a stamp.
     match_cache: Option<MatchCacheBox>,
+    /// The layout crate's cascade memo (opaque; see tree/caches.rs).
+    style_memo: Option<Box<dyn std::any::Any>>,
 }
 
+// Persisted match/cascade caches: tree/caches.rs (god-file ratchet).
+mod caches;
 mod slots;
 // Live interaction state (focus/hover/active/selection/scroll) lives in the
 // state child module; split for the god-file ratchet (ARCHITECTURE.md §6).
@@ -365,6 +369,7 @@ impl DomTree {
                 epoch_gen: 0,
                 match_dirty: MatchDirty::default(),
                 match_cache: None,
+                style_memo: None,
             }),
         }
     }
@@ -421,22 +426,6 @@ impl DomTree {
 
     pub(crate) fn take_match_dirty(&self) -> MatchDirty {
         std::mem::take(&mut self.inner.borrow_mut().match_dirty)
-    }
-
-    /// Take the persisted match state when the css bytes behind `key` are
-    /// unchanged; drop it otherwise (stale buckets must never be probed).
-    pub(crate) fn take_match_cache(&self, key: u64) -> Option<MatchCacheBox> {
-        let mut inner = self.inner.borrow_mut();
-        if inner.match_cache.as_ref().is_some_and(|c| c.key == key) {
-            inner.match_cache.take()
-        } else {
-            inner.match_cache = None;
-            None
-        }
-    }
-
-    pub(crate) fn set_match_cache(&self, cache: MatchCacheBox) {
-        self.inner.borrow_mut().match_cache = Some(cache);
     }
 
     pub fn is_quirks(&self) -> bool {
