@@ -1471,6 +1471,17 @@ impl JsRuntime {
     }
 
     pub async fn run_event_loop(&mut self) -> Result<(), String> {
+        self.run_event_loop_checked(None).await.map(|_| ())
+    }
+
+    /// [`Self::run_event_loop`] with a host check after EVERY loop pass:
+    /// `stop` returning true ends the run (`Ok(true)`). The eval wait uses it
+    /// so a settled result is seen at the next task boundary instead of after
+    /// whatever the page queued behind it (see `resolve_promises_until`).
+    pub(crate) async fn run_event_loop_checked(
+        &mut self,
+        mut stop: Option<&mut dyn FnMut(&mut Self) -> bool>,
+    ) -> Result<bool, String> {
         self.recover_heap_limit();
         self.heal_termination_at_loop_entry();
         // #50: the watchdog armed around an await window can fire while the
@@ -1491,13 +1502,12 @@ impl JsRuntime {
         let isolate = self.isolate_handle.clone();
         let stale = self.stale_termination.clone();
         let unwound_flag = self.termination_unwound.clone();
-        let active_ns = &self.v8_active_ns;
         // Our host's loop face (10d): one `poll_event_loop` pass IS the
         // reactor pass — async ops and module loads park on this waker
         // (tokio's), settlement delivery and the microtask drain run inside.
         // LoopActivity tells idle from busy: idle completes this future,
         // busy parks in the poll_fn until the next wake.
-        let result: Result<(), String> = std::future::poll_fn(|cx| {
+        let result: Result<bool, String> = std::future::poll_fn(|cx| {
             if stale.swap(false, std::sync::atomic::Ordering::SeqCst) {
                 isolate.cancel_terminate_execution();
                 unwound_flag.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -1512,9 +1522,11 @@ impl JsRuntime {
             // the busy freeze while an under-budget interval burner does.
             let poll_t0 = std::time::Instant::now();
             let poll_result = self.runtime.poll_event_loop(cx);
-            active_ns.set(active_ns.get() + poll_t0.elapsed().as_nanos() as u64);
+            self.v8_active_ns
+                .set(self.v8_active_ns.get() + poll_t0.elapsed().as_nanos() as u64);
             match poll_result {
-                Ok(activity) if activity.idle() => std::task::Poll::Ready(Ok(())),
+                Ok(_) if stop.as_mut().is_some_and(|f| f(self)) => std::task::Poll::Ready(Ok(true)),
+                Ok(activity) if activity.idle() => std::task::Poll::Ready(Ok(false)),
                 Ok(_) => std::task::Poll::Pending,
                 Err(e) => std::task::Poll::Ready(Err(e.to_string())),
             }

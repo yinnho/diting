@@ -571,17 +571,6 @@ impl super::JsRuntime {
     /// under-budget burners.
     pub const WATCHDOG_HEADROOM_MS: u64 = 5_000;
 
-    /// #63: how long `resolve_promises_until` pumps the RAW loop before its
-    /// ticks escalate to the #66 throttled pump. With the raw loop, a
-    /// synchronous page wall inside a tick runs to completion (the only bound
-    /// is the whole-budget watchdog), starving both the awaited promise's
-    /// timer delivery and the done_check poll — a 100ms promise measured
-    /// 2.5s under a 1.2s-wall page. Patience first keeps legitimate
-    /// mid-commit work (the WATCHDOG_HEADROOM_MS defense) untouched;
-    /// escalation then caps each remaining wall at 2x the tick, the same
-    /// containment the driver's outer slices apply.
-    pub const EVAL_WALL_PATIENCE_MS: u64 = 500;
-
     /// Watchdog duration for the meta_code half of an eval (#110): 10s floor,
     /// else the caller's own await budget — the settle half of the same eval
     /// already waits that long, so a legitimate long synchronous script must

@@ -43484,3 +43484,76 @@ fn vttcue_matches_chrome_truth() {
         bad.join("\n")
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn eval_wait_never_beheads_a_page_wall() {
+    // A page task that sets a flag, runs 800ms of synchronous work, then
+    // clears it (react-dom's executionContext shape: no `finally`). The #63
+    // eval patience watchdog terminated such a wall 500ms into an eval's
+    // wait, stranding the flag at 1 for good — the #100 poisoning, reached
+    // through the eval path. Chrome runs the task to completion; so must the
+    // wait, and the task queued behind it still runs.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let setup = r#"() => {
+        window.S = { ctx: 0, wallDone: 0, after: 0 };
+        setTimeout(() => { S.ctx = 1; const t = Date.now(); while (Date.now() - t < 800) {} S.ctx = 0; S.wallDone++; }, 0);
+        setTimeout(() => { S.after++; }, 0);
+        return 1;
+    }"#;
+    rt.call_function_on_remote(setup, None, &[], true, true)
+        .await
+        .unwrap();
+    let r = rt
+        .call_function_on_remote(
+            r#"async () => { await new Promise(r => setTimeout(r, 50)); return S; }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        r.value.unwrap(),
+        serde_json::json!({ "ctx": 0, "wallDone": 1, "after": 1 })
+    );
+    assert_eq!(rt.watchdog_fired_total(), 0, "a page wall is never cut");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn eval_result_is_seen_at_the_next_task_boundary() {
+    // A page that chains 600ms synchronous walls back to back. An eval's
+    // 100ms promise settles in the task after the current wall; the host
+    // must see it there — before the page's next wall starts. The macrotask
+    // drain used to run every queued task in one JS turn, so the result was
+    // only read after a SECOND wall (1.2s walls: 2.4s), which is what the
+    // retired patience watchdog was papering over by beheading. Walls are
+    // wall-clock spins, so one wall vs two is load-proof.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.call_function_on_remote(
+        r#"() => { window.W = { n: 0 }; const wall = () => { const t = Date.now(); while (Date.now() - t < 600) {} W.n++; if (W.n < 6) setTimeout(wall, 0); }; setTimeout(wall, 0); return 1; }"#,
+        None,
+        &[],
+        true,
+        true,
+    )
+    .await
+    .unwrap();
+    for i in 0..2 {
+        let t0 = std::time::Instant::now();
+        let r = rt
+            .call_function_on_remote(
+                r#"async () => { await new Promise(r => setTimeout(r, 100)); return 1; }"#,
+                None,
+                &[],
+                true,
+                true,
+            )
+            .await
+            .unwrap();
+        let ms = t0.elapsed().as_millis();
+        assert_eq!(r.value.unwrap(), serde_json::json!(1));
+        assert!(ms < 1150, "eval {i} took {ms}ms: seen after a second wall");
+    }
+    assert_eq!(rt.watchdog_fired_total(), 0);
+}

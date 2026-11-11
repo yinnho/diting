@@ -290,9 +290,15 @@ const _mtDrain = async () => {
     finally { _mtDepth--; }
     _mtBeats++;
     await Promise.resolve();
-    if ((++tick & 63) === 0) await _OPS.op_sleep(0);
+    // A host waiting on a result (an eval) gets a real loop pass between
+    // tasks — Chrome's task boundary — so a result this task settled is seen
+    // before the next queued task runs, a page wall included.
+    if (_mtHostWait > 0 && _mtQLen() > 0) { tick = 0; await _OPS.op_sleep(0); }
+    else if ((++tick & 63) === 0) await _OPS.op_sleep(0);
   }
 };
+let _mtHostWait = 0;
+globalThis.__diting_mt_host_wait = (on) => { _mtHostWait = on ? _mtHostWait + 1 : Math.max(0, _mtHostWait - 1); };
 const _mtArm = () => {
   _mtStale = 0;
   _mtArmed = true;
