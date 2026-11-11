@@ -64,9 +64,11 @@ sha2 = "0.11"
 # CMake/OpenSSL, unify on the digest 0.10 / cipher 0.4 stack already in tree.
 hmac = "0.13"
 aes = "0.9"
-aes-gcm = "0.11"
+# ghash: AES-GCM by hand (any IV length, truncated tags — Chrome takes
+# both; aes-gcm pins them as type parameters). Same instance diting-browser's
+# aes-gcm pulls in.
+ghash = "0.6"
 cbc = { version = "0.2", features = ["alloc"] }
-ctr = "0.10"
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 hkdf = "0.13"
 # ECDSA (P-256/P-384) for crypto.subtle — same RustCrypto family as the

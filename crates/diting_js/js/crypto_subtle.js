@@ -945,7 +945,10 @@ if (!globalThis.crypto.subtle) {
       if (!key.usages.some((u) => needed.includes(u))) {
         throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
       }
-      if (encrypt && input.length % 8 !== 0) {
+      // Chrome 157's order: too short first (a wrap needs 16 bytes, an unwrap
+      // the 24 of a wrapped 16), then the 8-byte multiple, both directions.
+      if (input.length < (encrypt ? 16 : 24)) throw new DOMException("The provided data is too small", "OperationError");
+      if (input.length % 8 !== 0) {
         throw new DOMException("The AES-KW input data length is invalid: not a multiple of 8 bytes", "DataError");
       }
       return bufferOf(runOp(() => _OPS.op_subtle_aes_kw(encrypt, bytes, input)));
@@ -955,30 +958,46 @@ if (!globalThis.crypto.subtle) {
     if (!key.usages.some((u) => needed.includes(u))) {
       throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
     }
+    // Chrome 157 faces (probed): a missing BufferSource member is the
+    // dictionary TypeError; wrong iv/counter sizes and failed decrypts are
+    // OperationErrors (empty for a failed authentication or padding).
+    const requireBuffer = (member, dictName) => {
+      if (!(member in alg) || alg[member] === undefined) {
+        throw new TypeError("Failed to execute '" + cipherOp + "' on 'SubtleCrypto': " + dictName + ": " + member + ": Missing required property");
+      }
+      return toBytes(alg[member]);
+    };
     if (alg.name === "AES-GCM") {
-      const iv = toBytes(alg.iv);
+      // Any non-empty IV, and every tag size Chrome takes (the full tag's
+      // prefix) — the op is GCM by hand (crypto_secret.rs).
+      const iv = requireBuffer("iv", "AeadParams");
       const aad = alg.additionalData != null ? toBytes(alg.additionalData) : new Uint8Array(0);
       const tl = enforceIntMember(alg, "tagLength", cipherOp, "AeadParams", OCTET, true);
       const tagLength = tl === undefined ? 128 : tl;
       if (![32, 64, 96, 104, 112, 120, 128].includes(tagLength)) {
         throw new DOMException("The tag length is invalid: Must be 32, 64, 96, 104, 112, 120, or 128 bits", "OperationError");
       }
-      if (tagLength !== 128) {
-        throw new DOMException("Only a 128-bit AES-GCM tag length is supported", "NotSupportedError");
-      }
-      return bufferOf(runOp(() => _OPS.op_subtle_aes_gcm(encrypt, bytes, iv, aad, input)));
+      if (!encrypt && input.length < tagLength / 8) throw new DOMException("The provided data is too small", "OperationError");
+      return bufferOf(runOp(() => _OPS.op_subtle_aes_gcm(encrypt, bytes, iv, aad, input, tagLength / 8)));
     }
     if (alg.name === "AES-CBC") {
-      const iv = toBytes(alg.iv);
+      const iv = requireBuffer("iv", "AesCbcParams");
+      if (iv.length !== 16) throw new DOMException("The \"iv\" has an unexpected length -- must be 16 bytes", "OperationError");
       return bufferOf(runOp(() => _OPS.op_subtle_aes_cbc(encrypt, bytes, iv, input)));
     }
     if (alg.name === "AES-CTR") {
-      const counter = toBytes(alg.counter);
+      const counter = requireBuffer("counter", "AesCtrParams");
+      if (counter.length !== 16) throw new DOMException("The \"counter\" has an unexpected length -- must be 16 bytes", "OperationError");
       const length = enforceIntMember(alg, "length", cipherOp, "AesCtrParams", OCTET);
       if (length < 1 || length > 128) {
         throw new DOMException("The \"length\" member must be >= 1 and <= 128", "OperationError");
       }
-      return bufferOf(runOp(() => _OPS.op_subtle_aes_ctr(bytes, counter, length, input)));
+      try {
+        return bufferOf(_OPS.op_subtle_aes_ctr(bytes, counter, length, input));
+      } catch (e) {
+        if (e && e.message === "AES-CTR counter overflow") throw new DOMException("The input is too large for the counter length.", "DataError");
+        throw new DOMException(e && e.message !== undefined ? String(e.message) : String(e), "OperationError");
+      }
     }
     throw new DOMException((encrypt ? "encrypt" : "decrypt") + " does not support " + alg.name, "NotSupportedError");
   }
