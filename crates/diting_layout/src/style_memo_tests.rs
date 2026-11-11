@@ -369,7 +369,8 @@ fn memo_tracks_whole_run_inputs() {
     let (hits, _) = rig.check("viewport");
     assert_eq!(hits, 0);
 
-    // A different rule table under the same css_key (media re-filter).
+    // A grown rule table (a new rule appended): the memo remaps onto the
+    // surviving rules — spans gain a match and recompute, the rest stay.
     let (rules, kf, _) = parse_stylesheet_full(
         &format!("{SHEET} span {{ color: rgb(3, 3, 3); }}"),
         rig.vp,
@@ -379,11 +380,12 @@ fn memo_tracks_whole_run_inputs() {
     rig.rules = rules;
     rig.css_key += 1;
     rig.keyframes = kf;
-    let (hits, _) = rig.check("rules");
-    assert_eq!(hits, 0);
+    let (hits, misses) = rig.check("rules");
+    assert!(hits > 0 && misses > 3, "remap: hits={hits} misses={misses}");
 
     // Same rule shape, different declarations: every matched index list
-    // is unchanged, only the rule text moved.
+    // is unchanged, only `.big`'s text moved — its elements (and their
+    // inheriting subtrees) must recompute even though their indexes match.
     let (rules, kf, _) = parse_stylesheet_full(
         &format!("{SHEET} span {{ color: rgb(3, 3, 3); }}")
             .replace("font-size: 1.5em", "font-size: 3em"),
@@ -394,8 +396,24 @@ fn memo_tracks_whole_run_inputs() {
     rig.rules = rules;
     rig.keyframes = kf;
     rig.css_key += 1;
-    let (hits, _) = rig.check("rule text");
-    assert_eq!(hits, 0);
+    let (hits, misses) = rig.check("rule text");
+    assert!(hits > 0 && misses > 3, "remap: hits={hits} misses={misses}");
+
+    // Edit the FIRST rule in place: its old index has no twin, and an
+    // unmapped index must never alias a live one (index 0 included).
+    assert!(rig.rules[0].declarations.contains("rgb(10, 10, 10)"));
+    let (rules, kf, _) = parse_stylesheet_full(
+        &format!("{SHEET} span {{ color: rgb(3, 3, 3); }}")
+            .replace("font-size: 1.5em", "font-size: 3em")
+            .replace("color: rgb(10, 10, 10)", "color: rgb(11, 10, 10)"),
+        rig.vp,
+        CssMediaType::Screen,
+        &Default::default(),
+    );
+    rig.rules = rules;
+    rig.keyframes = kf;
+    rig.css_key += 1;
+    rig.check("first rule edited");
 
     // Layer ranks are per-thread parse state: another document's parse
     // (`a.b` post-orders before `a`) flips ids 1/2 under identical rules.
@@ -403,8 +421,8 @@ fn memo_tracks_whole_run_inputs() {
     // equal and only the ranks move.
     let probe = r#"@property --gap { syntax: "<length>"; inherits: true; initial-value: 2px; } @layer a.b, c;"#;
     let _ = parse_stylesheet_full(probe, VP, CssMediaType::Screen, &Default::default());
-    let (hits, _) = rig.check("layer ranks");
-    assert_eq!(hits, 0);
+    let (_, misses) = rig.check("layer ranks");
+    assert!(misses > 3, "re-ranked layered rules must recompute");
 
     // rem against a new root size while body pins its own px size: body's
     // face is unchanged, so only the root_fs key catches its rem children.
@@ -630,4 +648,178 @@ fn style_memo_bench() {
         timings[1],
         timings[0].as_secs_f64() / timings[1].as_secs_f64()
     );
+}
+
+/// insertRule churn (react-native-web inserts at chosen indexes to keep its
+/// precedence groups): the memo remaps onto equal rules at their new
+/// indexes. Rule insertions anywhere — including new @layer blocks that
+/// shift existing layers' ranks — plus edits, removals and DOM writes; the
+/// memoized pass must equal the cold pass after every step.
+#[test]
+fn memo_survives_rule_insertions() {
+    let pool = [
+        ".hot { color: rgb(9, 0, 0); }",
+        ".r-a { padding: 3px; }",
+        ".r-b { font-size: 1.2em; }",
+        "div { line-height: 18px; }",
+        "span { color: rgb(0, 9, 0); }",
+        ".big { font-size: 2em; }",
+        "li::before { content: \"*\"; }",
+        "@layer early { div { margin: 7px; } }",
+        "@layer late { div { margin: 8px; } .hot { color: rgb(1, 1, 9); } }",
+        "@layer early.inner { span { padding: 1px; } }",
+        "section > div { border-left: 2px solid red; }",
+        ".cool span { text-decoration: underline; }",
+        "p + p { margin-top: 9px; }",
+        ".hot { color: rgb(9, 0, 0); }",
+    ];
+    let mut rig = Rig::new();
+    let mut sheet: Vec<String> = SHEET.split_inclusive("}\n").map(str::to_string).collect();
+    let mut rng = Rng(0x5eed_1234_abcd_0001);
+    let reparse = |rig: &mut Rig, sheet: &[String]| {
+        let (rules, kf, _) = parse_stylesheet_full(
+            &sheet.concat(),
+            VP,
+            CssMediaType::Screen,
+            &Default::default(),
+        );
+        rig.rules = rules;
+        rig.keyframes = kf;
+        rig.css_key += 1;
+    };
+    reparse(&mut rig, &sheet);
+    rig.check("initial");
+    let mut kept = 0;
+    for step in 0..120 {
+        match rng.next() % 8 {
+            0..=4 => {
+                let at = (rng.next() % (sheet.len() as u64 + 1)) as usize;
+                sheet.insert(at, format!("{}\n", rng.pick(&pool)));
+            }
+            5 => {
+                let at = (rng.next() % sheet.len() as u64) as usize;
+                sheet.remove(at);
+            }
+            6 => {
+                let at = (rng.next() % sheet.len() as u64) as usize;
+                sheet[at] = format!("{}\n", rng.pick(&pool));
+            }
+            _ => {}
+        }
+        if rng.next().is_multiple_of(3) {
+            let els = rig.elements();
+            let n = els[(rng.next() % els.len() as u64) as usize];
+            rig.set_attr(n, "class", rng.pick(&["hot", "r-a r-b", "big", "cool", ""]));
+        }
+        reparse(&mut rig, &sheet);
+        let (hits, misses) = rig.check(&format!("insert step {step}"));
+        if hits > misses * 2 {
+            kept += 1;
+        }
+    }
+    // Broad pool rules (`div {}`, new @layer blocks re-ranking every
+    // layered rule) legitimately invalidate most elements; the narrow ones
+    // must not. Seeded: 36/120 at the time of writing.
+    assert!(
+        kept > 25,
+        "memo kept its hits in only {kept}/120 rule edits"
+    );
+}
+
+/// The x.com shape in miniature: one insertRule of a fresh atomic class
+/// that nothing matches yet keeps every element on the memo.
+#[test]
+fn unrelated_insert_rule_keeps_every_entry() {
+    let mut rig = Rig::new();
+    rig.check("initial");
+    let (rules, kf, _) = parse_stylesheet_full(
+        &SHEET.replacen(".big {", ".r-zz9 { width: 4px; }\n.big {", 1),
+        VP,
+        CssMediaType::Screen,
+        &Default::default(),
+    );
+    assert_eq!(rules.len(), rig.rules.len() + 1);
+    rig.rules = rules;
+    rig.keyframes = kf;
+    rig.css_key += 1;
+    let (_, misses) = rig.check("insertRule");
+    assert_eq!(misses, 3, "only the always-bypassed elements recompute");
+}
+
+/// insertRule bench (not a gate): the synthetic page above, but every pass
+/// inserts fresh atomic rules at chosen indexes (react-native-web's shape)
+/// plus one class write. Reports compute_styles per pass for 1 and 5
+/// inserts. Same invocation as `style_memo_bench`.
+#[test]
+#[ignore]
+fn insert_rule_bench() {
+    let mut sheet: Vec<String> =
+        vec![":root { font-size: 16px; } body { line-height: 1.5; }\n".into()];
+    for i in 0..3000 {
+        sheet.push(format!(
+            ".c{} {{ color: rgb({}, 0, 0); margin: {}px; padding: 0.{}em; }}\n",
+            i % 400,
+            i % 255,
+            i % 7,
+            i % 9
+        ));
+        sheet.push(format!(
+            ".w{} > .c{} span {{ font-size: 1.{}em; }}\n",
+            i % 50,
+            i % 400,
+            i % 5
+        ));
+    }
+    let mut body = String::new();
+    for w in 0..100 {
+        body.push_str(&format!(r#"<div class="w{w}" id="w{w}">"#));
+        for i in 0..6 {
+            body.push_str(&format!(
+                r#"<div class="c{} x"><span>a</span><p class="c{}">b<em>e</em></p></div>"#,
+                (w * 6 + i) % 400,
+                (w + i) % 400
+            ));
+        }
+        body.push_str("</div>");
+    }
+    let tree = parse_html(&format!("<html><body>{body}</body></html>"));
+    let mut rng = Rng(0xbe9c_0001);
+    let mut key = 1u64;
+    let (rules, kf, _) = parse_stylesheet_full(
+        &sheet.concat(),
+        VP,
+        CssMediaType::Screen,
+        &Default::default(),
+    );
+    compute_styles_timed(&tree, &rules, &kf, None, &[], VP, Some(key));
+    for inserts in [1usize, 5] {
+        let passes = 40u32;
+        let mut total = std::time::Duration::ZERO;
+        for p in 0..passes {
+            for _ in 0..inserts {
+                let at = (rng.next() % sheet.len() as u64) as usize;
+                let n = rng.next() % 1_000_000;
+                sheet.insert(at, format!(".r-{n:x} {{ width: {}px; }}\n", n % 300));
+            }
+            let w = tree.get_element_by_id(&format!("w{}", p % 100)).unwrap();
+            let class = format!("w{}", (p * 7 + inserts as u32) % 50);
+            tree.with_node_mut(w, |x| x.set_attribute("class", class));
+            tree.note_restyle(w);
+            let (rules, kf, _) = parse_stylesheet_full(
+                &sheet.concat(),
+                VP,
+                CssMediaType::Screen,
+                &Default::default(),
+            );
+            key += 1;
+            let t = std::time::Instant::now();
+            compute_styles_timed(&tree, &rules, &kf, None, &[], VP, Some(key));
+            total += t.elapsed();
+        }
+        eprintln!(
+            "[insert-rule-bench] inserts/pass={inserts} rules={} per-pass compute_styles={:?}",
+            sheet.len(),
+            total / passes
+        );
+    }
 }

@@ -1184,3 +1184,5 @@ mod match_index;
 
 pub use match_index::RuleMatchSets;
 pub(crate) use match_index::{MatchCacheBox, MatchDirty};
+#[cfg(test)]
+mod remap_tests;

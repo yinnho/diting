@@ -6,16 +6,10 @@
 use super::{DomTree, MatchCacheBox};
 
 impl DomTree {
-    /// Take the persisted match state when the css bytes behind `key` are
-    /// unchanged; drop it otherwise (stale buckets must never be probed).
-    pub(crate) fn take_match_cache(&self, key: u64) -> Option<MatchCacheBox> {
-        let mut inner = self.inner.borrow_mut();
-        if inner.match_cache.as_ref().is_some_and(|c| c.key == key) {
-            inner.match_cache.take()
-        } else {
-            inner.match_cache = None;
-            None
-        }
+    /// Take the persisted match state; the caller decides whether it still
+    /// fits the current rule list (see `rule_match_sets_incremental`).
+    pub(crate) fn take_match_cache(&self) -> Option<MatchCacheBox> {
+        self.inner.borrow_mut().match_cache.take()
     }
 
     pub(crate) fn set_match_cache(&self, cache: MatchCacheBox) {

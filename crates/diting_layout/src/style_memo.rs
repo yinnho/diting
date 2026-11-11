@@ -6,7 +6,8 @@
 //!
 //! - per run (any change clears every entry): the rule table itself, each
 //!   rule's layer rank (per-thread parse state), the `@property` registry,
-//!   the viewport;
+//!   the viewport — except that a changed rule table (insertRule) remaps
+//!   entries onto equal rules at their new indexes instead of clearing;
 //! - per element: tag, the full attribute list (inline style, lang, dir,
 //!   href, the td/th presentational hints all live there), the matched
 //!   rule indices + specificity after @container gating, the root font
@@ -24,6 +25,7 @@
 
 use diting_css::{ComputedStyle, ParsedRule};
 use diting_dom::tree::{Attribute, DomTree, NodeId};
+use std::collections::HashMap;
 
 /// Parent version of a root element (no parent face). Real versions start
 /// at 1.
@@ -48,6 +50,40 @@ struct FaceMemo {
     registry: diting_css::props::RegistrySnapshot,
     viewport: (u32, u32),
     entries: Vec<Option<Entry>>,
+}
+
+impl FaceMemo {
+    /// Carry the entries across a changed rule table (insertRule): each old
+    /// rule index moves to a new index holding an equal rule (selector,
+    /// declarations, layer id) at an equal layer rank. cascade_element sees
+    /// only that content, in matched-list order, so an entry whose remapped
+    /// list equals the new matched list cascades identically. An old rule
+    /// with no such twin poisons the lists that name it (`usize::MAX` never
+    /// equals a live index): those entries miss, but keep their face for
+    /// the version comparison.
+    fn remap(mut self, rules: &[ParsedRule], layer_ranks: Vec<u32>) -> FaceMemo {
+        let mut new_pos: HashMap<&ParsedRule, usize> = HashMap::with_capacity(rules.len());
+        for (j, r) in rules.iter().enumerate() {
+            new_pos.entry(r).or_insert(j);
+        }
+        let map: Vec<usize> = self
+            .rules
+            .iter()
+            .zip(&self.layer_ranks)
+            .map(|(r, rank)| match new_pos.get(r) {
+                Some(&j) if layer_ranks[j] == *rank => j,
+                _ => usize::MAX,
+            })
+            .collect();
+        for e in self.entries.iter_mut().flatten() {
+            for m in e.matched.iter_mut() {
+                m.0 = map.get(m.0).copied().unwrap_or(usize::MAX);
+            }
+        }
+        self.rules = rules.to_vec();
+        self.layer_ranks = layer_ranks;
+        self
+    }
 }
 
 struct Entry {
@@ -104,13 +140,12 @@ impl MemoRun {
         let registry = diting_css::props::registry_snapshot();
         let viewport = (viewport.0.to_bits(), viewport.1.to_bits());
         let face = match memo.faces[slot].take() {
-            Some(f)
-                if f.viewport == viewport
-                    && f.layer_ranks == layer_ranks
-                    && f.registry == registry
-                    && f.rules == rules =>
-            {
-                f
+            Some(f) if f.viewport == viewport && f.registry == registry => {
+                if f.rules == rules && f.layer_ranks == layer_ranks {
+                    f
+                } else {
+                    f.remap(rules, layer_ranks)
+                }
             }
             _ => FaceMemo {
                 rules: rules.to_vec(),
