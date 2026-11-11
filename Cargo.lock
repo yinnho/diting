@@ -837,6 +837,7 @@ dependencies = [
  "p384",
  "pbkdf2",
  "rsa",
+ "sec1",
  "serde_json",
  "sha1",
  "sha2",

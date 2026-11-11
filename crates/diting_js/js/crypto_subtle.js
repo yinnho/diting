@@ -50,6 +50,9 @@ if (!globalThis.crypto.subtle) {
   // scalar, spki]. A key's keyMaterial entry is {curve, pkcs8, sec1, scalar,
   // spki} with the private-only sections null on public keys and vice versa.
   const ECDSA_CURVES = { "P-256": 32, "P-384": 48 };
+  // The jwk "alg" an ECDSA key of each curve must carry when it has one (ECDH
+  // keys are not alg-checked — Chrome 157).
+  const ECDSA_JWK_ALG = { "P-256": "ES256", "P-384": "ES384", "P-521": "ES512" };
   function ecdsaUnflat(buf) {
     const parts = [];
     let off = 0;
@@ -70,8 +73,26 @@ if (!globalThis.crypto.subtle) {
   function requireEcdsaUsages(usages, allowed) {
     for (const u of usages) {
       if (!allowed.includes(u)) {
-        throw new DOMException("The key usages must contain '" + allowed[0] + "'", "SyntaxError");
+        // Chrome 157's text (the old one read "must contain 'undefined'" for
+        // an ECDH public key, whose allowed set is empty).
+        throw new DOMException("Cannot create a key using the specified key usages.", "SyntaxError");
       }
+    }
+  }
+  // EC import refusals: the ops (ecdsa.rs) raise one sentinel per Chrome 157
+  // face; anything else they raise is malformed input too.
+  const EC_FACES = {
+    "EC key data invalid": ["", "DataError"],
+    "EC curve mismatch": ["The imported EC key specifies a different curve than requested", "DataError"],
+    "EC scalar invalid": ["", "OperationError"],
+    "EC pair mismatch": ["The imported EC key is invalid", "DataError"],
+  };
+  function ecImportOp(fn) {
+    try { return fn(); }
+    catch (e) {
+      if (e instanceof DOMException) throw e;
+      const face = EC_FACES[e && e.message] || ["", "DataError"];
+      throw new DOMException(face[0], face[1]);
     }
   }
   // Usage sets per EC algorithm face: ECDH derives, ECDSA signs.
@@ -467,56 +488,64 @@ if (!globalThis.crypto.subtle) {
         const usages = keyUsages || [];
         const coordLen = ECDSA_CURVES[crv];
         let type, m;
+        const importPublic = (bytes) => {
+          const parts = ecdsaUnflat(ecImportOp(() => _OPS.op_subtle_ecdsa_import_public(crv, bytes)));
+          return { curve: crv, pkcs8: null, sec1: parts[1], scalar: null, spki: parts[3] };
+        };
+        const importPrivate = (isScalar, bytes, expectSec1) => {
+          const parts = ecdsaUnflat(ecImportOp(() => _OPS.op_subtle_ecdsa_import_private(crv, isScalar, bytes, expectSec1)));
+          return { curve: crv, pkcs8: parts[0], sec1: parts[1], scalar: parts[2], spki: parts[3] };
+        };
         if (format === "raw") {
-          const point = toBytes(keyData);
-          if (point.length !== coordLen * 2 + 1 || point[0] !== 4) {
-            throw new DOMException("Key data is not an uncompressed point on the named curve", "DataError");
-          }
-          const parts = ecdsaUnflat(_OPS.op_subtle_ecdsa_import_public(crv, point));
-          m = { curve: crv, pkcs8: null, sec1: parts[1], scalar: null, spki: parts[3] };
+          // Compressed points included (Chrome 157 takes them).
+          m = importPublic(toBytes(keyData));
           type = "public";
           requireEcdsaUsages(usages, ecUsagesFor(alg.name, "public"));
         } else if (format === "spki") {
-          const parts = ecdsaUnflat(_OPS.op_subtle_ecdsa_import_public(crv, toBytes(keyData)));
-          m = { curve: crv, pkcs8: null, sec1: parts[1], scalar: null, spki: parts[3] };
+          m = importPublic(toBytes(keyData));
           type = "public";
           requireEcdsaUsages(usages, ecUsagesFor(alg.name, "public"));
         } else if (format === "pkcs8") {
-          const parts = ecdsaUnflat(_OPS.op_subtle_ecdsa_import_private(crv, false, toBytes(keyData)));
-          m = { curve: crv, pkcs8: parts[0], sec1: parts[1], scalar: parts[2], spki: parts[3] };
+          m = importPrivate(false, toBytes(keyData), new Uint8Array(0));
           type = "private";
           requireEcdsaUsages(usages, ecUsagesFor(alg.name, "private"));
         } else if (format === "jwk") {
+          // Chrome 157's order and texts (probed): kty, the common members
+          // (ECDSA checks alg ES256/ES384 and use; ECDH neither), crv, x, y,
+          // then d; coordinates are fixed-length octet strings.
           const jwk = keyData;
           if (!jwk || jwk.kty !== "EC") {
-            throw new DOMException("Not an 'EC' JWK key", "DataError");
+            throw new DOMException("The JWK \"kty\" member was not \"EC\"", "DataError");
           }
-          if (jwk.crv && jwk.crv !== crv) {
-            throw new DOMException("The JWK 'crv' member does not match the algorithm's namedCurve", "DataError");
+          const isPriv = jwk.d !== undefined;
+          jwkValidateCommon(jwk, extractable, usages, alg.name === "ECDSA" ? ECDSA_JWK_ALG[crv] : null);
+          if (jwk.crv === undefined) throw new DOMException("The required JWK member \"crv\" was missing", "DataError");
+          if (jwk.crv !== crv) {
+            throw new DOMException("The JWK's \"crv\" member specifies a different curve than requested", "DataError");
           }
-          if (typeof jwk.x !== "string" || typeof jwk.y !== "string") {
-            throw new DOMException("The JWK 'x' and 'y' members are required for EC keys", "DataError");
-          }
-          const x = b64urlToBytes(jwk.x), y = b64urlToBytes(jwk.y);
-          if (x.length !== coordLen || y.length !== coordLen) {
-            throw new DOMException("The JWK 'x'/'y' coordinate length does not match the named curve", "DataError");
-          }
+          const coord = (mem) => {
+            jwkRequire(jwk, mem);
+            // "" is a zero-length octet string here, failing on length.
+            const b = jwk[mem] === "" ? new Uint8Array(0) : jwkMemberBytes(jwk, mem);
+            if (b.length !== coordLen) {
+              throw new DOMException("The JWK's \"" + mem + "\" member defines an octet string of length " + b.length + " bytes but should be " + coordLen, "DataError");
+            }
+            return b;
+          };
+          const x = coord("x"), y = coord("y");
           const point = new Uint8Array(coordLen * 2 + 1);
           point[0] = 4;
           point.set(x, 1);
           point.set(y, coordLen + 1);
-          if (typeof jwk.d === "string") {
-            const d = b64urlToBytes(jwk.d);
-            if (d.length !== coordLen) {
-              throw new DOMException("The JWK 'd' member length does not match the named curve", "DataError");
-            }
-            const parts = ecdsaUnflat(_OPS.op_subtle_ecdsa_import_private(crv, true, d));
-            m = { curve: crv, pkcs8: parts[0], sec1: parts[1], scalar: parts[2], spki: parts[3] };
+          if (isPriv) {
+            const d = coord("d");
+            // The point must lie on the curve before d is tried against it.
+            importPublic(point);
+            m = importPrivate(true, d, point);
             type = "private";
             requireEcdsaUsages(usages, ecUsagesFor(alg.name, "private"));
           } else {
-            const parts = ecdsaUnflat(_OPS.op_subtle_ecdsa_import_public(crv, point));
-            m = { curve: crv, pkcs8: null, sec1: parts[1], scalar: null, spki: parts[3] };
+            m = importPublic(point);
             type = "public";
             requireEcdsaUsages(usages, ecUsagesFor(alg.name, "public"));
           }

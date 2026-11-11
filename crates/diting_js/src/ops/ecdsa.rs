@@ -79,26 +79,129 @@ pub(crate) fn op_subtle_ecdsa_generate(
     })
 }
 
-/// Import a private ECDSA key from either PKCS#8 DER (`is_scalar` false) or a
-/// raw big-endian scalar (`is_scalar` true, 32/48 bytes). Returns the full
-/// flat payload (public parts derived from the private key).
+// Import refusals, one sentinel per Chrome 157 face (probed; the JS side maps
+// them): EC_INVALID = empty DataError (malformed DER, wrong/absent curve
+// params, a point off the curve, a bad pkcs8 scalar, an embedded public key
+// that is not the private key's); EC_CURVE_MISMATCH = a valid key of another
+// known curve; EC_SCALAR_INVALID = empty OperationError (a jwk "d" of zero or
+// >= n); EC_PAIR_MISMATCH = a jwk whose d does not produce its x/y.
+pub(crate) const EC_INVALID: &str = "EC key data invalid";
+pub(crate) const EC_CURVE_MISMATCH: &str = "EC curve mismatch";
+pub(crate) const EC_SCALAR_INVALID: &str = "EC scalar invalid";
+pub(crate) const EC_PAIR_MISMATCH: &str = "EC pair mismatch";
+
+fn ec_invalid<E>(_: E) -> deno_error::JsErrorBox {
+    crypto_err(EC_INVALID)
+}
+
+const OID_EC_PUBLIC_KEY: &str = "1.2.840.10045.2.1";
+
+fn curve_of_oid(oid: &sec1::der::asn1::ObjectIdentifier) -> Option<&'static str> {
+    match oid.to_string().as_str() {
+        "1.2.840.10045.3.1.7" => Some("P-256"),
+        "1.3.132.0.34" => Some("P-384"),
+        "1.3.132.0.35" => Some("P-521"),
+        _ => None,
+    }
+}
+
+/// The uncompressed SEC1 form of `point` (compressed or uncompressed) on
+/// `curve`, or EC_INVALID — identity, off-curve, x >= p, wrong length.
+fn ec_point(curve: &str, point: &[u8]) -> Result<Vec<u8>, deno_error::JsErrorBox> {
+    ecdsa_curves!(curve, {
+        use ec::elliptic_curve::sec1::ToSec1Point;
+        let pk = ec::PublicKey::from_sec1_bytes(point).map_err(ec_invalid)?;
+        Ok(pk.to_sec1_point(false).as_bytes().to_vec())
+    })
+}
+
+/// A key parsed on its own curve `found` but requested as `wanted`: Chrome
+/// names the curve clash only for a key that is valid where it says it is.
+fn ec_other_curve(found: &str, check: impl FnOnce() -> bool) -> deno_error::JsErrorBox {
+    if found == "P-521" || check() {
+        crypto_err(EC_CURVE_MISMATCH)
+    } else {
+        crypto_err(EC_INVALID)
+    }
+}
+
+/// Import a private key from either PKCS#8 DER (`is_scalar` false) or a jwk
+/// "d" (`is_scalar` true, already length-checked). For a jwk, `expect_sec1` is
+/// the uncompressed point its x/y spell (already validated on the curve); the
+/// key's own public point must equal it. Returns the full flat payload.
 #[diting_op]
 #[buffer]
 pub(crate) fn op_subtle_ecdsa_import_private(
     #[string] curve: &str,
     is_scalar: bool,
     #[buffer] material: &[u8],
+    #[buffer] expect_sec1: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    ecdsa_curves!(curve, {
-        use ec::ecdsa::SigningKey;
-        use ec::elliptic_curve::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
-        let sk = if is_scalar {
-            SigningKey::from_slice(material).map_err(crypto_err)?
-        } else {
-            SigningKey::from_pkcs8_der(material).map_err(crypto_err)?
-        };
-        Ok(ecdsa_key_flat!(sk))
-    })
+    if is_scalar {
+        return ecdsa_curves!(curve, {
+            use ec::ecdsa::SigningKey;
+            use ec::elliptic_curve::pkcs8::{EncodePrivateKey, EncodePublicKey};
+            let sk = SigningKey::from_slice(material).map_err(|_| crypto_err(EC_SCALAR_INVALID))?;
+            if !expect_sec1.is_empty()
+                && sk.verifying_key().to_sec1_point(false).as_bytes() != expect_sec1
+            {
+                return Err(crypto_err(EC_PAIR_MISMATCH));
+            }
+            Ok(ecdsa_key_flat!(sk))
+        });
+    }
+    // PKCS#8 by hand (the curve crates' decode either refuses keys Chrome
+    // takes — an unpadded or zero-padded scalar — or skips checks Chrome
+    // makes): rsaEncryption's EC twin, then RFC 5915 ECPrivateKey.
+    use sec1::der::Decode as _;
+    let info = p256::pkcs8::PrivateKeyInfoRef::from_der(material).map_err(ec_invalid)?;
+    if info.algorithm.oid.to_string() != OID_EC_PUBLIC_KEY {
+        return Err(crypto_err(EC_INVALID));
+    }
+    let outer: sec1::der::asn1::ObjectIdentifier = info
+        .algorithm
+        .parameters
+        .ok_or_else(|| crypto_err(EC_INVALID))?
+        .decode_as()
+        .map_err(ec_invalid)?;
+    let found = curve_of_oid(&outer).ok_or_else(|| crypto_err(EC_INVALID))?;
+    let k = sec1::EcPrivateKey::try_from(info.private_key.as_bytes()).map_err(ec_invalid)?;
+    if let Some(inner) = k.parameters.and_then(|p| p.named_curve()) {
+        if inner != outer {
+            return Err(crypto_err(EC_INVALID));
+        }
+    }
+    let scalar: Vec<u8> = k
+        .private_key
+        .iter()
+        .skip_while(|b| **b == 0)
+        .copied()
+        .collect();
+    let embedded = k.public_key;
+    let build = |want: &str| -> Result<Vec<u8>, deno_error::JsErrorBox> {
+        ecdsa_curves!(want, {
+            use ec::ecdsa::SigningKey;
+            use ec::elliptic_curve::pkcs8::{EncodePrivateKey, EncodePublicKey};
+            let field = ec::FieldBytes::default().len();
+            if scalar.len() > field {
+                return Err(crypto_err(EC_INVALID));
+            }
+            let mut padded = vec![0u8; field - scalar.len()];
+            padded.extend_from_slice(&scalar);
+            let sk = SigningKey::from_slice(&padded).map_err(ec_invalid)?;
+            if let Some(pub_bytes) = embedded {
+                let derived = sk.verifying_key().to_sec1_point(false).as_bytes().to_vec();
+                if ec_point(want, pub_bytes)? != derived {
+                    return Err(crypto_err(EC_INVALID));
+                }
+            }
+            Ok(ecdsa_key_flat!(sk))
+        })
+    };
+    if found != curve {
+        return Err(ec_other_curve(found, || build(found).is_ok()));
+    }
+    build(curve)
 }
 
 /// Import a public ECDSA key from either SPKI DER or a raw uncompressed SEC1
@@ -111,12 +214,37 @@ pub(crate) fn op_subtle_ecdsa_import_public(
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
     ecdsa_curves!(curve, {
         use ec::ecdsa::VerifyingKey;
-        use ec::elliptic_curve::pkcs8::{DecodePublicKey, EncodePublicKey};
-        let vk = if material.first() == Some(&0x30) {
-            VerifyingKey::from_public_key_der(material).map_err(crypto_err)?
+        use ec::elliptic_curve::pkcs8::EncodePublicKey;
+        // SPKI by hand (Chrome 157 faces, probed): id-ecPublicKey with a
+        // named-curve OID it knows, an octet-aligned point valid on that
+        // curve; a valid key of another curve is EC_CURVE_MISMATCH, anything
+        // else EC_INVALID. Raw: any SEC1 point, compressed included.
+        let point = if material.first() == Some(&0x30) {
+            use sec1::der::Decode as _;
+            let info =
+                p256::pkcs8::SubjectPublicKeyInfoRef::from_der(material).map_err(ec_invalid)?;
+            if info.algorithm.oid.to_string() != OID_EC_PUBLIC_KEY {
+                return Err(crypto_err(EC_INVALID));
+            }
+            let oid: sec1::der::asn1::ObjectIdentifier = info
+                .algorithm
+                .parameters
+                .ok_or_else(|| crypto_err(EC_INVALID))?
+                .decode_as()
+                .map_err(ec_invalid)?;
+            let found = curve_of_oid(&oid).ok_or_else(|| crypto_err(EC_INVALID))?;
+            let bits = info
+                .subject_public_key
+                .as_bytes()
+                .ok_or_else(|| crypto_err(EC_INVALID))?;
+            if found != curve {
+                return Err(ec_other_curve(found, || ec_point(found, bits).is_ok()));
+            }
+            ec_point(curve, bits)?
         } else {
-            VerifyingKey::from_sec1_bytes(material).map_err(crypto_err)?
+            ec_point(curve, material)?
         };
+        let vk = VerifyingKey::from_sec1_bytes(&point).map_err(ec_invalid)?;
         let sec1 = vk.to_sec1_point(false).as_bytes().to_vec();
         let spki = vk
             .to_public_key_der()
