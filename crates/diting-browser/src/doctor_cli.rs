@@ -265,6 +265,16 @@ fn env_checks() -> Vec<Check> {
             }
         },
     ));
+    if let Some(old) = crate::legacy_data::pending() {
+        out.push(check(
+            Status::Warn,
+            "pre-rename data",
+            format!(
+                "{} still holds the pre-rename cookie jar/localStorage — the next `diting` server start merges it in",
+                old.display()
+            ),
+        ));
+    }
     out.push(check(
         Status::Info,
         "session restore",
