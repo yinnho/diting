@@ -6220,6 +6220,13 @@ fn strong_dir_of_char(c: char) -> Option<TextDirection> {
     }
 }
 
+/// Each rule's cascade layer rank as `cascade_element` will read it. The
+/// rank table is per-thread parse state, so a memo of cascade output keys
+/// on these alongside the rules themselves.
+pub fn rule_layer_ranks(rules: &[ParsedRule]) -> Vec<u32> {
+    rules.iter().map(|r| layers::rank(r.layer)).collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn cascade_element(
     tag: &str,
