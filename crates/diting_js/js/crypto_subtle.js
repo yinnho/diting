@@ -317,8 +317,9 @@ if (!globalThis.crypto.subtle) {
   // or an empty OperationError for a jwk public key; the ops flag the size
   // with one sentinel message and each format maps it here.
   const RSA_TOO_SMALL = "RSA modulus too small";
-  // Every PKCS#8 RSA key Chrome would refuse (malformed, multi-prime,
-  // inconsistent CRT members, ...) is one empty DataError there.
+  // Every PKCS#8 / SPKI RSA key Chrome would refuse (malformed, multi-prime,
+  // inconsistent CRT members, non-NULL SPKI parameters, ...) is one empty
+  // DataError there.
   const RSA_KEY_INVALID = "RSA key data invalid";
   function rsaImportOp(fn, smallFace) {
     try { return fn(); }

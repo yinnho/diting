@@ -103,9 +103,10 @@ fn public_flat(pk: &rsa::RsaPublicKey) -> Result<Vec<u8>, deno_error::JsErrorBox
 /// public key).
 pub(crate) const RSA_MIN_BITS: usize = 512;
 pub(crate) const RSA_TOO_SMALL: &str = "RSA modulus too small";
-/// Any PKCS#8 RSA private key Chrome 157 would refuse (malformed DER, trailing
-/// bytes, multi-prime, inconsistent n/e/d, or CRT members that are not exactly
-/// the ones d/p/q imply): one empty DataError on the JS side, probed.
+/// Any PKCS#8 private / SPKI public RSA key Chrome 157 would refuse (malformed
+/// DER, trailing bytes, multi-prime, inconsistent n/e/d, CRT members that are
+/// not exactly the ones d/p/q imply, SPKI parameters other than NULL): one
+/// empty DataError on the JS side, probed.
 pub(crate) const RSA_KEY_INVALID: &str = "RSA key data invalid";
 
 fn rsa_public(
@@ -184,20 +185,36 @@ pub(crate) fn op_subtle_rsa_import_spki(
     // Decoded by hand (rsa's own SPKI decode ends in RsaPublicKey::new, i.e.
     // the 1024-bit floor); same steps: rsaEncryption OID, then the PKCS#1
     // RSAPublicKey inside the bit string.
+    // Every refusal is RSA_KEY_INVALID (or RSA_TOO_SMALL): Chrome 157 answers
+    // all of them — garbage, truncation, trailing bytes, a non-rsaEncryption
+    // OID, parameters other than exactly NULL (absent too), unused bits,
+    // non-canonical integers, an invalid n/e — with one empty DataError.
     use rsa::pkcs8::der::Decode as _;
-    let info = rsa::pkcs8::SubjectPublicKeyInfoRef::from_der(spki).map_err(crypto_err)?;
-    if info.algorithm.oid != rsa::pkcs1::ALGORITHM_OID {
-        return Err(crypto_err("SPKI algorithm is not rsaEncryption"));
+    fn invalid<E>(_: E) -> deno_error::JsErrorBox {
+        crypto_err(RSA_KEY_INVALID)
+    }
+    let info = rsa::pkcs8::SubjectPublicKeyInfoRef::from_der(spki).map_err(invalid)?;
+    if info.algorithm.oid != rsa::pkcs1::ALGORITHM_OID
+        || !info.algorithm.parameters.is_some_and(|p| p.is_null())
+    {
+        return Err(crypto_err(RSA_KEY_INVALID));
     }
     let bits = info
         .subject_public_key
         .as_bytes()
-        .ok_or_else(|| crypto_err("SPKI key bit string is not octet-aligned"))?;
-    let k = rsa::pkcs1::RsaPublicKeyRef::from_der(bits).map_err(crypto_err)?;
+        .ok_or_else(|| crypto_err(RSA_KEY_INVALID))?;
+    let k = rsa::pkcs1::RsaPublicKeyRef::from_der(bits).map_err(invalid)?;
     let pk = rsa_public(
         rsa::BoxedUint::from_be_slice_vartime(k.modulus.as_bytes()),
         rsa::BoxedUint::from_be_slice_vartime(k.public_exponent.as_bytes()),
-    )?;
+    )
+    .map_err(|e| {
+        if e.to_string() == RSA_TOO_SMALL {
+            e
+        } else {
+            crypto_err(RSA_KEY_INVALID)
+        }
+    })?;
     public_flat(&pk)
 }
 
