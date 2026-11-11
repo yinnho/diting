@@ -10101,6 +10101,87 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_pkcs8_crt_consistency_like_chrome() {
+    // PKCS#8 RSA private keys built by hand from a fixed 1024-bit test key,
+    // each wrong in one place: dp/dq/qi/d/n/e, qi = 0, dp + (p-1) (right
+    // modulo p-1 but unreduced), p/q swapped with and without their CRT
+    // members, version 1 with no other primes, garbage, truncated, trailing
+    // byte. Imported as RSA-PSS and RSASSA (sign, then verify with the
+    // jwk public key) plus one OAEP. Expected = Chrome 157's output for this
+    // exact script (headless, file://): every refusal is an empty DataError.
+    // rsa's own decode recomputed dp/dq/qi, so wrong CRT members imported
+    // fine here, and its errors surfaced as OperationErrors with decoder text.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle, enc = new TextEncoder();
+  const D = {"pub": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB"}, "v": {"ok": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "dpWrong": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "dqWrong": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "qiWrong": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgw==", "qiZero": "MIICNgIBADANBgkqhkiG9w0BAQEFAASCAiAwggIcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAgEA", "dWrong": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gwJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "nWrong": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczJAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "eWrong": "MIICdAIBADANBgkqhkiG9w0BAQEFAASCAl4wggJaAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgEDAoGAM5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h+VYOJfiX3VOSDnzS2RUdA75WomXoaD+Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ+Fw9QJ4No7CF/mbXX/Un2acxMQD/qCZ7agYPZQpWqB7akOjvvIECQQDcC3f27ex9pDnDHZE5UFAnGX9iv0bf93t6eFcQJUP4aWQsJgOHorjwoTy8BzLDKTg5ZAwDP0havDoIB8hsArgHAkEA8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP+cl43vZ/WSDsjyf11lEJwFeuWouVQQJAPi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa+mJcJRn89X+J8XXl5TiwVRSzXUqrFCB+Hi8Fy0BErikDk2EMTaPqM6CwJAO7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et+fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQJBAMx/KXW8pcargKvl0sCCyMDuJYTguWAMmDWYKTUumfAZ0sSJzcB15R+Kw/YNFn2aIP9HAcoD29S9HEKPcn/nZII=", "swapPQ": "MIICdQIBADANBgkqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBAPH5oTL4+Is8pu6YOd+jicL1ArPQuQuZUlbTBn+9yrrw2ZJblohhbF0xT/nJeN72f1kg7I8n9dZRCcBXrlqLlUECQQDcC3f27ex9pDnDHZE5UFAnGX9iv0bf93t6eFcQJUP4aWQsJgOHorjwoTy8BzLDKTg5ZAwDP0havDoIB8hsArgHAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkARGP7trJeeYareLUJA/RPMhZGhJp1Tl1sxT0O7z6mH8s8wbmi6x8ieGjmPvSZr8T/POFQC8cap6pZ+azfqkcaK", "swapPQraw": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBAPH5oTL4+Is8pu6YOd+jicL1ArPQuQuZUlbTBn+9yrrw2ZJblohhbF0xT/nJeN72f1kg7I8n9dZRCcBXrlqLlUECQQDcC3f27ex9pDnDHZE5UFAnGX9iv0bf93t6eFcQJUP4aWQsJgOHorjwoTy8BzLDKTg5ZAwDP0havDoIB8hsArgHAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "dpPlusPm1": "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkEBGjk7bGJMZ/kyfKZ3lOMFaqCxWZ2q8achoDqor/Sb8Qh7ioRXEqgKO9cRZrh0ywsbKcDAB4oq6vVwGMyiqqXyEQJAO7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et+fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQJBAMx/KXW8pcargKvl0sCCyMDuJYTguWAMmDWYKTUumfAZ0sSJzcB15R+Kw/YNFn2aIP9HAcoD29S9HEKPcn/nZII=", "version1": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEBAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg==", "garbage": "BwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg=", "truncated": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb", "trailing": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkggA="}};
+  const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const msg = enc.encode('crt');
+  for (const alg of [{ name: 'RSA-PSS', hash: 'SHA-256' }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }]) {
+    const tag = alg.name === 'RSA-PSS' ? 'pss' : 'pkcs1';
+    const pk = await S.importKey('jwk', D.pub, alg, true, ['verify']);
+    const sp = alg.name === 'RSA-PSS' ? { name: 'RSA-PSS', saltLength: 32 } : alg;
+    for (const [k, der] of Object.entries(D.v)) {
+      r[tag + '.' + k] = await face(async () => {
+        const sk = await S.importKey('pkcs8', b64(der), alg, true, ['sign']);
+        const sig = await S.sign(sp, sk, msg);
+        const j = await S.exportKey('jwk', sk);
+        return 'ok:' + sk.algorithm.modulusLength + ':' + (await S.verify(sp, pk, sig, msg)) + ':' + (j.dp === undefined ? '-' : 'jwk');
+      });
+    }
+  }
+  r['oaep.dpWrong'] = await face(async () => { await S.importKey('pkcs8', b64(D.v.dpWrong), { name: 'RSA-OAEP', hash: 'SHA-256' }, true, ['decrypt']); });
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "pss.ok": "ok:1024:true:jwk",
+ "pss.dpWrong": "DataError: ",
+ "pss.dqWrong": "DataError: ",
+ "pss.qiWrong": "DataError: ",
+ "pss.qiZero": "DataError: ",
+ "pss.dWrong": "DataError: ",
+ "pss.nWrong": "DataError: ",
+ "pss.eWrong": "DataError: ",
+ "pss.swapPQ": "ok:1024:true:jwk",
+ "pss.swapPQraw": "DataError: ",
+ "pss.dpPlusPm1": "DataError: ",
+ "pss.version1": "DataError: ",
+ "pss.garbage": "DataError: ",
+ "pss.truncated": "DataError: ",
+ "pss.trailing": "DataError: ",
+ "pkcs1.ok": "ok:1024:true:jwk",
+ "pkcs1.dpWrong": "DataError: ",
+ "pkcs1.dqWrong": "DataError: ",
+ "pkcs1.qiWrong": "DataError: ",
+ "pkcs1.qiZero": "DataError: ",
+ "pkcs1.dWrong": "DataError: ",
+ "pkcs1.nWrong": "DataError: ",
+ "pkcs1.eWrong": "DataError: ",
+ "pkcs1.swapPQ": "ok:1024:true:jwk",
+ "pkcs1.swapPQraw": "DataError: ",
+ "pkcs1.dpPlusPm1": "DataError: ",
+ "pkcs1.version1": "DataError: ",
+ "pkcs1.garbage": "DataError: ",
+ "pkcs1.truncated": "DataError: ",
+ "pkcs1.trailing": "DataError: ",
+ "oaep.dpWrong": "DataError: "
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_rsa_pss_jwk_like_chrome() {
     // RSA-PSS jwk import/export against Chrome 157 (headless, file://; the
     // expected object is its output for this exact script, fixed 1024-bit

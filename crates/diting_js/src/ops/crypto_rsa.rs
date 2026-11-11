@@ -103,6 +103,10 @@ fn public_flat(pk: &rsa::RsaPublicKey) -> Result<Vec<u8>, deno_error::JsErrorBox
 /// public key).
 pub(crate) const RSA_MIN_BITS: usize = 512;
 pub(crate) const RSA_TOO_SMALL: &str = "RSA modulus too small";
+/// Any PKCS#8 RSA private key Chrome 157 would refuse (malformed DER, trailing
+/// bytes, multi-prime, inconsistent n/e/d, or CRT members that are not exactly
+/// the ones d/p/q imply): one empty DataError on the JS side, probed.
+pub(crate) const RSA_KEY_INVALID: &str = "RSA key data invalid";
 
 fn rsa_public(
     n: rsa::BoxedUint,
@@ -113,14 +117,6 @@ fn rsa_public(
     }
     rsa::RsaPublicKey::new_with_size_limits(n, e, RSA_MIN_BITS..=rsa::RsaPublicKey::MAX_SIZE)
         .map_err(crypto_err)
-}
-
-fn check_private_size(sk: &rsa::RsaPrivateKey) -> Result<(), deno_error::JsErrorBox> {
-    use rsa::traits::PublicKeyParts;
-    if (sk.n().bits_vartime() as usize) < RSA_MIN_BITS {
-        return Err(crypto_err(RSA_TOO_SMALL));
-    }
-    Ok(())
 }
 
 fn private_from_components(
@@ -233,9 +229,45 @@ pub(crate) fn op_subtle_rsa_import_private(
 pub(crate) fn op_subtle_rsa_import_pkcs8(
     #[buffer] pkcs8: &[u8],
 ) -> Result<Vec<u8>, deno_error::JsErrorBox> {
-    use rsa::pkcs8::DecodePrivateKey;
-    let sk = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8).map_err(crypto_err)?;
-    check_private_size(&sk)?;
+    // Decoded by hand: rsa's own PKCS#8 decode keeps only (n, e, d, p, q) and
+    // recomputes the CRT members, so a key whose stored dp/dq/qi are wrong
+    // (or merely unreduced, dp + (p-1)) imported fine here and Chrome refuses
+    // it. Rebuild from (n, e, d, p, q) — that validates n/e/d — then require
+    // the stored CRT members to be byte-identical to the rebuilt ones.
+    use rsa::pkcs8::der::Decode as _;
+    use rsa::traits::PrivateKeyParts;
+    fn invalid<E>(_: E) -> deno_error::JsErrorBox {
+        crypto_err(RSA_KEY_INVALID)
+    }
+    let info = rsa::pkcs8::PrivateKeyInfoRef::from_der(pkcs8).map_err(invalid)?;
+    if info.algorithm.oid != rsa::pkcs1::ALGORITHM_OID {
+        return Err(crypto_err(RSA_KEY_INVALID));
+    }
+    let k = rsa::pkcs1::RsaPrivateKeyRef::from_der(info.private_key.as_bytes()).map_err(invalid)?;
+    if k.other_prime_infos.is_some() {
+        return Err(crypto_err(RSA_KEY_INVALID));
+    }
+    let u = |x: rsa::pkcs1::UintRef<'_>| rsa::BoxedUint::from_be_slice_vartime(x.as_bytes());
+    if (u(k.modulus).bits_vartime() as usize) < RSA_MIN_BITS {
+        return Err(crypto_err(RSA_TOO_SMALL));
+    }
+    let sk = rsa::RsaPrivateKey::from_components(
+        u(k.modulus),
+        u(k.public_exponent),
+        u(k.private_exponent),
+        vec![u(k.prime1), u(k.prime2)],
+    )
+    .map_err(invalid)?;
+    let trim = |b: &[u8]| -> Vec<u8> { b.iter().skip_while(|x| **x == 0).copied().collect() };
+    let (Some(dp), Some(dq), Some(qi)) = (sk.dp(), sk.dq(), sk.qinv()) else {
+        return Err(crypto_err(RSA_KEY_INVALID));
+    };
+    if trim(k.exponent1.as_bytes()) != dp.to_be_bytes_trimmed_vartime().as_ref()
+        || trim(k.exponent2.as_bytes()) != dq.to_be_bytes_trimmed_vartime().as_ref()
+        || trim(k.coefficient.as_bytes()) != qi.retrieve().to_be_bytes_trimmed_vartime().as_ref()
+    {
+        return Err(crypto_err(RSA_KEY_INVALID));
+    }
     rsa_key_flat(&sk)
 }
 
