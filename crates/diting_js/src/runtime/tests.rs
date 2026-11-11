@@ -5044,8 +5044,8 @@ async fn timer_fires_after_watchdog_beheads_macrotask_payload() {
     );
     rt.evaluate(
         "globalThis.__fired = false;
-             // Payload overrun: 3s of legal-but-slow sync work, beheaded by
-             // the throttled pump's 100ms wall with _mtDepth == 1 leaked.
+             // Payload overrun: 3s of sync work, beheaded by a 100ms
+             // watchdog with _mtDepth == 1 leaked.
              setTimeout(() => { const t = Date.now(); while (Date.now() - t < 3000) {} }, 0);
              // The #227 probe: must still deliver after the fire.
              setTimeout(() => { globalThis.__fired = true; }, 50);
@@ -5055,8 +5055,12 @@ async fn timer_fires_after_watchdog_beheads_macrotask_payload() {
     )
     .unwrap();
 
-    // Behead the payload mid-spin (50ms budget + 50ms symmetric headroom).
-    let _ = rt.run_event_loop_bounded_throttled(50).await;
+    // Behead the payload mid-spin. (The throttled pump used to be the
+    // beheader here; it no longer cuts tasks, so arm a short wall directly —
+    // a true spin still meets one on every other pump path.)
+    let wd = rt.arm_watchdog(std::time::Duration::from_millis(100));
+    let _ = tokio::time::timeout(std::time::Duration::from_millis(50), rt.run_event_loop()).await;
+    let _ = rt.disarm_watchdog(wd);
     assert!(
         rt.watchdog_fired_total() >= 1,
         "precondition: the watchdog must have fired inside the payload"
@@ -43600,5 +43604,42 @@ async fn observers_redeliver_only_on_change() {
     assert!(
         v["ioMutationRedeliveries"].as_f64().unwrap() <= 2.0,
         "mutation batches re-delivered an unmoved target: {v}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn busy_freeze_burst_throttles_without_cutting_tasks() {
+    // The #66 freeze's 50ms burst used a budget+budget watchdog: every burst
+    // beheaded the running task (x.com: 1000+ fires a session, page state
+    // stranded half-set, fetch continuations severed). Now a task runs to
+    // completion, and the burst still ends at a task boundary near its budget.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        "globalThis.__ctx = 0; globalThis.__wall = 0;
+         setTimeout(() => { __ctx = 1; const t = Date.now(); while (Date.now() - t < 300) {} __ctx = 0; __wall = 1; }, 0);",
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded_throttled(50).await;
+    assert_eq!(rt.watchdog_fired_total(), 0, "a 300ms task is not a spin");
+    assert_eq!(
+        rt.evaluate("[__ctx, __wall]").unwrap(),
+        serde_json::json!([0, 1]),
+        "the task ran to completion, nothing stranded"
+    );
+
+    // Containment: a hundred 5ms tasks don't all run in one 50ms burst.
+    rt.evaluate(
+        "globalThis.__n = 0;
+         for (let i = 0; i < 100; i++) setTimeout(() => { const t = Date.now(); while (Date.now() - t < 5) {} __n++; }, 0);",
+    )
+    .unwrap();
+    let t0 = std::time::Instant::now();
+    let _ = rt.run_event_loop_bounded_throttled(50).await;
+    let ms = t0.elapsed().as_millis();
+    let n = rt.evaluate("__n").unwrap().as_f64().unwrap();
+    assert!(n < 100.0, "the burst ran every queued task ({n}) in {ms}ms");
+    assert!(
+        ms < 250,
+        "the burst overran its budget: {ms}ms for {n} tasks"
     );
 }
