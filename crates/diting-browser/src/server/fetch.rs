@@ -134,6 +134,28 @@ pub(crate) async fn maybe_bypass_byte_waf(page: &mut crate::page::Page) -> Resul
 /// When `selector` is given, return that element's innerText; otherwise the
 /// whole body. This reflects JS-filled content (WeChat/SPA), unlike parsing
 /// the initial HTML snapshot.
+/// #66: how long the browser tier keeps pumping a page whose text is still
+/// empty. crates.io (an Ember SPA) returns from navigation with a bare shell
+/// — body.innerText "" — and renders its ~5k chars a few seconds later; the
+/// extraction ran in between and answered 200 with an empty body, which an
+/// agent can only treat as a failure. The grace is spent only while the text
+/// is empty, so a page that already has text pays nothing.
+const EMPTY_TEXT_GRACE_MS: u64 = 6_000;
+
+async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> bool {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_millis(EMPTY_TEXT_GRACE_MS);
+    loop {
+        if !rendered_text(page, selector).trim().is_empty() {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        page.pump_event_loop_slice(250).await;
+    }
+}
+
 fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String {
     // innerText now carries rendered-text semantics itself (script/style/
     // display:none excluded, block boundaries as newlines), so no DOM
@@ -304,6 +326,18 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
 
             if let Some(wait) = req.wait_secs {
                 page.settle(wait * 1000).await;
+            }
+            // #66: text formats only — the HTML format returns the document
+            // itself, never empty.
+            if !matches!(req.format, OutputFormat::Html)
+                && !wait_for_rendered_text(&mut page, req.selector.as_deref()).await
+            {
+                tracing::warn!(
+                    url = %req.url,
+                    html_bytes = page.content().len(),
+                    "browser tier: page still has no text after {}ms of grace",
+                    EMPTY_TEXT_GRACE_MS
+                );
             }
 
             // Cost knobs (#279) — the explicit opt-in for expensive work,

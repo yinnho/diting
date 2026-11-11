@@ -687,7 +687,7 @@ mod media_manifest {
 /// and per-asset facts, and both bills land in the log.
 #[cfg(test)]
 mod cost_knob_tests {
-    use crate::server::test_util::net_env_guard;
+    use crate::server::test_util::{net_env_guard, recording_server};
     use crate::server::*;
     use crate::{FetchRequest, OutputFormat, RenderTier};
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -714,6 +714,28 @@ mod cost_knob_tests {
             layout,
             resources,
         }
+    }
+
+    /// #66: a client-rendered page (crates.io's shape — navigation returns
+    /// a bare shell, the app renders its text later) must come back with the
+    /// text, not a 200 with an empty body. The page fills in after 1.5s, well
+    /// past navigation's own settle.
+    #[test]
+    fn browser_tier_waits_out_a_late_rendering_spa() {
+        let _net = net_env_guard();
+        let (port, _hits) = recording_server(&[(
+            "GET /spa",
+            "<html><body><div id='app'></div><script>setTimeout(function () {\
+             document.getElementById('app').textContent = 'rendered later by the app';\
+             }, 1500);</script></body></html>",
+        )]);
+        let resp = do_fetch(knob_req(
+            format!("http://127.0.0.1:{port}/spa"),
+            false,
+            false,
+        ))
+        .unwrap();
+        assert_eq!(resp.content.trim(), "rendered later by the app");
     }
 
     /// One-shot raw-byte server: / is a fixed 1234px-tall page with one
