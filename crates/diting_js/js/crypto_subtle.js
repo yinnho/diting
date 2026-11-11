@@ -27,7 +27,9 @@ if (!globalThis.crypto.subtle) {
     ks.type = type;
     ks.extractable = !!extractable;
     ks.algorithm = algorithm;
-    ks.usages = Object.freeze((usages || []).slice());
+    // Chrome keeps usages as a mask: deduplicated, in the IDL enum's order
+    // whatever order the caller listed them (Chrome 157, every key family).
+    ks.usages = Object.freeze(KNOWN_USAGES.filter((u) => (usages || []).includes(u)));
     keyMaterial.set(k, bytes);
     return k;
   }
@@ -200,8 +202,6 @@ if (!globalThis.crypto.subtle) {
           throw new DOMException("AES key data must be 128 or 256 bits", "DataError");
         }
         return { name: alg.name, length: bytes.length * 8 };
-      case "PBKDF2": return { name: "PBKDF2" };
-      case "HKDF": return { name: "HKDF" };
       default:
         throw new DOMException("Unsupported key algorithm: " + alg.name, "NotSupportedError");
     }
@@ -281,15 +281,74 @@ if (!globalThis.crypto.subtle) {
   // Chrome requires a hash member on HMAC and RSA-OAEP imports/generation and
   // words the missing/unrecognized cases differently per param tag.
   function requireHashParam(alg, method, paramTag) {
+    const pre = "Failed to execute '" + method + "' on 'SubtleCrypto': " + paramTag + ": hash: ";
     const h = alg.hash;
-    if (h == null || (typeof h !== "string" && (typeof h !== "object" || h.name == null))) {
-      throw new TypeError("Failed to execute '" + method + "' on 'SubtleCrypto': " + paramTag + ": hash: Missing or not an AlgorithmIdentifier");
+    if (h === undefined) throw new TypeError(pre + "Missing or not an AlgorithmIdentifier");
+    // An object needs a name; every other value, and the name itself, is
+    // read as a string (hash: 5, {name: 5}, null are unrecognized names, not
+    // missing ones; "sha_256" is no alias — Chrome 157).
+    if (h !== null && typeof h === "object" && h.name === undefined) {
+      throw new TypeError(pre + "Algorithm: name: Missing or not a string");
     }
-    const n = String(typeof h === "string" ? h : h.name).toUpperCase().replace("_", "-");
+    const n = String(h !== null && typeof h === "object" ? h.name : h).toUpperCase();
     if (n !== "SHA-1" && n !== "SHA-256" && n !== "SHA-384" && n !== "SHA-512") {
-      throw new DOMException("Failed to execute '" + method + "' on 'SubtleCrypto': " + paramTag + ": hash: Algorithm: Unrecognized name", "NotSupportedError");
+      throw new DOMException(pre + "Algorithm: Unrecognized name", "NotSupportedError");
     }
     return n;
+  }
+
+  // A required BufferSource member of an algorithm dictionary, in Chrome's
+  // normalize faces (157): undefined is missing, null or a string is not a
+  // BufferSource (the old reads took both as empty).
+  function requireBufferMember(alg, member, method, paramTag) {
+    const pre = "Failed to execute '" + method + "' on 'SubtleCrypto': " + paramTag + ": " + member + ": ";
+    const v = alg[member];
+    if (v === undefined) throw new TypeError(pre + "Missing required property");
+    if (!(v instanceof ArrayBuffer) && !ArrayBuffer.isView(v)) throw new TypeError(pre + "Not a BufferSource");
+    return toBytes(v);
+  }
+  const isKdf = (name) => name === "HKDF" || name === "PBKDF2";
+  // HkdfParams / Pbkdf2Params, members in Chrome's read order (HKDF: hash,
+  // salt, info; PBKDF2: salt, iterations, hash). Read before the base key is
+  // looked at — a bad dictionary wins over a wrong key.
+  function kdfParams(alg, method) {
+    if (alg.name === "HKDF") {
+      const hash = requireHashParam(alg, method, "HkdfParams");
+      return { hash, salt: requireBufferMember(alg, "salt", method, "HkdfParams"), info: requireBufferMember(alg, "info", method, "HkdfParams") };
+    }
+    const salt = requireBufferMember(alg, "salt", method, "Pbkdf2Params");
+    const iterations = enforceIntMember(alg, "iterations", method, "Pbkdf2Params", ULONG);
+    return { salt, iterations, hash: requireHashParam(alg, method, "Pbkdf2Params") };
+  }
+  function requireBaseKey(baseKey, alg, usage) {
+    keyBytes(baseKey);
+    if (baseKey.algorithm.name !== alg.name) {
+      throw new DOMException("key.algorithm does not match that of operation", "InvalidAccessError");
+    }
+    if (usage && !baseKey.usages.includes(usage)) {
+      throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
+    }
+  }
+  const HASH_LEN = { "SHA-1": 20, "SHA-256": 32, "SHA-384": 48, "SHA-512": 64 };
+  // HKDF/PBKDF2 bits after the dictionary is read; `usage` is the one the
+  // base key must carry (deriveBits, or deriveKey when deriveKey calls in).
+  // Check order and texts are Chrome 157's: algorithm, usages, missing
+  // length, multiple of 8, then the per-algorithm bound.
+  async function kdfDeriveBits(alg, p, baseKey, length, usage) {
+    requireBaseKey(baseKey, alg, usage);
+    if (length == null) {
+      throw new DOMException("No length was specified for the " + alg.name + " Derive Bits operation.", "OperationError");
+    }
+    length = length >>> 0; // the IDL `unsigned long`: 16.7 -> 16, -8 -> 2^32-8
+    const bytes = keyBytes(baseKey);
+    if (alg.name === "HKDF") {
+      if (length % 8) throw new DOMException("The length provided for HKDF is not a multiple of 8 bits.", "OperationError");
+      if (length / 8 > 255 * HASH_LEN[p.hash]) throw new DOMException("The length provided for HKDF is too large.", "OperationError");
+      return bufferOf(runOp(() => _OPS.op_subtle_hkdf(p.hash, bytes, p.salt, p.info, length / 8)));
+    }
+    if (length % 8) throw new DOMException("Length for PBKDF2 key derivation must be a multiple of 8 bits.", "OperationError");
+    if (p.iterations === 0) throw new DOMException("PBKDF2 requires iterations > 0", "OperationError");
+    return bufferOf(await offThread("pbkdf2", p.hash, p.iterations, length / 8, bytes, p.salt));
   }
 
   // RSA-OAEP key material: a ten-section flat payload from the Rust ops
@@ -557,6 +616,17 @@ if (!globalThis.crypto.subtle) {
         return rsaImportKey(format, keyData, alg, extractable, keyUsages || []);
       }
       checkUsageStrings("importKey", keyUsages || []);
+      if (isKdf(alg.name)) {
+        // Chrome 157's order: format, usage family, extractable, then empty.
+        if (format !== "raw") throw new DOMException("Unsupported import key format for algorithm", "NotSupportedError");
+        const usages = keyUsages || [];
+        if (usages.some((u) => u !== "deriveKey" && u !== "deriveBits")) {
+          throw new DOMException("Cannot create a key using the specified key usages.", "SyntaxError");
+        }
+        if (extractable) throw new DOMException("KDF keys must set extractable=false", "SyntaxError");
+        if (usages.length === 0) throw new DOMException("Usages cannot be empty when creating a key.", "SyntaxError");
+        return makeKey("secret", false, { name: alg.name }, usages, toBytes(keyData));
+      }
       let bytes;
       if (format === "raw") {
         bytes = toBytes(keyData);
@@ -606,8 +676,6 @@ if (!globalThis.crypto.subtle) {
             throw new DOMException("The JWK \"k\" member did not include the right length of key data for the given algorithm.", "DataError");
           }
         }
-      } else if (alg.name === "PBKDF2" || alg.name === "HKDF") {
-        checkKeyUsages(keyUsages || [], ["deriveKey", "deriveBits"], false);
       }
       if (format === "jwk") {
         jwkValidateCommon(keyData, extractable, keyUsages || [], expectedAlg);
@@ -617,6 +685,9 @@ if (!globalThis.crypto.subtle) {
 
     async exportKey(format, key) {
       const bytes = keyBytes(key);
+      if (isKdf(key.algorithm.name)) {
+        throw new DOMException("Failed to execute 'exportKey' on 'SubtleCrypto': " + key.algorithm.name + ": Unsupported operation: exportKey", "NotSupportedError");
+      }
       if (!key.extractable) throw new DOMException("Failed to execute 'exportKey' on 'SubtleCrypto': key is not extractable", "InvalidAccessError");
       if (key.algorithm && (key.algorithm.name === "ECDSA" || key.algorithm.name === "ECDH")) {
         const m = ecMaterial(key);
@@ -747,6 +818,9 @@ if (!globalThis.crypto.subtle) {
         const priv = makeKey("private", extractable, { name: alg.name, namedCurve: crv }, privUsages, m);
         return { publicKey: pub, privateKey: priv };
       }
+      if (isKdf(alg.name)) {
+        throw new DOMException("Failed to execute 'generateKey' on 'SubtleCrypto': " + alg.name + ": Unsupported operation: generateKey", "NotSupportedError");
+      }
       throw new DOMException("generateKey does not support " + alg.name, "NotSupportedError");
     },
 
@@ -828,7 +902,9 @@ if (!globalThis.crypto.subtle) {
 
     async deriveBits(algorithm, baseKey, length) {
       const alg = normalizeAlgo(algorithm);
+      if (isKdf(alg.name)) return kdfDeriveBits(alg, kdfParams(alg, "deriveBits"), baseKey, length, "deriveBits");
       if (alg.name === "ECDH") {
+        requireBaseKey(baseKey, alg);
         const m = ecMaterial(baseKey);
         if (baseKey.type !== "private") throw new DOMException("Key is not of type 'private'", "InvalidAccessError");
         if (!baseKey.usages.includes("deriveBits") && !baseKey.usages.includes("deriveKey")) {
@@ -846,21 +922,7 @@ if (!globalThis.crypto.subtle) {
         }
         return bufferOf(secret.subarray(0, length / 8));
       }
-      const bytes = keyBytes(baseKey);
-      const lenBytes = Math.ceil((length || 0) / 8);
-      if (alg.name === "PBKDF2") {
-        // Chrome's member order: salt, iterations, hash.
-        const salt = toBytes(alg.salt);
-        const iterations = enforceIntMember(alg, "iterations", "deriveBits", "Pbkdf2Params", ULONG);
-        const hash = normalizeHash(alg.hash);
-        return bufferOf(await offThread("pbkdf2", hash, iterations, lenBytes, bytes, salt));
-      }
-      if (alg.name === "HKDF") {
-        const hash = normalizeHash(alg.hash);
-        const salt = alg.salt != null ? toBytes(alg.salt) : new Uint8Array(0);
-        const info = alg.info != null ? toBytes(alg.info) : new Uint8Array(0);
-        return bufferOf(runOp(() => _OPS.op_subtle_hkdf(hash, bytes, salt, info, lenBytes)));
-      }
+      keyBytes(baseKey);
       throw new DOMException("deriveBits does not support " + alg.name, "NotSupportedError");
     },
 
@@ -868,7 +930,7 @@ if (!globalThis.crypto.subtle) {
       // Chrome normalizes the derivation params first, and names deriveKey in
       // the conversion error (deriveBits below would say deriveBits).
       const pAlg = normalizeAlgo(algorithm);
-      if (pAlg.name === "PBKDF2") enforceIntMember(pAlg, "iterations", "deriveKey", "Pbkdf2Params", ULONG);
+      const kdf = isKdf(pAlg.name) ? kdfParams(pAlg, "deriveKey") : null;
       const dAlg = normalizeAlgo(derivedKeyAlgorithm);
       let bits;
       if (dAlg.name === "HMAC") {
@@ -884,14 +946,25 @@ if (!globalThis.crypto.subtle) {
         if (bits !== 128 && bits !== 256) {
           throw new DOMException("AES key length must be 128 or 256 bits", "OperationError");
         }
+      } else if (isKdf(dAlg.name)) {
+        // No fixed length: the derivation is asked for null bits, which a KDF
+        // base refuses and ECDH answers with the whole secret (Chrome 157).
+        bits = null;
+      } else if (Object.values(ALGO_CANON).includes(dAlg.name)) {
+        throw new DOMException("Failed to execute 'deriveKey' on 'SubtleCrypto': " + dAlg.name + ": Unsupported operation: get key length", "NotSupportedError");
       } else {
         throw new DOMException("deriveKey does not support deriving " + dAlg.name, "NotSupportedError");
       }
-      const derivedBits = await this.deriveBits(algorithm, baseKey, bits);
+      const derivedBits = kdf
+        ? await kdfDeriveBits(pAlg, kdf, baseKey, bits, "deriveKey")
+        : await this.deriveBits(algorithm, baseKey, bits);
       return this.importKey("raw", derivedBits, derivedKeyAlgorithm, extractable, keyUsages);
     },
 
     async wrapKey(format, key, wrappingKey, wrapAlgorithm) {
+      if (keyMaterial.has(key) && isKdf(key.algorithm.name)) {
+        throw new DOMException(key.algorithm.name + ": Unsupported operation: exportKey", "NotSupportedError");
+      }
       const exported = await this.exportKey(format, key);
       const bytes = format === "jwk"
         ? new TextEncoder().encode(JSON.stringify(exported))

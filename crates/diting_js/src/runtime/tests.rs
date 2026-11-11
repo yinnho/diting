@@ -8770,8 +8770,11 @@ async fn crypto_derive_output_lengths_are_capped() {
         arr[0].as_str().unwrap().contains("65536"),
         "oversized HMAC key must be rejected: {arr:?}"
     );
-    assert!(
-        arr[1].as_str().unwrap().contains("65536"),
+    // HKDF now stops at Chrome's own 255*HashLen bound before any
+    // allocation; the op's 65536-byte cap stays as the backstop.
+    assert_eq!(
+        arr[1].as_str().unwrap(),
+        "The length provided for HKDF is too large.",
         "oversized HKDF output must be rejected: {arr:?}"
     );
 }
@@ -42907,4 +42910,265 @@ fn test_watchdog_rehammers_after_heal_and_continue() {
         "a re-hammered spin resurfaces — no zombie verdict"
     );
     assert_eq!(rt.evaluate("1 + 1").unwrap().as_f64(), Some(2.0));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_kdf_params_like_chrome() {
+    // HKDF/PBKDF2 against Chrome 157 (headless, file://): HkdfParams and
+    // Pbkdf2Params members (required salt/info/hash, BufferSource and hash
+    // faces), deriveBits lengths (null, not a multiple of 8, the HKDF
+    // 255*HashLen bound, IDL truncation), base-key algorithm/usage checks and
+    // their order, deriveKey key lengths, KDF import (raw only, extractable
+    // false), export/wrap/generate refusals, and the canonical usage order
+    // every CryptoKey reports. Expected = Chrome's output for this exact
+    // script. We used to take a missing salt/info as empty, round a 7-bit
+    // length up, skip the key checks, and keep usages in caller order.
+    // (One face is left out: PBKDF2 iterations 0 with a null length hangs
+    // Chrome 157 itself.)
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => { const r = {};
+{
+  const S = crypto.subtle;
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const bytes = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + seed) & 255);
+  const hex = (b) => Array.from(new Uint8Array(b), v => v.toString(16).padStart(2, '0')).join('');
+  const H = (o) => Object.assign({ name: 'HKDF', hash: 'SHA-256', salt: bytes(16, 1), info: bytes(5, 2) }, o);
+  const P = (o) => Object.assign({ name: 'PBKDF2', hash: 'SHA-256', salt: bytes(16, 1), iterations: 3 }, o);
+  const imp = (name, us, ext, fmt, data) => S.importKey(fmt || 'raw', data || bytes(20, 9), name, ext === undefined ? false : ext, us || ['deriveBits', 'deriveKey']);
+  const hk = await imp('HKDF'), pk = await imp('PBKDF2');
+  // import faces
+  for (const [n, a] of [['hkdf', 'HKDF'], ['pbkdf2', 'PBKDF2']]) {
+    r[n + '.imp.ext'] = await face(async () => { await imp(a, undefined, true); });
+    r[n + '.imp.jwk'] = await face(async () => { await imp(a, undefined, false, 'jwk', { kty: 'oct', k: 'AAAA' }); });
+    r[n + '.imp.spki'] = await face(async () => { await imp(a, undefined, false, 'spki', bytes(20, 1)); });
+    r[n + '.imp.pkcs8'] = await face(async () => { await imp(a, undefined, false, 'pkcs8', bytes(20, 1)); });
+    r[n + '.imp.signUsage'] = await face(async () => { await imp(a, ['sign']); });
+    r[n + '.imp.noUsage'] = await face(async () => { const k = await imp(a, []); return JSON.stringify(k.usages) + k.extractable + JSON.stringify(k.algorithm) + k.type; });
+    r[n + '.imp.empty'] = await face(async () => { const k = await imp(a, undefined, false, 'raw', new Uint8Array(0)); return k.type; });
+    r[n + '.imp.shape'] = await face(async () => { const k = await imp(a, ['deriveKey', 'deriveBits', 'deriveKey']); return JSON.stringify(k.usages) + JSON.stringify(k.algorithm); });
+    r[n + '.export'] = await face(async () => hex(await S.exportKey('raw', a === 'HKDF' ? hk : pk)));
+    r[n + '.genKey'] = await face(async () => { await S.generateKey({ name: a }, false, ['deriveBits']); });
+  }
+  // HKDF deriveBits
+  for (const h of ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512']) r['hkdf.h.' + h] = await face(async () => hex(await S.deriveBits(H({ hash: h }), hk, 256)));
+  for (const L of [0, 8, 7, 9, 255 * 256, 255 * 256 + 8, null, undefined]) r['hkdf.len.' + L] = await face(async () => hex(await S.deriveBits(H({}), hk, L)).slice(0, 64));
+  r['hkdf.noLen'] = await face(async () => hex(await S.deriveBits(H({}), hk)));
+  r['hkdf.noSalt'] = await face(async () => { const a = H({}); delete a.salt; return hex(await S.deriveBits(a, hk, 128)); });
+  r['hkdf.noInfo'] = await face(async () => { const a = H({}); delete a.info; return hex(await S.deriveBits(a, hk, 128)); });
+  r['hkdf.noHash'] = await face(async () => { const a = H({}); delete a.hash; return hex(await S.deriveBits(a, hk, 128)); });
+  r['hkdf.emptySalt'] = await face(async () => hex(await S.deriveBits(H({ salt: new Uint8Array(0), info: new Uint8Array(0) }), hk, 128)));
+  r['hkdf.saltStr'] = await face(async () => hex(await S.deriveBits(H({ salt: 'abc' }), hk, 128)));
+  r['hkdf.saltBuf'] = await face(async () => hex(await S.deriveBits(H({ salt: bytes(16, 1).buffer, info: new DataView(bytes(5, 2).buffer) }), hk, 128)));
+  r['hkdf.hashObj'] = await face(async () => hex(await S.deriveBits(H({ hash: { name: 'sha-256' } }), hk, 128)));
+  r['hkdf.hashBad'] = await face(async () => hex(await S.deriveBits(H({ hash: 'MD5' }), hk, 128)));
+  r['hkdf.lenStr'] = await face(async () => hex(await S.deriveBits(H({}), hk, '128')));
+  r['hkdf.lenNeg'] = await face(async () => hex(await S.deriveBits(H({}), hk, -8)));
+  r['hkdf.lenFrac'] = await face(async () => hex(await S.deriveBits(H({}), hk, 16.7)));
+  r['hkdf.wrongKey'] = await face(async () => hex(await S.deriveBits(H({}), pk, 128)));
+  r['hkdf.usageKeyOnly'] = await face(async () => hex(await S.deriveBits(H({}), await imp('HKDF', ['deriveKey']), 128)));
+  r['hkdf.usageBitsOnlyDK'] = await face(async () => { const k = await S.deriveKey(H({}), await imp('HKDF', ['deriveBits']), { name: 'AES-GCM', length: 128 }, true, ['encrypt']); return hex(await S.exportKey('raw', k)); });
+  r['hkdf.emptyIkm'] = await face(async () => hex(await S.deriveBits(H({}), await imp('HKDF', undefined, false, 'raw', new Uint8Array(0)), 128)));
+  // HKDF deriveKey
+  for (const d of [{ name: 'AES-GCM', length: 128 }, { name: 'AES-CBC', length: 256 }, { name: 'AES-KW', length: 128 }, { name: 'AES-CTR', length: 192 }, { name: 'HMAC', hash: 'SHA-384' }, { name: 'HMAC', hash: 'SHA-1', length: 77 }, { name: 'HKDF' }, { name: 'PBKDF2' }, { name: 'AES-GCM' }, { name: 'ECDSA', namedCurve: 'P-256' }])
+    r['hkdf.dk.' + JSON.stringify(d)] = await face(async () => { const k = await S.deriveKey(H({}), hk, d, true, d.name === 'HMAC' ? ['sign'] : d.name.startsWith('AES-KW') ? ['wrapKey'] : d.name === 'HKDF' || d.name === 'PBKDF2' ? ['deriveBits'] : ['encrypt']); return JSON.stringify(k.algorithm) + ':' + hex(await S.exportKey('raw', k)); });
+  r['hkdf.dk.badUsage'] = await face(async () => { await S.deriveKey(H({}), hk, { name: 'AES-GCM', length: 128 }, true, ['sign']); });
+  r['hkdf.dk.noUsage'] = await face(async () => { await S.deriveKey(H({}), hk, { name: 'AES-GCM', length: 128 }, true, []); });
+  r['hkdf.dk.noSalt'] = await face(async () => { const a = H({}); delete a.salt; await S.deriveKey(a, hk, { name: 'AES-GCM', length: 128 }, true, ['encrypt']); });
+  // PBKDF2 deriveBits
+  for (const h of ['SHA-1', 'SHA-384', 'SHA-512']) r['pb.h.' + h] = await face(async () => hex(await S.deriveBits(P({ hash: h }), pk, 256)));
+  for (const L of [0, 8, 7, 9, null, undefined]) r['pb.len.' + L] = await face(async () => hex(await S.deriveBits(P({}), pk, L)).slice(0, 64));
+  r['pb.noLen'] = await face(async () => hex(await S.deriveBits(P({}), pk)));
+  r['pb.noSalt'] = await face(async () => { const a = P({}); delete a.salt; return hex(await S.deriveBits(a, pk, 128)); });
+  r['pb.noHash'] = await face(async () => { const a = P({}); delete a.hash; return hex(await S.deriveBits(a, pk, 128)); });
+  r['pb.noIter'] = await face(async () => { const a = P({}); delete a.iterations; return hex(await S.deriveBits(a, pk, 128)); });
+  r['pb.iter0'] = await face(async () => hex(await S.deriveBits(P({ iterations: 0 }), pk, 128)));
+  r['pb.emptySalt'] = await face(async () => hex(await S.deriveBits(P({ salt: new Uint8Array(0) }), pk, 128)));
+  r['pb.wrongKey'] = await face(async () => hex(await S.deriveBits(P({}), hk, 128)));
+  r['pb.usageKeyOnly'] = await face(async () => hex(await S.deriveBits(P({}), await imp('PBKDF2', ['deriveKey']), 128)));
+  r['pb.emptyPw'] = await face(async () => hex(await S.deriveBits(P({}), await imp('PBKDF2', undefined, false, 'raw', new Uint8Array(0)), 128)));
+  r['pb.hashBad'] = await face(async () => hex(await S.deriveBits(P({ hash: 'MD5' }), pk, 128)));
+  r['pb.dk.hmac'] = await face(async () => { const k = await S.deriveKey(P({}), pk, { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']); return JSON.stringify(k.algorithm) + ':' + hex(await S.exportKey('raw', k)); });
+}
+{
+  const S = crypto.subtle;
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const bytes = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + seed) & 255);
+  const hex = (b) => Array.from(new Uint8Array(b), v => v.toString(16).padStart(2, '0')).join('');
+  const H = (o) => Object.assign({ name: 'HKDF', hash: 'SHA-256', salt: bytes(16, 1), info: bytes(5, 2) }, o);
+  const imp = (name, us) => S.importKey('raw', bytes(20, 9), name, false, us);
+  r['ord.aes'] = await face(async () => JSON.stringify((await S.importKey('raw', bytes(16, 1), 'AES-GCM', true, ['unwrapKey', 'decrypt', 'wrapKey', 'encrypt', 'decrypt'])).usages));
+  r['ord.hmac'] = await face(async () => JSON.stringify((await S.importKey('raw', bytes(16, 1), { name: 'HMAC', hash: 'SHA-256' }, true, ['verify', 'sign', 'verify'])).usages));
+  r['ord.gen'] = await face(async () => JSON.stringify((await S.generateKey({ name: 'AES-CBC', length: 128 }, true, ['decrypt', 'encrypt'])).usages));
+  r['ord.ec'] = await face(async () => { const k = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['verify', 'sign']); return JSON.stringify(k.privateKey.usages) + JSON.stringify(k.publicKey.usages); });
+  r['ord.ecdh'] = await face(async () => { const k = await S.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits', 'deriveKey']); return JSON.stringify(k.privateKey.usages) + JSON.stringify(k.publicKey.usages); });
+  r['ord.hkdf'] = await face(async () => JSON.stringify((await imp('HKDF', ['deriveBits', 'deriveKey'])).usages));
+  r['ord.dk'] = await face(async () => JSON.stringify((await S.deriveKey(H({}), await imp('HKDF', ['deriveKey']), { name: 'AES-GCM', length: 128 }, true, ['decrypt', 'encrypt', 'decrypt'])).usages));
+  const pk = await imp('PBKDF2', ['deriveKey']);
+  r['o.wrongKeyNoSalt'] = await face(async () => { const a = H({}); delete a.salt; await S.deriveBits(a, pk, 128); });
+  r['o.wrongKeyNullLen'] = await face(async () => { await S.deriveBits(H({}), pk, null); });
+  r['o.usageNullLen'] = await face(async () => { await S.deriveBits(H({}), await imp('HKDF', ['deriveKey']), null); });
+  r['o.usageBadHash'] = await face(async () => { await S.deriveBits(H({ hash: 'MD5' }), await imp('HKDF', ['deriveKey']), 128); });
+  r['o.noSaltNoInfo'] = await face(async () => { const a = H({}); delete a.salt; delete a.info; await S.deriveBits(a, pk, 128); });
+  r['o.noHashNoSalt'] = await face(async () => { const a = H({}); delete a.salt; delete a.hash; await S.deriveBits(a, pk, 128); });
+  r['o.hashNum'] = await face(async () => { await S.deriveBits(H({ hash: 5 }), pk, 128); });
+  r['o.hashNoName'] = await face(async () => { await S.deriveBits(H({ hash: {} }), pk, 128); });
+  r['o.saltNull'] = await face(async () => { await S.deriveBits(H({ salt: null }), pk, 128); });
+  r['o.dkWrongKey'] = await face(async () => { await S.deriveKey(H({}), pk, { name: 'AES-GCM', length: 128 }, true, ['encrypt']); });
+  r['o.dkUsageVsDerived'] = await face(async () => { await S.deriveKey(H({}), await imp('HKDF', ['deriveBits']), { name: 'AES-GCM' }, true, ['encrypt']); });
+  r['o.dkUsageVsBadUsage'] = await face(async () => { await S.deriveKey(H({}), await imp('HKDF', ['deriveBits']), { name: 'AES-GCM', length: 128 }, true, ['sign']); });
+  r['o.dkHmacNullLen'] = await face(async () => { const k = await S.deriveKey(H({}), await imp('HKDF', ['deriveKey']), { name: 'HMAC', hash: 'SHA-512' }, true, ['sign']); return JSON.stringify(k.algorithm); });
+  r['o.dkHmac0'] = await face(async () => { await S.deriveKey(H({}), await imp('HKDF', ['deriveKey']), { name: 'HMAC', hash: 'SHA-256', length: 0 }, true, ['sign']); });
+  r['o.ecdhWrongAlg'] = await face(async () => { await S.deriveBits({ name: 'ECDH', public: pk }, pk, 128); });
+  r['o.importExtAndBadUsage'] = await face(async () => { await S.importKey('raw', bytes(4, 1), 'HKDF', true, ['sign']); });
+  r['o.importJwkAndExt'] = await face(async () => { await S.importKey('jwk', { kty: 'oct', k: 'AA' }, 'HKDF', true, ['deriveBits']); });
+  r['o.importJwkBadUsage'] = await face(async () => { await S.importKey('jwk', { kty: 'oct', k: 'AA' }, 'HKDF', false, ['sign']); });
+  r['o.importExtNoUsage'] = await face(async () => { await S.importKey('raw', bytes(4, 1), 'PBKDF2', true, []); });
+  r['o.pbLenNeg'] = await face(async () => { await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: bytes(4, 1), iterations: 1 }, pk, -8); });
+  r['o.pbLenFrac'] = await face(async () => hex(await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: bytes(4, 1), iterations: 1 }, await imp('PBKDF2', ['deriveBits']), 16.7)));
+  r['o.pbIter0WrongKey'] = await face(async () => { await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: bytes(4, 1), iterations: 0 }, await imp('HKDF', ['deriveBits']), 8); });
+  r['o.pbLen7Iter0'] = await face(async () => { await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: bytes(4, 1), iterations: 0 }, await imp('PBKDF2', ['deriveBits']), 7); });
+  r['o.hkdfBig'] = await face(async () => { await S.deriveBits(H({ hash: 'SHA-1' }), await imp('HKDF', ['deriveBits']), 255 * 160 + 8); });
+  r['o.hkdfBigOk'] = await face(async () => (await S.deriveBits(H({ hash: 'SHA-512' }), await imp('HKDF', ['deriveBits']), 255 * 512)).byteLength);
+  for (const [n, h] of [['null', null], ['name5', { name: 5 }], ['under', 'sha_256'], ['lower', 'sha-384'], ['arr', ['SHA-256']]]) {
+    r['hash.hkdf.' + n] = await face(async () => hex(await S.deriveBits(H({ hash: h }), await imp('HKDF', ['deriveBits']), 64)));
+    r['hash.hmac.' + n] = await face(async () => JSON.stringify((await S.importKey('raw', bytes(16, 1), { name: 'HMAC', hash: h }, true, ['sign'])).algorithm));
+  }
+  r['o.wrapHkdf'] = await face(async () => { const kw = await S.importKey('raw', bytes(16, 1), 'AES-KW', true, ['wrapKey']); await S.wrapKey('raw', await imp('HKDF', ['deriveBits']), kw, 'AES-KW'); });
+}
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "hkdf.imp.ext": "SyntaxError: KDF keys must set extractable=false",
+ "hkdf.imp.jwk": "NotSupportedError: Unsupported import key format for algorithm",
+ "hkdf.imp.spki": "NotSupportedError: Unsupported import key format for algorithm",
+ "hkdf.imp.pkcs8": "NotSupportedError: Unsupported import key format for algorithm",
+ "hkdf.imp.signUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "hkdf.imp.noUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "hkdf.imp.empty": "secret",
+ "hkdf.imp.shape": "[\"deriveKey\",\"deriveBits\"]{\"name\":\"HKDF\"}",
+ "hkdf.export": "NotSupportedError: Failed to execute 'exportKey' on 'SubtleCrypto': HKDF: Unsupported operation: exportKey",
+ "hkdf.genKey": "NotSupportedError: Failed to execute 'generateKey' on 'SubtleCrypto': HKDF: Unsupported operation: generateKey",
+ "pbkdf2.imp.ext": "SyntaxError: KDF keys must set extractable=false",
+ "pbkdf2.imp.jwk": "NotSupportedError: Unsupported import key format for algorithm",
+ "pbkdf2.imp.spki": "NotSupportedError: Unsupported import key format for algorithm",
+ "pbkdf2.imp.pkcs8": "NotSupportedError: Unsupported import key format for algorithm",
+ "pbkdf2.imp.signUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "pbkdf2.imp.noUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "pbkdf2.imp.empty": "secret",
+ "pbkdf2.imp.shape": "[\"deriveKey\",\"deriveBits\"]{\"name\":\"PBKDF2\"}",
+ "pbkdf2.export": "NotSupportedError: Failed to execute 'exportKey' on 'SubtleCrypto': PBKDF2: Unsupported operation: exportKey",
+ "pbkdf2.genKey": "NotSupportedError: Failed to execute 'generateKey' on 'SubtleCrypto': PBKDF2: Unsupported operation: generateKey",
+ "hkdf.h.SHA-1": "6895121c65e085c4e7e56db03fdff4d7d034bede0603f50bc94fe8b6b6629fdc",
+ "hkdf.h.SHA-256": "e3e9d542ee1f13555ccffbc1a55f2a830a069c9351b76dd7a5721f4a462524d1",
+ "hkdf.h.SHA-384": "0d114bebd72af68634db1e6172b3d33d99141ecfd8801fc920a569265e6137a3",
+ "hkdf.h.SHA-512": "e0ea6e4e146ca9c50192deef2e524e389cd4f9e12d5c73e7e86964836381ab87",
+ "hkdf.len.0": "",
+ "hkdf.len.8": "e3",
+ "hkdf.len.7": "OperationError: The length provided for HKDF is not a multiple of 8 bits.",
+ "hkdf.len.9": "OperationError: The length provided for HKDF is not a multiple of 8 bits.",
+ "hkdf.len.65280": "e3e9d542ee1f13555ccffbc1a55f2a830a069c9351b76dd7a5721f4a462524d1",
+ "hkdf.len.65288": "OperationError: The length provided for HKDF is too large.",
+ "hkdf.len.null": "OperationError: No length was specified for the HKDF Derive Bits operation.",
+ "hkdf.len.undefined": "OperationError: No length was specified for the HKDF Derive Bits operation.",
+ "hkdf.noLen": "OperationError: No length was specified for the HKDF Derive Bits operation.",
+ "hkdf.noSalt": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: salt: Missing required property",
+ "hkdf.noInfo": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: info: Missing required property",
+ "hkdf.noHash": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Missing or not an AlgorithmIdentifier",
+ "hkdf.emptySalt": "aef12e5860534b9931143e76260d0ee1",
+ "hkdf.saltStr": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: salt: Not a BufferSource",
+ "hkdf.saltBuf": "e3e9d542ee1f13555ccffbc1a55f2a83",
+ "hkdf.hashObj": "e3e9d542ee1f13555ccffbc1a55f2a83",
+ "hkdf.hashBad": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: Unrecognized name",
+ "hkdf.lenStr": "e3e9d542ee1f13555ccffbc1a55f2a83",
+ "hkdf.lenNeg": "OperationError: The length provided for HKDF is too large.",
+ "hkdf.lenFrac": "e3e9",
+ "hkdf.wrongKey": "InvalidAccessError: key.algorithm does not match that of operation",
+ "hkdf.usageKeyOnly": "InvalidAccessError: key.usages does not permit this operation",
+ "hkdf.usageBitsOnlyDK": "InvalidAccessError: key.usages does not permit this operation",
+ "hkdf.emptyIkm": "488b47fd63225bf11b2c77db975d66cb",
+ "hkdf.dk.{\"name\":\"AES-GCM\",\"length\":128}": "{\"name\":\"AES-GCM\",\"length\":128}:e3e9d542ee1f13555ccffbc1a55f2a83",
+ "hkdf.dk.{\"name\":\"AES-CBC\",\"length\":256}": "{\"name\":\"AES-CBC\",\"length\":256}:e3e9d542ee1f13555ccffbc1a55f2a830a069c9351b76dd7a5721f4a462524d1",
+ "hkdf.dk.{\"name\":\"AES-KW\",\"length\":128}": "{\"name\":\"AES-KW\",\"length\":128}:e3e9d542ee1f13555ccffbc1a55f2a83",
+ "hkdf.dk.{\"name\":\"AES-CTR\",\"length\":192}": "OperationError: 192-bit AES keys are not supported",
+ "hkdf.dk.{\"name\":\"HMAC\",\"hash\":\"SHA-384\"}": "{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-384\"},\"length\":1024}:e3e9d542ee1f13555ccffbc1a55f2a830a069c9351b76dd7a5721f4a462524d104c260b222149cc75693b922f2f1793d8ef6f2075cf32a323a68bc318873d1539c932a4bcf262c31ccc6892141aecb4cb3500434bab361be8adb9032fed6932ae15b08aba326c98f3d1a3e28b0da21b270b37696ea3b43d08b5d8537315130ef",
+ "hkdf.dk.{\"name\":\"HMAC\",\"hash\":\"SHA-1\",\"length\":77}": "OperationError: The length provided for HKDF is not a multiple of 8 bits.",
+ "hkdf.dk.{\"name\":\"HKDF\"}": "OperationError: No length was specified for the HKDF Derive Bits operation.",
+ "hkdf.dk.{\"name\":\"PBKDF2\"}": "OperationError: No length was specified for the HKDF Derive Bits operation.",
+ "hkdf.dk.{\"name\":\"AES-GCM\"}": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Missing required property",
+ "hkdf.dk.{\"name\":\"ECDSA\",\"namedCurve\":\"P-256\"}": "NotSupportedError: Failed to execute 'deriveKey' on 'SubtleCrypto': ECDSA: Unsupported operation: get key length",
+ "hkdf.dk.badUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "hkdf.dk.noUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "hkdf.dk.noSalt": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': HkdfParams: salt: Missing required property",
+ "pb.h.SHA-1": "adf391e73bd88bb1eeff5974ca10035bc171a8e04572a7e7d7652c3b6d6771bc",
+ "pb.h.SHA-384": "703384bbf13b00c6c8122e12b83bb003c4dee51da6a3e5cbc1b385b5c0ea0eac",
+ "pb.h.SHA-512": "d06d297a3e9495f87bc83f3562ce7545476782fefeeacdc94f959f349257bafc",
+ "pb.len.0": "",
+ "pb.len.8": "00",
+ "pb.len.7": "OperationError: Length for PBKDF2 key derivation must be a multiple of 8 bits.",
+ "pb.len.9": "OperationError: Length for PBKDF2 key derivation must be a multiple of 8 bits.",
+ "pb.len.null": "OperationError: No length was specified for the PBKDF2 Derive Bits operation.",
+ "pb.len.undefined": "OperationError: No length was specified for the PBKDF2 Derive Bits operation.",
+ "pb.noLen": "OperationError: No length was specified for the PBKDF2 Derive Bits operation.",
+ "pb.noSalt": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: salt: Missing required property",
+ "pb.noHash": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: hash: Missing or not an AlgorithmIdentifier",
+ "pb.noIter": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: iterations: Missing required property",
+ "pb.iter0": "OperationError: PBKDF2 requires iterations > 0",
+ "pb.emptySalt": "e949e792ca0fef0d94f9988b1c9e1236",
+ "pb.wrongKey": "InvalidAccessError: key.algorithm does not match that of operation",
+ "pb.usageKeyOnly": "InvalidAccessError: key.usages does not permit this operation",
+ "pb.emptyPw": "0789c444e286088ee981f5972b0e7caa",
+ "pb.hashBad": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: hash: Algorithm: Unrecognized name",
+ "pb.dk.hmac": "{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-256\"},\"length\":512}:00849fb997b8a512c02a73f185419fb4537d73712806814a50990192d91f5ef916dfb0ad53dff98095644344d7c854ed0df060ff04b7216b4627c8eb4106b6a5",
+ "ord.aes": "[\"encrypt\",\"decrypt\",\"wrapKey\",\"unwrapKey\"]",
+ "ord.hmac": "[\"sign\",\"verify\"]",
+ "ord.gen": "[\"encrypt\",\"decrypt\"]",
+ "ord.ec": "[\"sign\"][\"verify\"]",
+ "ord.ecdh": "[\"deriveKey\",\"deriveBits\"][]",
+ "ord.hkdf": "[\"deriveKey\",\"deriveBits\"]",
+ "ord.dk": "[\"encrypt\",\"decrypt\"]",
+ "o.wrongKeyNoSalt": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: salt: Missing required property",
+ "o.wrongKeyNullLen": "InvalidAccessError: key.algorithm does not match that of operation",
+ "o.usageNullLen": "InvalidAccessError: key.usages does not permit this operation",
+ "o.usageBadHash": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: Unrecognized name",
+ "o.noSaltNoInfo": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: salt: Missing required property",
+ "o.noHashNoSalt": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Missing or not an AlgorithmIdentifier",
+ "o.hashNum": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: Unrecognized name",
+ "o.hashNoName": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: name: Missing or not a string",
+ "o.saltNull": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: salt: Not a BufferSource",
+ "o.dkWrongKey": "InvalidAccessError: key.algorithm does not match that of operation",
+ "o.dkUsageVsDerived": "TypeError: Failed to execute 'deriveKey' on 'SubtleCrypto': AesDerivedKeyParams: length: Missing required property",
+ "o.dkUsageVsBadUsage": "InvalidAccessError: key.usages does not permit this operation",
+ "o.dkHmacNullLen": "{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-512\"},\"length\":1024}",
+ "o.dkHmac0": "TypeError: HMAC key length must not be zero",
+ "o.ecdhWrongAlg": "InvalidAccessError: key.algorithm does not match that of operation",
+ "o.importExtAndBadUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "o.importJwkAndExt": "NotSupportedError: Unsupported import key format for algorithm",
+ "o.importJwkBadUsage": "NotSupportedError: Unsupported import key format for algorithm",
+ "o.importExtNoUsage": "SyntaxError: KDF keys must set extractable=false",
+ "o.pbLenNeg": "InvalidAccessError: key.usages does not permit this operation",
+ "o.pbLenFrac": "1fe0",
+ "o.pbIter0WrongKey": "InvalidAccessError: key.algorithm does not match that of operation",
+ "o.pbLen7Iter0": "OperationError: Length for PBKDF2 key derivation must be a multiple of 8 bits.",
+ "o.hkdfBig": "OperationError: The length provided for HKDF is too large.",
+ "o.hkdfBigOk": "16320",
+ "hash.hkdf.null": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: Unrecognized name",
+ "hash.hmac.null": "NotSupportedError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Algorithm: Unrecognized name",
+ "hash.hkdf.name5": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: Unrecognized name",
+ "hash.hmac.name5": "NotSupportedError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Algorithm: Unrecognized name",
+ "hash.hkdf.under": "NotSupportedError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: Unrecognized name",
+ "hash.hmac.under": "NotSupportedError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Algorithm: Unrecognized name",
+ "hash.hkdf.lower": "0d114bebd72af686",
+ "hash.hmac.lower": "{\"name\":\"HMAC\",\"hash\":{\"name\":\"SHA-384\"},\"length\":128}",
+ "hash.hkdf.arr": "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': HkdfParams: hash: Algorithm: name: Missing or not a string",
+ "hash.hmac.arr": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Algorithm: name: Missing or not a string",
+ "o.wrapHkdf": "NotSupportedError: HKDF: Unsupported operation: exportKey"
+}"#,
+    )
+    .unwrap();
+    assert_eq!(result.value.unwrap(), expected);
 }
