@@ -10101,6 +10101,115 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_rsa_pss_like_chrome() {
+    // RSA-PSS used to fall through to the OAEP face (encrypt/decrypt usages,
+    // RSA-OAEP jwk algs, no sign/verify at all). With a fixed 1024-bit test
+    // key (generated for this test only) the script walks sign/verify at
+    // salt 0/20/32/94 (94 = emLen - hLen - 2, the SHA-256 ceiling) and past
+    // it, saltLength conversion faces, key/usage/algorithm mismatches, jwk
+    // alg mapping (PS1..PS512), spki/pkcs8 OIDs and keygen. Expected =
+    // Chrome 157's output for this exact script (headless, file://). Then
+    // five signatures Chrome itself produced over the same message (every
+    // hash, salts 0..62) must verify here; our signatures were checked to
+    // verify in Chrome the same way when this landed.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+  const S = crypto.subtle, enc = new TextEncoder();
+  const K = {"jwk": {"kty": "RSA", "n": "z_1dpivZhivMVP0wpXd7Syp6oYK-EhI-pcJxZdO8iHmBwAzuXhlJ3ooS88sEsDeJvPQLjcPZU9CPMpeoPgCJ48SnFV-_-xH-goha7dsuZYYIuKzcf_0dcP8NTRGKovTfI_pxp5z5wNoG2tWwTzwxphH8OAxPZYJRswCwr2OZzMc", "e": "AQAB", "d": "M5zVC3JgNVpTB1gZJUaEEwAElGXEUumyICIjT7h-VYOJfiX3VOSDnzS2RUdA75WomXoaD-Dk4laj4lMeDdzGWouAYPzf1QcIEmwYaIq4SoK3Uap0a2dvdeLZ-Fw9QJ4No7CF_mbXX_Un2acxMQD_qCZ7agYPZQpWqB7akOjvvIE", "p": "3At39u3sfaQ5wx2ROVBQJxl_Yr9G3_d7enhXECVD-GlkLCYDh6K48KE8vAcywyk4OWQMAz9IWrw6CAfIbAK4Bw", "q": "8fmhMvj4izym7pg536OJwvUCs9C5C5lSVtMGf73KuvDZkluWiGFsXTFP-cl43vZ_WSDsjyf11lEJwFeuWouVQQ", "dp": "Pi3DdXRf6lT4uYjmW5K1Q4cx9t5kEa-mJcJRn89X-J8XXl5TiwVRSzXUqrFCB-Hi8Fy0BErikDk2EMTaPqM6Cw", "dq": "O7xnqkDCgwUnJNHZv7cMxF9eGmwVsqJYLG0ONqzxBnN9Et-fau26JcuNtdmiCFEMIUG6hKDV1OHOqXg758h7wQ", "qi": "zH8pdbylxquAq-XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog_0cBygPb1L0cQo9yf-dkgg", "ext": true}, "spki": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDP/V2mK9mGK8xU/TCld3tLKnqhgr4SEj6lwnFl07yIeYHADO5eGUneihLzywSwN4m89AuNw9lT0I8yl6g+AInjxKcVX7/7Ef6CiFrt2y5lhgi4rNx//R1w/w1NEYqi9N8j+nGnnPnA2gba1bBPPDGmEfw4DE9lglGzALCvY5nMxwIDAQAB", "pkcs8": "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAM/9XaYr2YYrzFT9MKV3e0sqeqGCvhISPqXCcWXTvIh5gcAM7l4ZSd6KEvPLBLA3ibz0C43D2VPQjzKXqD4AiePEpxVfv/sR/oKIWu3bLmWGCLis3H/9HXD/DU0RiqL03yP6caec+cDaBtrVsE88MaYR/DgMT2WCUbMAsK9jmczHAgMBAAECgYAznNULcmA1WlMHWBklRoQTAASUZcRS6bIgIiNPuH5Vg4l+JfdU5IOfNLZFR0DvlaiZehoP4OTiVqPiUx4N3MZai4Bg/N/VBwgSbBhoirhKgrdRqnRrZ2914tn4XD1Ang2jsIX+Ztdf9SfZpzExAP+oJntqBg9lClaoHtqQ6O+8gQJBANwLd/bt7H2kOcMdkTlQUCcZf2K/Rt/3e3p4VxAlQ/hpZCwmA4eiuPChPLwHMsMpODlkDAM/SFq8OggHyGwCuAcCQQDx+aEy+PiLPKbumDnfo4nC9QKz0LkLmVJW0wZ/vcq68NmSW5aIYWxdMU/5yXje9n9ZIOyPJ/XWUQnAV65ai5VBAkA+LcN1dF/qVPi5iOZbkrVDhzH23mQRr6YlwlGfz1f4nxdeXlOLBVFLNdSqsUIH4eLwXLQESuKQOTYQxNo+ozoLAkA7vGeqQMKDBSck0dm/twzEX14abBWyolgsbQ42rPEGc30S359q7boly4212aIIUQwhQbqEoNXU4c6peDvnyHvBAkEAzH8pdbylxquAq+XSwILIwO4lhOC5YAyYNZgpNS6Z8BnSxInNwHXlH4rD9g0WfZog/0cBygPb1L0cQo9yf+dkgg=="};
+  const hex = (b) => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : (typeof v === 'string' ? v : 'ok:' + JSON.stringify(v)); } catch (e) { return e.name + ': ' + e.message; } };
+  const PSS = (h) => ({ name: 'RSA-PSS', hash: h });
+  const P = (s) => ({ name: 'RSA-PSS', saltLength: s });
+  const pubJwk = { kty: 'RSA', n: K.jwk.n, e: K.jwk.e, ext: true };
+  const sk = await S.importKey('jwk', K.jwk, PSS('SHA-256'), true, ['sign']);
+  const pk = await S.importKey('jwk', pubJwk, PSS('SHA-256'), true, ['verify']);
+  const msg = enc.encode('diting-pss');
+  const r = {};
+  r.skAlg = JSON.stringify(sk.algorithm.name + '/' + sk.algorithm.hash.name + '/' + sk.algorithm.modulusLength + '/' + sk.usages);
+  for (const s of [0, 20, 32, 94]) r['sign' + s] = await face(async () => { const sig = await S.sign(P(s), sk, msg); return 'ok:' + sig.byteLength + ':' + (await S.verify(P(s), pk, sig, msg)) + ':' + (await S.verify(P(s === 20 ? 32 : 20), pk, sig, msg)); });
+  r.sign95 = await face(() => S.sign(P(95), sk, msg));
+  r.signBig = await face(() => S.sign(P(4096), sk, msg));
+  r.saltNeg = await face(() => S.sign(P(-1), sk, msg));
+  r.saltNaN = await face(() => S.sign(P(NaN), sk, msg));
+  r.saltMissing = await face(() => S.sign({ name: 'RSA-PSS' }, sk, msg));
+  r.verifyMissing = await face(() => S.verify({ name: 'RSA-PSS' }, pk, new Uint8Array(128), msg));
+  r.verifyNeg = await face(() => S.verify(P(-1), pk, new Uint8Array(128), msg));
+  r.verify95 = await face(async () => String(await S.verify(P(95), pk, new Uint8Array(128), msg)));
+  r.verifyShortSig = await face(async () => String(await S.verify(P(32), pk, new Uint8Array(5), msg)));
+  r.signWithPub = await face(() => S.sign(P(32), pk, msg));
+  r.verifyWithPriv = await face(() => S.verify(P(32), sk, new Uint8Array(128), msg));
+  r.wrongAlgName = await face(() => S.sign('RSASSA-PKCS1-v1_5', sk, msg));
+  r.jwkAlgs = await face(async () => { const out = []; for (const h of ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512']) { const k = await S.importKey('jwk', pubJwk, PSS(h), true, ['verify']); out.push((await S.exportKey('jwk', k)).alg); } return out.join(','); });
+  r.jwkAlgMismatch = await face(() => S.importKey('jwk', Object.assign({}, pubJwk, { alg: 'PS384' }), PSS('SHA-256'), true, ['verify']));
+  r.jwkAlgRS = await face(() => S.importKey('jwk', Object.assign({}, pubJwk, { alg: 'RS256' }), PSS('SHA-256'), true, ['verify']));
+  r.spkiOid = await face(async () => { const h = hex(await S.exportKey('spki', pk)); return h.includes('2a864886f70d010101') ? 'rsaEncryption' : h.includes('2a864886f70d01010a') ? 'rsassaPss' : '?'; });
+  r.pkcs8Oid = await face(async () => { const h = hex(await S.exportKey('pkcs8', sk)); return h.includes('2a864886f70d010101') ? 'rsaEncryption' : '?'; });
+  r.genUsageBad = await face(() => S.generateKey({ name: 'RSA-PSS', modulusLength: 1024, publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-256' }, true, ['encrypt']));
+  r.genEmpty = await face(() => S.generateKey({ name: 'RSA-PSS', modulusLength: 1024, publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-256' }, true, []));
+  r.gen = await face(async () => { const p = await S.generateKey({ name: 'RSA-PSS', modulusLength: 1024, publicExponent: new Uint8Array([1,0,1]), hash: 'SHA-384' }, true, ['sign', 'verify']); const sig = await S.sign(P(48), p.privateKey, msg); return p.publicKey.type + '/' + p.publicKey.usages + '/' + p.privateKey.usages + '/' + p.publicKey.algorithm.hash.name + '/' + (await S.verify(P(48), p.publicKey, sig, msg)); });
+  r.importSpkiSign = await face(async () => { await S.importKey('spki', await S.exportKey('spki', pk), PSS('SHA-256'), true, ['sign']); });
+  r.importPkcs8Verify = await face(async () => { await S.importKey('pkcs8', await S.exportKey('pkcs8', sk), PSS('SHA-256'), true, ['verify']); });
+  r.crossPkcs1Key = await face(async () => { const k = await S.importKey('jwk', pubJwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, true, ['verify']); return String(await S.verify(P(32), k, new Uint8Array(128), msg)); });
+  // Chrome 157's own PSS signatures over msg with this key (PSS is salted,
+  // so bytes can't be pinned — cross-verification is the parity check).
+  const CHROME_SIGS = {"SHA-1/20":"04451a823df49ff5a1f42274ad657b7f246b350eb3dd17ba8680e0136d66214229048f246ad96995c79ef0a052f36c37d0831c0daeccb6e1c17ad11ca255e0a0d36e645f84e1c45ea7badab78cc45659099b9f8914dd1c9e7dc94589d342d259cca53df8fb4e8f757f6bf2e33b6d6b34983d2f8035409a835e38fe6619405062","SHA-256/32":"62a9dfaa7fcc556957c7b056ae40c4178130d17dd05e3605932fd5c281d5a327ec80ba158bb97797c5d267ca0ad1345199d8506efb71b4ebbde7a444ca8d1160d2e12e5446d464735adc398eea6931ee38946cb5652fcdee75417c9c1f365fa713bf6948b20667b1e3e4c2855186b0d9e1c40ff7799351d50a4e2a09462fda29","SHA-256/0":"a94242e8e16f824b38d8b0151c06d07aa3062cf1ba9b777f91f91da204f5b8f753967d02980dedaed50f1af318cc32b2a45f664b479feb082e4f3c2933246c4977bba816bd02456e1337d2d4a17ce241dccbc8807b9b84fa3d939e840f6c9a13292e86cb52be5bf0ba53eab3f017492920ab39af3a44105bd444e69c8a8b7e60","SHA-384/48":"8a45ba878bc6ecec2aaa3ed97d209c2414fbf73221a40c817cb955ce6a20aef78b094fd427e792ab378414b073fd0d1edb4cca6494fca9e11cb831bdcc68fdd41d2b1932f24eeb2bfaba32cd5f2f7f356621f9ab6d13d910a3d78ec6917dbacb09c2d88b68cd8bb08c24f1be97cdb2ec272dd5acb08427a535a92190ad4446d1","SHA-512/62":"1ada5ac67b7b3b352c8244dd7d8d1126cded3d8f2c9602f250155c46f2348e4f98ff54cef657f5372ea8e304792b08864c724a8dfb96d99724a0b4a8188361c29afff5450cd63e0c597a174490a7c38fafd9c320e810558b819655b66406fa76ef7a709cbd68e6e8c5b89b4415cb2a1242087369a5662f8561e0491495068bb3"};
+  const unhex = (h) => Uint8Array.from(h.match(/../g), x => parseInt(x, 16));
+  for (const [k, sig] of Object.entries(CHROME_SIGS)) {
+    const [h, s] = k.split('/');
+    const v = await S.importKey('jwk', pubJwk, PSS(h), true, ['verify']);
+    r['chromeSig.' + k] = String(await S.verify(P(+s), v, unhex(sig), msg));
+  }
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "skAlg": "\"RSA-PSS/SHA-256/1024/sign\"",
+ "sign0": "ok:128:true:false",
+ "sign20": "ok:128:true:false",
+ "sign32": "ok:128:true:false",
+ "sign94": "ok:128:true:false",
+ "sign95": "OperationError: ",
+ "signBig": "OperationError: ",
+ "saltNeg": "TypeError: Failed to execute 'sign' on 'SubtleCrypto': RsaPssParams: saltLength: Outside of numeric range",
+ "saltNaN": "TypeError: Failed to execute 'sign' on 'SubtleCrypto': RsaPssParams: saltLength: Is not a number",
+ "saltMissing": "TypeError: Failed to execute 'sign' on 'SubtleCrypto': RsaPssParams: saltLength: Missing required property",
+ "verifyMissing": "TypeError: Failed to execute 'verify' on 'SubtleCrypto': RsaPssParams: saltLength: Missing required property",
+ "verifyNeg": "TypeError: Failed to execute 'verify' on 'SubtleCrypto': RsaPssParams: saltLength: Outside of numeric range",
+ "verify95": "false",
+ "verifyShortSig": "false",
+ "signWithPub": "InvalidAccessError: key.usages does not permit this operation",
+ "verifyWithPriv": "InvalidAccessError: key.usages does not permit this operation",
+ "wrongAlgName": "InvalidAccessError: key.algorithm does not match that of operation",
+ "jwkAlgs": "PS1,PS256,PS384,PS512",
+ "jwkAlgMismatch": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "jwkAlgRS": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "spkiOid": "rsaEncryption",
+ "pkcs8Oid": "rsaEncryption",
+ "genUsageBad": "SyntaxError: Cannot create a key using the specified key usages.",
+ "genEmpty": "SyntaxError: Usages cannot be empty when creating a key.",
+ "gen": "public/verify/sign/SHA-384/true",
+ "importSpkiSign": "SyntaxError: Cannot create a key using the specified key usages.",
+ "importPkcs8Verify": "SyntaxError: Cannot create a key using the specified key usages.",
+ "crossPkcs1Key": "InvalidAccessError: key.algorithm does not match that of operation",
+ "chromeSig.SHA-1/20": "true",
+ "chromeSig.SHA-256/32": "true",
+ "chromeSig.SHA-256/0": "true",
+ "chromeSig.SHA-384/48": "true",
+ "chromeSig.SHA-512/62": "true"
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_rsa_512_to_1023_bits_like_chrome() {
     // rsa's default floor is 1024 bits; Chrome 157 (BoringSSL) takes RSA from
     // 512. For 256/384/504/512/520/768-bit keys (fixed test keys, generated

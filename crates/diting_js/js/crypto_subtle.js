@@ -281,12 +281,15 @@ if (!globalThis.crypto.subtle) {
   // #273: RSASSA-PKCS1-v1_5 (JWT RS256) — usages split sign/verify, JWK
   // algs RS1/RS256/RS384/RS512, pinned from Chrome 155.
   const RSASSA_JWK_ALG = { "SHA-1": "RS1", "SHA-256": "RS256", "SHA-384": "RS384", "SHA-512": "RS512" };
+  // RSA-PSS keys are RSASSA-shaped (sign/verify halves, rsaEncryption OID on
+  // spki/pkcs8 export — Chrome 157); only the jwk alg family differs.
+  const RSA_PSS_JWK_ALG = { "SHA-1": "PS1", "SHA-256": "PS256", "SHA-384": "PS384", "SHA-512": "PS512" };
   const RSASSA_PUB_USAGES = ["verify"];
   const RSASSA_PRIV_USAGES = ["sign"];
   function rsaFace(name) {
-    return name === "RSASSA-PKCS1-v1_5"
-      ? { pub: RSASSA_PUB_USAGES, priv: RSASSA_PRIV_USAGES, alg: RSASSA_JWK_ALG }
-      : { pub: RSA_OAEP_PUB_USAGES, priv: RSA_OAEP_PRIV_USAGES, alg: RSA_OAEP_JWK_ALG };
+    if (name === "RSASSA-PKCS1-v1_5") return { pub: RSASSA_PUB_USAGES, priv: RSASSA_PRIV_USAGES, alg: RSASSA_JWK_ALG };
+    if (name === "RSA-PSS") return { pub: RSASSA_PUB_USAGES, priv: RSASSA_PRIV_USAGES, alg: RSA_PSS_JWK_ALG };
+    return { pub: RSA_OAEP_PUB_USAGES, priv: RSA_OAEP_PRIV_USAGES, alg: RSA_OAEP_JWK_ALG };
   }
   function rsaUnflat(buf) {
     const parts = [];
@@ -488,7 +491,7 @@ if (!globalThis.crypto.subtle) {
         }
         return makeKey(type, extractable, { name: alg.name, namedCurve: crv }, usages, m);
       }
-      if (alg.name === "RSA-OAEP" || alg.name === "RSASSA-PKCS1-v1_5") {
+      if (alg.name === "RSA-OAEP" || alg.name === "RSASSA-PKCS1-v1_5" || alg.name === "RSA-PSS") {
         return rsaImportKey(format, keyData, alg, extractable, keyUsages || []);
       }
       checkUsageStrings("importKey", keyUsages || []);
@@ -563,7 +566,7 @@ if (!globalThis.crypto.subtle) {
         }
         throw new DOMException("Unsupported key format for EC keys export: " + format, "NotSupportedError");
       }
-      if (key.algorithm && (key.algorithm.name === "RSA-OAEP" || key.algorithm.name === "RSASSA-PKCS1-v1_5")) {
+      if (key.algorithm && (key.algorithm.name === "RSA-OAEP" || key.algorithm.name === "RSASSA-PKCS1-v1_5" || key.algorithm.name === "RSA-PSS")) {
         const m = rsaMaterial(key);
         if (format === "spki") {
           if (key.type !== "public") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
@@ -621,7 +624,7 @@ if (!globalThis.crypto.subtle) {
 
     async generateKey(algorithm, extractable, keyUsages) {
       const alg = normalizeAlgo(algorithm);
-      if (alg.name === "RSA-OAEP" || alg.name === "RSASSA-PKCS1-v1_5") {
+      if (alg.name === "RSA-OAEP" || alg.name === "RSASSA-PKCS1-v1_5" || alg.name === "RSA-PSS") {
         return rsaGenerateKey(alg, extractable, keyUsages || []);
       }
       if (alg.name === "HMAC") {
@@ -680,8 +683,14 @@ if (!globalThis.crypto.subtle) {
         const hash = normalizeHash(alg.hash || (key.algorithm.hash && key.algorithm.hash.name));
         return bufferOf(runOp(() => _OPS.op_subtle_ecdsa_sign(m.curve, hash, m.pkcs8, toBytes(data))));
       }
-      if (alg.name === "RSASSA-PKCS1-v1_5") {
+      if (alg.name === "RSASSA-PKCS1-v1_5" || alg.name === "RSA-PSS") {
+        // Chrome's order: params convert first, then the key must be of the
+        // operation's algorithm, then its usages.
+        const salt = alg.name === "RSA-PSS" ? enforceIntMember(alg, "saltLength", "sign", "RsaPssParams", ULONG) : 0;
         const m = rsaMaterial(key);
+        if (key.algorithm.name !== alg.name) {
+          throw new DOMException("key.algorithm does not match that of operation", "InvalidAccessError");
+        }
         // Chrome pins one message for every failure shape here — public key,
         // missing usage — unlike the ECDSA wording above.
         if (key.type !== "private" || !key.usages.includes("sign")) {
@@ -690,6 +699,8 @@ if (!globalThis.crypto.subtle) {
         // The hash rides the key; a hash param on sign() is ignored
         // (Chrome-pinned: same signature with and without).
         const hash = key.algorithm.hash && key.algorithm.hash.name;
+        // PSS: a salt the modulus cannot hold is an empty OperationError.
+        if (alg.name === "RSA-PSS") return bufferOf(await offThread("rsa_pss_sign", hash, salt, 0, m.n, m.e, m.d, m.p, m.q, toBytes(data)));
         return bufferOf(await offThread("rsa_sign", hash, 0, 0, m.n, m.e, m.d, m.p, m.q, toBytes(data)));
       }
       const bytes = keyBytes(key);
@@ -709,12 +720,18 @@ if (!globalThis.crypto.subtle) {
         const hash = normalizeHash(alg.hash || (key.algorithm.hash && key.algorithm.hash.name));
         return runOp(() => _OPS.op_subtle_ecdsa_verify(m.curve, hash, m.sec1, toBytes(signature), toBytes(data)));
       }
-      if (alg.name === "RSASSA-PKCS1-v1_5") {
+      if (alg.name === "RSASSA-PKCS1-v1_5" || alg.name === "RSA-PSS") {
+        const salt = alg.name === "RSA-PSS" ? enforceIntMember(alg, "saltLength", "verify", "RsaPssParams", ULONG) : 0;
         const m = rsaMaterial(key);
+        if (key.algorithm.name !== alg.name) {
+          throw new DOMException("key.algorithm does not match that of operation", "InvalidAccessError");
+        }
         if (key.type !== "public" || !key.usages.includes("verify")) {
           throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
         }
         const hash = key.algorithm.hash && key.algorithm.hash.name;
+        // PSS: any mismatch (salt length, oversize salt, bad signature) is false.
+        if (alg.name === "RSA-PSS") return runOp(() => _OPS.op_subtle_rsa_pss_verify(hash, m.n, m.e, toBytes(signature), toBytes(data), salt));
         return runOp(() => _OPS.op_subtle_rsa_pkcs1v15_verify(hash, m.n, m.e, toBytes(signature), toBytes(data)));
       }
       const bytes = keyBytes(key);
