@@ -9680,7 +9680,12 @@ async fn test_webcrypto_aes_kw_wrap_unwrap() {
         e["raw192"],
         serde_json::json!("OperationError: 192-bit AES keys are not supported")
     );
-    assert_eq!(e["jwk192"], serde_json::json!("DataError: The JWK \"k\" member did not include the right length of key data for the given algorithm."));
+    // Chrome 155 said DataError ("right length") on the jwk path; 157 gives
+    // the raw path's OperationError for this exact input (re-probed).
+    assert_eq!(
+        e["jwk192"],
+        serde_json::json!("OperationError: 192-bit AES keys are not supported")
+    );
     assert_eq!(
         e["emptyUsages"],
         serde_json::json!("SyntaxError: Usages cannot be empty when creating a key.")
@@ -10098,6 +10103,211 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
         result.value.unwrap(),
         serde_json::json!({ "ok": 20, "same": true, "bad": "OperationError:" })
     );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_hmac_aes_import_like_chrome() {
+    // HMAC and AES (GCM/CBC/CTR/KW) raw + jwk imports: raw sizes 0..64, jwk
+    // alg of the right mode at the right/wrong size and of another mode, 24-
+    // byte k with and without A192*, kty, missing/empty/padded/standard-
+    // base64 k, use, key_ops, ext, wrong and empty usages, export shape; HMAC
+    // raw 0/1/64/200 bytes (each signs once), missing / unknown hash, jwk
+    // HS1..HS512 against the hash. Expected = Chrome 157's output for this
+    // exact script (headless, file://). We took an empty HMAC key, read k ""
+    // as a base64 failure, said "alg inconsistent" for a right-mode alg of
+    // the wrong size, and kept Chrome 155's DataError for a 192-bit jwk.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle, enc = new TextEncoder();
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const bytes = (n, seed) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + seed) & 255);
+  const b64u = (b) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const AES = { 'AES-GCM': ['encrypt', 'decrypt'], 'AES-CBC': ['encrypt', 'decrypt'], 'AES-CTR': ['encrypt', 'decrypt'], 'AES-KW': ['wrapKey', 'unwrapKey'] };
+  const SUF = { 'AES-GCM': 'GCM', 'AES-CBC': 'CBC', 'AES-CTR': 'CTR', 'AES-KW': 'KW' };
+  const desc = (k) => k.type + ':' + k.algorithm.name + ':' + k.algorithm.length + ':' + k.usages.join(',');
+  for (const [name, us] of Object.entries(AES)) {
+    for (const n of [0, 15, 16, 17, 24, 32, 64]) r[name + '.raw' + n] = await face(async () => desc(await S.importKey('raw', bytes(n, 1), name, true, us)));
+    const k16 = b64u(bytes(16, 3)), k32 = b64u(bytes(32, 3)), k24 = b64u(bytes(24, 3));
+    const J = (o) => Object.assign({ kty: 'oct', k: k16 }, o);
+    const jw = {
+      ok: J({}), alg128: J({ alg: 'A128' + SUF[name] }), alg256on16: J({ alg: 'A256' + SUF[name] }), alg256: J({ k: k32, alg: 'A256' + SUF[name] }),
+      algOther: J({ alg: name === 'AES-GCM' ? 'A128CBC' : 'A128GCM' }), algBogus: J({ alg: 'HS256' }), len24: J({ k: k24 }), len24alg: J({ k: k24, alg: 'A192' + SUF[name] }),
+      ktyRSA: J({ kty: 'RSA' }), noK: (() => { const o = J({}); delete o.k; return o; })(), kEmpty: J({ k: '' }), kPadded: J({ k: k16 + '==' }), kStd: J({ k: btoa(String.fromCharCode(...bytes(16, 250))) }),
+      useEnc: J({ use: 'enc' }), useSig: J({ use: 'sig' }), keyOpsOk: J({ key_ops: us }), keyOpsMiss: J({ key_ops: [us[0]] }), extFalse: J({ ext: false }),
+    };
+    for (const [k, j] of Object.entries(jw)) r[name + '.jwk.' + k] = await face(async () => desc(await S.importKey('jwk', j, name, true, us)));
+    r[name + '.badUsage'] = await face(async () => desc(await S.importKey('raw', bytes(16, 1), name, true, name === 'AES-KW' ? ['encrypt'] : ['sign'])));
+    r[name + '.emptyUsage'] = await face(async () => desc(await S.importKey('raw', bytes(16, 1), name, true, [])));
+    r[name + '.export'] = await face(async () => { const k = await S.importKey('raw', bytes(32, 9), name, true, us); const j = await S.exportKey('jwk', k); return JSON.stringify([Object.keys(j), j.alg, j.k === b64u(bytes(32, 9))]) + ':' + (await S.exportKey('raw', k)).byteLength; });
+  }
+  const H = (h, extra) => Object.assign({ name: 'HMAC', hash: h }, extra || {});
+  const hdesc = (k) => k.type + ':' + k.algorithm.hash.name + ':' + k.algorithm.length + ':' + k.usages.join(',');
+  const use = async (k) => (await S.sign('HMAC', k, enc.encode('m'))).byteLength;
+  for (const n of [0, 1, 64, 200]) r['HMAC.raw' + n] = await face(async () => { const k = await S.importKey('raw', bytes(n, 5), H('SHA-256'), true, ['sign']); return hdesc(k) + ':' + (await use(k)); });
+  r['HMAC.noHash'] = await face(async () => hdesc(await S.importKey('raw', bytes(16, 5), { name: 'HMAC' }, true, ['sign'])));
+  r['HMAC.hashBogus'] = await face(async () => hdesc(await S.importKey('raw', bytes(16, 5), H('SHA-3'), true, ['sign'])));
+  const hk = b64u(bytes(32, 7));
+  const HJ = (o) => Object.assign({ kty: 'oct', k: hk }, o);
+  const hj = {
+    ok: HJ({}), hs256: HJ({ alg: 'HS256' }), hs384: HJ({ alg: 'HS384' }), hs1: HJ({ alg: 'HS1' }), algA128: HJ({ alg: 'A128GCM' }), ktyEC: HJ({ kty: 'EC' }), noK: { kty: 'oct' },
+    kEmpty: HJ({ k: '' }), kPadded: HJ({ k: hk + '=' }), useEnc: HJ({ use: 'enc' }), useSig: HJ({ use: 'sig' }), keyOpsMiss: HJ({ key_ops: ['verify'] }), extFalse: HJ({ ext: false }),
+  };
+  for (const [k, j] of Object.entries(hj)) r['HMAC.jwk.' + k] = await face(async () => { const key = await S.importKey('jwk', j, H('SHA-256'), true, ['sign']); return hdesc(key) + ':' + (await use(key)); });
+  r['HMAC.jwkEmptyK.len0'] = await face(async () => hdesc(await S.importKey('jwk', HJ({ k: '' }), H('SHA-256', { length: 0 }), true, ['sign'])));
+  r['HMAC.badUsage'] = await face(async () => hdesc(await S.importKey('raw', bytes(16, 5), H('SHA-256'), true, ['encrypt'])));
+  r['HMAC.emptyUsage'] = await face(async () => hdesc(await S.importKey('raw', bytes(16, 5), H('SHA-256'), true, [])));
+  r['HMAC.export'] = await face(async () => { const k = await S.importKey('raw', bytes(20, 9), H('SHA-384'), true, ['sign', 'verify']); const j = await S.exportKey('jwk', k); return JSON.stringify([Object.keys(j), j.alg, j.key_ops]) + ':' + (await S.exportKey('raw', k)).byteLength; });
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "AES-GCM.raw0": "DataError: AES key data must be 128 or 256 bits",
+ "AES-GCM.raw15": "DataError: AES key data must be 128 or 256 bits",
+ "AES-GCM.raw16": "secret:AES-GCM:128:encrypt,decrypt",
+ "AES-GCM.raw17": "DataError: AES key data must be 128 or 256 bits",
+ "AES-GCM.raw24": "OperationError: 192-bit AES keys are not supported",
+ "AES-GCM.raw32": "secret:AES-GCM:256:encrypt,decrypt",
+ "AES-GCM.raw64": "DataError: AES key data must be 128 or 256 bits",
+ "AES-GCM.jwk.ok": "secret:AES-GCM:128:encrypt,decrypt",
+ "AES-GCM.jwk.alg128": "secret:AES-GCM:128:encrypt,decrypt",
+ "AES-GCM.jwk.alg256on16": "DataError: The JWK \"k\" member did not include the right length of key data for the given algorithm.",
+ "AES-GCM.jwk.alg256": "secret:AES-GCM:256:encrypt,decrypt",
+ "AES-GCM.jwk.algOther": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-GCM.jwk.algBogus": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-GCM.jwk.len24": "OperationError: 192-bit AES keys are not supported",
+ "AES-GCM.jwk.len24alg": "OperationError: 192-bit AES keys are not supported",
+ "AES-GCM.jwk.ktyRSA": "DataError: The JWK \"kty\" member was not \"oct\"",
+ "AES-GCM.jwk.noK": "DataError: The required JWK member \"k\" was missing",
+ "AES-GCM.jwk.kEmpty": "DataError: AES key data must be 128 or 256 bits",
+ "AES-GCM.jwk.kPadded": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-GCM.jwk.kStd": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-GCM.jwk.useEnc": "secret:AES-GCM:128:encrypt,decrypt",
+ "AES-GCM.jwk.useSig": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-GCM.jwk.keyOpsOk": "secret:AES-GCM:128:encrypt,decrypt",
+ "AES-GCM.jwk.keyOpsMiss": "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-GCM.jwk.extFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "AES-GCM.badUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "AES-GCM.emptyUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "AES-GCM.export": "[[\"alg\",\"ext\",\"k\",\"key_ops\",\"kty\"],\"A256GCM\",true]:32",
+ "AES-CBC.raw0": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CBC.raw15": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CBC.raw16": "secret:AES-CBC:128:encrypt,decrypt",
+ "AES-CBC.raw17": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CBC.raw24": "OperationError: 192-bit AES keys are not supported",
+ "AES-CBC.raw32": "secret:AES-CBC:256:encrypt,decrypt",
+ "AES-CBC.raw64": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CBC.jwk.ok": "secret:AES-CBC:128:encrypt,decrypt",
+ "AES-CBC.jwk.alg128": "secret:AES-CBC:128:encrypt,decrypt",
+ "AES-CBC.jwk.alg256on16": "DataError: The JWK \"k\" member did not include the right length of key data for the given algorithm.",
+ "AES-CBC.jwk.alg256": "secret:AES-CBC:256:encrypt,decrypt",
+ "AES-CBC.jwk.algOther": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-CBC.jwk.algBogus": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-CBC.jwk.len24": "OperationError: 192-bit AES keys are not supported",
+ "AES-CBC.jwk.len24alg": "OperationError: 192-bit AES keys are not supported",
+ "AES-CBC.jwk.ktyRSA": "DataError: The JWK \"kty\" member was not \"oct\"",
+ "AES-CBC.jwk.noK": "DataError: The required JWK member \"k\" was missing",
+ "AES-CBC.jwk.kEmpty": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CBC.jwk.kPadded": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-CBC.jwk.kStd": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-CBC.jwk.useEnc": "secret:AES-CBC:128:encrypt,decrypt",
+ "AES-CBC.jwk.useSig": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-CBC.jwk.keyOpsOk": "secret:AES-CBC:128:encrypt,decrypt",
+ "AES-CBC.jwk.keyOpsMiss": "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-CBC.jwk.extFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "AES-CBC.badUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "AES-CBC.emptyUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "AES-CBC.export": "[[\"alg\",\"ext\",\"k\",\"key_ops\",\"kty\"],\"A256CBC\",true]:32",
+ "AES-CTR.raw0": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CTR.raw15": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CTR.raw16": "secret:AES-CTR:128:encrypt,decrypt",
+ "AES-CTR.raw17": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CTR.raw24": "OperationError: 192-bit AES keys are not supported",
+ "AES-CTR.raw32": "secret:AES-CTR:256:encrypt,decrypt",
+ "AES-CTR.raw64": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CTR.jwk.ok": "secret:AES-CTR:128:encrypt,decrypt",
+ "AES-CTR.jwk.alg128": "secret:AES-CTR:128:encrypt,decrypt",
+ "AES-CTR.jwk.alg256on16": "DataError: The JWK \"k\" member did not include the right length of key data for the given algorithm.",
+ "AES-CTR.jwk.alg256": "secret:AES-CTR:256:encrypt,decrypt",
+ "AES-CTR.jwk.algOther": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-CTR.jwk.algBogus": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-CTR.jwk.len24": "OperationError: 192-bit AES keys are not supported",
+ "AES-CTR.jwk.len24alg": "OperationError: 192-bit AES keys are not supported",
+ "AES-CTR.jwk.ktyRSA": "DataError: The JWK \"kty\" member was not \"oct\"",
+ "AES-CTR.jwk.noK": "DataError: The required JWK member \"k\" was missing",
+ "AES-CTR.jwk.kEmpty": "DataError: AES key data must be 128 or 256 bits",
+ "AES-CTR.jwk.kPadded": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-CTR.jwk.kStd": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-CTR.jwk.useEnc": "secret:AES-CTR:128:encrypt,decrypt",
+ "AES-CTR.jwk.useSig": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-CTR.jwk.keyOpsOk": "secret:AES-CTR:128:encrypt,decrypt",
+ "AES-CTR.jwk.keyOpsMiss": "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-CTR.jwk.extFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "AES-CTR.badUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "AES-CTR.emptyUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "AES-CTR.export": "[[\"alg\",\"ext\",\"k\",\"key_ops\",\"kty\"],\"A256CTR\",true]:32",
+ "AES-KW.raw0": "DataError: AES key data must be 128 or 256 bits",
+ "AES-KW.raw15": "DataError: AES key data must be 128 or 256 bits",
+ "AES-KW.raw16": "secret:AES-KW:128:wrapKey,unwrapKey",
+ "AES-KW.raw17": "DataError: AES key data must be 128 or 256 bits",
+ "AES-KW.raw24": "OperationError: 192-bit AES keys are not supported",
+ "AES-KW.raw32": "secret:AES-KW:256:wrapKey,unwrapKey",
+ "AES-KW.raw64": "DataError: AES key data must be 128 or 256 bits",
+ "AES-KW.jwk.ok": "secret:AES-KW:128:wrapKey,unwrapKey",
+ "AES-KW.jwk.alg128": "secret:AES-KW:128:wrapKey,unwrapKey",
+ "AES-KW.jwk.alg256on16": "DataError: The JWK \"k\" member did not include the right length of key data for the given algorithm.",
+ "AES-KW.jwk.alg256": "secret:AES-KW:256:wrapKey,unwrapKey",
+ "AES-KW.jwk.algOther": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-KW.jwk.algBogus": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "AES-KW.jwk.len24": "OperationError: 192-bit AES keys are not supported",
+ "AES-KW.jwk.len24alg": "OperationError: 192-bit AES keys are not supported",
+ "AES-KW.jwk.ktyRSA": "DataError: The JWK \"kty\" member was not \"oct\"",
+ "AES-KW.jwk.noK": "DataError: The required JWK member \"k\" was missing",
+ "AES-KW.jwk.kEmpty": "DataError: AES key data must be 128 or 256 bits",
+ "AES-KW.jwk.kPadded": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-KW.jwk.kStd": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "AES-KW.jwk.useEnc": "secret:AES-KW:128:wrapKey,unwrapKey",
+ "AES-KW.jwk.useSig": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-KW.jwk.keyOpsOk": "secret:AES-KW:128:wrapKey,unwrapKey",
+ "AES-KW.jwk.keyOpsMiss": "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "AES-KW.jwk.extFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "AES-KW.badUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "AES-KW.emptyUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "AES-KW.export": "[[\"alg\",\"ext\",\"k\",\"key_ops\",\"kty\"],\"A256KW\",true]:32",
+ "HMAC.raw0": "DataError: HMAC key data must not be empty",
+ "HMAC.raw1": "secret:SHA-256:8:sign:32",
+ "HMAC.raw64": "secret:SHA-256:512:sign:32",
+ "HMAC.raw200": "secret:SHA-256:1600:sign:32",
+ "HMAC.noHash": "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Missing or not an AlgorithmIdentifier",
+ "HMAC.hashBogus": "NotSupportedError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Algorithm: Unrecognized name",
+ "HMAC.jwk.ok": "secret:SHA-256:256:sign:32",
+ "HMAC.jwk.hs256": "secret:SHA-256:256:sign:32",
+ "HMAC.jwk.hs384": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "HMAC.jwk.hs1": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "HMAC.jwk.algA128": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "HMAC.jwk.ktyEC": "DataError: The JWK \"kty\" member was not \"oct\"",
+ "HMAC.jwk.noK": "DataError: The required JWK member \"k\" was missing",
+ "HMAC.jwk.kEmpty": "DataError: HMAC key data must not be empty",
+ "HMAC.jwk.kPadded": "DataError: The JWK member \"k\" could not be base64url decoded or contained padding",
+ "HMAC.jwk.useEnc": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "HMAC.jwk.useSig": "secret:SHA-256:256:sign:32",
+ "HMAC.jwk.keyOpsMiss": "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "HMAC.jwk.extFalse": "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call",
+ "HMAC.jwkEmptyK.len0": "DataError: HMAC key data must not be empty",
+ "HMAC.badUsage": "SyntaxError: Cannot create a key using the specified key usages.",
+ "HMAC.emptyUsage": "SyntaxError: Usages cannot be empty when creating a key.",
+ "HMAC.export": "[[\"alg\",\"ext\",\"k\",\"key_ops\",\"kty\"],\"HS384\",[\"sign\",\"verify\"]]:20"
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
