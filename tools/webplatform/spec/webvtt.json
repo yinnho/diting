@@ -1,0 +1,262 @@
+{
+ "includes": [],
+ "names": {
+  "VTTCue": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface VTTCue : TextTrackCue {\n  constructor(double startTime, unrestricted double endTime, DOMString text);\n  attribute VTTRegion? region;\n  attribute DirectionSetting vertical;\n  attribute boolean snapToLines;\n  attribute LineAndPositionSetting line;\n  attribute LineAlignSetting lineAlign;\n  attribute LineAndPositionSetting position;\n  attribute PositionAlignSetting positionAlign;\n  attribute double size;\n  attribute AlignSetting align;\n  attribute DOMString text;\n  DocumentFragment getCueAsHTML();\n};",
+   "href": "https://w3c.github.io/webvtt/#vttcue",
+   "inheritance": "TextTrackCue",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "double",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "startTime",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "unrestricted double",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "endTime",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "text",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-vttcue",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-region",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "VTTRegion",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "region",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-vertical",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DirectionSetting",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "vertical",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-snaptolines",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "snapToLines",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-line",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "LineAndPositionSetting",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "line",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-linealign",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "LineAlignSetting",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "lineAlign",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-position",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "LineAndPositionSetting",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "position",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-positionalign",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "PositionAlignSetting",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "positionAlign",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-size",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "size",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-align",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "AlignSetting",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "align",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-text",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "text",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webvtt/#dom-vttcue-getcueashtml",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DocumentFragment",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "getCueAsHTML",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "VTTCue",
+   "partial": false,
+   "type": "interface"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "VTTCue": "https://w3c.github.io/webvtt/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

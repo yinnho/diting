@@ -22,6 +22,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/geometry.json crates/diting_js/js/platform/gen/geometry.gen.js gen/geometry $WP/chrome/geometry-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-typed-om.json crates/diting_js/js/platform/gen/cssunit.gen.js gen/cssunit $WP/chrome/cssunit-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
+  python3 $WP/gen/gen_iface.py $WP/spec/webvtt.json crates/diting_js/js/platform/gen/vttcue.gen.js gen/vttcue $WP/chrome/vttcue-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-145.json patch-common
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlmedia.gen.js gen/htmlmedia $WP/chrome/htmlmedia-truth-145.json patch-media
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlreflect.gen.js gen/htmlreflect $WP/chrome/htmlreflect-truth-145.json patch-reflect
@@ -57,6 +58,8 @@ gen_value() { # <spec> <name> <truth>
 }
 gen_value geometry.json geometry geometry-truth-145.json
 gen_value css-typed-om.json cssunit cssunit-truth-157.json
+# vttcue: the #67 marginal-cost family, generated with no generator change.
+gen_value webvtt.json vttcue vttcue-truth-157.json
 python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json "$tmp/animationevent.gen.js" gen/animationevent >/dev/null
 diff -q "$tmp/animationevent.gen.js" crates/diting_js/js/platform/gen/animationevent.gen.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform/gen/animationevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
