@@ -197,9 +197,10 @@ pub async fn do_download(req: DownloadRequest) -> Result<DownloadResponse> {
 
     // Resume: if a partial file exists under the resolved name, re-issue a
     // ranged GET and continue from its length. 206 → append; 416 → rejected;
-    // 200 → server ignored Range, restart from zero below.
-    let existing_len = std::fs::metadata(&final_path)
-        .or_else(|_| std::fs::metadata(&part_path))
+    // 200 → server ignored Range, restart from zero below. The offset is the
+    // length of `.part` — the file the 206 body gets appended to — never of
+    // an older finished file that happens to share the name.
+    let existing_len = std::fs::metadata(&part_path)
         .ok()
         .filter(|m| m.len() > 0)
         .map(|m| m.len());
@@ -663,10 +664,25 @@ mod tests {
         DownloadDirGuard(guard)
     }
 
+    /// Fresh, empty dir per call. Keyed by pid alone it was neither: nothing
+    /// ever cleaned up, nextest runs one process per test, and once macOS
+    /// recycled a pid the resume test inherited a finished fixture.bin from
+    /// some earlier run (678 of these piled up in $TMPDIR).
     fn tempfile_dir(name: &str) -> String {
-        let dir =
-            std::env::temp_dir().join(format!("aginx-dl-test-{}-{}", name, std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!(
+            "diting-dl-test-{}-{}-{}-{}",
+            name,
+            std::process::id(),
+            nanos,
+            SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
         dir.to_string_lossy().into_owned()
     }
 
@@ -729,6 +745,43 @@ mod tests {
 
             assert!(resp.resumed);
             assert_eq!(resp.size_bytes, 40_000); // only the appended portion
+            let on_disk = std::fs::read(PathBuf::from(&tmp).join("fixture.bin")).unwrap();
+            assert_eq!(on_disk, payload);
+        })
+        .await;
+    }
+
+    /// A finished file of the same name must not set the Range offset: the
+    /// bytes get appended to `.part`, so the offset has to be `.part`'s
+    /// length. Reading the finished file's length asked for `bytes=50000-`,
+    /// got an empty 206 and "resumed" 0 bytes onto a 10k partial.
+    #[tokio::test]
+    async fn resume_offset_comes_from_part_not_stale_final() {
+        with_private_net(async {
+            let payload: Vec<u8> = (0..50_000u32).map(|i| (i % 247) as u8).collect();
+            let (url, _srv) = spawn_fixture(payload.clone(), vec![]).await;
+            let tmp = tempfile_dir("resume-stale");
+            let _dd = download_dir_guard(&tmp);
+            std::fs::write(PathBuf::from(&tmp).join("fixture.bin"), &payload).unwrap();
+            std::fs::write(
+                PathBuf::from(&tmp).join("fixture.bin.part"),
+                &payload[..10_000],
+            )
+            .unwrap();
+
+            let resp = do_download(DownloadRequest {
+                url: url.to_string(),
+                filename: None,
+                resume: true,
+                use_proxy: false,
+                cookies: vec![],
+                dir: None,
+            })
+            .await
+            .unwrap();
+
+            assert!(resp.resumed);
+            assert_eq!(resp.size_bytes, 40_000);
             let on_disk = std::fs::read(PathBuf::from(&tmp).join("fixture.bin")).unwrap();
             assert_eq!(on_disk, payload);
         })
