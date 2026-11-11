@@ -230,6 +230,58 @@ fn env_checks() -> Vec<Check> {
             }
         }
     }
+    // #65: three persistent faces, three switches — report each one's state
+    // and where it lands, so "don't touch the disk" can be checked here
+    // instead of found out from a log line.
+    let ephemeral = crate::config::ephemeral();
+    out.push(check(
+        Status::Info,
+        "store",
+        if ephemeral {
+            "in memory (DITING_EPHEMERAL)".to_string()
+        } else if crate::store::is_enabled() {
+            format!(
+                "{} (page/search cache, session snapshots, accounts)",
+                crate::store::location()
+            )
+        } else {
+            "off (DITING_STORE=0)".to_string()
+        },
+    ));
+    out.push(check(
+        if !ephemeral && !crate::store::is_enabled() { Status::Warn } else { Status::Info },
+        "cookie jar",
+        if ephemeral {
+            "in memory (DITING_EPHEMERAL)".to_string()
+        } else {
+            let path = crate::server::cookie_store_path();
+            if crate::store::is_enabled() {
+                format!("{} (shared jar)", path.display())
+            } else {
+                format!(
+                    "{} — still read and written under DITING_STORE=0; DITING_EPHEMERAL=1 keeps it in memory",
+                    path.display()
+                )
+            }
+        },
+    ));
+    out.push(check(
+        Status::Info,
+        "session restore",
+        match std::env::var("DITING_RESTORE_SESSIONS")
+            .ok()
+            .as_deref()
+            .map(str::trim)
+        {
+            Some("0") | Some("false") | Some("no") | Some("off") => {
+                "off at boot (lazy revive on touch)"
+            }
+            Some("skip-keepalive") | Some("non-keepalive") | Some("no-keepalive") => {
+                "at boot, keepalive sessions skipped"
+            }
+            _ => "all snapshots at boot (DITING_RESTORE_SESSIONS)",
+        },
+    ));
     if std::env::var_os("DITING_ALLOW_PRIVATE_NETWORK").is_some() {
         out.push(check(
             Status::Warn,
@@ -333,6 +385,34 @@ pub async fn run() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn persistence_faces_say_what_touches_the_disk() {
+        // #65: DITING_STORE=0 switches off the local store only; the shared
+        // cookie jar keeps reading and writing — the doctor must say so (a
+        // warn naming DITING_EPHEMERAL), and ephemeral must read as memory.
+        let _env = crate::config::EPHEMERAL_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let jar = |checks: &[Check]| {
+            let c = checks.iter().find(|c| c.name == "cookie jar").unwrap();
+            (c.status, c.detail.clone())
+        };
+        std::env::remove_var("DITING_EPHEMERAL");
+        std::env::set_var("DITING_STORE", "0");
+        let (st, detail) = jar(&env_checks());
+        assert_eq!(st, Status::Warn);
+        assert!(detail.contains("DITING_EPHEMERAL=1"), "{detail}");
+        std::env::set_var("DITING_EPHEMERAL", "1");
+        let (st, detail) = jar(&env_checks());
+        assert_eq!(st, Status::Info);
+        assert!(detail.starts_with("in memory"), "{detail}");
+        std::env::remove_var("DITING_STORE");
+        std::env::remove_var("DITING_EPHEMERAL");
+        let (st, detail) = jar(&env_checks());
+        assert_eq!(st, Status::Info);
+        assert!(detail.ends_with("(shared jar)"), "{detail}");
+    }
 
     #[test]
     fn render_aligns_and_counts_failures() {

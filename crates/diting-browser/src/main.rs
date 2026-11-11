@@ -595,9 +595,15 @@ async fn shutdown_signal() {
         .await
         .flush_for_shutdown()
         .await;
-    tracing::info!(
-        "shutdown flush complete: {flushed} session(s) persisted; a restart restores them under the same ids"
-    );
+    if crate::store::is_enabled() {
+        tracing::info!(
+            "shutdown flush complete: {flushed} session(s) persisted; a restart restores them under the same ids"
+        );
+    } else {
+        tracing::info!(
+            "shutdown: local store disabled (DITING_STORE=0) — no session snapshots written"
+        );
+    }
     // The 60s shared-jar persist tick may never fire again — close its window.
     server::persist_shared_cookies();
 }

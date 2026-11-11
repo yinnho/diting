@@ -212,6 +212,11 @@ impl SessionManager {
     /// process past the supervisor's kill timeout. Returns how many
     /// sessions were persisted.
     pub(crate) async fn flush_for_shutdown(&mut self) -> usize {
+        // #65: with the store off every capture is a no-op write — counting
+        // them reported "25 sessions persisted" while nothing reached disk.
+        if !crate::store::is_enabled() {
+            return 0;
+        }
         self.evict_expired();
         let deadline = std::time::Instant::now() + SHUTDOWN_FLUSH_BUDGET;
         let ids: Vec<String> = self.sessions.keys().cloned().collect();

@@ -47,6 +47,17 @@ fn enabled() -> bool {
     }
 }
 
+/// #65: whether `DITING_STORE` leaves the local store on — for the startup
+/// warning and `diting doctor`, which must say what each persistent face does.
+pub(crate) fn is_enabled() -> bool {
+    enabled()
+}
+
+/// Where the local store lives (":memory:" under DITING_EPHEMERAL).
+pub(crate) fn location() -> String {
+    db_path().display().to_string()
+}
+
 fn db_path() -> PathBuf {
     // Ephemeral is the no-disk-state contract — it outranks every path
     // knob. :memory: works because with_store holds one connection for the
