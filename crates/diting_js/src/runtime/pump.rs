@@ -17,22 +17,31 @@ impl super::JsRuntime {
         .await
     }
 
-    /// The busy-freeze (#66) variant of [`Self::run_event_loop_bounded`]:
-    /// symmetric headroom (budget + budget) instead of the 5s SPA patience.
-    /// The freeze only engages after a realm has already burned through the
-    /// duty threshold, so the "legitimate multi-second React commit" defense
-    /// of WATCHDOG_HEADROOM_MS no longer applies — and with the long headroom
-    /// the throttle was nominal anyway: a 50ms burst could pin the thread for
-    /// 5.05s before termination (#224's doudian livelock measured ~100% duty
-    /// while "frozen"). Symmetric headroom caps a 50ms burst at 100ms of spin;
-    /// a Navigate/SetContent rebuilds the realm and unfreezes as before.
+    /// The busy-freeze (#66) variant of [`Self::run_event_loop_bounded`]: a
+    /// ~`budget_ms` burst that throttles a hot realm WITHOUT cutting its
+    /// tasks. It used to cap the burst with a symmetric-headroom watchdog
+    /// (budget + budget): the macrotask drain ran every queued task in one
+    /// JS turn, so a 50ms burst could otherwise pin the thread for the whole
+    /// 5s patience (#224's doudian livelock measured ~100% duty while
+    /// "frozen") — but that watchdog beheaded whatever task was running every
+    /// burst, a thousand times a session on x.com, stranding page state half
+    /// set (the #100 poisoning) and severing fetch continuations. Now the
+    /// drain yields a loop pass after every task for the burst's length (the
+    /// task-boundary hook the eval wait uses), so the tokio budget ends the
+    /// burst at the next boundary, and only a single task running past the
+    /// SPA patience (WATCHDOG_HEADROOM_MS — a true spin) is cut. A
+    /// Navigate/SetContent rebuilds the realm and unfreezes as before.
     pub async fn run_event_loop_bounded_throttled(&mut self, budget_ms: u64) -> Result<(), String> {
-        self.run_event_loop_bounded_with_headroom(
-            budget_ms,
-            std::time::Duration::from_millis(budget_ms),
-            false,
-        )
-        .await
+        self.set_host_wait(true);
+        let r = self
+            .run_event_loop_bounded_with_headroom(
+                budget_ms,
+                std::time::Duration::from_millis(Self::WATCHDOG_HEADROOM_MS),
+                false,
+            )
+            .await;
+        self.set_host_wait(false);
+        r
     }
 
     async fn run_event_loop_bounded_with_headroom(
@@ -164,8 +173,9 @@ impl super::JsRuntime {
         settled
     }
 
-    /// Tell the macrotask drain a host is (or no longer is) waiting on a
-    /// result, so it yields a loop pass between tasks (timer_belt.js).
+    /// Ask the macrotask drain to (or no longer) yield a loop pass between
+    /// tasks (timer_belt.js): while a host waits on a result, and while a
+    /// throttled burst needs to end at a task boundary.
     fn set_host_wait(&mut self, on: bool) {
         let _ = self.runtime.execute_script(
             "<host-wait>",
