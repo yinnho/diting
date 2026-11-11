@@ -78,6 +78,10 @@ hkdf = "0.13"
 ecdsa = { version = "0.17", default-features = false, features = ["digest", "pkcs8", "pem", "std"] }
 p256 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
 p384 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "ecdh", "pkcs8", "std"] }
+# sec1: the ECPrivateKey structure inside PKCS#8, decoded by hand so the
+# import can check what Chrome checks (curve params, embedded public key).
+# Same instance elliptic-curve already pulls in.
+sec1 = { version = "0.8", default-features = false, features = ["der"] }
 # Ed25519 for crypto.subtle: core sign/verify only; DER wrapping is done by hand
 # in the JS shim (fixed 16/12-byte prefixes) and seeds come from op_random_bytes.
 ed25519-dalek = { version = "3", default-features = false, features = ["fast", "zeroize", "alloc"] }
