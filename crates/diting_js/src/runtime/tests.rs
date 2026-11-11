@@ -10101,6 +10101,210 @@ async fn webcrypto_rsa_oaep_runs_off_the_js_thread() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn webcrypto_ec_import_malformed_p384_like_chrome() {
+    // The P-256 matrix (webcrypto_ec_import_malformed_like_chrome) again on
+    // P-384, with P-256 as the "other curve": same variants, same use of each
+    // imported key, expected = Chrome 157's output for this exact script
+    // (headless, file://). Faces are the P-256 ones with 48-byte lengths and
+    // ES384 as the accepted jwk alg.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {  const r = {};
+
+  const S = crypto.subtle, enc = new TextEncoder();
+  const D = {"v": {"raw": {"ok": "BBPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2pbA==", "compressed": "AhPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylA==", "short": "BBPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2p", "long": "BBPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2pbAA=", "prefix05": "BRPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2pbA==", "offCurve": "BBPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2pbQ==", "xGeP": "BP/////////////////////////////////////////+/////wAAAAAAAAABAAAAAOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2pbA==", "infinity": "AA==", "empty": "", "otherPoint": "BN3pJMmjtz3cHg/yyXRqaQo4LoOMaUsJ385cbGfJlHJHJ9MK4hpOl4phnZys9R7KrQKhLGiSvJIehTHECuSVmY0="}, "spki": {"ok": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU49gDBFlC6GqphjYrv1YormnvF+mFXEL/Xdo3lq8nmOz5r0CBRxFsDqqlL15ofals", "garbage": "CwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5P", "truncated": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU49gDBFlC6GqphjYrv1YormnvF+mFXEL/Xdo3lq8nmOz5r0CBRxFsDqqlLw==", "trailing": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU49gDBFlC6GqphjYrv1YormnvF+mFXEL/Xdo3lq8nmOz5r0CBRxFsDqqlL15ofalsAA==", "curveOther": "MHkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDYgAEE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU49gDBFlC6GqphjYrv1YormnvF+mFXEL/Xdo3lq8nmOz5r0CBRxFsDqqlL15ofals", "noCurve": "MG8wCQYHKoZIzj0CAQNiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qWw=", "unusedBits": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgEEE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU49gDBFlC6GqphjYrv1YormnvF+mFXEL/Xdo3lq8nmOz5r0CBRxFsDqqlL15ofals", "offCurve": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU49gDBFlC6GqphjYrv1YormnvF+mFXEL/Xdo3lq8nmOz5r0CBRxFsDqqlL15ofalt", "compressed": "MEYwEAYHKoZIzj0CAQYFK4EEACIDMgACE9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ+tjBTa57unKU", "ecdhOid": "MHQwDgYFK4EEAQwGBSuBBAAiA2IABBPcZrRZqXt31Ao0uRqFF0ybFABRQIoSyBYY+51ytzTKKUi5t663UPrYwU2ue7pylOPYAwRZQuhqqYY2K79WKK5p7xfphVxC/13aN5avJ5js+a9AgUcRbA6qpS9eaH2pbA==", "otherKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3ekkyaO3PdweD/LJdGppCjgug4xpSwnfzlxsZ8mUckcn0wriGk6XimGdnKz1HsqtAqEsaJK8kh6FMcQK5JWZjQ=="}, "pkcs8": {"ok": "MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+hZANiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qWw=", "noPublic": "ME4CAQAwEAYHKoZIzj0CAQYFK4EEACIENzA1AgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV8=", "innerCurve": "MIG/AgEAMBAGByqGSM49AgEGBSuBBAAiBIGnMIGkAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+gBwYFK4EEACKhZANiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qWw=", "innerCurveMismatch": "MIHCAgEAMBAGByqGSM49AgEGBSuBBAAiBIGqMIGnAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+gCgYIKoZIzj0DAQehZANiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qWw=", "outerOther": "MIG5AgEAMBMGByqGSM49AgEGCCqGSM49AwEHBIGeMIGbAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+hZANiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qWw=", "scalarZero": "ME4CAQAwEAYHKoZIzj0CAQYFK4EEACIENzA1AgEBBDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "scalarN": "ME4CAQAwEAYHKoZIzj0CAQYFK4EEACIENzA1AgEBBDD////////////////////////////////HY02B9Dct31gaDbJIsKd67OwZaszFKXM=", "scalarShort": "ME0CAQAwEAYHKoZIzj0CAQYFK4EEACIENjA0AgEBBC8AAAAAKkxujwsdP1p8nhs9X3qcHjtdf5ocPlt9nxo8XnudHzpcfpsdP1p8nhs9Xw==", "scalarLong": "ME8CAQAwEAYHKoZIzj0CAQYFK4EEACIEODA2AgEBBDEAAAAAAAAqTG6PCx0/WnyeGz1fepweO11/mhw+W32fGjxee50fOlx+mx0/WnyeGz1f", "pubMismatch": "MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+hZANiAAToa5leNQ5NMSqVprfV2M3NtGgvWIgAoc1sly4dyypaw42QBGlRsDzLOxeaif2oixtIW58sH0Sw3UHObjw6aQu/qr7B4f9K77JGH92mYpvsvUPPdME9jBoWJWEiQ/AEYUg=", "pubOffCurve": "MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+hZANiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qW0=", "garbage": "AwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZ", "trailing": "MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDAAAAAAACpMbo8LHT9afJ4bPV96nB47XX+aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV+hZANiAAQT3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpTj2AMEWULoaqmGNiu/Viiuae8X6YVcQv9d2jeWryeY7PmvQIFHEWwOqqUvXmh9qWwA", "otherKey": "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgHTxafpsvTG2OChs8XX6fCitMbY4PGjtcfZ4fKktsjQ6hRANCAATd6STJo7c93B4P8sl0amkKOC6DjGlLCd/OXGxnyZRyRyfTCuIaTpeKYZ2crPUeyq0CoSxokrySHoUxxArklZmN"}}, "j": {"x": "E9xmtFmpe3fUCjS5GoUXTJsUAFFAihLIFhj7nXK3NMopSLm3rrdQ-tjBTa57unKU", "y": "49gDBFlC6GqphjYrv1YormnvF-mFXEL_Xdo3lq8nmOz5r0CBRxFsDqqlL15ofals", "d": "AAAAAAAqTG6PCx0_WnyeGz1fepweO11_mhw-W32fGjxee50fOlx-mx0_WnyeGz1f", "x3": "3ekkyaO3PdweD_LJdGppCjgug4xpSwnfzlxsZ8mUckc", "y3": "J9MK4hpOl4phnZys9R7KrQKhLGiSvJIehTHECuSVmY0", "d3": "HTxafpsvTG2OChs8XX6fCitMbY4PGjtcfZ4fKktsjQ4", "xShort": "3Ga0Wal7d9QKNLkahRdMmxQAUUCKEsgWGPudcrc0yilIubeut1D62MFNrnu6cpQ", "yLong": "AOPYAwRZQuhqqYY2K79WKK5p7xfphVxC_13aN5avJ5js-a9AgUcRbA6qpS9eaH2pbA", "yOff": "49gDBFlC6GqphjYrv1YormnvF-mFXEL_Xdo3lq8nmOz5r0CBRxFsDqqlL15ofalt", "dZero": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "dShort": "AAAAACpMbo8LHT9afJ4bPV96nB47XX-aHD5bfZ8aPF57nR86XH6bHT9afJ4bPV8", "dOther": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADA5"}};
+  const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const face = async (f) => { try { const v = await f(); return v === undefined ? 'ok' : String(v); } catch (e) { return e.name + ': ' + e.message; } };
+  const msg = enc.encode('diting-ec');
+  const EC = (name) => ({ name, namedCurve: 'P-384' });
+  const SIG = { name: 'ECDSA', hash: 'SHA-384' };
+  const okPriv = await S.importKey('pkcs8', b64(D.v.pkcs8.ok), EC('ECDSA'), true, ['sign']);
+  const okPub = await S.importKey('raw', b64(D.v.raw.ok), EC('ECDSA'), true, ['verify']);
+  const okSig = await S.sign(SIG, okPriv, msg);
+  const dhPriv = await S.importKey('pkcs8', b64(D.v.pkcs8.ok), EC('ECDH'), true, ['deriveBits']);
+  const dhPub = await S.importKey('raw', b64(D.v.raw.ok), EC('ECDH'), true, []);
+  const usePub = async (k, name) => name === 'ECDSA' ? 'verify=' + (await S.verify(SIG, k, okSig, msg)) : 'derive=' + (await S.deriveBits({ name: 'ECDH', public: k }, dhPriv, 384)).byteLength;
+  const usePriv = async (k, name) => name === 'ECDSA' ? 'verify=' + (await S.verify(SIG, okPub, await S.sign(SIG, k, msg), msg)) : 'derive=' + (await S.deriveBits({ name: 'ECDH', public: dhPub }, k, 384)).byteLength;
+  for (const name of ['ECDSA', 'ECDH']) {
+    const pubUs = name === 'ECDSA' ? ['verify'] : [], privUs = name === 'ECDSA' ? ['sign'] : ['deriveBits'];
+    for (const fmt of ['raw', 'spki']) for (const [k, v] of Object.entries(D.v[fmt])) {
+      r[name + '.' + fmt + '.' + k] = await face(async () => { const key = await S.importKey(fmt, b64(v), EC(name), true, pubUs); return 'ok:' + key.algorithm.namedCurve + ':' + (await usePub(key, name)); });
+    }
+    for (const [k, v] of Object.entries(D.v.pkcs8)) {
+      r[name + '.pkcs8.' + k] = await face(async () => { const key = await S.importKey('pkcs8', b64(v), EC(name), true, privUs); return 'ok:' + key.algorithm.namedCurve + ':' + (await usePriv(key, name)); });
+    }
+    const J = D.j, P = { kty: 'EC', crv: 'P-384', x: J.x, y: J.y };
+    const W = (o, e) => Object.assign({}, o, e), drop = (o, m) => { const c = Object.assign({}, o); delete c[m]; return c; };
+    const pubJ = { ok: P, crvOther: W(P, { crv: 'P-256' }), crvBogus: W(P, { crv: 'P-999' }), noCrv: drop(P, 'crv'), noX: drop(P, 'x'), noY: drop(P, 'y'),
+      xShort: W(P, { x: J.xShort }), yLong: W(P, { y: J.yLong }), offCurve: W(P, { y: J.yOff }), ktyRSA: W(P, { kty: 'RSA' }), otherCoords: W(P, { x: J.x3, y: J.y3 }),
+      algES256: W(P, { alg: 'ES256' }), algES384: W(P, { alg: 'ES384' }), useEnc: W(P, { use: 'enc' }), useSig: W(P, { use: 'sig' }), xEmpty: W(P, { x: '' }), xPadded: W(P, { x: J.x + '=' }) };
+    for (const [k, j] of Object.entries(pubJ)) r[name + '.jwkPub.' + k] = await face(async () => { const key = await S.importKey('jwk', j, EC(name), true, pubUs); return 'ok:' + key.algorithm.namedCurve + ':' + (await usePub(key, name)); });
+    const Q = W(P, { d: J.d });
+    const privJ = { ok: Q, dZero: W(Q, { d: J.dZero }), dShort: W(Q, { d: J.dShort }), dMismatch: W(Q, { d: J.dOther }), noD: drop(Q, 'd'), dEmpty: W(Q, { d: '' }), offCurve: W(Q, { y: J.yOff }) };
+    for (const [k, j] of Object.entries(privJ)) r[name + '.jwkPriv.' + k] = await face(async () => { const key = await S.importKey('jwk', j, EC(name), true, privUs); return 'ok:' + key.type + ':' + (await (key.type === 'private' ? usePriv(key, name) : usePub(key, name))); });
+  }
+  return r;
+}"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"{
+ "ECDSA.raw.ok": "ok:P-384:verify=true",
+ "ECDSA.raw.compressed": "ok:P-384:verify=true",
+ "ECDSA.raw.short": "DataError: ",
+ "ECDSA.raw.long": "DataError: ",
+ "ECDSA.raw.prefix05": "DataError: ",
+ "ECDSA.raw.offCurve": "DataError: ",
+ "ECDSA.raw.xGeP": "DataError: ",
+ "ECDSA.raw.infinity": "DataError: ",
+ "ECDSA.raw.empty": "DataError: ",
+ "ECDSA.raw.otherPoint": "DataError: ",
+ "ECDSA.spki.ok": "ok:P-384:verify=true",
+ "ECDSA.spki.garbage": "DataError: ",
+ "ECDSA.spki.truncated": "DataError: ",
+ "ECDSA.spki.trailing": "DataError: ",
+ "ECDSA.spki.curveOther": "DataError: ",
+ "ECDSA.spki.noCurve": "DataError: ",
+ "ECDSA.spki.unusedBits": "DataError: ",
+ "ECDSA.spki.offCurve": "DataError: ",
+ "ECDSA.spki.compressed": "ok:P-384:verify=true",
+ "ECDSA.spki.ecdhOid": "DataError: ",
+ "ECDSA.spki.otherKey": "DataError: The imported EC key specifies a different curve than requested",
+ "ECDSA.pkcs8.ok": "ok:P-384:verify=true",
+ "ECDSA.pkcs8.noPublic": "ok:P-384:verify=true",
+ "ECDSA.pkcs8.innerCurve": "ok:P-384:verify=true",
+ "ECDSA.pkcs8.innerCurveMismatch": "DataError: ",
+ "ECDSA.pkcs8.outerOther": "DataError: ",
+ "ECDSA.pkcs8.scalarZero": "DataError: ",
+ "ECDSA.pkcs8.scalarN": "DataError: ",
+ "ECDSA.pkcs8.scalarShort": "ok:P-384:verify=true",
+ "ECDSA.pkcs8.scalarLong": "ok:P-384:verify=true",
+ "ECDSA.pkcs8.pubMismatch": "DataError: ",
+ "ECDSA.pkcs8.pubOffCurve": "DataError: ",
+ "ECDSA.pkcs8.garbage": "DataError: ",
+ "ECDSA.pkcs8.trailing": "DataError: ",
+ "ECDSA.pkcs8.otherKey": "DataError: The imported EC key specifies a different curve than requested",
+ "ECDSA.jwkPub.ok": "ok:P-384:verify=true",
+ "ECDSA.jwkPub.crvOther": "DataError: The JWK's \"crv\" member specifies a different curve than requested",
+ "ECDSA.jwkPub.crvBogus": "DataError: The JWK's \"crv\" member specifies a different curve than requested",
+ "ECDSA.jwkPub.noCrv": "DataError: The required JWK member \"crv\" was missing",
+ "ECDSA.jwkPub.noX": "DataError: The required JWK member \"x\" was missing",
+ "ECDSA.jwkPub.noY": "DataError: The required JWK member \"y\" was missing",
+ "ECDSA.jwkPub.xShort": "DataError: The JWK's \"x\" member defines an octet string of length 47 bytes but should be 48",
+ "ECDSA.jwkPub.yLong": "DataError: The JWK's \"y\" member defines an octet string of length 49 bytes but should be 48",
+ "ECDSA.jwkPub.offCurve": "DataError: ",
+ "ECDSA.jwkPub.ktyRSA": "DataError: The JWK \"kty\" member was not \"EC\"",
+ "ECDSA.jwkPub.otherCoords": "DataError: The JWK's \"x\" member defines an octet string of length 32 bytes but should be 48",
+ "ECDSA.jwkPub.algES256": "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call",
+ "ECDSA.jwkPub.algES384": "ok:P-384:verify=true",
+ "ECDSA.jwkPub.useEnc": "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested",
+ "ECDSA.jwkPub.useSig": "ok:P-384:verify=true",
+ "ECDSA.jwkPub.xEmpty": "DataError: The JWK's \"x\" member defines an octet string of length 0 bytes but should be 48",
+ "ECDSA.jwkPub.xPadded": "DataError: The JWK member \"x\" could not be base64url decoded or contained padding",
+ "ECDSA.jwkPriv.ok": "ok:private:verify=true",
+ "ECDSA.jwkPriv.dZero": "OperationError: ",
+ "ECDSA.jwkPriv.dShort": "DataError: The JWK's \"d\" member defines an octet string of length 47 bytes but should be 48",
+ "ECDSA.jwkPriv.dMismatch": "DataError: The imported EC key is invalid",
+ "ECDSA.jwkPriv.noD": "SyntaxError: Cannot create a key using the specified key usages.",
+ "ECDSA.jwkPriv.dEmpty": "DataError: The JWK's \"d\" member defines an octet string of length 0 bytes but should be 48",
+ "ECDSA.jwkPriv.offCurve": "DataError: ",
+ "ECDH.raw.ok": "ok:P-384:derive=48",
+ "ECDH.raw.compressed": "ok:P-384:derive=48",
+ "ECDH.raw.short": "DataError: ",
+ "ECDH.raw.long": "DataError: ",
+ "ECDH.raw.prefix05": "DataError: ",
+ "ECDH.raw.offCurve": "DataError: ",
+ "ECDH.raw.xGeP": "DataError: ",
+ "ECDH.raw.infinity": "DataError: ",
+ "ECDH.raw.empty": "DataError: ",
+ "ECDH.raw.otherPoint": "DataError: ",
+ "ECDH.spki.ok": "ok:P-384:derive=48",
+ "ECDH.spki.garbage": "DataError: ",
+ "ECDH.spki.truncated": "DataError: ",
+ "ECDH.spki.trailing": "DataError: ",
+ "ECDH.spki.curveOther": "DataError: ",
+ "ECDH.spki.noCurve": "DataError: ",
+ "ECDH.spki.unusedBits": "DataError: ",
+ "ECDH.spki.offCurve": "DataError: ",
+ "ECDH.spki.compressed": "ok:P-384:derive=48",
+ "ECDH.spki.ecdhOid": "DataError: ",
+ "ECDH.spki.otherKey": "DataError: The imported EC key specifies a different curve than requested",
+ "ECDH.pkcs8.ok": "ok:P-384:derive=48",
+ "ECDH.pkcs8.noPublic": "ok:P-384:derive=48",
+ "ECDH.pkcs8.innerCurve": "ok:P-384:derive=48",
+ "ECDH.pkcs8.innerCurveMismatch": "DataError: ",
+ "ECDH.pkcs8.outerOther": "DataError: ",
+ "ECDH.pkcs8.scalarZero": "DataError: ",
+ "ECDH.pkcs8.scalarN": "DataError: ",
+ "ECDH.pkcs8.scalarShort": "ok:P-384:derive=48",
+ "ECDH.pkcs8.scalarLong": "ok:P-384:derive=48",
+ "ECDH.pkcs8.pubMismatch": "DataError: ",
+ "ECDH.pkcs8.pubOffCurve": "DataError: ",
+ "ECDH.pkcs8.garbage": "DataError: ",
+ "ECDH.pkcs8.trailing": "DataError: ",
+ "ECDH.pkcs8.otherKey": "DataError: The imported EC key specifies a different curve than requested",
+ "ECDH.jwkPub.ok": "ok:P-384:derive=48",
+ "ECDH.jwkPub.crvOther": "DataError: The JWK's \"crv\" member specifies a different curve than requested",
+ "ECDH.jwkPub.crvBogus": "DataError: The JWK's \"crv\" member specifies a different curve than requested",
+ "ECDH.jwkPub.noCrv": "DataError: The required JWK member \"crv\" was missing",
+ "ECDH.jwkPub.noX": "DataError: The required JWK member \"x\" was missing",
+ "ECDH.jwkPub.noY": "DataError: The required JWK member \"y\" was missing",
+ "ECDH.jwkPub.xShort": "DataError: The JWK's \"x\" member defines an octet string of length 47 bytes but should be 48",
+ "ECDH.jwkPub.yLong": "DataError: The JWK's \"y\" member defines an octet string of length 49 bytes but should be 48",
+ "ECDH.jwkPub.offCurve": "DataError: ",
+ "ECDH.jwkPub.ktyRSA": "DataError: The JWK \"kty\" member was not \"EC\"",
+ "ECDH.jwkPub.otherCoords": "DataError: The JWK's \"x\" member defines an octet string of length 32 bytes but should be 48",
+ "ECDH.jwkPub.algES256": "ok:P-384:derive=48",
+ "ECDH.jwkPub.algES384": "ok:P-384:derive=48",
+ "ECDH.jwkPub.useEnc": "ok:P-384:derive=48",
+ "ECDH.jwkPub.useSig": "ok:P-384:derive=48",
+ "ECDH.jwkPub.xEmpty": "DataError: The JWK's \"x\" member defines an octet string of length 0 bytes but should be 48",
+ "ECDH.jwkPub.xPadded": "DataError: The JWK member \"x\" could not be base64url decoded or contained padding",
+ "ECDH.jwkPriv.ok": "ok:private:derive=48",
+ "ECDH.jwkPriv.dZero": "OperationError: ",
+ "ECDH.jwkPriv.dShort": "DataError: The JWK's \"d\" member defines an octet string of length 47 bytes but should be 48",
+ "ECDH.jwkPriv.dMismatch": "DataError: The imported EC key is invalid",
+ "ECDH.jwkPriv.noD": "SyntaxError: Cannot create a key using the specified key usages.",
+ "ECDH.jwkPriv.dEmpty": "DataError: The JWK's \"d\" member defines an octet string of length 0 bytes but should be 48",
+ "ECDH.jwkPriv.offCurve": "DataError: "
+}"#,
+    )
+    .unwrap();
+    let got = result.value.unwrap();
+    for (k, v) in expected.as_object().unwrap() {
+        assert_eq!(got.get(k), Some(v), "face {k}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn webcrypto_results_settle_at_a_task_boundary() {
+    // Our SubtleCrypto ops are mostly synchronous, and a promise resolved by
+    // one is a microtask: a page's chain of them ran as one continuous wall,
+    // which the eval patience watchdog beheads past 500ms (#69 family — the
+    // P-384 import battery above died at 457ms of crypto). Chrome posts each
+    // result back as a task. Forty P-384 signatures (~0.9s in a debug build)
+    // must all land, with no watchdog fire.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+        const S = crypto.subtle, enc = new TextEncoder();
+        const p = await S.generateKey({ name: 'ECDSA', namedCurve: 'P-384' }, true, ['sign', 'verify']);
+        let ok = 0;
+        for (let i = 0; i < 40; i++) {
+            const sig = await S.sign({ name: 'ECDSA', hash: 'SHA-384' }, p.privateKey, enc.encode('m' + i));
+            if (sig.byteLength === 96) ok++;
+        }
+        return ok;
+    }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(result.value.unwrap(), serde_json::json!(40));
+    assert_eq!(rt.watchdog_fired_total(), 0, "no wall, no fire");
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn webcrypto_ec_import_malformed_like_chrome() {
     // ECDSA and ECDH P-256 imports in all four formats, each variant wrong in
     // one place (fixed test keys, generated for this test only): raw
