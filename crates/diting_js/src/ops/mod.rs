@@ -18,7 +18,7 @@ use dom_cmds::{
     dom_cmd_attr_state, dom_cmd_create, dom_cmd_document, dom_cmd_mutate, dom_cmd_query,
     dom_cmd_tree,
 };
-#[cfg(feature = "screenshot")]
+#[cfg(all(test, feature = "screenshot"))]
 use dom_style::style_property_map;
 #[cfg(feature = "screenshot")]
 use dom_style::{attr_write_is_layout_inert, style_write_is_paint_only};
@@ -43,6 +43,7 @@ pub use state::{
 };
 #[cfg(test)]
 pub(crate) use storage::reset_local_storage_for_tests;
+#[cfg(test)]
 use storage::storage_file;
 #[cfg(feature = "screenshot")]
 pub use storage::store_image_bytes;
