@@ -1,16 +1,12 @@
 #![allow(clippy::await_holding_lock)] // net tests hold PRIVATE_NET_ENV_LOCK across awaits on purpose — the guard IS the serialization (1f7486c)
 
 use super::*;
-use diting_dom::parse_html;
+use self::common::*;
 
-fn setup_runtime(html: &str) -> JsRuntime {
-    let dom = parse_html(html);
-    let rt = JsRuntime::new();
-    rt.set_dom(dom);
-    rt.set_url("http://example.com/test");
-    rt.set_title("Test Page");
-    rt
-}
+// 测试已按域分桶（docs/tests-分桶表-20261113.md，#74）；新测试进对应域桶，hub 只挂声明。
+#[cfg(test)]
+mod common;
+
 
 #[test]
 fn test_document_title() {
@@ -7092,10 +7088,6 @@ async fn scripted_fetch_event_records_dispatch_before_completion() {
         "dispatch must precede completion by the transport delay, got Δ={}",
         ev.timestamp - ev.started
     );
-}
-
-fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 /// #171: removing a `<style>` element must drop its rules from the next
@@ -15077,17 +15069,6 @@ async fn release_object_with_adversarial_id_is_inert() {
     assert_eq!(probe.value.unwrap(), serde_json::json!(true));
 }
 
-fn setup_runtime_with_cookies(html: &str) -> (JsRuntime, std::sync::Arc<diting_net::CookieJar>) {
-    let dom = diting_dom::parse_html(html);
-    let jar = std::sync::Arc::new(diting_net::CookieJar::new());
-    let rt = JsRuntime::new();
-    rt.set_dom(dom);
-    rt.set_url("http://example.com/test");
-    rt.set_title("Test Page");
-    rt.set_cookie_jar(jar.clone());
-    (rt, jar)
-}
-
 #[test]
 fn test_document_cookie_reads_http_cookies() {
     let (mut rt, jar) = setup_runtime_with_cookies("<html><body></body></html>");
@@ -18020,6 +18001,7 @@ async fn tokenlist_supported_sets_match_spec() {
         "supported-token sets must match the spec/Chrome shape per element kind"
     );
 }
+
 /// fetch(): file:// and private/internal hosts rejected, private hosts
 /// reachable again once the operator opts in.
 #[tokio::test(flavor = "current_thread")]
@@ -23035,6 +23017,7 @@ async fn test_cross_parent_z_clip_intermediate_pins_locally() {
         .unwrap();
     assert_eq!(out.value.unwrap(), serde_json::json!("C"));
 }
+
 #[tokio::test(flavor = "current_thread")]
 #[cfg(feature = "screenshot")]
 async fn test_element_scroller_clamps_and_shifts_descendant_gbcr() {
@@ -25355,13 +25338,6 @@ async fn test_relative_urls_resolve_against_base_href() {
         serde_json::json!("https://example.com/app/index")
     );
 }
-
-// localStorage persistence (obscura#629 class): writes flush (debounced)
-// to one JSON file per origin, and a fresh realm — the process-restart
-// equivalent — reads them back. sessionStorage stays memory-only: its
-// per-tab lifetime is the spec'd behavior, and nothing it holds may
-// reach the disk.
-static STORAGE_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[allow(clippy::await_holding_lock)] // the env guard must span the awaits
 #[tokio::test(flavor = "current_thread")]
@@ -39863,6 +39839,7 @@ async fn knife77_svg_tags_and_filter_reflectors() {
         serde_json::json!([2, "en", "fr", null, "0,1", true])
     );
 }
+
 const TAGS: &str = r#"{"a":"SVGAElement>SVGGraphicsElement","animate":"SVGAnimateElement>SVGAnimationElement","animateMotion":"SVGAnimateMotionElement>SVGAnimationElement","animateTransform":"SVGAnimateTransformElement>SVGAnimationElement","circle":"SVGCircleElement>SVGGeometryElement","clipPath":"SVGClipPathElement>SVGElement","defs":"SVGDefsElement>SVGGraphicsElement","desc":"SVGDescElement>SVGElement","ellipse":"SVGEllipseElement>SVGGeometryElement","feBlend":"SVGFEBlendElement>SVGElement","feColorMatrix":"SVGFEColorMatrixElement>SVGElement","feComponentTransfer":"SVGFEComponentTransferElement>SVGElement","feComposite":"SVGFECompositeElement>SVGElement","feConvolveMatrix":"SVGFEConvolveMatrixElement>SVGElement","feDiffuseLighting":"SVGFEDiffuseLightingElement>SVGElement","feDisplacementMap":"SVGFEDisplacementMapElement>SVGElement","feDistantLight":"SVGFEDistantLightElement>SVGElement","feDropShadow":"SVGFEDropShadowElement>SVGElement","feFlood":"SVGFEFloodElement>SVGElement","feFuncA":"SVGFEFuncAElement>SVGComponentTransferFunctionElement","feFuncB":"SVGFEFuncBElement>SVGComponentTransferFunctionElement","feFuncG":"SVGFEFuncGElement>SVGComponentTransferFunctionElement","feFuncR":"SVGFEFuncRElement>SVGComponentTransferFunctionElement","feGaussianBlur":"SVGFEGaussianBlurElement>SVGElement","feImage":"SVGFEImageElement>SVGElement","feMerge":"SVGFEMergeElement>SVGElement","feMergeNode":"SVGFEMergeNodeElement>SVGElement","feMorphology":"SVGFEMorphologyElement>SVGElement","feOffset":"SVGFEOffsetElement>SVGElement","fePointLight":"SVGFEPointLightElement>SVGElement","feSpecularLighting":"SVGFESpecularLightingElement>SVGElement","feSpotLight":"SVGFESpotLightElement>SVGElement","feTile":"SVGFETileElement>SVGElement","feTurbulence":"SVGFETurbulenceElement>SVGElement","filter":"SVGFilterElement>SVGElement","foreignObject":"SVGForeignObjectElement>SVGGraphicsElement","g":"SVGGElement>SVGGraphicsElement","image":"SVGImageElement>SVGGraphicsElement","line":"SVGLineElement>SVGGeometryElement","linearGradient":"SVGLinearGradientElement>SVGGradientElement","marker":"SVGMarkerElement>SVGElement","mask":"SVGMaskElement>SVGElement","metadata":"SVGMetadataElement>SVGElement","mpath":"SVGMPathElement>SVGElement","path":"SVGPathElement>SVGGeometryElement","pattern":"SVGPatternElement>SVGElement","polygon":"SVGPolygonElement>SVGGeometryElement","polyline":"SVGPolylineElement>SVGGeometryElement","radialGradient":"SVGRadialGradientElement>SVGGradientElement","rect":"SVGRectElement>SVGGeometryElement","script":"SVGScriptElement>SVGElement","set":"SVGSetElement>SVGAnimationElement","stop":"SVGStopElement>SVGElement","style":"SVGStyleElement>SVGElement","svg":"SVGSVGElement>SVGGraphicsElement","switch":"SVGSwitchElement>SVGGraphicsElement","symbol":"SVGSymbolElement>SVGGraphicsElement","text":"SVGTextElement>SVGTextPositioningElement","textPath":"SVGTextPathElement>SVGTextContentElement","title":"SVGTitleElement>SVGElement","tspan":"SVGTSpanElement>SVGTextPositioningElement","use":"SVGUseElement>SVGGraphicsElement","view":"SVGViewElement>SVGElement"}"#;
 
 /// M4 刀78: constructor fidelity (Chrome 145 `new X()` probe over all 936 interfaces): Illegal-constructor
