@@ -154,16 +154,16 @@ async fn sw_register_reject_faces_p7() {
              A bad HTTP response code (404) was received when fetching the script."
     );
     assert_eq!(
-            get("b"),
-            "SecurityError|Failed to register a ServiceWorker for scope ('https://ark.xiaohongshu.com/') \
+        get("b"),
+        "SecurityError|Failed to register a ServiceWorker for scope ('https://ark.xiaohongshu.com/') \
              with script ('https://ark.xiaohongshu.com/sw.js'): \
              The script has an unsupported MIME type ('text/html')."
-        );
+    );
     assert_eq!(
-            get("c"),
-            "SecurityError|Failed to register a ServiceWorker: The origin of the provided scriptURL \
+        get("c"),
+        "SecurityError|Failed to register a ServiceWorker: The origin of the provided scriptURL \
              ('https://other.example') does not match the current origin ('https://ark.xiaohongshu.com')."
-        );
+    );
     assert_eq!(
         get("noFetch"),
         "true",
@@ -412,10 +412,12 @@ async fn shared_worker_scope_masks_main_thread_globals() {
             .await
             .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!("undefined|undefined|undefined|undefined|undefined|undefined|undefined|undefined|function|object"),
-            "DOM names read undefined in the worker scope — bare names and globalThis reads during the synchronous dispatch — while real globals still fall through"
-        );
+        result.value.unwrap(),
+        serde_json::json!(
+            "undefined|undefined|undefined|undefined|undefined|undefined|undefined|undefined|function|object"
+        ),
+        "DOM names read undefined in the worker scope — bare names and globalThis reads during the synchronous dispatch — while real globals still fall through"
+    );
 }
 
 // #98: BroadcastChannel delivers as a task to every OTHER open channel
@@ -454,10 +456,10 @@ async fn broadcast_channel_delivers_cloned_tasks() {
             .await
             .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!("a2:hello:true|a3:hello|a2:second:true|a3:second#InvalidStateError"),
-            "delivery reaches the same-named channel only, as a task, with per-receiver clones (a2's mutation never reaches a3); postMessage after close throws InvalidStateError"
-        );
+        result.value.unwrap(),
+        serde_json::json!("a2:hello:true|a3:hello|a2:second:true|a3:second#InvalidStateError"),
+        "delivery reaches the same-named channel only, as a task, with per-receiver clones (a2's mutation never reaches a3); postMessage after close throws InvalidStateError"
+    );
 }
 
 // #98: the PDD topology — a SharedWorker replies through
@@ -494,10 +496,10 @@ async fn shared_worker_replies_via_broadcast_channel() {
             .await
             .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!("replyStatus:u1"),
-            "the worker's BroadcastChannel post reaches the page-side listener — same name, cross-context"
-        );
+        result.value.unwrap(),
+        serde_json::json!("replyStatus:u1"),
+        "the worker's BroadcastChannel post reaches the page-side listener — same name, cross-context"
+    );
 }
 
 // Same (url, name) is ONE shared script instance, not one copy per

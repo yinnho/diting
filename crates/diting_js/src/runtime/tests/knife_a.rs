@@ -250,7 +250,12 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     "#).unwrap();
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
     // ---- shape truths (extra class = 0) ----
-    assert_eq!(v["acOwn"], serde_json::json!("baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor,sinkId,onsinkchange,setSinkId"));
+    assert_eq!(
+        v["acOwn"],
+        serde_json::json!(
+            "baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor,sinkId,onsinkchange,setSinkId"
+        )
+    );
     assert!(!v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"));
     assert_eq!(v["mediaOwn"], serde_json::json!("media,constructor"));
     assert_eq!(v["scopeOwn"], serde_json::json!("start,end,constructor")); // 刀75: Chrome 145 CSSScopeRule.start/end
@@ -260,7 +265,12 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
         serde_json::json!("name,syntax,inherits,initialValue,constructor")
     );
     // 刀66 grew the face to Chrome's eleven rw descriptors (+shape_fix order).
-    assert_eq!(v["counterOwn"], serde_json::json!("name,system,symbols,additiveSymbols,negative,prefix,suffix,range,pad,speakAs,fallback,constructor"));
+    assert_eq!(
+        v["counterOwn"],
+        serde_json::json!(
+            "name,system,symbols,additiveSymbols,negative,prefix,suffix,range,pad,speakAs,fallback,constructor"
+        )
+    );
     assert_eq!(v["credOwn"], serde_json::json!("id,type,constructor"));
     assert_eq!(
         v["pcOwn"],
@@ -599,7 +609,11 @@ fn knife59_svg_root_face_and_value_types() {
         serde_json::json!([8, 2]),
         "attribute parses into align/meetOrSlice"
     );
-    assert_eq!(v["parOut"], serde_json::json!("xMaxYMid slice"), "align setter writes the full keyword back, KEEPING meetOrSlice (probed after a slice attr)");
+    assert_eq!(
+        v["parOut"],
+        serde_json::json!("xMaxYMid slice"),
+        "align setter writes the full keyword back, KEEPING meetOrSlice (probed after a slice attr)"
+    );
     assert_eq!(
         v["zoom"],
         serde_json::json!([2, 1, null, 0, 0]),
@@ -910,16 +924,27 @@ fn knife61_rtc_peer_connection_face() {
         serde_json::json!(["audio", true]),
         "addTransceiver('audio') receiver track"
     );
-    assert_eq!(v["errors"], serde_json::json!([
-        "TypeError", "TypeError",                       // addTrack: missing arg, non-track
-        "TypeError", "TypeError",                       // removeTrack: missing arg, non-sender
-        "InvalidAccessError",                           // foreign sender
-        "TypeError", "TypeError",                       // addTransceiver: bogus string, non-kind object
-        "SyntaxError", "SyntaxError",                   // setConfiguration: non-url, hostless stun:
-        "InvalidModificationError", "InvalidModificationError", "InvalidModificationError", // bundle/rtcpMux/eis locked
-        "SyntaxError",                                  // createDTMFSender on a video track
-        "InvalidStateError", "InvalidStateError"        // closed pc: addTransceiver + setConfiguration
-    ]), "Chrome's error taxonomy: WebIDL type checks, then algorithm errors, then immutability locks, then closed guards");
+    assert_eq!(
+        v["errors"],
+        serde_json::json!([
+            "TypeError",
+            "TypeError", // addTrack: missing arg, non-track
+            "TypeError",
+            "TypeError",          // removeTrack: missing arg, non-sender
+            "InvalidAccessError", // foreign sender
+            "TypeError",
+            "TypeError", // addTransceiver: bogus string, non-kind object
+            "SyntaxError",
+            "SyntaxError", // setConfiguration: non-url, hostless stun:
+            "InvalidModificationError",
+            "InvalidModificationError",
+            "InvalidModificationError", // bundle/rtcpMux/eis locked
+            "SyntaxError",              // createDTMFSender on a video track
+            "InvalidStateError",
+            "InvalidStateError" // closed pc: addTransceiver + setConfiguration
+        ]),
+        "Chrome's error taxonomy: WebIDL type checks, then algorithm errors, then immutability locks, then closed guards"
+    );
     assert_eq!(
         v["mutEntry"],
         serde_json::json!([
@@ -1541,7 +1566,11 @@ fn knife63_svg_family_five_faces() {
         serde_json::json!([[4, 6], [5, 5]]),
         "stdDeviation pair parse (probed)"
     );
-    assert_eq!(v["feSet"], serde_json::json!([[1.5,2.5,"5"],"E:TypeError","E:TypeError"]), "setStdDeviation internal override (reads win, attr untouched — probed null only on attr-less element) + restricted float");
+    assert_eq!(
+        v["feSet"],
+        serde_json::json!([[1.5, 2.5, "5"], "E:TypeError", "E:TypeError"]),
+        "setStdDeviation internal override (reads win, attr untouched — probed null only on attr-less element) + restricted float"
+    );
     assert_eq!(
         v["feX"],
         serde_json::json!([[-10, 2], "E:NotSupportedError", 7]),
@@ -1808,7 +1837,11 @@ fn knife64_svg_geometry_reflector_family() {
         serde_json::json!(["clipPathUnits", "transform", "constructor"]),
         "clipPath truth raw order"
     );
-    assert_eq!(v["cpU"], serde_json::json!([1,2,1]), "clipPathUnits default 1 + obb + junk->default (probed; pattern's default is 2, this one is NOT)");
+    assert_eq!(
+        v["cpU"],
+        serde_json::json!([1, 2, 1]),
+        "clipPathUnits default 1 + obb + junk->default (probed; pattern's default is 2, this one is NOT)"
+    );
     assert_eq!(
         v["cpT"],
         serde_json::json!(["[object SVGAnimatedTransformList]", 1, 4]),
@@ -2006,8 +2039,20 @@ fn knife65_document_family() {
         serde_json::json!(["1.0", null, false]),
         "xmlVersion '1.0' sticks (probed)"
     );
-    assert_eq!(v["xmlBad"], serde_json::json!("E:NotSupportedError:Failed to set the 'xmlVersion' property on 'Document': This document does not support the XML version '1.1'."), "xmlVersion '1.1' exact message (probed)");
-    assert_eq!(v["xmlNull"], serde_json::json!("E:NotSupportedError:Failed to set the 'xmlVersion' property on 'Document': This document does not support the XML version ''."), "xmlVersion null -> '' message (probed)");
+    assert_eq!(
+        v["xmlBad"],
+        serde_json::json!(
+            "E:NotSupportedError:Failed to set the 'xmlVersion' property on 'Document': This document does not support the XML version '1.1'."
+        ),
+        "xmlVersion '1.1' exact message (probed)"
+    );
+    assert_eq!(
+        v["xmlNull"],
+        serde_json::json!(
+            "E:NotSupportedError:Failed to set the 'xmlVersion' property on 'Document': This document does not support the XML version ''."
+        ),
+        "xmlVersion null -> '' message (probed)"
+    );
     assert_eq!(
         v["xmlBool"],
         serde_json::json!(true),
@@ -2033,8 +2078,28 @@ fn knife65_document_family() {
         serde_json::json!(["object", true, "FeaturePolicy", "[object FeaturePolicy]", 0]),
         "featurePolicy singleton, brand, no own props (probed)"
     );
-    assert_eq!(v["fpM"], serde_json::json!([80, 81, true, true, false, false, "[\"http://example.com\"]", "[]"]), "FeaturePolicy methods Chrome-145 lists (probed 80/81) + allowlist (origin = test page origin)");
-    assert_eq!(v["fpErr"], serde_json::json!(["E:TypeError:Failed to execute 'allowsFeature' on 'FeaturePolicy': 1 argument required, but only 0 present.", "E:TypeError:Illegal invocation"]), "FeaturePolicy arity + illegal invocation (probed)");
+    assert_eq!(
+        v["fpM"],
+        serde_json::json!([
+            80,
+            81,
+            true,
+            true,
+            false,
+            false,
+            "[\"http://example.com\"]",
+            "[]"
+        ]),
+        "FeaturePolicy methods Chrome-145 lists (probed 80/81) + allowlist (origin = test page origin)"
+    );
+    assert_eq!(
+        v["fpErr"],
+        serde_json::json!([
+            "E:TypeError:Failed to execute 'allowsFeature' on 'FeaturePolicy': 1 argument required, but only 0 present.",
+            "E:TypeError:Illegal invocation"
+        ]),
+        "FeaturePolicy arity + illegal invocation (probed)"
+    );
     assert_eq!(
         v["avtRest"],
         serde_json::json!(null),
@@ -2072,13 +2137,31 @@ fn knife65_document_family() {
         serde_json::json!(["Promise", 0]),
         "browsingTopics promise + arity (probed)"
     );
-    assert_eq!(v["an"], serde_json::json!(["undef", "E:TypeError:Failed to execute 'ariaNotify' on 'Document': 1 argument required, but only 0 present.", "E:TypeError:Failed to execute 'ariaNotify' on 'Document': The provided value is not of type 'AriaNotificationOptions'.", 1, "ariaNotify"]), "ariaNotify void + messages + arity 1 (probed)");
+    assert_eq!(
+        v["an"],
+        serde_json::json!([
+            "undef",
+            "E:TypeError:Failed to execute 'ariaNotify' on 'Document': 1 argument required, but only 0 present.",
+            "E:TypeError:Failed to execute 'ariaNotify' on 'Document': The provided value is not of type 'AriaNotificationOptions'.",
+            1,
+            "ariaNotify"
+        ]),
+        "ariaNotify void + messages + arity 1 (probed)"
+    );
     assert_eq!(
         v["bodyDsc"],
         serde_json::json!([true, true, true, true, "get body", "set body", 1]),
         "body rw:ec descriptor + names"
     );
-    assert_eq!(v["bodyErr"], serde_json::json!(["E:HierarchyRequestError:Failed to set the 'body' property on 'Document': The new body element is of type 'DIV'. It must be either a 'BODY' or 'FRAMESET' element.", "E:HierarchyRequestError:Failed to set the 'body' property on 'Document': The 1st argument provided is either null, or an invalid HTMLElement object.", "E:TypeError:Failed to set the 'body' property on 'Document': Failed to convert value to 'HTMLElement'."]), "body setter exact messages (probed)");
+    assert_eq!(
+        v["bodyErr"],
+        serde_json::json!([
+            "E:HierarchyRequestError:Failed to set the 'body' property on 'Document': The new body element is of type 'DIV'. It must be either a 'BODY' or 'FRAMESET' element.",
+            "E:HierarchyRequestError:Failed to set the 'body' property on 'Document': The 1st argument provided is either null, or an invalid HTMLElement object.",
+            "E:TypeError:Failed to set the 'body' property on 'Document': Failed to convert value to 'HTMLElement'."
+        ]),
+        "body setter exact messages (probed)"
+    );
     assert_eq!(
         v["bodySelf"],
         serde_json::json!(true),
@@ -2194,7 +2277,12 @@ fn knife66_counter_style_and_shadowroot() {
             ""
         ])
     );
-    assert_eq!(g("cssText0"), serde_json::json!("@counter-style thumbs { system: cyclic; symbols: \"A\" b; additive-symbols: 3 \"a\", 2 b; suffix: \" \"; }"));
+    assert_eq!(
+        g("cssText0"),
+        serde_json::json!(
+            "@counter-style thumbs { system: cyclic; symbols: \"A\" b; additive-symbols: 3 \"a\", 2 b; suffix: \" \"; }"
+        )
+    );
     assert_eq!(
         g("sets"),
         serde_json::json!(["x \"y\"", "cyclic", "2 5", "3 \"0\"", "\" \"", "\"-\""])
@@ -2212,7 +2300,12 @@ fn knife66_counter_style_and_shadowroot() {
         g("badAfter"),
         serde_json::json!(["3 \"0\"", "", "\" \"", "2 5"])
     );
-    assert_eq!(g("canon"), serde_json::json!("@counter-style ord2 { system: cyclic; symbols: \"A\"; additive-symbols: 3 \"x\"; negative: \"-\"; prefix: \"p\"; suffix: \"s\"; pad: 2 \"0\"; range: 1 9; fallback: decimal; speak-as: numbers; }"));
+    assert_eq!(
+        g("canon"),
+        serde_json::json!(
+            "@counter-style ord2 { system: cyclic; symbols: \"A\"; additive-symbols: 3 \"x\"; negative: \"-\"; prefix: \"p\"; suffix: \"s\"; pad: 2 \"0\"; range: 1 9; fallback: decimal; speak-as: numbers; }"
+        )
+    );
     assert_eq!(
         g("illegal"),
         serde_json::json!([

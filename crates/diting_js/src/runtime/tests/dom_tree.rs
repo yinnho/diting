@@ -199,10 +199,10 @@ fn reflected_table_section_row_cell_families() {
         "plain align -> \"null\"; nullEmpty bgColor -> \"\""
     );
     assert_eq!(
-            v["nw"],
-            serde_json::json!([false, "", true, true, [false, false]]),
-            "boolean reflect: absent false; true -> empty-valued attribute; '0' -> true; false -> removed"
-        );
+        v["nw"],
+        serde_json::json!([false, "", true, true, [false, false]]),
+        "boolean reflect: absent false; true -> empty-valued attribute; '0' -> true; false -> removed"
+    );
 }
 
 #[test]

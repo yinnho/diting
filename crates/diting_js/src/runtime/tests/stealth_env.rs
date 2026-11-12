@@ -519,7 +519,10 @@ fn test_stealth_fingerprint_apis_pluginarray_and_webgl() {
     assert_eq!(v["uniform2f"], true, "uniform2f must exist");
     assert_eq!(v["getContextAttributes"], true);
     assert_eq!(v["getError"], true);
-    assert_eq!(v["unknownMethod"], true, "(刀69) a name Chrome lacks is undefined and calling it is a TypeError — the number-ish Proxy fallback is gone");
+    assert_eq!(
+        v["unknownMethod"], true,
+        "(刀69) a name Chrome lacks is undefined and calling it is a TypeError — the number-ish Proxy fallback is gone"
+    );
 }
 
 #[test]
@@ -594,15 +597,15 @@ fn test_stealth_webgl_chrome_truth_interface_shape() {
         "GL1 instance must carry ZERO own props of any kind (only hidden _canvas)"
     );
     assert_eq!(
-            v["protoNames1"].as_i64().unwrap(),
-            443,
-            "GL1 prototype own-name count must be exactly Chrome 145's 443 (298 consts + 138 methods + 6 accessors + makeXRCompatible)"
-        );
+        v["protoNames1"].as_i64().unwrap(),
+        443,
+        "GL1 prototype own-name count must be exactly Chrome 145's 443 (298 consts + 138 methods + 6 accessors + makeXRCompatible)"
+    );
     assert_eq!(
-            v["protoNames2"].as_i64().unwrap(),
-            792,
-            "GL2 prototype own-name count must be exactly Chrome 145's 792 (559 + 226 + 6 + makeXRCompatible)"
-        );
+        v["protoNames2"].as_i64().unwrap(),
+        792,
+        "GL2 prototype own-name count must be exactly Chrome 145's 792 (559 + 226 + 6 + makeXRCompatible)"
+    );
     assert_eq!(
         v["protoKeys1"].as_i64().unwrap(),
         442,
@@ -800,11 +803,11 @@ fn builtin_members_report_native_code() {
             )
             .unwrap();
     assert_eq!(
-            v,
-            serde_json::json!(
-                "function Element() { [native code] }|function Node() { [native code] }|function getAttribute() { [native code] }|function get nodeType() { [native code] }"
-            )
-        );
+        v,
+        serde_json::json!(
+            "function Element() { [native code] }|function Node() { [native code] }|function getAttribute() { [native code] }|function get nodeType() { [native code] }"
+        )
+    );
 }
 
 /// Upstream 4c33f6d (unusualWindowProperties): internal globals must not

@@ -87,10 +87,10 @@ async fn scripted_fetch_event_carries_wire_cookie_header() {
             .unwrap_or_default();
         let body = format!("cookie-was:{}", cookie);
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                body.len(),
-                body
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
         s2.write_all(resp.as_bytes()).unwrap();
         s2.flush().unwrap();
     });
@@ -255,16 +255,16 @@ fn test_document_cookie_about_blank_throws_security_error() {
         .evaluate(r#"try { document.cookie; "no-throw" } catch (e) { e.name + "|" + e.message }"#)
         .unwrap();
     assert_eq!(
-            get.as_str().unwrap(),
-            "SecurityError|Failed to read the 'cookie' property from 'Document': Access is denied for this document."
-        );
+        get.as_str().unwrap(),
+        "SecurityError|Failed to read the 'cookie' property from 'Document': Access is denied for this document."
+    );
     let set = rt
             .evaluate(r#"try { document.cookie = "mb=你好世界; path=/"; "no-throw" } catch (e) { e.name + "|" + e.message }"#)
             .unwrap();
     assert_eq!(
-            set.as_str().unwrap(),
-            "SecurityError|Failed to set the 'cookie' property on 'Document': Access is denied for this document."
-        );
+        set.as_str().unwrap(),
+        "SecurityError|Failed to set the 'cookie' property on 'Document': Access is denied for this document."
+    );
 }
 
 /// #274: multi-byte UTF-8 values round-trip on a real origin — the jar
@@ -345,10 +345,10 @@ fn queued_navigation_does_not_move_the_cookie_context() {
         .unwrap()
         .to_string();
     assert!(
-            !cookie_str.contains("victimtoken"),
-            "document.cookie must not expose another origin's cookies while the navigation is only queued, got: {}",
-            cookie_str
-        );
+        !cookie_str.contains("victimtoken"),
+        "document.cookie must not expose another origin's cookies while the navigation is only queued, got: {}",
+        cookie_str
+    );
 
     // The write side of the same hole: a JS cookie set while the
     // navigation is queued must land on the CURRENT origin, not the
@@ -454,9 +454,9 @@ async fn iframe_load_sends_cookies_cross_origin() {
         .recv_timeout(std::time::Duration::from_secs(5))
         .unwrap();
     assert!(
-            seen.split("; ").any(|c| c == "s=login"),
-            "iframe load must carry the jar's cookies cross-origin (navigation semantics), saw: '{seen}'"
-        );
+        seen.split("; ").any(|c| c == "s=login"),
+        "iframe load must carry the jar's cookies cross-origin (navigation semantics), saw: '{seen}'"
+    );
 }
 
 /// Real browsers send and store cookies on cross-origin classic
@@ -508,9 +508,9 @@ async fn test_dynamic_cross_origin_script_sends_and_stores_cookies() {
                 b"window.__dynEcho = 'NO_COOKIE';"
             };
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\nset-cookie: dyn_sc=stored; Path=/\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\nset-cookie: dyn_sc=stored; Path=/\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             stream.write_all(response.as_bytes()).unwrap();
             stream.write_all(body).unwrap();
             stream.flush().unwrap();

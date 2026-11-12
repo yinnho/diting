@@ -683,10 +683,10 @@ async fn test_sticky_header_pins_gbcr_and_hit_test_under_root_scroll() {
         .await
         .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!(["sticky", true, true, "head", true]),
-            "computed face, in-flow rest, stuck client top == 0, client hit lands on the stuck header, back to in-flow"
-        );
+        result.value.unwrap(),
+        serde_json::json!(["sticky", true, true, "head", true]),
+        "computed face, in-flow rest, stuck client top == 0, client hit lands on the stuck header, back to in-flow"
+    );
 }
 
 // Cross-parent z (the narrow slice): a positioned z>0 child of a
@@ -823,10 +823,10 @@ async fn test_sticky_pins_inside_element_scroller() {
         .await
         .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!([400, true, true, true]),
-            "head stays at the scroller's port top, tall travels with the scroll, reset restores in-flow"
-        );
+        result.value.unwrap(),
+        serde_json::json!([400, true, true, true]),
+        "head stays at the scroller's port top, tall travels with the scroll, reset restores in-flow"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -867,10 +867,10 @@ async fn test_sticky_table_row_pins_under_root_scroll() {
         .await
         .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!(["sticky", 108, 0, 0, "hc", 108]),
-            "row sticks at top:0 (client-space gBCR == 0), cell inherits the shift, hit lands on the stuck header, reset restores"
-        );
+        result.value.unwrap(),
+        serde_json::json!(["sticky", 108, 0, 0, "hc", 108]),
+        "row sticks at top:0 (client-space gBCR == 0), cell inherits the shift, hit lands on the stuck header, reset restores"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -898,10 +898,10 @@ async fn test_sticky_table_header_group_and_cell_pin() {
         .await
         .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!([0, 0, "c1"]),
-            "group sticks at top:0 (client-space gBCR), cell inherits the shift, hit lands on the stuck header cell"
-        );
+        result.value.unwrap(),
+        serde_json::json!([0, 0, "c1"]),
+        "group sticks at top:0 (client-space gBCR), cell inherits the shift, hit lands on the stuck header cell"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -930,10 +930,10 @@ async fn test_sticky_table_row_z_index_outranks_later_positioned() {
         .await
         .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!([0, "hc"]),
-            "sticky z:5 row in a static thead outranks the fixed z:2 overlay in hit-testing (client-space stuck top == 0)"
-        );
+        result.value.unwrap(),
+        serde_json::json!([0, "hc"]),
+        "sticky z:5 row in a static thead outranks the fixed z:2 overlay in hit-testing (client-space stuck top == 0)"
+    );
 }
 
 #[cfg(feature = "screenshot")]
@@ -994,8 +994,8 @@ fn test_layout_rect_cache_invalidates_on_mutation() {
     // reflect the mutated tree (the inserted sibling pushes #b down),
     // not the memoized pre-insert layout.
     let mut rt = setup_runtime(
-            "<html><body><div id=\"a\" style=\"height:50px\">a</div><div id=\"b\">b</div></body></html>",
-        );
+        "<html><body><div id=\"a\" style=\"height:50px\">a</div><div id=\"b\">b</div></body></html>",
+    );
     let before = rt
         .evaluate("document.getElementById('b').getBoundingClientRect().y")
         .unwrap();
@@ -1020,8 +1020,8 @@ fn test_offset_geometry_matches_real_layout_rect() {
     // sizing a container via offsetWidth (map-lib init) must not see the
     // 100x20 stub while gBCR reports the real box.
     let mut rt = setup_runtime(
-            "<html><body><div id=\"box\" style=\"width:300px;height:120px;margin:10px\">x</div></body></html>",
-        );
+        "<html><body><div id=\"box\" style=\"width:300px;height:120px;margin:10px\">x</div></body></html>",
+    );
     let result = rt
         .evaluate(
             r#"
@@ -1094,12 +1094,12 @@ fn test_offset_parent_is_null_terminated_cssom_chain() {
     // or table ancestor, body fallback, null for html/body/fixed/
     // display:none chains/detached — never undefined.
     let mut rt = setup_runtime(
-            "<html><head><style>#fixed { position: fixed; top: 0; left: 0; width: 50px; height: 20px; }\
+        "<html><head><style>#fixed { position: fixed; top: 0; left: 0; width: 50px; height: 20px; }\
              .rel { position: relative; }</style></head>\
              <body><div class=\"rel\" id=\"rel\"><div id=\"plain\"></div></div><div id=\"top\"></div>\
              <div id=\"fixed\"></div><div id=\"hider\" style=\"display:none\"><div id=\"hiddenchild\"></div></div>\
              <table><tr><td id=\"cell\"><span id=\"incell\"></span></td></tr></table></body></html>",
-        );
+    );
     let result = rt
         .evaluate(
             r#"
@@ -1178,8 +1178,8 @@ fn test_offset_geometry_zero_while_hidden_real_after_show() {
     // run (set_attribute drops it), or the re-measure would serve the
     // stale cached "none".
     let mut rt = setup_runtime(
-            "<html><head><style>#h { display: none; }</style></head><body><div id=\"h\" style=\"width:300px;height:80px\">h</div><div id=\"s\">s</div></body></html>",
-        );
+        "<html><head><style>#h { display: none; }</style></head><body><div id=\"h\" style=\"width:300px;height:80px\">h</div><div id=\"s\">s</div></body></html>",
+    );
     let result = rt
         .evaluate(
             r#"
@@ -1222,9 +1222,9 @@ fn test_rotated_text_ink_does_not_fake_horizontal_scroll() {
     // serves the mapped AABB (the element-box half of the walk is
     // transform-correct), so the text fold was the only stale source.
     let html = format!(
-            "<html><body><div id=\"r\" style=\"position:absolute;left:0px;top:40px;width:100px;height:14px;font-size:10px;white-space:nowrap;transform:rotate(90deg)\">{}</div></body></html>",
-            "字".repeat(800)
-        );
+        "<html><body><div id=\"r\" style=\"position:absolute;left:0px;top:40px;width:100px;height:14px;font-size:10px;white-space:nowrap;transform:rotate(90deg)\">{}</div></body></html>",
+        "字".repeat(800)
+    );
     let mut rt = setup_runtime(&html);
     let result = rt
         .evaluate(

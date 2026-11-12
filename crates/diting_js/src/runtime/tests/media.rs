@@ -57,9 +57,9 @@ async fn image_factory_fires_load_on_2xx_fetch() {
         let mut buf = [0u8; 4096];
         let _ = stream.read(&mut buf).unwrap();
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: image/png\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                png.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: image/png\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            png.len()
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.write_all(png).unwrap();
         stream.flush().unwrap();
@@ -120,9 +120,9 @@ async fn image_factory_backfills_natural_dimensions_from_2xx_body() {
         let mut buf = [0u8; 4096];
         let _ = stream.read(&mut buf).unwrap();
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: image/png\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                png.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: image/png\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            png.len()
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.write_all(&png).unwrap();
         stream.flush().unwrap();
@@ -306,7 +306,9 @@ async fn video_blob_source_reaches_chrome_metadata_face() {
     // Chrome's probe order verbatim, values visible from durationchange on.
     assert_eq!(
         v["seen"],
-        serde_json::json!("emptied@rs0@0x0@NaN,loadstart@rs0@0x0@NaN,durationchange@rs4@1280x720@36,resize@rs4@1280x720@36,loadedmetadata@rs4@1280x720@36,progress@rs4@1280x720@36,suspend@rs4@1280x720@36,loadeddata@rs4@1280x720@36,canplay@rs4@1280x720@36,canplaythrough@rs4@1280x720@36")
+        serde_json::json!(
+            "emptied@rs0@0x0@NaN,loadstart@rs0@0x0@NaN,durationchange@rs4@1280x720@36,resize@rs4@1280x720@36,loadedmetadata@rs4@1280x720@36,progress@rs4@1280x720@36,suspend@rs4@1280x720@36,loadeddata@rs4@1280x720@36,canplay@rs4@1280x720@36,canplaythrough@rs4@1280x720@36"
+        )
     );
     assert_eq!(v["w"], serde_json::json!(1280));
     assert_eq!(v["h"], serde_json::json!(720));
@@ -737,7 +739,10 @@ async fn vttcue_constructs_like_chrome() {
         o["two"],
         "THROW TypeError: Failed to construct 'VTTCue': 3 arguments required, but only 2 present."
     );
-    assert_eq!(o["call"], "THROW TypeError: Failed to construct 'VTTCue': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    assert_eq!(
+        o["call"],
+        "THROW TypeError: Failed to construct 'VTTCue': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+    );
     assert_eq!(
         o["nonfinite_start"],
         "THROW TypeError: Failed to construct 'VTTCue': The provided double value is non-finite."
@@ -793,20 +798,41 @@ async fn vttcue_constructs_like_chrome() {
         serde_json::json!([true, true, "[object VTTCue]", true])
     );
     assert_eq!(o["set_id"], "5");
-    assert_eq!(o["set_start_nan"], "THROW TypeError: Failed to set the 'startTime' property on 'TextTrackCue': The provided double value is non-finite.");
+    assert_eq!(
+        o["set_start_nan"],
+        "THROW TypeError: Failed to set the 'startTime' property on 'TextTrackCue': The provided double value is non-finite."
+    );
     assert_eq!(o["set_end_inf"], "Infinity");
     assert_eq!(o["set_pause"], true);
     assert_eq!(o["vert"], serde_json::json!(["", "rl"]));
     assert_eq!(o["snap"], false);
     assert_eq!(o["line"], serde_json::json!([3.5, "auto"]));
-    assert_eq!(o["line_str"], "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value 'x' is not a valid enum value of type AutoKeyword.");
-    assert_eq!(o["line_nan"], "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided double value is non-finite.");
-    assert_eq!(o["line_obj"], "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value '[object Object]' is not a valid enum value of type AutoKeyword.");
+    assert_eq!(
+        o["line_str"],
+        "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value 'x' is not a valid enum value of type AutoKeyword."
+    );
+    assert_eq!(
+        o["line_nan"],
+        "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided double value is non-finite."
+    );
+    assert_eq!(
+        o["line_obj"],
+        "THROW TypeError: Failed to set the 'line' property on 'VTTCue': The provided value '[object Object]' is not a valid enum value of type AutoKeyword."
+    );
     assert_eq!(o["pos"], serde_json::json!([50, "auto"]));
-    assert_eq!(o["pos_200"], "THROW IndexSizeError: Failed to set the 'position' property on 'VTTCue': The value provided (200) is outside the range [0, 100].");
+    assert_eq!(
+        o["pos_200"],
+        "THROW IndexSizeError: Failed to set the 'position' property on 'VTTCue': The value provided (200) is outside the range [0, 100]."
+    );
     assert_eq!(o["size"], 50);
-    assert_eq!(o["size_neg"], "THROW IndexSizeError: Failed to set the 'size' property on 'VTTCue': The value provided (-1) is outside the range [0, 100].");
-    assert_eq!(o["size_str"], "THROW TypeError: Failed to set the 'size' property on 'VTTCue': The provided double value is non-finite.");
+    assert_eq!(
+        o["size_neg"],
+        "THROW IndexSizeError: Failed to set the 'size' property on 'VTTCue': The value provided (-1) is outside the range [0, 100]."
+    );
+    assert_eq!(
+        o["size_str"],
+        "THROW TypeError: Failed to set the 'size' property on 'VTTCue': The provided double value is non-finite."
+    );
     assert_eq!(o["align"], serde_json::json!(["center", "left"]));
     assert_eq!(o["text_set"], "7");
     assert_eq!(

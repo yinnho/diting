@@ -144,33 +144,33 @@ fn interface_prototype_chain_and_patch_isolation() {
 fn interface_operations_are_enumerable() {
     let mut rt = setup_runtime(r#"<body><div id="d"></div></body>"#);
     let checks: &[(&str, bool)] = &[
-            (
-                "Object.getOwnPropertyDescriptor(MutationObserver.prototype, 'observe').enumerable",
-                true,
-            ),
-            (
-                "Object.getOwnPropertyDescriptor(Element.prototype, 'getAttribute').enumerable",
-                true,
-            ),
-            (
-                "Object.getOwnPropertyDescriptor(Node.prototype, 'appendChild').enumerable",
-                true,
-            ),
-            // The zone.js patchClass discovery pattern: for-in over an
-            // instance must surface the interface operations as functions.
-            (
-                "(() => { const mo = new MutationObserver(function(){}); let saw = 0; \
+        (
+            "Object.getOwnPropertyDescriptor(MutationObserver.prototype, 'observe').enumerable",
+            true,
+        ),
+        (
+            "Object.getOwnPropertyDescriptor(Element.prototype, 'getAttribute').enumerable",
+            true,
+        ),
+        (
+            "Object.getOwnPropertyDescriptor(Node.prototype, 'appendChild').enumerable",
+            true,
+        ),
+        // The zone.js patchClass discovery pattern: for-in over an
+        // instance must surface the interface operations as functions.
+        (
+            "(() => { const mo = new MutationObserver(function(){}); let saw = 0; \
                   for (const k in mo) { if (k === 'observe' && typeof mo[k] === 'function') saw++; } \
                   return saw === 1; })()",
-                true,
-            ),
-            // window.constructor.prototype members (WindowProxy face) stay out
-            // of scope: Object.prototype built-ins must NOT become enumerable.
-            (
-                "Object.getOwnPropertyDescriptor(Object.prototype, 'hasOwnProperty').enumerable",
-                false,
-            ),
-        ];
+            true,
+        ),
+        // window.constructor.prototype members (WindowProxy face) stay out
+        // of scope: Object.prototype built-ins must NOT become enumerable.
+        (
+            "Object.getOwnPropertyDescriptor(Object.prototype, 'hasOwnProperty').enumerable",
+            false,
+        ),
+    ];
     for (expr, expected) in checks {
         let got = rt.evaluate(expr).unwrap();
         assert_eq!(got, serde_json::json!(expected), "expr: {expr}");
@@ -187,65 +187,98 @@ fn svg_interface_family_and_namespace() {
         r#"<body><svg id="sv"><path id="pa"></path><linearGradient id="lg"></linearGradient><a id="sa"></a></svg><a id="ha" href="/h">h</a></body>"#,
     );
     let checks: &[(&str, bool)] = &[
-            // Chrome chain: SVGSVGElement → SVGGraphicsElement → SVGElement
-            // → HTMLElement → Element (Blink routes SVG through HTMLElement).
-            ("document.getElementById('sv') instanceof SVGSVGElement", true),
-            ("document.getElementById('sv') instanceof SVGGraphicsElement", true),
-            ("document.getElementById('sv') instanceof SVGElement", true),
-            // (刀72) Chrome 145: the SVG chain has no HTMLElement level (the #28 claim was wrong).
-            ("document.getElementById('sv') instanceof HTMLElement", false),
-            ("document.getElementById('sv') instanceof Element", true),
-            ("document.getElementById('pa') instanceof SVGGeometryElement", true),
-            // svg is graphics but NOT geometry; shapes are both.
-            ("document.getElementById('sv') instanceof SVGGeometryElement", false),
-            // Namespace discrimination: svg <a> vs HTML <a> never collide.
-            ("document.getElementById('sa') instanceof SVGAElement", true),
-            ("document.getElementById('sa') instanceof HTMLAnchorElement", false),
-            ("document.getElementById('ha') instanceof HTMLAnchorElement", true),
-            ("document.getElementById('ha') instanceof SVGAElement", false),
-            // The old bare alias made EVERY node instanceof SVGSVGElement.
-            ("document.body instanceof SVGSVGElement", false),
-            ("SVGSVGElement !== Element", true),
-            (
-                "Object.getPrototypeOf(SVGSVGElement.prototype) === SVGGraphicsElement.prototype",
-                true,
-            ),
-            (
-                "Object.getPrototypeOf(SVGGraphicsElement.prototype) === SVGElement.prototype",
-                true,
-            ),
-            // (刀72) Chrome 145: SVGElement sits directly on Element.
-            (
-                "Object.getPrototypeOf(SVGElement.prototype) === Element.prototype",
-                true,
-            ),
-            // Parsed SVG children inherit the namespace from the tree; HTML
-            // elements keep XHTML. Case: linearGradient keeps its camelCase.
-            (
-                "document.getElementById('pa').namespaceURI === 'http://www.w3.org/2000/svg'",
-                true,
-            ),
-            (
-                "document.getElementById('ha').namespaceURI === 'http://www.w3.org/1999/xhtml'",
-                true,
-            ),
-            ("document.getElementById('lg').localName === 'linearGradient'", true),
-            ("document.getElementById('lg').tagName === 'linearGradient'", true),
-            // createElementNS: XML tag case preserved, namespace true.
-            (
-                "(() => { const c = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient'); \
+        // Chrome chain: SVGSVGElement → SVGGraphicsElement → SVGElement
+        // → HTMLElement → Element (Blink routes SVG through HTMLElement).
+        (
+            "document.getElementById('sv') instanceof SVGSVGElement",
+            true,
+        ),
+        (
+            "document.getElementById('sv') instanceof SVGGraphicsElement",
+            true,
+        ),
+        ("document.getElementById('sv') instanceof SVGElement", true),
+        // (刀72) Chrome 145: the SVG chain has no HTMLElement level (the #28 claim was wrong).
+        (
+            "document.getElementById('sv') instanceof HTMLElement",
+            false,
+        ),
+        ("document.getElementById('sv') instanceof Element", true),
+        (
+            "document.getElementById('pa') instanceof SVGGeometryElement",
+            true,
+        ),
+        // svg is graphics but NOT geometry; shapes are both.
+        (
+            "document.getElementById('sv') instanceof SVGGeometryElement",
+            false,
+        ),
+        // Namespace discrimination: svg <a> vs HTML <a> never collide.
+        ("document.getElementById('sa') instanceof SVGAElement", true),
+        (
+            "document.getElementById('sa') instanceof HTMLAnchorElement",
+            false,
+        ),
+        (
+            "document.getElementById('ha') instanceof HTMLAnchorElement",
+            true,
+        ),
+        (
+            "document.getElementById('ha') instanceof SVGAElement",
+            false,
+        ),
+        // The old bare alias made EVERY node instanceof SVGSVGElement.
+        ("document.body instanceof SVGSVGElement", false),
+        ("SVGSVGElement !== Element", true),
+        (
+            "Object.getPrototypeOf(SVGSVGElement.prototype) === SVGGraphicsElement.prototype",
+            true,
+        ),
+        (
+            "Object.getPrototypeOf(SVGGraphicsElement.prototype) === SVGElement.prototype",
+            true,
+        ),
+        // (刀72) Chrome 145: SVGElement sits directly on Element.
+        (
+            "Object.getPrototypeOf(SVGElement.prototype) === Element.prototype",
+            true,
+        ),
+        // Parsed SVG children inherit the namespace from the tree; HTML
+        // elements keep XHTML. Case: linearGradient keeps its camelCase.
+        (
+            "document.getElementById('pa').namespaceURI === 'http://www.w3.org/2000/svg'",
+            true,
+        ),
+        (
+            "document.getElementById('ha').namespaceURI === 'http://www.w3.org/1999/xhtml'",
+            true,
+        ),
+        (
+            "document.getElementById('lg').localName === 'linearGradient'",
+            true,
+        ),
+        (
+            "document.getElementById('lg').tagName === 'linearGradient'",
+            true,
+        ),
+        // createElementNS: XML tag case preserved, namespace true.
+        (
+            "(() => { const c = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient'); \
                   return c.tagName === 'linearGradient' && c.namespaceURI === 'http://www.w3.org/2000/svg' \
                   && c instanceof SVGLinearGradientElement; })()",
-                true,
-            ),
-            // Empty namespace string is the null namespace per spec.
-            ("document.createElementNS('', 'foo').namespaceURI === null", true),
-            // Class-body methods stay enumerable after the tail pass.
-            (
-                "Object.getOwnPropertyDescriptor(SVGGraphicsElement.prototype, 'getBBox').enumerable",
-                true,
-            ),
-        ];
+            true,
+        ),
+        // Empty namespace string is the null namespace per spec.
+        (
+            "document.createElementNS('', 'foo').namespaceURI === null",
+            true,
+        ),
+        // Class-body methods stay enumerable after the tail pass.
+        (
+            "Object.getOwnPropertyDescriptor(SVGGraphicsElement.prototype, 'getBBox').enumerable",
+            true,
+        ),
+    ];
     for (expr, expected) in checks {
         let got = rt.evaluate(expr).unwrap();
         assert_eq!(got, serde_json::json!(expected), "expr: {expr}");
@@ -534,10 +567,12 @@ fn rtc_peer_connection_face_matches_chrome() {
             .unwrap();
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
     assert_eq!(
-            v["bareCall"],
-            serde_json::json!("Failed to construct 'RTCPeerConnection': Please use the 'new' operator, this DOM object constructor cannot be called as a function."),
-            "bare call throws Chrome's DOM TypeError"
-        );
+        v["bareCall"],
+        serde_json::json!(
+            "Failed to construct 'RTCPeerConnection': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+        ),
+        "bare call throws Chrome's DOM TypeError"
+    );
     assert_eq!(
         v["brand"],
         serde_json::json!("[object RTCPeerConnection]"),
@@ -573,7 +608,11 @@ fn rtc_peer_connection_face_matches_chrome() {
         ]),
         "RTC orbit carries per-interface tags"
     );
-    assert_eq!(v["dataChannelCtor"], serde_json::json!("Failed to construct 'RTCDataChannel': Illegal constructor"), "satellite stubs still throw Illegal constructor (刀78: Chrome's message names the interface)");
+    assert_eq!(
+        v["dataChannelCtor"],
+        serde_json::json!("Failed to construct 'RTCDataChannel': Illegal constructor"),
+        "satellite stubs still throw Illegal constructor (刀78: Chrome's message names the interface)"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -630,9 +669,9 @@ async fn test_list_reflection_indeterminate_font_family_ec_jwk_order() {
     // local headless Chrome): ol.start/reversed/type, li.value,
     // :indeterminate / live :checked, fontFamily read-back, EC JWK keys.
     let mut rt = setup_runtime(
-            "<html><body><ol id=o start=5 reversed type=a><li id=l1 value=9>a<li id=l2 value=x>b</ol>\
+        "<html><body><ol id=o start=5 reversed type=a><li id=l1 value=9>a<li id=l2 value=x>b</ol>\
              <input type=checkbox id=cb><input type=checkbox id=cb2 checked><progress id=pg></progress></body></html>",
-        );
+    );
     let v = rt
             .evaluate(
                 "(() => { cb.indeterminate = true; const ff = (s) => { const d = document.createElement('div'); d.style.fontFamily = s; return d.style.fontFamily; };
@@ -697,9 +736,9 @@ async fn test_small_web_api_gaps_from_the_chrome_battery() {
             .await
             .unwrap();
     assert_eq!(
-            v.value.unwrap(),
-            "functionfunction|7|function|3|<div xmlns=\"http://www.w3.org/1999/xhtml\"></div>|running11|finished0|functionfunctiontrue|updated|true,true,false"
-        );
+        v.value.unwrap(),
+        "functionfunction|7|function|3|<div xmlns=\"http://www.w3.org/1999/xhtml\"></div>|running11|finished0|functionfunctiontrue|updated|true,true,false"
+    );
 }
 
 /// JS-PLATFORM-ARCH M3: DOMException, EventTarget, Event and CustomEvent are

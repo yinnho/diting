@@ -565,8 +565,8 @@ fn conn_uad_face_p6() {
 #[test]
 fn body_window_reflecting_on_family() {
     let mut rt = setup_runtime(
-            "<html><body onresize='window.__attrResizeRan=1' onclick='window.__attrClickRan=1'>x</body></html>",
-        );
+        "<html><body onresize='window.__attrResizeRan=1' onclick='window.__attrClickRan=1'>x</body></html>",
+    );
     let out = rt.evaluate(r#"
             var b = document.body;
             var names = ['afterprint','beforeprint','beforeunload','blur','error','focus',
@@ -1150,7 +1150,17 @@ fn window_named_access_live_and_shadowing() {
     let v: serde_json::Value = serde_json::from_str(s).unwrap();
     assert_eq!(
         v,
-        serde_json::json!(["object", "DIV", true, "object", "FORM", true, true, "undefined", "unresolved"]),
+        serde_json::json!([
+            "object",
+            "DIV",
+            true,
+            "object",
+            "FORM",
+            true,
+            true,
+            "undefined",
+            "unresolved"
+        ]),
         "named access must resolve parser-built ids/names, keep real globals, skip index-like names"
     );
 }
@@ -1253,7 +1263,19 @@ fn window_named_access_invisible_to_enumeration() {
         serde_json::from_str(rt.evaluate("globalThis.__out").unwrap().as_str().unwrap()).unwrap();
     assert_eq!(
         v,
-        serde_json::json!(["DIV", false, true, true, true, false, "DIV", false, "undefined", "IMG", 7]),
+        serde_json::json!([
+            "DIV",
+            false,
+            true,
+            true,
+            true,
+            false,
+            "DIV",
+            false,
+            "undefined",
+            "IMG",
+            7
+        ]),
         "named access must stay resolvable while invisible to window AND layer enumeration (Chrome's WindowProperties is empty to gopn)"
     );
 }

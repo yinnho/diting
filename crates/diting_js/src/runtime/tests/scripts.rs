@@ -209,9 +209,9 @@ async fn module_import_allows_body_above_upstream_cap() {
             "x".repeat(BIG)
         );
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         let _ = stream.write_all(resp.as_bytes());
         let _ = stream.write_all(body.as_bytes());
         let _ = stream.flush();
@@ -295,9 +295,9 @@ async fn module_import_honors_fetch_url_policy() {
         let _ = stream.read(&mut buf);
         let body = "globalThis.__PRIVATE_OK__ = true;\nexport const ok = true;\n";
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         let _ = stream.write_all(resp.as_bytes());
         let _ = stream.write_all(body.as_bytes());
         let _ = stream.flush();
@@ -543,9 +543,9 @@ async fn test_dynamic_script_non_2xx_body_not_evaluated() {
         let _ = stream.read(&mut buf);
         let body = b"window.__leak = 1;";
         let response = format!(
-                "HTTP/1.1 404 Not Found\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 404 Not Found\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -601,9 +601,9 @@ async fn test_dynamic_script_load_and_error_fire_onload_exactly_once() {
             let mut buf = [0u8; 4096];
             let _ = stream.read(&mut buf);
             let response = format!(
-                    "HTTP/1.1 {status}\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 {status}\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             stream.write_all(response.as_bytes()).unwrap();
             stream.write_all(body).unwrap();
             stream.flush().unwrap();
@@ -663,9 +663,9 @@ async fn test_slow_dynamic_script_visible_as_pending_until_lands() {
         std::thread::sleep(std::time::Duration::from_millis(300));
         let body = b"window.__slow = 1;";
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -821,8 +821,10 @@ async fn dynamic_script_retries_once_on_network_failure_not_on_404() {
                         let _ = s.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                         continue;
                     }
-                    ("HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: 28\r\nConnection: close\r\n\r\n",
-                     "window.__flakyLoaded = true;")
+                    (
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: 28\r\nConnection: close\r\n\r\n",
+                        "window.__flakyLoaded = true;",
+                    )
                 } else {
                     // /gone → 404 every time.
                     (

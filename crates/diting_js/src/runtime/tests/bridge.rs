@@ -1,6 +1,6 @@
 //! evaluate/call_function 桥 + console→CDP + eval 耐心 + native_mark_weak
 use super::super::*;
-use super::common::{setup_runtime};
+use super::common::setup_runtime;
 
 #[test]
 fn test_console_log() {
@@ -869,7 +869,9 @@ fn js_surface_webidl_member_probe() {
     let src = std::env::var("SURFACE_STD_MEMBERS").expect("SURFACE_STD_MEMBERS");
     let outp = std::env::var("SURFACE_STD_OUT").expect("SURFACE_STD_OUT");
     let std_json = std::fs::read_to_string(src).unwrap();
-    let mut rt = setup_runtime("<html><body><div id='d'></div><input id='i'><img id='im'><form id='f'></form><canvas id='c'></canvas><video id='v'></video><a id='a'></a><select id='s'></select><textarea id='t'></textarea><button id='b'></button><iframe id='fr'></iframe><script id='sc'></script><link id='lk'><template id='tp'></template></body></html>");
+    let mut rt = setup_runtime(
+        "<html><body><div id='d'></div><input id='i'><img id='im'><form id='f'></form><canvas id='c'></canvas><video id='v'></video><a id='a'></a><select id='s'></select><textarea id='t'></textarea><button id='b'></button><iframe id='fr'></iframe><script id='sc'></script><link id='lk'><template id='tp'></template></body></html>",
+    );
     let code = format!(
         r#"(function(){{
         var STD = {std_json};

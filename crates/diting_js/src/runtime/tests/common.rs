@@ -15,7 +15,9 @@ pub(super) fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> 
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 
-pub(super) fn setup_runtime_with_cookies(html: &str) -> (JsRuntime, std::sync::Arc<diting_net::CookieJar>) {
+pub(super) fn setup_runtime_with_cookies(
+    html: &str,
+) -> (JsRuntime, std::sync::Arc<diting_net::CookieJar>) {
     let dom = diting_dom::parse_html(html);
     let jar = std::sync::Arc::new(diting_net::CookieJar::new());
     let rt = JsRuntime::new();

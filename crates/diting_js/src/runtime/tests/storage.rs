@@ -1,6 +1,6 @@
 //! IndexedDB + localStorage/sessionStorage + storage 事件
 use super::super::*;
-use super::common::{STORAGE_ENV_LOCK, setup_runtime};
+use super::common::{setup_runtime, STORAGE_ENV_LOCK};
 
 #[test]
 fn test_storage_event_constructor_and_legacy_factory() {
@@ -217,7 +217,10 @@ async fn idb_close_is_per_connection_not_per_database() {
     let log = rt.evaluate("globalThis.__log").unwrap();
     assert_eq!(
         log,
-        serde_json::json!(["b-tx-ok", "a-tx-throw:InvalidStateError:Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing."]),
+        serde_json::json!([
+            "b-tx-ok",
+            "a-tx-throw:InvalidStateError:Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing."
+        ]),
         "closing one connection must leave sibling connections transacting; only the closed one throws"
     );
 }
