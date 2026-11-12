@@ -93,32 +93,6 @@ pub(crate) use crypto_rsa::{
     rsa_generate_flat, rsa_oaep, rsa_pkcs1v15_sign, rsa_pss_sign,
 };
 
-/// Parse and merge an inline document import map (upstream 34373c3). Returns
-/// "" on success or the parse/merge error message, so the bootstrap caller can
-/// surface it as a script error event without a rejected-op round-trip.
-#[diting_op]
-#[string]
-fn op_add_import_map(
-    state: &OpState,
-    #[string] source: String,
-    #[string] base_url: String,
-) -> String {
-    let shared = state.borrow::<SharedState>().clone();
-    let import_map = shared.borrow().import_map.clone();
-    let parsed = match crate::import_map::ImportMap::parse(&source, &base_url) {
-        Ok(map) => map,
-        Err(error) => return error,
-    };
-    let result = match import_map.try_borrow_mut() {
-        Ok(mut current) => {
-            current.merge(parsed);
-            String::new()
-        }
-        Err(_) => "Import map is already borrowed".to_string(),
-    };
-    result
-}
-
 /// The op table our own host installs (10d flip): every #[diting_op]
 /// wrapper already returns OUR OpDecl, and the four async ops come in as
 /// hand glue from `diting_js::async_glue` (op_fetch_url / op_sleep /
@@ -186,7 +160,7 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         url_ops::op_url_parse(),
         url_ops::op_url_set(),
         url_ops::op_url_resolve(),
-        op_add_import_map(),
+        crate::import_map::op_add_import_map(),
         encoding::op_encoding_for_label(),
         encoding::op_text_decode(),
         encoding::op_url_encode_query(),
