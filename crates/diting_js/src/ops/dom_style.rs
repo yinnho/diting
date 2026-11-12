@@ -3,7 +3,13 @@
 use super::*;
 
 /// `op_dom` family: external stylesheets, resource timings, CSS rule parsing.
-pub(super) fn dom_cmd_sheets(gs: &JsState, _dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_sheets(
+    gs: &JsState,
+    _dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         // External stylesheet bodies (absolute URL → CSS text) fetched at
         // navigation. document.styleSheets reads this to build real
@@ -85,7 +91,13 @@ pub(super) fn dom_cmd_sheets(gs: &JsState, _dom: &DomTree, cmd: &str, arg1: Stri
 }
 
 /// `op_dom` family: layout geometry: rects, paint order, local geometry, event offsets.
-pub(super) fn dom_cmd_geometry(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_geometry(
+    gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         "text_rects" | "elem_rects" => text_geom::run(gs, dom, cmd, &arg1, &arg2),
         // Real layout geometry for one element, from the diting_css +
@@ -653,4 +665,3 @@ pub(super) fn attr_write_is_layout_inert(
         || n.starts_with("aria-");
     inert && !selector_names.is_some_and(|s| s.contains(n.as_str()))
 }
-

@@ -51,4 +51,3 @@ pub(super) fn op_dialog(state: &OpState, #[string] kind: &str, #[string] message
         .push(("dialog".to_string(), payload.to_string(), dialog_url));
     serde_json::json!({ "accept": accept, "value": value }).to_string()
 }
-

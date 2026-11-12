@@ -562,4 +562,3 @@ impl JsState {
 }
 
 pub type SharedState = Rc<RefCell<JsState>>;
-

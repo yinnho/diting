@@ -43,4 +43,3 @@ pub(super) fn op_clock_ms() -> f64 {
         * 1000.0;
     (ms * 10.0).round() / 10.0
 }
-

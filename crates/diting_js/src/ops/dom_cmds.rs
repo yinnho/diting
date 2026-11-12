@@ -3,7 +3,13 @@
 use super::*;
 
 /// `op_dom` family: document-level reads: ids, title/url/referrer, base url, doctype.
-pub(super) fn dom_cmd_document(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_document(
+    gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         "document_node_id" => dom.document().index().to_string(),
         "document_title" => serde_json::to_string(&gs.title).unwrap_or("\"\"".into()),
@@ -80,7 +86,13 @@ pub(super) fn dom_cmd_document(gs: &JsState, dom: &DomTree, cmd: &str, arg1: Str
 }
 
 /// `op_dom` family: selector queries and matching.
-pub(super) fn dom_cmd_query(_gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_query(
+    _gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         "get_element_by_id" => dom
             .get_element_by_id(&arg1)
@@ -136,7 +148,13 @@ pub(super) fn dom_cmd_query(_gs: &JsState, dom: &DomTree, cmd: &str, arg1: Strin
 }
 
 /// `op_dom` family: node identity and tree/shadow navigation.
-pub(super) fn dom_cmd_tree(_gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_tree(
+    _gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         "node_type" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
@@ -473,7 +491,13 @@ pub(super) fn dom_cmd_attr_state(
 }
 
 /// `op_dom` family: serialization and tree mutation (innerHTML, append/insert/remove, document.write).
-pub(super) fn dom_cmd_mutate(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_mutate(
+    gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         "inner_html" => {
             let nid = arg1.parse::<u32>().unwrap_or(0);
@@ -609,7 +633,13 @@ pub(super) fn dom_cmd_mutate(gs: &JsState, dom: &DomTree, cmd: &str, arg1: Strin
 }
 
 /// `op_dom` family: node creation, cloning and structural predicates.
-pub(super) fn dom_cmd_create(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: String) -> DomCmd {
+pub(super) fn dom_cmd_create(
+    gs: &JsState,
+    dom: &DomTree,
+    cmd: &str,
+    arg1: String,
+    arg2: String,
+) -> DomCmd {
     Ok(match cmd {
         "create_document_fragment" => dom.new_node(NodeData::Document).index().to_string(),
         "clone_node" => {
@@ -778,4 +808,3 @@ pub(super) fn dom_cmd_create(gs: &JsState, dom: &DomTree, cmd: &str, arg1: Strin
         _ => return Err((arg1, arg2)),
     })
 }
-

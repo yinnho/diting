@@ -1,3 +1,7 @@
+//! ops hub：mod 声明 + 跨族/跨 crate 桩 + our_decls 注册表。
+//! 新 op 进对应族文件（state/script_start/dom*/layout_run/console/
+//! fetch_ops/storage/nav/timers/url_ops/svg 或既有子 mod），hub 只挂
+//! 声明、桩和注册行——别再往这文件里写函数体（god-file 棘轮已退役 #75）。
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::io::Write as _;
@@ -9,30 +13,41 @@ use diting_dom::{AttachShadowError, DomTree, NodeData, NodeId, ShadowRootMode};
 use diting_net::{CookieJar, HttpClient};
 use diting_ops::diting_op;
 use diting_runtime::state::OpState;
-use url::Url;
-pub(crate) use timers::op_sleep_body;
-#[cfg(feature = "screenshot")]
-pub use storage::store_image_bytes;
-#[cfg(test)]
-pub(crate) use storage::reset_local_storage_for_tests;
-use storage::storage_file;
-pub(crate) use fetch_ops::{FetchCredentials, FetchSettlements, glob_match, op_fetch_url_body, FETCH_REDIRECT_LIMIT};
-use fetch_ops::REFERRER_POLICY_TOKENS;
-#[cfg(feature = "screenshot")]
-pub use layout_run::text_ink_extent;
-pub use state::{InterceptResolution, InterceptedRequest, INTERCEPT_RESOLUTION_TIMEOUT_MS, ResourceTimingRecord, JsState, JsNetworkEvent, StoredNetworkResponseBody, SharedState};
-pub(crate) use state::{BlobStoreMap, fetch_body_byte_limit};
-use state::{response_body_entry_limit, response_body_byte_limit};
-use script_start::{mark_script_subtree_started, propagate_script_start_state};
 use dom::{parse_nid, DomCmd};
-use dom_cmds::{dom_cmd_attr_state, dom_cmd_create, dom_cmd_document, dom_cmd_mutate, dom_cmd_query, dom_cmd_tree};
-use dom_style::{dom_cmd_geometry, dom_cmd_scroll_style, dom_cmd_sheets};
+use dom_cmds::{
+    dom_cmd_attr_state, dom_cmd_create, dom_cmd_document, dom_cmd_mutate, dom_cmd_query,
+    dom_cmd_tree,
+};
 #[cfg(feature = "screenshot")]
 use dom_style::style_property_map;
 #[cfg(feature = "screenshot")]
-use layout_run::{ensure_layout_run, iframe_layout_run, is_element_scroller, is_viewport_fixed, parse_iframe_viewport, sticky_shifts, LayoutRun};
-#[cfg(feature = "screenshot")]
 use dom_style::{attr_write_is_layout_inert, style_write_is_paint_only};
+use dom_style::{dom_cmd_geometry, dom_cmd_scroll_style, dom_cmd_sheets};
+use fetch_ops::REFERRER_POLICY_TOKENS;
+pub(crate) use fetch_ops::{
+    glob_match, op_fetch_url_body, FetchCredentials, FetchSettlements, FETCH_REDIRECT_LIMIT,
+};
+#[cfg(feature = "screenshot")]
+pub use layout_run::text_ink_extent;
+#[cfg(feature = "screenshot")]
+use layout_run::{
+    ensure_layout_run, iframe_layout_run, is_element_scroller, is_viewport_fixed,
+    parse_iframe_viewport, sticky_shifts, LayoutRun,
+};
+use script_start::{mark_script_subtree_started, propagate_script_start_state};
+pub(crate) use state::{fetch_body_byte_limit, BlobStoreMap};
+use state::{response_body_byte_limit, response_body_entry_limit};
+pub use state::{
+    InterceptResolution, InterceptedRequest, JsNetworkEvent, JsState, ResourceTimingRecord,
+    SharedState, StoredNetworkResponseBody, INTERCEPT_RESOLUTION_TIMEOUT_MS,
+};
+#[cfg(test)]
+pub(crate) use storage::reset_local_storage_for_tests;
+use storage::storage_file;
+#[cfg(feature = "screenshot")]
+pub use storage::store_image_bytes;
+pub(crate) use timers::op_sleep_body;
+use url::Url;
 
 mod band;
 mod canvas;
@@ -172,18 +187,18 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
     decls
 }
 
-mod state;
-mod script_start;
+mod console;
 mod dom;
 mod dom_cmds;
 mod dom_style;
-mod layout_run;
-mod console;
 mod fetch_ops;
-mod storage;
+mod layout_run;
 mod nav;
-mod timers;
-mod url_ops;
+mod script_start;
+mod state;
+mod storage;
 mod svg;
 #[cfg(test)]
 mod tests;
+mod timers;
+mod url_ops;

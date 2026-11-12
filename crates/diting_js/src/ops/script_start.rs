@@ -143,4 +143,3 @@ pub(super) fn op_dyn_script_fetch_end(state: &OpState) {
         .dynamic_script_fetches
         .set(state.dynamic_script_fetches.get().saturating_sub(1));
 }
-

@@ -3,7 +3,12 @@
 use super::*;
 
 #[diting_op]
-pub(super) fn op_navigate(state: &OpState, #[string] url: &str, #[string] method: &str, #[string] body: &str) {
+pub(super) fn op_navigate(
+    state: &OpState,
+    #[string] url: &str,
+    #[string] method: &str,
+    #[string] body: &str,
+) {
     let gs = state.borrow::<SharedState>().clone();
     let mut gs = gs.borrow_mut();
     // Only queue the navigation — do NOT move the realm URL here. The URL is
@@ -44,4 +49,3 @@ pub(super) fn op_binding_called(state: &OpState, #[string] name: &str, #[string]
         gs.pending_binding_calls.drain(0..overflow);
     }
 }
-

@@ -66,4 +66,3 @@ pub(super) fn svg_measure(state: &OpState, nid: u32) -> Option<diting_layout::sv
     };
     diting_layout::svg::build_path_measure(tag, &|a| node.get_attribute(a).map(|s| s.to_string()))
 }
-
