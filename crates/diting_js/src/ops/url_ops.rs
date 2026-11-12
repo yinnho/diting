@@ -120,7 +120,11 @@ pub(super) fn url_set_inner(href: &str, part: &str, value: &str) -> Option<serde
 
 #[diting_op]
 #[string]
-pub(super) fn op_url_set(#[string] href: &str, #[string] part: &str, #[string] value: &str) -> String {
+pub(super) fn op_url_set(
+    #[string] href: &str,
+    #[string] part: &str,
+    #[string] value: &str,
+) -> String {
     // Some url-crate setters panic on pathological inputs (the url-setters WPT
     // tests exercise these). Catch the unwind and treat it as a no-op setter,
     // returning the URL unchanged, which matches WHATWG "do nothing on invalid".
@@ -184,4 +188,3 @@ pub(super) fn op_url_resolve(#[string] href: &str, #[string] base: &str) -> Stri
     })
     .unwrap_or_default()
 }
-

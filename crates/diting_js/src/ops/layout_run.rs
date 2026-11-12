@@ -836,4 +836,3 @@ pub fn text_ink_extent(gs: &JsState) -> Option<(f32, f32)> {
     let (_, (_, _, _, items, _, _, _)) = guard.as_ref().filter(|(e, _)| *e == epoch)?;
     Some(diting_layout::paint::text_ink_extent(items))
 }
-

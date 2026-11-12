@@ -48,7 +48,8 @@ impl FetchCredentials {
 pub(super) struct FetchRequestInit {
     pub(super) cookie_jar: Option<Arc<CookieJar>>,
     pub(super) in_flight: Option<Arc<std::sync::atomic::AtomicU32>>,
-    pub(super) in_flight_list: Option<std::sync::Arc<std::sync::Mutex<Vec<diting_net::InFlightScripted>>>>,
+    pub(super) in_flight_list:
+        Option<std::sync::Arc<std::sync::Mutex<Vec<diting_net::InFlightScripted>>>>,
     pub(super) proxy_url: Option<String>,
     pub(super) http_client: Option<Arc<HttpClient>>,
     pub(super) callbacks: Option<std::sync::Arc<diting_net::CallbackRegistry>>,
@@ -895,4 +896,3 @@ pub(super) fn op_fetch_url_sync(
     }
     Ok(outcome.json)
 }
-

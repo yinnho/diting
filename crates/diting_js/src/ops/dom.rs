@@ -369,4 +369,3 @@ pub(super) type DomCmd = Result<String, (String, String)>;
 pub(super) fn parse_nid(s: &str) -> Option<NodeId> {
     s.parse::<u32>().ok().map(NodeId::new)
 }
-

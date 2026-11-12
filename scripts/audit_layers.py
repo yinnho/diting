@@ -94,7 +94,6 @@ GOD_FILE_GRANDFATHER = {
     # cap — now enforced by the ordinary 1,500-line gate like every other file.
     "crates/diting_layout/src/lib.rs": 11574,  # float wrap series #313-#315 + #222 blend emission
     "crates/diting_css/src/lib.rs": 6727,  # post-0.6.0 compat surface bumps
-    "crates/diting_js/src/ops/mod.rs": 5030,  # #249 soft-recover + #230 timers + #84 sync-XHR abandonment row
     "crates/diting_layout/src/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
     # fork_deltas.rs retired 2026-11-10 (#64): the whole file is test-only —
     # `#[cfg(test)] mod fork_deltas;` in lib.rs — but the gate lived outside

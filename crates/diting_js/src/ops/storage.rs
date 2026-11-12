@@ -242,4 +242,3 @@ pub(crate) fn reset_local_storage_for_tests() {
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
 }
-
