@@ -499,8 +499,18 @@ async fn mutation_observer_validation_and_document_child_constraint() {
         .unwrap();
     let v = result.value.unwrap();
     let obj = v.as_object().expect("probe object");
-    assert_eq!(obj["nullTarget"], serde_json::json!("TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'."));
-    assert_eq!(obj["empty"], serde_json::json!("TypeError: Failed to execute 'observe' on 'MutationObserver': The options object must set at least one of 'attributes', 'characterData', or 'childList' to true."));
+    assert_eq!(
+        obj["nullTarget"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'."
+        )
+    );
+    assert_eq!(
+        obj["empty"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'observe' on 'MutationObserver': The options object must set at least one of 'attributes', 'characterData', or 'childList' to true."
+        )
+    );
     assert_eq!(
         obj["noOpts"], obj["empty"],
         "observe() with no options hits the same dictionary error"
@@ -510,7 +520,12 @@ async fn mutation_observer_validation_and_document_child_constraint() {
         serde_json::json!("no-throw"),
         "attributeOldValue alone implies attributes and must not throw (Chrome truth)"
     );
-    assert_eq!(obj["docSecondElement"], serde_json::json!("HierarchyRequestError: Failed to execute 'appendChild' on 'Node': Only one element on document allowed."));
+    assert_eq!(
+        obj["docSecondElement"],
+        serde_json::json!(
+            "HierarchyRequestError: Failed to execute 'appendChild' on 'Node': Only one element on document allowed."
+        )
+    );
 
     // The implied family really delivers: {attributeOldValue:true} alone
     // sees attribute records with old values attached (Chrome: [null,"v1"]).
@@ -584,7 +599,9 @@ async fn observers_redeliver_only_on_change() {
     // all (the realm sat in the #66 busy freeze). A mutation that doesn't
     // move the target must not re-deliver it; a size that didn't change must
     // not re-notify (Chrome: first observation, then on change only).
-    let mut rt = setup_runtime("<html><body><div id=t style='width:50px;height:20px'></div><div id=other></div></body></html>");
+    let mut rt = setup_runtime(
+        "<html><body><div id=t style='width:50px;height:20px'></div><div id=other></div></body></html>",
+    );
     let script = r#"async () => {
         const t = document.getElementById('t');
         let io = 0, ro = 0;

@@ -140,10 +140,10 @@ async fn test_focus_and_scrollintoview_move_viewport() {
         .await
         .unwrap();
     assert_eq!(
-            result.value.unwrap(),
-            serde_json::json!([true, true, true, true, 0, true]),
-            "focus scrolls nearest, block:center/start/end align, preventScroll opts out, refocus scrolls again"
-        );
+        result.value.unwrap(),
+        serde_json::json!([true, true, true, true, 0, true]),
+        "focus scrolls nearest, block:center/start/end align, preventScroll opts out, refocus scrolls again"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -369,8 +369,8 @@ fn test_scroll_height_reports_overflow_extent_not_own_box() {
     // neither our wheel helper nor a page's lazy loader can detect
     // scrollability. client* keep the box contract; scroll* must move.
     let mut rt = setup_runtime(
-            "<html><body><div id=\"box\" style=\"width:200px;height:100px;overflow:auto\"><div style=\"height:500px\"></div></div></body></html>",
-        );
+        "<html><body><div id=\"box\" style=\"width:200px;height:100px;overflow:auto\"><div style=\"height:500px\"></div></div></body></html>",
+    );
     let result = rt
         .evaluate(
             r#"

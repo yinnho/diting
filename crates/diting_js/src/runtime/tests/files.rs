@@ -355,13 +355,17 @@ fn blob_urls_are_chrome_shaped_and_non_blob_input_throws() {
     assert_eq!(out["inStore"], serde_json::json!(true));
     assert_eq!(out["afterRevoke"], serde_json::json!(false));
     assert_eq!(
-            out["missingArg"],
-            serde_json::json!("TypeError|Failed to execute 'createObjectURL' on 'URL': 1 argument required, but only 0 present.")
-        );
+        out["missingArg"],
+        serde_json::json!(
+            "TypeError|Failed to execute 'createObjectURL' on 'URL': 1 argument required, but only 0 present."
+        )
+    );
     assert_eq!(
-            out["wrongType"],
-            serde_json::json!("TypeError|Failed to execute 'createObjectURL' on 'URL': parameter 1 is not of type 'Blob'.")
-        );
+        out["wrongType"],
+        serde_json::json!(
+            "TypeError|Failed to execute 'createObjectURL' on 'URL': parameter 1 is not of type 'Blob'."
+        )
+    );
 }
 
 // x.com's video APPEND chunker (2026-11-09) was the first page-side

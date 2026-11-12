@@ -100,7 +100,10 @@ async fn frame_eval_into_detached_iframe_is_refused_and_fires_nothing() {
                 .unwrap()
                 .push(String::from_utf8_lossy(&buf[..n]).to_string());
             let body = b"{}";
-            let resp = format!("HTTP/1.1 200 OK\r\naccess-control-allow-origin: *\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len());
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\naccess-control-allow-origin: *\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             stream.write_all(resp.as_bytes()).unwrap();
             stream.write_all(body).unwrap();
             stream.flush().unwrap();
@@ -376,10 +379,10 @@ async fn test_iframe_with_src_attribute_loads_on_insertion() {
         let mut buf = [0u8; 4096];
         let _ = stream.read(&mut buf);
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                frame_body.len(),
-                frame_body
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            frame_body.len(),
+            frame_body
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.flush().unwrap();
     });
@@ -771,7 +774,11 @@ async fn test_iframe_realm_dispatch_rides_native_core() {
         }),
         "frame faces must chain to the native core: {v}"
     );
-    assert_eq!(v["order"], serde_json::json!(["el", "doc", "win", "doc-onclick", "el", "doc", "win"]), "frame propagation order (tick dispatched twice; the second run must not reach the host): {v}");
+    assert_eq!(
+        v["order"],
+        serde_json::json!(["el", "doc", "win", "doc-onclick", "el", "doc", "win"]),
+        "frame propagation order (tick dispatched twice; the second run must not reach the host): {v}"
+    );
     assert_eq!(
         v["hostHeard"],
         serde_json::json!([]),

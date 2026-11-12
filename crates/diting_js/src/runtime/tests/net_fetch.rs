@@ -184,10 +184,10 @@ async fn fetch_promise_survives_parked_watchdog_fire() {
         std::thread::sleep(std::time::Duration::from_millis(400));
         let body = "x".repeat(4096);
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                body.len(),
-                body
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
         let _ = stream.write_all(resp.as_bytes());
         let _ = stream.flush();
     });
@@ -604,9 +604,9 @@ async fn fetch_fire_and_forget_survives_pump_cancellation_storm() {
             std::thread::sleep(std::time::Duration::from_millis(200 + (i as u64 % 6) * 50));
             let body = format!("payload-{i}");
             let resp = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
             let _ = stream.write_all(resp.as_bytes());
             let _ = stream.flush();
         }
@@ -869,9 +869,9 @@ async fn test_fetch_url_input_decodes_binary_body_base64() {
         let path = request.lines().next().unwrap_or("").to_string();
         let body = [0u8, 97, 115, 109, 1, 0, 0, 0];
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(&body).unwrap();
         stream.flush().unwrap();
@@ -1114,9 +1114,9 @@ async fn fetch_same_origin_post_sends_origin_header() {
             .to_string();
         let body = b"{}";
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -1197,9 +1197,9 @@ async fn fetch_same_origin_post_sends_fetch_metadata_headers() {
         .collect::<std::collections::HashMap<_, _>>();
         let body = b"{}";
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -1290,9 +1290,9 @@ async fn fetch_follows_twenty_redirects_and_rejects_twenty_one() {
                 let step: usize = path.trim_start_matches("/hop").parse().unwrap_or(0);
                 let response = if step < hops {
                     format!(
-                            "HTTP/1.1 302 Found\r\nlocation: /hop{}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
-                            step + 1
-                        )
+                        "HTTP/1.1 302 Found\r\nlocation: /hop{}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                        step + 1
+                    )
                 } else {
                     "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok"
                         .to_string()
@@ -1727,9 +1727,9 @@ async fn fetch_honors_request_credentials_across_origins() {
             let req = read_request(&mut stream);
             cookie_tx.send(cookie_header(&req)).unwrap();
             let resp = format!(
-                    "HTTP/1.1 200 OK\r\naccess-control-allow-origin: {}\r\naccess-control-allow-credentials: true\r\nset-cookie: b=1; Path=/\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok",
-                    origin
-                );
+                "HTTP/1.1 200 OK\r\naccess-control-allow-origin: {}\r\naccess-control-allow-credentials: true\r\nset-cookie: b=1; Path=/\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok",
+                origin
+            );
             stream.write_all(resp.as_bytes()).unwrap();
         }
     });
@@ -1938,9 +1938,9 @@ async fn fetch_sec_fetch_site_uses_site_not_origin() {
             let request = String::from_utf8_lossy(&buf[..n]).to_string();
             let body = b"{}";
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body);
             let _ = stream.flush();

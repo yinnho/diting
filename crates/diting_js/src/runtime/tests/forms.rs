@@ -1008,10 +1008,10 @@ async fn test_exec_command_insert_text_event_shape() {
 async fn test_summary_click_toggles_details() {
     // #283, shape checked against headless Chrome.
     let mut rt = setup_runtime(
-            "<html><body><details id=d><summary id=s>sum <b id=bb>bold</b> <a id=lnk href=\"#x\">l</a></summary>body</details>\
+        "<html><body><details id=d><summary id=s>sum <b id=bb>bold</b> <a id=lnk href=\"#x\">l</a></summary>body</details>\
              <details id=e name=g open><summary>e</summary>x</details><details id=f name=g><summary>f</summary>y</details>\
              <details id=n><div>no summary</div></details></body></html>",
-        );
+    );
     let v = rt
             .evaluate(
                 "(() => { const r = []; globalThis.__tg = [];
@@ -1040,11 +1040,11 @@ async fn test_summary_click_toggles_details() {
 async fn test_radio_indeterminate_and_details_attribute_toggle() {
     // Chrome truth (headless Chrome, 2026-10-22).
     let mut rt = setup_runtime(
-            "<html><body><form id=f1><input type=radio name=g id=r1><input type=radio name=g id=r2 checked></form>\
+        "<html><body><form id=f1><input type=radio name=g id=r1><input type=radio name=g id=r2 checked></form>\
              <form id=f2><input type=radio name=g id=r3><input type=radio name=g id=r4></form>\
              <input type=radio name=h id=r5><input type=radio id=r6><input type=radio id=r7 checked>\
              <details id=d><summary>s</summary>x</details></body></html>",
-        );
+    );
     let v = rt
             .evaluate(
                 "(() => { const r = [];
@@ -1101,9 +1101,9 @@ async fn test_constraint_validation_matches_chrome() {
             )
             .unwrap();
     assert_eq!(
-            v,
-            "a:valueMissing:true|b:typeMismatch:true|c:typeMismatch:true|d:rangeUnderflow:true|e:rangeOverflow:true|g:stepMismatch:true|h:patternMismatch:true|i:typeMismatch:true|j:valueMissing:true|k:rangeUnderflow:true|l:-:false|m:-:false|n:valueMissing:true|o:valueMissing:true|p:valueMissing:true|q:valueMissing:true|ok:-:true|trueboofalse|falsetruefalse|blocked0|novalidate1|undefined"
-        );
+        v,
+        "a:valueMissing:true|b:typeMismatch:true|c:typeMismatch:true|d:rangeUnderflow:true|e:rangeOverflow:true|g:stepMismatch:true|h:patternMismatch:true|i:typeMismatch:true|j:valueMissing:true|k:rangeUnderflow:true|l:-:false|m:-:false|n:valueMissing:true|o:valueMissing:true|p:valueMissing:true|q:valueMissing:true|ok:-:true|trueboofalse|falsetruefalse|blocked0|novalidate1|undefined"
+    );
 }
 
 /// M4 knife 7: behavior of the form-family members the reflect fingerprints

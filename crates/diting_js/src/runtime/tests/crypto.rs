@@ -464,8 +464,18 @@ async fn test_webcrypto_aes_kw_wrap_unwrap() {
             "DataError: The AES-KW input data length is invalid: not a multiple of 8 bytes"
         )
     );
-    assert_eq!(e["directEncrypt"], serde_json::json!("NotSupportedError: Failed to execute 'encrypt' on 'SubtleCrypto': AES-KW: Unsupported operation: encrypt"));
-    assert_eq!(e["directDecrypt"], serde_json::json!("NotSupportedError: Failed to execute 'decrypt' on 'SubtleCrypto': AES-KW: Unsupported operation: decrypt"));
+    assert_eq!(
+        e["directEncrypt"],
+        serde_json::json!(
+            "NotSupportedError: Failed to execute 'encrypt' on 'SubtleCrypto': AES-KW: Unsupported operation: encrypt"
+        )
+    );
+    assert_eq!(
+        e["directDecrypt"],
+        serde_json::json!(
+            "NotSupportedError: Failed to execute 'decrypt' on 'SubtleCrypto': AES-KW: Unsupported operation: decrypt"
+        )
+    );
     assert_eq!(
         e["noWrapUsage"],
         serde_json::json!("InvalidAccessError: key.usages does not permit this operation")
@@ -505,7 +515,12 @@ async fn test_webcrypto_aes_kw_wrap_unwrap() {
         e["emptyUsages"],
         serde_json::json!("SyntaxError: Usages cannot be empty when creating a key.")
     );
-    assert_eq!(e["bogusUsage"], serde_json::json!("TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyUsages argument"));
+    assert_eq!(
+        e["bogusUsage"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyUsages argument"
+        )
+    );
     assert_eq!(
         e["hmac64Wrap"],
         serde_json::json!(136),
@@ -706,14 +721,34 @@ async fn test_webcrypto_rsa_oaep_import_export_cipher() {
         e["importSpkiDecrypt"],
         serde_json::json!("SyntaxError: Cannot create a key using the specified key usages.")
     );
-    assert_eq!(e["spkiNoHash"], serde_json::json!("TypeError: Failed to execute 'importKey' on 'SubtleCrypto': RsaHashedImportParams: hash: Missing or not an AlgorithmIdentifier"));
-    assert_eq!(e["pkcs8NoHash"], serde_json::json!("TypeError: Failed to execute 'importKey' on 'SubtleCrypto': RsaHashedImportParams: hash: Missing or not an AlgorithmIdentifier"));
+    assert_eq!(
+        e["spkiNoHash"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': RsaHashedImportParams: hash: Missing or not an AlgorithmIdentifier"
+        )
+    );
+    assert_eq!(
+        e["pkcs8NoHash"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': RsaHashedImportParams: hash: Missing or not an AlgorithmIdentifier"
+        )
+    );
     assert_eq!(
         e["genE1"],
         serde_json::json!("OperationError: The \"publicExponent\" must be either 3 or 65537")
     );
-    assert_eq!(e["genMod1023"], serde_json::json!("OperationError: The modulus length must be a multiple of 8 bits and >= 256 and <= 8192"));
-    assert_eq!(e["genMd5"], serde_json::json!("NotSupportedError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: hash: Algorithm: Unrecognized name"));
+    assert_eq!(
+        e["genMod1023"],
+        serde_json::json!(
+            "OperationError: The modulus length must be a multiple of 8 bits and >= 256 and <= 8192"
+        )
+    );
+    assert_eq!(
+        e["genMd5"],
+        serde_json::json!(
+            "NotSupportedError: Failed to execute 'generateKey' on 'SubtleCrypto': RsaHashedKeyGenParams: hash: Algorithm: Unrecognized name"
+        )
+    );
     assert_eq!(
         e["genEmpty"],
         serde_json::json!("SyntaxError: Usages cannot be empty when creating a key.")
@@ -722,7 +757,12 @@ async fn test_webcrypto_rsa_oaep_import_export_cipher() {
         e["genSign"],
         serde_json::json!("SyntaxError: Cannot create a key using the specified key usages.")
     );
-    assert_eq!(e["jwkAlg"], serde_json::json!("DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"));
+    assert_eq!(
+        e["jwkAlg"],
+        serde_json::json!(
+            "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"
+        )
+    );
     assert_eq!(
         e["jwkKty"],
         serde_json::json!("DataError: The JWK \"kty\" member was not \"RSA\"")
@@ -745,16 +785,37 @@ async fn test_webcrypto_rsa_oaep_import_export_cipher() {
         serde_json::json!("DataError: The required JWK member \"p\" was missing"),
         "private jwk needs the full CRT set"
     );
-    assert_eq!(e["jwkExtFalse"], serde_json::json!("DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call"), "Chrome's typo kept verbatim");
+    assert_eq!(
+        e["jwkExtFalse"],
+        serde_json::json!(
+            "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call"
+        ),
+        "Chrome's typo kept verbatim"
+    );
     assert_eq!(
         e["jwkOpsDup"],
         serde_json::json!(
             "DataError: The \"key_ops\" member of the JWK dictionary contains duplicate usages."
         )
     );
-    assert_eq!(e["jwkOpsConflict"], serde_json::json!("DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"));
-    assert_eq!(e["jwkUseSig"], serde_json::json!("DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"));
-    assert_eq!(e["usageBogus"], serde_json::json!("TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyUsages argument"));
+    assert_eq!(
+        e["jwkOpsConflict"],
+        serde_json::json!(
+            "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"
+        )
+    );
+    assert_eq!(
+        e["jwkUseSig"],
+        serde_json::json!(
+            "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"
+        )
+    );
+    assert_eq!(
+        e["usageBogus"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyUsages argument"
+        )
+    );
     assert_eq!(
         e["rawFormat"],
         serde_json::json!("NotSupportedError: Unsupported key format for RSA keys: raw")
@@ -2593,7 +2654,9 @@ async fn webcrypto_pbkdf2_iterations_enforce_range_faces() {
         .await
         .unwrap();
     let bits = |m: &str| {
-        format!("TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: iterations: {m}")
+        format!(
+            "TypeError: Failed to execute 'deriveBits' on 'SubtleCrypto': Pbkdf2Params: iterations: {m}"
+        )
     };
     let zero = "OperationError: PBKDF2 requires iterations > 0";
     assert_eq!(
@@ -2801,7 +2864,12 @@ async fn test_webcrypto_rsassa_pkcs1v15_sign_verify() {
         e["importSpkiSign"],
         serde_json::json!("SyntaxError: Cannot create a key using the specified key usages.")
     );
-    assert_eq!(e["jwkAlgMismatch"], serde_json::json!("DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"));
+    assert_eq!(
+        e["jwkAlgMismatch"],
+        serde_json::json!(
+            "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"
+        )
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -2921,9 +2989,24 @@ async fn test_webcrypto_jwk_oct_field_validation() {
         ),
         "explicit '=' padding rejected"
     );
-    assert_eq!(e["algBad"], serde_json::json!("DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"));
-    assert_eq!(e["opsConflict"], serde_json::json!("DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"));
-    assert_eq!(e["opsSubset"], serde_json::json!("DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"));
+    assert_eq!(
+        e["algBad"],
+        serde_json::json!(
+            "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"
+        )
+    );
+    assert_eq!(
+        e["opsConflict"],
+        serde_json::json!(
+            "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"
+        )
+    );
+    assert_eq!(
+        e["opsSubset"],
+        serde_json::json!(
+            "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"
+        )
+    );
     assert_eq!(
         e["opsSuperset"],
         serde_json::json!("no-throw:encrypt"),
@@ -2935,10 +3018,25 @@ async fn test_webcrypto_jwk_oct_field_validation() {
             "DataError: The \"key_ops\" member of the JWK dictionary contains duplicate usages."
         )
     );
-    assert_eq!(e["opsBogus"], serde_json::json!("DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"));
-    assert_eq!(e["useSig"], serde_json::json!("DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"));
+    assert_eq!(
+        e["opsBogus"],
+        serde_json::json!(
+            "DataError: The JWK \"key_ops\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"
+        )
+    );
+    assert_eq!(
+        e["useSig"],
+        serde_json::json!(
+            "DataError: The JWK \"use\" member was inconsistent with that specified by the Web Crypto call. The JWK usage must be a superset of those requested"
+        )
+    );
     assert_eq!(e["useEnc"], serde_json::json!("no-throw:encrypt"));
-    assert_eq!(e["extFalse"], serde_json::json!("DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call"));
+    assert_eq!(
+        e["extFalse"],
+        serde_json::json!(
+            "DataError: The \"ext\" member of the JWK dictionary is inconsistent what that specified by the Web Crypto call"
+        )
+    );
     assert_eq!(e["extFalseOk"], serde_json::json!("no-throw:encrypt"));
     assert_eq!(
         e["extTrue"],
@@ -2949,11 +3047,31 @@ async fn test_webcrypto_jwk_oct_field_validation() {
         e["emptyUsages"],
         serde_json::json!("SyntaxError: Usages cannot be empty when creating a key.")
     );
-    assert_eq!(e["bogusUsage"], serde_json::json!("TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyUsages argument"));
-    assert_eq!(e["kwAlgBad"], serde_json::json!("DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"));
+    assert_eq!(
+        e["bogusUsage"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': Invalid keyUsages argument"
+        )
+    );
+    assert_eq!(
+        e["kwAlgBad"],
+        serde_json::json!(
+            "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"
+        )
+    );
     assert_eq!(e["hmacOk"], serde_json::json!("no-throw:sign"));
-    assert_eq!(e["hmacBad"], serde_json::json!("DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"));
-    assert_eq!(e["hmacNoHash"], serde_json::json!("TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Missing or not an AlgorithmIdentifier"));
+    assert_eq!(
+        e["hmacBad"],
+        serde_json::json!(
+            "DataError: The JWK \"alg\" member was inconsistent with that specified by the Web Crypto call"
+        )
+    );
+    assert_eq!(
+        e["hmacNoHash"],
+        serde_json::json!(
+            "TypeError: Failed to execute 'importKey' on 'SubtleCrypto': HmacImportParams: hash: Missing or not an AlgorithmIdentifier"
+        )
+    );
     assert_eq!(
         e["rawNoLen"],
         serde_json::json!("no-throw:encrypt"),

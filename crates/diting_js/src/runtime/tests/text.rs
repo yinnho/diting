@@ -122,12 +122,12 @@ fn inner_text_br_forces_line_break() {
 #[test]
 fn inner_text_restores_visible_descendants_tables_and_unrendered_roots() {
     let mut rt = setup_runtime(
-            "<html><body>\
+        "<html><body>\
              <div style=\"visibility:hidden\">veiled<span style=\"visibility:visible\">shown</span><i>still-hidden</i></div>\
              <table><tr><td>a</td><td>b</td><td></td><td>c</td></tr><tr><td>d</td></tr></table>\
              <div id=\"cloaked\" style=\"display:none\">raw<script>var x = 1;</script>text</div>\
              </body></html>",
-        );
+    );
     let t = rt.evaluate("document.body.innerText").unwrap();
     assert_eq!(t, serde_json::json!("shown\na\tb\t\tc\nd"), "got: {t}");
     // Unrendered root: display:none reads back raw textContent (script
@@ -415,7 +415,10 @@ fn line_clamp_caps_height_by_line_count() {
         (h_exact - 40.0).abs() < 2.0,
         "exactly-2-line text is NOT clamped shorter ({h_exact}) — takumi #1965"
     );
-    assert!((h_plain - h_free).abs() < 2.0, "plain block ignores the clamp without -webkit-box ({h_plain} vs {h_free}) — Chrome parity (#275)");
+    assert!(
+        (h_plain - h_free).abs() < 2.0,
+        "plain block ignores the clamp without -webkit-box ({h_plain} vs {h_free}) — Chrome parity (#275)"
+    );
     assert!(h_free > 60.0, "unclamped sibling wraps taller ({h_free})");
     // The count-only rule: the clamped box is 2 lines even though its
     // content height (h_free) is taller — clamped == 40 no matter what.

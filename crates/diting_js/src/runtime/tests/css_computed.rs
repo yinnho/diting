@@ -126,7 +126,7 @@ fn computed_style_resolves_percent_padding_margin_to_used_px() {
 #[test]
 fn logical_box_properties_and_transform_origin_serve_and_layout() {
     let mut rt = setup_runtime(
-            "<html><head><style>body { margin: 0 }\
+        "<html><head><style>body { margin: 0 }\
              #a { margin-block-start: 10px; padding-inline-start: 5% }\
              #host { width: 400px }\
              #b { margin-inline: 4px 8px }\
@@ -138,7 +138,7 @@ fn logical_box_properties_and_transform_origin_serve_and_layout() {
              <div id='b'>z</div>\
              <div id='c'></div><div id='d'></div>\
              </body></html>",
-        );
+    );
     let out = rt
         .evaluate(
             r#"
@@ -676,8 +676,11 @@ fn reflected_ulong_and_keyword_families() {
         serde_json::json!([["0", 1], ["1001", 1000]]),
         "the 0/1001 round trips: attribute keeps what was written, getter clamps"
     );
-    assert_eq!(v["kw"], serde_json::json!(["row", "", "", "", "bogus", "null"]),
-            "scope keyword reflect: canonical lowercase match, auto/bogus/spaces -> '', setter verbatim");
+    assert_eq!(
+        v["kw"],
+        serde_json::json!(["row", "", "", "", "bogus", "null"]),
+        "scope keyword reflect: canonical lowercase match, auto/bogus/spaces -> '', setter verbatim"
+    );
     assert_eq!(
         v["headersNull"],
         serde_json::json!("null"),
@@ -688,9 +691,9 @@ fn reflected_ulong_and_keyword_families() {
 #[test]
 fn reflected_long_form_control_families() {
     let mut rt = setup_runtime(
-            "<html><body><input id='i' size='7' maxlength='5'>\
+        "<html><body><input id='i' size='7' maxlength='5'>\
              <textarea id='t' rows='4' cols='6' wrap='HARD' maxlength='5'>x</textarea></body></html>",
-        );
+    );
     let out = rt.evaluate(r#"
             var i = document.getElementById('i'), ta = document.getElementById('t');
             var inp = document.createElement('input'), tx = document.createElement('textarea');
@@ -839,8 +842,8 @@ fn reflected_long_form_control_families() {
 #[test]
 fn computed_style_width_resolves_past_the_inline_surface() {
     let mut rt = setup_runtime(
-            "<html><body><div id=\"a\">alpha</div><div id=\"b\" style=\"width: 123px\">bravo</div></body></html>",
-        );
+        "<html><body><div id=\"a\">alpha</div><div id=\"b\" style=\"width: 123px\">bravo</div></body></html>",
+    );
     let checks = rt
         .evaluate(
             r#"

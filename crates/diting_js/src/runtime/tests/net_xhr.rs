@@ -225,17 +225,17 @@ async fn async_xhr_signer_gate_holds_then_resigns_via_page_signer() {
         let saw_xt = head.lines().any(|l| l.starts_with("x-t:"));
         let stale_common = head.contains("stale-page-common");
         let payload = format!(
-                "{{\"code\":0,\"sawXs\":{saw_xs},\"sigCarriedPath\":{saw_path},\"sawXt\":{saw_xt},\"staleCommon\":{stale_common}}}",
-                saw_xs = saw_xs,
-                saw_path = saw_path_in_sig,
-                saw_xt = saw_xt,
-                stale_common = stale_common,
-            );
+            "{{\"code\":0,\"sawXs\":{saw_xs},\"sigCarriedPath\":{saw_path},\"sawXt\":{saw_xt},\"staleCommon\":{stale_common}}}",
+            saw_xs = saw_xs,
+            saw_path = saw_path_in_sig,
+            saw_xt = saw_xt,
+            stale_common = stale_common,
+        );
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\nconnection: close\r\ncontent-length: {}\r\n\r\n{}",
-                payload.len(),
-                payload
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\nconnection: close\r\ncontent-length: {}\r\n\r\n{}",
+            payload.len(),
+            payload
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.flush().unwrap();
     });
@@ -816,9 +816,9 @@ async fn sync_xhr_post_body_roundtrip() {
             }
         }
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.write_all(&body).unwrap();
         stream.flush().unwrap();
@@ -1099,9 +1099,9 @@ async fn xhr_binary_response_types_roundtrip_bytes() {
             let _ = stream.read(&mut buf).unwrap();
             let body: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             stream.write_all(response.as_bytes()).unwrap();
             stream.write_all(&body).unwrap();
             stream.flush().unwrap();
@@ -1166,9 +1166,9 @@ async fn xhr_open_normalizes_method_case() {
             let line = request.lines().next().unwrap_or("").to_string();
             let body = b"ok";
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             stream.write_all(response.as_bytes()).unwrap();
             stream.write_all(body).unwrap();
             stream.flush().unwrap();

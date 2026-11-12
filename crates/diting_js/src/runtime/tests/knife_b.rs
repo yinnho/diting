@@ -1,6 +1,6 @@
 //! WebIDL 真值电池 knife67-87
 use super::super::*;
-use super::common::{STORAGE_ENV_LOCK, setup_runtime};
+use super::common::{setup_runtime, STORAGE_ENV_LOCK};
 
 // 刀67: VideoFrame 13 件（WebCodecs 值类型大户）——Chrome 145 真值四轮探针
 // （k67-chrome{,2,3,4}）：双 ctor 路（canvas 真 BGRA 像素 / BufferSource+
@@ -75,13 +75,48 @@ fn knife67_videoframe_family() {
     let g = |k: &str| v.get(k).cloned().unwrap_or(serde_json::Value::Null);
     assert_eq!(g("has13"), serde_json::json!([]));
     assert_eq!(g("ctorLens"), serde_json::json!([1, 0]));
-    assert_eq!(g("noarg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': 1 argument required, but only 0 present."));
-    assert_eq!(g("garbage"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."));
-    assert_eq!(g("bufNoOpts"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."));
-    assert_eq!(g("bufNullOpts"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type 'VideoFrameBufferInit'."));
-    assert_eq!(g("noCh"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'codedHeight' property from 'VideoFrameBufferInit': Required member is undefined."));
-    assert_eq!(g("noFmt"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'format' property from 'VideoFrameBufferInit': Required member is undefined."));
-    assert_eq!(g("badFmt"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'format' property from 'VideoFrameBufferInit': The provided value 'ZZZ' is not a valid enum value of type VideoPixelFormat."));
+    assert_eq!(
+        g("noarg"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': 1 argument required, but only 0 present."
+        )
+    );
+    assert_eq!(
+        g("garbage"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."
+        )
+    );
+    assert_eq!(
+        g("bufNoOpts"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type '(CSSImageValue or HTMLCanvasElement or HTMLImageElement or HTMLVideoElement or ImageBitmap or OffscreenCanvas or SVGImageElement or VideoFrame)'."
+        )
+    );
+    assert_eq!(
+        g("bufNullOpts"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': The provided value is not of type 'VideoFrameBufferInit'."
+        )
+    );
+    assert_eq!(
+        g("noCh"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'codedHeight' property from 'VideoFrameBufferInit': Required member is undefined."
+        )
+    );
+    assert_eq!(
+        g("noFmt"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'format' property from 'VideoFrameBufferInit': Required member is undefined."
+        )
+    );
+    assert_eq!(
+        g("badFmt"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'format' property from 'VideoFrameBufferInit': The provided value 'ZZZ' is not a valid enum value of type VideoPixelFormat."
+        )
+    );
     assert_eq!(
         g("cw0"),
         serde_json::json!(
@@ -94,13 +129,48 @@ fn knife67_videoframe_family() {
             "E:TypeError:Failed to construct 'VideoFrame': data is not large enough."
         )
     );
-    assert_eq!(g("visRight"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. right 9 exceeds codedWidth 4."));
-    assert_eq!(g("visBottom"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. bottom 9 exceeds codedHeight 2."));
-    assert_eq!(g("visYNeg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. y cannot be negative."));
-    assert_eq!(g("visW0"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. width must be nonzero."));
-    assert_eq!(g("dispWOnly"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': displayWidth specified without displayHeight."));
-    assert_eq!(g("dispHNeg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'displayWidth' property from 'VideoFrameBufferInit': Value is outside the 'unsigned long' value range."));
-    assert_eq!(g("durNeg"), serde_json::json!("E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'duration' property from 'VideoFrameBufferInit': Value is outside the 'unsigned long long' value range."));
+    assert_eq!(
+        g("visRight"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. right 9 exceeds codedWidth 4."
+        )
+    );
+    assert_eq!(
+        g("visBottom"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. bottom 9 exceeds codedHeight 2."
+        )
+    );
+    assert_eq!(
+        g("visYNeg"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. y cannot be negative."
+        )
+    );
+    assert_eq!(
+        g("visW0"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Invalid visibleRect. width must be nonzero."
+        )
+    );
+    assert_eq!(
+        g("dispWOnly"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': displayWidth specified without displayHeight."
+        )
+    );
+    assert_eq!(
+        g("dispHNeg"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'displayWidth' property from 'VideoFrameBufferInit': Value is outside the 'unsigned long' value range."
+        )
+    );
+    assert_eq!(
+        g("durNeg"),
+        serde_json::json!(
+            "E:TypeError:Failed to construct 'VideoFrame': Failed to read the 'duration' property from 'VideoFrameBufferInit': Value is outside the 'unsigned long long' value range."
+        )
+    );
     assert_eq!(
         g("noTsCanvas"),
         serde_json::json!(
@@ -154,7 +224,16 @@ fn knife67_videoframe_family() {
         g("closed"),
         serde_json::json!([null, 7, 9, 0, 0, 0, null, null, {"fullRange": null, "matrix": null, "primaries": null, "transfer": null}, 0, false])
     );
-    assert_eq!(g("closedOps"), serde_json::json!(["E:InvalidStateError:Failed to execute 'allocationSize' on 'VideoFrame': VideoFrame is closed.", "E:InvalidStateError:Failed to execute 'clone' on 'VideoFrame': Cannot clone closed VideoFrame.", "E:InvalidStateError:Failed to execute 'metadata' on 'VideoFrame': VideoFrame is closed.", "NO-THROW", "NO-THROW"]));
+    assert_eq!(
+        g("closedOps"),
+        serde_json::json!([
+            "E:InvalidStateError:Failed to execute 'allocationSize' on 'VideoFrame': VideoFrame is closed.",
+            "E:InvalidStateError:Failed to execute 'clone' on 'VideoFrame': Cannot clone closed VideoFrame.",
+            "E:InvalidStateError:Failed to execute 'metadata' on 'VideoFrame': VideoFrame is closed.",
+            "NO-THROW",
+            "NO-THROW"
+        ])
+    );
     assert_eq!(g("closedTwice"), serde_json::json!(null));
     assert_eq!(
         g("illegal"),
@@ -316,7 +395,10 @@ async fn knife68_idb_family() {
             "DOMStringList"
         ])
     );
-    assert_eq!(row(2), "Failed to execute 'transaction' on 'IDBDatabase': A version change transaction is running.");
+    assert_eq!(
+        row(2),
+        "Failed to execute 'transaction' on 'IDBDatabase': A version change transaction is running."
+    );
     assert_eq!(row(3), "ConstraintError");
     assert_eq!(row(4), serde_json::json!(["open", 1, ["plain", "s"], 0]));
     assert_eq!(row(5), "InvalidStateError");
@@ -338,7 +420,13 @@ async fn knife68_idb_family() {
             "ERR:ConstraintError:Key already exists in the object store."
         ])
     );
-    assert_eq!(row(12), serde_json::json!(["uniq", "ERR:ConstraintError:Unable to add key to index 'byU': at least one key does not satisfy the uniqueness requirements."]));
+    assert_eq!(
+        row(12),
+        serde_json::json!([
+            "uniq",
+            "ERR:ConstraintError:Unable to add key to index 'byU': at least one key does not satisfy the uniqueness requirements."
+        ])
+    );
     assert_eq!(row(13), serde_json::json!(["count", 3, [1, 2, 3]]));
     assert_eq!(
         row(14),
@@ -383,17 +471,20 @@ async fn knife68_idb_family() {
     assert_eq!(row(22), serde_json::json!(["rolledBack", null]));
     assert_eq!(
         row(23),
-        serde_json::json!(["errs", [
-            "NotFoundError:Failed to execute 'transaction' on 'IDBDatabase': One of the specified object stores was not found.",
-            "InvalidAccessError:Failed to execute 'transaction' on 'IDBDatabase': The storeNames parameter was empty.",
-            "TypeError:Failed to execute 'transaction' on 'IDBDatabase': The provided value 'bogus' is not a valid enum value of type IDBTransactionMode.",
-            "ReadOnlyError:Failed to execute 'put' on 'IDBObjectStore': The transaction is read-only.",
-            "TypeError:Failed to execute 'get' on 'IDBObjectStore': 1 argument required, but only 0 present.",
-            "DataError:Failed to execute 'get' on 'IDBObjectStore': The parameter is not a valid key.",
-            "NotFoundError:Failed to execute 'index' on 'IDBObjectStore': The specified index was not found.",
-            "DataError:Failed to execute 'put' on 'IDBObjectStore': The object store uses out-of-line keys and has no key generator and the key parameter was not provided.",
-            "TypeError:Failed to execute 'openCursor' on 'IDBObjectStore': The provided value 'sideways' is not a valid enum value of type IDBCursorDirection.",
-        ]])
+        serde_json::json!([
+            "errs",
+            [
+                "NotFoundError:Failed to execute 'transaction' on 'IDBDatabase': One of the specified object stores was not found.",
+                "InvalidAccessError:Failed to execute 'transaction' on 'IDBDatabase': The storeNames parameter was empty.",
+                "TypeError:Failed to execute 'transaction' on 'IDBDatabase': The provided value 'bogus' is not a valid enum value of type IDBTransactionMode.",
+                "ReadOnlyError:Failed to execute 'put' on 'IDBObjectStore': The transaction is read-only.",
+                "TypeError:Failed to execute 'get' on 'IDBObjectStore': 1 argument required, but only 0 present.",
+                "DataError:Failed to execute 'get' on 'IDBObjectStore': The parameter is not a valid key.",
+                "NotFoundError:Failed to execute 'index' on 'IDBObjectStore': The specified index was not found.",
+                "DataError:Failed to execute 'put' on 'IDBObjectStore': The object store uses out-of-line keys and has no key generator and the key parameter was not provided.",
+                "TypeError:Failed to execute 'openCursor' on 'IDBObjectStore': The provided value 'sideways' is not a valid enum value of type IDBCursorDirection.",
+            ]
+        ])
     );
     assert_eq!(
         row(24),
@@ -581,7 +672,10 @@ async fn knife69_webgl_surface() {
         o["extConst"],
         serde_json::json!([37445, 37446, false, false])
     );
-    assert_eq!(o["extNoArg"], "Failed to execute 'getExtension' on 'WebGLRenderingContext': 1 argument required, but only 0 present.");
+    assert_eq!(
+        o["extNoArg"],
+        "Failed to execute 'getExtension' on 'WebGLRenderingContext': 1 argument required, but only 0 present."
+    );
     assert_eq!(
         o["attrs"],
         serde_json::json!([
@@ -599,7 +693,9 @@ async fn knife69_webgl_surface() {
     );
     assert_eq!(
         o["attrsReq"],
-        serde_json::json!("{\"alpha\":false,\"antialias\":false,\"depth\":false,\"desynchronized\":false,\"failIfMajorPerformanceCaveat\":false,\"powerPreference\":\"high-performance\",\"premultipliedAlpha\":true,\"preserveDrawingBuffer\":true,\"stencil\":true,\"xrCompatible\":false}")
+        serde_json::json!(
+            "{\"alpha\":false,\"antialias\":false,\"depth\":false,\"desynchronized\":false,\"failIfMajorPerformanceCaveat\":false,\"powerPreference\":\"high-performance\",\"premultipliedAlpha\":true,\"preserveDrawingBuffer\":true,\"stencil\":true,\"xrCompatible\":false}"
+        )
     );
     assert_eq!(o["attrsBad"], "TypeError");
     assert_eq!(
@@ -675,7 +771,10 @@ async fn knife70_speech_utterance_family() {
         serde_json::json!(["", "", null, 1, 1, 1, null, null])
     );
     assert_eq!(o["ctorText"], serde_json::json!(["hi", "", "null", "5"]));
-    assert_eq!(o["noNew"], "Failed to construct 'SpeechSynthesisUtterance': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    assert_eq!(
+        o["noNew"],
+        "Failed to construct 'SpeechSynthesisUtterance': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+    );
     assert_eq!(o["strings"], serde_json::json!(["7", "null"]));
     assert_eq!(
         o["symbol"],
@@ -821,14 +920,19 @@ async fn knife71_svg_gradient_anchor_family() {
     assert_eq!(
         o["setUnits"],
         serde_json::json!([
-            "userSpaceOnUse", 1,
+            "userSpaceOnUse",
+            1,
             "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided (5) is larger than the largest allowed value (2).",
             "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided is 0, which is not settable."
         ])
     );
     assert_eq!(
         o["setSpread"],
-        serde_json::json!(["repeat", 3, "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided (9) is larger than the largest allowed value (3)."])
+        serde_json::json!([
+            "repeat",
+            3,
+            "Failed to set the 'baseVal' property on 'SVGAnimatedEnumeration': The enumeration value provided (9) is larger than the largest allowed value (3)."
+        ])
     );
     assert_eq!(o["transform"], serde_json::json!([2, 2, 10, 3, 2, 10]));
     assert_eq!(o["transformJunk"], 0);
@@ -898,7 +1002,15 @@ async fn knife71_svg_gradient_anchor_family() {
     assert_eq!(o["aOwn"], 0);
     assert_eq!(
         o["interest"],
-        serde_json::json!([null, true, null, "", true, "Failed to set the 'interestForElement' property on 'SVGAElement': Failed to convert value to 'Element'.", false])
+        serde_json::json!([
+            null,
+            true,
+            null,
+            "",
+            true,
+            "Failed to set the 'interestForElement' property on 'SVGAElement': Failed to convert value to 'Element'.",
+            false
+        ])
     );
     assert_eq!(o["interestHtml"], serde_json::json!([true, true, true]));
     assert_eq!(o["interestHtmlRoundTrip"], serde_json::json!(["", true]));
@@ -1150,7 +1262,11 @@ async fn knife73_selection_direction_and_composed() {
         serde_json::json!([
             "The provided value is not of type 'GetComposedRangesOptions'.",
             "The provided value is not of type 'GetComposedRangesOptions'.",
-            "ok", "ok", "ok", "ok", "ok",
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "ok",
             "Failed to read the 'shadowRoots' property from 'GetComposedRangesOptions': Failed to convert value to 'ShadowRoot'.",
             "Failed to read the 'shadowRoots' property from 'GetComposedRangesOptions': The provided value cannot be converted to a sequence.",
             "ok",
@@ -1279,7 +1395,10 @@ async fn knife74_text_metrics() {
         ])
     );
     assert_eq!(o["zero"], serde_json::json!(vec![0; 10]));
-    assert_eq!(o["args"], "Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present.");
+    assert_eq!(
+        o["args"],
+        "Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present."
+    );
     assert_eq!(o["lens"], serde_json::json!([1]));
 }
 
@@ -1393,7 +1512,10 @@ async fn knife75_tail_members() {
     );
     assert_eq!(
         o["xhr"],
-        serde_json::json!(["InvalidStateError", "Failed to execute 'setAttributionReporting' on 'XMLHttpRequest': 1 argument required, but only 0 present."])
+        serde_json::json!([
+            "InvalidStateError",
+            "Failed to execute 'setAttributionReporting' on 'XMLHttpRequest': 1 argument required, but only 0 present."
+        ])
     );
     assert_eq!(o["geo"], serde_json::json!(["function", "function"]));
     assert_eq!(
@@ -2251,40 +2373,152 @@ async fn knife87_ctor_validation_ladders() {
     assert_eq!(
         log,
         serde_json::json!([
-            ["max0", "SyntaxError", "Failed to construct 'CSSMathMax': Arguments can't be empty"],
-            ["inv0", "TypeError", "Failed to construct 'CSSMathInvert': 1 argument required, but only 0 present."],
-            ["invbad", "TypeError", "Failed to construct 'CSSMathInvert': The provided double value is non-finite."],
-            ["clamp2", "TypeError", "Failed to construct 'CSSMathClamp': 3 arguments required, but only 2 present."],
+            [
+                "max0",
+                "SyntaxError",
+                "Failed to construct 'CSSMathMax': Arguments can't be empty"
+            ],
+            [
+                "inv0",
+                "TypeError",
+                "Failed to construct 'CSSMathInvert': 1 argument required, but only 0 present."
+            ],
+            [
+                "invbad",
+                "TypeError",
+                "Failed to construct 'CSSMathInvert': The provided double value is non-finite."
+            ],
+            [
+                "clamp2",
+                "TypeError",
+                "Failed to construct 'CSSMathClamp': 3 arguments required, but only 2 present."
+            ],
             ["sumok", "ok", "CSSMathSum"],
             ["lens", "ok", "3,1,0"],
-            ["iir0", "TypeError", "Failed to construct 'IIRFilterNode': 2 arguments required, but only 1 present."],
-            ["iirseq1", "TypeError", "Failed to construct 'IIRFilterNode': Failed to read the 'feedback' property from 'IIRFilterOptions': Required member is undefined."],
-            ["iirfbstr", "TypeError", "Failed to construct 'IIRFilterNode': Failed to read the 'feedback' property from 'IIRFilterOptions': The provided value cannot be converted to a sequence."],
-            ["iirfb0", "InvalidStateError", "Failed to construct 'IIRFilterNode': First feedback coefficient cannot be zero."],
-            ["iirff0", "InvalidStateError", "Failed to construct 'IIRFilterNode': At least one feedforward coefficient must be non-zero."],
+            [
+                "iir0",
+                "TypeError",
+                "Failed to construct 'IIRFilterNode': 2 arguments required, but only 1 present."
+            ],
+            [
+                "iirseq1",
+                "TypeError",
+                "Failed to construct 'IIRFilterNode': Failed to read the 'feedback' property from 'IIRFilterOptions': Required member is undefined."
+            ],
+            [
+                "iirfbstr",
+                "TypeError",
+                "Failed to construct 'IIRFilterNode': Failed to read the 'feedback' property from 'IIRFilterOptions': The provided value cannot be converted to a sequence."
+            ],
+            [
+                "iirfb0",
+                "InvalidStateError",
+                "Failed to construct 'IIRFilterNode': First feedback coefficient cannot be zero."
+            ],
+            [
+                "iirff0",
+                "InvalidStateError",
+                "Failed to construct 'IIRFilterNode': At least one feedforward coefficient must be non-zero."
+            ],
             ["iirok", "ok", "IIRFilterNode"],
-            ["bq0", "TypeError", "Failed to construct 'BiquadFilterNode': 1 argument required, but only 0 present."],
-            ["bqctx", "TypeError", "Failed to construct 'BiquadFilterNode': parameter 1 is not of type 'BaseAudioContext'."],
+            [
+                "bq0",
+                "TypeError",
+                "Failed to construct 'BiquadFilterNode': 1 argument required, but only 0 present."
+            ],
+            [
+                "bqctx",
+                "TypeError",
+                "Failed to construct 'BiquadFilterNode': parameter 1 is not of type 'BaseAudioContext'."
+            ],
             ["bqok", "ok", "BiquadFilterNode"],
-            ["oac0", "TypeError", "Failed to construct 'OfflineAudioContext': 1 argument required, but only 0 present."],
-            ["oac2", "TypeError", "Failed to construct 'OfflineAudioContext': Overload resolution failed."],
-            ["oacch33", "NotSupportedError", "Failed to construct 'OfflineAudioContext': The number of channels provided (33) is outside the range [1, 32]."],
-            ["oacpart", "TypeError", "Failed to construct 'OfflineAudioContext': Failed to read the 'sampleRate' property from 'OfflineAudioContextOptions': Required member is undefined."],
-            ["rsr0", "TypeError", "Failed to construct 'ReadableStreamDefaultReader': 1 argument required, but only 0 present."],
-            ["rsrbad", "TypeError", "Failed to construct 'ReadableStreamDefaultReader': parameter 1 is not of type 'ReadableStream'."],
-            ["reaf0", "TypeError", "Failed to construct 'RTCEncodedAudioFrame': 1 argument required, but only 0 present."],
-            ["url0", "TypeError", "Failed to construct 'URL': 1 argument required, but only 0 present."],
-            ["urlbad", "TypeError", "Failed to construct 'URL': Invalid URL"],
-            ["urlbase", "TypeError", "Failed to construct 'URL': Invalid base URL"],
+            [
+                "oac0",
+                "TypeError",
+                "Failed to construct 'OfflineAudioContext': 1 argument required, but only 0 present."
+            ],
+            [
+                "oac2",
+                "TypeError",
+                "Failed to construct 'OfflineAudioContext': Overload resolution failed."
+            ],
+            [
+                "oacch33",
+                "NotSupportedError",
+                "Failed to construct 'OfflineAudioContext': The number of channels provided (33) is outside the range [1, 32]."
+            ],
+            [
+                "oacpart",
+                "TypeError",
+                "Failed to construct 'OfflineAudioContext': Failed to read the 'sampleRate' property from 'OfflineAudioContextOptions': Required member is undefined."
+            ],
+            [
+                "rsr0",
+                "TypeError",
+                "Failed to construct 'ReadableStreamDefaultReader': 1 argument required, but only 0 present."
+            ],
+            [
+                "rsrbad",
+                "TypeError",
+                "Failed to construct 'ReadableStreamDefaultReader': parameter 1 is not of type 'ReadableStream'."
+            ],
+            [
+                "reaf0",
+                "TypeError",
+                "Failed to construct 'RTCEncodedAudioFrame': 1 argument required, but only 0 present."
+            ],
+            [
+                "url0",
+                "TypeError",
+                "Failed to construct 'URL': 1 argument required, but only 0 present."
+            ],
+            [
+                "urlbad",
+                "TypeError",
+                "Failed to construct 'URL': Invalid URL"
+            ],
+            [
+                "urlbase",
+                "TypeError",
+                "Failed to construct 'URL': Invalid base URL"
+            ],
             ["urlok", "ok", "URL"],
-            ["ws0", "TypeError", "Failed to construct 'WebSocket': 1 argument required, but only 0 present."],
-            ["wsftp", "SyntaxError", "Failed to construct 'WebSocket': The URL's scheme must be either 'http', 'https', 'ws', or 'wss'. 'ftp' is not allowed."],
-            ["wsdup", "SyntaxError", "Failed to construct 'WebSocket': The subprotocol 'a' is duplicated."],
+            [
+                "ws0",
+                "TypeError",
+                "Failed to construct 'WebSocket': 1 argument required, but only 0 present."
+            ],
+            [
+                "wsftp",
+                "SyntaxError",
+                "Failed to construct 'WebSocket': The URL's scheme must be either 'http', 'https', 'ws', or 'wss'. 'ftp' is not allowed."
+            ],
+            [
+                "wsdup",
+                "SyntaxError",
+                "Failed to construct 'WebSocket': The subprotocol 'a' is duplicated."
+            ],
             ["wshttp", "ok", "ws://127.0.0.1:1/x"],
-            ["sr0", "TypeError", "Failed to construct 'StaticRange': 1 argument required, but only 0 present."],
-            ["srempty", "TypeError", "Failed to construct 'StaticRange': Failed to read the 'endContainer' property from 'StaticRangeInit': Required member is undefined."],
-            ["srsc", "TypeError", "Failed to construct 'StaticRange': Failed to read the 'startContainer' property from 'StaticRangeInit': Failed to convert value to 'Node'."],
-            ["srdoct", "InvalidNodeTypeError", "Failed to construct 'StaticRange': Neither startContainer nor endContainer can be a DocumentType or Attribute node."],
+            [
+                "sr0",
+                "TypeError",
+                "Failed to construct 'StaticRange': 1 argument required, but only 0 present."
+            ],
+            [
+                "srempty",
+                "TypeError",
+                "Failed to construct 'StaticRange': Failed to read the 'endContainer' property from 'StaticRangeInit': Required member is undefined."
+            ],
+            [
+                "srsc",
+                "TypeError",
+                "Failed to construct 'StaticRange': Failed to read the 'startContainer' property from 'StaticRangeInit': Failed to convert value to 'Node'."
+            ],
+            [
+                "srdoct",
+                "InvalidNodeTypeError",
+                "Failed to construct 'StaticRange': Neither startContainer nor endContainer can be a DocumentType or Attribute node."
+            ],
             ["srok", "ok", "StaticRange"]
         ]),
         "ctor ladders: argc/ctx/dict-read-order/sequence/range messages, \

@@ -883,11 +883,20 @@ fn document_named_access_resolves_and_shadows() {
     assert_eq!(
         v,
         serde_json::json!([
-            "undefined", "IMG", "FORM", "IMG",
-            "value+writable+enumerable+configurable", true, true, true,
-            "IMG", true, true,
+            "undefined",
+            "IMG",
+            "FORM",
+            "IMG",
+            "value+writable+enumerable+configurable",
+            true,
+            true,
+            true,
+            "IMG",
+            true,
+            true,
             ["[object HTMLCollection]", 2],
-            "undefined", "object",
+            "undefined",
+            "object",
         ]),
         "document named access: name-based resolution, value-prop face, override-builtins, live tracking"
     );

@@ -35,10 +35,10 @@ async fn fetch_honors_document_referrer_policy() {
                 })
                 .unwrap_or_else(|| "(none)".to_string());
             let body = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                    referer.len(),
-                    referer
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                referer.len(),
+                referer
+            );
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
         }
@@ -296,9 +296,9 @@ async fn cors_refused_fetch_records_status_zero_event_with_reason() {
         let _ = stream.read(&mut buf);
         let body = b"{}";
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -472,9 +472,9 @@ async fn preflight_that_allows_the_method_lets_the_request_through() {
         let _ = stream.read(&mut buf);
         let body = b"ok";
         let response = format!(
-                "HTTP/1.1 200 OK\r\naccess-control-allow-origin: *\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\naccess-control-allow-origin: *\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -647,19 +647,19 @@ async fn cross_origin_redirect_strips_scripted_credentials() {
                 .unwrap()
                 .push(String::from_utf8_lossy(&buf).to_string());
             let response = match seen_a.lock().unwrap().len() {
-                    1 => concat!(
-                        "HTTP/1.1 200 OK\r\n",
-                        "access-control-allow-origin: *\r\n",
-                        "access-control-allow-methods: GET\r\n",
-                        "access-control-allow-headers: authorization\r\n",
-                        "content-length: 0\r\nconnection: close\r\n\r\n",
-                    )
-                    .to_string(),
-                    _ => format!(
-                        "HTTP/1.1 302 Found\r\naccess-control-allow-origin: *\r\nlocation: http://127.0.0.1:{}/data\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
-                        port_b
-                    ),
-                };
+                1 => concat!(
+                    "HTTP/1.1 200 OK\r\n",
+                    "access-control-allow-origin: *\r\n",
+                    "access-control-allow-methods: GET\r\n",
+                    "access-control-allow-headers: authorization\r\n",
+                    "content-length: 0\r\nconnection: close\r\n\r\n",
+                )
+                .to_string(),
+                _ => format!(
+                    "HTTP/1.1 302 Found\r\naccess-control-allow-origin: *\r\nlocation: http://127.0.0.1:{}/data\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                    port_b
+                ),
+            };
             stream.write_all(response.as_bytes()).unwrap();
             stream.flush().unwrap();
         }
@@ -677,9 +677,9 @@ async fn cross_origin_redirect_strips_scripted_credentials() {
             .push(String::from_utf8_lossy(&buf).to_string());
         let body = b"secret";
         let response = format!(
-                "HTTP/1.1 200 OK\r\naccess-control-allow-origin: *\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\naccess-control-allow-origin: *\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.write_all(body).unwrap();
         stream.flush().unwrap();
@@ -768,9 +768,9 @@ async fn cross_origin_redirect_without_acao_is_blocked() {
         let mut buf = [0u8; 8192];
         let _ = stream.read(&mut buf);
         let response = format!(
-                "HTTP/1.1 302 Found\r\nlocation: http://127.0.0.1:{}/data\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
-                port
-            );
+            "HTTP/1.1 302 Found\r\nlocation: http://127.0.0.1:{}/data\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+            port
+        );
         stream.write_all(response.as_bytes()).unwrap();
         stream.flush().unwrap();
     });
@@ -1061,9 +1061,10 @@ async fn send_beacon_body_type_to_content_type_map() {
     assert_eq!(hops.len(), 3, "all three beacons must reach the wire");
     let find = |needle: &str| hops.iter().any(|h| h.to_ascii_lowercase().contains(needle));
     assert!(
-            find("content-type: application/x-www-form-urlencoded;charset=utf-8") && find("\r\n\r\na=1&b=2"),
-            "URLSearchParams must ride the urlencoded content-type with its serialized body, got: {hops:?}"
-        );
+        find("content-type: application/x-www-form-urlencoded;charset=utf-8")
+            && find("\r\n\r\na=1&b=2"),
+        "URLSearchParams must ride the urlencoded content-type with its serialized body, got: {hops:?}"
+    );
     assert!(
         find("content-type: application/octet-stream") && find("\r\n\r\nhi"),
         "BufferSource must ride octet-stream with its raw bytes, got: {hops:?}"
@@ -1212,8 +1213,8 @@ async fn same_origin_credentialed_fetch_redirected_cross_origin_names_bounce_hos
             .map(|l| l[7..].trim().to_string())
             .unwrap_or_default();
         let resp = format!(
-                "HTTP/1.1 200 OK\r\naccess-control-allow-origin: {origin}\r\naccess-control-allow-credentials: true\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok"
-            );
+            "HTTP/1.1 200 OK\r\naccess-control-allow-origin: {origin}\r\naccess-control-allow-credentials: true\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok"
+        );
         stream.write_all(resp.as_bytes()).unwrap();
     });
 
@@ -1237,8 +1238,8 @@ async fn same_origin_credentialed_fetch_redirected_cross_origin_names_bounce_hos
                 format!("http://127.0.0.1:{port_allow}/ok")
             };
             let resp = format!(
-                    "HTTP/1.1 302 Found\r\nlocation: {location}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
-                );
+                "HTTP/1.1 302 Found\r\nlocation: {location}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+            );
             stream.write_all(resp.as_bytes()).unwrap();
         }
     });

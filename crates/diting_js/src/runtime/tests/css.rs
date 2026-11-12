@@ -1,4 +1,4 @@
-//! 
+//!
 use super::super::*;
 use super::common::setup_runtime;
 
@@ -10,7 +10,7 @@ use super::common::setup_runtime;
 #[test]
 fn container_query_gates_by_container_geometry() {
     let mut rt = setup_runtime(
-            "<html><head><style>\
+        "<html><head><style>\
              #cqbox { container-type: inline-size; width: 300px; }\
              .inner { color: rgb(0, 0, 255); }\
              @container (min-width: 200px) { .inner { color: rgb(255, 0, 0); } }\
@@ -19,17 +19,17 @@ fn container_query_gates_by_container_geometry() {
              <div style='width: 100px; container-type: inline-size'><div class='inner' id='i2'>y</div></div>\
              <div class='inner' id='i3'>z</div>\
              </body></html>",
-        );
+    );
     let out = rt
             .evaluate(
                 "['i1','i2','i3'].map(id => getComputedStyle(document.getElementById(id)).color).join('|')",
             )
             .unwrap();
     assert_eq!(
-            out,
-            serde_json::json!("rgb(255, 0, 0)|rgb(0, 0, 255)|rgb(0, 0, 255)"),
-            "300px container passes min-width:200px; the 100px container and the container-less element do not"
-        );
+        out,
+        serde_json::json!("rgb(255, 0, 0)|rgb(0, 0, 255)|rgb(0, 0, 255)"),
+        "300px container passes min-width:200px; the 100px container and the container-less element do not"
+    );
     // The container properties themselves read back through gCS.
     let face = rt
         .evaluate(
@@ -66,7 +66,7 @@ fn container_query_units_bake_against_container_size() {
 #[test]
 fn container_query_named_walks_past_nearer_anonymous() {
     let mut rt = setup_runtime(
-            "<html><head><style>\
+        "<html><head><style>\
              .item { color: rgb(0, 0, 255); }\
              @container side (min-width: 200px) { .item { color: rgb(255, 0, 0); } }\
              </style></head><body>\
@@ -75,17 +75,17 @@ fn container_query_named_walks_past_nearer_anonymous() {
              </div>\
              <div style='container-type: inline-size; width: 400px'><div class='item' id='b'>y</div></div>\
              </body></html>",
-        );
+    );
     let out = rt
         .evaluate(
             "['a','b'].map(id => getComputedStyle(document.getElementById(id)).color).join('|')",
         )
         .unwrap();
     assert_eq!(
-            out,
-            serde_json::json!("rgb(255, 0, 0)|rgb(0, 0, 255)"),
-            "a: named lookup reaches the 400px 'side' container past the nearer 100px one; b has no 'side' ancestor"
-        );
+        out,
+        serde_json::json!("rgb(255, 0, 0)|rgb(0, 0, 255)"),
+        "a: named lookup reaches the 400px 'side' container past the nearer 100px one; b has no 'side' ancestor"
+    );
 }
 
 /// `:scope` must bind to the element a query is rooted at — the archify
@@ -252,10 +252,10 @@ async fn dynamic_stylesheet_link_fires_load_and_registers_sheet() {
         let mut buf = [0u8; 4096];
         let _ = stream.read(&mut buf).unwrap();
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/css\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                css.len(),
-                css
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/css\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            css.len(),
+            css
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.flush().unwrap();
     });
@@ -372,10 +372,10 @@ async fn preload_link_fires_load_and_warms_the_sheet_cache() {
         let mut buf = [0u8; 4096];
         let _ = stream.read(&mut buf).unwrap();
         let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/css\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                css.len(),
-                css
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: text/css\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            css.len(),
+            css
+        );
         stream.write_all(resp.as_bytes()).unwrap();
         stream.flush().unwrap();
     });
@@ -1267,9 +1267,9 @@ async fn test_nth_child_of_selector_and_register_property() {
             )
             .unwrap();
     assert_eq!(
-            v,
-            "3\n3\n1,4\n4\n1\nTypeError\nSyntaxError\nok\nInvalidModificationError\nSyntaxError\nSyntaxError\nSyntaxError\nSyntaxError\nok\n10px|\"\""
-        );
+        v,
+        "3\n3\n1,4\n4\n1\nTypeError\nSyntaxError\nok\nInvalidModificationError\nSyntaxError\nSyntaxError\nSyntaxError\nSyntaxError\nok\n10px|\"\""
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1297,9 +1297,9 @@ async fn test_adopted_stylesheets_join_the_cascade() {
             )
             .unwrap();
     assert_eq!(
-            v,
-            "rgb(0, 0, 0)|rgb(255, 0, 0)|rgb(0, 0, 255)|rgb(0, 0, 255)|rgb(0, 0, 0)|rgb(255, 0, 0)|TypeError"
-        );
+        v,
+        "rgb(0, 0, 0)|rgb(255, 0, 0)|rgb(0, 0, 255)|rgb(0, 0, 255)|rgb(0, 0, 0)|rgb(255, 0, 0)|TypeError"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1343,8 +1343,8 @@ async fn test_cssom_rule_tree_and_style_sheet_writes_reach_the_cascade() {
             )
             .unwrap();
     assert_eq!(
-            v,
-            "CSSImportRule:3,CSSStyleRule:1,CSSMediaRule:4,CSSLayerStatementRule:0,CSSLayerBlockRule:0,CSSKeyframesRule:7,CSSPropertyRule:0\
+        v,
+        "CSSImportRule:3,CSSStyleRule:1,CSSMediaRule:4,CSSLayerStatementRule:0,CSSLayerBlockRule:0,CSSKeyframesRule:7,CSSPropertyRule:0\
 |a, b > i { color: red; }\
 |@media (min-width: 100px) and (max-width: 9000px) {~  p { margin-top: 3px; }~}\
 |(min-width: 100px) and (max-width: 9000px)|1|p|true\
@@ -1357,7 +1357,7 @@ async fn test_cssom_rule_tree_and_style_sheet_writes_reach_the_cascade() {
 |rgb(0, 0, 0)\
 |7px\
 |2 y { color: blue; }"
-        );
+    );
 }
 
 #[tokio::test]

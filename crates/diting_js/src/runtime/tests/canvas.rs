@@ -209,12 +209,25 @@ async fn canvas_jpeg_readout_and_audio_face_p4() {
     assert_eq!(v["blob"][2], true, "toBlob byte size === toDataURL payload");
     // ② audio — exact prototype lists, Chrome order, constructor last.
     assert_eq!(
-            v["ac_proto"],
-            serde_json::json!(["baseLatency","outputLatency","onerror","close",
-                "createMediaElementSource","createMediaStreamDestination","createMediaStreamSource",
-                "getOutputTimestamp","resume","suspend","constructor","sinkId","onsinkchange","setSinkId"]),
-            "AudioContext.prototype names (刀57: playbackStats deleted; 刀75: sinkId/onsinkchange/setSinkId per Chrome 145 truth)"
-        );
+        v["ac_proto"],
+        serde_json::json!([
+            "baseLatency",
+            "outputLatency",
+            "onerror",
+            "close",
+            "createMediaElementSource",
+            "createMediaStreamDestination",
+            "createMediaStreamSource",
+            "getOutputTimestamp",
+            "resume",
+            "suspend",
+            "constructor",
+            "sinkId",
+            "onsinkchange",
+            "setSinkId"
+        ]),
+        "AudioContext.prototype names (刀57: playbackStats deleted; 刀75: sinkId/onsinkchange/setSinkId per Chrome 145 truth)"
+    );
     assert_eq!(
         v["oac_proto"],
         serde_json::json!([
@@ -228,15 +241,38 @@ async fn canvas_jpeg_readout_and_audio_face_p4() {
         "OfflineAudioContext.prototype names"
     );
     assert_eq!(
-            v["base_proto"],
-            serde_json::json!(["destination","sampleRate","currentTime","listener","state",
-                "onstatechange","createAnalyser","createBiquadFilter","createBuffer","createBufferSource",
-                "createChannelMerger","createChannelSplitter","createConstantSource","createConvolver",
-                "createDelay","createDynamicsCompressor","createGain","createIIRFilter","createOscillator",
-                "createPanner","createPeriodicWave","createScriptProcessor","createStereoPanner",
-                "createWaveShaper","decodeAudioData","constructor","audioWorklet"]),
-            "BaseAudioContext.prototype names (no resume/suspend — they moved up a level; 刀57: renderQuantumSize deleted)"
-        );
+        v["base_proto"],
+        serde_json::json!([
+            "destination",
+            "sampleRate",
+            "currentTime",
+            "listener",
+            "state",
+            "onstatechange",
+            "createAnalyser",
+            "createBiquadFilter",
+            "createBuffer",
+            "createBufferSource",
+            "createChannelMerger",
+            "createChannelSplitter",
+            "createConstantSource",
+            "createConvolver",
+            "createDelay",
+            "createDynamicsCompressor",
+            "createGain",
+            "createIIRFilter",
+            "createOscillator",
+            "createPanner",
+            "createPeriodicWave",
+            "createScriptProcessor",
+            "createStereoPanner",
+            "createWaveShaper",
+            "decodeAudioData",
+            "constructor",
+            "audioWorklet"
+        ]),
+        "BaseAudioContext.prototype names (no resume/suspend — they moved up a level; 刀57: renderQuantumSize deleted)"
+    );
     assert_eq!(
         v["et_proto"],
         serde_json::json!([

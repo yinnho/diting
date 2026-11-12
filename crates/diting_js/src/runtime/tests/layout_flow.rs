@@ -514,14 +514,14 @@ async fn test_nested_percent_width_tables_in_rowspan_cells_keep_their_width() {
     // widths must agree (Chrome: both 232/169/73 with its fonts).
     let table = |rs: &str, ids: &str| {
         format!(
-                "<table id=o{ids}><tr><td style=\"white-space:nowrap\">Felidae</td><td {rs}><div><table id=a{ids} style=\"width:100%\"><tr><td style=\"white-space:nowrap\">Pantherinae</td><td {rs}><div><table id=b{ids} style=\"width:100%\"><tr><td style=\"white-space:nowrap\">Jungle cat</td></tr></table></div></td></tr><tr><td></td></tr></table></div></td></tr><tr><td></td></tr></table>"
-            )
+            "<table id=o{ids}><tr><td style=\"white-space:nowrap\">Felidae</td><td {rs}><div><table id=a{ids} style=\"width:100%\"><tr><td style=\"white-space:nowrap\">Pantherinae</td><td {rs}><div><table id=b{ids} style=\"width:100%\"><tr><td style=\"white-space:nowrap\">Jungle cat</td></tr></table></div></td></tr><tr><td></td></tr></table></div></td></tr><tr><td></td></tr></table>"
+        )
     };
     let html = format!(
-            "<html><head><style>body{{margin:0;font:16px/20px serif}} table{{border-spacing:0;margin:0}} td{{padding:0 4px;vertical-align:top}}</style></head><body>{}{}</body></html>",
-            table("rowspan=2", "1"),
-            table("", "2")
-        );
+        "<html><head><style>body{{margin:0;font:16px/20px serif}} table{{border-spacing:0;margin:0}} td{{padding:0 4px;vertical-align:top}}</style></head><body>{}{}</body></html>",
+        table("rowspan=2", "1"),
+        table("", "2")
+    );
     let mut rt = setup_runtime(&html);
     let v = rt
             .evaluate("(() => { const w = id => Math.round(document.getElementById(id).getBoundingClientRect().width); return [w('a1') - w('a2'), w('b1') - w('b2'), w('b1') > 60].join(','); })()")
@@ -1073,13 +1073,13 @@ fn test_table_anonymous_cell_synthesis() {
     let t4h = d["t4h"].as_f64().unwrap();
     let (x1x, m2x) = (d["x1"]["x"].as_f64().unwrap(), d["m2x"].as_f64().unwrap());
     assert!(
-            (t2h - t4h).abs() <= 1.0 && (x1x - m2x).abs() < 1.0,
-            "anon cell matches a real cell with identical content (t2h={t2h} t4h={t4h} x1x={x1x} m2x={m2x}, diag={d})"
-        );
+        (t2h - t4h).abs() <= 1.0 && (x1x - m2x).abs() < 1.0,
+        "anon cell matches a real cell with identical content (t2h={t2h} t4h={t4h} x1x={x1x} m2x={m2x}, diag={d})"
+    );
     assert!(
-            t4h < 30.0,
-            "the mixed-run cell fits on ONE line at its max-content pin (no fractional-rounding wrap) (t4h={t4h}, diag={d})"
-        );
+        t4h < 30.0,
+        "the mixed-run cell fits on ONE line at its max-content pin (no fractional-rounding wrap) (t4h={t4h}, diag={d})"
+    );
     let (yb, ya) = (
         d["y1Before"].as_f64().unwrap(),
         d["y1After"].as_f64().unwrap(),

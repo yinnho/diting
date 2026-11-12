@@ -465,10 +465,10 @@ async fn test_await_promise_sync_result_settles_without_event_loop_turn() {
         .unwrap();
     assert_eq!(outcome.info.value.unwrap(), serde_json::json!(2));
     assert!(
-            t0.elapsed() < std::time::Duration::from_secs(3),
-            "sync result waited {}ms — sentinel must be set during execute_script, not an event-loop turn",
-            t0.elapsed().as_millis()
-        );
+        t0.elapsed() < std::time::Duration::from_secs(3),
+        "sync result waited {}ms — sentinel must be set during execute_script, not an event-loop turn",
+        t0.elapsed().as_millis()
+    );
 }
 
 // #17: an uncaught exception inside a timer callback reaches BOTH error
@@ -705,10 +705,10 @@ async fn date_now_timer_hammer_single_isolate() {
             "iter {i}: timer callback never landed (m1={m1:?})"
         );
         assert_eq!(
-                err,
-                serde_json::json!(""),
-                "iter {i}: timer-callback Date.now threw ({err:?}, typeof at fire time = {fired_typeof:?})"
-            );
+            err,
+            serde_json::json!(""),
+            "iter {i}: timer-callback Date.now threw ({err:?}, typeof at fire time = {fired_typeof:?})"
+        );
         assert_eq!(
             fired_typeof,
             serde_json::json!("function"),

@@ -224,7 +224,13 @@ fn url_setter_search_hash_port_edges() {
         "http://x.com/"
     );
     // port: leading digits win, no-digit / overflow inputs are ignored
-    assert_eq!(case(&mut rt, "(() => { const u = new URL('http://x.com:9/'); u.port = '8080abc'; return u.href; })()"), "http://x.com:8080/");
+    assert_eq!(
+        case(
+            &mut rt,
+            "(() => { const u = new URL('http://x.com:9/'); u.port = '8080abc'; return u.href; })()"
+        ),
+        "http://x.com:8080/"
+    );
     assert_eq!(
         case(
             &mut rt,
@@ -349,9 +355,9 @@ async fn test_relative_urls_resolve_against_base_href() {
     let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
     std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
     let mut rt = setup_runtime(
-            "<html><head><base href=\"/assets/\"></head><body>\
+        "<html><head><base href=\"/assets/\"></head><body>\
              <a id=\"a\" href=\"page.html\">x</a><form id=\"f\" action=\"submit\"></form></body></html>",
-        );
+    );
     rt.set_url("https://example.com/app/index");
 
     // Anchor href resolves against /assets/.
@@ -383,9 +389,9 @@ async fn test_relative_urls_resolve_against_base_href() {
             .to_string();
         let body = b"{}";
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
         let _ = stream.write_all(response.as_bytes());
         let _ = stream.write_all(body);
         let _ = stream.flush();
@@ -525,9 +531,9 @@ async fn test_navigation_api_intercept_flow() {
             .await
             .unwrap();
     assert_eq!(
-            v.value.unwrap(),
-            "stringtruetrue|/spa/1:1:{\"s\":1}:push|/spa/1|null|AbortError:/spa/1|/spa/2:1|SyntaxError|navigate:push:/spa/1:true:{\"i\":2},cec:push,handler,success,navigate:push:/cancel:true:undefined,error,navigate:replace:/spa/2:true:undefined,cec:replace,handler,success"
-        );
+        v.value.unwrap(),
+        "stringtruetrue|/spa/1:1:{\"s\":1}:push|/spa/1|null|AbortError:/spa/1|/spa/2:1|SyntaxError|navigate:push:/spa/1:true:{\"i\":2},cec:push,handler,success,navigate:push:/cancel:true:undefined,error,navigate:replace:/spa/2:true:undefined,cec:replace,handler,success"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

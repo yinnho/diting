@@ -66,20 +66,52 @@ async fn knife88_css_unit_family() {
         serde_json::json!([
             ["keys", "ok", "69"],
             ["px", "ok", "1/px"],
-            ["px:nan", "TypeError", "Failed to execute 'px' on 'CSS': The provided double value is non-finite."],
-            ["px:str", "TypeError", "Failed to execute 'px' on 'CSS': The provided double value is non-finite."],
-            ["px:0", "TypeError", "Failed to execute 'px' on 'CSS': 1 argument required, but only 0 present."],
+            [
+                "px:nan",
+                "TypeError",
+                "Failed to execute 'px' on 'CSS': The provided double value is non-finite."
+            ],
+            [
+                "px:str",
+                "TypeError",
+                "Failed to execute 'px' on 'CSS': The provided double value is non-finite."
+            ],
+            [
+                "px:0",
+                "TypeError",
+                "Failed to execute 'px' on 'CSS': 1 argument required, but only 0 present."
+            ],
             ["px:5", "ok", "5"],
-            ["px:self", "TypeError", "Failed to execute 'px' on 'CSS': The provided double value is non-finite."],
+            [
+                "px:self",
+                "TypeError",
+                "Failed to execute 'px' on 'CSS': The provided double value is non-finite."
+            ],
             ["u:Hz", "ok", "hz"],
             ["u:kHz", "ok", "khz"],
             ["u:Q", "ok", "q"],
             ["u:cqw", "ok", "cqw"],
             ["u:number", "ok", "number"],
-            ["uv:0", "TypeError", "Failed to construct 'CSSUnitValue': 2 arguments required, but only 0 present."],
-            ["uv:1", "TypeError", "Failed to construct 'CSSUnitValue': 2 arguments required, but only 1 present."],
-            ["uv:bogus", "TypeError", "Failed to construct 'CSSUnitValue': Invalid unit: bogus"],
-            ["uv:nan", "TypeError", "Failed to construct 'CSSUnitValue': The provided double value is non-finite."],
+            [
+                "uv:0",
+                "TypeError",
+                "Failed to construct 'CSSUnitValue': 2 arguments required, but only 0 present."
+            ],
+            [
+                "uv:1",
+                "TypeError",
+                "Failed to construct 'CSSUnitValue': 2 arguments required, but only 1 present."
+            ],
+            [
+                "uv:bogus",
+                "TypeError",
+                "Failed to construct 'CSSUnitValue': Invalid unit: bogus"
+            ],
+            [
+                "uv:nan",
+                "TypeError",
+                "Failed to construct 'CSSUnitValue': The provided double value is non-finite."
+            ],
             ["uv:ok", "ok", "px"],
             ["uv:rw", "ok", "5/px"],
             ["uv:own", "ok", "0"],
@@ -94,10 +126,22 @@ async fn knife88_css_unit_family() {
             ["hl", "ok", "true"],
             ["hl:size", "ok", "0"],
             ["pw", "ok", "0"],
-            ["rp:0", "TypeError", "Failed to execute 'registerProperty' on 'CSS': 1 argument required, but only 0 present."],
-            ["rp:empty", "TypeError", "Failed to execute 'registerProperty' on 'CSS': Failed to read the 'inherits' property from 'PropertyDefinition': Required member is undefined."],
+            [
+                "rp:0",
+                "TypeError",
+                "Failed to execute 'registerProperty' on 'CSS': 1 argument required, but only 0 present."
+            ],
+            [
+                "rp:empty",
+                "TypeError",
+                "Failed to execute 'registerProperty' on 'CSS': Failed to read the 'inherits' property from 'PropertyDefinition': Required member is undefined."
+            ],
             ["rp:ok", "ok", "undef"],
-            ["rp:dup", "InvalidModificationError", "Failed to execute 'registerProperty' on 'CSS': The name provided has already been registered."]
+            [
+                "rp:dup",
+                "InvalidModificationError",
+                "Failed to execute 'registerProperty' on 'CSS': The name provided has already been registered."
+            ]
         ]),
         "unit factories lowercase the name, CSSUnitValue rw value / ro unit, \
          serialization via CSSStyleValue.toString, registerProperty inherits-first"
@@ -431,17 +475,41 @@ async fn knife91_svg_point_lists() {
             ["writethru", "ok", "\"99 20 30 40 50 60\""],
             ["live", "ok", "7/0,1"],
             ["reattr", "ok", "77/9/\"9 9 8 8\""],
-            ["oor-gt", "IndexSizeError", "Failed to execute 'getItem' on 'SVGPointList': The index provided (5) is greater than the maximum bound (2)."],
-            ["oor-neg", "IndexSizeError", "Failed to execute 'getItem' on 'SVGPointList': The index provided (4294967295) is greater than the maximum bound (2)."],
-            ["oor-eq", "IndexSizeError", "Failed to execute 'getItem' on 'SVGPointList': The index provided (2) is greater than or equal to the maximum bound (2)."],
-            ["argc", "TypeError", "Failed to execute 'getItem' on 'SVGPointList': 1 argument required, but only 0 present."],
-            ["type", "TypeError", "Failed to execute 'appendItem' on 'SVGPointList': parameter 1 is not of type 'SVGPoint'."],
+            [
+                "oor-gt",
+                "IndexSizeError",
+                "Failed to execute 'getItem' on 'SVGPointList': The index provided (5) is greater than the maximum bound (2)."
+            ],
+            [
+                "oor-neg",
+                "IndexSizeError",
+                "Failed to execute 'getItem' on 'SVGPointList': The index provided (4294967295) is greater than the maximum bound (2)."
+            ],
+            [
+                "oor-eq",
+                "IndexSizeError",
+                "Failed to execute 'getItem' on 'SVGPointList': The index provided (2) is greater than or equal to the maximum bound (2)."
+            ],
+            [
+                "argc",
+                "TypeError",
+                "Failed to execute 'getItem' on 'SVGPointList': 1 argument required, but only 0 present."
+            ],
+            [
+                "type",
+                "TypeError",
+                "Failed to execute 'appendItem' on 'SVGPointList': parameter 1 is not of type 'SVGPoint'."
+            ],
             ["clamp", "ok", "1/3/1"],
             ["alias", "ok", "55"],
             ["mut", "ok", "7/7/5/1"],
             ["clear", "ok", "0/null/"],
             ["parse", "ok", "0/1/2/4"],
-            ["ap-ro", "NoModificationAllowedError", "Failed to execute 'appendItem' on 'SVGPointList': This object is read-only."],
+            [
+                "ap-ro",
+                "NoModificationAllowedError",
+                "Failed to execute 'appendItem' on 'SVGPointList': This object is read-only."
+            ],
             ["ap-item", "ok", "NoModificationAllowedError"],
             ["ap-read", "ok", "2/100"],
             ["serialize", "ok", "\"1 2 1.5 2.5\""],
@@ -575,32 +643,60 @@ async fn knife92_webgl_ext_behavior() {
     assert_eq!(
         serde_json::Value::Array(arr[..30].to_vec()),
         serde_json::json!([
-            ["vao.mint", "ok", "[object WebGLVertexArrayObjectOES]/0/[object WebGLVertexArrayObjectOES]/[object WebGLObject]/true"],
+            [
+                "vao.mint",
+                "ok",
+                "[object WebGLVertexArrayObjectOES]/0/[object WebGLVertexArrayObjectOES]/[object WebGLObject]/true"
+            ],
             ["vao.is0", "ok", "false"],
             ["vao.is0args", "ok", "false"],
             ["vao.isnull", "ok", "false"],
-            ["vao.isbad", "TypeError", "Failed to execute 'isVertexArrayOES' on 'OESVertexArrayObject': parameter 1 is not of type 'WebGLVertexArrayObjectOES'."],
+            [
+                "vao.isbad",
+                "TypeError",
+                "Failed to execute 'isVertexArrayOES' on 'OESVertexArrayObject': parameter 1 is not of type 'WebGLVertexArrayObjectOES'."
+            ],
             ["vao.bind", "ok", "true"],
             ["vao.bindnull", "ok", "0"],
-            ["vao.bindbad", "TypeError", "Failed to execute 'bindVertexArrayOES' on 'OESVertexArrayObject': parameter 1 is not of type 'WebGLVertexArrayObjectOES'."],
+            [
+                "vao.bindbad",
+                "TypeError",
+                "Failed to execute 'bindVertexArrayOES' on 'OESVertexArrayObject': parameter 1 is not of type 'WebGLVertexArrayObjectOES'."
+            ],
             ["vao.del", "ok", "false/false"],
             ["vao.argc", "ok", "[object WebGLVertexArrayObjectOES]"],
             ["tq.is0", "ok", "false"],
             ["tq.beginBad", "ok", "1280"],
-            ["tq.beginNull", "TypeError", "Failed to execute 'beginQueryEXT' on 'EXTDisjointTimerQuery': parameter 2 is not of type 'WebGLTimerQueryEXT'."],
-            ["tq.beginNotQ", "TypeError", "Failed to execute 'beginQueryEXT' on 'EXTDisjointTimerQuery': parameter 2 is not of type 'WebGLTimerQueryEXT'."],
+            [
+                "tq.beginNull",
+                "TypeError",
+                "Failed to execute 'beginQueryEXT' on 'EXTDisjointTimerQuery': parameter 2 is not of type 'WebGLTimerQueryEXT'."
+            ],
+            [
+                "tq.beginNotQ",
+                "TypeError",
+                "Failed to execute 'beginQueryEXT' on 'EXTDisjointTimerQuery': parameter 2 is not of type 'WebGLTimerQueryEXT'."
+            ],
             ["tq.flow", "ok", "true/true//0"],
             ["tq.bits", "ok", "64"],
             ["tq.obj", "ok", "false/0/0"],
             ["tq.objBadPname", "ok", "/1280"],
-            ["tq.objBadType", "TypeError", "Failed to execute 'getQueryObjectEXT' on 'EXTDisjointTimerQuery': parameter 1 is not of type 'WebGLTimerQueryEXT'."],
+            [
+                "tq.objBadType",
+                "TypeError",
+                "Failed to execute 'getQueryObjectEXT' on 'EXTDisjointTimerQuery': parameter 1 is not of type 'WebGLTimerQueryEXT'."
+            ],
             ["tq.counter", "ok", "0/1280/true"],
             ["tq.beginTwice", "ok", "1282"],
             ["tq.gpuDisjoint", "ok", "false/0"],
             ["tq.delete", "ok", "false"],
             ["ds.uncompiled", "ok", ""],
             ["ds.compiled", "ok", "string/13"],
-            ["ds.badtype", "TypeError", "Failed to execute 'getTranslatedShaderSource' on 'WebGLDebugShaders': parameter 1 is not of type 'WebGLShader'."],
+            [
+                "ds.badtype",
+                "TypeError",
+                "Failed to execute 'getTranslatedShaderSource' on 'WebGLDebugShaders': parameter 1 is not of type 'WebGLShader'."
+            ],
             ["astc", "ok", "ldr,hdr"],
             ["ia.draw", "ok", "1282"],
             ["ia.divisorOOB", "ok", "1281"],
@@ -611,12 +707,20 @@ async fn knife92_webgl_ext_behavior() {
     assert_eq!(
         serde_json::Value::Array(arr[30..].to_vec()),
         serde_json::json!([
-            ["ia.argc", "TypeError", "Failed to execute 'drawArraysInstancedANGLE' on 'ANGLEInstancedArrays': 4 arguments required, but only 0 present."],
+            [
+                "ia.argc",
+                "TypeError",
+                "Failed to execute 'drawArraysInstancedANGLE' on 'ANGLEInstancedArrays': 4 arguments required, but only 0 present."
+            ],
             ["db.ok", "ok", "0"],
             ["db.bad", "ok", "1282"],
             ["db.empty", "ok", "1282"],
             ["db.double", "ok", "1280"],
-            ["db.seq", "TypeError", "Failed to execute 'drawBuffersWEBGL' on 'WebGLDrawBuffers': The provided value cannot be converted to a sequence."],
+            [
+                "db.seq",
+                "TypeError",
+                "Failed to execute 'drawBuffersWEBGL' on 'WebGLDrawBuffers': The provided value cannot be converted to a sequence."
+            ],
             ["oi.ok", "ok", "0"],
             ["oi.oob", "ok", "1281"],
             ["oi.badCap", "ok", "1280"],
@@ -627,10 +731,22 @@ async fn knife92_webgl_ext_behavior() {
             ["pm.ok", "ok", "0/6913"],
             ["pv", "ok", "0/36430"],
             ["md", "ok", "1282"],
-            ["md.argc", "TypeError", "Failed to execute 'multiDrawArraysWEBGL' on 'WebGLMultiDraw': 6 arguments required, but only 0 present."],
+            [
+                "md.argc",
+                "TypeError",
+                "Failed to execute 'multiDrawArraysWEBGL' on 'WebGLMultiDraw': 6 arguments required, but only 0 present."
+            ],
             ["tq2.core", "ok", "0/[object WebGLQuery]"],
-            ["tq2.bad", "TypeError", "Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': parameter 1 is not of type 'WebGLQuery'."],
-            ["tq2.argc", "TypeError", "Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': 2 arguments required, but only 0 present."],
+            [
+                "tq2.bad",
+                "TypeError",
+                "Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': parameter 1 is not of type 'WebGLQuery'."
+            ],
+            [
+                "tq2.argc",
+                "TypeError",
+                "Failed to execute 'queryCounterEXT' on 'EXTDisjointTimerQueryWebGL2': 2 arguments required, but only 0 present."
+            ],
             ["rx.getParam", "TypeError", "Illegal invocation"],
             ["rx.getExt", "TypeError", "Illegal invocation"],
             ["rx.getErr", "TypeError", "Illegal invocation"],
@@ -638,7 +754,11 @@ async fn knife92_webgl_ext_behavior() {
             ["ext.argc", "ok", "undef"],
             ["aniso.gate", "ok", "/"],
             ["aniso.on", "ok", "16"],
-            ["ev.ctor", "ok", "function/WebGLContextEvent/true/x/statusMessage,constructor/[object WebGLContextEvent]"],
+            [
+                "ev.ctor",
+                "ok",
+                "function/WebGLContextEvent/true/x/statusMessage,constructor/[object WebGLContextEvent]"
+            ],
             ["ev.length", "ok", "1"],
             ["wo", "ok", "[object WebGLObject]/constructor/true"],
             ["lost.sync", "ok", "true///37442/0"]
@@ -810,11 +930,27 @@ async fn knife94_highlight_registry_map_like() {
         serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
         serde_json::json!([
             ["h.ctor", "ok", "1/0/2"],
-            ["h.ctorBad", "TypeError", "Failed to construct 'Highlight': parameter 2 is not of type 'AbstractRange'."],
-            ["h.ctorBad1", "TypeError", "Failed to construct 'Highlight': parameter 1 is not of type 'AbstractRange'."],
+            [
+                "h.ctorBad",
+                "TypeError",
+                "Failed to construct 'Highlight': parameter 2 is not of type 'AbstractRange'."
+            ],
+            [
+                "h.ctorBad1",
+                "TypeError",
+                "Failed to construct 'Highlight': parameter 1 is not of type 'AbstractRange'."
+            ],
             ["h.add", "ok", "1/true/true/1"],
-            ["h.addBad", "TypeError", "Failed to execute 'add' on 'Highlight': parameter 1 is not of type 'AbstractRange'."],
-            ["h.hasBad", "TypeError", "Failed to execute 'has' on 'Highlight': parameter 1 is not of type 'AbstractRange'."],
+            [
+                "h.addBad",
+                "TypeError",
+                "Failed to execute 'add' on 'Highlight': parameter 1 is not of type 'AbstractRange'."
+            ],
+            [
+                "h.hasBad",
+                "TypeError",
+                "Failed to execute 'has' on 'Highlight': parameter 1 is not of type 'AbstractRange'."
+            ],
             ["h.del", "ok", "true/0/false"],
             ["h.clear", "ok", "0"],
             ["h.type", "ok", "highlight/highlight"],
@@ -832,9 +968,21 @@ async fn knife94_highlight_registry_map_like() {
             ["reg.symIsEntries", "ok", "true"],
             ["reg.hfp", "ok", "arr:0"],
             ["reg.rx", "TypeError", "Illegal invocation"],
-            ["reg.setBadVal", "TypeError", "Failed to execute 'set' on 'HighlightRegistry': parameter 2 is not of type 'Highlight'."],
-            ["reg.set1", "TypeError", "Failed to execute 'set' on 'HighlightRegistry': 2 arguments required, but only 1 present."],
-            ["reg.get0", "TypeError", "Failed to execute 'get' on 'HighlightRegistry': 1 argument required, but only 0 present."]
+            [
+                "reg.setBadVal",
+                "TypeError",
+                "Failed to execute 'set' on 'HighlightRegistry': parameter 2 is not of type 'Highlight'."
+            ],
+            [
+                "reg.set1",
+                "TypeError",
+                "Failed to execute 'set' on 'HighlightRegistry': 2 arguments required, but only 1 present."
+            ],
+            [
+                "reg.get0",
+                "TypeError",
+                "Failed to execute 'get' on 'HighlightRegistry': 1 argument required, but only 0 present."
+            ]
         ]),
         "knife94: HighlightRegistry Map-like + Highlight Set-like real bodies (Chrome 145 truth)"
     );
@@ -888,36 +1036,139 @@ async fn knife95_instance_method_ladders() {
           .then((a) => { globalThis.__r95 = a; });
         return JSON.stringify(L);
     "#).unwrap();
-    assert_eq!(serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(), serde_json::json!([
-        ["el.setAttribute", "E", "TypeError:Failed to execute 'setAttribute' on 'Element': 2 arguments required, but only 0 present."],
-        ["el.closest", "E", "TypeError:Failed to execute 'closest' on 'Element': 1 argument required, but only 0 present."],
-        ["el.animate", "E", "TypeError:Failed to execute 'animate' on 'Element': 1 argument required, but only 0 present."],
-        ["el.attachShadow", "E", "TypeError:Failed to execute 'attachShadow' on 'Element': 1 argument required, but only 0 present."],
-        ["doc.createElement", "E", "TypeError:Failed to execute 'createElement' on 'Document': 1 argument required, but only 0 present."],
-        ["doc.querySelector", "E", "TypeError:Failed to execute 'querySelector' on 'Document': 1 argument required, but only 0 present."],
-        ["doc.createElementNS", "E", "TypeError:Failed to execute 'createElementNS' on 'Document': 2 arguments required, but only 0 present."],
-        ["node.appendChild", "E", "TypeError:Failed to execute 'appendChild' on 'Node': 1 argument required, but only 0 present."],
-        ["node.insertBefore", "E", "TypeError:Failed to execute 'insertBefore' on 'Node': 2 arguments required, but only 0 present."],
-        ["cd.appendData", "E", "TypeError:Failed to execute 'appendData' on 'CharacterData': 1 argument required, but only 0 present."],
-        ["sel.collapse", "E", "TypeError:Failed to execute 'collapse' on 'Selection': 1 argument required, but only 0 present."],
-        ["sel.setBaseAndExtent", "E", "TypeError:Failed to execute 'setBaseAndExtent' on 'Selection': 4 arguments required, but only 0 present."],
-        ["hist.pushState", "E", "TypeError:Failed to execute 'pushState' on 'History': 2 arguments required, but only 0 present."],
-        ["ctx.measureText", "E", "TypeError:Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present."],
-        ["ctx.drawImage", "E", "TypeError:Failed to execute 'drawImage' on 'CanvasRenderingContext2D': 3 arguments required, but only 0 present."],
-        ["nav.getUserMedia", "E", "TypeError:Failed to execute 'getUserMedia' on 'Navigator': 3 arguments required, but only 0 present."],
-        ["mo.observe", "E", "TypeError:Failed to execute 'observe' on 'MutationObserver': 1 argument required, but only 0 present."],
-        ["win.setTimeout", "E", "TypeError:Failed to execute 'setTimeout' on 'Window': 1 argument required, but only 0 present."],
-        ["win.matchMedia", "E", "TypeError:Failed to execute 'matchMedia' on 'Window': 1 argument required, but only 0 present."],
-        ["win.getComputedStyle", "E", "TypeError:Failed to execute 'getComputedStyle' on 'Window': 1 argument required, but only 0 present."],
-        ["loc.assign", "E", "TypeError:Failed to execute 'assign' on 'Location': 1 argument required, but only 0 present."],
-        ["port.postMessage", "E", "TypeError:Failed to execute 'postMessage' on 'MessagePort': 1 argument required, but only 0 present."],
-        ["svg.getPointAtLength", "E", "TypeError:Failed to execute 'getPointAtLength' on 'SVGGeometryElement': 1 argument required, but only 0 present."],
-        ["classList.forEach", "E", "TypeError:undefined is not a function"],
-        ["winLen0", "ok", "0,0,0,0,0,0,0,0"],
-        ["webkitURL", "E", "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."],
-        ["ttpf", "ok", "true/TypeError"],
-        ["sched", "ok", "true/1/true"]
-    ]));
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(log.as_str().unwrap()).unwrap(),
+        serde_json::json!([
+            [
+                "el.setAttribute",
+                "E",
+                "TypeError:Failed to execute 'setAttribute' on 'Element': 2 arguments required, but only 0 present."
+            ],
+            [
+                "el.closest",
+                "E",
+                "TypeError:Failed to execute 'closest' on 'Element': 1 argument required, but only 0 present."
+            ],
+            [
+                "el.animate",
+                "E",
+                "TypeError:Failed to execute 'animate' on 'Element': 1 argument required, but only 0 present."
+            ],
+            [
+                "el.attachShadow",
+                "E",
+                "TypeError:Failed to execute 'attachShadow' on 'Element': 1 argument required, but only 0 present."
+            ],
+            [
+                "doc.createElement",
+                "E",
+                "TypeError:Failed to execute 'createElement' on 'Document': 1 argument required, but only 0 present."
+            ],
+            [
+                "doc.querySelector",
+                "E",
+                "TypeError:Failed to execute 'querySelector' on 'Document': 1 argument required, but only 0 present."
+            ],
+            [
+                "doc.createElementNS",
+                "E",
+                "TypeError:Failed to execute 'createElementNS' on 'Document': 2 arguments required, but only 0 present."
+            ],
+            [
+                "node.appendChild",
+                "E",
+                "TypeError:Failed to execute 'appendChild' on 'Node': 1 argument required, but only 0 present."
+            ],
+            [
+                "node.insertBefore",
+                "E",
+                "TypeError:Failed to execute 'insertBefore' on 'Node': 2 arguments required, but only 0 present."
+            ],
+            [
+                "cd.appendData",
+                "E",
+                "TypeError:Failed to execute 'appendData' on 'CharacterData': 1 argument required, but only 0 present."
+            ],
+            [
+                "sel.collapse",
+                "E",
+                "TypeError:Failed to execute 'collapse' on 'Selection': 1 argument required, but only 0 present."
+            ],
+            [
+                "sel.setBaseAndExtent",
+                "E",
+                "TypeError:Failed to execute 'setBaseAndExtent' on 'Selection': 4 arguments required, but only 0 present."
+            ],
+            [
+                "hist.pushState",
+                "E",
+                "TypeError:Failed to execute 'pushState' on 'History': 2 arguments required, but only 0 present."
+            ],
+            [
+                "ctx.measureText",
+                "E",
+                "TypeError:Failed to execute 'measureText' on 'CanvasRenderingContext2D': 1 argument required, but only 0 present."
+            ],
+            [
+                "ctx.drawImage",
+                "E",
+                "TypeError:Failed to execute 'drawImage' on 'CanvasRenderingContext2D': 3 arguments required, but only 0 present."
+            ],
+            [
+                "nav.getUserMedia",
+                "E",
+                "TypeError:Failed to execute 'getUserMedia' on 'Navigator': 3 arguments required, but only 0 present."
+            ],
+            [
+                "mo.observe",
+                "E",
+                "TypeError:Failed to execute 'observe' on 'MutationObserver': 1 argument required, but only 0 present."
+            ],
+            [
+                "win.setTimeout",
+                "E",
+                "TypeError:Failed to execute 'setTimeout' on 'Window': 1 argument required, but only 0 present."
+            ],
+            [
+                "win.matchMedia",
+                "E",
+                "TypeError:Failed to execute 'matchMedia' on 'Window': 1 argument required, but only 0 present."
+            ],
+            [
+                "win.getComputedStyle",
+                "E",
+                "TypeError:Failed to execute 'getComputedStyle' on 'Window': 1 argument required, but only 0 present."
+            ],
+            [
+                "loc.assign",
+                "E",
+                "TypeError:Failed to execute 'assign' on 'Location': 1 argument required, but only 0 present."
+            ],
+            [
+                "port.postMessage",
+                "E",
+                "TypeError:Failed to execute 'postMessage' on 'MessagePort': 1 argument required, but only 0 present."
+            ],
+            [
+                "svg.getPointAtLength",
+                "E",
+                "TypeError:Failed to execute 'getPointAtLength' on 'SVGGeometryElement': 1 argument required, but only 0 present."
+            ],
+            [
+                "classList.forEach",
+                "E",
+                "TypeError:undefined is not a function"
+            ],
+            ["winLen0", "ok", "0,0,0,0,0,0,0,0"],
+            [
+                "webkitURL",
+                "E",
+                "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+            ],
+            ["ttpf", "ok", "true/TypeError"],
+            ["sched", "ok", "true/1/true"]
+        ])
+    );
     // promise legs: Chrome REJECTS with the same argc TypeErrors
     let _ = tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
     let out = rt.evaluate("JSON.stringify(__r95)").unwrap();
@@ -968,17 +1219,45 @@ async fn knife96_legacy_alias_identity() {
             ["alias.cssm", "ok", "true"],
             ["alias.ms", "ok", "true"],
             ["alias.mo", "ok", "true"],
-            ["url.call", "E", "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."],
-            ["wkurl.call", "E", "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."],
-            ["url.new0", "E", "TypeError:Failed to construct 'URL': 1 argument required, but only 0 present."],
+            [
+                "url.call",
+                "E",
+                "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+            ],
+            [
+                "wkurl.call",
+                "E",
+                "TypeError:Failed to construct 'URL': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+            ],
+            [
+                "url.new0",
+                "E",
+                "TypeError:Failed to construct 'URL': 1 argument required, but only 0 present."
+            ],
             ["wkurl.str", "ok", "http://a.b/p"],
-            ["wkurl.statics", "ok", "canParse,parse,createObjectURL,revokeObjectURL"],
+            [
+                "wkurl.statics",
+                "ok",
+                "canParse,parse,createObjectURL,revokeObjectURL"
+            ],
             ["url.len", "ok", "1/URL/true/function URL() { [native code]"],
             ["cssm.seq", "ok", "1,6"],
-            ["cssm.bad", "E", "SyntaxError:Failed to construct 'DOMMatrix': Failed to parse 'garbage('."],
-            ["cssm.num", "E", "SyntaxError:Failed to construct 'DOMMatrix': Failed to parse '5'."],
+            [
+                "cssm.bad",
+                "E",
+                "SyntaxError:Failed to construct 'DOMMatrix': Failed to parse 'garbage('."
+            ],
+            [
+                "cssm.num",
+                "E",
+                "SyntaxError:Failed to construct 'DOMMatrix': Failed to parse '5'."
+            ],
             ["cssm.empty", "ok", "matrix(1, 0, 0, 1, 0, 0)"],
-            ["cssm.statics", "ok", "fromFloat32Array,fromFloat64Array,fromMatrix"],
+            [
+                "cssm.statics",
+                "ok",
+                "fromFloat32Array,fromFloat64Array,fromMatrix"
+            ],
             ["url.sub", "ok", "http://a.b/p/true/true"],
             ["wkurl.parse", "ok", "true"]
         ]),

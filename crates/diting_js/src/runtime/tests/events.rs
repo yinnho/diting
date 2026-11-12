@@ -646,10 +646,10 @@ fn test_dispatch_runs_capture_phase_for_non_bubbling_events() {
             })()"#,
         ).unwrap();
     assert_eq!(
-            result.as_str().unwrap_or(""),
-            "doc-cap:q|box-cap:box|q-own",
-            "capture runs document→container→target for blur; the bubble bucket on the container stays silent (blur does not bubble)"
-        );
+        result.as_str().unwrap_or(""),
+        "doc-cap:q|box-cap:box|q-own",
+        "capture runs document→container→target for blur; the bubble bucket on the container stays silent (blur does not bubble)"
+    );
 
     // stopPropagation on the way down stops the whole rest of the
     // propagation path (container capture, target) — the target is
@@ -695,10 +695,10 @@ fn test_dispatch_runs_capture_phase_for_non_bubbling_events() {
         )
         .unwrap();
     assert_eq!(
-            result.as_str().unwrap_or(""),
-            "cap/",
-            "removeEventListener with the matching capture flag unregisters; the bubble-signature call leaves the capture listener in place"
-        );
+        result.as_str().unwrap_or(""),
+        "cap/",
+        "removeEventListener with the matching capture flag unregisters; the bubble-signature call leaves the capture listener in place"
+    );
 }
 
 /// #100 end-to-end pin: focus()/blur() fire the real focus family, and
@@ -726,10 +726,10 @@ fn test_focus_blur_family_reaches_container_capture_listeners() {
             })()"#,
         ).unwrap();
     assert_eq!(
-            result.as_str().unwrap_or(""),
-            "focus@q:capture|focusin:bubble|blur@q:capture|focusout:bubble",
-            "focus/blur never bubble — only the container's capture leg sees them (React 16 traps them exactly there); the -in/-out halves bubble"
-        );
+        result.as_str().unwrap_or(""),
+        "focus@q:capture|focusin:bubble|blur@q:capture|focusout:bubble",
+        "focus/blur never bubble — only the container's capture leg sees them (React 16 traps them exactly there); the -in/-out halves bubble"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
