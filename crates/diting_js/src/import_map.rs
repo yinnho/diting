@@ -10,6 +10,11 @@ use std::collections::HashMap;
 
 use url::Url as ModuleSpecifier;
 
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+use crate::ops::SharedState;
+
 #[derive(Default)]
 pub(crate) struct ImportMap {
     imports: SpecifierMap,
@@ -458,3 +463,30 @@ mod tests {
         .is_err());
     }
 }
+
+/// Parse and merge an inline document import map (upstream 34373c3). Returns
+/// "" on success or the parse/merge error message, so the bootstrap caller can
+/// surface it as a script error event without a rejected-op round-trip.
+#[diting_op]
+#[string]
+pub(super) fn op_add_import_map(
+    state: &OpState,
+    #[string] source: String,
+    #[string] base_url: String,
+) -> String {
+    let shared = state.borrow::<SharedState>().clone();
+    let import_map = shared.borrow().import_map.clone();
+    let parsed = match crate::import_map::ImportMap::parse(&source, &base_url) {
+        Ok(map) => map,
+        Err(error) => return error,
+    };
+    let result = match import_map.try_borrow_mut() {
+        Ok(mut current) => {
+            current.merge(parsed);
+            String::new()
+        }
+        Err(_) => "Import map is already borrowed".to_string(),
+    };
+    result
+}
+
