@@ -351,7 +351,12 @@ def cfg_test_mod_files(bases: list[Path]) -> set[Path]:
                 if not test_gated:
                     continue
                 name = m.group(1)
-                for cand in (f.parent / f"{name}.rs", f.parent / name / "mod.rs"):
+                # mod.rs 布局: name.rs 或 name/mod.rs；普通文件布局（如 tests.rs
+                # + tests/ 目录）：stem/name.rs（Rust 2018 路径规则）
+                cands = [f.parent / f"{name}.rs", f.parent / name / "mod.rs"]
+                if f.name != "mod.rs":
+                    cands.append(f.parent / f.stem / f"{name}.rs")
+                for cand in cands:
                     if cand.exists():
                         gated.add(cand)
     return gated
