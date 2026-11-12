@@ -1,5 +1,4 @@
 //! Shadow DOM/slot/custom elements/命名访问阴影
-use super::super::*;
 use super::common::setup_runtime;
 
 /// obscura #930 family: slot assignment APIs exist. A slot OUTSIDE any

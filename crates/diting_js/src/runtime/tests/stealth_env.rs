@@ -1,5 +1,4 @@
 //! stealth 指纹/persona/intl/下划线全局卫生/function toString
-use super::super::*;
 use super::common::setup_runtime;
 
 /// The hardware persona (screen/dpr/GPU/canvas) is drawn from a seed the

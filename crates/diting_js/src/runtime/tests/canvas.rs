@@ -1,5 +1,4 @@
 //! canvas 2D/path2d/toDataURL/webgl 扩展面
-use super::super::*;
 use super::common::setup_runtime;
 
 /// (300015 P3) Blank-canvas readout face: the XHS shield fingerprints

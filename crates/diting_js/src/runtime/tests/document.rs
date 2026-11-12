@@ -1,5 +1,4 @@
 //! document 面：write 流解析/innerHTML/DOMParser/XMLSerializer/元数据
-use super::super::*;
 use super::common::setup_runtime;
 
 #[test]

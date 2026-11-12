@@ -1,5 +1,4 @@
 //! IndexedDB + localStorage/sessionStorage + storage 事件
-use super::super::*;
 use super::common::{setup_runtime, STORAGE_ENV_LOCK};
 
 #[test]

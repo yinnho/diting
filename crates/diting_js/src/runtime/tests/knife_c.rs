@@ -1,5 +1,4 @@
 //! WebIDL 真值电池 knife88-120
-use super::super::*;
 use super::common::setup_runtime;
 
 /// 刀88 — typed-om unit family (Chrome 145 truth: k88-typedom / k88-mini).

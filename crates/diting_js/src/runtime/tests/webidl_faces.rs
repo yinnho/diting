@@ -1,5 +1,4 @@
 //! 通用 WebIDL 面拍：members/stack/surface snapshot/svg/xpath
-use super::super::*;
 use super::common::setup_runtime;
 
 /// `svg.viewBox` must reflect as an animated rect on the fit-to-viewbox

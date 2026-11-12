@@ -1,5 +1,4 @@
 //! XHR：sync/async/timeout/abort/signer gate/binary responseType
-use super::super::*;
 use super::common::{find_subsequence, setup_runtime};
 
 /// #235: native XHR must not ride the page-overridable fetch. A page

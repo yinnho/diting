@@ -1,5 +1,4 @@
 //! WebIDL 真值电池 knife67-87
-use super::super::*;
 use super::common::{setup_runtime, STORAGE_ENV_LOCK};
 
 // 刀67: VideoFrame 13 件（WebCodecs 值类型大户）——Chrome 145 真值四轮探针

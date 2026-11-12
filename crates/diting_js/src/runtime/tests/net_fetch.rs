@@ -1,5 +1,4 @@
 //! fetch API 行为：body 编解码/redirect 链/abort/reqres/流
-use super::super::*;
 use super::common::{setup_runtime, setup_runtime_with_cookies};
 
 /// Response.url/redirected must follow Chrome semantics (final URL after

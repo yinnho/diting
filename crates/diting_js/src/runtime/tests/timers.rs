@@ -1,5 +1,4 @@
 //! timer wheel/macrotask/watchdog/busy freeze/heap guard
-use super::super::*;
 use super::common::setup_runtime;
 
 /// Claim step 10d (docs/diting_runtime认领计划_20261017.md): the settle

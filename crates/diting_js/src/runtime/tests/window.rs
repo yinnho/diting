@@ -1,5 +1,4 @@
 //! window 对象面：descriptor/命名访问/navigator/matchMedia/UA
-use super::super::*;
 use super::common::setup_runtime;
 
 /// obscura#737 lineage probe: matchMedia answered `(min-width:640px)`

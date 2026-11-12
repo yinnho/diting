@@ -1,5 +1,4 @@
 //! innerText/line-clamp/文本变换排宽/字体面（fonts 家族并此）
-use super::super::*;
 use super::common::setup_runtime;
 
 /// #208: FontFaceSet.forEach shadowed Array.prototype.forEach with a
