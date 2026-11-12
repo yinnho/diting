@@ -1,5 +1,4 @@
 //! 脚本加载：dynamic script/module loader/import 策略
-use super::super::*;
 use super::common::setup_runtime;
 
 #[test]

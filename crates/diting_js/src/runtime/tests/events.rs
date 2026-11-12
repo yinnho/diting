@@ -1,5 +1,4 @@
 //! 事件派发/构造 + 焦点/点击激活/pointer 家族
-use super::super::*;
 use super::common::setup_runtime;
 
 /// #335: window.event — the legacy IE global lives for the whole

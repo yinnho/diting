@@ -1,5 +1,4 @@
 //! WebIDL 真值电池 knife56-66（+TAGS 常量）
-use super::super::*;
 use super::common::setup_runtime;
 
 /// M4 刀56: the wrong-prototype-level family folded. Shape truths:

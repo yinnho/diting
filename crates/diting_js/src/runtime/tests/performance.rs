@@ -1,5 +1,4 @@
 //! performance.now/observer/timeline + resource timing
-use super::super::*;
 use super::common::setup_runtime;
 
 /// Resource Timing §4.4: a full buffer parks new entries and fires

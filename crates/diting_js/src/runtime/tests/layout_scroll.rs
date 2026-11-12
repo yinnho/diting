@@ -1,5 +1,4 @@
 //! 滚动与视口：scroller 级联/overflow 传播/scrollend/sticky
-use super::super::*;
 use super::common::setup_runtime;
 
 #[tokio::test(flavor = "current_thread")]

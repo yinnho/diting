@@ -1,5 +1,4 @@
 //! document.cookie + CookieJar 合并/httponly/跨 iframe 共享
-use super::super::*;
 use super::common::{setup_runtime, setup_runtime_with_cookies};
 
 /// Set-Cookie on a sync same-origin XHR must land in the cookie jar and

@@ -1,5 +1,4 @@
 //! MutationObserver 全族 + takeRecords
-use super::super::*;
 use super::common::setup_runtime;
 
 /// #236: `attributeFilter` narrows attribute records — a filter of
