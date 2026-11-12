@@ -93,189 +93,6 @@ pub(crate) use crypto_rsa::{
     rsa_generate_flat, rsa_oaep, rsa_pkcs1v15_sign, rsa_pss_sign,
 };
 
-/// Serialize a parsed URL into the WHATWG IDL component shape consumed by the
-/// `URL` class in bootstrap.js. Getters read these fields directly so no op
-/// call happens per property access.
-fn url_components(u: &url::Url) -> serde_json::Value {
-    let port = u.port().map(|p| p.to_string()).unwrap_or_default();
-    let hostname = u.host_str().unwrap_or("").to_string();
-    let host = if hostname.is_empty() {
-        String::new()
-    } else if port.is_empty() {
-        hostname.clone()
-    } else {
-        format!("{hostname}:{port}")
-    };
-    // WHATWG search/hash getters return "" for a null OR empty component.
-    let search = match u.query() {
-        Some(q) if !q.is_empty() => format!("?{q}"),
-        _ => String::new(),
-    };
-    let hash = match u.fragment() {
-        Some(f) if !f.is_empty() => format!("#{f}"),
-        _ => String::new(),
-    };
-    serde_json::json!({
-        "ok": true,
-        "href": u.as_str(),
-        "protocol": format!("{}:", u.scheme()),
-        "username": u.username(),
-        "password": u.password().unwrap_or(""),
-        "host": host,
-        "hostname": hostname,
-        "port": port,
-        "pathname": u.path(),
-        "search": search,
-        "hash": hash,
-        "origin": u.origin().ascii_serialization(),
-    })
-}
-
-/// Parse `href` (optionally resolved against `base`) with the WHATWG-compliant
-/// `url` crate. Returns the component JSON, or `{"ok":false}` when the input is
-/// not a valid URL (the JS side turns that into a TypeError, per spec).
-#[diting_op]
-#[string]
-fn op_url_parse(#[string] href: &str, #[string] base: &str) -> String {
-    // The url crate can panic on a few pathological inputs (internal range
-    // slicing); catch it so a bad URL never aborts the process.
-    std::panic::catch_unwind(|| {
-        let parsed = if base.is_empty() {
-            url::Url::parse(href)
-        } else {
-            url::Url::parse(base).and_then(|b| b.join(href))
-        };
-        match parsed {
-            Ok(u) => url_components(&u).to_string(),
-            Err(_) => "{\"ok\":false}".to_string(),
-        }
-    })
-    .unwrap_or_else(|_| "{\"ok\":false}".to_string())
-}
-
-/// Apply a WHATWG URL setter (`part` = href/protocol/username/password/host/
-/// hostname/port/pathname/search/hash) to `href` and return the new components.
-fn url_set_inner(href: &str, part: &str, value: &str) -> Option<serde_json::Value> {
-    let mut u = url::Url::parse(href).ok()?;
-    match part {
-        "href" => {
-            let nu = url::Url::parse(value).ok()?;
-            return Some(url_components(&nu));
-        }
-        "protocol" => {
-            let _ = u.set_scheme(value.trim_end_matches(':'));
-        }
-        "username" => {
-            let _ = u.set_username(value);
-        }
-        "password" => {
-            let _ = u.set_password(if value.is_empty() { None } else { Some(value) });
-        }
-        "host" => set_host_port(&mut u, value),
-        "hostname" => {
-            if !value.is_empty() {
-                let _ = u.set_host(Some(value));
-            }
-        }
-        "port" => {
-            // WHATWG port state consumes the leading ASCII digits and stops
-            // at the first non-digit, so "8080abc" sets 8080; no digits or a
-            // number above 65535 leaves the port untouched.
-            if value.is_empty() {
-                let _ = u.set_port(None);
-            } else {
-                let digits: String = value.chars().take_while(|c| c.is_ascii_digit()).collect();
-                if let Ok(p) = digits.parse::<u32>() {
-                    if p <= 65535 {
-                        let _ = u.set_port(Some(p as u16));
-                    }
-                }
-            }
-        }
-        "pathname" => u.set_path(value),
-        "search" => {
-            // Null only when the ORIGINAL value is the empty string; a bare
-            // "?" sets an empty query that still serializes its delimiter
-            // (href ends in "?").
-            let q = value.strip_prefix('?').unwrap_or(value);
-            u.set_query(if value.is_empty() { None } else { Some(q) });
-        }
-        "hash" => {
-            let f = value.strip_prefix('#').unwrap_or(value);
-            u.set_fragment(if value.is_empty() { None } else { Some(f) });
-        }
-        _ => {}
-    }
-    Some(url_components(&u))
-}
-
-#[diting_op]
-#[string]
-fn op_url_set(#[string] href: &str, #[string] part: &str, #[string] value: &str) -> String {
-    // Some url-crate setters panic on pathological inputs (the url-setters WPT
-    // tests exercise these). Catch the unwind and treat it as a no-op setter,
-    // returning the URL unchanged, which matches WHATWG "do nothing on invalid".
-    match std::panic::catch_unwind(|| url_set_inner(href, part, value)) {
-        Ok(Some(v)) => v.to_string(),
-        _ => match url::Url::parse(href) {
-            Ok(u) => url_components(&u).to_string(),
-            Err(_) => "{\"ok\":false}".to_string(),
-        },
-    }
-}
-
-/// Best-effort `host` setter: split `host[:port]` (handling bracketed IPv6) and
-/// apply hostname and port separately, since `url::Url::set_host` rejects a port.
-fn set_host_port(u: &mut url::Url, value: &str) {
-    // IPv6 literals are bracketed; never split inside the brackets.
-    if value.starts_with('[') {
-        if let Some(close) = value.find(']') {
-            let host = &value[..=close];
-            let rest = &value[close + 1..];
-            if u.set_host(Some(host)).is_ok() {
-                if let Some(p) = rest.strip_prefix(':') {
-                    if let Ok(pn) = p.parse::<u16>() {
-                        let _ = u.set_port(Some(pn));
-                    }
-                }
-            }
-            return;
-        }
-    }
-    if let Some(idx) = value.rfind(':') {
-        let (h, p) = (&value[..idx], &value[idx + 1..]);
-        if p.is_empty() || p.chars().all(|c| c.is_ascii_digit()) {
-            if u.set_host(Some(h)).is_ok() {
-                if p.is_empty() {
-                    let _ = u.set_port(None);
-                } else if let Ok(pn) = p.parse::<u16>() {
-                    let _ = u.set_port(Some(pn));
-                }
-            }
-            return;
-        }
-    }
-    let _ = u.set_host(Some(value));
-}
-
-/// Resolve `href` against optional `base` and return only the serialized
-/// absolute URL (no component breakdown). Used by the hot `a.href`/`area.href`
-/// getter, which only needs the resolved string, so it avoids building and
-/// re-parsing the full component JSON. Returns "" when the input is invalid.
-#[diting_op]
-#[string]
-fn op_url_resolve(#[string] href: &str, #[string] base: &str) -> String {
-    std::panic::catch_unwind(|| {
-        let parsed = if base.is_empty() {
-            url::Url::parse(href)
-        } else {
-            url::Url::parse(base).and_then(|b| b.join(href))
-        };
-        parsed.map(|u| u.as_str().to_string()).unwrap_or_default()
-    })
-    .unwrap_or_default()
-}
-
 /// Parse and merge an inline document import map (upstream 34373c3). Returns
 /// "" on success or the parse/merge error message, so the bootstrap caller can
 /// surface it as a script error event without a rejected-op round-trip.
@@ -302,71 +119,6 @@ fn op_add_import_map(
     result
 }
 
-/// 批240 / obscura#1100: SVGGeometryElement.getTotalLength() backing. Chrome
-/// measures through SkPathMeasure (circle r=25 → 156.0674, not 2πr), so these
-/// numbers line up with Chrome (conic chord measure for ovals, analytic for
-/// explicit d beziers). Non-geometry nodes / missing geometry read 0.
-/// Anti-panic boundary: the path data comes from the page, and a parser panic
-/// must degrade to 0 (the op_dom posture) rather than unwind through the FFI
-/// frame. Measurement lives in the layout crate, so the no-screenshot build
-/// reads 0 — geometry measurement without the layout engine is meaningless
-/// anyway.
-#[cfg(feature = "screenshot")]
-#[diting_op]
-fn op_svg_path_len(state: &OpState, #[smi] nid: u32) -> f64 {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        svg_measure(state, nid)
-            .map(|m| m.total() as f64)
-            .unwrap_or(0.0)
-    }))
-    .unwrap_or(0.0)
-}
-
-#[cfg(not(feature = "screenshot"))]
-#[diting_op]
-fn op_svg_path_len(_: &OpState, #[smi] _: u32) -> f64 {
-    0.0
-}
-
-/// getPointAtLength backing — "x\0y" (cheap unambiguous pair; the bootstrap
-/// side splits and wraps it in an SVGPoint). Negative/overlong targets
-/// clamp to the endpoints, Chrome's contract.
-#[cfg(feature = "screenshot")]
-#[diting_op]
-#[string]
-fn op_svg_path_point(state: &OpState, #[smi] nid: u32, target: f64) -> String {
-    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        svg_measure(state, nid).map(|m| m.point_at(target as f32))
-    }))
-    .unwrap_or(None);
-    match r {
-        Some((x, y)) if x.is_finite() && y.is_finite() => format!("{x}\0{y}"),
-        _ => "0\u{0}0".to_string(),
-    }
-}
-
-#[cfg(not(feature = "screenshot"))]
-#[diting_op]
-#[string]
-fn op_svg_path_point(_: &OpState, #[smi] _: u32, _: f64) -> String {
-    "0\u{0}0".to_string()
-}
-
-#[cfg(feature = "screenshot")]
-fn svg_measure(state: &OpState, nid: u32) -> Option<diting_layout::svg::PathMeasure> {
-    let gs = state.borrow::<SharedState>().clone();
-    let gs = gs.borrow();
-    // `&gs.dom?` is the lint's shape but moves out of the RefCell borrow;
-    // `as_ref()` keeps the Option borrowed.
-    let dom = gs.dom.as_ref()?;
-    let node = dom.get_node(NodeId::new(nid))?;
-    let tag = match &node.data {
-        diting_dom::NodeData::Element { name, .. } => name.local.as_str(),
-        _ => return None,
-    };
-    diting_layout::svg::build_path_measure(tag, &|a| node.get_attribute(a).map(|s| s.to_string()))
-}
-
 /// The op table our own host installs (10d flip): every #[diting_op]
 /// wrapper already returns OUR OpDecl, and the four async ops come in as
 /// hand glue from `diting_js::async_glue` (op_fetch_url / op_sleep /
@@ -379,8 +131,8 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         props::op_register_property(),
         dom::op_dom(),
         timers::op_clock_ms(),
-        op_svg_path_len(),
-        op_svg_path_point(),
+        svg::op_svg_path_len(),
+        svg::op_svg_path_point(),
         dom::op_shadow_attach(),
         console::op_console_msg(),
         console::op_dialog(),
@@ -431,9 +183,9 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         op_subtle_ed25519_sign(),
         op_subtle_ed25519_verify(),
         op_random_bytes(),
-        op_url_parse(),
-        op_url_set(),
-        op_url_resolve(),
+        url_ops::op_url_parse(),
+        url_ops::op_url_set(),
+        url_ops::op_url_resolve(),
         op_add_import_map(),
         encoding::op_encoding_for_label(),
         encoding::op_text_decode(),
@@ -457,5 +209,7 @@ mod fetch_ops;
 mod storage;
 mod nav;
 mod timers;
+mod url_ops;
+mod svg;
 #[cfg(test)]
 mod tests;
