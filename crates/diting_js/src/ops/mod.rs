@@ -10,6 +10,7 @@ use diting_net::{CookieJar, HttpClient};
 use diting_ops::diting_op;
 use diting_runtime::state::OpState;
 use url::Url;
+pub(crate) use timers::op_sleep_body;
 #[cfg(feature = "screenshot")]
 pub use storage::store_image_bytes;
 #[cfg(test)]
@@ -91,76 +92,6 @@ pub(crate) use crypto_rsa::{
     op_subtle_rsa_import_spki, op_subtle_rsa_pkcs1v15_verify, op_subtle_rsa_pss_verify,
     rsa_generate_flat, rsa_oaep, rsa_pkcs1v15_sign, rsa_pss_sign,
 };
-
-#[diting_op]
-fn op_navigate(state: &OpState, #[string] url: &str, #[string] method: &str, #[string] body: &str) {
-    let gs = state.borrow::<SharedState>().clone();
-    let mut gs = gs.borrow_mut();
-    // Only queue the navigation — do NOT move the realm URL here. The URL is
-    // written on commit (init_js → set_url from the page's committed URL).
-    // Moving it early let synchronous JS between the assignment and the
-    // actual navigation read and write another origin's cookies through
-    // document.cookie, whose ops derive the domain from this URL
-    // (SOP bypass, obscura #940).
-    gs.pending_navigation = Some((url.to_string(), method.to_string(), body.to_string()));
-}
-
-/// Queue a session-history jump (history.back/forward/go across a document
-/// boundary — obscura#1105). `target` is an absolute index into the page's
-/// real session history; the pump (`Page::process_pending_navigation`) moves
-/// the cursor and refetches the entry's document.
-#[diting_op]
-fn op_history_jump_to(state: &OpState, target: i32) {
-    let gs = state.borrow::<SharedState>().clone();
-    let mut gs = gs.borrow_mut();
-    gs.pending_history_jump = Some(target);
-}
-
-/// Free body of `op_sleep` — the hand glue (`diting_js::async_glue`)
-/// calls this directly off our Vm host (10d swap; the #[op2] wrapper died
-/// with the deno host).
-pub(crate) async fn op_sleep_body(millis: u64) {
-    // #230: tokio's timer wheel ticks at 1ms granularity — even a
-    // zero-length sleep parks until the next wheel tick before its
-    // deadline reads as due, taxing every delay-0 round-trip with ~1ms of
-    // pure wheel latency (measured 1154µs/trip while the JS work under it
-    // cost 55ns/item: the macrotask trampoline takes one trip per 64
-    // items, so a 340k-timer fxg boot drained at ~5.7k/s = 59s). A zero
-    // sleep completes at the first drive instead — settlement still rides
-    // the settle queue into the next loop pass, so the task-boundary
-    // discipline (#37/#327 line: never settle on the JS stack) is intact;
-    // it just doesn't wait for a wheel tick to say "due".
-    if millis == 0 {
-        return;
-    }
-    // Reactor-less contexts (plain #[test] isolates): a tokio timer would
-    // panic mid-poll inside v8, which aborts the whole test binary. Resolve
-    // at the next event-loop checkpoint instead — production always runs
-    // under a reactor and never takes this path.
-    if tokio::runtime::Handle::try_current().is_err() {
-        return;
-    }
-    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
-}
-
-// Records a binding call from page JS. The CDP layer drains this queue
-// after every dispatch and emits one `Runtime.bindingCalled` event per
-// entry, that's how puppeteer's `page.exposeFunction` callbacks fire.
-#[diting_op]
-fn op_binding_called(state: &OpState, #[string] name: &str, #[string] payload: &str) {
-    let gs = state.borrow::<SharedState>().clone();
-    let mut gs = gs.borrow_mut();
-    gs.pending_binding_calls
-        .push((name.to_string(), payload.to_string()));
-    // The CDP layer drains this after every dispatch, but a page can loop
-    // calling an exposed binding many times inside one long evaluate — same
-    // unbounded-queue shape as js_network_events (obscura #705 class).
-    const MAX_PENDING_BINDING_CALLS: usize = 4096;
-    if gs.pending_binding_calls.len() > MAX_PENDING_BINDING_CALLS {
-        let overflow = gs.pending_binding_calls.len() - MAX_PENDING_BINDING_CALLS;
-        gs.pending_binding_calls.drain(0..overflow);
-    }
-}
 
 /// Serialize a parsed URL into the WHATWG IDL component shape consumed by the
 /// `URL` class in bootstrap.js. Getters read these fields directly so no op
@@ -436,21 +367,6 @@ fn svg_measure(state: &OpState, nid: u32) -> Option<diting_layout::svg::PathMeas
     diting_layout::svg::build_path_measure(tag, &|a| node.get_attribute(a).map(|s| s.to_string()))
 }
 
-/// (#78) Sub-ms wall clock for performance.now(). Chrome coarsens the timer
-/// to 100µs (non-crossOriginIsolated) and reports floats; an integral
-/// Date.now()-based value is a timing-entropy tell on the jsvmp environment
-/// scan path. Quantized to 0.1ms steps — epoch-ms times ten stays well under
-/// 2^53, so the f64 rounding is exact (finer quantization would not be).
-#[diting_op]
-fn op_clock_ms() -> f64 {
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs_f64()
-        * 1000.0;
-    (ms * 10.0).round() / 10.0
-}
-
 /// The op table our own host installs (10d flip): every #[diting_op]
 /// wrapper already returns OUR OpDecl, and the four async ops come in as
 /// hand glue from `diting_js::async_glue` (op_fetch_url / op_sleep /
@@ -462,7 +378,7 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         css::op_css_supports(),
         props::op_register_property(),
         dom::op_dom(),
-        op_clock_ms(),
+        timers::op_clock_ms(),
         op_svg_path_len(),
         op_svg_path_point(),
         dom::op_shadow_attach(),
@@ -488,9 +404,9 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         storage::op_set_cookie(),
         storage::op_storage_read(),
         storage::op_storage_write(),
-        op_navigate(),
-        op_history_jump_to(),
-        op_binding_called(),
+        nav::op_navigate(),
+        nav::op_history_jump_to(),
+        nav::op_binding_called(),
         op_subtle_digest(),
         op_subtle_hmac(),
         op_subtle_aes_gcm(),
@@ -539,5 +455,7 @@ mod layout_run;
 mod console;
 mod fetch_ops;
 mod storage;
+mod nav;
+mod timers;
 #[cfg(test)]
 mod tests;
