@@ -266,8 +266,7 @@ mod incremental_match_tests {
         );
 
         // Class flip through the ops-path shape (attr write + stamp).
-        tree.with_node_mut(t, |n| n.set_attribute("class", "warm".into()));
-        tree.note_restyle(t);
+        tree.set_attribute_noted(t, "class", "warm");
         assert_eq!(
             run().get(&t).unwrap().color,
             Some(diting_css::Color(4, 5, 6, 255))

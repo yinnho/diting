@@ -6,7 +6,35 @@
 
 use std::collections::HashMap;
 
-use super::{DomTree, NodeId};
+use super::{DomTree, DomTreeInner, NodeId};
+
+/// Whether a hover/focus/active anchor sits at or below `root` — a subtree
+/// entering or leaving the document then carries the anchor with it, and the
+/// `:hover`/`:focus`/`:active`/`:focus-within` compounds on ancestors
+/// OUTSIDE the subtree flip with no attribute or structure change of their
+/// own. Page steady state has no anchors, so the common case is three None
+/// checks. Walk bounded like the other chain walks: a corrupted parent link
+/// degrades to a long chain, not a hang.
+pub(super) fn state_anchor_within(inner: &DomTreeInner, root: NodeId) -> bool {
+    for anchor in [inner.hovered_node, inner.focused_node, inner.active_node]
+        .into_iter()
+        .flatten()
+    {
+        let mut cur = Some(anchor);
+        for _ in 0..=inner.nodes.len() {
+            let Some(c) = cur else { break };
+            if c == root {
+                return true;
+            }
+            cur = inner
+                .nodes
+                .get(c.index())
+                .and_then(|n| n.as_ref())
+                .and_then(|n| n.parent);
+        }
+    }
+    false
+}
 
 impl DomTree {
     /// The currently focused element, if any (blitz#839: :focus and friends
@@ -18,10 +46,9 @@ impl DomTree {
     }
 
     pub fn set_focused_node(&self, id: Option<NodeId>) {
-        let prev = {
+        {
             let mut inner = self.inner.borrow_mut();
-            let prev = inner.focused_node;
-            if prev == id {
+            if inner.focused_node == id {
                 return;
             }
             inner.focused_node = id;
@@ -32,45 +59,34 @@ impl DomTree {
             // active setters below (#152); an attribute write still doesn't
             // bump, those go through note_restyle's own consumers.
             inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
-            prev
-        };
-        // :focus/:focus-visible on the node and :focus-within up its
-        // ancestor chain re-match when focus moves — stamp both ends so
-        // the incremental matcher stays live (the old always-full match
-        // picked this up implicitly).
-        for node in prev.into_iter().chain(id) {
-            self.note_restyle(node);
         }
+        // :focus/:focus-visible/:focus-within rules re-match document-wide
+        // on the next sync (the old always-full match picked this up
+        // implicitly).
+        self.note_state_change();
     }
 
     /// The element under the pointer, if any (#152). An element matches
     /// `:hover` when it IS this node or contains it, so a hover move can
     /// flip `:hover` compounds on the whole ancestor chain of either end
     /// — and with descendant combinators, on subjects arbitrarily deep
-    /// under any chain element. Every chain member is therefore stamped
-    /// as a dirty ROOT (a root re-probes its whole subtree), which the
-    /// endpoint-only focus stamp cannot express. Tree-level like focus:
+    /// under any chain element. The state stamp re-matches every rule
+    /// that uses a state pseudo-class document-wide. Tree-level like focus:
     /// hover dies with the document on navigation, same as Chrome.
     pub fn hovered_node(&self) -> Option<NodeId> {
         self.inner.borrow().hovered_node
     }
 
     pub fn set_hovered_node(&self, id: Option<NodeId>) {
-        let prev = {
+        {
             let mut inner = self.inner.borrow_mut();
-            let prev = inner.hovered_node;
-            if prev == id {
+            if inner.hovered_node == id {
                 return;
             }
             inner.hovered_node = id;
             inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
-            prev
-        };
-        for end in prev.into_iter().chain(id) {
-            for node in self.ancestor_chain(end) {
-                self.note_restyle(node);
-            }
         }
+        self.note_state_change();
     }
 
     /// The element mid-press (#152): `:active` matches it and its ancestor
@@ -83,48 +99,15 @@ impl DomTree {
     }
 
     pub fn set_active_node(&self, id: Option<NodeId>) {
-        let prev = {
+        {
             let mut inner = self.inner.borrow_mut();
-            let prev = inner.active_node;
-            if prev == id {
+            if inner.active_node == id {
                 return;
             }
             inner.active_node = id;
             inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
-            prev
-        };
-        for end in prev.into_iter().chain(id) {
-            for node in self.ancestor_chain(end) {
-                self.note_restyle(node);
-            }
         }
-    }
-
-    /// `start` plus every ancestor, innermost first. Cycle-guarded the same
-    /// way the match-sync walks are: the loop count is bounded by the arena
-    /// size, so a corrupted parent link degrades to a long chain, not a
-    /// hang.
-    fn ancestor_chain(&self, start: NodeId) -> Vec<NodeId> {
-        let inner = self.inner.borrow();
-        let slots = inner.nodes.len();
-        let mut chain = vec![start];
-        let mut cur = inner
-            .nodes
-            .get(start.index())
-            .and_then(|n| n.as_ref())
-            .and_then(|n| n.parent);
-        while let Some(id) = cur {
-            if chain.len() > slots {
-                break;
-            }
-            chain.push(id);
-            cur = inner
-                .nodes
-                .get(id.index())
-                .and_then(|n| n.as_ref())
-                .and_then(|n| n.parent);
-        }
-        chain
+        self.note_state_change();
     }
 
     /// The recorded text-entry selection as (node, start, end), if a

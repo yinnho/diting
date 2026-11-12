@@ -7,6 +7,7 @@
 //! and sync logic; the parse/adapter face stays in the parent module.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use diting_selectors::context::QuirksMode;
 use diting_selectors::matching::{
@@ -14,6 +15,7 @@ use diting_selectors::matching::{
 };
 use diting_selectors::parser::{self, SelectorList};
 
+use super::rule_deps::RuleDeps;
 use super::{parse_selector, DitingSelector, DomElement};
 use crate::split_top_level_commas;
 use crate::tree::{DomTree, NodeId};
@@ -102,11 +104,17 @@ impl DomTree {
         // both spellings there. Over-bucketing is always safe (the matcher
         // has the final word); a bucket the probe cannot reach never is.
         let quirks = self.selector_quirks_mode() == QuirksMode::Quirks;
-        let mut bears_has = false;
-        let mut has_subject_ids: HashSet<String> = HashSet::new();
-        let mut has_subject_classes: HashSet<String> = HashSet::new();
-        let mut has_subject_tags: HashSet<String> = HashSet::new();
-        let mut has_subject_unkeyed = false;
+        let mut dep_class: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_id: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_attr: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_class_desc: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_id_desc: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_attr_desc: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_class_sib: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_id_sib: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut dep_attr_sib: HashMap<String, Vec<usize>> = HashMap::new();
+        let (mut struct_rules, mut state_rules, mut wild_rules, mut zone_unsafe_rules) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         for (ri, rule) in rules.iter().enumerate() {
             let mut bucketed = false;
             for key in &rule.keys {
@@ -138,33 +146,33 @@ impl DomTree {
             if !bucketed {
                 unkeyed.push(ri);
             }
-            if rule.bears_has {
-                bears_has = true;
-                // Subject keys for the transitive re-probe: every
-                // sub-selector's rightmost compound, because a comma list
-                // matches when any sub-selector does. A keyless subject
-                // compound (`:has(a) *`) leaves every element a candidate,
-                // which the candidate gate converts to a full rebuild.
-                for key in &rule.keys {
-                    match key {
-                        Some(RuleKey::Id(id)) => {
-                            has_subject_ids.insert(id.clone());
-                            if quirks {
-                                has_subject_ids.insert(id.to_ascii_lowercase());
-                            }
-                        }
-                        Some(RuleKey::Class(class)) => {
-                            has_subject_classes.insert(class.clone());
-                            if quirks {
-                                has_subject_classes.insert(class.to_ascii_lowercase());
-                            }
-                        }
-                        Some(RuleKey::Tag(tag)) => {
-                            has_subject_tags.insert(tag.clone());
-                        }
-                        None => has_subject_unkeyed = true,
-                    }
+            let d = &rule.deps;
+            for (table, keys) in [
+                (&mut dep_class, &d.classes),
+                (&mut dep_id, &d.ids),
+                (&mut dep_attr, &d.attrs),
+                (&mut dep_class_desc, &d.classes_desc),
+                (&mut dep_id_desc, &d.ids_desc),
+                (&mut dep_attr_desc, &d.attrs_desc),
+                (&mut dep_class_sib, &d.classes_sib),
+                (&mut dep_id_sib, &d.ids_sib),
+                (&mut dep_attr_sib, &d.attrs_sib),
+            ] {
+                for k in keys {
+                    table.entry(k.clone()).or_default().push(ri);
                 }
+            }
+            if d.structural {
+                struct_rules.push(ri);
+            }
+            if d.state {
+                state_rules.push(ri);
+            }
+            if d.wild {
+                wild_rules.push(ri);
+            }
+            if d.zone_unsafe {
+                zone_unsafe_rules.push(ri);
             }
         }
         RuleIndex {
@@ -175,11 +183,19 @@ impl DomTree {
             by_tag,
             unkeyed,
             quirks,
-            bears_has,
-            has_subject_ids,
-            has_subject_classes,
-            has_subject_tags,
-            has_subject_unkeyed,
+            dep_class,
+            dep_id,
+            dep_attr,
+            dep_class_desc,
+            dep_id_desc,
+            dep_attr_desc,
+            dep_class_sib,
+            dep_id_sib,
+            dep_attr_sib,
+            struct_rules,
+            state_rules,
+            wild_rules,
+            zone_unsafe_rules,
         }
     }
 
@@ -334,10 +350,10 @@ impl DomTree {
         &self,
         rule_selectors: &[&str],
         css_key: u64,
-    ) -> RuleMatchSets {
+    ) -> Arc<RuleMatchSets> {
         let trace = std::env::var("DITING_MATCH_TRACE").is_ok();
         let dirty = self.take_match_dirty();
-        let mut cache = match self.take_match_cache() {
+        let cache = match self.take_match_cache() {
             // Same rule list (whatever the key says): reuse as-is.
             Some(cache)
                 if cache
@@ -368,11 +384,11 @@ impl DomTree {
                     &mut hits,
                     &mut pseudo_hits,
                 );
-                let sets = RuleMatchSets {
+                let sets = Arc::new(RuleMatchSets {
                     hits,
                     specificity: index.specificity.clone(),
                     pseudo_hits,
-                };
+                });
                 self.set_match_cache(MatchCacheBox {
                     selectors: rule_selectors.iter().map(|s| s.to_string()).collect(),
                     index,
@@ -389,7 +405,11 @@ impl DomTree {
             }
         };
 
-        let rebuild = |tree: &Self, cache: MatchCacheBox| -> RuleMatchSets {
+        let rebuild = |tree: &Self, cache: MatchCacheBox| -> Arc<RuleMatchSets> {
+            #[cfg(test)]
+            LAST_SYNC_AFFECTED.with(|c| c.set(None));
+            #[cfg(test)]
+            LAST_SYNC_SCOPED.with(|c| c.set(None));
             let mut hits = HashMap::new();
             let mut pseudo_hits = HashMap::new();
             tree.probe_elements_into(
@@ -398,11 +418,11 @@ impl DomTree {
                 &mut hits,
                 &mut pseudo_hits,
             );
-            let sets = RuleMatchSets {
+            let sets = Arc::new(RuleMatchSets {
                 hits,
                 specificity: cache.index.specificity.clone(),
                 pseudo_hits,
-            };
+            });
             tree.set_match_cache(MatchCacheBox {
                 sets: sets.clone(),
                 ..cache
@@ -432,7 +452,7 @@ impl DomTree {
         // count (every root contributes at least itself), so a mass
         // mutation (initial parse, big innerHTML) skips candidate
         // resolution entirely and rebuilds — the pre-incremental cost.
-        let stamp_count = dirty.roots.len() + dirty.purge_roots.len() + dirty.sibling_scopes.len();
+        let stamp_count = dirty.roots.len() + dirty.purge_roots.len();
         if stamp_count.saturating_mul(4) > slots {
             if trace {
                 eprintln!(
@@ -442,9 +462,11 @@ impl DomTree {
             return rebuild(self, cache);
         }
 
-        // Resolve the dirty stamps into a deduped candidate set. Slots is a
-        // safe index ceiling: the arena never shrinks, and freed slots that
-        // come back carry their own insert stamps.
+        // Pass 1 — element-scoped: inserted, moved and removed subtrees.
+        // Their members re-probe against every rule (new nodes were never
+        // matched; moved ones have new ancestors). Slots is a safe index
+        // ceiling: the arena never shrinks, and freed slots that come back
+        // carry their own insert stamps.
         let mut candidates: Vec<NodeId> = Vec::new();
         for root in dirty
             .roots
@@ -461,50 +483,6 @@ impl DomTree {
                 }
             }
         }
-        for parent in &dirty.sibling_scopes {
-            // The children re-probe wholesale; the parent chain re-probes
-            // one element at a time (:has() anchoring).
-            let mut chain = Some(*parent);
-            for _ in 0..=slots {
-                let Some(c) = chain else { break };
-                if mark(c) {
-                    candidates.push(c);
-                }
-                // #123: a :has()-bearing rule matches transitive to the
-                // subject's attached descendants — flipping the chain
-                // node's :has() state flips them, and they are nowhere
-                // near the mutation. Only elements carrying a :has rule's
-                // rightmost key can be such subjects, so the subtree walk
-                // marks those alone (an unkeyed :has rule degenerates to
-                // marking the whole subtree, and the candidate gate turns
-                // that into a full rebuild).
-                if cache.index.bears_has {
-                    for d in self.descendants(c) {
-                        let meta = self.with_node(d, |n| {
-                            n.as_element().map(|e| {
-                                (
-                                    e.local.as_str().to_ascii_lowercase(),
-                                    n.get_attribute("id").map(|s| s.to_string()),
-                                    n.get_attribute("class").map(|s| s.to_string()),
-                                )
-                            })
-                        });
-                        if !subtree_node_is_has_subject(meta.flatten(), &cache.index) {
-                            continue;
-                        }
-                        if mark(d) {
-                            candidates.push(d);
-                        }
-                    }
-                }
-                chain = self.with_node(c, |n| n.parent).flatten();
-            }
-            for c in self.children(*parent) {
-                if mark(c) {
-                    candidates.push(c);
-                }
-            }
-        }
         // A mass mutation (initial parse, big innerHTML) costs more to
         // resolve than a full rebuild — same as the pre-incremental world.
         if candidates.len() * 4 > slots {
@@ -517,51 +495,447 @@ impl DomTree {
             return rebuild(self, cache);
         }
 
+        // Pass 2 — rule-scoped: everything else a mutation can flip lives
+        // OUTSIDE those subtrees only through a rule that depends on what
+        // changed (see RuleDeps): the changed class tokens / ids /
+        // attribute names, hover-focus state, sibling structure, or a
+        // pseudo-class we do not scope. Those rules (usually a handful)
+        // re-match inside the mutations' zone; every other rule's hits
+        // outside the pass-1 subtrees cannot have moved.
+        let mut affected: Vec<usize> = Vec::new();
+        let idx = &cache.index;
+        if dirty.structure {
+            affected.extend_from_slice(&idx.struct_rules);
+            // Slot/shadow/`&`/invalid rules re-match on structure too —
+            // their flip surface is not describable with dep keys, and an
+            // inserted subtree can rewire slot assignment around itself.
+            affected.extend_from_slice(&idx.zone_unsafe_rules);
+        }
+        if dirty.state {
+            affected.extend_from_slice(&idx.state_rules);
+        }
+        // A descendant- or sibling-side dep firing decides the re-match
+        // zone (subtree / parent); a subject-side firing alone only ever
+        // flips the written element itself.
+        let mut fired_desc = vec![false; idx.rules.len()];
+        let mut fired_sib = vec![false; idx.rules.len()];
+        for (subj, desc, sib, keys) in [
+            (
+                &idx.dep_class,
+                &idx.dep_class_desc,
+                &idx.dep_class_sib,
+                &dirty.classes,
+            ),
+            (&idx.dep_id, &idx.dep_id_desc, &idx.dep_id_sib, &dirty.ids),
+            (
+                &idx.dep_attr,
+                &idx.dep_attr_desc,
+                &idx.dep_attr_sib,
+                &dirty.attrs,
+            ),
+        ] {
+            for k in keys {
+                if let Some(rules) = desc.get(k) {
+                    for &r in rules {
+                        fired_desc[r] = true;
+                    }
+                    affected.extend_from_slice(rules);
+                }
+                if let Some(rules) = sib.get(k) {
+                    for &r in rules {
+                        fired_sib[r] = true;
+                    }
+                    affected.extend_from_slice(rules);
+                }
+                if let Some(rules) = subj.get(k) {
+                    affected.extend_from_slice(rules);
+                }
+            }
+        }
+        // Live control state can sit on any element; an attr write can
+        // flip a wild pseudo on the written element or below it (a `slot=`
+        // reassignment, inherited `:dir`). A pure structure/state window
+        // cannot — the inserted subtree re-probes in pass 1, and
+        // hover/focus on untouched elements did not move.
+        if dirty.live
+            || !dirty.classes.is_empty()
+            || !dirty.ids.is_empty()
+            || !dirty.attrs.is_empty()
+        {
+            affected.extend_from_slice(&idx.wild_rules);
+        }
+        affected.sort_unstable();
+        affected.dedup();
+        // Re-matching most of the sheet document-wide is a rebuild anyway.
+        if affected.len() * 2 > idx.rules.len() {
+            if trace {
+                eprintln!(
+                    "[match-trace] REBUILD(rule-gate) key={css_key:#x} affected={} rules={}",
+                    affected.len(),
+                    idx.rules.len()
+                );
+            }
+            return rebuild(self, cache);
+        }
+
+        // The hit sets hand out and park behind a shared Arc: the style run
+        // consumes its handle and drops it, so the unwrap below moves in
+        // place — the clone-out this replaced was a per-sync cost the size
+        // of the whole hit map, dwarfing the incremental work itself. A
+        // caller that holds its handle across syncs pays one copy here,
+        // exactly the old behavior.
+        let mut sets = Arc::unwrap_or_clone(cache.sets);
+        let cache_index = &cache.index;
+
         // Purge every candidate index from the hit sets, then re-probe the
         // attached ones. Detached subtree members stay purged (a full
         // rebuild probes only document+shadow descendants), and a freed
         // slot's stale hits die here too.
         let candidates_len = candidates.len();
-        for rule_hits in cache.sets.hits.values_mut().chain(
-            cache
-                .sets
-                .pseudo_hits
-                .values_mut()
-                .flat_map(|s| s.iter_mut()),
-        ) {
+        for rule_hits in sets
+            .hits
+            .values_mut()
+            .chain(sets.pseudo_hits.values_mut().flat_map(|s| s.iter_mut()))
+        {
             rule_hits.retain(|&i| !(i < slots && seen[i]));
         }
-        // A fresh build only keys rules that matched at least one element;
-        // drop the rule entries both slots of which the purge emptied so
-        // the shapes stay identical.
-        cache.sets.hits.retain(|_, v| !v.is_empty());
-        cache
-            .sets
-            .pseudo_hits
-            .retain(|_, s| s.iter().any(|v| !v.is_empty()));
         let attached: Vec<NodeId> = candidates
             .into_iter()
             .filter(|&c| self.match_probe_attached(c))
             .collect();
         if trace {
             eprintln!(
-                "[match-trace] INCREMENTAL key={css_key:#x} roots={} purge={} sib={} candidates={} attached={}",
+                "[match-trace] INCREMENTAL key={css_key:#x} roots={} purge={} candidates={} attached={} affected-rules={}",
                 dirty.roots.len(),
                 dirty.purge_roots.len(),
-                dirty.sibling_scopes.len(),
                 candidates_len,
-                attached.len()
+                attached.len(),
+                affected.len()
             );
         }
-        self.probe_elements_into(
-            &cache.index,
-            attached,
-            &mut cache.sets.hits,
-            &mut cache.sets.pseudo_hits,
-        );
-        let sets = cache.sets.clone();
-        self.set_match_cache(cache);
-        sets
+        self.probe_elements_into(cache_index, attached, &mut sets.hits, &mut sets.pseudo_hits);
+        if !affected.is_empty() {
+            // The re-match stays inside the mutations' zone instead of the
+            // whole document, with the zone shape chosen per rule by which
+            // of its deps actually fired (see RuleDeps' side split):
+            // subject-side only — the written elements; descendant-side or
+            // a wild pseudo — the written elements' subtrees; structural or
+            // sibling-side — the change parents' subtrees. Rules whose
+            // matching crosses boundaries the zone walks cannot see (:has
+            // matches elements other than the subject; slots, shadow, `&`),
+            // and state/live windows, re-match document-wide, as does any
+            // zone that grew to the document.
+            fn reprobe_rules(
+                tree: &DomTree,
+                src_rules: &[CompiledRule],
+                sets: &mut RuleMatchSets,
+                rules: &[usize],
+                document_wide: bool,
+                zone_seen: &[bool],
+                zone_ids: &[NodeId],
+            ) {
+                if rules.is_empty() {
+                    return;
+                }
+                if document_wide {
+                    for r in rules {
+                        sets.hits.remove(r);
+                        sets.pseudo_hits.remove(r);
+                    }
+                } else {
+                    // Outside the zone the affected rules' hits cannot have
+                    // moved (that is the zone invariant) — keep them;
+                    // inside, purge and re-probe.
+                    let in_zone =
+                        |v: &mut Vec<usize>| v.retain(|&i| !(i < zone_seen.len() && zone_seen[i]));
+                    for r in rules {
+                        if let Some(v) = sets.hits.get_mut(r) {
+                            in_zone(v);
+                        }
+                        if let Some(s) = sets.pseudo_hits.get_mut(r) {
+                            for v in s.iter_mut() {
+                                in_zone(v);
+                            }
+                        }
+                    }
+                }
+                let sub =
+                    tree.assemble_rule_index(rules.iter().map(|&r| src_rules[r].clone()).collect());
+                let mut sub_hits = HashMap::new();
+                let mut sub_pseudo = HashMap::new();
+                tree.probe_elements_into(
+                    &sub,
+                    if document_wide {
+                        tree.match_probe_all_ids()
+                    } else {
+                        zone_ids.to_vec()
+                    },
+                    &mut sub_hits,
+                    &mut sub_pseudo,
+                );
+                for (k, v) in sub_hits {
+                    sets.hits.entry(rules[k]).or_default().extend(v);
+                }
+                for (k, v) in sub_pseudo {
+                    let [a, b] = v;
+                    let t = sets.pseudo_hits.entry(rules[k]).or_default();
+                    t[0].extend(a);
+                    t[1].extend(b);
+                }
+                if !document_wide {
+                    // A cold build's hit vecs come in document order (the
+                    // probe walks the tree); the zone merge interleaves
+                    // survivors with zone-order hits. Same set, different
+                    // order — sort back.
+                    for r in rules {
+                        if let Some(v) = sets.hits.get_mut(r) {
+                            v.sort_unstable();
+                        }
+                        if let Some(s) = sets.pseudo_hits.get_mut(r) {
+                            for v in s.iter_mut() {
+                                v.sort_unstable();
+                            }
+                        }
+                    }
+                }
+            }
+            /// How far a zone reaches below its anchors — the per-rule
+            /// choice is the whole point of the side split.
+            #[derive(Clone, Copy, PartialEq)]
+            enum ZoneReach {
+                /// The anchors only: a subject-side dep flip lands on the
+                /// written element itself.
+                Anchors,
+                /// Anchor plus its children: sibling-position rules
+                /// (`:first-child`, `.a + .b` subjects) live here.
+                Children,
+                /// Anchor plus its subtree: descendant-side deps and
+                /// sibling rules that continue downward.
+                Subtree,
+            }
+            fn build_zone(
+                tree: &DomTree,
+                anchors: &[NodeId],
+                slots: usize,
+                reach: ZoneReach,
+            ) -> Option<(Vec<bool>, Vec<NodeId>)> {
+                // The demotion gate is ids.len()*4 > slots: walking a huge
+                // zone just to demote it afterwards wastes the walk, so the
+                // budget comes in here — bail the moment it is crossed.
+                let budget = slots / 4;
+                let mut seen = vec![false; slots];
+                let mut ids = Vec::new();
+                let mark = |c: NodeId, seen: &mut Vec<bool>, ids: &mut Vec<NodeId>| {
+                    if ids.len() > budget {
+                        return;
+                    }
+                    if c.index() < seen.len() && !seen[c.index()] {
+                        seen[c.index()] = true;
+                        ids.push(c);
+                    }
+                };
+                for &a in anchors {
+                    // Attachment is inherited downward: a detached anchor's
+                    // subtree is detached with it, so skip it wholesale —
+                    // probing it would add hits a cold build
+                    // (attached-only) never produces, while its stale hits
+                    // already died in pass 1's purge.
+                    if !tree.match_probe_attached(a) {
+                        continue;
+                    }
+                    mark(a, &mut seen, &mut ids);
+                    if ids.len() > budget {
+                        return None;
+                    }
+                    match reach {
+                        ZoneReach::Anchors => {}
+                        ZoneReach::Children => {
+                            let mut child = tree.with_node(a, |n| n.first_child).flatten();
+                            while let Some(c) = child {
+                                mark(c, &mut seen, &mut ids);
+                                if ids.len() > budget {
+                                    return None;
+                                }
+                                child = tree.with_node(c, |n| n.next_sibling).flatten();
+                            }
+                        }
+                        ZoneReach::Subtree => {
+                            for d in tree.descendants(a) {
+                                mark(d, &mut seen, &mut ids);
+                                if ids.len() > budget {
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                }
+                Some((seen, ids))
+            }
+            let mut wide: Vec<usize> = Vec::new();
+            let mut elem: Vec<usize> = Vec::new();
+            let mut subtree: Vec<usize> = Vec::new();
+            let mut parent: Vec<usize> = Vec::new();
+            let mut parent_sub: Vec<usize> = Vec::new();
+            for &r in &affected {
+                let deps = &cache_index.rules[r].deps;
+                if deps.zone_unsafe {
+                    wide.push(r);
+                } else if dirty.structure && deps.structural || fired_sib[r] {
+                    // A structural flip lands on the change parent's
+                    // children (sibling subjects, `:empty` on the parent
+                    // itself); rules that keep walking down from those
+                    // children (`.a + .b .c`) need the whole subtree.
+                    let desc_side = !(deps.classes_desc.is_empty()
+                        && deps.ids_desc.is_empty()
+                        && deps.attrs_desc.is_empty());
+                    if desc_side {
+                        parent_sub.push(r);
+                    } else {
+                        parent.push(r);
+                    }
+                } else if fired_desc[r] || (deps.wild && deps.wild_inherited) {
+                    subtree.push(r);
+                } else {
+                    // Subject-side fire only — including structural rules
+                    // whose sibling conditions did not move (a class write
+                    // on `:first-child`'s subject) and subject pseudos
+                    // (`:visited`, `:checked`): the flip is at the written
+                    // element itself.
+                    elem.push(r);
+                }
+            }
+            // A zone is only built for the shapes that have rules waiting;
+            // state/live windows and an over-grown zone demote theirs to a
+            // document-wide re-match instead.
+            let forced_wide = dirty.state || dirty.live || dirty.zone_full;
+            let demote = |want_wide: bool,
+                          anchors: &[NodeId],
+                          rules: &[usize],
+                          reach: ZoneReach|
+             -> (bool, Vec<bool>, Vec<NodeId>) {
+                if want_wide || rules.is_empty() || anchors.is_empty() {
+                    return (true, Vec::new(), Vec::new());
+                }
+                match build_zone(self, anchors, slots, reach) {
+                    Some((seen, ids)) => (false, seen, ids),
+                    None => (true, Vec::new(), Vec::new()),
+                }
+            };
+            let (elem_wide, elem_seen, elem_ids) =
+                demote(forced_wide, &dirty.elem_zones, &elem, ZoneReach::Anchors);
+            let (subtree_wide, subtree_seen, subtree_ids) =
+                demote(forced_wide, &dirty.elem_zones, &subtree, ZoneReach::Subtree);
+            let (parent_wide, parent_seen, parent_ids) = demote(
+                forced_wide,
+                &dirty.parent_zones,
+                &parent,
+                ZoneReach::Children,
+            );
+            let (parent_sub_wide, parent_sub_seen, parent_sub_ids) = demote(
+                forced_wide,
+                &dirty.parent_zones,
+                &parent_sub,
+                ZoneReach::Subtree,
+            );
+            if elem_wide {
+                wide.append(&mut elem);
+            }
+            if subtree_wide {
+                wide.append(&mut subtree);
+            }
+            if parent_wide {
+                wide.append(&mut parent);
+            }
+            if parent_sub_wide {
+                wide.append(&mut parent_sub);
+            }
+            #[cfg(test)]
+            let scoped_rules = elem.len() + subtree.len() + parent.len() + parent_sub.len();
+            if std::env::var("DITING_ZONE_DEBUG").is_ok() {
+                eprintln!(
+                    "[zone-debug] affected={} wide={} elem={} ({} ids) subtree={} ({} ids) parent={} ({} ids) parent_sub={} ({} ids) elem_anchors={} parent_anchors={}",
+                    affected.len(),
+                    wide.len(),
+                    elem.len(),
+                    elem_ids.len(),
+                    subtree.len(),
+                    subtree_ids.len(),
+                    parent.len(),
+                    parent_ids.len(),
+                    parent_sub.len(),
+                    parent_sub_ids.len(),
+                    dirty.elem_zones.len(),
+                    dirty.parent_zones.len(),
+                );
+            }
+            reprobe_rules(self, &cache_index.rules, &mut sets, &wide, true, &[], &[]);
+            reprobe_rules(
+                self,
+                &cache_index.rules,
+                &mut sets,
+                &elem,
+                false,
+                &elem_seen,
+                &elem_ids,
+            );
+            reprobe_rules(
+                self,
+                &cache_index.rules,
+                &mut sets,
+                &subtree,
+                false,
+                &subtree_seen,
+                &subtree_ids,
+            );
+            reprobe_rules(
+                self,
+                &cache_index.rules,
+                &mut sets,
+                &parent,
+                false,
+                &parent_seen,
+                &parent_ids,
+            );
+            reprobe_rules(
+                self,
+                &cache_index.rules,
+                &mut sets,
+                &parent_sub,
+                false,
+                &parent_sub_seen,
+                &parent_sub_ids,
+            );
+            #[cfg(test)]
+            LAST_SYNC_SCOPED.with(|c| {
+                c.set(if scoped_rules == 0 {
+                    None
+                } else {
+                    Some(
+                        elem_ids.len()
+                            + subtree_ids.len()
+                            + parent_ids.len()
+                            + parent_sub_ids.len(),
+                    )
+                })
+            });
+        } else {
+            #[cfg(test)]
+            LAST_SYNC_SCOPED.with(|c| c.set(None));
+        }
+        // A fresh build only keys rules that matched at least one element;
+        // drop the rule entries the purge emptied so the shapes stay
+        // identical.
+        sets.hits.retain(|_, v| !v.is_empty());
+        sets.pseudo_hits
+            .retain(|_, s| s.iter().any(|v| !v.is_empty()));
+        #[cfg(test)]
+        LAST_SYNC_AFFECTED.with(|c| c.set(Some(affected.len())));
+        let out = Arc::new(sets);
+        self.set_match_cache(MatchCacheBox {
+            sets: out.clone(),
+            ..cache
+        });
+        out
     }
 }
 
@@ -569,6 +943,15 @@ impl DomTree {
 thread_local! {
     /// Fresh-rule count of the last remap on this thread — test probe.
     pub(crate) static LAST_REMAP_FRESH: std::cell::Cell<Option<usize>> =
+        const { std::cell::Cell::new(None) };
+    /// The last sync's path: `Some(affected rule count)` when it stayed
+    /// incremental, `None` when it rebuilt — test probe.
+    pub(crate) static LAST_SYNC_AFFECTED: std::cell::Cell<Option<usize>> =
+        const { std::cell::Cell::new(None) };
+    /// The last sync's re-match domain: `Some(zone size)` when the
+    /// affected rules re-matched inside the attr-write zone, `None` when
+    /// document-wide or rebuilt — test probe.
+    pub(crate) static LAST_SYNC_SCOPED: std::cell::Cell<Option<usize>> =
         const { std::cell::Cell::new(None) };
 }
 
@@ -645,11 +1028,11 @@ impl DomTree {
         }
         MatchCacheBox {
             selectors: rule_selectors.iter().map(|s| s.to_string()).collect(),
-            sets: RuleMatchSets {
+            sets: Arc::new(RuleMatchSets {
                 hits,
                 specificity: index.specificity.clone(),
                 pseudo_hits,
-            },
+            }),
             index,
         }
     }
@@ -664,7 +1047,7 @@ struct CompiledRule {
     routing: Option<PseudoRouting>,
     specificity: Option<u32>,
     keys: Vec<Option<RuleKey>>,
-    bears_has: bool,
+    deps: RuleDeps,
 }
 
 fn compile_rule(selector: &str) -> CompiledRule {
@@ -745,93 +1128,21 @@ fn compile_rule(selector: &str) -> CompiledRule {
         .flat_map(|l| l.slice())
         .map(rightmost_key)
         .collect();
-    let bears_has = lists
-        .iter()
-        .any(|l| l.slice().iter().any(selector_bears_has));
+    let mut deps = RuleDeps::default();
+    for sel in lists.iter().flat_map(|l| l.slice()) {
+        deps.add_selector(sel);
+    }
+    for v in [&mut deps.classes, &mut deps.ids, &mut deps.attrs] {
+        v.sort_unstable();
+        v.dedup();
+    }
     CompiledRule {
         specificity,
         keys,
-        bears_has,
+        deps,
         plain,
         routing,
     }
-}
-
-/// True when any component of the selector tree contains a `:has()`
-/// functional pseudo — including nested inside `:is`/`:where`/`:not`,
-/// another `:has`'s relative selectors, `:nth-child(of …)`, `::slotted`,
-/// or `:host` arguments. A `:has`-bearing rule matches TRANSITIVELY:
-/// mutating a node inside the `:has` subject flips the subject's own
-/// match, and a combinator to the subject's right
-/// (`section:has(.leaf) .ghost`) flips subjects that are attached
-/// descendants of it — nowhere near the mutation (#123). The incremental
-/// sync reacts by extending the ancestor-chain re-probe to each chain
-/// node's subtree when (and only when) some rule bears `:has`; sheets
-/// without it keep the tight candidate set.
-fn selector_bears_has(sel: &parser::Selector<DitingSelector>) -> bool {
-    use parser::Component;
-    fn list_bears(list: &SelectorList<DitingSelector>) -> bool {
-        list.slice().iter().any(selector_bears_has)
-    }
-    fn component_bears(c: &Component<DitingSelector>) -> bool {
-        match c {
-            Component::Has(_) => true,
-            Component::Is(list) | Component::Where(list) | Component::Negation(list) => {
-                list_bears(list)
-            }
-            Component::NthOf(nth) => nth.selectors().iter().any(selector_bears_has),
-            Component::Slotted(sel) => selector_bears_has(sel),
-            Component::Host(Some(sel)) => selector_bears_has(sel),
-            _ => false,
-        }
-    }
-    // iter_raw_match_order, not iter: `iter()` stops at the rightmost
-    // compound boundary, so a `:has` left of a combinator
-    // (`section:has(.leaf) .ghost`) would be invisible to it.
-    sel.iter_raw_match_order().any(component_bears)
-}
-
-/// Whether an element carrying these keys (lowercased tag, id, class
-/// attribute) can be the subject of a `:has`-bearing rule in `index` —
-/// the filter the subtree walk under a flipped chain node applies. Set
-/// spellings mirror the compile side (both author cases in quirks mode),
-/// so over-inclusion is the only failure mode the filter can have.
-fn subtree_node_is_has_subject(
-    meta: Option<(String, Option<String>, Option<String>)>,
-    index: &RuleIndex,
-) -> bool {
-    let Some((tag, id, class)) = meta else {
-        return false;
-    };
-    if index.has_subject_unkeyed {
-        return true;
-    }
-    if index.has_subject_tags.contains(tag.as_str()) {
-        return true;
-    }
-    if let Some(id) = id {
-        if index.has_subject_ids.contains(id.as_str())
-            || (index.quirks
-                && index
-                    .has_subject_ids
-                    .contains(id.to_ascii_lowercase().as_str()))
-        {
-            return true;
-        }
-    }
-    if let Some(class) = class {
-        for tok in class.split_ascii_whitespace() {
-            if index.has_subject_classes.contains(tok)
-                || (index.quirks
-                    && index
-                        .has_subject_classes
-                        .contains(tok.to_ascii_lowercase().as_str()))
-            {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// The rightmost-compound key a rule selector's subject element must
@@ -934,23 +1245,22 @@ pub(crate) struct RuleIndex {
     by_tag: HashMap<String, Vec<usize>>,
     unkeyed: Vec<usize>,
     quirks: bool,
-    /// Some rule bears `:has()` (see [`selector_bears_has`]): matching is
-    /// transitive, so the incremental sync widens its ancestor-chain
-    /// re-probe to whole subtrees. False for `:has`-free sheets — the
-    /// common case pays nothing.
-    bears_has: bool,
-    /// Rightmost-compound keys of the `:has`-bearing rules' sub-selectors
-    /// (`section:has(.leaf) .ghost` contributes class "ghost"): the only
-    /// elements the subtree walk under a flipped chain node re-probes.
-    /// Both author-case spellings land in the sets in quirks mode, mirroring
-    /// the bucket tables.
-    has_subject_ids: HashSet<String>,
-    has_subject_classes: HashSet<String>,
-    has_subject_tags: HashSet<String>,
-    /// A `:has`-bearing rule has a keyless subject compound (`:has(a) *`):
-    /// every element is a candidate, so the walk marks whole subtrees and
-    /// the candidate gate turns that into a full rebuild.
-    has_subject_unkeyed: bool,
+    /// Rule-scoped invalidation tables (see [`RuleDeps`]): lowercased
+    /// class/id/attribute-name keys to the rules that read them, plus the
+    /// structural, state and wild rule lists.
+    dep_class: HashMap<String, Vec<usize>>,
+    dep_id: HashMap<String, Vec<usize>>,
+    dep_attr: HashMap<String, Vec<usize>>,
+    dep_class_desc: HashMap<String, Vec<usize>>,
+    dep_id_desc: HashMap<String, Vec<usize>>,
+    dep_attr_desc: HashMap<String, Vec<usize>>,
+    dep_class_sib: HashMap<String, Vec<usize>>,
+    dep_id_sib: HashMap<String, Vec<usize>>,
+    dep_attr_sib: HashMap<String, Vec<usize>>,
+    struct_rules: Vec<usize>,
+    state_rules: Vec<usize>,
+    wild_rules: Vec<usize>,
+    zone_unsafe_rules: Vec<usize>,
 }
 
 /// The persisted match state for [`DomTree::rule_match_sets_incremental`]:
@@ -962,32 +1272,128 @@ pub(crate) struct MatchCacheBox {
     /// remap across css changes keys on exact string equality.
     selectors: Vec<String>,
     index: RuleIndex,
-    sets: RuleMatchSets,
+    /// Shared with the handle the last sync handed out: when the caller
+    /// drops its handle before the next sync (the style run's shape), the
+    /// sync moves the sets in place instead of copying the whole hit map.
+    sets: Arc<RuleMatchSets>,
 }
 
 /// Mutations the incremental matcher needs to know about, stamped by the
-/// tree at every structural change and by `note_restyle` at attribute
-/// writes. Consumed (emptied) by the next
+/// tree at every structural change and by the `note_*` hooks at attribute,
+/// state, text and live-control writes. Consumed (emptied) by the next
 /// [`DomTree::rule_match_sets_incremental`] sync.
 #[derive(Default)]
 pub(crate) struct MatchDirty {
-    /// Roots of inserted, re-parented, or restyled subtrees: every element
-    /// at and below re-probes.
+    /// Roots of inserted or re-parented subtrees: every element at and
+    /// below re-probes against every rule.
     pub(crate) roots: Vec<NodeId>,
-    /// Parents whose child list changed: their element children re-probe
-    /// (sibling combinators and :nth-child shift), and each parent's
-    /// ancestor chain re-probes individually (`:has()` anchoring — a
-    /// subtree entering or leaving these descendants can flip a `:has()`
-    /// compound up the chain). The chain walk happens at sync time, deduped
-    /// across stamps, so a mutation stays O(1).
-    pub(crate) sibling_scopes: Vec<NodeId>,
     /// Roots of detached subtrees: same treatment as `roots` — if the
     /// subtree was re-inserted elsewhere it also carries a `roots` stamp
     /// and re-probes; if it stayed detached the purge drops its hits; if
     /// the slot was freed and reused the new occupant carries its own
     /// insert stamp, so the purge never outlives its meaning.
     pub(crate) purge_roots: Vec<NodeId>,
+    /// A child list or a text node changed somewhere: structural rules
+    /// re-match inside the parent zones.
+    pub(crate) structure: bool,
+    /// Hover/active/focus moved: state rules re-match document-wide.
+    pub(crate) state: bool,
+    /// A form control's live value/checkedness changed: wild rules only.
+    pub(crate) live: bool,
+    /// Lowercased class tokens, ids and attribute names attribute writes
+    /// changed: the rules reading them re-match inside the write zones.
+    pub(crate) classes: Vec<String>,
+    pub(crate) ids: Vec<String>,
+    pub(crate) attrs: Vec<String>,
+    /// Zone anchors for this window's mutations, bounding where a rule
+    /// whose dependencies changed can have flipped (see the sync's pass 2).
+    ///
+    /// `elem_zones` — the elements attr writes landed on. Which slice of
+    /// the tree a fired dep re-matches depends on its side in the selector
+    /// (RuleDeps): subject-side deps only at the element itself, descendant
+    /// deps in its subtree, sibling deps around it (the parent zone).
+    ///
+    /// `parent_zones` — the parents of attr-written elements, and of
+    /// inserted/detached/text-edited nodes. A structurally-depending rule
+    /// (sibling combinators, :nth-*, :first/last/only, :empty) can flip at
+    /// the changed element's siblings and their subtrees, which the
+    /// element zone cannot see.
+    ///
+    /// Each list is capped; an overflow degrades its rules' re-match to
+    /// document-wide.
+    pub(crate) elem_zones: Vec<NodeId>,
+    pub(crate) parent_zones: Vec<NodeId>,
+    pub(crate) zone_full: bool,
     /// Set when a mutation path the registry cannot describe ran — the
     /// next sync rebuilds from scratch.
     pub(crate) full: bool,
+}
+
+impl MatchDirty {
+    pub(crate) fn inserted(&mut self, root: NodeId) {
+        self.roots.push(root);
+        self.structure = true;
+    }
+
+    pub(crate) fn detached(&mut self, root: NodeId) {
+        self.purge_roots.push(root);
+        self.structure = true;
+    }
+
+    /// Anchor the element zone at a written element and the parent zone at
+    /// its parent — see [`MatchDirty::elem_zones`]. The caller resolves
+    /// the parent while it still can (a detach unlinks first).
+    pub(crate) fn attr_zone(&mut self, elem: NodeId, parent: Option<NodeId>) {
+        if self.elem_zones.len() >= 256 {
+            self.zone_full = true;
+        } else {
+            self.elem_zones.push(elem);
+        }
+        if let Some(p) = parent {
+            self.parent_zone(p);
+        }
+    }
+
+    /// Anchor the parent zone at `parent` (inserts, detaches, text edits).
+    pub(crate) fn parent_zone(&mut self, parent: NodeId) {
+        if self.parent_zones.len() >= 256 {
+            self.zone_full = true;
+        } else {
+            self.parent_zones.push(parent);
+        }
+    }
+
+    /// One attribute write, old value read before it landed. A
+    /// byte-identical rewrite changes nothing a selector can see.
+    pub(crate) fn attr_change(&mut self, name: &str, old: Option<&str>, new: Option<&str>) {
+        if old == new {
+            return;
+        }
+        let lower = name.to_ascii_lowercase();
+        // A qualified name (`xlink:href`) is matched by its local part.
+        if let Some((_, local)) = lower.rsplit_once(':') {
+            self.attrs.push(local.to_string());
+        }
+        match lower.as_str() {
+            "class" => {
+                let toks = |v: Option<&str>| -> HashSet<String> {
+                    v.unwrap_or("")
+                        .split_ascii_whitespace()
+                        .map(str::to_string)
+                        .collect()
+                };
+                let (a, b) = (toks(old), toks(new));
+                self.classes
+                    .extend(a.symmetric_difference(&b).map(|t| t.to_ascii_lowercase()));
+            }
+            "id" => self.ids.extend(
+                [old, new]
+                    .into_iter()
+                    .flatten()
+                    .map(|v| v.to_ascii_lowercase()),
+            ),
+            _ => {}
+        }
+        self.attrs.push(lower);
+    }
 }

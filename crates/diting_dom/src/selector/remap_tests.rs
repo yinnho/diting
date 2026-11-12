@@ -168,8 +168,7 @@ fn remap_matches_cold_under_rule_and_dom_churn() {
                 0 => {
                     let n = pick_element(&tree, &mut rng);
                     let class = ["a", "b", "c", "a c", "", "r-1abc"][rng.below(6)];
-                    tree.with_node_mut(n, |x| x.set_attribute("class", class.into()));
-                    tree.note_restyle(n);
+                    tree.set_attribute_noted(n, "class", class);
                 }
                 1 => {
                     let parent = pick_element(&tree, &mut rng);
@@ -182,8 +181,7 @@ fn remap_matches_cold_under_rule_and_dom_churn() {
                 }
                 3 => {
                     let n = pick_element(&tree, &mut rng);
-                    tree.with_node_mut(n, |x| x.set_attribute("data-k", "1".into()));
-                    tree.note_restyle(n);
+                    tree.set_attribute_noted(n, "data-k", "1");
                 }
                 _ => {}
             }
@@ -207,20 +205,19 @@ fn insert_rule_probes_only_new_selectors() {
     LAST_REMAP_FRESH.with(|c| c.set(None));
     let inc = tree.rule_match_sets_incremental(&rules, 2);
     assert_eq!(LAST_REMAP_FRESH.with(|c| c.get()), Some(1));
-    assert_eq!(inc, tree.rule_match_sets(&rules));
+    assert_eq!(*inc, tree.rule_match_sets(&rules));
     // A DOM write between two insertions: the carried sets still sync.
     let li = tree.query_selector_all("li").unwrap()[4];
-    tree.with_node_mut(li, |x| x.set_attribute("class", "c".into()));
-    tree.note_restyle(li);
+    tree.set_attribute_noted(li, "class", "c");
     rules.insert(10, "em");
     let inc = tree.rule_match_sets_incremental(&rules, 3);
     assert_eq!(LAST_REMAP_FRESH.with(|c| c.get()), Some(1));
-    assert_eq!(inc, tree.rule_match_sets(&rules));
+    assert_eq!(*inc, tree.rule_match_sets(&rules));
     // Unchanged list under a new key: plain reuse, no remap.
     LAST_REMAP_FRESH.with(|c| c.set(None));
     let inc = tree.rule_match_sets_incremental(&rules, 4);
     assert_eq!(LAST_REMAP_FRESH.with(|c| c.get()), None);
-    assert_eq!(inc, tree.rule_match_sets(&rules));
+    assert_eq!(*inc, tree.rule_match_sets(&rules));
 }
 
 /// A quirks flip changes what every selector matches: the carried sets
@@ -233,7 +230,7 @@ fn quirks_flip_never_carries_hits() {
     tree.set_quirks(false);
     rules.push("span");
     let inc = tree.rule_match_sets_incremental(&rules, 2);
-    assert_eq!(inc, tree.rule_match_sets(&rules));
+    assert_eq!(*inc, tree.rule_match_sets(&rules));
     assert!(
         !inc.hits.contains_key(&0),
         "no-quirks `.A` must not match class a"

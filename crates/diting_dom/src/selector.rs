@@ -1181,8 +1181,13 @@ impl CompiledSelector {
 // existing `selector::RuleMatchSets` / `selector::MatchCacheBox` path
 // (tree.rs fields, compute_styles) working unchanged.
 mod match_index;
+// Rule-dependency collection for the incremental sync's zone routing,
+// split from match_index.rs (god-file ratchet, ARCHITECTURE.md §6 P2).
+mod rule_deps;
 
 pub use match_index::RuleMatchSets;
 pub(crate) use match_index::{MatchCacheBox, MatchDirty};
+#[cfg(test)]
+mod invalidation_tests;
 #[cfg(test)]
 mod remap_tests;

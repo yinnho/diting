@@ -1375,7 +1375,7 @@ mod tree_tests {
             let check = |stage: &str| {
                 let inc = tree.rule_match_sets_incremental(&selectors, key);
                 let full = tree.rule_match_sets(&selectors);
-                assert_eq!(inc, full, "incremental diverged at `{stage}`");
+                assert_eq!(*inc, full, "incremental diverged at `{stage}`");
             };
 
             // First run: parse-time stamps cross the threshold, so this lands
@@ -1400,8 +1400,7 @@ mod tree_tests {
                 .cloned()
                 .unwrap_or_default()
                 .len();
-            tree.with_node_mut(h1, |n| n.set_attribute("data-kind", "lead".into()));
-            tree.note_restyle(h1);
+            tree.set_attribute_noted(h1, "data-kind", "lead");
             check("attr write");
             let after = tree.rule_match_sets_incremental(&selectors, key);
             let after_hits = after
@@ -1418,8 +1417,7 @@ mod tree_tests {
 
             // 3. Class flip on one li.
             let li5 = tree.query_selector_all("li").unwrap()[5];
-            tree.with_node_mut(li5, |n| n.set_attribute("class", "sinkitem".into()));
-            tree.note_restyle(li5);
+            tree.set_attribute_noted(li5, "class", "sinkitem");
             check("class flip");
             let got = tree.rule_match_sets_incremental(&selectors, key);
             let sink_ri = selectors.iter().position(|s| *s == ".sinkitem").unwrap();
@@ -1454,7 +1452,10 @@ mod tree_tests {
 
             // 9. A different css key drops the cache and rebuilds.
             let fresh = tree.rule_match_sets(&selectors);
-            assert_eq!(tree.rule_match_sets_incremental(&selectors, key + 1), fresh);
+            assert_eq!(
+                *tree.rule_match_sets_incremental(&selectors, key + 1),
+                fresh
+            );
         }
 
         /// #123's root cause, handwritten from the fuzzer's seed-3/step-81 hit:
@@ -1776,10 +1777,7 @@ mod tree_tests {
                                     ("data-kind", ""),
                                     ("id", "zz9"),
                                 ][rng.below(5)];
-                                tree.with_node_mut(node, |n| {
-                                    n.set_attribute(name, value.to_string())
-                                });
-                                tree.note_restyle(node);
+                                tree.set_attribute_noted(node, name, value);
                             }
                         }
                         // 8: attr write on a DETACHED node, then re-attach (the
@@ -1790,10 +1788,7 @@ mod tree_tests {
                                 (pick(&tree, &mut rng), pick(&tree, &mut rng))
                             {
                                 tree.remove_child(node);
-                                tree.with_node_mut(node, |n| {
-                                    n.set_attribute("class", "sinkitem".to_string())
-                                });
-                                tree.note_restyle(node);
+                                tree.set_attribute_noted(node, "class", "sinkitem");
                                 check(
                                     &format!("{stage}: detached restyle"),
                                     key,
