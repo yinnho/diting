@@ -418,10 +418,7 @@ impl<'a> DomElement<'a> {
                             | "hidden"
                     ));
                 }
-                if n.get_attribute("contenteditable").is_some() {
-                    return Some(true);
-                }
-                Some(false)
+                Some(n.get_attribute("contenteditable").is_some())
             })
             .flatten()
             .unwrap_or(false)
