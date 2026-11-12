@@ -1463,19 +1463,13 @@ fn dom_cmd_attr_state(
                 None => return Ok("false".into()),
             };
             if let Some((name, value)) = arg2.split_once('\0') {
+                // The write stamps exactly what changed (class tokens, id,
+                // attribute name): the incremental matcher re-matches only
+                // the rules that read those.
+                let old = dom.set_attribute_noted(node_id, name, value);
                 if name == "id" {
-                    let old_id = dom
-                        .get_node(node_id)
-                        .and_then(|n| n.get_attribute("id").map(|s| s.to_string()));
-                    dom.with_node_mut(node_id, |n| n.set_attribute(name, value.to_string()));
-                    dom.update_id_index(node_id, old_id.as_deref(), Some(value));
-                } else {
-                    dom.with_node_mut(node_id, |n| n.set_attribute(name, value.to_string()));
+                    dom.update_id_index(node_id, old.as_deref(), Some(value));
                 }
-                // Any attribute write (id/class/style/attr selectors) can
-                // change this node's subtree, siblings, and ancestor
-                // matches — the incremental matcher re-probes exactly those.
-                dom.note_restyle(node_id);
             }
             "true".into()
         }
@@ -1489,6 +1483,7 @@ fn dom_cmd_attr_state(
                 None => return Ok("false".into()),
             };
             dom.with_node_mut(node_id, |n| n.set_live_value(arg2.to_string()));
+            dom.note_live_change();
             "true".into()
         }
         // The checkable-input dirty checkedness mirror, same posture as
@@ -1507,6 +1502,7 @@ fn dom_cmd_attr_state(
                     n.set_live_indeterminate(arg2 == "1")
                 }
             });
+            dom.note_live_change();
             "true".into()
         }
         // Focus mirror (blitz#839): the bootstrap's focus()/blur() keep the
@@ -1622,12 +1618,17 @@ fn dom_cmd_mutate(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: St
                 Some(id) => id,
                 None => return Ok("false".into()),
             };
+            let old = dom
+                .get_node(nid)
+                .and_then(|n| n.get_attribute(&arg2).map(|s| s.to_string()));
             dom.with_node_mut(nid, |n| {
                 if let NodeData::Element { attrs, .. } = &mut n.data {
                     attrs.retain(|a| a.name.local.as_str() != arg2.as_str());
                 }
             });
-            dom.note_restyle(nid);
+            // `Some("")` stands in for a present attribute whose value the
+            // qualified-name read missed (namespaced): presence changed.
+            dom.note_attr_change(nid, &arg2, Some(old.as_deref().unwrap_or("")), None);
             "true".into()
         }
         "set_inner_html" => {
@@ -1705,6 +1706,8 @@ fn dom_cmd_mutate(gs: &JsState, dom: &DomTree, cmd: &str, arg1: String, arg2: St
                 }
                 _ => {}
             });
+            // Text data feeds :empty on the parent.
+            dom.note_text_change(nid);
             "true".into()
         }
         _ => return Err((arg1, arg2)),

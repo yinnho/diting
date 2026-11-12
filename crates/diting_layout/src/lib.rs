@@ -9519,10 +9519,15 @@ fn compute_styles_impl(
     // instead of re-matching the whole sheet (#111) — the gated and within
     // faces pass None and leave the cache untouched (the gated pass matches
     // an extended rule table; a within pass matches an orphan subtree).
+    // The incremental face hands out an Arc to the parked hit sets (the
+    // next sync reclaims them in place when this handle is dropped); the
+    // one-shot faces wrap their fresh sets to keep the arms one type.
     let sets = match (within_root, css_key) {
-        (Some(root), _) => tree.rule_match_sets_within(&rule_selectors, &[root]),
+        (Some(root), _) => {
+            std::sync::Arc::new(tree.rule_match_sets_within(&rule_selectors, &[root]))
+        }
         (None, Some(key)) => tree.rule_match_sets_incremental(&rule_selectors, key),
-        (None, None) => tree.rule_match_sets(&rule_selectors),
+        (None, None) => std::sync::Arc::new(tree.rule_match_sets(&rule_selectors)),
     };
     let t_match = t_styles.elapsed();
 

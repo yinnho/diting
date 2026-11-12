@@ -163,9 +163,7 @@ impl Rig {
     }
 
     fn set_attr(&self, n: NodeId, name: &str, value: &str) {
-        self.tree
-            .with_node_mut(n, |x| x.set_attribute(name, value.to_string()));
-        self.tree.note_restyle(n);
+        self.tree.set_attribute_noted(n, name, value);
     }
 }
 
@@ -630,12 +628,10 @@ fn style_memo_bench() {
         for p in 0..passes {
             let w = tree.get_element_by_id(&format!("w{}", p % 100)).unwrap();
             let class = format!("w{}", (p * 7 + phase * 13) % 50);
-            tree.with_node_mut(w, |x| x.set_attribute("class", class));
-            tree.note_restyle(w);
+            tree.set_attribute_noted(w, "class", &class);
             let child = tree.children(w)[p % 6];
             let class = format!("c{} x", (p * 11 + phase * 3) % 400);
-            tree.with_node_mut(child, |x| x.set_attribute("class", class));
-            tree.note_restyle(child);
+            tree.set_attribute_noted(child, "class", &class);
             run();
         }
         timings.push(t.elapsed() / passes as u32);
@@ -803,8 +799,7 @@ fn insert_rule_bench() {
             }
             let w = tree.get_element_by_id(&format!("w{}", p % 100)).unwrap();
             let class = format!("w{}", (p * 7 + inserts as u32) % 50);
-            tree.with_node_mut(w, |x| x.set_attribute("class", class));
-            tree.note_restyle(w);
+            tree.set_attribute_noted(w, "class", &class);
             let (rules, kf, _) = parse_stylesheet_full(
                 &sheet.concat(),
                 VP,

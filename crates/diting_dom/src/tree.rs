@@ -398,22 +398,12 @@ impl DomTree {
         inner.match_dirty.full = true;
     }
 
-    /// Mark one element's selector matches stale (attribute/class/id write
-    /// from the ops layer — `Node::set_attribute` has no tree handle).
-    /// The element's whole subtree re-probes (descendant combinators
-    /// anchored at the changed attribute, `:has()` below it) and its
-    /// parent's child list re-probes (`[foo] + b`). The parent chain's
-    /// `:has()` re-probe derives from the sibling scope at sync time.
-    pub fn note_restyle(&self, id: NodeId) {
-        let mut inner = self.inner.borrow_mut();
-        let Some(node) = inner.nodes.get(id.index()).and_then(|n| n.as_ref()) else {
-            return;
-        };
-        let parent = node.parent;
-        inner.match_dirty.roots.push(id);
-        if let Some(p) = parent {
-            inner.match_dirty.sibling_scopes.push(p);
-        }
+    /// Mark an element's selector matches stale without saying what
+    /// changed: the next sync rebuilds. Writers that know what they changed
+    /// use the scoped hooks instead (`note_attr_change` and friends,
+    /// tree/caches.rs).
+    pub fn note_restyle(&self, _id: NodeId) {
+        self.inner.borrow_mut().match_dirty.full = true;
     }
 
     /// Escape hatch for mutation paths the dirty registry cannot describe:
@@ -743,13 +733,16 @@ impl DomTree {
             parent.last_child = Some(child_id);
         }
 
-        // Incremental match stamp (#111): the moved subtree re-probes, and
-        // the new parent's child list re-probes (sibling combinators
-        // shift). The detach above already stamped the removal side; the
-        // parent chain's :has() re-probe derives from the scope at sync
-        // time.
-        inner.match_dirty.roots.push(child_id);
-        inner.match_dirty.sibling_scopes.push(parent_id);
+        // Incremental match stamp (#111): the moved subtree re-probes and
+        // structural rules re-match. The detach above already stamped the
+        // removal side. A parked state anchor returning with the subtree
+        // flips `:hover`/`:focus` compounds on its new ancestors — state
+        // rules re-match (the detach stamp may be one mutation ago).
+        if state::state_anchor_within(&inner, child_id) {
+            inner.match_dirty.state = true;
+        }
+        inner.match_dirty.parent_zone(parent_id);
+        inner.match_dirty.inserted(child_id);
     }
 
     pub fn insert_before(&self, existing_id: NodeId, new_sibling_id: NodeId) {
@@ -831,9 +824,13 @@ impl DomTree {
             parent.first_child = Some(new_sibling_id);
         }
 
-        // Incremental match stamp, mirroring append_child's.
-        inner.match_dirty.roots.push(new_sibling_id);
-        inner.match_dirty.sibling_scopes.push(parent_id);
+        // Incremental match stamp, mirroring append_child's (state anchor
+        // re-entering the document included).
+        if state::state_anchor_within(&inner, new_sibling_id) {
+            inner.match_dirty.state = true;
+        }
+        inner.match_dirty.parent_zone(parent_id);
+        inner.match_dirty.inserted(new_sibling_id);
     }
 
     pub fn detach(&self, node_id: NodeId) {
@@ -879,11 +876,17 @@ impl DomTree {
 
         // Incremental match stamp: the detached subtree's hits must purge
         // (it may be re-inserted later, which carries its own insert
-        // stamp), and the old parent's remaining children re-probe —
-        // sibling combinators close the gap.
-        if let Some(pid) = parent_id {
-            inner.match_dirty.purge_roots.push(node_id);
-            inner.match_dirty.sibling_scopes.push(pid);
+        // stamp), and structural rules re-match (sibling combinators close
+        // the gap). A state anchor (hover/focus/active) inside the subtree
+        // leaves the document with it: `:hover` compounds on ancestors
+        // OUTSIDE the subtree flip with no structure change of their own,
+        // so the state rules re-match too.
+        if parent_id.is_some() {
+            if state::state_anchor_within(&inner, node_id) {
+                inner.match_dirty.state = true;
+            }
+            inner.match_dirty.parent_zone(parent_id.unwrap());
+            inner.match_dirty.detached(node_id);
         }
     }
 
@@ -1265,6 +1268,9 @@ impl DomTree {
                 if let Some(Some(node)) = inner.nodes.get_mut(last_child_id.index()) {
                     if let NodeData::Text { contents } = &mut node.data {
                         contents.push_str(text);
+                        // An empty text child turning non-empty flips :empty.
+                        inner.match_dirty.parent_zone(parent_id);
+                        inner.match_dirty.structure = true;
                         return;
                     }
                 }
