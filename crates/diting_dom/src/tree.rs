@@ -881,11 +881,11 @@ impl DomTree {
         // leaves the document with it: `:hover` compounds on ancestors
         // OUTSIDE the subtree flip with no structure change of their own,
         // so the state rules re-match too.
-        if parent_id.is_some() {
+        if let Some(parent_id) = parent_id {
             if state::state_anchor_within(&inner, node_id) {
                 inner.match_dirty.state = true;
             }
-            inner.match_dirty.parent_zone(parent_id.unwrap());
+            inner.match_dirty.parent_zone(parent_id);
             inner.match_dirty.detached(node_id);
         }
     }
