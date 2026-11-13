@@ -35,7 +35,7 @@ pub(super) type LayoutRun = (
 /// epoch, so memoizing computed styles alongside the rects would serve
 /// stale geometry.
 #[cfg(feature = "screenshot")]
-pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
+pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> LayoutRun {
     // Debug knob (DITING_LAYOUT_TRACE=1): phase timings for a full
     // layout run. The interrupt-sampler evidence on the WeChat article pages
     // shows multi-second stretches with no V8 stack check — candidates are
@@ -92,7 +92,8 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                     let Some(href) = href.filter(|h| !h.is_empty()) else {
                         continue;
                     };
-                    let abs = Url::parse(&gs.url)
+                    let doc_url = gs.document.url();
+                    let abs = Url::parse(&doc_url)
                         .ok()
                         .and_then(|base| base.join(&href).ok())
                         .map(|u| u.to_string());
@@ -158,7 +159,9 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
     // final geometry is a fine container-size estimate) and from one extra
     // solve otherwise. Pages without @container skip all of this.
     let mut styles_bumped = false;
-    if !containers.is_empty() {
+    // @container needs a probe solve. A Mock page skips it and keeps the
+    // pass-1 cascade.
+    if solve && !containers.is_empty() {
         let base_len = rules.len();
         let probe_boxes = match gs.geometry_cache.borrow().as_ref() {
             Some((e, solved)) if *e == dom.epoch() => solved.dom_boxes(),
@@ -171,6 +174,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                     } else {
                         Some(&bytes_map)
                     };
+                let doc_url = gs.document.url();
                 let probe = diting_layout::layout_solve(
                     dom,
                     &styles_map,
@@ -178,7 +182,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
                     viewport_width,
                     viewport_height,
                     network_bytes,
-                    Some(gs.url.as_str()),
+                    Some(doc_url.as_str()),
                 );
                 probe.dom_boxes()
             }
@@ -227,6 +231,17 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
         css_extent = endless_cycle;
     }
     gs.css_extent.set(css_extent);
+    if !solve {
+        return (
+            HashMap::new(),
+            Vec::new(),
+            styles_map,
+            Vec::new(),
+            HashMap::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+    }
     let fonts = diting_layout::diting_fonts::font_book();
     // Solve-vs-collect split (#395): the taffy solve is cached keyed by the
     // tree epoch. A paint-only style write (transform/opacity — the choke
@@ -271,6 +286,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
             } else {
                 Some(&bytes_map)
             };
+        let doc_url = gs.document.url();
         let solved = diting_layout::layout_solve(
             dom,
             &styles_map,
@@ -278,7 +294,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
             viewport_width,
             viewport_height,
             network_bytes,
-            Some(gs.url.as_str()),
+            Some(doc_url.as_str()),
         );
         drop(bytes_map);
         gs.solves.set(gs.solves.get() + 1);
@@ -339,9 +355,21 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree) -> LayoutRun {
 /// and dead clicks.
 #[cfg(feature = "screenshot")]
 pub(super) fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
+    if !gs.layout_policy.uses_real_layout() {
+        let fresh = gs
+            .style_cache
+            .borrow()
+            .as_ref()
+            .is_some_and(|(e, _)| *e == epoch);
+        if !fresh {
+            let run = layout_run_all(gs, dom, false);
+            *gs.style_cache.borrow_mut() = Some((epoch, run.2));
+        }
+        return;
+    }
     let stale = gs.layout_cache.borrow().as_ref().map(|(e, _)| *e == epoch) != Some(true);
     if stale {
-        let run = layout_run_all(gs, dom);
+        let run = layout_run_all(gs, dom, true);
         *gs.layout_cache.borrow_mut() = Some((epoch, run));
     }
 }

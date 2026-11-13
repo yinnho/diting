@@ -89,36 +89,14 @@ type StickyShiftCache = Option<(
 
 pub struct JsState {
     pub dom: Option<DomTree>,
-    pub url: String,
-    /// WHATWG canonical name of the document's character encoding (e.g.
-    /// "UTF-8", "EUC-JP"). Backs `document.characterSet` and the URL query
-    /// encoding override for `<a>`/`<area>` hrefs in legacy-charset documents.
-    pub encoding: String,
-    /// MIME type of the main response (lowercased, parameters stripped), e.g.
-    /// "text/plain". Backs `document.contentType`. Empty = the response
-    /// carried no Content-Type (JS falls back to URL sniffing).
-    pub content_type: String,
-    pub title: String,
-    /// URL of the document that initiated this document's navigation. Direct
-    /// automation navigations leave this empty; document-initiated navigations
-    /// set it per the strict-origin-when-cross-origin policy (upstream
-    /// edb1785).
-    pub referrer: String,
-    /// Referrer Policy delivered by the main response's `Referrer-Policy`
-    /// header (last valid comma token). Empty = none delivered; the document
-    /// policy then comes from `<meta name=referrer>` (see
-    /// resolve_referrer_policy_from), falling back to the spec default.
-    pub referrer_policy_header: String,
+    /// The document this realm is committed to. The page owns the `Rc` and
+    /// attaches it at `init_js`; until then a fresh realm holds a blank
+    /// document the constructor's `__diting_init` can read.
+    pub document: Rc<crate::Document>,
     pub blocked_urls: Vec<String>,
     pub cookie_jar: Option<Arc<CookieJar>>,
     pub http_client: Option<Arc<HttpClient>>,
     pub pending_navigation: Option<(String, String, String)>,
-    // Session-history seed (obscura#1105): the JS runtime is rebuilt on every
-    // cross-document navigation, so bootstrap re-seeds its history stack from
-    // these before any page script runs. `history_pos` is this document's
-    // entry index, `history_total` the whole session history length.
-    pub history_pos: i32,
-    pub history_total: i32,
     // Session-history jump queued by page JS (history.back/forward/go past
     // this document's boundaries) — an absolute entry index into the page's
     // real history, consumed by `Page::process_pending_navigation`.
@@ -193,6 +171,20 @@ pub struct JsState {
     /// Live page-facing WebSocket sockets (registry + channels, op land
     /// owned); see `diting_js::ws`.
     pub(crate) ws_registry: crate::ws::WsRegistry,
+    /// Box-tree posture copied from `Page` at realm build. Direct runtimes
+    /// (the op tests) start at `OnDemand`, which is today's solve-on-read.
+    /// A `Page` overwrites this in `init_js`; its own default is `Mock`.
+    pub(super) layout_policy: crate::LayoutPolicy,
+    /// Cascaded styles for a `Mock` page, keyed by tree epoch. Kept off
+    /// `layout_cache`: a fresh layout cache with a missing rect means the
+    /// element has no box, and `Mock` must answer "no layout" instead.
+    #[cfg(feature = "screenshot")]
+    pub(super) style_cache: std::cell::RefCell<
+        Option<(
+            u64,
+            std::collections::HashMap<diting_dom::NodeId, diting_css::ComputedStyle>,
+        )>,
+    >,
     /// Memoized diting-layout run for the live DOM tree, keyed by the
     /// tree's epoch (see DomTree::epoch): element rects, the paint order,
     /// and the cascaded ComputedStyle per element. Filled on the first
@@ -426,6 +418,23 @@ pub(crate) fn fetch_body_byte_limit() -> usize {
 }
 
 impl JsState {
+    /// Record the page's layout posture without dropping a memo. `init_js`
+    /// calls this on a realm that has not painted yet.
+    pub(crate) fn adopt_layout_policy(&mut self, policy: crate::LayoutPolicy) {
+        self.layout_policy = policy;
+    }
+
+    /// Change the posture and drop any memoized box tree so the next
+    /// geometry read or paint follows it.
+    pub(crate) fn set_layout_policy(&mut self, policy: crate::LayoutPolicy) {
+        if self.layout_policy == policy {
+            return;
+        }
+        self.layout_policy = policy;
+        #[cfg(feature = "screenshot")]
+        self.drop_layout();
+    }
+
     /// Drop the memoized layout run and stamp the invalidation revision.
     /// Every cache-drop site must go through here — a bare cache drop hides
     /// the invalidation from epoch-keyed consumers like the screencast
@@ -434,6 +443,7 @@ impl JsState {
     pub(crate) fn drop_layout(&self) {
         *self.layout_cache.borrow_mut() = None;
         *self.geometry_cache.borrow_mut() = None;
+        *self.style_cache.borrow_mut() = None;
         // A style/class write inside a fabricated iframe document doesn't
         // bump the tree epoch, so the (epoch, root) key can't see it — the
         // shared drop points are the only reliable invalidation.
@@ -453,6 +463,7 @@ impl JsState {
     #[cfg(feature = "screenshot")]
     pub(crate) fn drop_paint_only(&self) {
         *self.layout_cache.borrow_mut() = None;
+        *self.style_cache.borrow_mut() = None;
         *self.iframe_layout_cache.borrow_mut() = None;
         self.layout_rev.set(self.layout_rev.get().wrapping_add(1));
     }
@@ -468,6 +479,7 @@ impl JsState {
     pub fn release_layout_quiet(&self) {
         *self.layout_cache.borrow_mut() = None;
         *self.geometry_cache.borrow_mut() = None;
+        *self.style_cache.borrow_mut() = None;
         *self.iframe_layout_cache.borrow_mut() = None;
         *self.sticky_shift_cache.borrow_mut() = None;
     }
@@ -475,18 +487,11 @@ impl JsState {
     pub fn new() -> Self {
         JsState {
             dom: None,
-            url: "about:blank".to_string(),
-            encoding: "UTF-8".to_string(),
-            content_type: String::new(),
-            title: String::new(),
-            referrer: String::new(),
-            referrer_policy_header: String::new(),
+            document: crate::Document::new(),
             blocked_urls: Vec::new(),
             cookie_jar: None,
             http_client: None,
             pending_navigation: None,
-            history_pos: 0,
-            history_total: 1,
             pending_history_jump: None,
             intercept_tx: None,
             intercept_enabled: false,
@@ -506,6 +511,9 @@ impl JsState {
             network_response_body_counter: 0,
             js_network_events: Vec::new(),
             ws_registry: Default::default(),
+            layout_policy: crate::LayoutPolicy::OnDemand,
+            #[cfg(feature = "screenshot")]
+            style_cache: std::cell::RefCell::new(None),
             // Memoized diting-layout rects for the live DOM tree, keyed by
             // the tree's epoch (see DomTree::epoch). Filled on the first
             // `layout_rect` op after each mutation; backs getBoundingClientRect.

@@ -5,6 +5,7 @@ pub mod page;
 pub mod profiles;
 
 pub use context::BrowserContext;
+pub use diting_js::LayoutPolicy;
 pub use page::Page;
 
 /// Serializes this crate's tests that read or mutate

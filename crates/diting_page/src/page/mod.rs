@@ -1,8 +1,10 @@
+use std::rc::Rc;
 use std::sync::Arc;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use diting_dom::{parse_html, DomTree};
 use diting_js::runtime::JsRuntime;
+use diting_js::{Document, LayoutPolicy};
 use diting_net::{HttpClient, NetError, Response};
 use url::Url;
 
@@ -360,6 +362,9 @@ pub struct Page {
     /// `__diting_setPersona`) — the override has to be replayed after that
     /// or the page silently flips back mid-session.
     viewport_override: Option<(f32, f32, bool)>,
+    /// Box-tree posture. `Mock` until a face that paints or hits real
+    /// geometry opts into `OnDemand`. Replayed onto each new realm.
+    layout_policy: LayoutPolicy,
     /// devicePixelRatio pin from the same override (CDP deviceScaleFactor
     /// above zero); None keeps the persona's dpr reporting through. Rides
     /// the same replay as `viewport_override`.
@@ -397,26 +402,15 @@ pub struct Page {
     pub lifecycle: LifecycleState,
     pub http_client: Arc<HttpClient>,
     pub context: Arc<BrowserContext>,
-    pub title: String,
-    /// URL of the document that initiated the current navigation, exposed to
-    /// JS as `document.referrer`. Direct automation navigations leave this
-    /// empty; document-initiated navigations (location.href, form submit)
-    /// set it per strict-origin-when-cross-origin (upstream edb1785).
-    pub referrer: String,
-    /// Referrer Policy the main response delivered via its `Referrer-Policy`
-    /// header (last valid comma token). Establishes the document's policy
-    /// outright — a <meta name=referrer> cannot override it. Empty = none
-    /// delivered; the meta / spec default take over.
-    pub referrer_policy_header: String,
-    /// WHATWG canonical name of the current document's character encoding
-    /// (e.g. "UTF-8", "EUC-JP"), detected when the response body is decoded.
-    /// Exposed to JS as `document.characterSet` and used for the URL query
-    /// encoding override on `<a>`/`<area>` hrefs in legacy-charset documents.
-    pub encoding: String,
-    /// MIME type of the main response (lowercased, parameters stripped).
-    /// Backs `document.contentType`. None = the response carried no
-    /// Content-Type — the JS layer then falls back to URL sniffing.
-    pub content_type: Option<String>,
+    /// The live document. After commit the current realm holds this same
+    /// `Rc`. Public reads (`title`) see it only — a navigation that has
+    /// not committed must not blank or replace it.
+    document: Rc<Document>,
+    /// In-flight navigation draft. Staging writes (referrer, encoding,
+    /// content type, title) land here while the outgoing realm is still
+    /// current, so they do not change what that document's JS sees.
+    /// `init_js` takes it; a failed attempt drops it.
+    pending_document: Option<Rc<Document>>,
     /// Navigation history for Page.getNavigationHistory / navigateToHistoryEntry.
     /// Entries are URLs in visit order; `history_index` is the current position.
     /// Pushed on every successful navigation; truncated on goBack -> new nav.
@@ -480,6 +474,12 @@ pub struct Page {
     // own scripts run — the CDP `Page.addScriptToEvaluateOnNewDocument`
     // contract. Includes `Runtime.addBinding` shims so puppeteer's
     // `exposeFunction` bindings exist before inline `<script>` tags execute.
+    //
+    // `user_preload_scripts` is the group the caller registered. The product
+    // merges host recipes into `preload_scripts` for one navigation; that
+    // merge must not be written back here, or the next navigation duplicates
+    // the recipes. The session actor used to keep this second list itself.
+    user_preload_scripts: Vec<String>,
     preload_scripts: Vec<String>,
     /// Page-scoped navigation deadline override. `None` falls back to
     /// `DITING_NAV_TIMEOUT_MS` (default 30s); set via
@@ -601,11 +601,8 @@ impl Page {
             lifecycle: LifecycleState::Idle,
             http_client,
             context,
-            title: String::new(),
-            referrer: String::new(),
-            referrer_policy_header: String::new(),
-            encoding: "UTF-8".to_string(),
-            content_type: None,
+            document: Document::new(),
+            pending_document: None,
             history: Vec::new(),
             history_index: 0,
             network_events: Vec::new(),
@@ -618,6 +615,7 @@ impl Page {
             session_storage: None,
             suspended_console: Vec::new(),
             viewport_override: None,
+            layout_policy: LayoutPolicy::Mock,
             dpr_override: None,
             emulated_media: None,
             touch_override: None,
@@ -629,6 +627,7 @@ impl Page {
             response_body_order: std::collections::VecDeque::new(),
             blocked_urls: Vec::new(),
             intercept_tx: None,
+            user_preload_scripts: Vec::new(),
             preload_scripts: Vec::new(),
             navigation_timeout_ms: None,
             storm_backoff_ms: 0,
@@ -730,11 +729,14 @@ impl Page {
         }
         // A JS/link-initiated navigation carries the referring document's
         // URL per browser semantics; direct automation navigations leave
-        // self.referrer empty (edb1785) and go out bare.
-        let referrer = if self.referrer.is_empty() {
+        // the staged referrer empty (edb1785) and go out bare. `facts`
+        // prefers the in-flight draft: the live document still belongs to
+        // the outgoing realm.
+        let staged_referrer = self.facts().referrer();
+        let referrer = if staged_referrer.is_empty() {
             None
         } else {
-            Some(self.referrer.as_str())
+            Some(staged_referrer.as_str())
         };
         if let Some(ref stealth) = self.stealth_client {
             return stealth.fetch_navigation(url, referrer).await;
@@ -756,6 +758,46 @@ impl Page {
     pub fn scripted_in_flight(&self) -> Vec<diting_net::InFlightScripted> {
         self.http_client.scripted_in_flight()
     }
+    /// In-flight navigation draft. The first staging write creates it so
+    /// the outgoing realm keeps the live document until `init_js` commits.
+    fn draft(&mut self) -> Rc<Document> {
+        Rc::clone(self.pending_document.get_or_insert_with(Document::new))
+    }
+
+    /// Facts the in-flight navigation reads (HTTP Referer). Public `title`
+    /// stays on the live document.
+    fn facts(&self) -> &Document {
+        self.pending_document.as_deref().unwrap_or(&self.document)
+    }
+
+    pub fn title(&self) -> String {
+        self.document.title()
+    }
+
+    /// Write the live document, or the in-flight draft when a navigation
+    /// is already staging. `navigate_blank`'s caller sets the live title
+    /// before any draft exists.
+    pub fn set_title(&mut self, title: &str) {
+        if let Some(pending) = &self.pending_document {
+            pending.set_title(title);
+        } else {
+            self.document.set_title(title);
+        }
+    }
+
+    pub fn layout_policy(&self) -> LayoutPolicy {
+        self.layout_policy
+    }
+
+    /// Record the box-tree posture. A live realm drops its layout memo so
+    /// the next geometry read or paint follows the new policy.
+    pub fn set_layout_policy(&mut self, policy: LayoutPolicy) {
+        self.layout_policy = policy;
+        if let Some(js) = &self.js {
+            js.set_layout_policy(policy);
+        }
+    }
+
     fn init_js(&mut self) {
         // Drop any existing runtime so the JS realm starts clean on
         // every navigation. The old code reused the V8 isolate and
@@ -786,7 +828,17 @@ impl Page {
         // equivalent to with_base_url() (direct connection).
         let mut rt =
             JsRuntime::with_base_url_and_proxy(&self.url_string(), self.context.proxy_url.clone());
-        rt.set_url(&self.url_string());
+        // Commit the in-flight document onto this realm. Navigation staged
+        // title/referrer/encoding on `pending_document` so the outgoing
+        // realm kept its own document; resume (no pending) reattaches the live
+        // one. URL and the history seed are page-owned and stamped here,
+        // after the constructor — `__diting_init` runs inside it, and the
+        // old setters ran after that return too.
+        let doc = self
+            .pending_document
+            .take()
+            .unwrap_or_else(|| self.document.clone());
+        doc.set_url(&self.url_string());
         // Seed the JS history stack from the REAL session history
         // (obscura#1105): a fresh runtime would report history.length === 1
         // and swallow back(). push_history has not run yet — the cursor
@@ -807,13 +859,11 @@ impl Page {
             } else {
                 (self.history_index + 1, self.history.len() + 1)
             };
-            rt.set_history_seed(pos as i32, total as i32);
+            doc.set_history(pos as i32, total as i32);
         }
-        rt.set_encoding(&self.encoding);
-        rt.set_content_type(self.content_type.as_deref().unwrap_or(""));
-        rt.set_title(&self.title);
-        rt.set_referrer(&self.referrer);
-        rt.set_referrer_policy(&self.referrer_policy_header);
+        self.document = doc.clone();
+        rt.attach_document(doc);
+        rt.adopt_layout_policy(self.layout_policy);
         // Re-pin this page's hardware persona before anything else reads it
         // (the fresh realm just drew a throwaway identity at construction).
         rt.set_fingerprint_seed(self.fp_seed);
@@ -1046,6 +1096,16 @@ impl Page {
             Some(js) => js.dialog_policy(),
             None => (false, None),
         }
+    }
+
+    /// Store the caller-registered document-start group. Does not change
+    /// the group that runs ([`Self::set_preload_scripts`]).
+    pub fn set_user_preload_scripts(&mut self, scripts: Vec<String>) {
+        self.user_preload_scripts = scripts;
+    }
+
+    pub fn user_preload_scripts(&self) -> &[String] {
+        &self.user_preload_scripts
     }
 
     pub fn set_preload_scripts(&mut self, scripts: Vec<String>) {

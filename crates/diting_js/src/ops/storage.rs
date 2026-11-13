@@ -59,7 +59,7 @@ pub(super) fn op_get_cookies(state: &OpState) -> String {
         Some(j) => j,
         None => return String::new(),
     };
-    let url = match url::Url::parse(&gs.url) {
+    let url = match url::Url::parse(&gs.document.url()) {
         Ok(u) => u,
         Err(_) => return String::new(),
     };
@@ -74,7 +74,7 @@ pub(super) fn op_set_cookie(state: &OpState, #[string] cookie_str: &str) {
         Some(j) => j,
         None => return,
     };
-    let url = match url::Url::parse(&gs.url) {
+    let url = match url::Url::parse(&gs.document.url()) {
         Ok(u) => u,
         Err(_) => return,
     };

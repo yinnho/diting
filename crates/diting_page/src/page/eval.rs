@@ -96,7 +96,7 @@ impl Page {
             }
         } else {
             match expression.trim() {
-                "document.title" => serde_json::Value::String(self.title.clone()),
+                "document.title" => serde_json::Value::String(self.document.title()),
                 "document.URL" | "document.location.href" | "window.location.href" => {
                     serde_json::Value::String(self.url_string())
                 }

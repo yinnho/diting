@@ -56,12 +56,13 @@ pub(super) fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: Str
     if cmd == "font_table" {
         return crate::font_tables::lookup(&arg1, &arg2);
     }
-    // Title write goes to shared state (the getter reads gs.title), so it must
-    // happen before the immutable borrow below — and before the `gs.dom` early
-    // return, since a document always has a title even with an empty tree.
+    // Title write goes to the shared document (the getter reads the same
+    // cell), so it must happen before the immutable borrow below — and
+    // before the `gs.dom` early return, since a document always has a
+    // title even with an empty tree.
     if cmd == "set_document_title" {
         let gs = state.borrow::<SharedState>().clone();
-        gs.borrow_mut().title = arg1;
+        gs.borrow().document.set_title(&arg1);
         return "null".into();
     }
     #[cfg(feature = "screenshot")]
@@ -76,10 +77,10 @@ pub(super) fn op_dom_inner(state: &OpState, cmd: String, arg1: String, arg2: Str
     // no-dom guard: bootstrap reads these to re-seed its history stack
     // before any page script runs (obscura#1105).
     if cmd == "history_pos" {
-        return gs.history_pos.to_string();
+        return gs.document.history_pos().to_string();
     }
     if cmd == "history_total" {
-        return gs.history_total.to_string();
+        return gs.document.history_total().to_string();
     }
     let dom = match &gs.dom {
         Some(d) => d,

@@ -715,7 +715,7 @@ pub fn pdf_of_pages(
 mod tests {
     use super::*;
     use diting::diting_browser::lifecycle::WaitUntil;
-    use diting::diting_browser::{BrowserContext, Page as EnginePage};
+    use diting::diting_browser::{BrowserContext, LayoutPolicy, Page as EnginePage};
     use std::io::Write;
     use std::net::TcpListener;
     use std::sync::Arc;
@@ -852,7 +852,9 @@ html,body{{margin:0;padding:0;width:400px;font-size:16px;line-height:20px;color:
             true, // allow_private_network: the fixture server is 127.0.0.1
             None,
         ));
-        EnginePage::new("pages-page".into(), context)
+        let mut page = EnginePage::new("pages-page".into(), context);
+        page.set_layout_policy(LayoutPolicy::OnDemand);
+        page
     }
 
     async fn navigated(html: &'static str, path: &str) -> EnginePage {

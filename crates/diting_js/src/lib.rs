@@ -1,8 +1,13 @@
 pub mod async_glue;
+mod document;
+mod layout_policy;
 pub mod module_loader;
 pub mod ops;
 pub mod runtime;
 pub mod ws;
+
+pub use document::Document;
+pub use layout_policy::LayoutPolicy;
 
 /// The snapshot's script sources as process-static UTF-16 buffers —
 /// same generated file the build script baked with (#276 memory

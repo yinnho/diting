@@ -22,8 +22,9 @@ pub fn last_valid_referrer_token(value: &str) -> Option<String> {
 /// response header wins outright; otherwise the FIRST `<meta name=referrer>`
 /// in tree order whose content yields a valid policy; "" = spec default.
 pub fn resolve_referrer_policy_from(gs: &JsState, dom: &DomTree) -> String {
-    if !gs.referrer_policy_header.is_empty() {
-        return gs.referrer_policy_header.clone();
+    let header = gs.document.referrer_policy();
+    if !header.is_empty() {
+        return header;
     }
     for nid in dom.query_selector_all("meta").unwrap_or_default() {
         let Some(n) = dom.get_node(nid) else { continue };
@@ -50,7 +51,7 @@ pub(super) fn resolve_document_referrer_policy(state: &OpState) -> String {
     let gs = shared.borrow();
     match gs.dom.as_ref() {
         Some(dom) => resolve_referrer_policy_from(&gs, dom),
-        None => gs.referrer_policy_header.clone(),
+        None => gs.document.referrer_policy(),
     }
 }
 

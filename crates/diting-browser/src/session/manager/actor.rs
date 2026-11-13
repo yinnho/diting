@@ -137,6 +137,9 @@ pub(super) fn session_thread(
                     crate::server::inject_cookies(&browser, &cookies, target);
                 }
                 let mut page = browser.new_page().await.expect("failed to create session page");
+                // An interactive session paints, hits, and reads real rects.
+                page.inner
+                    .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
 
                 // Pin the persona's hardware seed before the first
                 // navigation: init_js re-bakes the seed into the JS runtime
@@ -176,21 +179,15 @@ pub(super) fn session_thread(
                 // broken navigation. Eval/state now carry this error back so
                 // the caller sees the same failure navigate itself reports.
                 let mut last_nav_error: Option<String> = None;
-                // Document-start preload group (issue #96). Kept session-side
-                // so every navigation re-applies it — the page object survives
-                // navigations, but re-applying mirrors the CDP face's sync and
-                // keeps the group authoritative here.
-                let preload_scripts: Vec<String> = Vec::new();
                 if let Some(url) = start_url {
                     // Document-start group for the creation navigation —
-                    // same path as explicit Navigate. Site recipes are
-                    // opt-in (session_preload recipe= / flow preload), not
-                    // host-auto-mounted; effective_scripts is the user group.
+                    // same path as explicit Navigate. The registered group
+                    // lives on the page; site recipes are opt-in
+                    // (session_preload recipe= / flow preload), not
+                    // host-auto-mounted.
+                    let user = page.inner.user_preload_scripts().to_vec();
                     page.inner.set_preload_scripts(
-                        crate::session::preload_recipes::effective_scripts(
-                            &url,
-                            &preload_scripts,
-                        ),
+                        crate::session::preload_recipes::effective_scripts(&url, &user),
                     );
                     match page.goto(&url).await {
                         Ok(()) => pages_loaded += 1,
@@ -297,7 +294,6 @@ pub(super) fn session_thread(
                     console_ring,
                     pages_loaded,
                     last_nav_error,
-                    preload_scripts,
                     pending_storage,
                     element_map,
                     pending_replay,
@@ -456,8 +452,6 @@ struct SessionActor {
     pages_loaded: u32,
     /// Kept until the next navigation succeeds (#80).
     last_nav_error: Option<String>,
-    /// Document-start preload group (#96), re-applied on every navigation.
-    preload_scripts: Vec<String>,
     /// Origin-gated storage blob waiting for its landing (#141).
     pending_storage: Option<Value>,
     /// Element index → _nid mapping (rebuilt on each /state call).
@@ -478,7 +472,6 @@ impl SessionActor {
             recorder,
             pages_loaded,
             last_nav_error,
-            preload_scripts,
             pending_storage,
             element_map,
             pending_replay,
@@ -511,10 +504,10 @@ impl SessionActor {
                 // auto-mount is off; recipe= still
                 // lands via the user group).
                 let builtin_preloads = crate::session::preload_recipes::builtin_names(&url);
+                let user = page.inner.user_preload_scripts().to_vec();
                 page.inner
                     .set_preload_scripts(crate::session::preload_recipes::effective_scripts(
-                        &url,
-                        preload_scripts,
+                        &url, &user,
                     ));
                 #[cfg(feature = "screenshot")]
                 let nav_frame = page.band_frame_cache.clone();
@@ -620,15 +613,13 @@ impl SessionActor {
         scripts: Vec<String>,
         reply: oneshot::Sender<Result<Value, String>>,
     ) {
-        let Self {
-            page,
-            preload_scripts,
-            ..
-        } = self;
-        *preload_scripts = scripts;
-        page.inner.set_preload_scripts(preload_scripts.clone());
+        let n = scripts.len();
+        // The registered group stays on the page. The running group is the
+        // same list until the next navigation merges host recipes over it.
+        self.page.inner.set_user_preload_scripts(scripts.clone());
+        self.page.inner.set_preload_scripts(scripts);
         let _ = reply.send(Ok(serde_json::json!({
-            "count": preload_scripts.len(),
+            "count": n,
         })));
     }
 
@@ -641,7 +632,6 @@ impl SessionActor {
             page,
             recorder,
             last_nav_error,
-            preload_scripts,
             element_map,
             nav_shared,
             ..
@@ -654,7 +644,8 @@ impl SessionActor {
         // budget doesn't spend here.
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         let url = format!("data:text/html;base64,{}", STANDARD.encode(html.as_bytes()));
-        page.inner.set_preload_scripts(preload_scripts.clone());
+        let user = page.inner.user_preload_scripts().to_vec();
+        page.inner.set_preload_scripts(user);
         // #195: a data: URL parses inline scripts on the
         // same V8 thread — a long script in setContent
         // HTML holds the actor exactly like a network

@@ -14,7 +14,7 @@ pub(super) fn op_console_msg(state: &OpState, #[string] level: &str, #[string] m
     // Queue-time URL: the consumer may drain long after a navigation moved
     // the page elsewhere, and per-entry URLs make session_console's
     // url_contains filter truthful.
-    let log_url = gs.url.clone();
+    let log_url = gs.document.url();
     gs.pending_console_calls
         .push((level.to_string(), msg.to_string(), log_url));
 }
@@ -39,7 +39,7 @@ pub(super) fn op_dialog(state: &OpState, #[string] kind: &str, #[string] message
         // alert: nothing to answer, recorded for observability only.
         _ => (true, None),
     };
-    let dialog_url = gs.url.clone();
+    let dialog_url = gs.document.url();
     let mut payload = serde_json::json!({ "dialog": kind, "message": message });
     if kind == "confirm" || kind == "prompt" {
         payload["answer"] = serde_json::Value::Bool(accept);

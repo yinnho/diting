@@ -202,8 +202,10 @@ mod tests {
             true, // allow_private_network: the fixture server is 127.0.0.1
             None,
         ));
+        let mut inner = EnginePage::new("shot-page".into(), context.clone());
+        inner.set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
         Page {
-            inner: EnginePage::new("shot-page".into(), context.clone()),
+            inner,
             context,
             band_frame_cache: None,
         }

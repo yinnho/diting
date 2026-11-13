@@ -141,7 +141,7 @@ impl Page {
         // own pending navigation (process_pending_navigation) passes a
         // strict-origin-when-cross-origin value here. Subsequent hops of a
         // JS-triggered chain are stamped inside the inner loop.
-        self.referrer = initial_referrer.to_string();
+        self.draft().set_referrer(initial_referrer);
         // Hard ceiling on a single end-to-end navigation. Without this a slow
         // primary fetch or a runaway settle loop can hold the V8 lock for
         // arbitrarily long (we've measured 60+ seconds on JS-heavy news
@@ -206,6 +206,12 @@ impl Page {
                 )))
             }
         };
+        if result.is_err() {
+            // The attempt did not commit this draft (or a later chain hop
+            // staged a referrer it never navigated). Drop it so the live
+            // document stays the one the realm shows.
+            self.pending_document = None;
+        }
         if result.is_ok() {
             self.push_history(self.url_string());
         }
@@ -535,7 +541,7 @@ impl Page {
                 );
                 // The chain step is document-initiated: the new document sees
                 // the strict-origin-when-cross-origin referrer of this one.
-                self.referrer = Url::parse(&current_url)
+                let referrer = Url::parse(&current_url)
                     .ok()
                     .and_then(|src| {
                         Url::parse(&next_url).ok().map(|dst| {
@@ -543,6 +549,7 @@ impl Page {
                         })
                     })
                     .unwrap_or_default();
+                self.draft().set_referrer(&referrer);
                 current_url = next_url;
                 current_method = next_method;
                 current_body = next_body;
@@ -683,21 +690,27 @@ impl Page {
         // came through as replacement characters.
         let (body_text, encoding_name) =
             diting_net::decode_response_with_name(&response.body, response.content_type());
-        self.encoding = encoding_name.to_string();
+        let draft = self.draft();
+        draft.set_encoding(encoding_name);
         // Main-response MIME (lowercased, parameters stripped) backs
-        // `document.contentType`. An absent Content-Type stays None so the
-        // JS layer keeps its URL-sniffing fallback.
-        self.content_type = response
+        // `document.contentType`. An absent Content-Type stays empty so the
+        // JS layer keeps its URL-sniffing fallback. The local is what the
+        // svg / plain-text branch below reads — the draft is not committed
+        // yet, and the live document must not move.
+        let content_type = response
             .content_type()
             .map(|ct| ct.split(';').next().unwrap_or("").trim().to_lowercase())
             .filter(|ct| !ct.is_empty());
+        draft.set_content_type(content_type.as_deref().unwrap_or(""));
         // Referrer Policy §"Determine request's Referrer Policy": a policy
         // delivered via the response header wins outright over <meta>. Keep
         // only the last valid comma token (invalid ones are skipped).
-        self.referrer_policy_header = response
-            .header("referrer-policy")
-            .and_then(diting_js::ops::last_valid_referrer_token)
-            .unwrap_or_default();
+        draft.set_referrer_policy(
+            &response
+                .header("referrer-policy")
+                .and_then(diting_js::ops::last_valid_referrer_token)
+                .unwrap_or_default(),
+        );
         // A bare SVG document navigated as a document (content-type
         // image/svg+xml; the html5 parser wraps it in html>body>svg):
         // Chrome sizes the root svg at 100%x100% of the initial containing
@@ -729,8 +742,7 @@ impl Page {
                     });
                 }
                 dom
-            } else if self
-                .content_type
+            } else if content_type
                 .as_deref()
                 .is_some_and(renders_as_text_document)
             {
@@ -740,8 +752,7 @@ impl Page {
             }
         };
         #[cfg(not(feature = "screenshot"))]
-        let dom = if self
-            .content_type
+        let dom = if content_type
             .as_deref()
             .is_some_and(renders_as_text_document)
         {
@@ -750,12 +761,13 @@ impl Page {
             parse_html(&body_text)
         };
 
-        self.title = dom
+        let title = dom
             .query_selector("title")
             .ok()
             .flatten()
             .map(|title_id| dom.text_content(title_id))
             .unwrap_or_default();
+        draft.set_title(&title);
 
         let stylesheet_urls: Vec<String> = dom
             .query_selector_all("link")
@@ -954,7 +966,7 @@ impl Page {
         if let Some(js) = &mut self.js {
             if let Ok(new_title) = js.evaluate("document.title") {
                 if let Some(t) = new_title.as_str() {
-                    self.title = t.to_string();
+                    self.document.set_title(t);
                 }
             }
         }
@@ -1044,8 +1056,18 @@ impl Page {
         self.dom = Some(parse_html(
             "<!DOCTYPE html><html><head></head><body></body></html>",
         ));
-        self.title = String::new();
-        self.content_type = None;
+        // about:blank keeps the previous document's encoding and referrer
+        // policy — this path never cleared them. The hop's referrer was
+        // staged on the draft; a direct call has no draft and only clears
+        // title, content type, and url on the live document. The realm is
+        // already dropped, so mutating the live document does not change
+        // one JS can still see.
+        if let Some(pending) = self.pending_document.take() {
+            self.document.set_referrer(&pending.referrer());
+        }
+        self.document.set_title("");
+        self.document.set_content_type("");
+        self.document.set_url("about:blank");
         self.lifecycle = LifecycleState::Loaded;
     }
 

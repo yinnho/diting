@@ -313,6 +313,12 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
+            // Geometry facts are the caller's opt-in. The page stays Mock
+            // until then, so scrollHeight is the synthetic grid.
+            if req.layout {
+                page.inner
+                    .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
+            }
             page.goto(&req.url).await?;
 
             // Auto-bypass Cloudflare Turnstile challenge if detected.
