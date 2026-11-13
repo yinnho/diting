@@ -338,6 +338,10 @@ async fn scrape_with_session(
             Box::pin(async move {
             let browser = crate::server::build_browser(false, &url, tls_fingerprint.as_deref())?;
             let mut page = browser.new_page().await?;
+            if screenshot_full_page {
+                page.inner
+                    .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
+            }
             page.goto(&url).await?;
 
             // Auto-bypass Cloudflare Turnstile challenges, matching do_fetch —

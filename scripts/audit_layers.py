@@ -17,6 +17,9 @@ Checks:
                         product cross-check pipeline (comment-stripped, so
                         doc mentions of upstream bugs are fine).
   R3   faces are thin — no `unsafe` anywhere in a face (comment-stripped).
+  R4   one owner for the document-start group — the product crate does not
+       declare a `preload_scripts` or `user_preload_scripts` field. `Page`
+       holds both; HTTP calls the setters.
   G    god-file ratchet — production line count only. For .rs files, lines inside
                         #[cfg(test)]-gated items (and whole files named tests.rs,
                         or reachable only via a #[cfg(test)] `mod name;` decl)
@@ -361,6 +364,28 @@ def cfg_test_mod_files(bases: list[Path]) -> set[Path]:
     return gated
 
 
+def check_r4() -> list[str]:
+    """Product does not keep its own document-start script group.
+
+    `Page` owns `user_preload_scripts` (what the caller registered) and
+    `preload_scripts` (what runs, after the product merges host recipes).
+    A field of either name in the product crate is a second owner. The
+    tripwire is the field declaration, not the setter call.
+    """
+    pattern = re.compile(
+        r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:user_)?preload_scripts\s*:"
+    )
+    out = []
+    for f in rs_files(PRODUCT):
+        for i, line in enumerate(strip_comments(f.read_text()).splitlines(), 1):
+            if pattern.search(line):
+                out.append(
+                    f"{rel(f)}:{i}: product declares a document-start script field — "
+                    "R4 the group lives on diting_page::Page"
+                )
+    return out
+
+
 def check_god_files() -> list[str]:
     """Ratchet: production-line cap for new files, no growth for grandfathered ones."""
     out = []
@@ -412,6 +437,7 @@ def main() -> int:
         ("R2a engine deps stay engine-only", check_r2a),
         ("R2b engine carries no blitz refs", check_r2b),
         ("R3 faces carry no unsafe", check_r3),
+        ("R4 document-start group has one owner", check_r4),
         ("G god-file ratchet", check_god_files),
     ]
     failed = False

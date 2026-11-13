@@ -256,10 +256,11 @@ fn band_frame_inner(
     let mut missing: Vec<String> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Ok(imgs) = dom.query_selector_all("img") {
+        let doc_url = gs.document.url();
         let table = gs.image_bytes.borrow();
         for nid in imgs {
             if let Some(src) =
-                diting_layout::resolve_img_source(dom, nid, vw, Some(gs.url.as_str()))
+                diting_layout::resolve_img_source(dom, nid, vw, Some(doc_url.as_str()))
             {
                 if !table.contains_key(&src) && seen.insert(src.clone()) {
                     missing.push(src);

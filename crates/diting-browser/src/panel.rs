@@ -424,7 +424,9 @@ mod on {
                 tracing::info!("panel: took the screen {w}x{h}");
                 if engine.is_none() {
                     let b = Browser::builder().build().map_err(|e| e.to_string())?;
-                    let p = b.new_page().await.map_err(|e| e.to_string())?;
+                    let mut p = b.new_page().await.map_err(|e| e.to_string())?;
+                    p.inner
+                        .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
                     engine = Some((b, p));
                 }
                 if touch.is_none() {

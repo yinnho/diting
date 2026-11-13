@@ -50,7 +50,7 @@ impl JsRuntime {
     }
 
     pub fn set_url(&self, url: &str) {
-        self.state.borrow_mut().url = url.to_string();
+        self.state.borrow().document.set_url(url);
     }
 
     /// Seed the JS history stack for the document being committed
@@ -58,9 +58,27 @@ impl JsRuntime {
     /// history, `total` the whole history length. Bootstrap reads them via
     /// the dom-parse channel before any page script runs.
     pub fn set_history_seed(&self, pos: i32, total: i32) {
-        let mut st = self.state.borrow_mut();
-        st.history_pos = pos;
-        st.history_total = total;
+        self.state.borrow().document.set_history(pos, total);
+    }
+
+    /// Commit this realm onto the page's document. Called after
+    /// construction (`__diting_init` has already run) so the swap matches
+    /// the old setter order: page scripts see the attached document, the
+    /// constructor's blank one does not leak out.
+    pub fn attach_document(&self, document: std::rc::Rc<crate::Document>) {
+        self.state.borrow_mut().document = document;
+    }
+
+    /// Record the page's layout posture on a realm that has not painted yet.
+    /// `init_js` calls this after construction, so the direct-runtime default
+    /// (`OnDemand`) never reaches a `Page`.
+    pub fn adopt_layout_policy(&self, policy: crate::LayoutPolicy) {
+        self.state.borrow_mut().adopt_layout_policy(policy);
+    }
+
+    /// Change the posture of a live realm and drop any memoized box tree.
+    pub fn set_layout_policy(&self, policy: crate::LayoutPolicy) {
+        self.state.borrow_mut().set_layout_policy(policy);
     }
 
     /// Take the session-history jump page JS queued (history.back/forward/
@@ -73,30 +91,30 @@ impl JsRuntime {
     /// `document.characterSet` and the `<a>`/`<area>` URL query encoding
     /// override for legacy-charset documents.
     pub fn set_encoding(&self, encoding: &str) {
-        self.state.borrow_mut().encoding = encoding.to_string();
+        self.state.borrow().document.set_encoding(encoding);
     }
 
     /// Set the main response's MIME type (lowercased, no parameters). Backs
     /// `document.contentType`. Empty = no Content-Type was delivered.
     pub fn set_content_type(&self, content_type: &str) {
-        self.state.borrow_mut().content_type = content_type.to_string();
+        self.state.borrow().document.set_content_type(content_type);
     }
 
     pub fn set_title(&self, title: &str) {
-        self.state.borrow_mut().title = title.to_string();
+        self.state.borrow().document.set_title(title);
     }
 
     /// Set the source document URL exposed as `document.referrer`
     /// (navigation referrer semantics, upstream edb1785).
     pub fn set_referrer(&self, referrer: &str) {
-        self.state.borrow_mut().referrer = referrer.to_string();
+        self.state.borrow().document.set_referrer(referrer);
     }
 
     /// Set the Referrer Policy the main response delivered via its
     /// `Referrer-Policy` header; it establishes the document's policy
     /// outright, beating any <meta name=referrer> in the markup.
     pub fn set_referrer_policy(&self, policy: &str) {
-        self.state.borrow_mut().referrer_policy_header = policy.to_string();
+        self.state.borrow().document.set_referrer_policy(policy);
     }
 
     pub fn set_blocked_urls(&self, patterns: Vec<String>) {

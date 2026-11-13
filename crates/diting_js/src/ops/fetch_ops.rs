@@ -161,7 +161,7 @@ pub(super) fn gather_fetch_parts(
                 .and_then(|c| c.proxy_url().map(|s| s.to_string())),
             http_client: gs.http_client.clone(),
             callbacks: gs.callbacks.clone(),
-            document_url: gs.url.clone(),
+            document_url: gs.document.url(),
             intercept_tx: if gs.intercept_enabled {
                 gs.intercept_tx.clone()
             } else {

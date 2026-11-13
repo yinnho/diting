@@ -1020,7 +1020,7 @@ async fn paint_band(
 mod tests {
     use super::*;
     use diting::diting_browser::lifecycle::WaitUntil;
-    use diting::diting_browser::{BrowserContext, Page as EnginePage};
+    use diting::diting_browser::{BrowserContext, LayoutPolicy, Page as EnginePage};
     use std::net::TcpListener;
     use std::sync::Arc;
 
@@ -1083,7 +1083,9 @@ document.getElementById("box").style.opacity = "0";
             true, // allow_private_network: the fixture server is 127.0.0.1
             None,
         ));
-        EnginePage::new("video-page".into(), context)
+        let mut page = EnginePage::new("video-page".into(), context);
+        page.set_layout_policy(LayoutPolicy::OnDemand);
+        page
     }
 
     async fn navigated_stub_page() -> EnginePage {

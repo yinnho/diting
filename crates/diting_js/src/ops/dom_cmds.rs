@@ -12,9 +12,11 @@ pub(super) fn dom_cmd_document(
 ) -> DomCmd {
     Ok(match cmd {
         "document_node_id" => dom.document().index().to_string(),
-        "document_title" => serde_json::to_string(&gs.title).unwrap_or("\"\"".into()),
-        "document_referrer" => serde_json::to_string(&gs.referrer).unwrap_or("\"\"".into()),
-        "document_url" => serde_json::to_string(&gs.url).unwrap_or("\"\"".into()),
+        "document_title" => serde_json::to_string(&gs.document.title()).unwrap_or("\"\"".into()),
+        "document_referrer" => {
+            serde_json::to_string(&gs.document.referrer()).unwrap_or("\"\"".into())
+        }
+        "document_url" => serde_json::to_string(&gs.document.url()).unwrap_or("\"\"".into()),
         // Document referrer policy (Referrer Policy §"Determine request's
         // Referrer Policy"): header-delivered policy beats every <meta
         // name=referrer>; "" = no policy (callers apply the spec default).
@@ -36,17 +38,21 @@ pub(super) fn dom_cmd_document(
                     dom.get_node(nid)
                         .and_then(|n| n.get_attribute("href").map(|v| v.to_string()))
                 });
+            let doc_url = gs.document.url();
             let folded = base.and_then(|href| {
-                url::Url::parse(&gs.url)
+                url::Url::parse(&doc_url)
                     .ok()
                     .and_then(|doc| doc.join(&href).ok())
                     .map(|u| u.to_string())
             });
-            serde_json::to_string(&folded.unwrap_or_else(|| gs.url.clone()))
-                .unwrap_or("\"\"".into())
+            serde_json::to_string(&folded.unwrap_or(doc_url)).unwrap_or("\"\"".into())
         }
-        "document_encoding" => serde_json::to_string(&gs.encoding).unwrap_or("\"UTF-8\"".into()),
-        "document_content_type" => serde_json::to_string(&gs.content_type).unwrap_or("\"\"".into()),
+        "document_encoding" => {
+            serde_json::to_string(&gs.document.encoding()).unwrap_or("\"UTF-8\"".into())
+        }
+        "document_content_type" => {
+            serde_json::to_string(&gs.document.content_type()).unwrap_or("\"\"".into())
+        }
         "document_element" => {
             for cid in dom.children(dom.document()) {
                 if let Some(n) = dom.get_node(cid) {

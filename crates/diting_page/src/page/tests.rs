@@ -178,7 +178,11 @@ fn test_page() -> Page {
         true, // allow_private_network: tests talk to 127.0.0.1
         None,
     ));
-    Page::new("page-test".into(), context)
+    let mut page = Page::new("page-test".into(), context);
+    // The engine suite asserts real boxes. Production pages stay Mock
+    // until a face opts in.
+    page.set_layout_policy(LayoutPolicy::OnDemand);
+    page
 }
 
 // ---- pure functions -------------------------------------------------
@@ -439,6 +443,20 @@ fn push_history_dedupes_consecutive_and_truncates_forward() {
 
 // ---- no-network navigations ------------------------------------------
 
+#[test]
+fn user_preload_group_survives_the_running_group() {
+    let mut p = test_page();
+    p.set_user_preload_scripts(vec!["window.__user = 1;".into()]);
+    p.set_preload_scripts(vec![
+        "window.__user = 1;".into(),
+        "window.__recipe = 1;".into(),
+    ]);
+    assert_eq!(
+        p.user_preload_scripts(),
+        ["window.__user = 1;".to_string()].as_slice()
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn about_blank_initializes_realm_and_runs_preload_scripts() {
     let mut p = test_page();
@@ -458,7 +476,60 @@ async fn data_uri_document_executes_script_and_sets_title() {
     .await
     .unwrap();
     assert_eq!(p.evaluate("window.__x"), serde_json::json!("ran"));
-    assert_eq!(p.title, "T");
+    assert_eq!(p.title(), "T");
+}
+
+/// A page left at the production default (`Mock`) still cascades, so
+/// stylesheet `display` and `color` reach `innerText` and
+/// `getComputedStyle`, but it never builds a box tree: `getBoundingClientRect`
+/// stays on the synthetic 100px cell instead of the declared width.
+#[cfg(feature = "screenshot")]
+#[tokio::test(flavor = "current_thread")]
+async fn mock_layout_keeps_cascade_and_synthetic_boxes() {
+    let context = Arc::new(BrowserContext::with_storage_and_network(
+        "test".into(),
+        None,
+        false,
+        None,
+        None,
+        true,
+        None,
+    ));
+    let mut p = Page::new("page-test".into(), context);
+    assert_eq!(p.layout_policy(), LayoutPolicy::Mock);
+    p.navigate(
+        "data:text/html,<style>p{display:none}.d{width:400px;color:rgb(1,2,3)}</style><p>secret</p><div class=d>x</div>",
+    )
+    .await
+    .unwrap();
+    let text = p
+        .evaluate("document.body.innerText")
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    assert!(
+        !text.contains("secret"),
+        "stylesheet display:none must hide the paragraph, got {text:?}"
+    );
+    assert!(
+        text.contains('x'),
+        "the visible div must remain in innerText, got {text:?}"
+    );
+    assert_eq!(
+        p.evaluate("document.querySelector('.d').getBoundingClientRect().width")
+            .as_f64(),
+        Some(100.0),
+        "Mock geometry stays on the synthetic cell, not the declared 400px"
+    );
+    let color = p
+        .evaluate("getComputedStyle(document.querySelector('.d')).color")
+        .as_str()
+        .unwrap_or("")
+        .replace(' ', "");
+    assert!(
+        color.starts_with("rgb(1,2,3"),
+        "Mock cascade must still answer the stylesheet color, got {color}"
+    );
 }
 
 /// #278: the command-boundary layout release is rev-quiet — a release
@@ -739,10 +810,10 @@ async fn late_stylesheet_applies_to_existing_elements_and_survives_churn() {
 #[tokio::test(flavor = "current_thread")]
 async fn navigate_blank_resets_state() {
     let mut p = test_page();
-    p.title = "stale".into();
+    p.set_title("stale");
     p.navigate_blank();
     assert_eq!(p.url_string(), "about:blank");
-    assert_eq!(p.title, "");
+    assert_eq!(p.title(), "");
     assert_eq!(p.lifecycle, LifecycleState::Loaded);
     assert!(p.js.is_none());
 }
@@ -823,7 +894,7 @@ async fn js_triggered_navigation_chain_lands_on_final_page() {
         .await
         .unwrap();
     assert_eq!(p.url_string(), format!("http://127.0.0.1:{port}/b"));
-    assert_eq!(p.title, "B-Landed");
+    assert_eq!(p.title(), "B-Landed");
     assert!(p
         .evaluate("window.__here")
         .as_str()

@@ -807,7 +807,7 @@ impl super::JsRuntime {
     /// with the current page URL like op_console does. The busy freeze uses
     /// this so session_console shows why a realm stopped pumping.
     pub fn push_console_entry(&self, level: &str, msg: &str) {
-        let log_url = self.state.borrow().url.clone();
+        let log_url = self.state.borrow().document.url();
         self.state.borrow_mut().pending_console_calls.push((
             level.to_string(),
             msg.to_string(),

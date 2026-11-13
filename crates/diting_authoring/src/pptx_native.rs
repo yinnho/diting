@@ -730,7 +730,7 @@ mod tests {
     use super::*;
     use crate::ooxml::entries_of;
     use diting::diting_browser::lifecycle::WaitUntil;
-    use diting::diting_browser::{BrowserContext, Page as EnginePage};
+    use diting::diting_browser::{BrowserContext, LayoutPolicy, Page as EnginePage};
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::Arc;
@@ -1101,7 +1101,9 @@ html,body{margin:0;padding:0}
             true, // allow_private_network: the fixture server is 127.0.0.1
             None,
         ));
-        EnginePage::new("pptx-native-page".into(), context)
+        let mut page = EnginePage::new("pptx-native-page".into(), context);
+        page.set_layout_policy(LayoutPolicy::OnDemand);
+        page
     }
 
     #[tokio::test(flavor = "current_thread")]

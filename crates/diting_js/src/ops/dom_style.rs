@@ -246,6 +246,9 @@ pub(super) fn dom_cmd_geometry(
         // this through the iframe-doc marker) and gets "null".
         #[cfg(feature = "screenshot")]
         "iframe_layout_rect" => {
+            if !gs.layout_policy.uses_real_layout() {
+                return Ok("null".into());
+            }
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
                 None => return Ok("null".into()),
@@ -272,6 +275,9 @@ pub(super) fn dom_cmd_geometry(
         // wire format as `local_geom`, served from the iframe-subtree run.
         #[cfg(feature = "screenshot")]
         "iframe_local_geom" => {
+            if !gs.layout_policy.uses_real_layout() {
+                return Ok("null".into());
+            }
             let nid = match parse_nid(&arg1) {
                 Some(id) => id,
                 None => return Ok("null".into()),
@@ -542,18 +548,29 @@ pub(super) fn dom_cmd_scroll_style(
                 .flatten();
             let epoch = dom.epoch();
             ensure_layout_run(gs, dom, epoch);
-            let style_and_cb = gs.layout_cache.borrow().as_ref().and_then(|(e, r)| {
-                if *e != epoch {
-                    return None;
-                }
-                let (rects, _, styles, _, _, _, _) = r;
-                let style = styles.get(&nid).cloned();
-                // #242: percentage padding/margin resolves to used px against
-                // the containing block — Chrome's gCS posture. Pseudos share
-                // the host's containing block.
-                let cb = cb_inline_for(dom, rects, styles, nid, 8);
-                style.map(|s| (s, cb))
-            });
+            let style_and_cb = if gs.layout_policy.uses_real_layout() {
+                gs.layout_cache.borrow().as_ref().and_then(|(e, r)| {
+                    if *e != epoch {
+                        return None;
+                    }
+                    let (rects, _, styles, _, _, _, _) = r;
+                    let style = styles.get(&nid).cloned();
+                    // #242: percentage padding/margin resolves to used px against
+                    // the containing block — Chrome's gCS posture. Pseudos share
+                    // the host's containing block.
+                    let cb = cb_inline_for(dom, rects, styles, nid, 8);
+                    style.map(|s| (s, cb))
+                })
+            } else {
+                // Mock keeps the cascade and skips the box tree, so there is
+                // no containing-block width to resolve percentages against.
+                gs.style_cache.borrow().as_ref().and_then(|(e, styles)| {
+                    if *e != epoch {
+                        return None;
+                    }
+                    styles.get(&nid).cloned().map(|s| (s, None))
+                })
+            };
             match style_and_cb {
                 Some((s, cb)) => {
                     // The pseudo cascade lives on the host's ComputedStyle;

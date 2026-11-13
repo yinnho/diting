@@ -50,6 +50,8 @@ pub fn do_screenshot(req: ScreenshotRequest) -> Result<ScreenshotResponse> {
                 inject_cookies(&browser, &req.cookies, &req.url);
             }
             let mut page = browser.new_page().await?;
+            page.inner
+                .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
             // Pin the viewport before navigation (same as /video and /pdf):
             // JS-time layout (media queries) — and a bare SVG document's
             // root intrinsic — must agree with the requested render size.
@@ -195,6 +197,8 @@ pub fn do_video(req: crate::VideoRequest) -> Result<crate::VideoResponse> {
                 inject_cookies(&browser, &req.cookies, &req.url);
             }
             let mut page = browser.new_page().await?;
+            page.inner
+                .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
             // Pin the viewport so JS-time layout (media queries) and the band
             // paint below agree on the requested size.
             page.set_viewport_override(req.width as f32, req.height as f32, false, None);
@@ -268,6 +272,8 @@ pub fn do_pdf(req: crate::PdfRequest) -> Result<crate::PdfResponse> {
             let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
+            page.inner
+                .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
             // Pin the viewport so JS-time layout and the band paints agree
             // on the requested page width.
             page.set_viewport_override(req.width as f32, req.height as f32, false, None);

@@ -514,7 +514,7 @@ pub(crate) async fn op_ws_open_body(
         (
             gs.http_client.clone(),
             translated_cookie_header(&parsed, &gs.cookie_jar),
-            origin_of(&gs.url),
+            origin_of(&gs.document.url()),
         )
     };
     // The client's UA/header state lives in tokio RwLocks; await them outside
