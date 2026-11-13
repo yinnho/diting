@@ -793,6 +793,82 @@ async fn dynamic_script_src_after_empty_insert_executes() {
     );
 }
 
+/// A dynamic script whose first dial dies before any HTTP status (the
+/// proxy-connect drop that left x.com's HomeTimeline chunk unloaded)
+/// retries once and runs. The op rejects instead of returning status 0,
+/// which the body-shaped retry does not see.
+#[tokio::test(flavor = "current_thread")]
+async fn dynamic_script_retries_once_when_the_dial_drops() {
+    let _guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let h2 = hits.clone();
+    std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        for stream in l.incoming().flatten() {
+            let mut s = stream;
+            let mut buf = [0u8; 2048];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]);
+            if !req.starts_with("GET /drop.js") {
+                continue;
+            }
+            let n = h2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n == 0 {
+                drop(s);
+                continue;
+            }
+            let body = "window.__dropLoaded = true;";
+            let _ = s.write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .as_bytes(),
+            );
+        }
+    });
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url(&format!("http://127.0.0.1:{port}/page"));
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                globalThis.__dynScriptRetries = 0;
+                const a = document.createElement('script');
+                a.src = '/drop.js';
+                document.body.appendChild(a);
+                const done = new Promise(r => { a.onload = () => r('load'); a.onerror = () => r('err'); });
+                const ev = await done;
+                return { ev, loaded: window.__dropLoaded === true, retries: globalThis.__dynScriptRetries };
+            }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    let v = serde_json::to_value(&result.value).unwrap_or_default();
+    assert_eq!(
+        v.get("loaded").and_then(|b| b.as_bool()),
+        Some(true),
+        "the second dial must run the chunk: {v:?}"
+    );
+    assert_eq!(
+        v.get("retries").and_then(|n| n.as_i64()),
+        Some(1),
+        "exactly one retry: {v:?}"
+    );
+    assert!(
+        hits.load(std::sync::atomic::Ordering::SeqCst) >= 2,
+        "the dropped dial must be attempted twice"
+    );
+}
+
 /// Lazy-chunk resilience (10-27 复盘): a transient network-shaped failure on
 /// a dynamic script (status 0 / 5xx) retries once and succeeds; a 404 does
 /// NOT retry (the resource genuinely isn't there — the retry counter stays
