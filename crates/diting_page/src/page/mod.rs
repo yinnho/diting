@@ -18,6 +18,7 @@ use crate::lifecycle::LifecycleState;
 mod eval;
 mod navigate;
 mod net;
+pub use net::NavigationRecord;
 mod scripts;
 mod viewport;
 
@@ -416,7 +417,7 @@ pub struct Page {
     /// Pushed on every successful navigation; truncated on goBack -> new nav.
     pub history: Vec<String>,
     pub history_index: usize,
-    pub network_events: Vec<NetworkEvent>,
+    pub(crate) network_events: Vec<NetworkEvent>,
     /// Events of the outgoing document, carried across the per-navigation
     /// reset of `network_events` (and the JS runtime swap) so the CDP drain
     /// — which only runs after the new document settles — can still emit
@@ -431,16 +432,16 @@ pub struct Page {
     pub carried_network_url: String,
     /// Navigation generation counter (#101): bumped once per
     /// `navigate_single` hop, so `NetworkEvent.nav` rows attribute to the
-    /// attempt that issued them. `pub`: the product crate's /network face
-    /// reports the current generation beside the rows.
-    pub navigation_epoch: u64,
+    /// attempt that issued them. The product reads it through
+    /// [`Page::navigation_record`].
+    pub(crate) navigation_epoch: u64,
     /// The current document's HTTP redirect trail (#102):
     /// `redirect_chain[0]` is the URL the navigation asked for, `url` is
     /// where the document actually came from; empty when no redirect
     /// happened. Reset at the start of each attempt and set from the
     /// document response, so a failed attempt never leaks a stale trail.
-    /// `pub`: the product crate's navigate face reports it (#102).
-    pub redirect_chain: Vec<String>,
+    /// The product reads it through [`Page::navigation_record`].
+    pub(crate) redirect_chain: Vec<String>,
     /// The generation whose document the live JS realm runs — `init_js`
     /// stamps it on every realm swap, which is the commit point of a
     /// navigation. `realm_epoch < navigation_epoch` means the newest

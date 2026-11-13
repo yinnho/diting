@@ -466,18 +466,14 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // rides `max_chars` (the LLM-context knob), bounded so 20 bodies
             // can't each claim the full default.
             let xhr = if let Some(filters) = req.capture_xhr.as_ref() {
-                page.inner.sync_js_network_events();
+                let record = page.inner.navigation_record();
                 let body_cap = req.max_chars.min(8_000);
                 // #97: the capture_xhr surface exists to read what the page's
                 // JS put on its API calls — the signed/custom outbound headers
                 // (x-s class) are half of that story, so rows carry them.
-                crate::har::xhr_bodies(
-                    &page.inner.network_events,
-                    filters,
-                    body_cap,
-                    true,
-                    &|rid| page.inner.get_response_body(rid),
-                )
+                crate::har::xhr_bodies(&record.events, filters, body_cap, true, &|rid| {
+                    page.inner.get_response_body(rid)
+                })
             } else {
                 Vec::new()
             };
