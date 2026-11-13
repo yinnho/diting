@@ -5,6 +5,14 @@
 //! page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
 use super::*;
 
+/// One navigation's request log, copied out so the caller can keep using
+/// the page (response bodies, the URL) while it formats the log.
+pub struct NavigationRecord {
+    pub events: Vec<NetworkEvent>,
+    pub epoch: u64,
+    pub redirect_chain: Vec<String>,
+}
+
 impl Page {
     pub fn set_blocked_urls(&mut self, patterns: Vec<String>) {
         self.blocked_urls = patterns.clone();
@@ -212,6 +220,17 @@ impl Page {
                 // None (timestamp already stamps early in their lifecycle).
                 started: Some(ev.started),
             });
+        }
+    }
+
+    /// This navigation's request log, generation, and redirect trail.
+    /// Script-issued rows are drained first, so the log matches the realm.
+    pub fn navigation_record(&mut self) -> NavigationRecord {
+        self.sync_js_network_events();
+        NavigationRecord {
+            events: self.network_events.clone(),
+            epoch: self.navigation_epoch,
+            redirect_chain: self.redirect_chain.clone(),
         }
     }
 

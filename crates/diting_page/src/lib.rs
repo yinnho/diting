@@ -6,7 +6,7 @@ pub mod profiles;
 
 pub use context::BrowserContext;
 pub use diting_js::LayoutPolicy;
-pub use page::Page;
+pub use page::{NavigationRecord, Page};
 
 /// Serializes this crate's tests that read or mutate
 /// `DITING_ALLOW_PRIVATE_NETWORK` — process env is shared across parallel

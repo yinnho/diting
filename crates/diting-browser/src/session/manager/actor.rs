@@ -587,7 +587,7 @@ impl SessionActor {
                             url: final_url,
                             title,
                             challenge,
-                            redirected_from: page.inner.redirect_chain.clone(),
+                            redirected_from: page.inner.navigation_record().redirect_chain,
                             preloads: builtin_preloads.iter().map(|s| s.to_string()).collect(),
                         })
                     }
@@ -1192,7 +1192,7 @@ impl SessionActor {
         reply: oneshot::Sender<Result<String, String>>,
     ) {
         let Self { page, .. } = self;
-        page.inner.sync_js_network_events();
+        let record = page.inner.navigation_record();
         let payload = if media_only {
             // Media elements and player iframes are never
             // fetched by the engine (no media/frame
@@ -1204,7 +1204,7 @@ impl SessionActor {
                 .as_str()
                 .unwrap_or("[]")
                 .to_string();
-            let events = &page.inner.network_events;
+            let events = &record.events;
             let mut media = crate::har::media_entries(events);
             merge_dom_candidates(&mut media, &dom);
             let body_of = |rid: &str| page.inner.get_response_body(rid);
@@ -1214,14 +1214,14 @@ impl SessionActor {
                 "media": media,
             })
         } else {
-            let events = &page.inner.network_events;
+            let events = &record.events;
             let body_of = |rid: &str| page.inner.get_response_body(rid);
             let mut payload = serde_json::json!({
                 "url": page.url(),
                 // Current navigation generation (#101):
                 // rows with a lower "nav" below are
                 // earlier attempts' leftovers.
-                "nav": page.inner.navigation_epoch,
+                "nav": record.epoch,
                 "total": events.len(),
                 "requests": crate::har::compact_events(events, include_headers),
             });
@@ -1275,13 +1275,13 @@ impl SessionActor {
 
     async fn on_har(&mut self, reply: oneshot::Sender<Result<String, String>>) {
         let Self { page, .. } = self;
-        page.inner.sync_js_network_events();
+        let record = page.inner.navigation_record();
         let title = page
             .evaluate("document.title")
             .as_str()
             .unwrap_or("")
             .to_string();
-        let events = &page.inner.network_events;
+        let events = &record.events;
         let body_of = |rid: &str| page.inner.get_response_body(rid);
         let har = crate::har::har_log(&title, events, &body_of);
         let _ = reply.send(Ok(har.to_string()));
@@ -1350,8 +1350,8 @@ impl SessionActor {
             account,
             ..
         } = self;
-        page.inner.sync_js_network_events();
-        let events = &page.inner.network_events;
+        let record = page.inner.navigation_record();
+        let events = &record.events;
         let body_of = |rid: &str| page.inner.get_response_body(rid);
         let rows = crate::har::challenge_rows(events, &body_of);
         let mut payload = serde_json::json!({
@@ -1410,8 +1410,8 @@ impl SessionActor {
         // (verdict.rs) — no model, no page scripts.
         let started = std::time::Instant::now();
         drain_console(page, console_ring);
-        page.inner.sync_js_network_events();
-        let events = &page.inner.network_events;
+        let record = page.inner.navigation_record();
+        let events = &record.events;
         let body_of = |rid: &str| page.inner.get_response_body(rid);
         let rows = crate::har::challenge_rows(events, &body_of);
         let doc = events

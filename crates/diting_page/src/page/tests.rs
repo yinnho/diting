@@ -2976,6 +2976,11 @@ async fn redirect_chain_rides_navigation_and_resets() {
         ],
         "trail in order, [0] = requested URL"
     );
+    let via_record = p.navigation_record().redirect_chain;
+    assert_eq!(
+        via_record, p.redirect_chain,
+        "the record is the page's trail"
+    );
     assert!(
         p.url_string().ends_with("/final"),
         "landed document is the tail of the chain: {}",
