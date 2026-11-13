@@ -4,6 +4,27 @@
 use super::*;
 
 #[test]
+fn export_set_cookie_line_keeps_domain_and_flags() {
+    let line = CookieInfo {
+        name: "sid".into(),
+        value: "1".into(),
+        domain: ".example.com".into(),
+        path: "/".into(),
+        secure: true,
+        http_only: true,
+        same_site: "None".into(),
+        expires: Some(0),
+    }
+    .to_set_cookie_line();
+    assert_eq!(
+        line,
+        "sid=1; Domain=.example.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=None"
+    );
+    assert_eq!(http_date(-1), None);
+    assert_eq!(http_date(253_402_300_800), None);
+}
+
+#[test]
 fn test_set_and_get_cookie() {
     let jar = CookieJar::new();
     let url = Url::parse("https://example.com/path").unwrap();
