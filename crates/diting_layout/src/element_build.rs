@@ -1,8 +1,9 @@
-//! Element box build: `build_element` and the flow-child walk under it.
+//! Element box build: `build_element` and the normal-flow sibling dispatch.
 //!
 //! Split from the layout hub. Tables, float zones, the flow column and
-//! `layout_solve_rooted` still call `build_element`. Pure move: this walk
-//! sees the same crate namespace it grew up in.
+//! `layout_solve_rooted` still call `build_element`. `build_normal_sibling`
+//! is the same dispatch, for a caller that appends one child at a time.
+//! Pure move: this walk sees the same crate namespace it grew up in.
 
 use super::*;
 
@@ -940,4 +941,239 @@ fn build_element_inner(
     node_map.insert(node, id);
     resolve_sizing_keywords(taffy_tree, node, &style, fonts);
     Some(node)
+}
+
+/// Strut descent for an inline-level replaced atom: the descent of the
+/// element's inherited font context (the strut IS a zero-width glyph of the
+/// line's font). Block-level replaced boxes pass 0.
+pub(super) fn strut_descent_for(
+    tree: &DomTree,
+    id: NodeId,
+    styles: &HashMap<NodeId, ComputedStyle>,
+    fonts: &FontBook,
+) -> f32 {
+    let (fs, bold, _) = font_context(tree, id, styles, fonts);
+    // Whole-pixel pad so the padded leaf height survives taffy's integer
+    // rounding exactly and collect's subtract-back lands on the true box.
+    leaf_descent(fonts, fs, bold).ceil()
+}
+
+/// Build one child into its parent's normal-flow child list — the same
+/// replaced/text/inline-run/block dispatch as build_element's main loop,
+/// factored out so the float-zone branches (8b/8c) can append zone-external
+/// siblings without duplicating the body. Runs are flushed internally (the
+/// float branches interleave zone rows between siblings, so a shared pending
+/// run across calls would misorder).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_normal_sibling(
+    child: NodeId,
+    tree: &DomTree,
+    styles: &HashMap<NodeId, ComputedStyle>,
+    images: &HashMap<NodeId, DecodedImage>,
+    fonts: &FontBook,
+    taffy_tree: &mut TaffyTree<TextLeaf>,
+    node_map: &mut HashMap<diting_taffy::tree::NodeId, NodeId>,
+    flattened: &mut HashMap<NodeId, Vec<diting_taffy::tree::NodeId>>,
+    run_wrappers: &mut Vec<diting_taffy::tree::NodeId>,
+    meta: &mut TableBuildMeta,
+    atomic_container: bool,
+    font_size: f32,
+    line_height: f32,
+    direct: &mut Vec<diting_taffy::tree::NodeId>,
+) {
+    let is_text = tree.with_node(child, |n| n.is_text()).unwrap_or(false);
+    let child_tag = tree
+        .with_node(child, |n| n.as_element().map(|e| e.local.to_string()))
+        .flatten()
+        .unwrap_or_default();
+    let child_display = styles.get(&child).and_then(|s| s.display).or(if is_text {
+        Some(CssDisplay::Inline)
+    } else {
+        Some(CssDisplay::Block)
+    });
+    let inline_level = matches!(child_display, Some(CssDisplay::Inline));
+    if !is_text && child_display == Some(CssDisplay::None) {
+        return;
+    } // hidden: no box, must not cut the run
+    let out_of_flow = styles.get(&child).is_some_and(|s| {
+        matches!(
+            s.position,
+            Some(PositionMode::Absolute) | Some(PositionMode::Fixed)
+        )
+    });
+    if !is_text && is_replaced_tag(&child_tag) {
+        // A replaced element whose display resolves to any inline flavor
+        // (UA-sheet inline-block for form controls included) is an inline
+        // atom: it joins the text run instead of becoming a block sibling.
+        let inline_atom = inline_level || child_display == Some(CssDisplay::InlineBlock);
+        if inline_atom && !atomic_container && !out_of_flow {
+            let sd = strut_descent_for(tree, child, styles, fonts);
+            if let Some(leaf) =
+                build_replaced_leaf(tree, child, styles, images, taffy_tree, node_map, sd)
+            {
+                // A lone inline atom still gets the wrapping-run stand-in so
+                // it lays out on the text baseline path like the main loop.
+                if let Ok(wrapper) = taffy_tree.new_with_children(
+                    run_wrapper_style(ifc_white_space(tree, styles, child, false)),
+                    &[leaf],
+                ) {
+                    run_wrappers.push(wrapper);
+                    direct.push(wrapper);
+                }
+            }
+        } else if let Some(leaf) =
+            build_replaced_leaf(tree, child, styles, images, taffy_tree, node_map, 0.0)
+        {
+            direct.push(leaf);
+        }
+        return;
+    }
+    if !is_text
+        && child_display == Some(CssDisplay::InlineBlock)
+        && !atomic_container
+        && !out_of_flow
+    {
+        // Atomic inline-level box (obscura#750 family): keeps its own subtree
+        // box and gets the wrapping-run stand-in so it sits on the text line
+        // path like a replaced atom, sized shrink-to-fit by the parent run.
+        if let Some(sub) = build_element(
+            tree,
+            child,
+            styles,
+            images,
+            fonts,
+            taffy_tree,
+            node_map,
+            flattened,
+            run_wrappers,
+            meta,
+        ) {
+            if let Ok(wrapper) = taffy_tree.new_with_children(
+                run_wrapper_style(ifc_white_space(tree, styles, child, false)),
+                &[sub],
+            ) {
+                run_wrappers.push(wrapper);
+                direct.push(wrapper);
+            }
+        }
+        return;
+    }
+    if is_text
+        || (inline_level
+            && !atomic_container
+            && !out_of_flow
+            && !blockifies_for_block_child(tree, child, styles))
+    {
+        // Text and flattenable inlines become their own measured run here:
+        // single-segment runs are the overwhelmingly common case at
+        // zone boundaries, and build_word_leaves + the run wrapper reproduce
+        // the mixed-run path exactly.
+        let mut leaves: Vec<diting_taffy::tree::NodeId> = Vec::new();
+        if is_text {
+            let text = tree
+                .with_node(child, |n| {
+                    n.text_content_of_text_node().unwrap_or("").to_string()
+                })
+                .unwrap_or_default();
+            // text-transform folds into the string here so measure and paint
+            // agree (批240); the DOM keeps the original text.
+            let text = {
+                let tt = text_transform_context(tree, child, styles);
+                if tt == TextTransform::None {
+                    text
+                } else {
+                    text::apply_text_transform(&text, tt)
+                }
+            };
+            // Formatting-whitespace-only text generates no box (CSS white-
+            // space processing — keeps adjoining block margins adjacent).
+            if text.trim().is_empty() {
+                return;
+            }
+            let (fs, b, lh) = font_context(tree, child, styles, fonts);
+            let fs = if styles.get(&child).is_some() {
+                fs
+            } else {
+                font_size
+            };
+            let lh = if styles.get(&child).is_some() {
+                lh
+            } else {
+                line_height
+            };
+            let col = color_context(tree, child, styles);
+            let deco = decoration_context(tree, child, styles);
+            let vs = valign_shift(tree, child, styles, fonts);
+            let mono = mono_context(tree, child, styles);
+            let ws = word_spacing_context(tree, child, styles);
+            let sc = small_caps_context(tree, child, styles);
+            let han = han_context(tree, child, styles);
+            text_src::set_cur(Some(child));
+            leaves.extend(build_word_leaves(
+                &text, fs, b, col, lh, deco, vs, mono, ws, sc, han, fonts, taffy_tree,
+            ));
+            text_src::set_cur(None);
+        } else {
+            let sub = build_element(
+                tree,
+                child,
+                styles,
+                images,
+                fonts,
+                taffy_tree,
+                node_map,
+                flattened,
+                run_wrappers,
+                meta,
+            );
+            if let Some(sub) = sub {
+                let mut sub_children: Vec<_> =
+                    taffy_tree.children(sub).unwrap_or_default().to_vec();
+                wrap_q_quotes(
+                    tree,
+                    child,
+                    &child_tag,
+                    styles,
+                    fonts,
+                    taffy_tree,
+                    &mut sub_children,
+                );
+                leaves.extend(sub_children.clone());
+                // Flattening removes the sub's taffy node (invalidating its
+                // SlotMap key) — drop the stale node_map entry with it.
+                node_map.remove(&sub);
+                let _ = taffy_tree.remove(sub);
+                // The element keeps its DOM identity boxless — the union
+                // pass after the collect walk rebuilds a rect from the kids.
+                if !sub_children.is_empty() {
+                    flattened.insert(child, sub_children);
+                }
+            }
+        }
+        if !leaves.is_empty() {
+            let ws = ifc_white_space(tree, styles, child, is_text);
+            if ws.no_soft_wrap() {
+                pin_leaf_widths(taffy_tree, &leaves);
+            }
+            if let Ok(wrapper) = taffy_tree.new_with_children(run_wrapper_style(ws), &leaves) {
+                run_wrappers.push(wrapper);
+                direct.push(wrapper);
+            }
+        }
+        return;
+    }
+    if let Some(node) = build_element(
+        tree,
+        child,
+        styles,
+        images,
+        fonts,
+        taffy_tree,
+        node_map,
+        flattened,
+        run_wrappers,
+        meta,
+    ) {
+        direct.push(node);
+    }
 }

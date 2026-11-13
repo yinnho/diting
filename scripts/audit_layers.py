@@ -95,19 +95,23 @@ GOD_FILE_CAP = 1500
 GOD_FILE_GRANDFATHER = {
     # bootstrap.js retired at 刀67: 17,447 -> 1,487 production lines, under the
     # cap — now enforced by the ordinary 1,500-line gate like every other file.
-    "crates/diting_layout/src/lib.rs": 11574,  # float wrap series #313-#315 + #222 blend emission
-    "crates/diting_css/src/lib.rs": 6727,  # post-0.6.0 compat surface bumps
-    "crates/diting_layout/src/paint.rs": 3260,  # #222 thin blend arms; math lives in paint/blend.rs
+    # diting_layout/src/lib.rs retired 2026-11-13: 11,574 -> under the cap
+    # after the table/cascade/solve/collect/float/element/text/replaced/flow
+    # moves. The ordinary 1,500-line gate holds it now.
+    # diting_css/src/lib.rs retired 2026-11-13: 6,727 -> under the cap
+    # after the parse, cascade, apply, and ComputedStyle moves. The
+    # ordinary 1,500-line gate holds it now.
+    # diting_layout/src/paint.rs retired 2026-11-13: 3,260 -> under the cap
+    # after Canvas and the band replay left the file. The ordinary
+    # 1,500-line gate holds it now.
     # fork_deltas.rs retired 2026-11-10 (#64): the whole file is test-only —
     # `#[cfg(test)] mod fork_deltas;` in lib.rs — but the gate lived outside
     # the file, so the counter billed its 2,930 lines as production. Files
     # reachable only through a cfg(test)-gated mod decl are now exempt (see
     # cfg_test_mod_files), same spirit as tests.rs.
     "crates/diting_js/src/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
-    # tree.rs crossed the cap in the 2026-11-05 fmt reflow (1500 -> 1587, no
-    # code added); 87 over — a split for the cap alone buys nothing (svg_root.js
-    # precedent). Retires when the split program reaches it.
-    "crates/diting_dom/src/tree.rs": 1587,
+    # diting_dom/src/tree.rs retired 2026-11-13: shadow-root walks left
+    # the file under the cap. The ordinary 1,500-line gate holds it now.
     "crates/diting_js/js/svg_root.js": 1562,  # one family (SVG DOM root+attrs); 62 over — a split for the cap alone buys nothing
     "crates/diting_js/js/domcore.js": 4836,  # DOM inheritance spine (Node/Element/Document, 刀3); Element class alone is 2,341 lines — the cap is unreachable without prototype-member-order surgery (shape fingerprint)
 }
