@@ -109,7 +109,8 @@ GOD_FILE_GRANDFATHER = {
     # the file, so the counter billed its 2,930 lines as production. Files
     # reachable only through a cfg(test)-gated mod decl are now exempt (see
     # cfg_test_mod_files), same spirit as tests.rs.
-    "crates/diting_js/src/runtime.rs": 1788,  # #276 shared-source registration  # #276 realm-shrink (concurrency-gated) + heap probes
+    # diting_js/src/runtime.rs retired 2026-11-13: remote-object eval
+    # left the file under the cap. The ordinary 1,500-line gate holds it now.
     # diting_dom/src/tree.rs retired 2026-11-13: shadow-root walks left
     # the file under the cap. The ordinary 1,500-line gate holds it now.
     "crates/diting_js/js/svg_root.js": 1562,  # one family (SVG DOM root+attrs); 62 over — a split for the cap alone buys nothing
