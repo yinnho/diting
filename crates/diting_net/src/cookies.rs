@@ -468,6 +468,17 @@ impl CookieJar {
         result
     }
 
+    /// Live unexpired cookies as the export Set-Cookie lines the session
+    /// `Cookies` command, account records and snapshots round-trip. Domain
+    /// is spelled as the jar stores it, so a sibling-domain cookie keeps
+    /// its `Domain` when the line is seeded into another session.
+    pub fn export_set_cookie_lines(&self) -> Vec<String> {
+        self.get_all_cookies()
+            .iter()
+            .map(CookieInfo::to_set_cookie_line)
+            .collect()
+    }
+
     /// Metadata-only twin of [`CookieJar::get_all_cookies`] (#102): the
     /// same live, unexpired walk, minus every value — the "what auth state
     /// exists" answer for callers who must not hold credentials.
@@ -861,6 +872,30 @@ pub struct CookieInfo {
     pub expires: Option<i64>,
 }
 
+impl CookieInfo {
+    /// The session/account export form. An unparseable expiry is omitted
+    /// and the line round-trips as a session cookie.
+    pub fn to_set_cookie_line(&self) -> String {
+        let mut s = format!(
+            "{}={}; Domain={}; Path={}",
+            self.name, self.value, self.domain, self.path
+        );
+        if let Some(date) = self.expires.and_then(http_date) {
+            s.push_str(&format!("; Expires={date}"));
+        }
+        if self.secure {
+            s.push_str("; Secure");
+        }
+        if self.http_only {
+            s.push_str("; HttpOnly");
+        }
+        if !self.same_site.is_empty() {
+            s.push_str(&format!("; SameSite={}", self.same_site));
+        }
+        s
+    }
+}
+
 /// Everything about a cookie except its value (#102). Names, scoping and
 /// expiry are metadata an operator reasons about ("which login landed, is
 /// the session cookie Secure, when does it die"); the value is a
@@ -883,6 +918,37 @@ pub struct CookieMetadata {
     /// exact host only, never sibling subdomains.
     #[serde(rename = "hostOnly")]
     pub host_only: bool,
+}
+
+/// Inverse of [`parse_http_date`] for the cookie export form: epoch
+/// seconds → "Wdy, DD Mon YYYY HH:MM:SS GMT". Dates outside the parser's
+/// accepted year range are `None`.
+pub fn http_date(secs: i64) -> Option<String> {
+    if !(0..=253_402_300_799).contains(&secs) {
+        return None;
+    }
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (h, m, s) = (rem / 3600, (rem % 3600) / 60, rem % 60);
+    // civil_from_days (Hinnant): epoch-day → (year, month, day)
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let mth = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if mth <= 2 { y + 1 } else { y };
+    // Day 0 of the epoch was a Thursday.
+    let wd = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"][days.rem_euclid(7) as usize];
+    let mon = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ][(mth - 1) as usize];
+    Some(format!(
+        "{wd}, {d:02} {mon} {year:04} {h:02}:{m:02}:{s:02} GMT"
+    ))
 }
 
 fn parse_http_date(s: &str) -> Result<u64, ()> {

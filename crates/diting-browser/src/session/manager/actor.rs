@@ -12,7 +12,6 @@
 use super::super::commands::SessionClickResponse;
 use super::super::state::ConsoleFilter;
 use super::*;
-use crate::cookie::http_date;
 
 /// A script-initiated request older than this is not "slow", it is hung —
 /// every transport the engine rides carries a 30s read timeout and a 120s
@@ -1136,44 +1135,9 @@ impl SessionActor {
     async fn on_cookies(&mut self, reply: oneshot::Sender<Result<String, String>>) {
         let Self { page, .. } = self;
         let url_str = page.url();
-        // Full Set-Cookie form (Domain/flags included) so
-        // snapshot/clone restores cross-subdomain login
-        // state: bare name=value pairs re-anchor at
-        // whatever URL the new session opens, losing
-        // every sibling-domain cookie.
-        let cookies: Vec<String> = page
-            .context
-            .cookie_jar
-            .get_all_cookies()
-            .into_iter()
-            .map(|c| {
-                let mut s = format!(
-                    "{}={}; Domain={}; Path={}",
-                    c.name, c.value, c.domain, c.path
-                );
-                if let Some(exp) = c.expires {
-                    // #203 (taobao half): the export IS
-                    // the account record / snapshot
-                    // format — dropping Expires turned
-                    // every revived session into a
-                    // replay of server-retired tokens
-                    // (sessionExpired + havana bounce).
-                    if let Some(date) = http_date(exp) {
-                        s.push_str(&format!("; Expires={date}"));
-                    }
-                }
-                if c.secure {
-                    s.push_str("; Secure");
-                }
-                if c.http_only {
-                    s.push_str("; HttpOnly");
-                }
-                if !c.same_site.is_empty() {
-                    s.push_str(&format!("; SameSite={}", c.same_site));
-                }
-                s
-            })
-            .collect();
+        // The jar owns the Set-Cookie export form. Domain stays as
+        // stored, so a sibling-domain cookie survives snapshot/clone.
+        let cookies = page.context.cookie_jar.export_set_cookie_lines();
         let resp = serde_json::json!({ "url": url_str, "cookies": cookies });
         let _ = reply.send(Ok(resp.to_string()));
     }
@@ -1487,7 +1451,7 @@ impl SessionActor {
 
 #[cfg(test)]
 mod tests {
-    use super::{http_date, in_flight_row, HUNG_INFLIGHT_AFTER_MS};
+    use super::{in_flight_row, HUNG_INFLIGHT_AFTER_MS};
     use diting::diting_net::InFlightScripted;
 
     /// The #203 taobao submit shape: an entry aged past every engine-side
@@ -1518,28 +1482,5 @@ mod tests {
         );
         assert_eq!(hung["hung"], true, "age == threshold counts as hung");
         assert_eq!(hung["age_ms"], HUNG_INFLIGHT_AFTER_MS);
-    }
-
-    #[test]
-    fn http_date_formats_epoch_as_rfc1123_gmt() {
-        // Day 0 of the epoch was a Thursday.
-        assert_eq!(
-            http_date(0).as_deref(),
-            Some("Thu, 01 Jan 1970 00:00:00 GMT")
-        );
-        // Day 53: Monday, 23 Feb 1970 (Jan 1 1970 = Thursday, Jan = 31 days).
-        assert_eq!(
-            http_date(53 * 86_400).as_deref(),
-            Some("Mon, 23 Feb 1970 00:00:00 GMT")
-        );
-        // Leap-day boundary: 29 Feb 2000 12:34:56 = 951827696.
-        assert_eq!(
-            http_date(951_827_696).as_deref(),
-            Some("Tue, 29 Feb 2000 12:34:56 GMT")
-        );
-        // Outside the parser's accepted year range → None (round-trips as a
-        // session cookie instead of a broken date).
-        assert_eq!(http_date(-1), None);
-        assert_eq!(http_date(253_402_300_800), None);
     }
 }
