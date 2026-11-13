@@ -133,11 +133,26 @@ function _mp4Scan(u8, knownTracks) {
     if (type === 'moov') {
       _mp4BoxIter(u8, body, boxEnd, (t2, b2, e2) => {
         if (t2 === 'trak') {
-          let id = 0, timescale = 0;
+          let id = 0, timescale = 0, vw = 0, vh = 0;
           _mp4BoxIter(u8, b2, e2, (t3, b3, e3) => {
             if (t3 === 'tkhd' && b3 + 16 <= e3) {
               const v = u8[b3];
               id = (u8[b3 + (v ? 20 : 12)] << 24) | (u8[b3 + (v ? 21 : 13)] << 16) | (u8[b3 + (v ? 22 : 14)] << 8) | u8[b3 + (v ? 23 : 15)];
+              // 16.16 display size. v0 at +76, v1 at +88. A quarter-turn
+              // matrix swaps the axes, matching op_video_info.
+              const dim = v ? 88 : 76;
+              if (b3 + dim + 8 <= e3) {
+                const u32 = (o) => ((u8[o] << 24) | (u8[o + 1] << 16) | (u8[o + 2] << 8) | u8[o + 3]) >>> 0;
+                let w = u32(b3 + dim) >>> 16;
+                let h = u32(b3 + dim + 4) >>> 16;
+                const matrix = v ? 52 : 40;
+                if (w && h && b3 + matrix + 36 <= e3) {
+                  const unit = (k) => Math.abs((u8[b3 + matrix + k * 4] << 24) | (u8[b3 + matrix + k * 4 + 1] << 16) | (u8[b3 + matrix + k * 4 + 2] << 8) | u8[b3 + matrix + k * 4 + 3]) >>> 0;
+                  if (unit(1) === 0x10000 || unit(3) === 0x10000) { const swap = w; w = h; h = swap; }
+                }
+                vw = w;
+                vh = h;
+              }
             } else if (t3 === 'mdia') {
               _mp4BoxIter(u8, b3, e3, (t4, b4, e4) => {
                 if (t4 === 'mdhd') {
@@ -150,7 +165,15 @@ function _mp4Scan(u8, knownTracks) {
               });
             }
           });
-          if (id && timescale) out.initTracks[id] = { timescale, defaultDur: pendingTrex[id] || 0 };
+          if (id && timescale) {
+            const prev = out.initTracks[id];
+            out.initTracks[id] = {
+              timescale,
+              defaultDur: pendingTrex[id] || (prev && prev.defaultDur) || 0,
+              width: vw || (prev && prev.width) || 0,
+              height: vh || (prev && prev.height) || 0,
+            };
+          }
         } else if (t2 === 'mvex') {
           _mp4BoxIter(u8, b2, e2, (t3, b3, e3) => {
             if (t3 === 'trex' && b3 + 16 <= e3) {
@@ -283,6 +306,7 @@ globalThis.SourceBuffer = class SourceBuffer extends EventTarget {
     for (const id of Object.keys(scan.initTracks)) {
       this._tracks[id] = scan.initTracks[id];
     }
+    this._ms._publishVideoDims();
     for (const seg of scan.segments) {
       const merged = this._ranges.filter(r => !(r[1] < seg.start - 0.001 || r[0] > seg.end + 0.001));
       const start = Math.min(seg.start, ...merged.map(r => r[0]), seg.start);
@@ -416,6 +440,28 @@ globalThis.MediaSource = class MediaSource extends EventTarget {
     }
     return merged;
   }
+  // Display size from the first init track that carried a tkhd box.
+  // Fired before loadedmetadata so a preview <video> is not stuck at 0×0
+  // when the player reads videoWidth inside that handler.
+  _publishVideoDims() {
+    const el = this._mediaElement;
+    if (!el || (el._videoW | 0) > 0) return;
+    let w = 0, h = 0;
+    for (const sb of this.sourceBuffers) {
+      const tracks = sb._tracks || {};
+      for (const id of Object.keys(tracks)) {
+        const t = tracks[id];
+        if (t && t.width > 0 && t.height > 0) { w = t.width; h = t.height; break; }
+      }
+      if (w) break;
+    }
+    if (!w) return;
+    __def(el, '_videoW', w);
+    __def(el, '_videoH', h);
+    if (String(el.tagName).toUpperCase() === 'VIDEO') {
+      try { el.dispatchEvent(new Event('resize')); } catch (_) {}
+    }
+  }
   // Readiness ladder: every completed append re-derives the element's
   // readyState from the union of buffered data, firing the same ladder
   // Chrome's demuxer does as fMP4 bytes land — loadedmetadata (HAVE_METADATA),
@@ -443,6 +489,7 @@ globalThis.MediaSource = class MediaSource extends EventTarget {
       const enough = Number.isFinite(this.duration) ? Math.min(this.duration, ct + 30) : ct + 30;
       if (aheadEnd >= enough - 0.001) ready = 4; // HAVE_ENOUGH_DATA
     }
+    this._publishVideoDims();
     const prev = el._mediaReadyState || 0;
     el._mediaReadyState = ready;
     el._mediaNetworkState = ready >= 4 ? 1 : 2; // NETWORK_IDLE : NETWORK_LOADING

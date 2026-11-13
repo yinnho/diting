@@ -322,6 +322,72 @@ async fn video_blob_source_reaches_chrome_metadata_face() {
     assert_eq!(v["gD"], serde_json::json!("NaN"));
 }
 
+/// A MediaSource init segment's tkhd display size must reach the attached
+/// preview `<video>`. The X composer appends fMP4 and reads videoWidth
+/// from that element; readyState alone leaves it at 0×0.
+#[tokio::test(flavor = "current_thread")]
+async fn mse_init_segment_reports_video_size() {
+    let box_of = |ty: &[u8; 4], payload: &[u8]| -> Vec<u8> {
+        let mut v = Vec::with_capacity(8 + payload.len());
+        v.extend_from_slice(&((8 + payload.len()) as u32).to_be_bytes());
+        v.extend_from_slice(ty);
+        v.extend_from_slice(payload);
+        v
+    };
+    let mut tkhd = vec![0u8; 84];
+    tkhd[12..16].copy_from_slice(&1u32.to_be_bytes());
+    tkhd[40..44].copy_from_slice(&0x0001_0000u32.to_be_bytes());
+    tkhd[56..60].copy_from_slice(&0x0001_0000u32.to_be_bytes());
+    tkhd[76..80].copy_from_slice(&(160u32 << 16).to_be_bytes());
+    tkhd[80..84].copy_from_slice(&(120u32 << 16).to_be_bytes());
+    let mut mdhd = vec![0u8; 24];
+    mdhd[12..16].copy_from_slice(&1000u32.to_be_bytes());
+    mdhd[16..20].copy_from_slice(&1000u32.to_be_bytes());
+    let trak = box_of(
+        b"trak",
+        &[
+            box_of(b"tkhd", &tkhd),
+            box_of(b"mdia", &box_of(b"mdhd", &mdhd)),
+        ]
+        .concat(),
+    );
+    let moov = box_of(b"moov", &trak);
+    let mp4 = [box_of(b"ftyp", b"isom"), moov].concat();
+    let b64 = {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(&mp4)
+    };
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url("https://example.com/page");
+    let result = rt
+        .call_function_on_remote(
+            &format!(
+                r#"async () => {{
+                    const bin = Uint8Array.from(atob("{b64}"), c => c.charCodeAt(0));
+                    const ms = new MediaSource();
+                    const url = URL.createObjectURL(ms);
+                    const v = document.createElement('video');
+                    v.src = url;
+                    await new Promise(r => ms.addEventListener('sourceopen', r, {{ once: true }}));
+                    const sb = ms.addSourceBuffer('video/mp4');
+                    const done = new Promise(r => sb.addEventListener('updateend', r, {{ once: true }}));
+                    sb.appendBuffer(bin);
+                    await done;
+                    return {{ w: v.videoWidth, h: v.videoHeight }};
+                }}"#
+            ),
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(v["w"], serde_json::json!(160));
+    assert_eq!(v["h"], serde_json::json!(120));
+}
+
 /// (#41) failure side: an unreachable src (connection-refused port) must
 /// fire `error`, never the phantom `load` the old stub produced.
 #[allow(clippy::await_holding_lock)] // the env guard must span the await — that's the serialization
