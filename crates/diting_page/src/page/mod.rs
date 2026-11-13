@@ -419,17 +419,13 @@ pub struct Page {
     pub history_index: usize,
     pub(crate) network_events: Vec<NetworkEvent>,
     /// Events of the outgoing document, carried across the per-navigation
-    /// reset of `network_events` (and the JS runtime swap) so the CDP drain
-    /// — which only runs after the new document settles — can still emit
-    /// them. Filled at the top of `navigate_single`; consumed by the CDP
-    /// navigation emitter.
-    ///
-    /// `pub`: consumed by the product crate's CDP face since the workspace
-    /// split (engine data, product emission order).
-    pub carried_network_events: Vec<NetworkEvent>,
-    /// The outgoing document's URL, kept beside the carried events so they
-    /// can be emitted attributed to the document they belonged to.
-    pub carried_network_url: String,
+    /// reset of `network_events`. Filled at the top of `navigate_single`.
+    /// The live navigation's log is [`Page::navigation_record`]; this is
+    /// the previous document's rows.
+    pub(crate) carried_network_events: Vec<NetworkEvent>,
+    /// The outgoing document's URL, kept beside the carried events. A
+    /// timed-out attempt that never committed rolls `url` back to it.
+    pub(crate) carried_network_url: String,
     /// Navigation generation counter (#101): bumped once per
     /// `navigate_single` hop, so `NetworkEvent.nav` rows attribute to the
     /// attempt that issued them. The product reads it through
