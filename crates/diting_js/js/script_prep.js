@@ -161,7 +161,17 @@ function __prepareInsertedScript(script) {
               try {
                 // #126: one real sample per dynamic script load.
                 const _rtT0 = globalThis.performance ? performance.now() : 0;
-                const raw = await _OPS.op_fetch_url(fullUrl, "GET", "{}", "", pageOrigin, "no-cors", "include", "\u0000about:client");
+                let raw;
+                try {
+                  raw = await _OPS.op_fetch_url(fullUrl, "GET", "{}", "", pageOrigin, "no-cors", "include", "\u0000about:client");
+                } catch (transport) {
+                  // A proxy-connect or reset rejects the op instead of
+                  // returning status 0. Same one retry as a status-0 body:
+                  // the chunk was never reached, so a second dial is safe.
+                  const err = new Error((transport && transport.message) || String(transport));
+                  err.__retryable = true;
+                  throw err;
+                }
                 const parsed = JSON.parse(raw);
                 __recordFetchTiming(_rtT0, fullUrl, 'script', parsed);
                 if (!(parsed.status >= 200 && parsed.status <= 299)) {
