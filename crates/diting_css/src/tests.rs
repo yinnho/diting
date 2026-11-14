@@ -2430,6 +2430,50 @@ fn inset_shorthand_expansion_and_auto_reset() {
 }
 
 #[test]
+fn closed_dialog_is_display_none_until_it_opens() {
+    let tree = diting_dom::tree_sink::parse_html(
+        r#"<body><dialog id="c">closed</dialog><dialog id="o" open>open</dialog></body>"#,
+    );
+    let closed = tree.query_selector("#c").unwrap().unwrap();
+    let open = tree.query_selector("#o").unwrap().unwrap();
+    let closed_style = cascade_element(
+        "dialog",
+        &tree,
+        closed,
+        &[],
+        None,
+        None,
+        DEFAULT_ROOT_FONT_SIZE,
+        (1280.0, 720.0),
+    );
+    assert_eq!(closed_style.display, Some(Display::None));
+    assert!(closed_style.display_from_ua);
+    let open_style = cascade_element(
+        "dialog",
+        &tree,
+        open,
+        &[],
+        None,
+        None,
+        DEFAULT_ROOT_FONT_SIZE,
+        (1280.0, 720.0),
+    );
+    assert_eq!(open_style.display, Some(Display::Block));
+    let overridden = cascade_element(
+        "dialog",
+        &tree,
+        closed,
+        &[],
+        None,
+        Some("display: block"),
+        DEFAULT_ROOT_FONT_SIZE,
+        (1280.0, 720.0),
+    );
+    assert_eq!(overridden.display, Some(Display::Block));
+    assert!(!overridden.display_from_ua);
+}
+
+#[test]
 fn ua_box_defaults_match_browser_sheet() {
     let tree =
         diting_dom::tree_sink::parse_html(r#"<body><h1>t</h1><p>p</p><ul><li>l</li></ul></body>"#);
