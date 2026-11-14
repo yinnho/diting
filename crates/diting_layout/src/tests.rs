@@ -160,6 +160,34 @@ mod hidden_replaced_tests {
     }
 
     #[test]
+    fn closed_dialog_does_not_paint_until_opened() {
+        let ts = texts(
+            r#"<html><body><dialog id="c">secret</dialog><dialog id="o" open>shown</dialog><p>hello</p></body></html>"#,
+            "",
+        );
+        assert!(
+            ts.iter().any(|t| t.contains("hello")),
+            "rest of page renders: {ts:?}"
+        );
+        assert!(
+            ts.iter().any(|t| t.contains("shown")),
+            "open dialog paints: {ts:?}"
+        );
+        assert!(
+            !ts.iter().any(|t| t.contains("secret")),
+            "closed dialog must not paint: {ts:?}"
+        );
+        let forced = texts(
+            r#"<html><body><dialog id="c">secret</dialog><p>hello</p></body></html>"#,
+            "dialog { display: block }",
+        );
+        assert!(
+            forced.iter().any(|t| t.contains("secret")),
+            "author display shows a closed dialog: {forced:?}"
+        );
+    }
+
+    #[test]
     fn hidden_input_does_not_paint_its_value() {
         // Second family member: the same gate must cover the whole
         // is_replaced_tag set, not just textarea.

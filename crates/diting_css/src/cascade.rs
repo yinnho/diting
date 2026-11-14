@@ -14,7 +14,7 @@ use crate::layers;
 use crate::len_parse::{font_size_px, parse_font_size_len, CssF32};
 use crate::props;
 use crate::split_declarations;
-use crate::style_kw::{VerticalAlign, WhiteSpace};
+use crate::style_kw::{Display, VerticalAlign, WhiteSpace};
 use crate::text_align::TextDirection;
 use crate::ua::{
     ua_border, ua_display, ua_font_family, ua_font_size, ua_font_weight, ua_list_style, ua_margin,
@@ -117,6 +117,16 @@ pub fn cascade_element(
         list_style_type: ua_list_style(tag),
         ..Default::default()
     };
+    // HTML UA: `dialog:not([open]) { display: none }`. The seed is still a
+    // UA value, so a later author `display` replaces it and clears
+    // `display_from_ua`. An open dialog keeps the block default.
+    if tag.eq_ignore_ascii_case("dialog")
+        && !tree
+            .with_node(node_id, |n| n.get_attribute("open").is_some())
+            .unwrap_or(false)
+    {
+        style.display = Some(Display::None);
+    }
     if let Some((px, line)) = ua_border(tag) {
         style.border_width.top = Some(Length::Px(px));
         style.border_width.right = Some(Length::Px(px));
