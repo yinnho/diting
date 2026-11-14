@@ -1,6 +1,15 @@
 // 布局执行族：整树 layout run + iframe 视口 + 吸附/滚动器分类 + 墨迹范围 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+#[cfg(feature = "screenshot")]
+use std::collections::HashMap;
+
+#[cfg(feature = "screenshot")]
+use diting_dom::{DomTree, NodeId};
+#[cfg(feature = "screenshot")]
+use url::Url;
+
+#[cfg(feature = "screenshot")]
+use super::JsState;
 
 /// One style+layout run over the live tree (see [`JsState::layout_cache`]):
 /// every element's border-box rect, the paint order, the cascaded
@@ -10,7 +19,7 @@ use super::*;
 /// map) backing the event-coordinate surface (`local_geom`/`event_offset`
 /// ops, blitz #663 family).
 #[cfg(feature = "screenshot")]
-pub(super) type LayoutRun = (
+pub(crate) type LayoutRun = (
     HashMap<NodeId, [f32; 4]>,
     Vec<NodeId>,
     HashMap<NodeId, diting_css::ComputedStyle>,
@@ -158,13 +167,30 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
     // boxes come from the cached solve when it is fresh (any previous run's
     // final geometry is a fine container-size estimate) and from one extra
     // solve otherwise. Pages without @container skip all of this.
-    let mut styles_bumped = false;
+    // A class/id write keeps the solve. The cached identity is the FINAL
+    // cascade of the last solve. Pass 1 omits @container arms, so it
+    // disagrees with that identity whenever those arms change layout —
+    // drop the cache before the probe so the probe does not answer
+    // container conditions against boxes the new cascade no longer
+    // describes. Paint-only disagreement compares equal and the cache stays.
+    if solve {
+        let pass1 = layout_identity(&styles_map);
+        let epoch_now = dom.epoch();
+        let pass1_matches = gs
+            .geometry_cache
+            .borrow()
+            .as_ref()
+            .is_some_and(|(e, _, key)| *e == epoch_now && *key == pass1);
+        if !pass1_matches {
+            *gs.geometry_cache.borrow_mut() = None;
+        }
+    }
     // @container needs a probe solve. A Mock page skips it and keeps the
     // pass-1 cascade.
     if solve && !containers.is_empty() {
         let base_len = rules.len();
         let probe_boxes = match gs.geometry_cache.borrow().as_ref() {
-            Some((e, solved)) if *e == dom.epoch() => solved.dom_boxes(),
+            Some((e, solved, _)) if *e == dom.epoch() => solved.dom_boxes(),
             _ => {
                 let fonts_probe = diting_layout::diting_fonts::font_book();
                 let bytes_map = gs.image_bytes.borrow();
@@ -201,7 +227,6 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
                 &plan.gates,
                 (viewport_width, viewport_height),
             );
-            styles_bumped = true;
         }
     }
     // Refresh the attribute-selector name pool the write path consults for
@@ -245,26 +270,24 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
     let fonts = diting_layout::diting_fonts::font_book();
     // Solve-vs-collect split (#395): the taffy solve is cached keyed by the
     // tree epoch. A paint-only style write (transform/opacity — the choke
-    // point in op_dom_inner) dropped the collected cache but kept this one,
-    // so the run below re-collects against the cached tree. Anything
-    // structural (tree mutation, class change, image bytes landing,
-    // viewport move) drops both caches and re-solves.
+    // point in op_dom_inner) and a class/id write drop the collected cache
+    // but keep this one. Reuse requires the paint-stripped final cascade to
+    // match the one the solve was built from, so a color class re-collects
+    // and a width class re-solves. Structural writes, image bytes, and
+    // viewport moves drop both caches.
     let epoch = dom.epoch();
-    // A gated container re-cascade changed styles without bumping the epoch:
-    // the cached solve (if any) was built against pass-1 styles, so it must
-    // not be reused — force the fresh solve against the final cascade.
-    let reuse = !styles_bumped
-        && gs
-            .geometry_cache
-            .borrow()
-            .as_ref()
-            .is_some_and(|(e, _)| *e == epoch);
+    let ident = layout_identity(&styles_map);
+    let reuse = gs
+        .geometry_cache
+        .borrow()
+        .as_ref()
+        .is_some_and(|(e, _, key)| *e == epoch && *key == ident);
     let solve_src = if reuse { "cached" } else { "full" };
     let (rects, items, paint_order, local_geom, sticky_spans, scroller_spans) = if reuse {
         // Borrow held only across layout_collect, which never touches
         // JsState — nothing else can interleave on this single thread.
         let guard = gs.geometry_cache.borrow();
-        let (_, solved) = guard.as_ref().expect("freshness checked above");
+        let (_, solved, _) = guard.as_ref().expect("freshness checked above");
         let canvases = gs.canvas_images.borrow();
         diting_layout::layout_collect_with_images(
             dom,
@@ -308,7 +331,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
             Some(&canvases),
         );
         drop(canvases);
-        *gs.geometry_cache.borrow_mut() = Some((epoch, solved));
+        *gs.geometry_cache.borrow_mut() = Some((epoch, solved, ident));
         run
     };
     if trace {
@@ -342,6 +365,25 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
     )
 }
 
+/// Paint-stripped cascade, sorted by node. Two of these compare equal when
+/// a class flip cannot move boxes. Stored beside the solve so the next run
+/// can decide without keeping the collected cache.
+#[cfg(feature = "screenshot")]
+fn layout_identity(
+    styles: &HashMap<NodeId, diting_css::ComputedStyle>,
+) -> Vec<(u32, diting_css::ComputedStyle)> {
+    let mut v: Vec<(u32, diting_css::ComputedStyle)> = styles
+        .iter()
+        .map(|(id, style)| {
+            let mut stripped = style.clone();
+            stripped.strip_paint_for_solve_eq();
+            (id.0, stripped)
+        })
+        .collect();
+    v.sort_by_key(|(id, _)| *id);
+    v
+}
+
 /// Run one layout pass only when the memoized run is stale for the tree's
 /// current epoch; callers then read their slice from the (now fresh) cache.
 ///
@@ -354,7 +396,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
 /// tripped the 10s eval watchdog — surfacing as silent `null` eval results
 /// and dead clicks.
 #[cfg(feature = "screenshot")]
-pub(super) fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
+pub(crate) fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
     if !gs.layout_policy.uses_real_layout() {
         let fresh = gs
             .style_cache
@@ -379,7 +421,7 @@ pub(super) fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
 /// non-positive falls back to the CSS default replaced box 300x150 — the
 /// same box the fabricated `_IframeWindow` publishes before layout exists.
 #[cfg(feature = "screenshot")]
-pub(super) fn parse_iframe_viewport(arg2: &str) -> (f32, f32) {
+pub(crate) fn parse_iframe_viewport(arg2: &str) -> (f32, f32) {
     let mut it = arg2.split(',');
     let w = it.next().and_then(|s| s.parse::<f32>().ok());
     let h = it.next().and_then(|s| s.parse::<f32>().ok());
@@ -399,7 +441,7 @@ pub(super) fn parse_iframe_viewport(arg2: &str) -> (f32, f32) {
 /// (v1 boundary): external <link> sheets inside a fabricated iframe doc
 /// would need the navigation-time fetch cascade the main document owns.
 #[cfg(feature = "screenshot")]
-pub(super) fn iframe_layout_run(
+pub(crate) fn iframe_layout_run(
     gs: &JsState,
     dom: &DomTree,
     root: NodeId,
@@ -496,7 +538,7 @@ pub(super) fn iframe_layout_run(
 /// kind is exempt (blitz#841: upstream's viewport became scrollable because
 /// a translated fixed element entered the overflow walk).
 #[cfg(feature = "screenshot")]
-pub(super) fn is_viewport_fixed(
+pub(crate) fn is_viewport_fixed(
     dom: &DomTree,
     styles: &HashMap<NodeId, diting_css::ComputedStyle>,
     node: NodeId,
@@ -533,7 +575,7 @@ pub(super) fn is_viewport_fixed(
 /// `is_scroll_container` op and the sticky_shifts source filter: what JS
 /// may write and what paint consumes cannot drift apart.
 #[cfg(feature = "screenshot")]
-pub(super) fn is_element_scroller(
+pub(crate) fn is_element_scroller(
     dom: &DomTree,
     rects: &HashMap<NodeId, [f32; 4]>,
     styles: &HashMap<NodeId, diting_css::ComputedStyle>,
@@ -606,7 +648,7 @@ pub(super) fn is_element_scroller(
 ///   margin-box/content-box refinements).
 /// - Boxless sticky (display:contents, inline wrappers) is skipped.
 #[cfg(feature = "screenshot")]
-pub(super) fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f32; 2]>> {
+pub(crate) fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<NodeId, [f32; 2]>> {
     use diting_css::{Length, PositionMode};
 
     let epoch = dom.epoch();

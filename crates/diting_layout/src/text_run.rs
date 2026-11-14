@@ -1,9 +1,26 @@
 //! Measured text leaves and the inline-run helpers that build them.
 //!
-//! Split from the layout hub. Callers still see these names on the crate
-//! root. Pure move.
+//! Callers still see these names on the crate root. This module names the
+//! DOM, text, and float helpers it measures with.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{
+    ComputedStyle, Display as CssDisplay, PositionMode, TextAlign, TextDecorations, TextTransform,
+    WhiteSpace,
+};
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{
+    AlignItems, AlignSelf, Dimension, Display, FlexDirection, FlexWrap, Size, Style,
+};
+
+use crate::composed::render_children;
+use crate::float_flow;
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::replaced::is_replaced_tag;
+use crate::style_map::side_px;
+use crate::text::{self, FontBook};
+use crate::text_src;
 
 /// CJK classification for the tokenizer (per-glyph line breaks) — kept from
 /// the pre-3a deterministic metrics era; `is_cjk` no longer feeds widths.
@@ -25,7 +42,7 @@ pub(super) fn is_cjk(c: char) -> bool {
 /// [`measure_text_leaf`]; mixed runs (text + inline elements) keep the
 /// flex-row-of-word-leaves fallback from batch 2b.
 #[derive(Clone)]
-pub(super) enum TextLeaf {
+pub(crate) enum TextLeaf {
     Run {
         text: String,
         font_size: f32,
@@ -117,7 +134,7 @@ pub(super) enum TextLeaf {
 /// `normal`/unset derives from the face's vertical metrics —
 /// ascent+descent+line gap — like a real browser, not a flat 1.2×
 /// (#16, blitz#878; the ratio is memoized inside the FontBook).
-pub(super) fn effective_line_height(
+pub(crate) fn effective_line_height(
     fonts: &FontBook,
     spec: Option<&diting_css::LineHeightSpec>,
     font_size: f32,
@@ -186,7 +203,7 @@ pub(super) fn block_level_child(
 /// shobserver export pages (#186) had ARTICLE inside inline A#source
 /// measure itself to 1092px inside a 740px .container and clip the
 /// article's right edge off-viewport.
-pub(super) fn blockifies_for_block_child(
+pub(crate) fn blockifies_for_block_child(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -211,7 +228,7 @@ pub(super) fn blockifies_for_block_child(
 /// carry). Runs at the flex parent's tail, where the parent's axis and
 /// the final child list are both known; border-box items already measure
 /// border-edge and synthetic children (no node_map entry) are skipped.
-pub(super) fn fix_flex_basis_carry(
+pub(crate) fn fix_flex_basis_carry(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     parent: &ComputedStyle,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -265,7 +282,7 @@ pub(super) fn fix_flex_basis_carry(
 /// far above the box (slides-deck probe). Corner order is [TL, TR, BR, BL]
 /// (diting_css border-radius expand). The ratio is invariant under diagonal
 /// affine scaling, so clamping pre- or post-prebake is equivalent.
-pub(super) fn clamp_corner_radii(radii: [(f32, f32); 4], w: f32, h: f32) -> [(f32, f32); 4] {
+pub(crate) fn clamp_corner_radii(radii: [(f32, f32); 4], w: f32, h: f32) -> [(f32, f32); 4] {
     let mut f = 1.0f32;
     let edges = [
         (w, radii[0].0 + radii[1].0), // top: TL.x + TR.x
@@ -291,7 +308,7 @@ pub(super) fn clamp_corner_radii(radii: [(f32, f32); 4], w: f32, h: f32) -> [(f3
 /// Returns (font_size, bold, used_line_height): a Number spec multiplies the
 /// RUN's font-size (CSS computed-value semantics — the multiplier applies to
 /// whichever font-size the text actually uses), px passes through absolute.
-pub(super) fn font_context(
+pub(crate) fn font_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -330,7 +347,7 @@ pub(super) fn font_context(
 /// Inherited text color for a node — the same nearest-set ancestor walk as
 /// [`font_context`] (the cascade inherits `color`, but text NODES carry no
 /// ComputedStyle, so the paint side resolves it here). Defaults to black.
-pub(super) fn color_context(
+pub(crate) fn color_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -350,7 +367,7 @@ pub(super) fn color_context(
 /// cascade inherits it, but text nodes carry no ComputedStyle. Any family
 /// list member naming monospace/ui-monospace selects the face (per-char
 /// fallback keeps CJK on the primary pair). Defaults to false.
-pub(super) fn mono_context(
+pub(crate) fn mono_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -368,7 +385,7 @@ pub(super) fn mono_context(
 /// Inherited `word-spacing` for a text node (px): the same nearest-set
 /// ancestor walk as [`mono_context`] — the cascade inherits it, but text
 /// nodes carry no ComputedStyle of their own. Defaults to 0.0 (`normal`).
-pub(super) fn word_spacing_context(
+pub(crate) fn word_spacing_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -385,7 +402,7 @@ pub(super) fn word_spacing_context(
 
 /// `font-variant-caps` inherits, so a text node's synthesis flag walks the
 /// ancestor chain like word-spacing does (None = unset → no synthesis).
-pub(super) fn small_caps_context(
+pub(crate) fn small_caps_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -404,7 +421,7 @@ pub(super) fn small_caps_context(
 /// precedent) — nearest styled ancestor's declared value. A declared
 /// `TextTransform::None` resets an inherited transform; no declaration
 /// anywhere falls through to no transform.
-pub(super) fn text_transform_context(
+pub(crate) fn text_transform_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -424,7 +441,7 @@ pub(super) fn text_transform_context(
 /// nearest ancestor's lang attribute down (see `cascade_element`), so the
 /// FIRST style hit is the answer; non-CJK languages map to None (the plain
 /// per-char cascade, the pre-#139 order).
-pub(super) fn han_context(
+pub(crate) fn han_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -445,7 +462,7 @@ pub(super) fn han_context(
 /// atomic inline (inline-block) or out-of-flow (absolute/fixed/float)
 /// boundary: the boundary element's own text still carries its own
 /// declaration, but nothing crosses such an element inward OR outward.
-pub(super) fn decoration_context(
+pub(crate) fn decoration_context(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -481,7 +498,7 @@ pub(super) fn decoration_context(
 
 /// An own-element decoration set (pseudo leaves): the decorator IS the
 /// element, so clip:text on it pierces the strokes (#218).
-pub(super) fn own_decorations(p: &ComputedStyle) -> TextDecorations {
+pub(crate) fn own_decorations(p: &ComputedStyle) -> TextDecorations {
     let mut d = p.text_decoration_line.unwrap_or_default();
     if p.background_clip_text {
         d.pierce = true;
@@ -500,7 +517,7 @@ pub(super) fn own_decorations(p: &ComputedStyle) -> TextDecorations {
 /// −0.4×parent_fs; an authored length flips sign (CSS: positive raises); a
 /// percentage resolves against the element's own line-height; the baseline/
 /// top/middle/bottom keywords are 0 (the line-baseline machinery owns them).
-pub(super) fn valign_shift(
+pub(crate) fn valign_shift(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -554,7 +571,7 @@ pub(super) fn valign_shift(
 
 /// Font descent at a size/weight, FontBook fallback fs×0.2 — the same
 /// fallback text_baseline rides.
-pub(super) fn leaf_descent(fonts: &FontBook, fs: f32, bold: bool) -> f32 {
+pub(crate) fn leaf_descent(fonts: &FontBook, fs: f32, bold: bool) -> f32 {
     fonts
         .metrics(fs, bold)
         .map(|m| m.descent)
@@ -567,7 +584,7 @@ pub(super) fn leaf_descent(fonts: &FontBook, fs: f32, bold: bool) -> f32 {
 /// line's bottom. Whole-pixel: taffy's round_layout pass sizes nodes on the
 /// cumulative pixel grid, so a fractional pad would be unrecoverable from
 /// the rounded height and the error would land on the element's own box.
-pub(super) fn shift_pad(shift: f32, descent: f32) -> f32 {
+pub(crate) fn shift_pad(shift: f32, descent: f32) -> f32 {
     let raw = if shift < 0.0 {
         -shift
     } else if shift > 0.0 {
@@ -584,7 +601,7 @@ pub(super) fn shift_pad(shift: f32, descent: f32) -> f32 {
 /// the bootstrap's select.value getter resolves with (`opts[i].selected`
 /// falls back to the attribute there). An option's display text is its
 /// `label` attribute when present, else its content, trimmed.
-pub(super) fn selected_option_label(tree: &DomTree, root: NodeId) -> Option<String> {
+pub(crate) fn selected_option_label(tree: &DomTree, root: NodeId) -> Option<String> {
     // Document order over the subtree: options are children of the select
     // or of optgroups, so an explicit LIFO stack of reversed child lists
     // walks exactly the order querySelectorAll('option') would match.
@@ -646,7 +663,7 @@ pub(super) fn selected_option_label(tree: &DomTree, root: NodeId) -> Option<Stri
 /// label from their value like their sizing does. Checkable inputs draw
 /// no run — the widget itself carries the state (see [`FormWidget`]).
 /// None for everything else.
-pub(super) fn form_control_run(
+pub(crate) fn form_control_run(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -827,7 +844,7 @@ pub(crate) fn tokenize_ws(text: &str, ws: diting_css::WhiteSpace) -> Vec<String>
 /// Whether this taffy style is the flex-column alignment stand-in for a
 /// block's `text-align: center/right` (see `to_taffy_style`). Tables share
 /// Column but stretch; rows are Row — both stay outside this predicate.
-pub(super) fn is_alignment_promote(s: &Style) -> bool {
+pub(crate) fn is_alignment_promote(s: &Style) -> bool {
     s.display == Display::Flex
         && s.flex_direction == FlexDirection::Column
         && matches!(s.align_items, AlignItems::CENTER | AlignItems::FLEX_END)
@@ -843,7 +860,7 @@ pub(super) fn is_alignment_promote(s: &Style) -> bool {
 /// children carry a node_map entry (runs, float zones, bars and anonymous
 /// wrappers don't), and tables/images keep the centered shrink-to-fit Chrome
 /// gives them under text-align.
-pub(super) fn stretch_block_children_in_aligned_parent(
+pub(crate) fn stretch_block_children_in_aligned_parent(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -870,7 +887,7 @@ pub(super) fn stretch_block_children_in_aligned_parent(
     }
 }
 
-pub(super) fn collapse_adjacent_sibling_margins(
+pub(crate) fn collapse_adjacent_sibling_margins(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     styles: &HashMap<NodeId, ComputedStyle>,
     node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,
@@ -938,7 +955,7 @@ pub(super) fn collapse_adjacent_sibling_margins(
 /// flex-wrap run container. Since batch 4d the leaf carries paint context —
 /// mixed runs paint their words.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_word_leaves(
+pub(crate) fn build_word_leaves(
     text: &str,
     font_size: f32,
     bold: bool,
@@ -1031,7 +1048,7 @@ pub(super) fn build_word_leaves(
 /// its text+style for its whole lifetime, so the memo needs no key — unlike
 /// upstream, which keys a 16-entry per-item cache by (width, Wrap).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn run_tokens(
+pub(crate) fn run_tokens(
     text: &str,
     font_size: f32,
     bold: bool,
@@ -1098,7 +1115,7 @@ pub(super) fn run_tokens(
 /// Preserve-wins merge for a mixed white-space run: white-space inherits, so
 /// one `pre` segment makes the whole run preserve (the same "any nowrap
 /// pins the run" precedent, ranked across the family).
-pub(super) fn ws_rank(ws: WhiteSpace) -> u8 {
+pub(crate) fn ws_rank(ws: WhiteSpace) -> u8 {
     match ws {
         WhiteSpace::Pre => 5,
         WhiteSpace::BreakSpaces => 4,
@@ -1124,7 +1141,7 @@ pub(super) fn ws_rank(ws: WhiteSpace) -> u8 {
 /// - height = line count × used line-height (blitz pins `normal` at
 ///   1.2×fs) plus the baseline-shift pad (a sub/sup run grows its line box
 ///   by exactly the shift's extent).
-pub(super) fn measure_text_leaf(
+pub(crate) fn measure_text_leaf(
     tokens: &[text::Token],
     line_height: f32,
     pad: f32,
@@ -1197,7 +1214,7 @@ pub(super) fn measure_text_leaf(
 /// the break between atomic inlines too — the row stops wrapping and its
 /// items stop shrinking (a nowrap run overflows its box like Chrome's, it
 /// never compresses its atoms to fit).
-pub(super) fn run_wrapper_style(ws: WhiteSpace) -> Style {
+pub(crate) fn run_wrapper_style(ws: WhiteSpace) -> Style {
     Style {
         // With float wrap on, a wrapping row is a block-level box the tree
         // lays out as a flex row (or, beside a float, into the float's slots).
@@ -1220,7 +1237,7 @@ pub(super) fn run_wrapper_style(ws: WhiteSpace) -> Style {
 /// #158 companion: leaves entering a no-soft-wrap run keep their measured
 /// width — flex's default shrink would squeeze them onto the one line,
 /// where Chrome lets the unbreakable content overflow instead.
-pub(super) fn pin_leaf_widths(
+pub(crate) fn pin_leaf_widths(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     leaves: &[diting_taffy::tree::NodeId],
 ) {
@@ -1236,7 +1253,7 @@ pub(super) fn pin_leaf_widths(
 /// child's own when it is an element that declared one. Text nodes have
 /// no style entry; their parent read mirrors the nws lookup the run
 /// builder uses.
-pub(super) fn ifc_white_space(
+pub(crate) fn ifc_white_space(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     child: NodeId,
@@ -1273,7 +1290,7 @@ pub(super) fn ifc_white_space(
 /// break after content adds no height, and the line a break opens for
 /// following content is that content's own line. Not in `node_map` — the
 /// strut paints nothing and owns no DOM identity.
-pub(super) fn br_strut_leaf(
+pub(crate) fn br_strut_leaf(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     lh: f32,
 ) -> Option<diting_taffy::tree::NodeId> {

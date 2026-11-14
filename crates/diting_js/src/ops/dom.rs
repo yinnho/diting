@@ -1,6 +1,17 @@
 // DOM 命令 dispatch 脊柱：op_dom 分诊 + 写路径布局失效 + attachShadow — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+use diting_dom::{AttachShadowError, NodeId, ShadowRootMode};
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+use super::dom_cmds::{
+    dom_cmd_attr_state, dom_cmd_create, dom_cmd_document, dom_cmd_mutate, dom_cmd_query,
+    dom_cmd_tree,
+};
+#[cfg(feature = "screenshot")]
+use super::dom_style::{attr_write_is_layout_inert, style_write_is_paint_only};
+use super::dom_style::{dom_cmd_geometry, dom_cmd_scroll_style, dom_cmd_sheets};
+use super::SharedState;
 
 /// Attach a native shadow root to a host element (`Element.prototype.attachShadow`).
 /// Returns the root's node id, or -2 when the host already has a shadow root
@@ -178,8 +189,15 @@ pub(super) fn drop_layout_on_write(state: &OpState, cmd: &str, arg1: &str, arg2:
             let skip = attr_write_is_layout_inert(n, gs.attr_selector_names.borrow().as_ref());
             skip
         });
+        // class/id change which rules match, but the matched cascade often
+        // only changes paint (react-native-web flips color classes on every
+        // commit). Keep the solve; the next run reuses it when the
+        // paint-stripped cascade is unchanged and re-solves when a layout
+        // input moved. layout_rev still advances — pixels may have changed.
+        let class_or_id = attr_name
+            .is_some_and(|n| n.eq_ignore_ascii_case("class") || n.eq_ignore_ascii_case("id"));
         if !identity && !inert {
-            if paint_only {
+            if paint_only || class_or_id {
                 gs.borrow().drop_paint_only();
             } else {
                 gs.borrow().drop_layout();
@@ -361,12 +379,12 @@ pub(super) fn dom_cmd_mut_state(state: &OpState, cmd: &str, arg1: String, arg2: 
 
 /// One `op_dom` family's answer, or the args handed back: not this
 /// family's command, the dispatcher tries the next one.
-pub(super) type DomCmd = Result<String, (String, String)>;
+pub(crate) type DomCmd = Result<String, (String, String)>;
 
 /// Node-id args that fail to parse must NOT silently become node 0 (the
 /// document root) — a fake-receiver call like
 /// `Element.prototype.setHTMLUnsafe.call({})` would otherwise wipe the
 /// whole document. Mutating commands no-op on an invalid id.
-pub(super) fn parse_nid(s: &str) -> Option<NodeId> {
+pub(crate) fn parse_nid(s: &str) -> Option<NodeId> {
     s.parse::<u32>().ok().map(NodeId::new)
 }

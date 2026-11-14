@@ -15,7 +15,9 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name)
 }
 
 fn brotli_decompress(input: &[u8]) -> Vec<u8> {
@@ -30,7 +32,10 @@ fn brotli8_golden_blob_decodes_byte_identical() {
     let plain = fs::read(fixture("cert.pem")).expect("cert.pem fixture");
     let blob = fs::read(fixture("cert.brotli8.bin")).expect("cert.brotli8.bin fixture");
     let decoded = brotli_decompress(&blob);
-    assert_eq!(decoded, plain, "brotli decode of the frozen brotli-8 blob drifted");
+    assert_eq!(
+        decoded, plain,
+        "brotli decode of the frozen brotli-8 blob drifted"
+    );
 }
 
 #[test]
@@ -39,7 +44,10 @@ fn brotli_roundtrip_on_cert_shaped_input() {
     let mut writer = brotli::CompressorWriter::new(Vec::new(), plain.len(), 11, 32);
     writer.write_all(&plain).expect("compress");
     let blob = writer.into_inner();
-    assert!(blob.len() < plain.len(), "brotli should shrink certificate text");
+    assert!(
+        blob.len() < plain.len(),
+        "brotli should shrink certificate text"
+    );
     assert_eq!(brotli_decompress(&blob), plain);
 }
 

@@ -5,7 +5,8 @@
 //! JsRuntime, and `spawn_watchdog` for callers holding a bare isolate
 //! handle. Split from the module root (god-file ratchet); #66's
 //! sustained-duty busy accounting lives here too — same family, the
-//! defenses against a realm burning a core.
+//! defenses against a realm burning a core. The one-shot thread that
+//! kills a single `execute_script` past its timeout lives here too.
 use v8::{self, IsolateHandle};
 
 /// Handle to an armed V8 execution watchdog (see [`JsRuntime::arm_watchdog`]).
@@ -890,5 +891,103 @@ mod cancel_grace_tests {
         // Release the wedge so the leaked thread can die with the test.
         *release.0.lock().unwrap() = true;
         release.1.notify_one();
+    }
+}
+
+impl super::JsRuntime {
+    pub fn execute_script_guarded(&mut self, _name: &str, source: &str) -> Result<(), String> {
+        if source.len() < 10_000 {
+            self.execute_script(_name, source)
+        } else {
+            self.execute_script_with_timeout(source, std::time::Duration::from_secs(5))
+        }
+    }
+
+    pub fn execute_script_with_timeout(
+        &mut self,
+        source: &str,
+        timeout: std::time::Duration,
+    ) -> Result<(), String> {
+        if timeout.is_zero() {
+            self.runtime
+                .execute_script("<script>", source)
+                .map_err(|e| format!("JS error: {}", e))?;
+            return Ok(());
+        }
+
+        let isolate_handle = self.runtime.isolate_handle();
+
+        let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let pair_clone = pair.clone();
+
+        let watchdog = std::thread::spawn(move || {
+            let (lock, cvar) = &*pair_clone;
+            let mut cancelled = lock
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let deadline = std::time::Instant::now() + timeout;
+
+            loop {
+                let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                if remaining.is_zero() {
+                    watchdog_terminate(&isolate_handle);
+                    return;
+                }
+
+                let result = cvar
+                    .wait_timeout(cancelled, remaining)
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                cancelled = result.0;
+                if *cancelled {
+                    return;
+                }
+            }
+        });
+
+        let result = self.runtime.execute_script("<script>", source);
+
+        {
+            let (lock, cvar) = &*pair;
+            let mut cancelled = lock
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            *cancelled = true;
+            cvar.notify_one();
+        }
+        let _ = watchdog.join();
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("Uncaught Error: execution terminated") {
+                    // Clear the termination NOW. The isolate was terminated by
+                    // a watchdog (usually this guard's own 5s one, possibly a
+                    // phase watchdog that fired mid-script) — and V8 keeps
+                    // the termination flag pending once the script unwinds.
+                    // Left set, every subsequent execution on the isolate
+                    // fails instantly: the next scripts "die in 5s" they never
+                    // ran, unguarded ones error out, module evals come back
+                    // "Uncaught null" (weixin article pages hit all three).
+                    // Chrome semantics: a killed script ends the script,
+                    // never the page — the page's remaining scripts keep
+                    // running. cancel_terminate_execution is the same
+                    // healing disarm_watchdog applies at its phase boundary.
+                    self.runtime.revive();
+                    // #227: this guard arms a raw thread with no stale
+                    // flag, so the #39/#50 heals are blind to its fires —
+                    // a dispatch window beheaded here leaks _mtDepth and
+                    // every later chain defer-spins on it forever. Forward
+                    // the unwind for the next loop entry.
+                    self.termination_unwound
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                    tracing::warn!("Script killed after {}s timeout", timeout.as_secs());
+                    self.runtime.execute_script("<reset>", "undefined").ok();
+                    Ok(())
+                } else {
+                    Err(format!("JS error: {}", msg))
+                }
+            }
+        }
     }
 }

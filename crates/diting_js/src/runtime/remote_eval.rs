@@ -1,8 +1,46 @@
 //! Remote-object evaluation: `evaluate` and `callFunctionOn`.
 //!
-//! Split from the runtime hub. These stay methods on `JsRuntime`. Pure move.
+//! These stay methods on `JsRuntime`. This module names the runtime types
+//! the remote-object result is built from.
 
-use super::*;
+use super::{JsRuntime, RemoteObjectInfo};
+
+/// Budget for awaiting a script's promise before declaring an eval timeout.
+/// The session eval face exposes this per-call (`timeout_ms`); callers that
+/// do slow page-side work (uploads through the page's own fetch) pass a
+/// larger budget instead of hitting a silent-null (0.4.1 taobao report).
+pub const DEFAULT_AWAIT_BUDGET_MS: u64 = 5000;
+
+/// Outcome of [`JsRuntime::evaluate_remote_outcome`] / callFunctionOn: the
+/// remote object plus any thrown (or rejected) exception. Captured separately so callers can
+/// emit `Runtime.exceptionThrown` + `exceptionDetails` instead of collapsing a
+/// throw into a plain `undefined`/`null` result.
+#[derive(Debug, Clone)]
+pub struct EvalOutcome {
+    pub info: RemoteObjectInfo,
+    pub exception: Option<ExceptionInfo>,
+}
+
+/// Details of a sync-thrown or awaited-rejection exception, enough to
+/// surface the exception instead of collapsing it to `undefined`.
+#[derive(Debug, Clone)]
+pub struct ExceptionInfo {
+    /// "Uncaught" for a sync throw, "Uncaught (in promise)" for a rejection.
+    pub text: String,
+    /// Human-readable message, e.g. "Error: boom".
+    pub description: String,
+    /// Error constructor name, e.g. "Error" / "TypeError".
+    pub class_name: String,
+    /// Object-store id of the error object, when one was allocated.
+    pub object_id: Option<String>,
+    /// First stack frame, e.g. "at <anonymous>:1:13" — the throw site.
+    pub stack_first: Option<String>,
+    /// Line/column of the user script frame (the `<anonymous>:L:C` frame),
+    /// when one was found — bootstrap eval wrapper frames are skipped so
+    /// the position points into the caller's script.
+    pub line: Option<u32>,
+    pub col: Option<u32>,
+}
 
 impl JsRuntime {
     pub async fn evaluate_remote(
@@ -116,8 +154,8 @@ impl JsRuntime {
         // for them — every binding that the __ditingWinSlot bag backs is
         // swapped through the slot instead.
         let code = format!(
-        "(function() {{ var el = globalThis._wrap && globalThis._wrap({nid}); if (!el || !el.isConnected) return 'not-ready'; var doc = el._iframeDoc || el.contentDocument; var win = el._iframeWin || el.contentWindow; if (!doc || !win) return 'not-ready'; var sl = globalThis.__ditingWinSlot; globalThis.__diting_frame_saved = [document, window, self, frames, sl ? {{d: sl.document, w: sl.window, s: sl.self, f: sl.frames}} : null]; if (sl) {{ sl.document = doc; sl.window = win; sl.self = win; sl.frames = win; }} document = doc; window = win; self = win; frames = win; Object.defineProperty(globalThis, '__diting_frame_location', {{ value: win.location, configurable: true, writable: true, enumerable: false }}); return 'ok'; }})()",
-    );
+            "(function() {{ var el = globalThis._wrap && globalThis._wrap({nid}); if (!el || !el.isConnected) return 'not-ready'; var doc = el._iframeDoc || el.contentDocument; var win = el._iframeWin || el.contentWindow; if (!doc || !win) return 'not-ready'; var sl = globalThis.__ditingWinSlot; globalThis.__diting_frame_saved = [document, window, self, frames, sl ? {{d: sl.document, w: sl.window, s: sl.self, f: sl.frames}} : null]; if (sl) {{ sl.document = doc; sl.window = win; sl.self = win; sl.frames = win; }} document = doc; window = win; self = win; frames = win; Object.defineProperty(globalThis, '__diting_frame_location', {{ value: win.location, configurable: true, writable: true, enumerable: false }}); return 'ok'; }})()",
+        );
         let v = self
             .runtime
             .execute_script("<frame-swap>", &code)
@@ -208,9 +246,9 @@ impl JsRuntime {
                     preview
                 );
                 return Err(format!(
-                "EVAL_TIMEOUT: expression did not settle within {}ms — the script may still be running; verify side effects before retrying",
-                await_budget_ms
-            ));
+                    "EVAL_TIMEOUT: expression did not settle within {}ms — the script may still be running; verify side effects before retrying",
+                    await_budget_ms
+                ));
             }
             let __dt = __t0.elapsed();
             if __dt > std::time::Duration::from_secs(1) {
@@ -400,9 +438,9 @@ impl JsRuntime {
             Some(nid) => {
                 if !self.frame_swap(nid)? {
                     return Err(format!(
-                    "frame callFunctionOn: iframe nid={} content not ready (detached or cross-origin)",
-                    nid
-                ));
+                        "frame callFunctionOn: iframe nid={} content not ready (detached or cross-origin)",
+                        nid
+                    ));
                 }
                 true
             }
@@ -470,9 +508,9 @@ impl JsRuntime {
             // must not fall through to an empty result slot (silent null).
             if !settled {
                 return Err(format!(
-                "EVAL_TIMEOUT: callFunctionOn did not settle within {}ms — the function may still be running; verify side effects before retrying",
-                DEFAULT_AWAIT_BUDGET_MS
-            ));
+                    "EVAL_TIMEOUT: callFunctionOn did not settle within {}ms — the function may still be running; verify side effects before retrying",
+                    DEFAULT_AWAIT_BUDGET_MS
+                ));
             }
 
             let rejected = self
@@ -643,5 +681,75 @@ impl JsRuntime {
             let code = format!("delete {};", Self::object_slot(object_id));
             let _ = self.runtime.execute_script("<release>", &code);
         }
+    }
+
+    fn make_oid(&self, counter: u64) -> String {
+        format!("{{\"injectedScriptId\":1,\"id\":{}}}", counter)
+    }
+
+    pub(super) fn resolve_this(&self, object_id: Option<&str>) -> String {
+        match object_id {
+            Some(oid) => {
+                if let Some(retrieval) = self.object_store.get(oid) {
+                    retrieval.clone()
+                } else if let Some(nid) = oid
+                    .strip_prefix("node-")
+                    .and_then(|s| s.parse::<u64>().ok())
+                {
+                    format!(
+                        "(function() {{ \
+                            var nid = {nid}; \
+                            var cache = globalThis._cache || new Map(); \
+                            if (cache.has(nid)) return cache.get(nid); \
+                            return null; \
+                        }})()"
+                    )
+                } else {
+                    "globalThis".to_string()
+                }
+            }
+            None => "globalThis".to_string(),
+        }
+    }
+
+    fn build_args(&self, arguments: &[serde_json::Value]) -> (String, String) {
+        let mut setup_lines = vec!["globalThis._namedBoot&&globalThis._namedBoot();".to_string()];
+        let mut arg_names = Vec::new();
+
+        for (i, arg) in arguments.iter().enumerate() {
+            let arg_name = format!("__arg{}", i);
+            if let Some(value) = arg.get("value") {
+                let json_str =
+                    serde_json::to_string(value).unwrap_or_else(|_| "undefined".to_string());
+                setup_lines.push(format!("var {} = {};", arg_name, json_str));
+            } else if let Some(oid) = arg.get("objectId").and_then(|v| v.as_str()) {
+                if let Some(retrieval) = self.object_store.get(oid) {
+                    setup_lines.push(format!("var {} = {};", arg_name, retrieval));
+                } else {
+                    setup_lines.push(format!("var {} = undefined;", arg_name));
+                }
+            } else if let Some(unser) = arg.get("unserializableValue").and_then(|v| v.as_str()) {
+                setup_lines.push(format!("var {} = {};", arg_name, unser));
+            } else {
+                setup_lines.push(format!("var {} = undefined;", arg_name));
+            }
+            arg_names.push(arg_name);
+        }
+
+        (setup_lines.join("\n"), arg_names.join(", "))
+    }
+
+    /// `v8_to_json` cannot tell a stored `undefined` from a missing value —
+    /// both come back as JSON null — so the byValue read-backs ask the
+    /// runtime for the stored value's typeof first (obscura#779).
+    fn stored_value_is_undefined(&mut self, oid: &str) -> Result<bool, String> {
+        let probe = self
+            .runtime
+            .execute_script(
+                "<typeofResult>",
+                &format!("typeof {} === 'undefined'", Self::object_slot(oid)),
+            )
+            .map_err(|e| format!("JS error: {}", e))?;
+        Ok(self.v8_to_json(probe)?.as_bool().unwrap_or(false))
     }
 }

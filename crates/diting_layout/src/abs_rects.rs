@@ -18,7 +18,9 @@ use std::collections::HashMap;
 
 use diting_taffy::style::Position;
 
-use super::{Rect, TaffyTree, TextLeaf};
+use super::flow_tree::FlowTree as TaffyTree;
+use super::text_run::TextLeaf;
+use super::Rect;
 use diting_css::{ComputedStyle, Length};
 use diting_dom::tree::NodeId;
 
@@ -32,7 +34,7 @@ fn translate_px(l: &Length, basis: f32) -> f32 {
     }
 }
 
-pub(super) fn collect(
+pub(crate) fn collect(
     taffy_tree: &TaffyTree<TextLeaf>,
     styles: &HashMap<NodeId, ComputedStyle>,
     node_map: &HashMap<diting_taffy::tree::NodeId, NodeId>,

@@ -1,4 +1,8 @@
-use super::*;
+use diting_wire::header::{
+    ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderName, HeaderValue, USER_AGENT,
+};
+
+use crate::emulate::Platform;
 
 pub fn header_initializer(
     sec_ch_ua: &'static str,

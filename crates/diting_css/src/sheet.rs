@@ -1,9 +1,58 @@
 //! Stylesheet parse: rules, at-rules, and `@container`.
 //!
-//! Split from the css hub. The public parse entry points and container
-//! types stay re-exported from the crate root. Pure move.
+//! The public parse entry points and container types stay re-exported
+//! from the crate root. This module names the media, layer, nesting, and
+//! keyframe helpers a stylesheet walk calls.
 
-use super::*;
+use crate::animation::parse_keyframes_body;
+use crate::layers;
+use crate::media::{media_query_applies_with, parse_px};
+use crate::nesting;
+use crate::props;
+use crate::scope;
+use crate::supports_cond::supports_condition_applies;
+use crate::{CssMediaType, KeyframesMap, MediaOverrides};
+
+/// One flattened stylesheet rule: selector text plus its declaration block.
+/// Selectors are compiled lazily by the cascade via diting_dom.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct ParsedRule {
+    pub selector: String,
+    pub declarations: String,
+    /// `@layer` the rule was written in (0 = unlayered); see `layers`.
+    pub layer: u32,
+}
+
+/// Attribute names referenced by attribute selectors in a rule pool
+/// (`[tabindex]`, `[data-x="1"]`, `[lang|=en]`), lowercased. Feeds the
+/// layout-cache invalidation decision for attribute writes: a write to a
+/// layout-inert attribute is only safe to skip when no rule selects on it
+/// (obscura#983).
+pub fn collect_selector_attr_names(rules: &[ParsedRule]) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for rule in rules {
+        let s = rule.selector.as_bytes();
+        let mut i = 0;
+        while i < s.len() {
+            let Some(open) = s[i..].iter().position(|&b| b == b'[').map(|p| p + i) else {
+                break;
+            };
+            let mut j = open + 1;
+            while j < s.len() && (s[j].is_ascii_alphanumeric() || s[j] == b'-' || s[j] == b'_') {
+                j += 1;
+            }
+            // A `|` right after the ident followed by another ident is a
+            // namespace prefix, not the attribute name — skip conservatively.
+            // `|=` is the dash-match operator and keeps the name.
+            let namespaced = s.get(j) == Some(&b'|') && s.get(j + 1) != Some(&b'=');
+            if j > open + 1 && !namespaced {
+                out.insert(String::from_utf8_lossy(&s[open + 1..j]).to_ascii_lowercase());
+            }
+            i = j.max(open + 1);
+        }
+    }
+    out
+}
 
 /// `container-type` — marks an element as a queryable container ancestor
 /// (css-conditional-5). v1 is a marker only: no size containment behavior

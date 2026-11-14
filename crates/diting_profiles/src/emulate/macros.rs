@@ -160,9 +160,35 @@ macro_rules! join {
 }
 
 macro_rules! standard_mod_generator {
-    ($mod_name:ident, $tls_options:expr, $http2_options:expr, $headers:expr) => {
+    (
+        $mod_name:ident,
+        $header_initializer:ident,
+        $tls_options:expr,
+        $http2_options:expr,
+        $headers:expr
+    ) => {
         pub(crate) mod $mod_name {
-            use super::*;
+            // tls_options! / http2_options! are pasted into this module and resolved
+            // here. Curve lists live in the sibling tls module; the header function
+            // lives in the sibling header module; the shared builder lives in profile.
+            // The unused-import lint does not see names that only appear inside those
+            // pasted expressions. A reused builder is passed as
+            // super::<version>::build_emulation so the sibling is named without a glob.
+            #[allow(unused_imports)]
+            use super::super::build_standard_emulation;
+            #[allow(unused_imports)]
+            use super::header::$header_initializer;
+            #[allow(unused_imports)]
+            use super::tls::*;
+            #[allow(unused_imports)]
+            use crate::emulate::{Emulation, Platform};
+            #[allow(unused_imports)]
+            use diting_wire::header::HeaderMap;
+            #[allow(unused_imports)]
+            use diting_wire::http2::{
+                Http2Options, Priorities, Priority, PseudoId, PseudoOrder, SettingId,
+                SettingsOrder, StreamDependency, StreamId,
+            };
 
             #[inline]
             pub fn emulation(emulation: Emulation) -> diting_wire::Emulation {
@@ -182,9 +208,12 @@ macro_rules! standard_mod_generator {
             }
         }
     };
-    ($mod_name:ident, $build_emulation:expr, $headers:expr) => {
+    ($mod_name:ident, $header_initializer:ident, $build_emulation:expr, $headers:expr) => {
         pub(crate) mod $mod_name {
-            use super::*;
+            #[allow(unused_imports)]
+            use super::header::$header_initializer;
+            #[allow(unused_imports)]
+            use crate::emulate::{Emulation, Platform};
 
             #[inline]
             pub fn emulation(emulation: Emulation) -> diting_wire::Emulation {
@@ -250,6 +279,7 @@ macro_rules! mod_generator {
     ) => {
         standard_mod_generator!(
             $mod_name,
+            $header_initializer,
             $tls_options,
             $http2_options,
             |emulation: &Emulation| {
@@ -270,6 +300,7 @@ macro_rules! mod_generator {
     ) => {
         standard_mod_generator!(
             $mod_name,
+            $header_initializer,
             $tls_options,
             $http2_options,
             |emulation: &Emulation| {
@@ -290,6 +321,7 @@ macro_rules! mod_generator {
     ) => {
         standard_mod_generator!(
             $mod_name,
+            $header_initializer,
             $tls_options,
             $http2_options,
             |emulation: &Emulation| fixed_headers!(emulation, $header_initializer, $ua)
@@ -303,6 +335,7 @@ macro_rules! mod_generator {
     ) => {
         standard_mod_generator!(
             $mod_name,
+            $header_initializer,
             $build_emulation,
             |emulation: &Emulation| {
                 platform_headers!(
@@ -321,6 +354,7 @@ macro_rules! mod_generator {
     ) => {
         standard_mod_generator!(
             $mod_name,
+            $header_initializer,
             $build_emulation,
             |emulation: &Emulation| {
                 firefox_platform_headers!(
@@ -339,6 +373,7 @@ macro_rules! mod_generator {
     ) => {
         standard_mod_generator!(
             $mod_name,
+            $header_initializer,
             $build_emulation,
             |emulation: &Emulation| fixed_headers!(emulation, $header_initializer, $ua)
         );

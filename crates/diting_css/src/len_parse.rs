@@ -1,13 +1,15 @@
 //! Length, side, grid-track and font-size parsing.
 //!
-//! Split from the css hub. Callers still see these names on the crate
-//! root. Pure move.
+//! Callers still see these names on the crate root. This module names the
+//! length model, the math evaluator, and the grid-track keywords it fills.
 
-use super::*;
+use crate::calc::eval_math_call;
+use crate::geom::{parse_css_length, resolve_len, CssLength, FontCtx, Length, Sides};
+use crate::style_kw::{GridTrack, TrackSize};
 
 /// Length arm helper for `apply_one`: parse + fold em/rem against the font
 /// context; calc() bodies route through the evaluator (same folding per term).
-pub(super) fn css_len(val: &str, fonts: &FontCtx) -> Option<Length> {
+pub(crate) fn css_len(val: &str, fonts: &FontCtx) -> Option<Length> {
     let t = val.trim();
     if let Some(l) = eval_math_call(t, fonts) {
         return Some(l);
@@ -17,7 +19,7 @@ pub(super) fn css_len(val: &str, fonts: &FontCtx) -> Option<Length> {
 
 /// Sizing keywords first: only the width family accepts them (the match
 /// arms decide legality); everything else is a regular length.
-pub(super) fn css_len_sizing(val: &str, fonts: &FontCtx) -> Option<Length> {
+pub(crate) fn css_len_sizing(val: &str, fonts: &FontCtx) -> Option<Length> {
     match val.trim().to_ascii_lowercase().as_str() {
         "min-content" => Some(Length::MinContent),
         "max-content" => Some(Length::MaxContent),
@@ -30,7 +32,7 @@ pub(super) fn css_len_sizing(val: &str, fonts: &FontCtx) -> Option<Length> {
 /// slot to the initial value; anything else unparseable is a declaration
 /// Chrome drops at parse time — the already-cascaded slot must survive
 /// untouched (a reset would yank a positioned box to its static spot).
-pub(super) fn css_box_offset(slot: &mut Option<Length>, v: &str, fonts: &FontCtx) -> bool {
+pub(crate) fn css_box_offset(slot: &mut Option<Length>, v: &str, fonts: &FontCtx) -> bool {
     if v.eq_ignore_ascii_case("auto") {
         *slot = None;
         return true;
@@ -45,7 +47,7 @@ pub(super) fn css_box_offset(slot: &mut Option<Length>, v: &str, fonts: &FontCtx
 }
 
 /// `aspect-ratio: 1.5` or `16 / 9` (width / height).
-pub(super) fn parse_aspect_ratio(v: &str) -> Option<f32> {
+pub(crate) fn parse_aspect_ratio(v: &str) -> Option<f32> {
     let v = v.trim();
     if v == "auto" {
         return None;
@@ -98,13 +100,13 @@ impl CssF32 for str {
     }
 }
 
-pub(super) fn parse_num_f32(v: &str) -> Option<f32> {
+pub(crate) fn parse_num_f32(v: &str) -> Option<f32> {
     css_f32(v)
 }
 
 /// Whitespace-separated track list: `1fr 2fr 100px auto`. Unknown tokens
 /// abort the whole declaration (browsers drop it entirely).
-pub(super) fn parse_grid_tracks(v: &str) -> Option<Vec<GridTrack>> {
+pub(crate) fn parse_grid_tracks(v: &str) -> Option<Vec<GridTrack>> {
     let mut tracks = Vec::new();
     let mut rest = v.trim();
     while !rest.is_empty() {
@@ -223,7 +225,7 @@ pub(super) fn parse_track_size(tok: &str) -> Option<TrackSize> {
 
 /// `'a b' 'c d'` → `[[a, b], [c, d]]`. Every string row must have the same
 /// cell count (CSS §7.3) or the whole declaration is invalid → None.
-pub(super) fn parse_grid_template_areas(v: &str) -> Option<Vec<Vec<String>>> {
+pub(crate) fn parse_grid_template_areas(v: &str) -> Option<Vec<Vec<String>>> {
     let mut rows = Vec::new();
     for raw in v.split('\'') {
         let row = raw.trim();
@@ -246,7 +248,7 @@ pub(super) fn parse_grid_template_areas(v: &str) -> Option<Vec<Vec<String>>> {
     Some(rows)
 }
 
-pub(super) fn set_side(sides: &mut Sides, name: &str, value: Option<Length>) {
+pub(crate) fn set_side(sides: &mut Sides, name: &str, value: Option<Length>) {
     let slot = match name.rsplit_once('-').map(|(_, side)| side) {
         Some("top") => &mut sides.top,
         Some("right") => &mut sides.right,
@@ -260,7 +262,7 @@ pub(super) fn set_side(sides: &mut Sides, name: &str, value: Option<Length>) {
 /// CSS 1–4 value expansion (px/em/rem/%/calc(); unknown units drop to None).
 /// `auto` tokens pass through as `Length::Auto` (margin centering) - the
 /// padding/border call sites reject them by dropping the declaration.
-pub(super) fn expand_sides(value: &str, fonts: &FontCtx) -> Sides {
+pub(crate) fn expand_sides(value: &str, fonts: &FontCtx) -> Sides {
     let vals: Vec<Option<Length>> = split_sides(value)
         .into_iter()
         .map(|tok| {
@@ -304,7 +306,7 @@ pub(super) fn expand_sides(value: &str, fonts: &FontCtx) -> Sides {
 /// Split a shorthand value into its top-level whitespace-separated tokens,
 /// keeping whitespace INSIDE balanced parentheses together —
 /// `calc(100% - 30px) 5px` is two tokens, not four.
-pub(super) fn split_sides(value: &str) -> Vec<&str> {
+pub(crate) fn split_sides(value: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut depth = 0usize;
     let mut start: Option<usize> = None;
@@ -330,7 +332,7 @@ pub(super) fn split_sides(value: &str) -> Vec<&str> {
 
 /// Reject `Length::Auto` entries (padding/border grammar: auto is illegal
 /// there, CSS drops the whole declaration). Returns None if any side is auto.
-pub(super) fn sides_no_auto(s: &Sides) -> Option<Sides> {
+pub(crate) fn sides_no_auto(s: &Sides) -> Option<Sides> {
     let ok = |v: Option<Length>| match v {
         Some(Length::Auto) => None,
         v => Some(v),
@@ -345,7 +347,7 @@ pub(super) fn sides_no_auto(s: &Sides) -> Option<Sides> {
 
 /// px-only float length (gaps, flex-basis, grid tracks: fractional px legal,
 /// units beyond px are later batches).
-pub(super) fn parse_px_f32(v: &str) -> Option<f32> {
+pub(crate) fn parse_px_f32(v: &str) -> Option<f32> {
     let v = v.trim();
     if v == "0" {
         return Some(0.0);
@@ -358,7 +360,7 @@ pub(super) fn parse_px_f32(v: &str) -> Option<f32> {
 /// cascade's pre-pass via `font_size_px`. The relative keywords fold to em
 /// factors (CSS 2.1 leaves the exact ratio UA-defined; 1.2 is the Chrome
 /// ladder, so smaller == ÷1.2, larger == ×1.2).
-pub(super) fn parse_font_size_len(v: &str) -> Option<CssLength> {
+pub(crate) fn parse_font_size_len(v: &str) -> Option<CssLength> {
     let v = v.trim();
     if let Some(l) = parse_css_length(v) {
         return Some(l);
@@ -375,7 +377,7 @@ pub(super) fn parse_font_size_len(v: &str) -> Option<CssLength> {
 }
 
 /// Fold a parsed font-size against its resolution bases.
-pub(super) fn font_size_px(
+pub(crate) fn font_size_px(
     l: CssLength,
     parent_fs: f32,
     root_fs: f32,

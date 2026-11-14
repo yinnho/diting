@@ -1,4 +1,7 @@
-use super::*;
+use diting_wire::tls::{AlpsProtocol, TlsOptions, TlsVersion, compress::CertificateCompressor};
+use typed_builder::TypedBuilder;
+
+use crate::emulate::compress::BrotliCompressor;
 
 macro_rules! tls_options {
     ($curves:expr) => {

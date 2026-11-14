@@ -1,13 +1,19 @@
-//! Transform / transform-origin parsing (god-file ratchet split from mod.rs, pure move).
+//! Transform / transform-origin parsing.
+//!
+//! This module names the length resolver, the angle parser, and the
+//! length arithmetic a function list composes with.
 
-use super::*;
+use crate::calc::eval_math_call;
+use crate::geom::{parse_css_length, resolve_len, FontCtx, Length, Transform2D, DEFAULT_VIEWPORT};
+use crate::len_parse::CssF32;
+use crate::transition::{add_len, mul_len, parse_angle_deg};
 
 /// Parse `transform-origin` (#244): `[ <length-percentage> | left | center |
 /// right ] || [ <length-percentage> | top | center | bottom ]`, keywords
 /// normalizing to percentages (left/top → 0%, center → 50%, right/bottom →
 /// 100%). A bare x component defaults y to center. More than two components
 /// (the 3D z form) invalidates the declaration.
-pub(super) fn parse_transform_origin(v: &str, fonts: &FontCtx) -> Option<(Length, Length)> {
+pub(crate) fn parse_transform_origin(v: &str, fonts: &FontCtx) -> Option<(Length, Length)> {
     let len = |val: &str| -> Option<Length> {
         let t = val.trim();
         if let Some(l) = eval_math_call(t, fonts) {

@@ -2,19 +2,37 @@
 //!
 //! Static-position harvest, out-of-flow reparent, float continuation,
 //! calc-width repair, box-size repair and wrap-host intrinsic repair.
-//! Split from the layout hub. `layout_solve_rooted` still calls them.
-//! Pure move: these functions see the same crate namespace they grew up in.
+//! `layout_solve_rooted` still calls them. This module names the geometry
+//! and float helpers each pass reads.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{
+    AlignMode, ComputedStyle, Display as CssDisplay, FlexDirection as CssFlexDirection,
+    JustifyMode, Overflow, PositionMode, WhiteSpace,
+};
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{AvailableSpace, Dimension, LengthPercentageAuto, Size};
+
+use crate::abs_rects;
+use crate::composed::render_children;
+use crate::float_flow;
+use crate::float_lines;
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::replaced::{bust_subtree_cache, taffy_depth};
+use crate::style_map::side_px;
+use crate::text::{self, FontBook};
+use crate::text_run::{run_tokens, TextLeaf};
+use crate::Rect;
 
 /// A re-solve inside one of `layout_solve_rooted`'s passes failed; the
 /// solve answers [`SolvedGeometry::aborted`].
-pub(super) struct SolveAborted;
+pub(crate) struct SolveAborted;
 
 /// Static-position harvest of `layout_solve_rooted` (moved out verbatim):
 /// out-of-flow boxes with both insets auto on an axis resolve at their flow
 /// spot, measured by a pre-solve before the reparent pass moves them.
-pub(super) fn harvest_static_positions(
+pub(crate) fn harvest_static_positions(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     fonts: &FontBook,
@@ -190,7 +208,7 @@ pub(super) fn harvest_static_positions(
 /// Absolute/fixed reparent pass of `layout_solve_rooted` (moved out
 /// verbatim): out-of-flow boxes move under their containing block (a
 /// positioned or transformed ancestor, else the ICB).
-pub(super) fn reparent_out_of_flow(
+pub(crate) fn reparent_out_of_flow(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     taffy_tree: &mut TaffyTree<TextLeaf>,
@@ -304,7 +322,7 @@ pub(super) fn reparent_out_of_flow(
 
 /// Float continuation of `layout_solve_rooted` (batch 8g, moved out
 /// verbatim): a float excludes in-flow content beyond its direct siblings.
-pub(super) fn continue_floats(
+pub(crate) fn continue_floats(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     fonts: &FontBook,
@@ -564,7 +582,7 @@ pub(super) fn continue_floats(
 /// calc() width repair of `layout_solve_rooted` (moved out verbatim):
 /// resolved shallow-first so a calc width inside a calc-width parent
 /// cascades; returns the repaired nodes for the #245 pass.
-pub(super) fn repair_calc_widths(
+pub(crate) fn repair_calc_widths(
     styles: &HashMap<NodeId, ComputedStyle>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
@@ -712,7 +730,7 @@ pub(super) fn repair_calc_widths(
 /// #245 repair pass of `layout_solve_rooted` (moved out verbatim):
 /// content-box px sizes and percent padding.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn repair_box_sizes(
+pub(crate) fn repair_box_sizes(
     styles: &HashMap<NodeId, ComputedStyle>,
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
@@ -860,7 +878,7 @@ pub(super) fn repair_box_sizes(
 
 /// #315 intrinsic repair of `layout_solve_rooted` (moved out verbatim):
 /// content-sized wrap hosts get the float+text sums the solve settled.
-pub(super) fn repair_wrap_host_intrinsics(
+pub(crate) fn repair_wrap_host_intrinsics(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     fonts: &FontBook,

@@ -1,4 +1,9 @@
-use super::*;
+use diting_wire::tls::{
+    AlpnProtocol, ExtensionType, KeyShare, TlsOptions, TlsVersion, compress::CertificateCompressor,
+};
+use typed_builder::TypedBuilder;
+
+use crate::emulate::compress::{BrotliCompressor, ZlibCompressor, ZstdCompressor};
 
 macro_rules! tls_options {
     (@build $builder:expr) => {

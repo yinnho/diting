@@ -1,6 +1,10 @@
 //! JS evaluation surface: the evaluate family (plain + CDP remote-object
-//! protocol), DOM access helpers and object-store release. Split from page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
-use super::*;
+//! protocol), DOM access helpers and object-store release. Split from
+//! page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
+
+use diting_dom::DomTree;
+
+use super::Page;
 
 impl Page {
     /// Snapshot every drawn canvas's 2D buffer into the layout bitmap table

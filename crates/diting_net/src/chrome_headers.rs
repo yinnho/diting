@@ -26,6 +26,76 @@ use diting_wire::header::OrigHeaderMap;
 
 use crate::client::ResourceType;
 
+/// Derive `sec-ch-ua` and `sec-ch-ua-platform` from the User-Agent string so
+/// the client hints stay consistent with the advertised UA. Anti-bot systems
+/// (WeChat, etc.) flag mismatches like a macOS UA paired with a "Linux"
+/// sec-ch-ua-platform or a version drift between UA and sec-ch-ua.
+///
+/// Returns `(sec_ch_ua_header, sec_ch_ua_platform_header)`.
+pub fn derive_client_hints(ua: &str) -> (String, String) {
+    // Major version: first \d+ after "Chrome/". Fleet fallback claims 145 —
+    // the TLS preset's own major, and one the xhs edge routes to production
+    // (146-153/155/156 land in its customer.sit loop).
+    let version = ua
+        .split("Chrome/")
+        .nth(1)
+        .and_then(|s| s.split('.').next())
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(145);
+
+    let platform = if ua.contains("Macintosh") || ua.contains("Mac OS X") {
+        "\"macOS\""
+    } else if ua.contains("Windows") {
+        "\"Windows\""
+    } else if ua.contains("iPhone") || ua.contains("Android") {
+        "\"Android\""
+    } else {
+        "\"Linux\""
+    };
+
+    (grease_brand_list(version), platform.to_string())
+}
+
+/// Chromium's UA-CH GREASE generator (user_agent_utils.cc), ported: the
+/// grease brand, its version, and the shuffle order are all derived from
+/// the major version — never random. Keeping the algorithm instead of a
+/// per-major literal makes the header match the JS face
+/// (bootstrap.js `__ditingBrandList`) for any major the fleet claims;
+/// 145 and 155 were both hardcoded wrong before this.
+/// 154 → `"Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"`
+/// (algorithm example; the fleet itself claims 145).
+fn grease_brand_list(version: u32) -> String {
+    const CHARS: [&str; 11] = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
+    const VERS: [&str; 3] = ["8", "99", "24"];
+    const ORDERS: [[usize; 3]; 6] = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    let seed = version as usize;
+    let grease = format!("Not{}A{}Brand", CHARS[seed % 11], CHARS[(seed + 1) % 11]);
+    let grease_ver = VERS[seed % 3];
+    let vstr = version.to_string();
+    let pre_shuffled = [
+        (grease.as_str(), grease_ver),
+        ("Chromium", vstr.as_str()),
+        ("Google Chrome", vstr.as_str()),
+    ];
+    let order = ORDERS[seed % 6];
+    let mut shuffled: [(&str, &str); 3] = [("", ""); 3];
+    for (i, slot) in order.iter().enumerate() {
+        shuffled[*slot] = pre_shuffled[i];
+    }
+    let parts: Vec<String> = shuffled
+        .iter()
+        .map(|(brand, ver)| format!("\"{brand}\";v=\"{ver}\""))
+        .collect();
+    parts.join(", ")
+}
+
 /// Chrome's literal for the request. Equals Chrome 145's value; the zstd
 /// token arrived with Chrome 123.
 pub const ACCEPT_ENCODING: &str = "gzip, deflate, br, zstd";

@@ -1,5 +1,8 @@
-//! Image header dimension sniffing (god-file ratchet split from mod.rs, pure move).
-use super::*;
+//! Image header dimension sniffing.
+
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
+use diting_ops::diting_op;
 
 /// `op_image_info(body_base64)` — the dimensions op backing the Image
 /// shim's `naturalWidth/naturalHeight`. Returns `{"width":w,"height":h}`;

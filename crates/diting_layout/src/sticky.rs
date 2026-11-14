@@ -111,7 +111,7 @@ pub type StickySpan = (NodeId, usize, usize);
 /// backdrop-filter. The PAINT-order view; `collect` adds two walk-internal
 /// barriers on top — clipping (a hoisted range would escape its Clip pair)
 /// and sticky subtrees (their shift span must stay contiguous).
-pub(super) fn establishes_stacking_context(s: &ComputedStyle) -> bool {
+pub(crate) fn establishes_stacking_context(s: &ComputedStyle) -> bool {
     let positioned = matches!(
         s.position,
         Some(PositionMode::Relative)

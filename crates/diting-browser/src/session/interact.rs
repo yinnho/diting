@@ -12,7 +12,7 @@ use crate::page::Page;
 /// Collect playback-relevant sources the engine never fetches (media
 /// elements, player iframes), as a JSON array of `{url, tag}`. Relative URLs
 /// resolve against the page location; duplicates collapse.
-pub(super) const DOM_MEDIA_SCRIPT: &str = r#"(function(){
+pub(crate) const DOM_MEDIA_SCRIPT: &str = r#"(function(){
     var out = [];
     var seen = {};
     function add(u, tag) {
@@ -35,7 +35,7 @@ pub(super) const DOM_MEDIA_SCRIPT: &str = r#"(function(){
 /// inside, not playable URLs themselves); the rest must classify as media
 /// or they are dropped. These are candidates, not confirmations — `via`
 /// says which side produced each entry.
-pub(super) fn merge_dom_candidates(media: &mut Vec<Value>, dom_json: &str) {
+pub(crate) fn merge_dom_candidates(media: &mut Vec<Value>, dom_json: &str) {
     let dom: Vec<Value> = match serde_json::from_str(dom_json) {
         Ok(v) => v,
         Err(_) => return,
@@ -264,7 +264,7 @@ pub(super) fn collect_interactive_raw(
     Ok(parsed)
 }
 
-pub(super) fn extract_indexed_state(
+pub(crate) fn extract_indexed_state(
     page: &mut Page,
     element_map: &mut HashMap<usize, u64>,
 ) -> Result<String, String> {
@@ -900,7 +900,7 @@ pub(super) fn eval_interaction(page: &mut Page, js: &str) -> Result<serde_json::
 /// mouse-down used to be silently folded into Null, mouse-up still ran, and
 /// the caller got a "success" for a chain that never reached the page (the
 /// merchant's capture listeners saw only pointerup/mouseup).
-pub(super) async fn click_xy(
+pub(crate) async fn click_xy(
     page: &mut Page,
     x: f64,
     y: f64,
@@ -928,7 +928,7 @@ pub(super) async fn click_xy(
 /// a drag whose press was terminated stops mid-chain instead of reporting
 /// success.
 #[allow(clippy::too_many_arguments)] // flat geometry + pacing knobs; a params struct here would be ceremony
-pub(super) async fn drag_xy(
+pub(crate) async fn drag_xy(
     page: &mut Page,
     from_x: f64,
     from_y: f64,
@@ -1154,7 +1154,7 @@ const CLICK_RECHECK_SCRIPT: &str = r#"(function() {
     return JSON.stringify({clicked: true});
 })()"#;
 
-pub(super) async fn click_by_index(
+pub(crate) async fn click_by_index(
     page: &mut Page,
     element_map: &HashMap<usize, u64>,
     index: usize,
@@ -1209,7 +1209,7 @@ pub(super) async fn click_by_index(
     })
 }
 
-pub(super) fn input_by_index(
+pub(crate) fn input_by_index(
     page: &mut Page,
     element_map: &HashMap<usize, u64>,
     index: usize,
@@ -1304,7 +1304,7 @@ pub(super) fn input_by_index(
 /// the widget's own click handler (doudian's new bundle), so no selector
 /// can reach the input — but the widget's `input.click()` call arms the
 /// chooser, and this mode feeds that exact element.
-pub(super) fn set_files_by_selector(
+pub(crate) fn set_files_by_selector(
     page: &mut Page,
     selector: Option<&str>,
     files: &[Value],

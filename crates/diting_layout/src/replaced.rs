@@ -1,9 +1,24 @@
 //! Replaced boxes: images, video, canvas, form controls, svg, iframe.
 //!
-//! Split from the layout hub. The public entry points stay re-exported
-//! from the crate root. Pure move.
+//! The public entry points stay re-exported from the crate root. This
+//! module names the style, image, and text helpers it calls.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{
+    ComputedStyle, Display as CssDisplay, ObjectFit, ObjectPositionPart, PositionMode,
+};
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{
+    Dimension, LengthPercentage, LengthPercentageAuto, Position, Size, Style,
+};
+
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::{self, DecodedImage};
+use crate::style_map::side_px;
+use crate::svg;
+use crate::text_run::{selected_option_label, TextLeaf};
+use crate::Rect;
 
 /// Tags whose layout box is a replaced leaf: intrinsic size + aspect ratio,
 /// no children in the layout tree. `input`/`textarea` join the img/canvas
@@ -15,7 +30,7 @@ use super::*;
 /// user units, not flow content — flowing them is the text-leak bug the
 /// AginxOS svg batch starts from. The subtree compiles to paint ops at
 /// collect time instead (see [`svg::compile_svg`]).
-pub(super) fn is_replaced_tag(tag: &str) -> bool {
+pub(crate) fn is_replaced_tag(tag: &str) -> bool {
     matches!(
         tag,
         "img"
@@ -257,7 +272,7 @@ pub(super) fn cb_height_definite(
 /// invisible to its siblings' cache keys — (style, constraints) — so a
 /// cached text leaf would keep its float_lines slots wrapped against the
 /// float's old extent and paint across the repaired box.
-pub(super) fn bust_subtree_cache(node: diting_taffy::tree::NodeId, tree: &mut TaffyTree<TextLeaf>) {
+pub(crate) fn bust_subtree_cache(node: diting_taffy::tree::NodeId, tree: &mut TaffyTree<TextLeaf>) {
     let _ = tree.mark_dirty(node);
     for c in tree.children(node).unwrap_or_default().to_vec() {
         bust_subtree_cache(c, tree);
@@ -266,7 +281,7 @@ pub(super) fn bust_subtree_cache(node: diting_taffy::tree::NodeId, tree: &mut Ta
 
 /// Depth of a taffy node below the ICB — the post-layout repair passes sort
 /// their fixups shallow-first so an inner fixup feeds an outer one's basis.
-pub(super) fn taffy_depth(
+pub(crate) fn taffy_depth(
     taffy_tree: &TaffyTree<TextLeaf>,
     node: diting_taffy::tree::NodeId,
     icb: diting_taffy::tree::NodeId,
@@ -290,7 +305,7 @@ pub(super) fn taffy_depth(
 /// §10.5 exception — its containing block is the nearest positioned
 /// ancestor's padding box, definite by construction once that ancestor has
 /// laid out).
-pub(super) fn pct_height_resolves(
+pub(crate) fn pct_height_resolves(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     id: NodeId,
@@ -313,7 +328,7 @@ pub(super) fn pct_height_resolves(
 ///   transfers through it.
 /// - `video`/`iframe`/`embed`: attribute-or-300×150 per axis, NO ratio —
 ///   `<video width=600>` lays out 600×150, height does not transfer.
-pub(super) fn build_replaced_leaf(
+pub(crate) fn build_replaced_leaf(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,

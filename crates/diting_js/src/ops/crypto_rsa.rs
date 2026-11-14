@@ -16,7 +16,9 @@
 // (from_be_slice_vartime / to_be_bytes_trimmed_vartime).
 // ---------------------------------------------------------------------------
 
-use super::*;
+use diting_ops::diting_op;
+
+use super::crypto_secret::crypto_err;
 
 /// Flat ten-section payload shared with the JS shim (`ecdsa_flat` sibling).
 pub(crate) fn rsa_flat(parts: [&[u8]; 10]) -> Vec<u8> {

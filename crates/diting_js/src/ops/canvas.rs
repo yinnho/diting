@@ -11,7 +11,13 @@
 //! and the canvas face is core: every build flavor must serve a decodable
 //! PNG. The dev-dependency `png` crate is the round-trip oracle in tests.
 
-use super::*;
+#[cfg(feature = "screenshot")]
+use super::SharedState;
+#[cfg(feature = "screenshot")]
+use diting_dom::NodeId;
+use diting_ops::diting_op;
+#[cfg(feature = "screenshot")]
+use diting_runtime::state::OpState;
 
 // --- PNG encode: DEFLATE (fixed Huffman, single block, greedy LZ77) ---
 

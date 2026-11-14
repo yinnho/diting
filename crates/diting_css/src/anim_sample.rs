@@ -1,9 +1,14 @@
 //! Keyframe sampling onto a computed style.
 //!
-//! Split from the css hub. `sample_css_animation` stays re-exported from
-//! the crate root. Pure move.
+//! `sample_css_animation` stays re-exported from the crate root. This
+//! module names the keyframe table, the transform parser, and `var()`.
 
-use super::*;
+use crate::computed::ComputedStyle;
+use crate::geom::{Length, Transform2D};
+use crate::len_parse::CssF32;
+use crate::transform::parse_transform;
+use crate::vars::substitute_vars;
+use crate::{KeyframeStop, Keyframes, KeyframesMap};
 
 /// Resolve one element's CSS animation against the stylesheet's keyframes
 /// table at time `t` (seconds since document start), mutating the computed
@@ -119,7 +124,7 @@ fn lerp_len(a: Length, b: Length, l: f32) -> Length {
 /// Interpolate two transforms. `None` on a side is identity for this
 /// purpose (`transform: none` in a `to` stop); the mixed-unit lengths snap
 /// discretely, everything else lerps componentwise.
-pub(super) fn lerp_transform(
+pub(crate) fn lerp_transform(
     a: Option<Transform2D>,
     b: Option<Transform2D>,
     l: f32,

@@ -1,6 +1,13 @@
 // 脚本启动追踪：script 标记沿子树传播 + 动态脚本 fetch 门 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+use std::cell::RefCell;
+use std::collections::HashSet;
+
+use diting_dom::{DomTree, NodeData, NodeId};
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+use super::{JsState, SharedState};
 
 pub(crate) fn node_is_script(dom: &DomTree, node_id: NodeId) -> bool {
     dom.with_node(node_id, |node| {
@@ -45,7 +52,7 @@ pub(crate) fn mark_script_subtree_started(state: &JsState, root: NodeId) {
     state.already_started_scripts.borrow_mut().extend(scripts);
 }
 
-pub(super) fn propagate_script_start_state(
+pub(crate) fn propagate_script_start_state(
     dom: &DomTree,
     source_root: NodeId,
     cloned_root: NodeId,

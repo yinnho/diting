@@ -1,9 +1,41 @@
 //! `@media` query evaluation.
 //!
-//! Split from the css hub. `media_query_applies*` stay re-exported from
-//! the crate root. Pure move.
+//! `media_query_applies*` stay re-exported from the crate root. Preference
+//! defaults live here, next to the query that reads them.
 
-use super::*;
+use crate::len_parse::CssF32;
+
+/// Which media a stylesheet evaluation targets. `print` rules only apply
+/// inside `@media print` bodies; `screen` rules apply outside it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CssMediaType {
+    #[default]
+    Screen,
+    Print,
+}
+
+/// Emulated media features pushed via CDP `Emulation.setEmulatedMedia`
+/// (Playwright's `page.emulateMedia`): (name, value) pairs such as
+/// `("prefers-reduced-motion", "reduce")`. A feature present here answers
+/// every query for that name from its emulated value; the rest keep the
+/// persona defaults `media_pref_default` holds — the same table the JS
+/// `matchMedia` publishes, so the cascade and the scripts agree (#29).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MediaOverrides {
+    pub features: Vec<(String, String)>,
+}
+
+/// The un-emulated value a preference feature holds — mirrors the
+/// `_MQ_PERSONA_BOOL` desktop-light persona in the bootstrap. Features not
+/// listed have no default and stay false in both faces until emulated.
+fn media_pref_default(name: &str) -> Option<&'static str> {
+    match name {
+        "prefers-color-scheme" => Some("light"),
+        "prefers-reduced-motion" => Some("no-preference"),
+        "prefers-reduced-transparency" => Some("no-preference"),
+        _ => None,
+    }
+}
 
 // ---------------------------------------------------------------------------
 // @media evaluation
@@ -166,7 +198,7 @@ fn media_pref_answer(name: &str, value: &str, overrides: &MediaOverrides) -> Opt
     Some(truth.eq_ignore_ascii_case(value))
 }
 
-pub(super) fn parse_px(value: &str) -> Option<f32> {
+pub(crate) fn parse_px(value: &str) -> Option<f32> {
     let v = value.trim().strip_suffix("px").unwrap_or(value.trim());
     v.css_f32()
 }

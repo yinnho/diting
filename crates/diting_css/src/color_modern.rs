@@ -1099,7 +1099,7 @@ impl ModernColor {
                     space: self.space,
                     c: self.c,
                     a: self.a,
-                }))
+                }));
             }
         };
         let mut s = format!("{head}{} {} {}", n(cs[0]), n(cs[1]), n(cs[2]));

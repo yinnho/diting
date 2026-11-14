@@ -1,9 +1,23 @@
-//! CSS computed style → taffy Style translation (split from the layout
-//! root to pay the god-file ratchet): [`to_taffy_style`], the intrinsic
-//! sizing-keyword resolver, grid track/area mapping, and the padding
-//! carry-over helpers. Everything here is a pure translation of one
-//! element's ComputedStyle — no DOM walk, no tree mutation.
-use super::*;
+//! CSS computed style → taffy Style translation: [`to_taffy_style`], the
+//! intrinsic sizing-keyword resolver, grid track/area mapping, and the
+//! padding carry-over helpers. Everything here is a pure translation of one
+//! element's ComputedStyle — no DOM walk, no tree mutation. This module
+//! names the taffy style vocabulary and the text measure it asks for sizes.
+
+use diting_css::{
+    AlignContentMode, AlignMode, ComputedStyle, Display as CssDisplay,
+    FlexDirection as CssFlexDirection, FlexWrapMode, GridTrack, JustifyMode, PositionMode,
+    TextAlign,
+};
+use diting_taffy::prelude::{
+    auto, fr, length, minmax, percent, AlignContent, AlignItems, AvailableSpace, Dimension,
+    Display, FlexDirection, FlexWrap, JustifyContent, LengthPercentage, LengthPercentageAuto,
+    Position, Size, Style, TaffyAuto,
+};
+
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::text::FontBook;
+use crate::text_run::{leaf_descent, measure_text_leaf, run_tokens, shift_pad, TextLeaf};
 
 /// Map a computed style onto a taffy style. Mirrors upstream `to_taffy_style`
 /// for the modeled subset, including the block→flex-column promotion that
@@ -12,7 +26,7 @@ use super::*;
 /// resolve (computed by the caller via [`pct_height_resolves`] — this fn has
 /// no DOM access). Percent heights are folded to auto per §10.5 when the
 /// containing block is content-sized.
-pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Style {
+pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Style {
     let mut s = Style::default();
     let display = style.display.unwrap_or(CssDisplay::Block);
     // A block box (or table cell) with centered/right inline content needs a
@@ -525,7 +539,7 @@ pub(super) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
 /// min-size floor and a 100%-of-containing-block max-size clamp, so taffy
 /// applies the CSS `fit-content(stretch, max-content)` clamp inside its own
 /// size resolution (indefinite containing block → plain max-content).
-pub(super) fn resolve_sizing_keywords(
+pub(crate) fn resolve_sizing_keywords(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     node: diting_taffy::tree::NodeId,
     style: &ComputedStyle,
@@ -702,7 +716,7 @@ fn template_areas_from_matrix(
 /// Padding contribution in px for the content-box→border-box carry-over
 /// (percent padding contributes nothing addable — see the % note in
 /// to_taffy_style).
-pub(super) fn side_px(v: Option<diting_css::Length>) -> f32 {
+pub(crate) fn side_px(v: Option<diting_css::Length>) -> f32 {
     match v {
         Some(diting_css::Length::Px(px)) => px,
         _ => 0.0,

@@ -1,6 +1,14 @@
-//! Referrer-Policy resolution + Referer header derivation (god-file ratchet split from mod.rs, pure move).
+//! Referrer-Policy resolution + Referer header derivation.
+//!
+//! This module names the policy token table, the document state, and the
+//! URL type a Referer header is derived from.
 
-use super::*;
+use diting_dom::DomTree;
+use diting_runtime::state::OpState;
+use url::Url;
+
+use super::fetch_ops::REFERRER_POLICY_TOKENS;
+use super::{JsState, SharedState};
 
 /// Parse a comma-separated policy list (header value or meta content) per
 /// Referrer Policy §"determine policy for token": tokens are
@@ -46,7 +54,7 @@ pub fn resolve_referrer_policy_from(gs: &JsState, dom: &DomTree) -> String {
 }
 
 /// Op-time wrapper: same resolution, from OpState's shared document state.
-pub(super) fn resolve_document_referrer_policy(state: &OpState) -> String {
+pub(crate) fn resolve_document_referrer_policy(state: &OpState) -> String {
     let shared = state.borrow::<SharedState>().clone();
     let gs = shared.borrow();
     match gs.dom.as_ref() {

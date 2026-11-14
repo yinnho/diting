@@ -1,8 +1,17 @@
 //! Text decorations and gradient-clipped text recolor.
 //!
-//! Split from `paint.rs`. The band replay still calls these. Pure move.
+//! The band replay still calls these. This module names the shaper and
+//! the gradient sampler it recolors with.
 
-use super::*;
+use diting_css::{TextDecorations, WhiteSpace};
+
+use super::canvas::{gradient_stop_color, Canvas};
+use crate::paint_items::TextGradient;
+use crate::text::{
+    baseline_offset, greedy_wrap, last_line_offset, tokens_of, truncate_tokens, HanSlot,
+    ScaledMetrics, TextRaster, Token,
+};
+use crate::FontBook;
 
 /// background-clip: text fill (gradient-text batch): rewrite an
 /// opaque-white text raster in place into the gradient — each covered
@@ -14,7 +23,7 @@ use super::*;
 /// pixel's own wrapped-line fragment box, so every line restarts the
 /// gradient — the line index comes from the row's y against the item's
 /// line boxes, exactly where the raster laid them.
-pub(super) fn recolor_gradient_text(
+pub(crate) fn recolor_gradient_text(
     r: &mut TextRaster,
     x: f32,
     y: f32,
@@ -70,7 +79,7 @@ pub(super) fn recolor_gradient_text(
 /// strokes with the gradient (`text-decoration-color` loses) — `gradient`
 /// carries that fill and each column samples it in page space.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn paint_text_decorations(
+pub(crate) fn paint_text_decorations(
     out: &mut Canvas,
     fonts: &FontBook,
     text: &str,

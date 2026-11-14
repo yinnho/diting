@@ -1,10 +1,30 @@
 //! Float zones: a float and the in-flow siblings that share its band.
 //!
-//! Split from the layout hub. `build_element_inner` still decides when a
-//! zone applies and calls `build_float_zone`. Pure move: these functions
-//! see the same crate namespace they grew up in.
+//! `build_element_inner` still decides when a zone applies and calls
+//! `build_float_zone`. This module names the builders it uses.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{ComputedStyle, Display as CssDisplay, WhiteSpace};
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{
+    auto, percent, AlignItems, Dimension, Display, FlexDirection, FlexWrap, JustifyContent,
+    LengthPercentageAuto, Size, Style,
+};
+
+use crate::composed::render_children;
+use crate::element_build::{build_element, build_normal_sibling};
+use crate::flow_column::{build_flow_column, subtree_paints_nothing};
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::DecodedImage;
+use crate::replaced::pct_height_resolves;
+use crate::style_map::to_taffy_style;
+use crate::table::TableBuildMeta;
+use crate::text::FontBook;
+use crate::text_run::{
+    collapse_adjacent_sibling_margins, is_alignment_promote,
+    stretch_block_children_in_aligned_parent, TextLeaf,
+};
 
 /// Rough content-height estimate for a float (8g; upstream
 /// estimate_float_height): explicit px heights when present, else one line
@@ -677,7 +697,7 @@ fn float_zone_walk(
 /// siblings mount as zones in document order. `Some(node)` is a finished
 /// element (the 8e right-float navigation bar) the caller returns as is.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_float_zone(
+pub(crate) fn build_float_zone(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,

@@ -1,9 +1,256 @@
 //! Navigation and settle: the navigate family (document fetch, redirect
 //! chains, referrer/history bookkeeping) plus the event-loop settle/pump
-//! family sessions drive between actions. Split from page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
-use super::*;
+//! family sessions drive between actions. Split from page/mod.rs
+//! (ARCHITECTURE.md P2 batch 3); behavior unchanged. This module names the
+//! page helpers a navigation calls.
+
+use diting_dom::{parse_html, DomTree};
+use diting_js::runtime::JsRuntime;
+use diting_net::{NetError, Response};
+use url::Url;
+
+use super::load::{decode_data_uri, subresource_allowed};
+use super::{Page, PageError};
+
+/// Returns true when a JS-initiated navigation would step from a
+/// non-file scheme into a file: URL. We treat that move as an SOP
+/// violation because the existing realm survives the navigation and
+/// can read the new document's body.
+pub(super) fn cross_scheme_to_file(from: &str, to: &str) -> bool {
+    let to_is_file = Url::parse(to)
+        .map(|u| u.scheme().eq_ignore_ascii_case("file"))
+        .unwrap_or(false);
+    if !to_is_file {
+        return false;
+    }
+    Url::parse(from)
+        .map(|u| !u.scheme().eq_ignore_ascii_case("file"))
+        .unwrap_or(true)
+}
+
+/// Chrome renders a response whose MIME says "this is not HTML" as a plain
+/// text document: body is a single `<pre>` holding the source verbatim, so
+/// newlines survive and markup characters stay inert. Feeding the bytes to
+/// the HTML parser instead collapses the formatting and interprets any
+/// `<tag>`-looking text as real elements.
+pub(super) fn renders_as_text_document(mime: &str) -> bool {
+    if mime == "text/html" || mime == "application/xhtml+xml" || mime.starts_with("image/") {
+        return false;
+    }
+    mime.starts_with("text/")
+        || mime == "application/json"
+        || mime == "application/javascript"
+        || mime.ends_with("+json")
+        || mime == "application/xml"
+        || mime.ends_with("+xml")
+}
+
+pub(super) fn plain_text_document(body: &str) -> DomTree {
+    let mut escaped = String::with_capacity(body.len());
+    for ch in body.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            _ => escaped.push(ch),
+        }
+    }
+    parse_html(&format!("<pre>{escaped}</pre>"))
+}
+
+/// Escape a value for safe inclusion inside a JavaScript template
+/// literal. The previous implementation only escaped `\`, `` ` `` and
+/// `${`; that left U+2028 / U+2029 (the JS-specific line terminators)
+/// and other control characters as breakout vectors. Done at the
+/// callsite means future tweaks come back to one function.
+pub(super) fn escape_for_js_template_literal(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '`' => out.push_str("\\`"),
+            '$' => out.push_str("\\$"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
+            '\u{0000}' => out.push_str("\\0"),
+            '\r' => out.push_str("\\r"),
+            c if (c as u32) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+use crate::lifecycle::LifecycleState;
 
 impl Page {
+    /// Fetch the main document. Stealth mode bypasses the tracing client —
+    /// the wreq-backed stealth transport has no callback hook (and stealth
+    /// pages are exactly the ones whose observers should not double-fire on
+    /// a side channel); observers still see scripts/stylesheets/fetches.
+    pub(super) async fn fetch_document(&self, url: &Url) -> Result<Response, NetError> {
+        // CDP Fetch interception covers navigation documents too (Playwright
+        // `page.route` / Puppeteer `setRequestInterception`). The document
+        // request parks on the same resolution channel as a script-initiated
+        // fetch; the load task runs spawned off the CDP loop, so the bridge
+        // can answer it from a later command or the idle pump. No answer
+        // inside the shared resolution timeout → fall through to the real
+        // request (Continue semantics). Intercept resolution `Continue`
+        // overrides (url/method/headers rewrites) are not applied to
+        // documents — clients rewrite the bare `route.continue_()` case in
+        // practice, and honored rewrites would need re-running the SSRF gate
+        // on the substituted URL before commit.
+        if let Some(tx) = &self.intercept_tx {
+            let (resolver, rx) = tokio::sync::oneshot::channel();
+            let mut headers = std::collections::HashMap::new();
+            if let Ok(ua) = self.http_client.user_agent.try_read() {
+                headers.insert("User-Agent".to_string(), ua.clone());
+            }
+            let request = diting_js::ops::InterceptedRequest {
+                url: url.to_string(),
+                method: "GET".to_string(),
+                headers,
+                resource_type: "Document".to_string(),
+                resolver,
+            };
+            if tx.send(request).is_ok() {
+                let timeout_ms = diting_js::ops::INTERCEPT_RESOLUTION_TIMEOUT_MS
+                    .load(std::sync::atomic::Ordering::Relaxed);
+                match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), rx).await {
+                    Ok(Ok(diting_js::ops::InterceptResolution::Fulfill {
+                        status,
+                        headers,
+                        body,
+                    })) => {
+                        return Ok(Response {
+                            url: url.clone(),
+                            status,
+                            headers,
+                            body,
+                            redirected_from: Vec::new(),
+                            redirect_hops: Vec::new(),
+                            request_headers: std::collections::HashMap::new(),
+                        });
+                    }
+                    Ok(Ok(diting_js::ops::InterceptResolution::Fail { reason })) => {
+                        return Err(NetError::Network(format!(
+                            "request blocked by client, reason: {reason}"
+                        )));
+                    }
+                    // Continue / dropped resolver / timeout: real request below.
+                    Ok(Ok(_)) | Ok(Err(_)) | Err(_) => {}
+                }
+            }
+        }
+        // A JS/link-initiated navigation carries the referring document's
+        // URL per browser semantics; direct automation navigations leave
+        // the staged referrer empty (edb1785) and go out bare. `facts`
+        // prefers the in-flight draft: the live document still belongs to
+        // the outgoing realm.
+        let staged_referrer = self.facts().referrer();
+        let referrer = if staged_referrer.is_empty() {
+            None
+        } else {
+            Some(staged_referrer.as_str())
+        };
+        if let Some(ref stealth) = self.stealth_client {
+            return stealth.fetch_navigation(url, referrer).await;
+        }
+        self.http_client
+            .fetch_with_callbacks(
+                url,
+                Some(&self.callbacks),
+                diting_net::ResourceType::Document,
+                referrer,
+            )
+            .await
+    }
+
+    pub fn take_pending_navigation(&self) -> Option<(String, String, String)> {
+        if let Some(js) = &self.js {
+            js.take_pending_navigation()
+        } else {
+            None
+        }
+    }
+
+    /// Session-history jump queued by page JS (`history.back()` past this
+    /// document's first entry, `forward()` into seeded forward entries) —
+    /// an absolute index into `self.history`.
+    pub fn take_pending_history_jump(&self) -> Option<i32> {
+        if let Some(js) = &self.js {
+            js.take_pending_history_jump()
+        } else {
+            None
+        }
+    }
+
+    pub fn take_pending_write_nav(&self) -> bool {
+        match &self.js {
+            Some(js) => js.take_pending_write_nav(),
+            None => false,
+        }
+    }
+
+    pub async fn process_pending_navigation(&mut self) -> Result<bool, PageError> {
+        // Session-history jump (history.back/forward past this document's
+        // boundaries — obscura#1105): navigate to the EXISTING entry, never
+        // append. A stale or out-of-range target (hostile page, raced CDP
+        // edit) falls through to the regular pending-navigation arm.
+        let history_jump = self
+            .take_pending_history_jump()
+            .filter(|&t| t >= 0)
+            .map(|t| t as usize)
+            .filter(|&t| t != self.history_index && t < self.history.len());
+        if let Some(t) = history_jump {
+            let url = self.history[t].clone();
+            let prev_index = self.history_index;
+            // Move the cursor FIRST: init_js seeds the landing document's JS
+            // history from the cursor position, and push_history's
+            // consecutive-dedupe then sees the same URL and early-returns —
+            // the jump MOVES the session history instead of appending.
+            self.history_index = t;
+            let result = self
+                .navigate_with_wait_post_ref(&url, crate::lifecycle::WaitUntil::Load, "GET", "", "")
+                .await;
+            if result.is_err() {
+                // The outgoing document is still live (obscura#920 failed-nav
+                // semantics): restore the cursor it was seeded with.
+                self.history_index = prev_index;
+            }
+            return result.map(|_| true);
+        }
+        if let Some((url, method, body)) = self.take_pending_navigation() {
+            // A navigation the page asked for itself is document-initiated:
+            // the first hop carries a referrer per
+            // strict-origin-when-cross-origin, unlike direct automation
+            // navigations which send none (upstream parity).
+            let source_url = self
+                .url
+                .as_ref()
+                .and_then(|source| {
+                    Url::parse(&url).ok().map(|target| {
+                        diting_net::client::HttpClient::navigation_referrer(source, &target)
+                    })
+                })
+                .unwrap_or_default();
+            self.navigate_with_wait_post_ref(
+                &url,
+                crate::lifecycle::WaitUntil::Load,
+                &method,
+                &body,
+                &source_url,
+            )
+            .await?;
+            Ok(true)
+        } else {
+            // A page that routed itself through history has still navigated
+            // (SPA pushState adoption — see fork_virtual_url.rs).
+            Ok(self.sync_virtual_url())
+        }
+    }
+
     /// Pump the event loop until pending work settles: dynamic external
     /// script fetches land and execute, inflight XHR/fetch resolve, and
     /// timers tick. Bounded twice over — a 500ms fast path for pages with

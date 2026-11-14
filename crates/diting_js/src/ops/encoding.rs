@@ -1,5 +1,6 @@
-// Text-encoding bridges (god-file ratchet split from mod.rs, pure move).
-use super::*;
+// Text-encoding bridges. The op macro is the only name this file takes
+// from the ops hub.
+use diting_ops::diting_op;
 
 /// Canonical (lowercased) WHATWG name for a TextDecoder label, or "" if the
 /// label is unknown (the JS constructor turns "" into a RangeError).

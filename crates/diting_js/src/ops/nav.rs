@@ -1,6 +1,8 @@
 // 导航与宿主回调：navigate/history 跳转 + binding_called 上抛 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+use super::SharedState;
 
 #[diting_op]
 pub(super) fn op_navigate(

@@ -1,8 +1,133 @@
 //! Script execution pipeline for the loaded document: inline/external scripts,
-//! ES module graphs, module eval budgets and the env init hook. Split from page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
-use super::*;
+//! ES module graphs, module eval budgets and the env init hook. Split from
+//! page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged. This
+//! module names the fetch policy and the eval budget a script run uses.
+
+use url::Url;
+
+use super::load::{decode_data_uri, subresource_allowed};
+use super::Page;
+
+/// Module evaluation budget (ms): the timeout driving a module's load + eval
+/// to completion during the script phase. Default 10s;
+/// `DITING_MODULE_EVAL_TIMEOUT_MS` raises it for slow module graphs
+/// (dev-server HMR clients — obscura#531).
+fn module_eval_budget_ms() -> u64 {
+    module_eval_budget_from(
+        std::env::var("DITING_MODULE_EVAL_TIMEOUT_MS")
+            .ok()
+            .as_deref(),
+    )
+}
+
+pub(super) fn module_eval_budget_from(raw: Option<&str>) -> u64 {
+    raw.and_then(|s| s.parse().ok()).unwrap_or(10_000)
+}
+
+/// Engine-side init hook: `DITING_INIT_SCRIPT=<path>` runs its file
+/// contents before any page script on every navigation (same slot as CDP
+/// preloads) — the pre-hydration instrumentation point for debugging apps
+/// that bind during module eval.
+fn env_init_script_source() -> Option<String> {
+    env_init_script_from(std::env::var("DITING_INIT_SCRIPT").ok().as_deref())
+}
+
+pub(super) fn env_init_script_from(path: Option<&str>) -> Option<String> {
+    let source = path.and_then(|p| std::fs::read_to_string(p).ok())?;
+    if source.trim().is_empty() {
+        None
+    } else {
+        Some(source)
+    }
+}
+
+/// Engine-side signer-wait gate: `DITING_SIGNER_GATE=<url-regex>;<js-expr>;<wait-ms>`
+/// arms the engine's own XHR send delegation (xhr.js `__ditingSignerGateHold`)
+/// to hold matching requests until the expression resolves to the page's
+/// signing function, then re-sign through that function. Apps whose boot
+/// races their signing SDK (xiaohongshu ark: publish_render fires <1s in,
+/// `proxy._webmsxyw` mounts ~6s later) 406-crash on every cold boot
+/// otherwise. Zero page surface: the config global is filtered by the
+/// internal-name enumeration boundary like every `__diting*` global.
+fn env_signer_gate_source() -> Option<String> {
+    signer_gate_source_from(std::env::var("DITING_SIGNER_GATE").ok().as_deref())
+}
+
+pub(super) fn signer_gate_source_from(raw: Option<&str>) -> Option<String> {
+    let raw = raw?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let mut parts = raw.split(';');
+    let pattern = parts.next().unwrap_or("").trim();
+    let signer = parts.next().unwrap_or("").trim();
+    let wait_ms: u64 = parts
+        .next()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(12_000);
+    if pattern.is_empty() || signer.is_empty() {
+        return None;
+    }
+    // JSON string literals are valid JS literals; the signer expression is
+    // spliced in as a standalone literal (never re-embedded inside another
+    // string — that would quote it into a constant). A bad regex dies in
+    // the realm-side catch and leaves the gate off (engine default).
+    let pattern = serde_json::to_string(pattern).ok()?;
+    let signer = serde_json::to_string(signer).ok()?;
+    Some(format!(
+        "try{{Object.defineProperty(globalThis,'__ditingSignerGate',{{value:{{\
+re:new RegExp({p}),signer:new Function(\"return (\" + {s} + \");\"),\
+waitMs:{w},settleMs:2000,pollMs:50,seenAt:0,signed:0,\
+resigned:0,passthrough:0,softfail:0,dropped:0,unsigned:0\
+}},writable:true,configurable:true,enumerable:false}});}}catch(e){{}}",
+        p = pattern,
+        s = signer,
+        w = wait_ms
+    ))
+}
 
 impl Page {
+    /// Resolve the document base URL per HTML spec:
+    /// https://html.spec.whatwg.org/multipage/urls-and-fetching.html#document-base-url
+    /// Falls back to self.url when no <base href> exists.
+    pub(super) fn resolve_base_url(&self) -> Option<url::Url> {
+        let doc_url = self.url.as_ref()?;
+        let base_href: Option<String> = self.js.as_ref().and_then(|js| {
+            js.with_dom(|dom| match dom.query_selector("base[href]") {
+                Ok(Some(nid)) => dom
+                    .get_node(nid)
+                    .and_then(|n| n.get_attribute("href").map(|s| s.to_string())),
+                _ => None,
+            })
+            .flatten()
+        });
+        match base_href {
+            Some(href) => doc_url.join(&href).ok(),
+            None => Some(doc_url.clone()),
+        }
+    }
+
+    /// Store the caller-registered document-start group. Does not change
+    /// the group that runs ([`Self::set_preload_scripts`]).
+    pub fn set_user_preload_scripts(&mut self, scripts: Vec<String>) {
+        self.user_preload_scripts = scripts;
+    }
+
+    pub fn user_preload_scripts(&self) -> &[String] {
+        &self.user_preload_scripts
+    }
+
+    pub fn set_preload_scripts(&mut self, scripts: Vec<String>) {
+        self.preload_scripts = scripts;
+    }
+
+    /// Append one preload script, keeping any already registered (CDP
+    /// `Page.addScriptToEvaluateOnNewDocument` is additive; our
+    /// `set_preload_scripts` replaces the whole group).
+    pub fn add_preload_script(&mut self, script: String) {
+        self.preload_scripts.push(script);
+    }
+
     pub(super) async fn execute_scripts(&mut self) {
         tracing::info!(
             "execute_scripts called, js runtime exists: {}",
@@ -522,7 +647,7 @@ impl Page {
         // every page.
         static SIGNER_GATE_SOURCE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
         let signer_gate_src = SIGNER_GATE_SOURCE
-            .get_or_init(super::env_signer_gate_source)
+            .get_or_init(env_signer_gate_source)
             .clone();
         if let Some(js) = &mut self.js {
             if let Some(source) = signer_gate_src.as_deref() {

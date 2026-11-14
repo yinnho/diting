@@ -1,6 +1,18 @@
 //! Viewport overrides, emulated media, and the viewport band-capture family
-//! (frame pump + CSS-time control). Split from page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
-use super::*;
+//! (frame pump + CSS-time control). Split from page/mod.rs (ARCHITECTURE.md
+//! P2 batch 3); behavior unchanged.
+
+use super::Page;
+
+/// Emulated media environment from CDP `Emulation.setEmulatedMedia`
+/// (Playwright's `page.emulateMedia`). `features` holds `prefers-*`
+/// (name, value) pairs; `media` is the emulated media type, `Some(None)`
+/// meaning an explicit clear back to `screen` (Chrome's `""`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EmulatedMedia {
+    pub features: Vec<(String, String)>,
+    pub media: Option<Option<String>>,
+}
 
 impl Page {
     /// Pin the session's viewport: scripts see innerWidth/innerHeight/

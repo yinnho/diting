@@ -1,6 +1,9 @@
 // Viewport-band capture family — split out of the god file (ratchet).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+#[cfg(feature = "screenshot")]
+use super::layout_run::{ensure_layout_run, is_viewport_fixed, sticky_shifts};
+#[cfg(feature = "screenshot")]
+use super::JsState;
 
 /// One viewport-band frame: RGBA pixels plus the scroll offset actually
 /// painted and the document's scrollable extent.

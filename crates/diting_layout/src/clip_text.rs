@@ -79,7 +79,7 @@ fn inline_spec(
 /// geometry replays the raster's `greedy_wrap`, so the fill tracks exactly
 /// where each line will paint.
 #[allow(clippy::too_many_arguments)] // flat paint geometry + token/whitespace plumbing; a params struct here would be ceremony (drag_xy precedent)
-pub(super) fn run_fill(
+pub(crate) fn run_fill(
     box_fill: Option<TextGradient>,
     clip_src: Option<NodeId>,
     tree: &DomTree,

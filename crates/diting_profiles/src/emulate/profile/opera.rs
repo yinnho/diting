@@ -4,11 +4,6 @@ mod http2;
 mod tls;
 mod header;
 
-use header::*;
-use tls::*;
-
-use super::*;
-
 mod_generator!(
     opera116,
     tls_options!(CURVES),
@@ -30,7 +25,7 @@ mod_generator!(
 
 mod_generator!(
     opera117,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -48,7 +43,7 @@ mod_generator!(
 
 mod_generator!(
     opera118,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -66,7 +61,7 @@ mod_generator!(
 
 mod_generator!(
     opera119,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -84,7 +79,7 @@ mod_generator!(
 
 mod_generator!(
     opera120,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -102,7 +97,7 @@ mod_generator!(
 
 mod_generator!(
     opera121,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -120,7 +115,7 @@ mod_generator!(
 
 mod_generator!(
     opera122,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -138,7 +133,7 @@ mod_generator!(
 
 mod_generator!(
     opera123,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -156,7 +151,7 @@ mod_generator!(
 
 mod_generator!(
     opera124,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -174,7 +169,7 @@ mod_generator!(
 
 mod_generator!(
     opera125,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -192,7 +187,7 @@ mod_generator!(
 
 mod_generator!(
     opera126,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -210,7 +205,7 @@ mod_generator!(
 
 mod_generator!(
     opera127,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -228,7 +223,7 @@ mod_generator!(
 
 mod_generator!(
     opera128,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -246,7 +241,7 @@ mod_generator!(
 
 mod_generator!(
     opera129,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -264,7 +259,7 @@ mod_generator!(
 
 mod_generator!(
     opera130,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -282,7 +277,7 @@ mod_generator!(
 
 mod_generator!(
     opera131,
-    opera116::build_emulation,
+    super::opera116::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (

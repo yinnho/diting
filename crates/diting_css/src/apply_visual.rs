@@ -1,13 +1,32 @@
 //! Declaration appliers: display, paint, font, box model, text sizing.
 //!
-//! Split from the css hub. `apply_one` still dispatches into these.
-//! Pure move.
+//! `apply_one` dispatches into these. This module names the keyword
+//! parsers, the length helpers, and the color probe each property reads.
 
-use super::*;
+use crate::apply_decl::scheme_dark_of;
+use crate::calc;
+use crate::color::{self, parse_color};
+use crate::color_modern::ModernColor;
+use crate::computed::ComputedStyle;
+use crate::font_shorthand::{parse_font_shorthand, parse_font_weight};
+use crate::geom::{
+    parse_css_length, parse_line_height, resolve_len, Color, CssLength, FontCtx, Length,
+    LineHeightRaw, LineHeightSpec, Sides, SvgPaint,
+};
+use crate::len_parse::{
+    css_len, css_len_sizing, expand_sides, parse_font_size_len, set_side, sides_no_auto,
+    split_sides, CssF32,
+};
+use crate::style_kw::{
+    border_style_kw, parse_text_decoration, BorderCollapse, BorderStyle, BorderStyleKw, Display,
+    TableLayout, VerticalAlign, WebkitBoxKind,
+};
+use crate::text_align::{TextAlign, TextAlignLast, TextDirection, TextTransform};
+use crate::ua::parse_list_style_type;
 
 /// `apply_one` family: display, table and list layout keywords, vertical-align.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_display(
+pub(crate) fn apply_display(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -118,7 +137,7 @@ pub(super) fn apply_display(
 
 /// `apply_one` family: text decoration, color/color-scheme, SVG fill/stroke.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_paint_text(
+pub(crate) fn apply_paint_text(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -228,7 +247,7 @@ pub(super) fn apply_paint_text(
 
 /// `apply_one` family: font shorthand, image/mask/clip-path layers, font-family, background.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_font_image(
+pub(crate) fn apply_font_image(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -374,7 +393,7 @@ pub(super) fn apply_font_image(
 
 /// `apply_one` family: margins, paddings, borders.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_box_model(
+pub(crate) fn apply_box_model(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -576,7 +595,7 @@ pub(super) fn apply_box_model(
 
 /// `apply_one` family: font-size, width/height, text alignment and spacing.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_text_sizing(
+pub(crate) fn apply_text_sizing(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,

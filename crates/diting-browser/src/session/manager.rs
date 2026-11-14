@@ -7,20 +7,13 @@ use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use serde_json::{json, Value};
+use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
-use super::commands::{ScrollDirection, SessionCommand, SessionListEntry, SessionNavResponse};
-use super::interact::{
-    click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index, merge_dom_candidates,
-    set_files_by_selector, DOM_MEDIA_SCRIPT,
-};
-use super::record::{inject_storage_js, RecordedAction};
-use super::snapshot::extract_snapshot;
+use super::commands::{SessionCommand, SessionListEntry};
 use super::state::{
-    drain_console, BrowserSession, DormantSession, NavFrameShared, SessionError, SnapshotStore,
-    PER_SESSION_FLUSH_BUDGET, SESSION_COUNTER, SESSION_TIMEOUT, SHUTDOWN_FLUSH_BUDGET,
-    SNAPSHOT_MAX_AGE_SECS,
+    BrowserSession, DormantSession, NavFrameShared, SessionError, SnapshotStore, SESSION_COUNTER,
+    SESSION_TIMEOUT, SNAPSHOT_MAX_AGE_SECS,
 };
 
 // Session manager

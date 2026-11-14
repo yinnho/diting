@@ -6,26 +6,9 @@ pub mod okhttp;
 pub mod opera;
 pub mod safari;
 
-use diting_wire::{
-    Group,
-    header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderName, HeaderValue, USER_AGENT},
-    http2::{
-        Http2Options, Priorities, Priority, PseudoId, PseudoOrder, SettingId, SettingsOrder,
-        StreamDependency, StreamId,
-    },
-    tls::{
-        AlpnProtocol, AlpsProtocol, ExtensionType, KeyShare, TlsOptions, TlsVersion,
-        compress::CertificateCompressor,
-    },
-};
-use typed_builder::TypedBuilder;
+use diting_wire::{Group, header::HeaderMap, http2::Http2Options, tls::TlsOptions};
 
-use super::{
-    Emulation, Platform,
-    compress::{BrotliCompressor, ZlibCompressor, ZstdCompressor},
-};
-
-fn build_standard_emulation(
+pub(crate) fn build_standard_emulation(
     group: &'static str,
     tls_options: TlsOptions,
     http2_options: Option<Http2Options>,

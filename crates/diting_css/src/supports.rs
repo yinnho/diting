@@ -1,6 +1,12 @@
-//! @supports declaration probe — split out of mod.rs (god-file ratchet, pure move).
+//! @supports declaration probe.
+//!
+//! This module names the parsers a supported declaration is checked against.
 
-use super::*;
+use crate::color::parse_color;
+use crate::font_shorthand::parse_font_weight;
+use crate::geom::{parse_css_length, parse_line_height};
+use crate::len_parse::{parse_font_size_len, CssF32};
+use crate::transform::parse_transform;
 
 /// Declaration support probe for @supports. Modeled on the properties this
 /// cascade understands; everything else reports unsupported (conservative,
@@ -301,7 +307,7 @@ pub fn supports_declaration(name: &str, value: &str) -> bool {
 /// true for — Chrome's answer on the target version (157, re-truthed #25),
 /// minus the ones whose behaviour is invisible-by-design here are kept true
 /// (feature detection reads the answer, not the rendering).
-pub(super) fn pseudo_known(head: &str) -> bool {
+pub(crate) fn pseudo_known(head: &str) -> bool {
     matches!(
         head,
         "hover"

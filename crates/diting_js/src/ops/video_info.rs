@@ -1,6 +1,9 @@
-//! Video container header metadata (god-file ratchet split, the media
-//! sibling of image_info.rs).
-use super::*;
+//! Video container header metadata, the media sibling of image_info.rs.
+
+use base64::Engine as _;
+use diting_ops::diting_op;
+
+use base64::engine::general_purpose::STANDARD as BASE64;
 
 /// `op_video_info(body_base64)` — the media-element sibling of
 /// op_image_info: container-header metadata (mp4/quicktime moov walk →

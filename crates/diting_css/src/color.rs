@@ -1,6 +1,9 @@
-//! Color + linear-gradient parsing (god-file ratchet split from mod.rs, pure move).
+//! Color + linear-gradient parsing.
+//!
+//! This module names the `Color` tuple and the number gate a channel goes through.
 
-use super::*;
+use crate::geom::Color;
+use crate::len_parse::CssF32;
 
 /// `parse_color` plus the authored-space tag (#17: modern colour functions
 /// carry their space for the CSSOM face, legacy forms tag `None`), with the

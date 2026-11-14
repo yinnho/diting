@@ -4,7 +4,7 @@
 /// answering container's border box into px, so the ordinary declaration
 /// parser never sees the units. Non-container tokens (including hex colors
 /// and URLs containing digit+letter runs) pass through byte-identical.
-pub(super) fn bake_container_units(text: &str, w: f32, h: f32) -> String {
+pub(crate) fn bake_container_units(text: &str, w: f32, h: f32) -> String {
     fn push_px(out: &mut String, px: f32) {
         if px.fract() == 0.0 && px.abs() < 1e15 {
             out.push_str(&format!("{}px", px as i64));

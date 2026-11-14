@@ -1,15 +1,36 @@
 //! The anonymous block that holds the in-flow siblings of a float zone.
 //!
-//! Split from the layout hub. `float_zone` still calls these. Pure move.
+//! `float_zone` still calls these. This module names the builders it uses.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::ComputedStyle;
+use diting_css::{Display as CssDisplay, PositionMode, TextAlign, TextTransform, WhiteSpace};
+use diting_dom::tree::{DomTree, NodeId};
+
+use crate::composed::render_children;
+use crate::counters::wrap_q_quotes;
+use crate::element_build::{build_element, strut_descent_for, RunSeg};
+use crate::float_flow;
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::DecodedImage;
+use crate::replaced::{build_replaced_leaf, is_replaced_tag};
+use crate::table::TableBuildMeta;
+use crate::text::{self, FontBook};
+use crate::text_run::{
+    blockifies_for_block_child, br_strut_leaf, build_word_leaves, color_context,
+    decoration_context, font_context, han_context, mono_context, pin_leaf_widths,
+    run_wrapper_style, small_caps_context, text_transform_context, valign_shift,
+    word_spacing_context, ws_rank, TextLeaf,
+};
+use crate::text_src::{self, trim_run_edge_whitespace};
 
 /// The anonymous flow column of a float zone (8b/8i): every in-zone sibling
 /// built normally inside one block wrapper. Not in node_map — it has no DOM
 /// identity, so collect skips it and paints walk straight through to the
 /// real children.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_flow_column(
+pub(crate) fn build_flow_column(
     flow_dom: &[NodeId],
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -348,7 +369,7 @@ pub(super) fn build_flow_column(
 /// floated infobox and the sidebar tables — the links are ResourceLoader
 /// hints, not content — so a bare has-children check misreads the wrappers
 /// as flow content and stops the same-side float rail from forming.
-pub(super) fn subtree_paints_nothing(tree: &DomTree, id: NodeId) -> bool {
+pub(crate) fn subtree_paints_nothing(tree: &DomTree, id: NodeId) -> bool {
     enum Step {
         Paints,
         Skip,

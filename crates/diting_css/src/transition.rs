@@ -1,9 +1,13 @@
 //! Transitions, easing, and the individual translate/rotate/scale props.
 //!
-//! Split from the css hub. The public names stay re-exported from the
-//! crate root. Pure move.
+//! The public names stay re-exported from the crate root. This module
+//! names the length and color types a transition value lerps, and the
+//! transform blend it samples.
 
-use super::*;
+use crate::anim_sample::lerp_transform;
+use crate::computed::ComputedStyle;
+use crate::geom::{Color, Length, Transform2D};
+use crate::len_parse::CssF32;
 
 /// Parsed `animation` shorthand, v1 subset: ONE animation (the first of a
 /// comma list), direction normal, play-state running. That covers the
@@ -82,7 +86,7 @@ pub fn parse_easing_token(tok: &str) -> Option<Easing> {
 /// order, times by position (first time = duration, second = delay).
 /// `transition-property: none` disables the entry (returns None); `steps()`
 /// invalidates the whole shorthand. Comma lists collapse to the first entry.
-pub(super) fn parse_transition_shorthand(v: &str) -> Option<TransitionSpec> {
+pub(crate) fn parse_transition_shorthand(v: &str) -> Option<TransitionSpec> {
     let mut duration: Option<f32> = None;
     let mut delay = 0.0f32;
     let mut easing: Option<Easing> = None;
@@ -280,7 +284,7 @@ impl Easing {
 
 /// Split on whitespace at paren depth 0 so `cubic-bezier(.33, 1, .68, 1)`
 /// stays one token.
-pub(super) fn paren_aware_tokens(v: &str) -> Vec<String> {
+pub(crate) fn paren_aware_tokens(v: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut depth = 0usize;
@@ -311,7 +315,7 @@ pub(super) fn paren_aware_tokens(v: &str) -> Vec<String> {
 /// Length arithmetic for transform accumulation: same-unit adds fold, a
 /// zero px collapses into the other side; mixed units without a box to
 /// resolve against can't compose and invalidate the whole list.
-pub(super) fn add_len(a: Length, b: Length) -> Option<Length> {
+pub(crate) fn add_len(a: Length, b: Length) -> Option<Length> {
     match (a, b) {
         (Length::Px(x), Length::Px(y)) => Some(Length::Px(x + y)),
         (Length::Percent(x), Length::Percent(y)) => Some(Length::Percent(x + y)),
@@ -323,7 +327,7 @@ pub(super) fn add_len(a: Length, b: Length) -> Option<Length> {
 
 /// Scale a Length by a factor: px scales numerically, and a percent of the
 /// box times the factor is the same percent scaled (w·f·s == Percent(f·s)).
-pub(super) fn mul_len(a: Length, s: f32) -> Length {
+pub(crate) fn mul_len(a: Length, s: f32) -> Length {
     match a {
         Length::Px(x) => Length::Px(x * s),
         Length::Percent(f) => Length::Percent(f * s),
@@ -333,7 +337,7 @@ pub(super) fn mul_len(a: Length, s: f32) -> Length {
 
 /// Angle in CSS units: deg (the default suffix real sheets write), rad,
 /// turn, grad. Bare nonzero numbers are invalid CSS (Chrome rejects).
-pub(super) fn parse_angle_deg(s: &str) -> Option<f32> {
+pub(crate) fn parse_angle_deg(s: &str) -> Option<f32> {
     let s = s.trim();
     let (n, scale) = if let Some(n) = s.strip_suffix("deg") {
         (n, 1.0f32)
@@ -356,7 +360,7 @@ pub(super) fn parse_angle_deg(s: &str) -> Option<f32> {
 /// Slots share the transform-list translate grammar (px/percent/0, viewport
 /// units fold at parse time); a third z component is 3D and drops the
 /// declaration, same 2D posture as the list. `none` is the initial value.
-pub(super) fn parse_translate_prop(v: &str, vw: f32, vh: f32) -> Option<(Length, Length)> {
+pub(crate) fn parse_translate_prop(v: &str, vw: f32, vh: f32) -> Option<(Length, Length)> {
     let v = v.trim();
     if v.eq_ignore_ascii_case("none") {
         return None;
@@ -389,7 +393,7 @@ pub(super) fn parse_translate_prop(v: &str, vw: f32, vh: f32) -> Option<(Length,
 
 /// `rotate: <angle>` — Z-axis only in v1; the axis forms (`x 45deg`) are 3D
 /// and drop the declaration. `none` is the initial value.
-pub(super) fn parse_rotate_prop(v: &str) -> Option<f32> {
+pub(crate) fn parse_rotate_prop(v: &str) -> Option<f32> {
     let v = v.trim();
     if v.eq_ignore_ascii_case("none") {
         return None;
@@ -402,7 +406,7 @@ pub(super) fn parse_rotate_prop(v: &str) -> Option<f32> {
 
 /// `scale: <x> [y]` — single value is uniform; negatives are legal (the
 /// flip idiom `scale: -1` relies on them). `none` is the initial value.
-pub(super) fn parse_scale_prop(v: &str) -> Option<(f32, f32)> {
+pub(crate) fn parse_scale_prop(v: &str) -> Option<(f32, f32)> {
     let v = v.trim();
     if v.eq_ignore_ascii_case("none") {
         return None;

@@ -121,9 +121,9 @@ fn local_http_server_typed(routes: Vec<(&'static str, u16, &'static str, String)
                     .unwrap_or((404, "text/html", String::new()))
             };
             let response = format!(
-                    "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
@@ -157,9 +157,9 @@ fn local_http_server_bytes(routes: Vec<(&'static str, u16, &'static str, Vec<u8>
                 .map(|(_, s, c, b)| (*s, *c, b.clone()))
                 .unwrap_or((404, "text/html", Vec::new()));
             let response = format!(
-                    "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(&body);
             let _ = stream.flush();
@@ -326,41 +326,65 @@ async fn evaluate_with_timeout_result_carries_termination() {
 fn subresource_allowed_policy_matrix() {
     let http_page = Url::parse("http://example.com/page").ok();
     let file_page = Url::parse("file:///tmp/x.html").ok();
-    assert!(subresource_allowed(
+    assert!(super::load::subresource_allowed(
         http_page.as_ref(),
         "https://cdn.example.com/a.js"
     ));
-    assert!(subresource_allowed(
+    assert!(super::load::subresource_allowed(
         http_page.as_ref(),
         "data:text/javascript,1"
     ));
-    assert!(!subresource_allowed(
+    assert!(!super::load::subresource_allowed(
         http_page.as_ref(),
         "file:///etc/passwd"
     ));
-    assert!(subresource_allowed(
+    assert!(super::load::subresource_allowed(
         file_page.as_ref(),
         "file:///tmp/sibling.js"
     ));
-    assert!(!subresource_allowed(
+    assert!(!super::load::subresource_allowed(
         http_page.as_ref(),
         "javascript:alert(1)"
     ));
-    assert!(!subresource_allowed(http_page.as_ref(), "not a url"));
+    assert!(!super::load::subresource_allowed(
+        http_page.as_ref(),
+        "not a url"
+    ));
     // No page URL yet (pre-navigation): http(s) is still fine — there is
     // nothing origin-sensitive to protect yet — but file: stays blocked.
-    assert!(subresource_allowed(None, "https://example.com/a.js"));
-    assert!(!subresource_allowed(None, "file:///etc/passwd"));
+    assert!(super::load::subresource_allowed(
+        None,
+        "https://example.com/a.js"
+    ));
+    assert!(!super::load::subresource_allowed(
+        None,
+        "file:///etc/passwd"
+    ));
 }
 
 #[test]
 fn cross_scheme_to_file_matrix() {
-    assert!(cross_scheme_to_file("http://a.com/", "file:///etc/passwd"));
-    assert!(cross_scheme_to_file("https://a.com/", "FILE:///etc/passwd"));
-    assert!(!cross_scheme_to_file("file:///tmp/a", "file:///tmp/b"));
-    assert!(!cross_scheme_to_file("http://a.com/", "https://b.com/"));
+    assert!(super::navigate::cross_scheme_to_file(
+        "http://a.com/",
+        "file:///etc/passwd"
+    ));
+    assert!(super::navigate::cross_scheme_to_file(
+        "https://a.com/",
+        "FILE:///etc/passwd"
+    ));
+    assert!(!super::navigate::cross_scheme_to_file(
+        "file:///tmp/a",
+        "file:///tmp/b"
+    ));
+    assert!(!super::navigate::cross_scheme_to_file(
+        "http://a.com/",
+        "https://b.com/"
+    ));
     // Unparseable source is treated as non-file: block.
-    assert!(cross_scheme_to_file("::not-a-url::", "file:///etc/passwd"));
+    assert!(super::navigate::cross_scheme_to_file(
+        "::not-a-url::",
+        "file:///etc/passwd"
+    ));
 }
 
 #[test]
@@ -393,34 +417,43 @@ fn navigation_referrer_matrix() {
 #[test]
 fn decode_data_uri_variants() {
     assert_eq!(
-        decode_data_uri("data:text/html,%3Cp%3Ehi%3C/p%3E"),
+        super::load::decode_data_uri("data:text/html,%3Cp%3Ehi%3C/p%3E"),
         Some(b"<p>hi</p>".to_vec())
     );
     assert_eq!(
-        decode_data_uri("data:application/js;base64,d2luZG93LmE9MQ=="),
+        super::load::decode_data_uri("data:application/js;base64,d2luZG93LmE9MQ=="),
         Some(b"window.a=1".to_vec())
     );
     // Base64 with embedded whitespace is tolerated.
     assert_eq!(
-        decode_data_uri("data:;base64,\n aGk="),
+        super::load::decode_data_uri("data:;base64,\n aGk="),
         Some(b"hi".to_vec())
     );
-    assert_eq!(decode_data_uri("data:no-comma"), None);
-    assert_eq!(decode_data_uri("http://example.com/"), None);
+    assert_eq!(super::load::decode_data_uri("data:no-comma"), None);
+    assert_eq!(super::load::decode_data_uri("http://example.com/"), None);
 }
 
 #[test]
 fn escape_for_js_template_literal_blocks_breakouts() {
     // Exact escaped forms: every breakout character becomes a backslash
     // escape, so no unescaped ` or ${ can terminate the literal early.
-    assert_eq!(escape_for_js_template_literal("a`b${c}"), "a\\`b\\${c}");
     assert_eq!(
-        escape_for_js_template_literal("x\u{2028}y\u{2029}"),
+        super::navigate::escape_for_js_template_literal("a`b${c}"),
+        "a\\`b\\${c}"
+    );
+    assert_eq!(
+        super::navigate::escape_for_js_template_literal("x\u{2028}y\u{2029}"),
         "x\\u2028y\\u2029"
     );
     // \n has no dedicated arm; it falls through the generic <0x20 branch.
-    assert_eq!(escape_for_js_template_literal("\0\r\n"), "\\0\\r\\u000a");
-    assert_eq!(escape_for_js_template_literal("plain"), "plain");
+    assert_eq!(
+        super::navigate::escape_for_js_template_literal("\0\r\n"),
+        "\\0\\r\\u000a"
+    );
+    assert_eq!(
+        super::navigate::escape_for_js_template_literal("plain"),
+        "plain"
+    );
 }
 
 // ---- history --------------------------------------------------------
@@ -820,16 +853,22 @@ async fn navigate_blank_resets_state() {
 
 #[test]
 fn module_eval_budget_parses_override_and_default() {
-    assert_eq!(super::module_eval_budget_from(None), 10_000);
-    assert_eq!(super::module_eval_budget_from(Some("not-a-number")), 10_000);
-    assert_eq!(super::module_eval_budget_from(Some("30000")), 30_000);
+    assert_eq!(super::scripts::module_eval_budget_from(None), 10_000);
+    assert_eq!(
+        super::scripts::module_eval_budget_from(Some("not-a-number")),
+        10_000
+    );
+    assert_eq!(
+        super::scripts::module_eval_budget_from(Some("30000")),
+        30_000
+    );
 }
 
 #[test]
 fn env_init_script_reads_file_and_skips_empty() {
-    assert_eq!(super::env_init_script_from(None), None);
+    assert_eq!(super::scripts::env_init_script_from(None), None);
     assert_eq!(
-        super::env_init_script_from(Some("/nonexistent/init.js")),
+        super::scripts::env_init_script_from(Some("/nonexistent/init.js")),
         None
     );
     let dir = std::env::temp_dir().join("diting_init_script_test");
@@ -837,12 +876,12 @@ fn env_init_script_reads_file_and_skips_empty() {
     let path = dir.join("probe.js");
     std::fs::write(&path, "window.__probed = true;").unwrap();
     assert_eq!(
-        super::env_init_script_from(Some(path.to_str().unwrap())).as_deref(),
+        super::scripts::env_init_script_from(Some(path.to_str().unwrap())).as_deref(),
         Some("window.__probed = true;")
     );
     std::fs::write(&path, "   \n").unwrap();
     assert_eq!(
-        super::env_init_script_from(Some(path.to_str().unwrap())),
+        super::scripts::env_init_script_from(Some(path.to_str().unwrap())),
         None
     );
     std::fs::remove_file(&path).ok();
@@ -851,7 +890,7 @@ fn env_init_script_reads_file_and_skips_empty() {
 #[test]
 fn signer_gate_source_parses_fields_and_rejects_short_configs() {
     // Three fields: regex source, signer expression, wait cap (ms).
-    let src = super::signer_gate_source_from(Some(
+    let src = super::scripts::signer_gate_source_from(Some(
         "/api/edith/product/publish_render;(window.proxy&&window.proxy._webmsxyw)||null;12000",
     ))
     .unwrap();
@@ -868,15 +907,16 @@ fn signer_gate_source_parses_fields_and_rejects_short_configs() {
     // in Object.keys even before the enumeration-boundary wrappers run.
     assert!(src.contains("enumerable:false"), "{src}");
     // Wait cap defaults; pattern/signer are both required.
-    let dflt = super::signer_gate_source_from(Some("/a;fn()")).unwrap();
+    let dflt = super::scripts::signer_gate_source_from(Some("/a;fn()")).unwrap();
     assert!(dflt.contains("waitMs:12000"));
-    assert!(super::signer_gate_source_from(Some("/a")).is_none());
-    assert!(super::signer_gate_source_from(Some(";fn();100")).is_none());
-    assert!(super::signer_gate_source_from(None).is_none());
-    assert!(super::signer_gate_source_from(Some("   ")).is_none());
+    assert!(super::scripts::signer_gate_source_from(Some("/a")).is_none());
+    assert!(super::scripts::signer_gate_source_from(Some(";fn();100")).is_none());
+    assert!(super::scripts::signer_gate_source_from(None).is_none());
+    assert!(super::scripts::signer_gate_source_from(Some("   ")).is_none());
     // A quote inside the signer expression must survive as an escaped
     // JS string literal, not break out into code.
-    let quoted = super::signer_gate_source_from(Some(r#"/a;window.x==="function""#)).unwrap();
+    let quoted =
+        super::scripts::signer_gate_source_from(Some(r#"/a;window.x==="function""#)).unwrap();
     assert!(quoted.contains(r#""window.x===\"function\"""#), "{quoted}");
 }
 
@@ -1137,10 +1177,10 @@ ms.addEventListener('sourceopen', function(){ \
         .unwrap()
         .to_string();
     assert_eq!(
-            ev,
-            "loadstart,progress,durationchange,loadedmetadata,loadeddata,canplay,canplaythrough,progress,durationchange",
-            "Chrome-shaped readiness ladder on the element"
-        );
+        ev,
+        "loadstart,progress,durationchange,loadedmetadata,loadeddata,canplay,canplaythrough,progress,durationchange",
+        "Chrome-shaped readiness ladder on the element"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1215,9 +1255,9 @@ async fn js_chain_over_limit_reports_too_many_redirects() {
             };
             let body = format!("<html><script>location.href = '{next}';</script></html>");
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
@@ -1275,9 +1315,9 @@ async fn subresource_script_with_attachment_disposition_executes() {
                 .to_string();
             let (extra_headers, body) = if path == "/app.js" {
                 (
-                        "content-type: application/javascript\r\ncontent-disposition: attachment; filename=\"app.js\"\r\n",
-                        "window.__cd = 41;".as_bytes().to_vec(),
-                    )
+                    "content-type: application/javascript\r\ncontent-disposition: attachment; filename=\"app.js\"\r\n",
+                    "window.__cd = 41;".as_bytes().to_vec(),
+                )
             } else {
                 (
                     "content-type: text/html\r\n",
@@ -1344,9 +1384,9 @@ async fn nav_chain_limit_env_unblocks_long_chains() {
                 None => "/hop0".to_string(),
             };
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
@@ -1380,12 +1420,12 @@ async fn dead_stylesheet_cannot_hold_commit_hostage() {
         }
     });
     let port = local_http_server(vec![(
-            "/a",
-            200,
-            format!(
-                "<html><head><link rel=\"stylesheet\" href=\"http://127.0.0.1:{stall_port}/s.css\"></head><body>ok</body></html>"
-            ),
-        )]);
+        "/a",
+        200,
+        format!(
+            "<html><head><link rel=\"stylesheet\" href=\"http://127.0.0.1:{stall_port}/s.css\"></head><body>ok</body></html>"
+        ),
+    )]);
     let mut p = test_page();
     // Before the budget this returned Err("navigation exceeded …
     // not yet committed") after the full nav deadline.
@@ -1600,9 +1640,9 @@ async fn load_event_waits_for_dynamically_inserted_scripts() {
                     )
             };
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
@@ -1694,7 +1734,7 @@ async fn byte_waf_js_challenge_autosolves() {
             } else {
                 challenge_hits += 1;
                 format!(
-                        "<html><head><title>challenge</title></head><body onload=\"readygo()\">\
+                    "<html><head><title>challenge</title></head><body onload=\"readygo()\">\
                          <script>window.WAFJS = function(){{}};</script>\
                          <script>{helpers}</script>\
                          <script>function readygo(){{var wci=\"_wafchallengeid\",cs=\"{cs}\",c=JSON.parse(atob(cs)),\
@@ -1704,14 +1744,14 @@ async fn byte_waf_js_challenge_autosolves() {
                          document.cookie=wci+\"=\"+btoa(JSON.stringify(c))+\"; Max-Age=1\",\
                          window.location.reload()),i++,i>1e6&&clearInterval(iid)}},1)}}</script>\
                          Please wait...</body></html>",
-                        helpers = include_str!("../../tests/waf_sha256_helpers.js"),
-                        cs = base64::engine::general_purpose::STANDARD.encode(cs.as_bytes()),
-                    )
+                    helpers = include_str!("../../tests/waf_sha256_helpers.js"),
+                    cs = base64::engine::general_purpose::STANDARD.encode(cs.as_bytes()),
+                )
             };
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
@@ -2894,10 +2934,10 @@ fn hanging_http_server(routes: Vec<(&'static str, &'static str)>, hang: Vec<&'st
                     .map(|(_, b)| b.to_string())
                     .unwrap_or_else(|| "404".into());
                 let resp = format!(
-                        "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                        body.len(),
-                        body
-                    );
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
                 let _ = stream.write_all(resp.as_bytes());
             });
         }
@@ -2928,9 +2968,9 @@ fn redirecting_http_server(redirects: Vec<(&'static str, &'static str)>) -> u16 
                     .to_string();
                 if let Some((_, location)) = redirects.iter().find(|(p, _)| path.starts_with(p)) {
                     let resp = format!(
-                            "HTTP/1.1 302 Found\r\nlocation: {}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
-                            location
-                        );
+                        "HTTP/1.1 302 Found\r\nlocation: {}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                        location
+                    );
                     let _ = stream.write_all(resp.as_bytes());
                     return;
                 }
@@ -3164,9 +3204,9 @@ fn recording_echo_origin() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>
             };
             log_clone.lock().unwrap().push(head);
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(body.as_bytes());
             let _ = stream.flush();
@@ -3768,9 +3808,9 @@ async fn blocked_urls_stop_band_image_fetches() {
                 .to_string();
             recorder.lock().unwrap().push(path);
             let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: image/svg+xml\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    svg.len()
-                );
+                "HTTP/1.1 200 OK\r\ncontent-type: image/svg+xml\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                svg.len()
+            );
             let _ = stream.write_all(response.as_bytes());
             let _ = stream.write_all(svg);
             let _ = stream.flush();
@@ -3874,7 +3914,10 @@ fn text_document_classification() {
         "application/atom+xml",
         "application/ld+json",
     ] {
-        assert!(renders_as_text_document(mime), "{mime} must render as text");
+        assert!(
+            super::navigate::renders_as_text_document(mime),
+            "{mime} must render as text"
+        );
     }
     for mime in [
         "text/html",
@@ -3884,7 +3927,7 @@ fn text_document_classification() {
         "",
     ] {
         assert!(
-            !renders_as_text_document(mime),
+            !super::navigate::renders_as_text_document(mime),
             "{mime} must not render as text"
         );
     }
@@ -3892,7 +3935,7 @@ fn text_document_classification() {
 
 #[test]
 fn plain_text_document_wraps_pre_verbatim() {
-    let dom = plain_text_document("a < b && c > d\nsecond line");
+    let dom = super::navigate::plain_text_document("a < b && c > d\nsecond line");
     let pre = dom
         .query_selector("body > pre")
         .unwrap()

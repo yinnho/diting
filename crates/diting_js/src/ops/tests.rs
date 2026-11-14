@@ -122,17 +122,17 @@ fn backdrop_filter_computed_face() {
     assert!(super::cssom_value::COMPUTED_STYLE_PROPS.contains(&"backdrop-filter"));
     let mut s = diting_css::ComputedStyle::default();
     assert_eq!(
-        super::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),
         Some("none")
     );
     s.backdrop_blur = Some(12.0);
     assert_eq!(
-        super::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),
         Some("blur(12px)")
     );
     s.backdrop_blur = Some(2.5);
     assert_eq!(
-        super::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "backdrop-filter", None, None).as_deref(),
         Some("blur(2.5px)")
     );
 }
@@ -154,15 +154,15 @@ fn flex_computed_trio_face() {
     // Undeclared: the initial trio 0/1/auto.
     let s = diting_css::ComputedStyle::default();
     assert_eq!(
-        super::computed_style_value(&s, "flex-grow", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-grow", None, None).as_deref(),
         Some("0")
     );
     assert_eq!(
-        super::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
         Some("1")
     );
     assert_eq!(
-        super::computed_style_value(&s, "flex-basis", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-basis", None, None).as_deref(),
         Some("auto")
     );
     // flex:1 → 1/1/0% (the shorthand's omitted basis), flex:2 3 40px as
@@ -170,28 +170,28 @@ fn flex_computed_trio_face() {
     let mut s = diting_css::ComputedStyle::default();
     diting_css::apply_declarations(&mut s, "flex: 1");
     assert_eq!(
-        super::computed_style_value(&s, "flex-grow", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-grow", None, None).as_deref(),
         Some("1")
     );
     assert_eq!(
-        super::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
         Some("1")
     );
     assert_eq!(
-        super::computed_style_value(&s, "flex-basis", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-basis", None, None).as_deref(),
         Some("0%")
     );
     diting_css::apply_declarations(&mut s, "flex: 2 3 40px");
     assert_eq!(
-        super::computed_style_value(&s, "flex-grow", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-grow", None, None).as_deref(),
         Some("2")
     );
     assert_eq!(
-        super::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-shrink", None, None).as_deref(),
         Some("3")
     );
     assert_eq!(
-        super::computed_style_value(&s, "flex-basis", None, None).as_deref(),
+        super::cssom_value::computed_style_value(&s, "flex-basis", None, None).as_deref(),
         Some("40px")
     );
 }
@@ -199,7 +199,7 @@ fn flex_computed_trio_face() {
 #[cfg(feature = "screenshot")]
 #[test]
 fn style_write_paint_only_diff_matrix() {
-    use super::{style_property_map, style_write_is_paint_only};
+    use super::dom_style::{style_property_map, style_write_is_paint_only};
     // Values differ freely while the names stay — the seek case.
     assert!(style_write_is_paint_only(
         Some("transform: translate3d(-200px, 0px, 0px); opacity: 0"),

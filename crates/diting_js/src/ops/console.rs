@@ -1,6 +1,8 @@
 // console 消息上抛 CDP + alert/confirm/prompt 对话框 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+use super::SharedState;
 
 #[diting_op]
 pub(super) fn op_console_msg(state: &OpState, #[string] level: &str, #[string] msg: &str) {

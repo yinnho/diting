@@ -1,9 +1,25 @@
 // dom_cmd 样式三族：sheets/geometry/scroll_style + style 写路径判定 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+#[cfg(feature = "screenshot")]
+use std::collections::HashMap;
+
+use diting_dom::DomTree;
+
+#[cfg(feature = "screenshot")]
+use super::cssom_value::{self, cb_inline_for, computed_style_value};
+#[cfg(feature = "screenshot")]
+use super::dom::parse_nid;
+use super::dom::DomCmd;
+#[cfg(feature = "screenshot")]
+use super::layout_run::{
+    ensure_layout_run, iframe_layout_run, is_element_scroller, is_viewport_fixed,
+    parse_iframe_viewport, sticky_shifts,
+};
+use super::text_geom;
+use super::JsState;
 
 /// `op_dom` family: external stylesheets, resource timings, CSS rule parsing.
-pub(super) fn dom_cmd_sheets(
+pub(crate) fn dom_cmd_sheets(
     gs: &JsState,
     _dom: &DomTree,
     cmd: &str,
@@ -91,7 +107,7 @@ pub(super) fn dom_cmd_sheets(
 }
 
 /// `op_dom` family: layout geometry: rects, paint order, local geometry, event offsets.
-pub(super) fn dom_cmd_geometry(
+pub(crate) fn dom_cmd_geometry(
     gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -360,7 +376,7 @@ pub(super) fn dom_cmd_geometry(
 
 /// `op_dom` family: scroll extents/containers and computed style.
 #[cfg_attr(not(feature = "screenshot"), allow(unused_variables))] // only the null stubs remain
-pub(super) fn dom_cmd_scroll_style(
+pub(crate) fn dom_cmd_scroll_style(
     gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -652,7 +668,7 @@ pub(super) fn style_property_map(style: &str) -> HashMap<String, String> {
 /// stale solve (#220's two-rounds-different-heights); a missing side gets
 /// the full drop.
 #[cfg(feature = "screenshot")]
-pub(super) fn style_write_is_paint_only(old: Option<&str>, new: Option<&str>) -> bool {
+pub(crate) fn style_write_is_paint_only(old: Option<&str>, new: Option<&str>) -> bool {
     const PAINT_ONLY: [&str; 5] = ["transform", "opacity", "translate", "rotate", "scale"];
     let (Some(old), Some(new)) = (old, new) else {
         return false;
@@ -670,7 +686,7 @@ pub(super) fn style_write_is_paint_only(old: Option<&str>, new: Option<&str>) ->
 /// disqualifies it. `None` for the pool means no layout run has happened
 /// yet, so no cache exists to invalidate and skipping is free.
 #[cfg(feature = "screenshot")]
-pub(super) fn attr_write_is_layout_inert(
+pub(crate) fn attr_write_is_layout_inert(
     name: &str,
     selector_names: Option<&std::collections::HashSet<String>>,
 ) -> bool {

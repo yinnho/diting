@@ -1,6 +1,13 @@
 // Range / inline client-rect geometry ops, backed by diting_layout::text_geom
 // (the painted text items re-wrapped with the painter's own breaker).
-use super::*;
+
+use diting_dom::DomTree;
+#[cfg(feature = "screenshot")]
+use diting_dom::NodeId;
+
+#[cfg(feature = "screenshot")]
+use super::layout_run::ensure_layout_run;
+use super::JsState;
 
 /// `text_rects`: arg1 = text-node id, arg2 = "from,to" (node-local char
 /// offsets) -> JSON [[x,y,w,h],...] in document coordinates, one per line the
@@ -8,7 +15,7 @@ use super::*;
 /// inline element's text (a block/replaced element answers "null": the caller
 /// keeps its single border box).
 #[cfg(feature = "screenshot")]
-pub(super) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str) -> String {
+pub(crate) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str) -> String {
     let Some(nid) = arg1.parse::<u32>().ok().map(NodeId::new) else {
         return "null".into();
     };
@@ -90,6 +97,6 @@ pub(super) fn run(gs: &JsState, dom: &DomTree, cmd: &str, arg1: &str, arg2: &str
 }
 
 #[cfg(not(feature = "screenshot"))]
-pub(super) fn run(_gs: &JsState, _dom: &DomTree, _cmd: &str, _a1: &str, _a2: &str) -> String {
+pub(crate) fn run(_gs: &JsState, _dom: &DomTree, _cmd: &str, _a1: &str, _a2: &str) -> String {
     "null".into()
 }

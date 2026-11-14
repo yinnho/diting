@@ -919,6 +919,75 @@ async fn test_inert_attribute_writes_keep_the_layout_cache() {
     );
 }
 
+/// A class that only changes paint re-collects against the cached solve.
+/// A class that changes a layout input re-solves. The rev still moves on
+/// the paint class — pixels changed — but `solves` does not.
+#[tokio::test(flavor = "current_thread")]
+#[cfg(feature = "screenshot")]
+async fn color_class_reuses_the_solve_width_class_does_not() {
+    let mut rt = setup_runtime(
+        r#"<html><head><style>
+             div { width: 100px; height: 20px; }
+             .hot { color: rgb(255, 0, 0); }
+             .wide { width: 240px; }
+           </style></head>
+           <body><div id="b" class="base">hi</div></body></html>"#,
+    );
+    let read = r#"() => {
+        const el = document.getElementById('b');
+        const r = el.getBoundingClientRect();
+        return JSON.stringify({ w: r.width, color: getComputedStyle(el).color });
+    }"#;
+    rt.call_function_on_remote(read, None, &[], true, true)
+        .await
+        .unwrap();
+    let solves0 = rt.with_state(|st| st.solves.get());
+    assert!(solves0 >= 1, "the first geometry read solves");
+
+    let paint = r#"() => { document.getElementById('b').className = 'base hot'; }"#;
+    rt.call_function_on_remote(paint, None, &[], true, true)
+        .await
+        .unwrap();
+    let after_paint = rt
+        .call_function_on_remote(read, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        rt.with_state(|st| st.solves.get()),
+        solves0,
+        "a color class must not re-solve"
+    );
+    let paint_v = after_paint.value.unwrap();
+    let paint_obj = paint_v.as_str().unwrap_or("");
+    assert!(
+        paint_obj.contains("255"),
+        "the new color has to be visible: {paint_obj}"
+    );
+    assert!(
+        paint_obj.contains("\"w\":100") || paint_obj.contains("\"w\": 100"),
+        "width stays 100: {paint_obj}"
+    );
+
+    let wide = r#"() => { document.getElementById('b').className = 'base wide'; }"#;
+    rt.call_function_on_remote(wide, None, &[], true, true)
+        .await
+        .unwrap();
+    let after_wide = rt
+        .call_function_on_remote(read, None, &[], true, true)
+        .await
+        .unwrap();
+    assert!(
+        rt.with_state(|st| st.solves.get()) > solves0,
+        "a width class re-solves"
+    );
+    let wide_v = after_wide.value.unwrap();
+    let wide_obj = wide_v.as_str().unwrap_or("");
+    assert!(
+        wide_obj.contains("240"),
+        "width follows the class: {wide_obj}"
+    );
+}
+
 /// blitz#840 shape (narrowed to what applies without transitions): an
 /// out-of-flow element inside an INLINE-LEVEL container must still carry
 /// its transform — in gBCR here, and the paint side reads the same

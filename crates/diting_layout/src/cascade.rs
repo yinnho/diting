@@ -1,10 +1,18 @@
 //! Cascade over a `DomTree`: `compute_styles*` and the `@container` plan.
 //!
-//! Split from the layout hub. The public entry points stay re-exported
-//! from the crate root. Pure move: this pass sees the same crate
-//! namespace it grew up in.
+//! The public entry points stay re-exported from the crate root. This
+//! module names the neighbors it calls. It does not see the hub's private
+//! namespace.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_dom::tree::{DomTree, NodeId};
+
+use crate::container_units::bake_container_units;
+use crate::counters::{
+    apply_counter_modifiers, pop_out_of_scope, resolve_content_into, CounterState,
+};
+use crate::style_memo;
 
 /// Compute every element's cascade result for a parsed tree + stylesheet:
 /// the production style-resolution pass feeding [`layout_dom`]. Walks the

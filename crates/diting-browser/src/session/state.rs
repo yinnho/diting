@@ -21,7 +21,7 @@ pub(super) static SESSION_COUNTER: AtomicU64 = AtomicU64::new(1);
 /// Default maximum idle time before a session is evicted. Overridable per
 /// session at create time (ttl_secs, clamped 60..3600) — a long workflow
 /// shouldn't lose its login state to the idle reaper mid-run.
-pub(super) const SESSION_TIMEOUT: Duration = Duration::from_secs(480); // 8 minutes
+pub(crate) const SESSION_TIMEOUT: Duration = Duration::from_secs(480); // 8 minutes
 
 /// Ring buffer size for a session's console log (see the Console command).
 const CONSOLE_RING_CAP: usize = 500;
@@ -29,14 +29,14 @@ const CONSOLE_RING_CAP: usize = 500;
 /// Snapshots older than this are dropped instead of revived — a login
 /// re-injected days later is more surprise than service. Purged lazily on
 /// revival attempts and in the eviction sweep.
-pub(super) const SNAPSHOT_MAX_AGE_SECS: i64 = 24 * 3600;
+pub(crate) const SNAPSHOT_MAX_AGE_SECS: i64 = 24 * 3600;
 
 /// #88: budgets for the shutdown flush. Every live session is persisted
 /// before the process exits, but a session stuck mid-command (navigation
 /// deadline) must not hold the process past the supervisor's kill timeout —
 /// it keeps whatever its last per-command snapshot held.
-pub(super) const SHUTDOWN_FLUSH_BUDGET: Duration = Duration::from_secs(60);
-pub(super) const PER_SESSION_FLUSH_BUDGET: Duration = Duration::from_secs(10);
+pub(crate) const SHUTDOWN_FLUSH_BUDGET: Duration = Duration::from_secs(60);
+pub(crate) const PER_SESSION_FLUSH_BUDGET: Duration = Duration::from_secs(10);
 
 /// Why a session command failed. An agent must be able to tell "the session
 /// is gone — recreate it" from "this step failed — retry it" without parsing
@@ -122,7 +122,7 @@ impl Serialize for SessionError {
 /// Called after every command so the queue drains regularly (a long
 /// non-CDP session would otherwise grow it unboundedly) and by the Console
 /// command itself.
-pub(super) fn drain_console(page: &mut Page, ring: &mut std::collections::VecDeque<Value>) {
+pub(crate) fn drain_console(page: &mut Page, ring: &mut std::collections::VecDeque<Value>) {
     let calls = page.inner.take_pending_console_calls();
     if calls.is_empty() {
         return;
@@ -205,7 +205,7 @@ impl ConsoleFilter {
 /// what the browser shows until the new document commits.
 #[cfg_attr(not(feature = "screenshot"), allow(dead_code))]
 #[derive(Default)]
-pub(super) struct NavFrameShared {
+pub(crate) struct NavFrameShared {
     /// True while a navigation owns the page (raised before the load
     /// starts, lowered after it lands or fails).
     pub(super) in_flight: std::sync::atomic::AtomicBool,
@@ -292,7 +292,7 @@ impl BrowserSession {
 /// clock honest, but holds no thread — the first working command
 /// (navigate/eval/click/...) promotes it via the normal snapshot revive;
 /// read-only probes (screenshot/state) get [`SessionError::Dormant`].
-pub(super) struct DormantSession {
+pub(crate) struct DormantSession {
     pub(super) url: Option<String>,
     pub(super) keepalive: bool,
     pub(super) persistent: bool,

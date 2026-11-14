@@ -4,11 +4,6 @@ mod http2;
 mod tls;
 mod header;
 
-use header::*;
-use tls::*;
-
-use super::*;
-
 mod_generator!(
     v100,
     tls_options!(1),
@@ -45,7 +40,7 @@ mod_generator!(
 
 mod_generator!(
     v101,
-    v100::build_emulation,
+    super::v100::build_emulation,
     header_initializer,
     [
         (
@@ -78,7 +73,7 @@ mod_generator!(
 
 mod_generator!(
     edge101,
-    v100::build_emulation,
+    super::v100::build_emulation,
     header_initializer,
     [
         (
@@ -113,7 +108,7 @@ mod_generator!(
 
 mod_generator!(
     v104,
-    v100::build_emulation,
+    super::v100::build_emulation,
     header_initializer,
     [
         (
@@ -214,7 +209,7 @@ mod_generator!(
 
 mod_generator!(
     v107,
-    v106::build_emulation,
+    super::v106::build_emulation,
     header_initializer,
     [
         (
@@ -247,7 +242,7 @@ mod_generator!(
 
 mod_generator!(
     v108,
-    v106::build_emulation,
+    super::v106::build_emulation,
     header_initializer,
     [
         (
@@ -280,7 +275,7 @@ mod_generator!(
 
 mod_generator!(
     v109,
-    v106::build_emulation,
+    super::v106::build_emulation,
     header_initializer,
     [
         (
@@ -313,7 +308,7 @@ mod_generator!(
 
 mod_generator!(
     v110,
-    v100::build_emulation,
+    super::v100::build_emulation,
     header_initializer,
     [
         (
@@ -346,7 +341,7 @@ mod_generator!(
 
 mod_generator!(
     v114,
-    v106::build_emulation,
+    super::v106::build_emulation,
     header_initializer,
     [
         (
@@ -442,7 +437,7 @@ mod_generator!(
 
 mod_generator!(
     v120,
-    v117::build_emulation,
+    super::v117::build_emulation,
     header_initializer,
     [
         (
@@ -475,7 +470,7 @@ mod_generator!(
 
 mod_generator!(
     edge122,
-    v117::build_emulation,
+    super::v117::build_emulation,
     header_initializer,
     [
         (
@@ -509,7 +504,7 @@ mod_generator!(
 
 mod_generator!(
     v123,
-    v117::build_emulation,
+    super::v117::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -571,7 +566,7 @@ mod_generator!(
 
 mod_generator!(
     v119,
-    v118::build_emulation,
+    super::v118::build_emulation,
     header_initializer,
     [
         (
@@ -638,7 +633,7 @@ mod_generator!(
 
 mod_generator!(
     v126,
-    v124::build_emulation,
+    super::v124::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -671,7 +666,7 @@ mod_generator!(
 
 mod_generator!(
     v127,
-    v124::build_emulation,
+    super::v124::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -704,7 +699,7 @@ mod_generator!(
 
 mod_generator!(
     edge127,
-    v124::build_emulation,
+    super::v124::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -738,7 +733,7 @@ mod_generator!(
 
 mod_generator!(
     v128,
-    v124::build_emulation,
+    super::v124::build_emulation,
     header_initializer,
     [
         (
@@ -771,7 +766,7 @@ mod_generator!(
 
 mod_generator!(
     v129,
-    v124::build_emulation,
+    super::v124::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -804,7 +799,7 @@ mod_generator!(
 
 mod_generator!(
     v130,
-    v124::build_emulation,
+    super::v124::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -871,7 +866,7 @@ mod_generator!(
 
 mod_generator!(
     edge131,
-    v131::build_emulation,
+    super::v131::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -939,7 +934,7 @@ mod_generator!(
 
 mod_generator!(
     v133,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -972,7 +967,7 @@ mod_generator!(
 
 mod_generator!(
     v134,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1005,7 +1000,7 @@ mod_generator!(
 
 mod_generator!(
     edge134,
-    v131::build_emulation,
+    super::v131::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1038,7 +1033,7 @@ mod_generator!(
 
 mod_generator!(
     edge135,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1071,7 +1066,7 @@ mod_generator!(
 
 mod_generator!(
     edge136,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1104,7 +1099,7 @@ mod_generator!(
 
 mod_generator!(
     edge137,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1137,7 +1132,7 @@ mod_generator!(
 
 mod_generator!(
     edge138,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1170,7 +1165,7 @@ mod_generator!(
 
 mod_generator!(
     edge139,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1203,7 +1198,7 @@ mod_generator!(
 
 mod_generator!(
     edge140,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1236,7 +1231,7 @@ mod_generator!(
 
 mod_generator!(
     edge141,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1269,7 +1264,7 @@ mod_generator!(
 
 mod_generator!(
     v135,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1302,7 +1297,7 @@ mod_generator!(
 
 mod_generator!(
     v136,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1335,7 +1330,7 @@ mod_generator!(
 
 mod_generator!(
     v137,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1368,7 +1363,7 @@ mod_generator!(
 
 mod_generator!(
     v138,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1401,7 +1396,7 @@ mod_generator!(
 
 mod_generator!(
     v139,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1434,7 +1429,7 @@ mod_generator!(
 
 mod_generator!(
     v140,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1467,7 +1462,7 @@ mod_generator!(
 
 mod_generator!(
     v141,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1500,7 +1495,7 @@ mod_generator!(
 
 mod_generator!(
     v142,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1533,7 +1528,7 @@ mod_generator!(
 
 mod_generator!(
     edge142,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1566,7 +1561,7 @@ mod_generator!(
 
 mod_generator!(
     v143,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1599,7 +1594,7 @@ mod_generator!(
 
 mod_generator!(
     v144,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1666,7 +1661,7 @@ mod_generator!(
 
 mod_generator!(
     v146,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1699,7 +1694,7 @@ mod_generator!(
 
 mod_generator!(
     v147,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1732,7 +1727,7 @@ mod_generator!(
 
 mod_generator!(
     v148,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1765,7 +1760,7 @@ mod_generator!(
 
 mod_generator!(
     v149,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1833,7 +1828,7 @@ mod_generator!(
 
 mod_generator!(
     edge143,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1866,7 +1861,7 @@ mod_generator!(
 
 mod_generator!(
     edge144,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1899,7 +1894,7 @@ mod_generator!(
 
 mod_generator!(
     edge145,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1932,7 +1927,7 @@ mod_generator!(
 
 mod_generator!(
     edge146,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1965,7 +1960,7 @@ mod_generator!(
 
 mod_generator!(
     edge147,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (
@@ -1998,7 +1993,7 @@ mod_generator!(
 
 mod_generator!(
     edge148,
-    v132::build_emulation,
+    super::v132::build_emulation,
     header_initializer_with_zstd_priority,
     [
         (

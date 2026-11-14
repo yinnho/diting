@@ -4,7 +4,7 @@
 use diting_dom::{DomTree, NodeId};
 
 /// Index of `n` among its parent's children (0-based).
-pub(super) fn node_child_index(dom: &DomTree, n: NodeId) -> usize {
+pub(crate) fn node_child_index(dom: &DomTree, n: NodeId) -> usize {
     let mut i = 0usize;
     let mut cur = dom.get_node(n).and_then(|x| x.prev_sibling);
     while let Some(p) = cur {
@@ -27,7 +27,7 @@ pub(super) fn node_ancestors_root_first(dom: &DomTree, n: NodeId) -> Vec<NodeId>
 }
 
 /// Preorder (document) order comparison of two nodes: -1 before, 1 after, 0 same.
-pub(super) fn compare_node_order(dom: &DomTree, a: NodeId, b: NodeId) -> i32 {
+pub(crate) fn compare_node_order(dom: &DomTree, a: NodeId, b: NodeId) -> i32 {
     if a == b {
         return 0;
     }

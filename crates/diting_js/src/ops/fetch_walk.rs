@@ -1041,7 +1041,10 @@ pub(crate) async fn fetch_url_walk(
                 String::new()
             };
             let error = if credentials == FetchCredentials::Include {
-                format!("CORS error: credentialed request requires Access-Control-Allow-Origin '{}' and Access-Control-Allow-Credentials 'true'{}", page_origin, redirect_note)
+                format!(
+                    "CORS error: credentialed request requires Access-Control-Allow-Origin '{}' and Access-Control-Allow-Credentials 'true'{}",
+                    page_origin, redirect_note
+                )
             } else {
                 format!(
                     "CORS error: Origin '{}' not in Access-Control-Allow-Origin '{}'{}",
