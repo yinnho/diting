@@ -4,11 +4,6 @@ mod http2;
 mod tls;
 mod header;
 
-use header::*;
-use tls::*;
-
-use super::*;
-
 mod_generator!(
     ff109,
     tls_options!(2, CIPHER_LIST_1, CURVES_1),
@@ -40,7 +35,7 @@ mod_generator!(
 
 mod_generator!(
     ff117,
-    ff109::build_emulation,
+    super::ff109::build_emulation,
     header_initializer,
     [
         (
@@ -179,7 +174,7 @@ mod_generator!(
 
 mod_generator!(
     ff136,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -199,7 +194,7 @@ mod_generator!(
 
 mod_generator!(
     ff_private_136,
-    ff_private_135::build_emulation,
+    super::ff_private_135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -219,7 +214,7 @@ mod_generator!(
 
 mod_generator!(
     ff139,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -239,7 +234,7 @@ mod_generator!(
 
 mod_generator!(
     ff142,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -267,7 +262,7 @@ mod_generator!(
 
 mod_generator!(
     ff143,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -295,7 +290,7 @@ mod_generator!(
 
 mod_generator!(
     ff144,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -323,7 +318,7 @@ mod_generator!(
 
 mod_generator!(
     ff145,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -351,7 +346,7 @@ mod_generator!(
 
 mod_generator!(
     ff146,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -379,7 +374,7 @@ mod_generator!(
 
 mod_generator!(
     ff147,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -407,7 +402,7 @@ mod_generator!(
 
 mod_generator!(
     ff148,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -435,7 +430,7 @@ mod_generator!(
 
 mod_generator!(
     ff149,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -463,7 +458,7 @@ mod_generator!(
 
 mod_generator!(
     ff150,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (
@@ -491,7 +486,7 @@ mod_generator!(
 
 mod_generator!(
     ff151,
-    ff135::build_emulation,
+    super::ff135::build_emulation,
     header_initializer_with_zstd,
     [
         (

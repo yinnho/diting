@@ -1,4 +1,12 @@
-use super::*;
+use diting_wire::{
+    header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderValue, USER_AGENT},
+    http2::{Http2Options, PseudoId, PseudoOrder, SettingId, SettingsOrder},
+    tls::{TlsOptions, TlsVersion},
+};
+use typed_builder::TypedBuilder;
+
+use super::build_standard_emulation;
+use crate::emulate::Emulation;
 
 const CURVES: &str = join!(":", "X25519", "P-256", "P-384");
 
@@ -63,7 +71,10 @@ impl From<OkHttpTlsConfig> for TlsOptions {
 macro_rules! mod_generator {
     ($mod_name:ident, $cipher:expr, $ua:expr) => {
         pub(crate) mod $mod_name {
-            use super::*;
+            // CIPHER_LIST is pasted into this module by the macro. The unused-import
+            // lint does not see that use.
+            #[allow(unused_imports)]
+            use super::{CIPHER_LIST, Emulation, build_emulation};
 
             pub fn emulation(emulation: Emulation) -> diting_wire::Emulation {
                 build_emulation(stringify!($mod_name), emulation, $cipher, $ua)

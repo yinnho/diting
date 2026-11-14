@@ -1,7 +1,11 @@
-//! Generated `content` + counters/quotes parsing (god-file ratchet split
-//! from mod.rs, pure move).
+//! Generated `content` + counters/quotes parsing.
+//!
+//! This module names the computed style a content value hangs off, and the
+//! comma split a function list uses.
 
-use super::*;
+use diting_dom::split_top_level_commas;
+
+use crate::computed::ComputedStyle;
 
 /// Counter style names accepted in `counter(name, style)`/`counters(...)`;
 /// unknown names fail closed to `Decimal` (css-counter-styles fallback).

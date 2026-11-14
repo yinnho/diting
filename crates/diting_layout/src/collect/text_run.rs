@@ -1,6 +1,15 @@
-//! The text-run paint pass — split from the module root (god-file ratchet).
+//! The text-run paint pass. It names the walk frame it shares and the
+//! measure, clip, and float-line helpers it paints from.
 
-use super::*;
+use diting_css::TextAlign;
+
+use super::{with_alpha, Ctx, Out, Xf};
+use crate::clip_text;
+use crate::float_lines;
+use crate::paint_items::{PaintItem, TextGradient};
+use crate::text::{self};
+use crate::text_run::{run_tokens, TextLeaf};
+use crate::text_src;
 
 /// Text-run pass of one `collect` frame (moved out verbatim): shaped run
 /// glyphs with decorations, ellipsis/line-clamp, shadows and the inherited

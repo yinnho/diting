@@ -1,4 +1,6 @@
-use super::*;
+use diting_wire::header::{
+    ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderName, HeaderValue, USER_AGENT,
+};
 
 pub fn header_initializer(ua: &'static str) -> HeaderMap {
     let mut headers = HeaderMap::new();

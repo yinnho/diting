@@ -1,9 +1,18 @@
 //! PDF text operators: vectorized runs and their clip brackets.
 //!
-//! Split from `paint.rs`. The public names stay re-exported from `paint`.
-//! Pure move.
+//! The public names stay re-exported from `paint`. This module names the
+//! shaper and the paint items it vectorizes.
 
-use super::*;
+use std::collections::HashSet;
+
+use diting_css::{TextDecorations, WhiteSpace};
+
+use crate::paint_items::PaintItem;
+use crate::text::{
+    baseline_offset, greedy_wrap, last_line_offset, tokens_of, truncate_tokens, HanSlot, PdfGlyph,
+    ScaledMetrics, Token,
+};
+use crate::FontBook;
 
 /// One vectorizable text run for the PDF text layer (vector-text batch):
 /// shaped glyphs in absolute page px plus the decoration strokes, in the

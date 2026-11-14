@@ -1,10 +1,24 @@
 //! Collect half of a layout run, plus viewport overflow propagation.
 //!
-//! Split from the layout hub. The public entry points stay re-exported
-//! from the crate root. Pure move: this walk sees the same crate
-//! namespace it grew up in.
+//! The public entry points stay re-exported from the crate root. This
+//! module names the walk types and the helpers that turn a solved tree
+//! into paint items.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{ComputedStyle, Overflow};
+use diting_dom::tree::{DomTree, NodeId};
+
+use crate::collect::{self, collect, Xf, ZEscape};
+use crate::image::DecodedImage;
+use crate::layout_solve::{expand_wrapped_leaves, SolvedGeometry};
+use crate::paint_items::PaintItem;
+use crate::sticky::{LayoutCollect, StickySpan};
+use crate::style_map::side_px;
+use crate::text::FontBook;
+use crate::text_run::{clamp_corner_radii, font_context};
+use crate::text_src;
+use crate::Rect;
 
 /// css-overflow-3 §3.3 overflow propagation (blitz#880): overflow on the
 /// root element applies to the VIEWPORT itself; when that value is

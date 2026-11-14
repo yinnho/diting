@@ -1,9 +1,10 @@
 //! The `font` shorthand and the weight parser it shares.
 //!
-//! Split from the css hub. Callers still see the names on the crate root.
-//! Pure move.
+//! Callers still see the names on the crate root. This module names the
+//! length and line-height parsers the shorthand resolves through.
 
-use super::*;
+use crate::geom::{parse_line_height, CssLength, FontCtx, LineHeightRaw, LineHeightSpec};
+use crate::len_parse::{font_size_px, parse_font_size_len};
 
 /// Quote- and paren-aware token split for the `font` shorthand: quoted
 /// family names ("Helvetica Neue", Arial) and calc() bodies stay one token.
@@ -66,7 +67,7 @@ pub(super) struct FontShorthand {
 /// remainder. em font-size folds against the current context size — exact
 /// when the shorthand is the only font-size declaration (own == inherited),
 /// an approximation when an earlier declaration already set a size.
-pub(super) fn parse_font_shorthand(v: &str, fonts: &FontCtx) -> Option<FontShorthand> {
+pub(crate) fn parse_font_shorthand(v: &str, fonts: &FontCtx) -> Option<FontShorthand> {
     let v = v.trim();
     let first = v.split_whitespace().next()?.to_ascii_lowercase();
     if matches!(
@@ -178,7 +179,7 @@ fn size_px(size_str: &str, fonts: &FontCtx) -> Option<f32> {
     })
 }
 
-pub(super) fn parse_font_weight(v: &str) -> Option<u16> {
+pub(crate) fn parse_font_weight(v: &str) -> Option<u16> {
     match v.trim() {
         "normal" => Some(400),
         "bold" => Some(700),

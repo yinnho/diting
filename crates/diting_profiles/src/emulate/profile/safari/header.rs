@@ -1,4 +1,4 @@
-use super::*;
+use diting_wire::header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderValue, USER_AGENT};
 
 #[inline]
 pub fn header_initializer_for_15(ua: &'static str) -> HeaderMap {

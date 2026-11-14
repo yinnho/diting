@@ -1,9 +1,11 @@
 //! Layout and text keyword types: display, flex, grid, overflow, borders.
 //!
-//! Split from the css hub. The public names stay re-exported from the
-//! crate root. Pure move.
+//! The public names stay re-exported from the crate root. This module
+//! names the color and length probes a shorthand token is tested against.
 
-use super::*;
+use crate::color::parse_color;
+use crate::geom::parse_css_length;
+use crate::len_parse::split_sides;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PositionMode {
@@ -165,7 +167,7 @@ impl TextDecorations {
 /// tokens are accepted and dropped). `none` clears the set; an unknown token
 /// invalidates the whole declaration (None) like any CSS parse error, so a
 /// bogus value never strips a UA decoration by accident.
-pub(super) fn parse_text_decoration(v: &str, shorthand: bool) -> Option<TextDecorations> {
+pub(crate) fn parse_text_decoration(v: &str, shorthand: bool) -> Option<TextDecorations> {
     let mut out = TextDecorations::default();
     let mut saw_line = false;
     for tok in split_sides(v) {
@@ -207,7 +209,7 @@ pub(super) fn parse_text_decoration(v: &str, shorthand: bool) -> Option<TextDeco
 
 /// What a border-style token means: not a style keyword at all, an explicit
 /// no-border, or a line style.
-pub(super) enum BorderStyleKw {
+pub(crate) enum BorderStyleKw {
     NotAStyle,
     NoBorder,
     Line(BorderStyle),
@@ -309,7 +311,7 @@ pub enum ObjectPositionPart {
     Px(f32),
 }
 
-pub(super) fn border_style_kw(v: &str) -> BorderStyleKw {
+pub(crate) fn border_style_kw(v: &str) -> BorderStyleKw {
     match v {
         "solid" => BorderStyleKw::Line(BorderStyle::Solid),
         "dashed" => BorderStyleKw::Line(BorderStyle::Dashed),

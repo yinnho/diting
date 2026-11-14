@@ -2,8 +2,10 @@
 // the JS shim does the PKCS#8 / SPKI / JWK wrapping and draws seeds from
 // `op_random_bytes`.
 
-use super::*;
+use diting_ops::diting_op;
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
+
+use super::crypto_secret::crypto_err;
 
 fn seed_of(seed: &[u8]) -> Result<SigningKey, deno_error::JsErrorBox> {
     let seed: [u8; 32] = seed

@@ -1,9 +1,17 @@
 //! Apply a declaration block onto a `ComputedStyle`.
 //!
-//! Split from the css hub. `apply_one` still dispatches into the visual
-//! and layout families. Pure move.
+//! `apply_one` dispatches into the visual and layout families. This module
+//! names those appliers, the declaration split, and `var()`.
 
-use super::*;
+use crate::apply_layout::{apply_effects, apply_flex_grid, apply_logical_motion, apply_position};
+use crate::apply_visual::{
+    apply_box_model, apply_display, apply_font_image, apply_paint_text, apply_text_sizing,
+};
+use crate::computed::ComputedStyle;
+use crate::geom::{FontCtx, Length, LineHeightSpec, Sides};
+use crate::props;
+use crate::split_declarations;
+use crate::vars::substitute_vars;
 
 /// The element's used color-scheme, as a dark-branch bool for
 /// `light-dark()` (#18). Own tokens decide: a list carrying `dark` without
@@ -11,7 +19,7 @@ use super::*;
 /// renders light — with the persona's prefers-color-scheme=light, "both"
 /// resolves light on Chrome-parity machines too. Undeclared walks the
 /// ancestor chain via `scheme_dark_hint`. Probed Chrome 145, 2026-11-06.
-pub(super) fn scheme_dark_of(style: &ComputedStyle) -> bool {
+pub(crate) fn scheme_dark_of(style: &ComputedStyle) -> bool {
     match style.color_scheme.as_deref() {
         Some(list) => {
             let has = |kw: &str| list.split_whitespace().any(|t| t == kw);

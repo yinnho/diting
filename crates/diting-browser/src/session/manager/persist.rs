@@ -5,8 +5,17 @@
 //! record after every successful command; revive brings a persistent
 //! session back from its snapshot after idle eviction or a restart.
 
-use super::*;
+use std::time::Duration;
+
 use serde_json::Value;
+use tokio::sync::oneshot;
+
+use super::super::commands::SessionCommand;
+use super::super::state::{
+    DormantSession, PER_SESSION_FLUSH_BUDGET, SESSION_TIMEOUT, SHUTDOWN_FLUSH_BUDGET,
+    SNAPSHOT_MAX_AGE_SECS,
+};
+use super::SessionManager;
 
 impl SessionManager {
     /// Read the full login state back from the live session and hand it to

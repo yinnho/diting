@@ -3,9 +3,28 @@
 //! per-element cascade memo. Split from tree.rs (god-file ratchet,
 //! ARCHITECTURE.md §6 P2).
 
-use super::{DomTree, MatchCacheBox, NodeId};
+use super::{DomTree, MatchCacheBox, MatchDirty, NodeId};
 
 impl DomTree {
+    /// Mark an element's selector matches stale without saying what
+    /// changed: the next sync rebuilds. Writers that know what they changed
+    /// use the scoped hooks instead (`note_attr_change` and friends).
+    pub fn note_restyle(&self, _id: NodeId) {
+        self.inner.borrow_mut().match_dirty.full = true;
+    }
+
+    /// Escape hatch for mutation paths the dirty registry cannot describe:
+    /// the next incremental match sync rebuilds from scratch. No production
+    /// mutation path needs it yet; the dirty-registry tests drive it.
+    #[cfg(test)]
+    pub(crate) fn note_match_full(&self) {
+        self.inner.borrow_mut().match_dirty.full = true;
+    }
+
+    pub(crate) fn take_match_dirty(&self) -> MatchDirty {
+        std::mem::take(&mut self.inner.borrow_mut().match_dirty)
+    }
+
     /// Take the persisted match state; the caller decides whether it still
     /// fits the current rule list (see `rule_match_sets_incremental`).
     pub(crate) fn take_match_cache(&self) -> Option<MatchCacheBox> {

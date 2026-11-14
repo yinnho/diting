@@ -1,8 +1,11 @@
 //! The RGBA paint target and the primitives that write into it.
 //!
-//! Split from `paint.rs`. `execute` still drives these methods. Pure move.
+//! `execute` still drives these methods. This module names the geometry
+//! and the blur helper it calls.
 
-use super::*;
+use super::band::box_blur_alpha;
+use crate::text::TextRaster;
+use crate::Rect;
 
 /// A straight-alpha RGBA8 image, row-major — our paint target.
 #[derive(Debug)]
@@ -1356,7 +1359,7 @@ fn border_ring_contains(
 /// upper bound, so a shared position (hard line, `blue 50%, green 50%`)
 /// falls through to the next ramp and the LATER stop's color owns the
 /// line itself — Chrome's behavior at the discontinuity.
-pub(super) fn gradient_stop_color(stops: &[(f32, [u8; 4])], t: f32) -> [u8; 4] {
+pub(crate) fn gradient_stop_color(stops: &[(f32, [u8; 4])], t: f32) -> [u8; 4] {
     if t <= stops[0].0 {
         return stops[0].1;
     }

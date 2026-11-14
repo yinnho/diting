@@ -1,6 +1,5 @@
 // 时间面：sleep body（async glue 消费）+ 时钟毫秒 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+use diting_ops::diting_op;
 
 /// Free body of `op_sleep` — the hand glue (`diting_js::async_glue`)
 /// calls this directly off our Vm host (10d swap; the #[op2] wrapper died

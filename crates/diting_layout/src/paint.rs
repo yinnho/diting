@@ -4,14 +4,13 @@
 //! svg ops) onto an RGBA [`Canvas`], in the stacking order layout computed.
 //! Blend modes live in `paint/blend.rs`.
 
-use super::forms::{paint_form_control, paint_form_widget};
-use super::text::{
-    baseline_offset, greedy_wrap, last_line_offset, tokens_of, truncate_tokens, HanSlot, PdfGlyph,
-    ScaledMetrics, TextRaster, Token,
-};
-use super::{FontBook, PaintItem, Rect, TextGradient};
+#[cfg(test)]
+use super::text::{tokens_of, TextRaster, Token};
+#[cfg(test)]
+use super::TextGradient;
+use super::{FontBook, PaintItem, Rect};
+#[cfg(test)]
 use diting_css::{MixBlendMode, TextDecorations, TextShadow, WhiteSpace};
-use std::collections::HashSet;
 
 /// Rough advance width: CJK/fullwidth ≈ 1em, everything else ≈ 0.6em.
 pub(crate) fn est_width(text: &str, font_size: f32) -> f32 {
@@ -76,7 +75,7 @@ pub fn text_ink_extent(items: &[PaintItem]) -> (f32, f32) {
                     width: est.min(wrap),
                     height: lines * line_height,
                 };
-                let r = super::map_rect_arr(cur, local);
+                let r = super::layout_solve::map_rect_arr(cur, local);
                 w = w.max(r.x + r.width);
                 h = h.max(r.y + r.height);
             }
@@ -288,13 +287,16 @@ pub(crate) fn alpha_color(c: [u8; 4], a: f32) -> [u8; 4] {
 mod band;
 mod pdf_text;
 mod text_deco;
+#[cfg(test)]
 use band::box_blur_alpha;
 pub use band::execute_band;
 pub use pdf_text::{pdf_ops_translate, pdf_text_ops, PdfLine, PdfOp};
-use text_deco::{paint_text_decorations, recolor_gradient_text};
+#[cfg(test)]
+use text_deco::paint_text_decorations;
 mod canvas;
 #[cfg(test)]
 use band::MAX_SHADOW_BLUR;
+#[cfg(test)]
 use canvas::gradient_stop_color;
 pub use canvas::Canvas;
 #[cfg(test)]

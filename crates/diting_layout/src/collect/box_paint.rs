@@ -1,7 +1,17 @@
 //! The box-paint passes of `element_box` (background, border, replaced
-//! content) — split from the module root (god-file ratchet).
+//! content). These passes name the walk frame they share and the paint
+//! helpers they call.
 
-use super::*;
+use diting_css::{ComputedStyle, ObjectFit, ObjectPositionPart, TextDirection};
+use diting_dom::tree::NodeId;
+
+use super::{with_alpha, Ctx, Out, Xf};
+use crate::paint_items::{FormRun, FormWidget, PaintItem, TextGradient};
+use crate::replaced::object_paint_rect;
+use crate::style_map::side_px;
+use crate::svg;
+use crate::text_run::{color_context, font_context, form_control_run};
+use crate::Rect;
 
 /// Background pass of `element_box` (moved out verbatim): color, layered
 /// images/gradients, `background-clip: text` (which hands its gradient to

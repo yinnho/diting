@@ -1,10 +1,33 @@
 //! Public layout entry: solve the box tree, then the `layout_dom*` faces.
 //!
-//! Split from the layout hub. The public names stay re-exported from
-//! the crate root. `SolvedGeometry`'s fields stay crate-visible: the
-//! collect walk and the fixup passes read them.
+//! The public names stay re-exported from the crate root. `SolvedGeometry`'s
+//! fields stay crate-visible: the collect walk and the fixup passes read them.
+//! This module names the builders and the fixup passes it runs.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+
+use diting_css::ComputedStyle;
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{AvailableSpace, Display, Size, Style};
+
+use crate::composed::render_children;
+use crate::element_build::build_element;
+use crate::float_lines;
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::{self, DecodedImage};
+use crate::layout_collect::layout_collect;
+use crate::paint_items::PaintItem;
+use crate::replaced::resolve_img_source;
+use crate::solve_fixup::{
+    continue_floats, harvest_static_positions, repair_box_sizes, repair_calc_widths,
+    repair_wrap_host_intrinsics, reparent_out_of_flow,
+};
+use crate::sticky::LayoutCollect;
+use crate::table::{place_table_spans, TableBuildMeta};
+use crate::text::{self, FontBook};
+use crate::text_run::{leaf_descent, run_tokens, shift_pad, TextLeaf};
+use crate::text_src;
+use crate::Rect;
 
 /// Lay a DOM tree out at a fixed viewport size and return each element's
 /// absolute border-box rect. Elements are keyed by diting_dom NodeId; the
@@ -78,7 +101,7 @@ pub fn layout_dom_with_paint_and_images(
 /// gBCR bounding-box behavior under rotation. Free-standing so
 /// [`expand_wrapped_leaves`] can map through a recorded array — the walk's
 /// `Xf` type is fn-local.
-pub(super) fn map_rect_arr(m: [f32; 6], r: Rect) -> Rect {
+pub(crate) fn map_rect_arr(m: [f32; 6], r: Rect) -> Rect {
     if m[1] == 0.0 && m[2] == 0.0 {
         let (x1, x2) = (r.x * m[0] + m[4], (r.x + r.width) * m[0] + m[4]);
         let (y1, y2) = (r.y * m[3] + m[5], (r.y + r.height) * m[3] + m[5]);
@@ -119,7 +142,7 @@ pub(super) fn map_rect_arr(m: [f32; 6], r: Rect) -> Rect {
 /// paint item's `wrap_at` means), then map each line band to canvas —
 /// under rotation a horizontal line band is a vertical stripe, and the
 /// mapped bbox of each band is the closest an axis-aligned Bg can get.
-pub(super) fn expand_wrapped_leaves(
+pub(crate) fn expand_wrapped_leaves(
     node: diting_taffy::tree::NodeId,
     taffy_tree: &TaffyTree<TextLeaf>,
     wrapper_set: &std::collections::HashSet<diting_taffy::tree::NodeId>,

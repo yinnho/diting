@@ -1,6 +1,9 @@
-//! calc() / min() / max() / clamp() evaluation (god-file ratchet split from mod.rs).
+//! calc() / min() / max() / clamp() evaluation.
+//!
+//! This module names the length parser and the number gate a term resolves through.
 
-use super::*;
+use crate::geom::{parse_css_length, resolve_len, CssLength, FontCtx, Length};
+use crate::len_parse::CssF32;
 
 /// A calc() intermediate value: a plain number (only legal as a `*`/`/`
 /// operand) or a length carrying its px and percent parts accumulated
@@ -676,7 +679,7 @@ impl CalcParser<'_> {
 /// (cm/mm/q/in/pt/pc fold to px at 96dpi) and the viewport variants
 /// (small/large/dynamic are all the one static viewport here; vi/vb follow
 /// the horizontal writing mode).
-pub(super) fn parse_extra_unit(v: &str) -> Option<CssLength> {
+pub(crate) fn parse_extra_unit(v: &str) -> Option<CssLength> {
     let l = v.to_ascii_lowercase();
     for (unit, mk) in [
         ("dvw", CssLength::Vw as fn(f32) -> CssLength),
@@ -755,7 +758,7 @@ fn px_normalize(expr: &str, fonts: &FontCtx) -> String {
 /// cannot order (`min(100%, 600px)`, `clamp(300px, 50%, 800px)`,
 /// `round(…, 5%)`): a placeholder length that makes layout schedule the
 /// repair pass, plus the px-normalised expression to evaluate there.
-pub(super) fn pct_math(v: &str, fonts: &FontCtx) -> Option<(Length, std::sync::Arc<str>)> {
+pub(crate) fn pct_math(v: &str, fonts: &FontCtx) -> Option<(Length, std::sync::Arc<str>)> {
     let t = v.trim();
     if !t.contains('%') {
         return None;

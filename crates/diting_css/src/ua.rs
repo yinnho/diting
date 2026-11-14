@@ -1,9 +1,11 @@
 //! User-agent defaults for the tags this engine styles.
 //!
-//! Split from the css hub. The public names stay re-exported from the
-//! crate root. Pure move.
+//! The public names stay re-exported from the crate root. This module
+//! names the style keywords those defaults are written in.
 
-use super::*;
+use crate::geom::CssLength;
+use crate::style_kw::{BorderStyle, Display, ListStyleType, TextDecorations, WhiteSpace};
+use crate::text_align::TextAlign;
 
 /// UA defaults per tag — the tiny corner of the upstream ua_style() that our
 /// property subset can express: phrasing content is inline, everything else
@@ -220,7 +222,7 @@ pub fn ua_padding(tag: &str) -> Option<[CssLength; 4]> {
 /// alpha glyphs are a later batch); the geometric trio and none keep their
 /// own slots. Unrecognized values return None (declaration drops, the
 /// inherited slot survives — Chrome parse-time behavior).
-pub(super) fn parse_list_style_type(v: &str) -> Option<ListStyleType> {
+pub(crate) fn parse_list_style_type(v: &str) -> Option<ListStyleType> {
     match v {
         "none" => Some(ListStyleType::None),
         "disc" => Some(ListStyleType::Disc),

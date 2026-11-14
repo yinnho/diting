@@ -1,5 +1,5 @@
 // CSS.registerProperty bridge to the cascade's @property registry.
-use super::*;
+use diting_ops::diting_op;
 
 /// The JS-side registerProperty already validated its arguments; this mirrors
 /// the registration into the Rust registry so the cascade sees the initial

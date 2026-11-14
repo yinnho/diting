@@ -1465,7 +1465,11 @@ mod sticky_tests {
             (1usize, 2usize, [0.0f32, 0.0f32]),
         ];
         let out = apply_sticky_to_items(&items, &spans);
-        assert_eq!(bg_xy(&out[1]).1, 48.0, "pinned head: NET ZERO total, it keeps its layout position while the port rides over it");
+        assert_eq!(
+            bg_xy(&out[1]).1,
+            48.0,
+            "pinned head: NET ZERO total, it keeps its layout position while the port rides over it"
+        );
         assert_eq!(
             bg_xy(&out[2]).1,
             1648.0,
@@ -2740,7 +2744,9 @@ mod pseudo_inline_style_tests {
     const ACCENT: [u8; 4] = [255, 51, 102, 255];
 
     fn text_items(sheet: &str, body: &str) -> Vec<PaintItem> {
-        let html = format!("<html><head><style>{sheet}</style></head><body style=\"margin:0\">{body}</body></html>");
+        let html = format!(
+            "<html><head><style>{sheet}</style></head><body style=\"margin:0\">{body}</body></html>"
+        );
         let tree = parse_html(&html);
         let rules = parse_stylesheet_for(sheet, (800.0, 600.0), CssMediaType::Screen);
         let styles = compute_styles(&tree, &rules, (800.0, 600.0));

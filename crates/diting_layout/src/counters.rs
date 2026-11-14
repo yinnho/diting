@@ -9,10 +9,11 @@ use super::flow_tree::FlowTree as TaffyTree;
 use diting_css::ComputedStyle;
 use diting_dom::tree::{DomTree, NodeId};
 
-use super::{
+use super::text_run::{
     build_word_leaves, color_context, decoration_context, font_context, han_context, mono_context,
-    small_caps_context, valign_shift, word_spacing_context, FontBook, TextLeaf,
+    small_caps_context, valign_shift, word_spacing_context, TextLeaf,
 };
+use super::FontBook;
 
 /// Chrome's UA sheet gives `q::before/::after` the `open-quote`/`close-quote`
 /// keywords, which resolve through auto quote nesting: even depth uses double
@@ -50,12 +51,12 @@ fn q_ancestor_quote_depth(tree: &DomTree, mut id: NodeId) -> usize {
 /// rule that makes `ol{counter-reset} li::before{counter-increment}`
 /// number nested lists as "1.1" and the next outer item as plain "2".
 #[derive(Default)]
-pub(super) struct CounterState {
+pub(crate) struct CounterState {
     map: HashMap<String, Vec<(i64, usize)>>,
     quote_depth: usize,
 }
 
-pub(super) fn apply_counter_modifiers(
+pub(crate) fn apply_counter_modifiers(
     state: &mut CounterState,
     reset: &[(String, i32)],
     increment: &[(String, i32)],
@@ -87,7 +88,7 @@ pub(super) fn apply_counter_modifiers(
 /// End-of-subtree scope pop: counters created strictly inside the exiting
 /// element die with their creating parent; ones created at this depth or
 /// shallower survive for the following siblings.
-pub(super) fn pop_out_of_scope(state: &mut CounterState, depth: usize) {
+pub(crate) fn pop_out_of_scope(state: &mut CounterState, depth: usize) {
     for stack in state.map.values_mut() {
         while matches!(stack.last(), Some(e) if e.1 > depth) {
             stack.pop();
@@ -111,7 +112,7 @@ fn quote_pair(quotes: Option<&[String]>, depth: usize) -> (&str, &str) {
     }
 }
 
-pub(super) fn resolve_content_into(
+pub(crate) fn resolve_content_into(
     cv: &diting_css::ContentValue,
     tree: &DomTree,
     nid: NodeId,
@@ -183,7 +184,7 @@ pub(super) fn resolve_content_into(
 /// open/close leaves directly around the flattened q's children, in the q's
 /// own font context.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn wrap_q_quotes(
+pub(crate) fn wrap_q_quotes(
     tree: &DomTree,
     child: NodeId,
     child_tag: &str,

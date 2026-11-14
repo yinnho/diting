@@ -1,7 +1,7 @@
-//! getComputedStyle value spelling (CSSOM serialization of used/computed values) (god-file ratchet split from mod.rs, pure move).
+//! getComputedStyle value spelling (CSSOM serialization of used/computed values).
 
 #[cfg(feature = "screenshot")]
-use super::*;
+use diting_dom::{DomTree, NodeId};
 
 /// Chrome's UA-sheet display for the tags whose CSSOM value differs from the
 /// Block bucket the layout engine gives them. Layout intentionally has no
@@ -71,7 +71,7 @@ pub(super) fn counter_style_suffix(style: diting_css::CounterStyle) -> String {
 /// consumer is a JSON object); this list just guarantees the op and the
 /// serializer stay in lockstep.
 #[cfg(feature = "screenshot")]
-pub(super) const COMPUTED_STYLE_PROPS: &[&str] = &[
+pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "position",
     "z-index",
     "display",
@@ -173,7 +173,7 @@ pub(super) const COMPUTED_STYLE_PROPS: &[&str] = &[
 
 /// elements) they keep the declared spelling.
 #[cfg(feature = "screenshot")]
-pub(super) fn computed_style_value(
+pub(crate) fn computed_style_value(
     s: &diting_css::ComputedStyle,
     prop: &str,
     cssom_tag: Option<&str>,
@@ -1085,7 +1085,7 @@ pub(super) fn icb_inline(
 /// count 0 — em would need font metrics). `None` when geometry is missing
 /// or the chain runs out — callers keep the declared spelling then.
 #[cfg(feature = "screenshot")]
-pub(super) fn cb_inline_for(
+pub(crate) fn cb_inline_for(
     dom: &DomTree,
     rects: &std::collections::HashMap<NodeId, [f32; 4]>,
     styles: &std::collections::HashMap<NodeId, diting_css::ComputedStyle>,

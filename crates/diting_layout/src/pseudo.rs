@@ -11,16 +11,18 @@ use diting_taffy::{Display, FlexDirection, Style};
 
 use diting_dom::tree::{DomTree, NodeId};
 
+use diting_css::{ComputedStyle, Display as CssDisplay, TextAlign, WhiteSpace};
+
 use super::flow_tree::FlowTree as TaffyTree;
-use super::{
-    effective_line_height, float_flow, is_replaced_tag, own_decorations, run_wrapper_style,
-    to_taffy_style, ComputedStyle, CssDisplay, FontBook, TextAlign, TextLeaf, WhiteSpace,
-};
+use super::replaced::is_replaced_tag;
+use super::style_map::to_taffy_style;
+use super::text_run::{effective_line_height, own_decorations, run_wrapper_style, TextLeaf};
+use super::{float_flow, FontBook};
 
 /// The ComputedStyle of a [`TextLeaf::Pseudo`] leaf — resolved through its
 /// HOST's styles entry, the `before` flag picking which side of the pair.
 /// Any other node returns None.
-pub(super) fn pseudo_leaf_style<'a>(
+pub(crate) fn pseudo_leaf_style<'a>(
     taffy_tree: &TaffyTree<TextLeaf>,
     styles: &'a HashMap<NodeId, ComputedStyle>,
     node: diting_taffy::tree::NodeId,
@@ -45,7 +47,7 @@ pub(super) fn pseudo_leaf_style<'a>(
 /// into the host's child list. Replaced and table hosts are skipped in v1:
 /// replaced boxes own no layout children, and table hosts reify their own
 /// row structure through build_table.
-pub(super) fn append_pseudo_leaves(
+pub(crate) fn append_pseudo_leaves(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,

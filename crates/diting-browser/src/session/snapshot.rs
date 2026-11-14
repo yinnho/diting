@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 /// Build the JSON snapshot body and (re)bind the session's element_map so
 /// subsequent click/input by `ref` or `index` hit the same nodes.
-pub(super) fn extract_snapshot(
+pub(crate) fn extract_snapshot(
     page: &mut Page,
     element_map: &mut HashMap<usize, u64>,
 ) -> Result<Value, String> {

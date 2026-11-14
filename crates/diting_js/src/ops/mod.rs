@@ -2,41 +2,12 @@
 //! 新 op 进对应族文件（state/script_start/dom*/layout_run/console/
 //! fetch_ops/storage/nav/timers/url_ops/svg 或既有子 mod），hub 只挂
 //! 声明、桩和注册行——别再往这文件里写函数体（god-file 棘轮已退役 #75）。
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::io::Write as _;
-use std::rc::Rc;
-use std::sync::{Arc, PoisonError};
-
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use diting_dom::{AttachShadowError, DomTree, NodeData, NodeId, ShadowRootMode};
-use diting_net::{CookieJar, HttpClient};
-use diting_ops::diting_op;
-use diting_runtime::state::OpState;
-use dom::{parse_nid, DomCmd};
-use dom_cmds::{
-    dom_cmd_attr_state, dom_cmd_create, dom_cmd_document, dom_cmd_mutate, dom_cmd_query,
-    dom_cmd_tree,
-};
-#[cfg(all(test, feature = "screenshot"))]
-use dom_style::style_property_map;
-#[cfg(feature = "screenshot")]
-use dom_style::{attr_write_is_layout_inert, style_write_is_paint_only};
-use dom_style::{dom_cmd_geometry, dom_cmd_scroll_style, dom_cmd_sheets};
-use fetch_ops::REFERRER_POLICY_TOKENS;
 pub(crate) use fetch_ops::{
     glob_match, op_fetch_url_body, FetchCredentials, FetchSettlements, FETCH_REDIRECT_LIMIT,
 };
 #[cfg(feature = "screenshot")]
 pub use layout_run::text_ink_extent;
-#[cfg(feature = "screenshot")]
-use layout_run::{
-    ensure_layout_run, iframe_layout_run, is_element_scroller, is_viewport_fixed,
-    parse_iframe_viewport, sticky_shifts, LayoutRun,
-};
-use script_start::{mark_script_subtree_started, propagate_script_start_state};
 pub(crate) use state::{fetch_body_byte_limit, BlobStoreMap};
-use state::{response_body_byte_limit, response_body_entry_limit};
 pub use state::{
     InterceptResolution, InterceptedRequest, JsNetworkEvent, JsState, ResourceTimingRecord,
     SharedState, StoredNetworkResponseBody, INTERCEPT_RESOLUTION_TIMEOUT_MS,
@@ -48,7 +19,6 @@ use storage::storage_file;
 #[cfg(feature = "screenshot")]
 pub use storage::store_image_bytes;
 pub(crate) use timers::op_sleep_body;
-use url::Url;
 
 mod band;
 mod canvas;
@@ -79,24 +49,18 @@ pub(crate) use ed25519::{
     op_subtle_ed25519_check, op_subtle_ed25519_public, op_subtle_ed25519_sign,
     op_subtle_ed25519_verify,
 };
-pub(crate) use fetch_walk::{fetch_url_walk, FetchFailure, FetchNetworkEvent, FetchWalkDeps};
-use node_order::{compare_node_order, node_child_index};
 mod cors;
 mod crypto_secret;
 mod referrer;
-use referrer::resolve_document_referrer_policy;
 pub use referrer::{fetch_referer, last_valid_referrer_token, resolve_referrer_policy_from};
 mod fetch_client;
-#[cfg(feature = "screenshot")]
-use cssom_value::{cb_inline_for, computed_style_value};
 pub use fetch_client::cached_request_client;
 pub(crate) use fetch_client::select_request_client;
 mod cssom_value;
 mod image_info;
-pub(crate) use cors::request_origin;
 pub(crate) use crypto_secret::{
-    crypto_err, op_random_bytes, op_subtle_aes_cbc, op_subtle_aes_ctr, op_subtle_aes_gcm,
-    op_subtle_aes_kw, op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, pbkdf2_derive,
+    op_random_bytes, op_subtle_aes_cbc, op_subtle_aes_ctr, op_subtle_aes_gcm, op_subtle_aes_kw,
+    op_subtle_digest, op_subtle_hkdf, op_subtle_hmac, pbkdf2_derive,
 };
 pub use fetch_gate::validate_fetch_url;
 pub(crate) use image_info::op_image_info;

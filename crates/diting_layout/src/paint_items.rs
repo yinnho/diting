@@ -1,9 +1,15 @@
 //! Paint-list types: `PaintItem`, form widgets, and text gradients.
 //!
-//! Split from the layout hub. The public names stay re-exported from
-//! the crate root. Pure move.
+//! The public names stay re-exported from the crate root. This module
+//! names the geometry and text types the list carries.
 
-use super::*;
+use diting_css::{TextAlign, TextDecorations, TextShadow, WhiteSpace};
+
+use crate::image::DecodedImage;
+use crate::svg;
+use crate::text;
+use crate::text_src;
+use crate::Rect;
 
 /// How a form control lays its text run out inside the replaced box (form
 /// paint polish batch): Chrome's control padding plus vertical centering

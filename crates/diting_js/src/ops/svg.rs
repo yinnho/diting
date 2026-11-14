@@ -1,6 +1,10 @@
 // SVG 路径度量：path_len/point_at（screenshot 真测 + 空桩双版本） — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+#[cfg(feature = "screenshot")]
+use super::SharedState;
+#[cfg(feature = "screenshot")]
+use diting_dom::NodeId;
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
 
 /// 批240 / obscura#1100: SVGGeometryElement.getTotalLength() backing. Chrome
 /// measures through SkPathMeasure (circle r=25 → 156.0674, not 2πr), so these

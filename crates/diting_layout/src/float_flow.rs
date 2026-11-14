@@ -82,7 +82,7 @@ thread_local! {
 }
 
 /// Whether the element about to be built sits in a wrap host's block flow.
-pub(super) fn in_env() -> bool {
+pub(crate) fn in_env() -> bool {
     ENV.with(Cell::get)
 }
 
@@ -90,7 +90,7 @@ pub(super) fn in_env() -> bool {
 /// (wrap_v2) or the environment it inherited and passes on as a plain
 /// block. BFC boundaries (flex/grid/table/abspos/floats) break the chain
 /// by never setting this from inside.
-pub(super) fn set_env(on: bool) {
+pub(crate) fn set_env(on: bool) {
     ENV.with(|c| c.set(on));
 }
 
@@ -101,7 +101,7 @@ pub fn force(on: Option<bool>) {
     FORCED.with(|f| f.set(on));
 }
 
-pub(super) fn enabled() -> bool {
+pub(crate) fn enabled() -> bool {
     if let Some(v) = FORCED.with(|f| f.get()) {
         return v;
     }
@@ -111,7 +111,7 @@ pub(super) fn enabled() -> bool {
 
 /// Style of a pure-text run leaf: a block item when the gate is on, so it
 /// joins the block formatting context and can see the floats.
-pub(super) fn run_style() -> Style {
+pub(crate) fn run_style() -> Style {
     if enabled() {
         Style {
             display: Display::Block,
@@ -122,7 +122,7 @@ pub(super) fn run_style() -> Style {
     }
 }
 
-pub(super) fn eligible(
+pub(crate) fn eligible(
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,
     id: NodeId,
@@ -247,8 +247,8 @@ pub(super) fn clear_of(side: Option<ClearSide>) -> Clear {
 }
 
 /// Give a built child taffy's `float` / `clear`.
-pub(super) fn mark(
-    taffy_tree: &mut super::flow_tree::FlowTree<super::TextLeaf>,
+pub(crate) fn mark(
+    taffy_tree: &mut super::flow_tree::FlowTree<super::text_run::TextLeaf>,
     node: diting_taffy::tree::NodeId,
     style: Option<&ComputedStyle>,
 ) {

@@ -1,9 +1,26 @@
 //! Per-element cascade: UA defaults, author rules, inline style.
 //!
-//! Split from the css hub. `cascade_element` stays re-exported from the
-//! crate root. Pure move.
+//! `cascade_element` stays re-exported from the crate root. This module
+//! names the declaration applier, the UA defaults, and the length resolver.
 
-use super::*;
+use crate::apply_decl::{
+    apply_declarations, apply_declarations_importance, scheme_dark_of, Importance,
+};
+use crate::computed::ComputedStyle;
+use crate::geom::{
+    resolve_len, Color, CssLength, FontCtx, Length, LineHeightSpec, DEFAULT_ROOT_FONT_SIZE,
+};
+use crate::layers;
+use crate::len_parse::{font_size_px, parse_font_size_len, CssF32};
+use crate::props;
+use crate::split_declarations;
+use crate::style_kw::{VerticalAlign, WhiteSpace};
+use crate::text_align::TextDirection;
+use crate::ua::{
+    ua_border, ua_display, ua_font_family, ua_font_size, ua_font_weight, ua_list_style, ua_margin,
+    ua_padding, ua_text_align, ua_text_decoration, ua_white_space,
+};
+use crate::ParsedRule;
 
 // ---------------------------------------------------------------------------
 // Cascade

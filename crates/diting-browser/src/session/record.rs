@@ -92,7 +92,7 @@ fn shell_quote(s: &str) -> String {
 /// string literals via serde (JSON escape rules are JS-compatible), so keys
 /// or values containing quotes/newlines/CJK survive verbatim. Returns None
 /// for a storage object with nothing in it.
-pub(super) fn inject_storage_js(storage: &Value) -> Option<String> {
+pub(crate) fn inject_storage_js(storage: &Value) -> Option<String> {
     let ls = storage.get("local_storage").filter(|v| v.is_object())?;
     let ss = storage
         .get("session_storage")

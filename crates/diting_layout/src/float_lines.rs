@@ -30,7 +30,7 @@ thread_local! {
     static SLOTS: RefCell<HashMap<NodeId, Vec<Slot>>> = RefCell::new(HashMap::new());
 }
 
-pub(super) fn reset() {
+pub(crate) fn reset() {
     SLOTS.with(|s| s.borrow_mut().clear());
 }
 
@@ -281,16 +281,16 @@ pub(super) fn split(
 
 /// Measure one layout leaf: text runs through the shared breaker (beside a
 /// float, into the float's free slots), everything else by its style.
-pub(super) fn measure_node(
+pub(crate) fn measure_node(
     fonts: &super::FontBook,
     inputs: diting_taffy::tree::LayoutInput,
     id: diting_taffy::tree::NodeId,
-    ctx: Option<&mut super::TextLeaf>,
+    ctx: Option<&mut super::text_run::TextLeaf>,
     style: &diting_taffy::Style,
     block: Option<&mut diting_taffy::BlockContext<'_>>,
 ) -> diting_taffy::tree::LayoutOutput {
     match ctx {
-        Some(super::TextLeaf::Run {
+        Some(super::text_run::TextLeaf::Run {
             text,
             font_size,
             bold,
@@ -307,11 +307,11 @@ pub(super) fn measure_node(
             atomic,
             ..
         }) => {
-            let pad = super::shift_pad(
+            let pad = super::text_run::shift_pad(
                 *baseline_shift,
-                super::leaf_descent(fonts, *font_size, *bold),
+                super::text_run::leaf_descent(fonts, *font_size, *bold),
             );
-            let shaped = super::run_tokens(
+            let shaped = super::text_run::run_tokens(
                 text,
                 *font_size,
                 *bold,
@@ -339,7 +339,14 @@ pub(super) fn measure_node(
                     return out;
                 }
             }
-            super::measure_text_leaf(&shaped, *line_height, pad, &inputs, *ws, *line_clamp)
+            super::text_run::measure_text_leaf(
+                &shaped,
+                *line_height,
+                pad,
+                &inputs,
+                *ws,
+                *line_clamp,
+            )
         }
         // Word leaves keep their style-driven sizing.
         _ => diting_taffy::compute_leaf_layout(

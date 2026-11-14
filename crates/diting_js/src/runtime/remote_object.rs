@@ -1,7 +1,22 @@
 //! Chrome RemoteObject wire shapes: number spelling, value boxing, and
 //! the info_from_json/meta constructors. Pure associated fns — no state.
 
-use super::RemoteObjectInfo;
+/// Rich evaluate result: typed remote-object metadata plus optional JSON
+/// `value`. HTTP/session callers usually read `value`; `object_id` /
+/// `subtype` / `class_name` support DOM-handle style follow-ups without a
+/// separate wire protocol.
+#[cfg_attr(not(test), allow(dead_code))] // tests cross-check the type metadata
+#[derive(Debug, Clone)]
+pub struct RemoteObjectInfo {
+    pub js_type: String,
+    pub subtype: Option<String>,
+    pub class_name: String,
+    /// CDP preview text ("Object" / "Array(3)" …). Nothing renders it yet.
+    #[allow(dead_code)]
+    pub description: String,
+    pub object_id: Option<String>,
+    pub value: Option<serde_json::Value>,
+}
 
 impl super::JsRuntime {
     /// Chrome spells a JS number via Number→String: integral doubles lose

@@ -1,9 +1,21 @@
 //! `ComputedStyle`: the cascade's per-element result.
 //!
-//! Split from the css hub. The type stays re-exported from the crate root.
-//! Pure move.
+//! The type stays re-exported from the crate root. This module names the
+//! keyword and length types the fields are written in.
 
-use super::*;
+use crate::color_modern::ModernColor;
+use crate::content::{ContentValue, PseudoPair};
+use crate::geom::{Color, Length, LineHeightSpec, Sides, SvgPaint, Transform2D};
+use crate::sheet::ContainerType;
+use crate::style_kw::{
+    AlignContentMode, AlignMode, BorderCollapse, BorderStyle, BoxSizing, ClearSide, Display,
+    FlexDirection, FlexWrapMode, FloatSide, GridTrack, JustifyMode, ListStyleType, ObjectFit,
+    ObjectPositionPart, Overflow, PositionMode, TableLayout, TextDecorations, TextOverflow,
+    VerticalAlign, WebkitBoxKind, WhiteSpace,
+};
+use crate::text_align::{TextAlign, TextAlignLast, TextDirection, TextTransform};
+use crate::transition::{add_len, mul_len, AnimationSpec, TransitionSpec};
+use crate::{BoxShadow, MixBlendMode, TextShadow};
 
 /// The computed values this slice models. Deliberately tiny: enough to lock
 /// cascade ordering, specificity, inline override, and inheritance semantics.
@@ -562,5 +574,80 @@ impl ComputedStyle {
             }
         }
         Some(m)
+    }
+
+    /// Forget paint-only fields so two cascades can be compared for "would
+    /// the box tree come out the same". The solve reads geometry, fonts,
+    /// and generated content; color, shadows, opacity, and transforms do
+    /// not move boxes (transforms are applied at collect). A field left
+    /// intact is compared — a new layout input cannot hide inside this
+    /// strip. Paint fields forgotten here only cost an extra solve.
+    pub fn strip_paint_for_solve_eq(&mut self) {
+        self.color = None;
+        self.color_modern = None;
+        self.color_scheme = None;
+        self.scheme_dark_hint = false;
+        self.svg_fill = None;
+        self.svg_stroke = None;
+        self.svg_stroke_width = None;
+        self.svg_dasharray = None;
+        self.svg_dashoffset = None;
+        self.background_color = None;
+        self.background_color_modern = None;
+        self.box_shadow = None;
+        self.text_shadow = None;
+        self.backdrop_blur = None;
+        self.mix_blend_mode = None;
+        self.background_clip_text = false;
+        self.box_decoration_clone = false;
+        self.opacity = None;
+        self.transform = None;
+        self.translate_prop = None;
+        self.rotate_prop = None;
+        self.scale_prop = None;
+        self.transform_origin = None;
+        self.animation = None;
+        self.transition = None;
+        self.border_radius = None;
+        self.corner_radii = None;
+        self.object_fit = None;
+        self.object_position = None;
+        self.z_index = None;
+        self.background_image = None;
+        self.mask_image = None;
+        self.clip_path = None;
+        self.text_decoration_line = None;
+        self.custom = Default::default();
+        if let Some(pair) = self.pseudos.as_mut() {
+            if let Some(before) = pair.before.as_mut() {
+                before.strip_paint_for_solve_eq();
+            }
+            if let Some(after) = pair.after.as_mut() {
+                after.strip_paint_for_solve_eq();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paint_diff_matches_for_solve_width_diff_does_not() {
+        let mut paint_a = ComputedStyle::default();
+        paint_a.color = Some(crate::Color(0, 0, 0, 255));
+        paint_a.width = Some(crate::Length::Px(100.0));
+        let mut paint_b = paint_a.clone();
+        paint_b.color = Some(crate::Color(255, 0, 0, 255));
+        paint_b.opacity = Some(0.5);
+        paint_a.strip_paint_for_solve_eq();
+        paint_b.strip_paint_for_solve_eq();
+        assert_eq!(paint_a, paint_b);
+
+        let mut wide = ComputedStyle::default();
+        wide.width = Some(crate::Length::Px(240.0));
+        wide.strip_paint_for_solve_eq();
+        assert_ne!(paint_a, wide);
     }
 }

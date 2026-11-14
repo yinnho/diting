@@ -1,14 +1,42 @@
 //! Element box build: `build_element` and the normal-flow sibling dispatch.
 //!
-//! Split from the layout hub. Tables, float zones, the flow column and
-//! `layout_solve_rooted` still call `build_element`. `build_normal_sibling`
-//! is the same dispatch, for a caller that appends one child at a time.
-//! Pure move: this walk sees the same crate namespace it grew up in.
+//! Tables, float zones, the flow column and `layout_solve_rooted` still
+//! call `build_element`. `build_normal_sibling` is the same dispatch, for a
+//! caller that appends one child at a time. This module names those callers'
+//! helpers.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{
+    ComputedStyle, Display as CssDisplay, PositionMode, TextAlign, TextDecorations, TextOverflow,
+    TextTransform, WhiteSpace,
+};
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{AlignItems, Display, FlexDirection, JustifyContent};
+
+use crate::composed::render_children;
+use crate::counters::wrap_q_quotes;
+use crate::float_flow;
+use crate::float_zone::build_float_zone;
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::DecodedImage;
+use crate::pseudo::append_pseudo_leaves;
+use crate::replaced::{build_replaced_leaf, is_replaced_tag, pct_height_resolves};
+use crate::style_map::{resolve_sizing_keywords, to_taffy_style};
+use crate::table::{build_table, TableBuildMeta};
+use crate::text::{self, FontBook};
+use crate::text_run::{
+    blockifies_for_block_child, br_strut_leaf, build_word_leaves,
+    collapse_adjacent_sibling_margins, color_context, decoration_context, fix_flex_basis_carry,
+    font_context, han_context, ifc_white_space, is_alignment_promote, leaf_descent, mono_context,
+    pin_leaf_widths, run_wrapper_style, small_caps_context,
+    stretch_block_children_in_aligned_parent, text_transform_context, valign_shift,
+    word_spacing_context, ws_rank, TextLeaf,
+};
+use crate::text_src::{self, trim_run_edge_whitespace};
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_element(
+pub(crate) fn build_element(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -48,7 +76,7 @@ pub(super) fn build_element(
 // parley text nodes, whose observable behavior (edge-whitespace collapse,
 // greedy wrap, ceiled width) we reproduce in measure_text_leaf. Mixed
 // runs fall back to the batch-2b wrapping flex row of word leaves.
-pub(super) enum RunSeg {
+pub(crate) enum RunSeg {
     Text(
         String,
         f32,
@@ -946,7 +974,7 @@ fn build_element_inner(
 /// Strut descent for an inline-level replaced atom: the descent of the
 /// element's inherited font context (the strut IS a zero-width glyph of the
 /// line's font). Block-level replaced boxes pass 0.
-pub(super) fn strut_descent_for(
+pub(crate) fn strut_descent_for(
     tree: &DomTree,
     id: NodeId,
     styles: &HashMap<NodeId, ComputedStyle>,
@@ -965,7 +993,7 @@ pub(super) fn strut_descent_for(
 /// float branches interleave zone rows between siblings, so a shared pending
 /// run across calls would misorder).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_normal_sibling(
+pub(crate) fn build_normal_sibling(
     child: NodeId,
     tree: &DomTree,
     styles: &HashMap<NodeId, ComputedStyle>,

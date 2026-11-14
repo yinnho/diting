@@ -1,6 +1,26 @@
 // fetch op 面：请求拼装/凭据门 + 结算窗 + 同步 XHR + glob 门 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
+
+use base64::Engine as _;
+use diting_net::{CookieJar, HttpClient};
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+use super::cors::request_origin;
+use super::fetch_gate::validate_fetch_url;
+use super::fetch_walk::{fetch_url_walk, FetchFailure, FetchNetworkEvent, FetchWalkDeps};
+use super::referrer::resolve_document_referrer_policy;
+use super::state::{
+    response_body_byte_limit, response_body_entry_limit, InterceptResolution, InterceptedRequest,
+    JsNetworkEvent, StoredNetworkResponseBody, INTERCEPT_RESOLUTION_TIMEOUT_MS,
+};
+use base64::engine::general_purpose::STANDARD as BASE64;
+
+use super::SharedState;
 
 /// Cap on the number of redirect hops op_fetch_url will follow.
 ///
@@ -675,7 +695,7 @@ pub(crate) async fn op_fetch_url_body(
 }
 
 /// The seven Referrer Policy tokens ("" is the "unset" marker, not a policy).
-pub(super) const REFERRER_POLICY_TOKENS: [&str; 7] = [
+pub(crate) const REFERRER_POLICY_TOKENS: [&str; 7] = [
     "no-referrer",
     "no-referrer-when-downgrade",
     "origin",

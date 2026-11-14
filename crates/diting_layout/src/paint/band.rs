@@ -1,9 +1,20 @@
 //! Viewport-band replay of a [`PaintItem`] list.
 //!
-//! Split from `paint.rs`. `execute` is the unshifted face and calls
-//! `execute_band`. Pure move.
+//! `execute` is the unshifted face and calls `execute_band`. This module
+//! names the canvas, the text measure, and the form painters it replays.
 
-use super::*;
+use diting_css::{MixBlendMode, TextShadow, WhiteSpace};
+
+use super::alpha_color;
+use super::blend;
+use super::canvas::Canvas;
+use super::est_width;
+use super::text_deco::{paint_text_decorations, recolor_gradient_text};
+use crate::forms::{paint_form_control, paint_form_widget};
+use crate::paint_items::PaintItem;
+use crate::text::{HanSlot, TextRaster, Token};
+use crate::FontBook;
+use crate::Rect;
 
 /// Replay the paint items shifted by `(-dx, -dy)` — the viewport-band paint:
 /// with `dy` at the band's page-space top, only the band's rows land on the
@@ -974,7 +985,7 @@ fn stamp_text_shadow(
 /// One separable box-blur pass (H or V) over an alpha plane with
 /// edge-clamped windows. Two rounds ≈ a triangular kernel — the same
 /// extent convention as the box-shadow linear feather (support ≈ blur).
-pub(super) fn box_blur_alpha(
+pub(crate) fn box_blur_alpha(
     src: &[u8],
     w: usize,
     h: usize,

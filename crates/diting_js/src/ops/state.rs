@@ -1,6 +1,15 @@
 // JsState 脊柱：拦截决议/资源计时/blob 存/吸附位移缓存的状态面 + 会话限流 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+use std::sync::Arc;
+
+use diting_dom::{DomTree, NodeId};
+use diting_net::{CookieJar, HttpClient};
+
+#[cfg(feature = "screenshot")]
+use super::layout_run::LayoutRun;
 
 /// CDP Fetch-domain resolution: what a client answers a paused request with.
 /// Produced by the CDP bridge's `Fetch.continueRequest` / `fulfillRequest` /
@@ -199,8 +208,19 @@ pub struct JsState {
     /// seek lands) drops `layout_cache` but keeps this one: the solve
     /// provably ignores those properties, so the next run re-collects
     /// against the cached tree instead of re-solving the full page.
+    ///
+    /// The third slot is the paint-stripped cascade the solve was built
+    /// from. A class or id write also keeps this cache; the next run
+    /// reuses the solve only when that identity still matches, so a
+    /// color class does not re-solve and a width class does.
     #[cfg(feature = "screenshot")]
-    pub(super) geometry_cache: std::cell::RefCell<Option<(u64, diting_layout::SolvedGeometry)>>,
+    pub(super) geometry_cache: std::cell::RefCell<
+        Option<(
+            u64,
+            diting_layout::SolvedGeometry,
+            Vec<(u32, diting_css::ComputedStyle)>,
+        )>,
+    >,
     /// Memoized layout run for an orphan subtree (a fabricated iframe
     /// document, obscura #976 family), keyed (epoch, subtree root, viewport
     /// w/h bits). Kept apart from `layout_cache` on purpose: a sub-run's
@@ -386,14 +406,14 @@ pub struct StoredNetworkResponseBody {
     pub base64_encoded: bool,
 }
 
-pub(super) fn response_body_entry_limit() -> usize {
+pub(crate) fn response_body_entry_limit() -> usize {
     std::env::var("DITING_NETWORK_BODY_BUFFER_ENTRIES")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(128)
 }
 
-pub(super) fn response_body_byte_limit() -> usize {
+pub(crate) fn response_body_byte_limit() -> usize {
     std::env::var("DITING_NETWORK_BODY_BUFFER_BYTES")
         .ok()
         .and_then(|v| v.parse().ok())

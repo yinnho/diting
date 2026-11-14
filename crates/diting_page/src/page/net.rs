@@ -2,8 +2,88 @@
 //! rows), retained response bodies, scoped on_request/on_response callbacks
 //! and Network.setBlockedURLs, plus the identity overrides (extra headers,
 //! user-agent override) CDP's Network/Emulation domains drive. Split from
-//! page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
-use super::*;
+//! page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged. This
+//! module names the page log and the body-size caps it stores against.
+
+use std::sync::Arc;
+
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
+
+use super::Page;
+
+/// One recorded network exchange (CDP `Network.requestWillBeSent` /
+/// `responseReceived` shape). Recorded for every document + subresource
+/// fetch and drained from the JS runtime for script-initiated requests;
+/// read by the session /network and /har surfaces.
+#[derive(Debug, Clone)]
+pub struct NetworkEvent {
+    pub request_id: String,
+    pub url: String,
+    pub method: String,
+    pub resource_type: String,
+    /// Navigation generation this row belongs to (#101): the epoch that
+    /// was live when the request was issued. `Page.navigation_epoch` is
+    /// the current generation — rows whose `nav` is lower are leftovers of
+    /// earlier navigation attempts (a timed-out attempt's log is NOT
+    /// dropped until the next navigation resets it).
+    pub nav: u64,
+    pub status: u16,
+    /// The REQUEST's outbound header set, lowercased (#97) — what the
+    /// CDP `Network.requestWillBeSent` params and the HAR `request.headers`
+    /// read. Populated from the transport's wire snapshot (document and
+    /// subresource rows) or the fetch walk's hop set (script rows).
+    pub headers: std::collections::HashMap<String, String>,
+    pub response_headers: Arc<std::collections::HashMap<String, String>>,
+    pub body_size: usize,
+    pub timestamp: f64,
+    /// Set on `status: 0` script-initiated rows that never produced a
+    /// servable response (SSRF block, CORS refusal, transport failure).
+    /// Navigation/subresource rows leave it `None`.
+    pub error: Option<String>,
+    /// Where a redirected request actually landed (#203). `url` keeps the
+    /// REQUESTED address on every row — a taobao submit that bounced to
+    /// error.taobao.com used to read as "never issued" because failure rows
+    /// carried only the final target. Empty (or equal to `url`) when the
+    /// request never redirected; navigation/subresource rows leave it empty
+    /// (their face is the page-level `redirect_chain`, #102).
+    pub final_url: String,
+    /// The redirect hops followed, in order, each with the 3xx status that
+    /// sent it there (#203). Empty when the request went straight through.
+    pub redirects: Vec<diting_net::RedirectHop>,
+    /// When the request was DISPATCHED (#229). `None` on
+    /// navigation/subresource rows (their `timestamp` already stamps early
+    /// in the lifecycle); `Some` on script rows, whose `timestamp` is
+    /// response completion. The HAR face reads the pair as
+    /// startedDateTime + time.
+    pub started: Option<f64>,
+}
+
+/// A response body retained for `get_response_body` (upstream #360). Bodies
+/// are classified with the Chromium DevTools policy (see
+/// `diting_net::decode_devtools_body`): replacement-free text is stored as a
+/// string (`base64_encoded = false`, declared-GBK pages included, matching
+/// Chrome); opaque or undecodable bodies are stored base64 so
+/// `take_response_body_raw` is byte-exact.
+#[derive(Debug, Clone)]
+pub struct StoredResponseBody {
+    pub body: String,
+    pub base64_encoded: bool,
+}
+
+fn response_body_entry_limit() -> usize {
+    std::env::var("DITING_NETWORK_BODY_BUFFER_ENTRIES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(128)
+}
+
+fn response_body_byte_limit() -> usize {
+    std::env::var("DITING_NETWORK_BODY_BUFFER_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(2 * 1024 * 1024)
+}
 
 /// One navigation's request log, copied out so the caller can keep using
 /// the page (response bodies, the URL) while it formats the log.
@@ -14,6 +94,49 @@ pub struct NavigationRecord {
 }
 
 impl Page {
+    /// Script-initiated fetch()/XHR hops currently flying (#116): url,
+    /// method, dispatch epoch-ms. The answer to "my eval timed out — is
+    /// the save still executing?" — a hung request stays listed until its
+    /// transport actually ends, instead of being invisible until then.
+    pub fn scripted_in_flight(&self) -> Vec<diting_net::InFlightScripted> {
+        self.http_client.scripted_in_flight()
+    }
+
+    /// Hard block from `Network.setBlockedURLs`: matched resources fail
+    /// outright (Chrome semantics — no pause, no client round trip).
+    /// `pub(crate)`: render-path fetchers outside this module (screenshot
+    /// prefetch, pptx_native image export) share the same hard block.
+    pub fn url_blocked(&self, url: &str) -> bool {
+        if self.blocked_urls.is_empty() {
+            return false;
+        }
+        self.blocked_urls
+            .iter()
+            .any(|p| diting_net::url_pattern_matches(p, url))
+    }
+
+    /// Arm / disarm the Fetch-domain interception kernel. `Some(tx)` routes
+    /// every script-initiated fetch()/XHR through the CDP bridge as an
+    /// `InterceptedRequest` (the bridge answers via the per-request oneshot);
+    /// `None` disarms and lets in-flight resolvers fall through to the real
+    /// request. Arming survives navigation — `init_js` carries the channel
+    /// into each rebuilt realm.
+    pub fn set_fetch_intercept(
+        &mut self,
+        tx: Option<tokio::sync::mpsc::UnboundedSender<diting_js::ops::InterceptedRequest>>,
+    ) {
+        self.intercept_tx = tx.clone();
+        if let Some(js) = &self.js {
+            match tx {
+                Some(tx) => {
+                    js.set_intercept_tx(tx);
+                    js.set_intercept_enabled(true);
+                }
+                None => js.set_intercept_enabled(false),
+            }
+        }
+    }
+
     pub fn set_blocked_urls(&mut self, patterns: Vec<String>) {
         self.blocked_urls = patterns.clone();
         if let Some(js) = &self.js {

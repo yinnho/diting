@@ -850,8 +850,7 @@ async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
     let (url, server) = loopback_header_echo().await;
     let mut client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
     client.rides_stealth = true;
-    let persona_ua =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
+    let persona_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
     *client.user_agent.write().await = persona_ua.to_string();
     let mut headers = std::collections::HashMap::new();
     headers.insert("X-Agx-Probe".to_string(), "stealth-hop".to_string());

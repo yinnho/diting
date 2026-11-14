@@ -121,7 +121,7 @@ pub fn tokens_of(
     small_caps: bool,
     han: Option<super::HanSlot>,
 ) -> Vec<Token> {
-    crate::tokenize_ws(text, ws)
+    crate::text_run::tokenize_ws(text, ws)
         .into_iter()
         .flat_map(|t| {
             let is_break = t == "\n";

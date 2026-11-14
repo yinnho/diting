@@ -1,9 +1,15 @@
 // dom_cmd 六族：document/query/tree/attr_state/mutate/create — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+use diting_dom::{DomTree, NodeData, NodeId, ShadowRootMode};
+
+use super::dom::{parse_nid, DomCmd};
+use super::node_order::{compare_node_order, node_child_index};
+use super::referrer::resolve_referrer_policy_from;
+use super::script_start::{mark_script_subtree_started, propagate_script_start_state};
+use super::JsState;
 
 /// `op_dom` family: document-level reads: ids, title/url/referrer, base url, doctype.
-pub(super) fn dom_cmd_document(
+pub(crate) fn dom_cmd_document(
     gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -92,7 +98,7 @@ pub(super) fn dom_cmd_document(
 }
 
 /// `op_dom` family: selector queries and matching.
-pub(super) fn dom_cmd_query(
+pub(crate) fn dom_cmd_query(
     _gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -154,7 +160,7 @@ pub(super) fn dom_cmd_query(
 }
 
 /// `op_dom` family: node identity and tree/shadow navigation.
-pub(super) fn dom_cmd_tree(
+pub(crate) fn dom_cmd_tree(
     _gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -344,7 +350,7 @@ pub(super) fn dom_cmd_tree(
 }
 
 /// `op_dom` family: attributes and live form/interaction state.
-pub(super) fn dom_cmd_attr_state(
+pub(crate) fn dom_cmd_attr_state(
     _gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -497,7 +503,7 @@ pub(super) fn dom_cmd_attr_state(
 }
 
 /// `op_dom` family: serialization and tree mutation (innerHTML, append/insert/remove, document.write).
-pub(super) fn dom_cmd_mutate(
+pub(crate) fn dom_cmd_mutate(
     gs: &JsState,
     dom: &DomTree,
     cmd: &str,
@@ -639,7 +645,7 @@ pub(super) fn dom_cmd_mutate(
 }
 
 /// `op_dom` family: node creation, cloning and structural predicates.
-pub(super) fn dom_cmd_create(
+pub(crate) fn dom_cmd_create(
     gs: &JsState,
     dom: &DomTree,
     cmd: &str,

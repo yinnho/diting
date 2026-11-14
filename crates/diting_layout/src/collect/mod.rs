@@ -1,8 +1,26 @@
-//! The paint-collection walk of `layout_collect_with_images` (moved out
-//! of its body verbatim): the `Xf` affine type, z-escape records, the
-//! list-marker emitter and the recursive `collect` pre-order walk.
+//! The paint-collection walk of `layout_collect_with_images`: the `Xf`
+//! affine type, z-escape records, the list-marker emitter and the recursive
+//! `collect` pre-order walk. This module names the style, paint, and text
+//! helpers the walk reads. Its child passes name what they take from here.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{ComputedStyle, Display as CssDisplay, Overflow, PositionMode, WhiteSpace};
+use diting_dom::tree::{DomTree, NodeId};
+
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::DecodedImage;
+use crate::layout_collect::body_overflow_propagates;
+use crate::layout_solve::map_rect_arr;
+use crate::paint_items::{PaintItem, TextGradient};
+use crate::pseudo::pseudo_leaf_style;
+use crate::replaced::is_replaced_tag;
+use crate::sticky::{establishes_stacking_context, StickySpan};
+use crate::style_map::side_px;
+use crate::text::FontBook;
+use crate::text_run::{clamp_corner_radii, TextLeaf};
+use crate::text_src;
+use crate::Rect;
 
 mod box_paint;
 mod text_run;
@@ -24,7 +42,7 @@ use text_run::paint_text_run;
 /// time; a non-diagonal map (rotate/skew) flips descendants into the
 /// SetXf/ClearXf local-coordinate paint path.
 #[derive(Clone, Copy)]
-pub(super) struct Xf {
+pub(crate) struct Xf {
     a: f32,
     b: f32,
     c: f32,
@@ -34,7 +52,7 @@ pub(super) struct Xf {
 }
 
 impl Xf {
-    pub(super) const IDENTITY: Xf = Xf {
+    pub(crate) const IDENTITY: Xf = Xf {
         a: 1.0,
         b: 0.0,
         c: 0.0,
@@ -80,7 +98,7 @@ impl Xf {
 /// is recursion-order-free, so the subtree paints pixel-identical at
 /// its z slot; only the sequence in the flat item list moves. Lives
 /// beside `Xf` because that map type is fn-scoped.
-pub(super) struct ZEscape {
+pub(crate) struct ZEscape {
     z: i32,
     child: diting_taffy::tree::NodeId,
     offset: (f32, f32),
@@ -92,7 +110,7 @@ pub(super) struct ZEscape {
 /// Multiply a straight-alpha color's alpha channel (animation batch A):
 /// the paint pipeline is straight-alpha source-over throughout, so
 /// folding element opacity into item colors composites the subtree.
-pub(super) fn with_alpha(c: [u8; 4], a: f32) -> [u8; 4] {
+pub(crate) fn with_alpha(c: [u8; 4], a: f32) -> [u8; 4] {
     if a >= 1.0 {
         c
     } else {
@@ -650,30 +668,30 @@ fn element_box(
 
 /// The walk's read-only inputs, shared by every frame of the recursion.
 #[derive(Clone, Copy)]
-pub(super) struct Ctx<'a> {
-    pub(super) tree: &'a DomTree,
-    pub(super) taffy_tree: &'a TaffyTree<TextLeaf>,
-    pub(super) node_map: &'a HashMap<diting_taffy::tree::NodeId, NodeId>,
-    pub(super) styles: &'a HashMap<NodeId, ComputedStyle>,
-    pub(super) fonts: &'a FontBook,
-    pub(super) images: &'a HashMap<NodeId, DecodedImage>,
-    pub(super) static_pos: &'a HashMap<NodeId, (f32, f32)>,
-    pub(super) baseline_shifts: &'a HashMap<diting_taffy::tree::NodeId, f32>,
-    pub(super) collapsed_edges: &'a HashMap<NodeId, [bool; 4]>,
-    pub(super) viewport_width: f32,
+pub(crate) struct Ctx<'a> {
+    pub(crate) tree: &'a DomTree,
+    pub(crate) taffy_tree: &'a TaffyTree<TextLeaf>,
+    pub(crate) node_map: &'a HashMap<diting_taffy::tree::NodeId, NodeId>,
+    pub(crate) styles: &'a HashMap<NodeId, ComputedStyle>,
+    pub(crate) fonts: &'a FontBook,
+    pub(crate) images: &'a HashMap<NodeId, DecodedImage>,
+    pub(crate) static_pos: &'a HashMap<NodeId, (f32, f32)>,
+    pub(crate) baseline_shifts: &'a HashMap<diting_taffy::tree::NodeId, f32>,
+    pub(crate) collapsed_edges: &'a HashMap<NodeId, [bool; 4]>,
+    pub(crate) viewport_width: f32,
 }
 
 /// What the walk accumulates (geometry maps, paint items, spans).
-pub(super) struct Out<'a> {
-    pub(super) rects: &'a mut HashMap<NodeId, Rect>,
-    pub(super) local_geom: &'a mut HashMap<NodeId, (Rect, [f32; 6])>,
-    pub(super) abs_by_node: &'a mut HashMap<diting_taffy::tree::NodeId, Rect>,
-    pub(super) local_by_node: &'a mut HashMap<diting_taffy::tree::NodeId, (Rect, [f32; 6])>,
-    pub(super) node_first_item: &'a mut HashMap<diting_taffy::tree::NodeId, usize>,
-    pub(super) sticky_spans: &'a mut Vec<StickySpan>,
-    pub(super) scroller_spans: &'a mut Vec<StickySpan>,
-    pub(super) items: &'a mut Vec<PaintItem>,
-    pub(super) paint_order: &'a mut Vec<NodeId>,
+pub(crate) struct Out<'a> {
+    pub(crate) rects: &'a mut HashMap<NodeId, Rect>,
+    pub(crate) local_geom: &'a mut HashMap<NodeId, (Rect, [f32; 6])>,
+    pub(crate) abs_by_node: &'a mut HashMap<diting_taffy::tree::NodeId, Rect>,
+    pub(crate) local_by_node: &'a mut HashMap<diting_taffy::tree::NodeId, (Rect, [f32; 6])>,
+    pub(crate) node_first_item: &'a mut HashMap<diting_taffy::tree::NodeId, usize>,
+    pub(crate) sticky_spans: &'a mut Vec<StickySpan>,
+    pub(crate) scroller_spans: &'a mut Vec<StickySpan>,
+    pub(crate) items: &'a mut Vec<PaintItem>,
+    pub(crate) paint_order: &'a mut Vec<NodeId>,
 }
 
 /// Stacking-band split of one `collect` frame's children (moved out
@@ -817,7 +835,7 @@ fn band_children(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn collect(
+pub(crate) fn collect(
     cx: &Ctx,
     out: &mut Out,
     escaped: &mut Vec<ZEscape>,

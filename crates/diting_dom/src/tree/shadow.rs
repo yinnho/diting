@@ -1,8 +1,49 @@
 //! Shadow roots and host-including walks.
 //!
-//! Split from `tree.rs`. These stay methods on `DomTree`. Pure move.
+//! These stay methods on `DomTree`. The shadow-root record lives here.
 
-use super::*;
+use std::fmt;
+
+use super::{DomTree, DomTreeInner, Node, NodeData, NodeId};
+
+/// The encapsulation mode recorded by a native shadow root.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ShadowRootMode {
+    Open,
+    Closed,
+}
+
+/// Stable metadata for a shadow-root node in this tree.
+///
+/// A shadow root owns an ordinary child list, but is not an ordinary child of
+/// its host. The separate host edge keeps `parentNode`-style walks scoped to
+/// one tree while still allowing composed-tree operations to cross explicitly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ShadowRoot {
+    pub id: NodeId,
+    pub host: NodeId,
+    pub mode: ShadowRootMode,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttachShadowError {
+    HostIsNotElement,
+    HostAlreadyHasShadowRoot,
+    InvalidShadowRoot,
+}
+
+impl fmt::Display for AttachShadowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::HostIsNotElement => "shadow host is not an element",
+            Self::HostAlreadyHasShadowRoot => "shadow host already has a shadow root",
+            Self::InvalidShadowRoot => "shadow root is not a detached fragment node",
+        };
+        f.write_str(message)
+    }
+}
+
+impl std::error::Error for AttachShadowError {}
 
 impl DomTree {
     /// Create and attach a native shadow-root node to `host`.

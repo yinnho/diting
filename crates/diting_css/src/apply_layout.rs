@@ -1,13 +1,34 @@
 //! Declaration appliers: effects, logical motion, flex/grid, position.
 //!
-//! Split from the css hub. `apply_one` still dispatches into these.
-//! Pure move.
+//! `apply_one` dispatches into these. This module names the shorthand
+//! parsers, the length helpers, and the keyword types each property writes.
 
-use super::*;
+use crate::animation::parse_animation_shorthand;
+use crate::calc;
+use crate::computed::ComputedStyle;
+use crate::content::{parse_content_value, parse_counter_modifiers, parse_quotes};
+use crate::geom::{FontCtx, Length};
+use crate::len_parse::{
+    css_box_offset, css_len, expand_sides, parse_aspect_ratio, parse_grid_template_areas,
+    parse_grid_tracks, parse_num_f32, parse_px_f32, split_sides, CssF32,
+};
+use crate::shadow_parse::{
+    parse_backdrop_blur, parse_box_shadow, parse_mix_blend_mode, parse_text_shadow,
+};
+use crate::sheet::ContainerType;
+use crate::style_kw::{
+    AlignContentMode, AlignMode, BoxSizing, ClearSide, FlexDirection, FlexWrapMode, FloatSide,
+    JustifyMode, ObjectFit, ObjectPositionPart, Overflow, PositionMode, TextOverflow, WhiteSpace,
+};
+use crate::transform::{parse_transform_origin, parse_transform_with_vp};
+use crate::transition::{
+    parse_easing_token, parse_rotate_prop, parse_scale_prop, parse_transition_shorthand,
+    parse_translate_prop, Easing, TransitionSpec,
+};
 
 /// `apply_one` family: containers, overflow, shadows/filters, clamping, transforms.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_effects(
+pub(crate) fn apply_effects(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -257,7 +278,7 @@ pub(super) fn apply_effects(
 
 /// `apply_one` family: logical box edges, opacity/zoom, animation/transition, radius.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_logical_motion(
+pub(crate) fn apply_logical_motion(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -544,7 +565,7 @@ pub(super) fn apply_logical_motion(
 
 /// `apply_one` family: flex and grid alignment and tracks.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_flex_grid(
+pub(crate) fn apply_flex_grid(
     style: &mut ComputedStyle,
     name: &str,
     _value: &str,
@@ -812,7 +833,7 @@ pub(super) fn apply_flex_grid(
 
 /// `apply_one` family: position/float/clear, generated content, insets, min/max sizes.
 /// `None` = not this family's property; the caller tries the next one.
-pub(super) fn apply_position(
+pub(crate) fn apply_position(
     style: &mut ComputedStyle,
     name: &str,
     value: &str,

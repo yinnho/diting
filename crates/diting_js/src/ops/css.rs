@@ -1,5 +1,5 @@
 // CSS.supports bridge — split out of the god file (ratchet).
-use super::*;
+use diting_ops::diting_op;
 
 // CSS.supports bridge. The JS-side CSS object used to stub supports() to
 // `false` for everything, which made feature-detecting libraries (doudian's

@@ -4787,7 +4787,10 @@ fn modern_colors_work_inside_shorthands_and_gradients() {
     assert_eq!(g.stops[0].1, Color(64, 177, 183, 255));
     assert_eq!(g.stops[1].1, Color(255, 165, 0, 255));
     let mut s = ComputedStyle::default();
-    assert!(apply_declarations(&mut s, "box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px color-mix(in srgb, red 50%, blue)"));
+    assert!(apply_declarations(
+        &mut s,
+        "box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px color-mix(in srgb, red 50%, blue)"
+    ));
     assert_eq!(s.box_shadow.as_ref().map(|v| v.len()), Some(2));
     let mut s = ComputedStyle::default();
     assert!(apply_declarations(

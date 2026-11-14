@@ -1,9 +1,10 @@
 //! Lengths, colors, transforms, and the font context that resolves them.
 //!
-//! Split from the css hub. The public names stay re-exported from the
-//! crate root. Pure move.
+//! The public names stay re-exported from the crate root. This module
+//! names the calc parser and the number gate a length token goes through.
 
-use super::*;
+use crate::calc;
+use crate::len_parse::CssF32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8);
@@ -131,13 +132,13 @@ pub enum LineHeightSpec {
 
 /// Shape-level parse for @supports probing and cascade application; em/rem
 /// fold to px later against the element's FontCtx.
-pub(super) enum LineHeightRaw {
+pub(crate) enum LineHeightRaw {
     Normal,
     Number(f32),
     Len(CssLength),
 }
 
-pub(super) fn parse_line_height(v: &str) -> Option<LineHeightRaw> {
+pub(crate) fn parse_line_height(v: &str) -> Option<LineHeightRaw> {
     let v = v.trim();
     if v.eq_ignore_ascii_case("normal") {
         return Some(LineHeightRaw::Normal);
@@ -183,7 +184,7 @@ impl Default for FontCtx {
 /// against this pair (matches the screenshot default width).
 pub const DEFAULT_VIEWPORT: (f32, f32) = (1280.0, 720.0);
 
-pub(super) fn resolve_len(l: CssLength, fonts: &FontCtx) -> Length {
+pub(crate) fn resolve_len(l: CssLength, fonts: &FontCtx) -> Length {
     match l {
         CssLength::Px(x) => Length::Px(x),
         CssLength::Em(n) => Length::Px(n * fonts.own),
@@ -206,7 +207,7 @@ pub(super) fn resolve_len(l: CssLength, fonts: &FontCtx) -> Length {
 
 /// px / em / rem / % (unitless `0` is a legal length; `rem` before `em`
 /// because "rem" also ends in "em").
-pub(super) fn parse_css_length(v: &str) -> Option<CssLength> {
+pub(crate) fn parse_css_length(v: &str) -> Option<CssLength> {
     let v = v.trim();
     if v == "0" {
         return Some(CssLength::Px(0.0));

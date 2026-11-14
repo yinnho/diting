@@ -1,6 +1,15 @@
 // web 存储与字节仓：localStorage 持久化 + cookie 双 op + blob 注册 + 图片字节 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+
+use std::collections::{HashMap, HashSet};
+use std::io::Write as _;
+use std::sync::PoisonError;
+
+use diting_ops::diting_op;
+use diting_runtime::state::OpState;
+
+#[cfg(feature = "screenshot")]
+use super::JsState;
+use super::SharedState;
 
 /// Mirror a `URL.createObjectURL` registration into the Rust-side blob
 /// table. The JS-side `__blobObjs` map is unreachable from the module

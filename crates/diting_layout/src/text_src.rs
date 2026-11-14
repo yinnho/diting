@@ -8,7 +8,7 @@
 //! builds, is packed into the `SolvedGeometry`, and is re-armed for the
 //! collect walk that stamps it onto the paint items.
 
-use super::NodeId;
+use diting_dom::tree::NodeId;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -160,7 +160,7 @@ pub(crate) fn seg_ranges(nodes: &[NodeId], lens: &[u32]) -> Vec<(NodeId, i32, u3
 
 // Moved out of mod.rs (god-file ratchet): inline-run edge whitespace trimming.
 use super::flow_tree::FlowTree as TaffyTree;
-use super::TextLeaf;
+use super::text_run::TextLeaf;
 
 /// CSS §16.6.1: collapsible whitespace at the edges of an inline formatting
 /// context contributes no width. The pure-text path already trims edges
@@ -169,7 +169,7 @@ use super::TextLeaf;
 /// shrink-to-fit/max-content widths — newline+indent text nodes between
 /// inline siblings added phantom space runs (obscura#764's +15px). Detached
 /// leaves are removed from the tree, like the flatten-path cleanup.
-pub(super) fn trim_run_edge_whitespace(
+pub(crate) fn trim_run_edge_whitespace(
     taffy_tree: &mut TaffyTree<TextLeaf>,
     leaves: &mut Vec<diting_taffy::tree::NodeId>,
 ) {

@@ -1,9 +1,9 @@
 //! Composed-tree walks: shadow hosts, slots, and shadow `<style>` text.
 //!
-//! Split from the layout hub. `shadow_style_texts` stays re-exported from
-//! the crate root. Pure move.
+//! `shadow_style_texts` stays re-exported from the crate root. This module
+//! names the DOM types it walks.
 
-use super::*;
+use diting_dom::tree::{DomTree, NodeId};
 
 /// The composed-tree children that render under `id` (shadow DOM phase 2):
 /// a shadow host renders its shadow tree's children instead of its light
@@ -11,7 +11,7 @@ use super::*;
 /// nothing assigned, its own fallback children. The slot element itself
 /// never builds a box (display:contents equivalent). Everything else passes
 /// through unchanged; light-tree walks elsewhere must stay tree-scoped.
-pub(super) fn render_children(tree: &DomTree, id: NodeId) -> Vec<NodeId> {
+pub(crate) fn render_children(tree: &DomTree, id: NodeId) -> Vec<NodeId> {
     let raw: Vec<NodeId> = match tree.shadow_root(id) {
         Some(root) => tree.children(root),
         None => tree.children(id),

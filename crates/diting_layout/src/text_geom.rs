@@ -8,8 +8,9 @@
 //! second layout model.
 
 use super::text::{self, FontBook, Token};
-use super::{NodeId, PaintItem};
+use super::PaintItem;
 use diting_css::WhiteSpace;
+use diting_dom::tree::NodeId;
 
 /// One token of a line fragment: node-local char range, x offset from the
 /// fragment's left edge, advance, and the text (to measure partial tokens).

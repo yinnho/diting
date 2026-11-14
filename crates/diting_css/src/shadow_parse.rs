@@ -1,9 +1,65 @@
 //! Parsers for `box-shadow`, `text-shadow`, `mix-blend-mode`, backdrop blur.
 //!
-//! Split from the css hub. The public names stay re-exported from the
-//! crate root. Pure move.
+//! The public names stay re-exported from the crate root. This module names
+//! the color, length, and math parsers a shadow layer resolves through.
 
-use super::*;
+use diting_dom::split_top_level_commas;
+
+use crate::calc::eval_math_call;
+use crate::color::parse_color;
+use crate::geom::{parse_css_length, resolve_len, FontCtx, Length};
+use crate::Color;
+
+/// One parsed `box-shadow` layer (blitz#349 family, v1): offsets/blur/
+/// spread in px (em/rem folded at cascade time), color resolved at parse
+/// time (`currentColor` folds against the color value cascaded so far).
+/// `inset` parses and reports through the CSSOM but the paint half is
+/// outer-only for v1 — a documented divergence, not a parse failure.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoxShadow {
+    pub dx: f32,
+    pub dy: f32,
+    pub blur: f32,
+    pub spread: f32,
+    pub color: Color,
+    pub inset: bool,
+}
+
+/// One `text-shadow` layer (blitz#271 family): offset + optional blur
+/// around a color. No spread, no `inset` — both are parse errors here.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextShadow {
+    pub dx: f32,
+    pub dy: f32,
+    pub blur: f32,
+    pub color: Color,
+}
+
+/// `mix-blend-mode` (#222): the mode an element's whole rendering composites
+/// onto its backdrop with. The separable modes blend per channel; the last
+/// four operate on the color's hue/saturation/luminosity triple instead.
+/// `plus-lighter` is deliberately absent — it needs a second source plane
+/// the compositing model here doesn't have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MixBlendMode {
+    #[default]
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+    ColorDodge,
+    ColorBurn,
+    HardLight,
+    SoftLight,
+    Difference,
+    Exclusion,
+    Hue,
+    Saturation,
+    Color,
+    Luminosity,
+}
 
 /// `box-shadow` v1 parser (blitz#349 family): comma-separated `<shadow>`
 /// layers, each `<color>? && <length>{2,4} && inset?` in any order. Two

@@ -1,6 +1,5 @@
 // URL op 面：parse/set/resolve + 部件写回 — split out of the god file (ratchet, #75).
-// Pure move: the functions see the same ops::* namespace they grew up in.
-use super::*;
+use diting_ops::diting_op;
 
 /// Serialize a parsed URL into the WHATWG IDL component shape consumed by the
 /// `URL` class in bootstrap.js. Getters read these fields directly so no op

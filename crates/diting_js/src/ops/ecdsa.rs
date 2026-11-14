@@ -7,7 +7,9 @@
 // wrapper) — that is what browsers emit and accept.
 // ---------------------------------------------------------------------------
 
-use super::*;
+use diting_ops::diting_op;
+
+use super::crypto_secret::crypto_err;
 
 pub(crate) fn ecdsa_flat(parts: [&[u8]; 4]) -> Vec<u8> {
     let mut out = Vec::with_capacity(8 + parts.iter().map(|p| p.len()).sum::<usize>());

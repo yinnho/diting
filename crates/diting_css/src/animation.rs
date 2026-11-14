@@ -1,11 +1,35 @@
-//! animation shorthand + @keyframes body parsing (god-file ratchet split from mod.rs, pure move).
+//! animation shorthand + @keyframes body parsing.
+//!
+//! This module names the declaration split, the easing tokens, and the
+//! number parser it shares with the rest of the cascade.
 
-use super::*;
+use crate::len_parse::CssF32;
+use crate::split_declarations;
+use crate::transition::{paren_aware_tokens, AnimationSpec, Easing};
+
+/// One `@keyframes` stop (`from` = 0, `to` = 1, `NN%` = NN/100) with raw
+/// declarations. Values stay raw strings because `var()` in stop values
+/// (e.g. `to { opacity: var(--o, 1) }`) substitutes against the custom
+/// properties of whichever element declares `animation:` — resolved per
+/// element at sample time, not at parse time.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeyframeStop {
+    pub offset: f32,
+    pub decls: Vec<(String, String)>,
+}
+
+/// All stops of one `@keyframes` name, sorted by offset ascending.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Keyframes {
+    pub stops: Vec<KeyframeStop>,
+}
+
+pub type KeyframesMap = std::collections::HashMap<String, Keyframes>;
 
 /// Parse the body of one `@keyframes` rule: top-level `{ ... }` blocks
 /// whose selector is `from`, `to`, or a percentage. Stops sort by offset;
 /// a body with no surviving stop yields None.
-pub(super) fn parse_keyframes_body(inner: &str) -> Option<Keyframes> {
+pub(crate) fn parse_keyframes_body(inner: &str) -> Option<Keyframes> {
     let mut stops = Vec::new();
     let mut sel = String::new();
     let mut body = String::new();
@@ -78,7 +102,7 @@ pub(super) fn parse_keyframes_body(inner: &str) -> Option<Keyframes> {
 /// fill duration then delay in order; keyword/cubic-bezier tokens set the
 /// easing; `forwards`/`both` set fill; the remaining identifier is the name.
 /// `none` as the first non-keyword token means no animation at all.
-pub(super) fn parse_animation_shorthand(v: &str) -> Option<AnimationSpec> {
+pub(crate) fn parse_animation_shorthand(v: &str) -> Option<AnimationSpec> {
     let mut duration: Option<f32> = None;
     let mut delay = 0.0f32;
     let mut easing: Option<Easing> = None;

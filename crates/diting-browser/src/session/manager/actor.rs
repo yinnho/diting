@@ -9,9 +9,21 @@
 //! until the new document commits), and every other command parks FIFO in
 //! `nav_deferred`, replayed after the load lands.
 
-use super::super::commands::SessionClickResponse;
-use super::super::state::ConsoleFilter;
-use super::*;
+use std::collections::HashMap;
+
+use serde_json::{json, Value};
+use tokio::sync::{mpsc, oneshot};
+
+use super::super::commands::{
+    ScrollDirection, SessionClickResponse, SessionCommand, SessionNavResponse,
+};
+use super::super::interact::{
+    click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index, merge_dom_candidates,
+    set_files_by_selector, DOM_MEDIA_SCRIPT,
+};
+use super::super::record::{inject_storage_js, RecordedAction};
+use super::super::snapshot::extract_snapshot;
+use super::super::state::{drain_console, ConsoleFilter, NavFrameShared, SessionError};
 
 /// A script-initiated request older than this is not "slow", it is hung —
 /// every transport the engine rides carries a 30s read timeout and a 120s

@@ -1,11 +1,30 @@
 //! Table layout (`display: table` family).
 //!
-//! Split from the layout hub. `build_table` reifies rows as flex rows of
-//! cells; `place_table_spans` pins lifted rowspan/colspan cells onto the
-//! grid the solve just produced. Pure move: these functions see the same
-//! crate namespace they grew up in.
+//! `build_table` reifies rows as flex rows of cells; `place_table_spans`
+//! pins lifted rowspan/colspan cells onto the grid the solve just produced.
+//! This module names the cell builders and the measure helpers it uses.
 
-use super::*;
+use std::collections::HashMap;
+
+use diting_css::{ComputedStyle, Display as CssDisplay, WhiteSpace};
+use diting_dom::tree::{DomTree, NodeId};
+use diting_taffy::prelude::{
+    auto, AlignItems, AvailableSpace, Dimension, Display, FlexDirection, FlexWrap, JustifyContent,
+    LengthPercentage, LengthPercentageAuto, Position, Size, Style, TaffyAuto,
+};
+
+use crate::element_build::{build_element, build_normal_sibling};
+use crate::float_lines;
+use crate::flow_tree::FlowTree as TaffyTree;
+use crate::image::DecodedImage;
+use crate::replaced::pct_height_resolves;
+use crate::solve_fixup::SolveAborted;
+use crate::style_map::{side_px, to_taffy_style};
+use crate::text::FontBook;
+use crate::text_run::{
+    font_context, ifc_white_space, leaf_descent, measure_text_leaf, pin_leaf_widths, run_tokens,
+    run_wrapper_style, shift_pad, ws_rank, TextLeaf,
+};
 
 /// A `rowspan > 1` cell lifted out of its row wrapper. Its grid slot stays
 /// occupied by an invisible placeholder leaf (no `node_map` entry, so paint
@@ -1094,7 +1113,7 @@ fn size_table(
 /// `table-layout: fixed` requires an authored table width (an auto-width
 /// fixed table falls back to the auto algorithm).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_table(
+pub(crate) fn build_table(
     tree: &DomTree,
     id: NodeId,
     style: &ComputedStyle,
@@ -1388,7 +1407,7 @@ pub(super) fn build_table(
 
 /// Table span placement of `layout_solve_rooted` (moved out verbatim):
 /// lifted rowspan/colspan cells take their grid-derived boxes.
-pub(super) fn place_table_spans(
+pub(crate) fn place_table_spans(
     fonts: &FontBook,
     taffy_tree: &mut TaffyTree<TextLeaf>,
     icb_node: diting_taffy::tree::NodeId,

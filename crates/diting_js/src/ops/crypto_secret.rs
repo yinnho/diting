@@ -5,7 +5,7 @@
 // normalized algorithm parameters to each op.
 // ---------------------------------------------------------------------------
 
-use super::*;
+use diting_ops::diting_op;
 
 /// Real WebCrypto `crypto.subtle.digest`. `algorithm` is the SubtleCrypto
 /// algorithm name (`SHA-1` / `SHA-256` / `SHA-384` / `SHA-512`); unknown

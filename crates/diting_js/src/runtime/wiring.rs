@@ -5,6 +5,7 @@
 //! network events/bodies, dynamic-script in-flight counts). Split from the
 //! module root (god-file ratchet); pure plumbing, no V8 entry of its own.
 use super::JsRuntime;
+use crate::ops::JsState;
 use diting_dom::DomTree;
 
 impl JsRuntime {
@@ -47,6 +48,34 @@ impl JsRuntime {
             st.image_order.borrow_mut().clear();
             st.css_transitions.borrow_mut().clear();
         }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))] // used by suspend_js/resume_js lifecycle tests
+    pub fn take_dom(&self) -> Option<DomTree> {
+        self.state.borrow_mut().dom.take()
+    }
+
+    pub fn with_dom<R>(&self, f: impl FnOnce(&DomTree) -> R) -> Option<R> {
+        let state = self.state.borrow();
+        state.dom.as_ref().map(f)
+    }
+
+    /// Read access to the shared JS state (scroll offset mirror, image byte
+    /// table, viewport) for the band-paint frame paths. The closure must not
+    /// re-enter the runtime (same contract as `with_dom`).
+    #[cfg(feature = "screenshot")]
+    pub fn with_state<R>(&self, f: impl FnOnce(&JsState) -> R) -> R {
+        let state = self.state.borrow();
+        f(&state)
+    }
+
+    /// Mutating variant of [`with_state`]. Field writes that affect layout
+    /// (e.g. the image byte table) must also drop `layout_cache` —
+    /// `ops::store_image_bytes` already does.
+    #[cfg(feature = "screenshot")]
+    pub fn with_state_mut<R>(&self, f: impl FnOnce(&mut JsState) -> R) -> R {
+        let mut state = self.state.borrow_mut();
+        f(&mut state)
     }
 
     pub fn set_url(&self, url: &str) {

@@ -1,9 +1,9 @@
 //! `@supports` condition evaluation.
 //!
-//! Split from the css hub. `supports_condition_applies` stays re-exported
-//! from the crate root. Pure move.
+//! `supports_condition_applies` stays re-exported from the crate root.
+//! This module names the declaration probe it calls.
 
-use super::*;
+use crate::supports::{self, supports_declaration};
 
 // ---------------------------------------------------------------------------
 // @supports evaluation
