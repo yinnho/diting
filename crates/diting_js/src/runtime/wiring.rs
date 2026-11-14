@@ -5,6 +5,7 @@
 //! network events/bodies, dynamic-script in-flight counts). Split from the
 //! module root (god-file ratchet); pure plumbing, no V8 entry of its own.
 use super::JsRuntime;
+#[cfg(feature = "screenshot")]
 use crate::ops::JsState;
 use diting_dom::DomTree;
 

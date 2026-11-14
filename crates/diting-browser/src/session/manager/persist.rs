@@ -12,7 +12,7 @@ use tokio::sync::oneshot;
 
 use super::super::commands::SessionCommand;
 use super::super::state::{
-    DormantSession, PER_SESSION_FLUSH_BUDGET, SESSION_TIMEOUT, SHUTDOWN_FLUSH_BUDGET,
+    DormantSession, SessionError, PER_SESSION_FLUSH_BUDGET, SESSION_TIMEOUT, SHUTDOWN_FLUSH_BUDGET,
     SNAPSHOT_MAX_AGE_SECS,
 };
 use super::SessionManager;
@@ -443,5 +443,145 @@ mod restore_mode_tests {
             );
         }
         std::env::remove_var("DITING_RESTORE_SESSIONS");
+    }
+}
+
+impl SessionManager {
+    /// Derive a new session carrying the source's login state: cookies,
+    /// localStorage/sessionStorage, viewport pin, dialog policy, proxy and
+    /// keepalive flags, remaining timeout. The source is untouched — this
+    /// replaces the manual cookies→create round-trip where a hand-edited
+    /// cookie string could clobber a working login (real-device feedback ⑩).
+    pub async fn clone_session(&mut self, session_id: &str) -> Result<Value, SessionError> {
+        let cookies_text = self
+            .send(session_id, |reply| SessionCommand::Cookies { reply })
+            .await?;
+        let storage_text = self
+            .send(session_id, |reply| SessionCommand::Storage { reply })
+            .await?;
+        let dialog_text = self
+            .send(session_id, |reply| SessionCommand::Dialog {
+                action: "list".to_string(),
+                prompt_text: None,
+                reply,
+            })
+            .await?;
+        let viewport = self
+            .send(session_id, |reply| SessionCommand::GetViewport { reply })
+            .await?;
+
+        let parse = |text: String, what: &str| -> Result<Value, SessionError> {
+            serde_json::from_str(&text)
+                .map_err(|e| SessionError::Command(format!("{} snapshot parse error: {}", what, e)))
+        };
+        let cookies = parse(cookies_text, "cookies")?;
+        let storage = parse(storage_text, "storage")?;
+        let dialog = parse(dialog_text, "dialog")?;
+
+        let (use_proxy, keepalive, persistent, timeout, account) = {
+            let s = self.sessions.get(session_id).ok_or_else(|| {
+                SessionError::NotFound(format!("session not found: {}", session_id))
+            })?;
+            (
+                s.use_proxy,
+                s.keepalive,
+                s.persistent,
+                s.timeout,
+                s.account.clone(),
+            )
+        };
+
+        let url = cookies["url"].as_str().unwrap_or("about:blank").to_string();
+        let cookie_list: Vec<String> = cookies["cookies"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let ls = storage["local_storage"].clone();
+        let ss = storage["session_storage"].clone();
+        let injected = if ls.as_object().is_none_or(|m| m.is_empty())
+            && ss.as_object().is_none_or(|m| m.is_empty())
+        {
+            None
+        } else {
+            // Gate the clone on where the storage was actually read: the
+            // same pending-injection contract as record replay (issue #141).
+            // An about:blank capture keeps today's unconditional behavior.
+            let mut blob = serde_json::json!({ "local_storage": ls, "session_storage": ss });
+            if let Some(o) = crate::account::url_origin(&url) {
+                blob["origin"] = Value::String(o);
+            }
+            Some(blob)
+        };
+        let pin = viewport.map(|(w, h, mobile)| (Some(w as u32), Some(h as u32), mobile));
+
+        let new_id = self.create(
+            Some(&url),
+            use_proxy,
+            cookie_list,
+            injected,
+            Some(timeout.as_secs()),
+            pin,
+            keepalive,
+            persistent,
+            // The clone runs as the same identity: same account, same live
+            // jar (two tabs, one profile). An anonymous source stays None.
+            // Cloned: the name is echoed into the response below.
+            account.clone(),
+        );
+
+        // Copy a non-default dialog policy over (fire-and-forget, same
+        // enqueue-ahead pattern as the viewport pin inside create).
+        let accept = dialog["policy"].as_str() == Some("accept");
+        let prompt_text = dialog["prompt_text"].as_str().map(str::to_string);
+        if accept || prompt_text.is_some() {
+            if let Some(s) = self.sessions.get(&new_id) {
+                let (tx, _rx) = oneshot::channel();
+                let _ = s.cmd_tx.send(SessionCommand::Dialog {
+                    action: if accept { "accept" } else { "dismiss" }.to_string(),
+                    prompt_text,
+                    reply: tx,
+                });
+            }
+        }
+
+        let mut resp = serde_json::json!({
+            "session_id": new_id,
+            "cloned_from": session_id,
+            "url": url,
+            "viewport": viewport
+                .map(|(w, h, mobile)| serde_json::json!({"width": w as u32, "height": h as u32, "mobile": mobile}))
+                .unwrap_or(Value::Null),
+        });
+        if let Some((_, name)) = &account {
+            resp["account"] = serde_json::json!(name);
+        }
+        if let Some(s) = self.expires_in_secs(resp["session_id"].as_str().unwrap_or("")) {
+            resp["expires_in_secs"] = serde_json::json!(s);
+        }
+        Ok(resp)
+    }
+
+    /// Phase 3 of the lock-free round trip ([`send_command`]): the
+    /// post-success tail of [`Self::dispatch`] — an account session's login
+    /// state writes back to the account store, a persistent anonymous one
+    /// snapshots to its session-id slot.
+    pub(super) async fn persist_after_success(&mut self, session_id: &str) {
+        match self
+            .sessions
+            .get(session_id)
+            .map(|s| (s.account.clone(), s.persistent))
+        {
+            Some((Some((owner, name)), _)) => {
+                self.capture_account(&owner, &name, session_id).await;
+            }
+            Some((None, true)) => {
+                self.capture_snapshot(session_id).await;
+            }
+            _ => {}
+        }
     }
 }
