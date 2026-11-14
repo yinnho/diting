@@ -1386,11 +1386,11 @@ impl SessionActor {
             // slider in this session, and the retry below
             // rides the x5sec cookie that solving sets.
             payload["handoff"] = json!(format!(
-                                    "anti-bot wall detected — hand this session to a human: open \
+                "anti-bot wall detected — hand this session to a human: open \
                                      /live?session={session_id} in a browser (this engine's HTTP \
                                      port; clicks, drags and typing land on the real page), solve \
                                      the challenge there, then retry the same request in this session"
-                                ));
+            ));
         } else {
             // #102: zero known signatures is not an auth
             // verdict. `total: 0` reads as "passed" to a
