@@ -1903,6 +1903,39 @@ P.expose('HTMLFormControlsCollection', HTMLFormControlsCollection);
 P.expose('RadioNodeList', RadioNodeList);
 });
 
+// ---- module csskeyword (L2) ----
+__platform.define("csskeyword", function (exports, require, P) {
+"use strict";
+// CSSKeywordValue behavior. The class shape — one required USVString, the
+// read-write value accessor in Chrome's order — is generated from the
+// typed-om IDL in gen/csskeyword.gen.js. CSSStyleValue.parse of a keyword
+// uses this constructor, so the source string typedom serialization reads
+// is stored in the shared __ditingTOM map.
+// Member order is the Chrome 145 shape audit.
+'use strict';
+
+const TOM = globalThis.__ditingTOM || (globalThis.__ditingTOM = new WeakMap());
+
+exports.ctor = function ctor(iface, target, ctx, args, parsed) {
+  const value = parsed[0];
+  TOM.set(target, { src: value, value: value });
+};
+
+exports.get = function get(iface, member, target) {
+  const s = target !== null && typeof target === 'object' ? TOM.get(target) : undefined;
+  if (!s || s.value === undefined) P.illegal(get);
+  return s.value;
+};
+
+exports.set = function set(iface, member, target, v) {
+  const s = target !== null && typeof target === 'object' ? TOM.get(target) : undefined;
+  if (!s || s.value === undefined) P.illegal(set);
+  const next = P.conv.USVString(v, "Failed to set the 'value' property on 'CSSKeywordValue'", set);
+  s.value = next;
+  s.src = next;
+};
+});
+
 // ---- module cssnames (L2) ----
 __platform.define("cssnames", function (exports, require, P) {
 "use strict";
@@ -2922,9 +2955,10 @@ __platform.define("domsmall", function (exports, require, P) {
 // Small-member sweep (M4 knife 14): the 1-3 name gaps on interfaces that already
 // have their shape - CharacterData/Text/ProcessingInstruction/DocumentFragment
 // mixin members, MessageEvent.initMessageEvent/userActivation, DataTransfer data
-// access - plus four stubs that had no members at all (HashChangeEvent,
-// SubmitEvent, PopStateEvent, ClipboardEvent) and the value classes
-// RTCSessionDescription and InputDeviceCapabilities. Every fact is pinned by
+// access - plus three stubs that had no members at all (SubmitEvent,
+// PopStateEvent, ClipboardEvent) and the value classes
+// RTCSessionDescription and InputDeviceCapabilities. HashChangeEvent's
+// shape is generated (gen/hashchange). Every fact is pinned by
 // chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
 // smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
 // prototype into Chrome's own member order.
@@ -2966,7 +3000,6 @@ reseat(DocumentFragment.prototype, ['children', 'firstElementChild', 'lastElemen
 const evSlots = new WeakMap();
 const isObj = (v) => (typeof v === 'object' && v !== null) || typeof v === 'function';
 const CONV = {
-  usv: (v, fn, pre) => P.conv.USVString(v, pre, fn),
   bool: (v) => !!v,
   any: (v) => v,
   htmlElement: (v, fn, pre) => {
@@ -3006,7 +3039,6 @@ function mkEvent(name, dict, members, getters) {
   P.seal(C);
   return C;
 }
-const HashChangeEvent = mkEvent('HashChangeEvent', 'HashChangeEventInit', { newURL: ['usv', ''], oldURL: ['usv', ''] }, ['oldURL', 'newURL']);
 const SubmitEvent = mkEvent('SubmitEvent', 'SubmitEventInit', { submitter: ['htmlElement', null] }, ['submitter']);
 const PopStateEvent = mkEvent('PopStateEvent', 'PopStateEventInit', { hasUAVisualTransition: ['bool', false], state: ['any', null] }, ['state', 'hasUAVisualTransition']);
 const ClipboardEvent = mkEvent('ClipboardEvent', 'ClipboardEventInit', { clipboardData: ['dataTransfer', null] }, ['clipboardData']);
@@ -3134,7 +3166,7 @@ const IDP = P.iface(InputDeviceCapabilities, 'InputDeviceCapabilities', 0);
 P.getter(IDP, 'firesTouchEvents', function __f() { const s = idcSlots.get(this); if (!s) P.illegal(__f); return s.firesTouchEvents; });
 P.seal(InputDeviceCapabilities);
 
-for (const [n, C] of Object.entries({ HashChangeEvent, SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
+for (const [n, C] of Object.entries({ SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
 });
 
 // ---- module dragevent (L2) ----
@@ -4328,6 +4360,31 @@ exports.AnimationEvent = AnimationEvent;
 P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "AnimationEvent", "statics": []});
 });
 
+// ---- module gen/csskeyword (L2) ----
+__platform.define("gen/csskeyword", function (exports, require, P) {
+"use strict";
+// Strategy value (see gen_iface.py docstring).
+const conv = P.conv;
+
+const B = require('csskeyword');
+
+// ---- CSSKeywordValue (generated from tools/webplatform/spec/css-keyword.json) ----
+function CSSKeywordValue() {
+  if (!new.target) P.fail(CSSKeywordValue, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'CSSKeywordValue'");
+  const ctx = "Failed to construct 'CSSKeywordValue'";
+  P.args(ctx, arguments.length, 1, CSSKeywordValue);
+  const a0 = conv.USVString(arguments[0], ctx, CSSKeywordValue);
+  B.ctor('CSSKeywordValue', this, ctx, arguments, [a0]);
+}
+const protoCSSKeywordValue = P.iface(CSSKeywordValue, 'CSSKeywordValue', 1);
+P.accessor(protoCSSKeywordValue, 'value', function __f() { return B.get('CSSKeywordValue', 'value', this); }, function __f(v) { B.set('CSSKeywordValue', 'value', this, v); });
+P.seal(CSSKeywordValue);
+P.expose('CSSKeywordValue', CSSKeywordValue);
+P.expect({"length": 1, "members": [{"kind": "accessor", "length": 0, "name": "value"}], "name": "CSSKeywordValue", "statics": []});
+
+if (B.ready) B.ready();
+});
+
 // ---- module gen/cssunit (L2) ----
 __platform.define("gen/cssunit", function (exports, require, P) {
 "use strict";
@@ -5483,6 +5540,39 @@ P.expose('DOMRect', DOMRect);
 P.expect({"length": 0, "members": [{"kind": "accessor", "length": 0, "name": "x"}, {"kind": "accessor", "length": 0, "name": "y"}, {"kind": "accessor", "length": 0, "name": "width"}, {"kind": "accessor", "length": 0, "name": "height"}], "name": "DOMRect", "statics": [{"kind": "static", "length": 0, "name": "fromRect"}]});
 
 if (B.ready) B.ready();
+});
+
+// ---- module gen/hashchange (L2) ----
+__platform.define("gen/hashchange", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- HashChangeEvent (generated from tools/webplatform/spec/hashchange.json) ----
+const slotsHashChangeEvent = new WeakMap();
+function isHashChangeEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsHashChangeEvent.has(v); }
+function HashChangeEvent(type) {
+  if (!new.target) P.fail(HashChangeEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'HashChangeEvent'");
+  const ctx = "Failed to construct 'HashChangeEvent'";
+  P.args(ctx, arguments.length, 1, HashChangeEvent);
+  const t = conv.DOMString(type, ctx, HashChangeEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(HashChangeEvent, "The provided value is not of type 'HashChangeEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'HashChangeEventInit';
+  { const FIELD = 'newURL'; const raw = (init === undefined || init === null) ? undefined : init.newURL; s.newURL = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", HashChangeEvent); }
+  { const FIELD = 'oldURL'; const raw = (init === undefined || init === null) ? undefined : init.oldURL; s.oldURL = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", HashChangeEvent); }
+  slotsHashChangeEvent.set(self, s);
+  return self;
+}
+const protoHashChangeEvent = P.iface(HashChangeEvent, 'HashChangeEvent', 1, Event);
+P.getter(protoHashChangeEvent, 'oldURL', function __f() { const s = slotsHashChangeEvent.get(this); if (s === undefined) P.illegal(__f); return s.oldURL; });
+P.getter(protoHashChangeEvent, 'newURL', function __f() { const s = slotsHashChangeEvent.get(this); if (s === undefined) P.illegal(__f); return s.newURL; });
+P.seal(HashChangeEvent);
+P.expose('HashChangeEvent', HashChangeEvent);
+exports.HashChangeEvent = HashChangeEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "oldURL"}, {"kind": "getter", "length": 0, "name": "newURL"}], "name": "HashChangeEvent", "statics": []});
 });
 
 // ---- module htmlmedia (L2) ----

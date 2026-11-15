@@ -360,9 +360,7 @@
       throw new TypeError("Failed to execute 'parse' on 'CSSStyleValue': 2 arguments required, but only " + arguments.length + " present.");
     const s = String(text).trim();
     if (/^(?:initial|inherit|unset|revert|revert-layer)$/i.test(s)) {
-      const o = Object.create(globalThis.CSSKeywordValue.prototype);
-      TOM.set(o, { src: s });
-      return o;
+      return new globalThis.CSSKeywordValue(s);
     }
     const t = parseTerm(s);
     if (t) return t;

@@ -1,0 +1,151 @@
+{
+ "includes": [],
+ "names": {
+  "HashChangeEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface HashChangeEvent : Event {\n  constructor(DOMString type, optional HashChangeEventInit eventInitDict = {});\n\n  readonly attribute USVString oldURL;\n  readonly attribute USVString newURL;\n};",
+   "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#hashchangeevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "HashChangeEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "eventInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-hashchangeevent-oldurl",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "oldURL",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-hashchangeevent-newurl",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "newURL",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "HashChangeEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "HashChangeEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary HashChangeEventInit : EventInit {\n  USVString oldURL = \"\";\n  USVString newURL = \"\";\n};",
+   "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#hashchangeeventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "string",
+      "value": ""
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "oldURL",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "string",
+      "value": ""
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "newURL",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "HashChangeEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "HashChangeEvent": "https://html.spec.whatwg.org/multipage/",
+  "HashChangeEventInit": "https://html.spec.whatwg.org/multipage/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

@@ -21,7 +21,9 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/storage.json crates/diting_js/js/platform/gen/storage.gen.js gen/storage
   python3 $WP/gen/gen_iface.py $WP/spec/geometry.json crates/diting_js/js/platform/gen/geometry.gen.js gen/geometry $WP/chrome/geometry-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-typed-om.json crates/diting_js/js/platform/gen/cssunit.gen.js gen/cssunit $WP/chrome/cssunit-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/css-keyword.json crates/diting_js/js/platform/gen/csskeyword.gen.js gen/csskeyword $WP/chrome/csskeyword-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
+  python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json crates/diting_js/js/platform/gen/hashchange.gen.js gen/hashchange
   python3 $WP/gen/gen_iface.py $WP/spec/webvtt.json crates/diting_js/js/platform/gen/vttcue.gen.js gen/vttcue $WP/chrome/vttcue-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/speech-phrase.json crates/diting_js/js/platform/gen/phrase.gen.js gen/phrase $WP/chrome/phrase-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-145.json patch-common
@@ -59,6 +61,8 @@ gen_value() { # <spec> <name> <truth>
 }
 gen_value geometry.json geometry geometry-truth-145.json
 gen_value css-typed-om.json cssunit cssunit-truth-157.json
+# CSSKeywordValue: one USVString. Keyword parse() constructs it.
+gen_value css-keyword.json csskeyword csskeyword-truth-145.json
 # vttcue: the #67 marginal-cost family, generated with no generator change.
 gen_value webvtt.json vttcue vttcue-truth-157.json
 # SpeechRecognitionPhrase: simple DOMString ctor; float boost stays in the impl.
@@ -66,6 +70,10 @@ gen_value speech-phrase.json phrase phrase-truth-145.json
 python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json "$tmp/animationevent.gen.js" gen/animationevent >/dev/null
 diff -q "$tmp/animationevent.gen.js" crates/diting_js/js/platform/gen/animationevent.gen.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform/gen/animationevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
+# HashChangeEvent: two USVString dictionary fields. The mkEvent face left domsmall.
+python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json "$tmp/hashchange.gen.js" gen/hashchange >/dev/null
+diff -q "$tmp/hashchange.gen.js" crates/diting_js/js/platform/gen/hashchange.gen.js >/dev/null \
+  || { echo "FAIL: crates/diting_js/js/platform/gen/hashchange.gen.js is stale vs gen_iface.py" >&2; fail=1; }
 # 3b. the patch-strategy modules (HTMLElement common layer, media/image family,
 # HTML reflect family) are measured-truth products too: regenerate and diff
 gen_patch() { # <spec> <name> <truth> <strategy>
