@@ -1,6 +1,6 @@
 //! module: domsmall
 //! layer: L2
-//! exposes: HashChangeEvent, SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities
+//! exposes: SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities
 //! requires-load: gen/htmlelement, legacy:Event, legacy:CharacterData, legacy:Text, legacy:ProcessingInstruction, legacy:DocumentFragment, legacy:MessageEvent, legacy:DataTransfer, legacy:_evx, legacy:_evxGuard
 //! requires-call: legacy:HTMLElement, legacy:URL
 
@@ -9,9 +9,10 @@
 // Small-member sweep (M4 knife 14): the 1-3 name gaps on interfaces that already
 // have their shape - CharacterData/Text/ProcessingInstruction/DocumentFragment
 // mixin members, MessageEvent.initMessageEvent/userActivation, DataTransfer data
-// access - plus four stubs that had no members at all (HashChangeEvent,
-// SubmitEvent, PopStateEvent, ClipboardEvent) and the value classes
-// RTCSessionDescription and InputDeviceCapabilities. Every fact is pinned by
+// access - plus three stubs that had no members at all (SubmitEvent,
+// PopStateEvent, ClipboardEvent) and the value classes
+// RTCSessionDescription and InputDeviceCapabilities. HashChangeEvent's
+// shape is generated (gen/hashchange). Every fact is pinned by
 // chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
 // smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
 // prototype into Chrome's own member order.
@@ -53,7 +54,6 @@ reseat(DocumentFragment.prototype, ['children', 'firstElementChild', 'lastElemen
 const evSlots = new WeakMap();
 const isObj = (v) => (typeof v === 'object' && v !== null) || typeof v === 'function';
 const CONV = {
-  usv: (v, fn, pre) => P.conv.USVString(v, pre, fn),
   bool: (v) => !!v,
   any: (v) => v,
   htmlElement: (v, fn, pre) => {
@@ -93,7 +93,6 @@ function mkEvent(name, dict, members, getters) {
   P.seal(C);
   return C;
 }
-const HashChangeEvent = mkEvent('HashChangeEvent', 'HashChangeEventInit', { newURL: ['usv', ''], oldURL: ['usv', ''] }, ['oldURL', 'newURL']);
 const SubmitEvent = mkEvent('SubmitEvent', 'SubmitEventInit', { submitter: ['htmlElement', null] }, ['submitter']);
 const PopStateEvent = mkEvent('PopStateEvent', 'PopStateEventInit', { hasUAVisualTransition: ['bool', false], state: ['any', null] }, ['state', 'hasUAVisualTransition']);
 const ClipboardEvent = mkEvent('ClipboardEvent', 'ClipboardEventInit', { clipboardData: ['dataTransfer', null] }, ['clipboardData']);
@@ -221,4 +220,4 @@ const IDP = P.iface(InputDeviceCapabilities, 'InputDeviceCapabilities', 0);
 P.getter(IDP, 'firesTouchEvents', function __f() { const s = idcSlots.get(this); if (!s) P.illegal(__f); return s.firesTouchEvents; });
 P.seal(InputDeviceCapabilities);
 
-for (const [n, C] of Object.entries({ HashChangeEvent, SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
+for (const [n, C] of Object.entries({ SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);

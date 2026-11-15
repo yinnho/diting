@@ -1,0 +1,83 @@
+{
+ "includes": [],
+ "names": {
+  "CSSKeywordValue": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier-list",
+      "value": [
+       {
+        "value": "Window"
+       },
+       {
+        "value": "Worker"
+       },
+       {
+        "value": "PaintWorklet"
+       },
+       {
+        "value": "LayoutWorklet"
+       }
+      ]
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=(Window, Worker, PaintWorklet, LayoutWorklet)]\ninterface CSSKeywordValue : CSSStyleValue {\n    constructor(USVString value);\n    attribute USVString value;\n};",
+   "href": "https://drafts.css-houdini.org/css-typed-om-1/#csskeywordvalue",
+   "inheritance": "CSSStyleValue",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "USVString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "value",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://drafts.css-houdini.org/css-typed-om-1/#dom-csskeywordvalue-csskeywordvalue",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://drafts.css-houdini.org/css-typed-om-1/#dom-csskeywordvalue-value",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "value",
+     "readonly": false,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "CSSKeywordValue",
+   "partial": false,
+   "type": "interface"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "CSSKeywordValue": "https://drafts.css-houdini.org/css-typed-om-1/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

@@ -1,0 +1,16 @@
+{
+ "result": {
+  "shape.CSSKeywordValue": {
+   "len": 1,
+   "members": {
+    "constructor": "function",
+    "value": "rw"
+   },
+   "name": "CSSKeywordValue",
+   "order": [
+    "value",
+    "constructor"
+   ]
+  }
+ }
+}
