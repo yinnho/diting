@@ -1,6 +1,6 @@
 //! module: editcontext
 //! layer: L2
-//! exposes: EditContext, TextUpdateEvent, TextFormatUpdateEvent
+//! exposes: EditContext, TextFormatUpdateEvent
 //! requires-load: legacy:Event, legacy:EventTarget, legacy:HTMLElement, legacy:DOMRect
 //! requires-call: legacy:DOMException
 
@@ -152,14 +152,11 @@ function mkEvent(name, dict, members) {
   return { C, proto };
 }
 function evSlot(o, fn) { const s = o !== null && typeof o === 'object' ? evSlots.get(o) : undefined; if (s === undefined) P.illegal(fn); return s; }
-const TUE = mkEvent('TextUpdateEvent', 'TextUpdateEventInit', { selectionEnd: 'ulong', selectionStart: 'ulong', text: 'string', updateRangeEnd: 'ulong', updateRangeStart: 'ulong' });
-for (const m of ['updateRangeStart', 'updateRangeEnd', 'text', 'selectionStart', 'selectionEnd']) P.getter(TUE.proto, m, function __f() { return evSlot(this, __f)[m]; });
-P.seal(TUE.C);
+// TextUpdateEvent is generated (gen/textupdate).
 const TFUE = mkEvent('TextFormatUpdateEvent', 'TextFormatUpdateEventInit', { textFormats: 'formats' });
 P.method(TFUE.proto, 'getTextFormats', 0, function __f() { return evSlot(this, __f).textFormats.slice(); });
 P.seal(TFUE.C);
 // CharacterBoundsUpdateEvent is generated (gen/characterbounds).
 
 P.expose('EditContext', EditContext);
-P.expose('TextUpdateEvent', TUE.C);
 P.expose('TextFormatUpdateEvent', TFUE.C);
