@@ -1968,7 +1968,7 @@ fn knife65_document_family() {
           const names = Object.getOwnPropertyNames(D);
           const t = (f) => { try { const v = f(); return v === undefined ? 'undef' : (v === null ? 'null' : v); } catch (e) { return 'E:' + e.name + ':' + e.message; } };
           const out = {};
-          out.has24 = ['xmlEncoding','xmlVersion','xmlStandalone','onreadystatechange','onpointerlockchange','onpointerlockerror','featurePolicy','webkitVisibilityState','webkitHidden','onfreeze','onprerenderingchange','onresume','onvisibilitychange','webkitIsFullScreen','webkitCurrentFullScreenElement','webkitFullscreenEnabled','webkitFullscreenElement','caretRangeFromPoint','requestStorageAccessFor','webkitCancelFullScreen','webkitExitFullscreen','browsingTopics','activeViewTransition','ariaNotify'].filter((n) => names.indexOf(n) < 0);
+          out.has24 = ['xmlEncoding','xmlVersion','xmlStandalone','onreadystatechange','onpointerlockchange','onpointerlockerror','featurePolicy','webkitVisibilityState','webkitHidden','onfreeze','onprerenderingchange','onresume','onvisibilitychange','webkitIsFullScreen','webkitCurrentFullScreenElement','webkitFullscreenEnabled','webkitFullscreenElement','caretRangeFromPoint','webkitCancelFullScreen','webkitExitFullscreen','browsingTopics','activeViewTransition','ariaNotify'].filter((n) => names.indexOf(n) < 0);
           // xml trio (probed: null/null/false; '1.0' sticks; others NotSupportedError; standalone coerces)
           out.xml = [document.xmlEncoding, document.xmlVersion, document.xmlStandalone];
           document.xmlVersion = '1.0';
@@ -2001,10 +2001,8 @@ fn knife65_document_family() {
           // caretRangeFromPoint (probed: element anchor, collapsed, offset 0; OOR null; arity 0)
           const r = document.caretRangeFromPoint(5, 5);
           out.crfp = [r.constructor.name, Object.prototype.toString.call(r), r.collapsed, r.startContainer.nodeType, r.startOffset, document.caretRangeFromPoint(-9999, -9999), D.caretRangeFromPoint.length];
-          // requestStorageAccessFor (probed messages)
-          // (刀95) the zero-arg case now REJECTS with Chrome's argc TypeError (see
-          // knife95) — a sync catch can no longer see it; keep the sync-visible rows.
-          out.rsaf = [t(() => document.requestStorageAccessFor(123)), document.requestStorageAccessFor('https://example.com').constructor.name, D.requestStorageAccessFor.length];
+          // Chrome 157 dropped requestStorageAccessFor.
+          out.rsafGone = typeof D.requestStorageAccessFor;
           // webkit verbs: undefined return, meta
           out.wv = [document.webkitCancelFullScreen(), document.webkitExitFullscreen(), D.webkitCancelFullScreen.name, D.webkitCancelFullScreen.length, D.webkitExitFullscreen.name, D.webkitExitFullscreen.length];
           // browsingTopics / ariaNotify (probed: promise [] / void + arity messages)
@@ -2033,7 +2031,11 @@ fn knife65_document_family() {
         })()
     "#).unwrap();
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
-    assert_eq!(v["has24"], serde_json::json!([]), "all 24 members present");
+    assert_eq!(
+        v["has24"],
+        serde_json::json!([]),
+        "document members present"
+    );
     assert_eq!(
         v["xml"],
         serde_json::json!([null, null, false]),
@@ -2121,9 +2123,9 @@ fn knife65_document_family() {
         "caretRangeFromPoint element anchor + OOR + arity 0 (probed)"
     );
     assert_eq!(
-        v["rsaf"],
-        serde_json::json!(["E:TypeError:Invalid origin", "Promise", 1]),
-        "requestStorageAccessFor error + promise + arity (zero-arg rejection asserted in knife95)"
+        v["rsafGone"],
+        serde_json::json!("undefined"),
+        "Chrome 157 no longer has Document.requestStorageAccessFor"
     );
     assert_eq!(
         v["wv"],

@@ -110,8 +110,6 @@ const __navStore = {
     return true;
   },
   vibrate() { return false; },
-  deprecatedRunAdAuctionEnforcesKAnonymity: false,
-  protectedAudience: {},
   bluetooth: {
     getAvailability() { return Promise.resolve(false); },
     requestDevice() { return Promise.reject(new DOMException("Permission denied.", "NotAllowedError")); },
@@ -259,9 +257,6 @@ const __navStore = {
   usb: { getDevices() { return Promise.resolve([]); }, requestDevice() { return Promise.reject(new DOMException("Permission denied.", "NotAllowedError")); } },
   xr: { isSessionSupported() { return Promise.resolve(false); }, ondevicechange: null, addEventListener(){}, removeEventListener(){} },
   storageBuckets: { keys() { return Promise.resolve([]); }, open() { return Promise.resolve(null); }, delete() { return Promise.resolve(false); }, persist() { return Promise.resolve(false); } },
-  adAuctionComponents() { return Promise.resolve([]); },
-  runAdAuction() { return Promise.resolve(null); },
-  canLoadAdAuctionFencedFrame() { return false; },
   canShare() { return false; },
   share() { return Promise.reject(new DOMException("Permission denied.", "NotAllowedError")); },
   clearAppBadge() { return Promise.resolve(); },
@@ -278,15 +273,7 @@ const __navStore = {
   requestMediaKeySystemAccess() { return Promise.reject(new DOMException("Unsupported key system", "NotSupportedError")); },
   setAppBadge() { return Promise.resolve(); },
   webkitGetUserMedia(cb, err) { if (err) err(new DOMException("Permission denied.", "NotAllowedError")); },
-  clearOriginJoinedAdInterestGroups() {},
-  createAuctionNonce() { return (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : ""; },
-  joinAdInterestGroup() { return Promise.resolve(); },
-  leaveAdInterestGroup() { return Promise.resolve(); },
-  updateAdInterestGroups() {},
-  deprecatedReplaceInURN() { return Promise.resolve(null); },
-  deprecatedURNToURL() { return Promise.resolve(null); },
   getInstalledRelatedApps() { return Promise.resolve([]); },
-  getInterestGroupAdAuctionData() { return Promise.resolve(null); },
   registerProtocolHandler() {},
   unregisterProtocolHandler() {},
 };
@@ -342,14 +329,13 @@ try {
     'webkitTemporaryStorage','webkitPersistentStorage','windowControlsOverlay','hardwareConcurrency','cookieEnabled',
     'appCodeName','appName','appVersion','platform','product','userAgent','language','languages','onLine','webdriver',
     'plugins','mimeTypes','pdfViewerEnabled','connection','getGamepads','javaEnabled','sendBeacon','vibrate','constructor',
-    'deprecatedRunAdAuctionEnforcesKAnonymity','protectedAudience','bluetooth','clipboard','credentials',
+    'bluetooth','clipboard','credentials',
     'keyboard','managed','mediaDevices','serviceWorker','virtualKeyboard','wakeLock','deviceMemory','userAgentData',
     'locks','storage','gpu','login','ink','mediaCapabilities','permissions','devicePosture','hid','mediaSession',
-    'presentation','serial','usb','xr','storageBuckets','adAuctionComponents','runAdAuction','canLoadAdAuctionFencedFrame',
+    'presentation','serial','usb','xr','storageBuckets',
     'canShare','share','clearAppBadge','getBattery','getUserMedia','requestMIDIAccess','requestMediaKeySystemAccess',
-    'setAppBadge','webkitGetUserMedia','clearOriginJoinedAdInterestGroups','createAuctionNonce','joinAdInterestGroup',
-    'leaveAdInterestGroup','updateAdInterestGroups','deprecatedReplaceInURN','deprecatedURNToURL','getInstalledRelatedApps',
-    'getInterestGroupAdAuctionData','registerProtocolHandler','unregisterProtocolHandler',
+    'setAppBadge','webkitGetUserMedia','getInstalledRelatedApps',
+    'registerProtocolHandler','unregisterProtocolHandler',
   ]);
 } catch (e) {}
 
