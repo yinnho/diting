@@ -23,6 +23,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/css-typed-om.json crates/diting_js/js/platform/gen/cssunit.gen.js gen/cssunit $WP/chrome/cssunit-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-keyword.json crates/diting_js/js/platform/gen/csskeyword.gen.js gen/csskeyword $WP/chrome/csskeyword-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/input-device.json crates/diting_js/js/platform/gen/inputdevice.gen.js gen/inputdevice $WP/chrome/inputdevice-truth-145.json
+  python3 $WP/gen/gen_iface.py $WP/spec/textformat.json crates/diting_js/js/platform/gen/textformat.gen.js gen/textformat $WP/chrome/textformat-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
   python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json crates/diting_js/js/platform/gen/hashchange.gen.js gen/hashchange
   python3 $WP/gen/gen_iface.py $WP/spec/css-transitions.json crates/diting_js/js/platform/gen/transitionevent.gen.js gen/transitionevent
@@ -71,6 +72,8 @@ gen_value css-typed-om.json cssunit cssunit-truth-157.json
 gen_value css-keyword.json csskeyword csskeyword-truth-145.json
 # InputDeviceCapabilities: length 0 and firesTouchEvents. The dictionary stays in the impl.
 gen_value input-device.json inputdevice inputdevice-truth-145.json
+# TextFormat: length 0 and four readonly getters. Enum and unsigned long stay in the impl.
+gen_value textformat.json textformat textformat-truth-145.json
 # vttcue: the #67 marginal-cost family, generated with no generator change.
 gen_value webvtt.json vttcue vttcue-truth-157.json
 # SpeechRecognitionPhrase: simple DOMString ctor; float boost stays in the impl.

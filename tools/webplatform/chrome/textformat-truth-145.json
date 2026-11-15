@@ -1,0 +1,22 @@
+{
+ "result": {
+  "shape.TextFormat": {
+   "len": 0,
+   "members": {
+    "constructor": "function",
+    "rangeEnd": "ro",
+    "rangeStart": "ro",
+    "underlineStyle": "ro",
+    "underlineThickness": "ro"
+   },
+   "name": "TextFormat",
+   "order": [
+    "rangeStart",
+    "rangeEnd",
+    "underlineStyle",
+    "underlineThickness",
+    "constructor"
+   ]
+  }
+ }
+}
