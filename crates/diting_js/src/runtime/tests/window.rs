@@ -879,12 +879,12 @@ async fn navigator_screen_own_props_hoisted_to_prototype() {
         serde_json::json!(0),
         "Object.keys(navigator) is empty"
     );
-    // 刀57: 82 = Chrome 145's exact enumerable prototype face (the old 83
-    // counted the invented cpuPerformance; constructor is non-enumerable).
+    // Chrome 157 dropped the Protected Audience methods. constructor stays
+    // non-enumerable. cpuPerformance is on 157 and not installed yet.
     assert_eq!(
         v[1],
-        serde_json::json!(82),
-        "Chrome 145's exact prototype face"
+        serde_json::json!(69),
+        "Chrome 157 enumerable navigator prototype, minus cpuPerformance"
     );
     assert_eq!(
         v[2],

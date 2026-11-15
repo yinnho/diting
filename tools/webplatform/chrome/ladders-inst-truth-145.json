@@ -1,20 +1,11 @@
 {
  "promise": {
-  "Document": {
-   "requestStorageAccessFor": 1
-  },
   "HTMLMediaElement": {
    "setMediaKeys": 1,
    "setSinkId": 1
   },
   "Navigator": {
-   "clearOriginJoinedAdInterestGroups": 1,
-   "deprecatedReplaceInURN": 2,
-   "deprecatedURNToURL": 1,
-   "getInterestGroupAdAuctionData": 1,
-   "joinAdInterestGroup": 1,
-   "requestMediaKeySystemAccess": 2,
-   "runAdAuction": 1
+   "requestMediaKeySystemAccess": 2
   },
   "Window": {
    "createImageBitmap": 1,
@@ -170,7 +161,6 @@
    "observe": 1
   },
   "Navigator": {
-   "adAuctionComponents": 1,
    "getUserMedia": 3,
    "registerProtocolHandler": 2,
    "sendBeacon": 1,

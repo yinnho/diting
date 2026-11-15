@@ -192,18 +192,6 @@
     return r;
   });
 
-  // ---- requestStorageAccessFor ------------------------------------------
-  // Missing arg TypeError; non-URL/number arg sync TypeError 'Invalid
-  // origin'; a valid http(s) origin returns a promise REJECTED
-  // NotAllowedError 'requestStorageAccessFor not allowed' (headless probe).
-  meth('requestStorageAccessFor', function requestStorageAccessFor(requestedOrigin) {
-    if (arguments.length < 1) throw new TypeError("Failed to execute 'requestStorageAccessFor' on 'Document': 1 argument required, but only 0 present.");
-    let u = null;
-    try { u = new URL(String(requestedOrigin)); } catch (e) {}
-    if (!u || (u.protocol !== 'http:' && u.protocol !== 'https:')) throw new TypeError('Invalid origin');
-    return Promise.reject(new DOMException('requestStorageAccessFor not allowed', 'NotAllowedError'));
-  });
-
   // ---- webkit fullscreen verbs (undefined return; GUESS: forward) -------
   meth('webkitCancelFullScreen', function webkitCancelFullScreen() {
     if (typeof this.exitFullscreen === 'function') this.exitFullscreen();

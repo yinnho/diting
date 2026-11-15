@@ -1030,7 +1030,6 @@ async fn knife95_instance_method_ladders() {
         L.push(['sched', 'ok', [scheduler instanceof Scheduler, Scheduler.prototype.postTask.length, Object.getOwnPropertyDescriptor(Scheduler.prototype, 'postTask').enumerable].join('/')]);
         globalThis.__r95 = null;
         Promise.all([fetch().catch((e) => 'F:' + e.name + ':' + e.message),
-                     document.requestStorageAccessFor().catch((e) => 'R:' + e.name + ':' + e.message),
                      createImageBitmap().catch((e) => 'C:' + e.name + ':' + e.message)])
           .then((a) => { globalThis.__r95 = a; });
         return JSON.stringify(L);
@@ -1173,7 +1172,7 @@ async fn knife95_instance_method_ladders() {
     let out = rt.evaluate("JSON.stringify(__r95)").unwrap();
     assert_eq!(
         out.as_str().unwrap(),
-        r#"["F:TypeError:Failed to execute 'fetch' on 'Window': 1 argument required, but only 0 present.","R:TypeError:Failed to execute 'requestStorageAccessFor' on 'Document': 1 argument required, but only 0 present.","C:TypeError:Failed to execute 'createImageBitmap' on 'Window': 1 argument required, but only 0 present."]"#
+        r#"["F:TypeError:Failed to execute 'fetch' on 'Window': 1 argument required, but only 0 present.","C:TypeError:Failed to execute 'createImageBitmap' on 'Window': 1 argument required, but only 0 present."]"#
     );
 }
 
