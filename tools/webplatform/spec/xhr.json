@@ -1,0 +1,196 @@
+{
+ "includes": [],
+ "names": {
+  "ProgressEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier-list",
+      "value": [
+       {
+        "value": "Window"
+       },
+       {
+        "value": "Worker"
+       }
+      ]
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=(Window,Worker)]\ninterface ProgressEvent : Event {\n  constructor(DOMString type, optional ProgressEventInit eventInitDict = {});\n\n  readonly attribute boolean lengthComputable;\n  readonly attribute double loaded;\n  readonly attribute double total;\n};",
+   "href": "https://xhr.spec.whatwg.org/#progressevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "ProgressEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "eventInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progressevent-progressevent",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progressevent-lengthcomputable",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "lengthComputable",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progressevent-loaded",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "loaded",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progressevent-total",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "total",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "ProgressEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "ProgressEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary ProgressEventInit : EventInit {\n  boolean lengthComputable = false;\n  double loaded = 0;\n  double total = 0;\n};",
+   "href": "https://xhr.spec.whatwg.org/#progresseventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "boolean",
+      "value": false
+     },
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progresseventinit-lengthcomputable",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "lengthComputable",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "number",
+      "value": "0"
+     },
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progresseventinit-loaded",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "loaded",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "number",
+      "value": "0"
+     },
+     "extAttrs": [],
+     "href": "https://xhr.spec.whatwg.org/#dom-progresseventinit-total",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "double",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "total",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "ProgressEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "ProgressEvent": "https://xhr.spec.whatwg.org/",
+  "ProgressEventInit": "https://xhr.spec.whatwg.org/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

@@ -7361,6 +7361,41 @@ P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "phra
 if (B.ready) B.ready();
 });
 
+// ---- module gen/progressevent (L2) ----
+__platform.define("gen/progressevent", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- ProgressEvent (generated from tools/webplatform/spec/xhr.json) ----
+const slotsProgressEvent = new WeakMap();
+function isProgressEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsProgressEvent.has(v); }
+function ProgressEvent(type) {
+  if (!new.target) P.fail(ProgressEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'ProgressEvent'");
+  const ctx = "Failed to construct 'ProgressEvent'";
+  P.args(ctx, arguments.length, 1, ProgressEvent);
+  const t = conv.DOMString(type, ctx, ProgressEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(ProgressEvent, "The provided value is not of type 'ProgressEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'ProgressEventInit';
+  { const FIELD = 'lengthComputable'; const raw = (init === undefined || init === null) ? undefined : init.lengthComputable; s.lengthComputable = (raw === undefined) ? false : conv.boolean(raw); }
+  { const FIELD = 'loaded'; const raw = (init === undefined || init === null) ? undefined : init.loaded; s.loaded = (raw === undefined) ? 0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", ProgressEvent); }
+  { const FIELD = 'total'; const raw = (init === undefined || init === null) ? undefined : init.total; s.total = (raw === undefined) ? 0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", ProgressEvent); }
+  slotsProgressEvent.set(self, s);
+  return self;
+}
+const protoProgressEvent = P.iface(ProgressEvent, 'ProgressEvent', 1, Event);
+P.getter(protoProgressEvent, 'lengthComputable', function __f() { const s = slotsProgressEvent.get(this); if (s === undefined) P.illegal(__f); return s.lengthComputable; });
+P.getter(protoProgressEvent, 'loaded', function __f() { const s = slotsProgressEvent.get(this); if (s === undefined) P.illegal(__f); return s.loaded; });
+P.getter(protoProgressEvent, 'total', function __f() { const s = slotsProgressEvent.get(this); if (s === undefined) P.illegal(__f); return s.total; });
+P.seal(ProgressEvent);
+P.expose('ProgressEvent', ProgressEvent);
+exports.ProgressEvent = ProgressEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "lengthComputable"}, {"kind": "getter", "length": 0, "name": "loaded"}, {"kind": "getter", "length": 0, "name": "total"}], "name": "ProgressEvent", "statics": []});
+});
+
 // ---- module gen/storage (L2) ----
 __platform.define("gen/storage", function (exports, require, P) {
 "use strict";

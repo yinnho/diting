@@ -6,7 +6,7 @@
 // rejectionhandled routing IIFE (registered while Deno is still on the
 // global; guarded reads), and the subclass ladder: UIEvent -> Mouse/
 // Keyboard/Focus/Input/Composition/Wheel, the plain Event brood
-// (Error/Animation/PopState/Hash/Message/Close/Progress/
+// (Error/Animation/PopState/Hash/Message/Close/
 // Clipboard/Submit/Toggle/Promise
 // Rejection — note the second, validating PromiseRejectionEvent install
 // overwrites the routing block's basic one; both kept verbatim). Event and
@@ -206,18 +206,8 @@ globalThis.MessageEvent = class extends Event {
 _evxRo(globalThis.MessageEvent, ['data', 'origin', 'lastEventId', 'source', 'ports']);
 globalThis.CloseEvent = class extends Event { constructor(t,o={}) { super(t,o);_evx.set(this,{wasClean:!!o.wasClean,code:o.code===undefined?0:(o.code|0),reason:o.reason===undefined?'':String(o.reason)}); } };
 _evxRo(globalThis.CloseEvent, ['wasClean', 'code', 'reason']);
-globalThis.ProgressEvent = class ProgressEvent extends Event {
-  constructor(type, init) {
-    super(type, init || {});
-    const i = init || {};
-    _evx.set(this, {
-      lengthComputable: !!i.lengthComputable,
-      loaded: i.loaded != null ? Number(i.loaded) : 0,
-      total: i.total != null ? Number(i.total) : 0,
-    });
-  }
-};
-_evxRo(globalThis.ProgressEvent, ['lengthComputable', 'loaded', 'total']);
+// ProgressEvent moved to the generator (gen/progressevent): lengthComputable,
+// loaded, and total come from the XHR IDL.
 globalThis.ClipboardEvent = class extends Event {};
 globalThis.SubmitEvent = class extends Event {};
 
