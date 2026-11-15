@@ -1,6 +1,6 @@
 //! module: speech
 //! layer: L2
-//! exposes: SpeechRecognition, webkitSpeechRecognition, SpeechRecognitionEvent, webkitSpeechRecognitionEvent, SpeechRecognitionErrorEvent, webkitSpeechRecognitionError, SpeechGrammarList, webkitSpeechGrammarList, SpeechGrammar, webkitSpeechGrammar, SpeechRecognitionPhrase, ClipboardChangeEvent
+//! exposes: SpeechRecognition, webkitSpeechRecognition, SpeechRecognitionEvent, webkitSpeechRecognitionEvent, SpeechRecognitionErrorEvent, webkitSpeechRecognitionError, SpeechGrammarList, webkitSpeechGrammarList, SpeechGrammar, webkitSpeechGrammar, ClipboardChangeEvent
 //! requires-load: legacy:Event, legacy:EventTarget, legacy:_eventState
 //! requires-call: legacy:DOMException, legacy:setTimeout, legacy:clearTimeout, legacy:document, legacy:URL
 
@@ -37,26 +37,8 @@ function seq(v, fn, pre) {
 }
 function trusted(ev) { _eventState(ev, 'isTrusted', true); return ev; }
 
-// ================= SpeechRecognitionPhrase(phrase, boost = 1)
-const phraseSlots = new WeakMap();
-function SpeechRecognitionPhrase(phrase, boost) {
-  const pre = "Failed to construct 'SpeechRecognitionPhrase'";
-  if (new.target === undefined) P.fail(SpeechRecognitionPhrase, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
-  if (arguments.length < 1) P.fail(SpeechRecognitionPhrase, '1 argument required, but only 0 present.', pre);
-  const text = P.conv.DOMString(phrase, pre, SpeechRecognitionPhrase);
-  const b = boost === undefined ? 1 : f32(boost, SpeechRecognitionPhrase, pre);
-  if (b < 0 || b > 10) {
-    throw new DOMException(pre + ': Speech recognition phrase boost value must be inside the range [0, 10].', 'SyntaxError');
-  }
-  const o = Reflect.construct(Object, [], new.target);
-  phraseSlots.set(o, { phrase: text, boost: b });
-  return o;
-}
-const PhP = P.iface(SpeechRecognitionPhrase, 'SpeechRecognitionPhrase', 1);
-for (const m of ['phrase', 'boost']) {
-  P.getter(PhP, m, function __f() { const s = phraseSlots.get(this); if (!s) P.illegal(__f); return s[m]; });
-}
-P.seal(SpeechRecognitionPhrase);
+// SpeechRecognitionPhrase's shape is gen/phrase.gen.js. Identity is checked
+// at call time through the hidden __diting_isSpeechPhrase the impl publishes.
 
 // ================= SpeechGrammar (src: USVString resolved, weight: float)
 const grammarSlots = new WeakMap();
@@ -234,7 +216,8 @@ P.accessor(RP, 'phrases', function __f() { return rslot(this, __f).phrases; }, f
   const s = rslot(this, __f);
   const arr = seqAny(v, __f);
   for (const p of arr) {
-    if (p === null || typeof p !== 'object' || !phraseSlots.has(p)) P.fail(__f, "Failed to convert value to 'SpeechRecognitionPhrase'.", rpre('phrases'));
+    const isPhrase = globalThis.__diting_isSpeechPhrase;
+    if (p === null || typeof p !== 'object' || typeof isPhrase !== 'function' || !isPhrase(p)) P.fail(__f, "Failed to convert value to 'SpeechRecognitionPhrase'.", rpre('phrases'));
   }
   s.phrases = arr;
 });
@@ -313,7 +296,7 @@ P.seal(ClipboardChangeEvent);
 
 // ================= publish (webkit* names are the SAME objects)
 const PUB = { SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent, SpeechGrammarList, SpeechGrammar,
-  SpeechRecognitionPhrase, ClipboardChangeEvent };
+  ClipboardChangeEvent };
 for (const [n, C] of Object.entries(PUB)) P.expose(n, C);
 P.expose('webkitSpeechRecognition', SpeechRecognition);
 P.expose('webkitSpeechRecognitionEvent', SpeechRecognitionEvent);

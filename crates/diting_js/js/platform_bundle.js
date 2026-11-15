@@ -7174,6 +7174,72 @@ if (P_Track) {
 }
 });
 
+// ---- module phrase (L2) ----
+__platform.define("phrase", function (exports, require, P) {
+"use strict";
+// SpeechRecognitionPhrase behavior. The class shape — one required DOMString,
+// the readonly phrase/boost getters in Chrome's order — is generated from
+// the speech-api IDL in gen/phrase.gen.js. `float` is not a simple ctor
+// type, so the boost conversion and the [0, 10] check stay here.
+// Pinned by tools/webplatform/chrome/speech-truth-145.json.
+'use strict';
+
+const slots = new WeakMap();
+const pre = "Failed to construct 'SpeechRecognitionPhrase'";
+
+function f32(v, fn) {
+  if (typeof v === 'symbol') P.fail(fn, 'Cannot convert a Symbol value to a number', pre);
+  const n = Number(v);
+  if (!isFinite(n) || !isFinite(Math.fround(n))) P.fail(fn, 'The provided float value is non-finite.', pre);
+  return Math.fround(n);
+}
+
+exports.ctor = function ctor(iface, target, ctx, args) {
+  const text = P.conv.DOMString(args[0], pre, ctor);
+  const boost = args.length < 2 || args[1] === undefined ? 1 : f32(args[1], ctor);
+  if (boost < 0 || boost > 10) {
+    throw new DOMException(pre + ': Speech recognition phrase boost value must be inside the range [0, 10].', 'SyntaxError');
+  }
+  slots.set(target, { phrase: text, boost: boost });
+};
+
+exports.get = function get(iface, member, target) {
+  const s = target !== null && typeof target === 'object' ? slots.get(target) : undefined;
+  if (!s) P.illegal(get);
+  return s[member];
+};
+
+P.expose('__diting_isSpeechPhrase', (o) => o !== null && typeof o === 'object' && slots.has(o));
+if (globalThis.__diting_hide_list && typeof globalThis.__diting_hide_list.push === 'function') {
+  globalThis.__diting_hide_list.push('__diting_isSpeechPhrase');
+}
+});
+
+// ---- module gen/phrase (L2) ----
+__platform.define("gen/phrase", function (exports, require, P) {
+"use strict";
+// Strategy value (see gen_iface.py docstring).
+const conv = P.conv;
+
+const B = require('phrase');
+
+// ---- SpeechRecognitionPhrase (generated from tools/webplatform/spec/speech-phrase.json) ----
+function SpeechRecognitionPhrase() {
+  if (!new.target) P.fail(SpeechRecognitionPhrase, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'SpeechRecognitionPhrase'");
+  const ctx = "Failed to construct 'SpeechRecognitionPhrase'";
+  P.args(ctx, arguments.length, 1, SpeechRecognitionPhrase);
+  B.ctor('SpeechRecognitionPhrase', this, ctx, arguments);
+}
+const protoSpeechRecognitionPhrase = P.iface(SpeechRecognitionPhrase, 'SpeechRecognitionPhrase', 1);
+P.getter(protoSpeechRecognitionPhrase, 'phrase', function __f() { return B.get('SpeechRecognitionPhrase', 'phrase', this); });
+P.getter(protoSpeechRecognitionPhrase, 'boost', function __f() { return B.get('SpeechRecognitionPhrase', 'boost', this); });
+P.seal(SpeechRecognitionPhrase);
+P.expose('SpeechRecognitionPhrase', SpeechRecognitionPhrase);
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "phrase"}, {"kind": "getter", "length": 0, "name": "boost"}], "name": "SpeechRecognitionPhrase", "statics": []});
+
+if (B.ready) B.ready();
+});
+
 // ---- module gen/storage (L2) ----
 __platform.define("gen/storage", function (exports, require, P) {
 "use strict";
@@ -8213,26 +8279,8 @@ function seq(v, fn, pre) {
 }
 function trusted(ev) { _eventState(ev, 'isTrusted', true); return ev; }
 
-// ================= SpeechRecognitionPhrase(phrase, boost = 1)
-const phraseSlots = new WeakMap();
-function SpeechRecognitionPhrase(phrase, boost) {
-  const pre = "Failed to construct 'SpeechRecognitionPhrase'";
-  if (new.target === undefined) P.fail(SpeechRecognitionPhrase, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
-  if (arguments.length < 1) P.fail(SpeechRecognitionPhrase, '1 argument required, but only 0 present.', pre);
-  const text = P.conv.DOMString(phrase, pre, SpeechRecognitionPhrase);
-  const b = boost === undefined ? 1 : f32(boost, SpeechRecognitionPhrase, pre);
-  if (b < 0 || b > 10) {
-    throw new DOMException(pre + ': Speech recognition phrase boost value must be inside the range [0, 10].', 'SyntaxError');
-  }
-  const o = Reflect.construct(Object, [], new.target);
-  phraseSlots.set(o, { phrase: text, boost: b });
-  return o;
-}
-const PhP = P.iface(SpeechRecognitionPhrase, 'SpeechRecognitionPhrase', 1);
-for (const m of ['phrase', 'boost']) {
-  P.getter(PhP, m, function __f() { const s = phraseSlots.get(this); if (!s) P.illegal(__f); return s[m]; });
-}
-P.seal(SpeechRecognitionPhrase);
+// SpeechRecognitionPhrase's shape is gen/phrase.gen.js. Identity is checked
+// at call time through the hidden __diting_isSpeechPhrase the impl publishes.
 
 // ================= SpeechGrammar (src: USVString resolved, weight: float)
 const grammarSlots = new WeakMap();
@@ -8410,7 +8458,8 @@ P.accessor(RP, 'phrases', function __f() { return rslot(this, __f).phrases; }, f
   const s = rslot(this, __f);
   const arr = seqAny(v, __f);
   for (const p of arr) {
-    if (p === null || typeof p !== 'object' || !phraseSlots.has(p)) P.fail(__f, "Failed to convert value to 'SpeechRecognitionPhrase'.", rpre('phrases'));
+    const isPhrase = globalThis.__diting_isSpeechPhrase;
+    if (p === null || typeof p !== 'object' || typeof isPhrase !== 'function' || !isPhrase(p)) P.fail(__f, "Failed to convert value to 'SpeechRecognitionPhrase'.", rpre('phrases'));
   }
   s.phrases = arr;
 });
@@ -8489,7 +8538,7 @@ P.seal(ClipboardChangeEvent);
 
 // ================= publish (webkit* names are the SAME objects)
 const PUB = { SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent, SpeechGrammarList, SpeechGrammar,
-  SpeechRecognitionPhrase, ClipboardChangeEvent };
+  ClipboardChangeEvent };
 for (const [n, C] of Object.entries(PUB)) P.expose(n, C);
 P.expose('webkitSpeechRecognition', SpeechRecognition);
 P.expose('webkitSpeechRecognitionEvent', SpeechRecognitionEvent);
