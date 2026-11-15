@@ -453,6 +453,43 @@ fn test_content_visibility_event_skipped_defaults() {
 }
 
 #[test]
+fn test_progress_event_loaded_and_total_defaults() {
+    // XHR: lengthComputable false, loaded and total 0. The face is generated.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt.evaluate(r#"
+            const a = new ProgressEvent('load');
+            const b = new ProgressEvent('progress', { lengthComputable: 1, loaded: '4', total: 9, bubbles: true });
+            const c = new ProgressEvent('loadend', { loaded: null, total: null });
+            return [
+                a instanceof ProgressEvent, a instanceof Event,
+                a.lengthComputable, a.loaded, a.total,
+                b.lengthComputable, b.loaded, b.total, b.bubbles,
+                c.loaded, c.total,
+                Object.getOwnPropertyNames(ProgressEvent.prototype),
+                ProgressEvent.length,
+            ];
+        "#).unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!([
+            true,
+            true,
+            false,
+            0,
+            0,
+            true,
+            4,
+            9,
+            true,
+            0,
+            0,
+            ["lengthComputable", "loaded", "total", "constructor"],
+            1
+        ])
+    );
+}
+
+#[test]
 fn test_pointer_event_class_matches_chrome_defaults() {
     // A weak `PointerEvent extends Event` used to squat on the name,
     // keeping the real MouseEvent subclass dead behind its typeof-guard.
