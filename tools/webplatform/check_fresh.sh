@@ -24,6 +24,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/css-keyword.json crates/diting_js/js/platform/gen/csskeyword.gen.js gen/csskeyword $WP/chrome/csskeyword-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
   python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json crates/diting_js/js/platform/gen/hashchange.gen.js gen/hashchange
+  python3 $WP/gen/gen_iface.py $WP/spec/css-transitions.json crates/diting_js/js/platform/gen/transitionevent.gen.js gen/transitionevent
   python3 $WP/gen/gen_iface.py $WP/spec/webvtt.json crates/diting_js/js/platform/gen/vttcue.gen.js gen/vttcue $WP/chrome/vttcue-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/speech-phrase.json crates/diting_js/js/platform/gen/phrase.gen.js gen/phrase $WP/chrome/phrase-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-145.json patch-common
@@ -74,6 +75,10 @@ diff -q "$tmp/animationevent.gen.js" crates/diting_js/js/platform/gen/animatione
 python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json "$tmp/hashchange.gen.js" gen/hashchange >/dev/null
 diff -q "$tmp/hashchange.gen.js" crates/diting_js/js/platform/gen/hashchange.gen.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform/gen/hashchange.gen.js is stale vs gen_iface.py" >&2; fail=1; }
+# TransitionEvent: CSSOMString / double / CSSOMString. The class left event_classes.js.
+python3 $WP/gen/gen_iface.py $WP/spec/css-transitions.json "$tmp/transitionevent.gen.js" gen/transitionevent >/dev/null
+diff -q "$tmp/transitionevent.gen.js" crates/diting_js/js/platform/gen/transitionevent.gen.js >/dev/null \
+  || { echo "FAIL: crates/diting_js/js/platform/gen/transitionevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
 # 3b. the patch-strategy modules (HTMLElement common layer, media/image family,
 # HTML reflect family) are measured-truth products too: regenerate and diff
 gen_patch() { # <spec> <name> <truth> <strategy>

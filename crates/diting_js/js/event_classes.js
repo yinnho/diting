@@ -6,7 +6,7 @@
 // rejectionhandled routing IIFE (registered while Deno is still on the
 // global; guarded reads), and the subclass ladder: UIEvent -> Mouse/
 // Keyboard/Focus/Input/Composition/Wheel, the plain Event brood
-// (Error/Animation/Transition/PopState/Hash/Message/Close/Progress/
+// (Error/Animation/PopState/Hash/Message/Close/Progress/
 // Clipboard/Submit/Toggle/ContentVisibilityAutoStateChange/Promise
 // Rejection — note the second, validating PromiseRejectionEvent install
 // overwrites the routing block's basic one; both kept verbatim). Event and
@@ -164,21 +164,8 @@ _evxRo(globalThis.ErrorEvent, ['message','filename','lineno','colno','error']);
 // (arity + AnimationEventInit dictionary expansion + Chrome message shapes)
 // with zero generator changes — the class below is deleted. animation_lifecycle
 // dispatches through the public ctor either way.
-globalThis.TransitionEvent = class TransitionEvent extends Event {
-  // WebIDL TransitionEventInit: propertyName "" / elapsedTime 0 /
-  // pseudoElement "" defaults (blitz#863 family 2). Was an empty Event
-  // subclass, so every property read came back undefined.
-  constructor(t, o = {}) {
-    if (arguments.length < 1) throw new TypeError("Failed to construct 'TransitionEvent': 1 argument required, but only 0 present.");
-    super(t, o);
-    _evx.set(this, {
-      propertyName: o.propertyName !== undefined ? String(o.propertyName) : "",
-      elapsedTime: o.elapsedTime !== undefined ? Number(o.elapsedTime) : 0,
-      pseudoElement: o.pseudoElement !== undefined ? String(o.pseudoElement) : "",
-    });
-  }
-};
-_evxRo(globalThis.TransitionEvent, ['propertyName', 'elapsedTime', 'pseudoElement']);
+// TransitionEvent moved to the generator (gen/transitionevent): propertyName,
+// elapsedTime, and pseudoElement come from the css-transitions IDL.
 globalThis.WheelEvent = class extends MouseEvent {
   constructor(t,o={}) {
     super(t,o);
