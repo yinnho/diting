@@ -1,0 +1,154 @@
+{
+ "includes": [],
+ "names": {
+  "CharacterBoundsUpdateEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface CharacterBoundsUpdateEvent : Event {\n    constructor(DOMString type, optional CharacterBoundsUpdateEventInit options = {});\n    readonly attribute unsigned long rangeStart;\n    readonly attribute unsigned long rangeEnd;\n};",
+   "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "CharacterBoundsUpdateEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "options",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateevent-constructor",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateevent-rangestart",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "rangeStart",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateevent-rangeend",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "rangeEnd",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "CharacterBoundsUpdateEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "CharacterBoundsUpdateEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary CharacterBoundsUpdateEventInit : EventInit {\n    unsigned long rangeStart = 0;\n    unsigned long rangeEnd = 0;\n};",
+   "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateeventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "number",
+      "value": "0"
+     },
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateeventinit-rangestart",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "rangeStart",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "number",
+      "value": "0"
+     },
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-characterboundsupdateeventinit-rangeend",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "rangeEnd",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "CharacterBoundsUpdateEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "CharacterBoundsUpdateEvent": "https://w3c.github.io/edit-context/",
+  "CharacterBoundsUpdateEventInit": "https://w3c.github.io/edit-context/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}
