@@ -4360,6 +4360,37 @@ exports.AnimationEvent = AnimationEvent;
 P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "AnimationEvent", "statics": []});
 });
 
+// ---- module gen/contentvisibilityevent (L2) ----
+__platform.define("gen/contentvisibilityevent", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- ContentVisibilityAutoStateChangeEvent (generated from tools/webplatform/spec/css-contain.json) ----
+const slotsContentVisibilityAutoStateChangeEvent = new WeakMap();
+function isContentVisibilityAutoStateChangeEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsContentVisibilityAutoStateChangeEvent.has(v); }
+function ContentVisibilityAutoStateChangeEvent(type) {
+  if (!new.target) P.fail(ContentVisibilityAutoStateChangeEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'ContentVisibilityAutoStateChangeEvent'");
+  const ctx = "Failed to construct 'ContentVisibilityAutoStateChangeEvent'";
+  P.args(ctx, arguments.length, 1, ContentVisibilityAutoStateChangeEvent);
+  const t = conv.DOMString(type, ctx, ContentVisibilityAutoStateChangeEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(ContentVisibilityAutoStateChangeEvent, "The provided value is not of type 'ContentVisibilityAutoStateChangeEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'ContentVisibilityAutoStateChangeEventInit';
+  { const FIELD = 'skipped'; const raw = (init === undefined || init === null) ? undefined : init.skipped; s.skipped = (raw === undefined) ? false : conv.boolean(raw); }
+  slotsContentVisibilityAutoStateChangeEvent.set(self, s);
+  return self;
+}
+const protoContentVisibilityAutoStateChangeEvent = P.iface(ContentVisibilityAutoStateChangeEvent, 'ContentVisibilityAutoStateChangeEvent', 1, Event);
+P.getter(protoContentVisibilityAutoStateChangeEvent, 'skipped', function __f() { const s = slotsContentVisibilityAutoStateChangeEvent.get(this); if (s === undefined) P.illegal(__f); return s.skipped; });
+P.seal(ContentVisibilityAutoStateChangeEvent);
+P.expose('ContentVisibilityAutoStateChangeEvent', ContentVisibilityAutoStateChangeEvent);
+exports.ContentVisibilityAutoStateChangeEvent = ContentVisibilityAutoStateChangeEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "skipped"}], "name": "ContentVisibilityAutoStateChangeEvent", "statics": []});
+});
+
 // ---- module gen/csskeyword (L2) ----
 __platform.define("gen/csskeyword", function (exports, require, P) {
 "use strict";

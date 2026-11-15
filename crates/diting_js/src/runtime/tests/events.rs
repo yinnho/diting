@@ -421,6 +421,38 @@ fn test_create_event_rejects_unknown_and_supports_legacy_aliases() {
 }
 
 #[test]
+fn test_content_visibility_event_skipped_defaults() {
+    // css-contain: one boolean, default false. The face is generated.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt.evaluate(r#"
+            const a = new ContentVisibilityAutoStateChangeEvent('x');
+            const b = new ContentVisibilityAutoStateChangeEvent('x', { skipped: 1, bubbles: true });
+            const c = new ContentVisibilityAutoStateChangeEvent('x', { skipped: 0 });
+            let threw = '';
+            try { new ContentVisibilityAutoStateChangeEvent(); } catch (e) { threw = e.name + ':' + e.message; }
+            return [
+                a instanceof ContentVisibilityAutoStateChangeEvent, a instanceof Event,
+                a.skipped, b.skipped, b.bubbles, c.skipped,
+                Object.getOwnPropertyNames(ContentVisibilityAutoStateChangeEvent.prototype),
+                threw,
+            ];
+        "#).unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!([
+            true,
+            true,
+            false,
+            true,
+            true,
+            false,
+            ["skipped", "constructor"],
+            "TypeError:Failed to construct 'ContentVisibilityAutoStateChangeEvent': 1 argument required, but only 0 present."
+        ])
+    );
+}
+
+#[test]
 fn test_pointer_event_class_matches_chrome_defaults() {
     // A weak `PointerEvent extends Event` used to squat on the name,
     // keeping the real MouseEvent subclass dead behind its typeof-guard.
