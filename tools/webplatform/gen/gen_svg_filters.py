@@ -10,7 +10,9 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 D = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome/svg-filters-truth-145.json')))
-T = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome/shape-audit-truth-145.json')))
+sys.path.insert(0, os.path.join(HERE, '..'))
+from shape_source import built_from_path
+T = json.load(open(built_from_path()))
 out_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'crates/diting_js/js/svg_filters.js')
 KW = {
  'SVGFEBlendElement.mode': {'normal':1,'multiply':2,'screen':3,'darken':4,'lighten':5,'overlay':6,'color-dodge':7,'color-burn':8,'hard-light':9,'soft-light':10,'difference':11,'exclusion':12,'hue':13,'saturation':14,'color':15,'luminosity':16},

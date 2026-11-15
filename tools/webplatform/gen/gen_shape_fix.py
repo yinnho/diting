@@ -3,7 +3,8 @@
 
   gen_shape_fix.py <engine.json> [out.js]
 
-Compares an engine capture (probe_run.py engine shape-audit-probe.js) with chrome/shape-audit-truth-145.json and
+Compares an engine capture (probe_run.py engine shape-audit-probe.js) with the
+BUILT_FROM shape audit (shape_source.py; still the 145 capture) and
 emits a data table of the descriptor-level facts the engine gets wrong on members both sides have:
   - function `length` (methods and constructors),
   - the e/c/w attribute flags of methods, accessors, constants (class methods are non-enumerable in JS,
@@ -14,7 +15,9 @@ table comes out empty. Output is applied last (build.rs) by shape_fix.js itself.
 """
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
+sys.path.insert(0, os.path.join(HERE, '..'))
+from shape_source import built_from_path
+T = json.load(open(built_from_path()))
 E = json.load(open(sys.argv[1]))
 out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting_js/js/shape_fix.js')
 

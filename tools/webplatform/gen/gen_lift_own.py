@@ -11,7 +11,9 @@ Only names that Chrome ALSO has on the prototype (shape-audit-truth) are lifted;
 """
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
+sys.path.insert(0, os.path.join(HERE, '..'))
+from shape_source import built_from_path
+T = json.load(open(built_from_path()))
 E = json.load(open(sys.argv[1]))
 classes = sys.argv[2].split(',')
 out = sys.argv[3] if len(sys.argv) > 3 else os.path.join(HERE, '../../../crates/diting_js/js/lift_own.js')

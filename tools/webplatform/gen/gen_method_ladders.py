@@ -19,7 +19,7 @@ Chrome rejects a call with fewer arguments than the method's required count with
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
-T = json.load(open(os.path.join(ROOT, 'tools/webplatform/chrome/shape-audit-truth-145.json')))
+# Ladders come from the two ladders-*-truth-145.json files below, not the shape audit.
 out_p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'crates/diting_js/js/method_ladders.js')
 SYNC, PROM = {}, {}
 for _f in ('ladders-truth-145.json', 'ladders-inst-truth-145.json'):

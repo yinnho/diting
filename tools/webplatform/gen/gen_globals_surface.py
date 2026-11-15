@@ -332,7 +332,9 @@ for (const [name, tag] of OBJ_GETTERS) {
 }
 """ % ",\n  ".join(rows))
 
-_AUDIT = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../chrome/shape-audit-truth-145.json")))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from shape_source import built_from_path
+_AUDIT = json.load(open(built_from_path()))
 _ET_NAMES = set(n for n, _ in et_chain)
 _AUDIT_SKIP = {"SVGElement", "SVGClipPathElement", "SVGSymbolElement", "SVGFEDropShadowElement", "PerformanceNavigationTiming",
                "PerformanceResourceTiming", "PerformanceMark", "PerformanceMeasure", "PerformancePaintTiming", "PerformanceServerTiming"}
