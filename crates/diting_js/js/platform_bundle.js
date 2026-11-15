@@ -6441,8 +6441,6 @@ function reseat(proto, order) {
 
 // ---- HTMLAnchorElement.prototype (Chrome own order, 30 names)
 if (P_Anchor) {
-  if (!has(P_Anchor, 'target') && !delegate(P_Anchor, 'target', 'str')) P.reflector(P_Anchor, 'target', {"attr": "target", "iface": "HTMLAnchorElement", "kind": "string"});
-  else wrapSet(P_Anchor, 'target', 'str');
   if (!has(P_Anchor, 'download') && !delegate(P_Anchor, 'download', 'str')) P.reflector(P_Anchor, 'download', {"attr": "download", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'download', 'str');
   if (!has(P_Anchor, 'ping') && !delegate(P_Anchor, 'ping', 'str')) P.reflector(P_Anchor, 'ping', {"attr": "ping", "iface": "HTMLAnchorElement", "kind": "string"});
@@ -6450,10 +6448,6 @@ if (P_Anchor) {
   if (!has(P_Anchor, 'rel') && !delegate(P_Anchor, 'rel', 'str')) P.reflector(P_Anchor, 'rel', {"attr": "rel", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'rel', 'str');
   { const _o = Object.getOwnPropertyDescriptor(P_Anchor, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Anchor, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
-  if (!has(P_Anchor, 'hreflang') && !delegate(P_Anchor, 'hreflang', 'str')) P.reflector(P_Anchor, 'hreflang', {"attr": "hreflang", "iface": "HTMLAnchorElement", "kind": "string"});
-  else wrapSet(P_Anchor, 'hreflang', 'str');
-  if (!has(P_Anchor, 'type') && !delegate(P_Anchor, 'type', 'str')) P.reflector(P_Anchor, 'type', {"attr": "type", "iface": "HTMLAnchorElement", "kind": "string"});
-  else wrapSet(P_Anchor, 'type', 'str');
   if (!has(P_Anchor, 'referrerPolicy') && !delegate(P_Anchor, 'referrerPolicy', 'str')) P.reflector(P_Anchor, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAnchorElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
   else wrapSet(P_Anchor, 'referrerPolicy', 'str');
   if (!has(P_Anchor, 'text')) delegate(P_Anchor, 'text', 'str'); else wrapSet(P_Anchor, 'text', 'str');
@@ -6467,6 +6461,10 @@ if (P_Anchor) {
   else wrapSet(P_Anchor, 'rev', 'str');
   if (!has(P_Anchor, 'shape') && !delegate(P_Anchor, 'shape', 'str')) P.reflector(P_Anchor, 'shape', {"attr": "shape", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'shape', 'str');
+  if (!has(P_Anchor, 'target') && !delegate(P_Anchor, 'target', 'str')) P.reflector(P_Anchor, 'target', {"attr": "target", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'target', 'str');
+  if (!has(P_Anchor, 'href') && !delegate(P_Anchor, 'href', 'str')) P.reflector(P_Anchor, 'href', {"attr": "href", "iface": "HTMLAnchorElement", "kind": "url"});
+  else wrapSet(P_Anchor, 'href', 'str');
   if (!has(P_Anchor, 'protocol')) delegate(P_Anchor, 'protocol');
   if (!has(P_Anchor, 'username')) delegate(P_Anchor, 'username');
   if (!has(P_Anchor, 'password')) delegate(P_Anchor, 'password');
@@ -6476,15 +6474,17 @@ if (P_Anchor) {
   if (!has(P_Anchor, 'pathname')) delegate(P_Anchor, 'pathname');
   if (!has(P_Anchor, 'search')) delegate(P_Anchor, 'search');
   if (!has(P_Anchor, 'hash')) delegate(P_Anchor, 'hash');
-  if (!has(P_Anchor, 'href') && !delegate(P_Anchor, 'href', 'str')) P.reflector(P_Anchor, 'href', {"attr": "href", "iface": "HTMLAnchorElement", "kind": "url"});
-  else wrapSet(P_Anchor, 'href', 'str');
-  if (!has(P_Anchor, 'toString') && !delegateFn(P_Anchor, 'toString', 0)) P.method(P_Anchor, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAnchorElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Anchor.toString', this, ctx, arguments); });
+  if (!has(P_Anchor, 'hreflang') && !delegate(P_Anchor, 'hreflang', 'str')) P.reflector(P_Anchor, 'hreflang', {"attr": "hreflang", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'hreflang', 'str');
+  if (!has(P_Anchor, 'type') && !delegate(P_Anchor, 'type', 'str')) P.reflector(P_Anchor, 'type', {"attr": "type", "iface": "HTMLAnchorElement", "kind": "string"});
+  else wrapSet(P_Anchor, 'type', 'str');
   // staged: interestForElement - experimental (Interest Invokers), not Chrome-released
+  if (!has(P_Anchor, 'toString') && !delegateFn(P_Anchor, 'toString', 0)) P.method(P_Anchor, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAnchorElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Anchor.toString', this, ctx, arguments); });
   if (!has(P_Anchor, 'hrefTranslate') && !delegate(P_Anchor, 'hrefTranslate', 'str')) P.reflector(P_Anchor, 'hrefTranslate', {"attr": "hreftranslate", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'hrefTranslate', 'str');
   if (!has(P_Anchor, 'attributionSrc') && !delegate(P_Anchor, 'attributionSrc', 'str')) P.reflector(P_Anchor, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'attributionSrc', 'str');
-  reseat(P_Anchor, ["target", "download", "ping", "rel", "relList", "hreflang", "type", "referrerPolicy", "text", "coords", "charset", "name", "rev", "shape", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash", "href", "toString", "constructor", "hrefTranslate", "attributionSrc"]);
+  reseat(P_Anchor, ["download", "ping", "rel", "relList", "referrerPolicy", "text", "coords", "charset", "name", "rev", "shape", "target", "href", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash", "hreflang", "type", "toString", "constructor", "hrefTranslate", "attributionSrc"]);
 }
 
 // ---- HTMLAreaElement.prototype (Chrome own order, 25 names)
@@ -6497,8 +6497,6 @@ if (P_Area) {
   else wrapSet(P_Area, 'download', 'str');
   if (!has(P_Area, 'shape') && !delegate(P_Area, 'shape', 'str')) P.reflector(P_Area, 'shape', {"attr": "shape", "iface": "HTMLAreaElement", "kind": "string"});
   else wrapSet(P_Area, 'shape', 'str');
-  if (!has(P_Area, 'target') && !delegate(P_Area, 'target', 'str')) P.reflector(P_Area, 'target', {"attr": "target", "iface": "HTMLAreaElement", "kind": "string"});
-  else wrapSet(P_Area, 'target', 'str');
   if (!has(P_Area, 'ping') && !delegate(P_Area, 'ping', 'str')) P.reflector(P_Area, 'ping', {"attr": "ping", "iface": "HTMLAreaElement", "kind": "string"});
   else wrapSet(P_Area, 'ping', 'str');
   if (!has(P_Area, 'rel') && !delegate(P_Area, 'rel', 'str')) P.reflector(P_Area, 'rel', {"attr": "rel", "iface": "HTMLAreaElement", "kind": "string"});
@@ -6506,7 +6504,6 @@ if (P_Area) {
   { const _o = Object.getOwnPropertyDescriptor(P_Area, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Area, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
   if (!has(P_Area, 'referrerPolicy') && !delegate(P_Area, 'referrerPolicy', 'str')) P.reflector(P_Area, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAreaElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
   else wrapSet(P_Area, 'referrerPolicy', 'str');
-  if (!has(P_Area, 'noHref') && !delegate(P_Area, 'noHref')) P.reflector(P_Area, 'noHref', {"attr": "nohref", "iface": "HTMLAreaElement", "kind": "boolean-presence"});
   if (!has(P_Area, 'origin')) delegate(P_Area, 'origin');
   if (!has(P_Area, 'protocol')) delegate(P_Area, 'protocol');
   if (!has(P_Area, 'username')) delegate(P_Area, 'username');
@@ -6517,13 +6514,16 @@ if (P_Area) {
   if (!has(P_Area, 'pathname')) delegate(P_Area, 'pathname');
   if (!has(P_Area, 'search')) delegate(P_Area, 'search');
   if (!has(P_Area, 'hash')) delegate(P_Area, 'hash');
+  if (!has(P_Area, 'noHref') && !delegate(P_Area, 'noHref')) P.reflector(P_Area, 'noHref', {"attr": "nohref", "iface": "HTMLAreaElement", "kind": "boolean-presence"});
+  if (!has(P_Area, 'target') && !delegate(P_Area, 'target', 'str')) P.reflector(P_Area, 'target', {"attr": "target", "iface": "HTMLAreaElement", "kind": "string"});
+  else wrapSet(P_Area, 'target', 'str');
   if (!has(P_Area, 'href') && !delegate(P_Area, 'href', 'str')) P.reflector(P_Area, 'href', {"attr": "href", "iface": "HTMLAreaElement", "kind": "url"});
   else wrapSet(P_Area, 'href', 'str');
-  if (!has(P_Area, 'toString') && !delegateFn(P_Area, 'toString', 0)) P.method(P_Area, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAreaElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Area.toString', this, ctx, arguments); });
   // staged: interestForElement - experimental (Interest Invokers), not Chrome-released
+  if (!has(P_Area, 'toString') && !delegateFn(P_Area, 'toString', 0)) P.method(P_Area, 'toString', 0, function __f() { const ctx = "Failed to execute 'toString' on 'HTMLAreaElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('Area.toString', this, ctx, arguments); });
   if (!has(P_Area, 'attributionSrc') && !delegate(P_Area, 'attributionSrc', 'str')) P.reflector(P_Area, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLAreaElement", "kind": "string"});
   else wrapSet(P_Area, 'attributionSrc', 'str');
-  reseat(P_Area, ["alt", "coords", "download", "shape", "target", "ping", "rel", "relList", "referrerPolicy", "noHref", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash", "href", "toString", "constructor", "attributionSrc"]);
+  reseat(P_Area, ["alt", "coords", "download", "shape", "ping", "rel", "relList", "referrerPolicy", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash", "noHref", "target", "href", "toString", "constructor", "attributionSrc"]);
 }
 
 // ---- HTMLBRElement.prototype (Chrome own order, 2 names)
@@ -6561,9 +6561,6 @@ if (P_Button) {
   if (!has(P_Button, 'type')) P.reflector(P_Button, 'type', {"attr": "type", "iface": "HTMLButtonElement", "invalid": "submit", "kind": "enum", "map": {"button": "button", "reset": "reset"}, "missing": "submit"});
   delete P_Button['value'];
   if (!has(P_Button, 'value')) P.reflector(P_Button, 'value', {"attr": "value", "iface": "HTMLButtonElement", "kind": "string"});
-  if (!has(P_Button, 'commandForElement') && !delegate(P_Button, 'commandForElement', 'str')) P.accessor(P_Button, 'commandForElement', function __f() { return B.get('Button.commandForElement', this); }, function __f(x) { B.set('Button.commandForElement', this, x); });
-  if (!has(P_Button, 'command') && !delegate(P_Button, 'command', 'str')) P.reflector(P_Button, 'command', {"attr": "command", "iface": "HTMLButtonElement", "invalid": "", "kind": "enum", "map": {}, "missing": ""});
-  else wrapSet(P_Button, 'command', 'str');
   if (!has(P_Button, 'willValidate')) delegate(P_Button, 'willValidate');
   if (!has(P_Button, 'validity')) delegate(P_Button, 'validity');
   if (!has(P_Button, 'validationMessage')) delegate(P_Button, 'validationMessage');
@@ -6571,11 +6568,14 @@ if (P_Button) {
   if (!has(P_Button, 'popoverTargetElement') && !delegate(P_Button, 'popoverTargetElement', 'str')) P.accessor(P_Button, 'popoverTargetElement', function __f() { return B.get('Button.popoverTargetElement', this); }, function __f(x) { B.set('Button.popoverTargetElement', this, x); });
   if (!has(P_Button, 'popoverTargetAction') && !delegate(P_Button, 'popoverTargetAction', 'str')) P.reflector(P_Button, 'popoverTargetAction', {"attr": "popovertargetaction", "iface": "HTMLButtonElement", "invalid": "toggle", "kind": "enum", "map": {}, "missing": "toggle"});
   else wrapSet(P_Button, 'popoverTargetAction', 'str');
+  if (!has(P_Button, 'commandForElement') && !delegate(P_Button, 'commandForElement', 'str')) P.accessor(P_Button, 'commandForElement', function __f() { return B.get('Button.commandForElement', this); }, function __f(x) { B.set('Button.commandForElement', this, x); });
+  if (!has(P_Button, 'command') && !delegate(P_Button, 'command', 'str')) P.reflector(P_Button, 'command', {"attr": "command", "iface": "HTMLButtonElement", "invalid": "", "kind": "enum", "map": {}, "missing": ""});
+  else wrapSet(P_Button, 'command', 'str');
+  if (!has(P_Button, 'interestForElement')) delegate(P_Button, 'interestForElement');
   if (!has(P_Button, 'checkValidity')) delegateFn(P_Button, 'checkValidity', 0);
   if (!has(P_Button, 'reportValidity')) delegateFn(P_Button, 'reportValidity', 0);
   if (!has(P_Button, 'setCustomValidity')) delegateFn(P_Button, 'setCustomValidity', 1);
-  if (!has(P_Button, 'interestForElement')) delegate(P_Button, 'interestForElement');
-  reseat(P_Button, ["disabled", "form", "formAction", "formEnctype", "formMethod", "formNoValidate", "formTarget", "name", "type", "value", "commandForElement", "command", "willValidate", "validity", "validationMessage", "labels", "popoverTargetElement", "popoverTargetAction", "checkValidity", "reportValidity", "setCustomValidity", "interestForElement", "constructor"]);
+  reseat(P_Button, ["disabled", "form", "formAction", "formEnctype", "formMethod", "formNoValidate", "formTarget", "name", "type", "value", "willValidate", "validity", "validationMessage", "labels", "popoverTargetElement", "popoverTargetAction", "commandForElement", "command", "interestForElement", "checkValidity", "reportValidity", "setCustomValidity", "constructor"]);
 }
 
 // ---- HTMLDListElement.prototype (Chrome own order, 2 names)
@@ -6703,6 +6703,7 @@ if (P_HR) {
 
 // ---- HTMLIFrameElement.prototype (Chrome own order, 28 names)
 if (P_IFrame) {
+  // staged: sharedStorageWritable - Shared Storage origin trial; not Chrome-released
   if (!has(P_IFrame, 'src') && !delegate(P_IFrame, 'src', 'str')) P.reflector(P_IFrame, 'src', {"attr": "src", "iface": "HTMLIFrameElement", "kind": "url"});
   else wrapSet(P_IFrame, 'src', 'str');
   if (!has(P_IFrame, 'srcdoc') && !delegate(P_IFrame, 'srcdoc', 'str')) P.reflector(P_IFrame, 'srcdoc', {"attr": "srcdoc", "iface": "HTMLIFrameElement", "kind": "string"});
@@ -6742,7 +6743,6 @@ if (P_IFrame) {
   // staged: privateToken - Private State Token flag; not Chrome-released
   // staged: browsingTopics - Topics API origin trial; not Chrome-released
   // staged: adAuctionHeaders - Protected Audience flag; not Chrome-released
-  // staged: sharedStorageWritable - Shared Storage origin trial; not Chrome-released
   reseat(P_IFrame, ["src", "srcdoc", "name", "sandbox", "allowFullscreen", "width", "height", "contentDocument", "contentWindow", "referrerPolicy", "csp", "allow", "loading", "align", "scrolling", "frameBorder", "longDesc", "marginHeight", "marginWidth", "getSVGDocument", "credentialless", "allowPaymentRequest", "constructor"]);
 }
 
