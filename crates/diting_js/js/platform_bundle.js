@@ -3325,16 +3325,13 @@ function mkEvent(name, dict, members) {
   return { C, proto };
 }
 function evSlot(o, fn) { const s = o !== null && typeof o === 'object' ? evSlots.get(o) : undefined; if (s === undefined) P.illegal(fn); return s; }
-const TUE = mkEvent('TextUpdateEvent', 'TextUpdateEventInit', { selectionEnd: 'ulong', selectionStart: 'ulong', text: 'string', updateRangeEnd: 'ulong', updateRangeStart: 'ulong' });
-for (const m of ['updateRangeStart', 'updateRangeEnd', 'text', 'selectionStart', 'selectionEnd']) P.getter(TUE.proto, m, function __f() { return evSlot(this, __f)[m]; });
-P.seal(TUE.C);
+// TextUpdateEvent is generated (gen/textupdate).
 const TFUE = mkEvent('TextFormatUpdateEvent', 'TextFormatUpdateEventInit', { textFormats: 'formats' });
 P.method(TFUE.proto, 'getTextFormats', 0, function __f() { return evSlot(this, __f).textFormats.slice(); });
 P.seal(TFUE.C);
 // CharacterBoundsUpdateEvent is generated (gen/characterbounds).
 
 P.expose('EditContext', EditContext);
-P.expose('TextUpdateEvent', TUE.C);
 P.expose('TextFormatUpdateEvent', TFUE.C);
 });
 
@@ -7658,6 +7655,45 @@ P.expose('TextFormat', TextFormat);
 P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "rangeStart"}, {"kind": "getter", "length": 0, "name": "rangeEnd"}, {"kind": "getter", "length": 0, "name": "underlineStyle"}, {"kind": "getter", "length": 0, "name": "underlineThickness"}], "name": "TextFormat", "statics": []});
 
 if (B.ready) B.ready();
+});
+
+// ---- module gen/textupdate (L2) ----
+__platform.define("gen/textupdate", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- TextUpdateEvent (generated from tools/webplatform/spec/textupdate.json) ----
+const slotsTextUpdateEvent = new WeakMap();
+function isTextUpdateEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsTextUpdateEvent.has(v); }
+function TextUpdateEvent(type) {
+  if (!new.target) P.fail(TextUpdateEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'TextUpdateEvent'");
+  const ctx = "Failed to construct 'TextUpdateEvent'";
+  P.args(ctx, arguments.length, 1, TextUpdateEvent);
+  const t = conv.DOMString(type, ctx, TextUpdateEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(TextUpdateEvent, "The provided value is not of type 'TextUpdateEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'TextUpdateEventInit';
+  { const FIELD = 'selectionEnd'; const raw = (init === undefined || init === null) ? undefined : init.selectionEnd; s.selectionEnd = (raw === undefined) ? 0 : conv.unsignedLong(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TextUpdateEvent); }
+  { const FIELD = 'selectionStart'; const raw = (init === undefined || init === null) ? undefined : init.selectionStart; s.selectionStart = (raw === undefined) ? 0 : conv.unsignedLong(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TextUpdateEvent); }
+  { const FIELD = 'text'; const raw = (init === undefined || init === null) ? undefined : init.text; s.text = (raw === undefined) ? "" : conv.DOMString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TextUpdateEvent); }
+  { const FIELD = 'updateRangeEnd'; const raw = (init === undefined || init === null) ? undefined : init.updateRangeEnd; s.updateRangeEnd = (raw === undefined) ? 0 : conv.unsignedLong(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TextUpdateEvent); }
+  { const FIELD = 'updateRangeStart'; const raw = (init === undefined || init === null) ? undefined : init.updateRangeStart; s.updateRangeStart = (raw === undefined) ? 0 : conv.unsignedLong(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TextUpdateEvent); }
+  slotsTextUpdateEvent.set(self, s);
+  return self;
+}
+const protoTextUpdateEvent = P.iface(TextUpdateEvent, 'TextUpdateEvent', 1, Event);
+P.getter(protoTextUpdateEvent, 'updateRangeStart', function __f() { const s = slotsTextUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.updateRangeStart; });
+P.getter(protoTextUpdateEvent, 'updateRangeEnd', function __f() { const s = slotsTextUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.updateRangeEnd; });
+P.getter(protoTextUpdateEvent, 'text', function __f() { const s = slotsTextUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.text; });
+P.getter(protoTextUpdateEvent, 'selectionStart', function __f() { const s = slotsTextUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.selectionStart; });
+P.getter(protoTextUpdateEvent, 'selectionEnd', function __f() { const s = slotsTextUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.selectionEnd; });
+P.seal(TextUpdateEvent);
+P.expose('TextUpdateEvent', TextUpdateEvent);
+exports.TextUpdateEvent = TextUpdateEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "updateRangeStart"}, {"kind": "getter", "length": 0, "name": "updateRangeEnd"}, {"kind": "getter", "length": 0, "name": "text"}, {"kind": "getter", "length": 0, "name": "selectionStart"}, {"kind": "getter", "length": 0, "name": "selectionEnd"}], "name": "TextUpdateEvent", "statics": []});
 });
 
 // ---- module gen/transitionevent (L2) ----
