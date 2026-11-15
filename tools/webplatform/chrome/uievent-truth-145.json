@@ -1078,8 +1078,8 @@
     "twist",
     "pointerType",
     "isPrimary",
-    "getPredictedEvents",
     "persistentDeviceId",
+    "getPredictedEvents",
     "constructor",
     "getCoalescedEvents"
    ],

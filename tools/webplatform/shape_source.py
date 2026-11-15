@@ -2,10 +2,10 @@
 
 chrome-target.toml says the product is Chrome 157.0.8103.38.
 ACCEPTANCE is the capture we measure against (local Chrome 157.0.8103.52,
-962 interfaces). BUILT_FROM is the capture the checked-in generated JS was
-produced from. They stay different until shape_fix, stub_members and
-sym_fix are regenerated from an engine capture taken with those scripts
-disabled. See docs/项目整理-20261115.md.
+962 interfaces). shape_audit.py and gen_shape_fix.py read it.
+BUILT_FROM is still the 145 capture. stub_members, sym_fix, lift_own,
+svg_filters and the global_surface prototype repair read it until each
+is regenerated on its own. See docs/项目整理-20261115.md.
 """
 import os
 
