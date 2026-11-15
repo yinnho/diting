@@ -7328,6 +7328,37 @@ exports.MediaQueryListEvent = MediaQueryListEvent;
 P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "media"}, {"kind": "getter", "length": 0, "name": "matches"}], "name": "MediaQueryListEvent", "statics": []});
 });
 
+// ---- module gen/pagetransitionevent (L2) ----
+__platform.define("gen/pagetransitionevent", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- PageTransitionEvent (generated from tools/webplatform/spec/page-transition.json) ----
+const slotsPageTransitionEvent = new WeakMap();
+function isPageTransitionEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsPageTransitionEvent.has(v); }
+function PageTransitionEvent(type) {
+  if (!new.target) P.fail(PageTransitionEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'PageTransitionEvent'");
+  const ctx = "Failed to construct 'PageTransitionEvent'";
+  P.args(ctx, arguments.length, 1, PageTransitionEvent);
+  const t = conv.DOMString(type, ctx, PageTransitionEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(PageTransitionEvent, "The provided value is not of type 'PageTransitionEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'PageTransitionEventInit';
+  { const FIELD = 'persisted'; const raw = (init === undefined || init === null) ? undefined : init.persisted; s.persisted = (raw === undefined) ? false : conv.boolean(raw); }
+  slotsPageTransitionEvent.set(self, s);
+  return self;
+}
+const protoPageTransitionEvent = P.iface(PageTransitionEvent, 'PageTransitionEvent', 1, Event);
+P.getter(protoPageTransitionEvent, 'persisted', function __f() { const s = slotsPageTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.persisted; });
+P.seal(PageTransitionEvent);
+P.expose('PageTransitionEvent', PageTransitionEvent);
+exports.PageTransitionEvent = PageTransitionEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "persisted"}], "name": "PageTransitionEvent", "statics": []});
+});
+
 // ---- module phrase (L2) ----
 __platform.define("phrase", function (exports, require, P) {
 "use strict";

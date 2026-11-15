@@ -1,0 +1,117 @@
+{
+ "includes": [],
+ "names": {
+  "PageTransitionEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface PageTransitionEvent : Event {\n  constructor(DOMString type, optional PageTransitionEventInit eventInitDict = {});\n\n  readonly attribute boolean persisted;\n};",
+   "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#pagetransitionevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "PageTransitionEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "eventInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-pagetransitionevent-persisted",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "persisted",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "PageTransitionEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "PageTransitionEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary PageTransitionEventInit : EventInit {\n  boolean persisted = false;\n};",
+   "href": "https://html.spec.whatwg.org/multipage/nav-history-apis.html#pagetransitioneventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "boolean",
+      "value": false
+     },
+     "extAttrs": [],
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "persisted",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "PageTransitionEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "PageTransitionEvent": "https://html.spec.whatwg.org/multipage/",
+  "PageTransitionEventInit": "https://html.spec.whatwg.org/multipage/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

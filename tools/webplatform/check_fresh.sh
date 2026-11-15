@@ -28,6 +28,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/css-contain.json crates/diting_js/js/platform/gen/contentvisibilityevent.gen.js gen/contentvisibilityevent
   python3 $WP/gen/gen_iface.py $WP/spec/xhr.json crates/diting_js/js/platform/gen/progressevent.gen.js gen/progressevent
   python3 $WP/gen/gen_iface.py $WP/spec/cssom-view.json crates/diting_js/js/platform/gen/mediaquerylistevent.gen.js gen/mediaquerylistevent
+  python3 $WP/gen/gen_iface.py $WP/spec/page-transition.json crates/diting_js/js/platform/gen/pagetransitionevent.gen.js gen/pagetransitionevent
   python3 $WP/gen/gen_iface.py $WP/spec/webvtt.json crates/diting_js/js/platform/gen/vttcue.gen.js gen/vttcue $WP/chrome/vttcue-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/speech-phrase.json crates/diting_js/js/platform/gen/phrase.gen.js gen/phrase $WP/chrome/phrase-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-145.json patch-common
@@ -94,6 +95,10 @@ diff -q "$tmp/progressevent.gen.js" crates/diting_js/js/platform/gen/progresseve
 python3 $WP/gen/gen_iface.py $WP/spec/cssom-view.json "$tmp/mediaquerylistevent.gen.js" gen/mediaquerylistevent >/dev/null
 diff -q "$tmp/mediaquerylistevent.gen.js" crates/diting_js/js/platform/gen/mediaquerylistevent.gen.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform/gen/mediaquerylistevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
+# PageTransitionEvent: one boolean. Replaces the throw stub.
+python3 $WP/gen/gen_iface.py $WP/spec/page-transition.json "$tmp/pagetransitionevent.gen.js" gen/pagetransitionevent >/dev/null
+diff -q "$tmp/pagetransitionevent.gen.js" crates/diting_js/js/platform/gen/pagetransitionevent.gen.js >/dev/null \
+  || { echo "FAIL: crates/diting_js/js/platform/gen/pagetransitionevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
 # 3b. the patch-strategy modules (HTMLElement common layer, media/image family,
 # HTML reflect family) are measured-truth products too: regenerate and diff
 gen_patch() { # <spec> <name> <truth> <strategy>
