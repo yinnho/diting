@@ -1,0 +1,18 @@
+{
+ "result": {
+  "shape.SpeechRecognitionPhrase": {
+   "len": 1,
+   "members": {
+    "boost": "ro",
+    "constructor": "function",
+    "phrase": "ro"
+   },
+   "name": "SpeechRecognitionPhrase",
+   "order": [
+    "phrase",
+    "boost",
+    "constructor"
+   ]
+  }
+ }
+}

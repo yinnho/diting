@@ -1,0 +1,111 @@
+{
+ "includes": [],
+ "names": {
+  "SpeechRecognitionPhrase": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "SecureContext",
+     "rhs": null,
+     "type": "extended-attribute"
+    },
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "// The object representing a phrase for contextual biasing.\n[SecureContext, Exposed=Window]\ninterface SpeechRecognitionPhrase {\n    constructor(DOMString phrase, optional float boost = 1.0);\n    readonly attribute DOMString phrase;\n    readonly attribute float boost;\n};",
+   "href": "https://webaudio.github.io/web-speech-api/#speechrecognitionphrase",
+   "inheritance": null,
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "phrase",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "number",
+        "value": "1.0"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "float",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "boost",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://webaudio.github.io/web-speech-api/#dom-speechrecognitionphrase-speechrecognitionphrase",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://webaudio.github.io/web-speech-api/#dom-speechrecognitionphrase-phrase",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "phrase",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://webaudio.github.io/web-speech-api/#dom-speechrecognitionphrase-boost",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "float",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "boost",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "SpeechRecognitionPhrase",
+   "partial": false,
+   "type": "interface"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "SpeechRecognitionPhrase": "https://webaudio.github.io/web-speech-api/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}
