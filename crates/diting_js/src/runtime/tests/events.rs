@@ -525,6 +525,45 @@ fn test_media_query_list_event_media_and_matches() {
 }
 
 #[test]
+fn test_page_transition_event_persisted_defaults() {
+    // HTML: persisted defaults to false. The face is generated.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt
+        .evaluate(
+            r#"
+            const a = new PageTransitionEvent('pageshow');
+            const b = new PageTransitionEvent('pagehide', { persisted: 1 });
+            const c = new PageTransitionEvent('pageshow', { persisted: 0 });
+            let threw = '';
+            try { new PageTransitionEvent(); } catch (e) { threw = e.name + ':' + e.message; }
+            return [
+                a instanceof PageTransitionEvent, a instanceof Event, a.type, a.persisted,
+                b.persisted, b.type, c.persisted,
+                Object.getOwnPropertyNames(PageTransitionEvent.prototype),
+                PageTransitionEvent.length,
+                threw,
+            ];
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!([
+            true,
+            true,
+            "pageshow",
+            false,
+            true,
+            "pagehide",
+            false,
+            ["persisted", "constructor"],
+            1,
+            "TypeError:Failed to construct 'PageTransitionEvent': 1 argument required, but only 0 present."
+        ])
+    );
+}
+
+#[test]
 fn test_pointer_event_class_matches_chrome_defaults() {
     // A weak `PointerEvent extends Event` used to squat on the name,
     // keeping the real MouseEvent subclass dead behind its typeof-guard.
