@@ -1165,6 +1165,13 @@ P.expose('%(n)s', %(n)s);""" % {"n": name, "g": getter_op, "s": setter_op, "d": 
         for f in fields:
             W("  { const FIELD = '%s'; const raw = (init === undefined || init === null) ? undefined : init.%s; s.%s = (raw === undefined) ? %s : %s; }" % (
                 f["name"], f["name"], f["name"], js_default(f.get("default")), conv_expr(f["idlType"], "raw", "ctx", what="dict", fn=name)))
+        # Chrome 157: AnimationEvent and TransitionEvent expose pseudoTarget
+        # and animation. They are not init-dictionary fields; a script
+        # constructor reads them as null.
+        dict_names = {f["name"] for f in fields}
+        for a in attrs:
+            if a["name"] not in dict_names:
+                W("  s.%s = null;" % a["name"])
         W("  slots%s.set(self, s);" % name)
         W("  return self;")
         W("}")

@@ -1,0 +1,48 @@
+{
+ "result": {
+  "shape.RTCIceCandidate": {
+   "len": 0,
+   "members": {
+    "address": "ro",
+    "candidate": "ro",
+    "component": "ro",
+    "constructor": "function",
+    "foundation": "ro",
+    "port": "ro",
+    "priority": "ro",
+    "protocol": "ro",
+    "relatedAddress": "ro",
+    "relatedPort": "ro",
+    "relayProtocol": "ro",
+    "sdpMLineIndex": "ro",
+    "sdpMid": "ro",
+    "tcpType": "ro",
+    "toJSON": "function",
+    "type": "ro",
+    "url": "ro",
+    "usernameFragment": "ro"
+   },
+   "name": "RTCIceCandidate",
+   "order": [
+    "candidate",
+    "sdpMid",
+    "sdpMLineIndex",
+    "foundation",
+    "component",
+    "priority",
+    "address",
+    "protocol",
+    "port",
+    "type",
+    "tcpType",
+    "relatedAddress",
+    "relatedPort",
+    "usernameFragment",
+    "relayProtocol",
+    "url",
+    "toJSON",
+    "constructor"
+   ]
+  }
+ }
+}

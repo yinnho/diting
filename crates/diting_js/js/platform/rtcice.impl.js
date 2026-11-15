@@ -1,6 +1,6 @@
 //! module: rtcice
 //! layer: L2
-//! exposes: RTCIceCandidate
+//! exposes: -
 //! requires-load: -
 //! requires-call: -
 
@@ -56,52 +56,53 @@ function parseCandidate(str) {
   return r;
 }
 
-const PRE = "Failed to construct 'RTCIceCandidate'";
 function ushort(v) {
   const n = Number(v);
   return isFinite(n) ? ((Math.trunc(n) % 65536) + 65536) % 65536 : 0;
 }
-function RTCIceCandidate() {
-  if (new.target === undefined) P.fail(RTCIceCandidate, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", PRE);
-  let init = arguments[0];
+function slotOf(target, fn) {
+  const s = target !== null && typeof target === 'object' ? slots.get(target) : undefined;
+  if (!s) P.illegal(fn);
+  return s;
+}
+const DIRECT = { candidate: 1, sdpMid: 1, sdpMLineIndex: 1, usernameFragment: 1 };
+const ALWAYS_NULL = { relayProtocol: 1, url: 1 };
+
+// The class shape is generated (gen/rtcice). The optional dictionary is not
+// a simple argument, and unsigned short / the candidate-attribute parse stay
+// here. Slots live on the constructed object.
+exports.ctor = function ctor(iface, target, ctx, args) {
+  let init = args[0];
   if (init === null) init = undefined;
   if (init !== undefined && typeof init !== 'object' && typeof init !== 'function') {
-    P.fail(RTCIceCandidate, "The provided value is not of type 'RTCIceCandidateInit'.", PRE);
+    P.fail(ctor, "The provided value is not of type 'RTCIceCandidateInit'.", ctx);
   }
   const o = init === undefined ? {} : init;
-  const rd = (k) => PRE + ": Failed to read the '" + k + "' property from 'RTCIceCandidateInit'";
-  // dictionary members in WebIDL (lexicographic) order
-  const candidate = o.candidate === undefined ? '' : P.conv.DOMString(o.candidate, rd('candidate'), RTCIceCandidate);
+  const rd = (k) => ctx + ": Failed to read the '" + k + "' property from 'RTCIceCandidateInit'";
+  const candidate = o.candidate === undefined ? '' : P.conv.DOMString(o.candidate, rd('candidate'), ctor);
   let sdpMLineIndex = null;
   if (o.sdpMLineIndex !== undefined && o.sdpMLineIndex !== null) {
-    if (typeof o.sdpMLineIndex === 'symbol') P.fail(RTCIceCandidate, 'Cannot convert a Symbol value to a number', rd('sdpMLineIndex'));
+    if (typeof o.sdpMLineIndex === 'symbol') P.fail(ctor, 'Cannot convert a Symbol value to a number', rd('sdpMLineIndex'));
     sdpMLineIndex = ushort(o.sdpMLineIndex);
   }
-  const nstr = (k) => (o[k] === undefined || o[k] === null ? null : P.conv.DOMString(o[k], rd(k), RTCIceCandidate));
+  const nstr = (k) => (o[k] === undefined || o[k] === null ? null : P.conv.DOMString(o[k], rd(k), ctor));
   const sdpMid = nstr('sdpMid');
   const usernameFragment = nstr('usernameFragment');
-  if (sdpMid === null && sdpMLineIndex === null) P.fail(RTCIceCandidate, 'sdpMid and sdpMLineIndex are both null.', PRE);
-  const self = Reflect.construct(Object, [], new.target);
-  slots.set(self, { candidate, sdpMid, sdpMLineIndex, usernameFragment, parsed: parseCandidate(candidate) });
-  return self;
-}
-const RP = P.iface(RTCIceCandidate, 'RTCIceCandidate', 0);
-function slot(o, fn) { const s = o !== null && typeof o === 'object' ? slots.get(o) : undefined; if (!s) P.illegal(fn); return s; }
-// Chrome's own order: candidate, sdpMid, sdpMLineIndex, then the parsed fields,
-// usernameFragment after relatedPort, relayProtocol and url last
-const PARSED = ['foundation', 'component', 'priority', 'address', 'protocol', 'port', 'type', 'tcpType', 'relatedAddress', 'relatedPort'];
-for (const m of ['candidate', 'sdpMid', 'sdpMLineIndex']) P.getter(RP, m, function __f() { return slot(this, __f)[m]; });
-for (const m of PARSED) P.getter(RP, m, function __f() { const s = slot(this, __f); return s.parsed === null ? null : s.parsed[m]; });
-P.getter(RP, 'usernameFragment', function __f() { return slot(this, __f).usernameFragment; });
-P.getter(RP, 'relayProtocol', function __f() { slot(this, __f); return null; });
-P.getter(RP, 'url', function __f() { slot(this, __f); return null; });
-P.method(RP, 'toJSON', 0, function __f() {
-  const s = slot(this, __f);
+  if (sdpMid === null && sdpMLineIndex === null) P.fail(ctor, 'sdpMid and sdpMLineIndex are both null.', ctx);
+  slots.set(target, { candidate, sdpMid, sdpMLineIndex, usernameFragment, parsed: parseCandidate(candidate) });
+};
+
+exports.get = function get(iface, member, target) {
+  const s = slotOf(target, get);
+  if (ALWAYS_NULL[member]) return null;
+  if (DIRECT[member]) return s[member];
+  return s.parsed === null ? null : s.parsed[member];
+};
+
+exports.call = function call(iface, member, target) {
+  const s = slotOf(target, call);
   const j = { candidate: s.candidate, sdpMid: s.sdpMid === null ? '' : s.sdpMid };
   if (s.sdpMLineIndex !== null) j.sdpMLineIndex = s.sdpMLineIndex;
   j.usernameFragment = s.usernameFragment === null ? '' : s.usernameFragment;
   return j;
-});
-P.seal(RTCIceCandidate);
-
-P.expose('RTCIceCandidate', RTCIceCandidate);
+};

@@ -1,0 +1,328 @@
+{
+ "includes": [],
+ "names": {
+  "RTCIceCandidate": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface RTCIceCandidate {\n  constructor(optional RTCLocalIceCandidateInit candidateInitDict = {});\n  readonly attribute DOMString candidate;\n  readonly attribute DOMString? sdpMid;\n  readonly attribute unsigned short? sdpMLineIndex;\n  readonly attribute DOMString? foundation;\n  readonly attribute RTCIceComponent? component;\n  readonly attribute unsigned long? priority;\n  readonly attribute DOMString? address;\n  readonly attribute RTCIceProtocol? protocol;\n  readonly attribute unsigned short? port;\n  readonly attribute RTCIceCandidateType? type;\n  readonly attribute RTCIceTcpCandidateType? tcpType;\n  readonly attribute DOMString? relatedAddress;\n  readonly attribute unsigned short? relatedPort;\n  readonly attribute DOMString? usernameFragment;\n  readonly attribute RTCIceServerTransportProtocol? relayProtocol;\n  readonly attribute USVString? url;\n  RTCIceCandidateInit toJSON();\n};",
+   "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate",
+   "inheritance": null,
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "RTCLocalIceCandidateInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "candidateInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-constructor",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-candidate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "candidate",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-sdpmid",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "sdpMid",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-sdpmlineindex",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "sdpMLineIndex",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-foundation",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "foundation",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-component",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "RTCIceComponent",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "component",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-priority",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "priority",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-address",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "address",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-protocol",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "RTCIceProtocol",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "protocol",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-port",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "port",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-type",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "RTCIceCandidateType",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "type",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-tcptype",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "RTCIceTcpCandidateType",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "tcpType",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-relatedaddress",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "relatedAddress",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-relatedport",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned short",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "relatedPort",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-usernamefragment",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "DOMString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "usernameFragment",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-relayprotocol",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "RTCIceServerTransportProtocol",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "relayProtocol",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-url",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "USVString",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "url",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-tojson",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "RTCIceCandidateInit",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "toJSON",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "RTCIceCandidate",
+   "partial": false,
+   "type": "interface"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "RTCIceCandidate": "https://w3c.github.io/webrtc-pc/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

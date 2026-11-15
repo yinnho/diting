@@ -13,7 +13,7 @@
      "type": "extended-attribute"
     }
    ],
-   "fragment": "[Exposed=Window]\ninterface AnimationEvent : Event {\n  constructor(CSSOMString type, optional AnimationEventInit animationEventInitDict = {});\n  readonly attribute CSSOMString animationName;\n  readonly attribute double elapsedTime;\n  readonly attribute CSSOMString pseudoElement;\n};",
+   "fragment": "[Exposed=Window]\ninterface AnimationEvent : Event {\n  constructor(CSSOMString type, optional AnimationEventInit animationEventInitDict = {});\n  readonly attribute CSSOMString animationName;\n  readonly attribute double elapsedTime;\n  readonly attribute CSSOMString pseudoElement;\n  readonly attribute CSSPseudoElement? pseudoTarget;\n  readonly attribute Animation? animation;\n};",
    "href": "https://drafts.csswg.org/css-animations-1/#animationevent",
    "inheritance": "Event",
    "members": [
@@ -102,6 +102,38 @@
       "union": false
      },
      "name": "pseudoElement",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSPseudoElement",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "pseudoTarget",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "Animation",
+      "nullable": true,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "animation",
      "readonly": true,
      "special": "",
      "type": "attribute"

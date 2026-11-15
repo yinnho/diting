@@ -4296,6 +4296,8 @@ function AnimationEvent(type) {
   { const FIELD = 'animationName'; const raw = (init === undefined || init === null) ? undefined : init.animationName; s.animationName = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
   { const FIELD = 'elapsedTime'; const raw = (init === undefined || init === null) ? undefined : init.elapsedTime; s.elapsedTime = (raw === undefined) ? 0.0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
   { const FIELD = 'pseudoElement'; const raw = (init === undefined || init === null) ? undefined : init.pseudoElement; s.pseudoElement = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
+  s.pseudoTarget = null;
+  s.animation = null;
   slotsAnimationEvent.set(self, s);
   return self;
 }
@@ -4303,10 +4305,12 @@ const protoAnimationEvent = P.iface(AnimationEvent, 'AnimationEvent', 1, Event);
 P.getter(protoAnimationEvent, 'animationName', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.animationName; });
 P.getter(protoAnimationEvent, 'elapsedTime', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.elapsedTime; });
 P.getter(protoAnimationEvent, 'pseudoElement', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoElement; });
+P.getter(protoAnimationEvent, 'pseudoTarget', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoTarget; });
+P.getter(protoAnimationEvent, 'animation', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.animation; });
 P.seal(AnimationEvent);
 P.expose('AnimationEvent', AnimationEvent);
 exports.AnimationEvent = AnimationEvent;
-P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "AnimationEvent", "statics": []});
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}, {"kind": "getter", "length": 0, "name": "pseudoTarget"}, {"kind": "getter", "length": 0, "name": "animation"}], "name": "AnimationEvent", "statics": []});
 });
 
 // ---- module gen/characterbounds (L2) ----
@@ -7500,6 +7504,153 @@ exports.ProgressEvent = ProgressEvent;
 P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "lengthComputable"}, {"kind": "getter", "length": 0, "name": "loaded"}, {"kind": "getter", "length": 0, "name": "total"}], "name": "ProgressEvent", "statics": []});
 });
 
+// ---- module rtcice (L2) ----
+__platform.define("rtcice", function (exports, require, P) {
+"use strict";
+// RTCIceCandidate (M4 knife 13). The bootstrap class only stored `candidate`;
+// Chrome parses the candidate-attribute string into foundation / component /
+// priority / address / protocol / port / type / tcpType / relatedAddress /
+// relatedPort, and the parse is ALL-OR-NOTHING: any malformed token leaves
+// every parsed field null. Pinned by chrome/rtcice-truth-145.json
+// (rtcice-probe.js, 72 keys: a 43-candidate corpus, constructor conversions
+// and validation, toJSON) and diffed by rtcice_matches_chrome_truth.
+
+const slots = new WeakMap();
+
+const TYPES = new Set(['host', 'srflx', 'prflx', 'relay']);
+const TCP_TYPES = new Set(['active', 'passive', 'so']);
+
+// candidate-attribute: [a=]candidate:<foundation> <component> <transport>
+// <priority> <address> <port> typ <type> [raddr <a>] [rport <n>] [tcptype <t>]
+// followed by extension attributes that are ignored. Single spaces only,
+// lowercase `typ` and type keywords, transport case-insensitive (udp/tcp).
+function parseCandidate(str) {
+  let s = str;
+  if (s.startsWith('a=')) s = s.slice(2);
+  s = s.replace(/\r?\n$/, '');
+  if (!s.startsWith('candidate:')) return null;
+  const t = s.slice('candidate:'.length).split(' ');
+  if (t.length < 8) return null;
+  const [foundation, comp, transport, prio, addr, port, typ, type] = t;
+  if (foundation === '' || !/^[0-9]+$/.test(comp) || !/^[0-9]+$/.test(prio) || !/^[0-9]+$/.test(port)) return null;
+  const proto = transport.toLowerCase();
+  if (proto !== 'udp' && proto !== 'tcp') return null;
+  const priority = Number(prio), portN = Number(port);
+  if (priority > 4294967295 || portN > 65535) return null;
+  if (addr === '' || typ !== 'typ' || !TYPES.has(type)) return null;
+  const r = { foundation, component: comp === '1' ? 'rtp' : comp === '2' ? 'rtcp' : null, priority, protocol: proto,
+    address: addr.includes(':') && !addr.startsWith('[') ? '[' + addr + ']' : addr, port: portN, type,
+    tcpType: null, relatedAddress: null, relatedPort: null };
+  let raddr = null, rport = null;
+  for (let i = 8; i + 1 < t.length; i++) {
+    if (t[i] === 'raddr') { raddr = t[i + 1]; i++; }
+    else if (t[i] === 'rport') {
+      if (!/^[0-9]+$/.test(t[i + 1]) || Number(t[i + 1]) > 65535) return null;
+      rport = Number(t[i + 1]); i++;
+    } else if (t[i] === 'tcptype') {
+      if (!TCP_TYPES.has(t[i + 1])) return null;
+      r.tcpType = t[i + 1]; i++;
+    }
+  }
+  if (raddr !== null || rport !== null) {
+    r.relatedAddress = raddr === null ? '' : raddr;
+    r.relatedPort = rport === null ? 0 : rport;
+  }
+  return r;
+}
+
+function ushort(v) {
+  const n = Number(v);
+  return isFinite(n) ? ((Math.trunc(n) % 65536) + 65536) % 65536 : 0;
+}
+function slotOf(target, fn) {
+  const s = target !== null && typeof target === 'object' ? slots.get(target) : undefined;
+  if (!s) P.illegal(fn);
+  return s;
+}
+const DIRECT = { candidate: 1, sdpMid: 1, sdpMLineIndex: 1, usernameFragment: 1 };
+const ALWAYS_NULL = { relayProtocol: 1, url: 1 };
+
+// The class shape is generated (gen/rtcice). The optional dictionary is not
+// a simple argument, and unsigned short / the candidate-attribute parse stay
+// here. Slots live on the constructed object.
+exports.ctor = function ctor(iface, target, ctx, args) {
+  let init = args[0];
+  if (init === null) init = undefined;
+  if (init !== undefined && typeof init !== 'object' && typeof init !== 'function') {
+    P.fail(ctor, "The provided value is not of type 'RTCIceCandidateInit'.", ctx);
+  }
+  const o = init === undefined ? {} : init;
+  const rd = (k) => ctx + ": Failed to read the '" + k + "' property from 'RTCIceCandidateInit'";
+  const candidate = o.candidate === undefined ? '' : P.conv.DOMString(o.candidate, rd('candidate'), ctor);
+  let sdpMLineIndex = null;
+  if (o.sdpMLineIndex !== undefined && o.sdpMLineIndex !== null) {
+    if (typeof o.sdpMLineIndex === 'symbol') P.fail(ctor, 'Cannot convert a Symbol value to a number', rd('sdpMLineIndex'));
+    sdpMLineIndex = ushort(o.sdpMLineIndex);
+  }
+  const nstr = (k) => (o[k] === undefined || o[k] === null ? null : P.conv.DOMString(o[k], rd(k), ctor));
+  const sdpMid = nstr('sdpMid');
+  const usernameFragment = nstr('usernameFragment');
+  if (sdpMid === null && sdpMLineIndex === null) P.fail(ctor, 'sdpMid and sdpMLineIndex are both null.', ctx);
+  slots.set(target, { candidate, sdpMid, sdpMLineIndex, usernameFragment, parsed: parseCandidate(candidate) });
+};
+
+exports.get = function get(iface, member, target) {
+  const s = slotOf(target, get);
+  if (ALWAYS_NULL[member]) return null;
+  if (DIRECT[member]) return s[member];
+  return s.parsed === null ? null : s.parsed[member];
+};
+
+exports.call = function call(iface, member, target) {
+  const s = slotOf(target, call);
+  const j = { candidate: s.candidate, sdpMid: s.sdpMid === null ? '' : s.sdpMid };
+  if (s.sdpMLineIndex !== null) j.sdpMLineIndex = s.sdpMLineIndex;
+  j.usernameFragment = s.usernameFragment === null ? '' : s.usernameFragment;
+  return j;
+};
+});
+
+// ---- module gen/rtcice (L2) ----
+__platform.define("gen/rtcice", function (exports, require, P) {
+"use strict";
+// Strategy value (see gen_iface.py docstring).
+const conv = P.conv;
+
+const B = require('rtcice');
+
+// ---- RTCIceCandidate (generated from tools/webplatform/spec/webrtc-ice.json) ----
+function RTCIceCandidate() {
+  if (!new.target) P.fail(RTCIceCandidate, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'RTCIceCandidate'");
+  const ctx = "Failed to construct 'RTCIceCandidate'";
+  P.args(ctx, arguments.length, 0, RTCIceCandidate);
+  B.ctor('RTCIceCandidate', this, ctx, arguments);
+}
+const protoRTCIceCandidate = P.iface(RTCIceCandidate, 'RTCIceCandidate', 0);
+P.getter(protoRTCIceCandidate, 'candidate', function __f() { return B.get('RTCIceCandidate', 'candidate', this); });
+P.getter(protoRTCIceCandidate, 'sdpMid', function __f() { return B.get('RTCIceCandidate', 'sdpMid', this); });
+P.getter(protoRTCIceCandidate, 'sdpMLineIndex', function __f() { return B.get('RTCIceCandidate', 'sdpMLineIndex', this); });
+P.getter(protoRTCIceCandidate, 'foundation', function __f() { return B.get('RTCIceCandidate', 'foundation', this); });
+P.getter(protoRTCIceCandidate, 'component', function __f() { return B.get('RTCIceCandidate', 'component', this); });
+P.getter(protoRTCIceCandidate, 'priority', function __f() { return B.get('RTCIceCandidate', 'priority', this); });
+P.getter(protoRTCIceCandidate, 'address', function __f() { return B.get('RTCIceCandidate', 'address', this); });
+P.getter(protoRTCIceCandidate, 'protocol', function __f() { return B.get('RTCIceCandidate', 'protocol', this); });
+P.getter(protoRTCIceCandidate, 'port', function __f() { return B.get('RTCIceCandidate', 'port', this); });
+P.getter(protoRTCIceCandidate, 'type', function __f() { return B.get('RTCIceCandidate', 'type', this); });
+P.getter(protoRTCIceCandidate, 'tcpType', function __f() { return B.get('RTCIceCandidate', 'tcpType', this); });
+P.getter(protoRTCIceCandidate, 'relatedAddress', function __f() { return B.get('RTCIceCandidate', 'relatedAddress', this); });
+P.getter(protoRTCIceCandidate, 'relatedPort', function __f() { return B.get('RTCIceCandidate', 'relatedPort', this); });
+P.getter(protoRTCIceCandidate, 'usernameFragment', function __f() { return B.get('RTCIceCandidate', 'usernameFragment', this); });
+P.getter(protoRTCIceCandidate, 'relayProtocol', function __f() { return B.get('RTCIceCandidate', 'relayProtocol', this); });
+P.getter(protoRTCIceCandidate, 'url', function __f() { return B.get('RTCIceCandidate', 'url', this); });
+P.method(protoRTCIceCandidate, 'toJSON', 0, function __f() { const ctx = "Failed to execute 'toJSON' on 'RTCIceCandidate'"; P.args(ctx, arguments.length, 0, __f); return B.call('RTCIceCandidate', 'toJSON', this, ctx, arguments); });
+P.seal(RTCIceCandidate);
+P.expose('RTCIceCandidate', RTCIceCandidate);
+P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "candidate"}, {"kind": "getter", "length": 0, "name": "sdpMid"}, {"kind": "getter", "length": 0, "name": "sdpMLineIndex"}, {"kind": "getter", "length": 0, "name": "foundation"}, {"kind": "getter", "length": 0, "name": "component"}, {"kind": "getter", "length": 0, "name": "priority"}, {"kind": "getter", "length": 0, "name": "address"}, {"kind": "getter", "length": 0, "name": "protocol"}, {"kind": "getter", "length": 0, "name": "port"}, {"kind": "getter", "length": 0, "name": "type"}, {"kind": "getter", "length": 0, "name": "tcpType"}, {"kind": "getter", "length": 0, "name": "relatedAddress"}, {"kind": "getter", "length": 0, "name": "relatedPort"}, {"kind": "getter", "length": 0, "name": "usernameFragment"}, {"kind": "getter", "length": 0, "name": "relayProtocol"}, {"kind": "getter", "length": 0, "name": "url"}, {"kind": "method", "length": 0, "name": "toJSON"}], "name": "RTCIceCandidate", "statics": []});
+
+if (B.ready) B.ready();
+});
+
 // ---- module gen/storage (L2) ----
 __platform.define("gen/storage", function (exports, require, P) {
 "use strict";
@@ -7718,6 +7869,8 @@ function TransitionEvent(type) {
   { const FIELD = 'elapsedTime'; const raw = (init === undefined || init === null) ? undefined : init.elapsedTime; s.elapsedTime = (raw === undefined) ? 0.0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TransitionEvent); }
   { const FIELD = 'propertyName'; const raw = (init === undefined || init === null) ? undefined : init.propertyName; s.propertyName = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TransitionEvent); }
   { const FIELD = 'pseudoElement'; const raw = (init === undefined || init === null) ? undefined : init.pseudoElement; s.pseudoElement = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TransitionEvent); }
+  s.pseudoTarget = null;
+  s.animation = null;
   slotsTransitionEvent.set(self, s);
   return self;
 }
@@ -7725,10 +7878,12 @@ const protoTransitionEvent = P.iface(TransitionEvent, 'TransitionEvent', 1, Even
 P.getter(protoTransitionEvent, 'propertyName', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.propertyName; });
 P.getter(protoTransitionEvent, 'elapsedTime', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.elapsedTime; });
 P.getter(protoTransitionEvent, 'pseudoElement', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoElement; });
+P.getter(protoTransitionEvent, 'pseudoTarget', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoTarget; });
+P.getter(protoTransitionEvent, 'animation', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.animation; });
 P.seal(TransitionEvent);
 P.expose('TransitionEvent', TransitionEvent);
 exports.TransitionEvent = TransitionEvent;
-P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "propertyName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "TransitionEvent", "statics": []});
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "propertyName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}, {"kind": "getter", "length": 0, "name": "pseudoTarget"}, {"kind": "getter", "length": 0, "name": "animation"}], "name": "TransitionEvent", "statics": []});
 });
 
 // ---- module vttcue (L2) ----
@@ -8375,112 +8530,6 @@ P.stat(Notification, 'requestPermission', 0, function requestPermission(callback
 });
 
 P.expose('Notification', Notification);
-});
-
-// ---- module rtcice (L2) ----
-__platform.define("rtcice", function (exports, require, P) {
-"use strict";
-// RTCIceCandidate (M4 knife 13). The bootstrap class only stored `candidate`;
-// Chrome parses the candidate-attribute string into foundation / component /
-// priority / address / protocol / port / type / tcpType / relatedAddress /
-// relatedPort, and the parse is ALL-OR-NOTHING: any malformed token leaves
-// every parsed field null. Pinned by chrome/rtcice-truth-145.json
-// (rtcice-probe.js, 72 keys: a 43-candidate corpus, constructor conversions
-// and validation, toJSON) and diffed by rtcice_matches_chrome_truth.
-
-const slots = new WeakMap();
-
-const TYPES = new Set(['host', 'srflx', 'prflx', 'relay']);
-const TCP_TYPES = new Set(['active', 'passive', 'so']);
-
-// candidate-attribute: [a=]candidate:<foundation> <component> <transport>
-// <priority> <address> <port> typ <type> [raddr <a>] [rport <n>] [tcptype <t>]
-// followed by extension attributes that are ignored. Single spaces only,
-// lowercase `typ` and type keywords, transport case-insensitive (udp/tcp).
-function parseCandidate(str) {
-  let s = str;
-  if (s.startsWith('a=')) s = s.slice(2);
-  s = s.replace(/\r?\n$/, '');
-  if (!s.startsWith('candidate:')) return null;
-  const t = s.slice('candidate:'.length).split(' ');
-  if (t.length < 8) return null;
-  const [foundation, comp, transport, prio, addr, port, typ, type] = t;
-  if (foundation === '' || !/^[0-9]+$/.test(comp) || !/^[0-9]+$/.test(prio) || !/^[0-9]+$/.test(port)) return null;
-  const proto = transport.toLowerCase();
-  if (proto !== 'udp' && proto !== 'tcp') return null;
-  const priority = Number(prio), portN = Number(port);
-  if (priority > 4294967295 || portN > 65535) return null;
-  if (addr === '' || typ !== 'typ' || !TYPES.has(type)) return null;
-  const r = { foundation, component: comp === '1' ? 'rtp' : comp === '2' ? 'rtcp' : null, priority, protocol: proto,
-    address: addr.includes(':') && !addr.startsWith('[') ? '[' + addr + ']' : addr, port: portN, type,
-    tcpType: null, relatedAddress: null, relatedPort: null };
-  let raddr = null, rport = null;
-  for (let i = 8; i + 1 < t.length; i++) {
-    if (t[i] === 'raddr') { raddr = t[i + 1]; i++; }
-    else if (t[i] === 'rport') {
-      if (!/^[0-9]+$/.test(t[i + 1]) || Number(t[i + 1]) > 65535) return null;
-      rport = Number(t[i + 1]); i++;
-    } else if (t[i] === 'tcptype') {
-      if (!TCP_TYPES.has(t[i + 1])) return null;
-      r.tcpType = t[i + 1]; i++;
-    }
-  }
-  if (raddr !== null || rport !== null) {
-    r.relatedAddress = raddr === null ? '' : raddr;
-    r.relatedPort = rport === null ? 0 : rport;
-  }
-  return r;
-}
-
-const PRE = "Failed to construct 'RTCIceCandidate'";
-function ushort(v) {
-  const n = Number(v);
-  return isFinite(n) ? ((Math.trunc(n) % 65536) + 65536) % 65536 : 0;
-}
-function RTCIceCandidate() {
-  if (new.target === undefined) P.fail(RTCIceCandidate, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", PRE);
-  let init = arguments[0];
-  if (init === null) init = undefined;
-  if (init !== undefined && typeof init !== 'object' && typeof init !== 'function') {
-    P.fail(RTCIceCandidate, "The provided value is not of type 'RTCIceCandidateInit'.", PRE);
-  }
-  const o = init === undefined ? {} : init;
-  const rd = (k) => PRE + ": Failed to read the '" + k + "' property from 'RTCIceCandidateInit'";
-  // dictionary members in WebIDL (lexicographic) order
-  const candidate = o.candidate === undefined ? '' : P.conv.DOMString(o.candidate, rd('candidate'), RTCIceCandidate);
-  let sdpMLineIndex = null;
-  if (o.sdpMLineIndex !== undefined && o.sdpMLineIndex !== null) {
-    if (typeof o.sdpMLineIndex === 'symbol') P.fail(RTCIceCandidate, 'Cannot convert a Symbol value to a number', rd('sdpMLineIndex'));
-    sdpMLineIndex = ushort(o.sdpMLineIndex);
-  }
-  const nstr = (k) => (o[k] === undefined || o[k] === null ? null : P.conv.DOMString(o[k], rd(k), RTCIceCandidate));
-  const sdpMid = nstr('sdpMid');
-  const usernameFragment = nstr('usernameFragment');
-  if (sdpMid === null && sdpMLineIndex === null) P.fail(RTCIceCandidate, 'sdpMid and sdpMLineIndex are both null.', PRE);
-  const self = Reflect.construct(Object, [], new.target);
-  slots.set(self, { candidate, sdpMid, sdpMLineIndex, usernameFragment, parsed: parseCandidate(candidate) });
-  return self;
-}
-const RP = P.iface(RTCIceCandidate, 'RTCIceCandidate', 0);
-function slot(o, fn) { const s = o !== null && typeof o === 'object' ? slots.get(o) : undefined; if (!s) P.illegal(fn); return s; }
-// Chrome's own order: candidate, sdpMid, sdpMLineIndex, then the parsed fields,
-// usernameFragment after relatedPort, relayProtocol and url last
-const PARSED = ['foundation', 'component', 'priority', 'address', 'protocol', 'port', 'type', 'tcpType', 'relatedAddress', 'relatedPort'];
-for (const m of ['candidate', 'sdpMid', 'sdpMLineIndex']) P.getter(RP, m, function __f() { return slot(this, __f)[m]; });
-for (const m of PARSED) P.getter(RP, m, function __f() { const s = slot(this, __f); return s.parsed === null ? null : s.parsed[m]; });
-P.getter(RP, 'usernameFragment', function __f() { return slot(this, __f).usernameFragment; });
-P.getter(RP, 'relayProtocol', function __f() { slot(this, __f); return null; });
-P.getter(RP, 'url', function __f() { slot(this, __f); return null; });
-P.method(RP, 'toJSON', 0, function __f() {
-  const s = slot(this, __f);
-  const j = { candidate: s.candidate, sdpMid: s.sdpMid === null ? '' : s.sdpMid };
-  if (s.sdpMLineIndex !== null) j.sdpMLineIndex = s.sdpMLineIndex;
-  j.usernameFragment = s.usernameFragment === null ? '' : s.usernameFragment;
-  return j;
-});
-P.seal(RTCIceCandidate);
-
-P.expose('RTCIceCandidate', RTCIceCandidate);
 });
 
 // ---- module sensor (L2) ----

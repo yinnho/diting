@@ -24,6 +24,8 @@ function TransitionEvent(type) {
   { const FIELD = 'elapsedTime'; const raw = (init === undefined || init === null) ? undefined : init.elapsedTime; s.elapsedTime = (raw === undefined) ? 0.0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TransitionEvent); }
   { const FIELD = 'propertyName'; const raw = (init === undefined || init === null) ? undefined : init.propertyName; s.propertyName = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TransitionEvent); }
   { const FIELD = 'pseudoElement'; const raw = (init === undefined || init === null) ? undefined : init.pseudoElement; s.pseudoElement = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", TransitionEvent); }
+  s.pseudoTarget = null;
+  s.animation = null;
   slotsTransitionEvent.set(self, s);
   return self;
 }
@@ -31,7 +33,9 @@ const protoTransitionEvent = P.iface(TransitionEvent, 'TransitionEvent', 1, Even
 P.getter(protoTransitionEvent, 'propertyName', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.propertyName; });
 P.getter(protoTransitionEvent, 'elapsedTime', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.elapsedTime; });
 P.getter(protoTransitionEvent, 'pseudoElement', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoElement; });
+P.getter(protoTransitionEvent, 'pseudoTarget', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoTarget; });
+P.getter(protoTransitionEvent, 'animation', function __f() { const s = slotsTransitionEvent.get(this); if (s === undefined) P.illegal(__f); return s.animation; });
 P.seal(TransitionEvent);
 P.expose('TransitionEvent', TransitionEvent);
 exports.TransitionEvent = TransitionEvent;
-P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "propertyName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "TransitionEvent", "statics": []});
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "propertyName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}, {"kind": "getter", "length": 0, "name": "pseudoTarget"}, {"kind": "getter", "length": 0, "name": "animation"}], "name": "TransitionEvent", "statics": []});
