@@ -7,13 +7,13 @@ Chrome's WebIDL instances carry no own properties; their members are prototype a
 constructors (`this.readyState = 0`). Defining an accessor pair with a private slot on the prototype makes those assignments (and
 every internal read) keep working unchanged while the instance loses the own keys. Trade-off accepted and documented: the accessor
 has a setter (Chrome's readonly attributes have none) and page writes to a readonly attribute succeed instead of being ignored.
-Only names that Chrome ALSO has on the prototype (shape-audit-truth) are lifted; `_x` helpers are handled by the enumeration patch.
+Only names that Chrome ALSO has on the prototype (the ACCEPTANCE shape audit) are lifted; `_x` helpers are handled by the enumeration patch.
 """
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..'))
-from shape_source import built_from_path
-T = json.load(open(built_from_path()))
+from shape_source import acceptance_path
+T = json.load(open(acceptance_path()))
 E = json.load(open(sys.argv[1]))
 classes = sys.argv[2].split(',')
 out = sys.argv[3] if len(sys.argv) > 3 else os.path.join(HERE, '../../../crates/diting_js/js/lift_own.js')
