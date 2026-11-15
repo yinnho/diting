@@ -7295,6 +7295,39 @@ if (P_Track) {
 }
 });
 
+// ---- module gen/mediaquerylistevent (L2) ----
+__platform.define("gen/mediaquerylistevent", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- MediaQueryListEvent (generated from tools/webplatform/spec/cssom-view.json) ----
+const slotsMediaQueryListEvent = new WeakMap();
+function isMediaQueryListEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsMediaQueryListEvent.has(v); }
+function MediaQueryListEvent(type) {
+  if (!new.target) P.fail(MediaQueryListEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'MediaQueryListEvent'");
+  const ctx = "Failed to construct 'MediaQueryListEvent'";
+  P.args(ctx, arguments.length, 1, MediaQueryListEvent);
+  const t = conv.DOMString(type, ctx, MediaQueryListEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(MediaQueryListEvent, "The provided value is not of type 'MediaQueryListEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'MediaQueryListEventInit';
+  { const FIELD = 'matches'; const raw = (init === undefined || init === null) ? undefined : init.matches; s.matches = (raw === undefined) ? false : conv.boolean(raw); }
+  { const FIELD = 'media'; const raw = (init === undefined || init === null) ? undefined : init.media; s.media = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", MediaQueryListEvent); }
+  slotsMediaQueryListEvent.set(self, s);
+  return self;
+}
+const protoMediaQueryListEvent = P.iface(MediaQueryListEvent, 'MediaQueryListEvent', 1, Event);
+P.getter(protoMediaQueryListEvent, 'media', function __f() { const s = slotsMediaQueryListEvent.get(this); if (s === undefined) P.illegal(__f); return s.media; });
+P.getter(protoMediaQueryListEvent, 'matches', function __f() { const s = slotsMediaQueryListEvent.get(this); if (s === undefined) P.illegal(__f); return s.matches; });
+P.seal(MediaQueryListEvent);
+P.expose('MediaQueryListEvent', MediaQueryListEvent);
+exports.MediaQueryListEvent = MediaQueryListEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "media"}, {"kind": "getter", "length": 0, "name": "matches"}], "name": "MediaQueryListEvent", "statics": []});
+});
+
 // ---- module phrase (L2) ----
 __platform.define("phrase", function (exports, require, P) {
 "use strict";
