@@ -1,0 +1,208 @@
+{
+ "includes": [],
+ "names": {
+  "TextFormat": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface TextFormat {\n    constructor(optional TextFormatInit options = {});\n    readonly attribute unsigned long rangeStart;\n    readonly attribute unsigned long rangeEnd;\n    readonly attribute UnderlineStyle underlineStyle;\n    readonly attribute UnderlineThickness underlineThickness;\n};",
+   "href": "https://w3c.github.io/edit-context/#dom-textformat",
+   "inheritance": null,
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "TextFormatInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "options",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformat-constructor",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformat-rangestart",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "rangeStart",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformat-rangeend",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "rangeEnd",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformat-underlinestyle",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "UnderlineStyle",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "underlineStyle",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformat-underlinethickness",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "UnderlineThickness",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "underlineThickness",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "TextFormat",
+   "partial": false,
+   "type": "interface"
+  },
+  "TextFormatInit": {
+   "extAttrs": [],
+   "fragment": "dictionary TextFormatInit {\n    unsigned long rangeStart = 0;\n    unsigned long rangeEnd = 0;\n    UnderlineStyle underlineStyle = \"none\";\n    UnderlineThickness underlineThickness = \"none\";\n};",
+   "href": "https://w3c.github.io/edit-context/#dom-textformatinit",
+   "inheritance": null,
+   "members": [
+    {
+     "default": {
+      "type": "number",
+      "value": "0"
+     },
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformatinit-rangestart",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "rangeStart",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "number",
+      "value": "0"
+     },
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformatinit-rangeend",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "unsigned long",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "rangeEnd",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "string",
+      "value": "none"
+     },
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformatinit-underlinestyle",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "UnderlineStyle",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "underlineStyle",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "string",
+      "value": "none"
+     },
+     "extAttrs": [],
+     "href": "https://w3c.github.io/edit-context/#dom-textformatinit-underlinethickness",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "UnderlineThickness",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "underlineThickness",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "TextFormatInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "TextFormat": "https://w3c.github.io/edit-context/",
+  "TextFormatInit": "https://w3c.github.io/edit-context/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

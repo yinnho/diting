@@ -3177,7 +3177,7 @@ P.expose('DragEvent', DragEvent);
 // ---- module editcontext (L2) ----
 __platform.define("editcontext", function (exports, require, P) {
 "use strict";
-// EditContext API (M4 knife 18): EditContext, TextFormat and the three update
+// EditContext API (M4 knife 18): EditContext and the three update
 // events were constructor stubs with no members. The model is the standard's:
 // an EditContext owns a text buffer, a selection and per-character bounds; pages
 // drive it with updateText/updateSelection/updateCharacterBounds/... and
@@ -3192,7 +3192,6 @@ __platform.define("editcontext", function (exports, require, P) {
 // non-functions to null, and the update events' members are plain slots.
 
 const slots = new WeakMap();
-const tfSlots = new WeakMap();
 const evSlots = new WeakMap();
 const owner = new WeakMap(); // EditContext -> element
 
@@ -3292,35 +3291,8 @@ P.accessor(HTMLElement.prototype, 'editContext', function __f() {
 });
 const editOf = new WeakMap();
 
-// ---------------------------------------------------------------- TextFormat
-const TPRE = "Failed to construct 'TextFormat'";
-const STYLES = ['none', 'solid', 'dotted', 'dashed', 'wavy'];
-const THICK = ['none', 'thin', 'thick'];
-function TextFormat() {
-  if (new.target === undefined) P.fail(TextFormat, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", TPRE);
-  let init = arguments[0];
-  if (init === null) init = undefined;
-  if (init !== undefined && typeof init !== 'object' && typeof init !== 'function') P.fail(TextFormat, "The provided value is not of type 'TextFormatInit'.", TPRE);
-  const o = init === undefined ? {} : init;
-  const rd = (k) => TPRE + ": Failed to read the '" + k + "' property from 'TextFormatInit'";
-  const en = (k, list, tn) => {
-    if (o[k] === undefined) return 'none';
-    const s = P.conv.DOMString(o[k], rd(k), TextFormat);
-    if (list.indexOf(s) < 0) P.fail(TextFormat, "The provided value '" + s + "' is not a valid enum value of type " + tn + '.', rd(k));
-    return s;
-  };
-  const rangeEnd = o.rangeEnd === undefined ? 0 : UL(o.rangeEnd, rd('rangeEnd'), TextFormat);
-  const rangeStart = o.rangeStart === undefined ? 0 : UL(o.rangeStart, rd('rangeStart'), TextFormat);
-  const underlineStyle = en('underlineStyle', STYLES, 'UnderlineStyle');
-  const underlineThickness = en('underlineThickness', THICK, 'UnderlineThickness');
-  const self = Reflect.construct(Object, [], new.target);
-  tfSlots.set(self, { rangeStart, rangeEnd, underlineStyle, underlineThickness });
-  return self;
-}
-const TP = P.iface(TextFormat, 'TextFormat', 0);
-function tfSlot(o, fn) { const s = o !== null && typeof o === 'object' ? tfSlots.get(o) : undefined; if (s === undefined) P.illegal(fn); return s; }
-for (const m of ['rangeStart', 'rangeEnd', 'underlineStyle', 'underlineThickness']) P.getter(TP, m, function __f() { return tfSlot(this, __f)[m]; });
-P.seal(TextFormat);
+// TextFormat's shape is generated (gen/textformat). The update events below
+// still brand a TextFormat with __diting_isTextFormat.
 
 // ---------------------------------------------------------------- events
 // members: [name, kind, default]; init dictionary read in lexicographic order
@@ -3341,7 +3313,7 @@ function mkEvent(name, dict, members) {
         else if (kind === 'string') s[k] = o[k] === undefined ? '' : P.conv.DOMString(o[k], rd(k), C[name]);
         else {
           const list = o[k] === undefined ? [] : Array.from(o[k]);
-          for (const f of list) if (tfSlots.get(f) === undefined) P.fail(C[name], "Failed to convert value to 'TextFormat'.", rd(k));
+          for (const f of list) if (!globalThis.__diting_isTextFormat(f)) P.fail(C[name], "Failed to convert value to 'TextFormat'.", rd(k));
           s[k] = list;
         }
       }
@@ -3364,7 +3336,6 @@ for (const m of ['rangeStart', 'rangeEnd']) P.getter(CBUE.proto, m, function __f
 P.seal(CBUE.C);
 
 P.expose('EditContext', EditContext);
-P.expose('TextFormat', TextFormat);
 P.expose('TextUpdateEvent', TUE.C);
 P.expose('TextFormatUpdateEvent', TFUE.C);
 P.expose('CharacterBoundsUpdateEvent', CBUE.C);
@@ -7582,6 +7553,81 @@ P.seal(StorageEvent);
 P.expose('StorageEvent', StorageEvent);
 exports.StorageEvent = StorageEvent;
 P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "key"}, {"kind": "getter", "length": 0, "name": "oldValue"}, {"kind": "getter", "length": 0, "name": "newValue"}, {"kind": "getter", "length": 0, "name": "url"}, {"kind": "getter", "length": 0, "name": "storageArea"}, {"kind": "method", "length": 1, "name": "initStorageEvent"}], "name": "StorageEvent", "statics": []});
+});
+
+// ---- module textformat (L2) ----
+__platform.define("textformat", function (exports, require, P) {
+"use strict";
+// TextFormat behavior. The class shape — length 0 and the four readonly
+// getters in Chrome's order — is generated from the edit-context IDL.
+// The constructor argument is a dictionary, so the unsigned-long and enum
+// conversions stay here. TextFormatUpdateEvent brands members through
+// __diting_isTextFormat.
+'use strict';
+
+const slots = new WeakMap();
+const STYLES = ['none', 'solid', 'dotted', 'dashed', 'wavy'];
+const THICK = ['none', 'thin', 'thick'];
+
+exports.ctor = function ctor(iface, target, ctx, args) {
+  let init = args[0];
+  if (init === null) init = undefined;
+  if (init !== undefined && typeof init !== 'object' && typeof init !== 'function') {
+    P.fail(ctor, "The provided value is not of type 'TextFormatInit'.", ctx);
+  }
+  const o = init === undefined ? {} : init;
+  const rd = (k) => ctx + ": Failed to read the '" + k + "' property from 'TextFormatInit'";
+  const en = (k, list, tn) => {
+    if (o[k] === undefined) return 'none';
+    const s = P.conv.DOMString(o[k], rd(k), ctor);
+    if (list.indexOf(s) < 0) P.fail(ctor, "The provided value '" + s + "' is not a valid enum value of type " + tn + '.', rd(k));
+    return s;
+  };
+  slots.set(target, {
+    rangeEnd: o.rangeEnd === undefined ? 0 : P.conv.unsignedLong(o.rangeEnd, rd('rangeEnd'), ctor),
+    rangeStart: o.rangeStart === undefined ? 0 : P.conv.unsignedLong(o.rangeStart, rd('rangeStart'), ctor),
+    underlineStyle: en('underlineStyle', STYLES, 'UnderlineStyle'),
+    underlineThickness: en('underlineThickness', THICK, 'UnderlineThickness'),
+  });
+};
+
+exports.get = function get(iface, member, target) {
+  const s = target !== null && typeof target === 'object' ? slots.get(target) : undefined;
+  if (!s) P.illegal(get);
+  return s[member];
+};
+
+P.expose('__diting_isTextFormat', (o) => o !== null && typeof o === 'object' && slots.has(o));
+if (globalThis.__diting_hide_list && typeof globalThis.__diting_hide_list.push === 'function') {
+  globalThis.__diting_hide_list.push('__diting_isTextFormat');
+}
+});
+
+// ---- module gen/textformat (L2) ----
+__platform.define("gen/textformat", function (exports, require, P) {
+"use strict";
+// Strategy value (see gen_iface.py docstring).
+const conv = P.conv;
+
+const B = require('textformat');
+
+// ---- TextFormat (generated from tools/webplatform/spec/textformat.json) ----
+function TextFormat() {
+  if (!new.target) P.fail(TextFormat, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'TextFormat'");
+  const ctx = "Failed to construct 'TextFormat'";
+  P.args(ctx, arguments.length, 0, TextFormat);
+  B.ctor('TextFormat', this, ctx, arguments);
+}
+const protoTextFormat = P.iface(TextFormat, 'TextFormat', 0);
+P.getter(protoTextFormat, 'rangeStart', function __f() { return B.get('TextFormat', 'rangeStart', this); });
+P.getter(protoTextFormat, 'rangeEnd', function __f() { return B.get('TextFormat', 'rangeEnd', this); });
+P.getter(protoTextFormat, 'underlineStyle', function __f() { return B.get('TextFormat', 'underlineStyle', this); });
+P.getter(protoTextFormat, 'underlineThickness', function __f() { return B.get('TextFormat', 'underlineThickness', this); });
+P.seal(TextFormat);
+P.expose('TextFormat', TextFormat);
+P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "rangeStart"}, {"kind": "getter", "length": 0, "name": "rangeEnd"}, {"kind": "getter", "length": 0, "name": "underlineStyle"}, {"kind": "getter", "length": 0, "name": "underlineThickness"}], "name": "TextFormat", "statics": []});
+
+if (B.ready) B.ready();
 });
 
 // ---- module gen/transitionevent (L2) ----
