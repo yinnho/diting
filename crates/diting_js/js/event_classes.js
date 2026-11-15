@@ -7,7 +7,7 @@
 // global; guarded reads), and the subclass ladder: UIEvent -> Mouse/
 // Keyboard/Focus/Input/Composition/Wheel, the plain Event brood
 // (Error/Animation/PopState/Hash/Message/Close/Progress/
-// Clipboard/Submit/Toggle/ContentVisibilityAutoStateChange/Promise
+// Clipboard/Submit/Toggle/Promise
 // Rejection — note the second, validating PromiseRejectionEvent install
 // overwrites the routing block's basic one; both kept verbatim). Event and
 // CustomEvent are host natives (event.rs). Classes extend host natives at
@@ -237,14 +237,8 @@ globalThis.ToggleEvent = class ToggleEvent extends Event {
 _evxRo(globalThis.ToggleEvent, ['oldState', 'newState']);
 _markNative(globalThis.ToggleEvent);
 
-// Fires when an auto content-visibility box skips in/out of rendering.
-globalThis.ContentVisibilityAutoStateChangeEvent = class ContentVisibilityAutoStateChangeEvent extends Event {
-  constructor(type, init = {}) {
-    super(type, init);
-    _evx.set(this, { skipped: Boolean(init && init.skipped) });
-  }
-  get skipped() { return _evxGuard(_evx.get(this)).skipped === true; }
-};
+// ContentVisibilityAutoStateChangeEvent moved to the generator
+// (gen/contentvisibilityevent): skipped is a boolean from css-contain.
 
 // Missing PromiseRejectionEvent made core-js misdetect the environment and
 // override native Promise with a broken polyfill, breaking Vue rendering
