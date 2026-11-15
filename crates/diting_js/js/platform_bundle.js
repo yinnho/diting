@@ -3331,14 +3331,11 @@ P.seal(TUE.C);
 const TFUE = mkEvent('TextFormatUpdateEvent', 'TextFormatUpdateEventInit', { textFormats: 'formats' });
 P.method(TFUE.proto, 'getTextFormats', 0, function __f() { return evSlot(this, __f).textFormats.slice(); });
 P.seal(TFUE.C);
-const CBUE = mkEvent('CharacterBoundsUpdateEvent', 'CharacterBoundsUpdateEventInit', { rangeEnd: 'ulong', rangeStart: 'ulong' });
-for (const m of ['rangeStart', 'rangeEnd']) P.getter(CBUE.proto, m, function __f() { return evSlot(this, __f)[m]; });
-P.seal(CBUE.C);
+// CharacterBoundsUpdateEvent is generated (gen/characterbounds).
 
 P.expose('EditContext', EditContext);
 P.expose('TextUpdateEvent', TUE.C);
 P.expose('TextFormatUpdateEvent', TFUE.C);
-P.expose('CharacterBoundsUpdateEvent', CBUE.C);
 });
 
 // ---- module headers (L2) ----
@@ -4313,6 +4310,39 @@ P.seal(AnimationEvent);
 P.expose('AnimationEvent', AnimationEvent);
 exports.AnimationEvent = AnimationEvent;
 P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "AnimationEvent", "statics": []});
+});
+
+// ---- module gen/characterbounds (L2) ----
+__platform.define("gen/characterbounds", function (exports, require, P) {
+"use strict";
+// Strategy event (see gen_iface.py docstring).
+const conv = P.conv;
+
+// ---- CharacterBoundsUpdateEvent (generated from tools/webplatform/spec/character-bounds.json) ----
+const slotsCharacterBoundsUpdateEvent = new WeakMap();
+function isCharacterBoundsUpdateEvent(v) { return v !== null && (typeof v === 'object' || typeof v === 'function') && slotsCharacterBoundsUpdateEvent.has(v); }
+function CharacterBoundsUpdateEvent(type) {
+  if (!new.target) P.fail(CharacterBoundsUpdateEvent, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'CharacterBoundsUpdateEvent'");
+  const ctx = "Failed to construct 'CharacterBoundsUpdateEvent'";
+  P.args(ctx, arguments.length, 1, CharacterBoundsUpdateEvent);
+  const t = conv.DOMString(type, ctx, CharacterBoundsUpdateEvent);
+  const init = arguments[1];
+  if (init !== undefined && init !== null && typeof init !== 'object' && typeof init !== 'function') P.fail(CharacterBoundsUpdateEvent, "The provided value is not of type 'CharacterBoundsUpdateEventInit'.", ctx);
+  const self = Reflect.construct(Event, [t, (init === undefined || init === null) ? undefined : init], new.target);
+  const s = {};
+  const DICT = 'CharacterBoundsUpdateEventInit';
+  { const FIELD = 'rangeEnd'; const raw = (init === undefined || init === null) ? undefined : init.rangeEnd; s.rangeEnd = (raw === undefined) ? 0 : conv.unsignedLong(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", CharacterBoundsUpdateEvent); }
+  { const FIELD = 'rangeStart'; const raw = (init === undefined || init === null) ? undefined : init.rangeStart; s.rangeStart = (raw === undefined) ? 0 : conv.unsignedLong(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", CharacterBoundsUpdateEvent); }
+  slotsCharacterBoundsUpdateEvent.set(self, s);
+  return self;
+}
+const protoCharacterBoundsUpdateEvent = P.iface(CharacterBoundsUpdateEvent, 'CharacterBoundsUpdateEvent', 1, Event);
+P.getter(protoCharacterBoundsUpdateEvent, 'rangeStart', function __f() { const s = slotsCharacterBoundsUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.rangeStart; });
+P.getter(protoCharacterBoundsUpdateEvent, 'rangeEnd', function __f() { const s = slotsCharacterBoundsUpdateEvent.get(this); if (s === undefined) P.illegal(__f); return s.rangeEnd; });
+P.seal(CharacterBoundsUpdateEvent);
+P.expose('CharacterBoundsUpdateEvent', CharacterBoundsUpdateEvent);
+exports.CharacterBoundsUpdateEvent = CharacterBoundsUpdateEvent;
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "rangeStart"}, {"kind": "getter", "length": 0, "name": "rangeEnd"}], "name": "CharacterBoundsUpdateEvent", "statics": []});
 });
 
 // ---- module gen/contentvisibilityevent (L2) ----

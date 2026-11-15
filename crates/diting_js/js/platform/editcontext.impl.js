@@ -1,6 +1,6 @@
 //! module: editcontext
 //! layer: L2
-//! exposes: EditContext, TextUpdateEvent, TextFormatUpdateEvent, CharacterBoundsUpdateEvent
+//! exposes: EditContext, TextUpdateEvent, TextFormatUpdateEvent
 //! requires-load: legacy:Event, legacy:EventTarget, legacy:HTMLElement, legacy:DOMRect
 //! requires-call: legacy:DOMException
 
@@ -158,11 +158,8 @@ P.seal(TUE.C);
 const TFUE = mkEvent('TextFormatUpdateEvent', 'TextFormatUpdateEventInit', { textFormats: 'formats' });
 P.method(TFUE.proto, 'getTextFormats', 0, function __f() { return evSlot(this, __f).textFormats.slice(); });
 P.seal(TFUE.C);
-const CBUE = mkEvent('CharacterBoundsUpdateEvent', 'CharacterBoundsUpdateEventInit', { rangeEnd: 'ulong', rangeStart: 'ulong' });
-for (const m of ['rangeStart', 'rangeEnd']) P.getter(CBUE.proto, m, function __f() { return evSlot(this, __f)[m]; });
-P.seal(CBUE.C);
+// CharacterBoundsUpdateEvent is generated (gen/characterbounds).
 
 P.expose('EditContext', EditContext);
 P.expose('TextUpdateEvent', TUE.C);
 P.expose('TextFormatUpdateEvent', TFUE.C);
-P.expose('CharacterBoundsUpdateEvent', CBUE.C);
