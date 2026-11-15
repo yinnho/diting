@@ -647,3 +647,93 @@ pub fn layout_collect_with_images(
         scroller_spans,
     )
 }
+
+#[cfg(test)]
+mod paint_recollect_tests {
+    use super::layout_collect;
+    use crate::diting_fonts::font_book;
+    use crate::layout_solve::layout_solve;
+    use crate::PaintItem;
+    use diting_css::Length;
+    use diting_dom::tree_sink::parse_html;
+
+    /// A paint-only edit (z-index, border-radius) keeps the cached solve and
+    /// must still show up in the next collect. The solve key strips those
+    /// fields; the collect reads them off the current cascade.
+    #[test]
+    fn cached_solve_recollects_z_order_and_corner_radii() {
+        let html = r#"<html><body style="margin:0">
+            <div id="a" style="position:relative;z-index:1;width:80px;height:40px;background:#f00"></div>
+            <div id="b" style="position:relative;width:80px;height:40px;background:#00f"></div>
+        </body></html>"#;
+        let tree = parse_html(html);
+        let a = tree.query_selector("#a").unwrap().unwrap();
+        let b = tree.query_selector("#b").unwrap().unwrap();
+        let mut styles = crate::compute_styles(&tree, &[], (1280.0, 720.0));
+        let fonts = font_book();
+        let solved = layout_solve(&tree, &styles, &fonts, 400.0, 300.0, None, None);
+        let (_, items0, order0, _, _, _) = layout_collect(&tree, &styles, &fonts, &solved, 400.0);
+        let pos = |order: &[diting_dom::tree::NodeId]| {
+            (
+                order.iter().position(|id| *id == a),
+                order.iter().position(|id| *id == b),
+            )
+        };
+        let (pa, pb) = pos(&order0);
+        assert!(
+            pa.unwrap() > pb.unwrap(),
+            "z-index 1 paints after its sibling: {pa:?} {pb:?} {order0:?}"
+        );
+        assert!(
+            red_radius(&items0) < 1.0,
+            "no radius on the first collect: {}",
+            red_radius(&items0)
+        );
+
+        let mut before = styles.get(&a).unwrap().clone();
+        {
+            let style = styles.get_mut(&a).unwrap();
+            style.z_index = Some(-1);
+            let px = Length::Px(12.0);
+            style.corner_radii = Some([(px, px); 4]);
+        }
+        let mut after = styles.get(&a).unwrap().clone();
+        before.strip_paint_for_solve_eq();
+        after.strip_paint_for_solve_eq();
+        assert_eq!(
+            before, after,
+            "z-index and radius stay out of the solve key"
+        );
+
+        let (_, items1, order1, _, _, _) = layout_collect(&tree, &styles, &fonts, &solved, 400.0);
+        let (pa, pb) = pos(&order1);
+        assert!(
+            pa.unwrap() < pb.unwrap(),
+            "negative z paints first on the recollect: {pa:?} {pb:?} {order1:?}"
+        );
+        let radius = red_radius(&items1);
+        assert!(
+            (radius - 12.0).abs() < 0.51,
+            "corner radius comes from the new style, not the cached solve: {radius}"
+        );
+    }
+
+    fn red_radius(items: &[PaintItem]) -> f32 {
+        items
+            .iter()
+            .find_map(|item| match item {
+                PaintItem::BgCorner { color, radii, .. }
+                    if color[0] == 255 && color[1] == 0 && color[2] == 0 =>
+                {
+                    Some(radii[0].0)
+                }
+                PaintItem::Bg { color, radius, .. }
+                    if color[0] == 255 && color[1] == 0 && color[2] == 0 =>
+                {
+                    Some(*radius)
+                }
+                _ => None,
+            })
+            .unwrap_or(0.0)
+    }
+}
