@@ -188,8 +188,9 @@ globalThis.__diting_mqFlush = function () {
     const now = mq.matches;
     if (now === mq._last) continue;
     mq._last = now;
-    const ev = new Event('change');
-    try { ev.matches = now; ev.media = mq._q; } catch (e) {}
+    // media and matches are readonly on MediaQueryListEvent, so they go in
+    // the init dictionary. The face is generated (gen/mediaquerylistevent).
+    const ev = new MediaQueryListEvent('change', { media: mq._q, matches: now });
     try { mq.dispatchEvent(ev); } catch (e) {}
   }
 };

@@ -1,0 +1,154 @@
+{
+ "includes": [],
+ "names": {
+  "MediaQueryListEvent": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface MediaQueryListEvent : Event {\n  constructor(CSSOMString type, optional MediaQueryListEventInit eventInitDict = {});\n  readonly attribute CSSOMString media;\n  readonly attribute boolean matches;\n};",
+   "href": "https://drafts.csswg.org/cssom-view-1/#mediaquerylistevent",
+   "inheritance": "Event",
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "CSSOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "MediaQueryListEventInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "eventInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/cssom-view-1/#dom-mediaquerylistevent-mediaquerylistevent",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/cssom-view-1/#dom-mediaquerylistevent-media",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSOMString",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "media",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/cssom-view-1/#dom-mediaquerylistevent-matches",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "matches",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "MediaQueryListEvent",
+   "partial": false,
+   "type": "interface"
+  },
+  "MediaQueryListEventInit": {
+   "extAttrs": [],
+   "fragment": "dictionary MediaQueryListEventInit : EventInit {\n  CSSOMString media = \"\";\n  boolean matches = false;\n};",
+   "href": "https://drafts.csswg.org/cssom-view-1/#dictdef-mediaquerylisteventinit",
+   "inheritance": "EventInit",
+   "members": [
+    {
+     "default": {
+      "type": "string",
+      "value": ""
+     },
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/cssom-view-1/#dom-mediaquerylisteventinit-media",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "CSSOMString",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "media",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "boolean",
+      "value": false
+     },
+     "extAttrs": [],
+     "href": "https://drafts.csswg.org/cssom-view-1/#dom-mediaquerylisteventinit-matches",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "matches",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "MediaQueryListEventInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "MediaQueryListEvent": "https://drafts.csswg.org/cssom-view-1/",
+  "MediaQueryListEventInit": "https://drafts.csswg.org/cssom-view-1/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

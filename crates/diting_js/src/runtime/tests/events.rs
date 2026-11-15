@@ -490,6 +490,41 @@ fn test_progress_event_loaded_and_total_defaults() {
 }
 
 #[test]
+fn test_media_query_list_event_media_and_matches() {
+    // cssom-view: media "" and matches false. The face is generated.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt.evaluate(r#"
+            const a = new MediaQueryListEvent('change');
+            const b = new MediaQueryListEvent('change', { media: '(min-width: 1px)', matches: 1, bubbles: false });
+            let threw = '';
+            try { new MediaQueryListEvent(); } catch (e) { threw = e.name + ':' + e.message; }
+            return [
+                a instanceof MediaQueryListEvent, a instanceof Event, a.type,
+                a.media, a.matches,
+                b.media, b.matches,
+                Object.getOwnPropertyNames(MediaQueryListEvent.prototype),
+                MediaQueryListEvent.length,
+                threw,
+            ];
+        "#).unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!([
+            true,
+            true,
+            "change",
+            "",
+            false,
+            "(min-width: 1px)",
+            true,
+            ["media", "matches", "constructor"],
+            1,
+            "TypeError:Failed to construct 'MediaQueryListEvent': 1 argument required, but only 0 present."
+        ])
+    );
+}
+
+#[test]
 fn test_pointer_event_class_matches_chrome_defaults() {
     // A weak `PointerEvent extends Event` used to squat on the name,
     // keeping the real MouseEvent subclass dead behind its typeof-guard.
