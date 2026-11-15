@@ -1,0 +1,138 @@
+{
+ "includes": [],
+ "names": {
+  "InputDeviceCapabilities": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface InputDeviceCapabilities {\n  constructor(optional InputDeviceCapabilitiesInit deviceInitDict = {});\n  readonly attribute boolean firesTouchEvents;\n  readonly attribute boolean pointerMovementScrolls;\n};",
+   "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilities",
+   "inheritance": null,
+   "members": [
+    {
+     "arguments": [
+      {
+       "default": {
+        "type": "dictionary"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "InputDeviceCapabilitiesInit",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "deviceInitDict",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilities-constructor",
+     "type": "constructor"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilities-firestouchevents",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "firesTouchEvents",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    },
+    {
+     "extAttrs": [],
+     "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilities-pointermovementscrolls",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "attribute-type",
+      "union": false
+     },
+     "name": "pointerMovementScrolls",
+     "readonly": true,
+     "special": "",
+     "type": "attribute"
+    }
+   ],
+   "name": "InputDeviceCapabilities",
+   "partial": false,
+   "type": "interface"
+  },
+  "InputDeviceCapabilitiesInit": {
+   "extAttrs": [],
+   "fragment": "dictionary InputDeviceCapabilitiesInit {\n  boolean firesTouchEvents = false;\n  boolean pointerMovementScrolls = false;\n};",
+   "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilitiesinit",
+   "inheritance": null,
+   "members": [
+    {
+     "default": {
+      "type": "boolean",
+      "value": false
+     },
+     "extAttrs": [],
+     "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilitiesinit-firestouchevents",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "firesTouchEvents",
+     "required": false,
+     "type": "field"
+    },
+    {
+     "default": {
+      "type": "boolean",
+      "value": false
+     },
+     "extAttrs": [],
+     "href": "https://wicg.github.io/input-device-capabilities/#dom-inputdevicecapabilitiesinit-pointermovementscrolls",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "boolean",
+      "nullable": false,
+      "type": "dictionary-type",
+      "union": false
+     },
+     "name": "pointerMovementScrolls",
+     "required": false,
+     "type": "field"
+    }
+   ],
+   "name": "InputDeviceCapabilitiesInit",
+   "partial": false,
+   "type": "dictionary"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "InputDeviceCapabilities": "https://wicg.github.io/input-device-capabilities/",
+  "InputDeviceCapabilitiesInit": "https://wicg.github.io/input-device-capabilities/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}

@@ -2956,9 +2956,9 @@ __platform.define("domsmall", function (exports, require, P) {
 // have their shape - CharacterData/Text/ProcessingInstruction/DocumentFragment
 // mixin members, MessageEvent.initMessageEvent/userActivation, DataTransfer data
 // access - plus three stubs that had no members at all (SubmitEvent,
-// PopStateEvent, ClipboardEvent) and the value classes
-// RTCSessionDescription and InputDeviceCapabilities. HashChangeEvent's
-// shape is generated (gen/hashchange). Every fact is pinned by
+// PopStateEvent, ClipboardEvent) and the value class
+// RTCSessionDescription. HashChangeEvent and InputDeviceCapabilities are
+// generated. Every fact is pinned by
 // chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
 // smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
 // prototype into Chrome's own member order.
@@ -3150,23 +3150,7 @@ P.accessor(SDP, 'sdp', function __f() { return sd(this, __f).sdp; },
 P.method(SDP, 'toJSON', 0, function __f() { const s = sd(this, __f); return { type: s.type, sdp: s.sdp }; });
 P.seal(RTCSessionDescription);
 
-// ================= InputDeviceCapabilities({firesTouchEvents})
-const idcSlots = new WeakMap();
-function InputDeviceCapabilities() {
-  const pre = "Failed to construct 'InputDeviceCapabilities'";
-  if (new.target === undefined) P.fail(InputDeviceCapabilities, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
-  let init = arguments[0];
-  if (init === null) init = undefined;
-  if (init !== undefined && !isObj(init)) P.fail(InputDeviceCapabilities, "The provided value is not of type 'InputDeviceCapabilitiesInit'.", pre);
-  const self = Reflect.construct(Object, [], new.target);
-  idcSlots.set(self, { firesTouchEvents: init === undefined ? false : !!init.firesTouchEvents });
-  return self;
-}
-const IDP = P.iface(InputDeviceCapabilities, 'InputDeviceCapabilities', 0);
-P.getter(IDP, 'firesTouchEvents', function __f() { const s = idcSlots.get(this); if (!s) P.illegal(__f); return s.firesTouchEvents; });
-P.seal(InputDeviceCapabilities);
-
-for (const [n, C] of Object.entries({ SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
+for (const [n, C] of Object.entries({ SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription })) P.expose(n, C);
 });
 
 // ---- module dragevent (L2) ----
@@ -7293,6 +7277,64 @@ if (P_Track) {
   if (!has(P_Track, 'ERROR')) { Object.defineProperty(P_Track, 'ERROR', { value: 3, enumerable: true, configurable: true }); Object.defineProperty(G.HTMLTrackElement, 'ERROR', { value: 3, enumerable: true }); }
   reseat(P_Track, ["kind", "src", "srclang", "label", "default", "readyState", "track", "NONE", "LOADING", "LOADED", "ERROR", "constructor"]);
 }
+});
+
+// ---- module inputdevice (L2) ----
+__platform.define("inputdevice", function (exports, require, P) {
+"use strict";
+// InputDeviceCapabilities behavior. The class shape — length 0, the
+// firesTouchEvents getter in Chrome's order — is generated from the
+// input-device-capabilities IDL. The optional dictionary is not a simple
+// argument, so the conversion stays here. Chrome 145 does not surface
+// pointerMovementScrolls.
+'use strict';
+
+const slots = new WeakMap();
+
+function isObj(v) {
+  return v !== null && (typeof v === 'object' || typeof v === 'function');
+}
+
+exports.ctor = function ctor(iface, target, ctx, args) {
+  let init = args[0];
+  if (init === null) init = undefined;
+  if (init !== undefined && !isObj(init)) {
+    P.fail(ctor, "The provided value is not of type 'InputDeviceCapabilitiesInit'.", ctx);
+  }
+  slots.set(target, {
+    firesTouchEvents: init === undefined ? false : !!init.firesTouchEvents,
+  });
+};
+
+exports.get = function get(iface, member, target) {
+  const s = target !== null && typeof target === 'object' ? slots.get(target) : undefined;
+  if (!s) P.illegal(get);
+  return s.firesTouchEvents;
+};
+});
+
+// ---- module gen/inputdevice (L2) ----
+__platform.define("gen/inputdevice", function (exports, require, P) {
+"use strict";
+// Strategy value (see gen_iface.py docstring).
+const conv = P.conv;
+
+const B = require('inputdevice');
+
+// ---- InputDeviceCapabilities (generated from tools/webplatform/spec/input-device.json) ----
+function InputDeviceCapabilities() {
+  if (!new.target) P.fail(InputDeviceCapabilities, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'InputDeviceCapabilities'");
+  const ctx = "Failed to construct 'InputDeviceCapabilities'";
+  P.args(ctx, arguments.length, 0, InputDeviceCapabilities);
+  B.ctor('InputDeviceCapabilities', this, ctx, arguments);
+}
+const protoInputDeviceCapabilities = P.iface(InputDeviceCapabilities, 'InputDeviceCapabilities', 0);
+P.getter(protoInputDeviceCapabilities, 'firesTouchEvents', function __f() { return B.get('InputDeviceCapabilities', 'firesTouchEvents', this); });
+P.seal(InputDeviceCapabilities);
+P.expose('InputDeviceCapabilities', InputDeviceCapabilities);
+P.expect({"length": 0, "members": [{"kind": "getter", "length": 0, "name": "firesTouchEvents"}], "name": "InputDeviceCapabilities", "statics": []});
+
+if (B.ready) B.ready();
 });
 
 // ---- module gen/mediaquerylistevent (L2) ----
