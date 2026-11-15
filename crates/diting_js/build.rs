@@ -674,9 +674,9 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // BEFORE stub_members so the FeaturePolicy method takeover wins the
     // fill-if-missing pass.
     ("document_gaps.js", include_str!("js/document_gaps.js")),
-    // 刀56: after global_surface minted AbstractRange and wired the Range
-    // chains, the shared boundary getters land on AbstractRange.prototype
-    // and leave the two class prototypes (before stub_members' fill).
+    // 刀56: after global_surface minted AbstractRange/NodeRange and wired
+    // the chains. Offsets stay on AbstractRange; containers move to
+    // NodeRange. Leaves stay empty (before stub_members' fill).
     ("range_lift.js", include_str!("js/range_lift.js")),
     ("navigation.js", include_str!("js/navigation.js")),
     ("client_rects.js", include_str!("js/client_rects.js")),
