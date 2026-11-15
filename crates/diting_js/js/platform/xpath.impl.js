@@ -1,6 +1,6 @@
 //! module: xpath
 //! layer: L2
-//! exposes: XPathResult, XPathExpression, XPathEvaluator
+//! exposes: XPathResult, XPathExpression
 //! requires-load: legacy:Document, legacy:Node, legacy:DOMException, legacy:MutationObserver
 //! requires-call: legacy:document, legacy:Element, legacy:Attr, legacy:Text
 
@@ -822,20 +822,19 @@ P.method(D, 'createExpression', 1, function __f() { if (!isDoc(this)) P.illegal(
 P.method(D, 'createNSResolver', 1, function __f() { if (!isDoc(this)) P.illegal(__f); return createNSResolver(arguments, "Failed to execute 'createNSResolver' on 'Document'", __f); });
 P.method(D, 'evaluate', 2, function __f() { if (!isDoc(this)) P.illegal(__f); return evaluate(arguments, "Failed to execute 'evaluate' on 'Document'", __f); });
 
+// XPathEvaluator's shape is generated (gen/xpath). The three operations are
+// the XPathEvaluatorBase mixin, flattened into the slice. The brand and the
+// evaluator stay here.
 const evalSlots = new WeakSet();
-function XPathEvaluator() {
-  if (new.target === undefined) P.fail(XPathEvaluator, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", "Failed to construct 'XPathEvaluator'");
-  const self = Reflect.construct(Object, [], new.target);
-  evalSlots.add(self);
-  return self;
-}
-const XVP = P.iface(XPathEvaluator, 'XPathEvaluator', 0);
-const ebrand = (o, fn) => { if (o === null || typeof o !== 'object' || !evalSlots.has(o)) P.illegal(fn); };
-P.method(XVP, 'createExpression', 1, function __f() { ebrand(this, __f); return createExpression(true, arguments, "Failed to execute 'createExpression' on 'XPathEvaluator'", __f); });
-P.method(XVP, 'createNSResolver', 1, function __f() { ebrand(this, __f); return createNSResolver(arguments, "Failed to execute 'createNSResolver' on 'XPathEvaluator'", __f); });
-P.method(XVP, 'evaluate', 2, function __f() { ebrand(this, __f); return evaluate(arguments, "Failed to execute 'evaluate' on 'XPathEvaluator'", __f); });
-P.seal(XPathEvaluator);
+exports.ctor = function ctor(iface, target) {
+  evalSlots.add(target);
+};
+exports.call = function call(iface, member, target, ctx, args) {
+  if (target === null || typeof target !== 'object' || !evalSlots.has(target)) P.illegal(call);
+  if (member === 'createExpression') return createExpression(true, args, ctx, call);
+  if (member === 'createNSResolver') return createNSResolver(args, ctx, call);
+  return evaluate(args, ctx, call);
+};
 
 P.expose('XPathResult', XPathResult);
 P.expose('XPathExpression', XPathExpression);
-P.expose('XPathEvaluator', XPathEvaluator);

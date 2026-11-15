@@ -25,6 +25,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/input-device.json crates/diting_js/js/platform/gen/inputdevice.gen.js gen/inputdevice $WP/chrome/inputdevice-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/textformat.json crates/diting_js/js/platform/gen/textformat.gen.js gen/textformat $WP/chrome/textformat-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/webrtc-ice.json crates/diting_js/js/platform/gen/rtcice.gen.js gen/rtcice $WP/chrome/rtcicecandidate-truth-145.json
+  python3 $WP/gen/gen_iface.py $WP/spec/xpath-eval.json crates/diting_js/js/platform/gen/xpath.gen.js gen/xpath $WP/chrome/xpath-truth-145.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
   python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json crates/diting_js/js/platform/gen/hashchange.gen.js gen/hashchange
   python3 $WP/gen/gen_iface.py $WP/spec/css-transitions.json crates/diting_js/js/platform/gen/transitionevent.gen.js gen/transitionevent
@@ -79,6 +80,8 @@ gen_value input-device.json inputdevice inputdevice-truth-145.json
 gen_value textformat.json textformat textformat-truth-145.json
 # RTCIceCandidate: length 0 and the parsed candidate fields. Dictionary and parse stay in the impl.
 gen_value webrtc-ice.json rtcice rtcicecandidate-truth-145.json
+# XPathEvaluator: length 0 and the three mixin operations. Evaluation stays in the impl.
+gen_value xpath-eval.json xpath xpath-truth-145.json
 # vttcue: the #67 marginal-cost family, generated with no generator change.
 gen_value webvtt.json vttcue vttcue-truth-157.json
 # SpeechRecognitionPhrase: simple DOMString ctor; float boost stays in the impl.

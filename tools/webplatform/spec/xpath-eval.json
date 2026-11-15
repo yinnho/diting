@@ -1,0 +1,240 @@
+{
+ "includes": [
+  {
+   "extAttrs": [],
+   "fragment": "XPathEvaluator includes XPathEvaluatorBase;",
+   "includes": "XPathEvaluatorBase",
+   "target": "XPathEvaluator",
+   "type": "includes"
+  }
+ ],
+ "names": {
+  "XPathEvaluator": {
+   "extAttrs": [
+    {
+     "arguments": [],
+     "name": "Exposed",
+     "rhs": {
+      "type": "identifier",
+      "value": "Window"
+     },
+     "type": "extended-attribute"
+    }
+   ],
+   "fragment": "[Exposed=Window]\ninterface XPathEvaluator {\n  constructor();\n  // includes XPathEvaluatorBase\n    [NewObject] XPathExpression createExpression(DOMString expression, optional XPathNSResolver? resolver = null);\n    Node createNSResolver(Node nodeResolver); // legacy\n    // XPathResult.ANY_TYPE = 0\n    XPathResult evaluate(DOMString expression, Node contextNode, optional XPathNSResolver? resolver = null, optional unsigned short type = 0, optional XPathResult? result = null);\n};",
+   "href": "https://dom.spec.whatwg.org/#xpathevaluator",
+   "inheritance": null,
+   "members": [
+    {
+     "arguments": [],
+     "extAttrs": [],
+     "href": "https://dom.spec.whatwg.org/#dom-xpathevaluator-xpathevaluator",
+     "type": "constructor"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "expression",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "XPathNSResolver",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "resolver",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [
+      {
+       "arguments": [],
+       "name": "NewObject",
+       "rhs": null,
+       "type": "extended-attribute"
+      }
+     ],
+     "href": "https://dom.spec.whatwg.org/#dom-xpathevaluatorbase-createexpression",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "XPathExpression",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "createExpression",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "Node",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "nodeResolver",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://dom.spec.whatwg.org/#dom-xpathevaluatorbase-creatensresolver",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "Node",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "createNSResolver",
+     "special": "",
+     "type": "operation"
+    },
+    {
+     "arguments": [
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "DOMString",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "expression",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": null,
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "Node",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "contextNode",
+       "optional": false,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "XPathNSResolver",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "resolver",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "number",
+        "value": "0"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "unsigned short",
+        "nullable": false,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "type",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      },
+      {
+       "default": {
+        "type": "null"
+       },
+       "extAttrs": [],
+       "idlType": {
+        "extAttrs": [],
+        "generic": "",
+        "idlType": "XPathResult",
+        "nullable": true,
+        "type": "argument-type",
+        "union": false
+       },
+       "name": "result",
+       "optional": true,
+       "type": "argument",
+       "variadic": false
+      }
+     ],
+     "extAttrs": [],
+     "href": "https://dom.spec.whatwg.org/#dom-xpathevaluatorbase-evaluate",
+     "idlType": {
+      "extAttrs": [],
+      "generic": "",
+      "idlType": "XPathResult",
+      "nullable": false,
+      "type": "return-type",
+      "union": false
+     },
+     "name": "evaluate",
+     "special": "",
+     "type": "operation"
+    }
+   ],
+   "name": "XPathEvaluator",
+   "partial": false,
+   "type": "interface"
+  }
+ },
+ "partials": {},
+ "specs": {
+  "XPathEvaluator": "https://dom.spec.whatwg.org/"
+ },
+ "webref": "6ac6259c96b11e0aea5c34a16822eb06add278c9"
+}
