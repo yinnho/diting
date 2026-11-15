@@ -10,7 +10,9 @@ and re-create them in Chrome's order. Runs after stub_members.js so aliases to s
 """
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
+sys.path.insert(0, os.path.join(HERE, '..'))
+from shape_source import built_from_path
+T = json.load(open(built_from_path()))
 E = json.load(open(sys.argv[1]))
 out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting_js/js/sym_fix.js')
 D = {}

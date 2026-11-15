@@ -3,14 +3,16 @@
 
   python3 tools/webplatform/shape_audit.py <engine.json> [--top N] [--iface NAME]
 
-Inputs: chrome/shape-audit-truth-145.json (Chrome 145) and an engine capture made with
+Inputs: chrome/shape-audit-truth-157.json (the acceptance capture; see shape_source.py)
+and an engine capture made with
   python3 tools/webplatform/capture/probe_run.py engine tools/webplatform/chrome/shape-audit-probe.js <engine.json>
 Per interface it classifies: absent / missing members / extra members (internal helpers leaking onto public
 prototypes are the interesting ones) / order / kind (accessor vs data, enumerability) / ctor length / statics / parent.
 """
 import json, os, sys, collections
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = json.load(open(os.path.join(HERE, 'chrome/shape-audit-truth-145.json')))
+from shape_source import acceptance_path
+T = json.load(open(acceptance_path()))
 E = json.load(open(sys.argv[1]))
 only = sys.argv[sys.argv.index('--iface') + 1] if '--iface' in sys.argv else None
 top = int(sys.argv[sys.argv.index('--top') + 1]) if '--top' in sys.argv else 40

@@ -7,7 +7,7 @@ A pure stub is an interface whose engine constructor is one of global_surface.js
 __diting_stubs; real classes keep their members as own instance properties, so adding prototype accessors to them
 breaks their constructors) and whose prototype carries nothing but `constructor` while Chrome's has members
 (USB*, Bluetooth*, XR*, GPU*, most Audio nodes, CSS Typed OM ...). Their prototypes are rebuilt from
-chrome/shape-audit-truth-145.json: accessors (ro/rw), methods (name + length + e/c/w flags), constants (with the
+the BUILT_FROM shape audit (shape_source.py): accessors (ro/rw), methods (name + length + e/c/w flags), constants (with the
 captured value), plus statics. Behaviour contract: on a real instance of the stub (prototype-chain match) a getter returns
 undefined and a method returns undefined; on any other receiver they throw `TypeError: Illegal invocation`
 (Chrome's brand check - fingerprinting scripts call descriptor getters on {} to detect fakes).
@@ -15,7 +15,9 @@ Capture the engine WITHOUT stub_members.js applied (comment it out of build.rs) 
 """
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = json.load(open(os.path.join(HERE, '../chrome/shape-audit-truth-145.json')))
+sys.path.insert(0, os.path.join(HERE, '..'))
+from shape_source import built_from_path
+T = json.load(open(built_from_path()))
 E = json.load(open(sys.argv[1]))
 out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '../../../crates/diting_js/js/stub_members.js')
 
