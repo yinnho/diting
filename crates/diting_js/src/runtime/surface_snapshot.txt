@@ -1244,7 +1244,7 @@ P AggregateError :: constructor,message,name
 P AnalyserNode :: constructor,fftSize,frequencyBinCount,getByteFrequencyData,getByteTimeDomainData,getFloatFrequencyData,getFloatTimeDomainData,maxDecibels,minDecibels,smoothingTimeConstant
 P Animation :: cancel,commitStyles,constructor,currentTime,effect,finish,finished,id,oncancel,onfinish,onremove,overallProgress,pause,pending,persist,play,playState,playbackRate,rangeEnd,rangeStart,ready,replaceState,reverse,startTime,timeline,updatePlaybackRate
 P AnimationEffect :: constructor,getComputedTiming,getTiming,updateTiming
-P AnimationEvent :: animationName,constructor,elapsedTime,pseudoElement
+P AnimationEvent :: animation,animationName,constructor,elapsedTime,pseudoElement,pseudoTarget
 P AnimationPlaybackEvent :: constructor,currentTime,timelineTime
 P AnimationTimeline :: constructor,currentTime,duration
 P AnimationTrigger :: constructor
@@ -2141,7 +2141,7 @@ P TouchList :: constructor,item,length
 P TrackEvent :: constructor,track
 P TransformStream :: constructor,readable,writable
 P TransformStreamDefaultController :: constructor,desiredSize,enqueue,error,terminate
-P TransitionEvent :: constructor,elapsedTime,propertyName,pseudoElement
+P TransitionEvent :: animation,constructor,elapsedTime,propertyName,pseudoElement,pseudoTarget
 S Translator :: availability,create
 P Translator :: constructor,destroy,inputQuota,measureInputUsage,sourceLanguage,targetLanguage,translate,translateStreaming
 P TreeWalker :: constructor,currentNode,filter,firstChild,lastChild,nextNode,nextSibling,parentNode,previousNode,previousSibling,root,whatToShow

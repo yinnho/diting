@@ -560,17 +560,25 @@ async fn test_transition_event_interface() {
     // blitz#863 family 2: TransitionEvent carries propertyName / elapsedTime /
     // pseudoElement with the WebIDL defaults and the 1-argument requirement —
     // it used to be an empty Event subclass, so every read was undefined.
+    // Chrome 157 also exposes pseudoTarget and animation; they are not init
+    // fields, so a script constructor reads null.
     let mut rt = setup_runtime("<html><body></body></html>");
     let script = r#"() => {
         const e1 = new TransitionEvent('transitionend', {
-            propertyName: 'opacity', elapsedTime: 1.5, pseudoElement: '::before' });
+            propertyName: 'opacity', elapsedTime: 1.5, pseudoElement: '::before',
+            pseudoTarget: '::before' });
         const e2 = new TransitionEvent('transitionrun');
+        const a = new AnimationEvent('animationend', { animationName: 'pulse', pseudoTarget: '::before' });
         let threw = '';
         try { new TransitionEvent(); } catch (err) { threw = err.constructor.name; }
         return [
             e1 instanceof TransitionEvent, e1 instanceof Event,
-            e1.propertyName, e1.elapsedTime, e1.pseudoElement,
-            e2.propertyName, e2.elapsedTime, e2.pseudoElement, threw,
+            e1.propertyName, e1.elapsedTime, e1.pseudoElement, e1.pseudoTarget, e1.animation,
+            e2.propertyName, e2.elapsedTime, e2.pseudoElement, e2.pseudoTarget, e2.animation,
+            Object.getOwnPropertyNames(TransitionEvent.prototype),
+            a.animationName, a.pseudoTarget, a.animation,
+            Object.getOwnPropertyNames(AnimationEvent.prototype),
+            threw,
         ];
     }"#;
     let result = rt
@@ -585,9 +593,32 @@ async fn test_transition_event_interface() {
             "opacity",
             1.5,
             "::before",
+            null,
+            null,
             "",
             0,
             "",
+            null,
+            null,
+            [
+                "propertyName",
+                "elapsedTime",
+                "pseudoElement",
+                "pseudoTarget",
+                "animation",
+                "constructor"
+            ],
+            "pulse",
+            null,
+            null,
+            [
+                "animationName",
+                "elapsedTime",
+                "pseudoElement",
+                "pseudoTarget",
+                "animation",
+                "constructor"
+            ],
             "TypeError"
         ])
     );

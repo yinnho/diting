@@ -24,6 +24,8 @@ function AnimationEvent(type) {
   { const FIELD = 'animationName'; const raw = (init === undefined || init === null) ? undefined : init.animationName; s.animationName = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
   { const FIELD = 'elapsedTime'; const raw = (init === undefined || init === null) ? undefined : init.elapsedTime; s.elapsedTime = (raw === undefined) ? 0.0 : conv.double(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
   { const FIELD = 'pseudoElement'; const raw = (init === undefined || init === null) ? undefined : init.pseudoElement; s.pseudoElement = (raw === undefined) ? "" : conv.USVString(raw, ctx + ": Failed to read the '" + FIELD + "' property from '" + DICT + "'", AnimationEvent); }
+  s.pseudoTarget = null;
+  s.animation = null;
   slotsAnimationEvent.set(self, s);
   return self;
 }
@@ -31,7 +33,9 @@ const protoAnimationEvent = P.iface(AnimationEvent, 'AnimationEvent', 1, Event);
 P.getter(protoAnimationEvent, 'animationName', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.animationName; });
 P.getter(protoAnimationEvent, 'elapsedTime', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.elapsedTime; });
 P.getter(protoAnimationEvent, 'pseudoElement', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoElement; });
+P.getter(protoAnimationEvent, 'pseudoTarget', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.pseudoTarget; });
+P.getter(protoAnimationEvent, 'animation', function __f() { const s = slotsAnimationEvent.get(this); if (s === undefined) P.illegal(__f); return s.animation; });
 P.seal(AnimationEvent);
 P.expose('AnimationEvent', AnimationEvent);
 exports.AnimationEvent = AnimationEvent;
-P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}], "name": "AnimationEvent", "statics": []});
+P.expect({"length": 1, "members": [{"kind": "getter", "length": 0, "name": "animationName"}, {"kind": "getter", "length": 0, "name": "elapsedTime"}, {"kind": "getter", "length": 0, "name": "pseudoElement"}, {"kind": "getter", "length": 0, "name": "pseudoTarget"}, {"kind": "getter", "length": 0, "name": "animation"}], "name": "AnimationEvent", "statics": []});

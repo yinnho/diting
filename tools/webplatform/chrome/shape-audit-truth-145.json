@@ -335,16 +335,20 @@
  },
  "AnimationEvent": {
   "kinds": {
+   "animation": "ro:ec",
    "animationName": "ro:ec",
    "constructor": "function:1:-cw",
    "elapsedTime": "ro:ec",
-   "pseudoElement": "ro:ec"
+   "pseudoElement": "ro:ec",
+   "pseudoTarget": "ro:ec"
   },
   "len": 1,
   "order": [
    "animationName",
    "elapsedTime",
    "pseudoElement",
+   "pseudoTarget",
+   "animation",
    "constructor"
   ],
   "proto": "Event",
@@ -33545,16 +33549,20 @@
  },
  "TransitionEvent": {
   "kinds": {
+   "animation": "ro:ec",
    "constructor": "function:1:-cw",
    "elapsedTime": "ro:ec",
    "propertyName": "ro:ec",
-   "pseudoElement": "ro:ec"
+   "pseudoElement": "ro:ec",
+   "pseudoTarget": "ro:ec"
   },
   "len": 1,
   "order": [
    "propertyName",
    "elapsedTime",
    "pseudoElement",
+   "pseudoTarget",
+   "animation",
    "constructor"
   ],
   "proto": "Event",
