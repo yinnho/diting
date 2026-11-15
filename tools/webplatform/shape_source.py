@@ -2,10 +2,11 @@
 
 chrome-target.toml says the product is Chrome 157.0.8103.38.
 ACCEPTANCE is the capture we measure against (local Chrome 157.0.8103.52,
-962 interfaces). shape_audit.py and gen_shape_fix.py read it.
-BUILT_FROM is still the 145 capture. stub_members, sym_fix, lift_own,
-svg_filters and the global_surface prototype repair read it until each
-is regenerated on its own. See docs/项目整理-20261115.md.
+962 interfaces). shape_audit.py, gen_shape_fix.py and the prototype-parent
+repair in gen_globals_surface.py read it.
+BUILT_FROM is still the 145 capture. stub_members, sym_fix, lift_own and
+svg_filters read it until each is regenerated on its own.
+See docs/项目整理-20261115.md.
 """
 import os
 
