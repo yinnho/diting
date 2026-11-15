@@ -1,0 +1,16 @@
+{
+ "result": {
+  "shape.InputDeviceCapabilities": {
+   "len": 0,
+   "members": {
+    "constructor": "function",
+    "firesTouchEvents": "ro"
+   },
+   "name": "InputDeviceCapabilities",
+   "order": [
+    "firesTouchEvents",
+    "constructor"
+   ]
+  }
+ }
+}

@@ -1,6 +1,6 @@
 //! module: domsmall
 //! layer: L2
-//! exposes: SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities
+//! exposes: SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription
 //! requires-load: gen/htmlelement, legacy:Event, legacy:CharacterData, legacy:Text, legacy:ProcessingInstruction, legacy:DocumentFragment, legacy:MessageEvent, legacy:DataTransfer, legacy:_evx, legacy:_evxGuard
 //! requires-call: legacy:HTMLElement, legacy:URL
 
@@ -10,9 +10,9 @@
 // have their shape - CharacterData/Text/ProcessingInstruction/DocumentFragment
 // mixin members, MessageEvent.initMessageEvent/userActivation, DataTransfer data
 // access - plus three stubs that had no members at all (SubmitEvent,
-// PopStateEvent, ClipboardEvent) and the value classes
-// RTCSessionDescription and InputDeviceCapabilities. HashChangeEvent's
-// shape is generated (gen/hashchange). Every fact is pinned by
+// PopStateEvent, ClipboardEvent) and the value class
+// RTCSessionDescription. HashChangeEvent and InputDeviceCapabilities are
+// generated. Every fact is pinned by
 // chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
 // smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
 // prototype into Chrome's own member order.
@@ -204,20 +204,4 @@ P.accessor(SDP, 'sdp', function __f() { return sd(this, __f).sdp; },
 P.method(SDP, 'toJSON', 0, function __f() { const s = sd(this, __f); return { type: s.type, sdp: s.sdp }; });
 P.seal(RTCSessionDescription);
 
-// ================= InputDeviceCapabilities({firesTouchEvents})
-const idcSlots = new WeakMap();
-function InputDeviceCapabilities() {
-  const pre = "Failed to construct 'InputDeviceCapabilities'";
-  if (new.target === undefined) P.fail(InputDeviceCapabilities, "Please use the 'new' operator, this DOM object constructor cannot be called as a function.", pre);
-  let init = arguments[0];
-  if (init === null) init = undefined;
-  if (init !== undefined && !isObj(init)) P.fail(InputDeviceCapabilities, "The provided value is not of type 'InputDeviceCapabilitiesInit'.", pre);
-  const self = Reflect.construct(Object, [], new.target);
-  idcSlots.set(self, { firesTouchEvents: init === undefined ? false : !!init.firesTouchEvents });
-  return self;
-}
-const IDP = P.iface(InputDeviceCapabilities, 'InputDeviceCapabilities', 0);
-P.getter(IDP, 'firesTouchEvents', function __f() { const s = idcSlots.get(this); if (!s) P.illegal(__f); return s.firesTouchEvents; });
-P.seal(InputDeviceCapabilities);
-
-for (const [n, C] of Object.entries({ SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription, InputDeviceCapabilities })) P.expose(n, C);
+for (const [n, C] of Object.entries({ SubmitEvent, PopStateEvent, ClipboardEvent, RTCSessionDescription })) P.expose(n, C);
