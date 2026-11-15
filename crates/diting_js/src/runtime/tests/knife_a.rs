@@ -39,6 +39,7 @@ async fn knife56_wrong_prototype_levels_fold_to_chrome() {
     span.ownerDocument === document, typeof span.cloneNode('deep')].join('|');
   // (2) AbstractRange owns the five, the leaves own none
   r.arOwn = Object.getOwnPropertyNames(AbstractRange.prototype).sort().join(',');
+  r.nrOwn = Object.getOwnPropertyNames(NodeRange.prototype).sort().join(',');
   r.leafOwn = ['Range', 'StaticRange'].map((n) => {
     const p = globalThis[n].prototype;
     return ['startContainer', 'startOffset', 'endContainer', 'endOffset', 'collapsed']
@@ -87,11 +88,16 @@ async fn knife56_wrong_prototype_levels_fold_to_chrome() {
         "true|true|3|1|true|object",
         "element Node-member fallback broke"
     );
-    // (2) Chrome 145 AbstractRange.prototype owns exactly these 6.
+    // (2) Chrome 157: offsets stay on AbstractRange. Containers moved to NodeRange.
     assert_eq!(
         v["arOwn"].as_str().unwrap(),
-        "collapsed,constructor,endContainer,endOffset,startContainer,startOffset",
+        "collapsed,constructor,endOffset,startOffset",
         "AbstractRange.prototype member set drifted"
+    );
+    assert_eq!(
+        v["nrOwn"].as_str().unwrap(),
+        "constructor,endContainer,startContainer",
+        "NodeRange.prototype member set drifted"
     );
     assert_eq!(
         v["leafOwn"].as_str().unwrap(),
