@@ -333,8 +333,8 @@ for (const [name, tag] of OBJ_GETTERS) {
 """ % ",\n  ".join(rows))
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from shape_source import built_from_path
-_AUDIT = json.load(open(built_from_path()))
+from shape_source import acceptance_path
+_AUDIT = json.load(open(acceptance_path()))
 _ET_NAMES = set(n for n, _ in et_chain)
 _AUDIT_SKIP = {"SVGElement", "SVGClipPathElement", "SVGSymbolElement", "SVGFEDropShadowElement", "PerformanceNavigationTiming",
                "PerformanceResourceTiming", "PerformanceMark", "PerformanceMeasure", "PerformancePaintTiming", "PerformanceServerTiming"}
@@ -373,8 +373,8 @@ for (const [name, parent] of ET_CHAIN) {
     }
   } catch (e) {}
 }
-// Remaining prototype-parent repairs, generated from the whole-surface shape audit (chrome/shape-audit-truth-145.json): every
-// interface whose Chrome 145 parent is not Object and not already handled above. Only the prototype chain is repaired here (the
+// Remaining prototype-parent repairs, generated from the whole-surface shape audit (chrome/shape-audit-truth-157.json): every
+// interface whose Chrome 157 parent is not Object and not already handled above. Only the prototype chain is repaired here (the
 // constructors' own [[Prototype]] is a separate step). Left out on purpose: the real Performance* classes wire themselves in
 // performance.js, and the SVGElement family (the engine's SVGElement extends HTMLElement; re-parenting it to Element would drop
 // the HTMLElement behaviour SVG elements lean on).
