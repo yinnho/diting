@@ -13,7 +13,7 @@
 // only if its mirror of core.js P.reflector reproduces EVERY facet.
 // Install-or-delegate: a member the engine chain already owns is
 // re-seated on the Chrome-true interface forwarding both legs.
-// Ledger: reflect=234 tokenlist=10 impl=50 const=7 delegate=61 left=10 staged=7
+// Ledger: reflect=237 tokenlist=10 impl=51 const=7 delegate=61 left=10 staged=7
 const B = require('htmlreflect');
 const G = globalThis;
 const P_Anchor = typeof G.HTMLAnchorElement === 'function' ? G.HTMLAnchorElement.prototype : null;
@@ -876,7 +876,7 @@ if (P_TableCaption) {
   reseat(P_TableCaption, ["align", "constructor"]);
 }
 
-// ---- HTMLTemplateElement.prototype (Chrome own order, 6 names)
+// ---- HTMLTemplateElement.prototype (Chrome own order, 10 names)
 if (P_Template) {
   if (!has(P_Template, 'content')) delegate(P_Template, 'content');
   delete P_Template['shadowRootMode'];
@@ -884,7 +884,15 @@ if (P_Template) {
   if (!has(P_Template, 'shadowRootDelegatesFocus') && !delegate(P_Template, 'shadowRootDelegatesFocus')) P.reflector(P_Template, 'shadowRootDelegatesFocus', {"attr": "shadowrootdelegatesfocus", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
   if (!has(P_Template, 'shadowRootClonable') && !delegate(P_Template, 'shadowRootClonable')) P.reflector(P_Template, 'shadowRootClonable', {"attr": "shadowrootclonable", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
   if (!has(P_Template, 'shadowRootSerializable') && !delegate(P_Template, 'shadowRootSerializable')) P.reflector(P_Template, 'shadowRootSerializable', {"attr": "shadowrootserializable", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
-  reseat(P_Template, ["content", "shadowRootMode", "shadowRootDelegatesFocus", "shadowRootClonable", "shadowRootSerializable", "constructor"]);
+  if (!has(P_Template, 'shadowRootCustomElementRegistry') && !delegate(P_Template, 'shadowRootCustomElementRegistry', 'str')) P.reflector(P_Template, 'shadowRootCustomElementRegistry', {"attr": "shadowrootcustomelementregistry", "iface": "HTMLTemplateElement", "kind": "string"});
+  else wrapSet(P_Template, 'shadowRootCustomElementRegistry', 'str');
+  if (!has(P_Template, 'shadowRootSlotAssignment') && !delegate(P_Template, 'shadowRootSlotAssignment', 'str')) P.reflector(P_Template, 'shadowRootSlotAssignment', {"attr": "shadowrootslotassignment", "iface": "HTMLTemplateElement", "invalid": "named", "kind": "enum", "map": {"manual": "manual"}, "missing": "named"});
+  else wrapSet(P_Template, 'shadowRootSlotAssignment', 'str');
+  delete P_Template['htmlFor'];
+  if (!has(P_Template, 'htmlFor')) P.reflector(P_Template, 'htmlFor', {"attr": "for", "iface": "HTMLTemplateElement", "kind": "string"});
+  delete P_Template['shadowRootReferenceTarget'];
+  if (!has(P_Template, 'shadowRootReferenceTarget')) P.accessor(P_Template, 'shadowRootReferenceTarget', function __f() { return B.get('Template.shadowRootReferenceTarget', this); }, function __f(x) { B.set('Template.shadowRootReferenceTarget', this, x); });
+  reseat(P_Template, ["content", "shadowRootMode", "shadowRootDelegatesFocus", "shadowRootClonable", "shadowRootSerializable", "shadowRootCustomElementRegistry", "shadowRootSlotAssignment", "htmlFor", "constructor", "shadowRootReferenceTarget"]);
 }
 
 // ---- HTMLTextAreaElement.prototype (Chrome own order, 31 names)

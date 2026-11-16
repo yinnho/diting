@@ -108,6 +108,13 @@ const GET = {
     const p = el.parentNode;
     return p && p.localName === 'fieldset' ? (p.form || null) : null;
   },
+  // Chrome 157: nullable DOMString. Missing attribute reads null; null and
+  // undefined remove it. No reflector kind reproduces that (string's missing
+  // default is "").
+  'Template.shadowRootReferenceTarget'(el) {
+    const v = el.getAttribute('shadowrootreferencetarget');
+    return v === null ? null : String(v);
+  },
 
   // ---- input
   'Input.list'(el) {
@@ -207,6 +214,10 @@ const SET = {
   'Script.innerText'(el, v) { nodeText.set.call(el, String(v)); },
   'Style.disabled'(el, v) { if (el.sheet) el.sheet.disabled = !!v; },
   'Base.href'(el, v) { el.setAttribute('href', dstr(v, 'href', 'HTMLBaseElement', SET['Base.href'])); },
+  'Template.shadowRootReferenceTarget'(el, v) {
+    if (v === null || v === undefined) { el.removeAttribute('shadowrootreferencetarget'); return; }
+    el.setAttribute('shadowrootreferencetarget', dstr(v, 'shadowRootReferenceTarget', 'HTMLTemplateElement', SET['Template.shadowRootReferenceTarget']));
+  },
 
   'Input.width'(el, v) { setUlong(el, 'width', v, 'width', 'HTMLInputElement', SET['Input.width']); },
   'Input.height'(el, v) { setUlong(el, 'height', v, 'height', 'HTMLInputElement', SET['Input.height']); },

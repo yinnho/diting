@@ -30,6 +30,10 @@ const popoverShown = new WeakSet();
 // ---- staged-family state (knife 4): part DOMTokenList is cached per
 // element (truth part.same); the Typed OM maps cache in stylemap.
 const partCache = new WeakMap();
+const focusGroupCache = new WeakMap();
+// explicit element list vs the aria-actions id attribute. written is the
+// attribute value the IDL setter last stored, so a later setAttribute is visible.
+const ariaActions = new WeakMap();
 const SM = require('stylemap');
 
 const GET = {
@@ -37,6 +41,36 @@ const GET = {
   spellcheck(el) {
     const v = el.getAttribute('spellcheck');
     return v === 'true' ? true : v === 'false' ? false : true; // invalid attr -> default true (truth spellcheck.attr.invalid)
+  },
+  // Chrome 157 autocorrect: missing and any value other than ASCII-case
+  // "off" read true (truth autocorrect.attr.off / autocorrect.attr.invalid).
+  autocorrect(el) {
+    const v = el.getAttribute('autocorrect');
+    return v === null || v.toLowerCase() !== 'off';
+  },
+  ariaActionsElements(el) {
+    const s = ariaActions.get(el);
+    const attr = el.getAttribute('aria-actions');
+    if (s && s.mode === 'explicit' && attr === s.written) {
+      return s.list ? Object.freeze(s.list.slice()) : null;
+    }
+    if (attr === null) return null;
+    const root = el.getRootNode ? el.getRootNode() : document;
+    const scope = root && typeof root.getElementById === 'function' ? root : document;
+    const out = [];
+    for (const id of attr.split(/[ \t\n\f\r]+/)) {
+      if (!id) continue;
+      const hit = scope.getElementById(id);
+      if (hit) out.push(hit);
+    }
+    return Object.freeze(out);
+  },
+  focusGroup(el) {
+    let p = focusGroupCache.get(el);
+    // Empty supported-token set: supports() returns false. Omitting it makes
+    // supports() throw, which Chrome's focusGroup list does not.
+    if (!p) { p = new DOMTokenList(el, 'focusgroup', []); focusGroupCache.set(el, p); }
+    return p;
   },
   popover(el) {
     const v = el.getAttribute('popover');
@@ -78,6 +112,12 @@ const SET = {
     el.setAttribute('translate', v ? 'yes' : 'no');
   },
   spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
+  // ToBoolean, then the keyword. A non-empty string ("off") is truthy, so it
+  // writes "on" (truth set.autocorrect.on).
+  autocorrect(el, v) { el.setAttribute('autocorrect', v ? 'on' : 'off'); },
+  // Unlike `part`, null and undefined are the strings "null" / "undefined"
+  // (truth focusGroup.undef), not an empty attribute.
+  focusGroup(el, v) { el.setAttribute('focusgroup', String(v)); },
   popover(el, v) {
     if (v === null) { el.removeAttribute('popover'); return; }
     el.setAttribute('popover', v === undefined ? '' : String(v));
@@ -111,6 +151,27 @@ const SET = {
   // aria*Elements: nullable IDREF reflection with no element machinery -
   // the setter accepts and swallows (shape rw per EL.kinds).
   ariaSwallow() { /* swallow */ },
+  // Chrome 157. An IDL sequence is stored explicitly and the content
+  // attribute becomes "". setAttribute('aria-actions', ids) wins after that.
+  ariaActionsElements(el, v) {
+    if (v == null) {
+      ariaActions.set(el, { mode: 'explicit', list: null, written: null });
+      el.removeAttribute('aria-actions');
+      return;
+    }
+    if (typeof v === 'string' || typeof v[Symbol.iterator] !== 'function') {
+      throw new TypeError("Failed to set the 'ariaActionsElements' property on 'Element': The provided value cannot be converted to a sequence.");
+    }
+    const list = [];
+    for (const item of v) {
+      if (!(item instanceof Element)) {
+        throw new TypeError("Failed to set the 'ariaActionsElements' property on 'Element': The provided value cannot be converted to a sequence.");
+      }
+      list.push(item);
+    }
+    el.setAttribute('aria-actions', '');
+    ariaActions.set(el, { mode: 'explicit', list, written: '' });
+  },
   part(el, v) { el.setAttribute('part', v === undefined || v === null ? '' : String(v)); },
 };
 

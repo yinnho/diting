@@ -19,7 +19,7 @@
   var div = document.createElement('div');
   document.body.appendChild(div);
   // reflected-attribute defaults and roundtrips
-  t('def', function () { return { draggable: div.draggable, inert: div.inert, spellcheck: div.spellcheck, translate: div.translate, hidden: div.hidden, lang: div.lang, dir: div.dir, accessKey: div.accessKey, accessKeyLabel: div.accessKeyLabel, autocapitalize: div.autocapitalize, enterKeyHint: div.enterKeyHint, inputMode: div.inputMode, nonce: div.nonce, contentEditable: div.contentEditable, isContentEditable: div.isContentEditable, writingSuggestions: div.writingSuggestions, autofocus: div.autofocus, tabIndex: div.tabIndex, popover: div.popover, title: div.title, outerText: div.outerText, innerText: div.innerText, elementTiming: div.elementTiming, currentCSSZoom: div.currentCSSZoom, clientLeft: div.clientLeft, clientTop: div.clientTop, prefix: div.prefix }; });
+  t('def', function () { return { draggable: div.draggable, inert: div.inert, spellcheck: div.spellcheck, translate: div.translate, hidden: div.hidden, lang: div.lang, dir: div.dir, accessKey: div.accessKey, accessKeyLabel: div.accessKeyLabel, autocapitalize: div.autocapitalize, autocorrect: div.autocorrect, enterKeyHint: div.enterKeyHint, focusGroupStart: div.focusGroupStart, inputMode: div.inputMode, nonce: div.nonce, contentEditable: div.contentEditable, isContentEditable: div.isContentEditable, writingSuggestions: div.writingSuggestions, autofocus: div.autofocus, tabIndex: div.tabIndex, popover: div.popover, title: div.title, outerText: div.outerText, innerText: div.innerText, elementTiming: div.elementTiming, currentCSSZoom: div.currentCSSZoom, clientLeft: div.clientLeft, clientTop: div.clientTop, prefix: div.prefix }; });
   t('set.draggable', function () { div.draggable = true; return [div.draggable, div.getAttribute('draggable')]; });
   t('set.draggable.false', function () { div.draggable = false; return [div.draggable, div.getAttribute('draggable')]; });
   t('set.inert', function () { div.inert = 1; return [div.inert, div.getAttribute('inert')]; });
@@ -43,6 +43,16 @@
   t('set.writingSuggestions', function () { div.writingSuggestions = 'no'; return [div.writingSuggestions, div.getAttribute('writingsuggestions')]; });
   t('set.elementTiming', function () { div.elementTiming = 'x'; return [div.elementTiming, div.getAttribute('elementtiming')]; });
   t('set.autofocus', function () { div.autofocus = 'yes'; return [div.autofocus, div.getAttribute('autofocus')]; });
+  t('set.autocorrect', function () { var d = document.createElement('div'); d.autocorrect = false; return [d.autocorrect, d.getAttribute('autocorrect')]; });
+  t('set.autocorrect.on', function () { var d = document.createElement('div'); d.autocorrect = 'off'; return [d.autocorrect, d.getAttribute('autocorrect')]; });
+  t('autocorrect.attr.off', function () { var d = document.createElement('div'); d.setAttribute('autocorrect', 'OFF'); return d.autocorrect; });
+  t('autocorrect.attr.invalid', function () { var d = document.createElement('div'); d.setAttribute('autocorrect', 'foo'); return d.autocorrect; });
+  t('set.focusGroupStart', function () { var d = document.createElement('div'); d.focusGroupStart = 'off'; return [d.focusGroupStart, d.getAttribute('focusgroupstart')]; });
+  t('set.focusGroupStart.zero', function () { var d = document.createElement('div'); d.focusGroupStart = 0; return [d.focusGroupStart, d.getAttribute('focusgroupstart')]; });
+  t('focusGroup.same', function () { var d = document.createElement('div'); return d.focusGroup === d.focusGroup; });
+  t('focusGroup.set', function () { var d = document.createElement('div'); d.focusGroup = 'a b'; var g = d.focusGroup; return [g.length, g.value, g[0], g[1], d.getAttribute('focusgroup')]; });
+  t('focusGroup.empty', function () { var d = document.createElement('div'); d.focusGroup = ''; return [d.focusGroup.length, d.getAttribute('focusgroup')]; });
+  t('focusGroup.undef', function () { var d = document.createElement('div'); d.focusGroup = undefined; return [d.focusGroup.length, d.focusGroup.value, d.getAttribute('focusgroup')]; });
   t('set.spellcheck', function () { div.spellcheck = 'true'; return [div.spellcheck, div.getAttribute('spellcheck')]; });
   t('set.spellcheck.bad', function () { div.spellcheck = 'maybe'; return [div.spellcheck, div.getAttribute('spellcheck')]; });
   t('set.popover', function () { div.popover = 'AUTO'; return [div.popover, div.getAttribute('popover')]; });

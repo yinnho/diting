@@ -56,7 +56,7 @@ globalThis.ElementInternals = class ElementInternals {
     'ariaValueNow', 'ariaValueText'];
   const REFS = ['ariaActiveDescendantElement', 'ariaControlsElements',
     'ariaDescribedByElements', 'ariaDetailsElements', 'ariaErrorMessageElements',
-    'ariaFlowToElements', 'ariaLabelledByElements'];
+    'ariaFlowToElements', 'ariaLabelledByElements', 'ariaActionsElements'];
   const IP = ElementInternals.prototype;
   for (const k of STR) {
     Object.defineProperty(IP, k, {
@@ -67,8 +67,22 @@ globalThis.ElementInternals = class ElementInternals {
   }
   for (const k of REFS) {
     Object.defineProperty(IP, k, {
-      get: function () { const s = this._refs; return s && s[k] !== undefined ? s[k] : null; },
-      set: function (v) { (this._refs || (this._refs = {}))[k] = Array.isArray(v) ? v.slice() : null; },
+      get: function () {
+        const s = this._refs;
+        const v = s && s[k] !== undefined ? s[k] : null;
+        // Chrome 157 ariaActionsElements returns a frozen array. The older
+        // ref faces keep the stored array (knife58 compares identity).
+        if (k === 'ariaActionsElements') return v ? Object.freeze(v.slice()) : null;
+        return v;
+      },
+      set: function (v) {
+        if (k === 'ariaActionsElements' && v != null && (typeof v === 'string' || typeof v[Symbol.iterator] !== 'function')) {
+          throw new TypeError("Failed to set the 'ariaActionsElements' property on 'ElementInternals': The provided value cannot be converted to a sequence.");
+        }
+        (this._refs || (this._refs = {}))[k] = Array.isArray(v) || (k === 'ariaActionsElements' && v != null && typeof v !== 'string' && typeof v[Symbol.iterator] === 'function')
+          ? Array.from(v)
+          : null;
+      },
       enumerable: true, configurable: true,
     });
   }

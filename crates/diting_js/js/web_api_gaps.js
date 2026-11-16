@@ -62,18 +62,53 @@
   }
 
   // ---- View Transitions -------------------------------------------------
-  if (typeof Document !== 'undefined' && typeof Document.prototype.startViewTransition !== 'function') {
-    def(Document.prototype, 'startViewTransition', function startViewTransition(update) {
-      const cb = typeof update === 'function' ? update : (update && update.update);
-      const updateCallbackDone = new Promise((resolve, reject) => {
-        Promise.resolve().then(() => (typeof cb === 'function' ? cb() : undefined)).then(resolve, reject);
-      });
-      const ready = updateCallbackDone.then(() => undefined);
-      const finished = ready.then(() => undefined);
-      ready.catch(() => {}); finished.catch(() => {}); updateCallbackDone.catch(() => {});
-      return { updateCallbackDone, ready, finished, skipTransition() {}, types: new Set() };
+  // Document and Element each keep their own active transition (Chrome 157:
+  // an element transition does not show up on document.activeViewTransition).
+  // The callback argument is optional (length 0). An options object carries
+  // update and types. transitionRoot is the documentElement, or the element.
+  const elVt = new WeakMap();
+  function vtTypes(update) {
+    const types = new Set();
+    if (update && typeof update !== 'function' && update.types && typeof update.types !== 'string') {
+      for (const t of update.types) types.add(String(t));
+    }
+    return types;
+  }
+  function makeTransition(update, root) {
+    const cb = typeof update === 'function' ? update : (update && update.update);
+    const updateCallbackDone = new Promise((resolve, reject) => {
+      Promise.resolve().then(() => (typeof cb === 'function' ? cb() : undefined)).then(resolve, reject);
     });
+    const ready = updateCallbackDone.then(() => undefined);
+    const finished = ready.then(() => undefined);
+    ready.catch(() => {}); finished.catch(() => {}); updateCallbackDone.catch(() => {});
+    return { updateCallbackDone, ready, finished, skipTransition() {}, types: vtTypes(update), transitionRoot: root };
+  }
+  if (typeof Document !== 'undefined' && typeof Document.prototype.startViewTransition !== 'function') {
+    const start = function startViewTransition(update) {
+      return makeTransition(update, this.documentElement || null);
+    };
+    Object.defineProperty(start, 'length', { value: 0, configurable: true });
+    def(Document.prototype, 'startViewTransition', start);
     _markNative(Document.prototype.startViewTransition);
+  }
+  if (typeof Element !== 'undefined' && typeof Element.prototype.startViewTransition !== 'function') {
+    const start = function startViewTransition(update) {
+      const vt = makeTransition(update, this);
+      elVt.set(this, vt);
+      if (vt.finished && typeof vt.finished.then === 'function') {
+        const clear = () => { if (elVt.get(this) === vt) elVt.delete(this); };
+        vt.finished.then(clear, clear);
+      }
+      return vt;
+    };
+    Object.defineProperty(start, 'length', { value: 0, configurable: true });
+    Object.defineProperty(Element.prototype, 'startViewTransition', { value: start, writable: true, enumerable: true, configurable: true });
+    _markNative(Element.prototype.startViewTransition);
+    const get = function () { return elVt.get(this) || null; };
+    Object.defineProperty(get, 'name', { value: 'get activeViewTransition', configurable: true });
+    Object.defineProperty(Element.prototype, 'activeViewTransition', { get, enumerable: true, configurable: true });
+    _markNative(get);
   }
 
   // ---- document.queryCommand* ------------------------------------------

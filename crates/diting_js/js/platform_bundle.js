@@ -2502,6 +2502,10 @@ const popoverShown = new WeakSet();
 // ---- staged-family state (knife 4): part DOMTokenList is cached per
 // element (truth part.same); the Typed OM maps cache in stylemap.
 const partCache = new WeakMap();
+const focusGroupCache = new WeakMap();
+// explicit element list vs the aria-actions id attribute. written is the
+// attribute value the IDL setter last stored, so a later setAttribute is visible.
+const ariaActions = new WeakMap();
 const SM = require('stylemap');
 
 const GET = {
@@ -2509,6 +2513,36 @@ const GET = {
   spellcheck(el) {
     const v = el.getAttribute('spellcheck');
     return v === 'true' ? true : v === 'false' ? false : true; // invalid attr -> default true (truth spellcheck.attr.invalid)
+  },
+  // Chrome 157 autocorrect: missing and any value other than ASCII-case
+  // "off" read true (truth autocorrect.attr.off / autocorrect.attr.invalid).
+  autocorrect(el) {
+    const v = el.getAttribute('autocorrect');
+    return v === null || v.toLowerCase() !== 'off';
+  },
+  ariaActionsElements(el) {
+    const s = ariaActions.get(el);
+    const attr = el.getAttribute('aria-actions');
+    if (s && s.mode === 'explicit' && attr === s.written) {
+      return s.list ? Object.freeze(s.list.slice()) : null;
+    }
+    if (attr === null) return null;
+    const root = el.getRootNode ? el.getRootNode() : document;
+    const scope = root && typeof root.getElementById === 'function' ? root : document;
+    const out = [];
+    for (const id of attr.split(/[ \t\n\f\r]+/)) {
+      if (!id) continue;
+      const hit = scope.getElementById(id);
+      if (hit) out.push(hit);
+    }
+    return Object.freeze(out);
+  },
+  focusGroup(el) {
+    let p = focusGroupCache.get(el);
+    // Empty supported-token set: supports() returns false. Omitting it makes
+    // supports() throw, which Chrome's focusGroup list does not.
+    if (!p) { p = new DOMTokenList(el, 'focusgroup', []); focusGroupCache.set(el, p); }
+    return p;
   },
   popover(el) {
     const v = el.getAttribute('popover');
@@ -2550,6 +2584,12 @@ const SET = {
     el.setAttribute('translate', v ? 'yes' : 'no');
   },
   spellcheck(el, v) { el.setAttribute('spellcheck', v ? 'true' : 'false'); },
+  // ToBoolean, then the keyword. A non-empty string ("off") is truthy, so it
+  // writes "on" (truth set.autocorrect.on).
+  autocorrect(el, v) { el.setAttribute('autocorrect', v ? 'on' : 'off'); },
+  // Unlike `part`, null and undefined are the strings "null" / "undefined"
+  // (truth focusGroup.undef), not an empty attribute.
+  focusGroup(el, v) { el.setAttribute('focusgroup', String(v)); },
   popover(el, v) {
     if (v === null) { el.removeAttribute('popover'); return; }
     el.setAttribute('popover', v === undefined ? '' : String(v));
@@ -2583,6 +2623,27 @@ const SET = {
   // aria*Elements: nullable IDREF reflection with no element machinery -
   // the setter accepts and swallows (shape rw per EL.kinds).
   ariaSwallow() { /* swallow */ },
+  // Chrome 157. An IDL sequence is stored explicitly and the content
+  // attribute becomes "". setAttribute('aria-actions', ids) wins after that.
+  ariaActionsElements(el, v) {
+    if (v == null) {
+      ariaActions.set(el, { mode: 'explicit', list: null, written: null });
+      el.removeAttribute('aria-actions');
+      return;
+    }
+    if (typeof v === 'string' || typeof v[Symbol.iterator] !== 'function') {
+      throw new TypeError("Failed to set the 'ariaActionsElements' property on 'Element': The provided value cannot be converted to a sequence.");
+    }
+    const list = [];
+    for (const item of v) {
+      if (!(item instanceof Element)) {
+        throw new TypeError("Failed to set the 'ariaActionsElements' property on 'Element': The provided value cannot be converted to a sequence.");
+      }
+      list.push(item);
+    }
+    el.setAttribute('aria-actions', '');
+    ariaActions.set(el, { mode: 'explicit', list, written: '' });
+  },
   part(el, v) { el.setAttribute('part', v === undefined || v === null ? '' : String(v)); },
 };
 
@@ -2854,8 +2915,11 @@ seat('focus', null);
 seat('hidePopover', function () { P.method(HT, 'hidePopover', 0, function __f() { const ctx = "Failed to execute 'hidePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('hidePopover', this, ctx, arguments); }); });
 seat('showPopover', function () { P.method(HT, 'showPopover', 0, function __f() { const ctx = "Failed to execute 'showPopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('showPopover', this, ctx, arguments); }); });
 seat('togglePopover', function () { P.method(HT, 'togglePopover', 0, function __f() { const ctx = "Failed to execute 'togglePopover' on 'HTMLElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('togglePopover', this, ctx, arguments); }); });
+seat('autocorrect', function () { P.accessor(HT, 'autocorrect', function __f() { return B.get('autocorrect', this); }, function __f(v) { B.set('autocorrect', this, v); }); });
 seatOn('onscrollsnapchange');
 seatOn('onscrollsnapchanging');
+seat('focusGroup', function () { P.accessor(HT, 'focusGroup', function __f() { return B.get('focusGroup', this); }, function __f(v) { B.set('focusGroup', this, v); }); });
+seat('focusGroupStart', function () { P.reflector(HT, 'focusGroupStart', {"attr": "focusgroupstart", "kind": "boolean-presence"}); });
 delete HT.constructor;
 Object.defineProperty(HT, 'constructor', { value: HTMLElement, writable: true, enumerable: false, configurable: true });
 seatOn('onpointerrawupdate');
@@ -2899,6 +2963,7 @@ if (!Object.prototype.hasOwnProperty.call(EL, 'webkitMatchesSelector')) P.method
 if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullScreen')) P.method(EL, 'webkitRequestFullScreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullScreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullScreen', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'webkitRequestFullscreen')) P.method(EL, 'webkitRequestFullscreen', 0, function __f() { const ctx = "Failed to execute 'webkitRequestFullscreen' on 'Element'"; P.args(ctx, arguments.length, 0, __f); return B.call('webkitRequestFullscreen', this, ctx, arguments); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'currentCSSZoom')) P.getter(EL, 'currentCSSZoom', function __f() { return 1; });
+if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActionsElements')) P.accessor(EL, 'ariaActionsElements', function __f() { return B.get('ariaActionsElements', this); }, function __f(v) { B.set('ariaActionsElements', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaActiveDescendantElement')) P.accessor(EL, 'ariaActiveDescendantElement', function __f() { return null; }, function __f(v) { B.set('ariaActiveDescendantElement', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaControlsElements')) P.accessor(EL, 'ariaControlsElements', function __f() { return null; }, function __f(v) { B.set('ariaControlsElements', this, v); });
 if (!Object.prototype.hasOwnProperty.call(EL, 'ariaDescribedByElements')) P.accessor(EL, 'ariaDescribedByElements', function __f() { return null; }, function __f(v) { B.set('ariaDescribedByElements', this, v); });
@@ -6120,6 +6185,13 @@ const GET = {
     const p = el.parentNode;
     return p && p.localName === 'fieldset' ? (p.form || null) : null;
   },
+  // Chrome 157: nullable DOMString. Missing attribute reads null; null and
+  // undefined remove it. No reflector kind reproduces that (string's missing
+  // default is "").
+  'Template.shadowRootReferenceTarget'(el) {
+    const v = el.getAttribute('shadowrootreferencetarget');
+    return v === null ? null : String(v);
+  },
 
   // ---- input
   'Input.list'(el) {
@@ -6219,6 +6291,10 @@ const SET = {
   'Script.innerText'(el, v) { nodeText.set.call(el, String(v)); },
   'Style.disabled'(el, v) { if (el.sheet) el.sheet.disabled = !!v; },
   'Base.href'(el, v) { el.setAttribute('href', dstr(v, 'href', 'HTMLBaseElement', SET['Base.href'])); },
+  'Template.shadowRootReferenceTarget'(el, v) {
+    if (v === null || v === undefined) { el.removeAttribute('shadowrootreferencetarget'); return; }
+    el.setAttribute('shadowrootreferencetarget', dstr(v, 'shadowRootReferenceTarget', 'HTMLTemplateElement', SET['Template.shadowRootReferenceTarget']));
+  },
 
   'Input.width'(el, v) { setUlong(el, 'width', v, 'width', 'HTMLInputElement', SET['Input.width']); },
   'Input.height'(el, v) { setUlong(el, 'height', v, 'height', 'HTMLInputElement', SET['Input.height']); },
@@ -6330,7 +6406,7 @@ __platform.define("gen/htmlreflect", function (exports, require, P) {
 // only if its mirror of core.js P.reflector reproduces EVERY facet.
 // Install-or-delegate: a member the engine chain already owns is
 // re-seated on the Chrome-true interface forwarding both legs.
-// Ledger: reflect=234 tokenlist=10 impl=50 const=7 delegate=61 left=10 staged=7
+// Ledger: reflect=237 tokenlist=10 impl=51 const=7 delegate=61 left=10 staged=7
 const B = require('htmlreflect');
 const G = globalThis;
 const P_Anchor = typeof G.HTMLAnchorElement === 'function' ? G.HTMLAnchorElement.prototype : null;
@@ -7193,7 +7269,7 @@ if (P_TableCaption) {
   reseat(P_TableCaption, ["align", "constructor"]);
 }
 
-// ---- HTMLTemplateElement.prototype (Chrome own order, 6 names)
+// ---- HTMLTemplateElement.prototype (Chrome own order, 10 names)
 if (P_Template) {
   if (!has(P_Template, 'content')) delegate(P_Template, 'content');
   delete P_Template['shadowRootMode'];
@@ -7201,7 +7277,15 @@ if (P_Template) {
   if (!has(P_Template, 'shadowRootDelegatesFocus') && !delegate(P_Template, 'shadowRootDelegatesFocus')) P.reflector(P_Template, 'shadowRootDelegatesFocus', {"attr": "shadowrootdelegatesfocus", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
   if (!has(P_Template, 'shadowRootClonable') && !delegate(P_Template, 'shadowRootClonable')) P.reflector(P_Template, 'shadowRootClonable', {"attr": "shadowrootclonable", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
   if (!has(P_Template, 'shadowRootSerializable') && !delegate(P_Template, 'shadowRootSerializable')) P.reflector(P_Template, 'shadowRootSerializable', {"attr": "shadowrootserializable", "iface": "HTMLTemplateElement", "kind": "boolean-presence"});
-  reseat(P_Template, ["content", "shadowRootMode", "shadowRootDelegatesFocus", "shadowRootClonable", "shadowRootSerializable", "constructor"]);
+  if (!has(P_Template, 'shadowRootCustomElementRegistry') && !delegate(P_Template, 'shadowRootCustomElementRegistry', 'str')) P.reflector(P_Template, 'shadowRootCustomElementRegistry', {"attr": "shadowrootcustomelementregistry", "iface": "HTMLTemplateElement", "kind": "string"});
+  else wrapSet(P_Template, 'shadowRootCustomElementRegistry', 'str');
+  if (!has(P_Template, 'shadowRootSlotAssignment') && !delegate(P_Template, 'shadowRootSlotAssignment', 'str')) P.reflector(P_Template, 'shadowRootSlotAssignment', {"attr": "shadowrootslotassignment", "iface": "HTMLTemplateElement", "invalid": "named", "kind": "enum", "map": {"manual": "manual"}, "missing": "named"});
+  else wrapSet(P_Template, 'shadowRootSlotAssignment', 'str');
+  delete P_Template['htmlFor'];
+  if (!has(P_Template, 'htmlFor')) P.reflector(P_Template, 'htmlFor', {"attr": "for", "iface": "HTMLTemplateElement", "kind": "string"});
+  delete P_Template['shadowRootReferenceTarget'];
+  if (!has(P_Template, 'shadowRootReferenceTarget')) P.accessor(P_Template, 'shadowRootReferenceTarget', function __f() { return B.get('Template.shadowRootReferenceTarget', this); }, function __f(x) { B.set('Template.shadowRootReferenceTarget', this, x); });
+  reseat(P_Template, ["content", "shadowRootMode", "shadowRootDelegatesFocus", "shadowRootClonable", "shadowRootSerializable", "shadowRootCustomElementRegistry", "shadowRootSlotAssignment", "htmlFor", "constructor", "shadowRootReferenceTarget"]);
 }
 
 // ---- HTMLTextAreaElement.prototype (Chrome own order, 31 names)

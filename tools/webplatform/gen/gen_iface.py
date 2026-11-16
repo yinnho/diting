@@ -244,6 +244,9 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
                       ["none", "text", "tel", "url", "email", "numeric", "decimal", "search"], "", None),
         "virtualKeyboardPolicy": ("virtualkeyboardpolicy", "string-known", ["auto", "manual"], "", None),
         "writingSuggestions": ("writingsuggestions", "known-fallback", ["true", "false"], "true", "true"),
+        # Chrome 157. Presence on focusgroupstart. autocorrect and focusGroup
+        # are not uniform reflectors; they stay in the impl module.
+        "focusGroupStart": ("focusgroupstart", "boolean-presence", None, None, None),
     }
     # every HTMLElement-level reflector's kind is MEASURED (htmlreflect-probe
     # fingerprints; reflect_classify mirror) - the hand tuples above stay only
@@ -256,17 +259,20 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-common":
             REFLECT[_k] = _m
     REFLECT_EL = {"elementTiming": ("elementtiming", "string", None, None, None)}
     IMPL_ACCESSOR_HT = ["translate", "spellcheck", "popover", "nonce",
-                        "contentEditable", "outerText", "editContext"]
+                        "contentEditable", "outerText", "editContext",
+                        "autocorrect", "focusGroup"]
     IMPL_GETTER_HT = ["isContentEditable", "attributeStyleMap"]
     IMPL_METHOD_HT = {"attachInternals": 0, "showPopover": 0, "hidePopover": 0, "togglePopover": 0}
     IMPL_GETTER_EL = {"prefix": "null", "assignedSlot": "null", "clientLeft": "0",
                       "clientTop": "0", "currentCSSZoom": "1"}
     ARIA_REF_ELEMENTS = [n for n in TRUTH["EL.order"] if n.startswith("aria")
-                         and (n.endswith("Element") or n.endswith("Elements"))]
+                         and (n.endswith("Element") or n.endswith("Elements"))
+                         and n != "ariaActionsElements"]
     IMPL_ACCESSOR_EL = ARIA_REF_ELEMENTS  # getter null, setter swallow
     # knife 4: part is a rw accessor with real get/set legs (cached
     # DOMTokenList / attribute write) - not the aria null+swallow shape.
-    IMPL_ACCESSOR_EL_RW = ["part"]
+    # ariaActionsElements is Chrome 157: a frozen element list, not the stub.
+    IMPL_ACCESSOR_EL_RW = ["part", "ariaActionsElements"]
     IMPL_METHOD_EL = {"hasAttributeNS": 2, "scrollIntoViewIfNeeded": 0, "webkitMatchesSelector": 1,
                       "computedStyleMap": 0, "moveBefore": 2, "requestFullscreen": 0,
                       "webkitRequestFullScreen": 0, "webkitRequestFullscreen": 0,
@@ -795,6 +801,11 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
         ("HTMLObjectElement", "contentDocument"), ("HTMLObjectElement", "contentWindow"),
         ("HTMLFieldSetElement", "type"), ("HTMLOutputElement", "type"), ("HTMLSelectElement", "type"),
         ("HTMLButtonElement", "type"), ("HTMLTrackElement", "kind"), ("HTMLTemplateElement", "shadowRootMode"),
+        # Element.prototype.htmlFor only writes the attribute for <label>. Delegating
+        # would leave <template>.htmlFor a no-op. Same treatment as HTMLScriptElement.
+        ("HTMLTemplateElement", "htmlFor"),
+        # nullable DOMString: missing reads null, null/undefined remove the attribute
+        ("HTMLTemplateElement", "shadowRootReferenceTarget"),
         ("HTMLOutputElement", "value"), ("HTMLTextAreaElement", "defaultValue"),
         ("HTMLButtonElement", "value"), ("HTMLSelectElement", "size"), ("HTMLInputElement", "multiple"),
         ("HTMLTextAreaElement", "type"),
@@ -821,6 +832,7 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-reflect":
                    ("HTMLFieldSetElement", "elements"), ("HTMLMapElement", "areas"),
                    ("HTMLSelectElement", "type")}
     IMPL_ACCESSOR = {("HTMLScriptElement", "async"), ("HTMLTitleElement", "text"),
+                     ("HTMLTemplateElement", "shadowRootReferenceTarget"),
                      ("HTMLStyleElement", "disabled"), ("HTMLScriptElement", "text"),
                      ("HTMLScriptElement", "innerText"), ("HTMLScriptElement", "textContent"),
                      ("HTMLBaseElement", "href"),
