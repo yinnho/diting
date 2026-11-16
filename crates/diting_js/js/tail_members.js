@@ -610,6 +610,86 @@
     });
   });
 
+  // Chrome 157 MediaStreamTrackProcessor frame counters. Both stay 0: the
+  // engine does not pull frames off the track. The constructor requires a
+  // MediaStreamTrack and keeps one readable stream.
+  section('mstp', () => {
+    const Old = G.MediaStreamTrackProcessor;
+    const Track = G.MediaStreamTrack;
+    if (typeof Old !== 'function' || !Old.prototype || typeof Track !== 'function') return;
+    const P = Old.prototype;
+    const slots = new WeakMap();
+    function MediaStreamTrackProcessor(init) {
+      if (arguments.length < 1) throw new TypeError("Failed to construct 'MediaStreamTrackProcessor': 1 argument required, but only 0 present.");
+      const missing = new TypeError("Failed to construct 'MediaStreamTrackProcessor': Failed to read the 'track' property from 'MediaStreamTrackProcessorInit': Required member is undefined.");
+      if (init === null || typeof init !== 'object' || !('track' in init) || init.track === undefined) throw missing;
+      if (!(init.track instanceof Track)) throw new TypeError("Failed to construct 'MediaStreamTrackProcessor': Failed to read the 'track' property from 'MediaStreamTrackProcessorInit': Failed to convert value to 'MediaStreamTrack'.");
+      const o = Object.create(P);
+      slots.set(o, { readable: new G.ReadableStream(), total: 0, discarded: 0 });
+      return o;
+    }
+    pin(MediaStreamTrackProcessor, 'MediaStreamTrackProcessor', 1);
+    MediaStreamTrackProcessor.prototype = P;
+    Object.defineProperty(P, 'constructor', { value: MediaStreamTrackProcessor, writable: true, enumerable: false, configurable: true });
+    Object.defineProperty(G, 'MediaStreamTrackProcessor', { value: MediaStreamTrackProcessor, writable: true, enumerable: false, configurable: true });
+    const read = (name, pick) => def(P, name, {
+      get: pin(function () {
+        if (!(this instanceof MediaStreamTrackProcessor)) throw new TypeError('Illegal invocation');
+        const s = slots.get(this);
+        if (!s) throw new TypeError('Illegal invocation');
+        return pick(s);
+      }, 'get ' + name),
+      enumerable: true, configurable: true,
+    });
+    read('readable', (s) => s.readable);
+    read('totalFrames', (s) => s.total);
+    read('discardedFrames', (s) => s.discarded);
+  });
+
+  // Chrome 157 TrustedTypePolicy.createParserOptions. The callback sees
+  // {runScripts}. A missing callback is an error. The result carries no data.
+  section('trusted-parser-options', () => {
+    const Policy = G.TrustedTypePolicy;
+    const Factory = G.TrustedTypePolicyFactory;
+    const Opts = G.TrustedHTMLParserOptions;
+    if (typeof Policy !== 'function' || typeof Factory !== 'function' || typeof Opts !== 'function') return;
+    if (!Object.prototype.hasOwnProperty.call(Opts.prototype, Symbol.toStringTag)) {
+      Object.defineProperty(Opts.prototype, Symbol.toStringTag, { value: 'TrustedHTMLParserOptions', configurable: true });
+    }
+    const slots = new WeakMap();
+    const badOptions = new TypeError("Failed to execute 'createPolicy' on 'TrustedTypePolicyFactory': The provided value is not of type 'TrustedTypePolicyOptions'.");
+    def(Factory.prototype, 'createPolicy', { value: pin(function createPolicy(name, options) {
+      if (!(this instanceof Factory)) throw new TypeError('Illegal invocation');
+      if (options !== undefined && options !== null && typeof options !== 'object') throw badOptions;
+      const opts = options && typeof options === 'object' ? options : {};
+      const o = Object.create(Policy.prototype);
+      slots.set(o, {
+        name: String(name),
+        parse: typeof opts.createParserOptions === 'function' ? opts.createParserOptions : null,
+      });
+      return o;
+    }, 'createPolicy', 1), writable: true, enumerable: true, configurable: true });
+    def(Policy.prototype, 'name', { get: pin(function () {
+      if (!(this instanceof Policy)) throw new TypeError('Illegal invocation');
+      const s = slots.get(this);
+      return s ? s.name : '';
+    }, 'get name'), enumerable: true, configurable: true });
+    fn('TrustedTypePolicy', 'createParserOptions', 0, function createParserOptions(options) {
+      if (!(this instanceof Policy)) throw new TypeError('Illegal invocation');
+      if (arguments.length && options !== undefined && options !== null && typeof options !== 'object') {
+        throw new TypeError("Failed to execute 'createParserOptions' on 'TrustedTypePolicy': The provided value is not of type 'SetHTMLUnsafeOptions'.");
+      }
+      const s = slots.get(this);
+      if (!s || typeof s.parse !== 'function') {
+        const who = s && s.name ? s.name : '';
+        throw new TypeError("Failed to execute 'createParserOptions' on 'TrustedTypePolicy': Policy " + who + "'s TrustedTypePolicyOptions did not specify a 'createParserOptions' member.");
+      }
+      const runScripts = !!(options && typeof options === 'object' && options.runScripts);
+      s.parse({ runScripts: runScripts });
+      return Object.create(Opts.prototype);
+    });
+  });
+
   // Chrome 157 iterator helpers. join defaults to ",". includes uses
   // SameValueZero, so NaN matches NaN. A receiver without next throws when
   // next is called.

@@ -1328,7 +1328,7 @@ async fn ua_data_full_version_is_a_real_chrome_build() {
 /// #30 - the window's own-property face against real Chrome 157 (window-face-probe.js): every own accessor is a native
 /// `get X` / `set X` pair (188, names + flags + toString), the 20 [Replaceable] setters replace in place, the
 /// non-configurable set is Chrome's seven, and getOwnPropertyNames(window) is Chrome's order position for position.
-/// KNOWN GAP, must shrink: four 157 interfaces the engine does not carry yet (#25) are dropped from the truth order.
+/// KNOWN GAP, must shrink: three 157 interfaces the engine does not carry yet (#25) are dropped from the truth order.
 /// Deliberate deviation: `replace.after` (innerWidth assignment) - the size attributes keep ignoring page writes (#105,
 /// window_size_props_ignore_page_writes); `replace.strict` (scrollX) still pins Chrome's in-place replacement.
 #[tokio::test(flavor = "current_thread")]
@@ -1337,7 +1337,6 @@ async fn window_own_property_face_matches_chrome_truth() {
         "CanvasPaintEvent",
         "ElementGeometryUpdateEvent",
         "ElementImage",
-        "TrustedHTMLParserOptions",
     ];
     let mut rt = setup_runtime("<html><body></body></html>");
     let out = rt
